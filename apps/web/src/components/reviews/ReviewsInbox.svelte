@@ -16,12 +16,12 @@
   import { type Role, can } from '@mrm/core';
   import { onMount, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { appReviewsHref } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appLabel } from '../../lib/portfolio.ts';
   import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
   import {
     appendInboxPage,
-    appPageHref,
     averageText,
     busiestApps,
     defaultInboxFilters,
@@ -474,7 +474,7 @@
                 <AppIcon name={review.app.name} url={iconUrls[review.app.id] ?? null} platform={review.app.platform} size="xs" labelled={true} />
                 <span class="app-name">{review.app.name}</span>
                 <PlatformBadge platform={review.app.platform} showLabel={false} />
-                <a class="link sm" href={appPageHref(review.app.id)} title="Opens the app. Its reviews are on the Reviews tab.">Open app</a>
+                <a class="link sm" href={appReviewsHref(review.app.id)} title="Opens the reviews of this app.">Open app</a>
                 <span class="muted small">{timeAgo(review.createdAt, now)}</span>
               </p>
               <ReviewCard

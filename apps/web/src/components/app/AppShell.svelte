@@ -1,0 +1,281 @@
+<!--
+  AppShell: an open app. Everything below the workspace is scoped to it: a header with the icon,
+  the stores, the "where the data lives" chips and the platform control, then the section the
+  address names (the left panel is AppNav, drawn by the shell). The records of the two stores that
+  are one product are shown as one app (lib/app-groups.ts).
+  Props: api, workspaceId, role, id (an id of one of its platform records, from the address).
+  The section, the open release and the platform scope all come from the address.
+-->
+<script lang="ts">
+  import { type Role, can } from '@mrm/core';
+  import { untrack } from 'svelte';
+  import type { Api } from '../../lib/api.ts';
+  import { address, appContext, setPlatformScope } from '../../lib/address.svelte.ts';
+  import { dataChips } from '../../lib/app-chips.ts';
+  import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
+  import { type AppSection, resolveScope, visibleSections } from '../../lib/app-scope.ts';
+  import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
+  import { storeForPlatform } from '../../lib/stores.ts';
+  import { toast } from '../../lib/toast.svelte.ts';
+  import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import Alert from '../ui/Alert.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
+  import Button from '../ui/Button.svelte';
+  import EmptyState from '../ui/EmptyState.svelte';
+  import Icon from '../ui/Icon.svelte';
+  import Skeleton from '../ui/Skeleton.svelte';
+  import StoreBadge from '../ui/StoreBadge.svelte';
+  import AppSectionView from './AppSection.svelte';
+  import DataChips from './DataChips.svelte';
+  import ScopeControl from './ScopeControl.svelte';
+
+  let { api, workspaceId, role, id }: { api: Api; workspaceId: string; role: Role; id: string } = $props();
+
+  const canSync = $derived(can(role, 'apps.sync'));
+
+  let group = $state<AppGroup | null>(null);
+  /** The records as last loaded or synced, and their releases, by app id. */
+  let records = $state<Record<string, AppSummary | undefined>>({});
+  let releases = $state<Record<string, ReleaseSummary[] | undefined>>({});
+  let loading = $state(true);
+  let loadError = $state<{ message: string; notFound: boolean } | null>(null);
+  let syncing = $state<Record<string, boolean | undefined>>({});
+  let syncRuns = $state(0);
+  let now = $state(Date.now());
+  let generation = 0;
+  let loadedFor = '';
+
+  const members = $derived(group ? group.members.map((m) => records[m.id] ?? m) : []);
+  const resolved = $derived(resolveScope(address.platform, members.map((m) => m.platform)));
+  const scoped = $derived(members.filter((m) => resolved.platforms.includes(m.platform)));
+  const chips = $derived(dataChips(scoped, now));
+  const releaseLists = $derived(
+    members.reduce<Record<string, ReleaseSummary[]>>((acc, m) => {
+      acc[m.id] = releases[m.id] ?? [];
+      return acc;
+    }, {}),
+  );
+  const open = $derived(address.app);
+  /** The section the address names, or the dashboard when the role may not open it. */
+  const section = $derived<AppSection>(
+    open && visibleSections((a) => can(role, a)).some((s) => s.id === open.section) ? open.section : 'dashboard',
+  );
+  const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
+
+  async function load() {
+    const mine = ++generation;
+    loading = true;
+    loadError = null;
+    try {
+      const found = groupOf(groupApps((await api.apps(workspaceId)).apps), id);
+      if (mine !== generation) return;
+      if (!found) {
+        group = null;
+        loadError = { message: '', notFound: true };
+        return;
+      }
+      const details = await Promise.all(found.members.map((m) => api.app(workspaceId, m.id)));
+      if (mine !== generation) return;
+      const nextRecords: Record<string, AppSummary> = {};
+      const nextReleases: Record<string, ReleaseSummary[]> = {};
+      for (const d of details) {
+        nextRecords[d.app.id] = d.app;
+        nextReleases[d.app.id] = d.releases;
+      }
+      records = nextRecords;
+      releases = nextReleases;
+      group = found;
+      appContext.name = found.name;
+    } catch (e) {
+      if (mine !== generation) return;
+      group = null;
+      loadError = { message: describeError(e, 'load'), notFound: false };
+    } finally {
+      if (mine === generation) loading = false;
+    }
+  }
+
+  // Load when the app changes. Moving to the other platform record of the same app keeps what is shown.
+  $effect(() => {
+    const space = workspaceId;
+    const wanted = id;
+    untrack(() => {
+      if (space === loadedFor && group && group.members.some((m) => m.id === wanted)) return;
+      loadedFor = space;
+      group = null;
+      records = {};
+      releases = {};
+      syncing = {};
+      appContext.name = '';
+      void load();
+    });
+  });
+
+  $effect(() => {
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 30_000);
+    return () => {
+      clearInterval(timer);
+      appContext.name = '';
+    };
+  });
+
+  async function sync(app: AppSummary) {
+    if (syncing[app.id]) return;
+    const mine = generation;
+    syncing[app.id] = true;
+    const outcome = await syncApp(api, workspaceId, app.id);
+    if (mine !== generation) return;
+    syncing[app.id] = false;
+    now = Date.now();
+    syncRuns += 1;
+    if (outcome.ok) {
+      records[app.id] = outcome.app;
+      releases[app.id] = outcome.releases;
+      toast.success(syncSummaryText(appLabel(outcome.app), outcome.sync));
+    } else {
+      // A failed sync is stored on the app, so the server sends the app back with the new message.
+      if (outcome.app) records[app.id] = outcome.app;
+      toast.error(`${appLabel(app)}: ${outcome.failure.message}`);
+    }
+  }
+
+  async function syncScoped() {
+    for (const app of scoped) await sync(app);
+  }
+</script>
+
+<section aria-busy={loading}>
+  {#if loading && !group}
+    <div role="status" aria-label="Loading the app">
+      <div class="skeleton-head"><Skeleton width="240px" height="28px" /><Skeleton width="160px" height="16px" /></div>
+      <div class="card"><div class="stack"><Skeleton width="60%" height="16px" /><Skeleton width="40%" height="16px" /></div></div>
+    </div>
+  {:else if loadError}
+    {#if loadError.notFound}
+      <div class="card">
+        <EmptyState icon="box" title="App not found" description="This app is not in this workspace. It may have been deleted.">
+          {#snippet actions()}<Button href={portfolioHref} variant="primary">Back to all apps</Button>{/snippet}
+        </EmptyState>
+      </div>
+    {:else}
+      <div class="stack">
+        <Alert tone="error" title="Could not load the app">{loadError.message}</Alert>
+        <div class="row">
+          <Button icon="refresh" onclick={load}>Try again</Button>
+          <Button href={portfolioHref} variant="ghost">Back to all apps</Button>
+        </div>
+      </div>
+    {/if}
+  {:else if group}
+    <nav class="crumb" aria-label="Breadcrumb">
+      <a href={portfolioHref}><Icon name="chevron-left" size={16} /> All apps</a>
+      <span aria-hidden="true">/</span>
+      <span>{group.name}</span>
+    </nav>
+
+    <header class="head">
+      <AppIcon
+        name={group.name}
+        url={members.map((m) => m.iconUrl ?? null).find((u) => u) ?? null}
+        platform={members.length === 1 ? members[0]?.platform : undefined}
+        seed={group.key}
+        size="xl"
+      />
+      <div class="main">
+        <h1 class="page-title">{group.name}</h1>
+        <p class="sub">
+          {#each members as m (m.id)}
+            <span class="store"><StoreBadge store={storeForPlatform(m.platform).store} size="sm" /> <code>{m.identifier}</code></span>
+          {/each}
+        </p>
+        <DataChips {chips} />
+      </div>
+      <div class="tools">
+        <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
+        {#if canSync}
+          <Button variant="primary" icon="refresh" loading={anySyncing} onclick={syncScoped}>{anySyncing ? 'Syncing…' : 'Sync now'}</Button>
+        {/if}
+      </div>
+    </header>
+
+    <div class="body">
+      <AppSectionView
+        {api}
+        {workspaceId}
+        {role}
+        {section}
+        members={scoped}
+        openId={id}
+        version={open?.release ?? null}
+        releases={releaseLists}
+        {now}
+        {syncRuns}
+        {syncing}
+        onsync={sync}
+      />
+    </div>
+  {/if}
+</section>
+
+<style>
+  .skeleton-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+  }
+
+  .crumb {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-bottom: var(--space-3);
+    color: var(--muted);
+  }
+
+  .crumb a {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 240px;
+  }
+
+  .sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .store {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    margin-left: auto;
+  }
+</style>

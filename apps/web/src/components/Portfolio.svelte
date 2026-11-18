@@ -2,6 +2,9 @@
   import { type Role, can } from '@mrm/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
+  import { address } from '../lib/address.svelte.ts';
+  import { type AppGroup, groupApps, groupOf } from '../lib/app-groups.ts';
+  import { buildOverviewRows, overviewStats } from '../lib/app-overview.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
     type BatchResult,
@@ -10,23 +13,22 @@
     batchSummary,
     describeError,
     notRunMessage,
-    parseRoute,
     runLimited,
     sortApps,
     syncApp,
     syncDetail,
     syncSummaryText,
   } from '../lib/portfolio.ts';
-  import { parseReleaseRoute } from '../lib/release.ts';
+  import type { WorkspaceReviewsSummary } from '../lib/reviews.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import type { AppSummary } from '../lib/types.ts';
   import Board from './dashboard/Board.svelte';
   import ViewToggle from './dashboard/ViewToggle.svelte';
+  import AppShell from './app/AppShell.svelte';
   import AddAppModal from './portfolio/AddAppModal.svelte';
-  import AppDetail from './portfolio/AppDetail.svelte';
-  import AppTable from './portfolio/AppTable.svelte';
+  import AppsOverview from './portfolio/AppsOverview.svelte';
+  import OverviewStats from './portfolio/OverviewStats.svelte';
   import SyncAllPanel from './portfolio/SyncAllPanel.svelte';
-  import ReleaseDetail from './release/ReleaseDetail.svelte';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
@@ -42,15 +44,16 @@
   /** How many apps load their releases at once for the list. */
   const LOAD_PARALLEL = 4;
 
-  // `#/portfolio` is the list, `#/portfolio/<id>` an app. The shell keeps this screen mounted for both.
-  let route = $state(parseRoute(location.hash));
-  // `#/portfolio/<id>/release/<version>` is a third screen of this view (components/release/).
-  let release = $state(parseReleaseRoute(location.hash));
+  // `#/portfolio` is the overview of all apps, `#/portfolio/<id>/...` one app (components/app/). The
+  // shell keeps this screen mounted for both; the address says which.
+  const open = $derived(address.app);
   /** List or board, remembered in this browser. */
   let viewMode = $state<ViewMode>(readViewMode());
   let apps = $state<AppSummary[] | null>(null);
   let error = $state('');
   let releases = $state<Record<string, ReleaseLoad | undefined>>({});
+  /** Review counts per app for the overview, or null when not loaded or not allowed. */
+  let reviewSummary = $state<WorkspaceReviewsSummary | null>(null);
   let syncing = $state<Record<string, boolean | undefined>>({});
   let adding = $state(false);
   let now = $state(Date.now());
@@ -68,19 +71,18 @@
   let batch = $state<Batch | null>(null);
 
   const sorted = $derived(apps ? sortApps(apps) : []);
+  const groups = $derived(groupApps(apps ?? []));
+  const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null));
+  const stats = $derived(overviewStats(rows));
   const batchRunning = $derived(batch?.running === true);
   const busy = $derived(batchRunning || Object.values(syncing).some(Boolean));
 
+  // Going back from an app to the overview remembers the app, so focus can return to its link.
+  let wasOpen = '';
   $effect(() => {
-    const onhash = () => {
-      const next = parseRoute(location.hash);
-      const nextRelease = parseReleaseRoute(location.hash);
-      if (route.name === 'app' && next.name === 'list' && !nextRelease) returnTo = route.id;
-      route = next;
-      release = nextRelease;
-    };
-    window.addEventListener('hashchange', onhash);
-    return () => window.removeEventListener('hashchange', onhash);
+    const id = open?.id ?? '';
+    if (wasOpen && !id) returnTo = wasOpen;
+    wasOpen = id;
   });
 
   $effect(() => {
@@ -111,6 +113,17 @@
     });
   }
 
+  /** The counts are a bonus for the overview: when they cannot be read the columns show a dash. */
+  async function loadReviewSummary(mine: number) {
+    if (!can(role, 'reviews.read')) return;
+    try {
+      const summary = await api.workspaceReviewsSummary(workspaceId);
+      if (mine === generation) reviewSummary = summary;
+    } catch {
+      if (mine === generation) reviewSummary = null;
+    }
+  }
+
   async function load() {
     const mine = ++generation;
     error = '';
@@ -118,6 +131,7 @@
       const list = (await api.apps(workspaceId)).apps;
       if (mine !== generation) return;
       apps = list;
+      void loadReviewSummary(mine);
       await loadReleases(list, mine);
     } catch (e) {
       if (mine !== generation) return;
@@ -131,6 +145,7 @@
     untrack(() => {
       apps = null;
       releases = {};
+      reviewSummary = null;
       batch = null;
       syncing = {};
       error = '';
@@ -141,7 +156,7 @@
   // an app screen may have synced or deleted something.
   $effect(() => {
     void workspaceId;
-    const onList = route.name === 'list' && release === null;
+    const onList = open === null;
     if (!canRead || !onList) return;
     untrack(() => {
       void load();
@@ -150,8 +165,8 @@
 
   // Back from an app: put focus on its link in the list.
   $effect(() => {
-    if (route.name !== 'list' || !returnTo || apps === null) return;
-    const id = returnTo;
+    if (open !== null || !returnTo || apps === null) return;
+    const id = groupOf(groups, returnTo)?.key ?? returnTo;
     returnTo = '';
     void tick().then(() => document.getElementById(`app-open-${id}`)?.focus());
   });
@@ -180,6 +195,11 @@
       if (outcome.app) patch(outcome.app);
       toast.error(`${app.name}: ${outcome.failure.message}`);
     }
+  }
+
+  /** Syncs both records of a merged row, one after the other. */
+  async function syncGroup(group: AppGroup) {
+    for (const app of group.members) await syncOne(app);
   }
 
   /** Syncs the apps one after another, so the store sees no burst and the person sees progress. */
@@ -261,15 +281,13 @@
   }
 </script>
 
-{#if release && canRead}
-  <ReleaseDetail {api} {workspaceId} {role} appId={release.appId} version={release.version} />
-{:else if route.name === 'app' && canRead}
-  <AppDetail {api} {workspaceId} {role} id={route.id} />
+{#if open && canRead}
+  <AppShell {api} {workspaceId} {role} id={open.id} />
 {:else}
   <section>
     <PageHeader
-      title="Portfolio"
-      description="The apps of this workspace as the stores report them: the latest release of each and where it is in review or rollout. Everything here is read from the stores; nothing is written to them."
+      title="All apps"
+      description="The apps of this workspace as the stores report them, one row per app with its iOS and Android versions side by side. Everything here is read from the stores; nothing is written to them."
     >
       {#snippet actions()}
         {#if canRead && apps !== null && apps.length > 0}
@@ -336,10 +354,11 @@
           </EmptyState>
         </div>
       {:else}
+        <OverviewStats {stats} />
         {#if viewMode === 'board'}
           <Board {api} {workspaceId} {role} apps={sorted} {releases} {now} />
         {:else}
-          <AppTable apps={sorted} {releases} {now} {canSync} {syncing} locked={busy} onsync={syncOne} />
+          <AppsOverview {rows} {now} {canSync} {syncing} locked={busy} onsync={syncGroup} />
         {/if}
       {/if}
     {/if}

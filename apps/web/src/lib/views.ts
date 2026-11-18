@@ -23,6 +23,8 @@ export type ViewDef = {
   component: Component<ViewProps>;
   /** Hidden from the navigation for roles that lack this action. */
   requires?: Action;
+  /** `workspace` entries are listed under the "Workspace" heading of the left nav, the rest above it. */
+  group?: 'workspace';
 };
 
 /**
@@ -30,13 +32,13 @@ export type ViewDef = {
  * the shell builds its navigation and routing from this list.
  */
 export const views: ViewDef[] = [
-  { id: 'portfolio', icon: 'smartphone', label: 'Portfolio', component: Portfolio, requires: 'apps.read' },
-  { id: 'reviews', icon: 'message', label: 'Reviews', component: ReviewsInbox, requires: 'reviews.read' },
+  { id: 'portfolio', icon: 'smartphone', label: 'All apps', component: Portfolio, requires: 'apps.read' },
+  { id: 'reviews', icon: 'message', label: 'Reviews inbox', component: ReviewsInbox, requires: 'reviews.read' },
   { id: 'repositories', icon: 'git-branch', label: 'Repositories', component: Repositories, requires: 'repositories.read' },
-  { id: 'credentials', icon: 'key', label: 'Credentials', component: Credentials, requires: 'credentials.read' },
-  { id: 'members', icon: 'users', label: 'Members', component: Members, requires: 'members.read' },
-  { id: 'tokens', icon: 'shield', label: 'API tokens', component: Tokens, requires: 'tokens.read' },
-  { id: 'webhooks', icon: 'globe', label: 'Webhooks', component: Webhooks, requires: 'webhooks.read' },
-  { id: 'settings', icon: 'settings', label: 'Settings', component: Settings, requires: 'settings.read' },
-  { id: 'audit', icon: 'history', label: 'Audit log', component: Audit, requires: 'audit.read' },
+  { id: 'credentials', group: 'workspace', icon: 'key', label: 'Credentials', component: Credentials, requires: 'credentials.read' },
+  { id: 'members', group: 'workspace', icon: 'users', label: 'Members', component: Members, requires: 'members.read' },
+  { id: 'tokens', group: 'workspace', icon: 'shield', label: 'API tokens', component: Tokens, requires: 'tokens.read' },
+  { id: 'webhooks', group: 'workspace', icon: 'globe', label: 'Webhooks', component: Webhooks, requires: 'webhooks.read' },
+  { id: 'settings', group: 'workspace', icon: 'settings', label: 'Settings', component: Settings, requires: 'settings.read' },
+  { id: 'audit', group: 'workspace', icon: 'history', label: 'Audit log', component: Audit, requires: 'audit.read' },
 ];

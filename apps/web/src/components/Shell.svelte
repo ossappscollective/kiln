@@ -2,9 +2,12 @@
   import { tick } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { can } from '@mrm/core';
+  import { address, appContext } from '../lib/address.svelte.ts';
+  import { parseViewPath } from '../lib/app-scope.ts';
   import { initials } from '../lib/format.ts';
   import type { Me } from '../lib/types.ts';
   import { views } from '../lib/views.ts';
+  import AppNav from './app/AppNav.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import Icon from './ui/Icon.svelte';
@@ -40,14 +43,14 @@
   const visibleViews = $derived(
     views.filter((v) => !v.requires || !workspace || can(workspace.role, v.requires)),
   );
-  const fromHash = () => location.hash.replace(/^#\//, '');
-  let hash = $state(fromHash());
-  // The section named by the URL (`#/id`, or `#/id/...` for a screen with its own sub-routes), or the first one the person may see.
-  // A screen may keep its own filters after a `?` (`#/reviews?rating=1`): they do not change the section.
-  const hashPath = $derived(hash.split('?')[0] ?? '');
-  const current = $derived(
-    visibleViews.find((v) => v.id === hashPath || hashPath.startsWith(`${v.id}/`)) ?? visibleViews[0],
-  );
+  // The section named by the address (`#/id`, or `#/id/...` for a screen with its own sub-routes), or the first one the person may see.
+  // A `?query` belongs to the screen (`#/reviews?rating=1`, `?platform=ios`): it never changes the section.
+  const path = $derived(parseViewPath(address.hash));
+  const current = $derived(visibleViews.find((v) => v.id === path.segments[0]) ?? visibleViews[0]);
+  const mainViews = $derived(visibleViews.filter((v) => v.group !== 'workspace'));
+  const workspaceViews = $derived(visibleViews.filter((v) => v.group === 'workspace'));
+  /** The open app: while one is open its panel replaces the workspace navigation. */
+  const appAddr = $derived(current?.id === 'portfolio' ? address.app : null);
 
   let drawerOpen = $state(false);
   let menuOpen = $state(false);
@@ -57,13 +60,10 @@
   let userButton = $state<HTMLButtonElement>();
   let userEl = $state<HTMLElement>();
 
+  // Following a link closes the drawer.
   $effect(() => {
-    const onhash = () => {
-      hash = fromHash();
-      drawerOpen = false;
-    };
-    window.addEventListener('hashchange', onhash);
-    return () => window.removeEventListener('hashchange', onhash);
+    void address.hash;
+    drawerOpen = false;
   });
 
   // The drawer only exists on narrow screens. Growing the window closes it.
@@ -77,7 +77,7 @@
   });
 
   $effect(() => {
-    const parts = [current?.label, workspace?.name, productName].filter(Boolean);
+    const parts = [appAddr ? appContext.name : '', current?.label, workspace?.name, productName].filter(Boolean);
     document.title = parts.join(' · ');
   });
 
@@ -140,6 +140,15 @@
 
 <svelte:window {onkeydown} {onpointerdown} />
 
+{#snippet item(v: (typeof views)[number])}
+  <li>
+    <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined}>
+      <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
+      <span>{v.label}</span>
+    </a>
+  </li>
+{/snippet}
+
 <a class="skip-link" href="#main" onclick={skipToContent}>Skip to content</a>
 
 <div class="shell">
@@ -168,18 +177,27 @@
       </div>
     {/if}
 
-    <nav bind:this={navEl} aria-label="Sections">
-      <ul>
-        {#each visibleViews as v (v.id)}
-          <li>
-            <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined}>
-              <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
-              <span>{v.label}</span>
-            </a>
-          </li>
-        {/each}
-      </ul>
-    </nav>
+    <div bind:this={navEl} class="nav-wrap">
+      {#if appAddr && workspace}
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} />
+      {:else}
+        <nav aria-label="Sections">
+          <ul>
+            {#each mainViews as v (v.id)}
+              {@render item(v)}
+            {/each}
+          </ul>
+          {#if workspaceViews.length > 0}
+            <p class="eyebrow group-label">Workspace</p>
+            <ul>
+              {#each workspaceViews as v (v.id)}
+                {@render item(v)}
+              {/each}
+            </ul>
+          {/if}
+        </nav>
+      {/if}
+    </div>
   </aside>
 
   <button
@@ -208,7 +226,12 @@
       <nav class="crumbs" aria-label="Breadcrumb">
         <ol>
           {#if workspace}<li class="crumb-ws">{workspace.name}</li>{/if}
-          {#if current}<li aria-current="page">{current.label}</li>{/if}
+          {#if appAddr && current}
+            <li><a href="#/{current.id}">{current.label}</a></li>
+            <li aria-current="page">{appContext.name || 'App'}</li>
+          {:else if current}
+            <li aria-current="page">{current.label}</li>
+          {/if}
         </ol>
       </nav>
 
@@ -402,6 +425,11 @@
   .ws-role {
     font-size: var(--text-xs);
     color: var(--muted);
+  }
+
+  .group-label {
+    margin: var(--space-5) 0 var(--space-2);
+    padding: 0 var(--space-3);
   }
 
   nav ul {
