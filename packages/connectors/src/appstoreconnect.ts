@@ -1,4 +1,4 @@
-import type { AppStoreField, LocaleText, Platform } from '@mrm/core';
+import type { AppStoreField, ListingSections, LocaleText, MediaSet, Platform } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -18,7 +18,15 @@ import {
   serverTime,
   text,
 } from './store-http.ts';
+import {
+  APPLE_INFO_INCLUDES,
+  appleAgeRating,
+  appleCategories,
+  appleMediaSets,
+  sectionWarning,
+} from './store-sections.ts';
 import type {
+  ReadStoreListingOptions,
   StoreApp,
   StoreBuild,
   StoreConnector,
@@ -70,13 +78,21 @@ const MAX_PAGE_SIZE = 200;
 /** The documented maximum of `limit[builds]` (included builds per pre-release version). */
 const MAX_INCLUDED_BUILDS = 50;
 const MAX_ERROR_DETAILS = 5;
+/**
+ * Most locales whose screenshot and preview sets are read per channel (two requests each). Apple
+ * allows about forty; the rest are left out and the media section says `truncated`.
+ */
+const MAX_MEDIA_LOCALES = 30;
+/** The documented maximum of `limit[appScreenshots]` and `limit[appPreviews]` (Apple's pages). */
+const MAX_MEDIA_PER_SET = 50;
 
 // ---------------------------------------------------------------------------------------------
 // Listing (localizations)
 
 /**
  * App info localizations (`GET /v1/appInfos/{id}/appInfoLocalizations`): Apple attribute to the
- * `@mrm/core` field. `privacyChoicesUrl` has no field in the listing model and is not read.
+ * `@mrm/core` field. `privacyChoicesUrl` has no field in the listing model: it is read into the
+ * `privacy` section instead (see `choicesUrls`).
  */
 const INFO_LOCALIZATION_FIELDS = {
   name: 'name',
@@ -127,7 +143,33 @@ type ListingResource = {
   rawState: string;
   versionString?: string;
   createdAt?: number;
+  /** `AppStoreVersion.copyright` (a version attribute; Apple's AppStoreVersion Attributes page). */
+  copyright?: string;
 };
+
+/** The privacy choices URL of each locale (`privacyChoicesUrl`, AppInfoLocalization Attributes page). */
+function choicesUrls(items: Json[]): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const item of items) {
+    const attributes = isRecord(item.attributes) ? item.attributes : {};
+    const locale = text(attributes.locale);
+    const url = text(attributes.privacyChoicesUrl);
+    if (locale && url !== undefined && url !== '') found[locale] = url;
+  }
+  return found;
+}
+
+/** Locale to the id of its version localization, in locale order. */
+function localizationIds(items: Json[]): [string, string][] {
+  const found = new Map<string, string>();
+  for (const item of items) {
+    const attributes = isRecord(item.attributes) ? item.attributes : {};
+    const locale = text(attributes.locale);
+    const id = text(item.id);
+    if (locale && id) found.set(locale, id);
+  }
+  return [...found].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
 
 /** The newest by creation time (when sent), else the last one listed. */
 function newest(items: ListingResource[]): ListingResource | undefined {
@@ -497,11 +539,38 @@ export class AppStoreConnectConnector implements StoreConnector {
    * An editable version without an editable app info (Apple creates a second app info when a name
    * or subtitle is to be changed) reads its name and subtitle from the live app info, which is what
    * the store would show; a warning says so.
+   *
+   * Sections beyond the texts (`StoreListingChannel.sections`), all GET and read-only:
+   * - always, out of the responses above: `details.copyright` (the version's `copyright`
+   *   attribute, https://developer.apple.com/documentation/appstoreconnectapi/appstoreversion/attributes-data.dictionary)
+   *   and `privacy.choicesUrls` (`privacyChoicesUrl`,
+   *   https://developer.apple.com/documentation/appstoreconnectapi/appinfolocalization/attributes-data.dictionary);
+   * - with `options.extended`: `categories` and `ageRating` from the same app info request with
+   *   `include=` the six category relationships and `ageRatingDeclaration` (documented values of
+   *   https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-appinfos; the
+   *   declaration's attributes are on
+   *   https://developer.apple.com/documentation/appstoreconnectapi/ageratingdeclaration/attributes-data.dictionary),
+   *   and `media`: per version localization `GET /v1/appStoreVersionLocalizations/{id}/appScreenshotSets`
+   *   (https://developer.apple.com/documentation/appstoreconnectapi/get-v1-appstoreversionlocalizations-_id_-appscreenshotsets;
+   *   Apple marks it deprecated since API 4.5 in favour of the asset library placements, so it can
+   *   disappear: then the failure is a warning and the section stays "not read") and
+   *   `GET .../appPreviewSets`
+   *   (https://developer.apple.com/documentation/appstoreconnectapi/get-v1-appstoreversionlocalizations-_id_-apppreviewsets),
+   *   each with `include` of the assets, `limit[...]` 50 and sparse `fields[...]` (file name and
+   *   delivery state only: no image asset, template URL or upload operation is requested).
+   *
+   * Never read, on purpose: the app store review detail (`appStoreReviewDetails`: contact name,
+   * email and phone number, demo-account user name and password): it is personal data and secrets,
+   * so the resource is not requested at all.
+   *
+   * A failure of an optional section is a warning and the section is left out ("not read"); only a
+   * rate limit, a bad credential, a clock problem or the network stop the read.
    */
-  async readListing(appStoreId: string): Promise<StoreListing> {
+  async readListing(appStoreId: string, options: ReadStoreListingOptions = {}): Promise<StoreListing> {
     const what = `reading the listing of app ${appStoreId}`;
     const id = enc(appStoreId);
     const warnings: string[] = [];
+    const extended = options.extended === true;
 
     const versions: ListingResource[] = [];
     for await (const item of this.#pages(`/v1/apps/${id}/appStoreVersions?limit=${this.#pageSize}`, what)) {
@@ -512,21 +581,54 @@ export class AppStoreConnectConnector implements StoreConnector {
       if (!versionId || rawState === undefined || asPlatform(text(attributes.platform)) === undefined) continue;
       const versionString = text(attributes.versionString);
       const created = Date.parse(text(attributes.createdDate) ?? '');
+      const copyright = text(attributes.copyright);
       versions.push({
         id: versionId,
         rawState: rawState.toUpperCase(),
         ...(versionString !== undefined ? { versionString } : {}),
         ...(Number.isNaN(created) ? {} : { createdAt: created }),
+        ...(copyright !== undefined ? { copyright } : {}),
       });
     }
     const infos: ListingResource[] = [];
-    for await (const item of this.#pages(`/v1/apps/${id}/appInfos?limit=${this.#pageSize}`, what)) {
-      const attributes = isRecord(item.attributes) ? item.attributes : {};
-      const infoId = text(item.id);
-      // `appStoreState` of an app info is deprecated in favour of `state` (Apple's AppInfo page).
-      const rawState = text(attributes.state) ?? text(attributes.appStoreState);
-      if (!infoId || rawState === undefined) continue;
-      infos.push({ id: infoId, rawState: rawState.toUpperCase() });
+    const infoItems = new Map<string, Json>();
+    let infoIncluded: Json[] = [];
+    let withRelations = extended;
+    const readInfos = async (path: string) => {
+      const collected: ListingResource[] = [];
+      const found = new Map<string, Json>();
+      const read = await this.#collect(path, what);
+      for (const item of read.items) {
+        const attributes = isRecord(item.attributes) ? item.attributes : {};
+        const infoId = text(item.id);
+        // `appStoreState` of an app info is deprecated in favour of `state` (Apple's AppInfo page).
+        const rawState = text(attributes.state) ?? text(attributes.appStoreState);
+        if (!infoId || rawState === undefined) continue;
+        collected.push({ id: infoId, rawState: rawState.toUpperCase() });
+        found.set(infoId, item);
+      }
+      return { collected, found, included: read.included };
+    };
+    {
+      const base = `/v1/apps/${id}/appInfos?limit=${this.#pageSize}`;
+      let read: Awaited<ReturnType<typeof readInfos>>;
+      if (extended) {
+        try {
+          read = await readInfos(`${base}&include=${APPLE_INFO_INCLUDES}`);
+        } catch (error) {
+          // Apple rejects an `include` value it does not know with a 400 that names the parameter:
+          // read the plain list (the texts must not depend on the optional sections).
+          if (!isAppleParameterError(error)) throw error;
+          warnings.push('Categories and the age rating were not read: Apple rejected the include parameter.');
+          withRelations = false;
+          read = await readInfos(base);
+        }
+      } else {
+        read = await readInfos(base);
+      }
+      infos.push(...read.collected);
+      for (const [key, value] of read.found) infoItems.set(key, value);
+      infoIncluded = read.included;
     }
 
     const liveVersion = newest(versions.filter((v) => LIVE_VERSION_STATES.has(v.rawState)));
@@ -541,7 +643,9 @@ export class AppStoreConnectConnector implements StoreConnector {
 
     // Each resource is read once, even when two channels use it.
     const infoTexts = new Map<string, Record<string, LocaleText<AppStoreField>>>();
+    const infoChoices = new Map<string, Record<string, string>>();
     const versionTexts = new Map<string, Record<string, LocaleText<AppStoreField>>>();
+    const versionLocalizations = new Map<string, [string, string][]>();
     const readInfo = async (info: ListingResource) => {
       let locales = infoTexts.get(info.id);
       if (!locales) {
@@ -550,6 +654,7 @@ export class AppStoreConnectConnector implements StoreConnector {
         const path = `/v1/appInfos/${enc(info.id)}/appInfoLocalizations?limit=${this.#pageSize}`;
         for await (const item of this.#pages(path, what)) items.push(item);
         localizedTexts(items, INFO_LOCALIZATION_FIELDS, locales);
+        infoChoices.set(info.id, choicesUrls(items));
         infoTexts.set(info.id, locales);
       }
       return locales;
@@ -562,9 +667,42 @@ export class AppStoreConnectConnector implements StoreConnector {
         const path = `/v1/appStoreVersions/${enc(version.id)}/appStoreVersionLocalizations?limit=${this.#pageSize}`;
         for await (const item of this.#pages(path, what)) items.push(item);
         localizedTexts(items, VERSION_LOCALIZATION_FIELDS, locales);
+        versionLocalizations.set(version.id, localizationIds(items));
         versionTexts.set(version.id, locales);
       }
       return locales;
+    };
+    /** Screenshot and preview sets of every locale of a version, as metadata. Undefined: not read. */
+    const readMedia = async (version: ListingResource, label: string): Promise<ListingSections['media']> => {
+      const wanted = versionLocalizations.get(version.id) ?? [];
+      const screenshots: Record<string, MediaSet[]> = {};
+      const previews: Record<string, MediaSet[]> = {};
+      const sets = `limit=200&limit[%ITEMS%]=${MAX_MEDIA_PER_SET}&include=%ITEMS%`;
+      try {
+        for (const [locale, localizationId] of wanted.slice(0, MAX_MEDIA_LOCALES)) {
+          const base = `/v1/appStoreVersionLocalizations/${enc(localizationId)}`;
+          const shots = await this.#get(
+            `${base}/appScreenshotSets?${sets.replaceAll('%ITEMS%', 'appScreenshots')}&fields[appScreenshotSets]=screenshotDisplayType,appScreenshots&fields[appScreenshots]=fileName,assetDeliveryState`,
+            what,
+          );
+          const prev = await this.#get(
+            `${base}/appPreviewSets?${sets.replaceAll('%ITEMS%', 'appPreviews')}&fields[appPreviewSets]=previewType,appPreviews&fields[appPreviews]=fileName,assetDeliveryState`,
+            what,
+          );
+          screenshots[locale] = appleMediaSets(shots as Json, 'screenshots');
+          previews[locale] = appleMediaSets(prev as Json, 'previews');
+        }
+      } catch (error) {
+        warnings.push(sectionWarning(error, `The screenshots and previews of the ${label} version`));
+        return undefined;
+      }
+      const truncated = wanted.length > MAX_MEDIA_LOCALES;
+      if (truncated) {
+        warnings.push(
+          `Screenshots and previews were read for ${MAX_MEDIA_LOCALES} of ${wanted.length} locales of the ${label} version.`,
+        );
+      }
+      return { screenshots, previews, ...(truncated ? { truncated: true } : {}) };
     };
 
     const channels: StoreListingChannel[] = [];
@@ -580,12 +718,33 @@ export class AppStoreConnectConnector implements StoreConnector {
           locales[locale] = { ...locales[locale], ...texts };
         }
       }
+      const sections: ListingSections = {};
+      if (info) {
+        sections.privacy = { choicesUrls: infoChoices.get(info.id) ?? {} };
+        const item = infoItems.get(info.id);
+        if (withRelations && item) {
+          const categories = appleCategories(item);
+          if (categories) sections.categories = categories;
+          else warnings.push(`Apple sent no category data for the ${channel} app info, so categories were not read.`);
+          const ageRating = appleAgeRating(item, infoIncluded);
+          if (ageRating) sections.ageRating = ageRating;
+          else warnings.push(`Apple sent no age rating declaration for the ${channel} app info, so the age rating was not read.`);
+        }
+      }
+      if (version) {
+        sections.details = version.copyright !== undefined ? { copyright: version.copyright } : {};
+        if (extended) {
+          const media = await readMedia(version, channel);
+          if (media) sections.media = media;
+        }
+      }
       channels.push({
         channel,
         ...(version?.versionString !== undefined ? { versionString: version.versionString } : {}),
         ...(version ? { versionRawState: version.rawState } : {}),
         ...(info ? { infoRawState: info.rawState } : {}),
         listing: { appStore: { locales } },
+        ...(Object.keys(sections).length > 0 ? { sections } : {}),
       });
     };
     await build('live', liveVersion, liveInfo);

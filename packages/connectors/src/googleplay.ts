@@ -1,4 +1,4 @@
-import type { LocaleText, PlayField } from '@mrm/core';
+import type { ListingSections, LocaleText, MediaSet, PlayField } from '@mrm/core';
 import {
   GoogleTokenProvider,
   parseServiceAccount,
@@ -17,7 +17,22 @@ import {
   type StoreReply,
   text,
 } from './store-http.ts';
-import type { StoreApp, StoreBuild, StoreConnector, StoreListing, StoreVersion } from './types.ts';
+import {
+  PLAY_GRAPHIC_TYPES,
+  PLAY_SCREENSHOT_TYPES,
+  playDetails,
+  playImageSet,
+  playReleaseNotes,
+  sectionWarning,
+} from './store-sections.ts';
+import type {
+  ReadStoreListingOptions,
+  StoreApp,
+  StoreBuild,
+  StoreConnector,
+  StoreListing,
+  StoreVersion,
+} from './types.ts';
 
 /**
  * Read-only Google Play Developer API connector.
@@ -69,6 +84,11 @@ export type PlayTrack = {
 };
 
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
+/**
+ * Most languages whose images are read (eight requests each, one per image type). The default
+ * language comes first; the rest are left out and the media section says `truncated`.
+ */
+const MAX_IMAGE_LANGUAGES = 25;
 const PACKAGE_NAME = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 
 /** True for an Android application id. Checked before a name goes into a URL. */
@@ -348,11 +368,27 @@ export class GooglePlayConnector implements StoreConnector {
    * read with `GET .../edits/{editId}/listings` inside a read-only edit that is deleted, never
    * committed. The listings of an edit are a copy of the deployed state ("Edits" guide). The
    * Play model has no subtitle, keywords, promotional text or URLs, so those are never present;
-   * release notes belong to track releases and are not read here (`changelogs` is empty).
+   * release notes belong to track releases and are not in `changelogs` (it is empty): with
+   * `options.extended` they are read into the `releaseNotes` section instead.
+   *
+   * With `options.extended` the same read-only edit also reads, all GET:
+   * - `GET .../edits/{editId}/details` (default language, support email and website; the phone number
+   *   is NOT read): https://developers.google.com/android-publisher/api-ref/rest/v3/edits.details/get
+   * - `GET .../edits/{editId}/listings/{language}/{imageType}` for each of the eight image types
+   *   (https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images/list and
+   *   https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType), as ids and counts
+   *   only: neither the image URL nor the image is requested (the read has no `deleteall`, no
+   *   `upload`). An image type with no images answers an empty body;
+   * - `GET .../edits/{editId}/tracks` (release notes of the current release of each track:
+   *   https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks).
+   * Google Play has no app category in the Play Developer API (none of its resources has one), so
+   * there is no `categories` section for Android. A failing optional part is a warning and the
+   * section is left out ("not read"); only a rate limit, a bad credential or the network stop the read.
    */
-  async readListing(appStoreId: string): Promise<StoreListing> {
+  async readListing(appStoreId: string, options: ReadStoreListingOptions = {}): Promise<StoreListing> {
     return this.withEdit(appStoreId, async (edit) => {
       const body = await this.#editGet(appStoreId, edit, '/listings', 'reading the listings');
+      const warnings: string[] = [];
       const locales: Record<string, LocaleText<PlayField>> = {};
       for (const item of records(body?.listings)) {
         const language = text(item.language);
@@ -368,13 +404,83 @@ export class GooglePlayConnector implements StoreConnector {
         if (video !== undefined) texts.video = video;
         locales[language] = texts;
       }
+      const sections: ListingSections = {};
+      if (options.extended === true) {
+        let defaultLanguage: string | undefined;
+        try {
+          const details = await this.#editGet(appStoreId, edit, '/details', 'reading the app details');
+          sections.details = playDetails(details);
+          defaultLanguage = sections.details.defaultLanguage;
+        } catch (error) {
+          warnings.push(sectionWarning(error, 'The app details'));
+        }
+        try {
+          const tracks = await this.#editGet(appStoreId, edit, '/tracks', 'reading the tracks');
+          sections.releaseNotes = playReleaseNotes(records(tracks?.tracks));
+        } catch (error) {
+          warnings.push(sectionWarning(error, 'The release notes of the tracks'));
+        }
+        const languages = Object.keys(locales).sort((a, b) =>
+          a === defaultLanguage ? -1 : b === defaultLanguage ? 1 : a < b ? -1 : a > b ? 1 : 0,
+        );
+        const media = await this.#readImages(appStoreId, edit, languages.slice(0, MAX_IMAGE_LANGUAGES), warnings);
+        if (media) {
+          if (languages.length > MAX_IMAGE_LANGUAGES) {
+            media.truncated = true;
+            warnings.push(`Images were read for ${MAX_IMAGE_LANGUAGES} of ${languages.length} languages.`);
+          }
+          sections.media = media;
+        }
+      }
       return {
         platform: 'android' as const,
         appStoreId,
-        channels: [{ channel: 'live' as const, listing: { googlePlay: { locales, changelogs: {} } } }],
-        warnings: [],
+        channels: [
+          {
+            channel: 'live' as const,
+            listing: { googlePlay: { locales, changelogs: {} } },
+            ...(Object.keys(sections).length > 0 ? { sections } : {}),
+          },
+        ],
+        warnings,
       };
     });
+  }
+
+  /**
+   * The images of each language as ids and counts (`edits.images.list`), eight requests per
+   * language, one language after the other. Undefined (and a warning) when an image call fails.
+   */
+  async #readImages(
+    packageName: string,
+    editId: string,
+    languages: readonly string[],
+    warnings: string[],
+  ): Promise<NonNullable<ListingSections['media']> | undefined> {
+    const screenshots: Record<string, MediaSet[]> = {};
+    const graphics: Record<string, MediaSet[]> = {};
+    try {
+      for (const language of languages) {
+        const read = async (type: string) =>
+          playImageSet(
+            type,
+            await this.#editGet(
+              packageName,
+              editId,
+              `/listings/${enc(language)}/${enc(type)}`,
+              `reading the ${type} of ${language}`,
+            ),
+          );
+        screenshots[language] = [];
+        graphics[language] = [];
+        for (const type of PLAY_SCREENSHOT_TYPES) (screenshots[language] as MediaSet[]).push(await read(type));
+        for (const type of PLAY_GRAPHIC_TYPES) (graphics[language] as MediaSet[]).push(await read(type));
+      }
+    } catch (error) {
+      warnings.push(sectionWarning(error, 'The store listing images'));
+      return undefined;
+    }
+    return { screenshots, graphics };
   }
 
   /**

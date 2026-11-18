@@ -1,4 +1,4 @@
-import type { ChangeSet, Listing, Platform, ReleaseState } from '@mrm/core';
+import type { ChangeSet, Listing, ListingSections, Platform, ReleaseState } from '@mrm/core';
 
 /**
  * Each store and each repo host sits behind one of these interfaces. Anything that is
@@ -68,6 +68,24 @@ export type StoreListingChannel = {
   infoRawState?: string;
   /** Exactly one of `appStore` and `googlePlay` is set, matching the connector's platform. */
   listing: Listing;
+  /**
+   * What the store holds beyond the texts: categories, age rating, privacy choices, media counts,
+   * app details, release notes (see `ListingSections`). Strictly read-only metadata. A section that
+   * is absent was NOT READ (not asked, the store cannot say, or its call failed: `warnings` says
+   * which); a section that is present and empty was read and the store has nothing.
+   */
+  sections?: ListingSections;
+};
+
+/** What `readListing` is asked to read. */
+export type ReadStoreListingOptions = {
+  /**
+   * Also read the sections that need requests of their own (App Store Connect: categories, age
+   * rating declaration and the screenshot and preview sets of every locale; Google Play: app
+   * details, images of every language, track release notes). Default false: the texts, and the
+   * sections that come out of the same responses. The server's listing read asks for them.
+   */
+  extended?: boolean;
 };
 
 export type StoreListing = {
@@ -88,7 +106,7 @@ export interface StoreConnector {
    * Reads the localized listing from the store. Read-only. Optional so that a connector without
    * it (a test double) still works; the listing read is then skipped.
    */
-  readListing?(appStoreId: string): Promise<StoreListing>;
+  readListing?(appStoreId: string, options?: ReadStoreListingOptions): Promise<StoreListing>;
 }
 
 export type ProposalResult = {
