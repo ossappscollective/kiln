@@ -9,6 +9,7 @@ import {
   filterGroups,
   planCell,
   planFor,
+  splitCurrent,
   tableSummary,
 } from './releases-table.ts';
 import type { AppBuild, PlanSummary, ReleaseSummary } from './types.ts';
@@ -243,4 +244,54 @@ test('filterGroups: search and in progress only drop rows and empty groups', () 
   );
   assert.equal(tableSummary(open), '1 version, 2 releases');
   assert.equal(tableSummary(groups), '3 versions, 5 releases');
+});
+
+test('splitCurrent keeps the newest, what is live now, what is in progress and what is planned', () => {
+  const releases = [
+    release({ id: 'i4', version: '4.0.0', status: 'draft', rawState: 'PREPARE_FOR_SUBMISSION' }),
+    release({ id: 'i3', version: '3.0.3' }),
+    release({ id: 'i2', version: '3.0.2' }),
+    release({ id: 'i1', version: '3.0.1', status: 'rejected', rawState: 'REJECTED' }),
+    release({ id: 'i0', version: '3.0.0' }),
+    release({ id: 'iu', version: '1.0.0', status: null, rawState: 'WEIRD' }),
+    release({ id: 'a2', appId: 'and-1', platform: 'android', version: '9.1', track: 'production' }),
+    release({ id: 'a2i', appId: 'and-1', platform: 'android', version: '9.1', track: 'internal' }),
+    release({ id: 'a1', appId: 'and-1', platform: 'android', version: '9.0', track: 'production' }),
+  ];
+  const plans: Record<string, PlanSummary[]> = {
+    'ios-1': [{ ...plan(), version: '3.0.0', released: false }],
+  };
+  const groups = buildReleaseTable({
+    releases: { 'ios-1': releases.filter((r) => r.appId === 'ios-1'), 'and-1': releases.filter((r) => r.appId === 'and-1') },
+    plans,
+    builds: {},
+    appIds: ['ios-1', 'and-1'],
+  });
+  const split = splitCurrent(groups);
+  const ids = (list: typeof groups) => list.flatMap((g) => g.rows.map((r) => `${r.platform}:${r.version}${r.track ? `:${r.track}` : ''}`));
+  assert.deepEqual(ids(split.current).sort(), [
+    'android:9.1:internal',
+    'android:9.1:production',
+    'ios:3.0.0',
+    'ios:3.0.1',
+    'ios:3.0.3',
+    'ios:4.0.0',
+  ]);
+  assert.deepEqual(ids(split.older).sort(), ['android:9.0:production', 'ios:1.0.0', 'ios:3.0.2']);
+  assert.equal(split.currentCount, 6);
+  assert.equal(split.olderCount, 3);
+});
+
+test('splitCurrent with nothing in the table, and a table of only live history', () => {
+  assert.deepEqual(splitCurrent([]), { current: [], older: [], currentCount: 0, olderCount: 0 });
+  const groups = buildReleaseTable({
+    releases: { 'ios-1': [release({ id: 'a', version: '2.0.0' }), release({ id: 'b', version: '1.0.0' })] },
+    plans: null,
+    builds: {},
+    appIds: ['ios-1'],
+  });
+  const split = splitCurrent(groups);
+  assert.equal(split.currentCount, 1);
+  assert.equal(split.current[0]?.version, '2.0.0');
+  assert.equal(split.older[0]?.version, '1.0.0');
 });

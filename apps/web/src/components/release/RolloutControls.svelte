@@ -15,6 +15,7 @@
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import RolloutAppControl from './RolloutAppControl.svelte';
@@ -61,14 +62,28 @@
   });
 </script>
 
-{#if availability.state !== 'hidden'}
+{#if availability.state === 'off'}
+  <!-- Switched off: one slim line; the explanation is a click away and says exactly what it said before. -->
+  <section class="slim" aria-labelledby="{uid}-title">
+    <Disclosure stateKey="releases.rollout-controls-off">
+      {#snippet summary()}
+        <span id="{uid}-title" class="slimtitle"><Icon name="rocket" size={14} /> Rollout controls</span>
+        <Badge tone="neutral" icon="lock">Switched off</Badge>
+      {/snippet}
+      <div class="stack">
+        <Alert tone="info" title="Rollout changes are off">{availability.message}</Alert>
+        <p class="muted note">
+          The rollout plan in each release row is planning data and does not touch a store; it works without this switch.
+        </p>
+      </div>
+    </Disclosure>
+  </section>
+{:else if availability.state !== 'hidden'}
   <section class="controls" aria-labelledby="{uid}-title">
     <div class="head">
       <h3 id="{uid}-title"><Icon name="rocket" size={16} /> Rollout controls</h3>
       {#if availability.state === 'ready'}
         <Badge tone="warn" icon="lock">Changes the live store</Badge>
-      {:else if availability.state === 'off'}
-        <Badge tone="neutral" icon="lock">Switched off</Badge>
       {/if}
     </div>
 
@@ -76,11 +91,6 @@
       <Skeleton />
     {:else if availability.state === 'unknown'}
       <Alert tone="warn">{availability.message}</Alert>
-    {:else if availability.state === 'off'}
-      <Alert tone="info" title="Rollout changes are off">{availability.message}</Alert>
-      <p class="muted note">
-        The rollout plan in each release row is planning data and does not touch a store; it works without this switch.
-      </p>
     {:else if config}
       <p class="muted note">
         Each change is previewed against the live store first, needs your confirmation, and is recorded in the audit log.
@@ -115,6 +125,19 @@
     align-items: center;
     margin: 0;
     font-size: var(--text-md);
+  }
+
+  .slim {
+    padding: var(--space-1) var(--space-2);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+  }
+
+  .slimtitle {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    font-weight: var(--weight-semibold);
   }
 
   .note {

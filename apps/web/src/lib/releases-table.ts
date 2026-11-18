@@ -231,3 +231,58 @@ export function tableSummary(groups: readonly VersionGroup[]): string {
   const versions = `${groups.length} ${groups.length === 1 ? 'version' : 'versions'}`;
   return `${versions}, ${releases} ${releases === 1 ? 'release' : 'releases'}`;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Current and older
+
+export type CurrentSplit = {
+  /** What a person usually looks for: the newest release of each platform, what is live now, what is in progress, what has a plan. */
+  current: VersionGroup[];
+  /** Everything else, newest first. */
+  older: VersionGroup[];
+  currentCount: number;
+  olderCount: number;
+};
+
+/**
+ * Splits the table into the releases that matter now and the rest. A release is current when it is
+ * in the newest version of its platform (every track of it), is the newest one that is live on its
+ * platform, is not live (a draft, in review, rolling out, halted; an old release whose store state has no mapping is history), or has
+ * a plan that is not released yet. Groups keep their order and a group may be split between the two.
+ * `groups` must be newest first, as buildReleaseTable returns them.
+ */
+export function splitCurrent(groups: readonly VersionGroup[]): CurrentSplit {
+  const newestVersion = new Map<Platform, string>();
+  const newestLive = new Map<Platform, string>();
+  for (const group of groups) {
+    for (const row of group.rows) {
+      if (!newestVersion.has(row.platform)) newestVersion.set(row.platform, group.version);
+      if (row.status === 'live' && !newestLive.has(row.platform)) newestLive.set(row.platform, row.key);
+    }
+  }
+  const isCurrent = (group: VersionGroup, row: ReleaseRow): boolean =>
+    newestVersion.get(row.platform) === group.version ||
+    newestLive.get(row.platform) === row.key ||
+    (row.status !== 'live' && row.status !== null) ||
+    (row.plan.kind === 'plan' && !row.plan.plan.released);
+
+  const current: VersionGroup[] = [];
+  const older: VersionGroup[] = [];
+  let currentCount = 0;
+  let olderCount = 0;
+  const regroup = (group: VersionGroup, rows: ReleaseRow[]): VersionGroup => ({
+    ...group,
+    rows,
+    platforms: group.platforms.filter((p) => rows.some((r) => r.platform === p)),
+    inProgress: rows.some((r) => r.status !== 'live'),
+  });
+  for (const group of groups) {
+    const now = group.rows.filter((r) => isCurrent(group, r));
+    const rest = group.rows.filter((r) => !isCurrent(group, r));
+    if (now.length > 0) current.push(regroup(group, now));
+    if (rest.length > 0) older.push(regroup(group, rest));
+    currentCount += now.length;
+    olderCount += rest.length;
+  }
+  return { current, older, currentCount, olderCount };
+}
