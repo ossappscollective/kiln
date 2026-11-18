@@ -144,6 +144,18 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Decide:** who provides a paid account and signing identity for public macOS releases, and whether
   Windows signing is in scope.
 
+## Local clones ([ADR 0005](adr/0005-local-clone-reads.md))
+
+### 15. Attaching a clone whose `origin` names another repository
+
+- **Decided:** attaching needs an explicit confirmation (`allowRemoteMismatch`), and the attach is audited.
+
+### 16. Attached repository when local reads are unavailable
+
+- **Decided:** when `MRM_READS=api` or no `MRM_LOCAL_REPO_ROOTS` is set, an attached repository keeps
+  reading from GitHub and its status badge says so (it does not refuse). A local-only repository still
+  refuses, because it has nothing else to read from.
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).
