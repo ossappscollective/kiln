@@ -172,6 +172,71 @@ the raw state). A phased release currently shows as `live` because it is not rea
   committed, using the repository's stored credential.
 - **Decide:** keep that, or limit the push to the person who applied the change set.
 
+### 19. Fixing up a branch
+
+- **Today:** `POST /change-sets/:id/fixup` adds one commit on top of an existing branch, with no second
+  approval (`changesets.approve` is the approval), the merge base being the last committed text, and a
+  push only without force. A merged or closed pull request is refused.
+- **Decide:** whether a fix up of an approved-then-applied set should need a new approval when the
+  text changes, whether a fix up may also be offered for a branch whose pull request is merged (a
+  new branch from it), and whether the push of a fix up should be limited to the person who applied
+  (see 18).
+
+### 20. Recomputing a store pull
+
+- **Today:** the origin of a store pull is kept as hashes (no text) in `change_sets.origin_json`;
+  older rows have none and answer `not_recomputable`. A recompute needs `changesets.write` and
+  `listing.read`; a store refresh also `apps.sync`.
+- **Decide:** whether to backfill `origin_json` for old pulls from the audit trail, and whether a
+  recompute of an approved set should keep the approval when only whitespace changed.
+
+## Reviews ([ADR 0007](adr/0007-review-replies.md))
+
+### 21. Replying to reviews
+
+- **Today:** off by default (`MRM_REVIEW_REPLY_ENABLED`); an admin or owner sends one reply at a
+  time after a draft and a confirmation of the exact text; a member may write drafts; no bulk or
+  automatic send; 30 sends an hour per workspace; a token needs `reviews.reply` named explicitly.
+  Nothing was run against a real store.
+- **Decide:** whether replies need a second person's approval (like change sets), whether members
+  should be allowed to send, whether the 30 an hour limit and the 5000 character App Store cap are
+  right, and whether the web should offer deleting a published Apple reply (the connector can, no
+  route calls it).
+- **Check with a real account:** the unverified Apple facts listed in
+  [phase-3-reviews](phase-3-reviews.md#not-verified-to-check-with-a-real-account).
+
+### 22. A per-app deep link from the inbox
+
+- **Today:** the inbox links to the app's page; the app's Reviews tab is one click away because the
+  app page does not read a tab from the address.
+- **Decide:** whether the app page should accept a tab in the address (a small change to the
+  portfolio screen, which another work stream owns).
+
+### 21. Review translation: privacy and spend
+
+- **Today:** off by default. An admin turns it on per workspace and chooses Google (the default),
+  DeepL, Azure or a LibreTranslate address. Review text then leaves the server for that provider;
+  nothing is logged or audited, a daily character budget (default 50,000, UTC) applies, and
+  `mode: auto` translates at most 20 new reviews per sync.
+- **Decide:** whether Google should stay the default (it is a third party with your customers' text),
+  whether `auto` should exist at all, the default budget, and whether the terms of each store allow
+  sending review text to a translator.
+
+### 22. Settings and who may see them
+
+- **Today:** `settings.read` is member and above, `settings.write` admin and above; a token may hold
+  either. The oldest credential of a provider's kind is used (no setting names one).
+- **Decide:** whether viewers should read settings (they cannot open the Settings screen now),
+  whether a setting should name the credential, and whether `settings.write` should be limited to
+  owners for the translation provider and address.
+
+### 23. Private LibreTranslate addresses
+
+- **Today:** `MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true` lets an admin point translation at a private or
+  loopback address (metadata addresses stay refused). The same trust question as
+  `MRM_WEBHOOKS_ALLOW_PRIVATE`.
+- **Decide:** whether an allow list of hosts would be better than one switch.
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

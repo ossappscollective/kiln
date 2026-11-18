@@ -437,9 +437,40 @@ change set's change to it.
 The refresh also makes a local branch apply work again: `409 base_changed` compares `before` with the
 branch tip, and the refreshed `before` is the tip.
 
-Recomputing the change from the live store listing is not offered: it would need the listing pull
-for every locale, which is a different (and slow) operation. Discard the set and create a new one
-from the listing when you want that.
+A set that came from a store pull can be made again from the live store listing: see
+`POST /change-sets/:id/recompute` in [the listing API](listing.md#post-change-setsidrecompute).
+
+### Fixing up a branch
+
+`POST /change-sets/:id/fixup` (rights `changesets.approve`) adds **one commit on top of the branch** of
+an `applied` change set, or a `failed` one that made its branch. It never rewrites history, never forces
+and never moves a ref backwards ([ADR 0005](../adr/0005-local-clone-reads.md#fixing-up-a-branch-phase-4b)).
+The plain refresh keeps answering `409 branch_created` for such a set.
+
+Body (all optional, strict, 64 KB): `resolutions` and `branchResolutions` (`{ "<path>": "mine" | "theirs" }`
+for conflicts with the repository and with the branch), `push` and `openPr` (a commit in a local clone
+only; `422` for a GitHub pull request), `dryRun` (work everything out, write nothing), `recompute` (take
+the content from the live store listing, store pulls only; needs `listing.read`).
+
+```json
+{ "branchResolutions": { "fastlane/metadata/en-US/description.txt": "mine" }, "push": true, "dryRun": false }
+```
+
+Answer `200`: `{ changeSet, mode, branch, nothingToFix, files, refreshedFrom, tip, willCommit, commit?,
+pullRequest: { state: "open" | "opened" | "none", number?, url? }, dryRun? }`. Each file has `state` (the
+comparison with the repository), `outcome` (`commit`, `unchanged`, `kept_branch`, `kept_mine`,
+`kept_theirs`, `conflict`) and `leavesSet`. `commit` is `{ sha, parent, files, signed }`, `parent` being the
+old tip. `nothingToFix: true` writes nothing (the same delta twice). The change set gains
+`fixups: [{ at, commit, parent, files, pushed, signature? }]` and `origin`; `commitSha` and `outcome.commit`
+are the latest commit. After a local fix up that is not pushed, `outcome.push.status` is `behind`.
+
+Errors: `409 refresh_conflicts` / `409 fixup_conflicts` (files with `base`, `ours`, `theirs` and `stage`;
+nothing written), `422 unknown_path`, `409 invalid_state`, `409 no_branch`, `409 branch_moved`,
+`409 branch_checked_out` (local; the branch is checked out or being rebased), `409 branch_missing`,
+`409 pr_closed` (merged or closed pull request), `409 remote_diverged` (push; the commit stays local),
+`409 fixup_in_progress` (the claim), `409 changed_meanwhile`, `409 local_write_disabled`
+(`MRM_LOCAL_REPO_WRITE`), `422 fixup_unsupported`, `422 not_text`, `502`/`504`. Audit `changeset.fixup`,
+`changeset.fixup_failed`, `changeset.pr_open`: counts and commit ids only.
 
 ## Clones on the server
 
@@ -470,8 +501,10 @@ file per Google Play release note (a long running app has hundreds, one request 
   cannot be stale; at most 16 commits and 4 MB of text per commit). A scan, a listing and the
   change set made from it share them, and all read the same commit. A connector that cannot name
   a commit is read as before, without the cache.
-- Only the files of the chosen target are read: the metadata text files, never screenshots,
-  images or `review_information`. A file read for detection is not read again.
+- Only the files of the chosen target are read: the metadata text files. The scan, the listing
+  and the change sets never read screenshots, images or `review_information`. The separate,
+  read-only asset index ([assets](assets.md)) does open images, but only their first bytes, through
+  its own read path, and it never feeds a change set. A file read for detection is not read again.
 - Reads run 8 at a time, and the scan reads its fixed files together.
 - Of the release notes of each locale only the 10 newest (by version code, plus `default`) are
   read, and the response says how many older ones were left alone. A change set never touches the

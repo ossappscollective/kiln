@@ -172,6 +172,10 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       bulk actions in the Listing tab. It is Phase 3 read-side groundwork: nothing is written to a
       store. Tested with fakes on SQLite; **no real store, GitHub or Postgres call, and never rendered in a
       browser**
+- [x] Recompute a store pull from the live store listing (`POST /change-sets/:id/recompute`, migration 17
+      `origin_json`; for a set with a branch, a fix up with `recompute: true`), with a per-field
+      `diffFromPrevious`, optional read-only store refresh under the pull limiter; web dialog. Tested on
+      SQLite with fakes; never run against a live store or in a browser
 - [x] Commit a pulled listing to a branch of a local clone instead of a pull request, with an optional push
       and pull request: the change set is applied with `mode: "local_branch"`
       ([phase 1](phase-1.md), [ADR 0005](adr/0005-local-clone-reads.md)). Opt-in, **not run against real

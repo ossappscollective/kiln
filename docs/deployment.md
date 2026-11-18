@@ -307,7 +307,7 @@ job claims it with a compare-and-set on `app_listing_status.listing_attempt_at`)
 
 ## Customer reviews and data protection
 
-The reviews of an app are read from its store (read-only; no reply is ever sent) by hand from the
+The reviews of an app are read from its store (read-only; replying is a separate, off by default feature, see below) by hand from the
 Reviews tab, and on a schedule when `MRM_REVIEW_SYNC_INTERVAL_MINUTES` is set (default `0`, off;
 otherwise 15 to 10080). The scheduler only queues `review.sync` jobs, a few per run and spread out,
 and shares the per workspace rate limit of the app sync. It runs in the process that runs the
@@ -330,7 +330,56 @@ background worker (`MRM_WORKER=inline`, the default).
   `androidpublisher.googleapis.com` and, for the App Store's store-wide rating,
   `itunes.apple.com`.
 
+### Replying to reviews (a store write, off by default)
+
+`MRM_REVIEW_REPLY_ENABLED` (default `false`) is the kill switch for answering reviews from this tool.
+While it is `false`, every reply route answers `409 reply_disabled` and the Reviews screens say that
+this variable enables replying; reading, syncing and triaging are not affected. Set it to `true` only
+when you want people to publish replies **publicly in the App Store and Google Play, in your
+organisation's name**. Things to settle first:
+
+- **Who can send.** Only owners and admins (`reviews.reply`); members and above can write drafts
+  (`reviews.triage`). An API token sends only when its list of actions names `reviews.reply`.
+- **The store credential must be allowed to reply** (Google Play: the permission "Reply to reviews";
+  App Store Connect: a key role allowed to respond to reviews, in practice Admin). The same
+  credential also reads reviews. See [credentials](credentials.md#replying-to-reviews).
+- Sends are limited to 30 an hour per workspace (and the stores' own quotas apply). A reply cannot
+  be recalled by this tool: the person deletes or edits it in the store's own console.
+- The reply text lives in the database (`review_reply_drafts`) and in the store; it is never put in
+  the audit log, in events or in logs.
+
+See [adr/0007-review-replies](adr/0007-review-replies.md).
+
 See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
+
+### Review translation
+
+Translating reviews is **off by default** and chosen per workspace under Settings
+([api/settings](api/settings.md)). It sends review text to a third party: Google Cloud Translation
+(the default), DeepL, Microsoft Translator, or a LibreTranslate server whose address an admin enters.
+Settle first: that the provider's terms fit your privacy policy and the stores' terms, whether review
+text may leave your network at all (then use a LibreTranslate server you run), and a spending cap with
+the provider as well as the workspace's daily character limit (`translation.dailyCharBudget`, default
+50,000 a day).
+
+- Network: outbound https to `translation.googleapis.com`, `api.deepl.com` and `api-free.deepl.com`,
+  `api.cognitive.microsofttranslator.com`, or the LibreTranslate address, depending on the provider.
+- Keys are vault credentials, never settings; see [credentials](credentials.md#review-translation-provider-keys).
+- The LibreTranslate address is a user-entered URL, so the server treats it like a webhook address:
+  `https` only, no credentials in the URL, the name is resolved and checked at **every** call and the
+  connection is pinned to the checked address, redirects are not followed, the answer is limited to
+  2 MiB and the call to 15 seconds, and private, loopback and link-local addresses are refused. Cloud
+  metadata addresses (169.254.169.254, 100.100.100.200, fd00:ec2::254) are always refused.
+- `MRM_TRANSLATE_ALLOW_PRIVATE_URLS` (default `false`; only `true` or `false`). **Warning:** set it
+  to `true` only to use a LibreTranslate on your own network (or `http://localhost`). It lets anyone
+  who can change workspace settings (admins and owners) make this server send requests, carrying
+  review text, to any host it can reach, such as internal services. Plain `http` is then accepted for
+  loopback only. Leave it `false` when LibreTranslate is public or when you do not trust every admin.
+- Review text is never logged or audited; the audit log has counts and the provider. Translations are
+  stored in `review_translations` (plain text, like the reviews) and deleted with the reviews.
+- Upgrade: migration 20 adds `workspace_settings`, `review_translations` and `translation_usage`.
+  The low rating threshold moves from a constant to the setting `reviews.lowRatingThreshold`
+  (default 2, the old behavior).
 
 ## Tokens, event streams and webhooks
 

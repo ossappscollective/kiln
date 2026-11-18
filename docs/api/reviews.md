@@ -1,25 +1,30 @@
 # Customer reviews
 
-A read-only inbox of the customer reviews and ratings of an app, with internal triage (status,
-assignee, a note) and two events. **Nothing is ever sent to a store.** There is no way to reply to a
-review from this server: a reply is a store write, it stays gated like every other store write, and
-this feature does not include it (the UI says so). A person replies in App Store Connect or in
-Google Play Console, and can mark the review `replied_in_console` here to keep the inbox honest.
+An inbox of the customer reviews and ratings of every app, with internal triage (status, assignee,
+a note), a workspace-wide inbox and summary, replies to reviews, and three events. Reading, syncing
+and triage **send nothing to a store**. **Replying is the one store write, and it is off by default**
+(`MRM_REVIEW_REPLY_ENABLED`, see [Replying](#replying-to-reviews) and
+[ADR 0007](../adr/0007-review-replies.md)): a reply is published publicly in the store and this tool
+cannot recall it.
 
 Never run against a real store: the connectors are tested with recorded-shape fixtures only. See
 [phase-3-reviews](../phase-3-reviews.md) for what is and is not verified.
 
-Everything is under `/api/workspaces/{workspaceId}/apps/{id}`. A non-member gets 404, a member
-without the right gets 403. Rights:
+The per app routes are under `/api/workspaces/{workspaceId}/apps/{id}`; the inbox, the summary, the
+reply settings and the reply templates are under `/api/workspaces/{workspaceId}/reviews`. A non-member
+gets 404, a member without the right gets 403. Rights:
 
 | Right | Who | For |
 | --- | --- | --- |
-| `reviews.read` | every role (viewer and up) | list, summary |
+| `reviews.read` | every role (viewer and up) | lists, inbox, summaries, one review with its draft, reply settings |
 | `reviews.sync` | member and up | read the store now |
-| `reviews.triage` | member and up | status, assignee, note |
+| `reviews.triage` | member and up | status, assignee, note; **reply drafts** and reply templates |
+| `reviews.reply` | **admin and up** | **send a reply to the store** |
 
 An API token may hold these like any other action, and a token limited to some apps can use them on
-those apps only. The routes are in the [OpenAPI description](openapi.md) (tag `reviews`).
+those apps only. **`reviews.reply` is explicit-only for tokens**: a token with no list of actions
+(which means "everything the role may do") never gets it; its list must name `reviews.reply`, and the
+token's role must allow it. The routes are in the [OpenAPI description](openapi.md) (tag `reviews`).
 
 ## What each store provides
 
@@ -31,6 +36,9 @@ those apps only. The routes are in the [OpenAPI description](openapi.md) (tag `r
 | Date filter | none documented: the read sorts newest first and stops | none: the whole window is read each time |
 | Creation time | yes (`createdDate`) | no: only the last modified time. `createdAt` here is when this server first saw the review |
 | Developer response | included (`customerReviewResponses`) | included (`developerComment`) |
+| Reply (a write) | `POST /v1/customerReviewResponses` ([docs](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-customerreviewresponses)): creates a response, or overwrites an existing one; shown as `PENDING_PUBLISH` until Apple publishes it | `POST .../reviews/{reviewId}:reply` ([docs](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/reply), [guide](https://developers.google.com/android-publisher/reply-to-reviews)): `{ "replyText" }`, at most **350** characters, replaces an earlier reply; public |
+| Reply length | no limit documented: this server caps at 5000 (**unverified**) | 350, documented |
+| Delete a reply | `DELETE /v1/customerReviewResponses/{id}` exists ([docs](https://developer.apple.com/documentation/appstoreconnectapi/delete-v1-customerreviewresponses-_id_)); the connector has it, **no route calls it** | no delete call |
 | Rate limit | per key per hour, reported in `X-Rate-Limit`; the read stops with 25 left | 200 GET requests per hour per app |
 | Store-wide average rating | not in the API: the public iTunes lookup is used (below) | **not available** from the Play Developer API |
 
@@ -42,8 +50,8 @@ Not used, and why:
   replace. Not used.
 - **Google Play Developer Reporting API**: it reports vitals (crashes, ANRs, slow starts), not
   ratings or reviews. Not used.
-- **Replying** (`POST /v1/customerReviewResponses` on Apple, `reviews.reply` on Google): store writes.
-  Not called anywhere in this repository.
+- **Replying** is used, but only through the reply service (below): never by a sync, a job, a
+  schedule or any automatic or bulk path.
 - **Scraping** public store pages: never.
 
 The App Store rating shown as "store-wide" comes from one public request per sync to
@@ -78,7 +86,9 @@ Query (all optional):
 Answer: `{ "reviews": [Review], "nextCursor": string | null }`. A bad filter or cursor is `400
 invalid_request` with `issues`.
 
-A `Review` has `id`, `appId`, `store`, `platform`, `storeReviewId`, `rating`, `title`, `body`,
+Each review also carries `replyDraft` (the draft, **with its text**, or null) and `reply`
+(`{ status, sentAt }`, where `status` is `none`, `draft`, `sending`, `sent`, `failed` or `unknown`), so a
+card can show where a reply stands. A `Review` has `id`, `appId`, `store`, `platform`, `storeReviewId`, `rating`, `title`, `body`,
 `authorName`, `territory`, `language`, `appVersion`, `buildNumber`, `device`, `createdAt`,
 `updatedAt`, `firstSeenAt`, `fetchedAt`, `developerResponse` (`{ body, at, state }` or null) and the
 internal fields `status`, `assigneeUserId`, `internalNote`, `statusChangedAt`, `statusChangedBy`.
@@ -146,14 +156,135 @@ member of the workspace (`422 assignee_not_member`); the note is at most 2000 ch
 is audited as `review.triage` with the fields that changed and the old and new status and assignee,
 **never the note and never the review text**. Answer `{ review }`.
 
+## The workspace-wide inbox
+
+### `GET /api/workspaces/{ws}/reviews`
+
+The stored reviews of **every app** of the workspace in one list, newest first by default. Needs
+`reviews.read`. Everything `GET /apps/{id}/reviews` takes, plus:
+
+| Parameter | Meaning |
+| --- | --- |
+| `appIds` (or `appId`) | one or more app ids, comma separated, at most 50. Unknown ids match nothing |
+| `assignee` | `me` or a member's user id |
+| `unassigned` | `true`: nobody is assigned (not together with `assignee`) |
+| `unanswered` | `true`: no developer response; `false`: has one (the same as `hasResponse`, inverted) |
+
+`store`/`platform`, `rating`, `status`, `territory`, `language`, `version`, `q`, `since`/`until`,
+`sort` (`newest`, `rating`, `updated`), `limit` (1 to 100, default 25) and `cursor` work as for one app.
+Answer `{ reviews, nextCursor }`; each review is a `Review` (with `replyDraft` and `reply`) plus `app`
+(`{ id, name, platform }`). A cursor belongs to its sort and filters; a bad one is `400`.
+
+- **Scope.** A non-member gets 404. A token limited to some apps sees only those apps, whatever
+  `appIds` it asks for (an app it may not see simply contributes nothing). Members see every app of
+  the workspace: this product has no per-member app visibility.
+- **Paging is a keyset** on `(sort key, id)`: stable when reviews arrive between pages, equal
+  timestamps neither repeat nor skip.
+- **Efficiency.** Migration 21 adds `app_reviews (workspace_id, created_at, id)`, `(workspace_id,
+  updated_at, id)` and `(workspace_id, rating, created_at, id)`. A page is an index range scan in the
+  sort order with `LIMIT`, no sort step (a test reads the SQLite query plan for each sort). Filters
+  narrow the scan; the app names come from one more query for the apps on the page. A review whose
+  app no longer exists is not listed. The text search is a `LIKE` over the filtered rows: for a
+  workspace with very many reviews, narrow with `appIds`/`since` too.
+
+### `GET /api/workspaces/{ws}/reviews/summary`
+
+Counts only, no review text and no names. Needs `reviews.read`; a limited token gets only its apps.
+
+```json
+{ "basis": "stored_reviews", "label": "From 42 stored reviews across 3 apps, not store-wide",
+  "lowRatingThreshold": 2,
+  "apps": [{ "app": { "id": "", "name": "", "platform": "ios", "store": "appstoreconnect" },
+             "total": 0, "new": 0, "unanswered": 0, "lowRating": 0, "average": null,
+             "oldestAt": null, "newestAt": null }],
+  "totals": { "total": 0, "new": 0, "unanswered": 0, "lowRating": 0, "average": null } }
+```
+
+`new` is status `new`; `unanswered` is no developer response; `lowRating` is a rating at or below the
+threshold. **Reviews with status `ignored` count in neither `unanswered` nor `lowRating`.** `average`
+is over the stored reviews and the `label` says so: it is never the store-wide rating (see the per app
+summary for that).
+
+## Replying to reviews
+
+**Off by default.** With `MRM_REVIEW_REPLY_ENABLED` not `true`, every route below except the reads
+answers `409 reply_disabled` (`envName` names the variable) and nothing can reach a store. Reading
+the review view and the settings keeps working.
+
+`GET /reviews/reply-config` (`reviews.read`): `{ enabled, envName, limits: { appstoreconnect,
+googleplay }, sendsPerHour, translation: { available }, templates: { max, placeholders } }`. The web
+app reads this to decide what to show.
+
+### The flow: draft first, then confirm and send
+
+1. `PUT /apps/{id}/reviews/{reviewId}/reply-draft` (`reviews.triage`) with `{ "text" }` or `{
+   "templateId" }` saves the draft (one per review; saving again replaces it). The text is
+   **plain text**: line breaks are normalised to `\n` and the edges trimmed; control characters
+   (including tabs and invisible direction overrides), HTML-looking tags and text over the store's
+   limit (350 Google Play, 5000 App Store) are `422 invalid_reply` with `problem` (`empty`,
+   `too_long`, `control_characters`, `markup`). Answer `{ draft }` with `text`, `textHash` (SHA-256 of
+   the text), `length`, `limit` and `status`. Editing a sent reply makes it a draft again.
+   `DELETE` the same path removes a draft (`204`; `409` while a send is in progress or unknown).
+2. `POST /apps/{id}/reviews/{reviewId}/reply` (`reviews.reply`, admin and up) with `{ "confirmHash":
+   "<textHash>" }` sends it. The hash proves the sender saw this exact text: if the draft changed since,
+   `409 stale_draft` with `currentHash`, and nothing is sent. One review per request: there is **no
+   bulk, scheduled or automatic send**.
+
+Answer `200 { reply, review, confirmedByReread }`: `reply` is the draft with `status: "sent"`,
+`sentAt` and `storeResponseId`; `review` has the new `developerResponse` (Apple may say
+`PENDING_PUBLISH`) and a `new` review becomes `triaged`.
+
+### What happens on the way (and the errors)
+
+- **One send in flight per review.** The send takes an atomic claim on the draft (`status:
+  sending`, with a time to live of 2 minutes). A second send meanwhile is `409 send_in_progress`; a
+  repeat of a finished one is `409 already_sent` and makes no store request.
+- **No retry on a write**, not even for a 429: a repeated POST could overwrite a newer reply. The
+  request has a 60 second timeout.
+- **A refusal by the store** (nothing published): the draft is kept with `status: failed` and an
+  `errorCode`, and can be sent again once fixed: `422 store_auth`, `store_forbidden` (the key may not
+  reply, the API is off, or Apple answered 405: see [credentials](../credentials.md#replying-to-reviews)),
+  `store_not_found`, `store_rejected`, `invalid_reply`, `credential_not_found`/`credential_kind`/
+  `credential_unreadable`/`app_not_synced` (the claim is given back, nothing was asked of the store),
+  `429 rate_limited` with `Retry-After`.
+- **An unknown outcome** (a timeout, a cut connection or a 5xx: the store may or may not have applied
+  it) is never retried. The service **reads the review back** from the store: if the stored reply is
+  this text the reply is `sent` (`confirmedByReread: true`, the evidence, without text, is kept on the
+  draft); if it is not there the draft is `failed` with `502 send_failed` and `outcome: "not_applied"`;
+  if the read-back fails too the draft is `unknown` (`409 outcome_unknown`): it cannot be edited or
+  deleted, and sending again **only re-checks** (it publishes only if the reply is not there).
+  A claim that expired (a process died mid-send) is treated the same way.
+- **Rate limit:** at most 30 sends an hour per workspace (`429 rate_limited`; counted from the audit
+  log plus sends in flight, so it holds across restarts and processes). The stores have their own
+  quotas (Google: 2000 reply requests a day per app).
+- **Audit and events carry no text.** `review.reply_draft`, `review.reply_sent` and
+  `review.reply_failed` are audit entries with the review and app ids, the store, the length and the
+  hash: **never the text**. The event `review.reply_sent` carries ids only. The text is in the draft
+  row and in the store, nowhere else (not in logs, jobs or webhooks).
+- The text is plain text and is never interpolated into a prompt, a URL or markup by this server.
+
+### Templates and the translation seam
+
+`GET /reviews/reply-templates` (`reviews.read`), `POST` and `PUT /{id}` with `{ name, body }`, `DELETE
+/{id}` (`reviews.triage`; off with the kill switch). At most 50 per workspace (`422
+too_many_templates`). A body may use `{{author}}` and `{{app}}` only; they are filled in as plain
+text (one line, at most 60 characters, no markup or control characters) when a draft is saved with
+`templateId`. An unknown placeholder or a stray `{{` is `422 invalid_template`.
+
+`POST /apps/{id}/reviews/{reviewId}/reply-draft/translate` with `{ text, target, source? }` is an
+optional seam: it answers `{ text }` only when the server was given a translator, else `409
+translation_unavailable` (`reply-config.translation.available` says which). It saves nothing and
+sends nothing; the result is a suggestion that goes through the same checks when saved as a draft.
+
 ## Events
 
-`review.new_low_rating` and `review.sync_failed`, in the [event log](events.md), the live stream and
+`review.new_low_rating`, `review.sync_failed` and `review.reply_sent`, in the [event log](events.md), the live stream and
 [webhooks](webhooks.md). They carry ids, the store and the rating only: **no review text and no
 display name**, because a webhook receiver is another system. A receiver reads the review with this
 API. `review.new_low_rating` is sent once per store review (also when a review is later edited down
 to the threshold, 2 or less), not for the first read of an app, and at most 50 per read.
-`review.sync_failed` is sent once per failure streak.
+`review.sync_failed` is sent once per failure streak. `review.reply_sent` is sent when a reply was
+published (ids, store and the actor only, no text).
 
 ## Data protection
 
@@ -165,3 +296,5 @@ Review text and display names are personal data of people who are not users of t
   the store's date, 1000 at most per run, at most once an hour in the scheduler's process.
 - Deleting the app deletes its reviews, sync state and rating snapshots in the same transaction.
 - Reviews are not encrypted at rest beyond what your database and disk provide.
+- A reply draft and the template bodies are stored as plain text. A draft is deleted with its review
+  (retention) and with the app. The audit log never holds a reply's text, only its length and hash.

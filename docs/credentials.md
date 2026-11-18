@@ -42,26 +42,55 @@ Docs: https://developers.google.com/android-publisher/getting_started
 ## Customer reviews (what the same credentials need)
 
 Reading reviews uses the **same** App Store Connect key and Google Play service account as the
-app sync; there is no extra credential. The server only reads: it never calls the endpoints that
-reply to a review. Which role or permission a read needs was **not verified against a real
-account**:
+app sync; there is no extra credential. Reading never calls the endpoints that reply to a review.
+Which role or permission a read needs was **not verified against a real account**. Replying (below)
+needs more and is off unless the server turns it on:
 
 - **App Store Connect.** `GET /v1/apps/{id}/customerReviews` is documented at
   https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-customerreviews
   and that page names no required role. If a key is refused with `store_forbidden`, use a team key
-  with a role that can see the app's customer reviews. Keep the lowest role that works. Note that
-  Apple's role for responding to reviews is separate from this read, and this server never responds.
+  with a role that can see the app's customer reviews. Keep the lowest role that works. Responding
+  needs a role that may respond (see [Replying to reviews](#replying-to-reviews)).
 - **Google Play.** `reviews.list` is documented at
   https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/list and the guide
   https://developers.google.com/android-publisher/reply-to-reviews names the permission **Reply to
   reviews** for the review calls. Play Console's read-only permission is **View app information and
   download bulk reports**. Whether that alone is enough to list reviews is **unverified**. If the
   read-only permission is refused (`store_forbidden`), the service account needs **Reply to
-  reviews**, which in Play Console also lets that account answer reviews through the API. This server
-  does not, but the key itself could. Grant it only for the apps whose reviews you want, and treat
-  the key accordingly.
+  reviews**, which in Play Console also lets that account answer reviews through the API. Grant it
+  only for the apps whose reviews you want, and treat the key accordingly.
 - The Google Cloud Storage statistics export and the Play Developer Reporting API are **not used**
   (see [api/reviews](api/reviews.md#what-each-store-provides) for why).
+
+## Replying to reviews
+
+Replying is a **write**: the text is published publicly in the store. It is **off** unless the server
+runs with `MRM_REVIEW_REPLY_ENABLED=true` ([deployment](deployment.md#replying-to-reviews-a-store-write-off-by-default)),
+and only an owner or admin of this workspace can send. It uses the **same credential** as reading
+reviews: a key that may reply can also read them, and the key itself could answer reviews outside
+this tool. Issue it only for the apps that need it.
+
+- **Google Play.** The service account needs the Play Console permission **Reply to reviews**
+  (named in https://developers.google.com/android-publisher/reply-to-reviews). `reviews.reply` is
+  documented at https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/reply with
+  the scope `https://www.googleapis.com/auth/androidpublisher`. `replyText` is at most 350
+  characters, a new reply replaces the old one, replies are public, and the quota is 2000 reply
+  requests a day per app. That permission also covers listing reviews, so one account does both
+  (it is **unverified** whether the narrower read-only permission lists reviews; see above). Only
+  reviews of the last week can be read back; this tool needs the read-back to settle an unknown outcome.
+- **App Store Connect.** `POST /v1/customerReviewResponses` is documented at
+  https://developer.apple.com/documentation/appstoreconnectapi/post-v1-customerreviewresponses (it
+  creates a response or overwrites the existing one; the state is `PENDING_PUBLISH` until Apple
+  publishes it). Apple's help page says the **Account Holder, Admin and Customer Support** roles may respond to
+  reviews in App Store Connect
+  (https://developer.apple.com/help/app-store-connect/monitor-ratings-and-reviews/respond-to-reviews).
+  Which **API key** role may do it is **unverified**: a developer forum thread says Customer Support
+  cannot be chosen for a team key, so assume **Admin** is needed, and one report (HTTP 405 for some
+  keys, https://developer.apple.com/forums/thread/727332) is why a 405 is shown as "the key may not
+  do this". The success status and the length limit are not stated on the page checked; this tool
+  caps a reply at 5000 characters on its own.
+- If a send says `store_forbidden`, the key lacks the permission: grant it, or answer in the store's
+  own console and mark the review "Replied in store console".
 
 ## Store listing sections (what the same credentials need)
 
