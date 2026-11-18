@@ -1055,4 +1055,54 @@ export const migrations: Migration[] = [
       ];
     },
   },
+
+  {
+    id: 24,
+    name: 'store draft pushes (what was written to a store draft) and store submit claims',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // store_draft_pushes: the record of what the last SUCCESSFUL draft pushes of an app and platform
+      // wrote to the store's draft (see docs/adr/0010-store-submit.md). A submit for review requires
+      // it, and reads the store again to check the draft still holds exactly this. One row per
+      // (app, platform); a later push merges its items into `items`; a successful submit deletes
+      // the row, so a second submit needs a new push. `items` is JSON: for each pushed text
+      // locale, field and the SHA-256 of the normalized value; for each pushed set locale, slot,
+      // the store's name of it, the pixel size of the first file and each file's MD5 and SHA-256.
+      // Hashes and ids only: never a text, a file or a credential. confirm_hash is the hash of
+      // the push's own confirmation. version_id and version_string: the App Store version that
+      // was written (null on Google Play). No foreign key on app_id (like the other store tables):
+      // deleting an app deletes its row in the code.
+      // store_submit_claims: the claim a submit for review takes before it touches a store, one row
+      // per app and platform, with the semantics of store_rollout_claims: status writing (claim_at
+      // is its start, it expires after a time to live) or unknown (the outcome of the last submit
+      // could not be told; it blocks submitting until a successful re-read, i.e. a new preview).
+      return [
+        `CREATE TABLE IF NOT EXISTS store_draft_pushes (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           version_id TEXT,
+           version_string TEXT,
+           confirm_hash TEXT NOT NULL,
+           items TEXT NOT NULL,
+           pushed_by TEXT NOT NULL,
+           pushed_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS store_draft_pushes_workspace_idx ON store_draft_pushes (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS store_submit_claims (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           action TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'writing',
+           claimed_by TEXT NOT NULL,
+           claim_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS store_submit_claims_workspace_idx ON store_submit_claims (workspace_id)',
+      ];
+    },
+  },
 ];

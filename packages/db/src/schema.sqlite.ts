@@ -1034,3 +1034,54 @@ export const storeDraftClaims = sqliteTable(
     index('store_draft_claims_workspace_idx').on(t.workspaceId),
   ],
 );
+
+/**
+ * What the last successful draft pushes of an app and platform wrote to the store's draft: the
+ * record a submit for review checks the store against (see migration 24). Hashes and ids only.
+ */
+export const storeDraftPushes = sqliteTable(
+  'store_draft_pushes',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    versionId: text('version_id'),
+    versionString: text('version_string'),
+    confirmHash: text('confirm_hash').notNull(),
+    /** JSON: pushed texts (locale, field, SHA-256) and sets (locale, slot, size, per file MD5 and SHA-256). */
+    items: text('items').notNull(),
+    pushedBy: text('pushed_by').notNull(),
+    pushedAt: integer('pushed_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('store_draft_pushes_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/**
+ * The claim a gated submit for review holds while it runs, one row per app and platform (see
+ * migration 24). Deleted when the submit settles.
+ */
+export const storeSubmitClaims = sqliteTable(
+  'store_submit_claims',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    action: text('action').notNull(),
+    /** writing (in flight, expires after a TTL) or unknown (outcome not told; a re-read clears it). */
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('store_submit_claims_workspace_idx').on(t.workspaceId),
+  ],
+);

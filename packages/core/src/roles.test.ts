@@ -225,3 +225,16 @@ test('store.push_draft: owners and admins only; a token needs the action named a
   assert.equal(canToken('admin', ['store.push_draft'], 'store.push_draft'), true);
   assert.equal(canToken('member', ['store.push_draft'], 'store.push_draft'), false, 'the ceiling still applies');
 });
+
+test('store.submit: owners and admins only; a token needs the action named and an admin ceiling', () => {
+  assert.equal(can('owner', 'store.submit'), true);
+  assert.equal(can('admin', 'store.submit'), true);
+  assert.equal(can('member', 'store.submit'), false);
+  assert.equal(can('viewer', 'store.submit'), false);
+  assert.ok(tokenActions.includes('store.submit'));
+  assert.ok(tokenExplicitOnlyActions.includes('store.submit'));
+  assert.equal(canToken('admin', null, 'store.submit'), false, 'no list: never');
+  assert.equal(canToken('admin', ['store.push_draft'], 'store.submit'), false, 'pushing a draft is not submitting');
+  assert.equal(canToken('admin', ['store.submit'], 'store.submit'), true);
+  assert.equal(canToken('member', ['store.submit'], 'store.submit'), false, 'the ceiling still applies');
+});

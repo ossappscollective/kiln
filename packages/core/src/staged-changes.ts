@@ -13,7 +13,9 @@ import type { Platform } from './lifecycle.ts';
  * What is VERIFIED and what is not is marked next to each table. Google's names come from
  * https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType and
  * `edits.listings` (read 2026-11-18). Apple's display type names are NOT verified (Apple's page
- * for `ScreenshotDisplayType` lists no values), see `APPLE_DISPLAY_TYPES`.
+ * for `ScreenshotDisplayType` lists no values), see `APPLE_DISPLAY_TYPES`. The App Store connector writes through the App
+ * Asset Library, which finds the placement group from Apple's reference data and the pixel size: these names are this
+ * server's own name of a set (the `target`), not an Apple id.
  */
 
 export const STAGED_KINDS = ['listing_text', 'asset'] as const;

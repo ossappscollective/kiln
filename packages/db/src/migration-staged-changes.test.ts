@@ -35,7 +35,8 @@ dbTest('migration 23 adds staged changes and draft claims; data of migrations 1 
   );
 
   const applied = await migrate(db);
-  assert.deepEqual(applied.filter((id) => id >= STAGED), [STAGED]);
+  // Later migrations are applied by the same call: only this one is checked here.
+  assert.deepEqual(applied.filter((id) => id === STAGED), [STAGED]);
   assert.equal((await db.query('SELECT id FROM app_reviews WHERE id = ?', ['r1'])).length, 1);
   assert.equal(String((await db.query('SELECT action FROM store_rollout_claims'))[0]?.action), 'halt');
 
