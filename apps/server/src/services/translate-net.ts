@@ -193,18 +193,30 @@ export function createGuardedFetch(options: GuardedFetchOptions = {}): GuardedFe
     outer?.addEventListener('abort', onOuter, { once: true });
     if (outer?.aborted) controller.abort();
     try {
-      const res = await exchange({
-        url: check.url,
-        address: resolved.address,
-        family: resolved.family,
-        secure: check.url.protocol === 'https:',
-        ...(check.literal ? {} : { servername: check.hostname }),
-        method: init?.method ?? 'GET',
-        headers,
-        body: typeof init?.body === 'string' ? init.body : undefined,
-        maxBytes,
-        signal: controller.signal,
-      });
+      // Every candidate address passed the same checks. `localhost` often answers ::1 first while the
+      // server listens on IPv4 only (a published Docker port), so a refused connection tries the next one.
+      const candidates = [{ address: resolved.address, family: resolved.family }, ...(resolved.others ?? [])];
+      let res: Awaited<ReturnType<PostExchange>> | undefined;
+      for (let i = 0; i < candidates.length && !res; i++) {
+        const c = candidates[i] as { address: string; family: 4 | 6 };
+        try {
+          res = await exchange({
+            url: check.url,
+            address: c.address,
+            family: c.family,
+            secure: check.url.protocol === 'https:',
+            ...(check.literal ? {} : { servername: check.hostname }),
+            method: init?.method ?? 'GET',
+            headers,
+            body: typeof init?.body === 'string' ? init.body : undefined,
+            maxBytes,
+            signal: controller.signal,
+          });
+        } catch (error) {
+          if (i === candidates.length - 1 || controller.signal.aborted) throw error;
+        }
+      }
+      if (!res) throw new Error('network');
       if (res.overflow) throw new Error('too large');
       const responseHeaders = new Headers();
       for (const [name, value] of Object.entries(res.headers)) if (value !== undefined) responseHeaders.set(name, value);

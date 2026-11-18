@@ -172,7 +172,15 @@ export function checkWebhookUrl(raw: string, options: { allowPrivate?: boolean }
   return { ok: true, url, hostname, literal, loopbackHttp: url.protocol === 'http:' };
 }
 
-export type Resolved = { ok: true; address: string; family: 4 | 6 } | { ok: false; message: string; transient: boolean };
+export type Resolved =
+  | {
+      ok: true;
+      address: string;
+      family: 4 | 6;
+      /** The other answers (all of them passed the same checks), in order, for a caller that may try the next one. */
+      others?: { address: string; family: 4 | 6 }[];
+    }
+  | { ok: false; message: string; transient: boolean };
 
 /**
  * Resolves the host and returns the one address to connect to. Refuses when any answer is not
@@ -201,7 +209,8 @@ export async function resolveAllowed(
   }
   const first = answers[0];
   if (!first) return { ok: false, message: 'The host name has no address.', transient: true };
-  return { ok: true, address: first.address, family: first.family === 6 ? 6 : 4 };
+  const others = answers.slice(1, 4).map((a) => ({ address: a.address, family: (a.family === 6 ? 6 : 4) as 4 | 6 }));
+  return { ok: true, address: first.address, family: first.family === 6 ? 6 : 4, ...(others.length > 0 ? { others } : {}) };
 }
 
 // ---------------------------------------------------------------------------------------------
