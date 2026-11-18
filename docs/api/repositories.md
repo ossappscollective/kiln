@@ -276,7 +276,7 @@ listing also time out (`504`), but they only read, so nothing is left half done.
 
 Audit actions: `repository.connect`, `repository.disconnect`, `repository.scan`,
 `repository.listing_target_create`, `repository.listing_target_update`,
-`repository.listing_target_delete`, `changeset.create`, `changeset.approve`, `changeset.apply`,
+`repository.listing_target_delete`, `repository.read_fallback`, `changeset.create`, `changeset.approve`, `changeset.apply`,
 `changeset.apply_failed`, `changeset.apply_timeout`, `changeset.discard`.
 
 ## How a read stays fast
@@ -303,6 +303,37 @@ open_change_sets` (nothing is deleted), not a server error.
 Apply writes exactly the files stored in the change set, so it follows the source chosen when the
 draft was made; it does not look at the sources again. A store config that changed meanwhile is a
 `change_conflict` like any other file.
+
+## Reads
+
+Scan, listing and change set creation read the repository either through the GitHub API or from
+a local git clone kept on the server (`MRM_READS`, [ADR 0005](../adr/0005-local-clone-reads.md),
+[deployment.md](../deployment.md)). The responses are the same either way; the clone only makes
+reading faster and spends no rate limit.
+
+- **Modes.** `auto` (default) reads from the clone and falls back to the API; `clone` reads from
+  the clone only and shows its errors; `api` is the API only and never runs git. With `auto` and no
+  git installed, the server behaves as `api` and logs one line at start.
+- **Fall back (`auto`).** If git is missing, a clone is not one of ours, or git fails in a way we
+  did not expect, that request (and only that request) is read through the API. The server logs
+  it, and the audit log gets `repository.read_fallback` with `purpose`, `operation`, `kind` and
+  `reason` (never a message or a token); a scan's own `repository.scan` event then says
+  `reads: "api_fallback"`, otherwise `reads: "clone"` (absent in `api` mode). Errors the API would
+  repeat (`github_auth`, `github_not_found` for a missing branch, rate limits, timeouts, files that
+  are too large or not text) are returned as they are. In `clone` mode they all are.
+- **What is not read from the clone.** Connecting a repository, the credential tests, and applying
+  a change set (the conflict check against the live tree, the branch, the commit and the pull
+  request) always use the GitHub API.
+- **Freshness.** A scan always fetches the newest commit of the default branch. A listing, and the
+  change set made from it, reuse the last fetched tip for `MRM_CLONE_TTL_SECONDS` (default 60),
+  so a commit pushed a few seconds ago may appear one minute later; a scan makes it visible at
+  once. The commit sha is what the cache described above is keyed on, so a scan, a listing and a
+  change set still read one commit.
+- **What is cached.** In memory, per commit (above). On disk, a shallow, partial clone per
+  repository under `MRM_CLONE_DIR`: the trees of the commits read and the files that were read. It
+  is only a cache; `DELETE /repositories/:id` removes it after the repository is deleted (a
+  failure to remove it is logged and does not fail the request).
+- **Cancelling.** The 90 second request timeout also stops a running git.
 
 ## Not done yet
 

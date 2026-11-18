@@ -45,6 +45,10 @@ rendered in a browser, and Expo is only done at library level.
 - Character and byte counting rules, required fields, and locale code lists (see the spikes).
 - Whether the GitHub App permission names and levels in the credential guide and the test match
   what GitHub requires ([credential-guides-unverified.md](spikes/credential-guides-unverified.md)).
+- Reading from a local clone against real GitHub: the https fetch with a personal access token and
+  with an App installation token (an `Authorization` header on `git fetch`), the partial clone
+  filter and fetch by object id on github.com, rate-limit and 403 bodies from git, and the Docker
+  image with git installed. No timing against GitHub exists.
 - Pull request creation, branch naming and the neutralised summary text, end to end on GitHub.
 - The Expo fixtures are hand-written, not recorded from `eas metadata:pull`.
 
@@ -54,6 +58,12 @@ rendered in a browser, and Expo is only done at library level.
       one it is the App Store listing source (fastlane otherwise; Google Play stays fastlane), edits
       are written back as a one-file change, an unreadable config blocks App Store edits. Tested with
       fake connector fixtures on SQLite; never run against real GitHub or in a browser
+- [x] Scan, listing and change set creation can read from a local git clone instead of one GitHub
+      API call per file (`MRM_READS=auto|clone|api`, default `auto` with a fall back to the API,
+      [ADR 0005](adr/0005-local-clone-reads.md)). Apply, connect and credential tests stay on the
+      API. Tested with real local git repositories as the source for the fastlane layouts, the
+      fall back, tokens in logs and audit rows, and disconnect; **never run against real GitHub
+      over https**, with a GitHub App installation token, or in the Docker image (not built here)
 - [ ] Workflow run tracking and build linking (the connector can list runs; nothing uses it)
 - [ ] Move scan and listing to the job queue if they prove slow (they run in the request today)
 - [ ] Refresh stale change sets (today a conflict means discarding and creating a new one)

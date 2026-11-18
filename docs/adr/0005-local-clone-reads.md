@@ -1,8 +1,9 @@
 # ADR 0005: Read repositories from a local clone
 
-Status: proposed. Phase 1 is written and tested: `GitCloneReader` in
-`packages/connectors/src/git-clone.ts` (41 tests, no network). It is not used by the server yet;
-the integration plan below is the next phase. Nothing was measured against GitHub itself.
+Status: proposed. It stays proposed until the clone path has run against real GitHub (see "What is
+verified, and what is not"). Phase 1 is `GitCloneReader` in `packages/connectors/src/git-clone.ts`
+(41 tests, no network). Phase 2, the server integration, is implemented and tested with local git
+repositories (see "Implemented" below). Nothing was measured against GitHub itself.
 
 ## Context
 
@@ -181,12 +182,13 @@ A clone is a cache: it can be deleted at any time and is made again on demand.
 
 ## Docker and deployment
 
-The image (`node:22-bookworm-slim`) has no `git`. The Dockerfile will need
-`apt-get install -y --no-install-recommends git ca-certificates` (root, before `USER node`). Not
-edited yet. The clone folder is under `/data`, which is the volume the container already writes
-to. Needed: git 2.34 or newer (tested with 2.34.1; `GIT_CONFIG_COUNT` needs 2.31, `GIT_CONFIG_GLOBAL`
+The image (`node:22-bookworm-slim`) has no `git`. The Dockerfile now runs
+`apt-get install -y --no-install-recommends git ca-certificates` (root, before `USER node`, apt
+lists removed) and creates `/data/clones` (mode 0700, owned by `node`; `MRM_CLONE_DIR=/data/clones`).
+**The image has not been built**: no Docker was available. The clone folder is under `/data`, which
+is the volume the container already writes to. Needed: git 2.34 or newer (tested with 2.34.1; `GIT_CONFIG_COUNT` needs 2.31, `GIT_CONFIG_GLOBAL`
 2.32). Debian 12 ships a newer git (expected 2.39); behaviour on it is unverified. The server
-should check `git --version` at start when `MRM_READS` is not `api`.
+checks `git --version` at start when `MRM_READS` is not `api`.
 
 ## Desktop single-user mode: "use my local checkout"
 
@@ -203,7 +205,59 @@ to be a directory. `file` is enabled only for that source and only for its fetch
 programs (`uploadpack.packObjectsHook` in the source's config did not run, checked on 2.34.1). Newer git refuses
 a repository owned by another user (`safe.directory`); that is reported as `forbidden`.
 
-## Integration plan (next phase, after the listing work lands)
+## Implemented (phase 2)
+
+Steps 1 to 6 and 9 of the plan below are built, in `apps/server/src/services/clone-reads.ts`
+(the adapter, the reader pool, the start-up check), `services/repositories.ts` (wiring),
+`config.ts`, `index.ts`/`app.ts` (one optional `reads` dependency), the Dockerfile and the docs.
+How it differs from or adds to the plan:
+
+- **Default is `auto`**, not `api` first: the clone is used when git is present, and a request
+  falls back to the API on `git_missing`, `not_managed` or any other unexpected clone failure
+  (`GitCloneError` of kind `unexpected`, or an error that is not a `GithubError`). One source per
+  request: after the first fall back every later read of that request uses the API, at the commit
+  the clone had resolved. Errors the API would repeat (`auth`, `not_found`, rate limits, timeouts,
+  `too_large`, `not_text`) are not retried through it, and an aborted request never falls back.
+  The fall back is logged (with the redacted cause) and audited as `repository.read_fallback`
+  (purpose, operation, kind, reason; no message). `clone` never falls back.
+- **`withCloneReads(api, reader, options)`** is a `Proxy` over the API connector: the four read
+  methods are the reader's, anything else (`propose`, `dispatchWorkflow`, `listWorkflowRuns`, a
+  method a later feature adds) is the connector's, bound to it. `ConnectorFactory` and the test
+  fakes are unchanged. It adds `refresh`, `warm`, `useSignal` and a `reads` report.
+- **Which requests switch** is a whitelist of purposes (`CLONE_READ_PURPOSES`: `repository.scan`,
+  `repository.listing`, `changeset.create`). Connect, apply and any purpose a later feature adds get
+  the plain API connector.
+- **Readers are pooled** per repository (`createCloneReads`, at most 64), because the freshness
+  window (`ttlMs`) lives in the reader's memory. The token is swapped in on every request.
+- **Token:** the PAT for `github_token`; for `github_app` the new public
+  `GithubRepoConnector.installationToken(signal?)`, passed as the function form of `token`. If a
+  connector has no such method, the clone cannot be used for that credential (fall back in `auto`).
+- **Scan** calls `refresh()` first; **a listing of folders chosen by hand** calls `warm()` with the
+  text files under them (detected folders are in the reader's default warm set). The request's
+  `AbortSignal` (the 90 s timeout) is passed to every reader call and kills git (tested).
+- **Start-up** (`setUpReads`, not in `api` mode): creates the clone folder with mode 0700 and runs
+  `git --version` once, logging one line. `auto` without git behaves as `api`; `clone` without git
+  fails each read with an error naming git.
+- **Disconnect** removes the clone after the transaction commits; a failure is logged and ignored.
+  There is no workspace deletion in the server yet, so `removeWorkspaceClones` is available
+  (`CloneReads.removeWorkspace`) but not called.
+- **Not built:** step 8 (desktop "use my checkout", below), `MRM_CLONE_FILTER` (the filter stays
+  `blob:none` for GitHub), idle pruning and the disk budget. `GitCloneError.reason` is not added to
+  response messages.
+
+### Why step 8 (a local checkout) was not built here
+
+It looked small and is not. A repository row requires a credential, and connecting validates it
+against the API, so "no GitHub token at all" needs a nullable `credential_id`, a connect flow
+without a credential and an apply story (a local checkout cannot be applied to). Setting only a
+`local_path` on a connected repository is smaller but needs a migration and both Drizzle schemas
+(shared files edited concurrently by other work), `MRM_MODE` plumbed into `RepoContext`, a route in
+`routes/repositories.ts`, realpath, directory and git repository validation, an audit event and a
+role check, with the hosted-mode refusal tested. The reader already has the `local` source and
+`createCloneReads` takes a `source` hook, so the remaining work is the settings and the UI. Do it
+as its own change after deciding whether a local checkout may replace the credential.
+
+## Integration plan (original, kept for reference)
 
 Read the current code: `apps/server/src/services/repositories.ts` (`RepoClient`,
 `ConnectorFactory`, `defaultConnectorFactory`, `RepoContext`, `openConnector`/`openFor`,
@@ -254,10 +308,10 @@ Read the current code: `apps/server/src/services/repositories.ts` (`RepoClient`,
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `MRM_READS` | `api` first, `auto` later | `api`, `clone`, or `auto` (clone when git is installed, API otherwise and on clone failure) |
+| `MRM_READS` | `auto` (built) | `api`, `clone`, or `auto` (clone when git is installed, API otherwise and on clone failure) |
 | `MRM_CLONE_DIR` | `<MRM_DATA_DIR>/clones` | where clones live |
 | `MRM_CLONE_TTL_SECONDS` | `60` | how long a fetched tip is reused (`ttlMs`) |
-| `MRM_CLONE_FILTER` | `blob:none` | partial clone filter; `none` downloads all blobs |
+| `MRM_CLONE_FILTER` | `blob:none` | partial clone filter; `none` downloads all blobs (not built) |
 | `MRM_GIT_PATH` | `git` | the git program |
 | `MRM_CLONE_MAX_MB`, `MRM_CLONE_IDLE_DAYS` | unset, `30` | disk budget and idle pruning (not built) |
 
@@ -277,9 +331,18 @@ Verified here (git 2.34.1, Linux, Node 22, local repositories and a stub HTTP se
 `git-clone.test.ts`, including partial and shallow behaviour, the blob batch, abort and timeout
 (the process group is killed), the hostile-content cases and the token checks.
 
+Verified in phase 2 (server tests, local git repositories as the source, no network): scan and
+listing for the three fastlane layouts in `fastlane.fixtures.ts` give the same results from a clone
+as from the API fake, including the monorepo targets; change set creation reads from the clone and
+apply goes through the API connector; the by-commit cache keeps one `ls-tree` per commit; `auto`
+falls back with a bad `MRM_GIT_PATH`, `api` never runs git, `clone` surfaces the error; a token
+printed by git reaches no response, audit row or log line; the request timeout kills git; disconnect
+removes the clone; the token wiring for both credential kinds (with a stand-in reader).
+
 Not verified: real GitHub over https (the `extraheader` with an installation token or PAT, a
 fetch by blob id and by commit sha, the `--filter` support, rate-limit and 403 bodies, redirects
-for a renamed repository); the App installation token flow; GitHub Enterprise Server; git newer
+for a renamed repository); the App installation token flow (`installationToken` is unit tested against the connector's fake,
+never against GitHub); the Docker image with git installed (never built); GitHub Enterprise Server; git newer
 than 2.34; macOS and Windows (`detached` process groups, `/dev/null` as `GIT_CONFIG_GLOBAL`, path
 and `file://` forms); behaviour on a very large repository; a read-only or `noexec` data folder.
 No timing against GitHub exists: the benchmark compares local reads with simulated latency only.

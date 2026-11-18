@@ -36,7 +36,15 @@ import {
   listListingTargets,
   resolveSelection,
 } from './listing-targets.ts';
+import {
+  type CloneReads,
+  isCloneBacked,
+  type ReadFallback,
+  withCloneReads,
+} from './clone-reads.ts';
 import { openRepoSnapshot } from './repo-snapshot.ts';
+
+export { type CloneReads, withCloneReads };
 
 type Actor = { type: ActorType; id: string };
 
@@ -68,6 +76,11 @@ export type RepoContext = {
   connectorFactory: ConnectorFactory;
   /** Longest a synchronous GitHub job (scan, listing, apply) may take. */
   timeoutMs: number;
+  /**
+   * Local clones for scan and listing reads (docs/adr/0005-local-clone-reads.md). Omitted, or
+   * inactive (`MRM_READS=api`): every read goes through the connector as before.
+   */
+  reads?: CloneReads;
 };
 
 export const DEFAULT_REPO_TIMEOUT_MS = 90_000;
@@ -251,12 +264,72 @@ export async function getDetection(
 export type Opened = { connector: RepoClient; secret: string };
 
 /**
+ * The purposes whose reads may come from a clone. Everything else (connecting, applying a change
+ * set, whatever a later feature asks for) gets the API connector as it is.
+ */
+export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
+  'repository.scan',
+  'repository.listing',
+  'changeset.create',
+]);
+
+/** The token git authenticates with: the PAT, or the App's installation token as a function. */
+function cloneToken(
+  kind: 'github_app' | 'github_token',
+  secret: string,
+  api: RepoClient,
+): string | (() => Promise<string>) | undefined {
+  if (kind === 'github_token') return secret.trim();
+  const mint = (api as { installationToken?: (signal?: AbortSignal) => Promise<string> })
+    .installationToken;
+  return typeof mint === 'function' ? () => mint.call(api) : undefined;
+}
+
+/** A read fell back to the API: one log line (with the redacted cause) and one audit row (without it). */
+async function noteFallback(
+  ctx: RepoContext,
+  where: { workspaceId: string; repositoryId: string; purpose: string; secret: string },
+  actor: Actor,
+  fallback: ReadFallback,
+): Promise<void> {
+  const reason = fallback.reason ? `/${fallback.reason}` : '';
+  const cause = redactSecrets(fallback.message, secretStrings(where.secret));
+  ctx.reads?.log(
+    `Reads: ${where.purpose} of repository ${where.repositoryId} used the GitHub API instead of the clone (${fallback.operation}: ${fallback.kind}${reason}). ${cause}`,
+  );
+  try {
+    await recordAudit(ctx.db, {
+      workspaceId: where.workspaceId,
+      actor,
+      action: 'repository.read_fallback',
+      target: { type: 'repository', id: where.repositoryId },
+      detail: {
+        purpose: where.purpose,
+        operation: fallback.operation,
+        kind: fallback.kind,
+        reason: fallback.reason,
+      },
+      at: ctx.now(),
+    });
+  } catch (error) {
+    ctx.reads?.log(`Reads: could not record the fall back to the API (${(error as Error).name}).`);
+  }
+}
+
+/**
  * Reads the credential's secret (audited as `credential.use`) and builds the connector.
  * Every failure here happens before anything is sent to GitHub.
  */
 export async function openConnector(
   ctx: RepoContext,
-  input: { workspaceId: string; credentialId: string; owner: string; repo: string },
+  input: {
+    workspaceId: string;
+    credentialId: string;
+    owner: string;
+    repo: string;
+    /** The stored repository. With it, a read purpose may be served from a clone. */
+    repository?: Repository;
+  },
   actor: Actor,
   purpose: string,
 ): Promise<Outcome<Opened>> {
@@ -297,8 +370,52 @@ export async function openConnector(
   }
   if (secret === undefined) return failure(422, 'credential_not_found', 'That credential does not exist.');
   try {
-    const connector = ctx.connectorFactory(kind, secret, { owner: input.owner, repo: input.repo });
-    return { ok: true, connector, secret };
+    const api = ctx.connectorFactory(kind, secret, { owner: input.owner, repo: input.repo });
+    const { repository, workspaceId } = input;
+    const reads = ctx.reads;
+    if (!repository || !reads?.active || !CLONE_READ_PURPOSES.has(purpose)) {
+      return { ok: true, connector: api, secret };
+    }
+    const where = { workspaceId, repositoryId: repository.id, purpose, secret };
+    try {
+      const token = cloneToken(kind, secret, api);
+      if (token === undefined) {
+        throw new GithubError(
+          'unexpected',
+          'This credential cannot give git a token, so the repository cannot be read from a clone.',
+        );
+      }
+      const reader = reads.reader(
+        {
+          workspaceId,
+          repositoryId: repository.id,
+          owner: repository.owner,
+          repo: repository.repo,
+          defaultBranch: repository.defaultBranch,
+        },
+        token,
+      );
+      const connector = withCloneReads(api, reader, {
+        fallback: reads.fallback,
+        onFallback: (fallback) => noteFallback(ctx, where, actor, fallback),
+      });
+      return { ok: true, connector, secret };
+    } catch (error) {
+      // The clone could not even be set up. `auto` reads this request through the API.
+      if (!reads.fallback) return githubFailure(error, secret);
+      await noteFallback(
+        ctx,
+        where,
+        actor,
+        {
+          operation: 'open',
+          kind: error instanceof GithubError ? error.kind : 'error',
+          reason: null,
+          message: error instanceof Error ? error.message : 'unknown error',
+        },
+      );
+      return { ok: true, connector: api, secret };
+    }
   } catch (error) {
     return githubFailure(error, secret);
   }
@@ -307,7 +424,7 @@ export async function openConnector(
 const openFor = (ctx: RepoContext, ws: string, r: Repository, actor: Actor, purpose: string) =>
   openConnector(
     ctx,
-    { workspaceId: ws, credentialId: r.credentialId, owner: r.owner, repo: r.repo },
+    { workspaceId: ws, credentialId: r.credentialId, owner: r.owner, repo: r.repo, repository: r },
     actor,
     purpose,
   );
@@ -380,7 +497,10 @@ export async function disconnectRepository(
   actor: Actor,
 ): Promise<Outcome<Record<never, never>>> {
   try {
-    return await disconnect(ctx, input, actor);
+    const result = await disconnect(ctx, input, actor);
+    // After the commit: the clone is a cache, so a failure to remove it (logged) changes nothing.
+    if (result.ok) await ctx.reads?.remove(input.workspaceId, input.id);
+    return result;
   } catch (error) {
     // A change set was created for this repository after the check below and before the delete.
     // Nothing was deleted (the transaction rolled back): the person can discard it and retry.
@@ -446,6 +566,14 @@ async function disconnect(
 // ---------------------------------------------------------------------------------------------
 // Scan and listing
 
+/** Where a scan read from, for the audit row: `clone`, or `api_fallback` with what failed. */
+function readsDetail(connector: { reads: { fallbacks: ReadFallback[] } }): Record<string, unknown> {
+  const [first] = connector.reads.fallbacks;
+  return first
+    ? { reads: 'api_fallback', fallback: { operation: first.operation, kind: first.kind, reason: first.reason } }
+    : { reads: 'clone' };
+}
+
 export async function scanRepository(
   ctx: RepoContext,
   input: { workspaceId: string; id: string },
@@ -465,9 +593,14 @@ export async function scanRepository(
   let detection: ProjectDetection;
   let fileCount = 0;
   const controller = new AbortController();
+  if (isCloneBacked(connector)) connector.useSignal(controller.signal);
   try {
     detection = await withTimeout(
       (async () => {
+        // A scan somebody asked for should see the newest commit, not the one fetched a minute ago.
+        if (isCloneBacked(connector)) {
+          await connector.refresh(repository.defaultBranch, controller.signal);
+        }
         const snapshot = await openRepoSnapshot({
           repositoryId: repository.id,
           connector,
@@ -496,12 +629,32 @@ export async function scanRepository(
       actor,
       action: 'repository.scan',
       target: { type: 'repository', id: input.id },
-      detail: { kind: detection.kind, files: fileCount },
+      detail: {
+        kind: detection.kind,
+        files: fileCount,
+        ...(isCloneBacked(connector) ? readsDetail(connector) : {}),
+      },
       at: now,
     });
   });
   const updated = (await getRepository(ctx.db, input.workspaceId, input.id)) as Repository;
   return { ok: true, repository: updated, detection, listingSources: detectedSources(detection) };
+}
+
+const MAX_WARM_PATHS = 2000;
+
+/** The text files under the chosen listing folders (not images), for downloading in one request. */
+function listingTextFiles(
+  files: readonly string[],
+  roots: { appStore?: string; googlePlay?: string },
+): string[] {
+  const folders = [roots.appStore, roots.googlePlay]
+    .filter((r): r is string => typeof r === 'string' && r !== '')
+    .map((r) => `${r.replace(/\/+$/, '')}/`);
+  if (folders.length === 0) return [];
+  return files
+    .filter((f) => /\.(?:txt|json)$/.test(f) && folders.some((r) => f.startsWith(r)))
+    .slice(0, MAX_WARM_PATHS);
 }
 
 /**
@@ -520,6 +673,7 @@ export async function readRepositoryListing(
   const chosen = await resolveSelection(ctx.db, workspaceId, repository.id, selection);
   if (!chosen.ok) return failure(chosen.status, chosen.error, chosen.message);
   const controller = new AbortController();
+  if (isCloneBacked(connector)) connector.useSignal(controller.signal);
   try {
     const listings = await withTimeout(
       (async () => {
@@ -530,6 +684,11 @@ export async function readRepositoryListing(
           now: ctx.now,
           signal: controller.signal,
         });
+        // Folders chosen by hand may hold files the clone has not downloaded: one request, not one each.
+        if (isCloneBacked(connector) && chosen.roots) {
+          const paths = listingTextFiles(snapshot.files, chosen.roots);
+          if (paths.length > 0) await connector.warm(paths, snapshot.ref, controller.signal);
+        }
         return readListings(snapshot.files, snapshot.read, {
           ...(chosen.roots ? { roots: chosen.roots } : {}),
           ...(chosen.autoKey === undefined ? {} : { autoTarget: chosen.autoKey }),
