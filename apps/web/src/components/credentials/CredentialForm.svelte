@@ -21,12 +21,15 @@
     workspaceId,
     onSaved,
     onCancel,
+    initialKind,
   }: {
     api: Api;
     workspaceId: string;
     /** Called with the name that was saved, after the credential is stored. */
     onSaved: (label: string) => void;
     onCancel: () => void;
+    /** The type to start with (for example the translation provider's). Default: App Store Connect. */
+    initialKind?: CredentialKind | undefined;
   } = $props();
 
   let kind = $state<CredentialKind>('app_store_connect');
@@ -48,7 +51,10 @@
   const testedOk = $derived(current && tester.status === 'done' && tester.result?.ok === true);
   const canTroubleshoot = $derived(credentialGuides[kind].troubleshooting.length > 0);
 
-  onMount(() => kindSelect?.focus());
+  onMount(() => {
+    if (initialKind) kind = initialKind;
+    kindSelect?.focus();
+  });
 
   function test() {
     if (problem || testing || saving) return;

@@ -1,0 +1,103 @@
+# Workspace settings
+
+A small, typed list of settings per workspace. It is not a general key-value store: only the keys
+below exist, each with a type, a default and a rule. Reference for the routes
+`GET` and `PUT /api/workspaces/{workspaceId}/settings` and `POST .../translate/test`
+(also in `GET /api/openapi.json`).
+
+**Secrets are never settings.** Provider keys live in the credential vault
+([credentials](../credentials.md#review-translation-provider-keys)); a settings value is stored as
+plain JSON in `workspace_settings` and is shown to every member who may read settings.
+
+## Rights
+
+| Action | Who | Used for |
+| --- | --- | --- |
+| `settings.read` | members, admins, owners | `GET /settings`. Viewers get `403`. |
+| `settings.write` | admins and owners | `PUT /settings`, `POST /translate/test`. |
+
+Non-members, and members of another workspace, get `404 { "error": "not_found" }`. An API token may
+hold either action (an app-limited token cannot call these workspace-wide routes). Every change is
+audited as `settings.update` with the key names and the old and new values (configuration only, never
+a secret). A `PUT` that changes nothing writes no entry.
+
+## The keys
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `reviews.lowRatingThreshold` | integer 1 to 4 | `2` | Reviews rated at or below this raise `review.new_low_rating` and show as "Low rating". See [what a change does](#what-changing-the-low-rating-threshold-does). |
+| `translation.enabled` | boolean | `false` | While `false`, no review text is sent to any provider. |
+| `translation.provider` | `google`, `deepl`, `azure`, `libretranslate` | `google` | Which service translates. Each needs a credential of its own kind. |
+| `translation.targetLanguage` | BCP-47 tag | `en` | The language reviews are translated into. `pt_BR` is stored as `pt-BR`. |
+| `translation.mode` | `off`, `on_demand`, `auto` | `on_demand` | `auto` translates new reviews after a sync (see [reviews](reviews.md#translation)). |
+| `translation.dailyCharBudget` | integer 0 to 100,000,000 | `50000` | Characters this workspace may send per UTC day. `0`: no limit here. |
+| `translation.libretranslate.url` | text | `""` | The LibreTranslate server, `https://host[/path]`. Empty: none. |
+
+The address rules for `translation.libretranslate.url` (checked on save, and again at every call,
+because DNS can change): `https` only; no user name, password, query or fragment; a private,
+loopback or link-local address is refused; cloud metadata addresses (169.254.169.254,
+100.100.100.200, fd00:ec2::254) are **always** refused. With `MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true`
+on the server ([deployment](../deployment.md#review-translation)) private and loopback addresses are
+accepted, and plain `http` only for loopback (`localhost`, `127.0.0.0/8`, `::1`).
+
+## `GET /settings`
+
+Any member (`settings.read`). Answer:
+
+```json
+{
+  "values": { "reviews.lowRatingThreshold": 2, "translation.enabled": false, "...": "..." },
+  "defaults": { "...": "..." },
+  "overridden": ["translation.enabled"],
+  "writable": ["reviews.lowRatingThreshold", "..."],
+  "docs": { "reviews.lowRatingThreshold": "A review with this rating or lower ..." },
+  "translation": {
+    "provider": "google",
+    "credentialRequired": true,
+    "credentialConfigured": true,
+    "credential": { "id": "...", "label": "Google key" },
+    "usage": { "day": "2026-06-10", "used": 1200, "budget": 50000 }
+  }
+}
+```
+
+`writable` is empty for a member and lists every key for an admin. `credential` (id and label) is
+only present for those who may read credentials. `usage` is today's count (UTC) against the budget.
+
+## `PUT /settings`
+
+Admins and owners. A partial update: send only the keys to change; `null` resets a key to its
+default. **All or nothing**: if one value is invalid, nothing changes.
+
+- `400 unknown_setting`: a key that does not exist (`issues` lists them). This is also what a try to
+  store a secret (`translation.apiKey`) gets.
+- `400 invalid_setting`: a value of the wrong type or outside its range, or an address that is not
+  allowed. `issues` is `[{ path, message }]`.
+- `400 invalid_request`: the body is not a JSON object.
+- Answer `200`: `{ changed: [keys], values, defaults, overridden, writable, docs }`.
+
+## `POST /translate/test`
+
+Admins and owners; rate limited per workspace. Translates one fixed word (not review text) with the
+**saved** provider, credential and address and answers `{ ok, message, provider?, reason? }`.
+`message` is a fixed sentence per failure; it never contains the key, an address or the provider's own
+words. It uses no daily budget and is audited as `translation.test` (provider and result only). It
+works while translation is switched off, so a setup can be tested before turning it on.
+
+## What changing the low rating threshold does
+
+A review raises `review.new_low_rating` **at most once**. The threshold is read at the start of each
+sync, so a change applies from the next read on, and:
+
+- **Raising it** (say 2 to 3) does **not** send events for reviews already stored: they come back
+  from the store on later reads (Apple's read overlaps by 14 days) but are not new. Only reviews
+  first seen from then on, and reviews whose **rating changes** to a value at or below the threshold,
+  can raise an event.
+- **Lowering it** only narrows what is new from then on. Events already sent stay sent.
+- An edit that does not change the rating never raises an event; a rating changed to a low one does
+  (`source: "edited"`), once.
+- The first read of an app is still a quiet baseline, and at most 50 events are sent per read.
+- The event payload carries the `threshold` in force, and the last sync result `lowRatingThreshold`.
+
+The constant `LOW_RATING_THRESHOLD = 2` in `review-sync.ts` is only the default for a workspace that
+has not set the key.

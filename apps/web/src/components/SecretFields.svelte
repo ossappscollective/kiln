@@ -56,13 +56,24 @@
         </label>
       </p>
     {:else}
-      <input
-        id="{idPrefix}-{field.name}"
-        bind:value={values[field.name]}
-        {disabled}
-        autocomplete="off"
-        spellcheck="false"
-      />
+      {#if field.secret}
+        <input
+          id="{idPrefix}-{field.name}"
+          type="password"
+          bind:value={values[field.name]}
+          {disabled}
+          autocomplete="off"
+          spellcheck="false"
+        />
+      {:else}
+        <input
+          id="{idPrefix}-{field.name}"
+          bind:value={values[field.name]}
+          {disabled}
+          autocomplete="off"
+          spellcheck="false"
+        />
+      {/if}
       {#if field.hint}<p class="hint">{field.hint}</p>{/if}
     {/if}
   </div>
