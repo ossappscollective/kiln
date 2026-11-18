@@ -92,7 +92,7 @@ export function createLibreTranslateTranslator(options: LibreTranslateOptions): 
         const reply = await call(input.texts[0] as string, source, target);
         if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
         const results = fromReply(reply.json, 1);
-        if (!results) throw new TranslateError('unavailable');
+        if (!results) throw new TranslateError('unavailable', { detail: `reply_unreadable` });
         return { results };
       }
 
@@ -100,7 +100,7 @@ export function createLibreTranslateTranslator(options: LibreTranslateOptions): 
       if (batch.status < 200 || batch.status > 299) throw classify(batch.status, batch.json, batch.retryAfter);
       if (isRecord(batch.json) && Array.isArray(batch.json.translatedText)) {
         const results = fromReply(batch.json, input.texts.length);
-        if (!results) throw new TranslateError('unavailable');
+        if (!results) throw new TranslateError('unavailable', { detail: `reply_unreadable` });
         return { results };
       }
       // A server that does not know lists answered with one string: ask for each text on its own.
@@ -109,7 +109,7 @@ export function createLibreTranslateTranslator(options: LibreTranslateOptions): 
         const reply = await call(text, source, target);
         if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
         const part = fromReply(reply.json, 1);
-        if (!part?.[0]) throw new TranslateError('unavailable');
+        if (!part?.[0]) throw new TranslateError('unavailable', { detail: 'reply_unreadable' });
         results.push(part[0]);
       }
       return { results };

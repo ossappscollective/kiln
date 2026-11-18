@@ -311,7 +311,7 @@ export async function translateText(
       ...(source !== undefined ? { source } : {}),
     });
     translated = out.results;
-    if (translated.length !== misses.length) throw new TranslateError('unavailable');
+    if (translated.length !== misses.length) throw new TranslateError('unavailable', { detail: 'count_mismatch' });
   } catch (error) {
     await refund();
     const kind: TranslateErrorKind = error instanceof TranslateError ? error.kind : 'unavailable';

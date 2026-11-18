@@ -82,7 +82,7 @@ export async function postJson(request: JsonRequest, options: TranslatorOptions)
   } finally {
     clearTimeout(timer);
   }
-  if (text === undefined) throw new TranslateError('unavailable');
+  if (text === undefined) throw new TranslateError('unavailable', { detail: 'reply_too_big' });
   let json: unknown;
   try {
     json = text ? (JSON.parse(text) as unknown) : undefined;
