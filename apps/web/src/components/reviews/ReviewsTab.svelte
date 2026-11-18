@@ -54,8 +54,11 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
   import RatingOverview from './RatingOverview.svelte';
   import ReviewCard from './ReviewCard.svelte';
 
@@ -98,6 +101,7 @@
   let filters = $state<ReviewFilters>(defaultFilters());
   let sinceChoice = $state('all');
   let searchText = $state('');
+  let moreOpen = $state(false);
 
   /** Ignore a late answer for another app, or for filters that have changed since. */
   let generation = 0;
@@ -105,6 +109,14 @@
 
   const notices = $derived(summary ? syncNotices(summary.sync, now, (at) => timeAgo(at, now)) : []);
   const active = $derived(hasActiveFilters(filters));
+  /** The filters behind "More filters" that are on (the visible ones show themselves). */
+  const moreActive = $derived(
+    (filters.response !== '' ? 1 : 0) +
+      (filters.version !== '' ? 1 : 0) +
+      (filters.territory !== '' ? 1 : 0) +
+      (filters.language !== '' ? 1 : 0) +
+      (sinceChoice !== 'all' ? 1 : 0),
+  );
   const everStored = $derived((summary?.stored.count ?? 0) > 0);
   const needsAppSync = $derived(app.platform === 'ios' && !app.storeAppId);
 
@@ -285,24 +297,34 @@
   ]);
 </script>
 
-<section class="reviews stack loose" aria-busy={loading}>
+<section class="reviews stack" aria-busy={loading}>
   <p class="visually-hidden" role="status">{announcement}</p>
 
   <div class="intro">
-    <p class="muted">
-      What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'ios' ? 'appstoreconnect' : 'googleplay'))},
-      read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
-    </p>
-    <div class="intro-actions">
-      {#if canSync}
-        <Button variant="primary" icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>Read reviews now</Button>
+    <p class="lastread muted small">
+      {#if summary}
+        {lastReadText(summary.sync, (at) => timeAgo(at, now))}
+        {#if summary.sync.lastSuccessAt !== null}<span class="faint">({fullTime(summary.sync.lastSuccessAt)})</span>{/if}
       {/if}
-    </div>
+    </p>
+    <InfoTip label="About the reviews of this app" buttonText="About reviews" align="start" width="26rem">
+      <p>
+        What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'ios' ? 'appstoreconnect' : 'googleplay'))},
+        read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
+      </p>
+      {#if summary?.retentionDays}<p class="muted">Reviews older than {summary.retentionDays} days are deleted automatically.</p>{/if}
+      {#if summary?.retentionDays === 0}<p class="muted">Reviews are kept until the app is deleted.</p>{/if}
+    </InfoTip>
+    {#if replyConfig && !replyConfig.enabled}
+      <StatusPill tone="info" label="Replying is switched off" stateKey="reviews.reply-off">
+        <p>{REPLY_OFF_TEXT}</p>
+      </StatusPill>
+    {/if}
+    <span class="spacer"></span>
+    {#if canSync}
+      <Button variant="primary" icon="refresh" loading={syncing} disabled={needsAppSync} onclick={readNow}>Read reviews now</Button>
+    {/if}
   </div>
-
-  {#if replyConfig && !replyConfig.enabled}
-    <Alert tone="info" title="Replying is switched off">{REPLY_OFF_TEXT}</Alert>
-  {/if}
 
   {#if needsAppSync}
     <Alert tone="warn" title="Sync the app first">
@@ -321,13 +343,6 @@
     <Alert tone="error" title="Reviews could not be loaded">{loadProblem}</Alert>
     <div><Button icon="refresh" onclick={() => void loadAll(false)}>Try again</Button></div>
   {:else if summary}
-    <p class="muted small">
-      {lastReadText(summary.sync, (at) => timeAgo(at, now))}
-      {#if summary.sync.lastSuccessAt !== null}<span class="faint">({fullTime(summary.sync.lastSuccessAt)})</span>{/if}
-      {#if summary.retentionDays}Reviews older than {summary.retentionDays} days are deleted automatically.{/if}
-      {#if summary.retentionDays === 0}Reviews are kept until the app is deleted.{/if}
-    </p>
-
     {#if !everStored && !active}
       <div class="card">
         <EmptyState
@@ -351,31 +366,32 @@
         </EmptyState>
       </div>
     {:else}
-      <RatingOverview {summary} />
+      <RatingOverview {summary} activeStatus={filters.statuses.length === 1 ? (filters.statuses[0] ?? '') : ''} onstatus={(status) => change({ statuses: status === '' ? [] : [status] })} />
 
-      <form class="filters card" onsubmit={search} aria-label="Filter reviews">
-        <fieldset class="ratings">
-          <legend>Rating</legend>
-          {#each [5, 4, 3, 2, 1] as n (n)}
-            <label class="check">
-              <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
-              {n} {n === 1 ? 'star' : 'stars'}
-            </label>
-          {/each}
-          {#if summary.lowRatingThreshold > 0}
-            <Button
-              size="sm"
-              variant={lowOnly ? 'primary' : 'secondary'}
-              aria-pressed={lowOnly}
-              onclick={() => change({ ratings: ratingsWithLowOnly(!lowOnly, summary?.lowRatingThreshold ?? 0) })}
-            >
-              Low ratings only ({summary.lowRatingThreshold} {summary.lowRatingThreshold === 1 ? 'star' : 'stars'} or less)
-            </Button>
-          {/if}
-        </fieldset>
+      <form class="filters" onsubmit={search} aria-label="Filter reviews">
+        <div class="bar">
+          <fieldset class="ratings">
+            <legend>Rating</legend>
+            {#each [5, 4, 3, 2, 1] as n (n)}
+              <label class="check">
+                <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
+                {n}<Icon name="star-filled" size={12} /><span class="visually-hidden"> {n === 1 ? 'star' : 'stars'}</span>
+              </label>
+            {/each}
+            {#if summary.lowRatingThreshold > 0}
+              <Button
+                size="sm"
+                variant={lowOnly ? 'primary' : 'secondary'}
+                aria-pressed={lowOnly}
+                title="{summary.lowRatingThreshold} {summary.lowRatingThreshold === 1 ? 'star' : 'stars'} or less"
+                onclick={() => change({ ratings: ratingsWithLowOnly(!lowOnly, summary?.lowRatingThreshold ?? 0) })}
+              >
+                Low ratings only
+              </Button>
+            {/if}
+          </fieldset>
 
-        <div class="filter-grid">
-          <div class="field">
+          <div class="field inline">
             <label for="{uid}-status">Status</label>
             <select
               id="{uid}-status"
@@ -385,57 +401,59 @@
               {#each statusOptions as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
             </select>
           </div>
-          <div class="field">
-            <label for="{uid}-response">Developer response</label>
-            <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as ReviewFilters['response'] })}>
-              <option value="">Either</option>
-              <option value="no">No response yet</option>
-              <option value="yes">Has a response</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="{uid}-version">Version</label>
-            <select id="{uid}-version" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })}>
-              <option value="">Any version</option>
-              {#each summary.stored.byVersion as v (v.version)}<option value={v.version}>{v.version} ({v.count})</option>{/each}
-            </select>
-          </div>
-          <div class="field">
-            <label for="{uid}-territory">Country or region</label>
-            <select id="{uid}-territory" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })}>
-              <option value="">Any</option>
-              {#each summary.stored.territories as t (t.value)}<option value={t.value}>{territoryName(t.value)} ({t.count})</option>{/each}
-            </select>
-          </div>
-          <div class="field">
-            <label for="{uid}-language">Language</label>
-            <select id="{uid}-language" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })}>
-              <option value="">Any</option>
-              {#each summary.stored.languages as l (l.value)}<option value={l.value}>{l.value} ({l.count})</option>{/each}
-            </select>
-          </div>
-          <div class="field">
-            <label for="{uid}-since">Written</label>
-            <select id="{uid}-since" value={sinceChoice} onchange={(e) => setSince(e.currentTarget.value)}>
-              {#each sinceChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
-            </select>
-          </div>
-          <div class="field">
+          <div class="field inline">
             <label for="{uid}-sort">Sort</label>
             <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
               {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
             </select>
           </div>
-        </div>
-
-        <div class="search-row">
-          <div class="field grow">
-            <label for="{uid}-q">Search the text</label>
+          <div class="field inline grow">
+            <label for="{uid}-q">Search</label>
             <input id="{uid}-q" type="search" maxlength="100" placeholder="a word or phrase" bind:value={searchText} autocomplete="off" />
           </div>
-          <Button type="submit" icon="search">Search</Button>
-          {#if active}<Button variant="ghost" onclick={clear}>Clear filters</Button>{/if}
+          <Button type="submit" icon="search" size="sm">Search</Button>
+          {#if active}<Button variant="ghost" size="sm" onclick={clear}>Clear filters</Button>{/if}
         </div>
+
+        <Disclosure bind:open={moreOpen} stateKey="reviews.more-filters" summary={moreActive > 0 ? `More filters (${moreActive} on)` : 'More filters'}>
+          <div class="filter-grid">
+            <div class="field">
+              <label for="{uid}-response">Developer response</label>
+              <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as ReviewFilters['response'] })}>
+                <option value="">Either</option>
+                <option value="no">No response yet</option>
+                <option value="yes">Has a response</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="{uid}-version">Version</label>
+              <select id="{uid}-version" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })}>
+                <option value="">Any version</option>
+                {#each summary.stored.byVersion as v (v.version)}<option value={v.version}>{v.version} ({v.count})</option>{/each}
+              </select>
+            </div>
+            <div class="field">
+              <label for="{uid}-territory">Country or region</label>
+              <select id="{uid}-territory" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })}>
+                <option value="">Any</option>
+                {#each summary.stored.territories as t (t.value)}<option value={t.value}>{territoryName(t.value)} ({t.count})</option>{/each}
+              </select>
+            </div>
+            <div class="field">
+              <label for="{uid}-language">Language</label>
+              <select id="{uid}-language" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })}>
+                <option value="">Any</option>
+                {#each summary.stored.languages as l (l.value)}<option value={l.value}>{l.value} ({l.count})</option>{/each}
+              </select>
+            </div>
+            <div class="field">
+              <label for="{uid}-since">Written</label>
+              <select id="{uid}-since" value={sinceChoice} onchange={(e) => setSince(e.currentTarget.value)}>
+                {#each sinceChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+              </select>
+            </div>
+          </div>
+        </Disclosure>
       </form>
 
       {#if translationOn && translationConfig}
@@ -453,7 +471,7 @@
             <input type="checkbox" bind:checked={showTranslations} disabled={!anyTranslated} />
             Show translations
           </label>
-          <span class="muted small">The stored text of those reviews is sent to the translation provider, 25 at a time.</span>
+          <InfoTip label="About translating" align="start" text="The stored text of those reviews is sent to the translation provider, 25 at a time." />
         </div>
         {#if translateProblem}<Alert tone="error" title="Translation stopped">{translateProblem}</Alert>{/if}
       {/if}
@@ -522,28 +540,35 @@
   .intro {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3) var(--space-6);
+    gap: var(--space-2) var(--space-3);
     align-items: center;
-    justify-content: space-between;
   }
 
-  .intro p {
-    flex: 1 1 320px;
-    max-width: 62ch;
-    margin: 0;
-    font-size: var(--text-sm);
+  .lastread {
+    min-width: 0;
   }
 
   .filters {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
   }
 
   .ratings {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
+    gap: var(--space-1) var(--space-3);
     align-items: center;
     margin: 0;
     padding: 0;
@@ -552,10 +577,33 @@
 
   .ratings legend {
     float: left;
-    margin-right: var(--space-3);
+    margin-right: var(--space-2);
     padding: 0;
     font-size: var(--text-sm);
     font-weight: var(--weight-medium);
+  }
+
+  .ratings .check {
+    gap: var(--space-1);
+  }
+
+  .field.inline {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin: 0;
+  }
+
+  .field.inline label {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+  }
+
+  .field.inline select,
+  .field.inline input {
+    min-height: var(--control-sm);
   }
 
   .filter-grid {
@@ -564,15 +612,8 @@
     gap: var(--space-3);
   }
 
-  .search-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: flex-end;
-  }
-
   .grow {
-    flex: 1 1 240px;
+    flex: 1 1 200px;
   }
 
   .cards {

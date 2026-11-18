@@ -52,7 +52,9 @@
   import type { AppSummary, AssetIndex, AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import AssetGallery from './AssetGallery.svelte';
@@ -258,7 +260,7 @@
   const searched = $derived(index ? [...index.folders.screenshots, ...index.folders.previews, ...(index.folders.androidImages ? [index.folders.androidImages] : [])] : []);
 </script>
 
-<div class="stack loose assets" aria-busy={loading}>
+<div class="stack assets" aria-busy={loading}>
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if !allowed}
@@ -295,11 +297,8 @@
         </EmptyState>
       </div>
     {:else}
-      <section class="card" aria-label="Source of the assets">
-        <div class="stack">
-          <AssetSource {index} {now} {reloading} onreload={load} />
-          <p class="muted basis">{index.specs.basis}</p>
-        </div>
+      <section aria-label="Source of the assets" class="sourcebar">
+        <AssetSource {index} {now} {reloading} onreload={load} />
       </section>
 
       {#if index.partial.partial}
@@ -332,29 +331,32 @@
           </EmptyState>
         </div>
       {:else}
-        <section class="card" aria-label="Summary">
-          <div class="stack">
-            <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
-            <div class="row wrap staging">
-              <Button
-                size="sm"
-                icon="layers"
-                loading={stagingAll}
-                disabled={stageableShown.length === 0 || stagingId !== '' || stagingAll}
-                title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
-                onclick={stageAll}
-              >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
-              <Button size="sm" icon="download" disabled title={REVERSE_IMAGE_SYNC_NOTE}>Pull from store</Button>
-              <span class="muted small">Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</span>
-            </div>
+        <section class="summarybar" aria-label="Summary">
+          <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
+          <div class="row wrap staging">
+            <InfoTip label="About staging" align="end" width="24rem">
+              <p>Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</p>
+            </InfoTip>
+            <Button
+              size="sm"
+              icon="layers"
+              loading={stagingAll}
+              disabled={stageableShown.length === 0 || stagingId !== '' || stagingAll}
+              title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
+              onclick={stageAll}
+            >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
+            <Button size="sm" icon="download" disabled title={REVERSE_IMAGE_SYNC_NOTE}>Pull from store</Button>
           </div>
         </section>
 
         {#if index.problems.length > 0}
-          <details class="card problems" open={index.totals.errors > 0}>
-            <summary>Problems found ({index.problems.length}): {problemCountsText(index)}</summary>
+          <Disclosure
+            variant="boxed"
+            stateKey="assets.problems"
+            summary="Problems found ({index.problems.length}): {problemCountsText(index)}"
+          >
             <div class="problem-list"><AssetProblems problems={index.problems} onopenpath={openPath} /></div>
-          </details>
+          </Disclosure>
         {/if}
 
         <Tabs
@@ -468,9 +470,18 @@
 </div>
 
 <style>
-  .basis {
-    margin: 0;
-    font-size: var(--text-sm);
+  .sourcebar {
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+  .summarybar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
+    justify-content: space-between;
   }
   .summary {
     margin: 0;
