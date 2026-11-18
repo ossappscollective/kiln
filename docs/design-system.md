@@ -107,6 +107,7 @@ Each file starts with a comment that lists its props.
 | `ThemeToggle`, `Logo` | Theme choice and the product mark |
 | `Icon` | One of the registered inline SVG icons (`lib/icons.ts`), see Icons below |
 | `StoreBadge`, `PlatformBadge` | A store, tool or platform as a generic glyph plus its name |
+| `AppIcon` | The icon of an app in a square of a fixed size. Loads `iconUrl` of the app JSON (same origin only), falls back to the initials of the app and the platform glyph, never a broken image. Decorative beside the app's name (`labelled`), named when alone. See `docs/api/assets.md` |
 | `IconGallery` | Dev only: every icon, store badge and status icon on one page. Not routed |
 
 To show an icon in the navigation, set `icon` on the view in `lib/views.ts`.
@@ -203,22 +204,19 @@ everywhere without a change, and `ReleaseStatus` shows its status icon.
 
 | File | Where | Use |
 | --- | --- | --- |
-| `components/release/PlanOverview.svelte` | `<Badge tone="bad" dot>Blocked</Badge>`, the due and readiness badges (about lines 123 to 125) | `icon="alert-triangle"` / `toneIcon(due.tone)` / `icon={readiness.ready ? 'check-circle' : 'alert-triangle'}` instead of `dot` |
-| `components/release/ReleaseDetail.svelte` | Blocked, due and rollout badges (about lines 207 to 209) | Same as above; rollout badge `icon="trending-up"` |
 | `components/release/Rollout.svelte` | `storeSource` (about line 84) and the "Planning only" sentence (about line 221) say "App Store Connect" or "Google Play" in plain text; badges at about lines 255 and 337 | `<StoreBadge store={app_store or google_play} variant="full" size="sm" />` beside the sentence; badges get `toneIcon(tone)` instead of `dot` |
 | `components/release/RolloutObserved.svelte` | `source` (about line 17) | `StoreBadge variant="full" size="sm"` in the header |
 | `components/release/ReleaseNotes.svelte`, `NewPlan.svelte` | Store limits in prose (App Store 4000, Google Play 500) | `StoreBadge variant="chip" size="sm"` before each limit |
 | `components/release/Checklist.svelte` | Required and Optional badges (about line 198) | `icon="flag"` on Required |
 | `components/release/PlatformPanel.svelte`, `components/dashboard/BoardCard.svelte`, `components/dashboard/AttentionStrip.svelte`, `components/portfolio/AppDetail.svelte`, `components/portfolio/BuildsPanel.svelte` | `PlatformBadge` | Nothing to do. Optionally add `<StoreBadge store={storeForPlatform(platform).store} size="sm" />` on the app header of `AppDetail` |
-| `components/dashboard/BoardCard.svelte`, `AttentionStrip.svelte` | `dot` badges (Planned, due, rollout, attention kinds) | `icon={toneIcon(tone)}` instead of `dot` |
-| `components/portfolio/BuildsPanel.svelte` | "on GitHub" link text (about lines 293 and 335); the link badge (about line 276) | `Icon name="repo"` before GitHub text; `icon="link"` on the link badge |
+| `components/portfolio/BuildsPanel.svelte` | "on GitHub" link text (about lines 293 and 335). The link badge has its icon and the tag source has the GitHub glyph | `Icon name="repo"` before the remaining GitHub text |
 | `components/portfolio/BuildsPanelChanges.svelte`, `BuildsPanelConventions.svelte` | "GitHub" in prose and the Found / Not found badges (about lines 352 and 356) | `StoreBadge store="github" size="sm"`; badges `icon="check-circle"` and `icon="alert-triangle"` |
 | `components/ci/CiPanel.svelte`, `RunsTable.svelte`, `DispatchDialog.svelte`, `RunStatus.svelte` | "GitHub Actions" headings, the dispatch badge (about line 200), run status | `StoreBadge store="github" variant="chip"` in the card title; `RunStatus` icon from `toneIcon(badge.tone)` (running: `refresh`, queued: `clock`) |
 | `components/repositories/RepositoryDetail.svelte` | Local only badge (about line 159) and the GitHub button (about line 161) | `icon="folder"` on the badge; `StoreBadge store="github" variant="icon"` before the repository name |
 | `components/repositories/ChangeSetReview.svelte`, `ApplyDialog.svelte` | "Open a pull request on GitHub" and "Push the branch to GitHub" | `Icon name="git-pull-request"` and `Icon name="git-branch"` before the option label; file-change badges `plus`, `edit`, `trash` |
 | `components/repositories/LocalCheckoutCard.svelte`, `LocalCheckoutConnect.svelte`, `LocalOutcomeCard.svelte` | Local clone state badge (about line 185), outcome step badges | `Icon name="folder"` on the card title; badges `icon={toneIcon(tone)}` |
 | `components/listing/*` | Source badges in the history drawer, field status badges, "new locale" | `icon="store-ios"` / `repo` for a store or repo source; `toneIcon(statusTone)`; `icon="language"` on "new locale" |
-| `components/assets/*`, `components/reviews/*` | Store names in headings and any status badge | `StoreBadge variant="chip"`; `toneIcon(tone)` on status badges |
+| `components/reviews/*` | Store names in headings and any status badge | `StoreBadge variant="chip"`; `toneIcon(tone)` on status badges |
 
 For the navigation, `lib/views.ts` keeps its current icons. A `zap` icon exists if you want the
 Webhooks entry to use it; `lib/format.ts` (`eventVisual`) would need the same change so the audit

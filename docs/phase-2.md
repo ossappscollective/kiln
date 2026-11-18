@@ -194,6 +194,34 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       them (`listing.read`) and they appear in `/api/openapi.json`; their bodies and answers are described in part
 - [ ] Verify the listing tables and routes on Postgres
 
+## Store assets and app icons (read only, no store write)
+
+Docs: [docs/api/assets.md](api/assets.md). Nothing is uploaded to a store or to this server.
+
+- [x] Index of the store media in an app's repository (screenshots, app previews, Google Play
+      graphics, project icons) by locale and device, read from the header bytes only, with limits by
+      source (local clone, GitHub clone, GitHub API) and a `partial` answer when one is reached
+- [x] Checks against the documented specs (`packages/core/src/store-asset-specs.ts`, every rule
+      cites its page): formats, sizes, alpha channel, counts per device. Rules not found on an
+      official page are marked `verified: false` and are information only
+- [x] `GET /apps/:id/assets`, `/assets/file` (indexed paths only, sniffed type, sandboxing headers,
+      ETag, 8 MiB cap) and `/icon`, in the OpenAPI registry; `hasIcon` and `iconUrl` on the apps JSON
+- [x] App icons: from the repository, then the iTunes Lookup API for iOS, through the SSRF-safe
+      fetch with limits and back-off; stored in `app_icons` (migration 18)
+- [x] Web: an Assets tab (gallery by locale and device, filters, large view, problems with the rule
+      text, the source and commit read, empty, partial and error states) and `AppIcon` in the
+      portfolio, app page, board, release page, token form and import dialogs
+- [x] Tested with fakes and with PNG and JPEG bytes made in the tests; web helpers are unit tested
+- [ ] **Never run** against a real GitHub repository, a real store or the iTunes API, and the
+      screens were never opened in a browser
+- [ ] Verify migration 18 and the routes on Postgres
+- [ ] Rules still UNVERIFIED (see the assets doc): the App Store icon alpha rule, the Play promo
+      graphic, the pixel sizes of each Apple app preview display, a size limit for Play feature
+      graphics and screenshots, and the `artworkUrl512`, `bundleId` and `country` of the iTunes lookup
+- [ ] Compare with the store: the counts the store has per locale, kind and device (the Assets tab
+      says "Not yet compared with the store" until the listing reads fill `storeSide`)
+- [ ] Android icons from the store (the connectors expose none); Fastfile `screenshots_path` is not followed
+
 ## Automation surface (tokens, events, webhooks, OpenAPI)
 
 How scripts, CI and assistants use the server without a person's session. It adds no store write: a
