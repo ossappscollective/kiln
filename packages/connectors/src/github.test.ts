@@ -1218,3 +1218,41 @@ test('propose without a signal behaves as before', async () => {
   const result = await proposeName(make(fake));
   assert.equal(result.number, 17);
 });
+
+test('openPullRequest opens a pull request for a branch that is already on GitHub', async () => {
+  const fake = new Fake();
+  fake.on({ method: 'POST', path: `${R}/pulls`, status: 201, json: fx.pullRequest(5, 'mrm/local-1') });
+  const result = await make(fake).openPullRequest({
+    branch: 'mrm/local-1',
+    base: 'main',
+    title: 'Update the subtitle',
+    body: 'Body',
+  });
+  assert.equal(result.number, 5);
+  assert.ok(result.url?.startsWith('https://'));
+  const sent = fake.to('POST', '/pulls')[0]?.body;
+  assert.equal(sent?.head, 'mrm/local-1');
+  assert.equal(sent?.base, 'main');
+  assert.equal(sent?.title, 'Update the subtitle');
+  assert.equal(fake.to('POST', '/git/refs').length, 0, 'no branch is made');
+  fake.assertClean();
+});
+
+test('openPullRequest refuses branch names that are not valid, and reports a refusal by GitHub', async () => {
+  const fake = new Fake();
+  await rejects(make(fake).openPullRequest({ branch: '--upload-pack=x', base: 'main', title: 'T' }), (e) =>
+    assert.equal(e.kind, 'invalid_input'),
+  );
+  await rejects(make(fake).openPullRequest({ branch: 'a', base: 'x..y', title: 'T' }), (e) =>
+    assert.equal(e.kind, 'invalid_input'),
+  );
+  fake.on({
+    method: 'POST',
+    path: `${R}/pulls`,
+    status: 422,
+    json: { message: 'Validation Failed', errors: [{ resource: 'PullRequest', code: 'custom', message: 'A pull request already exists' }] },
+  });
+  await rejects(make(fake).openPullRequest({ branch: 'a', base: 'main', title: 'T' }), (e) =>
+    assert.match(e.message, /PullRequest\.custom/),
+  );
+});

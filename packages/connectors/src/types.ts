@@ -115,6 +115,22 @@ export type ProposeOptions = {
   signal?: AbortSignal;
 };
 
+export type OpenPullRequestOptions = {
+  /** The branch with the changes (the pull request's head). It must already exist on the host. */
+  branch: string;
+  /** The branch to merge into. */
+  base: string;
+  title: string;
+  body?: string;
+  draft?: boolean;
+  signal?: AbortSignal;
+};
+
+export type OpenPullRequestResult = {
+  url?: string;
+  number?: number;
+};
+
 export type DispatchResult = {
   /**
    * The workflow run that was started. GitHub only reports it when asked for run details, so it
@@ -160,6 +176,11 @@ export interface RepoConnector {
   readFile(path: string, ref?: string): Promise<string | undefined>;
   /** Apply a change set as a branch, and as a pull request where the host supports it. */
   propose(changeSet: ChangeSet, options: ProposeOptions): Promise<ProposalResult>;
+  /**
+   * Opens a pull request for a branch that is already on the host (a local commit that was pushed).
+   * Optional: a connector without it cannot open one for an existing branch.
+   */
+  openPullRequest?(options: OpenPullRequestOptions): Promise<OpenPullRequestResult>;
   dispatchWorkflow(
     workflow: string,
     ref: string,

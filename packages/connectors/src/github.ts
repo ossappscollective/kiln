@@ -13,6 +13,8 @@ import type {
   DispatchResult,
   ListWorkflowRunsOptions,
   ProposalResult,
+  OpenPullRequestOptions,
+  OpenPullRequestResult,
   ProposeOptions,
   RepoConnector,
   WorkflowRun,
@@ -678,28 +680,46 @@ export class GithubRepoConnector implements RepoConnector {
     // No signal from here on: the branch exists, and an abort must not leave it without its pull
     // request. This is one request, bounded by the connector's own timeout.
     try {
-      const pr = await this.#api('POST', this.#repoPath('/pulls'), {
-        body: {
-          title: options.title,
-          head: branch,
-          base,
-          body: options.body ?? this.#pullRequestBody(changeSet, plan.changes),
-          ...(options.draft ? { draft: true } : {}),
-        },
+      const pr = await this.openPullRequest({
+        branch,
+        base,
+        title: options.title,
+        body: options.body ?? this.#pullRequestBody(changeSet, plan.changes),
+        ...(options.draft ? { draft: true } : {}),
       });
-      const json = isRecord(pr.json) ? pr.json : {};
-      const url = text(json.html_url);
-      const number = num(json.number);
       return {
         branch,
-        ...(url ? { url } : {}),
-        ...(number !== undefined ? { number } : {}),
+        ...(pr.url ? { url: pr.url } : {}),
+        ...(pr.number !== undefined ? { number: pr.number } : {}),
         commitSha,
       };
     } catch (error) {
       if (!(error instanceof GithubError)) throw error;
       throw new PullRequestFailedError(branch, commitSha, error);
     }
+  }
+
+  /**
+   * Opens a pull request from `branch` into `base`. The branch must exist on GitHub (`propose` has
+   * just made it, or a local commit was pushed). One request; the signal, when given, cancels it.
+   */
+  async openPullRequest(options: OpenPullRequestOptions): Promise<OpenPullRequestResult> {
+    const head = checkBranchName(options.branch);
+    const base = checkBranchName(options.base);
+    const pr = await this.#api('POST', this.#repoPath('/pulls'), {
+      body: {
+        title: options.title,
+        head,
+        base,
+        ...(options.body !== undefined ? { body: options.body } : {}),
+        ...(options.draft ? { draft: true } : {}),
+      },
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    const json = isRecord(pr.json) ? pr.json : {};
+    const url = text(json.html_url);
+    const number = num(json.number);
+    return { ...(url ? { url } : {}), ...(number !== undefined ? { number } : {}) };
   }
 
   /** Compares each change with the tree it will be applied to. */
