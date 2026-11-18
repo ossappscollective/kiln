@@ -2,6 +2,7 @@ import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName } from './googleplay.ts';
 import {
+  checkReplyText,
   cleanBody,
   cleanName,
   cleanShort,
@@ -9,9 +10,13 @@ import {
   clampLimit,
   type ListReviewsOptions,
   type ListReviewsResult,
+  PLAY_REPLY_LIMIT,
   parseRating,
+  ReplyOutcomeUnknownError,
+  type ReplyToReviewInput,
+  type ReplyToReviewResult,
   type StoreReview,
-  type StoreReviewConnector,
+  type StoreReviewReplyConnector,
 } from './review-types.ts';
 import {
   enc,
@@ -26,8 +31,10 @@ import {
 } from './store-http.ts';
 
 /**
- * Read-only Google Play connector for user reviews. Every request is a GET; `reviews.reply` (a
- * store write) is not called anywhere in this repository.
+ * Google Play connector for user reviews. The reads are GETs. `replyToReview` (`reviews.reply`) is
+ * a STORE WRITE: the text is published publicly on the store page. It is only ever called by the
+ * server's reply service, after a draft, a rights check and an explicit confirmation
+ * (docs/adr/0007-review-replies.md); it is never retried.
  *
  * It reuses the service-account token provider, the HTTP plumbing and the error mapping of
  * `googleplay.ts`. Unlike the other Play reads it needs no edit.
@@ -46,6 +53,24 @@ import {
  *   https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/get
  * - Review, Comment, UserComment, DeveloperComment, Timestamp:
  *   https://developers.google.com/android-publisher/api-ref/rest/v3/reviews
+ *
+ * - `POST /androidpublisher/v3/applications/{packageName}/reviews/{reviewId}:reply` (`reviews.reply`)
+ *   https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/reply
+ *   Body `{ "replyText": string }`, answer `{ "result": { "replyText", "lastEdited": Timestamp } }`,
+ *   scope `https://www.googleapis.com/auth/androidpublisher`. VERIFIED on
+ *   https://developers.google.com/android-publisher/reply-to-reviews (2026-11-18): `replyText` is at
+ *   most 350 characters (400 when too long or missing; 404 for an unknown review id); a review can
+ *   be replied to as many times as wanted and a new reply replaces the old one; only the first
+ *   reply to a created or modified review notifies the user; well formed HTML tags are stripped
+ *   (plain text is recommended: this server refuses HTML-looking text so what is published is what
+ *   was confirmed); replies are public; automated replies are discouraged; quota per app: 2000
+ *   POST requests a day (and 200 GET an hour); the service account needs the Play Console permission
+ *   "Reply to reviews" (the same guide). The reply window follows the review window: only reviews
+ *   created or modified in the last week can be read back (`reviews.get` of an older review is
+ *   a 404; whether `reviews.reply` still works on one is UNVERIFIED).
+ *
+ * Writes never retry, not even a 429, and use their own `StoreHttp` with no rate-limit waits. A
+ * timeout, a cut connection or a 5xx is a `ReplyOutcomeUnknownError`.
  *
  * UNVERIFIED: the order of `reviews.list` (not documented, so nothing here relies on it), what
  * `tokenPagination` holds beyond `nextPageToken` (its page was not retrievable), how long a page
@@ -177,11 +202,21 @@ export function parsePlayReviews(page: unknown): { reviews: StoreReview[]; skipp
   return { reviews, skipped, ...(nextToken ? { nextToken } : {}) };
 }
 
-export class PlayReviewsConnector implements StoreReviewConnector {
+/** What Google answers to `reviews.reply`: `{ result: { replyText, lastEdited } }`. Tolerant: all optional. */
+export function parsePlayReplyResult(json: unknown): ReplyToReviewResult {
+  const result = isRecord(json) && isRecord(json.result) ? json.result : {};
+  const repliedAt = parsePlayTimestamp(result.lastEdited);
+  return repliedAt !== undefined ? { repliedAt } : {};
+}
+
+export class PlayReviewsConnector implements StoreReviewReplyConnector {
   readonly store = 'googleplay' as const;
   readonly platform = 'android' as const;
   readonly packageName: string;
+  readonly replyLimit = PLAY_REPLY_LIMIT;
   readonly #http: StoreHttp;
+  /** For writes: the same settings, but a 429 is never waited out and retried. */
+  readonly #writeHttp: StoreHttp;
   readonly #tokens: GoogleTokenProvider;
   readonly #base: string;
   readonly #account: ServiceAccount;
@@ -200,6 +235,7 @@ export class PlayReviewsConnector implements StoreReviewConnector {
     }
     this.packageName = options.packageName;
     this.#http = new StoreHttp({ ...options, store: 'googleplay' });
+    this.#writeHttp = new StoreHttp({ ...options, store: 'googleplay', maxRateLimitRetries: 0 });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     this.#tokens = new GoogleTokenProvider(this.#account, this.#http);
     const wanted = options.pageSize ?? MAX_PAGE_SIZE;
@@ -267,6 +303,68 @@ export class PlayReviewsConnector implements StoreReviewConnector {
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return undefined;
       throw error;
+    }
+  }
+
+  /**
+   * Publishes `text` as the developer reply to a review, replacing an existing one (Google's
+   * documented behaviour). A STORE WRITE, never retried (a 401 once, with a new token: Google
+   * rejected the token before it looked at the request). `ReplyOutcomeUnknownError` when the
+   * outcome is unknown; any other `StoreError` means Google refused and nothing was published.
+   */
+  async replyToReview(input: ReplyToReviewInput): Promise<ReplyToReviewResult> {
+    if (!/^[A-Za-z0-9._:-]{1,200}$/.test(input.reviewId)) {
+      throw new StoreError('googleplay', 'invalid_input', 'Not a valid review id.');
+    }
+    const checked = checkReplyText(input.text, this.replyLimit);
+    if (!checked.ok) throw new StoreError('googleplay', 'invalid_input', checked.message);
+    // The documented method is `reviews/{reviewId}:reply`: the id is escaped, the `:reply` is not.
+    const url = `${this.#url(`/${enc(input.reviewId)}`)}:reply`;
+    const what = 'answering a review';
+    for (let attempt = 0; ; attempt++) {
+      const token = await this.#tokens.token();
+      let reply: StoreReply;
+      try {
+        reply = await this.#writeHttp.send('POST', url, {
+          headers: { authorization: `Bearer ${token}` },
+          json: { replyText: input.text },
+        });
+      } catch (error) {
+        if (error instanceof StoreError && error.kind === 'network') {
+          throw new ReplyOutcomeUnknownError(
+            'googleplay',
+            `The connection to Google Play failed while ${what}, so it is not known whether Google applied it. ${error.message}`,
+            error.status,
+          );
+        }
+        throw error;
+      }
+      if (reply.status === 401 && attempt === 0) {
+        this.#tokens.invalidate();
+        continue;
+      }
+      if (reply.status >= 200 && reply.status < 300) return parsePlayReplyResult(reply.json);
+      if (reply.status >= 500) {
+        throw new ReplyOutcomeUnknownError(
+          'googleplay',
+          `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`,
+          reply.status,
+        );
+      }
+      const error = googleError(reply, what, {
+        packageName: this.packageName,
+        ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}),
+      });
+      if (error instanceof StoreRateLimitError) throw error;
+      if (reply.status === 403 && error.kind === 'forbidden') {
+        throw new StoreError(
+          'googleplay',
+          'forbidden',
+          'Google Play refused the reply (403). The service account needs the Play Console permission "Reply to reviews" for this app. See docs/credentials.md.',
+          403,
+        );
+      }
+      throw new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
     }
   }
 

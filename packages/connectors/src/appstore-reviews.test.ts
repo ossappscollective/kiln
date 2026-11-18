@@ -49,6 +49,7 @@ test('listReviews reads newest first with the developer response included, and f
   assert.equal(first?.updatedAt, first?.createdAt);
   assert.deepEqual(first?.developerResponse, {
     body: 'Sorry about that, please update to 2.4.1.',
+    storeResponseId: 'resp-00000030-0000-0000-0000-000000000001',
     at: Date.parse('2026-11-16T09:00:00-08:00'),
     state: 'PUBLISHED',
   });
@@ -203,12 +204,11 @@ test('a malformed body is an unexpected error, not a crash', async () => {
   assert.equal(error.kind, 'unexpected');
 });
 
-test('only GET requests exist: the connector has no way to reply to a review', async () => {
+test('reading reviews only ever sends GET requests (replies are tested in review-replies.test.ts)', async () => {
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: FIRST, json: rx.applePage2 });
   await connector.listReviews({ limit: 2 });
   assert.ok(fake.calls.every((c) => c.method === 'GET'));
-  assert.ok(!('reply' in connector) && !('respond' in connector));
 });
 
 test('the app id must be numeric before it goes into a URL', () => {

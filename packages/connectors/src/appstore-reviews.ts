@@ -6,6 +6,8 @@ import {
 import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
 import {
+  APPLE_REPLY_LIMIT,
+  checkReplyText,
   cleanBody,
   cleanName,
   cleanShort,
@@ -14,8 +16,11 @@ import {
   type ListReviewsOptions,
   type ListReviewsResult,
   parseRating,
+  ReplyOutcomeUnknownError,
+  type ReplyToReviewInput,
+  type ReplyToReviewResult,
   type StoreReview,
-  type StoreReviewConnector,
+  type StoreReviewReplyConnector,
 } from './review-types.ts';
 import {
   enc,
@@ -24,13 +29,15 @@ import {
   records,
   type StoreHttpOptions,
   StoreHttp,
+  type StoreReply,
   text,
 } from './store-http.ts';
 
 /**
- * Read-only App Store Connect connector for customer reviews. Every request is a GET; there is no
- * method that answers a review (`POST /v1/customerReviewResponses` is a store write and is not
- * called anywhere in this repository).
+ * App Store Connect connector for customer reviews. The reads are GETs. Answering a review
+ * (`replyToReview`, `deleteReviewResponse`) is a STORE WRITE: the text is published publicly in the
+ * App Store. It is only ever called by the server's reply service, after a draft, a rights check
+ * and an explicit confirmation (docs/adr/0007-review-replies.md); it is never retried.
  *
  * It reuses the key handling, the HTTP plumbing (timeout, redaction, bounded wait on 429) and the
  * error mapping of `appstoreconnect.ts`, and only adds the review endpoints.
@@ -53,6 +60,41 @@ import {
  *   `filter[platform]` is required. Apple describes the result as AI-generated summaries per
  *   territory. UNVERIFIED: the attribute names (the page lists `text`, `createdDate`, `locale`,
  *   `platform`, `territory` as fields), and which key role may read it.
+ *
+ * Writes (checked against Apple's pages on 2026-11-18, see docs/api/reviews.md):
+ *
+ * - `POST /v1/customerReviewResponses`, "Create or update a response to a customer review":
+ *   https://developer.apple.com/documentation/appstoreconnectapi/post-v1-customerreviewresponses
+ *   Body (JSON:API): `data.type` `customerReviewResponses`, `data.attributes.responseBody`,
+ *   `data.relationships.review.data` `{ type: 'customerReviews', id }`. VERIFIED on the page: it
+ *   creates a response, and "if a response already exists, this endpoint updates the response by
+ *   overwriting it"; responses are not published instantly ("allow some time"), so the state is
+ *   `PENDING_PUBLISH` first
+ *   (https://developer.apple.com/documentation/appstoreconnectapi/customerreviewresponsev1 lists
+ *   the states `PUBLISHED` and `PENDING_PUBLISH`). The attribute and relationship names are those
+ *   of the request object; the field pages did not render when checked, so they are UNVERIFIED
+ *   beyond what the read side already uses (`responseBody`, `lastModifiedDate`, `state`). The success
+ *   status (201 expected) is UNVERIFIED: any 2xx counts as sent. NO length limit is documented
+ *   (APPLE_REPLY_LIMIT is this server's own conservative cap, UNVERIFIED).
+ * - `DELETE /v1/customerReviewResponses/{id}`: "Delete a specific response you wrote to a customer
+ *   review"; the deletion is not instant either.
+ *   https://developer.apple.com/documentation/appstoreconnectapi/delete-v1-customerreviewresponses-_id_
+ *   Verified to exist. Nothing in this server calls it yet (there is no route): the person removes a
+ *   published response in App Store Connect.
+ * - Role: Apple's help page says the Account Holder, Admin and Customer Support roles may respond
+ *   to reviews in App Store Connect
+ *   (https://developer.apple.com/help/app-store-connect/monitor-ratings-and-reviews/respond-to-reviews).
+ *   Whether an API KEY of each role may is UNVERIFIED: a developer forum thread reports that
+ *   Customer Support cannot be chosen for a key (so Admin is needed) and one report of HTTP 405 on
+ *   POST and DELETE for some keys (https://developer.apple.com/forums/thread/727332). A 405 is shown
+ *   as `unsupported`; a 403 as `forbidden`.
+ * - `GET /v1/customerReviews/{id}` (with `include=response`, UNVERIFIED on that page) reads one
+ *   review back, to find out what happened after an answer whose outcome is unknown.
+ *   https://developer.apple.com/documentation/appstoreconnectapi/get-v1-customerreviews-_id_
+ *
+ * Writes never retry, not even a 429 (a second POST could overwrite a newer response): the
+ * connector keeps a second `StoreHttp` with no rate-limit retries for them. A timeout, a cut
+ * connection or a 5xx is a `ReplyOutcomeUnknownError`.
  *
  * Every parser is tolerant: a missing or unknown field never throws; an entry without an id or a
  * rating from 1 to 5 is counted in `skipped` and left out.
@@ -94,7 +136,7 @@ const toMs = (value: unknown): number | undefined => {
 };
 
 /** One App Store developer response, as found in an `included` list. */
-type AppleResponse = { body: string; at?: number; state?: string };
+type AppleResponse = { body: string; storeResponseId?: string; at?: number; state?: string };
 
 function responsesById(included: Json[]): Map<string, AppleResponse> {
   const found = new Map<string, AppleResponse>();
@@ -108,6 +150,7 @@ function responsesById(included: Json[]): Map<string, AppleResponse> {
     const state = cleanShort(attributes.state);
     found.set(id, {
       body,
+      storeResponseId: id,
       ...(at !== undefined ? { at } : {}),
       ...(state !== undefined ? { state } : {}),
     });
@@ -196,10 +239,27 @@ export function parseAppleSummarizations(page: unknown): AppleReviewSummarizatio
   return found;
 }
 
-export class AppStoreReviewsConnector implements StoreReviewConnector {
+/** What Apple answers to `POST /v1/customerReviewResponses`: the response resource. Tolerant: all optional. */
+export function parseAppleReplyResult(json: unknown): ReplyToReviewResult {
+  const data = isRecord(json) && isRecord(json.data) ? json.data : {};
+  const attributes = isRecord(data.attributes) ? data.attributes : {};
+  const storeResponseId = text(data.id);
+  const state = cleanShort(attributes.state);
+  const repliedAt = toMs(attributes.lastModifiedDate);
+  return {
+    ...(storeResponseId !== undefined ? { storeResponseId } : {}),
+    ...(state !== undefined ? { state } : {}),
+    ...(repliedAt !== undefined ? { repliedAt } : {}),
+  };
+}
+
+export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
   readonly store = 'appstoreconnect' as const;
   readonly platform = 'ios' as const;
+  readonly replyLimit = APPLE_REPLY_LIMIT;
   readonly #http: StoreHttp;
+  /** For writes: the same settings, but a 429 is never waited out and retried. */
+  readonly #writeHttp: StoreHttp;
   readonly #tokens: AppStoreConnectTokenProvider;
   readonly #base: string;
   readonly #appId: string;
@@ -217,16 +277,19 @@ export class AppStoreReviewsConnector implements StoreReviewConnector {
     }
     this.#appId = options.appStoreId;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
+    this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? MAX_PAGE_SIZE;
     this.#pageSize = Number.isFinite(wanted) ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(wanted))) : MAX_PAGE_SIZE;
     this.#maxPages = Math.max(1, options.maxPages ?? 10);
     this.#reserve = Math.max(0, options.rateLimitReserve ?? 25);
     const pem = options.credential.privateKey;
-    this.#http.known.add(pem);
-    this.#http.known.add(pem.trim());
-    for (const line of pem.split(/\r?\n/)) {
-      if (line && !line.startsWith('-----')) this.#http.known.add(line.trim());
+    for (const http of [this.#http, this.#writeHttp]) {
+      http.known.add(pem);
+      http.known.add(pem.trim());
+      for (const line of pem.split(/\r?\n/)) {
+        if (line && !line.startsWith('-----')) http.known.add(line.trim());
+      }
     }
     this.#tokens = new AppStoreConnectTokenProvider(options.credential, this.#http.now);
   }
@@ -323,6 +386,119 @@ export class AppStoreReviewsConnector implements StoreReviewConnector {
       options.platform ?? 'IOS'
     }&limit=${MAX_PAGE_SIZE}${territory}`;
     return parseAppleSummarizations((await this.#get(url, what)).json);
+  }
+
+  /** One review with its response, or undefined when Apple has none with this id (404). */
+  async getReview(reviewId: string): Promise<StoreReview | undefined> {
+    const id = this.#reviewId(reviewId);
+    const what = `reading review ${id}`;
+    try {
+      const { json } = await this.#get(`${this.#base}/v1/customerReviews/${enc(id)}?include=response`, what);
+      const one = isRecord(json.data) ? json.data : undefined;
+      if (!one) return undefined;
+      return parseAppleReviews({ data: [one], included: json.included }).reviews[0];
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'not_found') return undefined;
+      throw error;
+    }
+  }
+
+  /**
+   * Publishes `text` as the developer response to a review, replacing an existing one (Apple's
+   * documented behaviour). A STORE WRITE, never retried. `ReplyOutcomeUnknownError` when the
+   * outcome is unknown; any other `StoreError` means Apple refused and nothing was published.
+   */
+  async replyToReview(input: ReplyToReviewInput): Promise<ReplyToReviewResult> {
+    const id = this.#reviewId(input.reviewId);
+    const checked = checkReplyText(input.text, this.replyLimit);
+    if (!checked.ok) throw new StoreError('appstoreconnect', 'invalid_input', checked.message);
+    const reply = await this.#write('POST', `${this.#base}/v1/customerReviewResponses`, `answering review ${id}`, {
+      data: {
+        type: 'customerReviewResponses',
+        attributes: { responseBody: input.text },
+        relationships: { review: { data: { type: 'customerReviews', id } } },
+      },
+    });
+    return parseAppleReplyResult(reply.json);
+  }
+
+  /** Deletes a response by its id (`DELETE /v1/customerReviewResponses/{id}`). Not exposed by any route yet. */
+  async deleteReviewResponse(input: { responseId: string }): Promise<void> {
+    const id = this.#reviewId(input.responseId);
+    await this.#write('DELETE', `${this.#base}/v1/customerReviewResponses/${enc(id)}`, `deleting response ${id}`);
+  }
+
+  #reviewId(value: string): string {
+    if (!/^[A-Za-z0-9._:-]{1,200}$/.test(value)) {
+      throw new StoreError('appstoreconnect', 'invalid_input', 'Not a valid review id.');
+    }
+    return value;
+  }
+
+  /**
+   * One write request. No retries. Network failures and 5xx are `ReplyOutcomeUnknownError`: the
+   * request may have been applied. A refusal (4xx) is a `StoreError` and means nothing happened.
+   */
+  async #write(method: 'POST' | 'DELETE', url: string, what: string, json?: unknown): Promise<StoreReply> {
+    const token = this.#tokens.token();
+    this.#http.known.add(token);
+    this.#writeHttp.known.add(token);
+    let reply: StoreReply;
+    try {
+      reply = await this.#writeHttp.send(method, url, {
+        headers: { authorization: `Bearer ${token}` },
+        ...(json !== undefined ? { json } : {}),
+      });
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'network') {
+        throw new ReplyOutcomeUnknownError(
+          'appstoreconnect',
+          `The connection to App Store Connect failed while ${what}, so it is not known whether Apple applied it. ${error.message}`,
+          error.status,
+        );
+      }
+      throw error;
+    }
+    if (reply.status >= 200 && reply.status < 300) return reply;
+    if (reply.status >= 500) {
+      throw new ReplyOutcomeUnknownError(
+        'appstoreconnect',
+        `App Store Connect answered HTTP ${reply.status} while ${what}, so it is not known whether Apple applied it.`,
+        reply.status,
+      );
+    }
+    if (reply.status === 401) this.#tokens.invalidate();
+    const error = appleError(reply, this.#http.now(), what);
+    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
+      const fields = {
+        code: redact(d.code),
+        title: redact(d.title),
+        detail: redact(d.detail),
+        parameter: redact(d.parameter),
+        pointer: redact(d.pointer),
+      };
+      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+    });
+    if (reply.status === 403 && error.kind === 'forbidden') {
+      throw new StoreError(
+        'appstoreconnect',
+        'forbidden',
+        'Apple refused to publish the reply (403). The key may not be allowed to respond to reviews: Apple lists the Account Holder, Admin and Customer Support roles for the App Store Connect website, and reports say an API key needs the Admin role (UNVERIFIED). See docs/credentials.md.',
+        403,
+        details,
+      );
+    }
+    if (reply.status === 405) {
+      throw new StoreError(
+        'appstoreconnect',
+        'unsupported',
+        'Apple answered 405 (not allowed) to a reply. Reports say this happens for keys whose role may not respond to reviews (UNVERIFIED). Use an Admin key, or answer in App Store Connect.',
+        405,
+        details,
+      );
+    }
+    throw new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
   }
 
   async #get(url: string, what: string): Promise<{ json: Json; remaining?: number }> {

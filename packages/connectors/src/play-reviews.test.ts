@@ -200,12 +200,11 @@ test('reviews.get reads one review; a missing one is undefined; an unsafe id nev
   await assert.rejects(connector.getReview('../x'), StoreError);
 });
 
-test('only GET requests go to the reviews API: there is no reply call', async () => {
+test('reading reviews only ever sends GET requests to the reviews API (replies: review-replies.test.ts)', async () => {
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: `${LIST}?maxResults=2`, json: rx.playPage2 });
   await connector.listReviews();
   assert.ok(fake.calls.filter((c) => c.url.pathname.includes('/reviews')).every((c) => c.method === 'GET'));
-  assert.ok(!('reply' in connector));
 });
 
 test('the package name is checked before it goes into a URL', () => {

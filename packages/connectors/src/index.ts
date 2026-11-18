@@ -21,3 +21,4 @@ export * from './appstore-reviews.ts';
 export * from './play-reviews.ts';
 export * from './itunes-rating.ts';
 export * from './blobs.ts';
+export * from './translate/index.ts';

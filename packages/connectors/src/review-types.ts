@@ -1,5 +1,5 @@
 import type { Platform } from '@mrm/core';
-import type { StoreName } from './errors.ts';
+import { StoreError, type StoreName } from './errors.ts';
 
 /**
  * What a store tells us about one customer review, normalized across the two stores. Review text
@@ -43,6 +43,8 @@ export type StoreReview = {
   translatedBody?: string;
   developerResponse?: {
     body: string;
+    /** App Store: the id of the `customerReviewResponses` resource (needed to delete it), when sent. */
+    storeResponseId?: string;
     /** Epoch milliseconds, when the store said. */
     at?: number;
     /** App Store: the response's own state (`PUBLISHED`, `PENDING_PUBLISH`), verbatim. UNVERIFIED values. */
@@ -80,7 +82,10 @@ export type ListReviewsResult = {
   rateLimitRemaining?: number;
 };
 
-/** The review side of a store connector. Read-only: there is no method that replies to a review. */
+/**
+ * The read side of a store connector for reviews. The write side (answering a review) is the
+ * separate `StoreReviewReplyConnector` below, so a caller that only reads cannot reply by accident.
+ */
 export interface StoreReviewConnector {
   readonly store: StoreName;
   readonly platform: Platform;
@@ -122,4 +127,106 @@ export function parseRating(value: unknown): number | undefined {
 export function clampLimit(limit: number | undefined): number {
   if (limit === undefined || !Number.isFinite(limit)) return DEFAULT_REVIEWS_LIMIT;
   return Math.min(MAX_REVIEWS_LIMIT, Math.max(1, Math.trunc(limit)));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Replying to a review (a STORE WRITE: public, in the store, under the developer's name)
+
+/**
+ * Longest reply this server sends to each store, in UTF-16 code units (`string.length`, a safe
+ * over-count for emoji).
+ *
+ * - Google Play: 350. "replyText can be at most 350 characters"; longer replies are rejected with
+ *   400 (https://developers.google.com/android-publisher/reply-to-reviews, verified 2026-11-18).
+ * - App Store Connect: Apple's pages (the endpoint reference, the "Respond to reviews" help page)
+ *   state NO limit. 5000 is a conservative limit of this server and is UNVERIFIED: Apple may accept
+ *   more or fewer; a response over Apple's real limit comes back as a 4xx and is shown as is.
+ */
+export const APPLE_REPLY_LIMIT = 5000;
+export const PLAY_REPLY_LIMIT = 350;
+
+export type ReplyProblem = 'empty' | 'too_long' | 'control_characters' | 'markup';
+
+/**
+ * The text of a reply as it is stored, hashed and sent: line breaks are `\n`, leading and trailing
+ * white space is gone. A reply is always normalized before it is hashed, so the hash the person
+ * confirms is the hash of what goes to the store.
+ */
+export const normalizeReplyText = (value: string): string => value.replace(/\r\n?/g, '\n').trim();
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
+const REPLY_CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
+/** Something that looks like an HTML tag. Google strips well formed tags, so the text would change. */
+const REPLY_MARKUP = /<\/?[A-Za-z!][^>]*>/;
+
+/**
+ * Whether `value` may be sent as a reply: plain text, not empty after trimming, at most `limit`
+ * characters, and no control characters other than a line break (a tab, a carriage return, the
+ * invisible direction overrides and the like are refused). HTML-looking tags are refused too,
+ * because Google strips them (so what is published would differ from what was confirmed) and the
+ * reply is plain text. Does not change the text: normalize it first (`normalizeReplyText`).
+ */
+export function checkReplyText(
+  value: unknown,
+  limit: number,
+): { ok: true; text: string } | { ok: false; problem: ReplyProblem; message: string } {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return { ok: false, problem: 'empty', message: 'The reply is empty.' };
+  }
+  if (REPLY_CONTROL.test(value)) {
+    return {
+      ok: false,
+      problem: 'control_characters',
+      message: 'The reply has a character that is not allowed in plain text (only line breaks are).',
+    };
+  }
+  if (REPLY_MARKUP.test(value)) {
+    return { ok: false, problem: 'markup', message: 'The reply looks like it contains HTML tags. Replies are plain text.' };
+  }
+  if (value.length > limit) {
+    return { ok: false, problem: 'too_long', message: `The reply is ${value.length} characters; this store allows at most ${limit}.` };
+  }
+  return { ok: true, text: value };
+}
+
+export type ReplyToReviewInput = {
+  /** The store's own review id (`StoreReview.storeReviewId`). */
+  reviewId: string;
+  /** Already normalized plain text; sent exactly as given. */
+  text: string;
+};
+
+export type ReplyToReviewResult = {
+  /** App Store: the id of the response resource, when the store said (needed to delete it). */
+  storeResponseId?: string;
+  /** App Store: `PENDING_PUBLISH` or `PUBLISHED`, verbatim. UNVERIFIED whether others occur. */
+  state?: string;
+  /** Epoch milliseconds, when the store said (Google: `lastEdited`; Apple: `lastModifiedDate`). */
+  repliedAt?: number;
+};
+
+/**
+ * A reply was sent and the store did not answer in a way that tells whether it was applied (a
+ * timeout, a cut connection, a 5xx). The reply may or may not be published: nothing here retries
+ * it, because a repeat could double post or overwrite a newer reply. The caller reads the review
+ * back to find out.
+ */
+export class ReplyOutcomeUnknownError extends StoreError {
+  constructor(store: StoreName, message: string, status?: number) {
+    super(store, 'network', message, status);
+    this.name = 'ReplyOutcomeUnknownError';
+  }
+}
+
+/** The write side of a store connector for reviews. Each call can publish text in the store. */
+export interface StoreReviewReplyConnector extends StoreReviewConnector {
+  /** Longest reply, see `APPLE_REPLY_LIMIT` and `PLAY_REPLY_LIMIT`. */
+  readonly replyLimit: number;
+  /**
+   * Publishes (or, if a reply exists, replaces) the reply. Never retried: a timeout or a 5xx is a
+   * `ReplyOutcomeUnknownError`; a store refusal is a `StoreError` and means nothing was published.
+   */
+  replyToReview(input: ReplyToReviewInput): Promise<ReplyToReviewResult>;
+  /** One review by the store's id, or undefined when the store has none (Google: past its window). */
+  getReview(reviewId: string): Promise<StoreReview | undefined>;
 }
