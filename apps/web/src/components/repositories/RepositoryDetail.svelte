@@ -153,6 +153,7 @@
             {api}
             {workspaceId}
             {repository}
+            {role}
             {canEdit}
             bind:data={listingData}
             bind:edited={listingEdited}

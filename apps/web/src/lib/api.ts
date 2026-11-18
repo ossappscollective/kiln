@@ -110,6 +110,8 @@ export function messageFor(
       return 'That change set is no longer in a state that allows this. Reload and check its status.';
     case 'no_changes':
       return 'Nothing differs from what is already in the repository.';
+    case 'store_config_invalid':
+      return body.message ?? 'The Expo store.config.json cannot be read, so the App Store listing cannot be changed.';
     case 'apply_in_progress':
       return 'This change set is being applied right now. Check back in a moment.';
     case 'branch_exists':
@@ -236,7 +238,7 @@ export function createApi(options: ApiOptions = {}) {
     repositoryListing: (workspaceId: string, id: string) =>
       request<RepositoryListing>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/listing`),
     createChangeSet: (workspaceId: string, repositoryId: string, input: { summary: string; listing: Listing }) =>
-      request<{ changeSet: ChangeSetView; problems: ListingProblem[] }>(
+      request<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings?: string[] }>(
         'POST',
         `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/change-sets`,
         input,

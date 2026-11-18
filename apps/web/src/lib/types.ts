@@ -132,6 +132,22 @@ export type ProjectDetection = {
 
 export type RepositoryDetail = { repository: RepositorySummary; detection: ProjectDetection | null };
 
+/** Where a store's listing is read from: the Expo store.config.json, or the fastlane folders. */
+export type ListingSourceKind = 'expo-store-config' | 'fastlane';
+
+export type StoreSource = {
+  source: ListingSourceKind;
+  /** The store config file, or the fastlane metadata folder. */
+  path: string;
+  found: boolean;
+  /** The source exists but cannot be read (for example invalid JSON). */
+  error?: string;
+  /** What the connector noticed in this source (Expo: uncovered and unknown keys). */
+  warnings: string[];
+  uncovered: string[];
+  unknown: string[];
+};
+
 /** The listing files of a repository, as the API reads them at the default branch. */
 export type RepositoryListing = {
   listing: Listing;
@@ -139,6 +155,7 @@ export type RepositoryListing = {
   roots: { appStore: string; googlePlay: string };
   warnings: string[];
   problems: ListingProblem[];
+  sources: { appStore: StoreSource; googlePlay: StoreSource };
 };
 
 export type ChangeSetFile = {

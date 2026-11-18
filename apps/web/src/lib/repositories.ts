@@ -15,7 +15,7 @@ import {
   countCharacters,
 } from '@mrm/core';
 import type { ApiError } from './api.ts';
-import type { ChangeSetView, ProjectDetection, ProjectKind } from './types.ts';
+import type { ChangeSetView, ProjectDetection, ProjectKind, RepositoryListing, StoreSource } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Connecting a repository
@@ -123,9 +123,9 @@ export function projectKindSummary(kind: ProjectKind): string {
     case 'fastlane':
       return 'A fastlane project. Store listing text is read from the metadata folders and changes are proposed as a pull request.';
     case 'expo':
-      return 'An Expo project. It is detected and shown here; editing Expo store.config.json is not supported yet.';
+      return 'An Expo project. Its App Store listing is read from and edited in store.config.json when the repository has one. Google Play listing text lives in fastlane only.';
     case 'both':
-      return 'Both fastlane and Expo files were found. Listing text is read from the fastlane metadata folders.';
+      return 'Both fastlane and Expo files were found. The App Store listing comes from store.config.json when there is one (the fastlane App Store files are then ignored); the Google Play listing comes from fastlane.';
     case 'unknown':
       return 'No fastlane or Expo files were found. Check that this is the right repository and that the credential can read all of it.';
   }
@@ -137,6 +137,60 @@ export const storeLabel: Record<ListingStore, string> = {
   app_store: 'App Store',
   google_play: 'Google Play',
 };
+
+// ---------------------------------------------------------------------------------------------
+// Where the listing comes from
+
+/**
+ * Why a role cannot see the listing, or null when it can. Reading the listing sends traffic to
+ * GitHub with the stored credential, so the server asks for `repositories.scan` (member and up).
+ * A viewer must not call it: the screen says so instead of showing a 403.
+ */
+export function listingReadNotice(role: Role): string | null {
+  if (can(role, 'repositories.scan')) return null;
+  return 'The store listing is read from GitHub with the stored credential, which needs the member role or higher. As a viewer you can see the project and the change sets, but not the listing text. Ask an admin if you need access.';
+}
+
+/** The badge for where a store's listing is read from. */
+export function listingSourceBadge(source: StoreSource['source']): { label: string; tone: Tone } {
+  return source === 'expo-store-config'
+    ? { label: 'Expo store config', tone: 'accent' }
+    : { label: 'Fastlane', tone: 'info' };
+}
+
+/** "file" for an Expo store config, "folder" for fastlane metadata. */
+export const sourcePathKind = (source: StoreSource['source']): 'file' | 'folder' =>
+  source === 'expo-store-config' ? 'file' : 'folder';
+
+/** What the store's listing is stored as, for a heading's sentence: where the copyright lives. */
+export const copyrightLocation = (source: StoreSource['source']): string =>
+  source === 'expo-store-config' ? 'apple.copyright' : 'copyright.txt';
+
+/** The sentence for a source that exists but could not be read, or null when it is fine. */
+export function sourceProblem(source: Pick<StoreSource, 'error'>): string | null {
+  if (source.error === undefined) return null;
+  return `${source.error} The listing cannot be shown or changed until the file is fixed in the repository.`;
+}
+
+/** True when no store has any listing text and no source is broken (a broken one is shown as such). */
+export function listingIsEmpty(data: Pick<RepositoryListing, 'found' | 'sources'>): boolean {
+  return (
+    !data.found.appStore &&
+    !data.found.googlePlay &&
+    data.sources.appStore.error === undefined &&
+    data.sources.googlePlay.error === undefined
+  );
+}
+
+/** The sentence for a repository with no listing text: where each store was looked for. */
+export function emptyListingDescription(data: Pick<RepositoryListing, 'sources'>): string {
+  const { appStore, googlePlay } = data.sources;
+  const apple =
+    appStore.source === 'expo-store-config'
+      ? `${appStore.path} (App Store, no apple.info locales)`
+      : `${appStore.path} (App Store)`;
+  return `No listing text was found at ${apple} or ${googlePlay.path} (Google Play). Fastlane keeps one folder per locale with a text file per field; Expo keeps the App Store text in store.config.json under apple.info. Run a scan to see what the project contains.`;
+}
 
 export const changeSetStatuses: readonly ChangeSetStatus[] = [
   'draft',

@@ -1,8 +1,11 @@
 <!--
   ListingPanel: the store listing files of a repository, per locale, with the store limits.
-  Props: api, workspaceId, repository, canEdit (may create a change set), data and edited (both
-  bindable, so the edits survive a switch of tab), oncreated (called with the new draft).
-  Editing never writes anything: "Create draft change set" makes a draft that an admin approves.
+  Props: api, workspaceId, repository, role (the listing is read with repositories.scan: member and
+  up), canEdit (may create a change set), data and edited (both bindable, so the edits survive a switch
+  of tab), oncreated (called with the new draft).
+  Each store shows where its listing comes from (the Expo store.config.json or fastlane) and the
+  path. Editing never writes anything: "Create draft change set" makes a draft that an admin approves.
+  A viewer never calls the listing endpoint and gets a read-only message instead.
 -->
 <script lang="ts">
   import {
@@ -10,6 +13,7 @@
     type Listing,
     type ListingStore,
     PLAY_CHANGELOG_SPEC,
+    type Role,
     validateListing,
   } from '@mrm/core';
   import { untrack } from 'svelte';
@@ -18,20 +22,28 @@
     changelogCodes,
     changelogField,
     cloneListing,
+    copyrightLocation,
+    emptyListingDescription,
     listingEdits,
     listingForChangeSet,
+    listingIsEmpty,
+    listingReadNotice,
+    listingSourceBadge,
     listingStores,
     localeFieldSpecs,
     readField,
     repositoryName,
+    sourcePathKind,
+    sourceProblem,
     storeLabel,
     storeLocales,
     suggestSummary,
     writeField,
   } from '../../lib/repositories.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { ChangeSetView, RepositoryListing, RepositorySummary } from '../../lib/types.ts';
+  import type { ChangeSetView, RepositoryListing, RepositorySummary, StoreSource } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -43,6 +55,7 @@
     api,
     workspaceId,
     repository,
+    role,
     canEdit,
     data = $bindable(null),
     edited = $bindable(null),
@@ -51,6 +64,7 @@
     api: Api;
     workspaceId: string;
     repository: RepositorySummary;
+    role: Role;
     canEdit: boolean;
     data?: RepositoryListing | null;
     edited?: Listing | null;
@@ -82,12 +96,14 @@
     }
   }
 
-  // Read the files once per repository. Edits are kept when the person switches tabs.
+  // Read the files once per repository. Edits are kept when the person switches tabs. A role that
+  // may not read the listing never calls the endpoint (it would answer 403).
   const repoId = $derived(repository.id);
+  const readNotice = $derived(listingReadNotice(role));
   $effect(() => {
     void repoId;
     untrack(() => {
-      if (data === null && !loading) void load();
+      if (readNotice === null && data === null && !loading) void load();
     });
   });
 
@@ -139,6 +155,7 @@
         listing: listingForChangeSet(data.listing, edited),
       });
       toast.success('Draft change set created. An admin or owner can review and approve it.');
+      if (result.warnings?.length) toast.warning(result.warnings.join(' '));
       // What was edited now lives in the draft, so the boxes go back to the repository's text.
       edited = cloneListing(data.listing);
       summaryTouched = false;
@@ -154,23 +171,44 @@
     problems.filter((p) => p.store === s && p.locale === locale && p.field === field);
 </script>
 
+{#snippet sourceLine(src: StoreSource)}
+  {@const badge = listingSourceBadge(src.source)}
+  <p class="hint root source">
+    <Badge tone={badge.tone}>{badge.label}</Badge>
+    <span>
+      Read from the {sourcePathKind(src.source)} <code>{src.path}</code> on <code>{repository.defaultBranch}</code>
+    </span>
+  </p>
+{/snippet}
+
 {#snippet storePanel(id: string)}
   {@const s = asStore(id)}
   {@const list = localesOf(s)}
   {@const locale = localeFor(s)}
   {@const found = s === 'app_store' ? data?.found.appStore : data?.found.googlePlay}
-  {@const root = s === 'app_store' ? data?.roots.appStore : data?.roots.googlePlay}
-  {#if edited && list.length === 0}
-    <div class="card">
-      <EmptyState
-        icon="file-text"
-        title="No {storeLabel[s]} listing files found"
-        description={found === false
-          ? `Nothing was found under ${root}. A fastlane listing has one folder per locale, such as ${root}/en-US, with a text file for each field.`
-          : 'The listing has no locales yet.'}
-      />
+  {@const src = s === 'app_store' ? data?.sources.appStore : data?.sources.googlePlay}
+  {@const broken = src ? sourceProblem(src) : null}
+  {#if edited && src && broken}
+    <div class="stack loose">
+      {@render sourceLine(src)}
+      <Alert tone="error" title="{storeLabel[s]} listing cannot be read">{broken}</Alert>
     </div>
-  {:else if edited}
+  {:else if edited && src && list.length === 0}
+    <div class="stack loose">
+      {@render sourceLine(src)}
+      <div class="card">
+        <EmptyState
+          icon="file-text"
+          title="No {storeLabel[s]} listing text found"
+          description={found === false
+            ? src.source === 'expo-store-config'
+              ? `${src.path} has no apple.info locales yet.`
+              : `Nothing was found under ${src.path}. A fastlane listing has one folder per locale, such as ${src.path}/en-US, with a text file for each field.`
+            : 'The listing has no locales yet.'}
+        />
+      </div>
+    </div>
+  {:else if edited && src}
     <div class="stack loose">
       <div class="locale-bar">
         <div class="field">
@@ -185,8 +223,15 @@
             {/each}
           </select>
         </div>
-        <p class="hint root">Read from <code>{root}</code> on <code>{repository.defaultBranch}</code></p>
+        {@render sourceLine(src)}
       </div>
+      {#if src.source === 'expo-store-config' && src.warnings.length > 0}
+        <Alert tone="warn" title="Notes on {src.path}">
+          <ul class="plain">
+            {#each src.warnings as warning (warning)}<li>{warning}</li>{/each}
+          </ul>
+        </Alert>
+      {/if}
 
       <div class="card fields">
         {#each localeFieldSpecs(s) as spec (spec.id)}
@@ -233,7 +278,7 @@
           <div class="card-header">
             <div>
               <h3>Across all locales</h3>
-              <p>Stored once, in <code>copyright.txt</code>.</p>
+              <p>Stored once, as <code>{copyrightLocation(src.source)}</code>.</p>
             </div>
           </div>
           <FieldEditor
@@ -251,7 +296,9 @@
   {/if}
 {/snippet}
 
-{#if loadError}
+{#if readNotice !== null}
+  <Alert tone="info" title="The listing is not available for your role">{readNotice}</Alert>
+{:else if loadError}
   <div class="stack">
     <Alert tone="error">{loadError}</Alert>
     <div><Button icon="refresh" onclick={load}>Try again</Button></div>
@@ -266,13 +313,9 @@
       <p class="muted">Reading the listing files from {repositoryName(repository)}. This can take a few seconds.</p>
     </div>
   </div>
-{:else if !data.found.appStore && !data.found.googlePlay}
+{:else if listingIsEmpty(data)}
   <div class="card">
-    <EmptyState
-      icon="file-text"
-      title="No listing files found"
-      description="This repository has no fastlane listing text at {data.roots.appStore} or {data.roots.googlePlay}. Run a scan to see what the project contains."
-    >
+    <EmptyState icon="file-text" title="No listing files found" description={emptyListingDescription(data)}>
       {#snippet actions()}<Button icon="refresh" onclick={load}>Check again</Button>{/snippet}
     </EmptyState>
   </div>
@@ -355,6 +398,13 @@
 
   .root {
     margin: 0;
+  }
+
+  .source {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
   }
 
   .fields > :global(.field:last-child) {

@@ -5,7 +5,7 @@
   tab, shown when there is nothing yet).
 -->
 <script lang="ts">
-  import type { Role } from '@mrm/core';
+  import { type Role, can } from '@mrm/core';
   import { tick, untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
@@ -104,7 +104,9 @@
       description="A change set is the only way text reaches this repository. Edit the listing to create a draft; an admin or owner approves it, then it opens as a pull request."
     >
       {#snippet actions()}
-        <Button variant="primary" icon="edit" onclick={ongotolisting}>Edit the listing</Button>
+        {#if can(role, 'changesets.write')}
+          <Button variant="primary" icon="edit" onclick={ongotolisting}>Edit the listing</Button>
+        {/if}
       {/snippet}
     </EmptyState>
   </div>

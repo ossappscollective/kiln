@@ -11,23 +11,29 @@ import {
   collapseDiff,
   connectProblem,
   detectionPaths,
+  emptyListingDescription,
   diffLines,
   diffStats,
   differsOnlyInLineEnds,
   fieldUsage,
   filesChangedLabel,
   listingEdits,
+  listingIsEmpty,
+  listingReadNotice,
+  listingSourceBadge,
   listingForChangeSet,
   parseRepositoryInput,
   platformsSummary,
   projectKindBadge,
+  projectKindSummary,
   readField,
+  sourceProblem,
   splitLines,
   storeLocales,
   suggestSummary,
   writeField,
 } from './repositories.ts';
-import type { ProjectDetection } from './types.ts';
+import type { ProjectDetection, StoreSource } from './types.ts';
 
 // ---- connecting -------------------------------------------------------------------------------
 
@@ -349,4 +355,58 @@ test('platforms read as a sentence, with guesses marked', () => {
   assert.equal(platformsSummary(detection({ platforms: ['ios', 'android'], platformsInferred: [] })), 'iOS and Android');
   assert.equal(platformsSummary(detection({ platforms: ['android'], platformsInferred: [] })), 'Android');
   assert.equal(platformsSummary(detection({ platforms: [], platformsInferred: [] })), 'None found');
+});
+
+// ---- where the listing comes from -------------------------------------------------------------
+
+const source = (over: Partial<StoreSource> = {}): StoreSource => ({
+  source: 'fastlane',
+  path: 'fastlane/metadata',
+  found: true,
+  warnings: [],
+  uncovered: [],
+  unknown: [],
+  ...over,
+});
+
+test('only a member and up reads the listing; a viewer gets a message, not a request', () => {
+  assert.equal(listingReadNotice('viewer')?.includes('member'), true);
+  for (const role of ['member', 'admin', 'owner'] as const) assert.equal(listingReadNotice(role), null, role);
+});
+
+test('the source badge names the Expo store config or fastlane', () => {
+  assert.deepEqual(listingSourceBadge('expo-store-config'), { label: 'Expo store config', tone: 'accent' });
+  assert.equal(listingSourceBadge('fastlane').label, 'Fastlane');
+});
+
+test('a source that cannot be read is explained', () => {
+  const broken = source({ source: 'expo-store-config', path: 'store.config.json', error: 'store.config.json is not valid JSON: x' });
+  assert.match(sourceProblem(broken) ?? '', /not valid JSON.*fixed in the repository/);
+  assert.equal(sourceProblem(source()), null);
+});
+
+test('the listing is empty only when nothing was found and nothing is broken', () => {
+  const none = { found: { appStore: false, googlePlay: false } };
+  const sources = { appStore: source(), googlePlay: source({ path: 'fastlane/metadata/android', found: false }) };
+  assert.equal(listingIsEmpty({ ...none, sources }), true);
+  assert.equal(listingIsEmpty({ found: { appStore: true, googlePlay: false }, sources }), false);
+  const broken = { ...sources, appStore: source({ source: 'expo-store-config', path: 'store.config.json', found: false, error: 'bad' }) };
+  assert.equal(listingIsEmpty({ ...none, sources: broken }), false);
+});
+
+test('the empty message says where each store was looked for', () => {
+  const text = emptyListingDescription({
+    sources: {
+      appStore: source({ source: 'expo-store-config', path: 'store.config.json', found: false }),
+      googlePlay: source({ path: 'fastlane/metadata/android', found: false }),
+    },
+  });
+  assert.match(text, /store\.config\.json/);
+  assert.match(text, /fastlane\/metadata\/android/);
+});
+
+test('the project summaries no longer say Expo editing is missing', () => {
+  assert.doesNotMatch(projectKindSummary('expo'), /not supported yet/);
+  assert.match(projectKindSummary('both'), /store\.config\.json/);
+  assert.match(projectKindSummary('both'), /Google Play listing comes from fastlane/);
 });
