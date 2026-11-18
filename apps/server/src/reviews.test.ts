@@ -226,8 +226,8 @@ dbTest('sync stores reviews, is idempotent, and applies edits and developer resp
   assert.equal(again.body.sync.added, 0);
   assert.equal(again.body.sync.updated, 0);
   assert.equal(again.body.sync.baseline, false);
-  const [{ n }] = await db.query('SELECT COUNT(*) AS n FROM app_reviews WHERE app_id = ?', [id]);
-  assert.equal(Number(n), 3);
+  const [counted] = await db.query('SELECT COUNT(*) AS n FROM app_reviews WHERE app_id = ?', [id]);
+  assert.equal(Number(counted?.n), 3);
 
   // The second read asks for what is newer than the last success, with an overlap.
   const asked = t.stores.ios.calls.at(-1);
@@ -534,8 +534,8 @@ dbTest('summary: always says what its numbers are from, and shows the store-wide
   // The same figures again are not stored twice.
   const again = await t.call(t.owner, 'POST', path(id, '/sync'));
   assert.equal(again.body.sync.ratingSummary, 'unchanged');
-  const [{ n }] = await db.query('SELECT COUNT(*) AS n FROM app_rating_summaries WHERE app_id = ?', [id]);
-  assert.equal(Number(n), 1);
+  const [summaries] = await db.query('SELECT COUNT(*) AS n FROM app_rating_summaries WHERE app_id = ?', [id]);
+  assert.equal(Number(summaries?.n), 1);
 });
 
 dbTest('a store-wide rating that cannot be read never fails the sync', async (db) => {
