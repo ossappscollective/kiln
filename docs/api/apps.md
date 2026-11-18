@@ -41,7 +41,9 @@ An app:
 ```
 
 - `platform` is `"ios"` or `"android"`.
-- `identifier` is the bundle id (iOS) or the package name (Android).
+- `identifier` is the bundle id (iOS) or the package name (Android). An app is identified by
+  **platform and identifier together** (unique per workspace): an iOS app and an Android app with
+  the same identifier, such as a bundle id equal to a package name, are two apps with two ids.
 - `storeAppId` is the store's own id: Apple's numeric app id for iOS (filled by the first
   successful sync, `null` before), the package name for Android after the first sync. Display
   `identifier`, not this.
@@ -242,7 +244,11 @@ Request (body at most 32 KB):
   checked against the store. `name` (optional, at most 100 characters) defaults to the identifier.
   `repositoryId` is optional.
 - Every item must fit the credential's platform: App Store Connect for `ios`, Google Play for
-  `android`.
+  `android`. A credential therefore imports one platform per request: to add the iOS and the Android
+  app that share an identifier, import with the App Store Connect credential, then with the Google
+  Play credential (two requests). An item of the other platform in the same request fails alone with
+  `credential_kind`. Duplicates are detected per platform and identifier only: the iOS app never
+  makes the Android one `skipped`, and the other way round.
 
 `200` (also when some items failed):
 
@@ -336,6 +342,12 @@ the response carries the updated `app` so the screen can show it):
 | 502 | `store_unavailable` | The store failed or sent something unreadable. Try again |
 | 502 | `sync_failed` | Anything else. The message is generic on purpose |
 | 504 | `timeout` | The store did not answer in time |
+
+When the store answers an unexpected 400, `message` carries Apple's own error text including the
+rejected query parameter, for example `... with HTTP 400 (PARAMETER_ERROR.ILLEGAL: A given parameter
+is not allowed for this request - <detail> (parameter: sort))`. The iOS build list is read with
+`GET /v1/builds?filter[app]=...` and retried once with a minimal query when Apple rejects a parameter
+(see the store API spike).
 
 Every error body is `{ "error": "...", "message": "...", "app": App }` (`message` is written to be
 shown; `app` is present for failures after the app was found). The 404 and 409 bodies have no

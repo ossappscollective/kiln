@@ -16,6 +16,7 @@
     MAX_IMPORT_BATCH,
     type BatchResult,
     type CredentialKind,
+    appLabel,
     batchSummary,
     buildImportItems,
     candidateKey,
@@ -25,11 +26,13 @@
     discoverSummaryText,
     discoverableCredentials,
     importItemMessage,
+    importScopeNote,
     importSummaryText,
     importedApps,
     mergeImports,
     packageListProblem,
     parsePackageList,
+    platformForKind,
     selectableCandidates,
     syncApps,
     withSelection,
@@ -203,7 +206,7 @@
   async function syncImported() {
     if (syncing || createdApps.length === 0) return;
     syncing = true;
-    syncResults = createdApps.map((a) => ({ appId: a.id, name: a.name, status: 'pending', message: '' }));
+    syncResults = createdApps.map((a) => ({ appId: a.id, name: appLabel(a), status: 'pending', message: '' }));
     await tick();
     syncStatus?.focus();
     const results = await syncApps(api, workspaceId, createdApps, (partial, current) => {
@@ -246,16 +249,19 @@
     <div class="stack tight" aria-labelledby="{uid}-done-title" role="group">
       <h3 id="{uid}-done-title" class="section-title" tabindex="-1" bind:this={doneHeading}>Import finished</h3>
       <Alert tone={imported.summary.failed > 0 || importError ? 'warn' : 'ok'}>
-        {importSummaryText(imported.summary)}
+        {importSummaryText(imported.summary, imported.results)}
         {#if createdApps.length > 0 && !syncResults}
           Nothing has been read from the store yet.
         {/if}
       </Alert>
+      {#if kind && imported.summary.created > 0}
+        <p class="muted scope">{importScopeNote(platformForKind(kind))}</p>
+      {/if}
       {#if importError}
         <Alert tone="error" title="Part of the import did not run">{importError}</Alert>
       {/if}
       <ul class="results">
-        {#each imported.results as result (`${result.platform}:${result.identifier}`)}
+        {#each imported.results as result, index (index)}
           <li class="result {result.status}">
             <span class="mark">
               <Icon name={result.status === 'created' ? 'check-circle' : result.status === 'skipped' ? 'minus' : 'alert'} size={16} />
@@ -263,6 +269,7 @@
             <div>
               <p class="line">
                 <strong>{result.app?.name ?? result.identifier}</strong>
+                <PlatformBadge platform={result.platform} />
                 <span class="mono muted">{result.identifier}</span>
                 <span class="state">{result.status === 'created' ? 'Added' : result.status === 'skipped' ? 'Skipped' : 'Not added'}</span>
               </p>
@@ -378,6 +385,7 @@
           {discovery.kind === 'google_play' ? 'Verified apps' : 'Apps found'}
         </h3>
         <p class="muted" role="status">{discoverSummaryText(discovery)}</p>
+        {#if kind}<p class="muted scope">{importScopeNote(platformForKind(kind))}</p>{/if}
 
         {#if discovery.candidates.length > 0}
           <div class="row wrap between">
@@ -408,7 +416,7 @@
                     </span>
                   </label>
                   <span class="badges">
-                    <PlatformBadge platform={c.platform} showLabel={false} />
+                    <PlatformBadge platform={c.platform} />
                     {#if c.alreadyAdded}<Badge tone="ok">Already added</Badge>{/if}
                   </span>
                   {#if !c.alreadyAdded && selected.has(key) && repositories.length > 0}
@@ -613,6 +621,11 @@
 
   .result.failed .message {
     color: var(--bad-ink);
+  }
+
+  .scope {
+    margin: 0;
+    font-size: var(--text-sm);
   }
 
   .sync-status {

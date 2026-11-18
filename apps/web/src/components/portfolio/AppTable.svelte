@@ -7,9 +7,9 @@
 <script lang="ts">
   import {
     appHref,
+    appLabel,
     latestRelease,
     liveRelease,
-    platformLabel,
     trackLabel,
     type ReleaseLoad,
   } from '../../lib/portfolio.ts';
@@ -58,18 +58,18 @@
         <tr>
           <td>
             <div class="app">
-              <PlatformBadge platform={app.platform} showLabel={false} />
               <div class="names">
-                <a id="app-open-{app.id}" class="app-name" href={appHref(app.id)}>
-                  {app.name}<span class="visually-hidden"> ({platformLabel(app.platform)})</span>
-                </a>
-                <code class="identifier">{app.identifier}</code>
+                <a id="app-open-{app.id}" class="app-name" href={appHref(app.id)}>{app.name}</a>
+                <div class="meta">
+                  <PlatformBadge platform={app.platform} />
+                  <code class="identifier">{app.identifier}</code>
+                </div>
               </div>
             </div>
           </td>
           <td>
             {#if !load || load.state === 'loading'}
-              <div class="loading" role="status" aria-label="Loading the latest release of {app.name}">
+              <div class="loading" role="status" aria-label="Loading the latest release of {appLabel(app)}">
                 <Skeleton width="72px" height="14px" />
                 <Skeleton width="88px" height="20px" />
               </div>
@@ -102,7 +102,7 @@
                 icon="refresh"
                 loading={syncing[app.id] === true}
                 disabled={locked && syncing[app.id] !== true}
-                label="Sync {app.name} ({platformLabel(app.platform)})"
+                label="Sync {appLabel(app)}"
                 onclick={() => onsync(app)}>Sync</Button
               >
             </td>
@@ -131,6 +131,13 @@
   .app-name {
     font-weight: var(--weight-medium);
     overflow-wrap: anywhere;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    align-items: center;
   }
 
   .identifier {

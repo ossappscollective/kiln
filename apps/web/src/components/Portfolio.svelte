@@ -5,6 +5,7 @@
   import {
     type BatchResult,
     type ReleaseLoad,
+    appLabel,
     batchSummary,
     describeError,
     notRunMessage,
@@ -174,7 +175,7 @@
       total: targets.length,
       done: 0,
       current: '',
-      results: targets.map((a) => ({ appId: a.id, name: a.name, status: 'pending', message: '' })),
+      results: targets.map((a) => ({ appId: a.id, name: appLabel(a), status: 'pending', message: '' })),
     };
     batch = run;
     // The reactive copy of `run`: changes made through it show on screen.

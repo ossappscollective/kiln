@@ -9,6 +9,7 @@
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
     appErrorMessage,
+    appLabel,
     describeError,
     groupReleases,
     latestRelease,
@@ -64,7 +65,7 @@
       if (mine !== generation) return;
       app = detail.app;
       releases = detail.releases;
-      announcement = `Opened ${detail.app.name}.`;
+      announcement = `Opened ${appLabel(detail.app)}.`;
     } catch (e) {
       if (mine !== generation) return;
       app = null;
@@ -110,14 +111,14 @@
     if (outcome.ok) {
       app = outcome.app;
       releases = outcome.releases;
-      const text = syncSummaryText(outcome.app.name, outcome.sync);
+      const text = syncSummaryText(appLabel(outcome.app), outcome.sync);
       toast.success(text);
       announcement = text;
     } else {
       // A failed sync is stored on the app, so the server sends the app back with the new message.
       if (outcome.app) app = outcome.app;
       syncProblem = outcome.failure.message;
-      toast.error(`${target.name}: ${outcome.failure.message}`);
+      toast.error(`${appLabel(target)}: ${outcome.failure.message}`);
     }
   }
 
@@ -129,7 +130,7 @@
     try {
       await api.deleteApp(workspaceId, target.id);
       confirmOpen = false;
-      toast.success(`Deleted ${target.name}. Nothing in the store was changed.`);
+      toast.success(`Deleted ${appLabel(target)}. Nothing in the store was changed.`);
       location.hash = portfolioHref;
     } catch (e) {
       deleteProblem = e instanceof ApiError ? appErrorMessage(e, 'delete') : describeError(e, 'delete');

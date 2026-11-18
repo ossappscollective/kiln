@@ -45,6 +45,13 @@ export const platformLabel = (platform: Platform) => (platform === 'ios' ? 'iOS'
 
 export const storeName = (platform: Platform) => (platform === 'ios' ? 'App Store' : 'Google Play');
 
+/**
+ * A name that tells two apps apart when they share it (and often their identifier): the same
+ * product on iOS and Android is two apps, so lists that show only a name add the platform.
+ */
+export const appLabel = (app: { name: string; platform: Platform }): string =>
+  `${app.name} (${platformLabel(app.platform)})`;
+
 const TRACKS: Record<string, string> = {
   production: 'Production',
   beta: 'Open testing (beta)',
@@ -646,9 +653,24 @@ export function packageListProblem(list: PackageList): string {
   return '';
 }
 
-/** The key a candidate is selected by. iOS bundle ids are not case sensitive, package names are. */
+/**
+ * The key an app is known by: the platform and the identifier, never the identifier alone. A bundle
+ * id equal to a package name is an iOS app and an Android app. iOS bundle ids are not case
+ * sensitive, package names are.
+ */
 export const candidateKey = (c: Pick<DiscoverCandidate, 'platform' | 'identifier'>): string =>
   `${c.platform}:${c.platform === 'ios' ? c.identifier.toLowerCase() : c.identifier}`;
+
+/** "1 iOS app", "2 Android apps". */
+export const platformCount = (platform: Platform, count: number): string =>
+  `${count} ${platformLabel(platform)} app${count === 1 ? '' : 's'}`;
+
+/** What a credential adds: one platform. Shown before importing, so nobody expects both. */
+export function importScopeNote(platform: Platform): string {
+  const other: Platform = platform === 'ios' ? 'android' : 'ios';
+  const otherCredential = other === 'ios' ? 'an App Store Connect' : 'a Google Play';
+  return `This credential adds ${platformLabel(platform)} apps only. An ${platformLabel(other)} app with the same identifier is a separate app: import it with ${otherCredential} credential.`;
+}
 
 /** The candidates that can still be added. */
 export const selectableCandidates = (candidates: readonly DiscoverCandidate[]): DiscoverCandidate[] =>
@@ -733,13 +755,25 @@ export function mergeImports(parts: readonly ImportResult[]): ImportResult {
   return { results, summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') } };
 }
 
-/** "Added 3 apps. 1 was already added, 2 could not be added." */
-export function importSummaryText(summary: ImportSummary): string {
+/**
+ * "Added 3 apps. 1 was already added, 2 could not be added." With the items, the platform is named
+ * when the created apps are all of one platform ("Added 1 iOS app."), or counted per platform.
+ */
+export function importSummaryText(
+  summary: ImportSummary,
+  results?: readonly Pick<ImportItemResult, 'platform' | 'status'>[],
+): string {
   const rest = [
     summary.skipped > 0 ? `${summary.skipped} ${summary.skipped === 1 ? 'was' : 'were'} already added` : '',
     summary.failed > 0 ? `${summary.failed} could not be added` : '',
   ].filter(Boolean);
-  const head = summary.created > 0 ? `Added ${summary.created} app${summary.created === 1 ? '' : 's'}.` : 'No app was added.';
+  const created = (results ?? []).filter((r) => r.status === 'created');
+  const platforms = [...new Set(created.map((r) => r.platform))].sort();
+  let what = `${summary.created} app${summary.created === 1 ? '' : 's'}`;
+  if (created.length === summary.created && platforms.length > 0) {
+    what = platforms.map((p) => platformCount(p, created.filter((r) => r.platform === p).length)).join(' and ');
+  }
+  const head = summary.created > 0 ? `Added ${what}.` : 'No app was added.';
   return rest.length > 0 ? `${head} ${rest.join(', ')}.` : head;
 }
 
@@ -767,16 +801,19 @@ export function importedApps(result: ImportResult): AppSummary[] {
 export async function syncApps(
   api: Pick<Api, 'syncApp'>,
   workspaceId: string,
-  apps: readonly Pick<AppSummary, 'id' | 'name'>[],
+  apps: readonly (Pick<AppSummary, 'id' | 'name'> & { platform?: Platform })[],
   onProgress?: (results: readonly BatchResult[], current: string) => void,
 ): Promise<BatchResult[]> {
-  const results: BatchResult[] = apps.map((a) => ({ appId: a.id, name: a.name, status: 'pending', message: '' }));
+  // With a platform, the name carries it: the same app on iOS and Android shares name and identifier.
+  const labelOf = (a: { name: string; platform?: Platform | undefined }) =>
+    a.platform === undefined ? a.name : appLabel({ name: a.name, platform: a.platform });
+  const results: BatchResult[] = apps.map((a) => ({ appId: a.id, name: labelOf(a), status: 'pending', message: '' }));
   const report = (current: string) => onProgress?.(results.map((r) => ({ ...r })), current);
   for (let i = 0; i < apps.length; i++) {
-    const app = apps[i] as Pick<AppSummary, 'id' | 'name'>;
+    const app = apps[i] as Pick<AppSummary, 'id' | 'name'> & { platform?: Platform };
     const result = results[i] as BatchResult;
     result.status = 'running';
-    report(app.name);
+    report(labelOf(app));
     const outcome = await syncApp(api, workspaceId, app.id);
     if (outcome.ok) {
       result.status = 'ok';

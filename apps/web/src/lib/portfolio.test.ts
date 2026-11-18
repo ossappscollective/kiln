@@ -8,6 +8,7 @@ import {
   appErrorMessage,
   appFromError,
   appHref,
+  appLabel,
   batchSummary,
   buildImportItems,
   candidateKey,
@@ -22,6 +23,7 @@ import {
   formatRollout,
   groupReleases,
   importItemMessage,
+  importScopeNote,
   importSummaryText,
   importedApps,
   latestByPlatform,
@@ -33,6 +35,7 @@ import {
   packageListProblem,
   parsePackageList,
   parseRoute,
+  platformCount,
   runLimited,
   selectableCandidates,
   sortApps,
@@ -736,4 +739,103 @@ test('syncing the imported apps goes one by one, reports progress, and stops on 
   assert.deepEqual(stopped.map((r) => r.status), ['failed', 'busy', 'failed', 'skipped']);
   assert.deepEqual(calls, ['a', 'b', 'c'], 'nothing is sent after the limit');
   assert.match(stopped[3]?.message ?? '', /^Not run: .*20 seconds/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The same identifier on iOS and Android (a bundle id equal to a package name) is two apps.
+
+const sameIos = candidate({ platform: 'ios', storeId: '1499117252', identifier: 'com.acme.same', name: 'Same' });
+const sameDroid = candidate({ platform: 'android', storeId: 'com.acme.same', identifier: 'com.acme.same', name: 'Same' });
+
+test('the selection key includes the platform, so one identifier on two platforms is two entries', () => {
+  assert.notEqual(candidateKey(sameIos), candidateKey(sameDroid));
+  assert.equal(candidateKey(sameIos), 'ios:com.acme.same');
+  assert.equal(candidateKey(sameDroid), 'android:com.acme.same');
+  // Ticking one does not tick the other, and unticking one keeps the other.
+  const one = withSelection(new Set(), candidateKey(sameIos), true);
+  assert.equal(one.has(candidateKey(sameDroid)), false);
+  const both = withSelection(one, candidateKey(sameDroid), true);
+  assert.equal(both.size, 2);
+  assert.deepEqual([...withSelection(both, candidateKey(sameIos), false)], [candidateKey(sameDroid)]);
+  // A list that holds both keeps both items, in order, each with its own store id.
+  assert.deepEqual(buildImportItems([sameIos, sameDroid], both), [
+    { platform: 'ios', identifier: 'com.acme.same', storeAppId: '1499117252', name: 'Same' },
+    { platform: 'android', identifier: 'com.acme.same', storeAppId: 'com.acme.same', name: 'Same' },
+  ]);
+  assert.deepEqual(
+    buildImportItems([sameIos, sameDroid], one).map((i) => i.platform),
+    ['ios'],
+  );
+});
+
+test('already added is decided per candidate: the other platform stays selectable', () => {
+  const droidAdded = { ...sameDroid, alreadyAdded: true, appId: 'a2' };
+  assert.deepEqual(selectableCandidates([sameIos, droidAdded]), [sameIos]);
+  assert.equal(
+    discoverSummaryText({ kind: 'app_store_connect', candidates: [sameIos], failures: [] }),
+    'Found 1 app.',
+  );
+  assert.equal(
+    discoverSummaryText({ kind: 'google_play', candidates: [droidAdded], failures: [] }),
+    'Checked 1 package: 1 verified. 1 already added.',
+  );
+  // Chunking never merges or drops items: both land in some piece.
+  const pieces = chunk(buildImportItems([sameIos, sameDroid], new Set([candidateKey(sameIos), candidateKey(sameDroid)])), 1);
+  assert.deepEqual(pieces.map((p) => p.map((i) => i.platform)), [['ios'], ['android']]);
+});
+
+test('merged imports and the summary keep both apps and name the platform', () => {
+  const part = (platform: 'ios' | 'android', id: string): ImportResult => ({
+    results: [{ platform, identifier: 'com.acme.same', status: 'created', app: app({ id, platform, identifier: 'com.acme.same' }) }],
+    summary: { created: 1, skipped: 0, failed: 0 },
+  });
+  const merged = mergeImports([part('ios', 'a1'), part('android', 'a2')]);
+  assert.deepEqual(merged.summary, { created: 2, skipped: 0, failed: 0 });
+  assert.deepEqual(importedApps(merged).map((a) => [a.id, a.platform]), [['a1', 'ios'], ['a2', 'android']]);
+  assert.equal(importSummaryText(merged.summary, merged.results), 'Added 1 Android app and 1 iOS app.');
+  const iosOnly = mergeImports([part('ios', 'a1')]);
+  assert.equal(importSummaryText(iosOnly.summary, iosOnly.results), 'Added 1 iOS app.');
+  assert.equal(
+    importSummaryText({ created: 2, skipped: 1, failed: 0 }, [
+      { platform: 'android', status: 'created' },
+      { platform: 'android', status: 'created' },
+      { platform: 'android', status: 'skipped' },
+    ]),
+    'Added 2 Android apps. 1 was already added.',
+  );
+  // Without the items the plain text is unchanged.
+  assert.equal(importSummaryText({ created: 2, skipped: 0, failed: 0 }), 'Added 2 apps.');
+});
+
+test('labels and notes tell the platforms apart', () => {
+  assert.equal(appLabel({ name: 'Same', platform: 'ios' }), 'Same (iOS)');
+  assert.equal(appLabel({ name: 'Same', platform: 'android' }), 'Same (Android)');
+  assert.equal(platformCount('ios', 1), '1 iOS app');
+  assert.equal(platformCount('android', 2), '2 Android apps');
+  assert.match(importScopeNote('ios'), /iOS apps only.*Android app with the same identifier.*Google Play credential/);
+  assert.match(importScopeNote('android'), /Android apps only.*iOS app with the same identifier.*App Store Connect credential/);
+});
+
+test('sync results name the platform, so two apps with one name are not confused', async () => {
+  const api = {
+    async syncApp(_w: string, id: string) {
+      if (id === 'a2') throw new ApiError(422, 'store_auth', 'raw');
+      return { app: app({ id }), releases: [], sync: { at: now, found: 1, added: 1, updated: 0, removed: 0, unmapped: 0 } };
+    },
+  };
+  const seen: string[] = [];
+  const results = await syncApps(
+    api,
+    'w1',
+    [app({ id: 'a1', name: 'Same', platform: 'ios' }), app({ id: 'a2', name: 'Same', platform: 'android' })],
+    (_r, current) => {
+      if (current) seen.push(current);
+    },
+  );
+  assert.deepEqual(results.map((r) => [r.appId, r.name, r.status]), [
+    ['a1', 'Same (iOS)', 'ok'],
+    ['a2', 'Same (Android)', 'failed'],
+  ]);
+  assert.deepEqual(seen, ['Same (iOS)', 'Same (Android)']);
+  assert.deepEqual(sortApps([app({ id: 'a2', name: 'Same', platform: 'android' }), app({ id: 'a1', name: 'Same', platform: 'ios' })]).map((a) => a.platform), ['ios', 'android']);
 });

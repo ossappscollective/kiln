@@ -816,7 +816,24 @@ dbTest('the default factory builds the real App Store Connect connector, and a 4
         ],
       });
     }
-    if (url.pathname === '/v1/apps/777/builds') {
+    // Apple's app-scoped builds endpoint documents only `limit` and `fields[builds]`: it refuses
+    // `sort` and `include` (the maintainer's real failure). The filtered top-level list takes them.
+    if (url.pathname === '/v1/apps/777/builds' && (url.searchParams.has('sort') || url.searchParams.has('include'))) {
+      return json(
+        {
+          errors: [
+            {
+              status: '400',
+              code: 'PARAMETER_ERROR.ILLEGAL',
+              title: 'A given parameter is not allowed for this request',
+              source: { parameter: url.searchParams.has('sort') ? 'sort' : 'include' },
+            },
+          ],
+        },
+        400,
+      );
+    }
+    if (url.pathname === '/v1/builds' && url.searchParams.get('filter[app]') === '777') {
       return json({
         data: [
           {
@@ -1408,4 +1425,105 @@ dbTest('an imported app can be synced like any other, and nothing leaks a secret
   );
   for (const a of await t.auditActions()) for (const leak of LEAKS) assert.ok(!a.detail.includes(leak));
   t.noLeaks();
+});
+
+// ---------------------------------------------------------------------------------------------
+// The same identifier on both platforms (a bundle id equal to a package name) is two apps.
+
+const SAME = 'com.acme.same';
+
+dbTest('importing the same identifier for iOS and Android, in two requests, creates two apps', async (db) => {
+  const t = await boot(db);
+  const ios = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.iosCredential,
+    items: [{ platform: 'ios', identifier: SAME, storeAppId: '1499117252', name: 'Same' }],
+  });
+  const android = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.playCredential,
+    items: [{ platform: 'android', identifier: SAME, name: 'Same' }],
+  });
+  assert.deepEqual(ios.body.summary, { created: 1, skipped: 0, failed: 0 });
+  assert.deepEqual(android.body.summary, { created: 1, skipped: 0, failed: 0 }, 'Android is not skipped because of iOS');
+  const apps = (await t.call(t.owner, 'GET', '/apps')).body.apps as {
+    id: string;
+    platform: string;
+    identifier: string;
+    storeAppId: string | null;
+  }[];
+  assert.equal(apps.length, 2);
+  assert.deepEqual(apps.map((a) => [a.platform, a.identifier, a.storeAppId]).sort(), [
+    ['android', SAME, SAME],
+    ['ios', SAME, '1499117252'],
+  ]);
+  assert.notEqual(apps[0]?.id, apps[1]?.id);
+  const creates = (await t.auditActions()).filter((a) => a.action === 'app.create');
+  assert.equal(creates.length, 2);
+  // Each is addressable on its own.
+  for (const a of apps) assert.equal((await t.call(t.owner, 'GET', `/apps/${a.id}`)).body.app.platform, a.platform);
+});
+
+dbTest('one import request cannot mix platforms, so the other platform fails alone; same platform twice is skipped', async (db) => {
+  const t = await boot(db);
+  const res = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.iosCredential,
+    items: [
+      { platform: 'ios', identifier: SAME },
+      { platform: 'android', identifier: SAME },
+      { platform: 'ios', identifier: SAME },
+      { platform: 'ios', identifier: SAME.toUpperCase() },
+    ],
+  });
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(
+    res.body.results.map((r: { platform: string; status: string; error?: string }) => [r.platform, r.status, r.error]),
+    [
+      ['ios', 'created', undefined],
+      ['android', 'failed', 'credential_kind'],
+      ['ios', 'skipped', 'already_exists'],
+      ['ios', 'skipped', 'already_exists'],
+    ],
+  );
+  assert.deepEqual(res.body.summary, { created: 1, skipped: 2, failed: 1 });
+  // The failed Android item is still importable with the Android credential afterwards.
+  const android = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.playCredential,
+    items: [
+      { platform: 'android', identifier: SAME },
+      { platform: 'android', identifier: SAME },
+    ],
+  });
+  assert.deepEqual(android.body.summary, { created: 1, skipped: 1, failed: 0 });
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 2);
+});
+
+dbTest('discovery marks an app as already added only for its own platform', async (db) => {
+  const table = playTable({ [SAME]: playApp('Same', SAME) });
+  const iosStore = new FakeStore('ios');
+  iosStore.apps = [appleApp('1499117252', 'Same', SAME)];
+  const t = await boot(db, {
+    connectorFactory: (input) => (input.kind === 'app_store_connect' ? iosStore : table.factory(input)),
+  });
+  const discoverIos = async () =>
+    (await t.call(t.owner, 'POST', discoverPath, { credentialId: t.iosCredential })).body.candidates;
+  const discoverAndroid = async () =>
+    (await t.call(t.owner, 'POST', discoverPath, { credentialId: t.playCredential, packages: [SAME] })).body.candidates;
+
+  assert.deepEqual((await discoverIos()).map((c: { alreadyAdded: boolean }) => c.alreadyAdded), [false]);
+  assert.deepEqual((await discoverAndroid()).map((c: { alreadyAdded: boolean }) => c.alreadyAdded), [false]);
+
+  // Only Android exists: iOS is still addable.
+  const droid = await t.addAndroid({ identifier: SAME, name: 'Same' });
+  const [iosOnly] = await discoverIos();
+  assert.equal(iosOnly.alreadyAdded, false);
+  assert.equal(iosOnly.appId, undefined);
+  const [droidAdded] = await discoverAndroid();
+  assert.equal(droidAdded.alreadyAdded, true);
+  assert.equal(droidAdded.appId, droid.body.app.id);
+
+  // Both exist: each points at its own app.
+  const apple = await t.addIos({ identifier: SAME, name: 'Same' });
+  const [iosAdded] = await discoverIos();
+  assert.equal(iosAdded.alreadyAdded, true);
+  assert.equal(iosAdded.appId, apple.body.app.id);
+  assert.notEqual(iosAdded.appId, droidAdded.appId);
 });
