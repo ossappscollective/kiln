@@ -12,6 +12,7 @@ import { PullRequestFailedError } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { listingChanges } from './listing-sources.ts';
+import type { ListingSelection } from './listing-targets.ts';
 import {
   type Failure,
   failure,
@@ -143,7 +144,14 @@ const invalidState = (status: string, wanted: string) =>
 
 export async function createChangeSet(
   ctx: RepoContext,
-  input: { workspaceId: string; repositoryId: string; summary: string; listing: Listing },
+  input: {
+    workspaceId: string;
+    repositoryId: string;
+    summary: string;
+    listing: Listing;
+    /** Which target's folders the change is made in (the same choice the listing was read with). */
+    selection?: ListingSelection;
+  },
   actor: Actor,
 ): Promise<
   Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings: string[] }>
@@ -162,9 +170,19 @@ export async function createChangeSet(
   let files: FileChange[];
   let warnings: string[];
   try {
-    const listings = await readRepositoryListing(ctx, repository, opened.connector);
-    const changes = listingChanges(listings, input.listing);
+    const read = await readRepositoryListing(
+      ctx,
+      input.workspaceId,
+      repository,
+      opened.connector,
+      input.selection,
+    );
+    if (!read.ok) return read;
+    const changes = listingChanges(read.listings, input.listing);
     if (!changes.ok) {
+      if (changes.code === 'outside_target') {
+        return failure(422, 'outside_target', changes.error, { path: changes.path });
+      }
       return failure(
         422,
         'store_config_invalid',

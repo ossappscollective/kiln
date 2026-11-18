@@ -17,7 +17,7 @@ contents or secrets).
 | `repositories.read`: list and read stored repositories and change sets | yes | yes | yes |
 | `repositories.scan`: scan a repository, read its listing from GitHub | no | yes | yes |
 | `changesets.write`: create a draft, discard your own draft | no | yes | yes |
-| `repositories.write`: connect and disconnect repositories | no | no | yes |
+| `repositories.write`: connect and disconnect repositories, add, change and delete listing targets | no | no | yes |
 | `changesets.approve`: approve, apply, discard anyone's | no | no | yes |
 
 Only admins and owners can approve, so a creator who is an admin or owner may approve their own
@@ -48,14 +48,21 @@ credential. Its shape:
 - `POST /repositories/:id/scan` lists the files, runs project detection, stores it and returns
   `{ repository, detection, listingSources }` (the `ProjectDetection` of `@mrm/connectors`: kind,
   platforms, locales, paths, evidence, warnings; `listingSources` is described below).
-  Synchronous with a timeout. Audit `repository.scan`.
+  `detection.listing` (additive; absent from a scan stored by an older version) is
+  `{ candidates, targets, hints }`: every folder that looks like a listing root, the candidates
+  grouped per app (see "Listing targets"), and the `metadata_path` folders a Deliverfile or
+  Fastfile names. Synchronous with a timeout. Audit `repository.scan`.
 - `GET /repositories/:id/listing` reads the listing at the default branch and returns
-  `{ listing, found, roots, warnings, problems, sources }`: the `Listing` model of `@mrm/core`,
-  whether text was found per store, the fastlane folders, repository-level warnings,
-  `validateListing` problems (`severity` `error` or `warning`) and where each store's listing
-  came from (see "Listing sources"). It uses the stored GitHub credential and sends traffic to
-  GitHub, so it needs `repositories.scan` (member and up), like a scan; a viewer gets `403`.
-  Viewers still read stored data (`GET /repositories`, `GET /repositories/:id`, change sets).
+  `{ listing, found, roots, warnings, problems, sources, targets, selected, candidates,
+  diagnostics }`: the `Listing` model of `@mrm/core`, whether text was found per store, the
+  fastlane folders that were read, repository-level warnings, `validateListing` problems
+  (`severity` `error` or `warning`), where each store's listing came from (see "Listing
+  sources"), and the target fields described under "Listing targets". Query (all optional):
+  `target` (a saved target's id, or `auto:<key>` of a detected one), `appStoreRoot` and
+  `googlePlayRoot` (folders; they win over the target; an empty value means that store is not
+  read). It uses the stored GitHub credential and sends traffic to GitHub, so it needs
+  `repositories.scan` (member and up), like a scan; a viewer gets `403`. Viewers still read stored
+  data (`GET /repositories`, `GET /repositories/:id`, change sets, `GET .../listing-targets`).
 
 ### Listing sources
 
@@ -100,6 +107,88 @@ found for that store).
 
 Using the stored secret is itself audited (`credential.use`, purpose `repository.scan`, …).
 
+### Listing targets
+
+A repository can hold several apps (a monorepo with one metadata folder per app id), or keep its
+listing in an unusual place. A **listing target** names where one app's listing lives: a label,
+an optional app id, a folder for the App Store locale folders and a folder for the Google Play
+locale folders (either may be missing). Two kinds:
+
+- **Detected** targets come from the scan: `auto:<key>`, where the key is `app:<app id>` for
+  `metadata/<app id>/ios` + `metadata/<app id>/android`, `default` for the folders of no app, and
+  `root:<folder>` for an extra folder of a store. Nothing is stored for them.
+- **Saved** targets are written by an admin or owner. They are rows of their own
+  (`repository_listing_targets`: id, repository, name unique per repository, app id, the two
+  folders), not a JSON list on the repository: a target has an id a request can name, the
+  database decides when two people save the same name at once, and an edit or delete is one row
+  with its own audit event. At most 20 per repository. They are deleted with the repository.
+
+Folders that are detected by name (`<folder>` is any folder, usually `fastlane`):
+`<folder>/metadata`, `<folder>/metadata/ios` and `/android`, `<folder>/metadata/<app id>/ios` and
+`/android`, plus the folders a Deliverfile or Fastfile `metadata_path` names when they hold
+listing files. **An explicit folder always wins**: a saved target's folders, or `appStoreRoot` /
+`googlePlayRoot` in a request, are used as given, with no hint and no name rule, even if nothing
+is in them (that is then said, see `diagnostics`, never replaced by a detected folder). A store
+with no folder (null in a saved target, `''` in a request) is not read, and a change set leaves it
+alone (with a warning). A saved target with an App Store folder also means the Expo
+`store.config.json` is not used for that read (the person chose the folder; a note says so).
+
+Without a choice the default is deterministic: a folder named by a hint, then the app named by an
+`Appfile` `app_identifier` literal, then the shallowest folder, then by name; both stores follow
+the same app. With several apps this is reported in `warnings` ("Several App Store metadata
+folders were found ...") and in `selected.origin = "default"`.
+
+The listing response fields:
+
+```json
+{ "targets": [
+    { "id": "auto:app:com.acme.cards", "origin": "detected", "label": "com.acme.cards",
+      "app": "com.acme.cards",
+      "roots": { "appStore": "fastlane/metadata/com.acme.cards/ios",
+                 "googlePlay": "fastlane/metadata/com.acme.cards/android" } },
+    { "id": "…", "origin": "custom", "label": "Weather", "app": null,
+      "roots": { "appStore": "store/apple", "googlePlay": null },
+      "createdAt": 0, "updatedAt": 0 } ],
+  "selected": { "id": "auto:app:com.acme.cards",
+                "origin": "default" | "detected" | "custom" | "folders", "label": "…" },
+  "candidates": [ { "store": "app_store", "root": "…", "app": "…", "platform": "ios",
+                    "origin": "convention" | "hint", "locales": ["en-US"], "files": 10,
+                    "label": "…" } ],
+  "diagnostics": { "appStore": { "root": "…", "explicit": false,
+                                 "state": "found" | "missing" | "no_listing_files" | "not_used",
+                                 "entries": ["en-US/"], "message": "…", "searched": ["…"],
+                                 "unused": [ { "path": "…", "store": "app_store" | "google_play" | null,
+                                               "reason": "…" } ] },
+                   "googlePlay": { "…": "…" } } }
+```
+
+`diagnostics` says, per store, what was checked (the folder that was chosen, or the places looked
+at), what is directly inside it, and which folders look like metadata but were not used and why
+(for example `fastlane/metadata` with no listing files in it, or a folder with locale folders
+whose name is not one of the detected layouts: choose it as a folder to use it). A custom folder
+with no listing files has `state` `missing` (not in the repository) or `no_listing_files` (it is,
+with nothing usable; `entries` says what is there).
+
+Endpoints (`/repositories/:id/listing-targets`), for the saved ones:
+
+- `GET` returns `{ targets: [...] }` (`repositories.read`). The detected ones are in the scan and
+  listing responses.
+- `POST { name, appId?, appStoreRoot?, googlePlayRoot? }` creates one: `201 { target }`
+  (`repositories.write`, audit `repository.listing_target_create`).
+- `PATCH { name?, appId?, appStoreRoot?, googlePlayRoot? }` changes the fields that are sent
+  (`repositories.write`, audit `repository.listing_target_update`). `DELETE` returns `204`
+  (audit `repository.listing_target_delete`).
+- Folders follow the repository path rules: relative, no leading slash, no empty, `.` or `..`
+  segment, no `.git`, no backslash or control character, at most 300 characters (a leading `./`
+  and a trailing slash are removed). At least one folder is needed. Refused with `422
+  invalid_target` and `problems: [{ field, message }]` (`field`: `name`, `appId`, `appStoreRoot`,
+  `googlePlayRoot`, `roots`), `409 duplicate_name` (names compared without case), `422
+  too_many_targets`, `404 not_found` (repository or target of another repository or workspace).
+- A request that names a target or folder: `404 target_not_found` (a deleted saved target, or a
+  detected one that is not in the repository any more) and `422 invalid_root` (a bad folder).
+- Using a target is reading the listing (`repositories.scan`, member and up) or making a change
+  set (`changesets.write`).
+
 ## Change sets
 
 ```json
@@ -119,7 +208,11 @@ client renders the diff.
 Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `draft`, `approved` and
 `failed` can be `discarded`. `applied` always has a PR url or a commit sha.
 
-- `POST /repositories/:id/change-sets` with `{ summary, listing }`, where `listing` is the whole
+- `POST /repositories/:id/change-sets` with `{ summary, listing, target?, roots? }`. `target` and
+  `roots` (`{ appStore?, googlePlay? }`) pick the folders exactly as for `GET .../listing`: send
+  the same ones the listing was read with. The change set only ever contains files inside the
+  chosen target's folders (or the Expo store config when that is the App Store source); a file
+  outside them is refused (`422 outside_target`). `listing` is the whole
   desired `Listing` for the store(s) to change (a store left out is untouched). Send the listing
   as `GET .../listing` returned it, with your edits: a locale or field that is missing from a
   store you send is a deletion. The server reads the current repository state and keeps only the
@@ -182,8 +275,27 @@ fails with `409 branch_exists`, and the existing branch or pull request is the r
 listing also time out (`504`), but they only read, so nothing is left half done.
 
 Audit actions: `repository.connect`, `repository.disconnect`, `repository.scan`,
-`changeset.create`, `changeset.approve`, `changeset.apply`, `changeset.apply_failed`,
-`changeset.apply_timeout`, `changeset.discard`.
+`repository.listing_target_create`, `repository.listing_target_update`,
+`repository.listing_target_delete`, `changeset.create`, `changeset.approve`, `changeset.apply`,
+`changeset.apply_failed`, `changeset.apply_timeout`, `changeset.discard`.
+
+## How a read stays fast
+
+Opening the listing used to list the tree again, read the detection files again, and read one
+file per Google Play release note (a long running app has hundreds, one request each). Now:
+
+- The commit is resolved first (one small call), and the file list and the file texts are cached
+  in memory by repository and commit sha for five minutes (a commit never changes, so the cache
+  cannot be stale; at most 16 commits and 4 MB of text per commit). A scan, a listing and the
+  change set made from it share them, and all read the same commit. A connector that cannot name
+  a commit is read as before, without the cache.
+- Only the files of the chosen target are read: the metadata text files, never screenshots,
+  images or `review_information`. A file read for detection is not read again.
+- Reads run 8 at a time, and the scan reads its fixed files together.
+- Of the release notes of each locale only the 10 newest (by version code, plus `default`) are
+  read, and the response says how many older ones were left alone. A change set never touches the
+  files that were not read.
+- When the request times out (90 seconds) no further request is sent to GitHub.
 
 `DELETE /repositories/:id` racing with a change set being created for it answers `409
 open_change_sets` (nothing is deleted), not a server error.

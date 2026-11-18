@@ -7,6 +7,8 @@ import {
   GithubRateLimitError,
   GithubRepoConnector,
   githubAuthFromSecret,
+  type ListingCandidate,
+  type ListingDiagnostics,
   type ListingSnapshot,
   type ProjectDetection,
   PullRequestFailedError,
@@ -26,12 +28,27 @@ import {
   mergedListing,
   type RepositoryListings,
   readListings,
+  UnknownTargetError,
 } from './listing-sources.ts';
+import {
+  type ListingSelection,
+  type ListingTarget,
+  listListingTargets,
+  resolveSelection,
+} from './listing-targets.ts';
+import { openRepoSnapshot } from './repo-snapshot.ts';
 
 type Actor = { type: ActorType; id: string };
 
-/** A repo connector that can also say which branch is the default (the GitHub one can). */
-export type RepoClient = RepoConnector & { defaultBranch(): Promise<string> };
+/**
+ * A repo connector that can also say which branch is the default (the GitHub one can), and,
+ * optionally, which commit a branch points to (then a request reads one consistent snapshot and
+ * the file list and file texts are cached by commit, see repo-snapshot.ts).
+ */
+export type RepoClient = RepoConnector & {
+  defaultBranch(): Promise<string>;
+  resolveCommit?(ref?: string, signal?: AbortSignal): Promise<string>;
+};
 
 /** Builds the connector for one repository. Replaced by a fake in tests. */
 export type ConnectorFactory = (
@@ -398,6 +415,10 @@ async function disconnect(
         'Discard or finish the open change sets of this repository first.',
       );
     }
+    await tx.execute(
+      'DELETE FROM repository_listing_targets WHERE repository_id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
     // Only the finished ones. A set that is open by now (created since the check above) is left,
     // so the delete of the repository below refuses it instead of silently destroying it.
     await tx.execute(
@@ -443,14 +464,22 @@ export async function scanRepository(
   const { connector, secret } = opened;
   let detection: ProjectDetection;
   let fileCount = 0;
+  const controller = new AbortController();
   try {
     detection = await withTimeout(
       (async () => {
-        const files = await connector.listFiles(repository.defaultBranch);
-        fileCount = files.length;
-        return detectProject(files, (path) => connector.readFile(path, repository.defaultBranch));
+        const snapshot = await openRepoSnapshot({
+          repositoryId: repository.id,
+          connector,
+          branch: repository.defaultBranch,
+          now: ctx.now,
+          signal: controller.signal,
+        });
+        fileCount = snapshot.files.length;
+        return detectProject(snapshot.files, snapshot.read);
       })(),
       ctx.timeoutMs,
+      () => controller.abort(),
     );
   } catch (error) {
     return githubFailure(error, secret);
@@ -477,21 +506,71 @@ export async function scanRepository(
 
 /**
  * Reads where the listing lives at the default branch: the Expo store config and the fastlane
- * folders. Shared by the listing and change set routes.
+ * folders of the chosen target (or the detected default). Shared by the listing and change set
+ * routes. The tree is listed once and the files are read a few at a time, only those of the chosen
+ * folders (see repo-snapshot.ts, listing-sources.ts). Stops sending requests once it times out.
  */
 export async function readRepositoryListing(
   ctx: RepoContext,
+  workspaceId: string,
   repository: Repository,
   connector: RepoClient,
-): Promise<RepositoryListings> {
-  return withTimeout(
-    (async () => {
-      const files = await connector.listFiles(repository.defaultBranch);
-      return readListings(files, (path) => connector.readFile(path, repository.defaultBranch));
-    })(),
-    ctx.timeoutMs,
-  );
+  selection?: ListingSelection,
+): Promise<Outcome<{ listings: RepositoryListings; custom?: ListingTarget }>> {
+  const chosen = await resolveSelection(ctx.db, workspaceId, repository.id, selection);
+  if (!chosen.ok) return failure(chosen.status, chosen.error, chosen.message);
+  const controller = new AbortController();
+  try {
+    const listings = await withTimeout(
+      (async () => {
+        const snapshot = await openRepoSnapshot({
+          repositoryId: repository.id,
+          connector,
+          branch: repository.defaultBranch,
+          now: ctx.now,
+          signal: controller.signal,
+        });
+        return readListings(snapshot.files, snapshot.read, {
+          ...(chosen.roots ? { roots: chosen.roots } : {}),
+          ...(chosen.autoKey === undefined ? {} : { autoTarget: chosen.autoKey }),
+          ignoreExpoConfig: chosen.ignoreExpoConfig,
+        });
+      })(),
+      ctx.timeoutMs,
+      () => controller.abort(),
+    );
+    return { ok: true, listings, ...(chosen.custom ? { custom: chosen.custom } : {}) };
+  } catch (error) {
+    if (error instanceof UnknownTargetError) {
+      return failure(
+        404,
+        'target_not_found',
+        'That detected listing target is not in the repository any more. Scan again and choose another.',
+      );
+    }
+    throw error;
+  }
 }
+
+/** A place the listing can be read from: found by the scan, or saved by a person. */
+export type ListingTargetView = {
+  /** A saved target's id, or `auto:<key>` for a detected one. Send it back as `target`. */
+  id: string;
+  origin: 'detected' | 'custom';
+  label: string;
+  app: string | null;
+  roots: { appStore: string | null; googlePlay: string | null };
+  createdAt?: number;
+  updatedAt?: number;
+};
+
+export type SelectedTarget = {
+  /** The id of the target that was used, or null when the folders were chosen one by one. */
+  id: string | null;
+  /** `custom`: a saved target. `detected`: one found by the scan, chosen. `folders`: roots in the request. `default`: nothing chosen. */
+  origin: 'custom' | 'detected' | 'folders' | 'default';
+  label: string;
+};
 
 export type ListingView = {
   listing: Listing;
@@ -501,11 +580,69 @@ export type ListingView = {
   problems: ListingProblem[];
   /** Where each store's listing comes from: its source, file or folder, and the source's warnings. */
   sources: ListingSources;
+  /** Every place the listing can be read from: detected (one per app) and saved. */
+  targets: ListingTargetView[];
+  /** Which of them was read. */
+  selected: SelectedTarget;
+  /** Every folder that looks like listing files, with the app it belongs to. */
+  candidates: ListingCandidate[];
+  /** What was searched and what was found instead, per store (for an empty result). */
+  diagnostics: ListingDiagnostics;
 };
+
+export function listingTargetViews(
+  fastlane: ListingSnapshot,
+  custom: readonly ListingTarget[],
+): ListingTargetView[] {
+  return [
+    ...fastlane.targets.map(
+      (t): ListingTargetView => ({
+        id: `auto:${t.key}`,
+        origin: 'detected',
+        label: t.label,
+        app: t.app ?? null,
+        roots: t.roots,
+      }),
+    ),
+    ...custom.map(
+      (t): ListingTargetView => ({
+        id: t.id,
+        origin: 'custom',
+        label: t.name,
+        app: t.appId,
+        roots: { appStore: t.appStoreRoot, googlePlay: t.googlePlayRoot },
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }),
+    ),
+  ];
+}
+
+export function selectedTarget(
+  views: readonly ListingTargetView[],
+  fastlane: ListingSnapshot,
+  selection: ListingSelection | undefined,
+  custom: ListingTarget | undefined,
+): SelectedTarget {
+  const rootsGiven = selection?.roots !== undefined && Object.keys(selection.roots).length > 0;
+  if (custom && !rootsGiven) return { id: custom.id, origin: 'custom', label: custom.name };
+  const auto = selection?.target?.startsWith('auto:') ? views.find((v) => v.id === selection.target) : undefined;
+  if (auto && !rootsGiven) return { id: auto.id, origin: 'detected', label: auto.label };
+  if (rootsGiven || custom) return { id: null, origin: 'folders', label: 'Chosen folders' };
+  const same = views.find(
+    (v) =>
+      v.origin === 'detected' &&
+      (v.roots.appStore ?? '') === fastlane.roots.appStore &&
+      (v.roots.googlePlay ?? '') === fastlane.roots.googlePlay,
+  );
+  return same
+    ? { id: same.id, origin: 'default', label: same.label }
+    : { id: null, origin: 'default', label: 'Detected folders' };
+}
 
 export async function getRepositoryListing(
   ctx: RepoContext,
-  input: { workspaceId: string; id: string },
+  input: { workspaceId: string; id: string; selection?: ListingSelection },
   actor: Actor,
 ): Promise<Outcome<ListingView>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.id);
@@ -513,9 +650,19 @@ export async function getRepositoryListing(
   const opened = await openFor(ctx, input.workspaceId, repository, actor, 'repository.listing');
   if (!opened.ok) return opened;
   try {
-    const listings = await readRepositoryListing(ctx, repository, opened.connector);
+    const read = await readRepositoryListing(
+      ctx,
+      input.workspaceId,
+      repository,
+      opened.connector,
+      input.selection,
+    );
+    if (!read.ok) return read;
+    const { listings } = read;
     const listing = mergedListing(listings);
     const sources = listingSources(listings);
+    const saved = await listListingTargets(ctx.db, input.workspaceId, repository.id);
+    const targets = listingTargetViews(listings.fastlane, saved);
     return {
       ok: true,
       listing,
@@ -524,6 +671,10 @@ export async function getRepositoryListing(
       warnings: listingWarnings(listings),
       problems: validateListing(listing),
       sources,
+      targets,
+      selected: selectedTarget(targets, listings.fastlane, input.selection, read.custom),
+      candidates: listings.fastlane.candidates,
+      diagnostics: listings.fastlane.diagnostics,
     };
   } catch (error) {
     return githubFailure(error, opened.secret);

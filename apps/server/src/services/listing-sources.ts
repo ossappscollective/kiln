@@ -48,7 +48,34 @@ export type RepositoryListings = {
   expo?: ExpoStoreSnapshot;
   /** Dynamic store configs (`store.config.js`): code, never read. */
   dynamicStoreConfigs: string[];
+  /** Notes on what the choice of folders left out (an Expo store config that is not used). */
+  notes: string[];
+  /** The scan of the same files: the detected targets and candidates. */
+  detection: ProjectDetection;
 };
+
+export type ReadListingsOptions = {
+  /** Folders to read, which win over detection. An empty string: that store is not read. */
+  roots?: { appStore?: string; googlePlay?: string };
+  /** A detected target (`DetectedTarget.key`): its folders are used. `roots` still win. */
+  autoTarget?: string;
+  /** Do not use an Expo store config for the App Store: the person chose a folder for it. */
+  ignoreExpoConfig?: boolean;
+  /** Newest release notes read per locale. */
+  maxChangelogs?: number;
+};
+
+/** A detected target that the files do not have (they changed, or it never existed). */
+export class UnknownTargetError extends Error {
+  readonly key: string;
+  constructor(key: string) {
+    super(`There is no detected listing target "${key}" in this repository.`);
+    this.name = 'UnknownTargetError';
+    this.key = key;
+  }
+}
+
+const IGNORED_PATHS = /(^|\/)(node_modules|Pods|vendor|\.git|build|DerivedData)\//;
 
 type Read = (path: string) => Promise<string | undefined>;
 
@@ -61,9 +88,14 @@ const isUnreadable = (error: unknown): error is GithubError =>
 /**
  * Reads the listing sources of a repository from its file list: project detection first (so the
  * store config is found the way a scan finds it), then the Expo store config, then the fastlane
- * folders. Each file is read at most once.
+ * folders. Each file is read at most once, and only the files of the chosen folders are read.
  */
-export async function readListings(files: string[], read: Read): Promise<RepositoryListings> {
+export async function readListings(
+  allFiles: string[],
+  read: Read,
+  options: ReadListingsOptions = {},
+): Promise<RepositoryListings> {
+  const files = allFiles.filter((p) => !IGNORED_PATHS.test(p));
   const cache = new Map<string, Promise<string | undefined>>();
   const cached: Read = (path) => {
     let hit = cache.get(path);
@@ -74,6 +106,24 @@ export async function readListings(files: string[], read: Read): Promise<Reposit
     return hit;
   };
   const detection = await detectProject(files, cached);
+  let roots = options.roots;
+  if (options.autoTarget !== undefined) {
+    const target = detection.listing?.targets.find((t) => t.key === options.autoTarget);
+    if (!target) throw new UnknownTargetError(options.autoTarget);
+    roots = {
+      appStore: target.roots.appStore ?? '',
+      googlePlay: target.roots.googlePlay ?? '',
+      ...options.roots,
+    };
+  }
+
+  const notes: string[] = [];
+  const staticConfigs = detection.expo?.storeConfigs ?? [];
+  if (options.ignoreExpoConfig === true && staticConfigs.length > 0) {
+    notes.push(
+      `${staticConfigs.map((c) => c.path).join(', ')} is not used: the App Store folder was chosen, so the App Store listing comes from fastlane files.`,
+    );
+  }
 
   let unreadable: string | undefined;
   const readStoreConfig: Read = async (path) => {
@@ -85,14 +135,20 @@ export async function readListings(files: string[], read: Read): Promise<Reposit
       return undefined;
     }
   };
-  const expo = await loadExpoStoreConfig(detection, readStoreConfig);
+  const expo =
+    options.ignoreExpoConfig === true ? undefined : await loadExpoStoreConfig(detection, readStoreConfig);
   if (expo && unreadable !== undefined) expo.error = unreadable;
 
-  const fastlane = await loadListing(files, cached);
-  const dynamicStoreConfigs = (detection.expo?.storeConfigs ?? [])
-    .filter((config) => config.dynamic)
-    .map((config) => config.path);
-  return { fastlane, ...(expo ? { expo } : {}), dynamicStoreConfigs };
+  const fastlane = await loadListing(files, cached, {
+    ...(roots ? { roots } : {}),
+    ...(detection.listing ? { hints: detection.listing.hints } : {}),
+    ...(options.maxChangelogs === undefined ? {} : { maxChangelogs: options.maxChangelogs }),
+  });
+  const dynamicStoreConfigs =
+    options.ignoreExpoConfig === true
+      ? []
+      : staticConfigs.filter((config) => config.dynamic).map((config) => config.path);
+  return { fastlane, ...(expo ? { expo } : {}), dynamicStoreConfigs, notes, detection };
 }
 
 /** The listing the person sees and edits: App Store from the Expo config when there is one. */
@@ -141,7 +197,7 @@ export function listingSources(listings: RepositoryListings): ListingSources {
 /** Repository-level warnings: the fastlane ones, plus what the source rule left out. */
 export function listingWarnings(listings: RepositoryListings): string[] {
   const { fastlane, expo, dynamicStoreConfigs } = listings;
-  const warnings = [...fastlane.warnings];
+  const warnings = [...fastlane.warnings, ...listings.notes];
   if (expo && fastlane.found.appStore) {
     warnings.push(
       `${expo.path} is the App Store listing source, so the App Store files under ${fastlane.roots.appStore} are ignored.`,
@@ -157,7 +213,7 @@ export function listingWarnings(listings: RepositoryListings): string[] {
 
 export type ListingChanges =
   | { ok: true; files: FileChange[]; warnings: string[] }
-  | { ok: false; path: string; error: string };
+  | { ok: false; path: string; error: string; code?: 'outside_target' };
 
 /**
  * The file changes that turn the repository into `desired`. A store left out of `desired` is
@@ -182,8 +238,30 @@ export function listingChanges(listings: RepositoryListings, desired: Listing): 
       toFastlane.appStore = desired.appStore;
     }
   }
+  if (toFastlane.appStore && fastlane.roots.appStore === '') {
+    warnings.push('The App Store listing was not changed: the selected target has no App Store folder.');
+  }
+  if (toFastlane.googlePlay && fastlane.roots.googlePlay === '') {
+    warnings.push('The Google Play listing was not changed: the selected target has no Google Play folder.');
+  }
   files.push(...listingChangeSet(fastlane, toFastlane));
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  // A change set only ever writes inside the folders of the chosen target (and the Expo config
+  // when that is the App Store source). Anything else is a bug, so it is refused, not written.
+  const inside = (path: string) =>
+    (expo !== undefined && path === expo.path) ||
+    [fastlane.roots.appStore, fastlane.roots.googlePlay].some(
+      (root) => root !== '' && path.startsWith(`${root}/`),
+    );
+  const outside = files.find((f) => !inside(f.path));
+  if (outside) {
+    return {
+      ok: false,
+      path: outside.path,
+      error: `${outside.path} is outside the folders of the selected listing target.`,
+      code: 'outside_target',
+    };
+  }
   return { ok: true, files, warnings };
 }
 

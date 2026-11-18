@@ -6,6 +6,13 @@ import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { detectedSources } from '../services/listing-sources.ts';
 import {
+  createListingTarget,
+  deleteListingTarget,
+  type ListingSelection,
+  listListingTargets,
+  updateListingTarget,
+} from '../services/listing-targets.ts';
+import {
   type Failure,
   type RepoContext,
   connectRepository,
@@ -91,7 +98,44 @@ const listingBody = z.object({
     .strict()
     .optional(),
 });
+// Which target's folders to use: a saved target's id or `auto:<key>`, and/or folders, which win. An
+// empty folder means "this store is not read". The path rules are checked by the service.
+const targetId = z.string().min(1).max(200);
+const rootText = z.string().max(400);
+const selectionRoots = z
+  .object({ appStore: rootText.optional(), googlePlay: rootText.optional() })
+  .strict();
+const targetBody = z.object({
+  name: z.string().max(200),
+  appId: z.string().max(400).nullable().optional(),
+  appStoreRoot: rootText.nullable().optional(),
+  googlePlayRoot: rootText.nullable().optional(),
+});
+const targetPatch = targetBody.partial();
+
+/** The selection of a GET: `?target=&appStoreRoot=&googlePlayRoot=` (an empty value is kept). */
+function querySelection(c: Context<AppEnv>): ListingSelection | { error: string } {
+  const target = c.req.query('target');
+  const appStore = c.req.query('appStoreRoot');
+  const googlePlay = c.req.query('googlePlayRoot');
+  if (target !== undefined && target.length > 200) return { error: 'target' };
+  if ((appStore?.length ?? 0) > 400 || (googlePlay?.length ?? 0) > 400) return { error: 'root' };
+  return {
+    ...(target ? { target } : {}),
+    ...(appStore !== undefined || googlePlay !== undefined
+      ? {
+          roots: {
+            ...(appStore === undefined ? {} : { appStore }),
+            ...(googlePlay === undefined ? {} : { googlePlay }),
+          },
+        }
+      : {}),
+  };
+}
+
 const createBodySchema = z.object({
+  target: targetId.optional(),
+  roots: selectionRoots.optional(),
   summary: z
     .string()
     .trim()
@@ -158,10 +202,68 @@ export function repositoryRoutes(ctx: RepoContext) {
   // Reading the listing uses the stored GitHub credential and sends traffic to GitHub, so it needs
   // the same right as a scan, not the right to merely look.
   app.get('/:workspaceId/repositories/:id/listing', needs('repositories.scan'), async (c) => {
-    const done = await getRepositoryListing(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    const selection = querySelection(c);
+    if ('error' in selection) {
+      return c.json({ error: 'invalid_request', message: 'The target or folder is too long.' }, 400);
+    }
+    const done = await getRepositoryListing(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id'), selection },
+      actor(c),
+    );
     if (!done.ok) return respond(c, done);
     const { ok: _ok, ...view } = done;
     return c.json(view);
+  });
+
+  // ----- listing targets ------------------------------------------------------------------
+
+  // The saved places a repository's listing lives (the detected ones are in the listing and scan
+  // responses). Reading them is a read; changing them is a repository setting (admin and owner).
+  app.get('/:workspaceId/repositories/:id/listing-targets', needs('repositories.read'), async (c) => {
+    const repository = await getRepository(db, ws(c), param(c, 'id'));
+    if (!repository) return notFound(c);
+    return c.json({ targets: await listListingTargets(db, ws(c), repository.id) });
+  });
+
+  const targetFailure = (c: Context<AppEnv>, f: { status: 404 | 409 | 422; error: string; message: string; problems?: unknown }) =>
+    c.json({ error: f.error, message: f.message, ...(f.problems ? { problems: f.problems } : {}) }, f.status);
+
+  app.post('/:workspaceId/repositories/:id/listing-targets', needs('repositories.write'), async (c) => {
+    const body = await parseBody(c, targetBody);
+    if (!body.ok) return body.response;
+    const done = await createListingTarget(
+      db,
+      { workspaceId: ws(c), repositoryId: param(c, 'id'), target: body.data, now: ctx.now() },
+      actor(c),
+    );
+    return done.ok ? c.json({ target: done.target }, 201) : targetFailure(c, done);
+  });
+
+  app.patch('/:workspaceId/repositories/:id/listing-targets/:targetId', needs('repositories.write'), async (c) => {
+    const body = await parseBody(c, targetPatch);
+    if (!body.ok) return body.response;
+    const done = await updateListingTarget(
+      db,
+      {
+        workspaceId: ws(c),
+        repositoryId: param(c, 'id'),
+        id: param(c, 'targetId'),
+        changes: body.data,
+        now: ctx.now(),
+      },
+      actor(c),
+    );
+    return done.ok ? c.json({ target: done.target }) : targetFailure(c, done);
+  });
+
+  app.delete('/:workspaceId/repositories/:id/listing-targets/:targetId', needs('repositories.write'), async (c) => {
+    const done = await deleteListingTarget(
+      db,
+      { workspaceId: ws(c), repositoryId: param(c, 'id'), id: param(c, 'targetId'), now: ctx.now() },
+      actor(c),
+    );
+    return done.ok ? c.body(null, 204) : targetFailure(c, done);
   });
 
   // ----- change sets ----------------------------------------------------------------------
@@ -176,6 +278,10 @@ export function repositoryRoutes(ctx: RepoContext) {
         repositoryId: param(c, 'id'),
         summary: body.data.summary,
         listing: body.data.listing as never,
+        selection: {
+          ...(body.data.target ? { target: body.data.target } : {}),
+          ...(body.data.roots ? { roots: body.data.roots } : {}),
+        },
       },
       actor(c),
     );
