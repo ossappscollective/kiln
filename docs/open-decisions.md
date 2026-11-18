@@ -250,6 +250,20 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Check with a real account:** the unverified items in
   [api/rollout](api/rollout.md#unverified-check-with-a-real-account).
 
+## Store drafts ([ADR 0009](adr/0009-staged-store-drafts.md))
+
+### Writing staged listing changes to a store as a draft
+
+- **Today:** off by default (`MRM_STORE_DRAFT_WRITE_ENABLED`); an admin or owner previews and confirms a
+  push of the staged texts and screenshot sets to the store's draft; a token needs `store.push_draft`
+  named explicitly; nothing is submitted. Server only: no screens yet. Nothing was run against a real store.
+- **Decide:** whether to build submit/publish at all (designed in
+  [api/staged-changes](api/staged-changes.md#submit-and-publish-designed-only-unverified-not-implemented)); whether name and
+  subtitle of the App Store (app info) should be pushable; whether to move the App Store screenshots to
+  Apple's App Asset Library (the set resources are deprecated); whether asset reverse sync (store
+  images into the repository) is worth a binary-capable repository write.
+- **Check with a real account:** [api/staged-changes](api/staged-changes.md#unverified-check-with-a-real-account).
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

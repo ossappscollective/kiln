@@ -368,6 +368,26 @@ reading, syncing and planning are not affected. Set it to `true` only when you w
 
 See [adr/0008-store-rollout-writes](adr/0008-store-rollout-writes.md) and [api/rollout](api/rollout.md).
 
+### Writing listing drafts to a store (a store write, off by default)
+
+`MRM_STORE_DRAFT_WRITE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
+switch for writing staged listing texts and graphics to the **draft** of an app in App Store Connect or
+Google Play. While `false`, the preview and push routes answer `409 store_draft_disabled`; staging and
+viewing are not affected, and nothing is ever submitted, sent for review or published by this server.
+Things to settle first:
+
+- **Who can push.** Only owners and admins (`store.push_draft`). An API token only when its list of
+  actions names it.
+- **The draft is overwritten.** Pushing replaces the texts and the whole screenshot sets that were staged,
+  in the draft of the store. A change made by somebody else after the preview is refused (`state_changed`).
+- **Files.** Screenshots are read from the connected repository's clone at push time, within the asset
+  budgets; PNG or JPEG, 8 MiB per file, 100 files and 64 MiB per push.
+- **The store credential must be allowed to edit the listing** (see [credentials](credentials.md#writing-listing-drafts-what-the-same-credentials-need)).
+- The table `staged_changes` (the staged items, by reference) and `store_draft_claims` (one row while a
+  push is in flight) are created by migration 23.
+
+See [adr/0009-staged-store-drafts](adr/0009-staged-store-drafts.md) and [api/staged-changes](api/staged-changes.md).
+
 See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
 
 ### Review translation

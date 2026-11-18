@@ -107,6 +107,21 @@ The same credential is used; no new one is needed, but it must be allowed to rel
 - If a change says `store_forbidden`, the key lacks the permission; the rollout can still be changed
   in the store's own console.
 
+## Writing listing drafts (what the same credentials need)
+
+Only when the server runs with `MRM_STORE_DRAFT_WRITE_ENABLED=true` ([deployment](deployment.md#writing-listing-drafts-to-a-store-a-store-write-off-by-default)).
+The same credential is used; it must be allowed to edit the app's listing.
+
+- **Google Play:** the service account must be allowed to edit the store listing and release management
+  of the app (UNVERIFIED which exact permission `edits.listings`, `edits.images` and `edits.commit` need).
+  The commit is made with `changesNotSentForReview`; if Google refuses that for the app the push answers
+  `draft_not_allowed` and nothing is committed. https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit
+- **App Store Connect:** the key needs a role that may edit the metadata of a version (App Manager or
+  Admin is assumed; UNVERIFIED). The app must have been synced once and have a version that can be edited
+  (`no_editable_version` otherwise).
+- If a push says `store_forbidden`, the key lacks the permission; the same change can be made in the
+  store's own console.
+
 ## Store listing sections (what the same credentials need)
 
 The listing sections ([api/listing](api/listing.md#sections-beyond-the-texts): categories, age rating,

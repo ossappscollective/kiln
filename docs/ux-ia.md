@@ -85,8 +85,8 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 | --- | --- | --- |
 | Increase Android staged rollout %, halt, resume, release to 100% | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md); screens not built) |
 | Apple phased release: pause, resume, release to all | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md); screens not built) |
-| Push listing text as draft | store write | proposed `MRM_STORE_WRITE_LISTING` |
-| Push assets as draft | store write | proposed `MRM_STORE_WRITE_ASSETS` |
+| Push listing text as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (server done, [api/staged-changes](api/staged-changes.md); screens not built) |
+| Push assets as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (same switch and route; server done; screens not built) |
 | Reply to a review | store write | `MRM_REVIEW_REPLY_ENABLED` (exists), plus the credential role |
 | Commit or push to a local clone | repository write | `MRM_LOCAL_REPO_WRITE` (exists) |
 | Rollout step plan, mark step done, reminders, checklist | planning data | none |
