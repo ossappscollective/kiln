@@ -478,6 +478,27 @@ Response `201` with a draft (a person reviews it next):
   `skipped` and `warnings`, and `explanation` saying why (for example that every difference is
   `repo-ahead`).
 
+## `POST /change-sets/:id/recompute`
+
+Makes a store pull again from the **live store listing** and the repository as they are now. For a
+change set made by `POST /apps/:id/listing/pull` (its `origin.source` is `store_pull`; the request and a
+hash per field are kept in `change_sets.origin_json`, never text). Needs `changesets.write` and
+`listing.read`. Body (optional): `{ "refresh": true }` reads the store first, read only and under the
+same limiter as a pull (`apps.sync` needed; `429` with `Retry-After`).
+
+Allowed on a `draft`, `approved` or `failed` set **without a branch**. The set keeps its id and creator,
+its files are replaced, approvals are cleared and the status is `draft`. For a set whose branch exists,
+use `POST /change-sets/:id/fixup` with `{ "recompute": true }` ([repositories](repositories.md)).
+Nothing changed since (`unchanged: true`) writes nothing and keeps an approval.
+
+Answer: the pull shape (`changes`, `skipped`, `problems`, `target`, `store`, `warnings`) plus
+`changeSet`, `unchanged`, `nothingLeft` (every field is already in the repository: discard the set),
+`approvalCleared` and `diffFromPrevious: [{ locale, repoLocale, field, change, reason? }]`, where
+`change` is `store_changed`, `unchanged`, `added` or `dropped` (`reason` is the skip reason, or
+`identical`). Errors: `409 not_recomputable` (another source, or a row from before migration 17),
+`409 invalid_state`, `409 has_branch`, `409 app_gone`, `409 app_relinked`, `409 changed_meanwhile`.
+Audit `changeset.recompute` with counts only.
+
 ## Scheduled reads
 
 `MRM_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080) makes the scheduler read the

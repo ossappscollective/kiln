@@ -139,8 +139,14 @@ rendered in a browser, and Expo is only done at library level.
       dependency free line based diff3 (`text-merge.ts`), per file conflicts the person settles ("keep mine" /
       "keep theirs"), approval cleared when the text changes, audit `changeset.refresh`; web banner, "Check for
       updates" and a refresh dialog. Tested on SQLite with real git repositories and a fake GitHub; **never
-      run against live GitHub, never rendered in a browser**, not run on Postgres (no migration was needed).
-      Recomputing the change from the live store listing is not done
+      run against live GitHub, never rendered in a browser**, not run on Postgres (no migration was needed)
+- [x] Fix up a branch: `POST /change-sets/:id/fixup` adds ONE commit on top of an existing branch (local
+      plumbing with `update-ref <ref> <new> <old>`, or the GitHub API with `force: false`), never a rewrite or
+      a force; per-file conflicts with the repository and with the branch, `branch_moved`,
+      `branch_checked_out`, `pr_closed`, `remote_diverged`, an optional push and pull request, audit
+      `changeset.fixup`; web "Fix up this branch" dialog. ADR 0005. Tested on SQLite with real git
+      repositories and a fake GitHub connector; **never run against live GitHub, with a real gpg-agent, or in
+      a browser**, not run on Postgres
 - [x] Idle pruning and a disk budget for the clone folder (`MRM_CLONE_MAX_BYTES`, `MRM_CLONE_IDLE_DAYS`,
       `MRM_CLONE_SWEEP_INTERVAL_MINUTES`), a scheduled sweep, `POST /repositories/:id/clone/purge`, and a
       size card in the web app. Not tried on macOS, Windows or Docker volumes

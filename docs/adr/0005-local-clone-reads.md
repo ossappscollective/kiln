@@ -621,6 +621,98 @@ Accepted residuals, to be revisited:
   empty repository (a base is required), writing to a local clone of a repository that is not in the
   allowed roots, and applying to a branch other than the one the clone is read from.
 
+## Fixing up a branch (phase 4b)
+
+A change set whose branch exists (applied, or failed after the branch was made) cannot be refreshed
+(`409 branch_created`), because the branch holds the old text. `POST /change-sets/:id/fixup` adds
+**one new commit on top of the branch** instead. It never rewrites history, never forces a push and
+never moves a ref backwards. Rights: `changesets.approve`, like apply; there is no second approval
+(the person who fixes up is the approver). The change set keeps its status (`applied` or `failed`);
+a failed GitHub set whose pull request exists, or was opened by the fix up, becomes `applied`.
+
+### Flow
+
+1. **Stage 1, against the repository** (the refresh merge): base = the stored `before`, ours = the
+   stored `after`, theirs = the repository now. The result is the desired text **D**. Conflicts are
+   `409 refresh_conflicts`, settled with `resolutions`. A file that leaves the set (the repository has
+   it now) is reset on the branch to the repository text.
+2. **Stage 2, against the branch**: base **A** = the last committed text (the stored `after`, which a
+   fix up keeps equal to what the branch holds), ours = D, theirs = the branch tip text **T**. `T == D`:
+   keep. `D == A`: nothing new is wanted, edits made on the branch stay. `T == A`: write D. Otherwise a
+   three-way merge; a conflict is `409 fixup_conflicts`, settled with `branchResolutions` (`mine`
+   overwrites the branch text in the new commit, `theirs` keeps the branch's). Using the original
+   `before` as the base would conflict with our own earlier commit on every correction; that is why A
+   is the last committed text.
+3. The delta of the changed paths only. An empty delta is `200 nothingToFix` (no commit, no audit
+   row, no write): the same delta twice is idempotent.
+4. One commit, parent = the current tip. **Local mode**: the plumbing of `createBranchCommit`
+   (`hash-object --no-filters`, a private index read from the tip, `write-tree`, `commit-tree`, the same
+   hardened environment, no hooks, the same server-pinned signing) and then
+   `update-ref -m <msg> refs/heads/<b> <new> <old-tip>`: the old value is supplied, so the update
+   succeeds only from the tip that was read (`409 branch_moved` otherwise, nothing is changed). The
+   branch is refused when it is checked out in the clone or in a linked worktree, or a rebase of it is
+   in progress (`409 branch_checked_out`), checked again right before the ref moves. The working tree,
+   index, HEAD, config and every other ref stay as they were; the `MRM_LOCAL_REPO_WRITE` gate, the path
+   re-validation and the folder roots apply as for apply. **GitHub mode**: `commitOnBranch` creates
+   blobs, a tree on the tip's tree and a commit with the tip as its only parent, then
+   `PATCH git/refs/heads/<b>` with `force: false`. A non-fast-forward answer is `409 branch_moved`, a
+   missing branch `409 branch_missing`, a merged or closed pull request `409 pr_closed` (checked
+   before writing). The default branch is refused (`default_branch`) before anything is written.
+5. Optional (local mode only; `push`, `openPr`): a non-force push of the new tip (`409 remote_diverged`
+   when the remote has other commits; the commit stays local and is recorded with `pushed: false`) and
+   the pull request, opened with the existing `openPullRequest` when there is none. GitHub mode updates
+   the pull request by moving its branch; `push`/`openPr` there are `422`.
+6. Records: `outcome_json.fixups[] = { at, commit, parent, files, pushed, signature? }`;
+   `commit_sha` and `outcome.commit` mean "the latest commit"; `outcome.base` is unchanged. A GitHub
+   set stores `{ mode: 'github_pr', fixups }`. After the commit the stored `after` of each file is what
+   the branch holds, and a file whose final text equals the repository's leaves the set. Where a local
+   fix up commit exists and the earlier push was `pushed`, `push.status` becomes `behind` until pushed.
+
+### State machine
+
+`applied | failed(with branch)` -- fixup --> same status (a failed GitHub set with a pull request
+becomes `applied`). Claim: `publish_claim_at` (TTL 10 minutes) is taken for both statuses
+(`409 fixup_in_progress`), shared with the push step, released at the end; a dry run takes none.
+The final write is guarded by `status = ?` (`409 changed_meanwhile`). Audit: `changeset.fixup`,
+`changeset.fixup_failed` and `changeset.pr_open` with counts and commit ids, never text or paths of
+file content.
+
+### Recompute
+
+`POST /change-sets/:id/recompute` (see [the listing API](../api/listing.md)) makes a store pull again
+from the live store listing. For a set with a branch, `POST /change-sets/:id/fixup` with
+`{ "recompute": true }` plans the same pull and feeds the files to the fix up as the desired content.
+The set's own recorded values (`listing_snapshots` rows of source `change_set` with its id) are left
+out of the repository side of the drift history when it is recomputed: otherwise the fields it
+committed would look "repo ahead" and be dropped. The origin (`change_sets.origin_json`, migration 17)
+holds the request and per-field hashes, never text.
+
+### Threat model
+
+- **Ref integrity.** The only ref written is the named existing branch, by `update-ref` with the old
+  oid, so a concurrent move (a person, a push, another fix up) fails instead of being overwritten.
+  GitHub: `force: false`, a fast-forward only. A race between the check and the update is closed by
+  the old-oid compare; a race with a checkout is narrowed by checking again right before the update.
+- **No rewrite.** The new commit's parent is the tip that was read; nothing resets, rebases, amends or
+  deletes. The default branch is never written.
+- **People's work.** Edits on the branch are merged or shown as conflicts, never silently dropped;
+  "keep mine" is an explicit choice per file.
+- **Same hardening as apply.** Hardened git environment, no hooks or filters, UTF-8 text only (a
+  non-text, symlink or submodule path on the branch is refused), path allowlist, signing only with the
+  server key (a failing signer leaves the ref untouched), pushes through the private bare repository
+  with the exact refspec and scrubbed output, secrets in no response, log or audit row.
+- **Rights.** `changesets.approve` (owner, admin); recompute needs `changesets.write` and
+  `listing.read` (and `apps.sync` for `refresh`). App-restricted tokens are refused on these routes.
+
+### Accepted residuals
+
+- A person can still check the branch out between the last check and `update-ref`; the window is
+  milliseconds, and the working tree is then stale as after any `git branch -f`.
+- Only UTF-8 text files are merged. A GitHub fix up that changes many files makes one API call per
+  blob.
+- For a recompute with a path new in the set, the base A is approximated by the repository text.
+- Not run against live GitHub, with a real gpg-agent, or on other git versions' worktree output.
+
 ## Implemented (phase 2)
 
 Steps 1 to 6 and 9 of the plan below are built, in `apps/server/src/services/clone-reads.ts`
