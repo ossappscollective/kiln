@@ -89,6 +89,7 @@ export const appEventTypes: readonly string[] = [
   'review.sync_failed',
   'review.reply_sent',
   'release.rollout_changed',
+  'listing.draft_pushed',
   'plan.deadline_due_soon',
   'plan.deadline_overdue',
 ];
