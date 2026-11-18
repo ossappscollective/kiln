@@ -95,7 +95,10 @@ const PACKAGE_NAME = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 export const isPlayPackageName = (value: string): boolean =>
   value.length <= 255 && PACKAGE_NAME.test(value);
 
-/** The queue that keeps one edit per service account at a time, inside this process. */
+/**
+ * The queue that keeps one edit per service account at a time, inside this process. The rollout
+ * writer (play-rollout.ts) uses it too: a write must not invalidate a read's edit, nor the reverse.
+ */
 const editQueues = new Map<string, Promise<unknown>>();
 
 function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
@@ -108,6 +111,9 @@ function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
   });
   return run;
 }
+
+/** The same queue for the writer of rollouts (play-rollout.ts), which must not interleave with a read's edit. */
+export const serializedPlayEdits = serialized;
 
 const DISABLED = /has not been used in project|it is disabled|accessNotConfigured|SERVICE_DISABLED/i;
 const RATE_REASONS = /rateLimitExceeded|userRateLimitExceeded|quotaExceeded|RATE_LIMIT_EXCEEDED/i;

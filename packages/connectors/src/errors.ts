@@ -170,6 +170,8 @@ export type StoreErrorKind =
   | 'api_disabled'
   /** A Play edit was invalidated (another edit, a Console change) while it was being read. */
   | 'edit_invalid'
+  /** Play: changes are in review, and the commit was told not to cancel that review (`ERROR_IF_IN_REVIEW`). */
+  | 'changes_in_review'
   /** The store has no API for this. */
   | 'unsupported';
 

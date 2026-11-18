@@ -20,5 +20,8 @@ export * from './review-types.ts';
 export * from './appstore-reviews.ts';
 export * from './play-reviews.ts';
 export * from './itunes-rating.ts';
+export * from './rollout-types.ts';
+export * from './play-rollout.ts';
+export * from './appstore-rollout.ts';
 export * from './blobs.ts';
 export * from './translate/index.ts';
