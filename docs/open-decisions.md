@@ -158,10 +158,13 @@ the raw state). A phased release currently shows as `live` because it is not rea
 
 ### 17. Commits written to a local clone
 
-- **Today:** commits are unsigned, no hooks run, and Git LFS or attribute filters are not applied (an
-  LFS-tracked listing path would be committed as plain text).
-- **Decide:** accept that for listing text, or add signing and hook support as an opt-in later, and
-  whether to refuse repositories with LFS-tracked listing paths.
+- **Today:** signing is **opt-in** (`MRM_GIT_SIGN=ssh|gpg`, with a key and a program the operator
+  configures; off by default, then the commits are unsigned). No hooks run, and Git LFS or attribute
+  filters are not applied (an LFS-tracked listing path would be committed as plain text). Signed
+  means the commit holds a signature; nothing verifies it, and it was not run on macOS or in Docker.
+- **Decide:** whether hook support is ever wanted (as an opt-in), whether to refuse repositories with
+  LFS-tracked listing paths, accept that for listing text, and whether the server key may sign for
+  every admin and owner or only for the person who applied (see 18).
 
 ### 18. Who may push a locally applied branch
 

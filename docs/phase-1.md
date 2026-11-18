@@ -84,7 +84,8 @@ rendered in a browser, and Expo is only done at library level.
       /change-sets/:id/push` retries a failed push or pull request. Opt-in
       (`MRM_LOCAL_REPO_WRITE=true`, `MRM_GIT_AUTHOR_NAME`/`_EMAIL`), admin and owner only, audited
       (`changeset.apply_local`, `.push`, `.push_failed`, `.pr_open`, `.pr_failed`). The commit is
-      made with git plumbing in a temporary index (no checkout, hooks, signing or filters; the working
+      made with git plumbing in a temporary index (no checkout, hooks or filters, and signed only with
+      the opt-in `MRM_GIT_SIGN=ssh|gpg` below; the working
       folder, index, HEAD and checked out branch are never touched; the base is verified, the branch
       can only be created); the push runs from a private bare repository that borrows the clone's
       objects, to an explicit https URL with the token in a header that only that git process sees,
@@ -97,8 +98,26 @@ rendered in a browser, and Expo is only done at library level.
       the change set. Design, threat model and residual risks:
       [ADR 0005](adr/0005-local-clone-reads.md). Tested with real local git repositories (including
       hostile config and hooks), a bare repository as the push remote and an HTTP stub for the token
-      header; **not run on macOS, against real GitHub (a real push or pull request), with real
-      signing or hooks, on Postgres, or in a browser**
+      header; **not run on macOS, against real GitHub (a real push or pull request), with hooks, on
+      Postgres, or in a browser**
+- [x] Opt-in signing of those local commits (`MRM_GIT_SIGN=off|ssh|gpg`, `MRM_GIT_SIGNING_KEY`,
+      `MRM_GIT_SIGNING_PROGRAM`, `MRM_GIT_GNUPGHOME`): the server's own key and a program pinned at
+      start, set with `-c` on the plumbing `commit-tree` call, so nothing in the repository's or the
+      user's git config can choose the program or the key; no prompts (`--batch --pinentry-mode
+      error` through a one-line wrapper for gpg, a private HOME and temp folder, a 20 second kill of
+      the process group); a failure to sign stops before the branch exists (change set back to
+      `approved`, `502`/`504 signing_failed` with a fixed `reason`, never an unsigned fallback); the
+      object is checked for a signature header of the right format and the outcome says `signature:
+      { status: "signed", format }` (signed, **not** verified); `GET /repositories/local/config` has
+      `signing: { enabled, format? }` (never the key or its path); the Apply dialog says whether the
+      commit will be signed and the result card shows "Signed (ssh)" with the GitHub "signing key"
+      tip. Configuration is validated at start (a table test). Tested with real git 2.34.1,
+      ssh-keygen, a real ssh-agent and gpg with throw-away keys (verify-commit against allowed
+      signers and a keyring in the tests), a hostile repository config, a locked key, a missing
+      program and a program that never answers. The GitHub-API commits of `github_pr` are not signed
+      by this and are not changed. **Not run on macOS, in Docker, with a real gpg-agent/pinentry
+      setup or hardware key**; see [ADR 0005](adr/0005-local-clone-reads.md) and
+      [deployment](deployment.md)
 - [x] CI workflows, runs and build linking ([docs/api/ci.md](api/ci.md)): list workflows and their
       `workflow_dispatch` inputs, dispatch a workflow (new right `ci.dispatch`, member and up,
       rate limited, audited with input names only), store runs in `workflow_runs` and follow them

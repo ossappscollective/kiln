@@ -256,6 +256,12 @@ untrusted (a cloned repository carries its own config), and the *path* is attack
 | A person without the right | `repositories.write` (admin, owner) for check, connect, attach, detach; config shows the roots only to them; non-members get 404 | yes |
 | Credentials in the origin URL | the URL is parsed to host, owner and name; userinfo is dropped and never returned, logged or audited | yes |
 | Using git when told not to | `MRM_READS=api` means git never runs; attached repositories then read from GitHub, local-only ones refuse | yes |
+| The repository's or user's git config choosing the signing program or key (`gpg.program`, `gpg.ssh.program`, `user.signingkey`, `commit.gpgsign`) | key, program and format come from the server's environment, passed with `-c` after the config files; the program is pinned by absolute path at start; `GIT_CONFIG_GLOBAL=/dev/null` | yes (recording program vs a repository program, and which key signed) |
+| A signing program or `gpg` waiting for a passphrase, a hung agent | `--batch --no-tty --pinentry-mode error` through the wrapper; no `DISPLAY`, `SSH_ASKPASS` or tty in the environment; the process runs in its own process group, killed after 20 seconds; `signing_failed` with reason `locked` or `timeout` | yes (locked ssh key, locked gpg key, a program that sleeps) |
+| An unsigned commit where a signed one was promised | signing failure stops before `update-ref`; the object must hold a `gpgsig` block of the configured format before any ref points at it; no fallback | yes |
+| The key or its path leaking (response, audit, log, outcome, repository); the path is in the process arguments while signing runs | never returned or stored: the config endpoint gives the format only; the program's output is classified and dropped; config errors do not name the path; the start-up log has the format and the public fingerprint; the key file is read by ssh-keygen only | yes |
+| The server environment reaching the signing program | allowlisted environment plus `HOME`, `TMPDIR`, `GNUPGHOME`, `SSH_AUTH_SOCK` only as described; `HOME` is a private temporary folder | yes (a planted master key and socket are not seen) |
+| A key file others can read | refused at start when it has group or other permission bits (ssh would refuse it too) | yes |
 | Audit gaps | check, connect, attach, change and detach are audited with the path and branch, never content | yes |
 
 Decisions:
@@ -305,6 +311,9 @@ git path.
   must name the folder). Without it, `mode: local_branch` is refused with `409 local_write_disabled`
   and nothing is touched. Reading local clones does not need it. The web app reads the setting from
   `GET /repositories/local/config` (`write`) and shows the option disabled with the reason.
+- **Signing is opt-in and the server's own.** `MRM_GIT_SIGN=off|ssh|gpg` (default `off`, which is
+  exactly the behaviour before signing existed). With `ssh` or `gpg` the commit is signed with a key
+  the operator configured, never one from the clone's or the user's git config. See "Signing".
 - **Same right as apply.** `changesets.approve` (admin, owner). Members and viewers get 403,
   non-members 404 (as every change set route). The push endpoint needs the same right.
 - **Two modes of apply.** `POST /change-sets/:id/apply` takes an optional body
@@ -335,7 +344,7 @@ applied --publish claim (publish_claim_at, TTL 10 min)--> push --> pull request 
 ```
 
 - `applied` means the commit exists. `outcome_json` holds `{ mode, base: {branch, commit}, commit:
-  {branch, sha, at}, requested: {push, openPr}, push: {status, at?, code?, error?}, pr: {status,
+  {branch, sha, at}, requested: {push, openPr}, signature?: {status: 'signed', format}, push: {status, at?, code?, error?}, pr: {status,
   at?, url?, number?, code?, error?} }`. `push.status` is `not_requested | pushed | failed`;
   `pr.status` is `not_requested | opened | failed | skipped` (skipped: the push failed first). The
   older columns `branch`, `commit_sha`, `pr_url`, `pr_number` are kept in step for the existing
@@ -344,8 +353,8 @@ applied --publish claim (publish_claim_at, TTL 10 min)--> push --> pull request 
   has its own claim, `publish_claim_at`, so two retries cannot push or open two pull requests; a
   second caller gets `409 publish_in_progress`. A claim older than its TTL can be taken over (a
   crashed process does not wedge the change set).
-- A failure before the branch exists (`base_changed`, `branch_exists`, `no_changes`, a path rule)
-  returns the change set to `approved` with the reason and writes nothing. After `update-ref`
+- A failure before the branch exists (`base_changed`, `branch_exists`, `no_changes`, a path rule,
+  `signing_failed`) returns the change set to `approved` with the reason and writes nothing. After `update-ref`
   succeeded, the change set is `applied` whatever happens next.
 - Migration 14 adds `change_sets.outcome_json` (TEXT) and `change_sets.publish_claim_at`
   (timestamp), in both dialects. A migration test runs 1 to 13 with data, then 14.
@@ -354,7 +363,7 @@ applied --publish claim (publish_claim_at, TTL 10 min)--> push --> pull request 
 
 `git commit`, `switch`, `worktree add` or `stash` all read or write the working tree and the
 index, and run the repository's hooks (`pre-commit`, `commit-msg`, `post-commit`, `post-checkout`),
-filters (`clean`, `smudge`, `autocrlf`), signing (`commit.gpgsign` runs `gpg.program`) and
+filters (`clean`, `smudge`, `autocrlf`), signing (`commit.gpgsign` runs the repository's `gpg.program`) and
 config-defined programs. Those are the things the read path took pains to keep out, and the person
 may have uncommitted work in that working tree. So the commit is built from objects:
 
@@ -367,7 +376,8 @@ may have uncommitted work in that working tree. So the commit is built from obje
 4. `hash-object -w --no-filters --stdin` writes each blob byte for byte (no line-ending
    conversion, no filter). A private index (`GIT_INDEX_FILE` in a new temporary folder) gets
    `read-tree <base>`, `update-index --index-info` and `write-tree`. `commit-tree` makes the commit
-   (parent: the base; author and committer set explicitly; never signed). `update-ref
+   (parent: the base; author and committer set explicitly; signed only with `MRM_GIT_SIGN`, see
+   "Signing"). `update-ref
    refs/heads/<branch> <commit> <zero oid>` creates the branch and can only create it: if it appeared
    in the meantime the call fails and nothing is replaced.
 5. Every git call carries the same hardening as the read path (`--no-pager`, `-c` overrides that
@@ -414,6 +424,89 @@ consulted.
   HTTP stub that receives the extraheader (the token arrives there and appears in no response,
   audit row, log line, git argument or stored outcome).
 
+### Signing
+
+Opt-in, added after the first version of this phase (which never signed). The request was that the
+commits made here be signed; the constraint is the one this whole phase rests on: nothing in the
+clone or in the user's git configuration may decide what code runs. So signing is configured by the
+operator, in the server's environment, and applied to the plumbing `commit-tree` call only.
+
+**Configuration** (validated at start, `config.ts`; a bad value stops the server with a message that
+names the variable and never contains the key's path):
+
+| Variable | Meaning |
+| --- | --- |
+| `MRM_GIT_SIGN` | `off` (default), `ssh` or `gpg`. Off or unset: nothing below is read. |
+| `MRM_GIT_SIGNING_KEY` | `ssh`: absolute path of a private key file (not readable by group or others), or of the `.pub` of a key an `ssh-agent` holds. `gpg`: a key id or fingerprint (hex, 8 to 64 characters; a user name or e-mail address is refused). |
+| `MRM_GIT_SIGNING_PROGRAM` | Absolute path of `ssh-keygen` or `gpg`. Unset: looked up in `PATH` **once at start** and pinned. |
+| `MRM_GIT_GNUPGHOME` | `gpg` only, required: the keyring folder. The server does not use its user's home folder. |
+
+**How.** `git -c gpg.format=ssh -c gpg.ssh.program=<pinned> -c user.signingkey=<key> commit-tree -S
+...` for ssh; `-c gpg.format=openpgp -c gpg.program=<wrapper> -c gpg.openpgp.program=<wrapper> -c
+user.signingkey=<id> commit-tree -S<id> ...` for gpg. `-c` settings come after the repository's
+config in git's order, so a repository that sets `gpg.program`, `gpg.ssh.program`,
+`gpg.openpgp.program`, `gpg.format`, `user.signingkey`, `gpg.ssh.defaultKeyCommand` or
+`commit.gpgsign` changes nothing (tested with a recording program for the pinned one and a program
+that leaves a marker for the repository's: only the first runs, and the signature is made by the
+configured key). `git` cannot pass arguments to `gpg.program`, so for gpg it points at a two-line
+script written into the private temporary folder of that apply, which runs the pinned `gpg --batch
+--no-tty --pinentry-mode error`: gpg can never ask for a passphrase or open a pinentry window. The
+environment of that one `git` call is the usual allowlist plus: `HOME`, `TMPDIR`, `TMP` and `TEMP`
+pointing into a private folder that is deleted afterwards (git's signing buffer and ssh-keygen's
+`.sig` live there, so even a killed run leaves nothing), `GNUPGHOME` (gpg) and `SSH_AUTH_SOCK` (ssh,
+only when the key is a `.pub` and the server's own environment had one at start). Nothing else of
+the server's environment reaches the program (a test plants `MRM_MASTER_KEY` and a socket and
+checks the program does not see them).
+
+**Failure.** If signing is on and fails (no key, key file unreadable or not a key, passphrase
+protected and not unlocked in an agent, program missing or not startable, no signature produced,
+no answer within 20 seconds), the apply fails **before `update-ref`**: no branch, the change set
+returns to `approved` with `error` set, the answer is `502 signing_failed` (`504` for a timeout)
+with a `reason` (`timeout`, `locked`, `key`, `program`, `failed`) and a fixed sentence per reason.
+The process group is killed on timeout. The objects written by `hash-object` and `write-tree`
+stay as unreachable objects, as for any other failure. **There is never a fallback to an unsigned
+commit.** The text the signing program printed is classified and dropped: it can contain the key's
+path, so it is not forwarded (a test checks the key path, the passphrase and the key text appear in
+no response, audit row, change set or server log line). The key's **path** (never its content) is
+necessarily in the command line of the `git` and `ssh-keygen` processes while they run, where another
+local user can see it in the process list.
+
+**What "signed" means here.** After `commit-tree` the server reads the commit object
+(`git cat-file commit`) and checks that its header has a `gpgsig` block of the right format, before
+the branch is created. That is all it checks: it **does not verify** the signature, because
+verification needs the verifier's trust data (allowed signers for ssh, the keyring's trust for gpg).
+The outcome records `signature: { status: "signed", format }`, the audit event `changeset.apply_local`
+has `signed` and `signature`, and the UI says "Signed (ssh)", never "Verified". GitHub shows
+"Verified" only if the public key is on the committer's account as a signing key (an SSH key must be
+added with the type "Signing Key") and the commit's e-mail is a verified e-mail of that account:
+`MRM_GIT_AUTHOR_EMAIL` should be set to such an address, because by default the committer is the
+person who applied.
+
+**What the UI may know.** `GET /repositories/local/config` returns `signing: { enabled, format? }`.
+Never the key, its path, the program or the keyring folder. The start-up log says `signing: ssh`
+(plus the public fingerprint when `ssh-keygen -l` can read it without a prompt) or `signing: gpg`.
+The push is unchanged: it pushes the commit that was signed, byte for byte.
+
+**New places where code runs, all operator-configured.** git runs the signing program (`ssh-keygen`
+or `gpg`, and for gpg the wrapper script) on every apply when signing is on. The program is the
+operator's choice, pinned by an absolute path at start; it is not user-controlled and not
+repository-controlled. A person with `changesets.approve` can cause it to run and to sign **with the
+server's key**: they cannot choose the key, the message beyond the change set's summary and files,
+or the identity beyond what `MRM_GIT_AUTHOR_*` and their own account give. In effect the server key
+vouches for any change set an admin or owner applies. Use a key that is meant for that, not a
+person's everyday key.
+
+**Not built.** Signing with a key held in a file whose passphrase the server would be given (an
+agent or an unprotected file only, by design: the server never stores or asks for a passphrase),
+x509/smime signing, signing the GitHub API commits (below), verifying signatures, a key per
+repository or per person, and rotating or reloading the key without a restart.
+
+**Commits made through the GitHub API (`github_pr`).** That path is not changed by signing and does
+not use this key. GitHub itself signs some commits made through its web interface and API; I am not
+sure of the exact rules for commits created with a GitHub App or installation token (they may be
+signed by GitHub in some cases and not in others), and nothing was checked here. Do not assume a
+`github_pr` commit is signed or shows Verified; read the commit on GitHub.
+
 ### Threat model for writes
 
 | Threat | Mitigation | Tested |
@@ -439,10 +532,11 @@ Decisions:
 - **Author and committer** are `MRM_GIT_AUTHOR_NAME` and `MRM_GIT_AUTHOR_EMAIL` when set, otherwise
   the person who applied (their display name and email). Cleaned to one line, no `<`, `>` or control
   characters, with a fixed fallback. Never read from the folder's git config.
-- **No signing.** The commit is not signed, whatever `commit.gpgsign` says. A repository that
-  requires signed commits will not merge it as is; the person can re-sign after `git switch`
-  (`git commit --amend -S`). Running the person's `gpg.program` from a server request is the kind
-  of code execution this phase exists to avoid.
+- **Signing is opt-in** (`MRM_GIT_SIGN`, see "Signing"), with the server's key and a pinned program.
+  Off, the commit is not signed whatever `commit.gpgsign` says, and a repository that requires signed
+  commits will not merge it as is (the person can re-sign after `git switch`: `git commit --amend
+  -S`). Running the person's or the repository's `gpg.program` from a server request is the kind of
+  code execution this phase exists to avoid, and still never happens.
 - **No hooks.** `pre-commit` and `commit-msg` do not run. Checks that depend on them (a linter, a
   length limit) should be in CI, where the pull request will meet them anyway.
 - **Stricter branch names than git** (ASCII only), so that a name is never an option, a ref trick or
@@ -464,7 +558,13 @@ Accepted residuals, to be revisited:
   path that `.gitattributes` sends to Git LFS is committed as the text, not as a pointer. Listing
   text files are not normally LFS-tracked; nothing checks.
 - **Unreachable objects** remain after a failure before `update-ref` until the next `git gc`.
-- **Unsigned commits**, above.
+- **Signing runs an operator-configured program and uses the server's key** (see "Signing"): anyone
+  with `changesets.approve` can have a commit signed by that key. A key that an agent holds is
+  reachable by every process that can reach the agent's socket; with `SSH_AUTH_SOCK` passed on, that
+  includes this server and the programs it starts. A key file is readable by the server user, and its path is visible in the process list while a
+  commit is signed. The
+  signature is checked for presence only, never verified. Unverified on macOS, with a real
+  `gpg-agent`/`pinentry`, a hardware key, and in Docker.
 - **A server credential pushes.** Anyone with `changesets.approve` can cause a push with the
   repository's stored credential to its own repository, only of a branch this tool just made, only
   with a new name. The audit trail names who and what.
@@ -473,7 +573,7 @@ Accepted residuals, to be revisited:
 ### What is not built (writing)
 
 - Checking out the new branch or switching to it for the person (they run `git switch`), merging,
-  rebasing, signing, running hooks, pushing to a remote other than the repository's GitHub address,
+  rebasing, signing with anything but the server's own pinned key, running hooks, pushing to a remote other than the repository's GitHub address,
   force-push, deleting the branch, a patch file as an alternative, writing the first commit into an
   empty repository (a base is required), writing to a local clone of a repository that is not in the
   allowed roots, and applying to a branch other than the one the clone is read from.
@@ -645,6 +745,32 @@ the push remote over the `file` protocol, an HTTP stub for the header; no networ
 - migration 14 with data, schema drift (SQLite and Postgres definitions agree), the OpenAPI
   registry, and the web logic (the choices, their reasons, the body, the steps, the retries, the
   default branch name equal to the server's) as unit tests.
+
+Verified for signing (git 2.34.1, OpenSSH 8.9, GnuPG 2.2.27 on Linux; throw-away keys in temp
+folders; the key generation for gpg is batch mode and the test skips with a message where it cannot
+run): an ssh-signed commit holds a `gpgsig` block and `git verify-commit` accepts it with an
+allowed-signers file given in the test, and rejects it for another key; the same for gpg (the
+signer's fingerprint is the configured one); a `.pub` key with a passphrase-protected private key
+signs through a real `ssh-agent`, and fails with `locked` without it; a passphrase-protected gpg key
+without a cached passphrase, an unknown key id, a garbage key file, a missing key file, a missing
+program, a program that writes no signature and a program that never answers (killed, no process
+left) all fail with `signing_failed`, leave refs, working tree, index and HEAD untouched and leave
+no temporary file; a hostile repository config (`gpg.program`, `gpg.ssh.program`,
+`gpg.openpgp.program`, `gpg.format`, `user.signingkey`, `gpg.ssh.defaultKeyCommand`) changes neither
+the program nor the key; with signing off a repository that asks for signing gets an unsigned commit
+and no program runs; the key path and key text appear in no response, audit row, change set or log
+line; configuration validation (a table of good and bad values); the API: signed apply with
+push (the pushed commit is the signed one), the audit fields, the config endpoint's `signing`, a
+failed signing answering 502/504 with the change set back to `approved`; the web logic.
+
+Not verified for signing: macOS (Keychain-backed agents, `pinentry-mac` and its prompts, the
+`/usr/bin/ssh-keygen` there, FIDO or hardware keys, a different default `PATH`), a real `gpg-agent`
+with a long-lived cached passphrase and `pinentry` configured by the operator, gpg older than 2.1
+(`--pinentry-mode` needs 2.1), git older than 2.34 (ssh signing; the server warns at start),
+Docker and docker-compose (the image does not contain `ssh-keygen` or `gpg`; a key and the agent
+socket must be mounted, and a `noexec` temporary folder would stop the gpg wrapper), whether GitHub
+shows "Verified" for such a commit, and signing from a server running under another user than the
+key's owner beyond the file-permission check.
 
 Not verified in phase 4: a push to real GitHub (https, the extraheader with a real PAT or an
 installation token, protected branches, a push from a shallow clone, rate limits), a real pull

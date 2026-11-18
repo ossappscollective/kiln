@@ -215,10 +215,15 @@ Endpoints (`/repositories/:id/listing-targets`), for the saved ones:
   "base": { "branch": "main", "commit": "…" },
   "commit": { "branch": "mrm/update-german-subtitle-1a2b3c4d", "sha": "…", "at": 0 },
   "requested": { "push": true, "openPr": true },
+  "signature": { "status": "signed", "format": "ssh" | "gpg" },
   "push": { "status": "not_requested" | "pushed" | "failed", "at": 0, "code": "push_rejected", "error": "…" },
   "pr": { "status": "not_requested" | "opened" | "failed" | "skipped", "at": 0, "url": "…", "number": 1,
           "code": "…", "error": "…" } }
 ```
+
+`signature` is present only when the server signed the commit (`MRM_GIT_SIGN`, see Signing below): the
+commit object holds a signature header of that format. It means **signed**, not verified. Nothing
+about the key (its path, its content) is ever part of a response.
 
 `pr.status: "skipped"` means the push failed, so no pull request was tried. `error` is a fixed
 sentence for the class of failure, never git's own text. `branch` and `commitSha` of the change set are
@@ -324,8 +329,17 @@ change set stays `approved`):
 | the folder cannot be used (outside the roots, moved, not a repository, branch deleted, detached HEAD) | 422 | `local_` plus the code, `local_branch_missing` (see Local clones) |
 | `MRM_LOCAL_REPO_ROOTS` unset, or `MRM_READS=api`, or git missing | 409 | `local_not_enabled`, `local_reads_disabled`, `local_git_missing` |
 | git ran too long | 504 | `timeout` |
+| signing is on (`MRM_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed` |
 | another apply is running | 409 | `apply_in_progress` |
 | git failed in a way that was not expected | 502 | `local_git_failed` |
+
+**Signing.** With `MRM_GIT_SIGN=ssh` or `gpg` the server signs the commit with its own key (set at
+start, never read from the clone or the user's git config). A failure to sign is **not** answered by
+an unsigned commit: no branch is created, the change set returns to `approved` with `error` set to
+the (fixed, sanitised) message, and the answer is `signing_failed`; `reason` is one of `timeout`,
+`locked` (passphrase-protected key that no agent has unlocked), `key`, `program` or `failed`. Neither
+the key's path nor the signing program's output is ever returned. The audit event
+`changeset.apply_local` has `signed` (boolean) and `signature` (`"ssh"`, `"gpg"` or null).
 
 A push or pull request that fails is **not** an error of apply: the answer is `200` and the failure is
 in `outcome` (`push.status: "failed"`). Push classes (`outcome.push.code`): `push_auth` (the credential
@@ -465,11 +479,13 @@ off), `reads_api` (`MRM_READS=api`), `git_missing`, `invalid_path`, `not_found`,
 repository whose status is not `ok` is read from GitHub meanwhile; a local-only one cannot be read
 (`409 local_not_enabled`, `local_reads_disabled` or the path error).
 
-- `GET /repositories/local/config` (`repositories.read`) returns `{ local: { enabled, envName, write } }`;
+- `GET /repositories/local/config` (`repositories.read`) returns `{ local: { enabled, envName, write, signing } }`;
   with it off also `reason` (`no_roots`, `reads_api`, `git_missing`) and `message` (names
   `MRM_LOCAL_REPO_ROOTS`). `roots` (the allowed folders) is included only for `repositories.write`.
   `write` is `{ enabled, envName }`, with a `message` that names `MRM_LOCAL_REPO_WRITE` when it is
-  off: whether a change set may be committed to the clone.
+  off: whether a change set may be committed to the clone. `signing` is `{ enabled, format? }`:
+  `enabled: true` with `format` `ssh` or `gpg` when the server signs those commits (`MRM_GIT_SIGN`),
+  `{ enabled: false }` otherwise. It never includes the key or where it is.
 - `POST /repositories/local/check` with `{ path, branch? }` reads nothing into the tool and saves
   nothing. It returns `{ check }`: `realPath`, `folderName`, `worktree`, `checkedOutBranch` (null
   when HEAD is detached), `branch` (the one that would be read, null when detached and none was

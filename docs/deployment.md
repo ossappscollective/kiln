@@ -55,6 +55,7 @@ change set (branch, commit, pull request) and connecting a repository still use 
 | `MRM_LOCAL_REPO_ROOTS` | unset (off) | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below. |
 | `MRM_LOCAL_REPO_WRITE` | `false` | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below. |
 | `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset | Author and committer of those commits; unset means the person who applied. |
+| `MRM_GIT_SIGN` | `off` | `ssh` or `gpg` signs those commits with the server's own key. See "Signing the commits" below. |
 
 - **git 2.34 or newer** must be on the server. The Docker image installs it (Debian 12 ships 2.39).
   At start, unless `MRM_READS=api`, the server runs `git --version` once and logs one line. If git is
@@ -163,9 +164,9 @@ app shows the option disabled with the reason, and nothing is written to any fol
 What you are allowing:
 
 - **A new branch and one commit, nothing else.** The commit is made from git objects: the folder's
-  checked out branch, working files, index and `HEAD` are never touched, no hook runs, nothing is
-  signed (the commit is unsigned whatever `commit.gpgsign` says) and no filter or line-ending
-  conversion is applied. The branch must not exist (it is never moved or overwritten), and every file
+  checked out branch, working files, index and `HEAD` are never touched, no hook runs, the commit is
+  signed only if you turn on `MRM_GIT_SIGN` (below, whatever `commit.gpgsign` says) and no filter or
+  line-ending conversion is applied. The branch must not exist (it is never moved or overwritten), and every file
   must still match what the change set was drafted from (otherwise `base_changed`, nothing written).
   Look at it later with `git switch <branch>`; delete it with `git branch -D <branch>`.
 - **Who:** the same right as apply (admin or owner). A viewer, a member, or a non-member cannot.
@@ -186,6 +187,81 @@ What you are allowing:
   checking and writing remains for anyone who can write inside a root. Git LFS and
   `.gitattributes` filters are not applied to the files. Not run on macOS or Windows, and not
   against real GitHub: see the verified list in [ADR 0005](adr/0005-local-clone-reads.md).
+
+### Signing the commits
+
+Off by default: the commits are then unsigned, exactly as before. To have the server sign them, set
+`MRM_GIT_SIGN` and a key. The signing setup is **only** what you put in the server's environment; the
+clone's git config and the user's global config are ignored (a repository that sets `gpg.program` or
+`user.signingkey` changes nothing).
+
+| Variable | Meaning |
+| --- | --- |
+| `MRM_GIT_SIGN` | `off` (default), `ssh` or `gpg`. |
+| `MRM_GIT_SIGNING_KEY` | `ssh`: absolute path of a private key file (mode `600`), or of the `.pub` of a key held by `ssh-agent`. `gpg`: the key id or fingerprint (hexadecimal; not a name or e-mail address). |
+| `MRM_GIT_SIGNING_PROGRAM` | Optional. Absolute path of `ssh-keygen` or `gpg`. Unset: found in `PATH` once at start and kept. |
+| `MRM_GIT_GNUPGHOME` | `gpg` only, required: the keyring folder (usually `~/.gnupg` of the user who owns the key). |
+
+A wrong value stops the server at start with a message that names the variable (never the key's
+path). The start-up log says `signing: ssh` (with the key's public fingerprint when it can be read
+without a prompt) or `signing: gpg`. If signing is on and fails when a change set is applied, nothing
+is committed: the change set stays `approved` and the answer is `signing_failed`. It never falls
+back to an unsigned commit. Needs git 2.34 or newer for ssh, GnuPG 2.1 or newer for gpg; not
+available for gpg on Windows.
+
+**Use a key meant for this.** Anyone who may apply change sets (admin, owner) can have the server
+sign a commit with it. Prefer a dedicated key (and a dedicated committer address in
+`MRM_GIT_AUTHOR_EMAIL`) over a person's everyday key. The server runs your signing program: it is the
+one you configured (or found in `PATH` at start), never one named by a repository.
+
+**ssh, with a key file.** The simplest setup, and the only one that does not depend on an agent:
+
+    ssh-keygen -t ed25519 -N '' -C "mrm release bot" -f ~/.ssh/mrm_signing   # no passphrase
+    chmod 600 ~/.ssh/mrm_signing
+    MRM_GIT_SIGN=ssh
+    MRM_GIT_SIGNING_KEY=/Users/you/.ssh/mrm_signing
+
+The server cannot ask for a passphrase. A key file with a passphrase fails with `signing_failed`
+(`reason: locked`) unless an agent holds it unlocked, which is the next setup.
+
+**ssh, with a passphrase and `ssh-agent`.** Point `MRM_GIT_SIGNING_KEY` at the **`.pub`** file, load
+the key into the agent (on macOS `ssh-add --apple-use-keychain ~/.ssh/mrm_signing`), and start the
+server from an environment that has the agent's `SSH_AUTH_SOCK` (it is passed on to `ssh-keygen`,
+for a `.pub` key only, and read once at start). From a terminal that is your normal shell; from
+`launchd` or a service manager it usually is not, so set it explicitly. The agent must hold the
+unlocked key at the time of the apply.
+
+**gpg.** Make a key without a passphrase, or with one that `gpg-agent` has cached; the server runs
+`gpg --batch --no-tty --pinentry-mode error`, so a passphrase that is not cached fails at once
+instead of opening a `pinentry` window.
+
+    gpg --quick-generate-key "MRM Release Bot <release-bot@example.com>" ed25519 sign never
+    gpg --list-secret-keys --keyid-format long      # copy the 40-character fingerprint
+    MRM_GIT_SIGN=gpg
+    MRM_GIT_SIGNING_KEY=<fingerprint>
+    MRM_GIT_GNUPGHOME=/Users/you/.gnupg
+
+On macOS, GnuPG usually comes from Homebrew (`/opt/homebrew/bin/gpg`); if `PATH` of the server does
+not include it, set `MRM_GIT_SIGNING_PROGRAM`.
+
+**Show "Verified" on GitHub.** Add the **public** key to the GitHub account whose verified e-mail
+address is the commit's committer address (`MRM_GIT_AUTHOR_EMAIL`, or the person who applied):
+Settings, SSH and GPG keys; for an ssh key choose the type "Signing Key" (an authentication key is
+not enough). The web app shows "Signed (ssh)" on the change set: that means the commit holds a
+signature, not that anything has verified it.
+
+**Docker.** The image contains neither `ssh-keygen` nor `gpg`: add `openssh-client` (or `gnupg`) to
+the `apt-get install` line of the Dockerfile. In `docker-compose.yml` the key must be mounted into
+the container (read-only, readable by the `node` user, mode `600`, for example
+`- ./secrets/mrm_signing:/run/secrets/mrm_signing:ro`) and `MRM_GIT_SIGNING_KEY` must name the path
+**inside** the container; for an agent, mount its socket and set `SSH_AUTH_SOCK` for the service. A
+`gpg` setup needs the keyring folder mounted and writable enough for `gpg-agent`.
+
+**Not verified.** None of this was run on macOS or in Docker; the ssh and gpg flows were run on Linux
+with throw-away keys, a real `ssh-agent` and gpg (see [ADR 0005](adr/0005-local-clone-reads.md)). A
+macOS Keychain agent, `pinentry-mac`, hardware keys and a launchd-started server are untested: if
+signing fails there, the `reason` in the answer (`locked`, `key`, `program`, `timeout`, `failed`) is
+the first place to look; the program's own error text is deliberately not shown.
 
 
 ## Tokens, event streams and webhooks
