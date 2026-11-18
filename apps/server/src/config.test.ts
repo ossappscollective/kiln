@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
-import { MAX_LOCAL_REPO_ROOTS, loadConfig, parseLocalRepoRoots } from './config.ts';
+import { after, test } from 'node:test';
+import { MAX_LOCAL_REPO_ROOTS, loadConfig, parseGitSigning, parseLocalRepoRoots } from './config.ts';
 
 const key = randomBytes(32).toString('base64');
 
@@ -191,4 +193,184 @@ test('MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL are optional, trimmed and val
   for (const email of ['nobody', 'a@b@c', 'a b@c.d', '<a@b.c>']) {
     assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_GIT_AUTHOR_EMAIL: email }), /MRM_GIT_AUTHOR_EMAIL/);
   }
+});
+
+// ----- MRM_GIT_SIGN ----------------------------------------------------------------------------
+
+const folders: string[] = [];
+after(() => {
+  for (const folder of folders) rmSync(folder, { recursive: true, force: true });
+});
+
+/** Files for the signing checks: fake keys and programs (config.ts only looks at the shape, mode and path). */
+function signingFiles() {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'mrm-cfg-')));
+  folders.push(dir);
+  const file = (name: string, content: string, mode: number) => {
+    const path = join(dir, name);
+    writeFileSync(path, content);
+    chmodSync(path, mode);
+    return path;
+  };
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  const program = (name: string, mode = 0o755) => {
+    const path = join(bin, name);
+    writeFileSync(path, '#!/bin/sh\nexit 0\n');
+    chmodSync(path, mode);
+    return path;
+  };
+  const home = join(dir, 'gnupg');
+  mkdirSync(home, { mode: 0o700 });
+  return {
+    dir,
+    bin,
+    home,
+    file,
+    program,
+    privateKey: file('id_ed25519', '-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----\n', 0o600),
+    publicKey: file('id_ed25519.pub', 'ssh-ed25519 AAAAC3Nza signer@example.com\n', 0o644),
+    sshKeygen: program('ssh-keygen'),
+    gpg: program('gpg'),
+  };
+}
+
+const signingEnv = (extra: Record<string, string>) => ({ MRM_MASTER_KEY: key, ...extra });
+const raises = (env: Record<string, string>, pattern: RegExp, message?: string) =>
+  assert.throws(() => loadConfig(signingEnv(env)), (error: Error) => {
+    assert.match(error.message, /^Invalid configuration:/, message);
+    assert.match(error.message, pattern, message);
+    return true;
+  });
+
+test('MRM_GIT_SIGN is off by default, and then nothing else about signing is read', () => {
+  const f = signingFiles();
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).gitSigning, undefined);
+  for (const value of ['', ' ', 'off']) {
+    assert.equal(loadConfig(signingEnv({ MRM_GIT_SIGN: value })).gitSigning, undefined, JSON.stringify(value));
+  }
+  // Leftover settings of a signing setup that is switched off must not stop the server.
+  const off = loadConfig(signingEnv({ MRM_GIT_SIGN: 'off', MRM_GIT_SIGNING_KEY: 'relative/key', MRM_GIT_SIGNING_PROGRAM: 'nope', MRM_GIT_GNUPGHOME: 'nope' }));
+  assert.equal(off.gitSigning, undefined);
+  assert.equal(Object.hasOwn(off, 'gitSigning'), false);
+  assert.equal(parseGitSigning({}), undefined);
+  assert.ok(f.dir);
+});
+
+test('MRM_GIT_SIGN accepts off, ssh and gpg only', () => {
+  for (const bad of ['SSH', 'yes', 'true', '1', 'x509', 'openpgp']) raises({ MRM_GIT_SIGN: bad }, /MRM_GIT_SIGN/, bad);
+});
+
+test('ssh with a private key file: the key and the program are pinned as absolute paths', () => {
+  const f = signingFiles();
+  const explicit = loadConfig(signingEnv({ MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: f.privateKey, MRM_GIT_SIGNING_PROGRAM: f.sshKeygen })).gitSigning;
+  assert.deepEqual(explicit, { format: 'ssh', key: f.privateKey, program: f.sshKeygen });
+  // Without MRM_GIT_SIGNING_PROGRAM, ssh-keygen is looked up in PATH once, and the absolute path is kept.
+  const found = loadConfig(signingEnv({ MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: f.privateKey, PATH: `relative/bin:${f.bin}` })).gitSigning;
+  assert.deepEqual(found, { format: 'ssh', key: f.privateKey, program: f.sshKeygen });
+  // The agent socket of the server's environment is for a .pub key only.
+  const withSocket = loadConfig(signingEnv({ MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: f.privateKey, MRM_GIT_SIGNING_PROGRAM: f.sshKeygen, SSH_AUTH_SOCK: '/tmp/agent.sock' }));
+  assert.equal(withSocket.gitSigning?.sshAuthSock, undefined);
+});
+
+test('ssh with a .pub key: the agent socket of the server environment is passed on when there is one', () => {
+  const f = signingFiles();
+  const base = { MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: f.publicKey, MRM_GIT_SIGNING_PROGRAM: f.sshKeygen };
+  assert.deepEqual(loadConfig(signingEnv({ ...base, SSH_AUTH_SOCK: '/tmp/ssh-abc/agent.1' })).gitSigning, {
+    format: 'ssh',
+    key: f.publicKey,
+    program: f.sshKeygen,
+    sshAuthSock: '/tmp/ssh-abc/agent.1',
+  });
+  assert.equal(loadConfig(signingEnv(base)).gitSigning?.sshAuthSock, undefined);
+  raises({ ...base, SSH_AUTH_SOCK: 'agent.sock' }, /SSH_AUTH_SOCK must be an absolute path/);
+});
+
+test('ssh: every bad setting is refused at start with a message that names the variable and never the key path', () => {
+  const f = signingFiles();
+  const loose = f.file('loose_key', '-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n', 0o644);
+  const groupReadable = f.file('group_key', '-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n', 0o640);
+  const notAKey = f.file('notes.txt', 'hello\n', 0o600);
+  const pubWithoutExtension = f.file('id_pub', 'ssh-ed25519 AAAAC3Nza x\n', 0o644);
+  const badPub = f.file('bad.pub', 'hello\n', 0o644);
+  const plain = f.program('plain', 0o644);
+  const base = { MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: f.privateKey, MRM_GIT_SIGNING_PROGRAM: f.sshKeygen };
+  const table: { name: string; env: Record<string, string>; pattern: RegExp; skipOnWindows?: boolean }[] = [
+    { name: 'no key', env: { ...base, MRM_GIT_SIGNING_KEY: '' }, pattern: /MRM_GIT_SIGNING_KEY is required/ },
+    { name: 'a relative path', env: { ...base, MRM_GIT_SIGNING_KEY: 'keys/id' }, pattern: /MRM_GIT_SIGNING_KEY must be an absolute path/ },
+    { name: 'a tilde path', env: { ...base, MRM_GIT_SIGNING_KEY: '~/.ssh/id_ed25519' }, pattern: /absolute path/ },
+    { name: 'a .. segment', env: { ...base, MRM_GIT_SIGNING_KEY: `${f.dir}/../x` }, pattern: /must not contain "\.\."/ },
+    { name: 'a control character', env: { ...base, MRM_GIT_SIGNING_KEY: `${f.dir}/a\nb` }, pattern: /control characters/ },
+    { name: 'a missing file', env: { ...base, MRM_GIT_SIGNING_KEY: join(f.dir, 'nope') }, pattern: /not a file that exists/ },
+    { name: 'a folder', env: { ...base, MRM_GIT_SIGNING_KEY: f.dir }, pattern: /not a file that exists/ },
+    { name: 'a key readable by others', env: { ...base, MRM_GIT_SIGNING_KEY: loose }, pattern: /readable by other users[\s\S]*chmod 600/, skipOnWindows: true },
+    { name: 'a key readable by the group', env: { ...base, MRM_GIT_SIGNING_KEY: groupReadable }, pattern: /readable by other users/, skipOnWindows: true },
+    { name: 'a file that is not a key', env: { ...base, MRM_GIT_SIGNING_KEY: notAKey }, pattern: /not an ssh private key file/ },
+    { name: 'a public key without .pub', env: { ...base, MRM_GIT_SIGNING_KEY: pubWithoutExtension }, pattern: /does not end in \.pub/ },
+    { name: 'a .pub that is not a public key', env: { ...base, MRM_GIT_SIGNING_KEY: badPub }, pattern: /not an ssh public key/ },
+    { name: 'a relative program', env: { ...base, MRM_GIT_SIGNING_PROGRAM: 'ssh-keygen' }, pattern: /MRM_GIT_SIGNING_PROGRAM must be an absolute path/ },
+    { name: 'a program that does not exist', env: { ...base, MRM_GIT_SIGNING_PROGRAM: join(f.dir, 'nope') }, pattern: /not an executable file/ },
+    { name: 'a program that is not executable', env: { ...base, MRM_GIT_SIGNING_PROGRAM: plain }, pattern: /not an executable file/, skipOnWindows: true },
+    { name: 'a folder as the program', env: { ...base, MRM_GIT_SIGNING_PROGRAM: f.bin }, pattern: /not an executable file/ },
+    { name: 'a program path with a quote', env: { ...base, MRM_GIT_SIGNING_PROGRAM: `${f.dir}/it's` }, pattern: /must not contain quotes/ },
+    { name: 'no ssh-keygen anywhere', env: { MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: f.privateKey, PATH: join(f.dir, 'empty') }, pattern: /needs ssh-keygen[\s\S]*MRM_GIT_SIGNING_PROGRAM/ },
+    { name: 'a keyring folder with ssh', env: { ...base, MRM_GIT_GNUPGHOME: f.home }, pattern: /MRM_GIT_GNUPGHOME only applies with MRM_GIT_SIGN=gpg/ },
+  ];
+  for (const row of table) {
+    if (row.skipOnWindows && process.platform === 'win32') continue;
+    assert.throws(() => loadConfig(signingEnv(row.env)), (error: Error) => {
+      assert.match(error.message, /^Invalid configuration:/, row.name);
+      assert.match(error.message, row.pattern, row.name);
+      for (const secret of [f.privateKey, f.dir, 'AAAA']) assert.equal(error.message.includes(secret), false, `${row.name}: no path or key content in the message`);
+      return true;
+    });
+  }
+});
+
+test('ssh: a key file the server cannot read is refused', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, () => {
+  const f = signingFiles();
+  const locked = f.file('locked_key', '-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n', 0o000);
+  raises({ MRM_GIT_SIGN: 'ssh', MRM_GIT_SIGNING_KEY: locked, MRM_GIT_SIGNING_PROGRAM: f.sshKeygen }, /not readable/);
+});
+
+test('gpg: a key id or fingerprint, the keyring folder and the program are pinned', () => {
+  const f = signingFiles();
+  const fingerprint = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01';
+  const base = { MRM_GIT_SIGN: 'gpg', MRM_GIT_SIGNING_KEY: fingerprint, MRM_GIT_GNUPGHOME: f.home, MRM_GIT_SIGNING_PROGRAM: f.gpg };
+  assert.deepEqual(loadConfig(signingEnv(base)).gitSigning, { format: 'gpg', key: fingerprint, program: f.gpg, gnupgHome: f.home });
+  for (const id of ['0xDEADBEEF', 'deadbeef', 'DEADBEEFDEADBEEF', 'DEADBEEFDEADBEEF!']) {
+    assert.equal(loadConfig(signingEnv({ ...base, MRM_GIT_SIGNING_KEY: id })).gitSigning?.key, id.replace(/^0x/, ''), id);
+  }
+  // gpg is looked up in PATH once when no program is given (gpg2 is the fallback name).
+  const viaPath = loadConfig(signingEnv({ ...base, MRM_GIT_SIGNING_PROGRAM: '', PATH: f.bin })).gitSigning;
+  assert.equal(viaPath?.program, f.gpg);
+  // The ssh agent socket is not passed on for gpg.
+  assert.equal(loadConfig(signingEnv({ ...base, SSH_AUTH_SOCK: '/tmp/a.sock' })).gitSigning?.sshAuthSock, undefined);
+});
+
+test('gpg: every bad setting is refused at start', () => {
+  const f = signingFiles();
+  const fingerprint = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01';
+  const base = { MRM_GIT_SIGN: 'gpg', MRM_GIT_SIGNING_KEY: fingerprint, MRM_GIT_GNUPGHOME: f.home, MRM_GIT_SIGNING_PROGRAM: f.gpg };
+  const notAFolder = f.file('keyring-file', 'x', 0o600);
+  const table: { name: string; env: Record<string, string>; pattern: RegExp }[] = [
+    { name: 'no key', env: { ...base, MRM_GIT_SIGNING_KEY: '' }, pattern: /MRM_GIT_SIGNING_KEY is required when MRM_GIT_SIGN=gpg/ },
+    { name: 'an e-mail address', env: { ...base, MRM_GIT_SIGNING_KEY: 'ada@example.com' }, pattern: /key id or fingerprint/ },
+    { name: 'a user name', env: { ...base, MRM_GIT_SIGNING_KEY: 'Ada Lovelace' }, pattern: /key id or fingerprint/ },
+    { name: 'too short', env: { ...base, MRM_GIT_SIGNING_KEY: 'DEADBE' }, pattern: /key id or fingerprint/ },
+    { name: 'too long', env: { ...base, MRM_GIT_SIGNING_KEY: 'A'.repeat(65) }, pattern: /key id or fingerprint/ },
+    { name: 'not hex', env: { ...base, MRM_GIT_SIGNING_KEY: 'GHIJKLMNOP' }, pattern: /key id or fingerprint/ },
+    { name: 'an option', env: { ...base, MRM_GIT_SIGNING_KEY: '--list-keys' }, pattern: /key id or fingerprint/ },
+    { name: 'a shell fragment', env: { ...base, MRM_GIT_SIGNING_KEY: 'DEADBEEF;touch x' }, pattern: /key id or fingerprint/ },
+    { name: 'a path', env: { ...base, MRM_GIT_SIGNING_KEY: f.privateKey }, pattern: /key id or fingerprint/ },
+    { name: 'no keyring folder', env: { ...base, MRM_GIT_GNUPGHOME: '' }, pattern: /MRM_GIT_GNUPGHOME is required when MRM_GIT_SIGN=gpg/ },
+    { name: 'a relative keyring folder', env: { ...base, MRM_GIT_GNUPGHOME: '.gnupg' }, pattern: /MRM_GIT_GNUPGHOME must be an absolute path/ },
+    { name: 'a keyring folder that does not exist', env: { ...base, MRM_GIT_GNUPGHOME: join(f.dir, 'nope') }, pattern: /not a folder that exists/ },
+    { name: 'a file as the keyring folder', env: { ...base, MRM_GIT_GNUPGHOME: notAFolder }, pattern: /not a folder that exists/ },
+    { name: 'no gpg anywhere', env: { ...base, MRM_GIT_SIGNING_PROGRAM: '', PATH: join(f.dir, 'empty') }, pattern: /needs gpg[\s\S]*MRM_GIT_SIGNING_PROGRAM/ },
+    { name: 'a relative program', env: { ...base, MRM_GIT_SIGNING_PROGRAM: 'gpg' }, pattern: /MRM_GIT_SIGNING_PROGRAM must be an absolute path/ },
+  ];
+  for (const row of table) raises(row.env, row.pattern, row.name);
+  // gpg needs a shell script to forbid prompts: not on Windows.
+  assert.throws(() => parseGitSigning({ ...base }, 'win32'), /not supported on Windows/);
 });

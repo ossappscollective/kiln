@@ -1,5 +1,5 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
-import { lstat, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { devNull, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { redactSecrets, secretStrings } from '@mrm/connectors';
@@ -491,7 +491,7 @@ export async function countUncommitted(gitPath: string, realPath: string): Promi
 // that creates objects and exactly one ref under refs/heads/. The person's working tree, index,
 // HEAD, current branch, hooks and configuration are never changed.
 
-/** Settings added to every git command that writes: nothing may sign, split the index or sparse-expand. */
+/** Settings added to every git command that writes: nothing may sign (unless signing is asked for explicitly, below), split the index or sparse-expand. */
 const WRITE_CONFIG = [
   'commit.gpgSign=false',
   'tag.gpgSign=false',
@@ -700,7 +700,115 @@ export type BranchCommitInput = {
   now: number;
   /** Epoch milliseconds after which nothing more is started (checked before the ref is written). */
   deadline?: number;
+  /** Sign the commit with the server's own key (MRM_GIT_SIGN). Absent: the commit is not signed, as before. */
+  signing?: GitSigning;
 };
+
+/**
+ * Signing of the commit, from the server's configuration only (config.ts, docs/adr/0005): never
+ * from the repository's or the user's git config, which stays ignored. The program is pinned at
+ * start and is run by git (`gpg.ssh.program`, or `gpg.program` through a one-line wrapper that
+ * forbids prompts). Nothing here is ever logged, audited or returned: not the key, not its path.
+ */
+export type GitSigning = {
+  format: 'ssh' | 'gpg';
+  /** ssh: absolute path of a private key file, or of the .pub of a key an agent holds. gpg: a key id or fingerprint. */
+  key: string;
+  /** Absolute path of ssh-keygen or gpg. */
+  program: string;
+  /** gpg: the home folder of the keyring (GNUPGHOME). */
+  gnupgHome?: string;
+  /** ssh with a .pub key: the agent socket of the server's environment, passed on to ssh-keygen. */
+  sshAuthSock?: string;
+  /** Longest signing may take. Default 20 seconds. The process group is killed after it. */
+  timeoutMs?: number;
+};
+
+export const DEFAULT_SIGNING_TIMEOUT_MS = 20_000;
+
+/** Why signing failed, in a word. The text of the signing program is never passed on. */
+export type SigningFailureReason = 'timeout' | 'locked' | 'key' | 'program' | 'failed';
+
+const SIGNING_MESSAGES: Record<SigningFailureReason, string> = {
+  timeout:
+    'Signing did not finish in time and was stopped. If the signing key has a passphrase, it must be unlocked in ssh-agent or gpg-agent: the server cannot ask for one.',
+  locked:
+    'The signing key is protected by a passphrase and is not unlocked. Load it into ssh-agent (or cache it in gpg-agent) in the environment the server runs in: the server cannot ask for a passphrase.',
+  key: 'The signing key could not be used: it is missing, unreadable or not a valid key. Check MRM_GIT_SIGNING_KEY on the server.',
+  program:
+    'The signing program could not be started. Check MRM_GIT_SIGNING_PROGRAM on the server (and that the temporary folder allows running programs).',
+  failed:
+    'The commit could not be signed. The key may be missing, locked (its passphrase not cached in an agent), or the signing program failed. Nothing was committed.',
+};
+
+/** A fixed, safe message for a failed signing run. `stderr` is read for a class only, never repeated. */
+export function classifySigningFailure(result: RawGitResult): { reason: SigningFailureReason; message: string } {
+  const text = result.stderr;
+  const reason: SigningFailureReason =
+    result.failed === 'timeout'
+      ? 'timeout'
+      : /cannot run |Permission denied.*(exec|spawn)/i.test(text)
+        ? 'program'
+        : /passphrase|pinentry|agent refused|communication with agent|sign_and_send|Operation cancelled/i.test(text)
+          ? 'locked'
+          : /Couldn't load|Load key|No such file|invalid format|No secret key|not a valid/i.test(text)
+            ? 'key'
+            : 'failed';
+  return { reason, message: SIGNING_MESSAGES[reason] };
+}
+
+/** A script that runs gpg without prompts: git cannot pass arguments to `gpg.program`. */
+const gpgWrapper = (program: string): string =>
+  `#!/bin/sh\nexec '${program}' --batch --no-tty --pinentry-mode error "$@"\n`;
+
+/**
+ * The commit header block of `git cat-file commit`: does it hold a signature of this format?
+ * Says nothing about whether the signature is good (that needs the verifier's keys): the commit
+ * is reported as signed, never as verified.
+ */
+export function hasSignatureHeader(commit: string, format: 'ssh' | 'gpg'): boolean {
+  const end = commit.indexOf('\n\n');
+  const headers = end < 0 ? commit : commit.slice(0, end);
+  const marker = format === 'ssh' ? '-----BEGIN SSH SIGNATURE-----' : '-----BEGIN PGP SIGNATURE-----';
+  return new RegExp(`^gpgsig(?:-sha256)? ${marker}$`, 'm').test(headers);
+}
+
+/** `git --version` text (`2.43.0`, `2.39.5 (Apple Git-154)`) to whether git can sign with ssh keys (2.34 and later). */
+export function gitSupportsSshSigning(version: string): boolean {
+  const found = /^(\d+)\.(\d+)/.exec(version.trim());
+  if (!found) return false;
+  const major = Number(found[1]);
+  const minor = Number(found[2]);
+  return major > 2 || (major === 2 && minor >= 34);
+}
+
+/** The public fingerprint of an ssh key (`SHA256:...`), asked of ssh-keygen without a prompt, or undefined. For the startup log. */
+export function sshKeyFingerprint(program: string, key: string): Promise<string | undefined> {
+  return new Promise((done) => {
+    let out = '';
+    let child: ChildProcess;
+    try {
+      child = spawn(program, ['-l', '-f', key], {
+        env: { PATH: process.env.PATH ?? '', LC_ALL: 'C', HOME: tmpdir() },
+        // A session of its own and no stdin: there is no terminal to ask for a passphrase on.
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true,
+      });
+    } catch {
+      return done(undefined);
+    }
+    const timer = setTimeout(() => child.kill('SIGKILL'), 5000);
+    child.stdout?.on('data', (chunk: Buffer) => {
+      if (out.length < 4096) out += chunk.toString('utf8');
+    });
+    child.on('error', () => undefined);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      done(code === 0 ? /\b(SHA256:[A-Za-z0-9+/]{43})\b/.exec(out)?.[1] : undefined);
+    });
+  });
+}
 
 export type BranchCommitProblemCode =
   | LocalPathProblemCode
@@ -712,11 +820,21 @@ export type BranchCommitProblemCode =
   | 'path_conflict'
   | 'no_changes'
   | 'too_large'
-  | 'timeout';
+  | 'timeout'
+  | 'signing_failed';
 
 export type BranchCommitOutcome =
-  | { ok: true; commit: string; tree: string; base: string; changed: number; skipped: number }
-  | { ok: false; code: BranchCommitProblemCode; message: string; paths?: string[] };
+  | {
+      ok: true;
+      commit: string;
+      tree: string;
+      base: string;
+      changed: number;
+      skipped: number;
+      /** Set when the commit was signed: the commit object holds a signature header of this format. */
+      signature?: { format: 'ssh' | 'gpg' };
+    }
+  | { ok: false; code: BranchCommitProblemCode; message: string; paths?: string[]; reason?: SigningFailureReason };
 
 const MIB = 1024 * 1024;
 
@@ -764,7 +882,8 @@ function parseCatBatch(buffer: Buffer): Map<string, Buffer> {
  * 4. the blobs are written (`hash-object -w --no-filters`: no filter, no line-ending conversion),
  *    the tree is built in a private temporary index (`GIT_INDEX_FILE` in a new folder under the
  *    system temp folder: `read-tree`, `update-index --index-info`, `write-tree`), the commit with
- *    `commit-tree` (parent: the base, never signed), and the branch with
+ *    `commit-tree` (parent: the base; signed only when `signing` is given, with the server's own
+ *    pinned key and program, never one from the repository's config), and the branch with
  *    `update-ref refs/heads/<branch> <commit> <zero id>`, which can only create it.
  *
  * Never run here: checkout, switch, reset, add, commit, merge, stash, clean, push or anything else
@@ -923,19 +1042,78 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
     if (written.code !== 0 || !SHA.test(treeSha)) return problem(written);
 
     const when = `${Math.floor(input.now / 1000)} +0000`;
-    const committed = await run(['commit-tree', treeSha, '-p', baseSha, '-F', '-'], {
-      input: `${input.message.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`,
-      env: {
-        GIT_AUTHOR_NAME: author.name,
-        GIT_AUTHOR_EMAIL: author.email,
-        GIT_AUTHOR_DATE: when,
-        GIT_COMMITTER_NAME: author.name,
-        GIT_COMMITTER_EMAIL: author.email,
-        GIT_COMMITTER_DATE: when,
+    const signing = input.signing;
+    let signingConfig: string[] = [];
+    const signingEnv: Record<string, string> = {};
+    if (signing) {
+      // Everything about signing comes from the server's configuration (a pinned program and key),
+      // set on the command line so that nothing in the repository's config can change it. A
+      // private HOME (inside the temporary folder that is removed below) is all ssh-keygen and gpg
+      // see of the system; gpg gets its keyring through GNUPGHOME.
+      if (/['\u0000-\u001f]/.test(signing.program)) {
+        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
+      }
+      const home = join(scratch, 'home');
+      const temp = join(scratch, 'tmp');
+      await mkdir(home, { mode: 0o700 });
+      await mkdir(temp, { mode: 0o700 });
+      signingEnv.HOME = home;
+      // git keeps the message in a temporary file while signing, and ssh-keygen writes the signature
+      // next to it: in a folder of ours, so a killed run leaves nothing behind.
+      signingEnv.TMPDIR = temp;
+      signingEnv.TMP = temp;
+      signingEnv.TEMP = temp;
+      if (signing.format === 'ssh') {
+        signingConfig = ['gpg.format=ssh', `gpg.ssh.program=${signing.program}`, `user.signingkey=${signing.key}`];
+        if (signing.sshAuthSock) signingEnv.SSH_AUTH_SOCK = signing.sshAuthSock;
+      } else {
+        const wrapper = join(scratch, 'gpg-no-prompt');
+        await writeFile(wrapper, gpgWrapper(signing.program), { mode: 0o700 });
+        await chmod(wrapper, 0o700);
+        signingConfig = [
+          'gpg.format=openpgp',
+          `gpg.program=${wrapper}`,
+          `gpg.openpgp.program=${wrapper}`,
+          `user.signingkey=${signing.key}`,
+        ];
+        if (signing.gnupgHome) signingEnv.GNUPGHOME = signing.gnupgHome;
+      }
+    }
+    const remaining = input.deadline === undefined ? Infinity : Math.max(1000, input.deadline - Date.now());
+    const committed = await run(
+      ['commit-tree', treeSha, '-p', baseSha, ...(signing ? [signing.format === 'gpg' ? `-S${signing.key}` : '-S'] : []), '-F', '-'],
+      {
+        input: `${input.message.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`,
+        ...(signing
+          ? { extraConfig: [...WRITE_CONFIG, ...signingConfig], timeoutMs: Math.min(signing.timeoutMs ?? DEFAULT_SIGNING_TIMEOUT_MS, remaining) }
+          : {}),
+        env: {
+          GIT_AUTHOR_NAME: author.name,
+          GIT_AUTHOR_EMAIL: author.email,
+          GIT_AUTHOR_DATE: when,
+          GIT_COMMITTER_NAME: author.name,
+          GIT_COMMITTER_EMAIL: author.email,
+          GIT_COMMITTER_DATE: when,
+          ...signingEnv,
+        },
       },
-    });
+    );
     const commitSha = committed.stdout.toString('utf8').trim();
+    if (signing && (committed.code !== 0 || committed.failed)) {
+      // git_missing keeps its own message; anything else is a signing problem, in fixed words.
+      if (committed.failed === 'missing') return problem(committed);
+      const why = classifySigningFailure(committed);
+      return { ok: false, code: 'signing_failed', message: why.message, reason: why.reason };
+    }
     if (committed.code !== 0 || !SHA.test(commitSha)) return problem(committed);
+    if (signing) {
+      // Look at the object itself before any ref points at it: a commit that was meant to be
+      // signed and is not never becomes a branch. This says "signed", not "verified".
+      const object = await run(['cat-file', 'commit', commitSha]);
+      if (object.code !== 0 || !hasSignatureHeader(object.stdout.toString('utf8'), signing.format)) {
+        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.failed, reason: 'failed' };
+      }
+    }
     if (expired()) return tooSlow();
 
     // The only write to a ref: creating the branch. The old value must be the zero id, so an
@@ -948,7 +1126,15 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
       }
       return problem(moved);
     }
-    return { ok: true, commit: commitSha, tree: treeSha, base: baseSha, changed: plan.length, skipped };
+    return {
+      ok: true,
+      commit: commitSha,
+      tree: treeSha,
+      base: baseSha,
+      changed: plan.length,
+      skipped,
+      ...(signing ? { signature: { format: signing.format } } : {}),
+    };
   } finally {
     await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
   }

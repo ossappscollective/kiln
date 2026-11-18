@@ -124,6 +124,8 @@ function commitFailure(outcome: Extract<BranchCommitOutcome, { ok: false }>): Fa
       return failure(409, 'local_git_missing', outcome.message);
     case 'timeout':
       return failure(504, 'timeout', outcome.message);
+    case 'signing_failed':
+      return failure(outcome.reason === 'timeout' ? 504 : 502, 'signing_failed', outcome.message, { reason: outcome.reason ?? 'failed' });
     case 'branch_not_found':
       return failure(422, 'local_branch_missing', outcome.message);
     case 'no_changes':
@@ -528,6 +530,7 @@ export async function applyChangeSetLocally(
       author: await identityFor(ctx, actor),
       now: ctx.now(),
       deadline: Date.now() + ctx.timeoutMs,
+      ...(ctx.localWrite?.signing ? { signing: ctx.localWrite.signing } : {}),
     });
   } catch (error) {
     await release(failure(502, 'local_git_failed', 'Committing to the local clone failed unexpectedly.'));
@@ -541,6 +544,7 @@ export async function applyChangeSetLocally(
     base: { branch: repository.local?.branch ?? repository.defaultBranch, commit: committed.base },
     commit: { branch, sha: committed.commit, at },
     requested: { push: input.push, openPr: input.openPr },
+    ...(committed.signature ? { signature: { status: 'signed' as const, format: committed.signature.format } } : {}),
     push: { status: 'not_requested' },
     pr: { status: 'not_requested' },
   };
@@ -568,6 +572,8 @@ export async function applyChangeSetLocally(
         baseCommit: committed.base,
         path: repository.local?.path ?? null,
         files: files.length,
+        signed: committed.signature !== undefined,
+        signature: committed.signature?.format ?? null,
         pushRequested: input.push,
         prRequested: input.openPr,
       },

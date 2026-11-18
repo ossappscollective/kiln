@@ -1,6 +1,8 @@
+import { accessSync, closeSync, constants, openSync, readSync, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join, parse as parsePath, resolve } from 'node:path';
 import { parseMasterKey } from '@mrm/vault';
 import { z } from 'zod';
+import type { GitSigning } from './services/local-git.ts';
 import { parseExtraHosts } from './single-user.ts';
 
 /** `KEY=` in an .env file is an empty string, which should read as "not set". */
@@ -70,6 +72,14 @@ const schema = z.object({
       .regex(/^[^\s<>@\u0000-\u001f\u007f]+@[^\s<>@\u0000-\u001f\u007f]+$/, 'must look like name@example.com')
       .optional(),
   ),
+  // Signing of the commits made in a local clone (docs/adr/0005-local-clone-reads.md, "Signing").
+  // 'off' (the default) is the behaviour before signing existed. The key, the program and the
+  // keyring are the server's own: the repository's and the user's git config are never consulted.
+  // The rest of the checks (files, programs) are in parseGitSigning.
+  MRM_GIT_SIGN: blankIsUnset(z.enum(['off', 'ssh', 'gpg']).default('off')),
+  MRM_GIT_SIGNING_KEY: blankIsUnset(z.string().trim().optional()),
+  MRM_GIT_SIGNING_PROGRAM: blankIsUnset(z.string().trim().optional()),
+  MRM_GIT_GNUPGHOME: blankIsUnset(z.string().trim().optional()),
   // Minutes between scheduled store syncs of every app. 0 (the default) turns scheduled syncs off;
   // otherwise 5 to 10080 (a week). Scheduled syncs read the stores with the stored credentials,
   // so they are opt-in. See docs/api/ci.md.
@@ -113,6 +123,165 @@ export function parseLocalRepoRoots(value: string | undefined, separator: string
   }
   if (roots.length > MAX_LOCAL_REPO_ROOTS) throw new Error(`Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS has more than ${MAX_LOCAL_REPO_ROOTS} entries.`);
   return roots;
+}
+
+/** A gpg key id or fingerprint: hex, optionally `0x` first and `!` last (that exact subkey). Nothing else is passed to gpg. */
+export const GPG_KEY_PATTERN = /^(?:0x)?[0-9A-Fa-f]{8,64}!?$/;
+
+const isFile = (path: string): boolean => {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+};
+const canAccess = (path: string, mode: number): boolean => {
+  try {
+    accessSync(path, mode);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const isExecutable = (path: string): boolean => isFile(path) && canAccess(path, constants.X_OK);
+
+/** The first `count` bytes of a file as text, or undefined. Never logged. */
+function head(path: string, count: number): string | undefined {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, 'r');
+    const buffer = Buffer.alloc(count);
+    return buffer.subarray(0, readSync(fd, buffer, 0, count, 0)).toString('utf8');
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** The first of `names` that is an executable file in a folder of `pathEnv`: an absolute path, found once. */
+function findOnPath(names: readonly string[], pathEnv: string | undefined): string | undefined {
+  for (const name of names) {
+    for (const dir of (pathEnv ?? '').split(delimiter)) {
+      if (dir === '' || !isAbsolute(dir)) continue;
+      const candidate = join(dir, name);
+      if (isExecutable(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Parses MRM_GIT_SIGN and its companions into the signing setup of local commits, or undefined
+ * when signing is off (unset, blank or `off`: then nothing else is read, so today's behaviour is
+ * unchanged). Fails fast, at start, with a message that names the variable and says what to fix.
+ * The messages never contain the key's path or any part of the key.
+ *
+ * - ssh: MRM_GIT_SIGNING_KEY is an absolute path: a private key file (not readable by group or
+ *   others), or the `.pub` of a key an ssh-agent holds (then the agent socket of the server's own
+ *   environment, SSH_AUTH_SOCK, is passed on, if there is one). The program is ssh-keygen.
+ * - gpg: MRM_GIT_SIGNING_KEY is a key id or fingerprint, MRM_GIT_GNUPGHOME is the keyring folder
+ *   (required: the server does not use the home folder of its user). The program is gpg.
+ * - MRM_GIT_SIGNING_PROGRAM: the absolute path of the program. Otherwise it is looked up in PATH
+ *   once, here, and pinned: it is never looked up again and never taken from a repository.
+ * Whether a passphrase-protected key is unlocked cannot be known here; signing says so when used.
+ */
+export function parseGitSigning(env: Record<string, string | undefined>, platform: string = process.platform): GitSigning | undefined {
+  const get = (name: string): string | undefined => {
+    const value = env[name];
+    return value === undefined || value.trim() === '' ? undefined : value.trim();
+  };
+  const format = get('MRM_GIT_SIGN') ?? 'off';
+  if (format === 'off') return undefined;
+  const problem = (why: string) => new Error(`Invalid configuration:\n  ${why}`);
+  if (format !== 'ssh' && format !== 'gpg') {
+    throw problem(`MRM_GIT_SIGN must be off, ssh or gpg (it is "${format.slice(0, 20)}").`);
+  }
+  if (platform === 'win32' && format === 'gpg') {
+    throw problem('MRM_GIT_SIGN=gpg is not supported on Windows. Use ssh.');
+  }
+  const absolute = (name: string, value: string): void => {
+    if (value.length > MAX_LOCAL_PATH_LENGTH) throw problem(`${name} is too long.`);
+    if (/[\u0000-\u001f\u007f]/.test(value)) throw problem(`${name} must not contain control characters.`);
+    if (!isAbsolute(value)) throw problem(`${name} must be an absolute path (starting with /). "~" and relative paths are not expanded.`);
+    if (value.split(/[\\/]+/).includes('..')) throw problem(`${name} must not contain "..".`);
+  };
+
+  const key = get('MRM_GIT_SIGNING_KEY');
+  if (key === undefined) {
+    throw problem(
+      format === 'ssh'
+        ? 'MRM_GIT_SIGNING_KEY is required when MRM_GIT_SIGN=ssh: the absolute path of an ssh private key file, or of the .pub of a key held by ssh-agent.'
+        : 'MRM_GIT_SIGNING_KEY is required when MRM_GIT_SIGN=gpg: the id or fingerprint of the gpg key.',
+    );
+  }
+
+  // The program, pinned.
+  const configured = get('MRM_GIT_SIGNING_PROGRAM');
+  let program: string;
+  if (configured !== undefined) {
+    absolute('MRM_GIT_SIGNING_PROGRAM', configured);
+    // The gpg wrapper script quotes the path: a quote would end the quoting.
+    if (/['"]/.test(configured)) throw problem('MRM_GIT_SIGNING_PROGRAM must not contain quotes.');
+    if (!isExecutable(configured)) {
+      throw problem('MRM_GIT_SIGNING_PROGRAM is not an executable file (check the path and its permissions).');
+    }
+    program = configured;
+  } else {
+    const found = findOnPath(format === 'ssh' ? ['ssh-keygen'] : ['gpg', 'gpg2'], env.PATH);
+    if (!found) {
+      throw problem(
+        format === 'ssh'
+          ? 'MRM_GIT_SIGN=ssh needs ssh-keygen, which was not found in PATH. Install OpenSSH, or set MRM_GIT_SIGNING_PROGRAM to the absolute path of ssh-keygen.'
+          : 'MRM_GIT_SIGN=gpg needs gpg, which was not found in PATH. Install GnuPG 2.1 or later, or set MRM_GIT_SIGNING_PROGRAM to the absolute path of gpg.',
+      );
+    }
+    if (/['"\u0000-\u001f]/.test(found)) throw problem('The signing program found in PATH has a quote in its path. Set MRM_GIT_SIGNING_PROGRAM to another one.');
+    program = found;
+  }
+
+  if (format === 'gpg') {
+    if (!GPG_KEY_PATTERN.test(key)) {
+      throw problem('MRM_GIT_SIGNING_KEY must be a gpg key id or fingerprint: hexadecimal, 8 to 64 characters (a user name or e-mail address is not accepted).');
+    }
+    const home = get('MRM_GIT_GNUPGHOME');
+    if (home === undefined) {
+      throw problem('MRM_GIT_GNUPGHOME is required when MRM_GIT_SIGN=gpg: the absolute path of the folder with the keyring (usually ~/.gnupg of the user that owns the key). The server does not use its own user\'s home folder.');
+    }
+    absolute('MRM_GIT_GNUPGHOME', home);
+    let directory = false;
+    try {
+      directory = statSync(home).isDirectory();
+    } catch {
+      // Reported below.
+    }
+    if (!directory) throw problem('MRM_GIT_GNUPGHOME is not a folder that exists.');
+    if (!canAccess(home, constants.R_OK | constants.X_OK)) throw problem('MRM_GIT_GNUPGHOME is not readable by the user the server runs as.');
+    return { format, key: key.replace(/^0x/i, ''), program, gnupgHome: home };
+  }
+
+  if (get('MRM_GIT_GNUPGHOME') !== undefined) {
+    throw problem('MRM_GIT_GNUPGHOME only applies with MRM_GIT_SIGN=gpg. Remove it, or change MRM_GIT_SIGN.');
+  }
+  absolute('MRM_GIT_SIGNING_KEY', key);
+  if (!isFile(key)) throw problem('MRM_GIT_SIGNING_KEY is not a file that exists (it must be a key file, not a folder).');
+  if (!canAccess(key, constants.R_OK)) throw problem('MRM_GIT_SIGNING_KEY is not readable by the user the server runs as.');
+  const start = head(key, 64);
+  if (start === undefined) throw problem('MRM_GIT_SIGNING_KEY could not be read.');
+  if (key.endsWith('.pub')) {
+    if (!/^(?:ssh-|ecdsa-|sk-)/.test(start)) throw problem('MRM_GIT_SIGNING_KEY ends in .pub but is not an ssh public key.');
+    const sock = get('SSH_AUTH_SOCK');
+    if (sock !== undefined) absolute('SSH_AUTH_SOCK', sock);
+    return { format, key, program, ...(sock !== undefined ? { sshAuthSock: sock } : {}) };
+  }
+  if (/^(?:ssh-|ecdsa-|sk-)/.test(start)) {
+    throw problem('MRM_GIT_SIGNING_KEY is an ssh public key but its name does not end in .pub. Rename it, or point to the private key.');
+  }
+  if (!/^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(start)) throw problem('MRM_GIT_SIGNING_KEY is not an ssh private key file.');
+  if (platform !== 'win32' && (statSync(key).mode & 0o077) !== 0) {
+    throw problem('MRM_GIT_SIGNING_KEY is readable by other users (ssh refuses such a key). Run: chmod 600 on the key file.');
+  }
+  return { format, key, program };
 }
 
 /** At least 43 URL-safe characters (32 bytes as base64url) or 64 hex characters. */
@@ -168,6 +337,8 @@ export type Config = {
   /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL, when set. */
   gitAuthorName?: string;
   gitAuthorEmail?: string;
+  /** Signing of local commits (MRM_GIT_SIGN). Absent: commits are not signed. Holds a key path: never log or return it. */
+  gitSigning?: GitSigning;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -185,6 +356,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   // Ignored in multi-user mode: nothing there consumes it.
   const launchSecret = data.MRM_MODE === 'single_user' ? checkLaunchSecret(data.MRM_LAUNCH_SECRET) : undefined;
   const localRepoRoots = parseLocalRepoRoots(data.MRM_LOCAL_REPO_ROOTS);
+  const gitSigning = parseGitSigning(env);
   const allowedHosts = data.MRM_MODE === 'single_user' ? parseExtraHosts(data.MRM_ALLOWED_HOSTS) : [];
   return {
     databaseUrl: data.DATABASE_URL,
@@ -211,5 +383,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     localRepoWrite: data.MRM_LOCAL_REPO_WRITE === 'true',
     ...(data.MRM_GIT_AUTHOR_NAME ? { gitAuthorName: data.MRM_GIT_AUTHOR_NAME } : {}),
     ...(data.MRM_GIT_AUTHOR_EMAIL ? { gitAuthorEmail: data.MRM_GIT_AUTHOR_EMAIL } : {}),
+    ...(gitSigning ? { gitSigning } : {}),
   };
 }

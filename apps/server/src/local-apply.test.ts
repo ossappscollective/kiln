@@ -12,9 +12,10 @@ import {
   SCAN_APP,
   weatherApp,
 } from '../../../packages/connectors/src/fastlane.fixtures.ts';
-import { buildRepo, git, gitWrapper, snapshot } from './local-git-test-helpers.ts';
+import { buildRepo, fakeProgram, git, gitWrapper, snapshot, SSH_KEYGEN, sshKey, sshVerifies } from './local-git-test-helpers.ts';
 import { FakeRepo, TOKEN, bootRepoApp, fastlaneFiles } from './repo-test-helpers.ts';
 import { createCloneReads } from './services/clone-reads.ts';
+import type { GitSigning } from './services/local-git.ts';
 import { clearRepoSnapshots } from './services/repo-snapshot.ts';
 
 /**
@@ -42,7 +43,7 @@ class ApiRepo extends FakeRepo {
   }
 }
 
-type Boot = { files?: Files; write?: boolean; author?: { name?: string; email?: string } };
+type Boot = { files?: Files; write?: boolean; author?: { name?: string; email?: string }; signing?: GitSigning };
 
 async function boot(db: Database, options: Boot = {}) {
   const base = scratch();
@@ -68,6 +69,7 @@ async function boot(db: Database, options: Boot = {}) {
     enabled: options.write !== false,
     ...(options.author?.name ? { authorName: options.author.name } : {}),
     ...(options.author?.email ? { authorEmail: options.author.email } : {}),
+    ...(options.signing ? { signing: options.signing } : {}),
     push: { url: () => remote.url, protocol: 'file' as const },
   };
   const t = await bootRepoApp(db, api, { reads, localWrite });
@@ -198,7 +200,7 @@ dbTest('attached: a commit on a new branch of the clone, nothing touched, nothin
   assert.equal(auditedRepository, repositoryId);
   assert.deepEqual(
     detail,
-    { mode: 'local_branch', branch: set.branch, commitSha: set.commitSha, baseBranch: 'main', baseCommit: base, path: dir, files: 1, pushRequested: false, prRequested: false },
+    { mode: 'local_branch', branch: set.branch, commitSha: set.commitSha, baseBranch: 'main', baseCommit: base, path: dir, files: 1, signed: false, signature: null, pushRequested: false, prRequested: false },
   );
   assert.equal(JSON.stringify(await db.query('SELECT detail FROM audit_events')).includes('New subtitle'), false);
   // Applying again changes nothing.
@@ -592,4 +594,99 @@ dbTest('a hostile repository (hooks, fsmonitor, filters) runs nothing when a cha
   const id = await approved(b, repositoryId);
   assert.equal((await apply(b, id, { ...local, push: true })).status, 200);
   assert.equal(existsSync(marker), false, 'nothing from the repository ran');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Signing (MRM_GIT_SIGN)
+
+const NO_SSH = SSH_KEYGEN ? undefined : 'ssh-keygen is not installed';
+
+dbTest('signing off: the config says so, the commit is unsigned and the outcome has no signature', async (db) => {
+  const b = await boot(db);
+  const { dir, repositoryId } = await attached(b);
+  const config = await b.t.call(b.t.owner, 'GET', '/repositories/local/config');
+  assert.deepEqual(config.body.local.signing, { enabled: false });
+  const id = await approved(b, repositoryId);
+  const res = await apply(b, id, local);
+  assert.equal(res.status, 200, res.text);
+  assert.equal('signature' in res.body.changeSet.outcome, false);
+  assert.equal(git(dir, 'cat-file', 'commit', res.body.changeSet.commitSha).includes('gpgsig'), false);
+});
+
+dbTest('signing on (ssh): the commit is signed, pushed as it is, the outcome and the audit say so, the key is nowhere', async (db, t) => {
+  if (NO_SSH) return t.skip(NO_SSH);
+  const k = sshKey();
+  const b = await boot(db, { signing: { format: 'ssh', key: k.key, program: SSH_KEYGEN ?? '' } });
+  const { dir, repositoryId } = await attached(b);
+  const id = await approved(b, repositoryId);
+  const res = await apply(b, id, { ...local, push: true, openPr: true });
+  assert.equal(res.status, 200, res.text);
+  const set = res.body.changeSet;
+  assert.equal(set.status, 'applied');
+  assert.deepEqual(set.outcome.signature, { status: 'signed', format: 'ssh' });
+  assert.equal(set.outcome.push.status, 'pushed');
+  assert.match(git(dir, 'cat-file', 'commit', set.commitSha), /^gpgsig -----BEGIN SSH SIGNATURE-----$/m);
+  assert.equal(sshVerifies(dir, set.commitSha, k.signers), true);
+  // The push sends the commit that was signed, unchanged.
+  assert.equal(git(b.bare, 'rev-parse', `refs/heads/${set.branch}`), set.commitSha);
+  assert.match(git(b.bare, 'cat-file', 'commit', set.commitSha), /^gpgsig -----BEGIN SSH SIGNATURE-----$/m);
+
+  const [audited] = await eventsOf(b, 'changeset.apply_local');
+  assert.equal(audited.signed, true);
+  assert.equal(audited.signature, 'ssh');
+  // Who may look sees whether commits are signed and how; nobody sees the key or where it is.
+  const viewer = await b.t.addMember('viewer');
+  for (const cookie of [b.t.owner, viewer]) {
+    const config = await b.t.call(cookie, 'GET', '/repositories/local/config');
+    assert.deepEqual(config.body.local.signing, { enabled: true, format: 'ssh' });
+  }
+  const keyBody = readFileSync(k.key, 'utf8').split('\n')[1] ?? 'x';
+  const everything = [...b.t.texts, ...b.logs, JSON.stringify(await db.query('SELECT * FROM audit_events')), JSON.stringify(await db.query('SELECT * FROM change_sets'))].join('\n');
+  assert.equal(everything.includes(k.key), false, 'the key path is in no response, log, audit row or change set');
+  assert.equal(everything.includes(k.key.split('/').slice(0, -1).join('/')), false, 'nor its folder');
+  assert.equal(everything.includes(keyBody), false, 'nor any key material');
+});
+
+dbTest('signing on and it fails: nothing is committed, the change set stays approved with signing_failed, and the key path is not told', async (db, t) => {
+  if (NO_SSH) return t.skip(NO_SSH);
+  const locked = sshKey('Zq9-unlikely-phrase');
+  const b = await boot(db, { signing: { format: 'ssh', key: locked.key, program: SSH_KEYGEN ?? '' } });
+  const { dir, repositoryId } = await attached(b);
+  const id = await approved(b, repositoryId);
+  const before = snapshot(dir);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await apply(b, id, { ...local, push: true });
+    assert.equal(res.status, 502, res.text);
+    assert.equal(res.body.error, 'signing_failed');
+    assert.equal(res.body.reason, 'locked');
+    assert.match(res.body.message, /passphrase/);
+    assert.equal(res.body.changeSet.status, 'approved', 'back to approved, ready for another try');
+    assert.equal(res.body.changeSet.error, res.body.message);
+    assert.deepEqual(snapshot(dir), before, 'no branch, nothing touched');
+    assert.equal(git(b.bare, 'for-each-ref'), '', 'nothing was pushed');
+  }
+  assert.equal((await eventsOf(b, 'changeset.apply_local')).length, 0);
+  const everything = [...b.t.texts, ...b.logs, JSON.stringify(await db.query('SELECT * FROM audit_events')), JSON.stringify(await db.query('SELECT * FROM change_sets'))].join('\n');
+  assert.equal(everything.includes(locked.key), false);
+  assert.equal(everything.includes('Zq9-unlikely-phrase'), false);
+  // The GitHub apply is another way, with no signing by this server: it still works.
+  assert.equal((await apply(b, id)).status, 200);
+});
+
+dbTest('signing on and the program never answers: 504 signing_failed after the timeout, the process is gone, nothing is written', async (db, t) => {
+  if (NO_SSH) return t.skip(NO_SSH);
+  const k = sshKey();
+  const slow = fakeProgram('slow', undefined, 'exec sleep 30\n');
+  const b = await boot(db, { signing: { format: 'ssh', key: k.key, program: slow.path, timeoutMs: 700 } });
+  const { dir, repositoryId } = await attached(b);
+  const id = await approved(b, repositoryId);
+  const before = snapshot(dir);
+  const started = Date.now();
+  const res = await apply(b, id, local);
+  assert.equal(res.status, 504, res.text);
+  assert.equal(res.body.error, 'signing_failed');
+  assert.equal(res.body.reason, 'timeout');
+  assert.ok(Date.now() - started < 10_000);
+  assert.equal(res.body.changeSet.status, 'approved');
+  assert.deepEqual(snapshot(dir), before);
 });

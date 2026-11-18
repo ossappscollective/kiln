@@ -12,6 +12,7 @@ import {
 } from './clone-reads.ts';
 import {
   DUBIOUS_OWNERSHIP_MESSAGE,
+  type GitSigning,
   type LocalPathProblemCode,
   validateLocalPath,
 } from './local-git.ts';
@@ -103,6 +104,8 @@ export type LocalWriteConfig = {
   /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL; the acting person is used when they are not set. */
   authorName?: string;
   authorEmail?: string;
+  /** Sign the commits with the server's own key (MRM_GIT_SIGN). Absent: not signed. Holds a key path: never returned or logged. */
+  signing?: GitSigning;
   /** For tests only: where a push goes and how, instead of https://github.com/<owner>/<repo>.git. */
   push?: {
     url?: (owner: string, repo: string) => string;

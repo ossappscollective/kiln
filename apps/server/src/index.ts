@@ -15,10 +15,11 @@ import {
 } from './services/apps.ts';
 import { pruneSessions } from './services/accounts.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './services/ci.ts';
-import { setUpReads } from './services/clone-reads.ts';
+import { checkGit, setUpReads } from './services/clone-reads.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
 import { pruneEvents } from './services/events.ts';
 import { WEBHOOK_QUEUE, createWebhookHandler, pruneDeliveries } from './services/webhooks.ts';
+import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { VERSION } from './version.ts';
 
@@ -68,6 +69,26 @@ if (config.localRepoWrite) {
       : 'MRM_LOCAL_REPO_WRITE=true has no effect until MRM_LOCAL_REPO_ROOTS names the folders that may hold clones.',
   );
 }
+// Signing of those commits (MRM_GIT_SIGN). The log says the format and, for ssh, the public
+// fingerprint: never the key's path or anything from the key.
+if (config.gitSigning) {
+  const signing = config.gitSigning;
+  const fingerprint = signing.format === 'ssh' ? await sshKeyFingerprint(signing.program, signing.key) : undefined;
+  console.log(
+    `Local clones: signing: ${signing.format}${fingerprint ? ` (key ${fingerprint})` : ''}${config.localRepoWrite ? '' : ' (no effect until MRM_LOCAL_REPO_WRITE=true)'}`,
+  );
+  if (signing.format === 'ssh') {
+    const git = await checkGit(config.gitPath);
+    if (git.ok && !gitSupportsSshSigning(git.version)) {
+      console.warn(`Local clones: git ${git.version} cannot sign with ssh keys (2.34 or later is needed). Signing will fail until git is updated.`);
+    }
+    if (signing.key.endsWith('.pub') && !signing.sshAuthSock) {
+      console.warn('Local clones: the signing key is a .pub file but SSH_AUTH_SOCK is not set for the server, so ssh-agent cannot be used. Signing works only if the private key next to it has no passphrase.');
+    }
+  }
+} else if (process.env.MRM_GIT_SIGNING_KEY?.trim()) {
+  console.warn('MRM_GIT_SIGNING_KEY is set but MRM_GIT_SIGN is off: commits are not signed.');
+}
 
 // One budget for manual and scheduled syncs (10 per workspace per minute).
 const syncLimiter = createTestLimiter();
@@ -85,6 +106,7 @@ const app = createApp({
     enabled: config.localRepoWrite,
     ...(config.gitAuthorName ? { authorName: config.gitAuthorName } : {}),
     ...(config.gitAuthorEmail ? { authorEmail: config.gitAuthorEmail } : {}),
+    ...(config.gitSigning ? { signing: config.gitSigning } : {}),
   },
   masterKey: config.masterKey,
   version: VERSION,

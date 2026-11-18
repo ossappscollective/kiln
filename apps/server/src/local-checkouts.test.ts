@@ -199,10 +199,11 @@ dbTest('the setting lists the allowed folders to people who may attach one, not 
   const owner = await t.call(t.owner, 'GET', '/repositories/local/config');
   const write = { enabled: false, envName: 'MRM_LOCAL_REPO_WRITE', message: owner.body.local.write.message };
   assert.match(write.message, /MRM_LOCAL_REPO_WRITE=true/);
-  assert.deepEqual(owner.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', roots: [b.root], write });
+  const signing = { enabled: false };
+  assert.deepEqual(owner.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', roots: [b.root], write, signing });
   const member = await t.addMember('member');
   const seen = await t.call(member, 'GET', '/repositories/local/config');
-  assert.deepEqual(seen.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', write });
+  assert.deepEqual(seen.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', write, signing });
 });
 
 dbTest('MRM_READS=api means git is never run: local clones are refused with a clear error', async (db) => {

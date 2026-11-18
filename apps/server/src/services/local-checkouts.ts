@@ -47,6 +47,8 @@ export type LocalConfigView = {
   roots?: string[];
   /** Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE), and if not, why not. */
   write: { enabled: boolean; envName: string; message?: string };
+  /** Whether the commits are signed (MRM_GIT_SIGN) and how. Never the key or where it is. */
+  signing: { enabled: boolean; format?: 'ssh' | 'gpg' };
 };
 
 export function localConfigView(ctx: Pick<RepoContext, 'reads' | 'localWrite'>, includeRoots: boolean): LocalConfigView {
@@ -55,9 +57,11 @@ export function localConfigView(ctx: Pick<RepoContext, 'reads' | 'localWrite'>, 
   const write = writable.enabled
     ? { enabled: true, envName: WRITE_ENV_NAME }
     : { enabled: false, envName: WRITE_ENV_NAME, message: writable.message };
+  const format = ctx.localWrite?.signing?.format;
+  const signing = format ? { enabled: true, format } : { enabled: false };
   return available.enabled
-    ? { enabled: true, envName: ENV_NAME, ...(includeRoots ? { roots: available.roots } : {}), write }
-    : { enabled: false, envName: ENV_NAME, reason: available.reason, message: available.message, write };
+    ? { enabled: true, envName: ENV_NAME, ...(includeRoots ? { roots: available.roots } : {}), write, signing }
+    : { enabled: false, envName: ENV_NAME, reason: available.reason, message: available.message, write, signing };
 }
 
 const refusal = (available: LocalAvailability): Failure | undefined =>
