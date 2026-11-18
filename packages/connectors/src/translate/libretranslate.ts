@@ -41,10 +41,10 @@ function classify(status: number, json: unknown, retryAfter: string | null): Tra
   if (status === 400) {
     if (/exceeds text limit/.test(message)) return new TranslateError('too_large');
     if (/not supported|not available as a target|language/.test(message)) return new TranslateError('unsupported_language');
-    return new TranslateError('unavailable');
+    return new TranslateError('unavailable', { detail: 'http_400' });
   }
   if (status === 413) return new TranslateError('too_large');
-  return new TranslateError('unavailable');
+  return new TranslateError('unavailable', { detail: `http_${status}` });
 }
 
 export function createLibreTranslateTranslator(options: LibreTranslateOptions): Translator {

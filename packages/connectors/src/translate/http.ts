@@ -78,7 +78,7 @@ export async function postJson(request: JsonRequest, options: TranslatorOptions)
     if (error instanceof TranslateError) throw error;
     const name = error instanceof Error ? error.name : '';
     if (signal.aborted || name === 'TimeoutError' || name === 'AbortError') throw new TranslateError('timeout');
-    throw new TranslateError('unavailable');
+    throw new TranslateError('unavailable', { detail: error instanceof Error && error.message === 'blocked' ? 'blocked' : 'connection' });
   } finally {
     clearTimeout(timer);
   }

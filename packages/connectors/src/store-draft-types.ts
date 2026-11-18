@@ -9,9 +9,10 @@ import { StoreError, type StoreName } from './errors.ts';
  * The stores keep a draft in different places:
  *
  * - App Store Connect: the version that can still be edited (`PREPARE_FOR_SUBMISSION` and the
- *   rejected states). Its localizations (`appStoreVersionLocalizations`) and screenshot sets are
- *   changed directly, one request at a time: there is no transaction, so a failure part way leaves
- *   some of the changes written (a `DraftPartialError` says which). Nothing is submitted.
+ *   rejected states). Its localizations (`appStoreVersionLocalizations`) and its screenshot placements
+ *   (App Asset Library: images and placements) are changed directly, one request at a time: there is
+ *   no transaction, so a failure part way leaves some of the changes written (a `DraftPartialError`
+ *   says which). Nothing is submitted.
  * - Google Play: an edit (`edits`), committed once with `changesNotSentForReview=true` so the
  *   changes are held back from review until somebody sends them from Play Console. Nothing is
  *   applied until the commit: a failure before it changes nothing.
@@ -25,7 +26,19 @@ export type DraftTextWrite = { locale: string; field: string; value: string };
  * `screenshotDisplayType` (`APP_IPHONE_65`) or the Google Play `AppImageType` (`phoneScreenshots`,
  * `icon`, `featureGraphic`): worked out by the server from the slot and the pixel size.
  */
-export type DraftSlot = { locale: string; kind: AssetKind; device: string | null; target: string };
+export type DraftSlot = {
+  locale: string;
+  kind: AssetKind;
+  device: string | null;
+  target: string;
+  /**
+   * The pixel size of the files of the set (the first file). The App Store connector finds the asset
+   * library placement group of the set from it and from the reference data Apple serves; Google Play
+   * ignores it.
+   */
+  width?: number | null;
+  height?: number | null;
+};
 
 /** One file to upload. The bytes are in memory: the server read them from the clone and checked them against the staged blob id. */
 export type DraftFile = {
@@ -59,13 +72,19 @@ export type DraftTextState = {
 
 /** One graphic of a set as the store reports it. */
 export type DraftImageState = {
+  /** App Store: the id of the placement (the asset library keeps the image apart from where it is shown). Google Play: the image id. */
   id: string;
   /** App Store: the file name. Google Play: null. */
   name: string | null;
-  /** Lower case hex of the whole file (App Store MD5 `sourceFileChecksum`, Google Play SHA-256), or null while unknown. */
+  /**
+   * Lower case hex of the whole file (Google Play SHA-256), or null while unknown. The App Store has no checksum:
+   * this server writes the first 32 hex characters of the SHA-256 into the library image's `referenceName`
+   * and reads them back from there (an image someone else uploaded has none, so it never counts as the same file).
+   * A checksum shorter than the full 64 characters is compared as a prefix.
+   */
   checksum: string | null;
   checksumKind: 'md5' | 'sha256';
-  /** App Store: the asset delivery state (`COMPLETE`, ...). Google Play: null. */
+  /** App Store: the library image's state (`PREPARE_FOR_SUBMISSION` once processed, ...). Google Play: null. */
   state: string | null;
 };
 
@@ -74,8 +93,10 @@ export type DraftAssetState = {
   kind: AssetKind;
   device: string | null;
   target: string;
-  /** The set exists in the draft (App Store: the screenshot set; Google Play: always true). */
+  /** The set exists in the draft (App Store: the group has at least one placement; Google Play: always true). */
   setExists: boolean;
+  /** App Store: the asset library placement group the set maps to (from Apple's reference data). Google Play: absent. */
+  placementGroup?: string | null;
   /** In the store's order. */
   images: DraftImageState[];
 };
@@ -200,6 +221,21 @@ export function draftKey(state: DraftState): Record<string, unknown> {
 export const sameDraftState = (a: DraftState, b: DraftState): boolean =>
   JSON.stringify(draftKey(a)) === JSON.stringify(draftKey(b));
 
+/**
+ * Image states in which an image is processed and can be used: App Store Connect's `COMPLETE` (the
+ * deprecated screenshots) and the asset library's states from `PREPARE_FOR_SUBMISSION` on. Anything else
+ * (`AWAITING_UPLOAD`, `UPLOAD_COMPLETE`, `FAILED`, `REJECTED`, `ARCHIVED`) is not a finished file.
+ */
+export const DRAFT_IMAGE_READY_STATES: readonly string[] = [
+  'COMPLETE',
+  'PREPARE_FOR_SUBMISSION',
+  'READY_FOR_REVIEW',
+  'WAITING_FOR_REVIEW',
+  'IN_REVIEW',
+  'ACCEPTED',
+  'APPROVED',
+];
+
 /** Whether a set holds exactly these files, in this order (by checksum). */
 export function setMatches(image: readonly DraftImageState[], files: readonly Pick<DraftFile, 'md5' | 'sha256'>[]): boolean {
   if (image.length !== files.length) return false;
@@ -207,8 +243,10 @@ export function setMatches(image: readonly DraftImageState[], files: readonly Pi
     const have = image[i] as DraftImageState;
     const want = files[i] as Pick<DraftFile, 'md5' | 'sha256'>;
     const wanted = have.checksumKind === 'md5' ? want.md5 : want.sha256;
-    if (have.checksum === null || have.checksum.toLowerCase() !== wanted) return false;
-    if (have.state !== null && have.state !== 'COMPLETE') return false;
+    if (have.checksum === null) return false;
+    const got = have.checksum.toLowerCase();
+    if (got.length < wanted.length ? !wanted.startsWith(got) || got.length < 16 : got !== wanted) return false;
+    if (have.state !== null && !DRAFT_IMAGE_READY_STATES.includes(have.state)) return false;
   }
   return true;
 }
