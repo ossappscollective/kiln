@@ -7,6 +7,7 @@
 <script lang="ts">
   import type { ReleaseState } from '@mrm/core';
   import { formatRollout, statusInfo } from '../../lib/portfolio.ts';
+  import { statusIcon } from '../../lib/status-icons.ts';
   import Badge from '../ui/Badge.svelte';
 
   let {
@@ -20,7 +21,7 @@
 </script>
 
 <span class="status" title={info.description}>
-  <Badge tone={info.tone} dot>{info.label}</Badge>
+  <Badge tone={info.tone} icon={statusIcon(status)}>{info.label}</Badge>
   {#if rollout}<span class="rollout muted"><span class="visually-hidden">Rollout </span>{rollout}</span>{/if}
 </span>
 

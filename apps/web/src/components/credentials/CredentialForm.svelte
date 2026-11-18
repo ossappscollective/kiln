@@ -10,6 +10,7 @@
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import SecretFields from '../SecretFields.svelte';
+  import Icon from '../ui/Icon.svelte';
   import GuidePanel from './GuidePanel.svelte';
   import Spinner from './Spinner.svelte';
   import TestResult from './TestResult.svelte';
@@ -117,7 +118,7 @@
         </button>
         <button class="primary" disabled={saving}>{saving ? 'Saving…' : 'Save credential'}</button>
         <button type="button" disabled={saving} onclick={onCancel}>Cancel</button>
-        <span class="tested" class:on={testedOk}>✓ Tested OK</span>
+        <span class="tested" class:on={testedOk}><Icon name="check" size="sm" /> Tested OK</span>
       </div>
       <p class="hint" id="add-test-hint">
         {#if problem}

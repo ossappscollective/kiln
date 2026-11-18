@@ -129,11 +129,11 @@
   <div class="mode" role="radiogroup" aria-label="How to connect">
     <label class="check mode-option" class:selected={mode === 'github'}>
       <input type="radio" name="{formId}-mode" value="github" bind:group={mode} disabled={busy} />
-      <span>GitHub repository</span>
+      <span><Icon name="repo" /> GitHub repository</span>
     </label>
     <label class="check mode-option" class:selected={mode === 'local'}>
       <input type="radio" name="{formId}-mode" value="local" bind:group={mode} disabled={busy} />
-      <span>Local clone</span>
+      <span><Icon name="folder" /> Local clone</span>
     </label>
   </div>
 

@@ -38,6 +38,7 @@
     syncApps,
     withSelection,
   } from '../../lib/portfolio.ts';
+  import { storeForCredentialKind } from '../../lib/stores.ts';
   import type {
     AppSummary,
     CredentialSummary,
@@ -49,6 +50,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import StoreBadge from '../ui/StoreBadge.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
 
   let {
@@ -329,6 +331,7 @@
           <option value={c.id}>{c.label} ({kindLabel(c.kind)})</option>
         {/each}
       </select>
+      {#if kind}<div class="row"><StoreBadge store={storeForCredentialKind(kind).store} variant="full" size="sm" /></div>{/if}
       <p class="hint" id="{uid}-credential-hint">
         The credential reads the store. Nothing is ever written to it, and the secret is never shown.
       </p>

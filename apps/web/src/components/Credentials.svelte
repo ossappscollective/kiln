@@ -5,6 +5,7 @@
   import type { CredentialSummary, LastTest } from '../lib/types.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import CredentialTable from './credentials/CredentialTable.svelte';
+  import StoreBadge from './ui/StoreBadge.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -105,6 +106,11 @@
           Add an App Store Connect key, a Google Play service account and a GitHub App to connect your
           stores and repositories. Each type comes with a step-by-step guide, and you can test a
           credential before you save it.
+        </p>
+        <p class="row">
+          <StoreBadge store="app_store" variant="full" />
+          <StoreBadge store="google_play" variant="full" />
+          <StoreBadge store="github" variant="full" />
         </p>
       </div>
     {:else if items && items.length > 0}

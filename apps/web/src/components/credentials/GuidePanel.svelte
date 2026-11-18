@@ -6,6 +6,8 @@
   import { type CredentialKind, credentialGuides, credentialKindInfo } from '@mrm/core';
   import { tick } from 'svelte';
   import { formatCheckedOn, guideSections } from '../../lib/credentials.ts';
+  import { storeForCredentialKind } from '../../lib/stores.ts';
+  import Icon from '../ui/Icon.svelte';
   import ExternalLink from './ExternalLink.svelte';
 
   let {
@@ -107,7 +109,7 @@
 {:else}
   <section class="panel" aria-labelledby="{uid}-title">
     <h3 id="{uid}-title">How to get this</h3>
-    <p class="kind muted">{credentialKindInfo[kind].label}</p>
+    <p class="kind muted"><Icon name={storeForCredentialKind(kind).icon} /> {credentialKindInfo[kind].label}</p>
     {@render body()}
   </section>
 {/if}

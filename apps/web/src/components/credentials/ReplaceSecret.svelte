@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import SecretFields from '../SecretFields.svelte';
+  import Icon from '../ui/Icon.svelte';
   import GuidePanel from './GuidePanel.svelte';
   import Spinner from './Spinner.svelte';
   import TestResult from './TestResult.svelte';
@@ -87,7 +88,7 @@
     </button>
     <button class="primary" disabled={busy}>{busy ? 'Saving…' : 'Replace secret'}</button>
     <button type="button" disabled={busy} onclick={onCancel}>Cancel</button>
-    <span class="tested" class:on={testedOk}>✓ Tested OK</span>
+    <span class="tested" class:on={testedOk}><Icon name="check" size="sm" /> Tested OK</span>
   </div>
 
   <TestResult

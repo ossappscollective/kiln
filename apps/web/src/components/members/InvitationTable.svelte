@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
+  import { roleIcons } from '../../lib/status-icons.ts';
   import type { Invitation } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -35,7 +36,7 @@
       {#each invitations as invitation (invitation.id)}
         <tr>
           <td>{invitation.email}</td>
-          <td><Badge>{roleLabel[invitation.role]}</Badge></td>
+          <td><Badge icon={roleIcons[invitation.role]}>{roleLabel[invitation.role]}</Badge></td>
           <td class="muted">{invitation.createdByName ?? 'Unknown'}</td>
           <td class="muted" title={fullTime(invitation.expiresAt)}>{expiresIn(invitation.expiresAt, now)}</td>
           <td class="actions">

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
   import { expiryLabel, lastUsed, orderTokens, scopeSummary, tokenRoleLabel, tokenStatus } from '../../lib/api-tokens.ts';
+  import { roleIcons, toneIcon } from '../../lib/status-icons.ts';
   import type { ApiToken } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -59,9 +60,9 @@
             <div class="muted mono text-xs">{token.prefix}…</div>
             <div class="muted text-xs" title={fullTime(token.createdAt)}>by {token.createdBy.name ?? 'a former member'}</div>
           </td>
-          <td><Badge>{tokenRoleLabel[token.role]}</Badge></td>
+          <td><Badge icon={roleIcons[token.role]}>{tokenRoleLabel[token.role]}</Badge></td>
           <td class="muted">{scopeSummary(token)}</td>
-          <td><Badge tone={status.tone} dot><span title={status.title}>{status.label}</span></Badge></td>
+          <td><Badge tone={status.tone} icon={toneIcon(status.tone)}><span title={status.title}>{status.label}</span></Badge></td>
           <td class="muted" title={token.lastUsedAt ? fullTime(token.lastUsedAt) : ''}>{lastUsed(token, now)}</td>
           <td class="muted" title={token.expiresAt ? fullTime(token.expiresAt) : ''}>{expiryLabel(token, now)}</td>
           {#if canManage}

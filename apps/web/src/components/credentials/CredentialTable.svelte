@@ -4,7 +4,9 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import { announceTest, summarizeTest, testErrorMessage, testStatus } from '../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { storeForCredentialKind } from '../../lib/stores.ts';
   import type { CredentialSummary, LastTest } from '../../lib/types.ts';
+  import Icon from '../ui/Icon.svelte';
   import ReplaceSecret from './ReplaceSecret.svelte';
   import Spinner from './Spinner.svelte';
 
@@ -115,12 +117,12 @@
               <p class="failure">{item.lastTest.message}</p>
             {/if}
           </td>
-          <td>{kindLabel(item.kind)}</td>
+          <td class="kind"><Icon name={storeForCredentialKind(item.kind).icon} /> {kindLabel(item.kind)}</td>
           <td class="status">
             {#if run?.busy}
               <span class="muted"><Spinner /> Testing…</span>
             {:else}
-              <span class="badge {status.tone}" class:none={status.tone === 'none'} title={status.title}>{status.label}</span>
+              <span class="badge {status.tone}" class:none={status.tone === 'none'} title={status.title}><Icon name={status.state === 'working' ? 'check-circle' : status.state === 'failed' ? 'x-circle' : 'help'} size={12} />{status.label}</span>
               {#if status.when}
                 <span class="when muted" title={item.lastTest ? fullTime(item.lastTest.at) : ''}>{status.when}</span>
               {/if}

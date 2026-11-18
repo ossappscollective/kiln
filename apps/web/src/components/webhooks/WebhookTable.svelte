@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fullTime } from '../../lib/format.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
   import type { WebhookEndpoint } from '../../lib/types.ts';
   import { eventsSummary, hostOf, lastDeliveryLabel } from '../../lib/webhooks.ts';
   import Badge from '../ui/Badge.svelte';
@@ -67,7 +68,7 @@
             <div class="muted text-xs truncate" title={endpoint.url}>{endpoint.url}</div>
           </td>
           <td class="muted" title={endpoint.eventTypes.join(', ')}>{eventsSummary(endpoint)}</td>
-          <td><Badge tone={endpoint.enabled ? 'ok' : 'neutral'} dot>{endpoint.enabled ? 'Enabled' : 'Disabled'}</Badge></td>
+          <td><Badge tone={endpoint.enabled ? 'ok' : 'neutral'} icon={toneIcon(endpoint.enabled ? 'ok' : 'neutral')}>{endpoint.enabled ? 'Enabled' : 'Disabled'}</Badge></td>
           <td class="muted" title={endpoint.lastDelivery ? fullTime(endpoint.lastDelivery.at) : ''}>
             {lastDeliveryLabel(endpoint, now)}
           </td>

@@ -205,11 +205,11 @@
       <div class="choices">
         <label class="check">
           <input type="radio" name="{formId}-platform" value="ios" checked={platform === 'ios'} onchange={() => choosePlatform('ios')} />
-          iOS (App Store)
+          <Icon name="platform-ios" /> iOS (App Store)
         </label>
         <label class="check">
           <input type="radio" name="{formId}-platform" value="android" checked={platform === 'android'} onchange={() => choosePlatform('android')} />
-          Android (Google Play)
+          <Icon name="platform-android" /> Android (Google Play)
         </label>
       </div>
     </fieldset>

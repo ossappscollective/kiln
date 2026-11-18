@@ -6,6 +6,7 @@
 <script lang="ts">
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { githubUrl, repositoryName } from '../../lib/repositories.ts';
+  import { storeById } from '../../lib/stores.ts';
   import type { RepositorySummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -59,7 +60,7 @@
         <tr>
           <td>
             <div class="name">
-              <Icon name="git-branch" />
+              <Icon name={repository.localOnly ? 'folder' : storeById('github').icon} />
               <button
                 type="button"
                 id="repo-open-{repository.id}"

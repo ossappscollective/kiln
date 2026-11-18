@@ -1,5 +1,6 @@
 <script lang="ts">
   import { type Role, assignableBy, decideRemoval, decideRoleChange } from '@mrm/core';
+  import { roleIcons } from '../../lib/status-icons.ts';
   import type { Member } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -89,7 +90,7 @@
                 {#each options as r (r)}<option value={r}>{roleLabel[r]}</option>{/each}
               </select>
             {:else}
-              <Badge tone={member.role === 'owner' ? 'accent' : 'neutral'}>{roleLabel[member.role]}</Badge>
+              <Badge tone={member.role === 'owner' ? 'accent' : 'neutral'} icon={roleIcons[member.role]}>{roleLabel[member.role]}</Badge>
               {#if lastOwner(member)}<span class="hint inline">Last owner</span>{/if}
             {/if}
           </td>

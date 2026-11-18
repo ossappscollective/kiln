@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { TestResult } from '../../lib/types.ts';
   import { summarizeTest } from '../../lib/credentials.ts';
+  import Icon from '../ui/Icon.svelte';
   import Spinner from './Spinner.svelte';
   import type { TesterStatus } from './tester.svelte.ts';
 
@@ -30,7 +31,7 @@
         <p class="box pending"><Spinner /> Testing the connection…</p>
       {:else if summary}
         <div class="box {summary.tone}">
-          <p class="message"><span aria-hidden="true">{summary.ok ? '✓' : '✕'}</span> <strong>{summary.ok ? 'Connection works.' : 'Test failed.'}</strong> {summary.message}</p>
+          <p class="message"><Icon name={summary.ok ? 'check-circle' : 'x-circle'} /> <strong>{summary.ok ? 'Connection works.' : 'Test failed.'}</strong> {summary.message}</p>
           {#if summary.details.length > 0}
             <ul>
               {#each summary.details as line (line)}<li>{line}</li>{/each}
@@ -44,7 +45,7 @@
           {/if}
         </div>
       {:else if status === 'error'}
-        <p class="box bad"><span aria-hidden="true">✕</span> <strong>Could not run the test.</strong> {error}</p>
+        <p class="box bad"><Icon name="x-circle" /> <strong>Could not run the test.</strong> {error}</p>
       {/if}
     </div>
   </div>

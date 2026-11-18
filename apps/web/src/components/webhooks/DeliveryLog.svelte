@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
   import type { WebhookDelivery, WebhookEndpoint } from '../../lib/types.ts';
   import { canRedeliver, deliveryDetail, deliveryView } from '../../lib/webhooks.ts';
   import Alert from '../ui/Alert.svelte';
@@ -106,7 +107,7 @@
                 <span class="mono text-sm">{delivery.eventType}</span>
                 {#if delivery.redeliveryOf}<div class="muted text-xs">Sent again</div>{/if}
               </td>
-              <td><Badge tone={view.tone} dot>{view.label}</Badge></td>
+              <td><Badge tone={view.tone} icon={toneIcon(view.tone)}>{view.label}</Badge></td>
               <td class="muted">
                 {deliveryDetail(delivery) || '—'}
                 {#if delivery.responseBody}
