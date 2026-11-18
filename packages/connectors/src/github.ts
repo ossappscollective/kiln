@@ -476,6 +476,15 @@ export class GithubRepoConnector implements RepoConnector {
   // -------------------------------------------------------------------------------------------
   // RepoConnector
 
+  /**
+   * The commit a branch or tag points to right now (default: the default branch). A caller that
+   * passes it back as `ref` to `listFiles` and `readFile` reads one consistent snapshot, and can
+   * cache by it: a commit never changes.
+   */
+  async resolveCommit(ref?: string, signal?: AbortSignal): Promise<string> {
+    return this.#commitSha(ref ?? (await this.defaultBranch(signal)), signal);
+  }
+
   async listFiles(ref?: string): Promise<string[]> {
     const commit = await this.#commitSha(ref ?? (await this.defaultBranch()));
     const entries = await this.#tree(commit);

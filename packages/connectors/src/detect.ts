@@ -1,5 +1,11 @@
 import type { Platform } from '@mrm/core';
-import { listingLocales } from './fastlane.ts';
+import {
+  type DetectedTarget,
+  type ListingCandidate,
+  listingLocales,
+  type MetadataHints,
+  parseMetadataHints,
+} from './fastlane.ts';
 
 /**
  * Works out what kind of mobile project a repository is, from its file list and a few small
@@ -71,6 +77,13 @@ export type ProjectDetection = {
   /** Locale folders and store config entries found, sorted. `default` is not a locale. */
   locales: { ios: string[]; android: string[] };
   paths: DetectedPaths;
+  /**
+   * Every folder that looks like a listing root (an app can have its own), the candidates grouped
+   * per app, and the folders a Deliverfile or Fastfile names. `paths.iosMetadata` and
+   * `paths.androidMetadata` are the ones read when nothing is chosen. Absent in scans that were
+   * stored before this was added.
+   */
+  listing?: { candidates: ListingCandidate[]; targets: DetectedTarget[]; hints: MetadataHints };
   expo?: ExpoDetails;
   evidence: Evidence[];
   warnings: string[];
@@ -108,7 +121,17 @@ const withoutComments = (source: string) =>
     .filter((line) => !/^\s*#/.test(line))
     .join('\n');
 
-export async function detectProject(files: string[], read: ReadFile): Promise<ProjectDetection> {
+export async function detectProject(files: string[], readFile: ReadFile): Promise<ProjectDetection> {
+  // Each file is read once, and the files that are always read start together.
+  const reads = new Map<string, Promise<string | undefined>>();
+  const read: ReadFile = (path) => {
+    let hit = reads.get(path);
+    if (!hit) {
+      hit = readFile(path);
+      reads.set(path, hit);
+    }
+    return hit;
+  };
   const paths = files.filter((p) => !IGNORED.test(p));
   const have = new Set(paths);
   const evidence: Evidence[] = [];
@@ -128,6 +151,12 @@ export async function detectProject(files: string[], read: ReadFile): Promise<Pr
     const m = /^((?:[^/]+\/){0,2})fastlane\//.exec(path);
     if (m) fastlaneDirs.add(`${m[1] ?? ''}fastlane`);
   }
+  const prefetch = [
+    ...[...fastlaneDirs].sort().flatMap((dir) => ['Fastfile', 'Appfile', 'Deliverfile'].map((n) => `${dir}/${n}`)),
+    ...['Fastfile', 'Gemfile', 'package.json', 'app.json', 'eas.json'],
+  ].filter((path) => have.has(path));
+  await Promise.all(prefetch.map((path) => read(path)));
+
   for (const dir of [...fastlaneDirs].sort()) {
     const fastfile = `${dir}/Fastfile`;
     const appfile = `${dir}/Appfile`;
@@ -158,7 +187,17 @@ export async function detectProject(files: string[], read: ReadFile): Promise<Pr
     });
   }
 
-  const listing = listingLocales(paths);
+  const hintSources: { path: string; source: string }[] = [];
+  for (const dir of [...fastlaneDirs, ''].sort()) {
+    for (const name of ['Deliverfile', 'Fastfile', 'Appfile']) {
+      const path = dir === '' ? name : `${dir}/${name}`;
+      if (!have.has(path)) continue;
+      const source = await read(path);
+      if (source !== undefined) hintSources.push({ path, source });
+    }
+  }
+  const hints = parseMetadataHints(hintSources);
+  const listing = listingLocales(paths, { hints });
   const underFastlane = (root: string) => /(^|\/)fastlane\/metadata(\/|$)/.test(root);
   const iosFiles = listing.ios.length > 0 || listing.hasDefaultFolder;
   if (iosFiles) {
@@ -441,6 +480,11 @@ export async function detectProject(files: string[], read: ReadFile): Promise<Pr
       'Store metadata files exist but no fastlane folder or Fastfile does, so this is not treated as a fastlane project.',
     );
   }
+  if (listing.targets.length > 1) {
+    warnings.push(
+      `Several apps or metadata folders were found (${listing.targets.map((t) => t.label).join(', ')}). The store listing is read for one at a time: choose it in the Store listing panel.`,
+    );
+  }
   if (fastlane && !iosFiles && listing.android.length === 0) {
     warnings.push(
       'fastlane is set up but no metadata folder was found: the store listing is not in Git yet.',
@@ -466,6 +510,7 @@ export async function detectProject(files: string[], read: ReadFile): Promise<Pr
     platformsInferred: inferred.filter((p) => !platforms.includes(p)).sort(),
     locales: { ios: [...iosLocales].sort(), android: listing.android },
     paths: detected,
+    listing: { candidates: listing.candidates, targets: listing.targets, hints: listing.hints },
     ...(expo ? { expo: expoDetails } : {}),
     evidence,
     warnings,

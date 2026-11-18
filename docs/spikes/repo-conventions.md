@@ -146,8 +146,11 @@ Sources: [rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-l
   page read. Title, short and full description are warnings when missing.
 - **Valid locale codes** for either store: the lists were not checked. Folder names are matched
   loosely (`en`, `en-US`, `zh-Hans`, `es-419`) only to tell locales from other folders.
-- **Custom `metadata_path`** (a Fastfile can point anywhere): roots are discovered only for
-  `metadata` and `metadata/android`; anything else needs `roots` passed. The Fastfile is not parsed.
+- **Custom `metadata_path`** (a Fastfile can point anywhere): see "Layouts seen in real projects".
+  Roots are detected by name (`metadata`, `metadata/ios`, `metadata/<app id>/ios`, and the
+  Android counterparts), a literal or `File.join` `metadata_path` of a Deliverfile or Fastfile is
+  a hint, and anything else needs an explicit folder (a saved listing target, or `roots`). Ruby is
+  never run: a path built from a method call or a bare `ENV[...]` is not guessed.
 - **EAS Metadata** accepting `.ts`, `.cjs`, `.mjs` store configs: only `.json` and `.js` are
   documented. Any non-`.json` path is reported as dynamic and not read.
 - **GitHub**: the `422 Reference already exists` answer to creating a ref is not in the docs (they
@@ -159,6 +162,40 @@ Sources: [rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-l
 - **Fixtures are hand-written from the documented response shapes, not recorded from a live
   GitHub.** No network was available to record them. Replace them with recordings when a test
   repository and App exist.
+
+## Layouts seen in real projects
+
+Checked on 2026-11-18 against three NativeScript projects of the maintainer (folder and file
+names only, no content was copied; the test fixtures in `packages/connectors/src/fastlane.fixtures.ts`
+are made up and only follow the structure):
+
+- **a) one app:** `fastlane/metadata/ios/<locale>/*.txt`, `fastlane/metadata/ios/copyright.txt`
+  (and the category files), `fastlane/metadata/ios/review_information/`,
+  `fastlane/metadata/ios/screenshots/`, and `fastlane/metadata/android/<locale>/...`. The iOS root
+  is `fastlane/metadata/ios`, not `fastlane/metadata`: the lanes call
+  `upload_to_app_store(metadata_path: File.join(metadata_path_realpath, "ios"), ...)` where
+  `metadata_path_realpath` joins the project root, `fastlane` and a `metadata_path` variable that
+  defaults to `metadata` (`ENV["SUPPLY_METADATA_PATH"] || "metadata"`). The Deliverfile is only
+  comments. Before this was handled the App Store listing was reported as not found.
+- **b) several apps in one repository:** `fastlane/metadata/<app id>/ios/<locale>/...` and
+  `fastlane/metadata/<app id>/android/<locale>/...`, one pair per app id. The same Fastfile
+  defaults to `metadata`, so the per-app folder comes from `SUPPLY_METADATA_PATH` at run time: the
+  default the hint evaluates to (`fastlane/metadata/ios`) does not exist, and is only mentioned in
+  the diagnostic. The folders are found by name, one detected target per app id.
+- **c) Android only:** `fastlane/metadata/android/<locale>/...`, no iOS folder.
+
+Release notes are one file per version code (`changelogs/<code>.txt`): in these projects 70 to
+155 files per locale. That is where the time went: each is a request to the contents API.
+
+Hints (`parseMetadataHints`): a `metadata_path` argument of `upload_to_app_store` / `deliver` /
+`upload_to_play_store` / `supply` in a Fastfile, or `metadata_path "..."` in a Deliverfile, is
+evaluated when it is built from string literals, `File.join`, `ENV["X"] || "default"`,
+`ENV.fetch("X", "default")`, `"#{var}"` and variables assigned earlier in the same file. The
+result is taken relative to the fastlane folder (where lanes run) and to the repository; the
+ones that hold listing files are used first. This evaluates text; no Ruby is run. An `Appfile`
+`app_identifier "..."` literal prefers that app's folder when several exist. Not verified: that
+fastlane resolves a relative `metadata_path` against the fastlane folder in every setup (both
+readings are tried for that reason).
 
 ## Detection rules (what counts as evidence)
 
