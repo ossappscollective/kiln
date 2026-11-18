@@ -58,10 +58,13 @@ const build = (platform: 'ios' | 'android', buildNumber: string, linked: boolean
   uploadedAt: null,
   syncedAt: 1,
   linkState: linked ? 'linked' : 'unlinked',
+  diagnostic: null,
   link: linked
     ? {
         state: 'linked',
         source: 'run_title',
+        confidence: 'high',
+        evidence: null,
         manual: false,
         reason: '',
         candidates: 1,
@@ -189,8 +192,11 @@ test('build helpers', () => {
   assert.equal(linkSourceLabel('run_title'), 'Matched by the run title');
   assert.equal(linkSourceLabel('dispatch_input'), 'Matched by the dispatch input');
   assert.equal(linkSourceLabel('custom'), 'Matched by custom');
+  assert.equal(linkSourceLabel('tag'), 'Found through the tag');
+  assert.equal(linkSourceLabel('release'), 'Found through the GitHub release');
   assert.equal(buildLinkLabel(build('ios', '1', true)), 'Linked');
   assert.equal(buildLinkLabel(build('ios', '1', false)), 'Unlinked');
+  assert.equal(buildLinkLabel({ linkState: 'tag' }), 'Tag found');
   assert.equal(shortSha('0123456789abcdef'), '0123456');
   assert.equal(buildName(build('ios', '240', true)), '2.4.0 (240)');
 });

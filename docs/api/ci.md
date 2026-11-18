@@ -13,14 +13,19 @@ secrets, so it is its own right (`ci.dispatch`), rate limited and audited.
 
 **Never run against live GitHub.** Everything below was built and tested against a fake GitHub
 (fixtures written from GitHub's REST documentation, [phase-1.md](../phase-1.md)). The shapes GitHub
-returns for workflow runs and the compare API have not been checked against the real service.
+returns for workflow runs, the compare API, tags, commits and releases have not been checked
+against the real service. In particular: GitHub does not document the order of `GET /tags` or
+paging for `git/matching-refs`; whether `GET /tags` returns an annotated tag's commit (it is assumed
+to, as it returns the tagged commit) is unverified, and a tag the tool cannot resolve is
+reported, not guessed. The layout was modelled on a real fastlane lane, but only read, never run.
 
 ## Rights
 
 | Action | viewer | member | admin / owner |
 | --- | --- | --- | --- |
 | `repositories.read` / `apps.read`: read stored runs and builds | yes | yes | yes |
-| `repositories.scan`: anything that asks GitHub (list workflows, workflow inputs, refresh runs, what changed) | no | yes | yes |
+| `repositories.scan`: anything that asks GitHub (list workflows, workflow inputs, refresh runs, what changed, read tags for the preview, re-run matching) | no | yes | yes |
+| `repositories.write`: save the build-number conventions | no | no | yes |
 | `ci.dispatch`: start a workflow | no | yes | yes |
 | `apps.sync`: link a build to a run by hand, remove such a link | no | yes | yes |
 
@@ -147,7 +152,7 @@ a build that has left the store reports disappears here too (its stored link sta
 deleted, and is shown if the build comes back).
 
 - `GET /apps/:id/builds` needs `apps.read` and reads only our own tables. Answer:
-  `{ app, repository, matchers, builds }`. `repository` is `{ id, owner, repo }` or `null` (an app
+  `{ app, repository, matchers, builds, diagnostics }`. `repository` is `{ id, owner, repo }` or `null` (an app
   that is not linked to a repository lists its builds, all unlinked). `matchers` lists the
   matchers in use, in order. Builds are sorted by platform, then the highest number first.
 
@@ -199,6 +204,149 @@ A run without a commit never links a build. Matchers are a plain list (`BuildMat
 convention is one more object in `createCiContext(..., { matchers })`. Links found by a matcher are
 stored on every refresh (`build_links`, `source` the matcher id), so they survive the run leaving
 the table. **A manual link beats every matcher and is never replaced by one.**
+
+### Linking through tags (the usual case for fastlane lanes)
+
+Most release workflows cannot be matched by title or input: the build number is decided **inside**
+the run (fastlane reads the store's latest number and adds one), the lane commits the bump (`chore:
+new build`) and tags that commit, for example `ios/appstore/1.2.3/123`. The run's `head_sha` is
+the commit **before** the bump, so the number is not on the run at all. The chain is
+
+> build number -> tag (or GitHub release) -> the tag's commit -> the run that made it
+
+and every step is stored as evidence. It is tried for a build that no matcher above settled:
+
+1. **Names.** The tags and releases of the repository are read (`GET /tags`, five pages of 100 at
+   most; when that is cut short, a targeted read of `git/matching-refs/tags/<prefix>`; `GET
+   /releases`, two pages) and compared with the **patterns** below. A name that fits and carries
+   the build number (and, when the name says so, the platform) is a candidate. A different version
+   in the name does not exclude a candidate, it only ranks it lower.
+2. **Commit.** The commit of the best candidates is read (`GET /commits/:sha`, parents and commit
+   time; at most 30 reads per search, the newest build numbers first, cached for a day because a
+   commit never changes).
+3. **Run.** A stored run is the run of that build when its `head_sha` is the commit's **parent**
+   (the bump on top of the run's head) or the commit itself, or when the commit was made while the
+   run was running (started to last update, with 10 seconds before and a minute after as slack: the
+   Android job of a lane commits on top of the iOS job's bump, so only the time fits). Runs of the
+   configured release workflow are preferred; with none configured, a workflow whose name or path
+   says release, publish, deploy, ship, distribute, store, testflight or fastlane.
+
+| Confidence | When |
+| --- | --- |
+| `high` | one run fits, both by parent/head and by time, in the configured or a recognised release workflow |
+| `medium` | one run fits by only one of the two (time alone is the usual case for the Android job), or several runs fit and only one fits both, or only one contains the commit in time |
+| `low` | several runs fit and none stands out, or the workflow is not recognised as a release one |
+
+A low link is looked at again on the next search. If a tag is found but no run (the run has left
+the table, or the commit was made outside every run) the build is in the **"Tag found"** state:
+`linkState: "tag"`, `link.state: "tag"`, `link.run: null`, with the tag's commit and the reason.
+It becomes a run link as soon as the run is stored. Order of precedence: a manual link, then a
+matcher (title, input, run number), then a tag link. A tag link is replaced when a matcher finds a
+run later, and a tag link that has a run is never downgraded to "tag found".
+
+The search runs after the runs are refreshed (a `GET .../workflows/runs?refresh=true`, the scheduled
+sync, or "Re-run matching"); reading builds never calls GitHub. A failed search is stored and shown
+(`diagnostics.scanError`); it never fails the refresh. A build whose link is settled (a matcher or
+a manual link, or a tag link that is not `low`) is not searched again.
+
+A linked build carries the evidence:
+
+```json
+"link": { "state": "linked", "source": "tag", "confidence": "high",
+  "evidence": { "kind": "tag", "tag": "ios/appstore/1.2.3/123", "releaseName": null,
+    "pattern": "{prefix}{platform}/{flavor}/{version}/{buildNumber}",
+    "sha": "bbbb…", "parents": ["aaaa…"], "committedAt": 1731900480000, "message": "chore: new build",
+    "versionMatch": true, "runId": "5001", "noRunReason": null,
+    "reason": "tag \"ios/appstore/1.2.3/123\" has the number; its commit is a child of run 5001's head, in the release workflow",
+    "confidence": "high" }, "run": { "…": "…" }, "commit": { "sha": "bbbb…", "message": "chore: new build", "…": "…" } }
+```
+
+`source` is `tag` or `release` for a link found this way. `commit` is the **tag's** commit (the
+bump), not the run's head.
+
+An unlinked build has `diagnostic: { code, message }` saying why, and `diagnostics` of the answer
+says what was searched:
+
+| `diagnostic.code` | Meaning |
+| --- | --- |
+| `no_tags` | the repository has no tags and no releases |
+| `no_pattern_fit` | tags exist but none fits a pattern: add a pattern |
+| `number_not_found` | names fit, but none has this build number (the newest fitting number is in `diagnostics.newestFit`) |
+| `other_platform` | only tags of the other platform carry the number |
+| `tag_without_commit` | a tag carries the number but its commit could not be read |
+| `tag_without_run` | (of "Tag found" links) the commit leads to no stored run |
+| `scan_failed` | the last search failed (`diagnostics.scanError`) |
+| `not_searched` | tags have not been searched since this build was synced |
+
+`diagnostics` is `{ scannedAt, scanOk, scanError, patterns: { tags, releases, prefix, workflow,
+usingDefaults, source }, tags: { seen, truncated, sample, targeted }, releases: { seen, truncated,
+error }, newestRelease, fitting, newestFit, runs: { stored, newestAt }, canReadTags }`, or `null`
+for an app without a repository.
+
+### Tag and release patterns
+
+A pattern is a name with placeholders, compiled to an anchored, case-insensitive match in which
+every part is bounded (there is no backtracking to speak of). Text outside placeholders is
+literal: `(a+)+$` in a pattern is just those characters.
+
+| Placeholder | Matches |
+| --- | --- |
+| `{buildNumber}` | 1 to 10 digits (leading zeros are ignored when comparing); **required** |
+| `{version}` | `1.2.3` (up to four dotted numbers), with an optional `-beta.1` suffix |
+| `{platform}` | letters; `ios`, `iphone`, `ipados` mean iOS, `android` Android, anything else is another platform |
+| `{flavor}` | free text, up to 40 characters (`appstore`, `playstore`) |
+| `{prefix}` | the literal prefix of the convention (a monorepo's `TAG_PREFIX`) |
+| `*` | up to 80 characters of anything but a line break (release patterns only) |
+
+Limits: 120 characters a pattern, 20 patterns per list, a prefix of 40 characters, at most two `*`
+and never side by side, no control characters, and tags have no whitespace. A pattern list that
+breaks a limit is refused with the reason, not run.
+
+Defaults (used while a convention stores none):
+
+- tags: `{prefix}{platform}/{flavor}/{version}/{buildNumber}`, `{prefix}release/{version}/{buildNumber}`,
+  `{prefix}{platform}/{version}/{buildNumber}`, `{prefix}{platform}-{version}-{buildNumber}`,
+  `{prefix}v{version}+{buildNumber}`, `{prefix}{version}+{buildNumber}`,
+  `{prefix}v{version}-{buildNumber}`, `{prefix}{version}-{buildNumber}`,
+  `{prefix}v{version}({buildNumber})`, `{prefix}{version}({buildNumber})`, `{prefix}build-{buildNumber}`
+- releases: `*({platform}): v{version} Build {buildNumber}` (the form `<app>(ios): v1.2.3 Build 123`),
+  `*: v{version} Build {buildNumber}`, `*v{version} Build {buildNumber}`,
+  `*{version} (build {buildNumber})`, `*v{version} ({buildNumber})`, `*{version} ({buildNumber})`,
+  `*Build {buildNumber}`
+
+The pattern engine is `@mrm/core` (`build-patterns.ts`), shared by the server and the web preview.
+Not matched: iOS build numbers with dots (`1.2.3`), and Mac Catalyst tags.
+
+### Conventions per repository and per app
+
+Where a team's tags do not fit the defaults (or two apps of a monorepo share version and build
+numbers and tell apart only by tag prefix), the conventions are stored. One set per repository, and
+optionally one per app that overrides it. Nothing is stored by default: patterns empty means the
+defaults.
+
+- `GET /repositories/:id/build-conventions[?appId=]` needs `repositories.read`, reads only our
+  tables. Answer `{ repositoryId, appId, stored, repository, effective, defaults }`; `stored` is
+  `null` when nothing is stored for the scope, `effective` is what matching uses
+  (`{ tagPatterns, releasePatterns, prefix, workflow, usingDefaultTags, usingDefaultReleases,
+  source }`, `source` `app`, `repository` or `defaults`). An `appId` that is not an app of the
+  workspace is `404`.
+- `PUT /repositories/:id/build-conventions` needs `repositories.write` (a body of 16 KiB at most,
+  else `413 payload_too_large`). Body `{ appId?, tagPatterns, releasePatterns, prefix?, workflow? }`
+  (strict: unknown keys are refused). `workflow` is a workflow file name, path or name to prefer
+  (`release.yml`), or `null`. Saves for the repository, or for `appId` (which must be an app linked
+  to this repository: `422 app_not_found` / `app_repository_mismatch`). An invalid pattern list is
+  `400` with `issues`. Answer is the view above. Audit `build.conventions` (the patterns are in the
+  detail). Saving replaces the scope; saving empty lists returns it to the defaults.
+- `GET /repositories/:id/build-conventions/tags` needs `repositories.scan`: the repository's tag
+  names and release names as read now (500 tags and 200 releases at most; `tagsTruncated`,
+  `releasesTruncated`, `releasesError`, `readAt`), cached for a minute. It feeds the live preview of
+  the web dialog. A failure is the GitHub error, never an empty list. Using the credential is
+  audited (`credential.use`, purpose `ci.tags`).
+- `POST /apps/:id/builds/rematch` needs `repositories.scan`. It reads the runs, the tags and the
+  releases of the app's repository again, bypassing the caches, matches that app's builds and
+  answers `{ app, repository, matchers, builds, diagnostics, rematch: { scanned, written, error } }`.
+  `scanned` is false when every build was settled (nothing was searched). 6 requests a minute per
+  workspace (`429 rate_limited`, `Retry-After`). `422 no_repository`. Audit `build.rematch`.
 
 ### Link by hand
 
@@ -268,6 +416,14 @@ handlers, so a sync keeps its audit trail and retries.
 
 ## Stored data
 
+Migration 12 adds `build_conventions` (one row per repository, and per app that overrides it:
+`app_id` is `''` for the repository's; unique on repository and app; the patterns as JSON, the
+prefix and the preferred workflow), `build_scans` (one row per repository: when the tags were last
+searched, whether that worked, the error, and a JSON summary with what was seen and why each build
+did not link) and `build_links.evidence_json`. A "Tag found" link has `run_id = ''` and the tag's
+commit in `head_sha`. The scheduler deletes the rows of a repository or app that is gone. Like the
+tables below, they have no foreign keys, and the Postgres side has not been run (see below).
+
 Migration 10 adds `workflow_runs` (one row per run: unique on repository and run id; indexed on
 repository and start time) and `build_links` (one row per app, platform and build number). Neither
 has a foreign key to repositories or apps, the scheduler cleans orphans. Run inputs are stored as
@@ -283,9 +439,10 @@ them on Postgres when `MRM_TEST_POSTGRES_URL` is set.
 | 403 | `forbidden` | the role lacks the right, or `refresh=true` without `repositories.scan` |
 | 404 | `not_found` | not a member, or an unknown repository, app or run; `workflow_not_found`, `build_not_found` have their own codes |
 | 422 | `ci_unsupported` | the connection cannot read CI runs |
-| 422 | `app_not_found`, `app_repository_mismatch` | `appId` of a dispatch |
+| 413 | `payload_too_large` | a conventions body over 16 KiB |
+| 422 | `app_not_found`, `app_repository_mismatch` | `appId` of a dispatch or of a conventions body |
 | 422 | `no_repository`, `build_not_found`, `build_not_linked`, `no_base_build`, `run_not_found`, `run_without_commit` | builds, links, changes |
 | 422 | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid` | GitHub refused (`message` says what) |
-| 429 | `rate_limited` | too many dispatches; `Retry-After`, `retryAfterSeconds`; or GitHub's own limit |
+| 429 | `rate_limited` | too many dispatches or re-matches; `Retry-After`, `retryAfterSeconds`; or GitHub's own limit |
 | 502 | `github_unavailable` | GitHub could not be reached |
 | 504 | `timeout` | GitHub did not answer in time |

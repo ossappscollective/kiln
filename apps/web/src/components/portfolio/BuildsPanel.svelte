@@ -4,17 +4,32 @@
   it was matched to (or "Unlinked"), the commit, and a "What changed" expander that lists the
   commits since the previous linked build. Reading is open to everyone who can see the app; linking
   by hand needs the right to sync, and "What changed" reads GitHub, which needs the right of a scan.
-  Nothing here builds or publishes: runs are started from the repository's CI tab.
+  A build whose run was not found says why (what was searched), can be searched again ("Re-run
+  matching", a scan right), and the patterns that read build numbers from tags and releases are
+  edited in "Build number conventions". A build whose tag was found but whose run was not is "Tag
+  found". Nothing here builds or publishes: runs are started from the repository's CI tab.
   Props: api, workspaceId, role, app, refreshKey (changes when a sync finished, so this reloads).
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { buildName, buildNumberLabel, linkSourceLabel, shortSha } from '../../lib/ci.ts';
+  import {
+    buildLinkLabel,
+    buildName,
+    buildNumberLabel,
+    confidenceBadge,
+    conventionSourceLabel,
+    diagnosticsLines,
+    isUncertain,
+    linkSourceLabel,
+    shortSha,
+    shouldAutoRematch,
+    tagFoundText,
+  } from '../../lib/ci.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { AppBuild, AppBuilds, AppSummary } from '../../lib/types.ts';
+  import type { AppBuild, AppBuilds, AppSummary, BuildLink } from '../../lib/types.ts';
   import RunStatus from '../ci/RunStatus.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -23,6 +38,7 @@
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import BuildsPanelChanges from './BuildsPanelChanges.svelte';
+  import BuildsPanelConventions from './BuildsPanelConventions.svelte';
   import BuildsPanelLink from './BuildsPanelLink.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
@@ -37,6 +53,7 @@
 
   const canLink = $derived(can(role, 'apps.sync'));
   const canRead = $derived(can(role, 'repositories.scan'));
+  const canMatch = $derived(can(role, 'repositories.scan'));
 
   let data = $state<AppBuilds | null>(null);
   let loading = $state(true);
@@ -44,6 +61,10 @@
   let open = $state<Record<string, boolean>>({});
   let linkTarget = $state<AppBuild | null>(null);
   let unlinking = $state('');
+  let rematching = $state(false);
+  let conventionsOpen = $state(false);
+  /** Apps whose first automatic search was tried, so a failed one is not repeated by itself. */
+  const autoTried = new Set<string>();
   let announcement = $state('');
   const now = $derived.by(() => {
     void data;
@@ -108,6 +129,64 @@
   }
 
   const unlinkedCount = $derived(data?.builds.filter((b) => b.linkState === 'unlinked').length ?? 0);
+  const tagOnlyCount = $derived(data?.builds.filter((b) => b.linkState === 'tag').length ?? 0);
+  /** The newest build without a run: what the conventions dialog takes its example number from. */
+  const exampleBuild = $derived(
+    data?.builds.find((b) => b.linkState === 'unlinked' && b.platform === app.platform) ?? data?.builds.find((b) => b.platform === app.platform) ?? null,
+  );
+
+  /** Reads the runs, tags and releases again and matches this app's builds. `quiet` is the automatic first try. */
+  async function rematch(quiet = false) {
+    if (rematching) return;
+    rematching = true;
+    try {
+      const done = await api.rematchBuilds(workspaceId, app.id);
+      const { rematch: result, ...rest } = done;
+      data = rest;
+      open = {};
+      const linkedNow = rest.builds.filter((b) => b.linkState !== 'unlinked').length;
+      if (result.error) {
+        toast.error(`Matching could not read the tags: ${result.error}`);
+        announcement = 'Matching could not read the tags.';
+      } else if (!quiet) {
+        toast.success(
+          result.scanned
+            ? `Matched again: ${linkedNow} of ${rest.builds.length} builds have a link or a tag.`
+            : 'Every build already has a settled link, so nothing was searched.',
+        );
+        announcement = `Matched again. ${linkedNow} of ${rest.builds.length} builds have a link or a tag.`;
+      } else {
+        announcement = `Searched the tags: ${linkedNow} of ${rest.builds.length} builds have a link or a tag.`;
+      }
+    } catch (e) {
+      if (!quiet) toast.error(e instanceof ApiError ? e.message : 'Could not match the builds.');
+    } finally {
+      rematching = false;
+    }
+  }
+
+  // The first time a repository's tags were never searched, search by itself, once per app.
+  $effect(() => {
+    const read = data;
+    if (!read || loading) return;
+    const go = shouldAutoRematch({
+      hasRepository: read.repository !== null,
+      canScan: canMatch,
+      diagnostics: read.diagnostics,
+      unlinked: read.builds.filter((b) => b.linkState === 'unlinked').length,
+      alreadyTried: autoTried.has(app.id),
+    });
+    if (!go) return;
+    autoTried.add(app.id);
+    untrack(() => void rematch(true));
+  });
+
+  function conventionsSaved(result: { rematch: boolean }) {
+    if (result.rematch && canMatch) void rematch();
+    else void load();
+  }
+
+  const tagLinkOf = (link: BuildLink | null) => (link && link.state === 'tag' ? link : null);
 </script>
 
 <div class="stack loose" aria-busy={loading}>
@@ -142,6 +221,21 @@
         />
       </div>
     {:else}
+      {#if data.repository}
+        <div class="toolbar">
+          <p class="muted text-sm">
+            {#if data.diagnostics?.scannedAt}Tags and releases were last searched
+              <time datetime={new Date(data.diagnostics.scannedAt).toISOString()} title={fullTime(data.diagnostics.scannedAt)}>{timeAgo(data.diagnostics.scannedAt, now)}</time>.{:else}Tags and releases have not been searched yet.{/if}
+          </p>
+          <div class="buttons">
+            {#if canMatch}
+              <Button size="sm" icon="refresh" loading={rematching} onclick={() => rematch()}>Re-run matching</Button>
+            {/if}
+            <Button size="sm" icon="settings" onclick={() => (conventionsOpen = true)}>Build number conventions</Button>
+          </div>
+        </div>
+      {/if}
+
       <div class="table-wrap">
         <table>
           <caption class="visually-hidden">Builds of {app.name}</caption>
@@ -177,7 +271,19 @@
                   </div>
                 </td>
                 <td>
-                  {#if link}
+                  {#if link && tagLinkOf(link)}
+                    <div class="cell">
+                      <Badge tone="info">{buildLinkLabel(build)}</Badge>
+                      <span class="text-sm">{tagFoundText(link)}</span>
+                      {#if link.evidence}
+                        <details class="evidence">
+                          <summary>Why this tag</summary>
+                          <p class="muted text-sm">{link.evidence.reason}</p>
+                          <p class="muted text-sm">Pattern <code>{link.evidence.pattern}</code></p>
+                        </details>
+                      {/if}
+                    </div>
+                  {:else if link}
                     <div class="cell">
                       {#if link.run}
                         <span class="line">
@@ -195,11 +301,29 @@
                         <span class="muted">The run is no longer stored.</span>
                       {/if}
                       <span class="muted text-sm" title={link.reason}>{linkSourceLabel(link.source)}</span>
+                      {#if link.source === 'tag' || link.source === 'release'}
+                        {@const confidence = confidenceBadge(link.confidence)}
+                        <span class="line"><Badge tone={confidence.tone}>{confidence.label}</Badge></span>
+                        {#if isUncertain(link)}
+                          <span class="muted text-sm">Several runs could have made this build. Link the right one by hand if this is wrong.</span>
+                        {/if}
+                        {#if link.evidence}
+                          <details class="evidence">
+                            <summary>Why this run</summary>
+                            <p class="muted text-sm">{link.evidence.reason}</p>
+                            <p class="muted text-sm">
+                              {link.evidence.kind === 'release' ? 'Release' : 'Tag'} <code>{link.evidence.tag}</code>, pattern <code>{link.evidence.pattern}</code>
+                            </p>
+                          </details>
+                        {/if}
+                      {/if}
                     </div>
                   {:else}
                     <div class="cell">
                       <Badge tone="warn">Unlinked</Badge>
-                      <span class="muted text-sm">No CI run with build number {build.buildNumber} was found.</span>
+                      <span class="muted text-sm"
+                        >{build.diagnostic?.message ?? `No CI run with build number ${build.buildNumber} was found.`}</span
+                      >
                     </div>
                   {/if}
                 </td>
@@ -254,22 +378,54 @@
         </table>
       </div>
 
-      <details class="how">
+      <details class="how" open={unlinkedCount > 0 && data.diagnostics !== null}>
         <summary>How builds are matched to runs</summary>
         <p class="muted">
           A build is matched to a run by its number, never by guessing. {#if unlinkedCount > 0}{unlinkedCount} of {data.builds.length}
-            {unlinkedCount === 1 ? 'build is' : 'builds are'} unlinked.{/if} The matchers, in order:
+            {unlinkedCount === 1 ? 'build is' : 'builds are'} unlinked.{/if}
+          {#if tagOnlyCount > 0}{tagOnlyCount} {tagOnlyCount === 1 ? 'build has' : 'builds have'} a tag but no run yet.{/if} The matchers, in order:
         </p>
         <ul>
           {#each data.matchers as matcher (matcher.id)}
             <li><code>{matcher.id}</code>: {matcher.description}</li>
           {/each}
+          <li>
+            <code>tag</code>: the build number is in a tag or GitHub release name (such as <code>ios/appstore/1.2.3/123</code>); the tag's commit leads to the run that made it.
+          </li>
         </ul>
-        {#if canLink}<p class="muted">A build that no matcher finds can be linked to a run by hand.</p>{/if}
+        {#if canLink}<p class="muted">A build that nothing finds can be linked to a run by hand.</p>{/if}
+
+        {#if data.diagnostics}
+          {@const d = data.diagnostics}
+          <h3 class="diag-title">What was searched</h3>
+          <ul>
+            {#each diagnosticsLines(d) as line (line)}<li>{line}</li>{/each}
+          </ul>
+          <p class="muted">
+            Patterns in use: {conventionSourceLabel(d.patterns)}{d.patterns.prefix ? `, prefix ${d.patterns.prefix}` : ''}{d.patterns.workflow ? `, workflow ${d.patterns.workflow}` : ''}.
+            {#if d.tags && d.tags.sample.length > 0}Some of the tags read: {#each d.tags.sample.slice(0, 5) as tag, i (tag)}{#if i > 0}, {/if}<code>{tag}</code>{/each}.{/if}
+          </p>
+          <div>
+            <Button size="sm" icon="settings" onclick={() => (conventionsOpen = true)}>Build number conventions</Button>
+          </div>
+        {/if}
       </details>
     {/if}
   {/if}
 </div>
+
+{#if conventionsOpen && data?.repository}
+  <BuildsPanelConventions
+    {api}
+    {workspaceId}
+    {role}
+    repository={data.repository}
+    {app}
+    build={exampleBuild}
+    onclose={() => (conventionsOpen = false)}
+    onsaved={conventionsSaved}
+  />
+{/if}
 
 {#if linkTarget && data?.repository}
   <BuildsPanelLink
@@ -312,6 +468,32 @@
 
   .expanded > td {
     background: var(--surface-sunken);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .toolbar p {
+    margin: 0;
+  }
+
+  .evidence {
+    font-size: var(--text-sm);
+  }
+
+  .evidence summary {
+    cursor: pointer;
+  }
+
+  .diag-title {
+    margin: var(--space-3) 0 var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
   }
 
   .how {
