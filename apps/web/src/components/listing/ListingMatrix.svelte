@@ -6,8 +6,10 @@
   full comparison of each field. The platform scope (iOS, Android or both) comes from the shell; with
   both, one grid merges the two stores and the header shows a platform badge per column.
   Read-only toward the store: "Refresh from store" runs the app's sync, which only reads. The one
-  thing it can write is a draft change set ("Pull into repository", the existing PullDialog), which a
-  person reviews in the repository. The staged-changes tray is a visible placeholder (draft push).
+  thing it can write toward the repository is a draft change set ("Pull into repository", the existing
+  PullDialog), which a person reviews in the repository. "Stage from repo" (in the locale drawer) collects a
+  field's repository text in the staged-changes tray (our own database); a cell with a staged text shows a
+  mark. The tray pushes staged changes to a store's DRAFT (a gated store write, admin and up) and never submits.
   Props: api, workspaceId, role, members (the platform records in scope), now (ms), syncing (by app
   id), onsync (runs the sync of one app; the shell owns it), refreshKey (changes when a sync
   finished, so this tab reloads).
@@ -35,11 +37,14 @@
     limitText,
     matrixSummary,
     modeCounts,
+    type MatrixCell,
   } from '../../lib/listing-matrix.ts';
   import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing-pull.ts';
   import { cleanWarnings } from '../../lib/listing-sections.ts';
   import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
+  import { cellStagedText, stagingError as stagingMessage } from '../../lib/staged.ts';
+  import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { platformById } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, DriftField, ListingDrift, LiveListing, PullResult } from '../../lib/types.ts';
@@ -97,6 +102,9 @@
   let pullApp = $state<AppSummary | null>(null);
   let pullFieldsList = $state<DriftField[]>([]);
 
+  /** The field being staged or unstaged: `<app id>\u0000<locale>\u0000<field>`, or ''. One at a time. */
+  let stagingKey = $state('');
+
   let historyOpen = $state(false);
   let historyApp = $state<AppSummary | null>(null);
   let historyTarget = $state<{
@@ -130,7 +138,10 @@
   }
 
   const reloadAll = () => {
-    for (const app of members) void load(app);
+    for (const app of members) {
+      void load(app);
+      void stagedStore.load(api, workspaceId, app.id);
+    }
   };
 
   // A different app, scope or workspace starts clean; a finished sync loads again. The key is a
@@ -271,6 +282,45 @@
     }
   }
 
+  const fieldKey = (app: AppSummary, field: DriftField) => `${app.id}\u0000${field.locale}\u0000${field.field}`;
+
+  /** Stages the repository's text of one field for the draft push. Our own database only; no store is contacted. */
+  async function stageField(app: AppSummary, field: DriftField) {
+    if (stagingKey !== '') return;
+    stagingKey = fieldKey(app, field);
+    try {
+      const done = await api.stageText(workspaceId, app.id, { locale: field.locale, field: field.field, from: 'repo' });
+      stagedStore.set(done.staged);
+      announcement = `Staged ${field.label} (${field.locale}) from the repository.`;
+      toast.success(`Staged ${field.label} (${field.locale}) from the repository. It is not in the store yet: push it from the staged changes below.`);
+    } catch (e) {
+      toast.error(stagingMessage(e));
+    } finally {
+      stagingKey = '';
+    }
+  }
+
+  async function unstageField(app: AppSummary, id: string, field: DriftField) {
+    if (stagingKey !== '') return;
+    stagingKey = fieldKey(app, field);
+    try {
+      const done = await api.unstageItem(workspaceId, app.id, id);
+      stagedStore.set(done.staged);
+      announcement = `Removed ${field.label} (${field.locale}) from the staged changes.`;
+    } catch (e) {
+      toast.error(stagingMessage(e));
+    } finally {
+      stagingKey = '';
+    }
+  }
+
+  /** The cells of a grid cell whose field has a staged text, for the mark. */
+  const stagedCells = (cells: MatrixCell[]): MatrixCell[] =>
+    cells.filter((c) => {
+      const app = members.find((m) => m.platform === c.platform);
+      return app !== undefined && cellStagedText(stagedStore.view(app.id), c.field) !== null;
+    });
+
   const refreshAll = () => {
     for (const app of members) onsync(app);
   };
@@ -408,6 +458,7 @@
           <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
         {/each}
         {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
+        <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>Staged for a draft push</span></li>
       </ul>
 
       {#if lastPull}
@@ -490,17 +541,19 @@
                   {/if}
                   {#each matrix.columns as column (column.key)}
                     {@const cells = row.cells[column.key] ?? []}
+                    {@const staged = stagedCells(cells)}
                     <td class="cell">
                       <button
                         type="button"
                         class="bare dots"
                         class:dim={cells.every((c) => dimmed(c.status))}
-                        aria-label="{column.label}, {row.locale}: {cellsSummary(cells, both)}. Open the locale."
+                        aria-label="{column.label}, {row.locale}: {cellsSummary(cells, both)}.{staged.length > 0 ? ` Staged for a draft push${both ? ` on ${platformNames(staged.map((c) => c.platform))}` : ''}.` : ''} Open the locale."
                         onclick={() => openLocale(row.locale)}
                       >
                         {#each cells as cell (cell.platform)}
                           <StatusDot status={cell.status} label={cellText(column, cell, both)} />
                         {/each}
+                        {#if staged.length > 0}<span class="staged-mark" aria-hidden="true" title="Staged for a draft push"><Icon name="layers" size={14} /></span>{/if}
                       </button>
                     </td>
                   {/each}
@@ -532,7 +585,7 @@
       {/if}
     {/each}
 
-    <StagedTray />
+    <StagedTray {api} {workspaceId} {role} {members} />
   {/if}
 </div>
 
@@ -547,6 +600,10 @@
   onstep={step}
   onpull={openPull}
   onhistory={openHistory}
+  {role}
+  onstage={stageField}
+  onunstage={unstageField}
+  {stagingKey}
 />
 
 {#if members.length > 0}
@@ -826,6 +883,11 @@
   .dots:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+  }
+
+  .staged-mark {
+    display: inline-flex;
+    color: var(--accent);
   }
 
   .dots.dim {

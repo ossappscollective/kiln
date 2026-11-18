@@ -7,17 +7,20 @@
   (which store copy each platform's values are, by platform), now, pullReasons (why pulling is not
   available, by platform; null when it is), position ({ index, count } among the filtered locales),
   onstep (-1 or 1: the previous or next locale), onpull (app, fields: opens the pull dialog),
-  onhistory (app, field).
+  onhistory (app, field), role, onstage (app, field: stage the repository's text), onunstage (app, id, field),
+  stagingKey (`<app id>\u0000<locale>\u0000<field>` of the field being staged or unstaged, or '').
   A native <dialog> shown as a side panel, so the focus trap, Escape and the focus return come from
   the browser. A pull or history dialog opened from here stacks above it.
 -->
 <script lang="ts">
-  import type { Platform } from '@mrm/core';
+  import type { Platform, Role } from '@mrm/core';
   import { localeSummary } from '../../lib/listing-drift.ts';
   import { cellInfo, cellStatus } from '../../lib/listing-matrix.ts';
   import type { MatrixRow } from '../../lib/listing-matrix.ts';
   import { canPullField, pullKey, pullableInLocale } from '../../lib/listing-pull.ts';
   import { storeName } from '../../lib/portfolio.ts';
+  import { fieldStage } from '../../lib/staged.ts';
+  import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import type { AppSummary, DriftField } from '../../lib/types.ts';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Button from '../ui/Button.svelte';
@@ -36,6 +39,10 @@
     onstep,
     onpull,
     onhistory,
+    role,
+    onstage,
+    onunstage,
+    stagingKey = '',
   }: {
     open?: boolean;
     row: MatrixRow | null;
@@ -47,6 +54,10 @@
     onstep: (delta: -1 | 1) => void;
     onpull: (app: AppSummary, fields: DriftField[]) => void;
     onhistory: (app: AppSummary, field: DriftField) => void;
+    role: Role;
+    onstage: (app: AppSummary, field: DriftField) => void;
+    onunstage: (app: AppSummary, id: string, field: DriftField) => void;
+    stagingKey?: string;
   } = $props();
 
   const uid = $props.id();
@@ -164,14 +175,18 @@
                 selected={picked.has(keyOf(platform, field))}
                 onselect={(f, on) => select(platform, f, on)}
                 onpull={(f) => app && onpull(app, [f])}
+                stage={app ? fieldStage({ role, platform, field, view: stagedStore.view(app.id) }) : undefined}
+                stageBusy={app !== undefined && stagingKey === `${app.id}\u0000${field.locale}\u0000${field.field}`}
+                onstage={(f) => app && onstage(app, f)}
+                onunstage={(id, f) => app && onunstage(app, id, f)}
               />
             {/each}
           </section>
         {/each}
 
         <p class="muted foot">
-          <Icon name="info" size={14} /> Edits are made in the repository today, as change sets. Editing a field here and
-          staging it for a draft push arrives with draft push.
+          <Icon name="info" size={14} /> "Stage from repo" collects the repository's text of a field that differs for the draft push in the
+          staged-changes tray; it changes nothing in a store. Other edits are made in the repository, as change sets.
           {#each members as app (app.id)}
             {#if app.repositoryId !== null}<a href="#/repositories">Open repositories</a>{/if}
           {/each}

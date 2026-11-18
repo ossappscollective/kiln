@@ -2,8 +2,12 @@
   AssetsTab: the store media found in the app's repository, in three groups (icon, Google Play graphics,
   screenshots), by locale and device, checked against the sizes and counts the stores document. Each
   file shows its status next to the store (in repo, in repo and store, differs) and its spec problems.
-  Strictly read-only: nothing is uploaded or changed, here or in a store, and nothing is fetched from a
-  store. "Stage for store" and "Pull from store" are shown disabled: they arrive with the draft push. The images are served from the repository by the app's own file route.
+  Nothing is uploaded or changed in a store from here, and nothing is fetched from a store. "Stage for store"
+  collects the files of a set (a locale, a kind, a device) of the repository in the staged-changes tray (our own
+  database; the files are kept by reference and read at push time); the tray pushes them to the store's DRAFT.
+  A set with a spec error, a file the stores' push cannot take, or a kind the stores' APIs cannot write is not
+  stageable, with the reason. "Pull from store" stays disabled: pulling store images into the repository is a
+  documented gap. The images are served from the repository by the app's own file route.
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when a sync finished, so this
   tab reads again), storeSide? (the seam for the store side: the counts the store has per locale,
   kind and device. Left out, the tab uses the one in the index, which is null today, so each set
@@ -32,7 +36,6 @@
   } from '../../lib/assets.ts';
   import {
     type AssetGroupId,
-    STAGING_NOTE,
     asGroupId,
     defaultGroup,
     groupAvailability,
@@ -42,6 +45,10 @@
     sliceIndex,
   } from '../../lib/assets-groups.ts';
   import { describeError } from '../../lib/portfolio.ts';
+  import { REVERSE_IMAGE_SYNC_NOTE, STAGE_ROLE_REASON, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
+  import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { toast } from '../../lib/toast.svelte.ts';
+  import type { DeviceGroup } from '../../lib/assets.ts';
   import type { AppSummary, AssetIndex, AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -52,6 +59,7 @@
   import AssetLightbox from './AssetLightbox.svelte';
   import AssetProblems from './AssetProblems.svelte';
   import AssetSource from './AssetSource.svelte';
+  import StagedTray from '../listing/StagedTray.svelte';
 
   let {
     api,
@@ -84,6 +92,9 @@
   let announcement = $state('');
   let lightboxOpen = $state(false);
   let lightboxIndex = $state(0);
+  /** The id of the set being staged or unstaged (`locale/slotKey`), or ''. One at a time. */
+  let stagingId = $state('');
+  let stagingAll = $state(false);
 
   let generation = 0;
 
@@ -166,6 +177,84 @@
   }
 
   const problemsOfFile = (asset: AssetItem) => problemMap[asset.path] ?? [];
+
+  const stagedView = $derived(stagedStore.view(app.id));
+  const stageFor = (locale: string, set: DeviceGroup) =>
+    setStaging({
+      role,
+      platform: app.platform,
+      locale,
+      kind: set.kind,
+      device: set.device,
+      assets: set.assets,
+      setProblems: set.setProblems,
+      problemsByPath: problemMap,
+      commit: index?.commit ?? null,
+      view: stagedView,
+    });
+  /** The sets of the groups on screen (the filter applies) that "Stage all" would stage: stageable and not staged as they are. */
+  const stageableShown = $derived(
+    groups.reduce((all: { locale: string; set: DeviceGroup }[], locale) => {
+      for (const set of locale.groups) {
+        const st = stageFor(locale.locale, set);
+        if (st.canStage && st.stagedState !== 'current') all.push({ locale: locale.locale, set });
+      }
+      return all;
+    }, []),
+  );
+
+  /** Stages one set's repository files for the draft push. Returns '' on success, else the reason it failed. */
+  async function stageOne(locale: string, set: DeviceGroup): Promise<string> {
+    const st = stageFor(locale, set);
+    if (!st.canStage) return st.reason ?? 'This set cannot be staged.';
+    try {
+      const done = await api.stageAssets(workspaceId, app.id, stageAssetsBody(locale, set.kind, set.device, st.paths, index?.commit ?? null));
+      stagedStore.set(done.staged);
+      return '';
+    } catch (e) {
+      return stagingError(e);
+    }
+  }
+
+  async function stageSet(locale: string, set: DeviceGroup) {
+    if (stagingId !== '' || stagingAll) return;
+    stagingId = stageFor(locale, set).id;
+    const problem = await stageOne(locale, set);
+    stagingId = '';
+    if (problem === '') {
+      announcement = `Staged ${set.kindLabel} ${set.deviceLabel} (${locale}) for the store.`;
+      toast.success(`Staged ${set.kindLabel}${set.deviceLabel ? ` ${set.deviceLabel}` : ''} (${locale}). It is not in the store yet: push it from the staged changes above.`);
+    } else toast.error(problem);
+  }
+
+  async function unstageSet(id: string) {
+    if (stagingId !== '' || stagingAll) return;
+    stagingId = id;
+    try {
+      const done = await api.unstageItem(workspaceId, app.id, id);
+      stagedStore.set(done.staged);
+      announcement = 'Removed the set from the staged changes.';
+    } catch (e) {
+      toast.error(stagingError(e));
+    } finally {
+      stagingId = '';
+    }
+  }
+
+  async function stageAll() {
+    if (stagingId !== '' || stagingAll || stageableShown.length === 0) return;
+    stagingAll = true;
+    let done = 0;
+    let problem = '';
+    for (const item of stageableShown) {
+      problem = await stageOne(item.locale, item.set);
+      if (problem !== '') break;
+      done += 1;
+    }
+    stagingAll = false;
+    if (problem === '') toast.success(`Staged ${done} ${done === 1 ? 'set' : 'sets'} for the store. Nothing is in the store yet: push from the staged changes above.`);
+    else toast.error(`Staged ${done} of ${stageableShown.length} sets, then stopped: ${problem}`);
+  }
   const searched = $derived(index ? [...index.folders.screenshots, ...index.folders.previews, ...(index.folders.androidImages ? [index.folders.androidImages] : [])] : []);
 </script>
 
@@ -190,6 +279,8 @@
     {#if loadProblem}
       <Alert tone="error" title="Could not read the media again">{loadProblem} The files below are from before.</Alert>
     {/if}
+
+    <StagedTray {api} {workspaceId} {role} members={[app]} />
 
     {#if index.status === 'no_repository'}
       <div class="card">
@@ -245,9 +336,16 @@
           <div class="stack">
             <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
             <div class="row wrap staging">
-              <Button size="sm" icon="upload" disabled title={STAGING_NOTE}>Stage for store</Button>
-              <Button size="sm" icon="download" disabled title={STAGING_NOTE}>Pull from store</Button>
-              <span class="muted small">{STAGING_NOTE}</span>
+              <Button
+                size="sm"
+                icon="layers"
+                loading={stagingAll}
+                disabled={stageableShown.length === 0 || stagingId !== '' || stagingAll}
+                title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
+                onclick={stageAll}
+              >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
+              <Button size="sm" icon="download" disabled title={REVERSE_IMAGE_SYNC_NOTE}>Pull from store</Button>
+              <span class="muted small">Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</span>
             </div>
           </div>
         </section>
@@ -325,6 +423,10 @@
                     {problemMap}
                     storeSide={seam}
                     onopen={openAsset}
+                    {stageFor}
+                    onstage={stageSet}
+                    onunstage={(id) => unstageSet(id)}
+                    {stagingId}
                   />
                 {/if}
               {/if}

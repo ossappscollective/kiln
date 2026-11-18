@@ -6,10 +6,14 @@
   the thumbnails can be cached for good), maxServedBytes (the largest file the route serves),
   problemMap (problems by path), storeSide (the store's counts, or null: then each set says it is
   not yet compared with the store; each file then reads "In repo"), onopen(asset).
+  Staging (optional): stageFor (locale, set: what "Stage for store" does for that set, from `setStaging` in
+  lib/staged.ts), onstage (locale, set), onunstage (the staged set's id), stagingId (the id of the set being
+  staged or unstaged, or ''). Staging changes our own database only; the push is in the staged-changes tray.
 -->
 <script lang="ts">
   import type { AssetProblem } from '@mrm/core';
   import {
+    type DeviceGroup,
     type LocaleGroup,
     assetFileUrl,
     compareWithStore,
@@ -18,9 +22,11 @@
     previewState,
   } from '../../lib/assets.ts';
   import { storeOnlyCount, storeStatusOf } from '../../lib/assets-groups.ts';
+  import { STAGE_ROLE_REASON, type SetStaging } from '../../lib/staged.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
+  import Button from '../ui/Button.svelte';
   import AssetProblems from './AssetProblems.svelte';
   import AssetThumb from './AssetThumb.svelte';
 
@@ -33,6 +39,10 @@
     problemMap,
     storeSide,
     onopen,
+    stageFor,
+    onstage,
+    onunstage,
+    stagingId = '',
   }: {
     groups: LocaleGroup[];
     workspaceId: string;
@@ -42,6 +52,10 @@
     problemMap: Record<string, AssetProblem[]>;
     storeSide: AssetStoreSide | null;
     onopen: (asset: AssetItem) => void;
+    stageFor?: (locale: string, set: DeviceGroup) => SetStaging;
+    onstage?: (locale: string, set: DeviceGroup) => void;
+    onunstage?: (id: string, locale: string, set: DeviceGroup) => void;
+    stagingId?: string;
   } = $props();
 </script>
 
@@ -65,6 +79,29 @@
             </span>
             <span class="store muted" class:differs={compare.state === 'differs'}>{compare.text}{storeOnly > 0 ? ` (${storeOnly} only in the store)` : ''}</span>
           </div>
+          {#if stageFor}
+            {@const st = stageFor(locale.locale, group)}
+            <div class="stage-row">
+              {#if st.staged}
+                <Badge tone="accent" icon="layers">{st.stagedState === 'current' ? 'Staged' : 'Staged: the repository files changed since'}</Badge>
+                {#if st.staged.pushed}<Badge tone="ok" icon="check">In the store draft</Badge>{/if}
+              {/if}
+              <Button
+                size="sm"
+                icon="layers"
+                loading={stagingId === st.id}
+                disabled={!st.canStage || stagingId !== '' || st.stagedState === 'current'}
+                title={st.reason ?? undefined}
+                onclick={() => onstage?.(locale.locale, group)}
+              >{st.stagedState === 'current' ? 'Staged for store' : st.staged ? 'Stage again' : 'Stage for store'}<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>
+              {#if st.staged}
+                <Button size="sm" variant="ghost" icon="x" disabled={stagingId !== ''} onclick={() => st.staged && onunstage?.(st.staged.id, locale.locale, group)}>Unstage<span class="visually-hidden"> {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>
+              {/if}
+              {#if !st.canStage && st.reason && st.reason !== STAGE_ROLE_REASON}
+                <span class="muted why">{st.reason}</span>
+              {/if}
+            </div>
+          {/if}
           {#if group.setProblems.length > 0}
             <AssetProblems problems={group.setProblems} showPath={false} />
           {/if}
@@ -124,6 +161,15 @@
     gap: var(--space-3);
   }
   .store {
+    font-size: var(--text-sm);
+  }
+  .stage-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .why {
     font-size: var(--text-sm);
   }
   .store.differs {

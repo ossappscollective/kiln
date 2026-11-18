@@ -19,6 +19,7 @@
     usageText,
     shortRef,
   } from '../../lib/listing-drift.ts';
+  import type { FieldStage } from '../../lib/staged.ts';
   import type { DriftField, DriftSide, SideProblem } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -35,6 +36,10 @@
     selected = false,
     onselect,
     onpull,
+    stage,
+    stageBusy = false,
+    onstage,
+    onunstage,
   }: {
     field: DriftField;
     storeLabel?: string;
@@ -45,6 +50,10 @@
     selected?: boolean;
     onselect?: (field: DriftField, selected: boolean) => void;
     onpull?: (field: DriftField) => void;
+    stage?: FieldStage;
+    stageBusy?: boolean;
+    onstage?: (field: DriftField) => void;
+    onunstage?: (id: string, field: DriftField) => void;
   } = $props();
 
   const diff = $derived(comparison(field));
@@ -68,6 +77,9 @@
     <Badge tone={statusTone(field.status)}>{statusDetail(field)}</Badge>
     {#if field.problems.repo.length + field.problems.live.length > 0}
       <Badge tone="warn">Limit problem</Badge>
+    {/if}
+    {#if stage?.staged}
+      <Badge tone="accent" icon="layers">Staged</Badge>
     {/if}
   </summary>
 
@@ -115,6 +127,23 @@
           <span>Select<span class="visually-hidden"> {field.label} ({field.locale}) to pull into the repository</span></span>
         </label>
         <Button size="sm" icon="git-pull-request" disabled={pullDisabled !== null} onclick={() => onpull?.(field)}>Pull into repository<span class="visually-hidden">: {field.label} ({field.locale})</span></Button>
+      {/if}
+      {#if stage && stage.staged}
+        <span class="staged-note">
+          {stage.upToDate ? 'Staged: the repository text, for the draft push.' : 'Staged, but not the repository text as it is now.'}
+        </span>
+      {/if}
+      {#if stage && stage.state === 'available'}
+        <Button size="sm" icon="layers" loading={stageBusy} disabled={stageBusy || stage.upToDate} onclick={() => onstage?.(field)}>
+          {stage.staged ? (stage.upToDate ? 'Staged from repo' : 'Stage from repo again') : 'Stage from repo'}<span class="visually-hidden">: {field.label} ({field.locale})</span>
+        </Button>
+      {:else if stage && stage.state === 'disabled'}
+        <Button size="sm" icon="layers" disabled title={stage.reason ?? undefined}>Stage from repo<span class="visually-hidden">: {field.label} ({field.locale}). {stage.reason}</span></Button>
+      {:else if stage && stage.state === 'not_pushable'}
+        <span class="muted small" title={stage.reason ?? undefined}>Not part of a draft push</span>
+      {/if}
+      {#if stage && stage.staged}
+        <Button size="sm" variant="ghost" icon="x" disabled={stageBusy} onclick={() => stage.staged && onunstage?.(stage.staged.id, field)}>Unstage<span class="visually-hidden"> {field.label} ({field.locale})</span></Button>
       {/if}
       <Button size="sm" variant="ghost" icon="history" onclick={() => onhistory(field)}>History<span class="visually-hidden"> of {field.label} ({field.locale})</span></Button>
     </div>
@@ -233,6 +262,15 @@
 
   .pick {
     margin-right: auto;
+    font-size: var(--text-sm);
+  }
+
+  .staged-note {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .small {
     font-size: var(--text-sm);
   }
 </style>
