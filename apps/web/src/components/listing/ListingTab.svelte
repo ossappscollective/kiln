@@ -4,6 +4,10 @@
   the app's sync, which only reads. Nothing on this tab pushes, submits or changes a store.
   Props: api, workspaceId, role, app, now (ms), syncing (a sync is running), onrefresh (runs the
   sync; the parent owns it), refreshKey (changes when a sync finished, so this tab reloads).
+
+  The one thing it can write is a draft: "Pull into repository" copies the store text of fields
+  where the store is ahead (or the two diverged) into the repository's listing files as a draft
+  change set. The draft is reviewed and applied as a pull request in the repository's Change sets tab.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -22,9 +26,21 @@
     statusLabel,
     type DriftFilter,
   } from '../../lib/listing-drift.ts';
+  import {
+    canPullField,
+    pullDisabledReason,
+    pullKey,
+    pullableFields,
+    pullableInLocale,
+    selectedFields,
+    summarizePull,
+    toggleAllDifferences,
+    toggleKey,
+  } from '../../lib/listing-pull.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
+  import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { AppSummary, DriftField, ListingDrift } from '../../lib/types.ts';
+  import type { AppSummary, DriftField, DriftLocale, ListingDrift, PullResult } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -32,6 +48,8 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import FieldCompare from './FieldCompare.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
+  import PullDialog from './PullDialog.svelte';
+  import PullResultSummary from './PullResultSummary.svelte';
 
   let {
     api,
@@ -74,6 +92,11 @@
     unit: 'characters' | 'bytes';
   } | null>(null);
 
+  let selected = $state<Set<string>>(new Set());
+  let pullOpen = $state(false);
+  let pullFieldsList = $state<DriftField[]>([]);
+  let lastPull = $state<PullResult | null>(null);
+
   let generation = 0;
 
   async function load() {
@@ -110,6 +133,9 @@
       filter = defaultFilter();
       repoProblem = '';
       historyOpen = false;
+      selected = new Set();
+      pullOpen = false;
+      lastPull = null;
     }
     // `load` reads state it also writes; only the keys above should re-run this.
     untrack(() => void load());
@@ -141,6 +167,51 @@
   function openHistory(field: DriftField) {
     historyTarget = { locale: field.locale, field: field.field, label: field.label, limit: field.limit, unit: field.unit };
     historyOpen = true;
+  }
+
+  const pullReason = $derived(
+    pullDisabledReason({ role, repositoryId: app.repositoryId, storeRead: drift !== null && drift.store.readAt !== null }),
+  );
+  const pullable = $derived(drift ? pullableFields(drift.locales) : []);
+  // A reload can change a row; only rows that can still be pulled count as selected.
+  const picked = $derived(drift ? selectedFields(drift.locales, selected) : []);
+  const allPicked = $derived(pullable.length > 0 && picked.length === pullable.length);
+
+  const labelOf = (field: string): string => {
+    for (const locale of drift?.locales ?? []) {
+      const found = locale.fields.find((f) => f.field === field);
+      if (found) return found.label;
+    }
+    return field;
+  };
+
+  function openPull(fields: DriftField[]) {
+    if (pullReason !== null || fields.length === 0) return;
+    pullFieldsList = fields;
+    pullOpen = true;
+  }
+
+  const pullLocale = (locale: DriftLocale) => openPull(pullableInLocale(locale));
+
+  function pulled(result: PullResult) {
+    lastPull = result;
+    const summary = summarizePull(result);
+    if (result.changeSet === null) {
+      toast.info(summary.headline);
+      return;
+    }
+    const changeSetId = result.changeSet.id;
+    const repositoryId = result.target.repositoryId;
+    const options = {
+      action: {
+        label: 'Review the draft',
+        href: reviewHref,
+        onclick: () => requestChangeSetReview({ repositoryId, changeSetId }),
+      },
+    };
+    if (summary.tone === 'warn') toast.warning(summary.headline, options);
+    else toast.success(summary.headline, options);
+    selected = new Set();
   }
 
   const visible = $derived(drift ? filterLocales(drift.locales, filter) : []);
@@ -267,6 +338,40 @@
         </div>
       </div>
 
+      {#if lastPull}
+        <PullResultSummary
+          result={lastPull}
+          {labelOf}
+          onreview={(r) => r.changeSet && requestChangeSetReview({ repositoryId: r.target.repositoryId, changeSetId: r.changeSet.id })}
+          ondismiss={() => (lastPull = null)}
+        />
+      {/if}
+
+      <div class="pullbar" aria-label="Pull into the repository">
+        {#if pullReason !== null}
+          <p class="muted pullnote"><Icon name="info" size={14} /> Pulling into the repository is not available. {pullReason}</p>
+        {:else if pullable.length === 0}
+          <p class="muted pullnote"><Icon name="check" size={14} /> No differences to pull: the repository already has the store's text, or is ahead of it.</p>
+        {:else}
+          <p class="pullnote">
+            {pullable.length} {pullable.length === 1 ? 'field differs' : 'fields differ'} where the store can be pulled into the repository.
+          </p>
+          <div class="row wrap">
+            <label class="check">
+              <input
+                type="checkbox"
+                checked={allPicked}
+                onchange={() => (selected = toggleAllDifferences(drift?.locales ?? [], selected))}
+              />
+              <span>Select all differences</span>
+            </label>
+            <Button variant="primary" icon="git-pull-request" disabled={picked.length === 0} onclick={() => openPull(picked)}>
+              Pull selected into repository…{picked.length > 0 ? ` (${picked.length})` : ''}
+            </Button>
+          </div>
+        {/if}
+      </div>
+
       {#if visible.length === 0}
         <div class="card">
           <EmptyState icon="search" title="No fields match" description="Change the filter or the search to see more.">
@@ -281,9 +386,26 @@
             <header>
               <h3>{locale.locale}</h3>
               <span class="muted">{localeName(locale.locale) === locale.locale ? '' : `${localeName(locale.locale)} · `}{localeSummary(locale)}</span>
+              {#if pullableInLocale(locale).length > 0}
+                <span class="locale-pull">
+                  <Button size="sm" icon="git-pull-request" disabled={pullReason !== null} onclick={() => pullLocale(locale)}>
+                    Pull {locale.locale} into repository ({pullableInLocale(locale).length})
+                  </Button>
+                </span>
+              {/if}
             </header>
             {#each locale.fields as field (field.field)}
-              <FieldCompare {field} {storeLabel} {now} onhistory={openHistory} />
+              <FieldCompare
+                {field}
+                {storeLabel}
+                {now}
+                onhistory={openHistory}
+                pullable={canPullField(field)}
+                pullDisabled={pullReason}
+                selected={selected.has(pullKey(field))}
+                onselect={(f, on) => (selected = on ? new Set(selected).add(pullKey(f)) : toggleKey(selected, pullKey(f)))}
+                onpull={(f) => openPull([f])}
+              />
             {/each}
           </section>
         {/each}
@@ -294,6 +416,17 @@
     {/if}
   {/if}
 </div>
+
+<PullDialog
+  bind:open={pullOpen}
+  {api}
+  {workspaceId}
+  {role}
+  {app}
+  fields={pullFieldsList}
+  channel={drift?.channel ?? null}
+  onpulled={pulled}
+/>
 
 <HistoryDrawer bind:open={historyOpen} {api} {workspaceId} appId={app.id} target={historyTarget} {now} />
 
@@ -372,6 +505,31 @@
     gap: var(--space-1) var(--space-3);
     align-items: baseline;
     padding: var(--space-3) var(--space-4);
+  }
+
+  .pullbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .pullnote {
+    display: flex;
+    flex: 1 1 280px;
+    gap: var(--space-1);
+    align-items: center;
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .locale-pull {
+    margin-left: auto;
   }
 
   .locale h3 {

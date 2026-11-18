@@ -4,6 +4,9 @@
   store. A field that is identical on both sides starts collapsed.
   Props: field (DriftField), storeLabel ("Live store", or "Editable version" for an app that is not
   live yet), now (ms, for relative times), onhistory (opens the history of this field).
+  Pulling (optional): pullable (the store is ahead or the two diverged, so this field can be pulled
+  into the repository), pullDisabled (why pulling is not available now, or null), selected and
+  onselect (the checkbox for "Pull selected into repository"), onpull (pull just this field).
 -->
 <script lang="ts">
   import { timeAgo, fullTime } from '../../lib/format.ts';
@@ -27,7 +30,22 @@
     storeLabel = 'Live store',
     now,
     onhistory,
-  }: { field: DriftField; storeLabel?: string; now: number; onhistory: (field: DriftField) => void } = $props();
+    pullable = false,
+    pullDisabled = null,
+    selected = false,
+    onselect,
+    onpull,
+  }: {
+    field: DriftField;
+    storeLabel?: string;
+    now: number;
+    onhistory: (field: DriftField) => void;
+    pullable?: boolean;
+    pullDisabled?: string | null;
+    selected?: boolean;
+    onselect?: (field: DriftField, selected: boolean) => void;
+    onpull?: (field: DriftField) => void;
+  } = $props();
 
   const diff = $derived(comparison(field));
   const columns = $derived([
@@ -86,6 +104,18 @@
       {/each}
     </div>
     <div class="actions">
+      {#if pullable}
+        <label class="check pick">
+          <input
+            type="checkbox"
+            checked={selected}
+            disabled={pullDisabled !== null}
+            onchange={(e) => onselect?.(field, e.currentTarget.checked)}
+          />
+          <span>Select<span class="visually-hidden"> {field.label} ({field.locale}) to pull into the repository</span></span>
+        </label>
+        <Button size="sm" icon="git-pull-request" disabled={pullDisabled !== null} onclick={() => onpull?.(field)}>Pull into repository<span class="visually-hidden">: {field.label} ({field.locale})</span></Button>
+      {/if}
       <Button size="sm" variant="ghost" icon="history" onclick={() => onhistory(field)}>History<span class="visually-hidden"> of {field.label} ({field.locale})</span></Button>
     </div>
   </div>
@@ -194,7 +224,15 @@
 
   .actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
     justify-content: flex-end;
     margin-top: var(--space-2);
+  }
+
+  .pick {
+    margin-right: auto;
+    font-size: var(--text-sm);
   }
 </style>

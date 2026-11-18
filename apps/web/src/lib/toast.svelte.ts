@@ -5,17 +5,22 @@
 
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
+/** A link or button inside a toast, such as "Review the change set". `onclick` runs before a link is followed. */
+export type ToastAction = { label: string; href?: string; onclick?: () => void };
+
 export type Toast = {
   id: number;
   kind: ToastKind;
   message: string;
   title?: string;
+  action?: ToastAction;
 };
 
 export type ToastOptions = {
   title?: string;
   /** Milliseconds before it leaves. 0 keeps it until dismissed. */
   timeout?: number;
+  action?: ToastAction;
 };
 
 const MAX_VISIBLE = 4;
@@ -34,7 +39,7 @@ function dismiss(id: number): void {
 
 function push(kind: ToastKind, message: string, options: ToastOptions = {}): number {
   const id = nextId++;
-  items = [...items, { id, kind, message, title: options.title }].slice(-MAX_VISIBLE);
+  items = [...items, { id, kind, message, title: options.title, ...(options.action ? { action: options.action } : {}) }].slice(-MAX_VISIBLE);
   const timeout = options.timeout ?? DEFAULT_TIMEOUT[kind];
   if (timeout > 0) timers.set(id, setTimeout(() => dismiss(id), timeout));
   return id;

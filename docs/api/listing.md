@@ -3,8 +3,10 @@
 The store listing of an app (name, subtitle, description, keywords, and the other per-locale texts)
 as the **store** has it, compared with the **repository** and with what this tool last knew, plus a
 history of every field. This is the read side of the listing work: **nothing here writes to a store**
-(see "Read-only" below). Changing a listing still goes through change sets on the repository
-([repositories](repositories.md)), then the store step in App Store Connect or Google Play Console.
+(see "Read-only" below). The one action, `POST /listing/pull`, copies the store's text into the
+repository's listing files as a **draft change set**. Changing a listing in a store still goes through
+change sets on the repository ([repositories](repositories.md)), then the store step in App Store
+Connect or Google Play Console.
 
 Everything is under `/api/workspaces/:workspaceId`, needs a session, and follows the usual rules: a
 non-member (or an unknown workspace or app, or an app of another workspace) gets
@@ -15,9 +17,10 @@ gets `401`. Times are epoch milliseconds.
 
 - The connectors only `GET` from Apple. On Google Play they insert an empty edit, `GET` the listings
   and `DELETE` the edit; **no edit is ever committed or validated**, and no listing is changed.
-- Of the four endpoints below, three read only this tool's database. The fourth,
-  `POST /listing/repo-refresh`, reads the linked repository on GitHub (the same read as the listing
-  screen of the repository). It is a `POST` only because it records what it read.
+- Of the five endpoints below, three read only this tool's database. `POST /listing/repo-refresh`
+  reads the linked repository on GitHub (the same read as the listing screen of the repository); it is
+  a `POST` only because it records what it read. `POST /listing/pull` reads GitHub too and creates a
+  **draft** change set (see "Pull the store listing into the repository"); it never writes to a store.
 - The store listing is read as part of the app sync (`POST /apps/:id/sync`, see [apps](apps.md)),
   with the same credential and the same connector. It adds no new credential use and no audit event.
   A failure reading the listing **never fails the release sync**; it is stored as `listing_error`
@@ -29,6 +32,8 @@ gets `401`. Times are epoch milliseconds.
 | --- | --- | --- | --- |
 | `listing.read`: `GET .../listing/live`, `.../listing/drift`, `.../listing/history` | yes | yes | yes |
 | `repositories.scan`: `POST .../listing/repo-refresh` | no | yes | yes |
+| `listing.read` and `changesets.write`: `POST .../listing/pull` (a draft; approving it still needs `changesets.approve`) | no | yes | yes |
+| `apps.sync` as well, only with `refresh: true` in that pull | no | yes | yes |
 | `apps.sync`: refresh the store side (`POST /apps/:id/sync`) | no | yes | yes |
 
 Why viewers read it: the values are the public texts of a store page, plus the repository's copy of
@@ -243,6 +248,99 @@ Response `200`:
 `found: false` means the repository has no listing for this app's store; nothing is recorded and
 `repo.error` of the drift view says so.
 
+## `POST /apps/:id/listing/pull`
+
+Pull the live store listing into the repository: it takes the store's text for the fields where the
+**store is ahead** of the repository (or the two **diverged**) and makes a **draft change set** that
+writes those values into the repository's listing files. Nothing is written to a store and nothing is
+written to the repository: the draft is reviewed, approved and applied like every change set
+(`POST /change-sets/:id/approve`, then `/apply`), and applying opens a **pull request on GitHub**
+([repositories](repositories.md)). Committing straight to a branch of a local clone is a later task.
+
+Needs `listing.read` and `changesets.write` (member and up), and `apps.sync` as well when `refresh` is
+true. The app must be linked to a repository. The request body is limited to 64 KB.
+
+The files come from the repository's **listing source**, the same rule as every other listing read: the
+App Store listing goes into the Expo `store.config.json` when the repository has one (only the
+edited values change; other keys and the formatting stay), else into fastlane metadata files; the
+Google Play listing goes into fastlane metadata files. The usual change set protections apply: only
+files inside the chosen listing target's folders (or the store config) can be in the draft
+(`outside_target`), and the audit log records `changeset.create` with `source: "store_pull"`, the app,
+the channel and whether the store was refreshed first.
+
+Body, all optional:
+
+| Field | Meaning |
+| --- | --- |
+| `items` | `[{ "locale": "en-US", "field": "subtitle" }]`: exactly these fields (the locale as the store has it, as the drift view shows it). A field the repository has no value for yet is pulled when it is named here. |
+| `locales`, `fields` | Narrow to these store locales and/or these field ids. Combined with `items`, both apply. Without `items`, `locales` and `fields`, every field that can be pulled is. |
+| `addLocales` | `true` also creates locales the repository has no folder (or Expo key) for. Default `false`: those are skipped with `locale_not_in_repo`. |
+| `channel` | `live` or `editable`. Default: `live`, or `editable` for an app with no live version. |
+| `summary` | One line, up to 200 characters. Default: "Pull the App Store listing of Acme into the repository". |
+| `refresh` | `true` runs the read-only store sync first, so the pull is of the store as it is now. It counts toward the app sync limit (10 a minute per workspace). Default: use the last read. |
+| `target`, `roots` | Which listing target or folders, exactly as for `GET /repositories/:id/listing`. Without them the saved target of this app, else the detected one, else the default; with several possible places and no choice the answer is `422 target_required`. |
+
+```json
+{
+  "items": [
+    { "locale": "en-US", "field": "subtitle" },
+    { "locale": "de-DE", "field": "description" }
+  ],
+  "refresh": true,
+  "summary": "Pull the store listing after the console edit"
+}
+```
+
+Which fields are pulled, from the same history the drift view uses: `store-ahead` and `diverged`, when
+the store has a non-blank value. **Never** pulled: `repo-ahead` (that would undo a change that has not
+reached the store), identical fields, fields the store has no value for (the repository's value is never
+blanked), and a store value over the field's limit (reported, never shortened). Store locale codes are
+mapped to the repository's folder names (`en-US` to `en-US`, case and `_` or `-` differences, and the
+equivalent codes such as `ja` and `ja-JP`, or `zh-Hans` and `zh-CN`); a locale that matches several folders is
+skipped as ambiguous, and Expo store configs accept only the locales EAS Metadata supports.
+
+Response `201` with a draft (a person reviews it next):
+
+```json
+{
+  "changeSet": {
+    "id": "c1f0…", "repositoryId": "9a2b…", "summary": "Pull the store listing after the console edit",
+    "status": "draft", "createdBy": { "type": "user", "id": "u1…" },
+    "branch": null, "prUrl": null, "filesChanged": 2,
+    "files": [{ "path": "fastlane/metadata/en-US/subtitle.txt", "change": "modified", "before": "Quick rides", "after": "Fast trips" }]
+  },
+  "channel": "live",
+  "store": { "readAt": 1790000000000, "error": null, "refreshed": true },
+  "target": {
+    "repositoryId": "9a2b…", "repository": "acme/trips", "branch": "main",
+    "source": "fastlane", "path": "fastlane/metadata",
+    "selected": { "id": null, "origin": "detected", "label": "fastlane/metadata" }
+  },
+  "changes": [
+    { "locale": "en-US", "repoLocale": "en-US", "field": "subtitle", "label": "Subtitle",
+      "status": "store-ahead", "before": "Quick rides", "after": "Fast trips", "newLocale": false }
+  ],
+  "skipped": [
+    { "locale": "de-DE", "field": "description", "reason": "over_limit",
+      "message": "Description is 4120 characters; the limit is 4000. It was not pulled and was not shortened." }
+  ],
+  "problems": [],
+  "locales": [{ "locale": "en-US", "repoLocale": "en-US", "how": "exact" }],
+  "warnings": []
+}
+```
+
+- `changes[].status`: `store-ahead`, `diverged`, `missing-in-repo` (named in `items`, the repository had
+  no value) or `new-locale` (`addLocales`). `before` is the repository's value now (`null` for none).
+- `skipped[].reason`: `repo_ahead`, `missing_in_store`, `identical`, `over_limit`, `locale_not_in_repo`,
+  `locale_ambiguous`, `locale_invalid`, `locale_unsupported`, `locale_conflict`. A whole-locale skip has
+  no `field`. `problems` are `validateListing` results for the values written (not blocking).
+- `warnings` carries what the change set could not write (such as an Expo locale EAS Metadata does not
+  support) and, when the last store read failed, that the values of the last good read were used.
+- **Nothing to pull is not an error.** Status `200` with `"changeSet": null`, the same `target`,
+  `skipped` and `warnings`, and `explanation` saying why (for example that every difference is
+  `repo-ahead`).
+
 ## Errors
 
 | Status | `error` | When |
@@ -251,10 +349,20 @@ Response `200`:
 | 401 | `unauthenticated` | No session. |
 | 403 | `forbidden` | A member without the right. |
 | 404 | `not_found` | Not a member, or no such app in this workspace. |
-| 422 | `no_repository` | `repo-refresh` for an app that is not linked to a repository. |
-| 422 | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid` | `repo-refresh`: GitHub refused or the repository could not be read ([repositories](repositories.md)). |
-| 429 | `rate_limited` | `repo-refresh` too often. `Retry-After` and `retryAfterSeconds` say when. |
-| 504 | `timeout` | `repo-refresh`: GitHub did not answer in time. |
+| 400 | `invalid_request` | `pull`: a bad body (a locale code, more than the allowed number of items, a summary of more than one line). |
+| 413 | `payload_too_large` | `pull`: a body over 64 KB. |
+| 422 | `no_repository` | `repo-refresh` or `pull` for an app that is not linked to a repository (or whose repository was disconnected). |
+| 422 | `invalid_field` | `pull`: a field that the app's store does not have. |
+| 422 | `no_store_listing` | `pull`: no listing was read from the store yet (or not that `channel`). `channels` lists what exists. Sync the app, or pull with `refresh`. |
+| 422 | `target_required` | `pull`: the repository has several places this listing could be; `candidates` lists them. Send `target` or `roots`. |
+| 422 | `no_target_folder` | `pull`: the chosen listing target has no folder for this store. |
+| 422 | `store_config_invalid` | `pull`: the Expo `store.config.json` cannot be read (`path` says which); fix it in the repository. |
+| 422 | `outside_target` | `pull`: a file would fall outside the chosen target's folders; nothing is created. |
+| 422 | `refresh_unavailable` | `pull` with `refresh` on a server that cannot read the store. |
+| 403 | `forbidden` | Also: `pull` with `refresh: true` without `apps.sync`. |
+| 422 | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid` | `repo-refresh` or `pull`: GitHub refused or the repository could not be read ([repositories](repositories.md)). |
+| 429 | `rate_limited` | `repo-refresh` or `pull` too often (they share the repository read limit); `pull` with `refresh` also the app sync limit. `Retry-After` and `retryAfterSeconds` say when. |
+| 504 | `timeout` | `repo-refresh` or `pull`: GitHub did not answer in time. |
 
 Errors reading the **store** are not HTTP errors here: they are `store.error` in the drift response
 (and `error` in `live`), with the last good values still shown. The message is one redacted sentence,
@@ -276,5 +384,7 @@ for example "The store did not answer in time while reading the listing."
 - **History starts at the first read.** Nothing is backfilled; the first sync records every field as
   new. A change set is recorded when the next read of drift or history finds it, with the time it was applied.
 - Deleting an app deletes its listing history with it.
-- These routes are not in the OpenAPI registry (`services/api-operations.ts`, another change's file), so an API token cannot call them yet; a session can.
-- No push, submit or apply action toward a store exists, in the API or in the web UI.
+- The listing routes, including `pull`, are in the OpenAPI registry (`services/api-operations.ts`); `pull` needs `changesets.write` for an API token too, and its answer is described in part.
+- No push or submit action toward a store exists, in the API or in the web UI. `pull` only makes a draft in the repository's change sets; applying it opens a pull request on GitHub. Committing to a branch of a local clone is a later task.
+- **`pull` has not been run against a real store, GitHub or Postgres.** It is tested on SQLite with fakes for the store and GitHub; the store snapshot it uses is the last sync (or the refresh it runs).
+- A token whose scopes include only `changesets.write` can pull, because the registry names one action per operation; the session route still checks `listing.read` too.

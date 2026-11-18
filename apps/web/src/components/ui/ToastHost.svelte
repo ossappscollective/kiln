@@ -23,6 +23,14 @@
       <div class="text">
         {#if t.title}<strong>{t.title}</strong>{/if}
         <span>{t.message}</span>
+        {#if t.action}
+          {@const action = t.action}
+          {#if action.href}
+            <a class="action" href={action.href} onclick={() => { action.onclick?.(); toast.dismiss(t.id); }}>{action.label}</a>
+          {:else}
+            <button type="button" class="link action" onclick={() => { action.onclick?.(); toast.dismiss(t.id); }}>{action.label}</button>
+          {/if}
+        {/if}
       </div>
       <button type="button" class="ghost icon sm" aria-label="Dismiss notification" onclick={() => toast.dismiss(t.id)}>
         <Icon name="x" />
@@ -77,6 +85,12 @@
 
   .error .glyph {
     color: var(--bad);
+  }
+
+  .action {
+    align-self: flex-start;
+    margin-top: var(--space-1);
+    font-weight: var(--weight-medium);
   }
 
   .text {

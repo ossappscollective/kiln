@@ -130,11 +130,20 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
 - [x] Web: a Listing tab on the app page: Repository, Last synced and Live store side by side per
       locale and field with status, character counts, an inline word diff, "Refresh from store" (runs
       the sync), "Read repository" and a history drawer per field. **Never rendered in a browser**;
-      no push or apply control exists
+      no push control toward a store exists (see the pull action below)
 - [ ] Record real store responses and replace the fixtures; settle which Apple states are "live" and
       "editable" (named, not described, on Apple's pages)
 - [ ] Categories, age rating, screenshots, Apple's privacy choices URL and Play changelogs are not read
-- [ ] "Create change set from live" (start a repository change from the store's text): not built
+- [x] "Pull from the store into the repository" (`POST /apps/:id/listing/pull`): the store's text of the
+      fields where the store is ahead or the two diverged becomes a **draft** change set in the repository's
+      listing files (Expo `store.config.json` or fastlane, by the same source rule as a read), then the
+      usual review, approval and apply, which opens a pull request on GitHub. Per-field, per-locale and
+      bulk actions in the Listing tab. It is Phase 3 read-side groundwork: nothing is written to a
+      store. Tested with fakes on SQLite; **no real store, GitHub or Postgres call, and never rendered in a
+      browser**
+- [ ] Commit a pulled listing to a branch of a local clone instead of a pull request (later task)
+- [ ] Open the pulled change set directly from the toast (the Repositories screen does not take a route to
+      a change set yet; the web side keeps the intent in `lib/repository-intent.ts`)
 - [ ] Scheduled listing reads (a listing is read only when an app is synced by hand or by job)
 - [ ] Connector warnings (a version in no known state, an editable version without its own app info) are
       returned but not stored or shown
