@@ -5,7 +5,7 @@
   Props: groups (lib/assets.ts groupAssets), workspaceId, appId, commit (the commit of the index, so
   the thumbnails can be cached for good), maxServedBytes (the largest file the route serves),
   problemMap (problems by path), storeSide (the store's counts, or null: then each set says it is
-  not yet compared with the store), onopen(asset).
+  not yet compared with the store; each file then reads "In repo"), onopen(asset).
 -->
 <script lang="ts">
   import type { AssetProblem } from '@mrm/core';
@@ -17,6 +17,7 @@
     previewNote,
     previewState,
   } from '../../lib/assets.ts';
+  import { storeOnlyCount, storeStatusOf } from '../../lib/assets-groups.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
@@ -54,13 +55,15 @@
       {#each locale.groups as group (group.key)}
         {@const compare = compareWithStore(storeSide, group, locale.locale)}
         {@const over = group.max !== null && group.count > group.max}
+        {@const status = storeStatusOf(compare)}
+        {@const storeOnly = storeOnlyCount(compare, group.count)}
         <div class="set">
           <div class="set-head">
             <h4>{group.kindLabel}{group.deviceLabel && group.device !== null ? `: ${group.deviceLabel}` : ''}</h4>
             <span class="count-text">
               <Badge tone={over ? 'bad' : 'neutral'} icon={over ? toneIcon('bad') : undefined}>{countText(group)}</Badge>
             </span>
-            <span class="store muted" class:differs={compare.state === 'differs'}>{compare.text}</span>
+            <span class="store muted" class:differs={compare.state === 'differs'}>{compare.text}{storeOnly > 0 ? ` (${storeOnly} only in the store)` : ''}</span>
           </div>
           {#if group.setProblems.length > 0}
             <AssetProblems problems={group.setProblems} showPath={false} />
@@ -74,6 +77,7 @@
                 src={kind === 'image' ? assetFileUrl(workspaceId, appId, asset.path, commit) : null}
                 note={previewNote(kind, maxServedBytes)}
                 problems={problemMap[asset.path] ?? []}
+                store={status}
                 onopen={() => onopen(asset)}
               />
             {/each}

@@ -1,8 +1,9 @@
 <!--
-  AssetsTab: the store media (screenshots, app previews, Google Play graphics and icons) found in the
-  app's repository, by locale and device, checked against the sizes and counts the stores
-  document. Strictly read-only: nothing is uploaded or changed, here or in a store, and nothing is
-  fetched from a store. The images are served from the repository by the app's own file route.
+  AssetsTab: the store media found in the app's repository, in three groups (icon, Google Play graphics,
+  screenshots), by locale and device, checked against the sizes and counts the stores document. Each
+  file shows its status next to the store (in repo, in repo and store, differs) and its spec problems.
+  Strictly read-only: nothing is uploaded or changed, here or in a store, and nothing is fetched from a
+  store. "Stage for store" and "Pull from store" are shown disabled: they arrive with the draft push. The images are served from the repository by the app's own file route.
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when a sync finished, so this
   tab reads again), storeSide? (the seam for the store side: the counts the store has per locale,
   kind and device. Left out, the tab uses the one in the index, which is null today, so each set
@@ -29,12 +30,24 @@
     sanitizeFilter,
     summaryText,
   } from '../../lib/assets.ts';
+  import {
+    type AssetGroupId,
+    STAGING_NOTE,
+    asGroupId,
+    defaultGroup,
+    groupAvailability,
+    groupDef,
+    groupOfKind,
+    groupSummaries,
+    sliceIndex,
+  } from '../../lib/assets-groups.ts';
   import { describeError } from '../../lib/portfolio.ts';
   import type { AppSummary, AssetIndex, AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import Tabs from '../ui/Tabs.svelte';
   import AssetGallery from './AssetGallery.svelte';
   import AssetLightbox from './AssetLightbox.svelte';
   import AssetProblems from './AssetProblems.svelte';
@@ -65,6 +78,9 @@
   let reloading = $state(false);
   let loadProblem = $state('');
   let filter = $state<AssetFilter>({ ...NO_FILTER });
+  let group = $state<string>('screenshots');
+  /** The group picked by the tab itself; a different `group` means the person chose one, which a re-read keeps. */
+  let autoGroup: AssetGroupId | null = null;
   let announcement = $state('');
   let lightboxOpen = $state(false);
   let lightboxIndex = $state(0);
@@ -81,7 +97,12 @@
       const next = await api.appAssets(workspaceId, app.id);
       if (mine !== generation) return;
       index = next;
-      filter = sanitizeFilter(filter, filterOptions(next));
+      // The first read opens the group that has files; a later read keeps the person's choice.
+      if (autoGroup === null || group === autoGroup) {
+        autoGroup = defaultGroup(groupSummaries(next, app.platform));
+        group = autoGroup;
+      }
+      filter = { ...NO_FILTER };
       announcement = `Read ${next.totals.assets} store media files: ${problemCountsText(next)}.`;
     } catch (e) {
       if (mine !== generation) return;
@@ -103,13 +124,18 @@
       shownFor = key;
       index = null;
       filter = { ...NO_FILTER };
+      autoGroup = null;
       lightboxOpen = false;
     }
     untrack(() => void load());
   });
 
-  const options = $derived(index ? filterOptions(index) : { locales: [], devices: [], kinds: [] });
-  const groups = $derived(index ? groupAssets(index, filter) : []);
+  const summaries = $derived(index ? groupSummaries(index, app.platform) : []);
+  const slice = $derived(index ? sliceIndex(index, asGroupId(group)) : { assets: [], sets: [], problems: [] });
+  const options = $derived(filterOptions(slice));
+  // A choice the group does not offer (after switching group or reading again) counts as "all".
+  const active = $derived(sanitizeFilter(filter, options));
+  const groups = $derived(groupAssets(slice, active));
   const problemMap = $derived(index ? problemsByPath(index.problems) : {});
   const shownAssets = $derived(groups.reduce((all: AssetItem[], locale) => {
     for (const group of locale.groups) for (const asset of group.assets) all.push(asset);
@@ -133,8 +159,9 @@
   function openPath(path: string) {
     const target = index?.assets.find((a) => a.path === path);
     if (!target) return;
-    // The problem may be about a file the filter hides: show everything, then open it.
-    if (!shownAssets.some((a) => a.path === path)) filter = { ...NO_FILTER };
+    // The problem may be about a file in another group or one the filter hides: show it, then open it.
+    group = groupOfKind(target.kind);
+    filter = { ...NO_FILTER };
     queueMicrotask(() => openAsset(target));
   }
 
@@ -214,36 +241,13 @@
           </EmptyState>
         </div>
       {:else}
-        <section class="card" aria-label="Summary and filters">
+        <section class="card" aria-label="Summary">
           <div class="stack">
-            <div class="row wrap between">
-              <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
-            </div>
-            <div class="filters">
-              <div class="field">
-                <label for="asset-locale-{app.id}">Locale</label>
-                <select id="asset-locale-{app.id}" bind:value={filter.locale}>
-                  <option value={ALL}>All locales</option>
-                  {#each options.locales as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-                </select>
-              </div>
-              <div class="field">
-                <label for="asset-device-{app.id}">Device</label>
-                <select id="asset-device-{app.id}" bind:value={filter.device}>
-                  <option value={ALL}>All devices</option>
-                  {#each options.devices as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-                </select>
-              </div>
-              <div class="field">
-                <label for="asset-kind-{app.id}">Kind</label>
-                <select id="asset-kind-{app.id}" bind:value={filter.kind}>
-                  <option value={ALL}>All kinds</option>
-                  {#each options.kinds as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-                </select>
-              </div>
-              {#if isFiltered(filter)}
-                <Button variant="ghost" onclick={() => (filter = { ...NO_FILTER })}>Clear filters</Button>
-              {/if}
+            <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
+            <div class="row wrap staging">
+              <Button size="sm" icon="upload" disabled title={STAGING_NOTE}>Stage for store</Button>
+              <Button size="sm" icon="download" disabled title={STAGING_NOTE}>Pull from store</Button>
+              <span class="muted small">{STAGING_NOTE}</span>
             </div>
           </div>
         </section>
@@ -255,26 +259,78 @@
           </details>
         {/if}
 
-        {#if groups.length === 0}
-          <div class="card">
-            <EmptyState icon="filter" title="Nothing matches the filters" description="Choose another locale, device or kind.">
-              {#snippet actions()}
-                <Button onclick={() => (filter = { ...NO_FILTER })}>Clear filters</Button>
-              {/snippet}
-            </EmptyState>
-          </div>
-        {:else}
-          <AssetGallery
-            {groups}
-            {workspaceId}
-            appId={app.id}
-            commit={index.commit}
-            maxServedBytes={maxServed}
-            {problemMap}
-            storeSide={seam}
-            onopen={openAsset}
-          />
-        {/if}
+        <Tabs
+          label="Asset groups"
+          bind:value={group}
+          tabs={summaries.map((g) => ({ id: g.id, label: g.label, count: g.files }))}
+        >
+          {#snippet panel(id)}
+            {@const gAvail = groupAvailability(asGroupId(id), app.platform)}
+            {@const here = summaries.filter((g) => g.id === id)[0]}
+            <div class="stack group-panel">
+              <p class="muted small">{groupDef(asGroupId(id)).hint}</p>
+              {#if !gAvail.available}
+                <div class="card"><EmptyState icon="lock" title="Not on this store" description={gAvail.reason ?? ''} /></div>
+              {:else if here && here.files === 0}
+                <div class="card">
+                  <EmptyState icon="images" title="No {groupDef(asGroupId(id)).label.toLowerCase()} found" description="The repository holds none in the places the stores' tooling uses." />
+                </div>
+              {:else}
+                <div class="filters">
+                  <div class="field">
+                    <label for="asset-locale-{app.id}">Locale</label>
+                    <select id="asset-locale-{app.id}" value={active.locale} onchange={(e) => (filter = { ...filter, locale: e.currentTarget.value })}>
+                      <option value={ALL}>All locales</option>
+                      {#each options.locales as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+                    </select>
+                  </div>
+                  {#if options.devices.length > 1 || active.device !== ALL}
+                    <div class="field">
+                      <label for="asset-device-{app.id}">Device</label>
+                      <select id="asset-device-{app.id}" value={active.device} onchange={(e) => (filter = { ...filter, device: e.currentTarget.value })}>
+                        <option value={ALL}>All devices</option>
+                        {#each options.devices as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+                      </select>
+                    </div>
+                  {/if}
+                  {#if options.kinds.length > 1 || active.kind !== ALL}
+                    <div class="field">
+                      <label for="asset-kind-{app.id}">Kind</label>
+                      <select id="asset-kind-{app.id}" value={active.kind} onchange={(e) => (filter = { ...filter, kind: e.currentTarget.value })}>
+                        <option value={ALL}>All kinds</option>
+                        {#each options.kinds as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+                      </select>
+                    </div>
+                  {/if}
+                  {#if isFiltered(active)}
+                    <Button variant="ghost" onclick={() => (filter = { ...NO_FILTER })}>Clear filters</Button>
+                  {/if}
+                </div>
+
+                {#if groups.length === 0}
+                  <div class="card">
+                    <EmptyState icon="filter" title="Nothing matches the filters" description="Choose another locale, device or kind.">
+                      {#snippet actions()}
+                        <Button onclick={() => (filter = { ...NO_FILTER })}>Clear filters</Button>
+                      {/snippet}
+                    </EmptyState>
+                  </div>
+                {:else}
+                  <AssetGallery
+                    {groups}
+                    {workspaceId}
+                    appId={app.id}
+                    commit={index?.commit ?? null}
+                    maxServedBytes={maxServed}
+                    {problemMap}
+                    storeSide={seam}
+                    onopen={openAsset}
+                  />
+                {/if}
+              {/if}
+            </div>
+          {/snippet}
+        </Tabs>
       {/if}
 
       <details class="card specs">
@@ -316,6 +372,16 @@
   }
   .summary {
     margin: 0;
+  }
+  .small {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+  .staging {
+    gap: var(--space-3);
+  }
+  .group-panel {
+    padding-top: var(--space-4);
   }
   .filters {
     display: flex;

@@ -3,7 +3,8 @@
   when the image arrives), its order, size in pixels and bytes, and a badge for the worst problem.
   Choosing it opens the lightbox.
   Props: asset, src (the file route URL, or null), preview (what can be shown: 'image' | 'video' |
-  'too_large' | 'unavailable'), note (why there is no preview), problems (of this file), onopen.
+  'too_large' | 'unavailable'), note (why there is no preview), problems (of this file), store? (the
+  status of the file next to the store: lib/assets-groups.ts storeStatusOf), onopen.
   The image is served by the app's own file route from the repository (docs/api/assets.md): nothing
   is fetched from a store, and nothing is uploaded.
 -->
@@ -19,6 +20,7 @@
     severityTone,
     worstSeverity,
   } from '../../lib/assets.ts';
+  import type { StoreStatus } from '../../lib/assets-groups.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
@@ -30,6 +32,7 @@
     preview,
     note,
     problems,
+    store = undefined,
     onopen,
   }: {
     asset: AssetItem;
@@ -37,6 +40,7 @@
     preview: PreviewState;
     note: string;
     problems: AssetProblem[];
+    store?: StoreStatus;
     onopen: () => void;
   } = $props();
 
@@ -92,6 +96,9 @@
     <span class="caption">
       <span class="name" title={asset.path}>{fileName(asset.path)}</span>
       <span class="facts muted">{dimensionsText(asset)} · {formatBytes(asset.bytes)}</span>
+      {#if store}
+        <span class="status" title={store.title}><Badge tone={store.tone}>{store.label}</Badge></span>
+      {/if}
     </span>
   </button>
   {#if worst}
@@ -186,6 +193,9 @@
   }
   .facts {
     font-size: var(--text-xs);
+  }
+  .status {
+    margin-top: var(--space-1);
   }
   .flag {
     position: absolute;
