@@ -16,6 +16,8 @@ export type Job = {
   attempts: number;
 };
 
+export const DEFAULT_MAX_ATTEMPTS = 5;
+
 export type JobHandler = (payload: unknown, job: Job) => Promise<void>;
 
 export async function enqueue(
@@ -64,40 +66,71 @@ export async function claimNext(sql: Sql, now: number): Promise<Job | undefined>
   return undefined;
 }
 
-export async function completeJob(sql: Sql, id: string): Promise<void> {
-  await sql.execute("UPDATE jobs SET status = 'done', locked_at = NULL WHERE id = ?", [id]);
+/**
+ * Marks the job done, but only for the worker that holds it: the job must still be `running`, and
+ * on the attempt that this worker claimed. A job that was recovered as stale and claimed again
+ * belongs to someone else now, and a late finish must not overwrite that. Returns whether it did.
+ */
+export async function completeJob(sql: Sql, job: Pick<Job, 'id' | 'attempts'>): Promise<boolean> {
+  const changed = await sql.execute(
+    "UPDATE jobs SET status = 'done', locked_at = NULL WHERE id = ? AND status = 'running' AND attempts = ?",
+    [job.id, job.attempts],
+  );
+  return changed === 1;
 }
 
 export const backoffMs = (attempts: number) => Math.min(5_000 * 2 ** (attempts - 1), 3_600_000);
 
-/** Requeue with backoff, or give up (status 'failed') once attempts reach the limit. */
+/**
+ * Requeue with backoff, or give up (status 'failed') once attempts reach the limit. Like
+ * `completeJob`, it only touches a job that is still `running` on the attempt this worker claimed;
+ * otherwise it returns 'lost' and changes nothing.
+ */
 export async function failJob(
   sql: Sql,
   job: Job,
   error: unknown,
   options: { maxAttempts: number; now: number; permanent?: boolean },
-): Promise<'retry' | 'failed'> {
+): Promise<'retry' | 'failed' | 'lost'> {
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
+  const mine = "WHERE id = ? AND status = 'running' AND attempts = ?";
   if (options.permanent || job.attempts >= options.maxAttempts) {
-    await sql.execute("UPDATE jobs SET status = 'failed', last_error = ?, locked_at = NULL WHERE id = ?", [
-      message,
-      job.id,
-    ]);
-    return 'failed';
+    const changed = await sql.execute(
+      `UPDATE jobs SET status = 'failed', last_error = ?, locked_at = NULL ${mine}`,
+      [message, job.id, job.attempts],
+    );
+    return changed === 1 ? 'failed' : 'lost';
   }
-  await sql.execute(
-    "UPDATE jobs SET status = 'queued', last_error = ?, run_at = ?, locked_at = NULL WHERE id = ?",
-    [message, options.now + backoffMs(job.attempts), job.id],
+  const changed = await sql.execute(
+    `UPDATE jobs SET status = 'queued', last_error = ?, run_at = ?, locked_at = NULL ${mine}`,
+    [message, options.now + backoffMs(job.attempts), job.id, job.attempts],
   );
-  return 'retry';
+  return changed === 1 ? 'retry' : 'lost';
 }
 
-/** Put jobs back that were running when their worker stopped. */
-export async function recoverStale(sql: Sql, now: number, staleAfterMs: number): Promise<number> {
-  return sql.execute(
-    "UPDATE jobs SET status = 'queued', locked_at = NULL WHERE status = 'running' AND locked_at < ?",
-    [now - staleAfterMs],
+/**
+ * Takes jobs back that were running when their worker stopped. One that has already used all its
+ * attempts is marked `failed` instead of being run again, so a job that crashes its worker cannot
+ * loop forever. Returns how many jobs it touched.
+ */
+export async function recoverStale(
+  sql: Sql,
+  now: number,
+  staleAfterMs: number,
+  maxAttempts = DEFAULT_MAX_ATTEMPTS,
+): Promise<number> {
+  const cutoff = now - staleAfterMs;
+  const exhausted = await sql.execute(
+    `UPDATE jobs SET status = 'failed', locked_at = NULL,
+            last_error = 'The worker stopped while running this job, and it has no attempts left.'
+      WHERE status = 'running' AND locked_at < ? AND attempts >= ?`,
+    [cutoff, maxAttempts],
   );
+  const requeued = await sql.execute(
+    "UPDATE jobs SET status = 'queued', locked_at = NULL WHERE status = 'running' AND locked_at < ?",
+    [cutoff],
+  );
+  return exhausted + requeued;
 }
 
 export type Worker = {
@@ -119,7 +152,7 @@ export function createWorker(options: {
   const { sql, handlers } = options;
   const now = options.now ?? Date.now;
   const pollMs = options.pollMs ?? 2_000;
-  const maxAttempts = options.maxAttempts ?? 5;
+  const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const staleAfterMs = options.staleAfterMs ?? 10 * 60_000;
   const report = options.onError ?? ((message, error) => console.error(message, error));
 
@@ -131,7 +164,7 @@ export function createWorker(options: {
   async function tick(): Promise<boolean> {
     if (now() - lastRecovery > 60_000) {
       lastRecovery = now();
-      await recoverStale(sql, now(), staleAfterMs);
+      await recoverStale(sql, now(), staleAfterMs, maxAttempts);
     }
     const job = await claimNext(sql, now());
     if (!job) return false;
@@ -146,7 +179,7 @@ export function createWorker(options: {
     }
     try {
       await handler(job.payload, job);
-      await completeJob(sql, job.id);
+      await completeJob(sql, job);
     } catch (error) {
       await failJob(sql, job, error, { maxAttempts, now: now() });
     }
