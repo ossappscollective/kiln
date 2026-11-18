@@ -150,7 +150,6 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
   const maxRedirects = options.maxRedirects ?? 3;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  timer.unref?.();
   const onOuterAbort = () => controller.abort();
   options.signal?.addEventListener('abort', onOuterAbort, { once: true });
   if (options.signal?.aborted) controller.abort();
@@ -168,6 +167,9 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
       });
       if (!resolved.ok) {
         return { ok: false, kind: resolved.transient ? 'dns' : 'blocked', message: resolved.message, transient: resolved.transient };
+      }
+      if (controller.signal.aborted) {
+        return { ok: false, kind: 'timeout', message: 'The request was stopped.', transient: true };
       }
       let res: ExchangeResponse;
       try {

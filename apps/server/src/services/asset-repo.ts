@@ -236,8 +236,6 @@ export async function openAssets(
     if (hit) return { ok: true, cached: true, handle: { view: hit, readFile: readFile(input.commit) } };
   }
 
-  const gate = options.onCompute?.();
-  if (gate) return gate;
   const o = await open(ASSETS_PURPOSE);
   if (!o.ok) return o;
   const { connector, secret } = o;
@@ -262,6 +260,9 @@ export async function openAssets(
           const hit = cache.get(keyFor(commit));
           if (hit) return { view: hit, cached: true as const };
         }
+        // A miss: this is the read that costs (file headers). Only it counts against the limit.
+        const blocked = options.onCompute?.();
+        if (blocked) return { blocked };
         // The same roots as the text listing: the saved target of the app, else the one the listing read chose.
         const chosen = await resolveSelection(repo.db, workspaceId, repository.id, mine ? { target: mine.id } : undefined);
         if (!chosen.ok) throw new Error(chosen.message);
@@ -321,6 +322,7 @@ export async function openAssets(
       repo.timeoutMs,
       () => controller.abort(),
     );
+    if ('blocked' in result) return result.blocked as Failure;
     return { ok: true, cached: result.cached, handle: { view: result.view, readFile: readFile(result.view.commit ?? input.commit ?? '') } };
   } catch (error) {
     return githubFailure(error, secret);
