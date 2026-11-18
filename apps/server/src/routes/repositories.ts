@@ -1,0 +1,198 @@
+import { type Action, can } from '@mrm/core';
+import { Hono } from 'hono';
+import type { Context, Next } from 'hono';
+import { z } from 'zod';
+import { type AppEnv, parseBody } from '../http.ts';
+import { memberRole } from '../services/accounts.ts';
+import {
+  type Failure,
+  type RepoContext,
+  connectRepository,
+  disconnectRepository,
+  getDetection,
+  getRepository,
+  getRepositoryListing,
+  listRepositories,
+  scanRepository,
+} from '../services/repositories.ts';
+import {
+  approveChangeSet,
+  applyChangeSet,
+  createChangeSet,
+  discardChangeSet,
+  getChangeSet,
+  listChangeSets,
+} from '../services/change-sets.ts';
+
+const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
+const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
+const actor = (c: Context<AppEnv>) => ({ type: 'user' as const, id: c.get('user').id });
+
+/** A failed outcome as a response, with its headers (Retry-After). */
+const respond = (c: Context<AppEnv>, f: Failure) => {
+  for (const [name, value] of Object.entries(f.headers ?? {})) c.header(name, value);
+  return c.json(f.body, f.status);
+};
+
+const connectBody = z.object({
+  credentialId: z.string().min(1).max(100),
+  owner: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, 'Not a GitHub user or organization name.'),
+  repo: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[A-Za-z0-9._-]+$/, 'Not a GitHub repository name.')
+    .refine((v) => v !== '.' && v !== '..' && !v.endsWith('.git'), 'Not a GitHub repository name.'),
+});
+
+// A locale folder (`en-US`, `de`) or the fastlane `default` folder. No slashes, so a key can never
+// point outside the metadata folder.
+const localeKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/, 'Not a locale code.');
+const text = z.string().max(100_000);
+const fields = z.record(localeKey, z.record(z.string().max(40), text));
+const listingBody = z.object({
+  appStore: z
+    .object({ locales: fields, copyright: text.optional() })
+    .strict()
+    .optional(),
+  googlePlay: z
+    .object({
+      locales: fields,
+      changelogs: z.record(
+        localeKey,
+        z.record(z.string().regex(/^(\d{1,12}|default)$/, 'A version code or default.'), text),
+      ),
+    })
+    .strict()
+    .optional(),
+});
+const createBodySchema = z.object({
+  summary: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .regex(/^[^\r\n]+$/, 'One line, please.'),
+  listing: listingBody,
+});
+
+/** Repository and change set routes. Mounted under /api/workspaces. */
+export function repositoryRoutes(ctx: RepoContext) {
+  const { db } = ctx;
+  const app = new Hono<AppEnv>();
+
+  /** Not a member and no such workspace look the same (404). A member without the right gets 403. */
+  const needs = (action: Action) => async (c: Context<AppEnv>, next: Next) => {
+    const role = await memberRole(db, ws(c), c.get('user').id);
+    if (!role) return c.json({ error: 'not_found' }, 404);
+    if (!can(role, action)) return c.json({ error: 'forbidden' }, 403);
+    c.set('role', role);
+    return next();
+  };
+  const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
+
+  // ----- repositories ---------------------------------------------------------------------
+
+  app.get('/:workspaceId/repositories', needs('repositories.read'), async (c) =>
+    c.json({ repositories: await listRepositories(db, ws(c)) }),
+  );
+
+  app.post('/:workspaceId/repositories', needs('repositories.write'), async (c) => {
+    const body = await parseBody(c, connectBody);
+    if (!body.ok) return body.response;
+    const done = await connectRepository(ctx, { workspaceId: ws(c), ...body.data }, actor(c));
+    return done.ok ? c.json({ repository: done.repository }, 201) : respond(c, done);
+  });
+
+  app.get('/:workspaceId/repositories/:id', needs('repositories.read'), async (c) => {
+    const repository = await getRepository(db, ws(c), param(c, 'id'));
+    if (!repository) return notFound(c);
+    return c.json({ repository, detection: await getDetection(db, ws(c), repository.id) });
+  });
+
+  app.delete('/:workspaceId/repositories/:id', needs('repositories.write'), async (c) => {
+    const done = await disconnectRepository(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    return done.ok ? c.body(null, 204) : respond(c, done);
+  });
+
+  app.post('/:workspaceId/repositories/:id/scan', needs('repositories.scan'), async (c) => {
+    const done = await scanRepository(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    if (!done.ok) return respond(c, done);
+    return c.json({ repository: done.repository, detection: done.detection });
+  });
+
+  app.get('/:workspaceId/repositories/:id/listing', needs('repositories.read'), async (c) => {
+    const done = await getRepositoryListing(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    if (!done.ok) return respond(c, done);
+    const { ok: _ok, ...view } = done;
+    return c.json(view);
+  });
+
+  // ----- change sets ----------------------------------------------------------------------
+
+  app.post('/:workspaceId/repositories/:id/change-sets', needs('changesets.write'), async (c) => {
+    const body = await parseBody(c, createBodySchema);
+    if (!body.ok) return body.response;
+    const done = await createChangeSet(
+      ctx,
+      {
+        workspaceId: ws(c),
+        repositoryId: param(c, 'id'),
+        summary: body.data.summary,
+        listing: body.data.listing as never,
+      },
+      actor(c),
+    );
+    if (!done.ok) return respond(c, done);
+    return c.json({ changeSet: done.changeSet, problems: done.problems }, 201);
+  });
+
+  app.get('/:workspaceId/change-sets', needs('repositories.read'), async (c) => {
+    const status = c.req.query('status');
+    const repositoryId = c.req.query('repositoryId');
+    return c.json({
+      changeSets: await listChangeSets(db, ws(c), {
+        ...(status ? { status } : {}),
+        ...(repositoryId ? { repositoryId } : {}),
+      }),
+    });
+  });
+
+  app.get('/:workspaceId/change-sets/:id', needs('repositories.read'), async (c) => {
+    const changeSet = await getChangeSet(db, ws(c), param(c, 'id'));
+    return changeSet ? c.json({ changeSet }) : notFound(c);
+  });
+
+  app.post('/:workspaceId/change-sets/:id/approve', needs('changesets.approve'), async (c) => {
+    const done = await approveChangeSet(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    return done.ok ? c.json({ changeSet: done.changeSet }) : respond(c, done);
+  });
+
+  app.post('/:workspaceId/change-sets/:id/apply', needs('changesets.approve'), async (c) => {
+    const done = await applyChangeSet(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    if (!done.ok) return respond(c, done);
+    return c.json(
+      done.alreadyApplied
+        ? { changeSet: done.changeSet, alreadyApplied: true }
+        : { changeSet: done.changeSet },
+    );
+  });
+
+  app.post('/:workspaceId/change-sets/:id/discard', needs('changesets.write'), async (c) => {
+    const done = await discardChangeSet(
+      ctx,
+      {
+        workspaceId: ws(c),
+        id: param(c, 'id'),
+        mayDiscardAny: can(c.get('role'), 'changesets.approve'),
+      },
+      actor(c),
+    );
+    return done.ok ? c.json({ changeSet: done.changeSet }) : respond(c, done);
+  });
+
+  return app;
+}
