@@ -1,4 +1,4 @@
-import type { ActorType, Platform } from '@mrm/core';
+import { type ActorType, DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS, type Platform } from '@mrm/core';
 import type {
   CiRun,
   CiWorkflow,
@@ -10,8 +10,28 @@ import { type JobHandler, enqueue } from '../jobs.ts';
 import { type ManagedApp, getApp, listAppReleases } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import {
+  type BuildConventions,
+  type EffectiveConventions,
+  type StoredConventions,
+  effectiveConventions,
+  listConventions,
+  saveConventions,
+} from './build-conventions.ts';
+import {
+  type ReadTagData,
+  type ScanApp,
+  type StoredScan,
+  type TagClient,
+  clearScanCaches,
+  getScan,
+  isTagClient,
+  readTagData,
+  scanBuildTags,
+} from './build-scan.ts';
+import {
   type BuildMatcher,
   type BuildView,
+  buildKey,
   buildViews,
   buildsFromReleases,
   defaultMatchers,
@@ -47,6 +67,7 @@ import {
   openConnector,
   withTimeout,
 } from './repositories.ts';
+import { timedCache } from './timed-cache.ts';
 import { type WorkflowDispatchInfo, parseWorkflowDispatch } from './workflow-inputs.ts';
 
 type Actor = { type: ActorType; id: string };
@@ -62,6 +83,8 @@ export const COMPARE_CACHE_TTL_MS = 10 * 60_000;
 export const DEFAULT_POLL_MAX_MS = 3 * 60 * 60_000;
 /** Dispatches per workspace per minute (a refused one counts too). Reads are cached and spaced instead. */
 export const CI_LIMIT_PER_MINUTE = 10;
+/** "Re-run matching" requests per workspace per minute. */
+export const REMATCH_LIMIT_PER_MINUTE = 6;
 const POLL_FIRST_DELAY_MS = 5_000;
 const MAX_STALE_RUNS_FETCHED = 10;
 
@@ -69,17 +92,20 @@ const MAX_STALE_RUNS_FETCHED = 10;
 export type CiContext = RepoContext & {
   /** Dispatches per workspace per minute. Reads from the stored table are not counted. */
   limiter: TestLimiter;
+  /** Re-run matching reads several things from GitHub: its own, smaller budget per workspace. */
+  rematchLimiter: TestLimiter;
   matchers: BuildMatcher[];
   pollMaxMs: number;
 };
 
 export function createCiContext(
   base: RepoContext,
-  options: Partial<Pick<CiContext, 'limiter' | 'matchers' | 'pollMaxMs'>> = {},
+  options: Partial<Pick<CiContext, 'limiter' | 'rematchLimiter' | 'matchers' | 'pollMaxMs'>> = {},
 ): CiContext {
   return {
     ...base,
     limiter: options.limiter ?? createTestLimiter({ limit: CI_LIMIT_PER_MINUTE, now: base.now }),
+    rematchLimiter: options.rematchLimiter ?? createTestLimiter({ limit: REMATCH_LIMIT_PER_MINUTE, now: base.now }),
     matchers: options.matchers ?? defaultMatchers(),
     pollMaxMs: options.pollMaxMs ?? DEFAULT_POLL_MAX_MS,
   };
@@ -88,17 +114,22 @@ export function createCiContext(
 // ---------------------------------------------------------------------------------------------
 // The connector
 
-/** The GitHub connector's CI reads. A fake in tests implements the same four methods. */
-export type CiClient = RepoClient & {
-  listWorkflows(signal?: AbortSignal): Promise<CiWorkflow[]>;
-  listCiRuns(options?: ListWorkflowRunsOptions & { signal?: AbortSignal }): Promise<CiRun[]>;
-  getCiRun(runId: string, signal?: AbortSignal): Promise<CiRun | undefined>;
-  compareCommits(
-    base: string,
-    head: string,
-    options?: { limit?: number; signal?: AbortSignal },
-  ): Promise<CommitComparison>;
-};
+/**
+ * The GitHub connector's CI reads. A fake in tests implements the same four methods. The tag,
+ * release and commit reads (`TagClient`) are optional: without them a build can only be linked
+ * through the run itself (dispatch input, title), and the scan says so.
+ */
+export type CiClient = RepoClient &
+  Partial<TagClient> & {
+    listWorkflows(signal?: AbortSignal): Promise<CiWorkflow[]>;
+    listCiRuns(options?: ListWorkflowRunsOptions & { signal?: AbortSignal }): Promise<CiRun[]>;
+    getCiRun(runId: string, signal?: AbortSignal): Promise<CiRun | undefined>;
+    compareCommits(
+      base: string,
+      head: string,
+      options?: { limit?: number; signal?: AbortSignal },
+    ): Promise<CommitComparison>;
+  };
 
 const isCiClient = (c: RepoClient): c is CiClient => {
   const x = c as Partial<CiClient>;
@@ -162,35 +193,12 @@ const rateLimited = (wait: number): Failure => ({
 // ---------------------------------------------------------------------------------------------
 // Short-lived in-memory caches (per process, like repo-snapshot.ts)
 
-function timedCache<T>(ttlMs: number, max: number) {
-  const entries = new Map<string, { at: number; value: T }>();
-  return {
-    get(key: string, now: number): T | undefined {
-      const hit = entries.get(key);
-      if (!hit) return undefined;
-      if (now - hit.at > ttlMs) {
-        entries.delete(key);
-        return undefined;
-      }
-      return hit.value;
-    },
-    set(key: string, value: T, now: number) {
-      entries.set(key, { at: now, value });
-      while (entries.size > max) {
-        const oldest = entries.keys().next().value;
-        if (oldest === undefined) break;
-        entries.delete(oldest);
-      }
-    },
-    clear: () => entries.clear(),
-  };
-}
-
 type WorkflowInputs = WorkflowDispatchInfo & { workflow: CiWorkflow; ref: string };
 
 const workflowCache = timedCache<CiWorkflow[]>(WORKFLOW_CACHE_TTL_MS, 100);
 const inputsCache = timedCache<WorkflowInputs>(WORKFLOW_CACHE_TTL_MS, 200);
 const compareCache = timedCache<CommitComparison>(COMPARE_CACHE_TTL_MS, 200);
+const previewCache = timedCache<RepositoryTags>(WORKFLOW_CACHE_TTL_MS, 50);
 /** When the runs of a repository were last asked for (success or not), and last read successfully. */
 const lastAttempt = new Map<string, number>();
 const lastSuccess = new Map<string, number>();
@@ -198,6 +206,8 @@ const refreshing = new Map<string, Promise<Outcome<{ refreshed: boolean; refresh
 
 /** For tests. */
 export function clearCiCaches(): void {
+  clearScanCaches();
+  previewCache.clear();
   workflowCache.clear();
   inputsCache.clear();
   compareCache.clear();
@@ -384,7 +394,7 @@ export async function dispatchRun(
  */
 export async function refreshRuns(
   ctx: CiContext,
-  input: { workspaceId: string; repository: Repository; force?: boolean },
+  input: { workspaceId: string; repository: Repository; force?: boolean; tags?: 'auto' | 'skip' },
   actor: Actor,
 ): Promise<Outcome<{ refreshed: boolean; refreshedAt: number | null }>> {
   const { repository } = input;
@@ -396,7 +406,7 @@ export async function refreshRuns(
   const running = refreshing.get(repository.id);
   if (running) return running;
   lastAttempt.set(repository.id, now);
-  const work = readRuns(ctx, input.workspaceId, repository, actor).finally(() => {
+  const work = readRuns(ctx, input.workspaceId, repository, actor, input.tags ?? 'auto').finally(() => {
     refreshing.delete(repository.id);
   });
   refreshing.set(repository.id, work);
@@ -408,6 +418,7 @@ async function readRuns(
   workspaceId: string,
   repository: Repository,
   actor: Actor,
+  tags: 'auto' | 'skip',
 ): Promise<Outcome<{ refreshed: boolean; refreshedAt: number | null }>> {
   const opened = await openCi(ctx, workspaceId, repository, actor, CI_POLL_QUEUE);
   if (!opened.ok) return opened;
@@ -455,7 +466,33 @@ async function readRuns(
     }
   });
   lastSuccess.set(repository.id, now);
+  // Builds the runs themselves do not name are followed through their tags. A failure here is
+  // kept with the scan and never fails the refresh of the runs.
+  if (tags === 'auto') {
+    await guarded(ctx, opened.secret, (signal) =>
+      scanBuildTags({
+        db: ctx.db,
+        workspaceId,
+        repositoryId: repository.id,
+        client,
+        matchers: ctx.matchers,
+        now: ctx.now(),
+        signal,
+        describeError: (error) => describeGithubError(error, opened.secret),
+      }),
+    );
+  }
   return { ok: true, refreshed: true, refreshedAt: now };
+}
+
+/** A GitHub error as text for a person (and for `build_scans.error`). */
+function describeGithubError(error: unknown, secret: string): string {
+  try {
+    const failed = githubFailure(error, secret);
+    return String(failed.body.message ?? failed.body.error).slice(0, 300);
+  } catch {
+    return 'Could not read the tags and releases.';
+  }
 }
 
 /** One run read from GitHub and stored; for a run id the table does not have yet. */
@@ -590,12 +627,67 @@ export function createCiPollHandler(ctx: CiContext): JobHandler {
 // ---------------------------------------------------------------------------------------------
 // Builds
 
+/** What the last search for tags saw and which patterns were tried: why a build may be unlinked. */
+export type BuildDiagnostics = {
+  /** When tags were last searched for this repository; null when never. */
+  scannedAt: number | null;
+  scanOk: boolean | null;
+  scanError: string | null;
+  patterns: {
+    tags: string[];
+    releases: string[];
+    prefix: string;
+    workflow: string | null;
+    usingDefaults: boolean;
+    source: EffectiveConventions['source'];
+  };
+  tags: { seen: number; truncated: boolean; sample: string[]; targeted: string[] } | null;
+  releases: { seen: number; truncated: boolean; error: string | null } | null;
+  newestRelease: { name: string | null; tag: string; at: number | null } | null;
+  /** Names that fit a pattern, and the one with the highest number for this app's platform. */
+  fitting: number;
+  newestFit: { name: string; buildNumber: string } | null;
+  runs: { stored: number; newestAt: number | null };
+  /** False when the connection cannot read tags (a connector without the reads). */
+  canReadTags: boolean;
+};
+
 export type AppBuilds = {
   app: ManagedApp;
   repository: { id: string; owner: string; repo: string } | null;
   matchers: { id: string; description: string }[];
   builds: BuildView[];
+  diagnostics: BuildDiagnostics | null;
 };
+
+function diagnosticsOf(input: {
+  conventions: EffectiveConventions;
+  scan: StoredScan | undefined;
+  entry: ScanApp | undefined;
+  runs: readonly WorkflowRunView[];
+}): BuildDiagnostics {
+  const { conventions: c, scan, entry } = input;
+  return {
+    scannedAt: scan?.scannedAt ?? null,
+    scanOk: scan ? scan.ok : null,
+    scanError: scan?.error ?? null,
+    patterns: {
+      tags: c.tagPatterns,
+      releases: c.releasePatterns,
+      prefix: c.prefix,
+      workflow: c.workflow,
+      usingDefaults: c.usingDefaultTags && c.usingDefaultReleases,
+      source: c.source,
+    },
+    tags: scan ? { seen: scan.summary.tags.seen, truncated: scan.summary.tags.truncated, sample: scan.summary.sampleTags, targeted: scan.summary.tags.targeted } : null,
+    releases: scan ? scan.summary.releases : null,
+    newestRelease: scan?.summary.newestRelease ?? null,
+    fitting: entry?.fitting ?? 0,
+    newestFit: entry?.newestFit ?? null,
+    runs: { stored: input.runs.length, newestAt: input.runs.reduce<number | null>((m, r) => (m === null || r.startedAt > m ? r.startedAt : m), null) },
+    canReadTags: true,
+  };
+}
 
 async function viewsFor(
   ctx: Pick<CiContext, 'db' | 'matchers'>,
@@ -605,22 +697,32 @@ async function viewsFor(
   const repository = app.repositoryId
     ? await getRepository(ctx.db, workspaceId, app.repositoryId)
     : undefined;
-  const [releases, links, runs] = await Promise.all([
+  const [releases, links, runs, conventions, scan] = await Promise.all([
     listAppReleases(ctx.db, workspaceId, app.id),
     listBuildLinks(ctx.db, workspaceId, app.id),
     repository ? loadRunRefs(ctx.db, workspaceId, repository.id) : Promise.resolve([]),
+    repository ? listConventions(ctx.db, workspaceId, repository.id) : Promise.resolve([]),
+    repository ? getScan(ctx.db, workspaceId, repository.id) : Promise.resolve(undefined),
   ]);
+  const effective = effectiveConventions(conventions, app.id);
+  const entry = scan?.summary.apps[app.id];
+  const builds = buildViews({
+    builds: buildsFromReleases(releases),
+    runs,
+    links,
+    matchers: ctx.matchers,
+    repository: repository ? { owner: repository.owner, repo: repository.repo } : null,
+  }).map((build): BuildView => {
+    if (build.linkState !== 'unlinked' || !repository) return build;
+    const reason = entry?.reasons[buildKey(build)];
+    return { ...build, diagnostic: reason ?? unsearched(scan) };
+  });
   return {
     app,
     repository: repository ? { id: repository.id, owner: repository.owner, repo: repository.repo } : null,
     matchers: ctx.matchers.map((m) => ({ id: m.id, description: m.description })),
-    builds: buildViews({
-      builds: buildsFromReleases(releases),
-      runs,
-      links,
-      matchers: ctx.matchers,
-      repository: repository ? { owner: repository.owner, repo: repository.repo } : null,
-    }),
+    builds,
+    diagnostics: repository ? diagnosticsOf({ conventions: effective, scan, entry, runs }) : null,
   };
 }
 
@@ -872,3 +974,202 @@ export async function buildChanges(
   };
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Build number conventions
+
+export type ConventionsView = {
+  repositoryId: string;
+  /** The app the view is for, or null for the repository. */
+  appId: string | null;
+  /** What is stored for this scope; null when nothing is (the defaults or the repository's apply). */
+  stored: StoredConventions | null;
+  /** The repository-wide convention that is stored, when the view is for an app. */
+  repository: StoredConventions | null;
+  /** What matching really uses: stored values with the defaults filled in. */
+  effective: EffectiveConventions;
+  defaults: { tagPatterns: string[]; releasePatterns: string[] };
+};
+
+async function scopeApp(
+  ctx: Pick<CiContext, 'db'>,
+  workspaceId: string,
+  repository: Repository,
+  appId: string | undefined,
+): Promise<{ ok: true; app: ManagedApp | undefined } | Failure> {
+  if (appId === undefined) return { ok: true, app: undefined };
+  const app = await getApp(ctx.db, workspaceId, appId);
+  if (!app) return failure(422, 'app_not_found', 'That app is not in this workspace.');
+  if (app.repositoryId !== repository.id) {
+    return failure(422, 'app_repository_mismatch', 'That app is not linked to this repository.');
+  }
+  return { ok: true, app };
+}
+
+/** The stored and effective build number conventions of a repository, or of one of its apps. */
+export async function getConventions(
+  ctx: Pick<CiContext, 'db'>,
+  input: { workspaceId: string; repositoryId: string; appId?: string | undefined },
+): Promise<Outcome<{ conventions: ConventionsView }>> {
+  const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
+  if (!repository) return failure(404, 'not_found');
+  const scope = await scopeApp(ctx, input.workspaceId, repository, input.appId);
+  if (!scope.ok) return scope;
+  const rows = await listConventions(ctx.db, input.workspaceId, repository.id);
+  const appId = scope.app?.id ?? null;
+  return {
+    ok: true,
+    conventions: {
+      repositoryId: repository.id,
+      appId,
+      stored: rows.find((r) => r.appId === appId) ?? null,
+      repository: rows.find((r) => r.appId === null) ?? null,
+      effective: effectiveConventions(rows, appId),
+      defaults: { tagPatterns: [...DEFAULT_TAG_PATTERNS], releasePatterns: [...DEFAULT_RELEASE_PATTERNS] },
+    },
+  };
+}
+
+/** Stores the conventions (audited as `build.conventions`). The body was validated by the route. */
+export async function setConventions(
+  ctx: Pick<CiContext, 'db' | 'now'>,
+  input: { workspaceId: string; repositoryId: string; appId?: string | undefined; conventions: BuildConventions },
+  actor: Actor,
+): Promise<Outcome<{ conventions: ConventionsView }>> {
+  const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
+  if (!repository) return failure(404, 'not_found');
+  const scope = await scopeApp(ctx, input.workspaceId, repository, input.appId);
+  if (!scope.ok) return scope;
+  await saveConventions(ctx.db, {
+    workspaceId: input.workspaceId,
+    repositoryId: repository.id,
+    appId: scope.app?.id ?? null,
+    conventions: input.conventions,
+    actor,
+    now: ctx.now(),
+  });
+  return getConventions(ctx, { workspaceId: input.workspaceId, repositoryId: repository.id, appId: scope.app?.id });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tags of the repository, for the conventions dialog's live preview
+
+export type RepositoryTags = {
+  tags: { name: string; sha: string }[];
+  releases: { name: string | null; tagName: string; draft: boolean; publishedAt: number | null }[];
+  tagsTruncated: boolean;
+  releasesTruncated: boolean;
+  releasesError: string | null;
+  readAt: number;
+};
+
+/** At most this many names go to the page. */
+const PREVIEW_TAGS = 500;
+const PREVIEW_RELEASES = 200;
+
+/** The tags and releases GitHub lists for the repository, kept for a minute. Needs a scan right. */
+export async function listRepositoryTags(
+  ctx: CiContext,
+  input: { workspaceId: string; repositoryId: string },
+  actor: Actor,
+): Promise<Outcome<{ data: RepositoryTags; cached: boolean }>> {
+  const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
+  if (!repository) return failure(404, 'not_found');
+  const hit = previewCache.get(repository.id, ctx.now());
+  if (hit) return { ok: true, data: hit, cached: true };
+  const opened = await openCi(ctx, input.workspaceId, repository, actor, 'ci.tags');
+  if (!opened.ok) return opened;
+  if (!isTagClient(opened.client)) {
+    return failure(422, 'ci_unsupported', 'This repository connection cannot read tags.');
+  }
+  const client = opened.client;
+  const read = await guarded(ctx, opened.secret, (signal) => readTagData(client, { signal, now: ctx.now() }));
+  if (!read.ok) return read;
+  const data: ReadTagData = read.value;
+  const value: RepositoryTags = {
+    tags: data.tags.slice(0, PREVIEW_TAGS).map((t) => ({ name: t.name, sha: t.sha })),
+    releases: data.releases
+      .slice(0, PREVIEW_RELEASES)
+      .map((r) => ({ name: r.name, tagName: r.tagName, draft: r.draft, publishedAt: r.publishedAt ?? r.createdAt })),
+    tagsTruncated: data.tagsTruncated || data.tags.length > PREVIEW_TAGS,
+    releasesTruncated: data.releasesTruncated || data.releases.length > PREVIEW_RELEASES,
+    releasesError: data.releasesError,
+    readAt: data.readAt,
+  };
+  previewCache.set(repository.id, value, ctx.now());
+  return { ok: true, data: value, cached: false };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Re-run matching
+
+export type RematchResult = {
+  /** Whether GitHub was asked for tags (false when nothing needed them). */
+  scanned: boolean;
+  /** Links written or changed by the tag search. */
+  written: number;
+  /** Why the tag search failed, when it did; the runs were still refreshed. */
+  error: string | null;
+};
+
+/**
+ * Reads the repository's runs again and searches tags and releases for the builds of one app that
+ * are not linked, ignoring the spacing and the kept tag lists. Needs the right of a scan. Audited
+ * as `build.rematch` (and the credential use).
+ */
+export async function rematchBuilds(
+  ctx: CiContext,
+  input: { workspaceId: string; appId: string },
+  actor: Actor,
+): Promise<Outcome<{ builds: AppBuilds; rematch: RematchResult }>> {
+  const { workspaceId } = input;
+  const app = await getApp(ctx.db, workspaceId, input.appId);
+  if (!app) return failure(404, 'not_found');
+  const repository = app.repositoryId ? await getRepository(ctx.db, workspaceId, app.repositoryId) : undefined;
+  if (!repository) {
+    return failure(422, 'no_repository', 'Link a repository to this app before matching its builds to CI runs.');
+  }
+  const refreshed = await refreshRuns(ctx, { workspaceId, repository, force: true, tags: 'skip' }, actor);
+  if (!refreshed.ok) return refreshed;
+  const opened = await openCi(ctx, workspaceId, repository, actor, 'ci.rematch');
+  if (!opened.ok) return opened;
+  const { client } = opened;
+  const done = await guarded(ctx, opened.secret, (signal) =>
+    scanBuildTags({
+      db: ctx.db,
+      workspaceId,
+      repositoryId: repository.id,
+      client,
+      matchers: ctx.matchers,
+      now: ctx.now(),
+      force: true,
+      signal,
+      onlyAppId: app.id,
+      describeError: (error) => describeGithubError(error, opened.secret),
+    }),
+  );
+  const rematch: RematchResult = done.ok
+    ? { scanned: done.value.scanned, written: done.value.written, error: done.value.error }
+    : { scanned: true, written: 0, error: String(done.body.message ?? done.body.error) };
+  await recordAudit(ctx.db, {
+    workspaceId,
+    actor,
+    action: 'build.rematch',
+    target: { type: 'app', id: app.id },
+    detail: { scanned: rematch.scanned, written: rematch.written, ok: rematch.error === null },
+    at: ctx.now(),
+  });
+  return { ok: true, builds: await viewsFor(ctx, workspaceId, app), rematch };
+}
+
+/** Why a build the scan did not mention has no link: the search failed, is older than the build, or never ran. */
+function unsearched(scan: StoredScan | undefined): { code: string; message: string } {
+  if (scan && !scan.ok) {
+    return {
+      code: 'scan_failed',
+      message: `The last search of tags and releases failed${scan.error ? `: ${scan.error}` : ''}. Use "Re-run matching".`,
+    };
+  }
+  if (scan) return { code: 'not_searched', message: 'Tags were searched before this build was synced. Use "Re-run matching".' };
+  return { code: 'not_searched', message: 'Tags and releases have not been searched yet. Use "Re-run matching".' };
+}

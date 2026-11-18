@@ -1,5 +1,6 @@
 import { type Action, type Platform, can } from '@mrm/core';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
@@ -9,13 +10,18 @@ import {
   buildChanges,
   dispatchRun,
   fetchRun,
+  getConventions,
   getWorkflowInputs,
   linkBuildToRun,
   listAppBuilds,
+  listRepositoryTags,
   listWorkflows,
   refreshRuns,
+  rematchBuilds,
+  setConventions,
   unlinkBuild,
 } from '../services/ci.ts';
+import { conventionsBody } from '../services/build-conventions.ts';
 import { countActiveRuns, getRunView, listRuns } from '../services/ci-runs.ts';
 import { type Failure, getRepository } from '../services/repositories.ts';
 
@@ -56,6 +62,9 @@ const dispatchBody = z.object({
 });
 
 const linkBody = z.object({ runId: z.string().regex(RUN_ID, 'A run id is a number.') });
+
+/** The conventions are a few short patterns; 16 KiB is far more than they need. */
+export const CONVENTIONS_BODY_LIMIT = 16 * 1024;
 
 const platformOf = (value: string): Platform | undefined =>
   value === 'ios' || value === 'android' ? value : undefined;
@@ -167,11 +176,72 @@ export function ciRoutes(ctx: CiContext) {
     return c.json({ dispatched: true, runKnown: done.runKnown, run: done.run }, 202);
   });
 
+  // ----- build number conventions ---------------------------------------------------------
+
+  const tooLarge = (c: Context<AppEnv>) =>
+    c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
+
+  app.get('/:workspaceId/repositories/:id/build-conventions', needs('repositories.read'), async (c) => {
+    const appId = c.req.query('appId');
+    if (appId !== undefined && (appId.length === 0 || appId.length > 100)) return invalid(c, 'appId', 'An app id.');
+    const done = await getConventions(ctx, { workspaceId: ws(c), repositoryId: param(c, 'id'), appId });
+    if (!done.ok) return done.status === 422 ? notFound(c) : respond(c, done);
+    return c.json(done.conventions);
+  });
+
+  app.put(
+    '/:workspaceId/repositories/:id/build-conventions',
+    needs('repositories.write'),
+    bodyLimit({ maxSize: CONVENTIONS_BODY_LIMIT, onError: tooLarge }),
+    async (c) => {
+      const body = await parseBody(c, conventionsBody);
+      if (!body.ok) return body.response;
+      const { appId, ...rest } = body.data;
+      const done = await setConventions(
+        ctx,
+        {
+          workspaceId: ws(c),
+          repositoryId: param(c, 'id'),
+          appId,
+          conventions: {
+            tagPatterns: rest.tagPatterns,
+            releasePatterns: rest.releasePatterns,
+            prefix: rest.prefix,
+            workflow: rest.workflow ?? null,
+          },
+        },
+        actor(c),
+      );
+      return done.ok ? c.json(done.conventions) : respond(c, done);
+    },
+  );
+
+  // Reads GitHub (the tags and releases the dialog previews patterns against): a right of a scan.
+  app.get('/:workspaceId/repositories/:id/build-conventions/tags', needs('repositories.scan'), async (c) => {
+    const done = await listRepositoryTags(ctx, { workspaceId: ws(c), repositoryId: param(c, 'id') }, actor(c));
+    return done.ok ? c.json({ ...done.data, cached: done.cached }) : respond(c, done);
+  });
+
   // ----- builds ---------------------------------------------------------------------------
 
   app.get('/:workspaceId/apps/:id/builds', needs('apps.read'), async (c) => {
     const done = await listAppBuilds(ctx, { workspaceId: ws(c), appId: param(c, 'id') });
     return done ? c.json(done) : notFound(c);
+  });
+
+  // Reads the runs, tags and releases from GitHub again and links what it can: a right of a scan.
+  app.post('/:workspaceId/apps/:id/builds/rematch', needs('repositories.scan'), async (c) => {
+    const wait = ctx.rematchLimiter.take(ws(c));
+    if (wait > 0) {
+      return respond(c, {
+        ok: false,
+        status: 429,
+        body: { error: 'rate_limited', message: `Too many requests. Try again in ${wait} seconds.`, retryAfterSeconds: wait },
+        headers: { 'Retry-After': String(wait) },
+      });
+    }
+    const done = await rematchBuilds(ctx, { workspaceId: ws(c), appId: param(c, 'id') }, actor(c));
+    return done.ok ? c.json({ ...done.builds, rematch: done.rematch }) : respond(c, done);
   });
 
   // Reads GitHub (the compare API), so it needs the right of a scan.

@@ -3,7 +3,10 @@ import type {
   CiRun,
   CiWorkflow,
   CommitComparison,
+  CommitDetail,
   DispatchResult,
+  GitRelease,
+  GitTag,
   ListWorkflowRunsOptions,
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
@@ -63,13 +66,29 @@ export class FakeCi implements CiClient {
     ],
   };
   dispatchResult: DispatchResult = {};
+  /** Tags, releases and commits, for linking a build number through its tag. */
+  tags: GitTag[] = [];
+  releases: GitRelease[] = [];
+  commits = new Map<string, CommitDetail>();
   /** Errors thrown by the next calls of each kind, in order. */
-  errors: { workflows: unknown[]; runs: unknown[]; dispatch: unknown[]; compare: unknown[]; getRun: unknown[] } = {
+  errors: {
+    workflows: unknown[];
+    runs: unknown[];
+    dispatch: unknown[];
+    compare: unknown[];
+    getRun: unknown[];
+    tags: unknown[];
+    releases: unknown[];
+    commits: unknown[];
+  } = {
     workflows: [],
     runs: [],
     dispatch: [],
     compare: [],
     getRun: [],
+    tags: [],
+    releases: [],
+    commits: [],
   };
   calls: { name: string; args: unknown[] }[] = [];
   dispatches: { workflow: string; ref: string; inputs?: Record<string, string> | undefined }[] = [];
@@ -122,6 +141,32 @@ export class FakeCi implements CiClient {
     const error = this.errors.getRun.shift();
     if (error) throw error;
     return this.runs.find((r) => r.id === runId);
+  }
+  async listTags(options: { maxPages?: number; signal?: AbortSignal } = {}) {
+    this.calls.push({ name: 'listTags', args: [options.maxPages] });
+    this.signals.push(options.signal);
+    const error = this.errors.tags.shift();
+    if (error) throw error;
+    return { tags: this.tags, truncated: false, pages: 1 };
+  }
+  async listMatchingTags(prefix: string, options: { signal?: AbortSignal } = {}) {
+    this.calls.push({ name: 'listMatchingTags', args: [prefix] });
+    this.signals.push(options.signal);
+    return { tags: this.tags.filter((t) => t.name.startsWith(prefix)), truncated: false, pages: 1, unresolved: 0 };
+  }
+  async getCommit(ref: string, signal?: AbortSignal) {
+    this.calls.push({ name: 'getCommit', args: [ref] });
+    this.signals.push(signal);
+    const error = this.errors.commits.shift();
+    if (error) throw error;
+    return this.commits.get(ref);
+  }
+  async listReleases(options: { maxPages?: number; signal?: AbortSignal } = {}) {
+    this.calls.push({ name: 'listReleases', args: [options.maxPages] });
+    this.signals.push(options.signal);
+    const error = this.errors.releases.shift();
+    if (error) throw error;
+    return { releases: this.releases, truncated: false, pages: 1 };
   }
   async compareCommits(base: string, head: string) {
     this.calls.push({ name: 'compareCommits', args: [base, head] });

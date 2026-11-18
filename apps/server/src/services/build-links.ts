@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { type Platform, RELEASE_STATES, type ReleaseState } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { type AppRelease, type ManagedApp, listAppReleases } from './apps.ts';
+import type { Confidence, LinkEvidence } from './build-tags.ts';
 import { RUN_COLUMNS, type WorkflowRunView, toRunView } from './ci-runs.ts';
 
 /**
@@ -286,14 +287,28 @@ export type StoredLink = {
   headSha: string;
   runUrl: string | null;
   workflow: string | null;
-  /** `manual`, or the id of the matcher that found it. */
+  /** `manual`, the id of the matcher that found it, or `tag` / `release` (found through a tag). */
   source: string;
   reason: string;
   linkedBy: string | null;
   linkedAt: number;
+  /** Why a tag-based link was made; null for a manual or matcher link. */
+  evidence: LinkEvidence | null;
 };
 
 type Row = Record<string, unknown>;
+
+function parseEvidence(raw: unknown): LinkEvidence | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    const v: unknown = JSON.parse(raw);
+    return v && typeof v === 'object' && !Array.isArray(v) && typeof (v as LinkEvidence).tag === 'string'
+      ? (v as LinkEvidence)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 const toLink = (r: Row): StoredLink => ({
   id: String(r.id),
@@ -309,10 +324,11 @@ const toLink = (r: Row): StoredLink => ({
   reason: String(r.reason ?? ''),
   linkedBy: r.linked_by === null || r.linked_by === undefined ? null : String(r.linked_by),
   linkedAt: Number(r.linked_at),
+  evidence: parseEvidence(r.evidence_json),
 });
 
 const LINK_COLUMNS = `id, app_id, platform, build_number, repository_id, run_id, head_sha, run_url,
-  workflow, source, reason, linked_by, linked_at`;
+  workflow, source, reason, linked_by, linked_at, evidence_json`;
 
 export async function listBuildLinks(
   sql: Sql,
@@ -332,29 +348,34 @@ export type NewLink = {
   platform: Platform;
   buildNumber: string;
   repositoryId: string;
-  run: Pick<WorkflowRunView, 'id' | 'headSha' | 'url' | 'workflow'>;
+  /** The run, or null for a tag whose run is not known (a "tag found" link: `sha` is then needed). */
+  run: Pick<WorkflowRunView, 'id' | 'headSha' | 'url' | 'workflow'> | null;
+  /** The commit the link names. Default: the run's commit. A tag-based link names the tag's commit. */
+  sha?: string | undefined;
   source: string;
   reason: string;
   linkedBy: string | null;
   now: number;
+  evidence?: LinkEvidence | null;
 };
 
 /** Writes the link of a build, replacing the one it had. */
 export async function putBuildLink(sql: Sql, link: NewLink): Promise<void> {
   const values = [
     link.repositoryId,
-    link.run.id,
-    link.run.headSha ?? '',
-    link.run.url,
-    link.run.workflow,
+    link.run?.id ?? '',
+    link.sha ?? link.run?.headSha ?? '',
+    link.run?.url ?? null,
+    link.run?.workflow ?? null,
     link.source,
-    link.reason.slice(0, 300),
+    link.reason.slice(0, 600),
     link.linkedBy,
     link.now,
+    link.evidence ? JSON.stringify(link.evidence) : null,
   ];
   const changed = await sql.execute(
     `UPDATE build_links SET repository_id = ?, run_id = ?, head_sha = ?, run_url = ?, workflow = ?,
-            source = ?, reason = ?, linked_by = ?, linked_at = ?
+            source = ?, reason = ?, linked_by = ?, linked_at = ?, evidence_json = ?
       WHERE workspace_id = ? AND app_id = ? AND platform = ? AND build_number = ?`,
     [...values, link.workspaceId, link.appId, link.platform, link.buildNumber],
   );
@@ -362,8 +383,8 @@ export async function putBuildLink(sql: Sql, link: NewLink): Promise<void> {
   await sql.execute(
     `INSERT INTO build_links
        (id, workspace_id, app_id, platform, build_number, repository_id, run_id, head_sha, run_url,
-        workflow, source, reason, linked_by, linked_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        workflow, source, reason, linked_by, linked_at, evidence_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [randomUUID(), link.workspaceId, link.appId, link.platform, link.buildNumber, ...values],
   );
 }
@@ -459,9 +480,14 @@ const runUrlOf = (runs: readonly WorkflowRunView[], id: string) => runs.find((r)
 // The response
 
 export type BuildLinkView = {
-  state: 'linked';
-  /** `manual`, or the id of the matcher: `dispatch_input`, `run_title`, ... */
+  /** `linked`: a run is known (or was). `tag`: a tag or release carries the number, no run was found. */
+  state: 'linked' | 'tag';
+  /** `manual`, the id of the matcher (`dispatch_input`, `run_title`, ...), or `tag` / `release`. */
   source: string;
+  /** How sure the link is. A manual link and an exact matcher are `high`; tag links say why. */
+  confidence: Confidence;
+  /** The tag, pattern, commit and reasoning of a tag-based link; null for the others. */
+  evidence: LinkEvidence | null;
   manual: boolean;
   /** Why this run: what the matcher saw, or who linked it. */
   reason: string;
@@ -486,8 +512,10 @@ export type BuildLinkView = {
 };
 
 export type BuildView = StoredBuild & {
-  linkState: 'linked' | 'unlinked';
+  linkState: 'linked' | 'tag' | 'unlinked';
   link: BuildLinkView | null;
+  /** For an unlinked build: why the last search found nothing, when a search has run. */
+  diagnostic: { code: string; message: string } | null;
 };
 
 /** `https://github.com/acme/app/actions/runs/1` and `acme/app` give `https://github.com/acme/app/commit/<sha>`. */
@@ -513,6 +541,8 @@ export function buildViews(input: {
 }): BuildView[] {
   const { runs, repository } = input;
   const byRun = new Map(runs.map((r) => [r.id, r]));
+  /** Any stored run's address tells where this GitHub lives, for a commit link without a run. */
+  const anyRunUrl = runs.find((r) => r.url)?.url ?? null;
   const stored = new Map(input.links.map((l) => [buildKey(l), l]));
   const found = repository ? matchBuilds(input.builds, runs, input.matchers) : new Map<string, Match>();
 
@@ -530,6 +560,8 @@ export function buildViews(input: {
     let linkedBy: string | null = null;
     let fallbackUrl: string | null = null;
     let fallbackWorkflow: string | null = null;
+    let evidence: LinkEvidence | null = null;
+    let confidence: Confidence = 'high';
     if (saved?.source === 'manual') {
       source = saved.source;
       runId = saved.runId;
@@ -553,14 +585,21 @@ export function buildViews(input: {
       linkedAt = saved.linkedAt;
       fallbackUrl = saved.runUrl;
       fallbackWorkflow = saved.workflow;
+      evidence = saved.evidence;
+      confidence = saved.evidence?.confidence ?? 'high';
     }
-    if (!source || !runId || !sha) return { ...build, linkState: 'unlinked', link: null };
+    if (!source || runId === undefined || !sha) {
+      return { ...build, linkState: 'unlinked', link: null, diagnostic: null };
+    }
 
     const run = byRun.get(runId);
-    const url = run?.url ?? fallbackUrl;
+    const url = run?.url ?? fallbackUrl ?? anyRunUrl;
+    const tagOnly = runId === '';
     const link: BuildLinkView = {
-      state: 'linked',
+      state: tagOnly ? 'tag' : 'linked',
       source,
+      confidence,
+      evidence,
       manual: source === 'manual',
       reason,
       candidates,
@@ -596,11 +635,11 @@ export function buildViews(input: {
       commit: {
         sha,
         shortSha: sha.slice(0, 7),
-        message: run?.commitMessage ?? null,
+        message: (run && run.headSha === sha ? run.commitMessage : null) ?? evidence?.message ?? null,
         url: repository ? commitUrl(url, repository.owner, repository.repo, sha) : null,
       },
     };
-    return { ...build, linkState: 'linked', link };
+    return { ...build, linkState: tagOnly ? 'tag' : 'linked', link, diagnostic: null };
   });
 }
 

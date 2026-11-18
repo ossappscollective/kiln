@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CiRun } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
+import { purgeConventionOrphans } from './build-conventions.ts';
 
 /**
  * The stored side of CI tracking: `workflow_runs` rows, one per GitHub Actions run of a connected
@@ -362,11 +363,12 @@ export async function pruneRuns(
   );
 }
 
-/** Deletes the rows of repositories that were disconnected and of apps that were deleted. */
+/** Deletes the rows of repositories that were disconnected (runs, conventions, scans) and of apps that were deleted. */
 export async function purgeOrphans(sql: Sql): Promise<number> {
   const runs = await sql.execute(
     'DELETE FROM workflow_runs WHERE repository_id NOT IN (SELECT id FROM repositories)',
   );
   const links = await sql.execute('DELETE FROM build_links WHERE app_id NOT IN (SELECT id FROM apps)');
-  return runs + links;
+  const conventions = await purgeConventionOrphans(sql);
+  return runs + links + conventions;
 }
