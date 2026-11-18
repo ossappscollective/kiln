@@ -4,7 +4,8 @@
   request) with why it failed when it did. A failed push or pull request does not undo the commit;
   the buttons retry exactly the step that is left.
   Props: changeSet (with its outcome), options (the retries that are possible, from retryOptions),
-  busy (the id of the retry that is running, or ''), onretry (called with the option).
+  busy (the id of the retry that is running, or ''), onretry (called with the option), onfixup (given
+  only to who may fix up the branch: shows "Fix up this branch", which adds one commit on top of it).
 -->
 <script lang="ts">
   import { type RetryOption, outcomeSignature, outcomeSteps, switchHint } from '../../lib/change-set-apply.ts';
@@ -22,11 +23,13 @@
     options,
     busy = '',
     onretry,
+    onfixup,
   }: {
     changeSet: ChangeSetView;
     options: RetryOption[];
     busy?: string;
     onretry: (option: RetryOption) => void;
+    onfixup?: (() => void) | undefined;
   } = $props();
 
   const outcome = $derived(changeSet.outcome);
@@ -69,13 +72,22 @@
         <p class="muted small">{signature.tip}</p>
       {/if}
 
-      {#if options.length > 0}
+      {#if changeSet.fixups && changeSet.fixups.length > 0}
+        <p class="muted small">
+          {changeSet.fixups.length === 1 ? 'One fix up commit was' : `${changeSet.fixups.length} fix up commits were`} added on top of the first one; the commit above is the latest.
+        </p>
+      {/if}
+
+      {#if options.length > 0 || onfixup}
         <div class="row wrap">
           {#each options as option (option.id)}
             <Button icon="git-pull-request" disabled={busy !== ''} loading={busy === option.id} onclick={() => onretry(option)}>
               {busy === option.id ? 'Working…' : option.label}
             </Button>
           {/each}
+          {#if onfixup}
+            <Button icon="git-branch" disabled={busy !== ''} onclick={onfixup}>Fix up this branch</Button>
+          {/if}
         </div>
       {/if}
     </div>

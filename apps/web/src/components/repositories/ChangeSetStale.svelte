@@ -6,11 +6,14 @@
   Props: api, workspaceId, changeSet, role, applyCode (the error code of the last apply on this
   page, or null), onrefreshed (called with the server's answer after a refresh), ondiscard (the
   refresh left nothing to apply and the person chose to discard).
+  A change set made by pulling the store listing also has "Recompute from the live store" (draft,
+  approved, or failed without a branch), for who may create change sets and read the listing.
   Shown only for a change set that can be refreshed, and the buttons only to who may use them.
 -->
 <script lang="ts">
   import { type Role } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { type RecomputeResult, canRecompute } from '../../lib/change-set-fixup.ts';
   import {
     type RefreshResult,
     type Staleness,
@@ -25,6 +28,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import ChangeSetRefreshDialog from './ChangeSetRefreshDialog.svelte';
+  import RecomputeDialog from './RecomputeDialog.svelte';
 
   let {
     api,
@@ -33,6 +37,7 @@
     role,
     applyCode = null,
     onrefreshed,
+    onrecomputed,
     ondiscard,
   }: {
     api: Api;
@@ -41,6 +46,7 @@
     role: Role;
     applyCode?: string | null;
     onrefreshed: (result: RefreshResult) => void;
+    onrecomputed?: ((result: RecomputeResult) => void) | undefined;
     ondiscard: () => void;
   } = $props();
 
@@ -48,9 +54,11 @@
   let checked = $state<Staleness | null>(null);
   let checkError = $state('');
   let dialogOpen = $state(false);
+  let recomputeOpen = $state(false);
 
   const mayCheck = $derived(canCheckForUpdates(role, changeSet));
   const mayRefresh = $derived(canRefresh(role, changeSet));
+  const mayRecompute = $derived(canRecompute(role, changeSet));
   const stale = $derived(looksStale(changeSet, applyCode) || checked?.stale === true);
   const changedFiles = $derived((checked?.files ?? []).filter((f) => f.state !== 'same'));
 
@@ -132,7 +140,30 @@
   />
 {/if}
 
+{#if mayRecompute}
+  <div class="row check-row recompute">
+    <Button size="sm" icon="refresh" onclick={() => (recomputeOpen = true)}>Recompute from the live store</Button>
+    <span class="muted small">Makes this pull again from the store listing and the repository as they are now.</span>
+  </div>
+  <RecomputeDialog
+    {api}
+    {workspaceId}
+    {changeSet}
+    {role}
+    bind:open={recomputeOpen}
+    onrecomputed={(result) => {
+      checked = null;
+      onrecomputed?.(result);
+    }}
+    {ondiscard}
+  />
+{/if}
+
 <style>
+  .recompute {
+    margin-top: var(--space-3);
+  }
+
   .files {
     margin: var(--space-2) 0 0;
     padding: 0;

@@ -3,6 +3,8 @@
   the person's role allows (approve, apply, discard).
   Props: api, workspaceId, id (the change set), role, myId, names (user id to display name),
   onback (back to the list), onchanged (called after any state change, so the list can refresh),
+  Fixing up: an applied change set (or a failed one that made its branch) has "Fix up this branch",
+  which adds one commit on top of the branch; the fix ups so far are listed.
   localOnly? (the repository is a local folder with no GitHub: Apply can only commit to a branch of
   the folder), hasLocalClone? (a folder is attached), write? (the server's setting for writing to
   local clones, null while it loads), signing? (whether the server signs those commits, null while it
@@ -37,12 +39,14 @@
     filesChangedLabel,
     prLabel,
   } from '../../lib/repositories.ts';
+  import { type FixupResult, type RecomputeResult, canFixup, fixupCount, fixupPromise } from '../../lib/change-set-fixup.ts';
   import { type RefreshResult, canRefresh } from '../../lib/change-set-refresh.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChangeSetView, LocalSigningConfig } from '../../lib/types.ts';
   import ExternalLink from '../credentials/ExternalLink.svelte';
   import ApplyDialog from './ApplyDialog.svelte';
   import ChangeSetStale from './ChangeSetStale.svelte';
+  import FixupDialog from './FixupDialog.svelte';
   import LocalOutcomeCard from './LocalOutcomeCard.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -89,6 +93,7 @@
   /** The error code of the last apply on this page, so a stale change set is told apart from other failures. */
   let applyCode = $state<string | null>(null);
   let applyOpen = $state(false);
+  let fixupOpen = $state(false);
   let discardOpen = $state(false);
   let titleEl = $state<HTMLElement>();
 
@@ -137,6 +142,8 @@
       : { approve: false, apply: false, discard: false },
   );
   const retries = $derived(changeSet ? retryOptions(changeSet, applyContext, role) : []);
+  const mayFixup = $derived(changeSet ? canFixup(role, changeSet) : false);
+  const fixups = $derived(changeSet?.fixups ?? []);
   const localApplyReason = $derived(localBranchAvailability(applyContext).reason);
   const anyAction = $derived(actions.approve || actions.apply || actions.discard);
   const files = $derived(
@@ -208,6 +215,22 @@
 
   /** A refresh answered: show the new change set (a draft again when its text changed). */
   function refreshed(result: RefreshResult) {
+    changeSet = result.changeSet;
+    applyCode = null;
+    actionError = '';
+    onchanged();
+  }
+
+  /** A fix up added a commit (or finished a step): show the change set as it is now. */
+  function fixedUp(result: FixupResult) {
+    changeSet = result.changeSet;
+    applyCode = null;
+    actionError = '';
+    onchanged();
+  }
+
+  /** A recompute answered: show the new change set (a draft again when its text changed). */
+  function recomputed(result: RecomputeResult) {
     changeSet = result.changeSet;
     applyCode = null;
     actionError = '';
@@ -300,7 +323,13 @@
 
       {#if changeSet.status === 'applied' && changeSet.outcome}
         <div class="gap">
-          <LocalOutcomeCard {changeSet} options={retries} busy={retrying} onretry={retry} />
+          <LocalOutcomeCard
+            {changeSet}
+            options={retries}
+            busy={retrying}
+            onretry={retry}
+            onfixup={mayFixup ? () => (fixupOpen = true) : undefined}
+          />
         </div>
       {:else if changeSet.status === 'applied'}
         <div class="gap">
@@ -312,7 +341,32 @@
             {:else}
               Review and merge it in GitHub.
             {/if}
+            {#if fixupCount(changeSet) > 0}
+              {fixupCount(changeSet) === 1 ? 'One fix up commit was' : `${fixupCount(changeSet)} fix up commits were`} added to the branch since.
+            {/if}
           </Alert>
+          {#if mayFixup}
+            <div class="row gap">
+              <Button icon="git-branch" onclick={() => (fixupOpen = true)}>Fix up this branch</Button>
+              <span class="muted small">{fixupPromise(changeSet.branch ?? '')}</span>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      {#if fixups.length > 0}
+        <div class="gap">
+          <p class="small"><strong>Fix ups</strong> (commits added on top of the branch, oldest first)</p>
+          <ul class="fixups small">
+            {#each fixups as fix (fix.commit)}
+              <li>
+                <code>{fix.commit.slice(0, 7)}</code>
+                {fix.files === 1 ? '1 file' : `${fix.files} files`},
+                {@render when(fix.at)},
+                {fix.pushed ? 'on GitHub' : 'in the local clone only'}
+              </li>
+            {/each}
+          </ul>
         </div>
       {/if}
 
@@ -323,17 +377,34 @@
             {#if changeSet.branch}
               A branch named <code>{changeSet.branch}</code> was created before the failure; delete it in GitHub if you do not need it.
             {/if}
-            {#if canRefresh(role, changeSet)}
+            {#if mayFixup}
+              The branch exists, so it cannot be refreshed. Fix it up to add one commit on top of the branch (history is not rewritten), or discard
+              this change set and create a new one from the current listing.
+            {:else if canRefresh(role, changeSet)}
               Refresh it to put your change on top of what the repository has now, or discard it and create a new one from the current listing.
             {:else}
               Discard this change set and create a new one from the current listing.
             {/if}
           </Alert>
+          {#if mayFixup}
+            <div class="row gap">
+              <Button variant="primary" icon="git-branch" onclick={() => (fixupOpen = true)}>Fix up this branch</Button>
+            </div>
+          {/if}
         </div>
       {/if}
 
       <div class="gap">
-        <ChangeSetStale {api} {workspaceId} {changeSet} {role} {applyCode} onrefreshed={refreshed} ondiscard={() => void run('discard')} />
+        <ChangeSetStale
+          {api}
+          {workspaceId}
+          {changeSet}
+          {role}
+          {applyCode}
+          onrefreshed={refreshed}
+          onrecomputed={recomputed}
+          ondiscard={() => void run('discard')}
+        />
       </div>
 
       {#if actionError && changeSet.status !== 'failed'}
@@ -389,6 +460,7 @@
 </div>
 
 <ApplyDialog bind:open={applyOpen} {changeSet} context={applyContext} busy={busy === 'apply'} onconfirm={confirmApply} />
+<FixupDialog {api} {workspaceId} {changeSet} {role} bind:open={fixupOpen} onfixed={fixedUp} onchanged={() => void load(true)} />
 
 <Modal bind:open={discardOpen} size="sm" title="Discard this change set?">
   <p>
@@ -420,6 +492,13 @@
 
   .gap {
     margin-top: var(--space-4);
+  }
+
+  .fixups {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-5);
+    display: grid;
+    gap: var(--space-1);
   }
 
   h3:focus {

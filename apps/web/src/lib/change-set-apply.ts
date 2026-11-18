@@ -187,15 +187,17 @@ export function outcomeSteps(outcome: LocalOutcome): OutcomeStep[] {
   const push: OutcomeStep =
     outcome.push.status === 'pushed'
       ? { id: 'push', label: 'Push', status: 'Pushed to GitHub', tone: 'ok' }
-      : outcome.push.status === 'failed'
-        ? {
-            id: 'push',
-            label: 'Push',
-            status: 'Push failed',
-            tone: 'bad',
-            ...(outcome.push.error ? { detail: outcome.push.error } : {}),
-          }
-        : { id: 'push', label: 'Push', status: 'Not pushed', tone: 'neutral' };
+      : outcome.push.status === 'behind'
+        ? { id: 'push', label: 'Push', status: 'The latest fix up is not on GitHub yet', tone: 'warn' }
+        : outcome.push.status === 'failed'
+          ? {
+              id: 'push',
+              label: 'Push',
+              status: 'Push failed',
+              tone: 'bad',
+              ...(outcome.push.error ? { detail: outcome.push.error } : {}),
+            }
+          : { id: 'push', label: 'Push', status: 'Not pushed', tone: 'neutral' };
   const pr: OutcomeStep =
     outcome.pr.status === 'opened'
       ? { id: 'pr', label: 'Pull request', status: 'Pull request opened', tone: 'ok' }
@@ -237,8 +239,9 @@ export function retryOptions(
   const prOpen = outcome.pr.status === 'opened';
   if (outcome.push.status !== 'pushed') {
     const failed = outcome.push.status === 'failed';
+    const behind = outcome.push.status === 'behind';
     return [
-      { id: 'push', label: failed ? 'Retry the push' : 'Push the branch', openPr: false },
+      { id: 'push', label: failed ? 'Retry the push' : behind ? 'Push the new commit' : 'Push the branch', openPr: false },
       { id: 'push_pr', label: failed ? 'Retry the push and open a pull request' : 'Push and open a pull request', openPr: true },
     ];
   }
