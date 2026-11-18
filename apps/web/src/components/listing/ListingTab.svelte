@@ -5,6 +5,11 @@
   Props: api, workspaceId, role, app, now (ms), syncing (a sync is running), onrefresh (runs the
   sync; the parent owns it), refreshKey (changes when a sync finished, so this tab reloads).
 
+  Below the texts it shows the sections beyond them (categories, age rating, privacy choices URL,
+  app details, screenshot and preview counts; Google Play: image counts and release notes), the
+  connector's warnings and the state of the scheduled read. Those are read-only and never part of
+  "Pull into repository" (that copies text fields only).
+
   The one thing it can write is a draft: "Pull into repository" copies the store text of fields
   where the store is ahead (or the two diverged) into the repository's listing files as a draft
   change set. The draft is reviewed and applied (as a pull request or a commit on a new branch of the local clone) in the repository's Change sets tab.
@@ -37,10 +42,15 @@
     toggleAllDifferences,
     toggleKey,
   } from '../../lib/listing-pull.ts';
+  import {
+    cleanWarnings,
+    lastAttemptText,
+    scheduleView,
+  } from '../../lib/listing-sections.ts';
   import { describeError, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { AppSummary, DriftField, DriftLocale, ListingDrift, PullResult } from '../../lib/types.ts';
+  import type { AppSummary, DriftField, DriftLocale, ListingDrift, LiveListing, PullResult } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -48,6 +58,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import FieldCompare from './FieldCompare.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
+  import ListingSections from './ListingSections.svelte';
   import PullDialog from './PullDialog.svelte';
   import PullResultSummary from './PullResultSummary.svelte';
 
@@ -75,6 +86,9 @@
   const canReadRepo = $derived(can(role, 'repositories.scan') && app.repositoryId !== null);
 
   let drift = $state<ListingDrift | null>(null);
+  // The warnings and the scheduled read come from the live view. They are extras: a failure to load
+  // them never hides the comparison.
+  let live = $state<LiveListing | null>(null);
   let loading = $state(true);
   let reloading = $state(false);
   let loadProblem = $state('');
@@ -105,9 +119,13 @@
     else reloading = true;
     loadProblem = '';
     try {
-      const next = await api.appListingDrift(workspaceId, app.id);
+      const [next, nextLive] = await Promise.all([
+        api.appListingDrift(workspaceId, app.id),
+        api.appListingLive(workspaceId, app.id).catch(() => null),
+      ]);
       if (mine !== generation) return;
       drift = next;
+      if (nextLive !== null) live = nextLive;
       announcement = `Listing compared: ${driftSummaryText(next)}.`;
     } catch (e) {
       if (mine !== generation) return;
@@ -130,6 +148,7 @@
     if (key !== shownFor) {
       shownFor = key;
       drift = null;
+      live = null;
       filter = defaultFilter();
       repoProblem = '';
       historyOpen = false;
@@ -217,6 +236,9 @@
   const visible = $derived(drift ? filterLocales(drift.locales, filter) : []);
   const filtering = $derived(filter.status !== 'all' || filter.query.trim() !== '');
   const storeLabel = $derived(drift?.channel === 'editable' ? 'Editable version' : 'Live store');
+  const schedule = $derived(scheduleView(live?.schedule, now));
+  const warnings = $derived(cleanWarnings(live?.warnings));
+  const lastAttempt = $derived(lastAttemptText(live?.schedule, now));
   const statusOptions = $derived(
     drift
       ? [
@@ -291,12 +313,31 @@
           {/if}
         </dd>
       </div>
+      {#if live}
+        <div>
+          <dt>Scheduled read</dt>
+          <dd>
+            {schedule.headline}
+            <span class="muted"> · {schedule.detail}{lastAttempt ? ` Last attempt ${lastAttempt}.` : ''}</span>
+          </dd>
+        </div>
+      {/if}
     </dl>
 
     {#if drift.store.error}
       <Alert tone="warn" title="The last read of the store listing failed">
         <p class="alert-text">{drift.store.error}</p>
         <p class="alert-text">The values in the store column are from the last successful read. The release sync is not affected.</p>
+      </Alert>
+    {/if}
+    {#if warnings.length > 0}
+      <Alert tone="warn" title="The store read had warnings">
+        <ul class="alert-list">
+          {#each warnings as warning (warning)}
+            <li>{warning}</li>
+          {/each}
+        </ul>
+        <p class="alert-text">Parts of the listing that could not be read are left out, not shown as empty.</p>
       </Alert>
     {/if}
     {#if drift.repo.error && app.repositoryId !== null}
@@ -414,6 +455,16 @@
         </p>
       {/if}
     {/if}
+
+    {#if drift.sections && drift.sections.length > 0}
+      <ListingSections
+        sections={drift.sections}
+        platform={drift.platform}
+        {now}
+        storeReadAt={drift.store.readAt}
+        repositoryLinked={app.repositoryId !== null}
+      />
+    {/if}
   {/if}
 </div>
 
@@ -448,6 +499,11 @@
 
   .alert-text {
     margin: var(--space-1) 0 0;
+  }
+
+  .alert-list {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-5);
   }
 
   .sources {

@@ -25,6 +25,12 @@ gets `401`. Times are epoch milliseconds.
   with the same credential and the same connector. It adds no new credential use and no audit event.
   A failure reading the listing **never fails the release sync**; it is stored as `listing_error`
   and shown here under `store.error`.
+- It can also be read **on a schedule** (`MRM_LISTING_INTERVAL_MINUTES`, off by default; see
+  "Scheduled reads"). That is the same read with the same connector, started by the scheduler.
+- The **sections** beyond the texts (categories, age rating, privacy choices URL, app details, media
+  counts, Play release notes; see "Sections beyond the texts") are read-only twice over: nothing is
+  written to a store, and they are **never pulled into the repository**. The App Store review detail
+  (contact person, phone number, demo account and its password) is **never read at all**.
 
 ## Rights
 
@@ -86,10 +92,97 @@ editor and the repository listing). A field a store does not have is simply neve
 | `privacy_url`, `apple_tv_privacy_policy` | `privacyPolicyUrl`, `privacyPolicyText` (app info) | none |
 | `video` | none | `video` |
 
-Not read: **categories** (an App Store category is a relationship of the app info, a Play category is
-not in the listing), the age rating, screenshots and previews, Apple's `privacyChoicesUrl`, the
-copyright, in-app purchase and subscription texts, and Play's `changelogs`. The roadmap's "category"
-field is therefore not covered yet.
+Not read: in-app purchase and subscription texts, Apple's phased release, and anything not named under
+"Sections beyond the texts". Play's `changelogs` model field stays empty; Play release notes are the
+`releaseNotes` section instead.
+
+## Sections beyond the texts
+
+Besides the text fields, a read has up to six **sections**, each a small structured value kept per
+store version (`channel`). They are shown by `GET .../listing/live` (per channel, under `sections`)
+and compared with the repository by `GET .../listing/drift` (`sections`). They are **read-only and
+never pulled into the repository** (`POST .../listing/pull` takes text fields only; asking for a
+section name there is a `422 invalid_field`).
+
+| Section | App Store (App Store Connect API) | Google Play (Play Developer API) |
+| --- | --- | --- |
+| `categories` | `primaryCategory`, `secondaryCategory`, `primarySubcategoryOne/Two`, `secondarySubcategoryOne/Two` of the live app info, as the category ids (`GAMES`, `GAMES_CARD`) | **Not in the API.** None of the Play resources has an app category; it is set in Play Console only, so there is no section |
+| `ageRating` | `ageRatingDeclaration` of the app info (its answers, such as `violenceCartoonOrFantasy: "NONE"`) and the label `AppInfo.appStoreAgeRating` | **Not read.** None of the `edits` resources this tool reads has one (as far as the reference pages say); the content rating questionnaire is answered in Play Console |
+| `privacy` | `privacyChoicesUrl` per locale (`appInfoLocalizations`). The privacy **policy** URL is the text field `privacy_url` | none |
+| `details` | `copyright` of the version | `edits.details`: default language, contact email and website. The contact **phone number is not read** |
+| `media` | screenshot sets and preview sets per locale and device type: **counts, file names and delivery states only** | `edits.images.list` per language and image type: **ids and counts only** (screenshots, icon, feature graphic, TV banner) |
+| `releaseNotes` | none (`release_notes` is the text field `whatsNew`) | the release notes of the current release of each track, per language (`edits.tracks`) |
+
+Where each comes from (all `GET`; Google Play inside the same read-only edit that is deleted, never
+committed):
+
+- App Store Connect, categories and age rating: `GET /v1/apps/{id}/appInfos` with `include` of the six
+  category relationships and `ageRatingDeclaration`
+  ([appInfos](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-appinfos),
+  [ageRatingDeclaration](https://developer.apple.com/documentation/appstoreconnectapi/ageratingdeclaration/attributes-data.dictionary)).
+- App Store Connect, privacy choices URL:
+  [`appInfoLocalizations` attributes](https://developer.apple.com/documentation/appstoreconnectapi/appinfolocalization/attributes-data.dictionary),
+  already part of the text read. Copyright:
+  [`appStoreVersions` attributes](https://developer.apple.com/documentation/appstoreconnectapi/appstoreversion/attributes-data.dictionary).
+- App Store Connect, media: per version localization
+  [`GET /v1/appStoreVersionLocalizations/{id}/appScreenshotSets`](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-appstoreversionlocalizations-_id_-appscreenshotsets)
+  and [`.../appPreviewSets`](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-appstoreversionlocalizations-_id_-apppreviewsets),
+  with `include` of the assets, `limit[...]` and sparse `fields[...]`: the file name and the delivery
+  state, never an image URL, a template URL or an upload operation. Apple marks the screenshot sets
+  endpoint **deprecated** (since API 4.5, in favour of the asset library placements): when it is gone the
+  read gives a warning and the `media` section stays "not read".
+- App Store Connect, **review detail: deliberately skipped.** `appStoreReviewDetails` holds a contact
+  name, email and phone number and a demo account's user name and password. Those are personal data and
+  secrets this tool has no use for, so the resource is not requested at all.
+- Google Play:
+  [`edits.details.get`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.details/get),
+  [`edits.images.list`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images/list)
+  (image types in [`AppImageType`](https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType)),
+  [`edits.tracks`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks). No
+  `upload`, no `deleteall`, no `commit`.
+
+**Not read, not empty.** A section that is **absent** from a response was *not read*: the store could
+not say, the call failed (see `warnings`), the optional read was not asked for, or it has never been
+read. A section that is **present, even with no content** (`{ "choicesUrls": {} }`), was read and the
+store has nothing there. A read that does not have a section never erases what is known; a read
+that has an empty one records that it is empty. The same rule applies to the repository side: a
+section the repository's files cannot express is *not read* there, and the comparison says
+`not-comparable` instead of guessing.
+
+**Upgrading is quiet.** Sections are stored as extra rows of the snapshot table (locale `_app`, field
+`section:<name>`, one canonical JSON text, a row only when it changed), apart from the text fields.
+Snapshots recorded before sections existed have no such rows and are not touched: no text field looks
+changed, the history shows no new entries (section rows are not in `GET .../listing/history`), and
+the sections read `not-read` until the first read that has them.
+
+**Caps.** A read asks for up to 30 locales of media per version (2 requests each) and 50 items per
+set; a larger listing is cut and says so (`media.truncated`, and a warning). Google Play reads images
+for up to 25 languages (8 image types each). A large listing is therefore roughly up to 100 to 200
+requests per read, which matters for the schedule below. Rate limiting (`429`), a bad credential and
+the network stop the read; any other failure of an optional section is a warning.
+
+**UNVERIFIED.** No real store response was recorded. The parsers follow the reference pages and
+hand-written fixtures and are tolerant (an unknown member is ignored, a wrong type is skipped). Not
+verified: that Apple sends the relationship linkage for what `include` names (the categories rely on
+it; without linkage the section stays *not read*), the exact values of `appStoreAgeRating`, whether the
+deprecated screenshot sets endpoint still answers, and what Apple answers to an `include` it does not
+accept (the read then falls back to the plain app info list and warns).
+
+### Comparing with the repository
+
+| Section | Repository side | Compared as |
+| --- | --- | --- |
+| `categories` | fastlane `deliver` files in the metadata folder (`primary_category.txt`, `secondary_category.txt`, `primary_first_sub_category.txt`, ...), or Expo `apple.categories` | names; `Food & Drink`, `FOOD_AND_DRINK` and `MZGenre.FOOD_AND_DRINK` are one category |
+| `ageRating` | Expo `apple.advisory` (the API's own names); for fastlane a file named `app_rating_config.json` next to or above the metadata folder (fastlane's docs name no fixed file name) | key by key, only for keys both sides have; fastlane's legacy `0`, `1`, `2` read as `NONE`, `INFREQUENT_OR_MILD`, `FREQUENT_OR_INTENSE`. No comparable key: `not-comparable` |
+| `privacy` | Expo `apple.info.<locale>.privacyChoicesUrl`. fastlane has no file for it | URL per locale |
+| `details` | `copyright.txt` (fastlane) or `apple.copyright` (Expo) | the copyright text. Google Play: not comparable |
+| `media` | fastlane: image files counted from the **paths** (`screenshots/<locale>/...`, `<locale>/images/<type>/...`); Expo has no media fields | **counts only**, never content: App Store per-locale totals (fastlane cannot say the device type without reading the image), Google Play per image type. No image file is ever read |
+| `releaseNotes` | none | `not-comparable`: shown as the store has them |
+
+Statuses of a section: `identical`, `differs`, `missing-in-repo` (the store has something, the
+repository says nothing), `missing-in-store`, `not-comparable` (the repository cannot say this
+faithfully, or was not read) and `not-read` (the store side has not been read). A section with
+`differs` or `not-comparable` carries one short sentence per difference or limit in `details`.
 
 ## Drift statuses
 
@@ -162,6 +255,25 @@ the last look.
   folder (`sourceRef` is then its commit as well).
 - `problems.repo` and `problems.live` are `{ code, severity, message, limit?, actual?, unit? }`, the
   same codes as the listing editor (`too_long`, `too_short`, `missing_required`, `invalid_url`, ...).
+- `sections` (additive; the sections of the app's platform only: iOS `categories`, `ageRating`, `privacy`,
+  `details`, `media`; Android `details`, `media`, `releaseNotes`):
+
+  ```json
+  "sections": [
+    {
+      "name": "categories",
+      "store": { "primary": "PRODUCTIVITY", "secondary": "BUSINESS" },
+      "storeObservedAt": 1789000000000,
+      "repo": { "primary": "Productivity" },
+      "repoObservedAt": 1789990000000,
+      "compare": { "status": "differs", "details": ["secondary category: store BUSINESS, repository none"] }
+    }
+  ]
+  ```
+
+  `store` or `repo` is `null` when that side did not read the section. The values are as in `live`,
+  below. Media is `{ "screenshots": { "en-US": [{ "type": "APP_IPHONE_67", "count": 3, "names": [...] }] },
+  "previews": {...} }` (Google Play: `graphics` too, with `ids` in place of `names`). Counts only.
 
 ## `GET /apps/:id/listing/live`
 
@@ -173,12 +285,20 @@ The live store values as recorded by the last sync, per channel, without the com
   "platform": "ios",
   "readAt": 1790000000000,
   "error": null,
+  "warnings": ["Age rating declaration could not be read (HTTP 403)."],
+  "schedule": { "enabled": true, "intervalMinutes": 360, "lastAttemptAt": 1790000000000, "failures": 0, "nextReadAt": 1790021600000 },
   "channels": [
     {
       "channel": "live",
       "sourceRef": "2.0.0",
       "observedAt": 1789000000000,
-      "locales": { "en-US": { "name": "Acme Trips", "subtitle": "Quick rides" } }
+      "locales": { "en-US": { "name": "Acme Trips", "subtitle": "Quick rides" } },
+      "sections": {
+        "categories": { "primary": "PRODUCTIVITY", "secondary": "BUSINESS" },
+        "privacy": { "choicesUrls": { "en-US": "https://acme.example/choices" } },
+        "details": { "copyright": "2026 Acme" },
+        "media": { "screenshots": { "en-US": [{ "type": "APP_IPHONE_67", "count": 3, "names": ["a.png", "b.png", "c.png"] }] }, "previews": {} }
+      }
     },
     {
       "channel": "editable",
@@ -191,6 +311,18 @@ The live store values as recorded by the last sync, per channel, without the com
 ```
 
 `channels` is empty before the first successful read. `readAt` and `error` are as above.
+
+- `warnings` (additive) is what the connector noticed in the **last successful read**: an optional
+  section it could not read, a limit it hit, an Apple state it does not know. Redacted, at most 20 of
+  at most 400 characters; a read without warnings clears them. A section named in a warning is *not
+  read* (absent from `sections`), never shown as empty.
+- `schedule` (additive) is the state of the scheduled read of this app: `enabled` and
+  `intervalMinutes` (the server setting; `0` when off), `lastAttemptAt` (the later of the last
+  attempt and the last successful read; `null` when never), `failures` (reads in a row that failed;
+  `0` after a success) and `nextReadAt` (the earliest the scheduler reads it again, backed off after
+  failures; `null` when off or when it has never been tried, which means at its next pass).
+- `sections` (additive, per channel) has only the sections that were read. See "Sections beyond the
+  texts".
 
 ## `GET /apps/:id/listing/history`
 
@@ -339,9 +471,46 @@ Response `201` with a draft (a person reviews it next):
   no `field`. `problems` are `validateListing` results for the values written (not blocking).
 - `warnings` carries what the change set could not write (such as an Expo locale EAS Metadata does not
   support) and, when the last store read failed, that the values of the last good read were used.
+- **Pull is text only.** Categories, age rating, privacy choices URL, app details, screenshots and
+  release notes are never written into the repository by a pull, whatever differs (the repository side
+  of those is read, never written). A section name in `fields` or `items` is a `422 invalid_field`.
 - **Nothing to pull is not an error.** Status `200` with `"changeSet": null`, the same `target`,
   `skipped` and `warnings`, and `explanation` saying why (for example that every difference is
   `repo-ahead`).
+
+## Scheduled reads
+
+`MRM_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080) makes the scheduler read the
+listing of every app that has a store credential, without anyone pressing a button. Without it the
+listing is read only when the app is synced (by hand or by `MRM_SYNC_INTERVAL_MINUTES`, which also
+reads the listing) or refreshed from the store. It runs where the background worker runs
+(`MRM_WORKER=inline`); see [deployment](../deployment.md#scheduled-listing-reads).
+
+- The scheduler only **queues** an `app.listing` job per app that is due; the worker reads it with
+  the same read-only connector, credential use and snapshot recording as the sync's listing step. It
+  never throws out of the scheduler's timer, and a failed read is recorded on the app, never retried
+  by the queue.
+- **Spaced and bounded.** At most 3 apps per scheduler pass (all workspaces) and 2 per workspace; the
+  jobs of one pass run 15 seconds apart plus a random delay of up to a tenth of the interval (at most
+  a minute). Each queued read also takes a slot of the per workspace store rate limit that manual
+  syncs use, so scheduled and manual reads share one budget.
+- **One read per credential at a time** (Google Play allows one open edit per service account, and
+  Apple's limit counts per key): one job per credential is queued at a time, and a running job whose
+  credential has another running listing job puts itself back 30 seconds (at most 10 times).
+- **Never twice for one app**, also with several server instances on one database: no job is queued
+  while the app has a queued or running `app.listing` or `app.sync` job, and the job claims the read
+  with a compare-and-set on `app_listing_status.listing_attempt_at` (an app attempted within the last
+  two minutes is not read again), so two instances that queued it at once read it once. The jobs
+  themselves follow the job queue's optimistic claim (one worker gets a job).
+- **Due** means an interval after the last attempt (successful or not), so an app that a person just
+  refreshed, or that the sync just read, is not read again at once.
+- **Backoff.** After each failure in a row the wait doubles (`interval * 2^failures`, at most
+  `max(interval, 1 day)`), so a revoked key is not hammered. The first success resets it.
+- **Audit.** The use of the credential is a `credential.use` event (purpose `app.listing`) with the
+  actor type `system` and id `app.listing`, and `requestedBy: "scheduler"` in the job payload: the
+  convention of [open decision 10](../open-decisions.md) (background syncs), not a person.
+- **Request volume.** One read of a large listing is 100 to 200 requests (see "Caps"). With many apps,
+  choose an interval of hours, not minutes.
 
 ## Errors
 
@@ -376,7 +545,7 @@ for example "The store did not answer in time while reading the listing."
   [store API conventions](../spikes/store-api-conventions.md) for what was and was not verified.
 - **Which version is "live" and which is "editable"** is decided by Apple's state names. That
   `READY_FOR_DISTRIBUTION` is the one on sale, and which states are still editable, is not stated on
-  Apple's pages; a version in neither list is ignored. The connector returns a warning for it, but the server does not store or show connector warnings yet.
+  Apple's pages; a version in neither list is ignored. The connector returns a warning for it, which the server stores (`warnings` in `live`) and the Listing tab shows.
 - **Google Play drafts.** Whether a listing read through a new edit shows unpublished changes made in
   the console (an edit is a copy of the live state) is not documented. The Play side is treated as the
   live listing.
@@ -385,7 +554,10 @@ for example "The store did not answer in time while reading the listing."
   [repositories](repositories.md)).
 - **History starts at the first read.** Nothing is backfilled; the first sync records every field as
   new. A change set is recorded when the next read of drift or history finds it, with the time it was applied.
-- Deleting an app deletes its listing history with it.
+- Deleting an app deletes its listing history with it, the section rows included.
+- **Sections and scheduled reads have not run against a real store.** Tested on SQLite with fakes and
+  fixtures from the reference pages; the real response shapes (see UNVERIFIED above), the request
+  volume of a large listing and Apple's and Google's rate limits under a schedule are untried.
 - The listing routes, including `pull`, are in the OpenAPI registry (`services/api-operations.ts`); `pull` needs `changesets.write` for an API token too, and its answer is described in part.
 - No push or submit action toward a store exists, in the API or in the web UI. `pull` only makes a draft in the repository's change sets; applying it opens a pull request on GitHub or commits to a new branch of a local clone (opt-in).
 - **`pull` has not been run against a real store, GitHub or Postgres.** It is tested on SQLite with fakes for the store and GitHub; the store snapshot it uses is the last sync (or the refresh it runs).
