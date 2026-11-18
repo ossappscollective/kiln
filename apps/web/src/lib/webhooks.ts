@@ -24,6 +24,7 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'review.reply_sent', label: 'A reply to a customer review was published in the store (ids only)' },
   { type: 'release.rollout_changed', label: 'A staged rollout or phased release was changed in the store (ids and values only)' },
   { type: 'listing.draft_pushed', label: 'Staged listing changes were written to the store as a draft (ids and counts only; never submitted)' },
+  { type: 'listing.submitted', label: 'A listing version was submitted for review in the store (ids only; never released)' },
 ];
 
 export type WebhookForm = {
