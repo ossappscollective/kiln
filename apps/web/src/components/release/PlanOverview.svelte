@@ -9,6 +9,7 @@
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { dueText, formatTargetDate, planErrorMessage, planPlatformLabel } from '../../lib/release.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { PlanChanges, PlanDetail } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -120,9 +121,9 @@
       <p>{planPlatformLabel(plan.platform)}. Our own notes and checks; nothing here is sent to a store.</p>
     </div>
     <div class="row">
-      {#if plan.blocked}<Badge tone="bad" dot>Blocked</Badge>{/if}
-      {#if due}<Badge tone={due.tone} dot>{due.text}</Badge>{/if}
-      <Badge tone={readiness.ready ? 'ok' : 'warn'} dot>{readiness.ready ? 'Ready by our checks' : 'Not ready'}</Badge>
+      {#if plan.blocked}<Badge tone="bad" icon={toneIcon('bad')}>Blocked</Badge>{/if}
+      {#if due}<Badge tone={due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>{/if}
+      <Badge tone={readiness.ready ? 'ok' : 'warn'} icon={toneIcon(readiness.ready ? 'ok' : 'warn')}>{readiness.ready ? 'Ready by our checks' : 'Not ready'}</Badge>
     </div>
   </div>
 

@@ -12,9 +12,11 @@
   import { appHref, appLabel, describeError, portfolioHref } from '../../lib/portfolio.ts';
   import { attentionOf } from '../../lib/dashboard.ts';
   import { dueText, findSibling, planPlatformLabel, releaseHref, releasesOfVersion, rolloutBadge } from '../../lib/release.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
   import type { AppSummary, PlanDetail, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import AttentionStrip from '../dashboard/AttentionStrip.svelte';
   import Alert from '../ui/Alert.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -201,15 +203,20 @@
       </div>
     {/if}
   {:else if app}
+    <div class="release-head">
+      <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="lg" />
+      <div class="release-head-main">
     <PageHeader title="{app.name} {version}" description="Where this version is on each platform, and the plan for getting it out. The store state is read only; the plan is our own.">
       {#snippet actions()}
         <div class="row">
-          {#if plan?.blocked}<Badge tone="bad" dot>Blocked</Badge>{/if}
-          {#if due}<Badge tone={due.tone} dot>{due.text}</Badge>{/if}
-          {#if rollout}<Badge tone={rollout.tone} dot>{rollout.label}</Badge>{/if}
+          {#if plan?.blocked}<Badge tone="bad" icon={toneIcon('bad')}>Blocked</Badge>{/if}
+          {#if due}<Badge tone={due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>{/if}
+          {#if rollout}<Badge tone={rollout.tone} icon={toneIcon(rollout.tone)}>{rollout.label}</Badge>{/if}
         </div>
       {/snippet}
     </PageHeader>
+      </div>
+    </div>
 
     <div class="stack loose">
       {#if plan?.blocked}
@@ -256,6 +263,15 @@
 </section>
 
 <style>
+  .release-head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+  .release-head-main {
+    flex: 1;
+    min-width: 0;
+  }
   .back {
     margin: 0 0 var(--space-3);
   }

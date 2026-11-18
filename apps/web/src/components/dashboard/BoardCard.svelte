@@ -9,8 +9,10 @@
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { appHref, trackLabel } from '../../lib/portfolio.ts';
   import { dueText, rolloutBadge } from '../../lib/release.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
 
@@ -24,7 +26,10 @@
 
 <article class="card-box" class:blocked={card.blocked !== null} aria-labelledby="{uid}-name">
   <div class="top">
-    <h3 id="{uid}-name" class="name"><a href={card.href}>{card.appName}</a></h3>
+    <div class="ident">
+      <AppIcon name={card.appName} url={card.iconUrl} platform={card.platform} seed={card.appId} size="md" />
+      <h3 id="{uid}-name" class="name"><a href={card.href}>{card.appName}</a></h3>
+    </div>
     <PlatformBadge platform={card.platform} />
   </div>
 
@@ -33,7 +38,7 @@
     {#if card.build}<span class="muted small">build {card.build}</span>{/if}
     {#if showTrack}<span class="muted small">{trackLabel(card.track)}</span>{/if}
     {#if card.planned}
-      <Badge dot>Planned</Badge>
+      <Badge icon={toneIcon('neutral')}>Planned</Badge>
     {:else}
       <ReleaseStatus status={card.status} rawState={card.rawState ?? undefined} rolloutFraction={card.rolloutFraction} />
     {/if}
@@ -48,8 +53,8 @@
 
   {#if due || rollout}
     <p class="due">
-      {#if due}<Badge tone={due.tone === 'neutral' ? 'neutral' : due.tone} dot>{due.text}</Badge>{/if}
-      {#if rollout}<Badge tone={rollout.tone} dot>{rollout.label}</Badge>{/if}
+      {#if due}<Badge tone={due.tone === 'neutral' ? 'neutral' : due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>{/if}
+      {#if rollout}<Badge tone={rollout.tone} icon={toneIcon(rollout.tone)}>{rollout.label}</Badge>{/if}
     </p>
   {/if}
 
@@ -96,6 +101,13 @@
     gap: var(--space-2);
     align-items: flex-start;
     justify-content: space-between;
+  }
+
+  .ident {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
   .name {

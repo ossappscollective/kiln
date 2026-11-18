@@ -173,6 +173,8 @@ export type BoardCard = {
   key: string;
   appId: string;
   appName: string;
+  /** The icon route of the app, when it has one (`iconUrl` of the app JSON). */
+  iconUrl?: string | null;
   platform: Platform;
   identifier: string;
   version: string;
@@ -272,6 +274,7 @@ export function buildBoard(input: {
     const common = {
       appId: app.id,
       appName: app.name,
+      iconUrl: app.iconUrl ?? null,
       platform: app.platform,
       identifier: app.identifier,
       lastSyncedAt: app.lastSyncedAt,

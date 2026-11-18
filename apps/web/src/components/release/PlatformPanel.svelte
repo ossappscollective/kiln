@@ -13,6 +13,7 @@
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import Timeline from '../portfolio/Timeline.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Icon from '../ui/Icon.svelte';
   import RolloutObserved from './RolloutObserved.svelte';
 
@@ -39,11 +40,14 @@
 
 <section class="panel card" aria-labelledby="{uid}-title">
   <header class="head">
+    <div class="ident">
+    <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="md" />
     <div class="who">
       <h2 id="{uid}-title" class="title">{platformLabel(app.platform)} · {store}</h2>
       <p class="muted small">
         <a href={appHref(app.id)}>{app.name}</a> · <code>{app.identifier}</code>{#if !primary} · the same product on the other platform{/if}
       </p>
+    </div>
     </div>
     <PlatformBadge platform={app.platform} showLabel={false} />
   </header>
@@ -114,6 +118,13 @@
     gap: var(--space-3);
     align-items: flex-start;
     justify-content: space-between;
+  }
+
+  .ident {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-width: 0;
   }
 
   .title {

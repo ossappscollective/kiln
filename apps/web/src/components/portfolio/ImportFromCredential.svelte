@@ -47,6 +47,7 @@
     RepositorySummary,
   } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -414,6 +415,7 @@
                       disabled={c.alreadyAdded}
                       onchange={(event) => toggle(key, event.currentTarget.checked)}
                     />
+                    <AppIcon name={c.name} platform={c.platform} seed={c.identifier} size="sm" />
                     <span class="who">
                       <span class="name">{c.name}</span>
                       <span class="mono muted">{c.identifier}</span>

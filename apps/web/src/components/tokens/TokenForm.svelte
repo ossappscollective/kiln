@@ -15,6 +15,7 @@
   } from '../../lib/api-tokens.ts';
   import type { AppSummary, CreatedApiToken } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
   import TextField from '../ui/TextField.svelte';
 
@@ -147,6 +148,7 @@
                 checked={appIds.includes(app.id)}
                 onchange={(e) => (appIds = toggle(appIds, app.id, e.currentTarget.checked))}
               />
+              <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="sm" />
               <span>{app.name} <span class="muted mono text-xs">{app.identifier}</span></span>
             </label>
           {/each}

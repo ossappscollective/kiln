@@ -1,0 +1,136 @@
+<!--
+  AssetGallery: the files of the repository by locale, then by kind and device, in order, with the
+  count of each set next to the most the store takes. Each file is a lazy thumbnail (AssetThumb);
+  choosing one calls onopen.
+  Props: groups (lib/assets.ts groupAssets), workspaceId, appId, commit (the commit of the index, so
+  the thumbnails can be cached for good), maxServedBytes (the largest file the route serves),
+  problemMap (problems by path), storeSide (the store's counts, or null: then each set says it is
+  not yet compared with the store), onopen(asset).
+-->
+<script lang="ts">
+  import type { AssetProblem } from '@mrm/core';
+  import {
+    type LocaleGroup,
+    assetFileUrl,
+    compareWithStore,
+    countText,
+    previewNote,
+    previewState,
+  } from '../../lib/assets.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
+  import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
+  import Badge from '../ui/Badge.svelte';
+  import AssetProblems from './AssetProblems.svelte';
+  import AssetThumb from './AssetThumb.svelte';
+
+  let {
+    groups,
+    workspaceId,
+    appId,
+    commit,
+    maxServedBytes,
+    problemMap,
+    storeSide,
+    onopen,
+  }: {
+    groups: LocaleGroup[];
+    workspaceId: string;
+    appId: string;
+    commit: string | null;
+    maxServedBytes: number;
+    problemMap: Record<string, AssetProblem[]>;
+    storeSide: AssetStoreSide | null;
+    onopen: (asset: AssetItem) => void;
+  } = $props();
+</script>
+
+<div class="gallery">
+  {#each groups as locale (locale.locale)}
+    <section class="locale" aria-labelledby="loc-{appId}-{locale.locale || 'project'}">
+      <h3 id="loc-{appId}-{locale.locale || 'project'}">
+        {locale.label}
+        <span class="muted count">{locale.assetCount} {locale.assetCount === 1 ? 'file' : 'files'}</span>
+      </h3>
+      {#each locale.groups as group (group.key)}
+        {@const compare = compareWithStore(storeSide, group, locale.locale)}
+        {@const over = group.max !== null && group.count > group.max}
+        <div class="set">
+          <div class="set-head">
+            <h4>{group.kindLabel}{group.deviceLabel && group.device !== null ? `: ${group.deviceLabel}` : ''}</h4>
+            <span class="count-text">
+              <Badge tone={over ? 'bad' : 'neutral'} icon={over ? toneIcon('bad') : undefined}>{countText(group)}</Badge>
+            </span>
+            <span class="store muted" class:differs={compare.state === 'differs'}>{compare.text}</span>
+          </div>
+          {#if group.setProblems.length > 0}
+            <AssetProblems problems={group.setProblems} showPath={false} />
+          {/if}
+          <ul class="grid" aria-label="{group.kindLabel}, {group.deviceLabel}, {locale.label}">
+            {#each group.assets as asset (asset.path)}
+              {@const kind = previewState(asset, maxServedBytes)}
+              <AssetThumb
+                {asset}
+                preview={kind}
+                src={kind === 'image' ? assetFileUrl(workspaceId, appId, asset.path, commit) : null}
+                note={previewNote(kind, maxServedBytes)}
+                problems={problemMap[asset.path] ?? []}
+                onopen={() => onopen(asset)}
+              />
+            {/each}
+          </ul>
+        </div>
+      {/each}
+    </section>
+  {/each}
+</div>
+
+<style>
+  .gallery {
+    display: grid;
+    gap: var(--space-8);
+  }
+  .locale {
+    display: grid;
+    gap: var(--space-4);
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--text-lg);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+  h4 {
+    margin: 0;
+    font-size: var(--text-md);
+  }
+  .count {
+    font-size: var(--text-sm);
+    font-weight: 400;
+  }
+  .set {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .set-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .store {
+    font-size: var(--text-sm);
+  }
+  .store.differs {
+    color: var(--warn-ink);
+  }
+  .grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+</style>

@@ -14,6 +14,7 @@
     type ReleaseLoad,
   } from '../../lib/portfolio.ts';
   import type { AppSummary } from '../../lib/types.ts';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
@@ -58,6 +59,7 @@
         <tr>
           <td>
             <div class="app">
+              <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="md" />
               <div class="names">
                 <a id="app-open-{app.id}" class="app-name" href={appHref(app.id)}>{app.name}</a>
                 <div class="meta">

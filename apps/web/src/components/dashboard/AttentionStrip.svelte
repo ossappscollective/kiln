@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import { type Attention, type AttentionKind, attentionSummary } from '../../lib/dashboard.ts';
+  import { toneIcon } from '../../lib/status-icons.ts';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import Badge from '../ui/Badge.svelte';
 
@@ -35,7 +36,7 @@
               <a href={item.href}>{item.appName} {item.version}</a>
               <PlatformBadge platform={item.platform} />
             {/if}
-            <Badge tone={KIND[item.kind].tone} dot>{KIND[item.kind].label}</Badge>
+            <Badge tone={KIND[item.kind].tone} icon={toneIcon(KIND[item.kind].tone)}>{KIND[item.kind].label}</Badge>
           </span>
           <span class="why">{item.reasons.join(' ')}</span>
         </li>

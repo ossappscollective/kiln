@@ -23,6 +23,7 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -31,6 +32,7 @@
   import PageHeader from '../ui/PageHeader.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
+  import AssetsTab from '../assets/AssetsTab.svelte';
   import ListingTab from '../listing/ListingTab.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import BuildsPanel from './BuildsPanel.svelte';
@@ -156,7 +158,7 @@
   /** Builds are readable by everyone who can read the app; the listing has its own right. */
   const sections = $derived([
     { id: 'releases', label: 'Releases' },
-    ...(can(role, 'listing.read') ? [{ id: 'listing', label: 'Listing' }] : []),
+    ...(can(role, 'listing.read') ? [{ id: 'listing', label: 'Listing' }, { id: 'assets', label: 'Assets' }] : []),
     { id: 'builds', label: 'Builds' },
     ...(can(role, 'reviews.read') ? [{ id: 'reviews', label: 'Reviews' }] : []),
   ]);
@@ -195,6 +197,9 @@
       </div>
     {/if}
   {:else if app}
+    <div class="app-head">
+      <AppIcon name={app.name} url={app.iconUrl} platform={app.platform} seed={app.id} size="xl" />
+      <div class="app-head-main">
     <PageHeader title={app.name} description="{platformLabel(app.platform)} · {storeName(app.platform)} · {app.identifier}">
       {#snippet actions()}
         {#if canSync}
@@ -205,6 +210,8 @@
         {/if}
       {/snippet}
     </PageHeader>
+      </div>
+    </div>
 
     <div class="stack loose">
       {#if failure}
@@ -293,6 +300,8 @@
           {#snippet panel(id)}
             {#if app && id === 'listing'}
               <ListingTab {api} {workspaceId} {role} {app} {now} {syncing} onrefresh={sync} refreshKey={syncRuns} />
+            {:else if app && id === 'assets'}
+              <AssetsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
             {:else if app && id === 'reviews'}
               <ReviewsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
             {:else if app && id === 'builds'}
@@ -328,6 +337,15 @@
 {/if}
 
 <style>
+  .app-head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+  .app-head-main {
+    flex: 1;
+    min-width: 0;
+  }
   .back {
     margin: 0 0 var(--space-3);
   }

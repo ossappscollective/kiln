@@ -37,6 +37,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import StoreBadge from '../ui/StoreBadge.svelte';
   import BuildsPanelChanges from './BuildsPanelChanges.svelte';
   import BuildsPanelConventions from './BuildsPanelConventions.svelte';
   import BuildsPanelLink from './BuildsPanelLink.svelte';
@@ -273,7 +274,7 @@
                 <td>
                   {#if link && tagLinkOf(link)}
                     <div class="cell">
-                      <Badge tone="info">{buildLinkLabel(build)}</Badge>
+                      <span class="tag-source"><StoreBadge store="github" variant="icon" size="sm" /><Badge tone="info" icon="link">{buildLinkLabel(build)}</Badge></span>
                       <span class="text-sm">{tagFoundText(link)}</span>
                       {#if link.evidence}
                         <details class="evidence">
@@ -440,6 +441,12 @@
 {/if}
 
 <style>
+  .tag-source {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
   .cell {
     display: flex;
     flex-direction: column;
