@@ -187,3 +187,59 @@ export const changeSets = pgTable(
     index('change_sets_repository_idx').on(t.repositoryId),
   ],
 );
+
+export const apps = pgTable(
+  'apps',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    /** ios or android. */
+    platform: text('platform').notNull(),
+    /** The bundle id (iOS) or package name (Android). */
+    identifier: text('identifier').notNull(),
+    /** The store's own id (Apple's numeric app id), filled by the first sync. */
+    storeAppId: text('store_app_id'),
+    /** No foreign key: a credential can be deleted while an app still names it. */
+    credentialId: text('credential_id').notNull(),
+    /** No foreign key: a repository can be disconnected while an app still names it. */
+    repositoryId: text('repository_id'),
+    lastSyncedAt: epochMs('last_synced_at'),
+    lastSyncAttemptAt: epochMs('last_sync_attempt_at'),
+    lastSyncError: text('last_sync_error'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('apps_workspace_identifier_idx').on(t.workspaceId, t.platform, t.identifier)],
+);
+
+export const appReleases = pgTable(
+  'app_releases',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id')
+      .notNull()
+      .references(() => apps.id),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    platform: text('platform').notNull(),
+    version: text('version').notNull(),
+    /** The Play track; empty on iOS. */
+    track: text('track').notNull().default(''),
+    build: text('build'),
+    /** The normalized lifecycle state, or null when the store's state is not mapped. */
+    status: text('status'),
+    /** The store's own state name, verbatim. */
+    rawState: text('raw_state').notNull(),
+    /** Version codes and rollout fraction as JSON. */
+    detailsJson: text('details_json'),
+    storeUpdatedAt: epochMs('store_updated_at'),
+    syncedAt: epochMs('synced_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('app_releases_app_version_idx').on(t.appId, t.platform, t.version, t.track),
+    index('app_releases_workspace_idx').on(t.workspaceId),
+  ],
+);

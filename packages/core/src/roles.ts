@@ -17,6 +17,9 @@ export const actions = [
   'repositories.scan',
   'changesets.write',
   'changesets.approve',
+  'apps.read',
+  'apps.write',
+  'apps.sync',
 ] as const;
 export type Action = (typeof actions)[number];
 
@@ -31,8 +34,10 @@ const allowed: Record<Role, readonly Action[]> = {
     'repositories.read',
     'repositories.scan',
     'changesets.write',
+    'apps.read',
+    'apps.sync',
   ],
-  viewer: ['workspace.read', 'repositories.read'],
+  viewer: ['workspace.read', 'repositories.read', 'apps.read'],
 };
 
 export function isRole(value: unknown): value is Role {

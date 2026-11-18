@@ -14,8 +14,8 @@ test('members read but never change credentials or members', () => {
   assert.equal(can('member', 'members.manage'), false);
 });
 
-test('viewers only read the workspace and repositories', () => {
-  const reads = ['workspace.read', 'repositories.read'];
+test('viewers only read the workspace, repositories and apps', () => {
+  const reads = ['workspace.read', 'repositories.read', 'apps.read'];
   for (const action of reads) assert.equal(can('viewer', action as never), true, action);
   for (const action of actions.filter((a) => !reads.includes(a))) {
     assert.equal(can('viewer', action), false, action);
@@ -43,4 +43,14 @@ test('members see the member list but only owners and admins manage it', () => {
   assert.equal(can('viewer', 'members.read'), false);
   assert.equal(can('admin', 'members.manage'), true);
   assert.equal(can('member', 'members.manage'), false);
+});
+
+test('members read and sync apps but only owners and admins add or remove them', () => {
+  assert.equal(can('member', 'apps.read'), true);
+  assert.equal(can('member', 'apps.sync'), true);
+  assert.equal(can('member', 'apps.write'), false);
+  assert.equal(can('viewer', 'apps.read'), true);
+  assert.equal(can('viewer', 'apps.sync'), false);
+  assert.equal(can('viewer', 'apps.write'), false);
+  assert.equal(can('admin', 'apps.write'), true);
 });

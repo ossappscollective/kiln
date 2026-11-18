@@ -180,4 +180,51 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 6,
+    name: 'apps and store releases',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // credential_id and repository_id have no foreign key on purpose: deleting a credential or
+      // disconnecting a repository must stay possible; the app reports it when it is used.
+      // platform is ios or android; identifier is the bundle id or package name; store_app_id is
+      // the store's own id (Apple's numeric app id), filled by the first sync.
+      // app_releases is a snapshot of the store: track is '' on iOS, status is the normalized
+      // lifecycle state (NULL when the store's state is not mapped), raw_state the store's own,
+      // details_json holds version codes and the rollout fraction.
+      return [
+        `CREATE TABLE IF NOT EXISTS apps (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           name TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           identifier TEXT NOT NULL,
+           store_app_id TEXT,
+           credential_id TEXT NOT NULL,
+           repository_id TEXT,
+           last_synced_at ${t},
+           last_sync_attempt_at ${t},
+           last_sync_error TEXT,
+           created_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS apps_workspace_identifier_idx ON apps (workspace_id, platform, identifier)',
+        `CREATE TABLE IF NOT EXISTS app_releases (
+           id TEXT PRIMARY KEY,
+           app_id TEXT NOT NULL REFERENCES apps(id),
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           platform TEXT NOT NULL,
+           version TEXT NOT NULL,
+           track TEXT NOT NULL DEFAULT '',
+           build TEXT,
+           status TEXT,
+           raw_state TEXT NOT NULL,
+           details_json TEXT,
+           store_updated_at ${t},
+           synced_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS app_releases_app_version_idx ON app_releases (app_id, platform, version, track)',
+        'CREATE INDEX IF NOT EXISTS app_releases_workspace_idx ON app_releases (workspace_id)',
+      ];
+    },
+  },
 ];
