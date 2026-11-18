@@ -181,12 +181,55 @@ A clone is a cache: it can be deleted at any time and is made again on demand.
   `diskUsage()` reports a clone's size.
 - Deleted by: `remove()` / `removeClone()` when the repository is disconnected;
   `removeWorkspaceClones()` for a workspace; the operator by hand.
-- Proposed, not built: touch the marker on use and prune clones idle for `MRM_CLONE_IDLE_DAYS`
-  (default 30) at start and daily; a total budget `MRM_CLONE_MAX_MB` that evicts least recently
-  used clones; `compact()` after every 50 refreshes.
+- Pruned by the **clone sweep** (built, see "Idle pruning and the disk budget" below); `compact()`
+  after every 50 refreshes is still not done.
 - A first clone of a large repository is bounded by `fetchTimeoutMs` (120 s) and the server's
   request timeout (90 s), which cancels the fetch. Moving scan to the job queue would remove that
   limit ([architecture.md](../architecture.md)).
+
+### Idle pruning and the disk budget (built)
+
+- [x] Idle pruning and a disk budget for `MRM_CLONE_DIR`.
+
+`services/clone-upkeep.ts` (`createCloneUpkeep`) runs one sweep over the folder; the scheduler calls
+it every `MRM_CLONE_SWEEP_INTERVAL_MINUTES` (default 360, `0` = off; the first run is at the first
+scheduler tick after start, not at start itself).
+
+- **Last use.** The marker `mrm-clone.json` has its mtime touched when a clone is resolved or
+  verified for a read (`GitCloneReader.#touch`, at most once every 30 s per clone), so the marker is
+  the clock. A clone with no marker is not a clone and is not touched.
+- **Idle phase.** Clones unused for `MRM_CLONE_IDLE_DAYS` (default 30, `0` = never) are removed.
+- **Budget phase.** If the folder is still over `MRM_CLONE_MAX_BYTES` (default 2 GiB, accepts `500m`,
+  `2g`, `10 GiB`; `0` = unlimited) the least recently used clones are removed until it is not. The
+  budget is for the whole folder, so one workspace's clones can make room for another's; the audit
+  event is written per workspace, with counts only (`clone.prune`: scanned, removed, idle, budget, bytes
+  freed, skipped in use, failed).
+- **Never in use.** A clone is skipped when its per-directory lock is held (`isCloneBusy`) or it was
+  touched in the last ten minutes (`IN_USE_GRACE_MS`). Skipped clones are counted; if they keep the
+  folder over budget the summary says `overBudget` and the next sweep tries again.
+- **Safety.** `listClones` lists only direct children that are real directories with a regular-file
+  marker whose real path is inside the base; symlinks, strangers and anything that resolves
+  elsewhere are counted as `refused` and never followed or removed. Removal goes through
+  `GitCloneReader.remove` under the same lock as reads.
+- **Concurrent reads.** A read that arrives after a removal finds no clone and makes it again
+  (the first read after a prune is as slow as a first clone); a read that is mid-flight holds the
+  lock, so the sweep skips it.
+- **Sizes** are a du-style walk (no symlink following, 200k entries cap, `sizeIsLowerBound` when
+  reached), cached for ten minutes for the report; the sweep walks fresh, once per clone.
+- **By hand.** `POST /repositories/:id/clone/purge` (admin, owner) removes one clone now
+  (`409 clone_busy` while it is read), audited as `clone.purge`; `GET /clones` and
+  `GET /repositories/:id/clone` show sizes ([api](../api/repositories.md)). The web app shows the size on
+  the repository page with a "Free space" button (`CloneCard`).
+
+**Single-flight instead of a job queue.** The "move scan and listing to the job queue" item was
+decided against for now: a scan and a listing return a result the person waits for in the same
+screen, so the queue would add a polling flow (job rows, a result store, web progress) in several
+places that a concurrent reader would also have to share; and what actually hurts, many people
+asking for the same repository at once, is cured more cheaply. `GitCloneReader.refresh()` is
+now single-flight per clone: requests that arrive while a fetch runs share it (a caller that gives
+up leaves the shared fetch running while another waits, and the last one to leave aborts it).
+Five concurrent scans cost one fetch. The first clone of a very large repository is still bounded by
+the 90 s request timeout.
 
 ## Docker and deployment
 
@@ -615,7 +658,7 @@ How it differs from or adds to the plan:
   There is no workspace deletion in the server yet, so `removeWorkspaceClones` is available
   (`CloneReads.removeWorkspace`) but not called.
 - **Not built here:** step 8 was done later as "Local clones" (above), `MRM_CLONE_FILTER` (the filter stays
-  `blob:none` for GitHub), idle pruning and the disk budget. `GitCloneError.reason` is not added to
+  `blob:none` for GitHub). Idle pruning and the disk budget were built later (see above). `GitCloneError.reason` is not added to
   response messages.
 
 ### Why step 8 (a local checkout) was not built here
@@ -688,7 +731,7 @@ Read the current code: `apps/server/src/services/repositories.ts` (`RepoClient`,
 | `MRM_GIT_PATH` | `git` | the git program |
 | `MRM_LOCAL_REPO_WRITE` | `false` | allow a change set to be committed to a new branch of a local clone, and pushed (phase 4, built) |
 | `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset | author and committer of those commits; unset means the person who applied (built) |
-| `MRM_CLONE_MAX_MB`, `MRM_CLONE_IDLE_DAYS` | unset, `30` | disk budget and idle pruning (not built) |
+| `MRM_CLONE_MAX_BYTES`, `MRM_CLONE_IDLE_DAYS`, `MRM_CLONE_SWEEP_INTERVAL_MINUTES` | `2g`, `30`, `360` | disk budget, idle pruning and how often the sweep runs (built; `0` turns each off) |
 
 ## Alternatives considered
 

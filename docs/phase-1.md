@@ -131,8 +131,19 @@ rendered in a browser, and Expo is only done at library level.
       not run on Postgres. Build numbers are matched only by the conventions in the doc, so a
       team whose CI does not put the number in a run input or title sees "Unlinked" until the
       matcher or a manual link covers it
-- [ ] Move scan and listing to the job queue if they prove slow (they run in the request today)
-- [ ] Refresh stale change sets (today a conflict means discarding and creating a new one)
+- [x] Move scan and listing to the job queue if they prove slow: **decided against** for now. They still run in the
+      request; concurrent reads of one repository share one fetch (single-flight in `GitCloneReader.refresh`) and
+      idle clones are pruned, see [ADR 0005](adr/0005-local-clone-reads.md). A first clone of a very large
+      repository can still hit the 90 s request timeout
+- [x] Refresh stale change sets: `POST /change-sets/:id/refresh` and `GET /change-sets/:id/staleness`, a
+      dependency free line based diff3 (`text-merge.ts`), per file conflicts the person settles ("keep mine" /
+      "keep theirs"), approval cleared when the text changes, audit `changeset.refresh`; web banner, "Check for
+      updates" and a refresh dialog. Tested on SQLite with real git repositories and a fake GitHub; **never
+      run against live GitHub, never rendered in a browser**, not run on Postgres (no migration was needed).
+      Recomputing the change from the live store listing is not done
+- [x] Idle pruning and a disk budget for the clone folder (`MRM_CLONE_MAX_BYTES`, `MRM_CLONE_IDLE_DAYS`,
+      `MRM_CLONE_SWEEP_INTERVAL_MINUTES`), a scheduled sweep, `POST /repositories/:id/clone/purge`, and a
+      size card in the web app. Not tried on macOS, Windows or Docker volumes
 - [ ] Decide whether approval needs a second person, and whether `.github/` stays blocked
       ([open-decisions.md](open-decisions.md))
 - [ ] Use a real repository end to end to meet the exit gate
