@@ -122,3 +122,19 @@ describe('attention items', () => {
     assert.equal(stagedUnpushedCount(view), 3);
   });
 });
+
+describe('a pushed draft that is ready to submit', () => {
+  it('is an item with the submit control of that app, and no link', () => {
+    const items = attentionItems({ ...empty([ios, droid]), submitReady: { a2: true, a1: false } });
+    assert.equal(items.length, 1);
+    assert.equal(items[0]?.id, 'a2:submit');
+    assert.equal(items[0]?.submitAppId, 'a2');
+    assert.equal(items[0]?.href, null);
+    assert.equal(items[0]?.text, 'Android: Draft pushed — ready to submit?');
+  });
+
+  it('is not drawn without the data (a role below admin never fills it)', () => {
+    assert.deepEqual(attentionItems(empty([ios])), []);
+    assert.deepEqual(attentionItems({ ...empty([ios]), submitReady: {} }), []);
+  });
+});

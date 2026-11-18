@@ -5,6 +5,7 @@ import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
 import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
+import type { StoreSubmitConfig, SubmitPreview, SubmitResult, SubmitState } from './store-submit.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
 import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
@@ -782,6 +783,17 @@ export function createApi(options: ApiOptions = {}) {
       request<{ preview: DraftPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push/preview`, {}),
     pushStagedDraft: (workspaceId: string, appId: string, confirmHash: string) =>
       request<{ result: DraftPushResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push`, { confirmHash }),
+    // Submitting the pushed draft for store review (docs/api/submit.md): a SEPARATE, IRREVERSIBLE store write,
+    // off by default. `config` and `appStoreSubmit` read our own database; `previewStoreSubmit` reads the store.
+    // `storeSubmit` is the only call that writes: sent once with the preview's hash and the typed phrase, and
+    // never retried by this app (not on an error, a timeout or a lost answer).
+    storeSubmitConfig: (workspaceId: string) => request<StoreSubmitConfig>('GET', `${workspace(workspaceId)}/store-submit/config`),
+    appStoreSubmit: (workspaceId: string, appId: string) =>
+      request<{ submit: SubmitState }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`),
+    previewStoreSubmit: (workspaceId: string, appId: string) =>
+      request<{ preview: SubmitPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit/preview`, {}),
+    storeSubmit: (workspaceId: string, appId: string, body: { confirmHash: string; confirmation: string }) =>
+      request<{ result: SubmitResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`, body),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>

@@ -31,11 +31,11 @@ import type { AssetItem, DriftField } from './types.ts';
 export const DRAFT_ENV = 'MRM_STORE_DRAFT_WRITE_ENABLED';
 
 /** The sentence the dialog and the tray keep saying: a push is not a submit. */
-export const NOT_SUBMITTED = 'Nothing is submitted for review or published. Submitting is a separate step that this tool does not do yet.';
+export const NOT_SUBMITTED = 'Nothing is submitted for review or published by a push. Submitting is a separate step with its own switch and confirmation.';
 
-/** The note that stands where a "Submit for review" button would be. */
-export const SUBMIT_NOT_BUILT =
-  'Submit for review and publish are not built yet. After a push, open App Store Connect or Play Console to review the draft and submit it there.';
+/** The note under the tray: where the next step is, and what this tool never does. */
+export const SUBMIT_NEXT_STEP =
+  'After a push, "Submit for review…" (admin and up, when the server allows it) hands the draft to the store\'s review. This tool never releases or publishes: do that in App Store Connect or Play Console.';
 
 export const REVERSE_IMAGE_SYNC_NOTE =
   'Pulling store images into the repository is a documented gap: this server does not download store images yet. Download them from the store console, commit them to the repository, and stage them from there.';

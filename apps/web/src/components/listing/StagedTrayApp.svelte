@@ -38,6 +38,8 @@
     trayCountText,
   } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { canSubmit } from '../../lib/store-submit.ts';
+  import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -125,6 +127,8 @@
   }
 
   async function reload() {
+    // A push (or a partial or unknown one) changes whether a pushed draft waits to be submitted.
+    if (canSubmit(role)) void submitStore.load(api, workspaceId, app.id);
     const message = await stagedStore.load(api, workspaceId, app.id);
     if (message !== '') loadProblem = message;
     else loadProblem = '';

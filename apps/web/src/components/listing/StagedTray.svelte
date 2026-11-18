@@ -3,8 +3,9 @@
   Listing and Assets tabs. One block per platform record in scope. Edits join it ("Stage from repo" on the
   Listing tab, "Stage for store" on the Assets tab); from here a person removes items, clears all, and pushes
   them to the store as a DRAFT, in one batch per store, after a preview and a confirmation.
-  Pushing is not submitting: nothing here sends for review or publishes, and says so. Submit and publish
-  are not built yet (a note stands where the button would be).
+  Pushing is not submitting: a push never sends for review or publishes, and says so. Once a draft was pushed,
+  a slim "Draft pushed — ready to submit?" line (SubmitReady, admin and up, when the server allows it) stands
+  under the tray; publishing is never done by this tool.
   While nothing is staged (also when pushing is switched off or the changes could not be read) the tray is one
   slim line with a disclosure; the full tray, with its notes and buttons, is drawn as soon as something is staged.
   Props: api, workspaceId, role, members (the app records in scope).
@@ -13,7 +14,7 @@
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { NOT_SUBMITTED, SUBMIT_NOT_BUILT, itemCount, pushAvailability } from '../../lib/staged.ts';
+  import { NOT_SUBMITTED, SUBMIT_NEXT_STEP, itemCount, pushAvailability } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { trayIsFull, trayLine } from '../../lib/staged-tray.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -22,6 +23,7 @@
   import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import StagedTrayApp from './StagedTrayApp.svelte';
+  import SubmitReady from './SubmitReady.svelte';
 
   let { api, workspaceId, role, members }: { api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
 
@@ -85,7 +87,7 @@
       <StagedTrayApp {api} {workspaceId} {role} {app} showPlatform={members.length > 1} />
     {/each}
 
-    <p class="muted note submit-note"><Icon name="info" size={14} /> {SUBMIT_NOT_BUILT}</p>
+    <p class="muted note submit-note"><Icon name="info" size={14} /> {SUBMIT_NEXT_STEP}</p>
   </div>
 {/snippet}
 
@@ -115,6 +117,11 @@
     {/if}
   </section>
 {/if}
+
+<!-- Only for admin and up, and only while a draft push is waiting to be submitted; otherwise nothing is drawn. -->
+{#each members as app (app.id)}
+  <SubmitReady {api} {workspaceId} {role} {app} showPlatform={members.length > 1} />
+{/each}
 
 <style>
   .slim {

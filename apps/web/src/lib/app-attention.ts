@@ -23,6 +23,8 @@ export type AttentionItem = {
   href: string | null;
   /** The name of the link, for the item's text. */
   action: string;
+  /** Set on "Draft pushed — ready to submit?": the list draws the submit control of this app instead of a link. */
+  submitAppId?: string;
 };
 
 export type AttentionApp = { id: string; platform: Platform; lastSyncError: string | null };
@@ -40,6 +42,8 @@ export type AttentionInput = {
   stagedUnpushed: Readonly<Record<string, number | undefined>>;
   /** Plans by app id. */
   plans: Readonly<Record<string, readonly PlanSummary[] | undefined>>;
+  /** Apps whose pushed draft waits to be submitted for review (only filled for admin and up). Optional. */
+  submitReady?: Readonly<Record<string, boolean | undefined>>;
 };
 
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
@@ -162,6 +166,19 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         detail: null,
         href: link('listing'),
         action: 'Open the staged changes',
+      });
+    }
+
+    if (input.submitReady?.[app.id] === true) {
+      out.push({
+        id: `${app.id}:submit`,
+        tone: 'info',
+        icon: 'upload',
+        text: `${who}Draft pushed — ready to submit?`,
+        detail: null,
+        href: null,
+        action: 'Submit for review…',
+        submitAppId: app.id,
       });
     }
 

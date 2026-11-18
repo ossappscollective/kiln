@@ -1,11 +1,13 @@
 <!--
   AppDashboard: the first screen of an app, in two columns. On the left, one compact card per platform
   in scope: the latest release, what is live and the state of the last sync. On the right, "Needs
-  attention": new reviews, a failed CI build, listing drift, staged changes not pushed, an overdue or
+  attention": new reviews, a failed CI build, listing drift, staged changes not pushed, a pushed draft
+  that is ready to be submitted (admin and up; the button opens a preview first), an overdue or
   blocked plan, a failed sync. It is built from reads of our own database that the other tabs make too
   (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed
   is left out, and a kind of item with nothing to show is not drawn. With nothing to flag, the cards use
-  the whole width. Nothing here reads a store or writes anything.
+  the whole width. Nothing here reads a store or writes anything by itself: the submit button only opens a dialog,
+  whose preview reads the store and whose confirmation is the one write.
   Props: api, workspaceId, role, members (the records in scope), releases (by app id), now, canSync,
   syncing (by app id), onsync, syncRuns (changes when a sync finished, so the reads run again).
 -->
@@ -19,6 +21,8 @@
   import { buildMatrix, modeCounts } from '../../lib/listing-matrix.ts';
   import { latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
+  import { canSubmit } from '../../lib/store-submit.ts';
+  import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import type { AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
@@ -91,6 +95,11 @@
         );
         jobs.push(stagedStore.load(api, workspaceId, app.id).then(ignore));
       }
+      if (canSubmit(role)) {
+        // Whether a pushed draft waits to be submitted (our own database) and the server's switch. Reads only.
+        jobs.push(submitStore.load(api, workspaceId, app.id).then(ignore));
+        jobs.push(submitStore.loadConfig(api, workspaceId));
+      }
       if (can(role, 'plans.read')) {
         jobs.push(
           api
@@ -141,6 +150,11 @@
         return acc;
       }, {}),
       plans,
+      submitReady: members.reduce<Record<string, boolean>>((acc, m) => {
+        const s = canSubmit(role) ? submitStore.state(m.id) : null;
+        acc[m.id] = s !== null && (s.pushed || s.unknownOutcome.submit);
+        return acc;
+      }, {}),
     }),
   );
 </script>
@@ -192,7 +206,7 @@
   </div>
 
   {#if items.length > 0}
-    <aside aria-label="Needs attention"><AttentionList {items} /></aside>
+    <aside aria-label="Needs attention"><AttentionList {items} {api} {workspaceId} {role} {members} /></aside>
   {/if}
 </div>
 
