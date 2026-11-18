@@ -156,6 +156,19 @@ the raw state). A phased release currently shows as `live` because it is not rea
   reading from GitHub and its status badge says so (it does not refuse). A local-only repository still
   refuses, because it has nothing else to read from.
 
+### 17. Commits written to a local clone
+
+- **Today:** commits are unsigned, no hooks run, and Git LFS or attribute filters are not applied (an
+  LFS-tracked listing path would be committed as plain text).
+- **Decide:** accept that for listing text, or add signing and hook support as an opt-in later, and
+  whether to refuse repositories with LFS-tracked listing paths.
+
+### 18. Who may push a locally applied branch
+
+- **Today:** anyone with `changesets.approve` can trigger the push (and PR) of a branch that was just
+  committed, using the repository's stored credential.
+- **Decide:** keep that, or limit the push to the person who applied the change set.
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).
