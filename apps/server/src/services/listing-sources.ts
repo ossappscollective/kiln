@@ -1,8 +1,10 @@
-import type { FileChange, Listing } from '@mrm/core';
+import type { FileChange, Listing, ListingSections, Platform } from '@mrm/core';
 import {
   detectProject,
   type ExpoStoreSnapshot,
+  expoSections,
   expoStoreChangeSet,
+  fastlaneSectionFiles,
   GithubError,
   GithubRateLimitError,
   type ListingSnapshot,
@@ -10,6 +12,8 @@ import {
   loadExpoStoreConfig,
   loadListing,
   type ProjectDetection,
+  type RepoSections,
+  readFastlaneSections,
   staticStoreConfigs,
 } from '@mrm/connectors';
 
@@ -52,7 +56,16 @@ export type RepositoryListings = {
   notes: string[];
   /** The scan of the same files: the detected targets and candidates. */
   detection: ProjectDetection;
+  /**
+   * What the listing source of each store can say beyond the texts (categories, age rating, privacy
+   * choices, media counts), read-only and for comparison only. A section the source cannot express
+   * is absent: "not read". Never part of a change set. Absent in a value built by hand.
+   */
+  sections?: RepositorySections;
 };
+
+/** The store sections of the repository, per store, and what was noticed while reading them. */
+export type RepositorySections = RepoSections;
 
 export type ReadListingsOptions = {
   /** Folders to read, which win over detection. An empty string: that store is not read. */
@@ -148,7 +161,44 @@ export async function readListings(
     options.ignoreExpoConfig === true
       ? []
       : staticConfigs.filter((config) => config.dynamic).map((config) => config.path);
-  return { fastlane, ...(expo ? { expo } : {}), dynamicStoreConfigs, notes, detection };
+
+  // The sections beyond the texts: the category files and the age rating file of the fastlane
+  // folder (a handful of small files; images are only counted from the paths), or the Expo store
+  // config's own text. Same source rule as the texts: the Expo config for the App Store when it is
+  // used and valid, fastlane otherwise; Google Play from fastlane.
+  const sectionTexts: Record<string, string> = {};
+  for (const path of fastlaneSectionFiles(files, fastlane.roots)) {
+    const text = await readStoreConfig(path);
+    if (text !== undefined) sectionTexts[path] = text;
+  }
+  const fromFastlane = readFastlaneSections(files, fastlane.roots, sectionTexts);
+  const sections: RepositorySections = {
+    appStore: expo && expo.error === undefined ? expoSections(expo.text) : fromFastlane.appStore,
+    googlePlay: fromFastlane.googlePlay,
+    warnings: fromFastlane.warnings,
+  };
+  return { fastlane, ...(expo ? { expo } : {}), dynamicStoreConfigs, notes, detection, sections };
+}
+
+/**
+ * The sections of the repository for one platform's store, including the app wide `copyright`
+ * of the merged listing as `details`. Empty when the listing has no such store (nothing to compare).
+ */
+export function repositorySections(
+  listings: RepositoryListings,
+  merged: Listing,
+  platform: Platform,
+): ListingSections {
+  const found = platform === 'ios' ? merged.appStore : merged.googlePlay;
+  if (!found) return {};
+  const sections: ListingSections = {
+    ...(platform === 'ios' ? (listings.sections?.appStore ?? {}) : (listings.sections?.googlePlay ?? {})),
+  };
+  if (platform === 'ios') {
+    const copyright = merged.appStore?.copyright;
+    sections.details = copyright !== undefined ? { copyright } : {};
+  }
+  return sections;
 }
 
 /** The listing the person sees and edits: App Store from the Expo config when there is one. */

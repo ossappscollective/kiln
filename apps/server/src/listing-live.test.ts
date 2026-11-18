@@ -262,7 +262,15 @@ dbTest('a connector without readListing is skipped without a trace', async (db) 
   const id = await t.addIos();
   assert.equal((await t.sync(id)).status, 200);
   const live = await t.live(id);
-  assert.deepEqual(live.body, { appId: id, platform: 'ios', readAt: null, error: null, channels: [] });
+  assert.deepEqual(live.body, {
+    appId: id,
+    platform: 'ios',
+    readAt: null,
+    error: null,
+    warnings: [],
+    schedule: { enabled: false, intervalMinutes: 0, lastAttemptAt: null, failures: 0, nextReadAt: null },
+    channels: [],
+  });
   assert.equal((await db.query('SELECT id FROM listing_snapshots')).length, 0);
 });
 

@@ -205,6 +205,37 @@ export function sideProblems(
 
 export const DEFAULT_FALLBACK_LOCALE = DEFAULT_LOCALE;
 
+// ---------------------------------------------------------------------------------------------
+// When a scheduled listing read is due
+
+const DAY_MS = 24 * 60 * 60_000;
+/** After this many failures in a row the wait stops growing (interval times 2 to the power of it). */
+const MAX_BACKOFF_STEPS = 5;
+
+/**
+ * How long to wait after the last attempt before the next scheduled read: the interval, doubled
+ * for each failure in a row (at most 5 doublings), and never more than a day unless the interval
+ * itself is longer. A broken credential is therefore not hammered every interval.
+ */
+export function listingBackoffMs(intervalMs: number, failures: number): number {
+  const steps = Math.min(Math.max(Math.trunc(failures), 0), MAX_BACKOFF_STEPS);
+  return Math.min(intervalMs * 2 ** steps, Math.max(intervalMs, DAY_MS));
+}
+
+/**
+ * When the next scheduled read of an app is due, from its last read and last attempt (whichever is
+ * later): `null` when it has never been tried, which means due now. `intervalMs` 0 (scheduling
+ * off) has no due time either, so callers check that first.
+ */
+export function listingDueAt(
+  intervalMs: number,
+  last: { readAt: number | null; attemptAt: number | null },
+  failures: number,
+): number | null {
+  const at = Math.max(last.readAt ?? 0, last.attemptAt ?? 0);
+  return at === 0 ? null : at + listingBackoffMs(intervalMs, failures);
+}
+
 export type DriftSummary = Record<DriftStatus, number>;
 
 export function summarize(locales: readonly DriftLocale[]): DriftSummary {

@@ -33,6 +33,8 @@ export type ListingRoutesContext = {
    * its own per workspace budget (the same instance the sync route uses). Without it, `refresh` is refused.
    */
   sync?: { apps: AppsContext; limiter: TestLimiter };
+  /** MRM_LISTING_INTERVAL_MINUTES in milliseconds (0 or absent: off), so the Listing tab can say when the next read is due. */
+  listingIntervalMs?: number;
 };
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
@@ -97,7 +99,7 @@ export function listingRoutes(ctx: ListingRoutesContext) {
   routes.get('/:workspaceId/apps/:id/listing/live', needs('listing.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    return c.json(await getLiveListing(db, ws(c), app));
+    return c.json(await getLiveListing(db, ws(c), app, { intervalMs: ctx.listingIntervalMs ?? 0 }));
   });
 
   routes.get('/:workspaceId/apps/:id/listing/drift', needs('listing.read'), async (c) => {

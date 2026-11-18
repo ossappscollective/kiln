@@ -4,10 +4,16 @@ import { flattenListing, hasStoreListing, hashListingValue, fieldKey } from './l
 import {
   type ListingApp,
   recordChangeSetValues,
+  recordSections,
   recordStream,
   updateListingStatus,
 } from './listing-live.ts';
-import { mergedListing, readListings } from './listing-sources.ts';
+import {
+  mergedListing,
+  readListings,
+  type RepositoryListings,
+  repositorySections,
+} from './listing-sources.ts';
 import { listListingTargets } from './listing-targets.ts';
 import {
   type Failure,
@@ -75,12 +81,14 @@ export async function refreshRepoListing(
   const opened = await openConnectorForRepository(ctx, workspaceId, repository, actor, 'repository.listing');
   if (!opened.ok) return remember(ctx.db, workspaceId, app.id, ctx.now(), opened);
   let listing: Listing;
+  let listings: RepositoryListings;
   let ref = repository.defaultBranch;
   try {
     const selection = await selectionFor(ctx.db, workspaceId, repository.id, app.id);
     const read = await readRepositoryListing(ctx, workspaceId, repository, opened.connector, selection);
     if (!read.ok) return remember(ctx.db, workspaceId, app.id, ctx.now(), read);
-    listing = mergedListing(read.listings);
+    listings = read.listings;
+    listing = mergedListing(listings);
     const resolve = opened.connector.resolveCommit;
     if (typeof resolve === 'function') {
       try {
@@ -108,6 +116,16 @@ export async function refreshRepoListing(
           flattenListing(listing, app.platform),
         )
       : { changed: 0, removed: 0, unchanged: 0 };
+    // The sections beyond the texts (categories, age rating, privacy choices, media counts): only
+    // those the repository's source can express, so "cannot say" stays "not read". Compared with the
+    // store, never pulled into the repository. Not part of the counts of this result.
+    if (found) {
+      await recordSections(
+        tx,
+        { workspaceId, app, source: 'repo', channel: 'default', sourceRef: ref, observedAt: at, actor },
+        repositorySections(listings, listing, app.platform),
+      );
+    }
     await updateListingStatus(tx, workspaceId, app.id, {
       repo_read_at: at,
       repo_ref: ref,
