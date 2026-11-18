@@ -229,6 +229,7 @@ export const TAG_DESCRIPTIONS: Record<string, string> = {
   plans: 'Release plans, their checklists and release notes.',
   listing: 'The store listing as it is live, how it drifts from the repository, and its history.',
   ci: 'GitHub Actions workflows, runs and builds.',
+  submit: 'Handing the pushed store draft to the store’s review: preview, typed confirmation, submit. Irreversible, off by default, never releases.',
   system: 'Health.',
 };
 

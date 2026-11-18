@@ -126,6 +126,7 @@ const app = createApp({
   reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays, reply: { enabled: config.reviewReplyEnabled } },
   rollout: { enabled: config.storeRolloutEnabled },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
+  storeSubmit: { enabled: config.storeSubmitEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   reads,
   cloneUpkeep,
@@ -231,6 +232,9 @@ if (config.worker === 'inline') {
   }
   if (config.storeDraftWriteEnabled) {
     console.log('Writing store drafts is ON (MRM_STORE_DRAFT_WRITE_ENABLED): owners and admins can push staged listing text and graphics to the stores as a draft (never submitted)');
+  }
+  if (config.storeSubmitEnabled) {
+    console.log('Submitting for store review is ON (MRM_STORE_SUBMIT_ENABLED): owners and admins can submit a pushed draft to App Review or send it to Google Play review (not recallable from here; never releases)');
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);

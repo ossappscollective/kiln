@@ -17,9 +17,16 @@ import {
   type DraftStep,
   type StoreDraftConnector,
   StoreError,
+  type StoreSubmitConnector,
+  type SubmitApplyInput,
+  SubmitDriftError,
+  SubmitOutcomeUnknownError,
+  type SubmitResult,
+  type SubmitState,
+  type SubmitTrack,
   setMatches,
 } from '@mrm/connectors';
-import type { Platform, StagedChangesView } from '@mrm/core';
+import { type Platform, type StagedChangesView, classifyAppleScreenshot } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { weatherApp } from '../../../packages/connectors/src/fastlane.fixtures.ts';
 import { ASC_SECRET, FakeStore, PLAY_SECRET } from './listing-test-helpers.ts';
@@ -30,6 +37,7 @@ import { forgetRunningListingReads } from './services/listing-schedule.ts';
 import { clearRepoSnapshots } from './services/repo-snapshot.ts';
 import type { StoreConnectorFactory } from './services/apps.ts';
 import type { DraftConnectorFactory, DraftConnectorInput } from './services/store-draft.ts';
+import type { SubmitConnectorFactory, SubmitConnectorInput } from './services/store-submit.ts';
 
 /**
  * Shared by the staged changes and store draft tests. Everything runs against fakes: no store and no
@@ -252,11 +260,139 @@ export class FakeDraftStore implements StoreDraftConnector {
   }
 }
 
+// ----- the store's submit side: shares the draft of a FakeDraftStore -------------------------------
+
+export type SubmitBehavior =
+  | { kind: 'ok' }
+  /** The store refuses the submit (nothing was handed to review). */
+  | { kind: 'refuse'; error: StoreError }
+  /** The write is sent and the store does not answer; `applied` says whether it applied it anyway. */
+  | { kind: 'unknown'; applied: boolean };
+
+const IOS_TEXT_DEFAULTS: Record<string, string | null> = { description: 'A description', keywords: 'a,b', promotional_text: null, release_notes: null, marketing_url: null, support_url: 'https://support.example.com' };
+const PLAY_TEXT_DEFAULTS: Record<string, string | null> = { title: 'Acme', short_description: 'Short', full_description: 'Full', video: null };
+
+/**
+ * What a store shows for a submit: the draft of a `FakeDraftStore` (so a push and a submit see the same store), plus
+ * the version's release type, the build, the review state and the tracks. Remembers every submit it was asked for.
+ */
+export class FakeSubmitStore implements StoreSubmitConnector {
+  readonly store: 'appstoreconnect' | 'googleplay';
+  readonly platform: Platform;
+  readonly draft: FakeDraftStore;
+  releaseType: string | null = 'MANUAL';
+  build: SubmitState['build'] = { id: 'build-1', version: '45', processingState: 'VALID', expired: false };
+  /** The version is in review (App Store). */
+  submitted = false;
+  openReviewSubmissions: number | null = 0;
+  tracks: SubmitTrack[] = [];
+  behavior: SubmitBehavior = { kind: 'ok' };
+  readError: unknown;
+  /** After a submit whose answer was lost, the store cannot be read back. */
+  readFailsAfterWrite = false;
+  /** Facts of every image the store lists (a test sets other sizes or states). */
+  imageSize: [number, number] | undefined;
+  imageState: string | null | undefined;
+  /** Text values that override the defaults (`locale\0field`; null: not set). */
+  textOverrides = new Map<string, string | null>();
+  reads = 0;
+  submitCalls = 0;
+  submissions: string[] = [];
+  /** A submit waits for this after the guard accepted: lets a test hold one in flight. */
+  gate: Promise<void> | undefined;
+
+  constructor(draft: FakeDraftStore) {
+    this.draft = draft;
+    this.platform = draft.platform;
+    this.store = draft.store;
+  }
+
+  #sizeOf(target: string): [number, number] {
+    if (this.imageSize) return this.imageSize;
+    if (this.platform === 'ios') return [1242, 2688];
+    return target === 'icon' ? [512, 512] : [1080, 1920];
+  }
+
+  async #state(request: DraftReadRequest): Promise<SubmitState> {
+    const ios = this.platform === 'ios';
+    const alreadySubmitted = ios && this.submitted;
+    const defaults = ios ? IOS_TEXT_DEFAULTS : PLAY_TEXT_DEFAULTS;
+    const locales = [...this.draft.locales].sort().map((locale) => {
+      const text: Record<string, string | null> = {};
+      for (const [field, fallback] of Object.entries(defaults)) {
+        const k = `${locale}\u0000${field}`;
+        text[field] = this.textOverrides.has(k) ? (this.textOverrides.get(k) as string | null) : (this.draft.texts.get(k) ?? fallback);
+      }
+      const assets = [...this.draft.sets]
+        .filter(([key]) => key.startsWith(`${locale}\u0000`))
+        .map(([key, images]) => {
+          const target = key.split('\u0000')[1] as string;
+          const [width, height] = this.#sizeOf(target);
+          const icon = !ios && target === 'icon';
+          return {
+            kind: icon ? ('icon' as const) : ('screenshot' as const),
+            device: icon ? null : ios ? classifyAppleScreenshot(width, height) : 'phone',
+            target,
+            images: images.map((im) => ({ id: im.id, checksum: im.checksum, width, height, state: this.imageState === undefined ? im.state : this.imageState })),
+          };
+        });
+      return { locale, text, assets };
+    });
+    const version = this.draft.version
+      ? { id: this.draft.version.id, versionString: this.draft.version.versionString, state: alreadySubmitted ? 'WAITING_FOR_REVIEW' : this.draft.version.state, releaseType: this.releaseType }
+      : null;
+    return {
+      store: this.store,
+      platform: this.platform,
+      version,
+      build: ios ? this.build : null,
+      alreadySubmitted,
+      openReviewSubmissions: ios ? this.openReviewSubmissions : null,
+      tracks: structuredClone(this.tracks),
+      locales,
+      draft: alreadySubmitted ? null : await this.draft.readDraft(request),
+    };
+  }
+
+  async readSubmitState(request: DraftReadRequest): Promise<SubmitState> {
+    this.reads++;
+    if (this.readError) throw this.readError;
+    return this.#state(request);
+  }
+
+  async submit(input: SubmitApplyInput): Promise<SubmitResult> {
+    this.reads++;
+    if (this.readError) throw this.readError;
+    const before = await this.#state(input.request);
+    if (!input.guard(before)) throw new SubmitDriftError(before);
+    if (before.alreadySubmitted) throw new StoreError(this.store, 'invalid_input', 'The App Store version is already in review.');
+    this.submitCalls++;
+    if (this.gate) await this.gate;
+    const b = this.behavior;
+    if (b.kind === 'refuse') throw b.error;
+    if (b.kind === 'unknown') {
+      if (b.applied) this.#apply();
+      if (this.readFailsAfterWrite) this.readError = new Error('down');
+      throw new SubmitOutcomeUnknownError(this.store, 'timed out');
+    }
+    this.#apply();
+    const ios = this.platform === 'ios';
+    return { before, submissionId: ios ? `sub-${this.submissions.length}` : null, submissionState: ios ? 'WAITING_FOR_REVIEW' : null, via: ios ? 'review_submission' : 'edit_commit' };
+  }
+
+  #apply() {
+    this.submissions.push(this.platform === 'ios' ? (this.draft.version?.id ?? '') : 'edit');
+    if (this.platform === 'ios') this.submitted = true;
+  }
+}
+
 // ----- booting -----------------------------------------------------------------------------------
 
 export type StagedBootOptions = {
   files?: Files;
   draft?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
+  /** Submitting for review: on by default in tests (the kill switch has its own test). */
+  submit?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
 };
 
 export async function bootStaged(db: Database, options: StagedBootOptions = {}) {
@@ -274,6 +410,12 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
   forgetRunningListingReads();
   const repo = new BlobRepo(files);
   const stores = { ios: new FakeDraftStore('ios'), android: new FakeDraftStore('android') };
+  const submitStores = { ios: new FakeSubmitStore(stores.ios), android: new FakeSubmitStore(stores.android) };
+  const submitBuilt: SubmitConnectorInput[] = [];
+  const submitFactory: SubmitConnectorFactory = (input) => {
+    submitBuilt.push(input);
+    return input.kind === 'app_store_connect' ? submitStores.ios : submitStores.android;
+  };
   const readStores = { ios: new FakeStore('ios'), android: new FakeStore('android') };
   const built: DraftConnectorInput[] = [];
   const connectorFactory: DraftConnectorFactory = (input) => {
@@ -286,6 +428,7 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     appSync: { connectorFactory: syncFactory },
     listing: { intervalMs: 60 * 60_000 },
     storeDraft: { enabled: true, connectorFactory, ...options.draft },
+    storeSubmit: { enabled: true, connectorFactory: submitFactory, ...options.submit },
   });
   const { repositoryId } = await t.connect();
   const iosCredential = await t.addCredential('app_store_connect', ASC_SECRET);
@@ -331,7 +474,19 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     }));
   const claim = async (appId: string) => (await db.query('SELECT * FROM store_draft_claims WHERE app_id = ?', [appId]))[0];
   const rows = async (appId: string) => db.query('SELECT * FROM staged_changes WHERE app_id = ? ORDER BY locale, kind, target, ordinal', [appId]);
-  return { ...t, repo, files, stores, readStores, built, repositoryId, iosCredential, playCredential, addApp, sp, view, stageText, stageAssets, unstage, clear, preview, push, previewAndPush, events, audit, claim, rows };
+  const sub = (appId: string, rest = '') => `/apps/${appId}/store-submit${rest}`;
+  const submitState = (appId: string, cookie = t.owner) => t.call(cookie, 'GET', sub(appId));
+  const submitPreview = (appId: string, cookie = t.owner) => t.call(cookie, 'POST', sub(appId, '/preview'), {});
+  const submitApply = (appId: string, body: Record<string, unknown>, cookie = t.owner) => t.call(cookie, 'POST', sub(appId), body);
+  /** Preview, then submit with its hash and typed phrase. */
+  const previewAndSubmit = async (appId: string, cookie = t.owner) => {
+    const p = await submitPreview(appId, cookie);
+    if (p.status !== 200 || !p.body.preview.confirmHash) return { preview: p, submit: p };
+    return { preview: p, submit: await submitApply(appId, { confirmHash: p.body.preview.confirmHash, confirmation: p.body.preview.confirmation.phrase }, cookie) };
+  };
+  const submitClaim = async (appId: string) => (await db.query('SELECT * FROM store_submit_claims WHERE app_id = ?', [appId]))[0];
+  const pushRecord = async (appId: string) => (await db.query('SELECT * FROM store_draft_pushes WHERE app_id = ?', [appId]))[0];
+  return { ...t, repo, files, stores, submitStores, submitBuilt, sub, submitState, submitPreview, submitApply, previewAndSubmit, submitClaim, pushRecord, readStores, built, repositoryId, iosCredential, playCredential, addApp, sp, view, stageText, stageAssets, unstage, clear, preview, push, previewAndPush, events, audit, claim, rows };
 }
 
 export type StagedBoot = Awaited<ReturnType<typeof bootStaged>>;

@@ -461,3 +461,15 @@ test('MRM_STORE_DRAFT_WRITE_ENABLED is off by default; only true and false are a
   assert.equal(both.storeRolloutEnabled, true);
   assert.equal(both.storeDraftWriteEnabled, false);
 });
+
+test('MRM_STORE_SUBMIT_ENABLED is off by default; only true and false are accepted; blank means off', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storeSubmitEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_SUBMIT_ENABLED: '' }).storeSubmitEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_SUBMIT_ENABLED: 'false' }).storeSubmitEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_SUBMIT_ENABLED: 'true' }).storeSubmitEnabled, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_SUBMIT_ENABLED: bad }), /MRM_STORE_SUBMIT_ENABLED/, bad);
+  }
+  // Independent of the draft switch: turning drafts on does not turn submitting on.
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: 'true' }).storeSubmitEnabled, false);
+});

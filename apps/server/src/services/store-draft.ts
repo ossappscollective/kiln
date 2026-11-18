@@ -31,6 +31,7 @@ import { emitEvent } from './events.ts';
 import { normalizeListingValue } from './listing-drift.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
+import { type PushedManifest, fileEntry, recordPush, textEntry } from './store-draft-record.ts';
 import {
   type AssetSet,
   type StagedRow,
@@ -51,8 +52,9 @@ import {
  * - A DRAFT, never a submission. App Store: the editable version's localizations and screenshots.
  *   Google Play: an edit committed with `changesNotSentForReview=true`. Nothing here submits for review,
  *   sends changes for review, creates a version or publishes; no function of this file or of the
- *   connectors can (the connector interface has no such method). A separate gated submit/publish is
- *   only DESIGNED in the docs (UNVERIFIED, not implemented).
+ *   connectors can (the connector interface has no such method). Submitting is a separate gated step
+ *   (services/store-submit.ts, docs/adr/0010-store-submit.md); a successful push only RECORDS what it wrote
+ *   (`store_draft_pushes`, hashes and ids) so that step can check the store against it.
  * - Preview, then apply. The preview reads the store's draft and the bytes of the staged files, and
  *   returns per item before and after with `confirmHash`: a SHA-256 over the app, the staged items
  *   (text hashes, blob ids) and the draft that was read. Apply needs the hash and RE-READS the draft
@@ -131,10 +133,10 @@ export const draftDisabledFailure = disabled;
 
 const clean = (text: string, secret: string) => redactSecrets(text, secret ? secretStrings(secret) : []).slice(0, 500);
 
-type Mapped = { failure: Failure; code: string };
+export type Mapped = { failure: Failure; code: string };
 
 /** A store refusal as an answer to the person. Everything here means nothing was changed (see `DraftPartialError` for the rest). */
-function mapStoreError(error: unknown, secret: string): Mapped {
+export function mapStoreError(error: unknown, secret: string): Mapped {
   const make = (status: Failure['status'], code: string, message: string, extra: Record<string, unknown> = {}, headers?: Record<string, string>): Mapped => ({
     code,
     failure: { ...failure(status, code, clean(message, secret), extra), ...(headers ? { headers } : {}) },
@@ -386,12 +388,33 @@ async function prepare(
 
 const requestOf = (p: Prepared): DraftReadRequest => ({
   text: p.texts.map((t) => ({ locale: t.locale, field: t.field })),
-  assets: p.sets.map((s) => ({ locale: s.locale, kind: s.slot.kind, device: s.slot.device, target: s.target })),
+  assets: p.sets.map((s) => ({ locale: s.locale, kind: s.slot.kind, device: s.slot.device, target: s.target, ...sizeOf(s) })),
 });
 
 const writesOf = (p: Prepared): { text: DraftTextWrite[]; assets: DraftAssetWrite[] } => ({
   text: p.texts,
-  assets: p.sets.map((s) => ({ locale: s.locale, kind: s.slot.kind, device: s.slot.device, target: s.target, files: s.files })),
+  assets: p.sets.map((s) => ({ locale: s.locale, kind: s.slot.kind, device: s.slot.device, target: s.target, ...sizeOf(s), files: s.files })),
+});
+
+/** The pixel size of the first file of a set: the App Store connector finds the asset library placement group from it. */
+const sizeOf = (s: PreparedSet): { width: number | null; height: number | null } => ({
+  width: s.rows[0]?.assetWidth ?? null,
+  height: s.rows[0]?.assetHeight ?? null,
+});
+
+/** The record of what a push wrote (hashes and ids only), for the submit step (docs/adr/0010-store-submit.md). */
+export const manifestOfPrepared = (p: Prepared): PushedManifest => ({
+  v: 1,
+  text: p.texts.map((t) => textEntry(t.locale, t.field, t.value)),
+  assets: p.sets.map((s) => ({
+    locale: s.locale,
+    key: s.key,
+    kind: s.slot.kind,
+    device: s.slot.device,
+    target: s.target,
+    ...sizeOf(s),
+    files: s.files.map(fileEntry),
+  })),
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -419,15 +442,19 @@ export function draftConfirmHash(input: { workspaceId: string; app: { id: string
 export type DraftConfig = {
   enabled: boolean;
   envName: string;
-  /** Pushing never submits, sends for review or publishes. Always `false`: that is not implemented. */
-  submit: { implemented: false; note: string };
+  /** Pushing never submits, sends for review or publishes. Submitting is a separate step (`GET /store-submit/config`). */
+  submit: { implemented: true; configRoute: string; note: string };
   limits: typeof STAGED_LIMITS;
 };
 
 export const draftConfig = (ctx: Pick<DraftContext, 'draftEnabled'>): DraftConfig => ({
   enabled: ctx.draftEnabled,
   envName: DRAFT_ENV,
-  submit: { implemented: false, note: 'Submitting for review or publishing is not done by this server. Do it in App Store Connect or Play Console.' },
+  submit: {
+    implemented: true,
+    configRoute: '/store-submit/config',
+    note: 'A push never submits. Submitting the draft for review is a separate, gated step with its own switch, right and confirmation (docs/api/submit.md).',
+  },
   limits: STAGED_LIMITS,
 });
 
@@ -453,8 +480,10 @@ export type PreviewAssetSet = {
   locale: string;
   slot: AssetSlot;
   slotKey: string;
-  /** The store's own name of the set (App Store display type, Google Play image type). */
+  /** This server's name of the set (App Store display type, Google Play image type). */
   target: string;
+  /** App Store: the asset library placement group the set is written to (from Apple's reference data). Google Play: absent. */
+  placementGroup?: string;
   before: { setExists: boolean; files: PreviewFileBefore[] };
   after: { files: PreviewFileAfter[] };
   status: 'changed' | 'unchanged';
@@ -511,6 +540,7 @@ function previewOf(ctx: DraftContext, app: ManagedApp, workspaceId: string, p: P
       slot: s.slot,
       slotKey: s.key,
       target: s.target,
+      ...(found?.placementGroup ? { placementGroup: found.placementGroup } : {}),
       before: { setExists: found?.setExists ?? false, files: (found?.images ?? []).map((im) => ({ id: im.id, name: im.name, checksum: im.checksum, state: im.state })) },
       after: {
         files: s.rows.map((r, n) => ({ path: r.assetPath ?? '', name: s.files[n]?.name ?? '', oid: r.valueHash, bytes: s.files[n]?.bytes.length ?? r.assetBytes ?? 0, width: r.assetWidth, height: r.assetHeight, format: r.assetFormat })),
@@ -660,6 +690,17 @@ async function succeed(
   const counts = countsOf(s.steps);
   await ctx.db.transaction(async (tx) => {
     await markPushed(tx, input.workspaceId, s.app.id, s.prepared, s.steps, at);
+    // The record the submit step checks the store against (hashes and ids only).
+    await recordPush(tx, {
+      workspaceId: input.workspaceId,
+      appId: s.app.id,
+      platform: s.app.platform,
+      version: s.before.version === null ? null : { id: s.before.version.id, versionString: s.before.version.versionString },
+      confirmHash: input.confirmHash,
+      manifest: manifestOfPrepared(s.prepared),
+      actorId: input.actor.id,
+      at,
+    });
     const detail = {
       appId: s.app.id,
       store: s.app.store,

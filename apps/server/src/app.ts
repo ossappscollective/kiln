@@ -22,6 +22,7 @@ import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
 import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
+import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
@@ -204,6 +205,12 @@ export type AppDeps = {
    * connector that can read and write a draft (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   storeDraft?: StagedRoutesContext['draft'];
+  /**
+   * Submitting the store's draft for review (docs/api/submit.md, docs/adr/0010-store-submit.md): a store write that
+   * is OFF unless `enabled` (MRM_STORE_SUBMIT_ENABLED). `connectorFactory` builds the connector that can read and
+   * submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
+   */
+  storeSubmit?: SubmitRoutesContext['submit'];
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
@@ -464,6 +471,17 @@ export function createApp(deps: AppDeps) {
       repo: assetsRepo,
       limiter: assetsLimiter,
       ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
+    }),
+  );
+  // Submitting the pushed draft for store review: reads the store and writes only to its review queue; off unless
+  // MRM_STORE_SUBMIT_ENABLED. Never releases and never changes a rollout.
+  app.route(
+    '/api/workspaces',
+    storeSubmitRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

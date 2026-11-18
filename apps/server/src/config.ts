@@ -170,6 +170,12 @@ const schema = z.object({
   // default: staging and previewing work, but the push route answers 409 store_draft_disabled until
   // this is 'true'.
   MRM_STORE_DRAFT_WRITE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Kill switch for SUBMITTING the store's draft for review (docs/adr/0010-store-submit.md): an App Store
+  // review submission of the editable version, or a Google Play commit that sends the held back changes to
+  // review. It cannot be recalled from here, so it is off by default and separate from the draft switch:
+  // the submit routes answer 409 store_submit_disabled until this is 'true'. It never releases a version
+  // and never changes a rollout.
+  MRM_STORE_SUBMIT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Minutes between scheduled reads of the store listing of every app (texts, categories, age
   // rating, screenshot counts). 0 (the default) turns them off; otherwise 30 to 10080 (a week). A
   // listing read is many requests, so the floor is higher than the sync's. They use the stored
@@ -449,6 +455,8 @@ export type Config = {
   storeRolloutEnabled: boolean;
   /** Writing staged listing text and graphics into a store as a draft is allowed (MRM_STORE_DRAFT_WRITE_ENABLED). Default false. */
   storeDraftWriteEnabled: boolean;
+  /** Submitting the store's draft for review is allowed (MRM_STORE_SUBMIT_ENABLED). Default false. */
+  storeSubmitEnabled: boolean;
   /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
   listingIntervalMinutes: number;
   /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
@@ -511,6 +519,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     reviewReplyEnabled: data.MRM_REVIEW_REPLY_ENABLED === 'true',
     storeRolloutEnabled: data.MRM_STORE_ROLLOUT_ENABLED === 'true',
     storeDraftWriteEnabled: data.MRM_STORE_DRAFT_WRITE_ENABLED === 'true',
+    storeSubmitEnabled: data.MRM_STORE_SUBMIT_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
     localRepoRoots,

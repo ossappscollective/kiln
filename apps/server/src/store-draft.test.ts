@@ -47,7 +47,8 @@ dbTest('kill switch: with it off the push routes answer 409 store_draft_disabled
   const app = await stagedIos(t);
   const config = await t.call(t.owner, 'GET', '/store-draft/config');
   assert.equal(config.status, 200);
-  assert.deepEqual([config.body.enabled, config.body.envName, config.body.submit.implemented], [false, 'MRM_STORE_DRAFT_WRITE_ENABLED', false]);
+  assert.deepEqual([config.body.enabled, config.body.envName, config.body.submit.implemented], [false, 'MRM_STORE_DRAFT_WRITE_ENABLED', true]);
+  assert.equal(config.body.submit.configRoute, '/store-submit/config');
   for (const [path, body] of [[t.sp(app, '/push/preview'), {}], [t.sp(app, '/push'), { confirmHash: 'a'.repeat(64) }]] as const) {
     const res = await t.call(t.owner, 'POST', path, body);
     assert.equal(res.status, 409, path);
