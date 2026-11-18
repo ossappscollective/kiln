@@ -39,6 +39,10 @@ export class FakeRepo implements RepoClient {
   listDelayMs = 0;
   /** propose waits for this promise first, to hold a request in flight. */
   proposeGate?: Promise<void>;
+  /** propose takes this long (ms) and ignores the abort signal: a connector that outlives the timeout. */
+  proposeDelayMs = 0;
+  /** The abort signal of every propose call, in order. */
+  proposeSignals: (AbortSignal | undefined)[] = [];
   /** What propose returns instead of a real result. */
   proposeResult?: Partial<ProposalResult>;
   #pr = 0;
@@ -58,7 +62,9 @@ export class FakeRepo implements RepoClient {
   }
   async propose(changeSet: ChangeSet, options: ProposeOptions): Promise<ProposalResult> {
     this.proposals.push({ changeSet, options });
+    this.proposeSignals.push(options.signal);
     if (this.proposeGate) await this.proposeGate;
+    if (this.proposeDelayMs) await new Promise((r) => setTimeout(r, this.proposeDelayMs));
     const error = this.proposeErrors.shift();
     if (error) throw error;
     const conflicts = changeSet.files
@@ -193,7 +199,8 @@ export async function bootRepoApp(db: Database, repo = new FakeRepo(), overrides
 
   /** Draft that changes the en-US subtitle, built from the listing as the API reads it. */
   const draft = async (repositoryId: string, subtitle = 'New subtitle', cookie = owner) => {
-    const read = await call(cookie, 'GET', `/repositories/${repositoryId}/listing`);
+    // Read with the owner's session: a viewer may not read the listing, but may be tested on create.
+    const read = await call(owner, 'GET', `/repositories/${repositoryId}/listing`);
     const listing = read.body.listing;
     listing.appStore.locales['en-US'].subtitle = subtitle;
     const res = await call(cookie, 'POST', `/repositories/${repositoryId}/change-sets`, {

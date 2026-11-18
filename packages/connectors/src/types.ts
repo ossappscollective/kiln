@@ -72,6 +72,12 @@ export type ProposeOptions = {
   /** Pull request description. Defaults to the change set summary and its file list. */
   body?: string;
   draft?: boolean;
+  /**
+   * Stops the work when aborted: no further request is sent, and the one in flight is cancelled.
+   * Once a branch has been created, the pull request step is still finished, so an abort does not
+   * strand a branch without one. Optional: a connector that ignores it still works.
+   */
+  signal?: AbortSignal;
 };
 
 export type DispatchResult = {

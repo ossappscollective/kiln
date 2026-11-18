@@ -267,7 +267,12 @@ export class GithubRepoConnector implements RepoConnector {
   async #send(
     method: string,
     path: string,
-    options: { bearer: string; body?: unknown; query?: Record<string, string | undefined> },
+    options: {
+      bearer: string;
+      body?: unknown;
+      query?: Record<string, string | undefined>;
+      signal?: AbortSignal;
+    },
   ): Promise<Reply> {
     const url = new URL(`${this.#base}${path}`);
     for (const [k, v] of Object.entries(options.query ?? {}))
@@ -284,7 +289,9 @@ export class GithubRepoConnector implements RepoConnector {
           ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
         },
         ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-        signal: AbortSignal.timeout(this.#timeoutMs),
+        signal: options.signal
+          ? AbortSignal.any([options.signal, AbortSignal.timeout(this.#timeoutMs)])
+          : AbortSignal.timeout(this.#timeoutMs),
       });
     } catch (error) {
       const name = error instanceof Error ? error.name : 'Error';
@@ -306,14 +313,21 @@ export class GithubRepoConnector implements RepoConnector {
   async #api(
     method: string,
     path: string,
-    options: { body?: unknown; query?: Record<string, string | undefined>; allow?: number[] } = {},
+    options: {
+      body?: unknown;
+      query?: Record<string, string | undefined>;
+      allow?: number[];
+      signal?: AbortSignal;
+    } = {},
   ): Promise<Reply> {
     for (let attempt = 0; ; attempt++) {
+      if (options.signal?.aborted) throw new GithubError('network', 'The request was cancelled.');
       const bearer = await this.#installationToken();
       const reply = await this.#send(method, path, {
         bearer,
         body: options.body,
         query: options.query,
+        signal: options.signal,
       });
       if (reply.status < 400 || options.allow?.includes(reply.status)) return reply;
       if (reply.status === 401 && attempt === 0 && this.#auth.type === 'app') {
@@ -389,9 +403,9 @@ export class GithubRepoConnector implements RepoConnector {
   // -------------------------------------------------------------------------------------------
   // Refs and trees
 
-  async defaultBranch(): Promise<string> {
+  async defaultBranch(signal?: AbortSignal): Promise<string> {
     if (this.#defaultBranch) return this.#defaultBranch;
-    const { json } = await this.#api('GET', this.#repoPath(''));
+    const { json } = await this.#api('GET', this.#repoPath(''), { signal });
     const name = isRecord(json) ? text(json.default_branch) : undefined;
     if (!name)
       throw new GithubError('unexpected', 'GitHub did not say which branch is the default.');
@@ -400,19 +414,20 @@ export class GithubRepoConnector implements RepoConnector {
   }
 
   /** Commit sha of a branch, tag, `heads/x` / `tags/x` / `refs/heads/x` name, or a full sha. */
-  async #commitSha(ref: string): Promise<string> {
+  async #commitSha(ref: string, signal?: AbortSignal): Promise<string> {
     if (SHA.test(ref)) return ref;
     const name = ref.replace(/^refs\//, '');
     const candidates = /^(heads|tags)\//.test(name) ? [name] : [`heads/${name}`, `tags/${name}`];
     for (const candidate of candidates) {
       const reply = await this.#api('GET', this.#repoPath(`/git/ref/${encPath(candidate)}`), {
         allow: [404],
+        signal,
       });
       if (reply.status === 404) continue;
       const object = isRecord(reply.json) && isRecord(reply.json.object) ? reply.json.object : {};
       let sha = text(object.sha);
       if (sha && object.type === 'tag') {
-        const tag = await this.#api('GET', this.#repoPath(`/git/tags/${enc(sha)}`));
+        const tag = await this.#api('GET', this.#repoPath(`/git/tags/${enc(sha)}`), { signal });
         const target = isRecord(tag.json) && isRecord(tag.json.object) ? tag.json.object : {};
         sha = text(target.sha);
       }
@@ -426,9 +441,10 @@ export class GithubRepoConnector implements RepoConnector {
   }
 
   /** Every entry of the tree at a commit. Falls back to walking folders when GitHub truncates. */
-  async #tree(commit: string): Promise<Json[]> {
+  async #tree(commit: string, signal?: AbortSignal): Promise<Json[]> {
     const whole = await this.#api('GET', this.#repoPath(`/git/trees/${enc(commit)}`), {
       query: { recursive: '1' },
+      signal,
     });
     const body = isRecord(whole.json) ? whole.json : {};
     if (body.truncated !== true) return records(body.tree);
@@ -437,7 +453,7 @@ export class GithubRepoConnector implements RepoConnector {
     const queue: { sha: string; prefix: string }[] = [{ sha: commit, prefix: '' }];
     const worker = async () => {
       for (let job = queue.shift(); job; job = queue.shift()) {
-        const reply = await this.#api('GET', this.#repoPath(`/git/trees/${enc(job.sha)}`));
+        const reply = await this.#api('GET', this.#repoPath(`/git/trees/${enc(job.sha)}`), { signal });
         const part = isRecord(reply.json) ? reply.json : {};
         if (part.truncated === true) {
           throw new GithubError(
@@ -545,16 +561,20 @@ export class GithubRepoConnector implements RepoConnector {
       }
     }
 
-    const base = await this.defaultBranch();
+    const signal = options.signal;
+    const base = await this.defaultBranch(signal);
     if (branch.toLowerCase() === base.toLowerCase()) throw new DefaultBranchError(base);
 
-    const baseSha = await this.#commitSha(`heads/${base}`);
+    const baseSha = await this.#commitSha(`heads/${base}`, signal);
     const taken = await this.#api('GET', this.#repoPath(`/git/ref/${encPath(`heads/${branch}`)}`), {
       allow: [404],
+      signal,
     });
     if (taken.status !== 404) throw new BranchExistsError(branch);
 
-    const baseCommit = await this.#api('GET', this.#repoPath(`/git/commits/${enc(baseSha)}`));
+    const baseCommit = await this.#api('GET', this.#repoPath(`/git/commits/${enc(baseSha)}`), {
+      signal,
+    });
     const baseTree = text(
       isRecord(baseCommit.json) && isRecord(baseCommit.json.tree)
         ? baseCommit.json.tree.sha
@@ -565,7 +585,7 @@ export class GithubRepoConnector implements RepoConnector {
 
     // Only the entries the change set touches matter, but GitHub offers no partial listing.
     const existing = new Map<string, Json>();
-    for (const entry of await this.#tree(baseTree)) {
+    for (const entry of await this.#tree(baseTree, signal)) {
       const path = text(entry.path);
       if (path !== undefined && seen.has(path)) existing.set(path, entry);
     }
@@ -589,6 +609,7 @@ export class GithubRepoConnector implements RepoConnector {
         }
         const blob = await this.#api('POST', this.#repoPath('/git/blobs'), {
           body: { content: change.content, encoding: 'utf-8' },
+          signal,
         });
         const sha = text(isRecord(blob.json) ? blob.json.sha : undefined);
         if (!sha)
@@ -601,6 +622,7 @@ export class GithubRepoConnector implements RepoConnector {
 
     const tree = await this.#api('POST', this.#repoPath('/git/trees'), {
       body: { base_tree: baseTree, tree: treeEntries },
+      signal,
     });
     const treeSha = text(isRecord(tree.json) ? tree.json.sha : undefined);
     if (!treeSha) throw new GithubError('unexpected', 'GitHub did not return the new tree.');
@@ -610,6 +632,7 @@ export class GithubRepoConnector implements RepoConnector {
       summary && summary !== options.title ? `${options.title}\n\n${summary}` : options.title;
     const commit = await this.#api('POST', this.#repoPath('/git/commits'), {
       body: { message, tree: treeSha, parents: [baseSha] },
+      signal,
     });
     const commitSha = text(isRecord(commit.json) ? commit.json.sha : undefined);
     if (!commitSha) throw new GithubError('unexpected', 'GitHub did not return the new commit.');
@@ -617,6 +640,7 @@ export class GithubRepoConnector implements RepoConnector {
     try {
       await this.#api('POST', this.#repoPath('/git/refs'), {
         body: { ref: `refs/heads/${branch}`, sha: commitSha },
+        signal,
       });
     } catch (error) {
       // Lost a race for the name between the check above and now.
@@ -630,6 +654,8 @@ export class GithubRepoConnector implements RepoConnector {
       throw error;
     }
 
+    // No signal from here on: the branch exists, and an abort must not leave it without its pull
+    // request. This is one request, bounded by the connector's own timeout.
     try {
       const pr = await this.#api('POST', this.#repoPath('/pulls'), {
         body: {

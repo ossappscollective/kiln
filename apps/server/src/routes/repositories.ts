@@ -52,7 +52,21 @@ const connectBody = z.object({
 // point outside the metadata folder.
 const localeKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/, 'Not a locale code.');
 const text = z.string().max(100_000);
-const fields = z.record(localeKey, z.record(z.string().max(40), text));
+
+// Counts are capped as well as sizes: the stores have under 100 locales, a listing has a few dozen
+// fields, and a Play release history is short. The whole body is also capped (see app.ts).
+const MAX_LOCALES = 100;
+const MAX_FIELDS_PER_LOCALE = 40;
+const MAX_VERSIONS_PER_LOCALE = 50;
+const atMost = (max: number) => (value: Record<string, unknown>) => Object.keys(value).length <= max;
+const fields = z
+  .record(
+    localeKey,
+    z
+      .record(z.string().max(40), text)
+      .refine(atMost(MAX_FIELDS_PER_LOCALE), `At most ${MAX_FIELDS_PER_LOCALE} fields per locale.`),
+  )
+  .refine(atMost(MAX_LOCALES), `At most ${MAX_LOCALES} locales.`);
 const listingBody = z.object({
   appStore: z
     .object({ locales: fields, copyright: text.optional() })
@@ -61,10 +75,17 @@ const listingBody = z.object({
   googlePlay: z
     .object({
       locales: fields,
-      changelogs: z.record(
-        localeKey,
-        z.record(z.string().regex(/^(\d{1,12}|default)$/, 'A version code or default.'), text),
-      ),
+      changelogs: z
+        .record(
+          localeKey,
+          z
+            .record(z.string().regex(/^(\d{1,12}|default)$/, 'A version code or default.'), text)
+            .refine(
+              atMost(MAX_VERSIONS_PER_LOCALE),
+              `At most ${MAX_VERSIONS_PER_LOCALE} version codes per locale.`,
+            ),
+        )
+        .refine(atMost(MAX_LOCALES), `At most ${MAX_LOCALES} locales.`),
     })
     .strict()
     .optional(),
@@ -124,7 +145,9 @@ export function repositoryRoutes(ctx: RepoContext) {
     return c.json({ repository: done.repository, detection: done.detection });
   });
 
-  app.get('/:workspaceId/repositories/:id/listing', needs('repositories.read'), async (c) => {
+  // Reading the listing uses the stored GitHub credential and sends traffic to GitHub, so it needs
+  // the same right as a scan, not the right to merely look.
+  app.get('/:workspaceId/repositories/:id/listing', needs('repositories.scan'), async (c) => {
     const done = await getRepositoryListing(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
     if (!done.ok) return respond(c, done);
     const { ok: _ok, ...view } = done;

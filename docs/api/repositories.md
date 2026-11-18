@@ -14,8 +14,8 @@ contents or secrets).
 
 | Action | viewer | member | admin / owner |
 | --- | --- | --- | --- |
-| `repositories.read`: list, read listing, read change sets | yes | yes | yes |
-| `repositories.scan`: scan a repository | no | yes | yes |
+| `repositories.read`: list and read stored repositories and change sets | yes | yes | yes |
+| `repositories.scan`: scan a repository, read its listing from GitHub | no | yes | yes |
 | `changesets.write`: create a draft, discard your own draft | no | yes | yes |
 | `repositories.write`: connect and disconnect repositories | no | no | yes |
 | `changesets.approve`: approve, apply, discard anyone's | no | no | yes |
@@ -50,7 +50,10 @@ credential. Its shape:
   locales, paths, evidence, warnings). Synchronous with a timeout. Audit `repository.scan`.
 - `GET /repositories/:id/listing` reads the fastlane listing files (at the default branch) and
   returns `{ listing, found, roots, warnings, problems }`: the `Listing` model of `@mrm/core`,
-  where the files were, and `validateListing` problems (`severity` `error` or `warning`).
+  where the files were, and `validateListing` problems (`severity` `error` or `warning`). It
+  uses the stored GitHub credential and sends traffic to GitHub, so it needs `repositories.scan`
+  (member and up), like a scan; a viewer gets `403`. Viewers still read stored data
+  (`GET /repositories`, `GET /repositories/:id`, change sets).
 
 Using the stored secret is itself audited (`credential.use`, purpose `repository.scan`, …).
 
@@ -80,7 +83,15 @@ Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `dra
   files that differ. `201 { changeSet,
   problems }` (`problems` are `validateListing` results for the new listing, not blocking).
   `422 no_changes` when nothing differs. Locale keys must look like `en-US` or `default`;
-  changelog keys are a version code or `default`.
+  changelog keys are a version code or `default`. Counts are capped: at most 100 locales per
+  store, 40 fields per locale, 50 version codes per changelog locale, and the whole request body
+  at 1 MB (`413 payload_too_large`). A repository disconnected while the change set was being
+  made gives `404 not_found`.
+- `summary` is shown as typed, but what is sent to GitHub (commit message, pull request title and
+  body) is neutralised: a zero-width space follows `@`, `#` and the `//` of a URL, and one splits
+  the words close/fix/resolve (any form), so the summary cannot mention a user or team, link or
+  close an issue, or reference another repository. In the pull request body it is a one-line
+  quote.
 - `GET /change-sets?repositoryId=&status=` returns `{ changeSets }`, newest first.
   `GET /change-sets/:id` returns `{ changeSet }` with file contents.
 - `POST /change-sets/:id/approve` (draft only) returns `{ changeSet }`.
@@ -89,6 +100,7 @@ Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `dra
   `prUrl`, `prNumber`, `commitSha`. A second apply while the first runs returns `409
   apply_in_progress`; after it finished it returns `200` with `alreadyApplied: true` and no new
   pull request. A claim older than 10 minutes counts as abandoned and can be claimed again.
+  The request is cut off after 90 seconds (see below).
 - `POST /change-sets/:id/discard` (draft, approved or failed) returns `{ changeSet }`. A member
   may discard only their own draft.
 
@@ -106,11 +118,26 @@ to `approved` (nothing was written) so it can be retried:
 | credential refused, no access, repository gone | 422 | `github_auth`, `github_forbidden`, `github_not_found`; credential deleted: `credential_not_found` |
 | branch made, PR failed | 502 | `pull_request_failed`, `branch` and `commitSha` kept on the change set |
 | GitHub down, network | 502 | `github_unavailable` |
-| timeout | 504 | `timeout` |
+| timeout | 504 | `timeout`; the change set stays `applying` (see below) |
+
+**Timeout of apply.** After the timeout the server aborts the connector: no further request is
+sent and the one in flight is cancelled (the pull request step is finished once a branch exists,
+so a branch is not stranded without a PR). It cannot take back what GitHub already accepted, so
+the branch `mrm/<id>-<slug>`, even its pull request, may exist. The change set is therefore
+**not** marked `failed` (that would say nothing was applied and invite a retry that collides with
+the branch). It stays `applying` with `error` saying what happened; it cannot be approved,
+applied again or discarded meanwhile (`409 apply_in_progress` / `invalid_state`). The note and
+audit `changeset.apply_timeout` tell the person to check GitHub. Ten minutes after the timeout the
+claim counts as abandoned and apply may be called again; if the branch was created, that apply
+fails with `409 branch_exists`, and the existing branch or pull request is the result. Scan and
+listing also time out (`504`), but they only read, so nothing is left half done.
 
 Audit actions: `repository.connect`, `repository.disconnect`, `repository.scan`,
 `changeset.create`, `changeset.approve`, `changeset.apply`, `changeset.apply_failed`,
-`changeset.discard`.
+`changeset.apply_timeout`, `changeset.discard`.
+
+`DELETE /repositories/:id` racing with a change set being created for it answers `409
+open_change_sets` (nothing is deleted), not a server error.
 
 ## Not done yet
 

@@ -1146,3 +1146,53 @@ test('apiBase supports GitHub Enterprise Server', async () => {
   assert.equal(await connector.defaultBranch(), 'main');
   fake.assertClean();
 });
+
+test('propose with an already aborted signal sends nothing and writes nothing', async () => {
+  const fake = new Fake();
+  proposeRoutes(fake);
+  const controller = new AbortController();
+  controller.abort();
+  await rejects(
+    make(fake).propose(changeSet([{ path: NAME, before: 'Trail Notes\n', after: 'x\n' }]), {
+      branch: BRANCH,
+      title: 'T',
+      signal: controller.signal,
+    }),
+    (e) => assert.ok(e instanceof GithubError && e.kind === 'network', String(e)),
+  );
+  assert.deepEqual(fake.writes, []);
+  assert.deepEqual(fake.calls.filter((c) => !c.path.includes('access_tokens')), []);
+});
+
+test('aborting during propose stops it before the next request: no tree, commit, branch or pull request', async () => {
+  const fake = new Fake();
+  proposeRoutes(fake);
+  const controller = new AbortController();
+  const connector = make(fake, {
+    fetch: async (input, init) => {
+      const reply = await fake.fetch(input, init);
+      // The timeout fires while the blob is being stored.
+      if (String(input).endsWith('/git/blobs')) controller.abort();
+      return reply;
+    },
+  });
+  await rejects(
+    connector.propose(changeSet([{ path: NAME, before: 'Trail Notes\n', after: 'x\n' }]), {
+      branch: BRANCH,
+      title: 'T',
+      signal: controller.signal,
+    }),
+    (e) => assert.ok(e instanceof GithubError && e.kind === 'network', String(e)),
+  );
+  assert.deepEqual(
+    fake.writes.map((c) => c.path.replace(R, '')),
+    ['/git/blobs'],
+  );
+});
+
+test('propose without a signal behaves as before', async () => {
+  const fake = new Fake();
+  proposeRoutes(fake);
+  const result = await proposeName(make(fake));
+  assert.equal(result.number, 17);
+});

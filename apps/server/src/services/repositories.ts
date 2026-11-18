@@ -68,10 +68,27 @@ export const failure = (
 
 class TimeoutError extends Error {}
 
-export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+export const isTimeoutError = (error: unknown): boolean => error instanceof TimeoutError;
+
+/**
+ * Rejects with a timeout error after `ms`. That does not stop the work: `onTimeout` runs first,
+ * for the caller to cancel it (abort an AbortSignal). Work that ignores the cancellation keeps
+ * running in the background; its result is dropped.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  onTimeout?: () => void,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const limit = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new TimeoutError('timeout')), ms);
+    timer = setTimeout(() => {
+      try {
+        onTimeout?.();
+      } finally {
+        reject(new TimeoutError('timeout'));
+      }
+    }, ms);
   });
   try {
     return await Promise.race([promise, limit]);
@@ -327,7 +344,32 @@ export async function connectRepository(
   return { ok: true, repository: repository as Repository };
 }
 
+/** A statement refused by a foreign key: a row that points at one being deleted (or at one gone). */
+export const isForeignKeyViolation = (error: unknown) =>
+  error instanceof Error && /foreign key/i.test(error.message);
+
 export async function disconnectRepository(
+  ctx: RepoContext,
+  input: { workspaceId: string; id: string },
+  actor: Actor,
+): Promise<Outcome<Record<never, never>>> {
+  try {
+    return await disconnect(ctx, input, actor);
+  } catch (error) {
+    // A change set was created for this repository after the check below and before the delete.
+    // Nothing was deleted (the transaction rolled back): the person can discard it and retry.
+    if (isForeignKeyViolation(error)) {
+      return failure(
+        409,
+        'open_change_sets',
+        'A change set was just created for this repository. Discard or finish it first.',
+      );
+    }
+    throw error;
+  }
+}
+
+async function disconnect(
   ctx: RepoContext,
   input: { workspaceId: string; id: string },
   actor: Actor,
@@ -347,10 +389,14 @@ export async function disconnectRepository(
         'Discard or finish the open change sets of this repository first.',
       );
     }
-    await tx.execute('DELETE FROM change_sets WHERE repository_id = ? AND workspace_id = ?', [
-      input.id,
-      input.workspaceId,
-    ]);
+    // Only the finished ones. A set that is open by now (created since the check above) is left,
+    // so the delete of the repository below refuses it instead of silently destroying it.
+    await tx.execute(
+      `DELETE FROM change_sets
+        WHERE repository_id = ? AND workspace_id = ?
+          AND status NOT IN ('draft', 'approved', 'applying')`,
+      [input.id, input.workspaceId],
+    );
     await tx.execute('DELETE FROM repositories WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

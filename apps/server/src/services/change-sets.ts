@@ -16,6 +16,8 @@ import {
   failure,
   getRepository,
   githubFailure,
+  isForeignKeyViolation,
+  isTimeoutError,
   type Outcome,
   openConnectorForRepository,
   type RepoContext,
@@ -167,6 +169,30 @@ export async function createChangeSet(
 
   const id = randomUUID();
   const now = ctx.now();
+  try {
+    await insertDraft(ctx, { id, now, files, input, actor });
+  } catch (error) {
+    // The repository was disconnected while GitHub was being read.
+    if (isForeignKeyViolation(error)) {
+      return failure(404, 'not_found', 'The repository was disconnected while this was being made.');
+    }
+    throw error;
+  }
+  const changeSet = (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView;
+  return { ok: true, changeSet, problems: validateListing(input.listing) };
+}
+
+async function insertDraft(
+  ctx: RepoContext,
+  args: {
+    id: string;
+    now: number;
+    files: FileChange[];
+    input: { workspaceId: string; repositoryId: string; summary: string };
+    actor: Actor;
+  },
+): Promise<void> {
+  const { id, now, files, input, actor } = args;
   await ctx.db.transaction(async (tx) => {
     await tx.execute(
       `INSERT INTO change_sets
@@ -194,8 +220,6 @@ export async function createChangeSet(
       at: now,
     });
   });
-  const changeSet = (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView;
-  return { ok: true, changeSet, problems: validateListing(input.listing) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -288,11 +312,30 @@ export function branchNameFor(id: string, summary: string): string {
   return `mrm/${id.replace(/-/g, '').slice(0, 8)}-${slug || 'update'}`;
 }
 
+const ZWSP = '\u200b';
+
+/**
+ * Text that a person typed, made safe to put in a pull request or a commit message. GitHub would
+ * otherwise act on it: notify an @mentioned user or team, link an issue or pull request from #123
+ * or owner/repo#123, close an issue on merge ("fixes #1", "closes <issue url>"). A zero-width
+ * space after @ and # and inside "://" stops the link and the mention, and one after the first
+ * letter of a closing keyword stops the keyword. The text reads the same to a person.
+ */
+export function neutraliseText(text: string): string {
+  return text
+    .replace(/[@#]/g, (c) => `${c}${ZWSP}`)
+    .replace(/:\/\//g, `:/${ZWSP}/`)
+    .replace(/\b(clos(?:e[sd]?)|fix(?:e[sd])?|resolv(?:e[sd]?))\b/gi, (word) => `${word[0]}${ZWSP}${word.slice(1)}`);
+}
+
+/** One line of the summary as a quote, so it cannot start a heading, a list or a code block. */
+const quoted = (summary: string) => `> ${neutraliseText(summary.replace(/\s+/g, ' ').trim())}`;
+
 function pullRequestBody(id: string, summary: string, files: FileChange[]): string {
   const shown = files.slice(0, 50).map((f) => `- \`${f.path}\` (${changeOf(f)})`);
   if (files.length > 50) shown.push(`- and ${files.length - 50} more`);
   return [
-    summary,
+    quoted(summary),
     '',
     `Changed files (${files.length}):`,
     ...shown,
@@ -401,19 +444,62 @@ export async function applyChangeSet(
     createdBy,
     files,
   };
+  // What goes to GitHub (the commit message, the pull request title and body) is the neutralised
+  // text; the change set keeps what the person typed.
+  changeSet.summary = neutraliseText(summary);
   const branch = branchNameFor(id, summary);
 
+  /**
+   * The timeout cancels the connector (no further request is sent) but cannot take back what
+   * GitHub already accepted: a branch, even a pull request, may exist. So a timeout is NOT
+   * recorded as `failed` (which says "nothing was applied" and invites a retry that would collide
+   * with that branch). The set stays `applying` with a note, which keeps it from being applied
+   * again, discarded or approved, until the claim goes stale (APPLY_CLAIM_TTL_MS, counted from
+   * now), when it may be applied again and the branch check reports what exists.
+   */
+  const timedOut = async (): Promise<Outcome<ApplyResult>> => {
+    const f = failure(
+      504,
+      'timeout',
+      `GitHub did not answer within ${Math.round(ctx.timeoutMs / 1000)} seconds and the request was cancelled. ` +
+        `The branch ${branch} or its pull request may already exist on GitHub: check there. ` +
+        `This change set stays "applying" and can be applied again after ${Math.round(APPLY_CLAIM_TTL_MS / 60_000)} minutes.`,
+    );
+    await db.transaction(async (tx) => {
+      const at = ctx.now();
+      const changed = await tx.execute(
+        `UPDATE change_sets SET error = ?, updated_at = ?
+          WHERE id = ? AND workspace_id = ? AND status = 'applying'`,
+        [String(f.body.message), at, id, workspaceId],
+      );
+      if (changed === 0) return;
+      await recordAudit(tx, {
+        workspaceId,
+        actor,
+        action: 'changeset.apply_timeout',
+        target: { type: 'change_set', id },
+        detail: { repositoryId: repository.id, branch },
+        at,
+      });
+    });
+    return withSet(f);
+  };
+
+  const controller = new AbortController();
   let proposal: Awaited<ReturnType<typeof opened.connector.propose>>;
   try {
     proposal = await withTimeout(
       opened.connector.propose(changeSet, {
         branch,
-        title: summary,
+        title: neutraliseText(summary),
         body: pullRequestBody(id, summary, files),
+        signal: controller.signal,
       }),
       ctx.timeoutMs,
+      () => controller.abort(),
     );
   } catch (error) {
+    if (isTimeoutError(error)) return timedOut();
     let f: Failure;
     try {
       f = githubFailure(error, opened.secret);

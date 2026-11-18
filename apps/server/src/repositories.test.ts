@@ -171,6 +171,13 @@ dbTest('who may do what with repositories', async (db) => {
 
   for (const cookie of [viewer, member, admin]) {
     assert.equal((await t.call(cookie, 'GET', '/repositories')).status, 200);
+  }
+  // The listing is read from GitHub with the stored credential: viewers may not trigger that.
+  const callsBefore = t.repo.listCalls;
+  assert.equal((await t.call(viewer, 'GET', `${base}/listing`)).status, 403);
+  assert.equal(t.repo.listCalls, callsBefore, 'no GitHub traffic for a viewer');
+  assert.equal((await t.call(viewer, 'GET', base)).status, 200, 'stored data stays readable');
+  for (const cookie of [member, admin]) {
     assert.equal((await t.call(cookie, 'GET', `${base}/listing`)).status, 200);
   }
   const connectBody = { credentialId, owner: 'acme', repo: 'other' };
@@ -216,4 +223,60 @@ dbTest('another workspace cannot see or use a repository: 404 everywhere', async
   // My workspace, their session.
   assert.equal((await out('GET', '/repositories', undefined, t.workspaceId)).status, 404);
   assert.equal((await out('GET', `/change-sets/${id}`, undefined, t.workspaceId)).status, 404);
+});
+
+dbTest('disconnect meeting a change set created at the same moment is a 409, not a 500, and deletes nothing', async (db) => {
+  const t = await bootRepoApp(db);
+  const { repositoryId } = await t.connect();
+  const { disconnectRepository } = await import('./services/repositories.ts');
+
+  // A database whose transaction lets another request slip in a draft right after the
+  // "any open change sets?" check, which is the window a real second request would use.
+  const racy: typeof db = {
+    ...db,
+    transaction: (fn) =>
+      db.transaction((tx) =>
+        fn({
+          ...tx,
+          async query(statement, params) {
+            const rows = await tx.query(statement, params);
+            if (/FROM change_sets/.test(statement) && /status IN/.test(statement)) {
+              await tx.execute(
+                `INSERT INTO change_sets (id, workspace_id, repository_id, summary, status, created_by_type,
+                   created_by_id, files_json, created_at, updated_at)
+                 VALUES ('raced', ?, ?, 'raced', 'draft', 'user', 'u', '[]', 1, 1)`,
+                [t.workspaceId, repositoryId],
+              );
+            }
+            return rows;
+          },
+        } as typeof tx),
+      ),
+  };
+  const ctx = { db: racy, masterKey: Buffer.alloc(32), now: () => 1, connectorFactory: () => t.repo, timeoutMs: 1000 };
+  const result = await disconnectRepository(ctx, { workspaceId: t.workspaceId, id: repositoryId }, { type: 'user', id: 'u' });
+  assert.equal(result.ok, false);
+  assert.equal((result as { status: number }).status, 409);
+  assert.equal((result as { body: { error: string } }).body.error, 'open_change_sets');
+  // Rolled back: the repository and the new change set are both still there.
+  assert.equal((await t.call(t.owner, 'GET', `/repositories/${repositoryId}`)).status, 200);
+  const [row] = await db.query("SELECT COUNT(*) AS n FROM change_sets WHERE id = 'raced'");
+  assert.equal(Number(row?.n), 0, 'the simulated draft was inside the rolled back transaction');
+});
+
+dbTest('a repository disconnected while a change set is being made gives 404, not 500', async (db) => {
+  const repo = new FakeRepo();
+  const t = await bootRepoApp(db, repo);
+  const { repositoryId } = await t.connect();
+  const read = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
+  const listing = read.body.listing;
+  listing.appStore.locales['en-US'].subtitle = 'Changed';
+
+  repo.listDelayMs = 60; // GitHub is slow to answer; the repository goes away meanwhile
+  const creating = t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, { summary: 'X', listing });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal((await t.call(t.owner, 'DELETE', `/repositories/${repositoryId}`)).status, 204);
+  const res = await creating;
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'not_found');
 });

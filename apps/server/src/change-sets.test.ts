@@ -382,3 +382,72 @@ dbTest('a change set is applied with the credential of its repository, nothing e
   const uses = (await t.auditActions()).filter((a) => a.action === 'credential.use');
   assert.ok(uses.some((u) => u.detail.includes('changeset.apply')));
 });
+
+dbTest('a connector that outlives the timeout is cancelled and the set is not recorded as failed', async (db) => {
+  const repo = new FakeRepo();
+  const t = await bootRepoApp(db, repo, { repositoryTimeoutMs: 40 });
+  const { repositoryId } = await t.connect();
+  const { id } = await t.draft(repositoryId);
+  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+
+  repo.proposeDelayMs = 200; // ignores the signal and still writes its branch afterwards
+  const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+  assert.equal(res.status, 504);
+  assert.equal(res.body.error, 'timeout');
+  assert.match(res.body.message, /may already exist/);
+  assert.equal(repo.proposeSignals[0]?.aborted, true, 'the connector was told to stop');
+
+  // Not "failed": a branch or pull request may exist. Still applying, with the reason on it.
+  assert.equal(res.body.changeSet.status, 'applying');
+  assert.match(res.body.changeSet.error, /stays "applying"/);
+  const actions = (await t.auditActions()).map((a) => a.action);
+  assert.ok(actions.includes('changeset.apply_timeout'));
+  assert.ok(!actions.includes('changeset.apply_failed'));
+  assert.ok(!actions.includes('changeset.apply'));
+
+  // Let the late connector finish: it must not change the set behind our back.
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal((await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet.status, 'applying');
+
+  // Meanwhile it cannot be applied again or discarded...
+  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).body.error, 'apply_in_progress');
+  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/discard`)).status, 409);
+
+  // ...until the claim is stale, as for a crash.
+  repo.proposeDelayMs = 0;
+  await db.execute('UPDATE change_sets SET updated_at = ? WHERE id = ?', [Date.now() - 11 * 60_000, id]);
+  const again = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+  assert.equal(again.status, 200);
+  assert.equal(again.body.changeSet.status, 'applied');
+});
+
+dbTest('what a person typed in the summary cannot mention, link or close anything on GitHub', async (db) => {
+  const repo = new FakeRepo();
+  const t = await bootRepoApp(db, repo);
+  const { repositoryId } = await t.connect();
+  const summary = 'Fixes #12, closes acme/app#3, resolved https://github.com/acme/app/issues/4 cc @octocat @acme/team';
+  const read = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
+  const listing = read.body.listing;
+  listing.appStore.locales['en-US'].subtitle = 'Newer subtitle';
+  const made = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, { summary, listing });
+  assert.equal(made.status, 201);
+  const id = made.body.changeSet.id as string;
+  assert.equal(made.body.changeSet.summary, summary, 'the set keeps what was typed');
+  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).status, 200);
+
+  const sent = repo.proposals[0];
+  const outgoing = [sent?.options.title ?? '', sent?.options.body ?? '', sent?.changeSet.summary ?? ''];
+  for (const text of outgoing) {
+    assert.doesNotMatch(text, /@(?=\w)/, text);
+    assert.doesNotMatch(text, /#(?=\d)/, text);
+    assert.doesNotMatch(text, /:\/\//, text);
+    assert.doesNotMatch(text, /\b(fix(es|ed)?|close[sd]?|resolve[sd]?)\b/i, text);
+  }
+  // Still readable: with the invisible characters removed it is the original text.
+  assert.equal(outgoing[0]?.replaceAll('​', ''), summary);
+  assert.equal(outgoing[2]?.replaceAll('​', ''), summary);
+  // In the body it is a one-line quote, so it cannot open a heading, list or code block.
+  assert.match(sent?.options.body ?? '', /^> /);
+  assert.equal((sent?.options.body ?? '').split('\n')[0]?.replaceAll('​', ''), `> ${summary}`);
+});
