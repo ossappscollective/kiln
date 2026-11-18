@@ -12,6 +12,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 const VERSION = 'v1';
 const KEY_BYTES = 32;
 const IV_BYTES = 12;
+/** GCM allows shorter tags; a short tag is a weaker check, so the length is pinned. */
+const TAG_BYTES = 16;
 
 export class VaultError extends Error {
   constructor(message: string) {
@@ -32,7 +34,7 @@ export function parseMasterKey(base64: string): Buffer {
 export function encryptSecret(plaintext: string, key: Buffer, aad = ''): string {
   assertKey(key);
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: TAG_BYTES });
   cipher.setAAD(Buffer.from(aad, 'utf8'));
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -47,9 +49,13 @@ export function decryptSecret(stored: string, key: Buffer, aad = ''): string {
   }
   const [, iv, tag, ciphertext] = parts as [string, string, string, string];
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'));
+    const tagBytes = Buffer.from(tag, 'base64url');
+    if (tagBytes.length !== TAG_BYTES) throw new VaultError('Bad tag length');
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'), {
+      authTagLength: TAG_BYTES,
+    });
     decipher.setAAD(Buffer.from(aad, 'utf8'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64url'));
+    decipher.setAuthTag(tagBytes);
     return Buffer.concat([
       decipher.update(Buffer.from(ciphertext, 'base64url')),
       decipher.final(),
