@@ -1,5 +1,8 @@
 import type { Listing, ListingProblem } from '@mrm/core';
 import type { ApplyBody } from './change-set-apply.ts';
+import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
+import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
+import type { Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody } from './reviews.ts';
 import type {
   AcceptedInvitation,
   ApiToken,
@@ -40,6 +43,8 @@ import type {
   PlanDetail,
   PlanSummary,
   RematchedBuilds,
+  RolloutBody,
+  RolloutView,
   PullRequestBody,
   PullResult,
   RepositoryDetail,
@@ -173,8 +178,24 @@ export function messageFor(
       return body.message ?? 'The branch for this change set could not be used.';
     case 'change_conflict': {
       const files = body.paths?.length ? ` Changed files: ${body.paths.join(', ')}.` : '';
-      return `${body.message ?? 'Files changed in the repository after this draft was made.'}${files} Discard this change set and create a new one.`;
+      return `${body.message ?? 'Files changed in the repository after this draft was made.'}${files} Refresh the change set to re-base it onto the repository. Discard this change set and create a new one if you would rather start over.`;
     }
+    case 'base_changed': {
+      const files = body.paths?.length ? ` Changed files: ${body.paths.join(', ')}.` : '';
+      return `The files changed in the local clone after this change set was made.${files} Nothing was written. Refresh the change set to re-base it, or discard it.`;
+    }
+    case 'refresh_conflicts':
+      return body.message ?? 'Some files changed in the repository in the same place. Choose for each file.';
+    case 'nothing_to_apply':
+      return 'Nothing left to apply: the repository already has this change. Discard the change set.';
+    case 'branch_created':
+      return body.message ?? 'A branch was already created for this change set, so it cannot be refreshed. Discard it and create a new one.';
+    case 'changed_meanwhile':
+      return 'The change set was changed by someone else while it was being refreshed. Reload and try again.';
+    case 'unknown_path':
+      return 'A choice names a file that is not in this change set. Reload and try again.';
+    case 'clone_busy':
+      return body.message ?? 'The repository is being read right now. Try again in a moment.';
     case 'pull_request_failed':
       return body.message ?? 'The branch was created but the pull request could not be opened.';
     case 'no_repository':
@@ -405,6 +426,23 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/push`,
         body,
       ),
+    /** Cheap and read only: is the change set still what the repository holds? */
+    changeSetStaleness: (workspaceId: string, id: string) =>
+      request<Staleness>('GET', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/staleness`),
+    /**
+     * Re-bases a stale change set onto the repository. A conflict is a 409 `refresh_conflicts` (the
+     * ApiError's body has the files and their three texts); send `resolutions` per conflicting path.
+     */
+    refreshChangeSet: (workspaceId: string, id: string, body?: { resolutions?: Record<string, Resolution> }) =>
+      request<RefreshResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/refresh`, body),
+    /** The managed clone of one repository: size and last use. */
+    repositoryClone: (workspaceId: string, id: string) =>
+      request<RepositoryClone>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone`),
+    /** Admin and owner: the clones of the workspace. */
+    clones: (workspaceId: string) => request<CloneReport>('GET', `${workspace(workspaceId)}/clones`),
+    /** Admin and owner: removes the clone now (a cache; the next read fetches it again). */
+    purgeRepositoryClone: (workspaceId: string, id: string) =>
+      request<PurgeResult>('POST', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone/purge`),
     discardChangeSet: (workspaceId: string, id: string) =>
       request<{ changeSet: ChangeSetView }>(
         'POST',
@@ -499,6 +537,26 @@ export function createApi(options: ApiOptions = {}) {
       request<{ plan: PlanDetail }>('PUT', `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`, { text }),
     deleteReleaseNotes: (workspaceId: string, appId: string, planId: string, locale: string) =>
       request<{ plan: PlanDetail }>('DELETE', `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`),
+    // Staged rollout steps of a plan: planning data only, nothing reaches a store (docs/api/plans.md).
+    rollout: (workspaceId: string, appId: string, planId: string) =>
+      request<{ rollout: RolloutView }>('GET', `${planPath(workspaceId, appId, planId)}/rollout`),
+    setRollout: (workspaceId: string, appId: string, planId: string, body: RolloutBody) =>
+      request<{ rollout: RolloutView }>('PUT', `${planPath(workspaceId, appId, planId)}/rollout`, body),
+    clearRollout: (workspaceId: string, appId: string, planId: string) =>
+      request<{ rollout: RolloutView }>('DELETE', `${planPath(workspaceId, appId, planId)}/rollout`),
+    rolloutStep: (
+      workspaceId: string,
+      appId: string,
+      planId: string,
+      stepId: string,
+      action: 'complete' | 'skip' | 'reopen',
+      options: { fromStore?: boolean } = {},
+    ) =>
+      request<{ rollout: RolloutView }>(
+        'POST',
+        `${planPath(workspaceId, appId, planId)}/rollout/steps/${encodeURIComponent(stepId)}/${action}`,
+        action === 'complete' && options.fromStore ? { fromStore: true } : {},
+      ),
     checklistTemplates: (workspaceId: string) =>
       request<{ templates: ChecklistTemplate[] }>('GET', `${workspace(workspaceId)}/checklist-templates`),
     createChecklistTemplate: (workspaceId: string, input: { name: string; items: { text: string; required: boolean }[] }) =>
@@ -634,6 +692,26 @@ export function createApi(options: ApiOptions = {}) {
       request<{ deliveryId: string }>(
         'POST',
         `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
+      ),
+    // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
+    // internal triage. Nothing here replies to a review or writes to a store.
+    appReviews: (workspaceId: string, appId: string, query = '') =>
+      request<ReviewsPage>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews${query ? `?${query}` : ''}`,
+      ),
+    appReviewsSummary: (workspaceId: string, appId: string, weeks?: number) =>
+      request<ReviewsSummary>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/summary${weeks ? `?weeks=${weeks}` : ''}`,
+      ),
+    syncAppReviews: (workspaceId: string, appId: string) =>
+      request<ReviewSyncOutcome>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/sync`),
+    triageReview: (workspaceId: string, appId: string, reviewId: string, body: TriageBody) =>
+      request<{ review: Review }>(
+        'PATCH',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}`,
+        body,
       ),
   };
 }

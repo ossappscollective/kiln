@@ -13,6 +13,14 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'changeset.applied', label: 'A change set was applied (pull request opened)' },
   { type: 'changeset.failed', label: 'A change set could not be applied' },
   { type: 'credential.test_failed', label: 'A credential test failed' },
+  { type: 'plan.rollout_step_done', label: 'A rollout step of a release plan was marked done' },
+  { type: 'plan.rollout_step_skipped', label: 'A rollout step of a release plan was skipped' },
+  { type: 'plan.rollout_step_reopened', label: 'A rollout step of a release plan was reopened' },
+  { type: 'plan.deadline_due_soon', label: 'A release plan’s deadline is close' },
+  { type: 'plan.deadline_overdue', label: 'A release plan’s deadline has passed' },
+  { type: 'plan.rollout_step_due', label: 'A planned rollout step’s time has passed' },
+  { type: 'review.new_low_rating', label: 'A low-rated customer review arrived (ids and rating only)' },
+  { type: 'review.sync_failed', label: 'Reading customer reviews failed' },
 ];
 
 export type WebhookForm = {

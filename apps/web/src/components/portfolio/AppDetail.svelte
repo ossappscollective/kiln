@@ -32,6 +32,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import ListingTab from '../listing/ListingTab.svelte';
+  import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import BuildsPanel from './BuildsPanel.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
   import ReleaseGroupCard from './ReleaseGroupCard.svelte';
@@ -52,7 +53,7 @@
   let syncProblem = $state('');
   let announcement = $state('');
   let now = $state(Date.now());
-  /** The open section: the releases, or the store listing (read-only). */
+  /** The open section: the releases, the store listing (read-only), builds or customer reviews (read-only). */
   let tab = $state('releases');
   /** Counts finished syncs, so the listing tab reloads after one. */
   let syncRuns = $state(0);
@@ -157,6 +158,7 @@
     { id: 'releases', label: 'Releases' },
     ...(can(role, 'listing.read') ? [{ id: 'listing', label: 'Listing' }] : []),
     { id: 'builds', label: 'Builds' },
+    ...(can(role, 'reviews.read') ? [{ id: 'reviews', label: 'Reviews' }] : []),
   ]);
 </script>
 
@@ -291,6 +293,8 @@
           {#snippet panel(id)}
             {#if app && id === 'listing'}
               <ListingTab {api} {workspaceId} {role} {app} {now} {syncing} onrefresh={sync} refreshKey={syncRuns} />
+            {:else if app && id === 'reviews'}
+              <ReviewsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
             {:else if app && id === 'builds'}
               <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
             {:else if app}

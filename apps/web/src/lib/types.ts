@@ -5,12 +5,21 @@ import type {
   InvitableRole,
   Listing,
   ListingProblem,
+  ListingSectionName,
+  ListingSections,
   ListingStore,
   PlanPlatform,
   Platform,
   Readiness,
   ReleaseState,
   Role,
+  RolloutComparison,
+  RolloutDoneSource,
+  RolloutKind,
+  RolloutStepStatus,
+  RolloutSummary,
+  SectionCompare,
+  StoreRollout,
 } from '@mrm/core';
 
 export type User = { id: string; email: string; displayName: string };
@@ -505,9 +514,44 @@ export type PlanSummary = {
   due: DueFlags;
   readiness: Readiness;
   checklist: { total: number; done: number };
+  /** The staged rollout plan in short; null when the plan has none. Planning data only. */
+  rollout: RolloutSummary | null;
 };
 
 export type PlanDetail = PlanSummary & { items: PlanItem[]; releaseNotes: PlanNote[] };
+
+export type RolloutStep = {
+  id: string;
+  /** 1-based. */
+  position: number;
+  percent: number;
+  /** Epoch milliseconds. */
+  plannedAt: number | null;
+  note: string | null;
+  status: RolloutStepStatus;
+  doneAt: number | null;
+  doneBy: { id: string; name: string | null } | null;
+  doneSource: RolloutDoneSource | null;
+  /** Open, and its planned time has passed. */
+  due: boolean;
+};
+
+/** `GET .../plans/:id/rollout` (docs/api/plans.md): planning data, with what the store last reported beside it. */
+export type RolloutView = {
+  planningOnly: true;
+  kind: RolloutKind | null;
+  template: string | null;
+  steps: RolloutStep[];
+  apple: { startsAt: number | null; schedule: { day: number; percent: number; date: string | null }[]; note: string } | null;
+  summary: RolloutSummary | null;
+  store: StoreRollout | null;
+  comparison: RolloutComparison | null;
+};
+
+/** What `PUT .../rollout` takes. Times are epoch milliseconds or ISO 8601 strings. */
+export type RolloutBody =
+  | { kind: 'steps'; template?: string; steps: { id?: string; percent: number; plannedAt?: number | null; note?: string | null }[] }
+  | { kind: 'apple_phased'; template?: string; startsAt?: number | null };
 
 export type ChecklistTemplate = {
   id: string;
@@ -586,6 +630,23 @@ export type ListingDrift = {
   repo: { readAt: number | null; ref: string | null; error: string | null };
   summary: Record<DriftStatus, number>;
   locales: DriftLocale[];
+  /**
+   * Categories, age rating, privacy choices URL, app details and media counts against the
+   * repository (read-only, never pulled). Optional: a server from before sections does not send it.
+   */
+  sections?: SectionDrift[];
+};
+
+/** One section of the listing beyond the texts, as the store has it and as the repository can say it. */
+export type SectionDrift = {
+  name: ListingSectionName;
+  /** The store's section; null: not read. */
+  store: ListingSections[ListingSectionName] | null;
+  storeObservedAt: number | null;
+  /** The repository's section; null: not read, or its source cannot hold it. */
+  repo: ListingSections[ListingSectionName] | null;
+  repoObservedAt: number | null;
+  compare: SectionCompare;
 };
 
 export type ListingHistoryEntry = {
@@ -608,6 +669,19 @@ export type LiveListingChannel = {
   sourceRef: string | null;
   observedAt: number | null;
   locales: Record<string, Record<string, string>>;
+  /** What the last read had beyond the texts. A section that is missing was not read. */
+  sections?: ListingSections;
+};
+
+/** The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES). */
+export type ListingSchedule = {
+  enabled: boolean;
+  intervalMinutes: number;
+  lastAttemptAt: number | null;
+  /** Failed reads in a row. */
+  failures: number;
+  /** When the scheduler will read it next at the earliest; null: at its next pass (or off). */
+  nextReadAt: number | null;
 };
 
 export type LiveListing = {
@@ -615,6 +689,9 @@ export type LiveListing = {
   platform: Platform;
   readAt: number | null;
   error: string | null;
+  /** What the connector noticed in the last read (a section it could not read, a limit it hit). */
+  warnings?: string[];
+  schedule?: ListingSchedule;
   channels: LiveListingChannel[];
 };
 

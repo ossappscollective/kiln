@@ -205,3 +205,12 @@ test('reading the repository listing is a POST that has no body, and a missing l
   assert.equal(calls[0]?.path, '/api/workspaces/w/apps/a/listing/repo-refresh');
   assert.equal(calls[0]?.init?.body, undefined);
 });
+
+test('the refresh and clone codes have a message', () => {
+  for (const error of ['base_changed', 'refresh_conflicts', 'nothing_to_apply', 'changed_meanwhile', 'clone_busy']) {
+    const message = messageFor(409, { error });
+    assert.ok(message.length > 20, error);
+    assert.notEqual(message, error);
+  }
+  assert.match(messageFor(409, { error: 'change_conflict' }), /refresh/i);
+});
