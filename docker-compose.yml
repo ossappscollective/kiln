@@ -13,6 +13,10 @@ services:
       MRM_WEB_DIST: apps/web/dist
     volumes:
       - mrm-data:/data
+      # Signed local commits (MRM_GIT_SIGN, docs/deployment.md): mount the key read-only (mode 600,
+      # readable by the `node` user) and set MRM_GIT_SIGNING_KEY to the path INSIDE the container.
+      # Left commented because a missing file would stop the container from starting.
+      # - ./secrets/mrm_signing:/run/secrets/mrm_signing:ro
     depends_on:
       db:
         condition: service_healthy

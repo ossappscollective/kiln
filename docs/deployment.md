@@ -250,8 +250,8 @@ Settings, SSH and GPG keys; for an ssh key choose the type "Signing Key" (an aut
 not enough). The web app shows "Signed (ssh)" on the change set: that means the commit holds a
 signature, not that anything has verified it.
 
-**Docker.** The image contains neither `ssh-keygen` nor `gpg`: add `openssh-client` (or `gnupg`) to
-the `apt-get install` line of the Dockerfile. In `docker-compose.yml` the key must be mounted into
+**Docker.** The image includes `openssh-client` (`ssh-keygen`) and `gnupg` for this. In
+`docker-compose.yml` the key must be mounted into
 the container (read-only, readable by the `node` user, mode `600`, for example
 `- ./secrets/mrm_signing:/run/secrets/mrm_signing:ro`) and `MRM_GIT_SIGNING_KEY` must name the path
 **inside** the container; for an agent, mount its socket and set `SSH_AUTH_SOCK` for the service. A

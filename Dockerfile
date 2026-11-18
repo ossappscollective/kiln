@@ -6,9 +6,11 @@ RUN corepack enable
 
 # git for reading repositories from a local clone (MRM_READS, docs/adr/0005-local-clone-reads.md).
 # Debian 12 ships git 2.39; the server needs 2.34 or newer. Without it MRM_READS=auto falls back
-# to the GitHub API. ca-certificates is for https to github.com.
+# to the GitHub API. ca-certificates is for https to github.com. openssh-client (ssh-keygen) and
+# gnupg are only used when MRM_GIT_SIGN is ssh or gpg (signed local commits, docs/deployment.md);
+# they do nothing otherwise.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git ca-certificates \
+ && apt-get install -y --no-install-recommends git ca-certificates openssh-client gnupg \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
