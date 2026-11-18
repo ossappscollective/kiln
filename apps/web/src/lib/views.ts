@@ -3,6 +3,8 @@ import type { Component } from 'svelte';
 import Audit from '../components/Audit.svelte';
 import Credentials from '../components/Credentials.svelte';
 import Members from '../components/Members.svelte';
+import Portfolio from '../components/Portfolio.svelte';
+import Repositories from '../components/Repositories.svelte';
 import type { Api } from './api.ts';
 
 /** What the shell hands to every section. */
@@ -24,6 +26,8 @@ export type ViewDef = {
  * the shell builds its navigation and routing from this list.
  */
 export const views: ViewDef[] = [
+  { id: 'portfolio', icon: 'smartphone', label: 'Portfolio', component: Portfolio, requires: 'apps.read' },
+  { id: 'repositories', icon: 'git-branch', label: 'Repositories', component: Repositories, requires: 'repositories.read' },
   { id: 'credentials', icon: 'key', label: 'Credentials', component: Credentials, requires: 'credentials.read' },
   { id: 'members', icon: 'users', label: 'Members', component: Members, requires: 'members.read' },
   { id: 'audit', icon: 'history', label: 'Audit log', component: Audit, requires: 'audit.read' },

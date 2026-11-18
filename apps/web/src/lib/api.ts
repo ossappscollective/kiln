@@ -1,7 +1,11 @@
+import type { Listing, ListingProblem } from '@mrm/core';
 import type {
   AcceptedInvitation,
+  AppDetail,
+  AppSummary,
   AuditEvent,
   AuthStatus,
+  ChangeSetView,
   CreatedInvitation,
   CredentialSummary,
   Health,
@@ -9,6 +13,11 @@ import type {
   InvitationPreview,
   Me,
   Member,
+  NewApp,
+  RepositoryDetail,
+  RepositoryListing,
+  RepositorySummary,
+  SyncResult,
   TestResult,
   User,
 } from './types.ts';
@@ -19,13 +28,16 @@ export class ApiError extends Error {
   status: number;
   code: string;
   retryAfter: number | undefined;
+  /** The JSON body of the error response, for screens that need more than the message. */
+  body: Record<string, unknown>;
 
-  constructor(status: number, code: string, message: string, retryAfter?: number) {
+  constructor(status: number, code: string, message: string, retryAfter?: number, body: Record<string, unknown> = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.retryAfter = retryAfter;
+    this.body = body;
   }
 }
 
@@ -42,7 +54,7 @@ function waitPhrase(seconds: number): string {
 /** A sentence a person can act on, for each thing the API can say. */
 export function messageFor(
   status: number,
-  body: { error?: string; message?: string; issues?: Issue[] },
+  body: { error?: string; message?: string; issues?: Issue[]; paths?: string[] },
   retryAfter?: number,
 ): string {
   switch (body.error) {
@@ -74,6 +86,41 @@ export function messageFor(
       return 'This is not available in single-user mode.';
     case 'invalid_secret':
       return body.message ?? 'That secret is not valid.';
+    case 'credential_not_found':
+      return 'That credential no longer exists. Pick another one.';
+    case 'credential_kind':
+      return 'Only a GitHub App or a GitHub token can be used for a repository.';
+    case 'github_auth':
+      return body.message ?? 'GitHub did not accept the credential.';
+    case 'github_forbidden':
+      return body.message ?? 'The credential does not have access to that repository.';
+    case 'github_not_found':
+      return body.message ?? 'GitHub cannot find that repository with this credential.';
+    case 'github_invalid':
+      return body.message ?? 'GitHub refused the change.';
+    case 'github_unavailable':
+      return body.message ?? 'GitHub could not be reached. Try again in a moment.';
+    case 'timeout':
+      return 'GitHub took too long to answer. Try again.';
+    case 'already_connected':
+      return 'That repository is already connected to this workspace.';
+    case 'open_change_sets':
+      return 'This repository has open change sets. Apply or discard them first.';
+    case 'invalid_state':
+      return 'That change set is no longer in a state that allows this. Reload and check its status.';
+    case 'no_changes':
+      return 'Nothing differs from what is already in the repository.';
+    case 'apply_in_progress':
+      return 'This change set is being applied right now. Check back in a moment.';
+    case 'branch_exists':
+    case 'default_branch':
+      return body.message ?? 'The branch for this change set could not be used.';
+    case 'change_conflict': {
+      const files = body.paths?.length ? ` Changed files: ${body.paths.join(', ')}.` : '';
+      return `${body.message ?? 'Files changed in the repository after this draft was made.'}${files} Discard this change set and create a new one.`;
+    }
+    case 'pull_request_failed':
+      return body.message ?? 'The branch was created but the pull request could not be opened.';
     case 'invalid_request': {
       const first = body.issues?.[0];
       return first ? `${first.path ? `${first.path}: ` : ''}${first.message}` : 'Check the form and try again.';
@@ -118,6 +165,7 @@ export function createApi(options: ApiOptions = {}) {
         error?: string;
         message?: string;
         issues?: Issue[];
+        paths?: string[];
       };
       const retryHeader = Number(response.headers.get('retry-after'));
       const retryAfter = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined;
@@ -127,6 +175,7 @@ export function createApi(options: ApiOptions = {}) {
         parsed.error ?? 'error',
         messageFor(response.status, parsed, retryAfter),
         retryAfter,
+        parsed,
       );
     }
     return data as T;
@@ -173,6 +222,60 @@ export function createApi(options: ApiOptions = {}) {
       request<InvitationPreview>('GET', `/api/invitations/${encodeURIComponent(token)}`),
     acceptInvitation: (token: string, input: { displayName?: string; password?: string } = {}) =>
       request<AcceptedInvitation>('POST', `/api/invitations/${encodeURIComponent(token)}/accept`, input),
+    repositories: (workspaceId: string) =>
+      request<{ repositories: RepositorySummary[] }>('GET', `${workspace(workspaceId)}/repositories`),
+    repository: (workspaceId: string, id: string) =>
+      request<RepositoryDetail>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}`),
+    connectRepository: (workspaceId: string, input: { credentialId: string; owner: string; repo: string }) =>
+      request<{ repository: RepositorySummary }>('POST', `${workspace(workspaceId)}/repositories`, input),
+    disconnectRepository: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}`),
+    /** Lists the repository's files, detects the project type and stores the result. */
+    scanRepository: (workspaceId: string, id: string) =>
+      request<RepositoryDetail>('POST', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/scan`),
+    repositoryListing: (workspaceId: string, id: string) =>
+      request<RepositoryListing>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/listing`),
+    createChangeSet: (workspaceId: string, repositoryId: string, input: { summary: string; listing: Listing }) =>
+      request<{ changeSet: ChangeSetView; problems: ListingProblem[] }>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/change-sets`,
+        input,
+      ),
+    changeSets: (workspaceId: string, filter: { repositoryId?: string; status?: string } = {}) => {
+      const query = new URLSearchParams();
+      if (filter.repositoryId) query.set('repositoryId', filter.repositoryId);
+      if (filter.status) query.set('status', filter.status);
+      const text = query.toString();
+      const suffix = text ? `?${text}` : '';
+      return request<{ changeSets: ChangeSetView[] }>('GET', `${workspace(workspaceId)}/change-sets${suffix}`);
+    },
+    changeSet: (workspaceId: string, id: string) =>
+      request<{ changeSet: ChangeSetView }>('GET', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}`),
+    approveChangeSet: (workspaceId: string, id: string) =>
+      request<{ changeSet: ChangeSetView }>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/approve`,
+      ),
+    applyChangeSet: (workspaceId: string, id: string) =>
+      request<{ changeSet: ChangeSetView; alreadyApplied?: boolean }>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/apply`,
+      ),
+    discardChangeSet: (workspaceId: string, id: string) =>
+      request<{ changeSet: ChangeSetView }>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/discard`,
+      ),
+    apps: (workspaceId: string) => request<{ apps: AppSummary[] }>('GET', `${workspace(workspaceId)}/apps`),
+    app: (workspaceId: string, id: string) =>
+      request<AppDetail>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}`),
+    createApp: (workspaceId: string, input: NewApp) =>
+      request<{ app: AppSummary }>('POST', `${workspace(workspaceId)}/apps`, input),
+    deleteApp: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}`),
+    /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
+    syncApp: (workspaceId: string, id: string) =>
+      request<SyncResult>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync`),
     audit: (workspaceId: string, limit = 100) =>
       request<{ events: AuditEvent[] }>('GET', `${workspace(workspaceId)}/audit?limit=${limit}`),
   };

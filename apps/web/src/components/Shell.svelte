@@ -42,8 +42,10 @@
   );
   const fromHash = () => location.hash.replace(/^#\//, '');
   let hash = $state(fromHash());
-  // The section named by the URL, or the first one the person may see.
-  const current = $derived(visibleViews.find((v) => v.id === hash) ?? visibleViews[0]);
+  // The section named by the URL (`#/id`, or `#/id/...` for a screen with its own sub-routes), or the first one the person may see.
+  const current = $derived(
+    visibleViews.find((v) => v.id === hash || hash.startsWith(`${v.id}/`)) ?? visibleViews[0],
+  );
 
   let drawerOpen = $state(false);
   let menuOpen = $state(false);
