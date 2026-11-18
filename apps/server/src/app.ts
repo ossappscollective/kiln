@@ -1,17 +1,60 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Database } from '@mrm/db';
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { secureHeaders } from 'hono/secure-headers';
 import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
+import { appRoutes } from './routes/apps.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
 import { memberRoutes } from './routes/members.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
+import {
+  DEFAULT_SYNC_TIMEOUT_MS,
+  type StoreConnectorFactory,
+  defaultStoreConnectorFactory,
+} from './services/apps.ts';
+import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import type { ConnectorFactory } from './services/repositories.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
+
+/** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */
+export const BODY_LIMIT = 1024 * 1024;
+/** Largest body on the routes that need no session (sign-in, setup, invitations). */
+export const PUBLIC_BODY_LIMIT = 256 * 1024;
+/** Failed logins allowed per client address in one window. Per email the limit is 5. */
+export const IP_LOGIN_MAX_ATTEMPTS = 30;
+
+/**
+ * The web UI is a Vite/Svelte bundle served from this origin: module scripts and CSS files from
+ * 'self', icons as data: URIs. Inline styles are allowed because Svelte transitions add <style>
+ * elements at run time. Nothing may frame the app, and the API is the only connect target.
+ */
+export const SECURE_HEADERS: NonNullable<Parameters<typeof secureHeaders>[0]> = {
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", 'data:'],
+    fontSrc: ["'self'"],
+    connectSrc: ["'self'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'none'"],
+  },
+  xFrameOptions: 'DENY',
+  xContentTypeOptions: true,
+  referrerPolicy: 'strict-origin-when-cross-origin',
+  // HSTS belongs to the TLS-terminating proxy; over plain HTTP a browser ignores it anyway.
+  strictTransportSecurity: false,
+  overwrite: false,
+};
 
 export type AppDeps = {
   db: Database;
@@ -23,6 +66,12 @@ export type AppDeps = {
   now?: () => number;
   cost?: Services['cost'];
   limiter?: Services['limiter'];
+  /** Failed logins per client address. Default: 30 per 15 minutes, looser than the per-email limit. */
+  ipLimiter?: Services['ipLimiter'];
+  /** Bad attempts per invitation link. Its own instance, never the login limiter. */
+  inviteLimiter?: Services['inviteLimiter'];
+  /** Believe X-Forwarded-For for the client address (MRM_TRUST_PROXY=1). Default: no. */
+  trustProxy?: boolean;
   /** Folder with the built web UI, relative to the working directory. Omit to serve the API only. */
   webDist?: string;
   /**
@@ -40,6 +89,12 @@ export type AppDeps = {
   connectorFactory?: ConnectorFactory;
   /** Longest a synchronous repository job (scan, listing, apply) may run. Default 90 seconds. */
   repositoryTimeoutMs?: number;
+  /**
+   * Store sync of apps. `connectorFactory` builds the read-only App Store Connect / Google Play
+   * connector from a stored credential (overridable for tests), `timeoutMs` is the longest one
+   * sync may run (default 60 seconds), `limiter` defaults to 10 syncs per workspace per minute.
+   */
+  appSync?: { connectorFactory?: StoreConnectorFactory; timeoutMs?: number; limiter?: TestLimiter };
 };
 
 export function createApp(deps: AppDeps) {
@@ -49,12 +104,26 @@ export function createApp(deps: AppDeps) {
     masterKey: deps.masterKey,
     now: deps.now ?? Date.now,
     limiter: deps.limiter ?? createLoginLimiter(),
+    ipLimiter: deps.ipLimiter ?? createLoginLimiter({ max: IP_LOGIN_MAX_ATTEMPTS }),
+    inviteLimiter: deps.inviteLimiter ?? createLoginLimiter(),
+    trustProxy: deps.trustProxy ?? false,
     cost: deps.cost,
     singleUser: deps.singleUser && { gate: createLaunchGate(deps.singleUser.launchSecret) },
   };
 
   // First, and on every path including the static UI: a rebound DNS name must get nothing.
   if (deps.singleUser) app.use('*', hostGuard(deps.singleUser.port, deps.singleUser.extraHosts));
+
+  // Headers for every response, the static UI included. A handler that sets one itself (for
+  // example Referrer-Policy: no-referrer on the invitation and launch routes) keeps its value.
+  app.use('*', secureHeaders(SECURE_HEADERS));
+
+  // Body size limits, before anything reads a body. The unauthenticated routes get the small one.
+  const tooLarge = (c: Context) =>
+    c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
+  app.use('/api/auth/*', bodyLimit({ maxSize: PUBLIC_BODY_LIMIT, onError: tooLarge }));
+  app.use('/api/invitations/*', bodyLimit({ maxSize: PUBLIC_BODY_LIMIT, onError: tooLarge }));
+  app.use('/api/*', bodyLimit({ maxSize: BODY_LIMIT, onError: tooLarge }));
 
   app.use('/api/*', sameOrigin(deps.trustedOrigins));
 
@@ -88,6 +157,17 @@ export function createApp(deps: AppDeps) {
       now: services.now,
       connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
       timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+    }),
+  );
+  app.route(
+    '/api/workspaces',
+    appRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      connectorFactory: deps.appSync?.connectorFactory ?? defaultStoreConnectorFactory,
+      timeoutMs: deps.appSync?.timeoutMs ?? DEFAULT_SYNC_TIMEOUT_MS,
+      limiter: deps.appSync?.limiter ?? createTestLimiter({ now: services.now }),
     }),
   );
   // Public: the person with the link is not signed in yet.

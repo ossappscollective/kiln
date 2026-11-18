@@ -44,6 +44,9 @@ export type AuditRow = {
   at: number;
 };
 
+/** The most events one request returns. */
+export const MAX_AUDIT_LIMIT = 500;
+
 export async function listAudit(sql: Sql, workspaceId: string, limit = 100): Promise<AuditRow[]> {
   const rows = await sql.query(
     `SELECT a.id, a.actor_type, a.actor_id, u.display_name AS actor_name, a.action,
@@ -51,7 +54,7 @@ export async function listAudit(sql: Sql, workspaceId: string, limit = 100): Pro
        FROM audit_events a
        LEFT JOIN users u ON a.actor_type = 'user' AND u.id = a.actor_id
       WHERE a.workspace_id = ? ORDER BY a.created_at DESC, a.id DESC LIMIT ?`,
-    [workspaceId, Math.min(Math.max(limit, 1), 500)],
+    [workspaceId, Math.trunc(Math.min(Math.max(limit, 1), MAX_AUDIT_LIMIT))],
   );
   return rows.map((r) => ({
     id: String(r.id),

@@ -103,7 +103,8 @@ dbTest('accepting creates the account, membership, session and audit events', as
 });
 
 dbTest('single use under concurrency: exactly one accept wins', async (db) => {
-  const { app } = await boot(db);
+  // A roomy limit: this test is about single use. The default limit would answer 429 to the sixth.
+  const { app } = await boot(db, { inviteLimiter: createLoginLimiter({ max: 100 }) });
   const owner = await registerOwner(app);
   const { body } = await invite(app, owner.cookie, owner.workspaceId, { email: 'bob@example.com', role: 'viewer' });
   const results = await Promise.all(
@@ -314,8 +315,8 @@ dbTest('management endpoints need a session', async (db) => {
 });
 
 dbTest('repeated bad attempts on one link are rate limited, and other links are not affected', async (db) => {
-  const limiter = createLoginLimiter({ max: 3 });
-  const { app } = await boot(db, { limiter });
+  const inviteLimiter = createLoginLimiter({ max: 3 });
+  const { app } = await boot(db, { inviteLimiter });
   const owner = await registerOwner(app);
   const { body } = await invite(app, owner.cookie, owner.workspaceId, { email: 'bob@example.com', role: 'member' });
   const bad = randomBytes(32).toString('base64url');
@@ -328,8 +329,8 @@ dbTest('repeated bad attempts on one link are rate limited, and other links are 
 });
 
 dbTest('rejected accepts count against the link', async (db) => {
-  const limiter = createLoginLimiter({ max: 2 });
-  const { app, clock } = await boot(db, { limiter });
+  const inviteLimiter = createLoginLimiter({ max: 2 });
+  const { app, clock } = await boot(db, { inviteLimiter });
   const owner = await registerOwner(app);
   const carol = await addMember(app, owner, 'carol@example.com', 'member');
   const other = await seedWorkspace(db, 'Other Co', 'dan@example.com', clock.now);
@@ -374,4 +375,57 @@ dbTest('single-user mode turns every invitation endpoint off', async (db) => {
   );
   await check(await app.request('/api/invitations/sometoken', { headers: host }));
   await check(await app.request('/api/invitations/sometoken/accept', send('POST', {}, undefined, host)));
+});
+
+dbTest('a link from someone who can no longer invite that role stops working, at preview and at accept', async (db) => {
+  const { app } = await boot(db);
+  const owner = await registerOwner(app);
+  const alice = await addMember(app, owner, 'alice@example.com', 'admin');
+
+  const fresh = async (email: string) =>
+    (await invite(app, alice.cookie, owner.workspaceId, { email, role: 'member' })).body.token;
+  const bob = await fresh('bob@example.com');
+  const carol = await fresh('carol@example.com');
+  const dan = await fresh('dan@example.com');
+  assert.equal((await app.request(`/api/invitations/${bob}`)).status, 200, 'works while alice is an admin');
+
+  // Demoted to member: may no longer invite.
+  await db.execute('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?', [
+    'member',
+    owner.workspaceId,
+    alice.userId,
+  ]);
+  assert.equal((await app.request(`/api/invitations/${bob}`)).status, 404);
+  assert.equal((await acceptInvite(app, bob, { displayName: 'Bob', password: PASSWORD })).status, 404);
+
+  // Removed from the workspace.
+  await db.execute('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [
+    owner.workspaceId,
+    alice.userId,
+  ]);
+  assert.equal((await acceptInvite(app, carol, { displayName: 'Carol', password: PASSWORD })).status, 404);
+
+  // Nobody was added, and no account was created.
+  const [n] = await db.query("SELECT COUNT(*) AS n FROM users WHERE email IN ('bob@example.com','carol@example.com')");
+  assert.equal(Number(n?.n), 0);
+
+  // Restored as admin, the links work again (the check is live, nothing was revoked).
+  await db.execute('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)', [
+    owner.workspaceId,
+    alice.userId,
+    'admin',
+  ]);
+  assert.equal((await acceptInvite(app, dan, { displayName: 'Dan', password: PASSWORD })).status, 201);
+});
+
+dbTest('an admin link for an admin role dies when the owner who made it is no longer an owner', async (db) => {
+  const { app } = await boot(db);
+  const owner = await registerOwner(app);
+  const { body } = await invite(app, owner.cookie, owner.workspaceId, { email: 'erin@example.com', role: 'admin' });
+  await db.execute('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?', [
+    'admin',
+    owner.workspaceId,
+    owner.userId,
+  ]);
+  assert.equal((await acceptInvite(app, body.token, { displayName: 'Erin', password: PASSWORD })).status, 404);
 });

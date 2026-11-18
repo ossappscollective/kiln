@@ -97,11 +97,13 @@ export function workspaceInvitationRoutes(services: Services) {
 /**
  * Public routes for the person holding an invitation link. Every unusable token (unknown,
  * expired, used, revoked) gets the same 404, so nothing says which tokens exist. Attempts are
- * counted per token with the login limiter, because there is no address to count on behind
- * a proxy; guessing a 256-bit token is hopeless anyway, this stops hammering one link.
+ * counted per token with the invitation limiter (its own instance, so unknown tokens cannot push
+ * login lockouts out of memory), because there is no address to count on behind a proxy;
+ * guessing a 256-bit token is hopeless anyway, this stops hammering one link. An attempt is
+ * counted before the work and given back when it turns out fine.
  */
 export function publicInvitationRoutes(services: Services) {
-  const { db, now, limiter, singleUser, cost } = services;
+  const { db, now, inviteLimiter: limiter, singleUser, cost } = services;
   const app = new Hono<AppEnv>();
 
   if (singleUser) {
@@ -110,8 +112,9 @@ export function publicInvitationRoutes(services: Services) {
   }
 
   const key = (token: string) => `invite:${hashInvitationToken(token).slice(0, 32)}`;
+  /** Counts this attempt. A response when the link is locked, else undefined. */
   const tooMany = (c: Context, token: string) => {
-    const wait = limiter.retryAfter(key(token));
+    const wait = limiter.attempt(key(token));
     if (wait <= 0) return undefined;
     c.header('Retry-After', String(wait));
     return c.json({ error: 'too_many_attempts' }, 429);
@@ -123,11 +126,15 @@ export function publicInvitationRoutes(services: Services) {
     c.header('Referrer-Policy', 'no-referrer');
     const limited = tooMany(c, token);
     if (limited) return limited;
-    const preview = await previewInvitation(db, token, now());
-    if (!preview) {
-      limiter.fail(key(token));
-      return c.json({ error: 'not_found' }, 404);
+    let preview: Awaited<ReturnType<typeof previewInvitation>>;
+    try {
+      preview = await previewInvitation(db, token, now());
+    } catch (error) {
+      limiter.refund(key(token));
+      throw error;
     }
+    if (!preview) return c.json({ error: 'not_found' }, 404);
+    limiter.refund(key(token));
     return c.json(preview);
   });
 
@@ -137,7 +144,10 @@ export function publicInvitationRoutes(services: Services) {
     const limited = tooMany(c, token);
     if (limited) return limited;
     const body = await parseBody(c, acceptBody);
-    if (!body.ok) return body.response;
+    if (!body.ok) {
+      limiter.refund(key(token));
+      return body.response;
+    }
 
     const cookie = getCookie(c, SESSION_COOKIE);
     const signedIn = cookie ? await resolveSession(db, cookie, now()) : undefined;
@@ -149,7 +159,10 @@ export function publicInvitationRoutes(services: Services) {
           ? []
           : [{ path: 'password', message: 'Use at least 12 characters' }]),
       ];
-      if (issues.length > 0) return c.json({ error: 'invalid_request', issues }, 400);
+      if (issues.length > 0) {
+        limiter.refund(key(token));
+        return c.json({ error: 'invalid_request', issues }, 400);
+      }
     }
 
     let result: Awaited<ReturnType<typeof acceptInvitation>>;
@@ -157,12 +170,13 @@ export function publicInvitationRoutes(services: Services) {
       result = await acceptInvitation(db, token, { signedIn, displayName, password }, { now: now(), cost });
     } catch (error) {
       // Two invitations for one new address accepted at the same moment: the second finds the account.
+      limiter.refund(key(token));
       if (isUniqueViolation(error)) return c.json({ error: 'account_exists' }, 409);
       throw error;
     }
 
     if (!result.ok) {
-      limiter.fail(key(token));
+      // The attempt stays counted: a bad link or a wrong account is what the limit is for.
       switch (result.reason) {
         case 'invalid':
           return c.json({ error: 'not_found' }, 404);

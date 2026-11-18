@@ -1,3 +1,4 @@
+import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Role } from '@mrm/core';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
@@ -10,7 +11,14 @@ export type Services = {
   db: import('@mrm/db').Database;
   masterKey: Buffer;
   now: () => number;
+  /** Failed logins per email address. */
   limiter: import('./limiter.ts').LoginLimiter;
+  /** Failed logins per client address; looser than `limiter`. */
+  ipLimiter: import('./limiter.ts').LoginLimiter;
+  /** Bad attempts per invitation link. Its own instance: unknown tokens must not push out login lockouts. */
+  inviteLimiter: import('./limiter.ts').LoginLimiter;
+  /** Believe X-Forwarded-For (MRM_TRUST_PROXY=1). Only safe behind a proxy that sets it. */
+  trustProxy?: boolean;
   cost?: import('./passwords.ts').ScryptCost;
   /** Present only in single-user mode. Its absence is what keeps multi-user mode unchanged. */
   singleUser?: { gate: import('./single-user.ts').LaunchGate };
@@ -60,4 +68,34 @@ export function sameOrigin(trusted: string[] = []): MiddlewareHandler {
     if (host === own || trusted.includes(origin)) return next();
     return c.json({ error: 'bad_origin' }, 403);
   };
+}
+
+/**
+ * The address of the client, for rate limiting. It is the socket address, unless `trustProxy` is
+ * set (MRM_TRUST_PROXY=1): then the last X-Forwarded-For entry, which is the one the single
+ * trusted proxy appended itself. Earlier entries are written by the client and are ignored.
+ * Undefined when there is no socket (in-process tests): callers then skip address limiting.
+ */
+export function clientIp(c: Context, trustProxy = false): string | undefined {
+  if (trustProxy) {
+    const forwarded = c.req.header('x-forwarded-for');
+    const last = forwarded?.split(',').pop()?.trim();
+    if (last) return last.slice(0, 64);
+  }
+  try {
+    return getConnInfo(c).remote.address || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A query parameter as a whole number from 1 to `max`. Absent or empty gives `fallback`; anything
+ * else (1.5, 0, -3, abc, 1e3, 0x10, a number above `max`) gives undefined, for a 400.
+ */
+export function queryInt(raw: string | undefined, options: { fallback: number; max: number }): number | undefined {
+  if (raw === undefined || raw === '') return options.fallback;
+  if (!/^[0-9]{1,9}$/.test(raw)) return undefined;
+  const n = Number(raw);
+  return n >= 1 && n <= options.max ? n : undefined;
 }

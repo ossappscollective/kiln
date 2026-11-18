@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { type InvitableRole, type Role, isRole } from '@mrm/core';
+import { type InvitableRole, type Role, can, invitableBy, isRole } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type ScryptCost, hashPassword } from '../passwords.ts';
 import { type User, createSession, normalizeEmail } from './accounts.ts';
@@ -153,16 +153,26 @@ type Row = {
   role: InvitableRole;
 };
 
-/** The invitation for a token, only while it can still be accepted. */
+/**
+ * The invitation for a token, only while it can still be accepted. That includes: the person who
+ * made it must still be a member who may invite that role. An admin who was demoted or removed
+ * after sending a link (or an owner who was, for an admin link) must not leave a working door
+ * behind, so this is checked again here, at preview and at accept time, not only when it was made.
+ */
 async function findUsable(sql: Sql, token: string, now: number): Promise<Row | undefined> {
   const [row] = await sql.query(
-    `SELECT i.id, i.workspace_id, w.name AS workspace_name, i.email, i.role
+    `SELECT i.id, i.workspace_id, w.name AS workspace_name, i.email, i.role,
+            (SELECT m.role FROM workspace_members m
+              WHERE m.workspace_id = i.workspace_id AND m.user_id = i.created_by) AS creator_role
        FROM invitations i JOIN workspaces w ON w.id = i.workspace_id
       WHERE i.token_hash = ? AND i.accepted_at IS NULL AND i.revoked_at IS NULL
         AND i.expires_at > ?`,
     [hashInvitationToken(token), now],
   );
   if (!row || !isRole(row.role) || row.role === 'owner') return undefined;
+  const creator = row.creator_role;
+  if (!isRole(creator) || !can(creator, 'members.manage')) return undefined;
+  if (!(invitableBy(creator) as readonly string[]).includes(row.role)) return undefined;
   return {
     id: String(row.id),
     workspaceId: String(row.workspace_id),

@@ -5,6 +5,12 @@ import { createDatabase, migrate } from '@mrm/db';
 import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createWorker } from './jobs.ts';
+import {
+  APP_SYNC_QUEUE,
+  DEFAULT_SYNC_TIMEOUT_MS,
+  createAppSyncHandler,
+  defaultStoreConnectorFactory,
+} from './services/apps.ts';
 import { pruneSessions } from './services/accounts.ts';
 import { VERSION } from './version.ts';
 
@@ -40,13 +46,25 @@ const app = createApp({
   version: VERSION,
   webDist,
   trustedOrigins: config.trustedOrigins,
+  trustProxy: config.trustProxy,
   singleUser: config.mode === 'single_user' && config.launchSecret
     ? { launchSecret: config.launchSecret, port: config.port, extraHosts: config.allowedHosts }
     : undefined,
 });
 
-// Job handlers register here as features add them (store syncs, repo scans).
-const worker = createWorker({ sql: database, handlers: {} });
+// Job handlers register here as features add them (repo scans).
+const worker = createWorker({
+  sql: database,
+  handlers: {
+    [APP_SYNC_QUEUE]: createAppSyncHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      connectorFactory: defaultStoreConnectorFactory,
+      timeoutMs: DEFAULT_SYNC_TIMEOUT_MS,
+    }),
+  },
+});
 if (config.worker === 'inline') worker.start();
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {

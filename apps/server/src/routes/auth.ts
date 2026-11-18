@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { type AppEnv, type Services, parseBody } from '../http.ts';
+import { type AppEnv, type Services, clientIp, parseBody } from '../http.ts';
 import {
   SESSION_TTL_MS,
   countUsers,
@@ -28,7 +28,7 @@ const registerBody = z.object({
 const loginBody = z.object({ email: z.string().max(254), password: z.string().max(200) });
 
 export function authRoutes(services: Services) {
-  const { db, now, limiter, singleUser } = services;
+  const { db, now, limiter, ipLimiter, singleUser } = services;
   const app = new Hono<AppEnv>();
 
   // Single-user mode has no passwords. Sessions come only from /launch. These handlers answer
@@ -107,17 +107,29 @@ export function authRoutes(services: Services) {
     const body = await parseBody(c, loginBody);
     if (!body.ok) return body.response;
     const key = normalizeEmail(body.data.email);
-    const wait = limiter.retryAfter(key);
+    const ip = clientIp(c, services.trustProxy);
+    // The attempt is counted now, before the slow password check, so a burst of parallel guesses
+    // cannot all pass the limit before the first failure is written down. Both counters run, so a
+    // refused attempt still counts against the address.
+    const wait = Math.max(limiter.attempt(key), ip ? ipLimiter.attempt(ip) : 0);
     if (wait > 0) {
       c.header('Retry-After', String(wait));
       return c.json({ error: 'too_many_attempts' }, 429);
     }
-    const user = await verifyLogin(db, body.data.email, body.data.password);
-    if (!user) {
-      limiter.fail(key);
-      return c.json({ error: 'invalid_credentials' }, 401);
+    let user: Awaited<ReturnType<typeof verifyLogin>>;
+    try {
+      user = await verifyLogin(db, body.data.email, body.data.password);
+    } catch (error) {
+      // Not a wrong password (the database failed): do not hold it against the person.
+      limiter.refund(key);
+      if (ip) ipLimiter.refund(ip);
+      throw error;
     }
+    if (!user) return c.json({ error: 'invalid_credentials' }, 401);
     limiter.reset(key);
+    // A success must not wipe the address's failures (one valid login would reset the count for a
+    // guesser sharing the address), so it only gives its own attempt back.
+    if (ip) ipLimiter.refund(ip);
     await startSession(c, user.id);
     return c.json({ user });
   });

@@ -34,3 +34,10 @@ test('worker defaults to inline and trusted origins are split and trimmed', () =
   assert.deepEqual(config.trustedOrigins, ['http://a.test', 'http://b.test']);
   assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_WORKER: 'sometimes' }), /MRM_WORKER/);
 });
+
+test('MRM_TRUST_PROXY is off by default and only 0 or 1 are accepted', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).trustProxy, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_TRUST_PROXY: '1' }).trustProxy, true);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_TRUST_PROXY: '0' }).trustProxy, false);
+  assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_TRUST_PROXY: 'yes' }), /MRM_TRUST_PROXY/);
+});

@@ -20,6 +20,10 @@ const schema = z.object({
   // Single-user only. Extra Host values to accept, comma separated, each a loopback name with a
   // port (for example localhost:5173 for the Vite dev server). Default: none.
   MRM_ALLOWED_HOSTS: z.string().default(''),
+  // '1' when exactly one reverse proxy you control sits in front and sets X-Forwarded-For. The
+  // client address (for the login rate limit) is then the last X-Forwarded-For entry. Leave it at
+  // '0' otherwise: the header is client-controlled and would let anyone dodge the limit.
+  MRM_TRUST_PROXY: z.enum(['0', '1']).default('0'),
 });
 
 /** At least 43 URL-safe characters (32 bytes as base64url) or 64 hex characters. */
@@ -54,6 +58,8 @@ export type Config = {
   host?: string;
   /** Single-user mode only: extra accepted Host values besides this server's own. */
   allowedHosts: string[];
+  /** Believe X-Forwarded-For for the client address. See MRM_TRUST_PROXY. */
+  trustProxy: boolean;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -85,5 +91,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     launchSecret,
     host: data.MRM_MODE === 'single_user' ? '127.0.0.1' : undefined,
     allowedHosts,
+    trustProxy: data.MRM_TRUST_PROXY === '1',
   };
 }

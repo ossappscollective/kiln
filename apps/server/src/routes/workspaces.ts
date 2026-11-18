@@ -2,9 +2,9 @@ import { type Action, can, checkSecret, credentialKinds } from '@mrm/core';
 import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, type Services, parseBody } from '../http.ts';
+import { type AppEnv, type Services, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { listAudit } from '../services/audit.ts';
+import { MAX_AUDIT_LIMIT, listAudit } from '../services/audit.ts';
 import {
   createCredential,
   deleteCredential,
@@ -85,10 +85,17 @@ export function workspaceRoutes(services: Services) {
   });
 
   app.get('/:workspaceId/audit', needs('audit.read'), async (c) => {
-    const limit = Number(c.req.query('limit') ?? 100);
-    return c.json({
-      events: await listAudit(db, ws(c), Number.isFinite(limit) ? limit : 100),
-    });
+    const limit = queryInt(c.req.query('limit'), { fallback: 100, max: MAX_AUDIT_LIMIT });
+    if (limit === undefined) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'limit', message: `Use a whole number from 1 to ${MAX_AUDIT_LIMIT}.` }],
+        },
+        400,
+      );
+    }
+    return c.json({ events: await listAudit(db, ws(c), limit) });
   });
 
   return app;
