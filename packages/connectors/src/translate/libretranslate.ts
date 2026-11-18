@@ -32,7 +32,7 @@ export type LibreTranslateOptions = TranslatorOptions & {
   apiKey?: string | undefined;
 };
 
-function classify(status: number, json: unknown, retryAfter: string | null): TranslateError {
+function classify(status: number, json: unknown, retryAfter: string | null, codes: { source?: string; target: string } = { target: '' }): TranslateError {
   const message = textAt(json, 'error').toLowerCase() || textAt(json, 'message').toLowerCase();
   if (status === 429 || /slowdown|too many request/.test(message)) {
     return new TranslateError('rate_limited', { retryAfterSeconds: retryAfterSeconds(retryAfter, 30) });
@@ -40,7 +40,11 @@ function classify(status: number, json: unknown, retryAfter: string | null): Tra
   if (status === 403 || /api key/.test(message)) return new TranslateError('auth');
   if (status === 400) {
     if (/exceeds text limit/.test(message)) return new TranslateError('too_large');
-    if (/not supported|not available as a target|language/.test(message)) return new TranslateError('unsupported_language');
+    if (/not supported|not available as a target|language/.test(message)) {
+      // Which side the server named (it echoes the code), so a missing language model can be found: a fixed hint only.
+      const side = codes.target && message.includes(codes.target.toLowerCase()) ? 'target' : codes.source && message.includes(codes.source.toLowerCase()) ? 'source' : 'unknown';
+      return new TranslateError('unsupported_language', { detail: `lang_${side}` });
+    }
     return new TranslateError('unavailable', { detail: 'http_400' });
   }
   if (status === 413) return new TranslateError('too_large');
@@ -90,14 +94,14 @@ export function createLibreTranslateTranslator(options: LibreTranslateOptions): 
 
       if (input.texts.length === 1) {
         const reply = await call(input.texts[0] as string, source, target);
-        if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+        if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter, { ...(source ? { source } : {}), target });
         const results = fromReply(reply.json, 1);
         if (!results) throw new TranslateError('unavailable', { detail: `reply_unreadable` });
         return { results };
       }
 
       const batch = await call(input.texts, source, target);
-      if (batch.status < 200 || batch.status > 299) throw classify(batch.status, batch.json, batch.retryAfter);
+      if (batch.status < 200 || batch.status > 299) throw classify(batch.status, batch.json, batch.retryAfter, { ...(source ? { source } : {}), target });
       if (isRecord(batch.json) && Array.isArray(batch.json.translatedText)) {
         const results = fromReply(batch.json, input.texts.length);
         if (!results) throw new TranslateError('unavailable', { detail: `reply_unreadable` });
@@ -107,7 +111,7 @@ export function createLibreTranslateTranslator(options: LibreTranslateOptions): 
       const results: TranslatedText[] = [];
       for (const text of input.texts) {
         const reply = await call(text, source, target);
-        if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+        if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter, { ...(source ? { source } : {}), target });
         const part = fromReply(reply.json, 1);
         if (!part?.[0]) throw new TranslateError('unavailable', { detail: 'reply_unreadable' });
         results.push(part[0]);

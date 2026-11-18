@@ -95,10 +95,10 @@ export function translationErrorMessage(error: unknown): string {
     case 'not_found':
       return 'This app or review no longer exists.';
     case 'translation_unavailable':
+    case 'translation_unsupported_language':
       return reason ? `${error.message} (${reason})` : error.message;
     case 'translation_auth':
     case 'translation_quota':
-    case 'translation_unsupported_language':
     case 'translation_too_large':
       return error.message;
     default:
