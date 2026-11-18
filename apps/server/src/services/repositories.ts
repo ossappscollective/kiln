@@ -8,7 +8,6 @@ import {
   GithubRepoConnector,
   githubAuthFromSecret,
   type ListingSnapshot,
-  loadListing,
   type ProjectDetection,
   PullRequestFailedError,
   type RepoConnector,
@@ -18,6 +17,16 @@ import {
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
+import {
+  type DetectedSources,
+  detectedSources,
+  type ListingSources,
+  listingSources,
+  listingWarnings,
+  mergedListing,
+  type RepositoryListings,
+  readListings,
+} from './listing-sources.ts';
 
 type Actor = { type: ActorType; id: string };
 
@@ -420,7 +429,13 @@ export async function scanRepository(
   ctx: RepoContext,
   input: { workspaceId: string; id: string },
   actor: Actor,
-): Promise<Outcome<{ repository: Repository; detection: ProjectDetection }>> {
+): Promise<
+  Outcome<{
+    repository: Repository;
+    detection: ProjectDetection;
+    listingSources: DetectedSources;
+  }>
+> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.id);
   if (!repository) return failure(404, 'not_found');
   const opened = await openFor(ctx, input.workspaceId, repository, actor, 'repository.scan');
@@ -457,19 +472,22 @@ export async function scanRepository(
     });
   });
   const updated = (await getRepository(ctx.db, input.workspaceId, input.id)) as Repository;
-  return { ok: true, repository: updated, detection };
+  return { ok: true, repository: updated, detection, listingSources: detectedSources(detection) };
 }
 
-/** Reads the listing files of the default branch. Shared by the listing and change set routes. */
+/**
+ * Reads where the listing lives at the default branch: the Expo store config and the fastlane
+ * folders. Shared by the listing and change set routes.
+ */
 export async function readRepositoryListing(
   ctx: RepoContext,
   repository: Repository,
   connector: RepoClient,
-): Promise<ListingSnapshot> {
+): Promise<RepositoryListings> {
   return withTimeout(
     (async () => {
       const files = await connector.listFiles(repository.defaultBranch);
-      return loadListing(files, (path) => connector.readFile(path, repository.defaultBranch));
+      return readListings(files, (path) => connector.readFile(path, repository.defaultBranch));
     })(),
     ctx.timeoutMs,
   );
@@ -481,6 +499,8 @@ export type ListingView = {
   roots: ListingSnapshot['roots'];
   warnings: string[];
   problems: ListingProblem[];
+  /** Where each store's listing comes from: its source, file or folder, and the source's warnings. */
+  sources: ListingSources;
 };
 
 export async function getRepositoryListing(
@@ -493,14 +513,17 @@ export async function getRepositoryListing(
   const opened = await openFor(ctx, input.workspaceId, repository, actor, 'repository.listing');
   if (!opened.ok) return opened;
   try {
-    const snapshot = await readRepositoryListing(ctx, repository, opened.connector);
+    const listings = await readRepositoryListing(ctx, repository, opened.connector);
+    const listing = mergedListing(listings);
+    const sources = listingSources(listings);
     return {
       ok: true,
-      listing: snapshot.listing,
-      found: snapshot.found,
-      roots: snapshot.roots,
-      warnings: snapshot.warnings,
-      problems: validateListing(snapshot.listing),
+      listing,
+      found: { appStore: sources.appStore.found, googlePlay: sources.googlePlay.found },
+      roots: listings.fastlane.roots,
+      warnings: listingWarnings(listings),
+      problems: validateListing(listing),
+      sources,
     };
   } catch (error) {
     return githubFailure(error, opened.secret);

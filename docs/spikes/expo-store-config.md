@@ -122,6 +122,14 @@ const problems = validateExpoStoreConfig(snapshot);                 // same List
 const { changes, warnings } = expoStoreChangeSet(snapshot, edited); // changes: FileChange[] (0 or 1 file)
 ```
 
-`changes` goes into the change set like `listingChangeSet` output. For a repository that has both
-fastlane and a store config, the two App Store listings are separate sources; the server has to
-decide which one the UI edits (not decided here).
+`changes` goes into the change set like `listingChangeSet` output.
+
+**Decision (server, `apps/server/src/services/listing-sources.ts`).** When a repository has a JSON
+store config as `detectProject` reports it, that file is the App Store listing source and the
+fastlane App Store metadata is ignored (and reported as such); without one, fastlane is the App
+Store source. Google Play is always fastlane (EAS Metadata has no Play support). The two are never
+merged, and a change set writes only the chosen source's files. A store config that cannot be
+read (invalid JSON) is reported on the listing and blocks App Store edits; it does not fall back to
+fastlane. Note that `store.config.json` is only picked up when detection sees an Expo project
+(an `expo` dependency or an app config), so a lone file is not enough. See
+docs/api/repositories.md.

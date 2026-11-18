@@ -4,6 +4,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { detectedSources } from '../services/listing-sources.ts';
 import {
   type Failure,
   type RepoContext,
@@ -131,7 +132,12 @@ export function repositoryRoutes(ctx: RepoContext) {
   app.get('/:workspaceId/repositories/:id', needs('repositories.read'), async (c) => {
     const repository = await getRepository(db, ws(c), param(c, 'id'));
     if (!repository) return notFound(c);
-    return c.json({ repository, detection: await getDetection(db, ws(c), repository.id) });
+    const detection = await getDetection(db, ws(c), repository.id);
+    return c.json({
+      repository,
+      detection,
+      ...(detection ? { listingSources: detectedSources(detection) } : {}),
+    });
   });
 
   app.delete('/:workspaceId/repositories/:id', needs('repositories.write'), async (c) => {
@@ -142,7 +148,11 @@ export function repositoryRoutes(ctx: RepoContext) {
   app.post('/:workspaceId/repositories/:id/scan', needs('repositories.scan'), async (c) => {
     const done = await scanRepository(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
     if (!done.ok) return respond(c, done);
-    return c.json({ repository: done.repository, detection: done.detection });
+    return c.json({
+      repository: done.repository,
+      detection: done.detection,
+      listingSources: done.listingSources,
+    });
   });
 
   // Reading the listing uses the stored GitHub credential and sends traffic to GitHub, so it needs
@@ -170,7 +180,10 @@ export function repositoryRoutes(ctx: RepoContext) {
       actor(c),
     );
     if (!done.ok) return respond(c, done);
-    return c.json({ changeSet: done.changeSet, problems: done.problems }, 201);
+    return c.json(
+      { changeSet: done.changeSet, problems: done.problems, warnings: done.warnings },
+      201,
+    );
   });
 
   app.get('/:workspaceId/change-sets', needs('repositories.read'), async (c) => {

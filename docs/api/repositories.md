@@ -46,14 +46,57 @@ credential. Its shape:
 - `DELETE /repositories/:id` returns `204`. `409 open_change_sets` while a draft, approved or
   applying change set exists; finished ones are deleted with it.
 - `POST /repositories/:id/scan` lists the files, runs project detection, stores it and returns
-  `{ repository, detection }` (the `ProjectDetection` of `@mrm/connectors`: kind, platforms,
-  locales, paths, evidence, warnings). Synchronous with a timeout. Audit `repository.scan`.
-- `GET /repositories/:id/listing` reads the fastlane listing files (at the default branch) and
-  returns `{ listing, found, roots, warnings, problems }`: the `Listing` model of `@mrm/core`,
-  where the files were, and `validateListing` problems (`severity` `error` or `warning`). It
-  uses the stored GitHub credential and sends traffic to GitHub, so it needs `repositories.scan`
-  (member and up), like a scan; a viewer gets `403`. Viewers still read stored data
-  (`GET /repositories`, `GET /repositories/:id`, change sets).
+  `{ repository, detection, listingSources }` (the `ProjectDetection` of `@mrm/connectors`: kind,
+  platforms, locales, paths, evidence, warnings; `listingSources` is described below).
+  Synchronous with a timeout. Audit `repository.scan`.
+- `GET /repositories/:id/listing` reads the listing at the default branch and returns
+  `{ listing, found, roots, warnings, problems, sources }`: the `Listing` model of `@mrm/core`,
+  whether text was found per store, the fastlane folders, repository-level warnings,
+  `validateListing` problems (`severity` `error` or `warning`) and where each store's listing
+  came from (see "Listing sources"). It uses the stored GitHub credential and sends traffic to
+  GitHub, so it needs `repositories.scan` (member and up), like a scan; a viewer gets `403`.
+  Viewers still read stored data (`GET /repositories`, `GET /repositories/:id`, change sets).
+
+### Listing sources
+
+Where a store's listing lives is decided by one rule, the same for reading, scanning, creating
+and applying:
+
+- **App Store:** the Expo `store.config.json` (EAS Metadata) when project detection reports a
+  JSON store config (the default file or one named by an `eas.json` submit profile; a script such
+  as `store.config.js` is never read). Otherwise the fastlane metadata folder. The two are never
+  merged: with a store config, the App Store files under `fastlane/metadata` are ignored (and
+  said to be, in `warnings`), and a change set writes only the store config.
+- **Google Play:** fastlane only. EAS Metadata has no Google Play support.
+
+A repository with both therefore has its App Store listing in `store.config.json` and its Play
+listing in fastlane. `GET .../listing` reports this per store in `sources`:
+
+```json
+{ "sources": {
+    "appStore": { "source": "expo-store-config" | "fastlane", "path": "store.config.json",
+                  "found": true, "error": "…", "warnings": ["…"],
+                  "uncovered": ["apple.review"], "unknown": ["apple.futureFlag"] },
+    "googlePlay": { "source": "fastlane", "path": "fastlane/metadata/android", "found": false,
+                    "warnings": [], "uncovered": [], "unknown": [] } } }
+```
+
+- `path` is the store config file, or the fastlane folder the listing is read from.
+- `found` is whether any listing text was found there. `found` at the top level is the same two
+  booleans; `roots` stays the fastlane folders; top-level `warnings` are the fastlane warnings
+  plus notes the rule adds (shadowed fastlane files, a skipped `store.config.js`).
+- `warnings`, `uncovered` and `unknown` are the Expo connector's: JSON paths the listing model
+  does not cover (`apple.review`, screenshots, ... read-only here and left untouched) and keys
+  that are not in the EAS schema. They are empty for fastlane.
+- `error` is set when the store config exists but cannot be read (not valid JSON, not an
+  object, too large). The response is still `200`: `listing.appStore` is then absent and
+  `found.appStore` false, Google Play is unaffected, and the App Store is **not** read from
+  fastlane instead. Creating a change set that has an App Store listing is refused (below).
+
+`listingSources` in the scan response, and in `GET /repositories/:id` when a scan is stored, is
+the same decision judged from the scan alone, without reading files:
+`{ appStore: { source, path } | null, googlePlay: { source, path } | null }` (`null`: no listing
+found for that store).
 
 Using the stored secret is itself audited (`credential.use`, purpose `repository.scan`, …).
 
@@ -80,9 +123,15 @@ Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `dra
   desired `Listing` for the store(s) to change (a store left out is untouched). Send the listing
   as `GET .../listing` returned it, with your edits: a locale or field that is missing from a
   store you send is a deletion. The server reads the current repository state and keeps only the
-  files that differ. `201 { changeSet,
-  problems }` (`problems` are `validateListing` results for the new listing, not blocking).
-  `422 no_changes` when nothing differs. Locale keys must look like `en-US` or `default`;
+  files that differ, in the store's source (see "Listing sources"): an App Store edit is a
+  one-file change to `store.config.json` that touches only the edited values (key order,
+  indentation and unrelated keys such as `apple.review` stay as found), never a fastlane App
+  Store file, and a Play edit is fastlane files. `201 { changeSet, problems, warnings }`
+  (`problems` are `validateListing` results for the new listing, not blocking; `warnings` are
+  what could not be written to the source, such as an App Store locale EAS Metadata does not
+  support, which is left out). `422 no_changes` when nothing differs (with the same `warnings`).
+  `422 store_config_invalid` (with `path`) when the listing has an App Store part and the store
+  config cannot be read: fix the file in the repository first; nothing is written elsewhere. Locale keys must look like `en-US` or `default`;
   changelog keys are a version code or `default`. Counts are capped: at most 100 locales per
   store, 40 fields per locale, 50 version codes per changelog locale, and the whole request body
   at 1 MB (`413 payload_too_large`). A repository disconnected while the change set was being
@@ -139,7 +188,11 @@ Audit actions: `repository.connect`, `repository.disconnect`, `repository.scan`,
 `DELETE /repositories/:id` racing with a change set being created for it answers `409
 open_change_sets` (nothing is deleted), not a server error.
 
+Apply writes exactly the files stored in the change set, so it follows the source chosen when the
+draft was made; it does not look at the sources again. A store config that changed meanwhile is a
+`change_conflict` like any other file.
+
 ## Not done yet
 
-Expo `store.config.json` is detected, not edited. Scan and listing run in the request; they may
+Only a static JSON `store.config.json` is edited; `store.config.js` is never read. Scan and listing run in the request; they may
 move to the job queue. Stale change sets are not refreshed: after a conflict, create a new one.

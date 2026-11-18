@@ -8,9 +8,10 @@ import {
   type ListingProblem,
   validateListing,
 } from '@mrm/core';
-import { listingChangeSet, PullRequestFailedError } from '@mrm/connectors';
+import { PullRequestFailedError } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
+import { listingChanges } from './listing-sources.ts';
 import {
   type Failure,
   failure,
@@ -144,7 +145,9 @@ export async function createChangeSet(
   ctx: RepoContext,
   input: { workspaceId: string; repositoryId: string; summary: string; listing: Listing },
   actor: Actor,
-): Promise<Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[] }>> {
+): Promise<
+  Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings: string[] }>
+> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found');
   const opened = await openConnectorForRepository(
@@ -157,14 +160,27 @@ export async function createChangeSet(
   if (!opened.ok) return opened;
 
   let files: FileChange[];
+  let warnings: string[];
   try {
-    const snapshot = await readRepositoryListing(ctx, repository, opened.connector);
-    files = listingChangeSet(snapshot, input.listing);
+    const listings = await readRepositoryListing(ctx, repository, opened.connector);
+    const changes = listingChanges(listings, input.listing);
+    if (!changes.ok) {
+      return failure(
+        422,
+        'store_config_invalid',
+        `${changes.error} The App Store listing cannot be changed until the file is fixed in the repository.`,
+        { path: changes.path },
+      );
+    }
+    files = changes.files;
+    warnings = changes.warnings;
   } catch (error) {
     return githubFailure(error, opened.secret);
   }
   if (files.length === 0) {
-    return failure(422, 'no_changes', 'The listing is the same as in the repository.');
+    return failure(422, 'no_changes', 'The listing is the same as in the repository.', {
+      warnings,
+    });
   }
 
   const id = randomUUID();
@@ -179,7 +195,7 @@ export async function createChangeSet(
     throw error;
   }
   const changeSet = (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView;
-  return { ok: true, changeSet, problems: validateListing(input.listing) };
+  return { ok: true, changeSet, problems: validateListing(input.listing), warnings };
 }
 
 async function insertDraft(
