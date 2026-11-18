@@ -208,17 +208,16 @@ export function createApp(deps: AppDeps) {
       reads: deps.reads,
     }),
   );
-  app.route(
-    '/api/workspaces',
-    appRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      connectorFactory: deps.appSync?.connectorFactory ?? defaultStoreConnectorFactory,
-      timeoutMs: deps.appSync?.timeoutMs ?? DEFAULT_SYNC_TIMEOUT_MS,
-      limiter: deps.appSync?.limiter ?? createTestLimiter({ now: services.now }),
-    }),
-  );
+  // One context and one budget for the sync routes and for the optional store read of a listing pull.
+  const appsContext = {
+    db: services.db,
+    masterKey: services.masterKey,
+    now: services.now,
+    connectorFactory: deps.appSync?.connectorFactory ?? defaultStoreConnectorFactory,
+    timeoutMs: deps.appSync?.timeoutMs ?? DEFAULT_SYNC_TIMEOUT_MS,
+  };
+  const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
+  app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
   // Release planning: our own checklists, notes and deadlines. No store is read or written.
   app.route('/api/workspaces', planRoutes({ db: services.db, now: services.now }));
   // Live store listing, drift and history. Read-only: nothing here writes to a store. Only
@@ -237,6 +236,7 @@ export function createApp(deps: AppDeps) {
         reads: deps.reads,
       },
       limiter: createTestLimiter({ now: services.now }),
+      sync: { apps: appsContext, limiter: appSyncLimiter },
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

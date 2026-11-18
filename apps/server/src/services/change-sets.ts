@@ -11,8 +11,8 @@ import {
 import { PullRequestFailedError } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
-import { listingChanges } from './listing-sources.ts';
-import type { ListingSelection } from './listing-targets.ts';
+import { listingChanges, type RepositoryListings } from './listing-sources.ts';
+import type { ListingSelection, ListingTarget } from './listing-targets.ts';
 import {
   type Failure,
   failure,
@@ -142,15 +142,32 @@ const invalidState = (status: string, wanted: string) =>
 // ---------------------------------------------------------------------------------------------
 // Create
 
+/**
+ * A listing that is made from what the repository holds now: it is called once with the listings
+ * that were just read (so the change is computed against the same files the change set is made
+ * from) and returns the desired listing, or a failure to send back as it is. Used by changes that
+ * start from the repository's own values (the store pull); a plain `Listing` works as before.
+ */
+export type ListingBuilder = (read: {
+  listings: RepositoryListings;
+  /** The saved target the read used, when one was named. */
+  custom?: ListingTarget;
+}) => Listing | Failure;
+
+const isFailure = (value: Listing | Failure): value is Failure =>
+  (value as { ok?: unknown }).ok === false;
+
 export async function createChangeSet(
   ctx: RepoContext,
   input: {
     workspaceId: string;
     repositoryId: string;
     summary: string;
-    listing: Listing;
+    listing: Listing | ListingBuilder;
     /** Which target's folders the change is made in (the same choice the listing was read with). */
     selection?: ListingSelection;
+    /** Extra keys of the `changeset.create` audit event (`source`, ...). They never replace its own. */
+    auditDetail?: Record<string, unknown>;
   },
   actor: Actor,
 ): Promise<
@@ -169,6 +186,7 @@ export async function createChangeSet(
 
   let files: FileChange[];
   let warnings: string[];
+  let desired: Listing;
   try {
     const read = await readRepositoryListing(
       ctx,
@@ -178,7 +196,10 @@ export async function createChangeSet(
       input.selection,
     );
     if (!read.ok) return read;
-    const changes = listingChanges(read.listings, input.listing);
+    const wanted = typeof input.listing === 'function' ? input.listing(read) : input.listing;
+    if (isFailure(wanted)) return wanted;
+    desired = wanted;
+    const changes = listingChanges(read.listings, desired);
     if (!changes.ok) {
       if (changes.code === 'outside_target') {
         return failure(422, 'outside_target', changes.error, { path: changes.path });
@@ -213,7 +234,7 @@ export async function createChangeSet(
     throw error;
   }
   const changeSet = (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView;
-  return { ok: true, changeSet, problems: validateListing(input.listing), warnings };
+  return { ok: true, changeSet, problems: validateListing(desired), warnings };
 }
 
 async function insertDraft(
@@ -222,7 +243,12 @@ async function insertDraft(
     id: string;
     now: number;
     files: FileChange[];
-    input: { workspaceId: string; repositoryId: string; summary: string };
+    input: {
+      workspaceId: string;
+      repositoryId: string;
+      summary: string;
+      auditDetail?: Record<string, unknown>;
+    };
     actor: Actor;
   },
 ): Promise<void> {
@@ -250,7 +276,7 @@ async function insertDraft(
       actor,
       action: 'changeset.create',
       target: { type: 'change_set', id },
-      detail: { repositoryId: input.repositoryId, files: files.length },
+      detail: { ...input.auditDetail, repositoryId: input.repositoryId, files: files.length },
       at: now,
     });
   });
