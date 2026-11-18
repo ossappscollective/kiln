@@ -3,7 +3,9 @@ services:
   app:
     build: .
     ports:
-      - "8787:8787"
+      # Loopback only by default: the server speaks plain HTTP. Put a TLS-terminating reverse proxy
+      # in front (docs/deployment.md). Set MRM_BIND=0.0.0.0 to publish on every interface.
+      - "${MRM_BIND:-127.0.0.1}:8787:8787"
     environment:
       DATABASE_URL: postgres://mrm:mrm@db:5432/mrm
       MRM_MASTER_KEY: ${MRM_MASTER_KEY:?Set MRM_MASTER_KEY in .env (openssl rand -base64 32)}
