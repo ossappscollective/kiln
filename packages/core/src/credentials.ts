@@ -9,6 +9,10 @@ export const credentialKinds = [
   'google_play',
   'github_app',
   'github_token',
+  'translate_google',
+  'translate_deepl',
+  'translate_azure',
+  'translate_libretranslate',
 ] as const;
 export type CredentialKind = (typeof credentialKinds)[number];
 
@@ -24,6 +28,8 @@ export type CredentialField = {
   /** File types to offer when loading from a file, e.g. ".p8". */
   accept?: string;
   hint?: string;
+  /** The value is a secret on its own (an API key): show it masked while typing. */
+  secret?: boolean;
 };
 
 export type CredentialKindInfo = {
@@ -61,6 +67,48 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
     description: 'For trying things out. Prefer a GitHub App for a team.',
     fields: [{ name: 'token', label: 'Token' }],
   },
+  translate_google: {
+    label: 'Google Cloud Translation API key',
+    description: 'An API key for the Cloud Translation API, used to translate customer reviews.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        hint: 'Restrict the key to the Cloud Translation API in Google Cloud.',
+      },
+    ],
+  },
+  translate_deepl: {
+    label: 'DeepL API key',
+    description: 'An API key for DeepL, used to translate customer reviews.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        hint: 'A key that ends in :fx is a Free plan key and uses the Free API address.',
+      },
+    ],
+  },
+  translate_azure: {
+    label: 'Microsoft Translator (Azure) key',
+    description: 'A key for an Azure Translator resource, used to translate customer reviews.',
+    fields: [
+      { name: 'apiKey', label: 'Key', secret: true },
+      {
+        name: 'region',
+        label: 'Region',
+        hint: 'Needed for a regional or multi-service resource, for example westeurope. Leave empty for a global resource.',
+      },
+    ],
+  },
+  translate_libretranslate: {
+    label: 'LibreTranslate API key',
+    description:
+      'The API key of a LibreTranslate server that requires one. The server address is set under Settings, Translation. A server without API keys needs no credential.',
+    fields: [{ name: 'apiKey', label: 'API key', secret: true }],
+  },
 };
 
 const clean = (value: string | undefined) => (value ?? '').trim();
@@ -84,6 +132,12 @@ export function buildSecret(kind: CredentialKind, values: Record<string, string>
       return clean(values.serviceAccount);
     case 'github_token':
       return clean(values.token);
+    case 'translate_google':
+    case 'translate_deepl':
+    case 'translate_libretranslate':
+      return JSON.stringify({ apiKey: clean(values.apiKey) });
+    case 'translate_azure':
+      return JSON.stringify({ apiKey: clean(values.apiKey), region: clean(values.region) });
   }
 }
 
@@ -109,6 +163,20 @@ export function checkSecret(kind: CredentialKind, secret: string): string | unde
   if (kind === 'github_token') {
     if (!secret.trim()) return 'Enter the token.';
     if (/\s/.test(secret.trim())) return 'A token has no spaces or line breaks.';
+    return undefined;
+  }
+  if (kind === 'translate_google' || kind === 'translate_deepl' || kind === 'translate_azure' || kind === 'translate_libretranslate') {
+    const parts = parseObject(secret);
+    if (!parts) return 'The secret could not be read.';
+    const apiKey = typeof parts.apiKey === 'string' ? parts.apiKey.trim() : '';
+    if (!apiKey) return kind === 'translate_azure' ? 'Enter the key.' : 'Enter the API key.';
+    if (/\s/.test(apiKey)) return 'A key has no spaces or line breaks.';
+    if (kind === 'translate_azure') {
+      const region = typeof parts.region === 'string' ? parts.region.trim() : '';
+      if (region && !/^[A-Za-z0-9-]{2,40}$/.test(region)) {
+        return 'The region is a short name such as westeurope, with no spaces.';
+      }
+    }
     return undefined;
   }
   const object = parseObject(secret);

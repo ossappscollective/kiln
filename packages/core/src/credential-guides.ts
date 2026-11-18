@@ -486,11 +486,311 @@ const githubToken: CredentialGuide = {
   checkedOn: CHECKED_ON,
 };
 
+const translateGoogle: CredentialGuide = {
+  summary:
+    'Lets the tool translate customer reviews with the Cloud Translation API (Basic edition, v2) using an API key. The review text is sent to Google.',
+  prerequisites: [
+    'A Google Cloud project with billing turned on. Google bills per translated character after a monthly free amount.',
+    'Permission to enable APIs and create API keys in that project.',
+    'A decision that sending customer review text to Google is acceptable for your privacy policy.',
+  ],
+  steps: [
+    {
+      title: 'Open the Google Cloud console',
+      body: 'Sign in, then pick or create the project that should pay for translations.',
+      link: { label: 'Google Cloud console', url: 'https://console.cloud.google.com/' },
+    },
+    {
+      title: 'Check billing',
+      body: 'Make sure the project is linked to a billing account. Google lists the first 500,000 characters each month as free on its pricing page.',
+      link: { label: 'Cloud Translation pricing', url: 'https://cloud.google.com/translate/pricing' },
+    },
+    {
+      title: 'Enable the Cloud Translation API',
+      body: 'Open APIs and Services, then Library, search for Cloud Translation API and select Enable.',
+      link: {
+        label: 'Cloud Translation API in the library',
+        url: 'https://console.cloud.google.com/apis/library/translate.googleapis.com',
+      },
+    },
+    {
+      title: 'Create an API key',
+      body: 'Open APIs and Services, then Credentials. Select Create credentials, then API key.',
+      link: { label: 'Google: Use API keys', url: 'https://docs.cloud.google.com/docs/authentication/api-keys-use' },
+    },
+    {
+      title: 'Set restrictions on the key',
+      body: 'Under API restrictions, choose Restrict key and select only Cloud Translation API. If you restrict by address, use the address of this server, because it makes the calls.',
+    },
+    {
+      title: 'Copy the key',
+      body: 'Copy the key value and enter it in the form. This tool sends it in the request to Google and never shows it again.',
+    },
+    {
+      title: 'Set a budget alert',
+      body: 'Create a budget alert in Billing so an unexpected volume is noticed. This tool also has its own daily character budget under Settings.',
+    },
+  ],
+  permissions: [
+    'The key needs access to the Cloud Translation API only. Restrict it to that API.',
+    'The tool sends the review text and the target language. It sends nothing else about your apps.',
+    'Google counts every character including spaces. The Basic edition accepts at most 100,000 bytes per request, and this tool sends far less.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The test says the API key is not valid.',
+      fix: 'The key was copied with extra characters, deleted, or restricted to another API. Create a new key and restrict it to Cloud Translation API.',
+    },
+    {
+      problem: 'Google answers 403 and says the API has not been used or is disabled.',
+      fix: 'Enable the Cloud Translation API in the project that owns the key, and wait a few minutes.',
+    },
+    {
+      problem: 'Google answers 403 with a daily limit or a user rate limit message.',
+      fix: 'A quota was reached. Wait for it to reset or raise the quota in the Cloud console. This tool shows it as a quota or rate limit problem.',
+    },
+    {
+      problem: 'Requests are refused because of the application restriction on the key.',
+      fix: 'A website (referrer) restriction cannot work for server calls. Use an address restriction for this server, or no application restriction with the API restriction kept.',
+    },
+    {
+      problem: 'The target language is refused.',
+      fix: 'Pick a language Google supports. Region variants such as pt-BR or zh-Hant are mapped to Google codes by this tool.',
+    },
+  ],
+  links: [
+    {
+      label: 'Cloud Translation Basic: translate method',
+      url: 'https://docs.cloud.google.com/translate/docs/reference/rest/v2/translate',
+    },
+    { label: 'Quotas and limits', url: 'https://docs.cloud.google.com/translate/quotas' },
+    { label: 'Pricing', url: 'https://cloud.google.com/translate/pricing' },
+    { label: 'Supported languages', url: 'https://docs.cloud.google.com/translate/docs/languages' },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
+const translateDeepl: CredentialGuide = {
+  summary:
+    'Lets the tool translate customer reviews with the DeepL API. The review text is sent to DeepL. A Free plan key and a Pro key both work.',
+  prerequisites: [
+    'A DeepL account with an API plan (API Free or API Pro). The website translator plans are separate and have no API key.',
+    'A decision that sending customer review text to DeepL is acceptable for your privacy policy.',
+  ],
+  steps: [
+    {
+      title: 'Open the DeepL API page',
+      body: 'Sign in to your DeepL account or create one, then open the API section of the account.',
+      link: { label: 'DeepL: Authentication', url: 'https://developers.deepl.com/docs/getting-started/auth' },
+    },
+    {
+      title: 'Choose a plan',
+      body: 'Choose API Free or API Pro. Free keys end with :fx and use the api-free.deepl.com address, Pro keys use api.deepl.com.',
+    },
+    {
+      title: 'Create or open a key',
+      body: 'In the API Keys tab of your account, create a key or open the one that exists.',
+      link: { label: 'DeepL: Getting started', url: 'https://developers.deepl.com/docs/getting-started/quickstart' },
+    },
+    {
+      title: 'Copy the key',
+      body: 'Copy the whole key including the :fx ending for a Free plan. The tool picks the Free or Pro address from that ending.',
+    },
+    {
+      title: 'Enter the key',
+      body: 'Enter the key in the form on this page, then use the test button. A successful test translates one short word.',
+    },
+  ],
+  permissions: [
+    'A DeepL API key can translate text and use every feature of the plan. There is no narrower key, so keep it private.',
+    'The tool sends the review text and the target language only.',
+    'DeepL bills the characters it translates. The Free plan has a monthly character limit; Pro is billed by usage.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'DeepL answers 403.',
+      fix: 'The key is wrong, or it is a Pro key used on the Free address or the other way round. Copy the key again; a Free key must end with :fx.',
+    },
+    {
+      problem: 'DeepL answers 456.',
+      fix: 'The plan quota is used up. Wait for the next period or raise the plan. This tool shows it as a quota problem.',
+    },
+    {
+      problem: 'DeepL answers 429.',
+      fix: 'Too many requests. This tool tells you to wait and try again; lower the volume if it keeps happening.',
+    },
+    {
+      problem: 'The target language is refused.',
+      fix: 'DeepL supports fewer languages than Google. This tool maps regional tags such as pt-BR and zh-Hant to DeepL codes where DeepL has one.',
+    },
+  ],
+  links: [
+    {
+      label: 'DeepL: Translate text',
+      url: 'https://developers.deepl.com/api-reference/translate/request-translation',
+    },
+    { label: 'DeepL: Authentication', url: 'https://developers.deepl.com/docs/getting-started/auth' },
+    { label: 'DeepL: Supported languages', url: 'https://developers.deepl.com/docs/getting-started/supported-languages' },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
+const translateAzure: CredentialGuide = {
+  summary:
+    'Lets the tool translate customer reviews with Microsoft Translator in Azure AI services. The review text is sent to Microsoft.',
+  prerequisites: [
+    'An Azure subscription where you may create resources.',
+    'A decision that sending customer review text to Microsoft is acceptable for your privacy policy.',
+  ],
+  steps: [
+    {
+      title: 'Open the Azure portal',
+      body: 'Sign in and select the subscription that should pay for translations.',
+      link: { label: 'Azure portal', url: 'https://portal.azure.com/' },
+    },
+    {
+      title: 'Create a Translator resource',
+      body: 'Create a Translator resource in Azure AI services. Choose a region and a pricing tier; the free tier has an hourly character limit.',
+      link: {
+        label: 'Microsoft: Translator service limits',
+        url: 'https://learn.microsoft.com/en-us/azure/ai-services/translator/service-limits',
+      },
+    },
+    {
+      title: 'Open Keys and Endpoint',
+      body: 'Open the resource, then Keys and Endpoint. Note the region shown there.',
+    },
+    {
+      title: 'Copy a key',
+      body: 'Copy Key 1 or Key 2. Both work, which lets you rotate one while the other is in use.',
+    },
+    {
+      title: 'Enter the key and region',
+      body: 'Enter the key. Enter the region for a regional or multi-service resource, and leave it empty for a global resource.',
+      link: {
+        label: 'Microsoft: Translator authentication',
+        url: 'https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/authentication',
+      },
+    },
+  ],
+  permissions: [
+    'A resource key can translate text and use every feature of the resource. Keep it private and rotate it if it leaks.',
+    'The tool sends the review text and the target language only, to the public Translator address.',
+    'A resource that uses a virtual network needs its own address, which this tool does not support.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'Microsoft answers 401.',
+      fix: 'The key is wrong or the region does not match a regional or multi-service resource. Copy the key and the region again from Keys and Endpoint.',
+    },
+    {
+      problem: 'Microsoft answers 403.',
+      fix: 'The subscription may be out of free translations or the resource is disabled. Check the resource in the portal.',
+    },
+    {
+      problem: 'Microsoft answers 429.',
+      fix: 'The request limit was reached. This tool tells you to wait and try again.',
+    },
+    {
+      problem: 'The test fails on a resource inside a virtual network.',
+      fix: 'The global address does not work for such a resource. Use a resource that allows public network access.',
+    },
+  ],
+  links: [
+    {
+      label: 'Translator: Translate method',
+      url: 'https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/v3/translate',
+    },
+    {
+      label: 'Translator: Authentication',
+      url: 'https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/authentication',
+    },
+    {
+      label: 'Translator: Service limits',
+      url: 'https://learn.microsoft.com/en-us/azure/ai-services/translator/service-limits',
+    },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
+const translateLibretranslate: CredentialGuide = {
+  summary:
+    'Lets the tool translate customer reviews with a LibreTranslate server you run or rent. The server address is a workspace setting; this credential is only the API key, and only when the server asks for one.',
+  prerequisites: [
+    'A LibreTranslate server that this server can reach, started by you or hosted by someone else.',
+    'The address of the server (https, or http on this same machine). An address on your own network needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server.',
+  ],
+  steps: [
+    {
+      title: 'Choose where it runs',
+      body: 'Run LibreTranslate yourself, for example with Docker, or use a hosted one. Review text goes to whichever you choose.',
+      link: { label: 'LibreTranslate documentation', url: 'https://docs.libretranslate.com/' },
+    },
+    {
+      title: 'Start the server',
+      body: 'Follow the project instructions to start it and download the language models you need.',
+      link: { label: 'LibreTranslate on GitHub', url: 'https://github.com/LibreTranslate/LibreTranslate' },
+    },
+    {
+      title: 'Check whether it needs a key',
+      body: 'A server started without API key checking needs no credential here. A hosted server or one started with API keys does.',
+    },
+    {
+      title: 'Create a key',
+      body: 'If a key is needed, create one the way that server describes, then copy it.',
+    },
+    {
+      title: 'Enter the key',
+      body: 'Enter the key in the form. Then open Settings, Translation, choose LibreTranslate and enter the server address.',
+    },
+    {
+      title: 'Wait for the test',
+      body: 'Use the test button in Settings. It translates one short word and says whether the address, the key and the languages work.',
+    },
+  ],
+  permissions: [
+    'The key can use the translation service of that server. Keep it private.',
+    'The tool sends the review text and the target language to the address you entered, and nothing else.',
+    'This server refuses addresses with a user name or password in them, addresses on a private network unless MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true, and cloud metadata addresses always.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The address is refused as private or not allowed.',
+      fix: 'A server on your own network is refused by default. Set MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true on this server only if you trust everyone who can change settings.',
+    },
+    {
+      problem: 'The server answers 403.',
+      fix: 'The API key is missing or wrong, or the client was blocked by its rate limiting. Add a credential of this kind with the right key.',
+    },
+    {
+      problem: 'The server answers 429.',
+      fix: 'Its rate limit was reached. This tool tells you to wait and try again; a self-hosted server can raise the limit.',
+    },
+    {
+      problem: 'A language is reported as not supported.',
+      fix: 'The server has not installed the model for that language pair. Install it on the server or pick another target.',
+    },
+    {
+      problem: 'The server takes too long.',
+      fix: 'The first request after a start can be slow. Try the test again, or give the server more resources.',
+    },
+  ],
+  links: [
+    { label: 'LibreTranslate documentation', url: 'https://docs.libretranslate.com/' },
+    { label: 'LibreTranslate on GitHub', url: 'https://github.com/LibreTranslate/LibreTranslate' },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
 export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   app_store_connect: appStoreConnect,
   google_play: googlePlay,
   github_app: githubApp,
   github_token: githubToken,
+  translate_google: translateGoogle,
+  translate_deepl: translateDeepl,
+  translate_azure: translateAzure,
+  translate_libretranslate: translateLibretranslate,
 };
 
 export function guideFor(kind: CredentialKind): CredentialGuide {

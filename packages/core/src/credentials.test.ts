@@ -46,3 +46,22 @@ test('a JSON array or scalar is not an object secret', () => {
   assert.ok(checkSecret('github_app', '[]'));
   assert.ok(checkSecret('github_app', '5'));
 });
+
+test('translation kinds: one API key (Azure also a region), trimmed, no spaces', () => {
+  for (const kind of ['translate_google', 'translate_deepl', 'translate_libretranslate'] as const) {
+    const secret = buildSecret(kind, { apiKey: ' abc123 ' });
+    assert.deepEqual(JSON.parse(secret), { apiKey: 'abc123' });
+    assert.equal(checkSecret(kind, secret), undefined, kind);
+    assert.match(checkSecret(kind, buildSecret(kind, { apiKey: '  ' })) ?? '', /Enter the API key/, kind);
+    assert.match(checkSecret(kind, buildSecret(kind, { apiKey: 'ab cd' })) ?? '', /no spaces/, kind);
+    assert.ok(checkSecret(kind, 'not json'), kind);
+    assert.ok(checkSecret(kind, '[]'), kind);
+    assert.ok(credentialKindInfo[kind].fields.every((f) => f.secret === true), `${kind}: the key is masked`);
+  }
+  const azure = buildSecret('translate_azure', { apiKey: 'k', region: ' westeurope ' });
+  assert.deepEqual(JSON.parse(azure), { apiKey: 'k', region: 'westeurope' });
+  assert.equal(checkSecret('translate_azure', azure), undefined);
+  assert.equal(checkSecret('translate_azure', buildSecret('translate_azure', { apiKey: 'k' })), undefined, 'the region is optional');
+  assert.match(checkSecret('translate_azure', buildSecret('translate_azure', { apiKey: 'k', region: 'west europe' })) ?? '', /region/);
+  assert.equal(isCredentialKind('translate_deepl'), true);
+});

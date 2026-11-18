@@ -13,6 +13,11 @@ const allowedHosts = new Set([
   'console.cloud.google.com',
   'docs.github.com',
   'github.com',
+  'docs.cloud.google.com',
+  'developers.deepl.com',
+  'learn.microsoft.com',
+  'portal.azure.com',
+  'docs.libretranslate.com',
 ]);
 
 const verbs = new Set([
