@@ -967,3 +967,70 @@ export const storeRolloutClaims = sqliteTable(
     index('store_rollout_claims_workspace_idx').on(t.workspaceId),
   ],
 );
+
+/**
+ * Listing texts and graphics collected per app to be written into a store as a draft (see migration
+ * 23 and docs/adr/0009-staged-store-drafts.md). A row is one text, or one file of a set of graphics.
+ */
+export const stagedChanges = sqliteTable(
+  'staged_changes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    /** listing_text or asset. */
+    kind: text('kind').notNull(),
+    locale: text('locale').notNull(),
+    /** The listing field, or the slot of a set of graphics (`screenshot:iphone_6_5`, `icon`). */
+    target: text('target').notNull(),
+    ordinal: integer('ordinal').notNull().default(0),
+    /** repo, local or store. */
+    source: text('source').notNull(),
+    valueText: text('value_text'),
+    /** SHA-256 of the normalized text, or the git blob id of the file. */
+    valueHash: text('value_hash').notNull(),
+    assetPath: text('asset_path'),
+    assetCommit: text('asset_commit'),
+    assetBytes: integer('asset_bytes'),
+    assetWidth: integer('asset_width'),
+    assetHeight: integer('asset_height'),
+    assetFormat: text('asset_format'),
+    assetAlpha: integer('asset_alpha'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    pushedAt: integer('pushed_at'),
+    pushedHash: text('pushed_hash'),
+  },
+  (t) => [
+    uniqueIndex('staged_changes_slot_idx').on(t.appId, t.kind, t.locale, t.target, t.ordinal),
+    index('staged_changes_workspace_idx').on(t.workspaceId, t.appId),
+  ],
+);
+
+/**
+ * The claim a gated store draft write holds while it runs, one row per app and platform (see
+ * migration 23). Deleted when the write settles.
+ */
+export const storeDraftClaims = sqliteTable(
+  'store_draft_claims',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    action: text('action').notNull(),
+    /** writing (in flight, expires after a TTL) or unknown (outcome not told; a re-read clears it). */
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('store_draft_claims_workspace_idx').on(t.workspaceId),
+  ],
+);

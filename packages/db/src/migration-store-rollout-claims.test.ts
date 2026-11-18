@@ -24,7 +24,8 @@ dbTest('migration 22 adds the rollout claims: one row per app and platform, olde
   );
 
   const applied = await migrate(db);
-  assert.deepEqual(applied.filter((id) => id >= ROLLOUT), [ROLLOUT]);
+  // Later migrations are applied by the same call: only this one is checked here.
+  assert.deepEqual(applied.filter((id) => id === ROLLOUT), [ROLLOUT]);
   assert.equal((await db.query('SELECT id FROM app_reviews WHERE id = ?', ['r1'])).length, 1, 'existing data is untouched');
   assert.deepEqual((await tableColumns(db, 'store_rollout_claims')).map((c) => c.name), [
     'action',

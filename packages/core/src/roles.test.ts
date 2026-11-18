@@ -210,3 +210,18 @@ test('settings: members read them, only owners and admins change them; members t
   assert.equal(can('member', 'reviews.translate'), true);
   assert.equal(can('admin', 'reviews.translate'), true);
 });
+
+test('store.push_draft: owners and admins only; a token needs the action named and an admin ceiling', () => {
+  assert.equal(can('owner', 'store.push_draft'), true);
+  assert.equal(can('admin', 'store.push_draft'), true);
+  assert.equal(can('member', 'store.push_draft'), false);
+  assert.equal(can('viewer', 'store.push_draft'), false);
+  // Staging a change writes nothing to a store: members may (changesets.write), viewers may only read.
+  assert.equal(can('member', 'changesets.write'), true);
+  assert.ok(tokenActions.includes('store.push_draft'));
+  assert.ok(tokenExplicitOnlyActions.includes('store.push_draft'));
+  assert.equal(canToken('admin', null, 'store.push_draft'), false, 'no list: never');
+  assert.equal(canToken('admin', ['changesets.write'], 'store.push_draft'), false);
+  assert.equal(canToken('admin', ['store.push_draft'], 'store.push_draft'), true);
+  assert.equal(canToken('member', ['store.push_draft'], 'store.push_draft'), false, 'the ceiling still applies');
+});

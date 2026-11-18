@@ -12,3 +12,4 @@ export * from './build-patterns.ts';
 export * from './image-header.ts';
 export * from './store-asset-specs.ts';
 export * from './translation.ts';
+export * from './staged-changes.ts';

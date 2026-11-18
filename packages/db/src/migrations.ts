@@ -993,4 +993,66 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 23,
+    name: 'staged store changes (listing text and graphics collected per app) and store draft write claims',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // staged_changes: what a person has collected to be written into a store as a DRAFT (see
+      // docs/adr/0009-staged-store-drafts.md). Nothing here is ever sent to a store by itself.
+      // One row is a listing text of one locale (kind listing_text, target = the listing field,
+      // ordinal 0) or one FILE of a set of graphics (kind asset, target = the slot such as
+      // `screenshot:iphone_6_5` or `icon`, ordinal = its place in the set). A push replaces the whole
+      // set, so the rows of one slot are the set. Assets are kept by REFERENCE (repository path, commit
+      // and git blob id): the bytes are read from the clone at push time and checked against the oid.
+      // value_hash: SHA-256 of the normalized text, or the blob id of a file. pushed_at / pushed_hash:
+      // when the row was last written to a store as a draft and with which hash. No foreign key on
+      // app_id (like the review tables): deleting an app deletes its rows in the code. The text is
+      // listing text, never a credential; audit entries and events carry hashes and ids only.
+      // store_draft_claims: the claim a draft write takes before it touches a store, one row per app and
+      // platform (the primary key is what makes one write in flight true across processes). status:
+      // writing (claim_at is its start; it expires after a time to live) or unknown (the outcome of the
+      // last write could not be told; it blocks writing until a successful re-read, i.e. a new preview).
+      return [
+        `CREATE TABLE IF NOT EXISTS staged_changes (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           kind TEXT NOT NULL,
+           locale TEXT NOT NULL,
+           target TEXT NOT NULL,
+           ordinal INTEGER NOT NULL DEFAULT 0,
+           source TEXT NOT NULL,
+           value_text TEXT,
+           value_hash TEXT NOT NULL,
+           asset_path TEXT,
+           asset_commit TEXT,
+           asset_bytes INTEGER,
+           asset_width INTEGER,
+           asset_height INTEGER,
+           asset_format TEXT,
+           asset_alpha INTEGER,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL,
+           pushed_at ${t},
+           pushed_hash TEXT
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS staged_changes_slot_idx ON staged_changes (app_id, kind, locale, target, ordinal)',
+        'CREATE INDEX IF NOT EXISTS staged_changes_workspace_idx ON staged_changes (workspace_id, app_id)',
+        `CREATE TABLE IF NOT EXISTS store_draft_claims (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           action TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'writing',
+           claimed_by TEXT NOT NULL,
+           claim_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS store_draft_claims_workspace_idx ON store_draft_claims (workspace_id)',
+      ];
+    },
+  },
 ];
