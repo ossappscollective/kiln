@@ -1,6 +1,6 @@
 <!--
-  RepositoryDetail: one connected repository in three tabs: the detected project, the store
-  listing, and the change sets.
+  RepositoryDetail: one connected repository in four tabs: the detected project, the store
+  listing, the change sets, and CI (workflows and runs).
   Props: api, workspaceId, role, myId, names (user id to display name), initial (the row from the
   list, shown while the details load), onback, onupdated (called with a fresh repository row).
 -->
@@ -24,6 +24,7 @@
   import PageHeader from '../ui/PageHeader.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
+  import CiPanel from '../ci/CiPanel.svelte';
   import ChangeSetsPanel from './ChangeSetsPanel.svelte';
   import KindBadge from './KindBadge.svelte';
   import ListingPanel from './ListingPanel.svelte';
@@ -114,6 +115,7 @@
     { id: 'project', label: 'Project' },
     { id: 'listing', label: 'Store listing' },
     { id: 'changes', label: 'Change sets' },
+    { id: 'ci', label: 'CI' },
   ];
 </script>
 
@@ -163,6 +165,8 @@
             bind:selection={listingSelection}
             oncreated={created}
           />
+        {:else if id === 'ci'}
+          <CiPanel {api} {workspaceId} {repository} {role} />
         {:else}
           <ChangeSetsPanel
             {api}

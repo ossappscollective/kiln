@@ -37,6 +37,27 @@ const actions: Record<string, (detail: Record<string, unknown> | null) => string
   'member.role_change': (d) => `changed a member’s role${d?.from && d?.to ? ` from ${String(d.from)} to ${String(d.to)}` : ''}`,
   'member.remove': (d) => (d?.self ? 'left the workspace' : 'removed a member from the workspace'),
   'credential.use': (d) => `used a credential${d?.purpose ? ` for ${String(d.purpose)}` : ''}`,
+  'plan.create': (d) => `started a plan${d?.version ? ` for version ${String(d.version)}` : ''}`,
+  'plan.update': (d) => `changed a release plan${d?.version ? ` (${String(d.version)})` : ''}`,
+  'plan.delete': (d) => `deleted the plan${d?.version ? ` for version ${String(d.version)}` : ''}`,
+  'plan.apply_template': (d) => `added checklist items${d?.template ? ` from “${String(d.template)}”` : ''}`,
+  'plan.notes_set': (d) => `edited the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
+  'plan.notes_delete': (d) => `removed the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
+  'checklist.item_add': () => 'added a checklist item to a release plan',
+  'checklist.item_update': () => 'changed a checklist item of a release plan',
+  'checklist.item_delete': () => 'removed a checklist item from a release plan',
+  'checklist.reorder': () => 'reordered the checklist of a release plan',
+  'checklist_template.create': (d) => `saved a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'checklist_template.update': (d) => `changed a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'checklist_template.delete': (d) => `deleted a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'token.create': (d) => `made an API token${d?.name ? ` “${String(d.name)}”` : ''}${d?.role ? ` (${String(d.role)})` : ''}`,
+  'token.revoke': (d) => `revoked an API token${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'webhook.create': (d) => `added a webhook${d?.url ? ` for ${String(d.url)}` : ''}`,
+  'webhook.update': (d) => `changed a webhook${Array.isArray(d?.changed) && d.changed.length > 0 ? ` (${d.changed.join(', ')})` : ''}`,
+  'webhook.delete': (d) => `deleted a webhook${d?.url ? ` for ${String(d.url)}` : ''}`,
+  'webhook.rotate_secret': () => 'made a new signing secret for a webhook',
+  'webhook.test': () => 'sent a test event to a webhook',
+  'webhook.redeliver': () => 'sent a webhook delivery again',
 };
 
 /** "2:14 PM" in the viewer's locale. */
@@ -48,7 +69,10 @@ export function clockTime(at: number, locale?: string): string {
 export function describeEventParts(
   event: Pick<AuditEvent, 'action' | 'actorType' | 'actorName' | 'detail'>,
 ): { who: string; what: string } {
-  const who = event.actorName ?? (event.actorType === 'user' ? 'Someone' : capitalize(event.actorType));
+  const who =
+    event.actorType === 'token' && event.actorName
+      ? `API token “${event.actorName}”`
+      : (event.actorName ?? (event.actorType === 'user' ? 'Someone' : capitalize(event.actorType)));
   const what = actions[event.action]?.(event.detail) ?? event.action;
   return { who, what };
 }
@@ -83,6 +107,11 @@ const categoryLabels: Record<string, string> = {
   invite: 'Invitations',
   invitation: 'Invitations',
   repository: 'Repositories',
+  token: 'API tokens',
+  webhook: 'Webhooks',
+  plan: 'Release plans',
+  checklist: 'Checklists',
+  checklist_template: 'Checklist templates',
   other: 'Other',
 };
 
@@ -100,6 +129,8 @@ export function eventVisual(action: string): { icon: string; tone: 'ok' | 'bad' 
   if (category === 'workspace') return { icon: 'layers', tone: 'ok' };
   if (category === 'member' || category === 'invite' || category === 'invitation') return { icon: 'users', tone: 'ok' };
   if (category === 'credential') return { icon: 'key', tone: 'ok' };
+  if (category === 'token') return { icon: 'shield', tone: 'ok' };
+  if (category === 'webhook') return { icon: 'globe', tone: 'ok' };
   if (verb === 'create' || verb === 'add') return { icon: 'plus', tone: 'ok' };
   return { icon: 'history', tone: 'neutral' };
 }

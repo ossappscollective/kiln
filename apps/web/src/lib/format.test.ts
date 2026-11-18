@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { describeEvent, timeAgo } from './format.ts';
+import { categoryLabel, describeEvent, eventCategory, eventVisual, timeAgo } from './format.ts';
 
 const now = Date.UTC(2026, 10, 18, 12, 0, 0);
 
@@ -58,4 +58,25 @@ test('groupByDay splits at local midnight and labels Today and Yesterday', async
   assert.equal(eventCategory('weird'), 'other');
   assert.equal(eventVisual('credential.delete').icon, 'trash');
   assert.equal(eventVisual('something.new').icon, 'history');
+});
+
+test('token and webhook actions read as sentences, and a token is named as the actor', () => {
+  assert.equal(
+    describeEvent({ action: 'token.create', actorType: 'user', actorName: 'Ada', detail: { name: 'CI', role: 'member' } }),
+    'Ada made an API token “CI” (member)',
+  );
+  assert.equal(describeEvent({ action: 'token.revoke', actorType: 'user', actorName: 'Ada', detail: { name: 'CI' } }), 'Ada revoked an API token “CI”');
+  assert.equal(
+    describeEvent({ action: 'webhook.update', actorType: 'user', actorName: 'Ada', detail: { changed: ['url', 'enabled'] } }),
+    'Ada changed a webhook (url, enabled)',
+  );
+  assert.equal(
+    describeEvent({ action: 'changeset.create', actorType: 'token', actorName: 'Release CI', detail: null }),
+    'API token “Release CI” changeset.create',
+  );
+  assert.equal(describeEvent({ action: 'x', actorType: 'system', actorName: null, detail: null }), 'System x');
+  assert.equal(eventCategory('webhook.create'), 'webhook');
+  assert.equal(categoryLabel('token'), 'API tokens');
+  assert.deepEqual(eventVisual('webhook.create'), { icon: 'globe', tone: 'ok' });
+  assert.deepEqual(eventVisual('token.revoke'), { icon: 'trash', tone: 'bad' });
 });

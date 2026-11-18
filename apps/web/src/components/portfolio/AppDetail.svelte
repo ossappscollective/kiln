@@ -19,6 +19,7 @@
     syncApp,
     syncSummaryText,
   } from '../../lib/portfolio.ts';
+  import { releaseHref } from '../../lib/release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -29,6 +30,9 @@
   import Modal from '../ui/Modal.svelte';
   import PageHeader from '../ui/PageHeader.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import Tabs from '../ui/Tabs.svelte';
+  import ListingTab from '../listing/ListingTab.svelte';
+  import BuildsPanel from './BuildsPanel.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
   import ReleaseGroupCard from './ReleaseGroupCard.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
@@ -48,6 +52,10 @@
   let syncProblem = $state('');
   let announcement = $state('');
   let now = $state(Date.now());
+  /** The open section: the releases, or the store listing (read-only). */
+  let tab = $state('releases');
+  /** Counts finished syncs, so the listing tab reloads after one. */
+  let syncRuns = $state(0);
 
   let confirmOpen = $state(false);
   let deleting = $state(false);
@@ -87,6 +95,7 @@
     syncProblem = '';
     syncing = false;
     confirmOpen = false;
+    tab = 'releases';
     void load();
   });
 
@@ -108,6 +117,7 @@
     if (mine !== generation) return;
     syncing = false;
     now = Date.now();
+    syncRuns += 1;
     if (outcome.ok) {
       app = outcome.app;
       releases = outcome.releases;
@@ -142,6 +152,12 @@
   const groups = $derived(groupReleases(releases));
   const latest = $derived(app ? latestRelease(releases, app.platform) : null);
   const failure = $derived(syncProblem || app?.lastSyncError?.trim() || '');
+  /** Builds are readable by everyone who can read the app; the listing has its own right. */
+  const sections = $derived([
+    { id: 'releases', label: 'Releases' },
+    ...(can(role, 'listing.read') ? [{ id: 'listing', label: 'Listing' }] : []),
+    { id: 'builds', label: 'Builds' },
+  ]);
 </script>
 
 <section aria-busy={loading}>
@@ -216,7 +232,7 @@
             <dt>Latest release</dt>
             <dd>
               {#if latest}
-                <span class="latest"><strong>{latest.version}</strong> <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} /></span>
+                <span class="latest"><strong>{latest.version}</strong> <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} /> <a href={releaseHref(app.id, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a></span>
               {:else}
                 <span class="muted">None yet</span>
               {/if}
@@ -241,31 +257,49 @@
         </dl>
       </section>
 
-      {#if groups.length === 0}
-        <div class="card">
-          <EmptyState
-            icon="box"
-            title={app.lastSyncedAt === null ? 'Not synced yet' : 'No releases reported'}
-            description={app.lastSyncedAt === null
-              ? 'Adding an app does not contact the store. A sync reads its versions and tracks.'
-              : 'The last sync found no versions or tracks for this app.'}
-          >
-            {#snippet actions()}
-              {#if canSync}
-                <Button variant="primary" icon="refresh" loading={syncing} onclick={sync}>Sync now</Button>
-              {:else}
-                <span class="muted">A member or admin can run the first sync.</span>
-              {/if}
-            {/snippet}
-          </EmptyState>
-        </div>
+      {#snippet releasesView(current: AppSummary)}
+        {#if groups.length === 0}
+          <div class="card">
+            <EmptyState
+              icon="box"
+              title={current.lastSyncedAt === null ? 'Not synced yet' : 'No releases reported'}
+              description={current.lastSyncedAt === null
+                ? 'Adding an app does not contact the store. A sync reads its versions and tracks.'
+                : 'The last sync found no versions or tracks for this app.'}
+            >
+              {#snippet actions()}
+                {#if canSync}
+                  <Button variant="primary" icon="refresh" loading={syncing} onclick={sync}>Sync now</Button>
+                {:else}
+                  <span class="muted">A member or admin can run the first sync.</span>
+                {/if}
+              {/snippet}
+            </EmptyState>
+          </div>
+        {:else}
+          {#each groups as group (group.key)}
+            <ReleaseGroupCard {group} {now} />
+          {/each}
+          <p class="muted snapshot">
+            This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports disappears.
+          </p>
+        {/if}
+      {/snippet}
+
+      {#if can(role, 'apps.read')}
+        <Tabs bind:value={tab} label="Sections of this app" tabs={sections}>
+          {#snippet panel(id)}
+            {#if app && id === 'listing'}
+              <ListingTab {api} {workspaceId} {role} {app} {now} {syncing} onrefresh={sync} refreshKey={syncRuns} />
+            {:else if app && id === 'builds'}
+              <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+            {:else if app}
+              <div class="stack loose">{@render releasesView(app)}</div>
+            {/if}
+          {/snippet}
+        </Tabs>
       {:else}
-        {#each groups as group (group.key)}
-          <ReleaseGroupCard {group} {now} />
-        {/each}
-        <p class="muted snapshot">
-          This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports disappears.
-        </p>
+        {@render releasesView(app)}
       {/if}
     </div>
   {/if}

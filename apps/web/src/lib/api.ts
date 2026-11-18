@@ -1,31 +1,53 @@
 import type { Listing, ListingProblem } from '@mrm/core';
 import type {
   AcceptedInvitation,
+  ApiToken,
+  AppBuild,
+  AppBuilds,
   AppDetail,
   AppSummary,
   AuditEvent,
   AuthStatus,
+  BuildChanges,
   ChangeSetView,
+  CreatedApiToken,
   CreatedInvitation,
+  CreatedWebhook,
+  ChecklistTemplate,
+  CiWorkflow,
   CredentialSummary,
   DiscoverResult,
+  DispatchResult,
   Health,
   ImportItem,
   ImportResult,
   Invitation,
   InvitationPreview,
+  ListingDrift,
+  ListingHistoryPage,
   ListingSelection,
   ListingTargetInput,
+  LiveListing,
   Me,
   Member,
   NewApp,
+  NewPlan,
+  PlanChanges,
+  PlanDetail,
+  PlanSummary,
   RepositoryDetail,
   RepositoryListing,
+  RepoRefreshResult,
   RepositorySummary,
   SavedListingTarget,
   SyncResult,
   TestResult,
   User,
+  WebhookDelivery,
+  WebhookEndpoint,
+  WorkflowInputs,
+  WorkflowRun,
+  WorkflowRuns,
 } from './types.ts';
 
 type Issue = { path: string; message: string };
@@ -74,6 +96,16 @@ export function messageFor(
       return 'Your session has ended. Sign in again.';
     case 'forbidden':
       return 'Your role does not allow that.';
+    case 'role_above_yours':
+      return body.message ?? 'A token cannot have a higher role than you.';
+    case 'too_many_tokens':
+      return body.message ?? 'There are too many active tokens. Revoke some you no longer use.';
+    case 'too_many_webhooks':
+      return body.message ?? 'There are too many webhooks. Delete some you no longer use.';
+    case 'invalid_url':
+      return body.message ?? 'That address cannot be used for a webhook.';
+    case 'unknown_app':
+      return body.message ?? 'One of the apps is not in this workspace.';
     case 'not_found':
       return 'That no longer exists.';
     case 'bad_origin':
@@ -129,6 +161,26 @@ export function messageFor(
     }
     case 'pull_request_failed':
       return body.message ?? 'The branch was created but the pull request could not be opened.';
+    case 'no_repository':
+      return body.message ?? 'This app is not linked to a repository.';
+    case 'ci_unsupported':
+      return 'This repository connection cannot read CI runs.';
+    case 'workflow_not_found':
+      return body.message ?? 'GitHub has no such workflow in this repository.';
+    case 'app_not_found':
+      return 'That app is not in this workspace.';
+    case 'app_repository_mismatch':
+      return 'That app is not linked to this repository.';
+    case 'build_not_found':
+      return body.message ?? 'This app has no such build. Sync the app first.';
+    case 'build_not_linked':
+      return body.message ?? 'This build is not linked to a CI run, so its commit is not known.';
+    case 'no_base_build':
+      return 'There is no earlier linked build to compare with.';
+    case 'run_not_found':
+      return body.message ?? 'GitHub has no such workflow run in this repository.';
+    case 'run_without_commit':
+      return 'That run has no commit, so it cannot explain a build.';
     case 'invalid_request': {
       const first = body.issues?.[0];
       return first ? `${first.path ? `${first.path}: ` : ''}${first.message}` : 'Check the form and try again.';
@@ -190,6 +242,8 @@ export function createApi(options: ApiOptions = {}) {
   }
 
   const workspace = (id: string) => `/api/workspaces/${encodeURIComponent(id)}`;
+  const planPath = (workspaceId: string, appId: string, planId: string) =>
+    `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans/${encodeURIComponent(planId)}`;
 
   return {
     health: () => request<Health>('GET', '/api/health'),
@@ -319,14 +373,184 @@ export function createApi(options: ApiOptions = {}) {
     /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
     syncApp: (workspaceId: string, id: string) =>
       request<SyncResult>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync`),
+    // Store listing of an app: values from the last syncs, drift against the repository, history.
+    // All reads of our own database; only `refreshAppRepoListing` reads GitHub. Nothing writes to a store.
+    appListingLive: (workspaceId: string, appId: string) =>
+      request<LiveListing>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/live`),
+    appListingDrift: (workspaceId: string, appId: string) =>
+      request<ListingDrift>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/drift`),
+    appListingHistory: (
+      workspaceId: string,
+      appId: string,
+      filter: { locale?: string; field?: string; cursor?: string; limit?: number } = {},
+    ) => {
+      const query = new URLSearchParams();
+      if (filter.locale) query.set('locale', filter.locale);
+      if (filter.field) query.set('field', filter.field);
+      if (filter.cursor) query.set('cursor', filter.cursor);
+      if (filter.limit) query.set('limit', String(filter.limit));
+      const text = query.toString();
+      return request<ListingHistoryPage>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/history${text ? `?${text}` : ''}`,
+      );
+    },
+    /** Reads the linked repository's listing from GitHub and records it. Needs a linked repository. */
+    refreshAppRepoListing: (workspaceId: string, appId: string) =>
+      request<RepoRefreshResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/repo-refresh`,
+      ),
     /** Finds the apps behind a credential. Google Play needs `packages`: its API cannot list apps. */
     discoverApps: (workspaceId: string, input: { credentialId: string; packages?: string[] }) =>
       request<DiscoverResult>('POST', `${workspace(workspaceId)}/apps/discover`, input),
     /** Adds the chosen apps in one transaction. Apps that exist are skipped; the answer is per item. */
     importApps: (workspaceId: string, input: { credentialId: string; items: ImportItem[] }) =>
       request<ImportResult>('POST', `${workspace(workspaceId)}/apps/import`, input),
+    // Release planning: our own checklists, notes and deadlines (docs/api/plans.md).
+    plans: (workspaceId: string) => request<{ plans: PlanSummary[] }>('GET', `${workspace(workspaceId)}/plans`),
+    appPlans: (workspaceId: string, appId: string) =>
+      request<{ plans: PlanSummary[] }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans`),
+    plan: (workspaceId: string, appId: string, planId: string) =>
+      request<{ plan: PlanDetail }>('GET', `${planPath(workspaceId, appId, planId)}`),
+    createPlan: (workspaceId: string, appId: string, input: NewPlan) =>
+      request<{ plan: PlanDetail }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans`, input),
+    updatePlan: (workspaceId: string, appId: string, planId: string, changes: PlanChanges) =>
+      request<{ plan: PlanDetail }>('PATCH', planPath(workspaceId, appId, planId), changes),
+    deletePlan: (workspaceId: string, appId: string, planId: string) =>
+      request<void>('DELETE', planPath(workspaceId, appId, planId)),
+    addChecklistItem: (workspaceId: string, appId: string, planId: string, input: { text: string; required: boolean }) =>
+      request<{ plan: PlanDetail; itemId: string }>('POST', `${planPath(workspaceId, appId, planId)}/items`, input),
+    updateChecklistItem: (
+      workspaceId: string,
+      appId: string,
+      planId: string,
+      itemId: string,
+      changes: { text?: string; required?: boolean; done?: boolean },
+    ) =>
+      request<{ plan: PlanDetail }>('PATCH', `${planPath(workspaceId, appId, planId)}/items/${encodeURIComponent(itemId)}`, changes),
+    deleteChecklistItem: (workspaceId: string, appId: string, planId: string, itemId: string) =>
+      request<{ plan: PlanDetail }>('DELETE', `${planPath(workspaceId, appId, planId)}/items/${encodeURIComponent(itemId)}`),
+    reorderChecklist: (workspaceId: string, appId: string, planId: string, order: string[]) =>
+      request<{ plan: PlanDetail }>('PUT', `${planPath(workspaceId, appId, planId)}/items/order`, { order }),
+    applyChecklistTemplate: (workspaceId: string, appId: string, planId: string, templateId: string) =>
+      request<{ plan: PlanDetail; added: number; skipped: number }>('POST', `${planPath(workspaceId, appId, planId)}/apply-template`, {
+        templateId,
+      }),
+    setReleaseNotes: (workspaceId: string, appId: string, planId: string, locale: string, text: string) =>
+      request<{ plan: PlanDetail }>('PUT', `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`, { text }),
+    deleteReleaseNotes: (workspaceId: string, appId: string, planId: string, locale: string) =>
+      request<{ plan: PlanDetail }>('DELETE', `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`),
+    checklistTemplates: (workspaceId: string) =>
+      request<{ templates: ChecklistTemplate[] }>('GET', `${workspace(workspaceId)}/checklist-templates`),
+    createChecklistTemplate: (workspaceId: string, input: { name: string; items: { text: string; required: boolean }[] }) =>
+      request<{ template: ChecklistTemplate }>('POST', `${workspace(workspaceId)}/checklist-templates`, input),
+    deleteChecklistTemplate: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/checklist-templates/${encodeURIComponent(id)}`),
+    // CI (docs/api/ci.md). Reading stored runs and builds is open to every member; the calls that
+    // ask GitHub need the right of a scan, and dispatching a workflow needs `ci.dispatch`.
+    workflows: (workspaceId: string, repositoryId: string) =>
+      request<{ workflows: CiWorkflow[]; cached: boolean }>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows`,
+      ),
+    workflowInputs: (workspaceId: string, repositoryId: string, workflow: string, ref?: string) =>
+      request<WorkflowInputs>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows/${encodeURIComponent(workflow)}/inputs${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`,
+      ),
+    /** The stored runs; `refresh` reads GitHub first (needs the right of a scan). */
+    workflowRuns: (
+      workspaceId: string,
+      repositoryId: string,
+      options: { refresh?: boolean; limit?: number; workflow?: string; appId?: string } = {},
+    ) => {
+      const query = new URLSearchParams();
+      if (options.refresh) query.set('refresh', 'true');
+      if (options.limit) query.set('limit', String(options.limit));
+      if (options.workflow) query.set('workflow', options.workflow);
+      if (options.appId) query.set('appId', options.appId);
+      const text = query.toString();
+      return request<WorkflowRuns>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows/runs${text ? `?${text}` : ''}`,
+      );
+    },
+    workflowRun: (workspaceId: string, repositoryId: string, runId: string) =>
+      request<{ run: WorkflowRun }>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows/runs/${encodeURIComponent(runId)}`,
+      ),
+    /** Starts the workflow on GitHub: this runs the team's CI. */
+    dispatchWorkflow: (
+      workspaceId: string,
+      repositoryId: string,
+      workflow: string,
+      input: { ref?: string; inputs?: Record<string, string>; appId?: string },
+    ) =>
+      request<DispatchResult>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows/${encodeURIComponent(workflow)}/dispatches`,
+        input,
+      ),
+    appBuilds: (workspaceId: string, appId: string) =>
+      request<AppBuilds>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds`),
+    /** The commits between a build and the one before it (or `base`). Reads GitHub. */
+    buildChanges: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string; base?: string }) => {
+      const query = new URLSearchParams({ platform: build.platform, build: build.buildNumber });
+      if (build.base) query.set('base', build.base);
+      return request<BuildChanges>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/changes?${query.toString()}`,
+      );
+    },
+    linkBuild: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string }, runId: string) =>
+      request<{ build: AppBuild }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/${encodeURIComponent(build.platform)}/${encodeURIComponent(build.buildNumber)}/link`,
+        { runId },
+      ),
+    unlinkBuild: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string }) =>
+      request<{ build: AppBuild | null }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/${encodeURIComponent(build.platform)}/${encodeURIComponent(build.buildNumber)}/link`,
+      ),
     audit: (workspaceId: string, limit = 100) =>
       request<{ events: AuditEvent[] }>('GET', `${workspace(workspaceId)}/audit?limit=${limit}`),
+    // API tokens. The token is in the answer to `createApiToken` and nowhere else.
+    apiTokens: (workspaceId: string) =>
+      request<{ tokens: ApiToken[] }>('GET', `${workspace(workspaceId)}/tokens`),
+    createApiToken: (
+      workspaceId: string,
+      input: { name: string; role: string; appIds?: string[]; actions?: string[]; expiresAt?: number },
+    ) => request<CreatedApiToken>('POST', `${workspace(workspaceId)}/tokens`, input),
+    revokeApiToken: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/tokens/${encodeURIComponent(id)}`),
+    // Webhooks. The secret is in the answers to `createWebhook` and `rotateWebhookSecret` only.
+    webhooks: (workspaceId: string) =>
+      request<{ webhooks: WebhookEndpoint[] }>('GET', `${workspace(workspaceId)}/webhooks`),
+    createWebhook: (
+      workspaceId: string,
+      input: { url: string; description?: string; eventTypes: string[]; enabled?: boolean },
+    ) => request<CreatedWebhook>('POST', `${workspace(workspaceId)}/webhooks`, input),
+    updateWebhook: (workspaceId: string, id: string, patch: Record<string, unknown>) =>
+      request<{ webhook: WebhookEndpoint }>('PATCH', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}`, patch),
+    deleteWebhook: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}`),
+    rotateWebhookSecret: (workspaceId: string, id: string) =>
+      request<{ secret: string }>('POST', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/rotate-secret`),
+    testWebhook: (workspaceId: string, id: string) =>
+      request<{ deliveryId: string }>('POST', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/test`),
+    webhookDeliveries: (workspaceId: string, id: string, limit = 30) =>
+      request<{ deliveries: WebhookDelivery[] }>(
+        'GET',
+        `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/deliveries?limit=${limit}`,
+      ),
+    redeliverWebhook: (workspaceId: string, id: string, deliveryId: string) =>
+      request<{ deliveryId: string }>(
+        'POST',
+        `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
+      ),
   };
 }
 

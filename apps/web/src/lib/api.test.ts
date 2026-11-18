@@ -178,3 +178,30 @@ test('a rejected invitation request says what to do', async () => {
   const { fetchImpl } = fake(() => jsonResponse({ error: 'last_owner', message: 'Make someone else an owner first.' }, 409));
   await assert.rejects(createApi({ fetch: fetchImpl }).removeMember('w', 'u'), /Make someone else an owner first\./);
 });
+
+test('listing calls only read, with the filter in the query string', async () => {
+  const { calls, fetchImpl } = fake(() => jsonResponse({ items: [], nextCursor: null }));
+  const api = createApi({ fetch: fetchImpl });
+  await api.appListingLive('w', 'a/1');
+  await api.appListingDrift('w', 'a/1');
+  await api.appListingHistory('w', 'a/1');
+  await api.appListingHistory('w', 'a/1', { locale: 'en-US', field: 'name', cursor: '10:x', limit: 25 });
+  assert.deepEqual(
+    calls.map((c) => [c.init?.method, c.path]),
+    [
+      ['GET', '/api/workspaces/w/apps/a%2F1/listing/live'],
+      ['GET', '/api/workspaces/w/apps/a%2F1/listing/drift'],
+      ['GET', '/api/workspaces/w/apps/a%2F1/listing/history'],
+      ['GET', '/api/workspaces/w/apps/a%2F1/listing/history?locale=en-US&field=name&cursor=10%3Ax&limit=25'],
+    ],
+  );
+});
+
+test('reading the repository listing is a POST that has no body, and a missing link has a sentence', async () => {
+  const { calls, fetchImpl } = fake(() => jsonResponse({ error: 'no_repository' }, 422));
+  const api = createApi({ fetch: fetchImpl });
+  await assert.rejects(api.refreshAppRepoListing('w', 'a'), /not linked to a repository/);
+  assert.equal(calls[0]?.init?.method, 'POST');
+  assert.equal(calls[0]?.path, '/api/workspaces/w/apps/a/listing/repo-refresh');
+  assert.equal(calls[0]?.init?.body, undefined);
+});

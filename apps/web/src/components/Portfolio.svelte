@@ -2,6 +2,7 @@
   import { type Role, can } from '@mrm/core';
   import { tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
+  import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
     type BatchResult,
     type ReleaseLoad,
@@ -16,12 +17,16 @@
     syncDetail,
     syncSummaryText,
   } from '../lib/portfolio.ts';
+  import { parseReleaseRoute } from '../lib/release.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import type { AppSummary } from '../lib/types.ts';
+  import Board from './dashboard/Board.svelte';
+  import ViewToggle from './dashboard/ViewToggle.svelte';
   import AddAppModal from './portfolio/AddAppModal.svelte';
   import AppDetail from './portfolio/AppDetail.svelte';
   import AppTable from './portfolio/AppTable.svelte';
   import SyncAllPanel from './portfolio/SyncAllPanel.svelte';
+  import ReleaseDetail from './release/ReleaseDetail.svelte';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
@@ -39,6 +44,10 @@
 
   // `#/portfolio` is the list, `#/portfolio/<id>` an app. The shell keeps this screen mounted for both.
   let route = $state(parseRoute(location.hash));
+  // `#/portfolio/<id>/release/<version>` is a third screen of this view (components/release/).
+  let release = $state(parseReleaseRoute(location.hash));
+  /** List or board, remembered in this browser. */
+  let viewMode = $state<ViewMode>(readViewMode());
   let apps = $state<AppSummary[] | null>(null);
   let error = $state('');
   let releases = $state<Record<string, ReleaseLoad | undefined>>({});
@@ -65,8 +74,10 @@
   $effect(() => {
     const onhash = () => {
       const next = parseRoute(location.hash);
-      if (route.name === 'app' && next.name === 'list') returnTo = route.id;
+      const nextRelease = parseReleaseRoute(location.hash);
+      if (route.name === 'app' && next.name === 'list' && !nextRelease) returnTo = route.id;
       route = next;
+      release = nextRelease;
     };
     window.addEventListener('hashchange', onhash);
     return () => window.removeEventListener('hashchange', onhash);
@@ -130,7 +141,7 @@
   // an app screen may have synced or deleted something.
   $effect(() => {
     void workspaceId;
-    const onList = route.name === 'list';
+    const onList = route.name === 'list' && release === null;
     if (!canRead || !onList) return;
     untrack(() => {
       void load();
@@ -144,6 +155,11 @@
     returnTo = '';
     void tick().then(() => document.getElementById(`app-open-${id}`)?.focus());
   });
+
+  function setView(mode: ViewMode) {
+    viewMode = mode;
+    saveViewMode(mode);
+  }
 
   function patch(app: AppSummary) {
     if (apps) apps = apps.map((a) => (a.id === app.id ? app : a));
@@ -245,7 +261,9 @@
   }
 </script>
 
-{#if route.name === 'app' && canRead}
+{#if release && canRead}
+  <ReleaseDetail {api} {workspaceId} {role} appId={release.appId} version={release.version} />
+{:else if route.name === 'app' && canRead}
   <AppDetail {api} {workspaceId} {role} id={route.id} />
 {:else}
   <section>
@@ -255,6 +273,7 @@
     >
       {#snippet actions()}
         {#if canRead && apps !== null && apps.length > 0}
+          <ViewToggle mode={viewMode} onchange={setView} />
           {#if canSync}
             <Button icon="refresh" loading={batchRunning} disabled={busy && !batchRunning} onclick={() => syncAll(sorted)}>Sync all</Button>
           {/if}
@@ -317,7 +336,11 @@
           </EmptyState>
         </div>
       {:else}
-        <AppTable apps={sorted} {releases} {now} {canSync} {syncing} locked={busy} onsync={syncOne} />
+        {#if viewMode === 'board'}
+          <Board {api} {workspaceId} {role} apps={sorted} {releases} {now} />
+        {:else}
+          <AppTable apps={sorted} {releases} {now} {canSync} {syncing} locked={busy} onsync={syncOne} />
+        {/if}
       {/if}
     {/if}
   </section>
