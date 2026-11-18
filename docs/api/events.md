@@ -1,0 +1,119 @@
+# Events
+
+Every workspace has an event log: a row for each thing that happened that an automation might care
+about. Read it with a cursor, or follow it live. The same events are pushed to
+[webhooks](webhooks.md). The log is a feed, not an archive: events older than 90 days are removed
+when the server starts.
+
+Rights: `events.read` (every role). What you see depends on what you may read: `app.*` events need
+`apps.read`, `changeset.*` need `repositories.read`, `credential.*` need `credentials.read` (owner,
+admin, member). An API token sees the same as its ceiling allows, and a token limited to some apps
+sees only events about those apps; see [tokens](tokens.md). A non-member gets 404.
+
+## Event shape
+
+```json
+{
+  "id": 1042,
+  "workspaceId": "...",
+  "type": "app.synced",
+  "subject": { "appId": "..." },
+  "payload": { "found": 3, "added": 0, "updated": 1, "removed": 0, "unmapped": 0,
+               "statusChanges": 1, "statusChangesTruncated": false, "trigger": "request" },
+  "createdAt": 1766000000000
+}
+```
+
+- `id` is a number that only goes up, across the whole server. It is the cursor.
+- `subject` names what the event is about: any of `appId`, `repositoryId`, `releaseId`.
+- `payload` is small plain JSON (16 KB at most; a larger one is replaced by `{ "truncated": true }`).
+  Keys that look like secrets are dropped before it is stored, and **a payload never carries a
+  credential, a token, a file's content or a store listing**. An event points at the thing; read the
+  thing with the API.
+
+## Types
+
+| Type | When | Payload |
+| --- | --- | --- |
+| `app.synced` | An app's store sync finished and was stored (by hand, as a background job or on the schedule). A failed sync is not an event. | `found`, `added`, `updated`, `removed`, `unmapped`, `statusChanges`, `statusChangesTruncated`, `trigger` (`request`, or `job` for a background or scheduled sync) |
+| `app.release.status_changed` | A sync saw a release whose normalized status differs from the stored one, or a new release after the app's first sync. | `version`, `track`, `build`, `from` (null for a new release), `to`. Subject has `appId`, and `releaseId` for a release that already existed. At most 50 per sync, sent before that sync's `app.synced`. |
+| `changeset.created` | A change set was drafted. | `changeSetId`, `files` (count), `actor` |
+| `changeset.approved` | A change set was approved. | `changeSetId`, `actor` |
+| `changeset.applied` | A change set was applied: a pull request was opened. | `changeSetId`, `branch`, `prNumber`, `prUrl`, `commitSha`, `actor` |
+| `changeset.failed` | Applying failed or timed out. | `changeSetId`, `reason`, `actor` |
+| `credential.test_failed` | A credential test failed (a saved credential, or a secret tested before saving). A passing test is not an event. | `credentialId` (null when not saved), `kind`, `saved`, `actor` |
+
+`actor` is `{ "type": "user" | "token" | "system", "id": "..." }`. The first sync of an app is a
+quiet baseline: it emits `app.synced` but no status changes.
+
+Events for change sets and credential tests are derived from the audit log at the moment the audited
+change is written, in the same transaction, so an event exists exactly when the change does.
+
+## `GET /api/workspaces/:wid/events`
+
+Query:
+
+- `since` an event id (0 or more): events after it, oldest first. Without it, the newest `limit`
+  events, still oldest first.
+- `limit` 1 to 200, default 50.
+- `type` comma separated event types to keep.
+
+200: `{ "events": [...], "hasMore": true, "nextCursor": 1042 }`. Ask again with
+`since=<nextCursor>` while `hasMore` is true. `nextCursor` is the id of the last event returned, or
+the `since` you sent when there were none, so it is always safe to store. 400 `invalid_request` for
+a bad `since`, `limit` or unknown `type`.
+
+## `GET /api/workspaces/:wid/events/stream`
+
+Server-sent events (`text/event-stream`), with a session cookie or a bearer token.
+
+```
+event: ready
+retry: 3000
+data: {"cursor":1042}
+
+id: 1043
+event: app.synced
+data: {"id":1043,"type":"app.synced", ... }
+
+: heartbeat
+```
+
+- It starts with `ready`, naming the cursor it continues from.
+- Each event is one message: `id` is the event id, `event` the type, `data` the event as JSON.
+- It continues from `Last-Event-ID` (what a browser's `EventSource` sends when it reconnects), else
+  `?since=`, else from now. Resuming from an id replays what happened after it, with no gaps and no
+  repeats. A browser's `EventSource` cannot send an `Authorization` header: use a cookie there, or
+  `fetch` with a stream reader for a token.
+- `?type=` filters as above.
+- A comment line (`: heartbeat`) is sent every 15 seconds. At each heartbeat the server checks the
+  person is still a member and a token is still valid, and ends the stream if not.
+- At most 5 streams per person at once; the sixth gets 429 `too_many_streams` with `Retry-After: 5`.
+- On shutdown the server ends every stream, so it does not wait for clients. The client reconnects
+  with `Last-Event-ID`.
+- Events written by this process wake the stream within about 25 ms. The stream also polls the
+  table every 2 seconds, so events written by a worker in another process arrive too.
+
+## For code that emits events
+
+```ts
+await emitEvent(tx, { workspaceId, type: 'app.synced', subject: { appId }, payload: { ... } });
+```
+
+Pass the transaction when the thing that happened is written in one. Never call it with the
+`Database` from inside a transaction callback (SQLite would wait for the transaction). New types go
+in `apps/server/src/services/event-types.ts` with the action that lets a person read them, plus
+this page and `webhookEventChoices` in `apps/web/src/lib/webhooks.ts` (a test fails when they drift).
+`emitEvent` also queues the webhook deliveries.
+
+## Not verified
+
+- Only SQLite has run it; the `events` table uses `AUTOINCREMENT` there and an identity column in
+  the Postgres schema, which has not been run.
+- The stream was tested with in-process requests, not through a reverse proxy. A proxy must not
+  buffer it (the server sends `X-Accel-Buffering: no`, which nginx honours) and must not cut idle
+  connections before 15 seconds.
+- Event ids on Postgres are assigned at insert; with concurrent writers a reader following the id
+  could in theory see a higher id before a lower one commits. The stream re-reads from its cursor
+  and a client resuming from `Last-Event-ID` has the same property. If this matters to you, use the
+  webhook delivery log, or ask again from a slightly older cursor.
