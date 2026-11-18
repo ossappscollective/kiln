@@ -62,6 +62,7 @@ their own plans; the web release page shows them side by side.
       "reasons": ["3 required items are not done.", "Release notes are missing for de-DE."]
     },
     "checklist": { "total": 10, "done": 5 },
+    "rollout": null,
     "items": [
       {
         "id": "i-1", "position": 0, "text": "Privacy policy URL is set and opens",
@@ -83,7 +84,10 @@ their own plans; the web release page shows them side by side.
   (today included) until the day is over; `overdue` is true once it is over. `daysLeft` counts whole
   days from today (UTC) to the date: 0 on the day, negative after. When the last sync saw this
   version `live` (`released: true`) both flags are false, since the deadline no longer matters.
-  No reminder or notification is sent; this is data only.
+  The flags are data; a reminder about a close or passed deadline is sent as an **event**
+  (`plan.deadline_due_soon`, `plan.deadline_overdue`, see [events](events.md#plan-reminders)), never
+  as email or a push notification. Checklist items have no due date of their own: the deadline of
+  the checklist is the plan's target date.
 - **Readiness** is a summary, not a gate: `ready` is true when every required item is done and the
   plan has at least one locale of release notes, all written (not empty) and within the limit.
   `reasons` says in plain sentences what is missing. The store runs its own checks too.
@@ -160,6 +164,107 @@ The limits come from `@mrm/core` (`releaseNotesLimit`, built on the listing rule
 
 (status `422`, and nothing is saved).
 
+## Staged rollout (planning data only)
+
+A plan can carry a **rollout plan**: the steps a person intends to take after the release (for
+example 1%, 5%, 20%, 50%, 100%), each with an optional planned time, a note and a status. **It is our
+own planning data. Nothing here starts, changes, pauses or stops a rollout in App Store Connect or
+Google Play, and nothing is read back into it by itself**: marking a step done only records that a
+person says so. The web UI says this on the card.
+
+| Method and path | Right | Purpose |
+| --- | --- | --- |
+| `GET /apps/:id/plans/:planId/rollout` | read | The rollout plan, with what the store last reported beside it |
+| `PUT /apps/:id/plans/:planId/rollout` | write | Set the plan (replaces the list of steps, or switches to Apple's phased release) |
+| `DELETE /apps/:id/plans/:planId/rollout` | write | Remove the rollout plan and its steps |
+| `POST …/rollout/steps/:stepId/complete` | write | Mark a step done. Optional body `{ "fromStore": true }`, see below |
+| `POST …/rollout/steps/:stepId/skip` | write | Skip an open step |
+| `POST …/rollout/steps/:stepId/reopen` | write | Put a done or skipped step back to planned |
+
+Every one answers `{ "rollout": … }`. The plan itself (`GET .../plans/:planId` and the lists) carries
+only a short `rollout` summary (`kind`, `total`, `done`, `skipped`, `planned`, `planPercent`,
+`current`, `next`, `dueSteps`, `nextPlannedAt`), `null` when there is no rollout plan.
+
+```json
+{
+  "rollout": {
+    "planningOnly": true,
+    "kind": "steps",
+    "template": "builtin:play-default",
+    "steps": [
+      { "id": "s-1", "position": 1, "percent": 5, "plannedAt": 1799668800000, "note": "watch crash rate",
+        "status": "done", "doneAt": 1799669000000, "doneBy": { "id": "u-2", "name": "Sam" },
+        "doneSource": "manual", "due": false },
+      { "id": "s-2", "position": 2, "percent": 20, "plannedAt": 1799755200000, "note": null,
+        "status": "planned", "doneAt": null, "doneBy": null, "doneSource": null, "due": false }
+    ],
+    "apple": null,
+    "summary": { "kind": "steps", "total": 2, "done": 1, "skipped": 0, "planned": 1, "planPercent": 5,
+                 "current": { "index": 1, "percent": 5 },
+                 "next": { "id": "s-2", "index": 2, "percent": 20, "plannedAt": 1799755200000 },
+                 "dueSteps": 0, "nextPlannedAt": 1799755200000 },
+    "store": { "platform": "android", "status": "rolling_out", "rawState": "inProgress", "fraction": 0.2,
+               "syncedAt": 1799670000000, "percent": 20, "inferred": false },
+    "comparison": { "verdict": "store_ahead", "mismatch": true, "planPercent": 5,
+                    "planStep": { "index": 1, "total": 2, "percent": 5 }, "storePercent": 20, "halted": false,
+                    "confirmStepId": "s-2",
+                    "message": "Store says 20%, ahead of the plan: the plan has step 1 of 2 (5%) done. You can confirm the next step from the store." }
+  }
+}
+```
+
+- **Kinds.** `null` (no rollout plan), `steps` or `apple_phased`. Times are epoch milliseconds like
+  everywhere else; `PUT` also accepts an ISO 8601 date-time with an offset.
+- **`PUT` body, kind `steps`:** `{ "kind": "steps", "template": "builtin:play-default", "steps":
+  [{ "id"?, "percent": 5, "plannedAt"?: …, "note"?: "…" }, …] }`. A step sent with an `id` keeps its
+  status, who completed it and when; a step without one is new and open; a stored step that is left
+  out is removed. `status`, `doneAt` and `doneBy` cannot be sent: they change only through the
+  step routes. `template` is optional and only records where the plan started (an unknown id, or one
+  that does not fit the app, is `422 template_not_found`).
+- **Rules** (`422 invalid_rollout` with `issues: [{ path, message }]`, `path` like `steps.2.percent`):
+  1 to 12 steps; each `percent` a whole number from 1 to 100, **strictly increasing** from one step
+  to the next (so only the last can be 100, and the steps are in percentage order); `plannedAt` a
+  real date-time **not before the plan was created** (a step that is already done keeps its time) and
+  not earlier than the step above it; `note` one line of at most 200 characters; a step that is
+  **done keeps its percentage and cannot be left out**; no open step may sit before a done step.
+- **Templates in code** (`@mrm/core`: `ROLLOUT_TEMPLATES`): `builtin:play-default` (1, 5, 20, 50,
+  100%; our suggestion, Play has no default and accepts any share), `builtin:immediate` (one step at
+  100%) and `builtin:apple-phased`. They are not stored per workspace and cannot be edited.
+- **Apple's phased release is informational.** Apple's schedule is fixed: **1, 2, 5, 10, 20, 50 and
+  100% of users with automatic updates on days 1 to 7** (App Store Connect Help, "Release a version
+  update in phases", checked when this was written; a phased release can also be paused for up to
+  30 days, and the developer can release to everyone at any time). So `kind: "apple_phased"` has **no
+  editable percentages and no steps**: `PUT { "kind": "apple_phased", "startsAt"?: … }` records the
+  expected day 1, and `apple.schedule` lists the seven days (`date` is the UTC calendar day when
+  `startsAt` is set). It is allowed only on an iOS app (`422 rollout_platform_mismatch`), and an iOS
+  app may otherwise only plan a single step at 100%, since custom percentages cannot be done there.
+  Switching from `steps` to the phased release needs the done steps reopened (`409
+  rollout_has_done_steps`). **Our connector does not read Apple's phased release** (see
+  [phase 2](../phase-2.md)), so for an iOS app the share Apple has reached is unknown: `store.percent`
+  is `null`, `comparison.verdict` is `unknown`, and nothing is inferred, not even for a version that
+  is `live`.
+- **Moving a step.** `complete` needs the earlier steps done or skipped (`409 earlier_steps_open`);
+  `skip` only works on an open step (`409 invalid_transition`); `reopen` needs no later step to be
+  done (`409 later_steps_done`). Asking for the state a step is already in is accepted and changes
+  nothing (no audit entry, no event). A step cannot move to the same state twice at once from two
+  places: the write is guarded by the old status (`409 step_changed`, reload and try again).
+  `409 no_rollout_steps` for a plan whose rollout is not `steps`.
+- **Store next to plan.** `store` is what the **last sync** saw of this version (the snapshot in
+  `app_releases`; no store call is made): on Google Play the production track, else a release that is
+  rolling out or live. `percent` is the reported `rolloutFraction` as a percent; a Play release that
+  is `live` with no share is 100% (`inferred: true`). `comparison` puts the plan's position (its last
+  step that is done) beside it: `match`, `store_ahead`, `store_behind` (the last two are
+  `mismatch: true`) or `unknown` (no synced release, no share, or Apple). A `halted` store state is
+  reported in `halted` and the message. `store` and `comparison` are `null` when the plan has no
+  rollout.
+- **Confirm from the store.** The plan never marks a step done by itself. When the store's share has
+  reached the first open step, `comparison.confirmStepId` names it and a person may call
+  `complete` with `{ "fromStore": true }`: the step becomes `done` with `doneSource: "store"`, but
+  only if the store's share is at least the step's percentage (`409 store_not_at_step`) and one is
+  known (`409 store_share_unknown`). A plain `complete` records `doneSource: "manual"`. The body is
+  optional (`{}` or none).
+- **Limits:** bodies of 32 KB; a rollout plan is one row on the plan plus at most 12 step rows.
+
 ## Checklist templates
 
 | Method and path | Purpose |
@@ -198,15 +303,27 @@ Bodies: 32 KB on plan, checklist and notes routes, 64 KB on template routes, 1 M
 
 `plan.create`, `plan.update`, `plan.delete`, `plan.apply_template`, `plan.notes_set`,
 `plan.notes_delete`, `checklist.item_add`, `checklist.item_update`, `checklist.item_delete`,
-`checklist.reorder`, `checklist_template.create`, `checklist_template.update` and
-`checklist_template.delete`, with the target `release_plan` (or `checklist_template`).
+`checklist.reorder`, `plan.rollout_set`, `plan.rollout_clear`, `plan.rollout_step_done`,
+`plan.rollout_step_skipped`, `plan.rollout_step_reopened`, `checklist_template.create`,
+`checklist_template.update` and `checklist_template.delete`, with the target `release_plan` (or
+`checklist_template`). A reminder sent by the server is audited as `plan.reminder` with the actor
+type `system` and id `plan.reminders` (a background job has no person; the sync job's `app.sync` is
+the same convention). `plan.rollout_set` records the kind, the template and the percentages, never a
+note.
 `plan.notes_set` records the locale and the length of the text, never the text; `checklist.item_add`
 records the text of the new item. A change that changes nothing, and a refused request, writes no
-event. No webhook or notification is emitted.
+audit entry. Moving a rollout step and the reminders also emit events (`plan.rollout_step_done`,
+`plan.rollout_step_skipped`, `plan.rollout_step_reopened`, `plan.deadline_due_soon`,
+`plan.deadline_overdue`, `plan.rollout_step_due`): see [events](events.md). Nothing else here emits
+an event, and no email or push notification exists.
 
 ## Data
 
 Tables `release_plans`, `checklist_items`, `release_notes` and `checklist_templates` (migration 11 when this was written; see `packages/db/src/migrations.ts`).
+Migration 15 adds `release_plans.rollout_kind`, `rollout_template` and `rollout_start_at`, the table
+`plan_rollout_steps` (a row per step, so a step's state change is one guarded `UPDATE` and the
+reminder scan finds due steps by an index instead of parsing every plan) and `plan_reminders` (the
+reminder log, below). Postgres has **not** run them.
 `release_plans.app_id` has no foreign key, so deleting an app stays possible; the plans of a deleted
 app are not shown. `purgePlansOfApp` in `apps/server/src/services/plans.ts` removes them and is
 meant to be called from the app deletion (it is not wired in yet).

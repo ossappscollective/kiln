@@ -7,7 +7,7 @@ when the server starts.
 
 Rights: `events.read` (every role). What you see depends on what you may read: `app.*` events need
 `apps.read`, `changeset.*` need `repositories.read`, `credential.*` need `credentials.read` (owner,
-admin, member). An API token sees the same as its ceiling allows, and a token limited to some apps
+admin, member), `plan.*` need `plans.read` (every role). An API token sees the same as its ceiling allows, and a token limited to some apps
 sees only events about those apps; see [tokens](tokens.md). A non-member gets 404.
 
 ## Event shape
@@ -42,12 +42,46 @@ sees only events about those apps; see [tokens](tokens.md). A non-member gets 40
 | `changeset.applied` | A change set was applied: a pull request was opened. | `changeSetId`, `branch`, `prNumber`, `prUrl`, `commitSha`, `actor` |
 | `changeset.failed` | Applying failed or timed out. | `changeSetId`, `reason`, `actor` |
 | `credential.test_failed` | A credential test failed (a saved credential, or a secret tested before saving). A passing test is not an event. | `credentialId` (null when not saved), `kind`, `saved`, `actor` |
+| `plan.rollout_step_done` | A person marked a step of a plan's rollout plan done (planning data; nothing was changed in a store). Asking again for a step that is already done is not an event. | `planId`, `appId`, `version`, `stepId`, `index`, `total`, `percent`, `source` (`manual`, or `store` when confirmed from the store's share), `actor`. Subject has `appId`. |
+| `plan.rollout_step_skipped` | A step was skipped. | as above, without `source` |
+| `plan.rollout_step_reopened` | A done or skipped step was put back to planned. | as above, without `source` |
+| `plan.deadline_due_soon` | A reminder: the target date of an open plan is within the lead time (24 hours before the end of the day, UTC, by default). Sent once per plan and date. | `planId`, `appName`, `platform`, `version`, `targetDate`, `hoursLeft`, `blocked`, `openRequiredItems`, `actor` (`system`, `plan.reminders`). Subject has `appId`. |
+| `plan.deadline_overdue` | A reminder: the target day is over and the plan is still open. Sent once per plan and date; not sent for a deadline more than 30 days past. | `planId`, `appName`, `platform`, `version`, `targetDate`, `daysOverdue`, `blocked`, `openRequiredItems`, `actor` |
+| `plan.rollout_step_due` | A reminder: the planned time of a rollout step has passed and the step is still open. Sent once per step and planned time; not sent more than 30 days late. | `planId`, `appName`, `platform`, `version`, `stepId`, `index`, `total`, `percent`, `plannedAt`, `minutesLate`, `actor` |
 
 `actor` is `{ "type": "user" | "token" | "system", "id": "..." }`. The first sync of an app is a
 quiet baseline: it emits `app.synced` but no status changes.
 
 Events for change sets and credential tests are derived from the audit log at the moment the audited
-change is written, in the same transaction, so an event exists exactly when the change does.
+change is written, in the same transaction, so an event exists exactly when the change does. The
+rollout step events are written in the transaction that moves the step.
+
+## Plan reminders
+
+The three reminder types are sent by the server's own scheduler, not by a person, so their `actor`
+is `{ "type": "system", "id": "plan.reminders" }` (and the audit entry `plan.reminder` has the same
+actor, like the background sync). **They are events only: there is no email and no push
+notification.** A reminder reaches a person through a [webhook](webhooks.md) receiver, the event
+stream or a script that reads this log, and the web UI shows the same things as a "Due soon and
+overdue" strip on the board and on the plan.
+
+- **What is reminded.** The deadline of an open plan (its target date; checklist items have no
+  due date of their own, so the checklist's deadline is the plan's) and the rollout steps of an open
+  plan whose `plannedAt` has passed while still open. A plan whose version the last sync saw `live`
+  is not open. A plan with a deadline or step more than 30 days past is not reminded about.
+- **Once.** Each reminder is written once under the key (plan, item, kind, date or planned time) in
+  the table `plan_reminders`: an `INSERT … ON CONFLICT DO NOTHING` in the same transaction as the
+  event. A second tick, a restart, or a second server instance sharing the same database cannot send it
+  again, and that unique key is the only lock. **Changing the date (or a step's planned time) arms it
+  again**, because the key changes.
+- **When.** Every `MRM_REMINDER_INTERVAL_MINUTES` (default 15; `0` is off; 5 to 10080), in the
+  process that runs the scheduler (`MRM_WORKER=inline`, the default). Each run sends at most 100
+  reminders; the rest wait for the next run. The lead time of "due soon" is 24 hours before the end
+  of the target day (UTC); there is no workspace setting for it yet, only the `leadHours` option of
+  the code.
+- **Upgrade note.** The first run after an upgrade sends `plan.deadline_overdue` once for each open
+  plan whose deadline passed in the last 30 days.
+
 
 ## `GET /api/workspaces/:wid/events`
 
