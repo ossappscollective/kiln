@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Entitlements for the signed macOS app. See docs/adr/0004-desktop-sidecar.md.
+     Tauri signs the app and the bundled Node binary with the hardened runtime. V8 needs to
+     generate machine code, which the hardened runtime forbids unless these are granted.
+     Start with these two (the set Node's own macOS build grants, minus debugging ones) and
+     try removing allow-unsigned-executable-memory once a notarized build has been tested. -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>

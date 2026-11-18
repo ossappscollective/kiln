@@ -1,4 +1,5 @@
 // UNCOMPILED: this file was written without a Rust toolchain and has never been built or run.
+// That includes the packaged-server code (`packaged_server`, `use_packaged`), added for ADR 0004.
 // Expect to fix small compile errors (Tauri v2 API names, borrow details) on first `cargo check`.
 // It is meant to be small and conservative, so the fixes should be too.
 //
@@ -17,9 +18,13 @@
 //      cookie and redirects to /,
 //   6. stops the server when the app exits.
 //
-// The server is started with `node apps/server/src/index.ts` from the repository checkout. That
-// is a development stand-in. Shipping the server inside the installer (no Node on the user's
-// machine) is the sidecar spike, and replaces `spawn_server` only. Nothing else here changes.
+// Release builds start the packaged server: the Node binary is a Tauri sidecar (`externalBin`
+// "binaries/mrm-node") and the server is a resource folder, both staged by
+// apps/desktop/scripts/prepare-sidecar.mjs (docs/adr/0004-desktop-sidecar.md). Debug builds run
+// `node apps/server/src/index.ts` from the repository checkout. Only `spawn_server` differs.
+//
+// The sidecar is started with std::process::Command, not the Tauri shell plugin, so no
+// `shell:*` permission exists for any page to use, and stdin can be closed for a clean stop.
 //
 // The window is created in code, not in tauri.conf.json (`windows` is empty there), because its
 // URL contains the secret and the port, which only exist at run time. The page it loads is a
@@ -101,34 +106,81 @@ fn free_port() -> BoxResult<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-/// DEVELOPMENT STAND-IN for the sidecar spike: runs the TypeScript sources with the system Node.
-/// Set MRM_NODE to use a specific Node binary (a macOS app started from Finder has a short PATH).
-fn spawn_server(data_dir: &Path, port: u16, secret: &str, master_key: &str) -> BoxResult<Child> {
-    // apps/desktop/src-tauri -> repository root. Fixed at compile time, so dev builds only.
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let entry = root.join("apps/server/src/index.ts");
-    if !entry.exists() {
-        return Err(format!("server entry not found at {}", entry.display()).into());
+/// The packaged server, as laid out by `scripts/prepare-sidecar.mjs` and the Tauri bundler
+/// (docs/adr/0004-desktop-sidecar.md). The Node binary is the sidecar `mrm-node`: the bundler
+/// puts it next to this executable (Contents/MacOS on macOS) with the target triple removed. The
+/// server files are the `server` resource folder. Returns (node, launcher, web UI folder), or
+/// None when they are not there.
+fn packaged_server(app: &tauri::AppHandle) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?;
+    let node = exe_dir.join(if cfg!(windows) { "mrm-node.exe" } else { "mrm-node" });
+    let server_dir = app.path().resource_dir().ok()?.join("server");
+    let launcher = server_dir.join("launcher.mjs");
+    if node.exists() && launcher.exists() {
+        Some((node, launcher, server_dir.join("web")))
+    } else {
+        None
     }
-    let node = std::env::var("MRM_NODE").unwrap_or_else(|_| "node".to_string());
+}
 
-    let mut command = Command::new(node);
+/// Starts the server. Release builds run the packaged server (own Node binary, no Node needed on
+/// the user's machine). Debug builds run the repository sources with the system Node, so editing
+/// the server needs no re-staging; set MRM_USE_PACKAGED_SERVER=1 to test the packaged one in
+/// `tauri dev`. In the repository case, MRM_NODE picks a specific Node binary (a macOS app
+/// started from Finder has a short PATH).
+fn spawn_server(
+    app: &tauri::AppHandle,
+    data_dir: &Path,
+    port: u16,
+    secret: &str,
+    master_key: &str,
+) -> BoxResult<Child> {
+    let use_packaged =
+        !cfg!(debug_assertions) || std::env::var_os("MRM_USE_PACKAGED_SERVER").is_some();
+
+    let mut command = if use_packaged {
+        let (node, launcher, web) = packaged_server(app).ok_or(
+            "the packaged server is missing; run apps/desktop/scripts/prepare-sidecar.mjs before building",
+        )?;
+        let mut command = Command::new(node);
+        command
+            .arg("--disable-warning=ExperimentalWarning")
+            .arg(launcher)
+            .current_dir(data_dir)
+            .env("MRM_WEB_DIST", web);
+        command
+    } else {
+        // apps/desktop/src-tauri -> repository root. Fixed at compile time, so dev builds only.
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let entry = root.join("apps/server/src/index.ts");
+        if !entry.exists() {
+            return Err(format!("server entry not found at {}", entry.display()).into());
+        }
+        let node = std::env::var("MRM_NODE").unwrap_or_else(|_| "node".to_string());
+        let mut command = Command::new(node);
+        command
+            .arg("--disable-warning=ExperimentalWarning")
+            .arg(&entry)
+            .current_dir(&root)
+            .env("MRM_WEB_DIST", root.join("apps/web/dist"));
+        command
+    };
+
     command
-        .arg("--disable-warning=ExperimentalWarning")
-        .arg(&entry)
-        .current_dir(&root)
         .env("MRM_MODE", "single_user")
         .env("MRM_LAUNCH_SECRET", secret)
         .env("MRM_MASTER_KEY", master_key)
         .env("PORT", port.to_string())
         .env("MRM_DATA_DIR", data_dir)
         .env("DATABASE_URL", format!("file:{}", data_dir.join("mrm.db").display()))
-        .env("MRM_WEB_DIST", root.join("apps/web/dist"))
         .env("MRM_WORKER", "inline")
         // The server watches its stdin and exits when it closes, so it stops even if this
         // process is killed without running its exit handler.
         .env("MRM_EXIT_WITH_PARENT", "1")
         .env_remove("MRM_TRUSTED_ORIGINS")
+        // The app may be started from a shell that exports Node options; do not pass them on.
+        .env_remove("NODE_OPTIONS")
         .stdin(Stdio::piped());
 
     #[cfg(windows)]
@@ -201,7 +253,7 @@ fn main() {
             let secret = hex(&random_bytes(32)?);
             let master_key = load_or_create_master_key(&data_dir)?;
             let port = free_port()?;
-            let child = spawn_server(&data_dir, port, &secret, &master_key)?;
+            let child = spawn_server(app.handle(), &data_dir, port, &secret, &master_key)?;
             app.manage(ServerChild(Mutex::new(Some(child))));
 
             // Wait off the main thread, then open the window on the launch URL.
