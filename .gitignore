@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+.env
+.env.local
+*.log
+.DS_Store
+.mrm-data/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
+*.bak

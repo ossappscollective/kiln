@@ -1,0 +1,50 @@
+# Staged copy of the GitHub Actions workflow. Move it to .github/workflows/ci.yml to use it
+# (that folder is not edited from here). Differences from the current workflow: the check job has
+# a Postgres 17 service, and the tests run against it as well as SQLite.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mrm_test
+          POSTGRES_PASSWORD: mrm_test
+          POSTGRES_DB: mrm_test
+        ports:
+          - 5432:5432
+        # Wait until the server accepts connections before the steps start.
+        options: >-
+          --health-cmd "pg_isready -U mrm_test -d mrm_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # With this set, the db and server tests run on Postgres as well as on SQLite.
+      MRM_TEST_POSTGRES_URL: postgres://mrm_test:mrm_test@localhost:5432/mrm_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # Switch to --frozen-lockfile once pnpm-lock.yaml is committed.
+      - run: pnpm install
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mrm:ci .

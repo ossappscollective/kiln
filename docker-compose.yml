@@ -1,0 +1,34 @@
+# One command: cp .env.example .env, set MRM_MASTER_KEY, then `docker compose up --build`.
+services:
+  app:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      DATABASE_URL: postgres://mrm:mrm@db:5432/mrm
+      MRM_MASTER_KEY: ${MRM_MASTER_KEY:?Set MRM_MASTER_KEY in .env (openssl rand -base64 32)}
+      MRM_DATA_DIR: /data
+      MRM_WEB_DIST: apps/web/dist
+    volumes:
+      - mrm-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: mrm
+      POSTGRES_PASSWORD: mrm
+      POSTGRES_DB: mrm
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mrm -d mrm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mrm-data:
+  pg-data:
