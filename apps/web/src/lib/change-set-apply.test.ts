@@ -15,9 +15,11 @@ import {
   localOnlyNotice,
   normalizeChoice,
   openPrAvailability,
+  outcomeSignature,
   outcomeSteps,
   pushAvailability,
   retryOptions,
+  signingNote,
   switchHint,
 } from './change-set-apply.ts';
 import type { ChangeSetView, LocalOutcome } from './types.ts';
@@ -217,4 +219,39 @@ test('the local-only note says what apply does, and how to turn writing on when 
   assert.match(off.text, /MRM_LOCAL_REPO_WRITE=true/);
   assert.match(localOnlyNotice(null).text, /MRM_LOCAL_REPO_WRITE=true/);
   for (const note of [on, off]) assert.doesNotMatch(`${note.title} ${note.text}`, /not available yet|cannot be applied yet/);
+});
+
+// ----- signing -----------------------------------------------------------------------------------
+
+test('the Apply dialog says whether the commit will be signed, and how; nothing when the server did not say', () => {
+  assert.deepEqual(signingNote({ enabled: true, format: 'ssh' }), { signed: true, text: 'The commit will be signed (ssh).' });
+  assert.equal(signingNote({ enabled: true, format: 'gpg' })?.text, 'The commit will be signed (gpg).');
+  assert.equal(signingNote({ enabled: true })?.text, 'The commit will be signed.');
+  assert.deepEqual(signingNote({ enabled: false }), { signed: false, text: 'Commits are not signed (set MRM_GIT_SIGN to enable).' });
+  assert.equal(signingNote(null), null);
+  assert.equal(signingNote(undefined), null, 'an older server has no signing field');
+});
+
+test('the explanation of a local commit no longer says that signing never runs', () => {
+  assert.doesNotMatch(APPLY_LOCAL_EXPLANATION, /signing do not run/i);
+  assert.match(APPLY_LOCAL_EXPLANATION, /Hooks do not run/);
+});
+
+test('a signed outcome has a badge and a tip that says Verified depends on the GitHub account; an unsigned one has neither', () => {
+  const signed = outcomeSignature({ signature: { status: 'signed', format: 'ssh' } });
+  assert.equal(signed?.label, 'Signed (ssh)');
+  assert.match(signed?.tip ?? '', /Verified/);
+  assert.match(signed?.tip ?? '', /signing key/);
+  assert.match(signed?.tip ?? '', /not checked here/, 'it does not claim the signature was verified');
+  const gpg = outcomeSignature({ signature: { status: 'signed', format: 'gpg' } });
+  assert.equal(gpg?.label, 'Signed (gpg)');
+  assert.match(gpg?.tip ?? '', /GPG key/);
+  assert.equal(outcomeSignature({}), null);
+  assert.equal(outcomeSignature(null), null);
+});
+
+test('signing does not change what can be applied or pushed', () => {
+  const signedContext: ApplyContext = { ...github, signing: { enabled: true, format: 'ssh' } };
+  assert.deepEqual(localBranchAvailability(signedContext), localBranchAvailability(github));
+  assert.deepEqual(pushAvailability(signedContext), pushAvailability(github));
 });

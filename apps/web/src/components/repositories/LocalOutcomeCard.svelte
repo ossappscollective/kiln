@@ -7,7 +7,7 @@
   busy (the id of the retry that is running, or ''), onretry (called with the option).
 -->
 <script lang="ts">
-  import { type RetryOption, outcomeSteps, switchHint } from '../../lib/change-set-apply.ts';
+  import { type RetryOption, outcomeSignature, outcomeSteps, switchHint } from '../../lib/change-set-apply.ts';
   import { isWebUrl } from '../../lib/credentials.ts';
   import { prLabel } from '../../lib/repositories.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
@@ -31,6 +31,7 @@
 
   const outcome = $derived(changeSet.outcome);
   const steps = $derived(outcome ? outcomeSteps(outcome) : []);
+  const signature = $derived(outcomeSignature(outcome));
   const hint = $derived(outcome ? switchHint(outcome.commit.branch) : '');
   const problem = $derived(steps.some((step) => step.tone === 'bad'));
 </script>
@@ -57,10 +58,16 @@
                 <ExternalLink href={changeSet.prUrl} label={prLabel(changeSet)} />
               {/if}
               {#if step.detail}<span class="detail">{step.detail}</span>{/if}
+              {#if step.id === 'commit' && signature}
+                <Badge tone="ok">{signature.label}</Badge>
+              {/if}
             </span>
           </li>
         {/each}
       </ul>
+      {#if signature}
+        <p class="muted small">{signature.tip}</p>
+      {/if}
 
       {#if options.length > 0}
         <div class="row wrap">

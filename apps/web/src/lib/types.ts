@@ -136,9 +136,14 @@ export type LocalConfig = {
   roots?: string[];
   /** Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE), and if not, why not. */
   write: LocalWriteConfig;
+  /** Absent from an older server. */
+  signing?: LocalSigningConfig;
 };
 
 export type LocalWriteConfig = { enabled: boolean; envName: string; message?: string };
+
+/** Whether the server signs the commits it makes in a local clone (MRM_GIT_SIGN), and how. Never the key or where it is. */
+export type LocalSigningConfig = { enabled: boolean; format?: 'ssh' | 'gpg' };
 
 /** What `POST /repositories/local/check` found in a folder. */
 export type LocalCheck = {
@@ -323,6 +328,8 @@ export type LocalOutcome = {
   base: { branch: string; commit: string };
   commit: { branch: string; sha: string; at: number };
   requested: { push: boolean; openPr: boolean };
+  /** Present when the commit was signed with the server's key. Signed, not verified. */
+  signature?: { status: 'signed'; format: 'ssh' | 'gpg' };
   push: { status: 'not_requested' | 'pushed' | 'failed'; at?: number; code?: string; error?: string };
   pr: {
     status: 'not_requested' | 'opened' | 'failed' | 'skipped';

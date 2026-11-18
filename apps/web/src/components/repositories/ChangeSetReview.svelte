@@ -5,7 +5,8 @@
   onback (back to the list), onchanged (called after any state change, so the list can refresh),
   localOnly? (the repository is a local folder with no GitHub: Apply can only commit to a branch of
   the folder), hasLocalClone? (a folder is attached), write? (the server's setting for writing to
-  local clones, null while it loads).
+  local clones, null while it loads), signing? (whether the server signs those commits, null while it
+  loads).
   Nothing is written to the repository except by Apply: a branch and a pull request on GitHub, or a
   commit on a new branch of the local clone (which does not touch its checked out branch). The
   result of a local commit is shown step by step, and a failed push or pull request can be retried.
@@ -37,7 +38,7 @@
     prLabel,
   } from '../../lib/repositories.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { ChangeSetView } from '../../lib/types.ts';
+  import type { ChangeSetView, LocalSigningConfig } from '../../lib/types.ts';
   import ExternalLink from '../credentials/ExternalLink.svelte';
   import ApplyDialog from './ApplyDialog.svelte';
   import LocalOutcomeCard from './LocalOutcomeCard.svelte';
@@ -61,6 +62,7 @@
     localOnly = false,
     hasLocalClone = false,
     write = null,
+    signing = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -73,6 +75,7 @@
     localOnly?: boolean;
     hasLocalClone?: boolean;
     write?: WriteConfig;
+    signing?: LocalSigningConfig | null;
   } = $props();
 
   let changeSet = $state<ChangeSetView | null>(null);
@@ -123,7 +126,7 @@
     return () => clearInterval(timer);
   });
 
-  const applyContext = $derived({ localOnly, hasLocalClone: hasLocalClone || localOnly, write });
+  const applyContext = $derived({ localOnly, hasLocalClone: hasLocalClone || localOnly, write, signing });
   const actions = $derived(
     changeSet
       ? changeSetActions({ role, status: changeSet.status, createdBy: changeSet.createdBy, myId })

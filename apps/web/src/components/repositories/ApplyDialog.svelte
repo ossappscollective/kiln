@@ -24,6 +24,7 @@
     normalizeChoice,
     openPrAvailability,
     pushAvailability,
+    signingNote,
   } from '../../lib/change-set-apply.ts';
   import { filesChangedLabel } from '../../lib/repositories.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
@@ -62,6 +63,7 @@
   const localBranch = $derived(localBranchAvailability(context));
   const push = $derived(pushAvailability(context));
   const openPr = $derived(openPrAvailability(context, choice.push));
+  const signing = $derived(signingNote(context.signing));
   const effective = $derived(normalizeChoice(choice, context));
   const blocker = $derived(applyBlocker(effective, context));
   const branchError = $derived(choice.mode === 'local_branch' ? (branchNameProblem(choice.branch) ?? undefined) : undefined);
@@ -128,6 +130,10 @@
         disabled={busy || !localBranch.available}
       />
 
+      {#if signing}
+        <p class="muted small signing" class:signed={signing.signed} id="{uid}-signing-note">{signing.text}</p>
+      {/if}
+
       <div class="stack tight">
         <label class="check tops" class:off={!push.available}>
           <input type="checkbox" bind:checked={choice.push} disabled={busy || !push.available} aria-describedby="{uid}-push-note" />
@@ -189,6 +195,14 @@
 
   .off {
     opacity: 0.75;
+  }
+
+  .signing {
+    margin: 0;
+  }
+
+  .signing.signed {
+    color: var(--ok-ink);
   }
 
   .option-text {

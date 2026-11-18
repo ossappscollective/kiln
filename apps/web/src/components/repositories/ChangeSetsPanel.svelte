@@ -85,6 +85,7 @@
     localOnly={repository.localOnly}
     hasLocalClone={repository.local !== null}
     write={localConfig?.write ?? null}
+    signing={localConfig?.signing ?? null}
   />
 {:else if error}
   <div class="stack">

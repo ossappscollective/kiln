@@ -5,7 +5,7 @@
  * screen from offering what the server will refuse, and says why in words.
  */
 import { type Role, can } from '@mrm/core';
-import type { ChangeSetView, LocalOutcome, LocalWriteConfig } from './types.ts';
+import type { ChangeSetView, LocalOutcome, LocalSigningConfig, LocalWriteConfig } from './types.ts';
 
 export type ApplyMode = 'github_pr' | 'local_branch';
 
@@ -18,11 +18,14 @@ export type ApplyContext = {
   /** A folder on the server is attached (always true for a local-only repository). */
   hasLocalClone: boolean;
   write: WriteConfig;
+  /** What the server says about signing (`GET /repositories/local/config`); null or absent when unknown. */
+  signing?: LocalSigningConfig | null;
 };
 
 export type Availability = { available: boolean; reason?: string };
 
 export const WRITE_ENV_NAME = 'MRM_LOCAL_REPO_WRITE';
+export const SIGN_ENV_NAME = 'MRM_GIT_SIGN';
 
 const unavailable = (reason: string): Availability => ({ available: false, reason });
 const ok: Availability = { available: true };
@@ -257,13 +260,43 @@ export function applyDoneMessage(changeSet: Pick<ChangeSetView, 'outcome'>, alre
   return `Committed to ${outcome.commit.branch} in the local clone.`;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Signing
+
+/**
+ * The line the Apply dialog shows about signing, or null when the server did not say (an older
+ * server). The server decides and signs with its own key; this only tells the person which it is.
+ */
+export function signingNote(signing: LocalSigningConfig | null | undefined): { signed: boolean; text: string } | null {
+  if (!signing) return null;
+  if (signing.enabled) {
+    return { signed: true, text: `The commit will be signed${signing.format ? ` (${signing.format})` : ''}.` };
+  }
+  return { signed: false, text: `Commits are not signed (set ${SIGN_ENV_NAME} to enable).` };
+}
+
+/**
+ * The badge and the tip for a commit that was signed, or null for one that was not. It says
+ * "signed": nothing here has checked the signature. GitHub shows "Verified" only when the public
+ * key is on the committer's account as a signing key, and the commit's email is one of theirs.
+ */
+export function outcomeSignature(outcome: Pick<LocalOutcome, 'signature'> | null): { label: string; tip: string } | null {
+  const signature = outcome?.signature;
+  if (!signature || signature.status !== 'signed') return null;
+  const key = signature.format === 'gpg' ? 'public GPG key' : 'public SSH key (as a signing key, not only an authentication key)';
+  return {
+    label: `Signed (${signature.format})`,
+    tip: `GitHub shows "Verified" on this commit only if the ${key} is added to your GitHub account, and the commit's email is a verified email of that account. The signature is not checked here.`,
+  };
+}
+
 /** What a failed or skipped step of the last apply means for the retry buttons, for a screen reader. */
 export const outcomeHasProblem = (outcome: LocalOutcome | null): boolean =>
   outcome !== null && (outcome.push.status === 'failed' || outcome.pr.status === 'failed');
 
 /** Words for Apply when the change set is only applicable as a local commit. */
 export const APPLY_LOCAL_EXPLANATION =
-  'This writes one commit to a new branch of the local clone on the server. Your checked out branch, the working folder and the index are not touched, so nothing you have open changes. Hooks and commit signing do not run. Look at it later with git switch.';
+  'This writes one commit to a new branch of the local clone on the server. Your checked out branch, the working folder and the index are not touched, so nothing you have open changes. Hooks do not run. Look at it later with git switch.';
 
 /**
  * The note on a local-only repository (the Local clone card, the connect dialog): what applying a
