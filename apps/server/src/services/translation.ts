@@ -318,7 +318,10 @@ export async function translateText(
     const blocked = built.guard?.blocked();
     const out = failureForKind(kind, provider, error instanceof TranslateError ? error.retryAfterSeconds : undefined);
     // A refused address says so (a fixed sentence about the rule, never the address).
-    return blocked ? { ...out, body: { ...out.body, reason: 'address_not_allowed', detail: blocked } } : out;
+    if (blocked) return { ...out, body: { ...out.body, reason: 'address_not_allowed', detail: blocked } };
+    // A fixed hint such as http_404 or connection, so a broken setup can be told apart (never provider text).
+    const hint = error instanceof TranslateError ? error.detail : undefined;
+    return hint ? { ...out, body: { ...out.body, reason: hint } } : out;
   }
 
   misses.forEach((index, n) => {
