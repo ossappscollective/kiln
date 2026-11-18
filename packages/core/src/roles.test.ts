@@ -25,8 +25,16 @@ test('members read but never change credentials or members', () => {
   assert.equal(can('member', 'members.manage'), false);
 });
 
-test('viewers only read the workspace, repositories, apps, listings, plans and events', () => {
-  const reads = ['workspace.read', 'repositories.read', 'apps.read', 'listing.read', 'plans.read', 'events.read'];
+test('viewers only read the workspace, repositories, apps, listings, plans, reviews and events', () => {
+  const reads = [
+    'workspace.read',
+    'repositories.read',
+    'apps.read',
+    'listing.read',
+    'plans.read',
+    'reviews.read',
+    'events.read',
+  ];
   for (const action of reads) assert.equal(can('viewer', action as never), true, action);
   for (const action of actions.filter((a) => !reads.includes(a))) {
     assert.equal(can('viewer', action), false, action);
@@ -139,4 +147,20 @@ test('lowerRole picks the weaker of two roles', () => {
   assert.equal(lowerRole('admin', 'member'), 'member');
   assert.equal(lowerRole('member', 'owner'), 'member');
   assert.equal(lowerRole('viewer', 'viewer'), 'viewer');
+});
+
+test('reviews: everyone reads, members sync and triage, nothing can reply to a store', () => {
+  for (const role of roles) assert.equal(can(role, 'reviews.read'), true, role);
+  for (const action of ['reviews.sync', 'reviews.triage'] as const) {
+    assert.equal(can('viewer', action), false, action);
+    assert.equal(can('member', action), true, action);
+    assert.equal(can('admin', action), true, action);
+  }
+  // Replying to a review is a store write and has no action at all (see docs/api/reviews.md).
+  assert.ok(!actions.some((a) => /^reviews\./.test(a) && !['reviews.read', 'reviews.sync', 'reviews.triage'].includes(a)));
+  // All three can be given to an API token.
+  for (const action of ['reviews.read', 'reviews.sync', 'reviews.triage'] as const) {
+    assert.equal(canToken('member', null, action), true, action);
+  }
+  assert.equal(canToken('viewer', null, 'reviews.triage'), false);
 });

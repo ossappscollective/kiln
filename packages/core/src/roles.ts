@@ -24,6 +24,9 @@ export const actions = [
   'ci.dispatch',
   'plans.read',
   'plans.write',
+  'reviews.read',
+  'reviews.sync',
+  'reviews.triage',
   'tokens.read',
   'tokens.manage',
   'webhooks.read',
@@ -49,9 +52,20 @@ const allowed: Record<Role, readonly Action[]> = {
     'ci.dispatch',
     'plans.read',
     'plans.write',
+    'reviews.read',
+    'reviews.sync',
+    'reviews.triage',
     'events.read',
   ],
-  viewer: ['workspace.read', 'repositories.read', 'apps.read', 'listing.read', 'plans.read', 'events.read'],
+  viewer: [
+    'workspace.read',
+    'repositories.read',
+    'apps.read',
+    'listing.read',
+    'plans.read',
+    'reviews.read',
+    'events.read',
+  ],
 };
 
 export function isRole(value: unknown): value is Role {
