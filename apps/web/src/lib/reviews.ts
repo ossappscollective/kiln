@@ -1,4 +1,5 @@
 import { ApiError } from './api.ts';
+import type { ReplyDraft, ReplyState } from './review-reply.ts';
 
 /**
  * Customer reviews of an app: types of the API (docs/api/reviews.md) and the pure logic of the
@@ -37,6 +38,10 @@ export type Review = {
   internalNote: string | null;
   statusChangedAt: number | null;
   statusChangedBy: string | null;
+  /** The reply draft (the text is included), or null. Absent in answers of a server without replies. */
+  replyDraft?: ReplyDraft | null;
+  /** Where the reply stands: `none`, or the status of the draft. */
+  reply?: ReplyState;
 };
 
 export type ReviewsPage = { reviews: Review[]; nextCursor: string | null };
@@ -138,10 +143,6 @@ export const sortLabels: Record<ReviewSort, string> = {
 
 export const storeLabel = (store: string): string =>
   store === 'appstoreconnect' ? 'App Store' : store === 'googleplay' ? 'Google Play' : store;
-
-/** The sentence that must stay on the tab: replying is not part of this tool. */
-export const NO_REPLY_NOTE =
-  'Replying to reviews is not available here. A reply is a write to the store and this tool only reads reviews. Answer in App Store Connect or Google Play Console, then mark the review “Replied in store console” to keep this list accurate.';
 
 // ---------------------------------------------------------------------------------------------
 // Stars, text
@@ -489,3 +490,264 @@ export function reviewErrorMessage(error: unknown, action: 'load' | 'sync' | 'tr
 
 /** Whether a rating counts as low for this app (the server's threshold). */
 export const isLowRating = (rating: number, threshold: number): boolean => rating <= threshold;
+
+// ---------------------------------------------------------------------------------------------
+// The workspace-wide inbox (GET /reviews): every app in one list
+
+export type InboxApp = { id: string; name: string; platform: 'ios' | 'android' };
+export type InboxReview = Review & { app: InboxApp };
+export type InboxPage = { reviews: InboxReview[]; nextCursor: string | null };
+
+export type SummaryApp = {
+  app: { id: string; name: string; platform: 'ios' | 'android'; store: ReviewStore };
+  total: number;
+  new: number;
+  unanswered: number;
+  lowRating: number;
+  average: number | null;
+  oldestAt: number | null;
+  newestAt: number | null;
+};
+
+/** `GET /reviews/summary`: counts only, no review text. `label` says what the numbers are computed from. */
+export type WorkspaceReviewsSummary = {
+  basis: 'stored_reviews';
+  label: string;
+  lowRatingThreshold: number;
+  apps: SummaryApp[];
+  totals: { total: number; new: number; unanswered: number; lowRating: number; average: number | null };
+};
+
+export type InboxFilters = ReviewFilters & {
+  /** Only these apps; empty is every app. */
+  appIds: string[];
+  platform: '' | 'ios' | 'android';
+  /** '' anyone, 'me', 'unassigned' or a member's user id. */
+  assignee: string;
+  /** '' any time, or '7', '30', '90' days. The `since` of the request is worked out when it is sent. */
+  within: '' | '7' | '30' | '90';
+};
+
+export const defaultInboxFilters = (): InboxFilters => ({
+  ...defaultFilters(),
+  appIds: [],
+  platform: '',
+  assignee: '',
+  within: '',
+});
+
+export function hasActiveInboxFilters(f: InboxFilters): boolean {
+  return (
+    hasActiveFilters({ ...f, since: null }) ||
+    f.appIds.length > 0 ||
+    f.platform !== '' ||
+    f.assignee !== '' ||
+    f.within !== ''
+  );
+}
+
+const WITHIN_DAYS: Record<string, number> = { '7': 7, '30': 30, '90': 90 };
+const DAY = 24 * 60 * 60 * 1000;
+
+export const withinChoices: { id: InboxFilters['within']; label: string }[] = [
+  { id: '', label: 'Any time' },
+  { id: '7', label: 'Last 7 days' },
+  { id: '30', label: 'Last 30 days' },
+  { id: '90', label: 'Last 90 days' },
+];
+
+/** The query string for `GET /reviews`. `now` turns "last 30 days" into a `since`. */
+export function inboxFiltersToQuery(
+  f: InboxFilters,
+  now: number,
+  options: { cursor?: string | null; limit?: number } = {},
+): string {
+  const days = WITHIN_DAYS[f.within];
+  const params = new URLSearchParams(
+    filtersToQuery({ ...f, since: days === undefined ? null : now - days * DAY }, options),
+  );
+  if (f.appIds.length > 0) params.set('appIds', f.appIds.join(','));
+  if (f.platform !== '') params.set('platform', f.platform);
+  if (f.assignee === 'unassigned') params.set('unassigned', 'true');
+  else if (f.assignee !== '') params.set('assignee', f.assignee);
+  return params.toString();
+}
+
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
+const reviewStatuses: readonly string[] = statusOrder;
+const sorts: readonly string[] = ['newest', 'rating', 'updated'];
+
+/**
+ * The filters in the page address, so a view can be bookmarked and shared: `#/reviews?rating=1,2&apps=ID`.
+ * Only what differs from the defaults is written. Nothing from a review goes in; the search words are
+ * the person's own, and are kept to 100 characters.
+ */
+export function inboxFiltersToSearch(f: InboxFilters): string {
+  const params = new URLSearchParams();
+  if (f.appIds.length > 0) params.set('apps', f.appIds.join(','));
+  if (f.platform !== '') params.set('platform', f.platform);
+  if (f.ratings.length > 0) params.set('rating', [...f.ratings].sort((a, b) => a - b).join(','));
+  if (f.statuses.length > 0) params.set('status', f.statuses.join(','));
+  if (f.response !== '') params.set('response', f.response);
+  if (f.assignee !== '') params.set('assignee', f.assignee);
+  if (f.version.trim()) params.set('version', f.version.trim());
+  if (f.territory.trim()) params.set('territory', f.territory.trim());
+  if (f.language.trim()) params.set('language', f.language.trim());
+  if (f.q.trim()) params.set('q', f.q.trim().slice(0, 100));
+  if (f.within !== '') params.set('within', f.within);
+  if (f.sort !== 'newest') params.set('sort', f.sort);
+  return params.toString();
+}
+
+/** The reverse. Anything that is not valid is dropped, never trusted: the address is typed by people and links. */
+export function inboxFiltersFromSearch(search: string): InboxFilters {
+  const f = defaultInboxFilters();
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(search.replace(/^\?/, ''));
+  } catch {
+    return f;
+  }
+  const list = (name: string): string[] =>
+    (params.get(name) ?? '')
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => v !== '');
+  const apps = list('apps');
+  if (apps.length > 0 && apps.length <= 50 && apps.every((id) => ID_PATTERN.test(id))) f.appIds = [...new Set(apps)];
+  const platform = params.get('platform');
+  if (platform === 'ios' || platform === 'android') f.platform = platform;
+  const ratings = list('rating');
+  if (ratings.length > 0 && ratings.every((r) => /^[1-5]$/.test(r))) f.ratings = [...new Set(ratings.map(Number))].sort((a, b) => a - b);
+  const statuses = list('status');
+  if (statuses.length > 0 && statuses.every((s) => reviewStatuses.includes(s))) f.statuses = [...new Set(statuses)] as ReviewStatus[];
+  const response = params.get('response');
+  if (response === 'yes' || response === 'no') f.response = response;
+  const assignee = params.get('assignee');
+  if (assignee === 'me' || assignee === 'unassigned' || (assignee !== null && ID_PATTERN.test(assignee))) f.assignee = assignee;
+  const version = params.get('version');
+  if (version && version.length <= 100) f.version = version;
+  const territory = params.get('territory');
+  if (territory && /^[A-Za-z0-9_-]{1,10}$/.test(territory)) f.territory = territory;
+  const language = params.get('language');
+  if (language && /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(language)) f.language = language;
+  const q = params.get('q');
+  if (q) f.q = q.slice(0, 100);
+  const within = params.get('within');
+  if (within === '7' || within === '30' || within === '90') f.within = within;
+  const sort = params.get('sort');
+  if (sort !== null && sorts.includes(sort)) f.sort = sort as ReviewSort;
+  return f;
+}
+
+/** The address of the inbox with these filters. */
+export function inboxHref(f: InboxFilters): string {
+  const search = inboxFiltersToSearch(f);
+  return search === '' ? '#/reviews' : `#/reviews?${search}`;
+}
+
+/** The filters of a location hash (`#/reviews?...`); the defaults for anything else. */
+export function parseInboxHash(hash: string): InboxFilters {
+  const at = hash.indexOf('?');
+  return at < 0 ? defaultInboxFilters() : inboxFiltersFromSearch(hash.slice(at + 1));
+}
+
+/** The inbox with one app already chosen, for a link from elsewhere. */
+export const inboxForApp = (appId: string): string => inboxHref({ ...defaultInboxFilters(), appIds: [appId] });
+
+/** Where the app is. The app's own page has a Reviews tab (the tab is one click away: the page does not read a tab from the address). */
+export const appPageHref = (appId: string): string => `#/portfolio/${encodeURIComponent(appId)}`;
+
+/** The quick views of the summary strip: what each count opens in the inbox. */
+export type QuickView = { id: 'new' | 'unanswered' | 'low' | 'mine'; label: string };
+export const quickViews: QuickView[] = [
+  { id: 'new', label: 'New' },
+  { id: 'unanswered', label: 'Unanswered' },
+  { id: 'low', label: 'Low rating' },
+  { id: 'mine', label: 'Assigned to me' },
+];
+
+/** The filters of a quick view. Low rating uses the server's own threshold; ignored reviews are not counted in the summary and are left out here too. */
+export function quickViewFilters(id: QuickView['id'], lowThreshold: number): InboxFilters {
+  const f = defaultInboxFilters();
+  if (id === 'new') f.statuses = ['new'];
+  else if (id === 'unanswered') {
+    f.response = 'no';
+    f.statuses = ['new', 'triaged', 'replied_in_console'];
+  } else if (id === 'low') {
+    f.ratings = Array.from({ length: Math.max(0, Math.min(MAX_RATING, Math.trunc(lowThreshold))) }, (_, i) => i + 1);
+    f.statuses = ['new', 'triaged', 'replied_in_console'];
+  } else f.assignee = 'me';
+  return f;
+}
+
+/** The same figures as text for a screen reader: "3 new, 5 unanswered, 2 low rated". */
+export function summaryStripText(totals: WorkspaceReviewsSummary['totals']): string {
+  return `${totals.new} new, ${totals.unanswered} unanswered, ${totals.lowRating} low rated, in ${totals.total} stored ${totals.total === 1 ? 'review' : 'reviews'}.`;
+}
+
+/** The apps with something to look at first (most new, then most unanswered), for the strip. */
+export function busiestApps(apps: readonly SummaryApp[], limit = 5): SummaryApp[] {
+  return apps
+    .filter((a) => a.new > 0 || a.unanswered > 0 || a.lowRating > 0)
+    .sort((a, b) => b.new - a.new || b.unanswered - a.unanswered || b.lowRating - a.lowRating || a.app.name.localeCompare(b.app.name))
+    .slice(0, Math.max(0, limit));
+}
+
+/** Replaces one review in an inbox list (after a triage change or a send); the app stays as listed. */
+export function replaceInboxReview(current: readonly InboxReview[], updated: Review): InboxReview[] {
+  return current.map((r) => (r.id === updated.id ? { ...r, ...updated, app: r.app } : r));
+}
+
+export function appendInboxPage(current: readonly InboxReview[], page: readonly InboxReview[]): InboxReview[] {
+  const seen = new Set(current.map((r) => r.id));
+  return [...current, ...page.filter((r) => !seen.has(r.id))];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Keyboard
+
+export type InboxShortcut = 'next' | 'previous' | 'first' | 'last' | 'triage' | 'reply' | 'search';
+
+/**
+ * The shortcut of a key press, or null. Nothing fires while a field has the focus (`typing`) or
+ * with a modifier held, so typing a reply never triages a review. j and k or the arrow keys move,
+ * t marks the focused review triaged, r opens its reply, / jumps to the search box.
+ */
+export function shortcutFor(event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; typing: boolean }): InboxShortcut | null {
+  if (event.typing || event.ctrlKey || event.metaKey || event.altKey) return null;
+  switch (event.key) {
+    case 'j':
+    case 'ArrowDown':
+      return 'next';
+    case 'k':
+    case 'ArrowUp':
+      return 'previous';
+    case 'Home':
+      return 'first';
+    case 'End':
+      return 'last';
+    case 't':
+      return 'triage';
+    case 'r':
+      return 'reply';
+    case '/':
+      return 'search';
+    default:
+      return null;
+  }
+}
+
+/** The index to focus after a move, staying inside the list. -1 is "nothing focused yet". */
+export function moveIndex(current: number, count: number, move: InboxShortcut): number {
+  if (count <= 0) return -1;
+  if (move === 'first') return 0;
+  if (move === 'last') return count - 1;
+  if (move === 'next') return Math.min(count - 1, current < 0 ? 0 : current + 1);
+  if (move === 'previous') return Math.max(0, current < 0 ? 0 : current - 1);
+  return current;
+}
+
+/** The text a screen reader hears when the list changes. */
+export const inboxAnnouncement = (shown: number, more: boolean): string =>
+  shown === 0 ? 'No reviews match.' : `${shown}${more ? ' or more' : ''} ${shown === 1 && !more ? 'review' : 'reviews'} shown.`;

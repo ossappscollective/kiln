@@ -1,7 +1,7 @@
 <!--
-  ReviewsTab: the customer reviews and ratings of an app, with internal triage. Read-only toward the
-  store: "Read reviews now" only reads, and there is no reply (replying is a store write and is not
-  available here; the tab says so).
+  ReviewsTab: the customer reviews and ratings of an app, with internal triage and replies. "Read
+  reviews now" only reads. Replying is a public store write: it is off unless the server turns it on
+  (MRM_REVIEW_REPLY_ENABLED), needs an admin to send, and goes through ReplyDialog (draft, confirm).
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when the app was synced, so this
   tab reloads).
 
@@ -13,7 +13,6 @@
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
-    NO_REPLY_NOTE,
     appendPage,
     defaultFilters,
     filtersToQuery,
@@ -37,6 +36,7 @@
     type ReviewStatus,
     type ReviewsSummary,
   } from '../../lib/reviews.ts';
+  import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -66,6 +66,8 @@
   let reviews = $state<Review[]>([]);
   let nextCursor = $state<string | null>(null);
   let members = $state<Member[]>([]);
+  /** The server's reply settings; null until known (the reply row waits for it). */
+  let replyConfig = $state<ReplyConfig | null>(null);
   let loading = $state(true);
   let listLoading = $state(false);
   let moreLoading = $state(false);
@@ -137,6 +139,12 @@
       reviews = [];
       nextCursor = null;
     }
+    void api
+      .reviewReplyConfig(workspaceId)
+      .then((c) => {
+        if (mine === generation) replyConfig = c;
+      })
+      .catch(() => {});
     // The people who can be assigned. Best effort: without them the assignee is just not offered.
     void api
       .members(workspaceId)
@@ -228,7 +236,7 @@
   <div class="intro">
     <p class="muted">
       What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'ios' ? 'appstoreconnect' : 'googleplay'))},
-      read from the store and kept here for your team. This is a copy for triage: nothing on this tab changes the store.
+      read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
     </p>
     <div class="intro-actions">
       {#if canSync}
@@ -237,7 +245,9 @@
     </div>
   </div>
 
-  <Alert tone="info" title="Replying is not available">{NO_REPLY_NOTE}</Alert>
+  {#if replyConfig && !replyConfig.enabled}
+    <Alert tone="info" title="Replying is switched off">{REPLY_OFF_TEXT}</Alert>
+  {/if}
 
   {#if needsAppSync}
     <Alert tone="warn" title="Sync the app first">
@@ -387,6 +397,9 @@
                   {api}
                   {workspaceId}
                   appId={app.id}
+                  appName={app.name}
+                  {role}
+                  {replyConfig}
                   {review}
                   {members}
                   {canTriage}

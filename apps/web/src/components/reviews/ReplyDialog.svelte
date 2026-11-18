@@ -1,0 +1,521 @@
+<!--
+  ReplyDialog: write, check and send the public reply to one review.
+  Props: open (bindable), api, workspaceId, role, review (the review, with its reply draft when it has
+  one), app ({ id, name }), config (the server's reply settings: on or off, limits, translation),
+  onchange (called with the updated review after a reply was sent, or a draft changed).
+
+  Two steps. "Write": a plain text box with the store's limit counted live, saved as a draft
+  (a member may do this). "Confirm": the store, the app, the review, the count against the limit and
+  the exact text, with the sentence that it is published publicly and cannot be recalled by this
+  tool, and a tick to acknowledge it (an admin may send). Only the saved draft is sent: the server
+  gets the hash of the text that was shown and refuses when the draft changed since. There is no
+  automatic and no bulk sending, and nothing is sent when this dialog is closed.
+
+  The review text and the reply are plain text nodes only, never markup and never in a URL.
+-->
+<script lang="ts">
+  import type { Role } from '@mrm/core';
+  import { untrack } from 'svelte';
+  import type { Api } from '../../lib/api.ts';
+  import {
+    type ReplyConfig,
+    type ReplyDraft,
+    type ReplyTemplate,
+    canSendDraft,
+    checkReply,
+    confirmFacts,
+    draftChanged,
+    insertTemplateText,
+    isLocked,
+    lengthState,
+    limitFor,
+    needsReload,
+    normalizeReplyText,
+    previewTemplate,
+    replyAvailability,
+    replyErrorMessage,
+    replyStatusLabel,
+    replyStatusTone,
+    statusExplanation,
+  } from '../../lib/review-reply.ts';
+  import { collapseText, ratingText, storeLabel, type Review } from '../../lib/reviews.ts';
+  import { toast } from '../../lib/toast.svelte.ts';
+  import Alert from '../ui/Alert.svelte';
+  import Badge from '../ui/Badge.svelte';
+  import Button from '../ui/Button.svelte';
+  import Modal from '../ui/Modal.svelte';
+
+  let {
+    open = $bindable(false),
+    api,
+    workspaceId,
+    role,
+    review,
+    app,
+    config,
+    onchange,
+  }: {
+    open?: boolean;
+    api: Api;
+    workspaceId: string;
+    role: Role;
+    review: Review;
+    app: { id: string; name: string };
+    config: ReplyConfig;
+    onchange: (updated: Review) => void;
+  } = $props();
+
+  const uid = $props.id();
+
+  let step = $state<'write' | 'confirm'>('write');
+  let text = $state('');
+  let saved = $state<ReplyDraft | null>(null);
+  let busy = $state<'' | 'save' | 'delete' | 'send' | 'translate' | 'template'>('');
+  let problem = $state('');
+  let ack = $state(false);
+  let templates = $state<ReplyTemplate[]>([]);
+  let templateId = $state('');
+  let templateName = $state('');
+  let target = $state('');
+  let showContext = $state(false);
+
+  const limit = $derived(limitFor(config, review.store));
+  const len = $derived(lengthState(text, limit));
+  const check = $derived(text.trim() === '' ? null : checkReply(text, limit));
+  const avail = $derived(replyAvailability(config, role));
+  const unsaved = $derived(draftChanged(saved, text));
+  const status = $derived(saved ? saved.status : 'none');
+  const locked = $derived(isLocked(status));
+  const explanation = $derived(saved ? statusExplanation(saved) : null);
+  const replacing = $derived(review.developerResponse !== null);
+  const context = $derived(collapseText(review.body, 240));
+  const facts = $derived(
+    saved ? confirmFacts({ store: review.store, appName: app.name, review, draft: saved, replacing }) : null,
+  );
+  const sendable = $derived(canSendDraft({ draft: saved, unsavedChanges: unsaved, acknowledged: ack, availability: avail }));
+  const canWrite = $derived(avail.canDraft && !locked && busy === '');
+  const canReview = $derived(
+    avail.canSend && saved !== null && !unsaved && !locked && check !== null && check.ok && saved.length <= saved.limit && busy === '',
+  );
+  const picked = $derived(templates.find((t) => t.id === templateId));
+  const targetOk = $derived(/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(target.trim()));
+
+  let wasOpen = false;
+  $effect(() => {
+    if (open && !wasOpen) untrack(init);
+    wasOpen = open;
+  });
+
+  function init() {
+    step = 'write';
+    saved = review.replyDraft ?? null;
+    text = saved ? saved.text : '';
+    problem = '';
+    ack = false;
+    templateId = '';
+    templateName = '';
+    target = review.language ?? '';
+    showContext = false;
+    void loadTemplates();
+    void reload(false);
+  }
+
+  async function loadTemplates() {
+    try {
+      templates = (await api.replyTemplates(workspaceId)).templates;
+    } catch {
+      // Best effort: without templates the dialog works as well.
+    }
+  }
+
+  /** Reads the review again, for the latest draft. `keepText` leaves what is typed alone. */
+  async function reload(keepText: boolean) {
+    try {
+      const fresh = (await api.review(workspaceId, app.id, review.id)).review;
+      saved = fresh.replyDraft ?? null;
+      if (!keepText || !unsaved) text = saved ? saved.text : text;
+      onchange(fresh);
+    } catch {
+      // The draft shown stays; a failed read is not worth a message of its own.
+    }
+  }
+
+  async function save(): Promise<boolean> {
+    if (busy !== '' || !canWrite) return false;
+    busy = 'save';
+    problem = '';
+    try {
+      saved = (await api.saveReplyDraft(workspaceId, app.id, review.id, { text: normalizeReplyText(text) })).draft;
+      text = saved.text;
+      onchange({ ...review, replyDraft: saved, reply: { status: saved.status, sentAt: saved.sentAt } });
+      return true;
+    } catch (e) {
+      problem = replyErrorMessage(e, 'draft');
+      if (needsReload(e)) await reload(true);
+      return false;
+    } finally {
+      busy = '';
+    }
+  }
+
+  async function remove() {
+    if (busy !== '' || !saved || locked) return;
+    busy = 'delete';
+    problem = '';
+    try {
+      await api.deleteReplyDraft(workspaceId, app.id, review.id);
+      saved = null;
+      text = '';
+      onchange({ ...review, replyDraft: null, reply: { status: 'none', sentAt: null } });
+      toast.success('The draft was deleted. Nothing was sent.');
+    } catch (e) {
+      problem = replyErrorMessage(e, 'draft');
+      if (needsReload(e)) await reload(false);
+    } finally {
+      busy = '';
+    }
+  }
+
+  async function saveAndReview() {
+    if (unsaved && !(await save())) return;
+    if (!saved) return;
+    ack = false;
+    step = 'confirm';
+  }
+
+  async function publish() {
+    if (!sendable || !saved || busy !== '') return;
+    busy = 'send';
+    problem = '';
+    try {
+      const done = await api.sendReviewReply(workspaceId, app.id, review.id, saved.textHash);
+      onchange(done.review);
+      toast.success(
+        done.confirmedByReread
+          ? 'The reply is published. The store did not answer clearly, so this tool read the review back and found the reply.'
+          : 'The reply was sent to the store.',
+      );
+      open = false;
+    } catch (e) {
+      problem = replyErrorMessage(e, 'send');
+      if (needsReload(e)) {
+        step = 'write';
+        await reload(false);
+      }
+    } finally {
+      busy = '';
+    }
+  }
+
+  async function translate() {
+    if (busy !== '' || !canWrite || !targetOk || normalizeReplyText(text) === '') return;
+    busy = 'translate';
+    problem = '';
+    try {
+      const done = await api.translateReplyDraft(workspaceId, app.id, review.id, { text: normalizeReplyText(text), target: target.trim() });
+      text = done.text;
+      toast.info('Translated. Read it and save it: nothing is saved or sent yet.');
+    } catch (e) {
+      problem = replyErrorMessage(e, 'translate');
+    } finally {
+      busy = '';
+    }
+  }
+
+  function useTemplate() {
+    if (!picked) return;
+    text = insertTemplateText(text, previewTemplate(picked.body, { author: review.authorName, app: app.name }));
+  }
+
+  async function saveTemplate() {
+    const name = templateName.trim();
+    if (busy !== '' || name === '' || normalizeReplyText(text) === '') return;
+    busy = 'template';
+    problem = '';
+    try {
+      const made = (await api.createReplyTemplate(workspaceId, { name, body: normalizeReplyText(text) })).template;
+      templates = [...templates, made].sort((a, b) => a.name.localeCompare(b.name));
+      templateName = '';
+      toast.success('Saved as a template.');
+    } catch (e) {
+      problem = replyErrorMessage(e, 'template');
+    } finally {
+      busy = '';
+    }
+  }
+
+  async function removeTemplate() {
+    if (busy !== '' || !picked) return;
+    busy = 'template';
+    problem = '';
+    try {
+      await api.deleteReplyTemplate(workspaceId, picked.id);
+      templates = templates.filter((t) => t.id !== picked?.id);
+      templateId = '';
+    } catch (e) {
+      problem = replyErrorMessage(e, 'template');
+    } finally {
+      busy = '';
+    }
+  }
+</script>
+
+<Modal
+  bind:open
+  size="lg"
+  title={step === 'confirm' ? 'Confirm the public reply' : replacing ? 'Replace the reply' : 'Reply to this review'}
+  description="{app.name} · {storeLabel(review.store)}"
+  dismissible={busy === ''}
+>
+  {#if avail.state === 'off' || avail.state === 'rights'}
+    <Alert tone={avail.state === 'off' ? 'warn' : 'info'} title={avail.state === 'off' ? 'Replying is switched off' : 'You cannot do everything here'}>
+      {avail.reason}
+    </Alert>
+  {/if}
+
+  <div class="context">
+    <p class="context-head">
+      <span class="visually-hidden">Review: </span>
+      <strong>{ratingText(review.rating)}</strong>
+      {#if review.authorName}<span class="muted"> by {review.authorName}</span>{/if}
+    </p>
+    {#if review.title}<p class="plain"><strong>{review.title}</strong></p>{/if}
+    <p class="plain">{showContext ? review.body : context.text}</p>
+    {#if context.cut}
+      <button type="button" class="link sm" aria-expanded={showContext} onclick={() => (showContext = !showContext)}>
+        {showContext ? 'Show less' : 'Show the whole review'}
+      </button>
+    {/if}
+    {#if replacing && review.developerResponse}
+      <p class="muted small">
+        This review already has a reply in the store. Sending a new one replaces it.
+      </p>
+    {/if}
+  </div>
+
+  {#if step === 'write'}
+    <div class="stack">
+      <div class="field">
+        <div class="label-row">
+          <label for="{uid}-text">Your reply (plain text)</label>
+          {#if saved}<Badge tone={replyStatusTone(status)}>{replyStatusLabel(status)}</Badge>{/if}
+        </div>
+        <textarea
+          id="{uid}-text"
+          rows="7"
+          bind:value={text}
+          disabled={!canWrite}
+          autocomplete="off"
+          spellcheck="true"
+          aria-describedby="{uid}-count {uid}-hint"
+          aria-invalid={check !== null && !check.ok}
+        ></textarea>
+        <p class="counter {len.tone}" id="{uid}-count" aria-live="polite">{len.label}</p>
+        <p class="hint" id="{uid}-hint">
+          Plain text only: no HTML or formatting. {storeLabel(review.store)} allows {limit} characters. It stays a draft until an admin sends it.
+        </p>
+        {#if check && !check.ok}<p class="error" role="alert">{check.message}</p>{/if}
+      </div>
+
+      {#if explanation}<Alert tone={status === 'failed' || status === 'unknown' ? 'warn' : 'info'}>{explanation}</Alert>{/if}
+
+      {#if avail.canDraft && !locked}
+        <details class="extras">
+          <summary>Templates{config.translation.available ? ' and translation' : ''}</summary>
+          <div class="extras-body">
+            <div class="field">
+              <label for="{uid}-template">Start from a template</label>
+              <div class="row">
+                <select id="{uid}-template" bind:value={templateId} disabled={busy !== '' || templates.length === 0}>
+                  <option value="">{templates.length === 0 ? 'No templates yet' : 'Choose a template'}</option>
+                  {#each templates as template (template.id)}<option value={template.id}>{template.name}</option>{/each}
+                </select>
+                <Button size="sm" disabled={!picked || busy !== ''} onclick={useTemplate}>Insert</Button>
+                <Button size="sm" variant="ghost" disabled={!picked || busy !== ''} onclick={removeTemplate}>Delete template</Button>
+              </div>
+              <p class="hint">{'{{author}}'} and {'{{app}}'} are filled in as plain text. Shared with everyone in this workspace.</p>
+            </div>
+            <div class="field">
+              <label for="{uid}-tname">Save this text as a template</label>
+              <div class="row">
+                <input id="{uid}-tname" type="text" maxlength="100" bind:value={templateName} placeholder="A short name" autocomplete="off" />
+                <Button size="sm" disabled={busy !== '' || templateName.trim() === '' || text.trim() === ''} loading={busy === 'template'} onclick={saveTemplate}>
+                  Save template
+                </Button>
+              </div>
+            </div>
+            {#if config.translation.available}
+              <div class="field">
+                <label for="{uid}-target">Translate the text into</label>
+                <div class="row">
+                  <input id="{uid}-target" type="text" maxlength="12" bind:value={target} placeholder="a language code, for example de" autocomplete="off" />
+                  <Button size="sm" disabled={busy !== '' || !targetOk || text.trim() === ''} loading={busy === 'translate'} onclick={translate}>Translate</Button>
+                </div>
+                <p class="hint">The translation replaces the text above as an unsaved change. Read it before you save it.</p>
+              </div>
+            {/if}
+          </div>
+        </details>
+      {/if}
+
+      {#if problem}<Alert tone="error">{problem}</Alert>{/if}
+    </div>
+  {:else if facts}
+    <div class="stack">
+      <dl class="facts">
+        {#each facts.rows as row (row.label)}
+          <div>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        {/each}
+      </dl>
+      <div>
+        <p class="label-line" id="{uid}-exact">The exact text that will be published</p>
+        <p class="exact" aria-labelledby="{uid}-exact" data-testid="exact-reply">{facts.text}</p>
+        <p class="counter {facts.count > facts.limit ? 'bad' : 'ok'}">{facts.count} of {facts.limit} characters</p>
+      </div>
+      <Alert tone="warn" title="This cannot be undone here">{facts.warning}</Alert>
+      <label class="check">
+        <input type="checkbox" bind:checked={ack} disabled={busy !== ''} />
+        I have read the text above and I want it published in {storeLabel(review.store)}.
+      </label>
+      {#if problem}<Alert tone="error">{problem}</Alert>{/if}
+    </div>
+  {/if}
+
+  {#snippet footer()}
+    {#if step === 'write'}
+      <Button disabled={busy === 'send'} onclick={() => (open = false)}>Close</Button>
+      {#if saved && avail.canDraft && !locked}
+        <Button variant="ghost" loading={busy === 'delete'} disabled={busy !== ''} onclick={remove}>Delete draft</Button>
+      {/if}
+      {#if status === 'sending'}
+        <Button onclick={() => void reload(false)}>Check again</Button>
+      {/if}
+      {#if avail.canDraft && !locked}
+        <Button loading={busy === 'save'} disabled={busy !== '' || !unsaved || (check !== null && !check.ok) || text.trim() === ''} onclick={() => void save()}>
+          Save draft
+        </Button>
+      {/if}
+      {#if avail.canSend}
+        <Button
+          variant="primary"
+          disabled={!(canReview || (unsaved && check !== null && check.ok && busy === '' && !locked))}
+          onclick={() => void saveAndReview()}
+        >
+          {unsaved ? 'Save and review' : 'Review and send'}
+        </Button>
+      {/if}
+    {:else}
+      <Button disabled={busy === 'send'} onclick={() => (step = 'write')}>Back</Button>
+      <Button variant="danger-solid" loading={busy === 'send'} disabled={!sendable || busy !== ''} onclick={() => void publish()}>
+        {status === 'unknown' ? 'Check and send' : 'Publish reply'}
+      </Button>
+    {/if}
+  {/snippet}
+</Modal>
+
+<style>
+  .context {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-md);
+  }
+
+  .context-head,
+  .plain {
+    margin: 0;
+  }
+
+  /* Customer text: plain, wrapped, line breaks kept. */
+  .plain {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .label-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .counter {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .counter.warn {
+    color: var(--warn-ink);
+  }
+
+  .counter.bad {
+    color: var(--bad-ink);
+    font-weight: 600;
+  }
+
+  .error {
+    margin: 0;
+    color: var(--bad-ink);
+    font-size: var(--text-sm);
+  }
+
+  .extras summary {
+    cursor: pointer;
+  }
+
+  .extras-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
+  }
+
+  .facts dt {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .label-line {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  /* The exact text, as it will be published: nothing is formatted. */
+  .exact {
+    margin: 0;
+    padding: var(--space-3);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+</style>

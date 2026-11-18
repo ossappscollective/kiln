@@ -2,8 +2,24 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
-  NO_REPLY_NOTE,
+  appendInboxPage,
   appendPage,
+  busiestApps,
+  defaultInboxFilters,
+  hasActiveInboxFilters,
+  inboxAnnouncement,
+  inboxFiltersFromSearch,
+  inboxFiltersToQuery,
+  inboxFiltersToSearch,
+  inboxForApp,
+  inboxHref,
+  moveIndex,
+  parseInboxHash,
+  quickViewFilters,
+  replaceInboxReview,
+  shortcutFor,
+  summaryStripText,
+  appPageHref,
   averageText,
   collapseText,
   defaultFilters,
@@ -24,7 +40,9 @@ import {
   trendDescription,
   trendGeometry,
   triageDiff,
+  type InboxReview,
   type Review,
+  type SummaryApp,
   type ReviewSyncResult,
   type ReviewSyncState,
   type WeekBucket,
@@ -282,9 +300,154 @@ test('error messages are plain and keep what the store said', () => {
   assert.equal(reviewErrorMessage(error(500, 'weird'), 'load'), 'Reviews could not be loaded. Try again.');
 });
 
-test('the tab always says replying is not available', () => {
-  assert.ok(NO_REPLY_NOTE.startsWith('Replying to reviews is not available'));
-  assert.ok(NO_REPLY_NOTE.includes('only reads'));
+test('status labels', () => {
   assert.equal(statusLabel('replied_in_console'), 'Replied in store console');
   assert.equal(statusLabel('something_new'), 'something_new');
+});
+
+// ----- the workspace-wide inbox ---------------------------------------------------------------
+
+const NOW = 1_700_000_000_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+test('inbox filters: the defaults send nothing; every filter becomes its query parameter', () => {
+  assert.equal(inboxFiltersToQuery(defaultInboxFilters(), NOW), '');
+  assert.equal(hasActiveInboxFilters(defaultInboxFilters()), false);
+  const f = {
+    ...defaultInboxFilters(),
+    appIds: ['a1', 'a2'],
+    platform: 'android' as const,
+    ratings: [2, 1],
+    statuses: ['new' as const],
+    response: 'no' as const,
+    assignee: 'me',
+    within: '30' as const,
+    sort: 'rating' as const,
+    q: ' crash ',
+  };
+  const query = new URLSearchParams(inboxFiltersToQuery(f, NOW, { limit: 25, cursor: 'abc' }));
+  assert.equal(query.get('appIds'), 'a1,a2');
+  assert.equal(query.get('platform'), 'android');
+  assert.equal(query.get('rating'), '1,2');
+  assert.equal(query.get('status'), 'new');
+  assert.equal(query.get('hasResponse'), 'false');
+  assert.equal(query.get('assignee'), 'me');
+  assert.equal(query.get('since'), String(NOW - 30 * DAY_MS));
+  assert.equal(query.get('sort'), 'rating');
+  assert.equal(query.get('q'), 'crash');
+  assert.equal(query.get('limit'), '25');
+  assert.equal(query.get('cursor'), 'abc');
+  const unassigned = new URLSearchParams(inboxFiltersToQuery({ ...defaultInboxFilters(), assignee: 'unassigned' }, NOW));
+  assert.equal(unassigned.get('unassigned'), 'true');
+  assert.equal(unassigned.get('assignee'), null);
+  assert.equal(hasActiveInboxFilters({ ...defaultInboxFilters(), within: '7' }), true);
+});
+
+test('inbox filters round trip through the page address', () => {
+  const f = {
+    ...defaultInboxFilters(),
+    appIds: ['a1'],
+    platform: 'ios' as const,
+    ratings: [1, 2],
+    statuses: ['new' as const, 'triaged' as const],
+    response: 'yes' as const,
+    assignee: 'unassigned',
+    version: '1.2',
+    territory: 'US',
+    language: 'en',
+    q: 'a b&c=d',
+    within: '90' as const,
+    sort: 'updated' as const,
+  };
+  const search = inboxFiltersToSearch(f);
+  assert.deepEqual(inboxFiltersFromSearch(search), f);
+  assert.equal(inboxHref(defaultInboxFilters()), '#/reviews');
+  assert.deepEqual(parseInboxHash(inboxHref(f)), f);
+  assert.deepEqual(parseInboxHash('#/reviews'), defaultInboxFilters());
+  assert.deepEqual(inboxForApp('x1'), '#/reviews?apps=x1');
+  assert.equal(appPageHref('a b'), '#/portfolio/a%20b');
+});
+
+test('the address is not trusted: invalid values are dropped', () => {
+  const f = inboxFiltersFromSearch('rating=9&status=bogus&sort=oldest&within=1&platform=windows&apps=a%20b&assignee=a/b&response=maybe&territory=x%20y&language=1');
+  assert.deepEqual(f, defaultInboxFilters());
+  assert.equal(inboxFiltersFromSearch(`q=${'x'.repeat(300)}`).q.length, 100);
+  assert.deepEqual(inboxFiltersFromSearch('rating=1,1,2').ratings, [1, 2]);
+  assert.deepEqual(inboxFiltersFromSearch('?apps=a,b,a').appIds, ['a', 'b']);
+});
+
+test('quick views open the counts of the summary strip', () => {
+  assert.deepEqual(quickViewFilters('new', 2).statuses, ['new']);
+  const unanswered = quickViewFilters('unanswered', 2);
+  assert.equal(unanswered.response, 'no');
+  assert.ok(!unanswered.statuses.includes('ignored'));
+  const low = quickViewFilters('low', 2);
+  assert.deepEqual(low.ratings, [1, 2]);
+  assert.ok(!low.statuses.includes('ignored'));
+  assert.deepEqual(quickViewFilters('low', 0).ratings, []);
+  assert.equal(quickViewFilters('mine', 2).assignee, 'me');
+});
+
+const summaryApp = (name: string, n: number, u: number, l: number): SummaryApp => ({
+  app: { id: name, name, platform: 'ios', store: 'appstoreconnect' },
+  total: n + u,
+  new: n,
+  unanswered: u,
+  lowRating: l,
+  average: null,
+  oldestAt: null,
+  newestAt: null,
+});
+
+test('the summary strip text and the busiest apps', () => {
+  assert.equal(summaryStripText({ total: 8, new: 3, unanswered: 5, lowRating: 2, average: 3 }), '3 new, 5 unanswered, 2 low rated, in 8 stored reviews.');
+  assert.equal(summaryStripText({ total: 1, new: 0, unanswered: 0, lowRating: 0, average: null }), '0 new, 0 unanswered, 0 low rated, in 1 stored review.');
+  const apps = [summaryApp('Quiet', 0, 0, 0), summaryApp('B', 2, 1, 0), summaryApp('A', 2, 1, 0), summaryApp('C', 5, 0, 0), summaryApp('D', 0, 4, 1)];
+  assert.deepEqual(busiestApps(apps).map((a) => a.app.name), ['C', 'A', 'B', 'D']);
+  assert.deepEqual(busiestApps(apps, 2).map((a) => a.app.name), ['C', 'A']);
+  assert.deepEqual(busiestApps(apps, 0), []);
+});
+
+test('inbox lists: replacing keeps the app, appending skips what is there', () => {
+  const app = { id: 'a1', name: 'Alpha', platform: 'ios' as const };
+  const list: InboxReview[] = [{ ...review({ id: 'r1' }), app }, { ...review({ id: 'r2' }), app }];
+  const next = replaceInboxReview(list, review({ id: 'r2', status: 'triaged' }));
+  assert.equal(next[1]?.status, 'triaged');
+  assert.deepEqual(next[1]?.app, app);
+  assert.equal(next[0], list[0]);
+  assert.deepEqual(appendInboxPage(list, [{ ...review({ id: 'r2' }), app }, { ...review({ id: 'r3' }), app }]).map((r) => r.id), ['r1', 'r2', 'r3']);
+});
+
+test('keyboard: shortcuts never fire while typing or with a modifier', () => {
+  assert.equal(shortcutFor({ key: 'j', typing: false }), 'next');
+  assert.equal(shortcutFor({ key: 'ArrowDown', typing: false }), 'next');
+  assert.equal(shortcutFor({ key: 'k', typing: false }), 'previous');
+  assert.equal(shortcutFor({ key: 'ArrowUp', typing: false }), 'previous');
+  assert.equal(shortcutFor({ key: 'Home', typing: false }), 'first');
+  assert.equal(shortcutFor({ key: 'End', typing: false }), 'last');
+  assert.equal(shortcutFor({ key: 't', typing: false }), 'triage');
+  assert.equal(shortcutFor({ key: 'r', typing: false }), 'reply');
+  assert.equal(shortcutFor({ key: '/', typing: false }), 'search');
+  assert.equal(shortcutFor({ key: 'r', typing: true }), null, 'typing a reply is not a shortcut');
+  assert.equal(shortcutFor({ key: 't', typing: false, metaKey: true }), null);
+  assert.equal(shortcutFor({ key: 'j', typing: false, ctrlKey: true }), null);
+  assert.equal(shortcutFor({ key: 'x', typing: false }), null);
+});
+
+test('keyboard: moving stays inside the list', () => {
+  assert.equal(moveIndex(-1, 3, 'next'), 0);
+  assert.equal(moveIndex(0, 3, 'next'), 1);
+  assert.equal(moveIndex(2, 3, 'next'), 2);
+  assert.equal(moveIndex(0, 3, 'previous'), 0);
+  assert.equal(moveIndex(-1, 3, 'previous'), 0);
+  assert.equal(moveIndex(1, 3, 'last'), 2);
+  assert.equal(moveIndex(2, 3, 'first'), 0);
+  assert.equal(moveIndex(1, 0, 'next'), -1);
+  assert.equal(moveIndex(1, 3, 'reply'), 1);
+});
+
+test('the announcement for a changed list', () => {
+  assert.equal(inboxAnnouncement(0, false), 'No reviews match.');
+  assert.equal(inboxAnnouncement(1, false), '1 review shown.');
+  assert.equal(inboxAnnouncement(25, true), '25 or more reviews shown.');
 });

@@ -21,6 +21,7 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'plan.rollout_step_due', label: 'A planned rollout step’s time has passed' },
   { type: 'review.new_low_rating', label: 'A low-rated customer review arrived (ids and rating only)' },
   { type: 'review.sync_failed', label: 'Reading customer reviews failed' },
+  { type: 'review.reply_sent', label: 'A reply to a customer review was published in the store (ids only)' },
 ];
 
 export type WebhookForm = {

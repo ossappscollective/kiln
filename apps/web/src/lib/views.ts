@@ -5,6 +5,8 @@ import Credentials from '../components/Credentials.svelte';
 import Members from '../components/Members.svelte';
 import Portfolio from '../components/Portfolio.svelte';
 import Repositories from '../components/Repositories.svelte';
+import Settings from '../components/Settings.svelte';
+import ReviewsInbox from '../components/reviews/ReviewsInbox.svelte';
 import Tokens from '../components/Tokens.svelte';
 import Webhooks from '../components/Webhooks.svelte';
 import type { Api } from './api.ts';
@@ -29,10 +31,12 @@ export type ViewDef = {
  */
 export const views: ViewDef[] = [
   { id: 'portfolio', icon: 'smartphone', label: 'Portfolio', component: Portfolio, requires: 'apps.read' },
+  { id: 'reviews', icon: 'message', label: 'Reviews', component: ReviewsInbox, requires: 'reviews.read' },
   { id: 'repositories', icon: 'git-branch', label: 'Repositories', component: Repositories, requires: 'repositories.read' },
   { id: 'credentials', icon: 'key', label: 'Credentials', component: Credentials, requires: 'credentials.read' },
   { id: 'members', icon: 'users', label: 'Members', component: Members, requires: 'members.read' },
   { id: 'tokens', icon: 'shield', label: 'API tokens', component: Tokens, requires: 'tokens.read' },
   { id: 'webhooks', icon: 'globe', label: 'Webhooks', component: Webhooks, requires: 'webhooks.read' },
+  { id: 'settings', icon: 'settings', label: 'Settings', component: Settings, requires: 'settings.read' },
   { id: 'audit', icon: 'history', label: 'Audit log', component: Audit, requires: 'audit.read' },
 ];

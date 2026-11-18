@@ -1,15 +1,26 @@
 <!--
   ReviewCard: one customer review, as plain text, with its developer response and internal triage.
-  Props: api, workspaceId, appId, review, members (for the assignee), canTriage, lowThreshold, now (ms),
-  onchange (called with the updated review after a triage change is saved).
+  Props: api, workspaceId, appId, appName, role, review, members (for the assignee), canTriage,
+  lowThreshold, now (ms), replyConfig (the server's reply settings, or null while unknown: the reply
+  row is hidden until it is known), onchange (called with the updated review after a triage change
+  or a reply change). Exports `markTriaged()` and `openReply()` for the keyboard shortcuts of the inbox.
 
   The review text, title and display name are written by customers: they are text nodes only (never
-  markup, never in a URL). Triage (status, assignee, note) is internal; nothing here replies to a
-  review or changes anything in a store.
+  markup, never in a URL). Triage (status, assignee, note) is internal and changes nothing in a store.
+  The reply row opens ReplyDialog: a reply is public in the store, so it is written as a draft, checked
+  and confirmed there; nothing on this card sends anything by itself.
 -->
 <script lang="ts">
+  import type { Role } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import {
+    type ReplyConfig,
+    isLocked,
+    replyAvailability,
+    replyStatusLabel,
+    replyStatusTone,
+  } from '../../lib/review-reply.ts';
   import {
     MAX_NOTE_LENGTH,
     collapseText,
@@ -29,26 +40,34 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import ReviewTranslation from './ReviewTranslation.svelte';
+  import ReplyDialog from './ReplyDialog.svelte';
 
   let {
     api,
     workspaceId,
     appId,
+    appName,
+    role,
     review,
     members,
     canTriage,
     lowThreshold,
     now,
+    replyConfig = null,
     onchange,
   }: {
     api: Api;
     workspaceId: string;
     appId: string;
+    appName: string;
+    role: Role;
     review: Review;
     members: Member[];
     canTriage: boolean;
     lowThreshold: number;
     now: number;
+    replyConfig?: ReplyConfig | null;
     onchange: (updated: Review) => void;
   } = $props();
 
@@ -65,6 +84,7 @@
   });
   let saving = $state(false);
   let problem = $state('');
+  let replyOpen = $state(false);
 
   const text = $derived(collapseText(review.body));
   const response = $derived(review.developerResponse ? collapseText(review.developerResponse.body) : null);
@@ -85,6 +105,23 @@
     }),
   );
   const dirty = $derived(Object.keys(changes).length > 0);
+  const replyState = $derived(review.reply ?? { status: 'none' as const, sentAt: null });
+  const replyAvail = $derived(replyAvailability(replyConfig, role));
+  const draftPreview = $derived(review.replyDraft && review.replyDraft.status !== 'sent' ? collapseText(review.replyDraft.text, 200) : null);
+  const replyButton = $derived(
+    review.replyDraft && review.replyDraft.status !== 'sent'
+      ? isLocked(review.replyDraft.status)
+        ? 'See the reply'
+        : 'Edit the reply draft'
+      : review.developerResponse
+        ? 'Write a new reply'
+        : 'Reply',
+  );
+
+  /** Opens the reply dialog, as the button does (the inbox calls this for its keyboard shortcut). */
+  export function openReply() {
+    if (replyConfig) replyOpen = true;
+  }
 
   function open() {
     draft = {
@@ -97,7 +134,8 @@
   }
 
   /** The one click most reviews need: new to triaged. */
-  async function markTriaged() {
+  export async function markTriaged() {
+    if (!canTriage || review.status !== 'new') return;
     if (saving) return;
     saving = true;
     problem = '';
@@ -127,7 +165,7 @@
   }
 </script>
 
-<article class="review" class:low aria-labelledby="{uid}-head">
+<article class="review" class:low id="review-{review.id}" tabindex="-1" aria-labelledby="{uid}-head">
   <header class="head" id="{uid}-head">
     <span class="stars" role="img" aria-label={ratingText(review.rating)}>
       {#each [1, 2, 3, 4, 5] as n (n)}
@@ -155,6 +193,8 @@
     <p class="muted body">This review has no text.</p>
   {/if}
 
+  <ReviewTranslation {api} {workspaceId} {appId} {review} />
+
   <p class="meta muted">
     {#if review.authorName}<span>{review.authorName}</span>{/if}
     {#each facts as fact (fact)}<span>{fact}</span>{/each}
@@ -177,6 +217,24 @@
         </button>
       {/if}
     </div>
+  {/if}
+
+  {#if replyConfig}
+    <div class="reply">
+      <div class="reply-row">
+        {#if replyState.status !== 'none'}<Badge tone={replyStatusTone(replyState.status)}>{replyStatusLabel(replyState.status)}</Badge>{/if}
+        {#if replyState.status === 'sent' && replyState.sentAt !== null}
+          <span class="muted small">{timeAgo(replyState.sentAt, now)}</span>
+        {/if}
+        <Button size="sm" icon="message" disabled={!replyAvail.canDraft} onclick={openReply}>{replyButton}</Button>
+      </div>
+      {#if replyAvail.reason}<p class="hint">{replyAvail.reason}</p>{/if}
+      {#if draftPreview && review.replyDraft}
+        <p class="hint">Reply draft, not sent{review.replyDraft.status === 'failed' ? ' (the last send failed)' : ''}:</p>
+        <p class="body note">{draftPreview.text}</p>
+      {/if}
+    </div>
+    <ReplyDialog bind:open={replyOpen} {api} {workspaceId} {role} {review} app={{ id: appId, name: appName }} config={replyConfig} {onchange} />
   {/if}
 
   {#if assignee || review.internalNote}
@@ -316,6 +374,28 @@
 
   .note {
     font-size: var(--text-sm);
+  }
+
+  .reply {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .reply-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .reply .hint {
+    margin: 0;
+  }
+
+  .review:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .triage {

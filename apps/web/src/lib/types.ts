@@ -1,4 +1,8 @@
 import type {
+  AssetKind,
+  AssetProblem,
+  AssetSet,
+  AssetStore,
   ChangeSetStatus,
   ChecklistTemplateItem,
   DueFlags,
@@ -339,7 +343,8 @@ export type LocalOutcome = {
   requested: { push: boolean; openPr: boolean };
   /** Present when the commit was signed with the server's key. Signed, not verified. */
   signature?: { status: 'signed'; format: 'ssh' | 'gpg' };
-  push: { status: 'not_requested' | 'pushed' | 'failed'; at?: number; code?: string; error?: string };
+  /** `behind`: a fix up added a commit after the branch was pushed, so the remote is behind the local branch. */
+  push: { status: 'not_requested' | 'pushed' | 'failed' | 'behind'; at?: number; code?: string; error?: string };
   pr: {
     status: 'not_requested' | 'opened' | 'failed' | 'skipped';
     at?: number;
@@ -349,6 +354,19 @@ export type LocalOutcome = {
     error?: string;
   };
 };
+
+/** One fix up: a commit added on top of the branch of a change set (docs/adr/0005, "Fixing up a branch"). */
+export type FixupRecord = {
+  at: number;
+  commit: string;
+  parent: string;
+  files: number;
+  pushed: boolean;
+  signature?: { status: 'signed'; format: 'ssh' | 'gpg' };
+};
+
+/** Where a change set came from, when that is known (only a store pull can be recomputed). */
+export type ChangeSetOrigin = { source: string; appId?: string; channel?: string };
 
 export type ChangeSetView = {
   id: string;
@@ -368,6 +386,10 @@ export type ChangeSetView = {
   appliedAt: number | null;
   /** Null for a pull request apply; the steps of a commit in the local clone otherwise. */
   outcome: LocalOutcome | null;
+  /** The commits added to the branch by a fix up, oldest first. */
+  fixups?: FixupRecord[];
+  /** `store_pull` for a change set made by pulling the live store listing; null for the others. */
+  origin?: ChangeSetOrigin | null;
   filesChanged: number;
   files: ChangeSetFile[];
 };
@@ -389,6 +411,10 @@ export type AppSummary = {
   lastSyncAttemptAt: number | null;
   /** A short message for a person, set when the last attempt failed and cleared by the next success. */
   lastSyncError: string | null;
+  /** Whether the server holds an icon for the app right now. A hint: `iconUrl` is what to load. */
+  hasIcon?: boolean;
+  /** Where to load the icon from (same origin), or null when the last look found none. */
+  iconUrl?: string | null;
 };
 
 /** A snapshot of one version (and track, on Android) as the store last reported it. */
@@ -1090,4 +1116,68 @@ export type PullCandidate = {
   label: string;
   app: string | null;
   roots: { appStore: string | null; googlePlay: string | null };
+};
+
+// ---------------------------------------------------------------------------------------------
+// Store assets of a repository (docs/api/assets.md). Read-only.
+
+export type AssetSourceKind = 'local_clone' | 'github_clone' | 'github_api';
+export type AssetReadState = 'read' | 'not_read' | 'too_large' | 'unreadable';
+
+export type AssetItem = {
+  path: string;
+  /** A locale folder name, `default`, or an empty string for the icon of the project. */
+  locale: string;
+  kind: AssetKind;
+  /** A display id or a Play device id; null when it could not be told. */
+  device: string | null;
+  deviceLabel: string;
+  /** 1-based, by file name, within the same locale, kind and device. */
+  order: number;
+  bytes: number | null;
+  width: number | null;
+  height: number | null;
+  format: 'png' | 'jpeg' | 'webp' | 'gif' | 'video' | null;
+  hasAlpha: boolean | null;
+  /** The git blob id: identity of the bytes. */
+  oid: string | null;
+  read: AssetReadState;
+  origin: 'store' | 'project';
+};
+
+/**
+ * The counts the store has, per locale, kind and device (the optional seam: the listing reads fill
+ * it in a later step; the Assets tab shows "not yet compared" while it is null).
+ */
+export type AssetStoreSide = {
+  observedAt: number | null;
+  counts: { locale: string; kind: AssetKind; device: string | null; count: number }[];
+};
+
+export type AssetIndex = {
+  appId: string;
+  platform: Platform;
+  store: AssetStore;
+  repository: { id: string; name: string } | null;
+  /** `no_repository`: nothing is linked. `ok`: the repository was read (it may hold no media). */
+  status: 'ok' | 'no_repository';
+  source: { kind: AssetSourceKind; label: string; fast: boolean } | null;
+  /** The commit that was read; the file URLs carry it. */
+  commit: string | null;
+  readAt: number | null;
+  target: { id: string | null; label: string; roots: { appStore: string | null; googlePlay: string | null } } | null;
+  folders: { screenshots: string[]; previews: string[]; androidImages: string | null };
+  limits: { maxFiles: number; maxTransferBytes: number; headBytes: number; maxFileBytes: number; maxServedBytes: number };
+  partial: { partial: boolean; reasons: string[]; skipped: number };
+  totals: { assets: number; read: number; bytes: number; errors: number; warnings: number; infos: number; locales: number };
+  locales: string[];
+  devices: { id: string; label: string }[];
+  sets: AssetSet[];
+  assets: AssetItem[];
+  problems: AssetProblem[];
+  notes: string[];
+  specs: { basis: string; sources: Record<string, string>; unverified: { id: string; text: string }[] };
+  storeSide: AssetStoreSide | null;
+  /** The index came from the cache of the server. */
+  cached?: boolean;
 };

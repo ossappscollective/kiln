@@ -43,8 +43,10 @@
   const fromHash = () => location.hash.replace(/^#\//, '');
   let hash = $state(fromHash());
   // The section named by the URL (`#/id`, or `#/id/...` for a screen with its own sub-routes), or the first one the person may see.
+  // A screen may keep its own filters after a `?` (`#/reviews?rating=1`): they do not change the section.
+  const hashPath = $derived(hash.split('?')[0] ?? '');
   const current = $derived(
-    visibleViews.find((v) => v.id === hash || hash.startsWith(`${v.id}/`)) ?? visibleViews[0],
+    visibleViews.find((v) => v.id === hashPath || hashPath.startsWith(`${v.id}/`)) ?? visibleViews[0],
   );
 
   let drawerOpen = $state(false);

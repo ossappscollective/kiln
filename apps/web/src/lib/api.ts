@@ -1,14 +1,19 @@
 import type { Listing, ListingProblem } from '@mrm/core';
 import type { ApplyBody } from './change-set-apply.ts';
+import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup.ts';
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
-import type { Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody } from './reviews.ts';
+import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
+import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
+import type { TranslateReviewsResult } from './review-translation.ts';
+import type { InboxPage, Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody, WorkspaceReviewsSummary } from './reviews.ts';
 import type {
   AcceptedInvitation,
   ApiToken,
   AppBuild,
   AppBuilds,
   AppDetail,
+  AssetIndex,
   AppSummary,
   AuditEvent,
   AuthStatus,
@@ -189,7 +194,33 @@ export function messageFor(
     case 'nothing_to_apply':
       return 'Nothing left to apply: the repository already has this change. Discard the change set.';
     case 'branch_created':
-      return body.message ?? 'A branch was already created for this change set, so it cannot be refreshed. Discard it and create a new one.';
+      return body.message ?? 'A branch was already created for this change set, so it cannot be refreshed. Use "Fix up this branch" to add a commit to it, or discard it and create a new one.';
+    case 'branch_moved':
+      return 'The branch changed while the fix up was being made, so nothing was written. Look at the branch and try again.';
+    case 'branch_checked_out':
+      return body.message ?? 'The branch is checked out (or being rebased) in the local clone, so it cannot be moved. Check out another branch there and try again.';
+    case 'branch_missing':
+      return body.message ?? 'The branch no longer exists, so there is nothing to add a commit to. Discard the change set and create a new one.';
+    case 'pr_closed':
+      return body.message ?? 'The pull request is closed or merged, so the branch is not updated. Create a new change set from the current listing.';
+    case 'remote_diverged':
+      return body.message ?? 'The branch on GitHub has other commits, so the new commit was not pushed. Nothing was forced.';
+    case 'fixup_in_progress':
+      return 'This change set is being fixed up or pushed right now. Try again in a moment.';
+    case 'no_branch':
+      return 'This change set has no branch to add a commit to.';
+    case 'fixup_conflicts':
+      return body.message ?? 'Some files were also changed on the branch, in the same place. Choose for each file.';
+    case 'fixup_unsupported':
+      return body.message ?? 'This repository connection cannot add a commit to an existing branch.';
+    case 'not_recomputable':
+      return body.message ?? 'This change set was not made from the live store listing, so it cannot be recomputed.';
+    case 'has_branch':
+      return body.message ?? 'A branch exists for this change set. Use "Fix up this branch" to bring the store text into it.';
+    case 'app_gone':
+      return 'The app this change set was pulled for is no longer in the workspace.';
+    case 'app_relinked':
+      return 'The app is linked to another repository now, so this change set cannot be recomputed.';
     case 'changed_meanwhile':
       return 'The change set was changed by someone else while it was being refreshed. Reload and try again.';
     case 'unknown_path':
@@ -435,6 +466,16 @@ export function createApi(options: ApiOptions = {}) {
      */
     refreshChangeSet: (workspaceId: string, id: string, body?: { resolutions?: Record<string, Resolution> }) =>
       request<RefreshResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/refresh`, body),
+    /**
+     * Adds ONE commit on top of the branch of an applied (or failed) change set: never a rewrite, never
+     * forced. A conflict is a 409 `refresh_conflicts` (with the repository) or `fixup_conflicts` (with
+     * the branch); the ApiError's body has the files. `dryRun` writes nothing.
+     */
+    fixupChangeSet: (workspaceId: string, id: string, body: FixupBody = {}) =>
+      request<FixupResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/fixup`, body),
+    /** Makes a store pull again from the live store listing and the repository as they are now; `refresh` reads the store first. */
+    recomputeChangeSet: (workspaceId: string, id: string, body: { refresh?: boolean } = {}) =>
+      request<RecomputeResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/recompute`, body),
     /** The managed clone of one repository: size and last use. */
     repositoryClone: (workspaceId: string, id: string) =>
       request<RepositoryClone>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone`),
@@ -693,8 +734,12 @@ export function createApi(options: ApiOptions = {}) {
         'POST',
         `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
       ),
+    // Media files of the app's repository (docs/api/assets.md). Read-only. The images themselves
+    // are loaded by the browser from `assetFileUrl` (lib/assets.ts), not through this client.
+    appAssets: (workspaceId: string, appId: string) =>
+      request<AssetIndex>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets`),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
-    // internal triage. Nothing here replies to a review or writes to a store.
+    // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>
       request<ReviewsPage>(
         'GET',
@@ -713,6 +758,61 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}`,
         body,
       ),
+    // The workspace-wide reviews inbox and summary (docs/api/reviews.md). Reads of our own database.
+    workspaceReviews: (workspaceId: string, query = '') =>
+      request<InboxPage>('GET', `${workspace(workspaceId)}/reviews${query ? `?${query}` : ''}`),
+    workspaceReviewsSummary: (workspaceId: string) =>
+      request<WorkspaceReviewsSummary>('GET', `${workspace(workspaceId)}/reviews/summary`),
+    // Workspace settings and the translation of reviews (docs/api/settings.md, docs/api/reviews.md).
+    // `translateReviews` sends the stored text of the named reviews to the workspace's translation provider.
+    workspaceSettings: (workspaceId: string) => request<SettingsResponse>('GET', `${workspace(workspaceId)}/settings`),
+    updateWorkspaceSettings: (workspaceId: string, changes: Record<string, SettingValue>) =>
+      request<SettingsUpdateResponse>('PUT', `${workspace(workspaceId)}/settings`, changes),
+    testTranslation: (workspaceId: string) =>
+      request<TranslationTestOutcome>('POST', `${workspace(workspaceId)}/translate/test`),
+    translateReviews: (workspaceId: string, appId: string, body: { reviewIds: string[]; target?: string }) =>
+      request<TranslateReviewsResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/translate`,
+        body,
+      ),
+    // Replying to reviews (docs/adr/0007-review-replies.md): the only calls here that can publish
+    // something in a store are `sendReviewReply`, one review at a time, with the hash of the draft.
+    reviewReplyConfig: (workspaceId: string) => request<ReplyConfig>('GET', `${workspace(workspaceId)}/reviews/reply-config`),
+    review: (workspaceId: string, appId: string, reviewId: string) =>
+      request<{ review: Review }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}`,
+      ),
+    saveReplyDraft: (workspaceId: string, appId: string, reviewId: string, body: { text: string } | { templateId: string }) =>
+      request<{ draft: ReplyDraft }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
+        body,
+      ),
+    deleteReplyDraft: (workspaceId: string, appId: string, reviewId: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
+      ),
+    translateReplyDraft: (workspaceId: string, appId: string, reviewId: string, body: { text: string; target: string; source?: string }) =>
+      request<{ text: string }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft/translate`,
+        body,
+      ),
+    sendReviewReply: (workspaceId: string, appId: string, reviewId: string, confirmHash: string) =>
+      request<SendReplyResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply`,
+        { confirmHash },
+      ),
+    replyTemplates: (workspaceId: string) =>
+      request<{ templates: ReplyTemplate[] }>('GET', `${workspace(workspaceId)}/reviews/reply-templates`),
+    createReplyTemplate: (workspaceId: string, body: { name: string; body: string }) =>
+      request<{ template: ReplyTemplate }>('POST', `${workspace(workspaceId)}/reviews/reply-templates`, body),
+    deleteReplyTemplate: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/reviews/reply-templates/${encodeURIComponent(id)}`),
   };
 }
 
