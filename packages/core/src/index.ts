@@ -6,3 +6,5 @@ export * from './listing.ts';
 export * from './credential-guides.ts';
 export * from './members.ts';
 export * from './release-plan.ts';
+
+export * from './build-patterns.ts';

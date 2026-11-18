@@ -942,6 +942,165 @@ export class GithubRepoConnector implements RepoConnector {
     if (url) out.url = url;
     return out;
   }
+
+  // -------------------------------------------------------------------------------------------
+  // Tags, releases and single commits. Read-only. They let a build number be followed to the
+  // tag a release lane creates, and from the tag's commit to the run that made it.
+
+  /**
+   * The tags of the repository with the commit each one points to (`GET /repos/{r}/tags`, 100 per
+   * page). GitHub's order is not documented, so at most `maxPages` pages (default 5, at most 10)
+   * are read: `truncated` says when a repository has more tags than that. The commit is the one
+   * GitHub reports for the tag (not checked against live GitHub for annotated tags; see
+   * `listMatchingTags`, which resolves them itself).
+   */
+  async listTags(options: { maxPages?: number; signal?: AbortSignal } = {}): Promise<TagList> {
+    const maxPages = Math.min(Math.max(Math.trunc(options.maxPages ?? 5), 1), 10);
+    const tags: GitTag[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const reply = await this.#api('GET', this.#repoPath('/tags'), {
+        query: { per_page: '100', page: String(page) },
+        signal: options.signal,
+      });
+      const items = records(reply.json);
+      for (const item of items) {
+        const name = text(item.name);
+        const commit = isRecord(item.commit) ? item.commit : {};
+        const sha = text(commit.sha);
+        if (name && name.length <= 250 && sha && SHA.test(sha)) tags.push({ name, sha: sha.toLowerCase() });
+      }
+      if (items.length < 100) return { tags, truncated: false, pages: page };
+    }
+    return { tags, truncated: true, pages: maxPages };
+  }
+
+  /**
+   * Tags whose name starts with `prefix` (`GET /repos/{r}/git/matching-refs/tags/{prefix}`; GitHub
+   * documents no paging for it). An annotated tag is followed to its commit through
+   * `GET /git/tags/{sha}`, at most `resolveLimit` (default 50) of them; later ones are counted in
+   * `unresolved` and left out. At most `limit` tags (default 500) are returned.
+   */
+  async listMatchingTags(
+    prefix: string,
+    options: { limit?: number; resolveLimit?: number; signal?: AbortSignal } = {},
+  ): Promise<TagList & { unresolved: number }> {
+    if (
+      prefix.length > 200 ||
+      prefix.split('/').some((s) => s === '.' || s === '..') ||
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: git forbids control characters
+      /[\x00-\x1f\x7f\\]/.test(prefix)
+    ) {
+      throw new GithubError('invalid_input', `Not a valid tag prefix: ${JSON.stringify(prefix)}.`);
+    }
+    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 500), 1), 1000);
+    let budget = Math.min(Math.max(Math.trunc(options.resolveLimit ?? 50), 0), 200);
+    const reply = await this.#api('GET', this.#repoPath(`/git/matching-refs/tags/${encPath(prefix)}`), {
+      signal: options.signal,
+    });
+    const items = records(reply.json);
+    const tags: GitTag[] = [];
+    let unresolved = 0;
+    for (const item of items) {
+      const refName = text(item.ref);
+      if (!refName?.startsWith('refs/tags/')) continue;
+      const name = refName.slice('refs/tags/'.length);
+      let object = isRecord(item.object) ? item.object : {};
+      let sha = text(object.sha);
+      let kind = text(object.type);
+      let annotated = false;
+      // An annotated tag is its own object that points at the commit (or at another tag).
+      for (let depth = 0; kind === 'tag' && sha && depth < 3; depth++) {
+        annotated = true;
+        if (budget <= 0) {
+          sha = undefined;
+          break;
+        }
+        budget--;
+        const tagReply = await this.#api('GET', this.#repoPath(`/git/tags/${enc(sha)}`), {
+          signal: options.signal,
+        });
+        object = isRecord(tagReply.json) && isRecord(tagReply.json.object) ? tagReply.json.object : {};
+        sha = text(object.sha);
+        kind = text(object.type);
+      }
+      if (!name || !sha || kind !== 'commit' || !SHA.test(sha)) {
+        if (annotated) unresolved++;
+        continue;
+      }
+      if (tags.length >= limit) return { tags, truncated: true, pages: 1, unresolved };
+      tags.push(annotated ? { name, sha: sha.toLowerCase(), annotated } : { name, sha: sha.toLowerCase() });
+    }
+    return { tags, truncated: false, pages: 1, unresolved };
+  }
+
+  /**
+   * One commit with its parents (`GET /repos/{r}/commits/{ref}`), or undefined when GitHub has no
+   * such commit. `ref` is a sha, a branch or a tag name. The file list is not wanted: one file per
+   * page is asked for, which GitHub documents as the page size of that list.
+   */
+  async getCommit(ref: string, signal?: AbortSignal): Promise<CommitDetail | undefined> {
+    if (!SHA.test(ref)) checkBranchName(ref);
+    const reply = await this.#api('GET', this.#repoPath(`/commits/${encPath(ref)}`), {
+      query: { per_page: '1' },
+      allow: [404, 422],
+      signal,
+    });
+    if (reply.status === 404 || reply.status === 422 || !isRecord(reply.json)) return undefined;
+    const [base] = mapCommit(reply.json);
+    if (!base) return undefined;
+    const commit = isRecord(reply.json.commit) ? reply.json.commit : {};
+    const committer = isRecord(commit.committer) ? commit.committer : {};
+    const out: CommitDetail = {
+      ...base,
+      parents: records(reply.json.parents).flatMap((p) => {
+        const sha = text(p.sha);
+        return sha && SHA.test(sha) ? [sha.toLowerCase()] : [];
+      }),
+    };
+    const committedAt = isoTime(committer.date);
+    if (committedAt !== undefined) out.committedAt = committedAt;
+    return out;
+  }
+
+  /**
+   * The releases of the repository (`GET /repos/{r}/releases`, 100 per page, at most `maxPages`:
+   * default 3, at most 10). Drafts are kept and marked, because they have no tag yet.
+   */
+  async listReleases(options: { maxPages?: number; signal?: AbortSignal } = {}): Promise<ReleaseList> {
+    const maxPages = Math.min(Math.max(Math.trunc(options.maxPages ?? 3), 1), 10);
+    const releases: GitRelease[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const reply = await this.#api('GET', this.#repoPath('/releases'), {
+        query: { per_page: '100', page: String(page) },
+        signal: options.signal,
+      });
+      const items = records(reply.json);
+      for (const item of items) {
+        const tagName = text(item.tag_name);
+        const id = item.id;
+        if (!tagName || (typeof id !== 'number' && typeof id !== 'string')) continue;
+        const out: GitRelease = {
+          id: String(id),
+          tagName,
+          draft: item.draft === true,
+          prerelease: item.prerelease === true,
+        };
+        const name = text(item.name);
+        if (name) out.name = name;
+        const target = text(item.target_commitish);
+        if (target) out.targetCommitish = target;
+        const created = isoTime(item.created_at);
+        if (created !== undefined) out.createdAt = created;
+        const published = isoTime(item.published_at);
+        if (published !== undefined) out.publishedAt = published;
+        const url = text(item.html_url);
+        if (url) out.url = url;
+        releases.push(out);
+      }
+      if (items.length < 100) return { releases, truncated: false, pages: page };
+    }
+    return { releases, truncated: true, pages: maxPages };
+  }
 }
 
 /** A workflow of a repository, as `GET /actions/workflows` lists it. */
@@ -991,6 +1150,47 @@ export type CommitComparison = {
   truncated: boolean;
   url?: string;
 };
+
+/** A tag and the commit it points to. */
+export type GitTag = {
+  name: string;
+  /** The commit (an annotated tag is followed to it), lower case. */
+  sha: string;
+  /** True when the tag is an annotated tag object, not a plain ref to a commit. */
+  annotated?: boolean;
+};
+
+export type TagList = {
+  tags: GitTag[];
+  /** There may be more tags than were read (page limit reached). */
+  truncated: boolean;
+  /** How many pages were read. */
+  pages: number;
+};
+
+/** A commit with its parents, as `GET /commits/{ref}` reports it. */
+export type CommitDetail = CommitInfo & {
+  /** Parent commit shas, first parent first. */
+  parents: string[];
+  /** Epoch milliseconds the commit was committed (`date` is when it was authored). */
+  committedAt?: number;
+};
+
+export type GitRelease = {
+  id: string;
+  name?: string;
+  tagName: string;
+  /** A branch name or a commit sha, as the release was created. */
+  targetCommitish?: string;
+  draft: boolean;
+  prerelease: boolean;
+  /** Epoch milliseconds. */
+  createdAt?: number;
+  publishedAt?: number;
+  url?: string;
+};
+
+export type ReleaseList = { releases: GitRelease[]; truncated: boolean; pages: number };
 
 const isoTime = (v: unknown): number | undefined => {
   const parsed = Date.parse(text(v) ?? '');
