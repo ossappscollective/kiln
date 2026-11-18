@@ -40,7 +40,7 @@
     type MatrixCell,
   } from '../../lib/listing-matrix.ts';
   import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing-pull.ts';
-  import { cleanWarnings } from '../../lib/listing-sections.ts';
+  import { warningCountOf, warningGroups } from '../../lib/listing-warnings.ts';
   import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
   import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
   import { cellStagedText, stagingError as stagingMessage } from '../../lib/staged.ts';
@@ -52,8 +52,10 @@
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import StatusPill from '../ui/StatusPill.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
   import ListingSections from './ListingSections.svelte';
   import LocaleDrawer from './LocaleDrawer.svelte';
@@ -94,6 +96,7 @@
   let repoReading = $state(false);
   let announcement = $state('');
   let lastPull = $state<PullResult | null>(null);
+  let warningsOpen = $state(false);
 
   let drawerOpen = $state(false);
   let drawerLocale = $state<string | null>(null);
@@ -175,6 +178,22 @@
   const loading = $derived(members.some((m) => views[m.id] === undefined || (views[m.id]?.loading === true && views[m.id]?.drift === null)));
   const failed = $derived(members.filter((m) => views[m.id]?.drift === null && (views[m.id]?.problem ?? '') !== ''));
   const nothingLoaded = $derived(members.every((m) => (views[m.id]?.drift ?? null) === null));
+  const hasRows = $derived(!nothingLoaded && matrix.rows.length > 0);
+  const warningGroupList = $derived(
+    warningGroups(
+      members.map((m) => {
+        const drift = views[m.id]?.drift ?? null;
+        return {
+          appId: m.id,
+          platform: platformLabel(m.platform),
+          storeError: drift?.store.error ?? null,
+          warnings: views[m.id]?.live?.warnings,
+          repoError: drift && m.repositoryId !== null ? (drift.repo.error ?? null) : null,
+        };
+      }),
+    ),
+  );
+  const warningCount = $derived(warningCountOf(warningGroupList));
   const channels = $derived(
     members.reduce<Partial<Record<Platform, 'live' | 'editable' | null>>>((acc, m) => {
       acc[m.platform] = views[m.id]?.drift?.channel ?? null;
@@ -333,92 +352,151 @@
   const platformNames = (platforms: Platform[]) => platforms.map(platformLabel).join(' and ');
 </script>
 
-<div class="stack loose listing" aria-busy={loading}>
+<div class="stack listing" aria-busy={loading}>
   <p class="visually-hidden" role="status">{announcement}</p>
 
-  <div class="intro">
-    <p class="muted">
-      Each cell compares one listing field of one locale between the repository and the store
-      ({members.map((m) => storeName(m.platform)).join(' and ')}). This view only reads: it never changes a store.
-      Open a locale for the full comparison.
-    </p>
-    <div class="row wrap">
-      {#if canSync}
-        <Button variant="primary" icon="refresh" loading={anySyncing} onclick={refreshAll}>{anySyncing ? 'Reading…' : 'Refresh from store'}</Button>
+  {#each members as app (app.id)}
+    {@const view = views[app.id]}
+    {#if view?.problem}
+      <Alert tone="error" title="Could not load the {platformLabel(app.platform)} listing">
+        {view.problem}{view.drift ? ' The values below are from before.' : ''}
+        {#if !view.drift}<div class="retry"><Button size="sm" icon="refresh" onclick={() => load(app)}>Try again</Button></div>{/if}
+      </Alert>
+    {/if}
+  {/each}
+
+  <div class="toolbar">
+    <div class="filters">
+      {#if hasRows}
+        <div class="chips" role="group" aria-label="Filter the locales">
+          {#each MODE_ORDER as mode (mode)}
+            <button type="button" class="bare chip" aria-pressed={filter.mode === mode} onclick={() => setMode(mode)}>
+              {MODE_LABELS[mode]} <span class="count tabular">{counts[mode]}</span>
+            </button>
+          {/each}
+        </div>
+        <label class="visually-hidden" for="listing-locale-query">Search locales</label>
+        <input id="listing-locale-query" type="search" placeholder="Search locale or language" bind:value={filter.query} />
       {/if}
+      {#if !nothingLoaded}
+        {#if warningCount > 0}
+          <StatusPill
+            tone="warn"
+            label="{warningCount} read {warningCount === 1 ? 'warning' : 'warnings'}"
+            bind:open={warningsOpen}
+            stateKey="listing.warnings"
+            controls="listing-warnings"
+          />
+        {/if}
+        <InfoTip label="Where the values were read from" buttonText="Sources" icon="clock" width="26rem">
+          <dl class="sources">
+            {#each members as app (app.id)}
+              {@const view = views[app.id]}
+              {#if view?.drift}
+                <div>
+                  <dt>{both ? platformLabel(app.platform) : storeName(app.platform)}</dt>
+                  <dd>
+                    {#if view.drift.store.readAt !== null}
+                      store read <time datetime={new Date(view.drift.store.readAt).toISOString()} title={fullTime(view.drift.store.readAt)}>{timeAgo(view.drift.store.readAt, now)}</time>
+                      {#if view.drift.channel === 'editable'}<span class="muted"> (editable version: no version is live yet)</span>{/if}
+                    {:else}
+                      <span class="muted">store not read yet</span>
+                    {/if}
+                    <span class="muted"> · </span>
+                    {#if app.repositoryId === null}
+                      <span class="muted">no repository linked</span>
+                    {:else if view.drift.repo.readAt !== null}
+                      repository read <time datetime={new Date(view.drift.repo.readAt).toISOString()} title={fullTime(view.drift.repo.readAt)}>{timeAgo(view.drift.repo.readAt, now)}</time>
+                      {#if view.drift.repo.ref}<span class="muted"> at <code>{shortRef('repo', view.drift.repo.ref)}</code></span>{/if}
+                    {:else}
+                      <span class="muted">repository not read yet</span>
+                    {/if}
+                  </dd>
+                </div>
+              {/if}
+            {/each}
+          </dl>
+          {#if hasRows}
+            <p class="pullnote muted">
+              {#if pullBlocked !== null}
+                Pulling into the repository is not available. {pullBlocked}
+              {:else if !anyPullable}
+                No differences to pull: the repository already has the store's text, or is ahead of it.
+              {:else}
+                Where the store is ahead of the repository, its text can be pulled into the repository as a draft change set.
+              {/if}
+            </p>
+          {/if}
+        </InfoTip>
+        {#if hasRows}
+          <InfoTip label="What the marks mean" buttonText="Legend" icon="info" width="26rem">
+            <p>
+              Each cell compares one listing field of one locale between the repository and the store
+              ({members.map((m) => storeName(m.platform)).join(' and ')}). This view only reads: it never changes a store.
+              Open a locale for the full comparison.
+            </p>
+            <ul class="legend" aria-label="What the marks mean">
+              {#each LEGEND_ORDER as status (status)}
+                <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
+              {/each}
+              {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
+              <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>Staged for a draft push</span></li>
+            </ul>
+            <p class="muted">
+              A dimmed cell is one the filter is not about. A field only one store has is marked "iOS only" or "Android only";
+              a field with a different limit on each store shows both limits.
+            </p>
+          </InfoTip>
+        {/if}
+        {#if members.some((m) => views[m.id]?.reloading)}<span class="muted updating">updating…</span>{/if}
+      {/if}
+    </div>
+    <div class="actions row wrap">
       {#if readable.length > 0}
         <Button icon="git-branch" loading={repoReading} onclick={readRepository}>{repoReading ? 'Reading…' : 'Read repository'}</Button>
+      {/if}
+      {#if hasRows}
+        {#each pullables as p (p.app.id)}
+          {#if p.fields.length > 0}
+            <Button
+              icon="git-pull-request"
+              disabled={p.reason !== null}
+              title={p.reason ?? "Pull the store's text into the repository as a draft change set"}
+              onclick={() => openPull(p.app, p.fields)}
+            >
+              Pull {both ? `${platformLabel(p.app.platform)} ` : ''}differences… ({p.fields.length})
+            </Button>
+          {/if}
+        {/each}
+      {/if}
+      {#if canSync}
+        <Button variant="primary" icon="refresh" loading={anySyncing} onclick={refreshAll}>{anySyncing ? 'Reading…' : 'Refresh from store'}</Button>
       {/if}
     </div>
   </div>
 
+  {#if warningCount > 0 && warningsOpen}
+    <div id="listing-warnings" class="warnings stack tight">
+      {#each warningGroupList as group (group.id)}
+        <Alert tone="warn" title={group.title}>
+          {#if group.lines.length === 1}
+            <p class="alert-text">{group.lines[0]}</p>
+          {:else}
+            <ul class="alert-list">
+              {#each group.lines as line (line)}<li>{line}</li>{/each}
+            </ul>
+          {/if}
+          {#if group.note}<p class="alert-text">{group.note}</p>{/if}
+        </Alert>
+      {/each}
+    </div>
+  {/if}
+
   {#if loading && nothingLoaded && failed.length === 0}
     <div role="status" aria-label="Loading the listing" class="stack">
-      <Skeleton width="50%" height="16px" />
       <div class="card"><div class="stack"><Skeleton width="30%" height="16px" /><Skeleton width="100%" height="96px" /></div></div>
     </div>
   {:else}
-    {#each members as app (app.id)}
-      {@const view = views[app.id]}
-      {#if view?.problem}
-        <Alert tone="error" title="Could not load the {platformLabel(app.platform)} listing">
-          {view.problem}{view.drift ? ' The values below are from before.' : ''}
-          {#if !view.drift}<div class="retry"><Button size="sm" icon="refresh" onclick={() => load(app)}>Try again</Button></div>{/if}
-        </Alert>
-      {/if}
-      {#if view?.drift}
-        {#if view.drift.store.error}
-          <Alert tone="warn" title="The last read of the {platformLabel(app.platform)} store listing failed">
-            <p class="alert-text">{view.drift.store.error}</p>
-            <p class="alert-text">The values are from the last successful read. The release sync is not affected.</p>
-          </Alert>
-        {/if}
-        {#if cleanWarnings(view.live?.warnings).length > 0}
-          <Alert tone="warn" title="The {platformLabel(app.platform)} store read had warnings">
-            <ul class="alert-list">
-              {#each cleanWarnings(view.live?.warnings) as warning (warning)}
-                <li>{warning}</li>
-              {/each}
-            </ul>
-            <p class="alert-text">Parts of the listing that could not be read are left out, not shown as empty.</p>
-          </Alert>
-        {/if}
-        {#if view.drift.repo.error && app.repositoryId !== null}
-          <Alert tone="warn" title="The last read of the {platformLabel(app.platform)} repository listing failed">
-            <p class="alert-text">{view.drift.repo.error}</p>
-          </Alert>
-        {/if}
-      {/if}
-    {/each}
-
-    <dl class="sources">
-      {#each members as app (app.id)}
-        {@const view = views[app.id]}
-        {#if view?.drift}
-          <div>
-            <dt>{both ? platformLabel(app.platform) : storeName(app.platform)}</dt>
-            <dd>
-              {#if view.drift.store.readAt !== null}
-                store read <time datetime={new Date(view.drift.store.readAt).toISOString()} title={fullTime(view.drift.store.readAt)}>{timeAgo(view.drift.store.readAt, now)}</time>
-                {#if view.drift.channel === 'editable'}<span class="muted"> (editable version: no version is live yet)</span>{/if}
-              {:else}
-                <span class="muted">store not read yet</span>
-              {/if}
-              <span class="muted"> · </span>
-              {#if app.repositoryId === null}
-                <span class="muted">no repository linked</span>
-              {:else if view.drift.repo.readAt !== null}
-                repository read <time datetime={new Date(view.drift.repo.readAt).toISOString()} title={fullTime(view.drift.repo.readAt)}>{timeAgo(view.drift.repo.readAt, now)}</time>
-                {#if view.drift.repo.ref}<span class="muted"> at <code>{shortRef('repo', view.drift.repo.ref)}</code></span>{/if}
-              {:else}
-                <span class="muted">repository not read yet</span>
-              {/if}
-            </dd>
-          </div>
-        {/if}
-      {/each}
-    </dl>
-
     {#if !nothingLoaded && matrix.rows.length === 0}
       <div class="card">
         <EmptyState
@@ -436,30 +514,7 @@
         </EmptyState>
       </div>
     {:else if !nothingLoaded}
-      <div class="toolbar">
-        <p class="summary" aria-live="polite">
-          {matrixSummary(matrix.rows)}{members.some((m) => views[m.id]?.reloading) ? ' · updating…' : ''}
-        </p>
-        <div class="filters">
-          <div class="chips" role="group" aria-label="Filter the locales">
-            {#each MODE_ORDER as mode (mode)}
-              <button type="button" class="bare chip" aria-pressed={filter.mode === mode} onclick={() => setMode(mode)}>
-                {MODE_LABELS[mode]} <span class="count tabular">{counts[mode]}</span>
-              </button>
-            {/each}
-          </div>
-          <label class="visually-hidden" for="listing-locale-query">Search locales</label>
-          <input id="listing-locale-query" type="search" placeholder="Search locale or language" bind:value={filter.query} />
-        </div>
-      </div>
-
-      <ul class="legend" aria-label="What the marks mean">
-        {#each LEGEND_ORDER as status (status)}
-          <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
-        {/each}
-        {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
-        <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>Staged for a draft push</span></li>
-      </ul>
+      <p class="visually-hidden" aria-live="polite">{matrixSummary(matrix.rows)}</p>
 
       {#if lastPull}
         <PullResultSummary
@@ -469,25 +524,6 @@
           ondismiss={() => (lastPull = null)}
         />
       {/if}
-
-      <div class="pullbar" aria-label="Pull into the repository">
-        {#if pullBlocked !== null}
-          <p class="muted pullnote"><Icon name="info" size={14} /> Pulling into the repository is not available. {pullBlocked}</p>
-        {:else if !anyPullable}
-          <p class="muted pullnote"><Icon name="check" size={14} /> No differences to pull: the repository already has the store's text, or is ahead of it.</p>
-        {:else}
-          <p class="pullnote">Where the store is ahead of the repository, its text can be pulled into the repository as a draft change set.</p>
-          <div class="row wrap">
-            {#each pullables as p (p.app.id)}
-              {#if p.fields.length > 0}
-                <Button variant="primary" icon="git-pull-request" disabled={p.reason !== null} onclick={() => openPull(p.app, p.fields)}>
-                  Pull {both ? `${platformLabel(p.app.platform)} ` : ''}differences into repository… ({p.fields.length})
-                </Button>
-              {/if}
-            {/each}
-          </div>
-        {/if}
-      </div>
 
       {#if rows.length === 0}
         <div class="card">
@@ -562,10 +598,6 @@
             </tbody>
           </table>
         </div>
-        <p class="muted hint">
-          <Icon name="info" size={14} /> A dimmed cell is one the filter is not about. A field only one store has is marked
-          "iOS only" or "Android only"; a field with a different limit on each store shows both limits.
-        </p>
       {/if}
     {/if}
 
@@ -621,21 +653,6 @@
 {/if}
 
 <style>
-  .intro {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3) var(--space-6);
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .intro p {
-    flex: 1 1 320px;
-    max-width: 62ch;
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
   .alert-text {
     margin: var(--space-1) 0 0;
   }
@@ -651,48 +668,53 @@
 
   .sources {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-8);
+    flex-direction: column;
+    gap: var(--space-2);
     margin: 0;
-    font-size: var(--text-sm);
   }
 
   .sources dt {
-    display: inline;
+    display: block;
     font-weight: var(--weight-semibold);
   }
 
-  .sources dt::after {
-    content: ': ';
+  .sources dd {
+    margin: 0;
   }
 
-  .sources dd {
-    display: inline;
-    margin: 0;
+  .pullnote {
+    margin-top: var(--space-3);
+  }
+
+  .updating {
+    font-size: var(--text-xs);
   }
 
   .toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--space-2) var(--space-4);
     align-items: center;
     justify-content: space-between;
   }
 
-  .summary {
-    margin: 0;
-    font-weight: var(--weight-medium);
-  }
-
   .filters {
     display: flex;
+    flex: 1 1 auto;
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
+    min-width: 0;
+  }
+
+  .actions {
+    flex: none;
+    margin-left: auto;
   }
 
   .filters input {
-    min-width: 14rem;
+    width: 13rem;
+    min-height: var(--control-sm);
   }
 
   .chips {
@@ -737,12 +759,11 @@
   }
 
   .legend {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1) var(--space-4);
     padding: 0;
-    margin: 0;
-    font-size: var(--text-sm);
+    margin: var(--space-3) 0;
     color: var(--muted);
     list-style: none;
   }
@@ -751,27 +772,6 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
-  }
-
-  .pullbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
-  }
-
-  .pullnote {
-    display: flex;
-    flex: 1 1 280px;
-    gap: var(--space-1);
-    align-items: center;
-    margin: 0;
-    font-size: var(--text-sm);
   }
 
   .matrix {
@@ -892,14 +892,6 @@
 
   .dots.dim {
     opacity: 0.3;
-  }
-
-  .hint {
-    display: flex;
-    gap: var(--space-1);
-    align-items: center;
-    margin: 0;
-    font-size: var(--text-sm);
   }
 
   h2.phead {
