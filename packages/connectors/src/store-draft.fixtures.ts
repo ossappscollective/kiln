@@ -21,19 +21,44 @@ export type Hook = (seen: Seen) => Response | Error | undefined;
 // ---------------------------------------------------------------------------------------------
 // App Store Connect
 
-type AppleShot = { id: string; fileName: string; fileSize: number; checksum: string | null; state: string; polls: number; bytes: Uint8Array[]; setId: string };
+type AppleImage = {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  referenceName: string | null;
+  state: string;
+  polls: number;
+  bytes: Uint8Array[];
+  specId: string | null;
+  category: string;
+};
+type ApplePlacement = { id: string; locId: string; group: string; imageId: string };
+
+const refName = (bytes: Uint8Array) => `mrm:sha256:${sha256(bytes).slice(0, 32)}`;
 
 export class FakeAppleDraftApi {
   readonly seen: Seen[] = [];
-  versions: { id: string; versionString: string; state: string; platform?: string }[] = [
+  versions: { id: string; versionString: string; state: string; platform?: string; releaseType?: string }[] = [
     { id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION' },
     { id: 'v-next', versionString: '2.1', state: 'PREPARE_FOR_SUBMISSION' },
   ];
   /** localization id -> locale and attributes. */
   locs = new Map<string, { versionId: string; locale: string; attributes: Record<string, unknown> }>();
-  sets = new Map<string, { locId: string; type: string; shots: string[] }>();
-  shots = new Map<string, AppleShot>();
-  /** Polls that answer UPLOAD_COMPLETE before COMPLETE. */
+  images = new Map<string, AppleImage>();
+  placements = new Map<string, ApplePlacement>();
+  /** `locId\u0000group` -> placement ids in display order. */
+  order = new Map<string, string[]>();
+  library = '10746822401';
+  /** version id -> the build attached to it (App Store Connect API: `GET /v1/appStoreVersions/{id}/build`). */
+  builds = new Map<string, { id: string; version: string; processingState: string; expired: boolean }>([['v-next', { id: 'b-1', version: '57', processingState: 'VALID', expired: false }]]);
+  /** Review submissions: id -> state and the versions added to it. */
+  submissions = new Map<string, { state: string; versions: string[] }>();
+  /** The reference data: the placement groups of the fake store. */
+  refData = defaultRefData();
+  /** The specification the fake matches a processed file to, by file name (default: `defaultSpec`). */
+  specByFile = new Map<string, string>();
+  defaultSpec = 'spec-65';
+  /** Polls that answer UPLOAD_COMPLETE before PREPARE_FOR_SUBMISSION. */
   pollsBeforeComplete = 1;
   /** Files whose processing ends FAILED (by file name). */
   failProcessing = new Set<string>();
@@ -45,16 +70,34 @@ export class FakeAppleDraftApi {
     this.locs.set('loc-en', { versionId: 'v-next', locale: 'en-US', attributes: { locale: 'en-US', description: 'Old description', keywords: 'old', whatsNew: 'Old news' } });
   }
 
-  addSet(locId: string, type: string, files: { name: string; bytes: Uint8Array; state?: string }[]): string {
-    const id = this.#id('set');
+  /** Puts files into a placement group of a localization (a test's starting point). `reference: false`: an image someone else uploaded. */
+  addPlacements(locId: string, group: string, files: { name: string; bytes: Uint8Array; state?: string; reference?: boolean }[]): string[] {
     const ids: string[] = [];
     for (const f of files) {
-      const shotId = this.#id('shot');
-      this.shots.set(shotId, { id: shotId, fileName: f.name, fileSize: f.bytes.length, checksum: md5(f.bytes), state: f.state ?? 'COMPLETE', polls: 0, bytes: [f.bytes], setId: id });
-      ids.push(shotId);
+      const imageId = this.#id('img');
+      this.images.set(imageId, {
+        id: imageId,
+        fileName: f.name,
+        fileSize: f.bytes.length,
+        referenceName: f.reference === false ? 'Somebody else' : refName(f.bytes),
+        state: f.state ?? 'PREPARE_FOR_SUBMISSION',
+        polls: 0,
+        bytes: [f.bytes],
+        specId: this.defaultSpec,
+        category: 'APP_SCREENSHOTS_AND_PREVIEWS',
+      });
+      const id = this.#id('pl');
+      this.placements.set(id, { id, locId, group, imageId });
+      const key = `${locId}\u0000${group}`;
+      this.order.set(key, [...(this.order.get(key) ?? []), id]);
+      ids.push(id);
     }
-    this.sets.set(id, { locId, type, shots: ids });
-    return id;
+    return ids;
+  }
+
+  /** The files of a group in display order, by file name. */
+  groupFiles(locId: string, group: string): string[] {
+    return (this.order.get(`${locId}\u0000${group}`) ?? []).map((id) => this.images.get(this.placements.get(id)?.imageId ?? '')?.fileName ?? '?');
   }
 
   /** The requests that changed something, as `METHOD path`. */
@@ -73,35 +116,40 @@ export class FakeAppleDraftApi {
     const hooked = this.hook?.(seen);
     if (hooked instanceof Error) throw hooked;
     if (hooked) return hooked;
-    return this.#route(seen);
+    return this.#route(seen, url);
   };
 
-  #shotView(s: AppleShot) {
-    return { type: 'appScreenshots', id: s.id, attributes: { fileName: s.fileName, sourceFileChecksum: s.checksum, assetDeliveryState: { state: s.state, errors: s.state === 'FAILED' ? [{ code: 'IMAGE_BAD', description: 'The image is not acceptable.' }] : [] } } };
+  #imageView(i: AppleImage) {
+    return {
+      type: 'appAssetLibraryImages',
+      id: i.id,
+      attributes: { fileName: i.fileName, fileSize: i.fileSize, referenceName: i.referenceName, state: i.state, stateDetails: i.state === 'FAILED' ? { description: 'The image is not acceptable.' } : null, specId: i.specId, category: i.category },
+    };
   }
 
-  #route(s: Seen): Response {
+  #route(s: Seen, url: URL): Response {
     const { method, path } = s;
     if (s.host !== 'api.appstoreconnect.apple.com') {
       // The pre-signed upload server: no JWT is ever sent there.
       const id = path.split('/').pop() ?? '';
-      const shot = this.shots.get(id);
-      if (method === 'PUT' && shot) {
-        shot.bytes.push(s.bytes ?? new Uint8Array());
+      const image = this.images.get(id);
+      if (method === 'PUT' && image) {
+        image.bytes.push(s.bytes ?? new Uint8Array());
         return json(200);
       }
       return json(404);
     }
+    const notFound = () => json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
     let m: RegExpMatchArray | null;
     if (method === 'GET' && /^\/v1\/apps\/\d+\/appStoreVersions$/.test(path)) {
-      return json(200, { data: this.versions.map((v) => ({ type: 'appStoreVersions', id: v.id, attributes: { platform: v.platform ?? 'IOS', versionString: v.versionString, appVersionState: v.state } })), links: {} });
+      return json(200, { data: this.versions.map((v) => ({ type: 'appStoreVersions', id: v.id, attributes: { platform: v.platform ?? 'IOS', versionString: v.versionString, appVersionState: v.state, ...(v.releaseType ? { releaseType: v.releaseType } : {}) } })), links: {} });
     }
     if (method === 'GET' && (m = path.match(/^\/v1\/appStoreVersions\/([^/]+)\/appStoreVersionLocalizations$/))) {
       return json(200, { data: [...this.locs].filter(([, l]) => l.versionId === m?.[1]).map(([id, l]) => ({ type: 'appStoreVersionLocalizations', id, attributes: l.attributes })), links: {} });
     }
     if (method === 'PATCH' && (m = path.match(/^\/v1\/appStoreVersionLocalizations\/([^/]+)$/))) {
       const loc = this.locs.get(m[1] ?? '');
-      if (!loc) return json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
+      if (!loc) return notFound();
       Object.assign(loc.attributes, ((s.body as { data: { attributes: Record<string, unknown> } }).data).attributes);
       return json(200, { data: { type: 'appStoreVersionLocalizations', id: m[1], attributes: loc.attributes } });
     }
@@ -111,39 +159,61 @@ export class FakeAppleDraftApi {
       this.locs.set(id, { versionId: data.relationships.appStoreVersion.data.id, locale: String(data.attributes.locale), attributes: data.attributes });
       return json(201, { data: { type: 'appStoreVersionLocalizations', id, attributes: data.attributes } });
     }
-    if (method === 'GET' && (m = path.match(/^\/v1\/appStoreVersionLocalizations\/([^/]+)\/appScreenshotSets$/))) {
-      const mine = [...this.sets].filter(([, set]) => set.locId === m?.[1]);
-      return json(200, {
-        data: mine.map(([id, set]) => ({
-          type: 'appScreenshotSets',
-          id,
-          attributes: { screenshotDisplayType: set.type },
-          relationships: { appScreenshots: { data: set.shots.map((x) => ({ type: 'appScreenshots', id: x })) } },
-        })),
-        included: mine.flatMap(([, set]) => set.shots.map((x) => this.#shotView(this.shots.get(x) as AppleShot))),
-      });
+    // ----- review submissions
+    if (method === 'GET' && (m = path.match(/^\/v1\/appStoreVersions\/([^/]+)\/build$/))) {
+      const b = this.builds.get(m[1] ?? '');
+      return json(200, { data: b ? { type: 'builds', id: b.id, attributes: { version: b.version, processingState: b.processingState, expired: b.expired } } : null });
     }
-    if (method === 'POST' && path === '/v1/appScreenshotSets') {
-      const data = (s.body as { data: { attributes: { screenshotDisplayType: string }; relationships: { appStoreVersionLocalization: { data: { id: string } } } } }).data;
-      const id = this.#id('set');
-      this.sets.set(id, { locId: data.relationships.appStoreVersionLocalization.data.id, type: data.attributes.screenshotDisplayType, shots: [] });
-      return json(201, { data: { type: 'appScreenshotSets', id } });
+    if (method === 'GET' && /^\/v1\/apps\/\d+\/reviewSubmissions$/.test(path)) {
+      const want = url.searchParams.get('filter[state]');
+      return json(200, { data: [...this.submissions].filter(([, x]) => want === null || x.state === want).map(([id, x]) => ({ type: 'reviewSubmissions', id, attributes: { state: x.state } })) });
     }
-    if (method === 'POST' && path === '/v1/appScreenshots') {
-      const data = (s.body as { data: { attributes: { fileName: string; fileSize: number }; relationships: { appScreenshotSet: { data: { id: string } } } } }).data;
-      const id = this.#id('shot');
-      const setId = data.relationships.appScreenshotSet.data.id;
-      this.shots.set(id, { id, fileName: data.attributes.fileName, fileSize: data.attributes.fileSize, checksum: null, state: 'AWAITING_UPLOAD', polls: 0, bytes: [], setId });
-      this.sets.get(setId)?.shots.push(id);
+    if (method === 'POST' && path === '/v1/reviewSubmissions') {
+      const id = this.#id('sub');
+      this.submissions.set(id, { state: 'READY_FOR_REVIEW', versions: [] });
+      return json(201, { data: { type: 'reviewSubmissions', id, attributes: { state: 'READY_FOR_REVIEW' } } });
+    }
+    if (method === 'POST' && path === '/v1/reviewSubmissionItems') {
+      const rel = (s.body as { data: { relationships: { reviewSubmission: { data: { id: string } }; appStoreVersion: { data: { id: string } } } } }).data.relationships;
+      const sub = this.submissions.get(rel.reviewSubmission.data.id);
+      if (!sub) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'Unknown submission' }] });
+      sub.versions.push(rel.appStoreVersion.data.id);
+      return json(201, { data: { type: 'reviewSubmissionItems', id: this.#id('item') } });
+    }
+    if (method === 'PATCH' && (m = path.match(/^\/v1\/reviewSubmissions\/([^/]+)$/))) {
+      const sub = this.submissions.get(m[1] ?? '');
+      if (!sub) return notFound();
+      const attrs = (s.body as { data: { attributes: { submitted?: boolean } } }).data.attributes;
+      if (attrs.submitted) {
+        if (sub.versions.length === 0) return json(409, { errors: [{ status: '409', code: 'STATE_ERROR', title: 'The submission has no items' }] });
+        sub.state = 'WAITING_FOR_REVIEW';
+        for (const v of this.versions) if (sub.versions.includes(v.id)) v.state = 'WAITING_FOR_REVIEW';
+      }
+      return json(200, { data: { type: 'reviewSubmissions', id: m[1], attributes: { state: sub.state } } });
+    }
+    // ----- the asset library
+    if (method === 'GET' && /^\/v1\/apps\/\d+\/assetLibrary$/.test(path)) {
+      return json(200, { data: { type: 'appAssetLibraries', id: this.library } });
+    }
+    if (method === 'GET' && path === '/v1/appAssetLibraryRefData') {
+      return json(200, { data: [{ type: 'appAssetLibraryRefData', id: '1', attributes: this.refData }] });
+    }
+    if (method === 'GET' && (m = path.match(/^\/v1\/appAssetLibraries\/([^/]+)\/images$/))) {
+      const wanted = url.searchParams.get('filter[referenceName]');
+      const data = [...this.images.values()].filter((i) => wanted === null || i.referenceName === wanted).map((i) => this.#imageView(i));
+      return json(200, { data, links: {} });
+    }
+    if (method === 'POST' && path === '/v1/appAssetLibraryImages') {
+      const data = (s.body as { data: { attributes: { fileName: string; fileSize: number; category: string; referenceName?: string }; relationships: { assetLibrary: { data: { id: string } } } } }).data;
+      if (data.relationships.assetLibrary.data.id !== this.library) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'Wrong library' }] });
+      const id = this.#id('img');
+      this.images.set(id, { id, fileName: data.attributes.fileName, fileSize: data.attributes.fileSize, referenceName: data.attributes.referenceName ?? null, state: 'AWAITING_UPLOAD', polls: 0, bytes: [], specId: null, category: data.attributes.category });
       const half = Math.floor(data.attributes.fileSize / 2);
       return json(201, {
         data: {
-          type: 'appScreenshots',
-          id,
+          ...this.#imageView(this.images.get(id) as AppleImage),
           attributes: {
-            fileName: data.attributes.fileName,
-            fileSize: data.attributes.fileSize,
-            assetDeliveryState: { state: 'AWAITING_UPLOAD' },
+            ...this.#imageView(this.images.get(id) as AppleImage).attributes,
             // Two parts, to prove that offset and length are honoured.
             uploadOperations: [
               { method: 'PUT', url: `https://store-030.blobstore.apple.com/up/${id}`, offset: 0, length: half, requestHeaders: [{ name: 'Content-Type', value: 'image/png' }, { name: 'X-Apple-Part', value: '1' }] },
@@ -153,41 +223,141 @@ export class FakeAppleDraftApi {
         },
       });
     }
-    if (method === 'PATCH' && (m = path.match(/^\/v1\/appScreenshots\/([^/]+)$/))) {
-      const shot = this.shots.get(m[1] ?? '');
-      if (!shot) return json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
-      const attrs = (s.body as { data: { attributes: { uploaded?: boolean; sourceFileChecksum?: string } } }).data.attributes;
-      const got = Buffer.concat(shot.bytes);
-      if (attrs.uploaded && got.length !== shot.fileSize) return json(409, { errors: [{ status: '409', code: 'ENTITY_STATE_INVALID', title: 'size mismatch' }] });
-      shot.checksum = attrs.sourceFileChecksum ?? null;
-      shot.state = 'UPLOAD_COMPLETE';
-      return json(200, { data: this.#shotView(shot) });
-    }
-    if (method === 'GET' && (m = path.match(/^\/v1\/appScreenshots\/([^/]+)$/))) {
-      const shot = this.shots.get(m[1] ?? '');
-      if (!shot) return json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
-      if (shot.state === 'UPLOAD_COMPLETE') {
-        shot.polls++;
-        if (shot.polls > this.pollsBeforeComplete) shot.state = this.failProcessing.has(shot.fileName) ? 'FAILED' : 'COMPLETE';
+    if (method === 'PATCH' && (m = path.match(/^\/v1\/appAssetLibraryImages\/([^/]+)$/))) {
+      const image = this.images.get(m[1] ?? '');
+      if (!image) return notFound();
+      const attrs = (s.body as { data: { attributes: Record<string, unknown> } }).data.attributes;
+      if (attrs.uploaded) {
+        // Asset library commits take `uploaded` alone: no checksum.
+        if (Object.keys(attrs).some((k) => k !== 'uploaded')) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.ATTRIBUTE.UNKNOWN', title: 'Unexpected attribute' }] });
+        if (Buffer.concat(image.bytes).length !== image.fileSize) return json(409, { errors: [{ status: '409', code: 'ENTITY_STATE_INVALID', title: 'size mismatch' }] });
+        image.state = 'UPLOAD_COMPLETE';
       }
-      return json(200, { data: this.#shotView(shot) });
+      return json(200, { data: this.#imageView(image) });
     }
-    if (method === 'DELETE' && (m = path.match(/^\/v1\/appScreenshots\/([^/]+)$/))) {
-      const shot = this.shots.get(m[1] ?? '');
-      if (!shot) return json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
-      this.shots.delete(shot.id);
-      const set = this.sets.get(shot.setId);
-      if (set) set.shots = set.shots.filter((x) => x !== shot.id);
+    if (method === 'GET' && (m = path.match(/^\/v1\/appAssetLibraryImages\/([^/]+)$/))) {
+      const image = this.images.get(m[1] ?? '');
+      if (!image) return notFound();
+      if (image.state === 'UPLOAD_COMPLETE') {
+        image.polls++;
+        if (image.polls > this.pollsBeforeComplete) {
+          image.state = this.failProcessing.has(image.fileName) ? 'FAILED' : 'PREPARE_FOR_SUBMISSION';
+          image.specId = image.state === 'FAILED' ? null : (this.specByFile.get(image.fileName) ?? this.defaultSpec);
+        }
+      }
+      return json(200, { data: this.#imageView(image) });
+    }
+    if (method === 'DELETE' && (m = path.match(/^\/v1\/appAssetLibraryImages\/([^/]+)$/))) {
+      const image = this.images.get(m[1] ?? '');
+      if (!image) return notFound();
+      if ([...this.placements.values()].some((p) => p.imageId === image.id)) {
+        return json(409, { errors: [{ status: '409', code: 'STATE_ERROR.ASSET_HAS_PLACEMENTS', title: 'x', detail: 'The asset cannot be deleted while placements still use it. Delete those placements first.' }] });
+      }
+      this.images.delete(image.id);
       return json(204);
     }
-    if (method === 'PATCH' && (m = path.match(/^\/v1\/appScreenshotSets\/([^/]+)\/relationships\/appScreenshots$/))) {
-      const set = this.sets.get(m[1] ?? '');
-      if (!set) return json(404);
-      set.shots = (s.body as { data: { id: string }[] }).data.map((d) => d.id);
+    if (method === 'GET' && (m = path.match(/^\/v1\/appStoreVersionLocalizations\/([^/]+)\/placements$/))) {
+      const locId = m[1] ?? '';
+      const type = url.searchParams.get('filter[placementType]');
+      if (type !== null && type !== 'APP_SCREENSHOT') return json(200, { data: [] });
+      const mine: ApplePlacement[] = [];
+      for (const [key, ids] of this.order) {
+        if (key.startsWith(`${locId}\u0000`)) for (const id of ids) mine.push(this.placements.get(id) as ApplePlacement);
+      }
+      return json(200, {
+        data: mine.map((p) => ({
+          type: 'appAssetLibraryPlacements',
+          id: p.id,
+          attributes: { mediaType: 'IMAGE', placementType: 'APP_SCREENSHOT', placementGroup: p.group, state: 'PARENT_PREPARE_FOR_SUBMISSION' },
+          relationships: { image: { data: { type: 'appAssetLibraryImages', id: p.imageId } } },
+        })),
+        included: url.searchParams.get('include') === 'image' ? mine.map((p) => this.#imageView(this.images.get(p.imageId) as AppleImage)) : [],
+        links: {},
+      });
+    }
+    if (method === 'POST' && path === '/v1/appAssetLibraryPlacements') {
+      const data = (s.body as { data: { attributes: { placementType: string; placementGroup: string }; relationships: { image: { data: { id: string } }; appStoreVersionLocalization: { data: { id: string } } } } }).data;
+      const loc = this.locs.get(data.relationships.appStoreVersionLocalization.data.id);
+      const image = this.images.get(data.relationships.image.data.id);
+      if (!loc || !image) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'Unknown parent' }] });
+      const version = this.versions.find((v) => v.id === loc.versionId);
+      if (version?.state !== 'PREPARE_FOR_SUBMISSION') return json(409, { errors: [{ status: '409', code: 'STATE_ERROR.INVALID_STATE', title: 'Creating a placement is not permitted in this state' }] });
+      const key = `${data.relationships.appStoreVersionLocalization.data.id}\u0000${data.attributes.placementGroup}`;
+      if ((this.order.get(key) ?? []).length >= 10) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.TOO_MANY', title: 'Too many placements' }] });
+      const id = this.#id('pl');
+      this.placements.set(id, { id, locId: data.relationships.appStoreVersionLocalization.data.id, group: data.attributes.placementGroup, imageId: image.id });
+      this.order.set(key, [...(this.order.get(key) ?? []), id]);
+      return json(201, { data: { type: 'appAssetLibraryPlacements', id, attributes: { mediaType: 'IMAGE', placementType: data.attributes.placementType, placementGroup: data.attributes.placementGroup, state: 'PARENT_PREPARE_FOR_SUBMISSION' } } });
+    }
+    if (method === 'DELETE' && (m = path.match(/^\/v1\/appAssetLibraryPlacements\/([^/]+)$/))) {
+      const placement = this.placements.get(m[1] ?? '');
+      if (!placement) return notFound();
+      this.placements.delete(placement.id);
+      const key = `${placement.locId}\u0000${placement.group}`;
+      this.order.set(key, (this.order.get(key) ?? []).filter((x) => x !== placement.id));
       return json(204);
+    }
+    if (method === 'POST' && path === '/v1/appAssetLibraryPlacementOrderingRequests') {
+      const data = (s.body as { data: { attributes: { placementGroup: string }; relationships: { orderedPlacements: { data: { id: string }[] }; appStoreVersionLocalization: { data: { id: string } } } } }).data;
+      const key = `${data.relationships.appStoreVersionLocalization.data.id}\u0000${data.attributes.placementGroup}`;
+      const ids = data.relationships.orderedPlacements.data.map((d) => d.id);
+      const have = [...(this.order.get(key) ?? [])].sort().join(',');
+      if (have !== [...ids].sort().join(',')) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'The ordering must name every placement of the group' }] });
+      this.order.set(key, ids);
+      return json(201, { data: { type: 'appAssetLibraryPlacementOrderingRequests', id: this.#id('ord') } });
     }
     return json(599, { error: `no route ${method} ${path}` });
   }
+}
+
+/** The reference data of the fake: shapes as Apple's example shows them. */
+export function defaultRefData() {
+  const spec = (specId: string, w: number, h: number) => ({
+    specId,
+    shortName: `i${w}x${h}a0`,
+    dimensions: { minWidth: w, maxWidth: w, minHeight: h, maxHeight: h },
+    compatiblePlacementTypes: ['APP_SCREENSHOT'],
+    alphaAllowed: false,
+    fileExtensions: ['.jpg', '.jpeg', '.png'],
+    mimeTypes: ['image/jpeg', 'image/png'],
+    maxFileSize: 524288000,
+    universalAsset: false,
+  });
+  return {
+    features: [
+      {
+        featureId: 'APP_STORE_VERSIONS',
+        placementPolicies: [
+          { placementType: 'APP_SCREENSHOT', groupLimits: [{ groupIds: ['IPHONE_65_PROFILE', 'IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE', 'IPAD_13_PROFILE', 'IPAD_M4_PROFILE'], maxCount: 10 }] },
+        ],
+      },
+    ],
+    placementProfileGroups: [
+      { placementProfileGroupId: 'IPHONE_65_PROFILE', platform: 'IPHONE_APP_STORE', displayClassId: 'IPHONE_65_DISPLAY' },
+      { placementProfileGroupId: 'IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE', platform: 'IPHONE_APP_STORE', displayClassId: 'IPHONE_DYNAMIC_ISLAND_LARGE_DISPLAY' },
+      { placementProfileGroupId: 'IPAD_13_PROFILE', platform: 'IPAD_APP_STORE', displayClassId: 'IPAD_13_DISPLAY' },
+      { placementProfileGroupId: 'IPAD_M4_PROFILE', platform: 'IPAD_APP_STORE', displayClassId: 'IPAD_M4_DISPLAY' },
+    ],
+    imageSpecs: [spec('spec-65', 1242, 2688), spec('spec-67', 1290, 2796), spec('spec-ipad13', 2064, 2752)],
+    placementTypes: [
+      {
+        placementTypeId: 'APP_SCREENSHOT',
+        acceptsAssetCategories: ['APP_SCREENSHOTS_AND_PREVIEWS'],
+        specMappings: [
+          { placementGroupId: 'IPHONE_65_PROFILE', specs: ['spec-65'] },
+          { placementGroupId: 'IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE', specs: ['spec-67'] },
+          { placementGroupId: 'IPAD_13_PROFILE', specs: ['spec-ipad13'] },
+          { placementGroupId: 'IPAD_M4_PROFILE', specs: ['spec-ipad13'] },
+        ],
+      },
+    ],
+    displayClasses: [
+      { displayClassId: 'IPHONE_65_DISPLAY', deviceFamily: 'IPHONE', screenDimensions: ['6.5'] },
+      { displayClassId: 'IPHONE_DYNAMIC_ISLAND_LARGE_DISPLAY', deviceFamily: 'IPHONE', screenDimensions: ['6.9'] },
+      { displayClassId: 'IPAD_13_DISPLAY', deviceFamily: 'IPAD', screenDimensions: ['13'] },
+      { displayClassId: 'IPAD_M4_DISPLAY', deviceFamily: 'IPAD', screenDimensions: ['13.0'] },
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -202,6 +372,10 @@ export class FakePlayDraftApi {
   listings = new Map<string, PlayListing>([['en-US', { language: 'en-US', title: 'Old title', shortDescription: 'Old short', fullDescription: 'Old full' }]]);
   images = new Map<string, PlayImage[]>();
   commits: { query: string }[] = [];
+  /** `edits.tracks.list`. */
+  tracks: { track: string; releases: { name?: string; status: string; userFraction?: number; versionCodes: string[] }[] }[] = [
+    { track: 'production', releases: [{ name: '2.0', status: 'completed', versionCodes: ['200'] }] },
+  ];
   /** How the commit is answered. */
   commitAnswer: 'ok' | 'in_review' | 'not_sent_refused' | 'server_error' | 'cut' = 'ok';
   /** Make an upload store different bytes than were sent (a bad answer from the store). */
@@ -248,6 +422,7 @@ export class FakePlayDraftApi {
       return json(200);
     }
     if (method === 'GET' && path === `${id}/listings`) return json(200, { listings: [...edit.listings.values()] });
+    if (method === 'GET' && path === `${id}/tracks`) return json(200, { tracks: this.tracks });
     let m: RegExpMatchArray | null;
     if (method === 'PUT' && (m = path.match(new RegExp(`^${id}/listings/([^/]+)$`)))) {
       const listing = s.body as PlayListing;

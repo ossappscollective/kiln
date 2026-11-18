@@ -8,15 +8,16 @@ import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
 import {
   APPLE_DRAFT_VERSION_STATES,
+  DRAFT_IMAGE_READY_STATES,
   type DraftApplyInput,
   type DraftApplyResult,
   type DraftAssetState,
   type DraftAssetWrite,
   DraftDriftError,
-  type DraftImageState,
   DraftOutcomeUnknownError,
   DraftPartialError,
   type DraftReadRequest,
+  type DraftSlot,
   type DraftState,
   type DraftStep,
   type DraftTextState,
@@ -57,33 +58,49 @@ import {
  *   (the names the read connector parses).
  * - `POST /v1/appStoreVersionLocalizations` to add a locale: UNVERIFIED body (`attributes.locale`, relationship
  *   `appStoreVersion`).
- * - Screenshots. Apple DEPRECATED the set based resources (`appScreenshotSets`, `appScreenshots`) in App
- *   Store Connect API 4.5.1 in favour of the App Asset Library and placements
- *   (https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-5-1-release-notes,
- *   https://developer.apple.com/documentation/appstoreconnectapi/migrating-to-the-app-asset-library).
- *   This connector uses the deprecated set flow because the read side and the display types already
- *   speak it and its documented upload flow is complete; moving to the asset library (an image, then a
- *   placement with a placement group from the reference data) is future work. Whether Apple still
- *   accepts the deprecated resources for writes is UNVERIFIED (nothing was run).
- *   The upload flow, VERIFIED on https://developer.apple.com/documentation/appstoreconnectapi/uploading-assets-to-app-store-connect:
- *   1. `POST /v1/appScreenshots` with `fileName`, `fileSize` and the relationship `appScreenshotSet`:
- *      201, with `uploadOperations` (`method`, `url`, `length`, `offset`, `requestHeaders`) and the delivery
- *      state `AWAITING_UPLOAD`;
- *   2. every operation: the bytes `offset` to `offset + length` to `url` with its method and headers,
- *      no JWT (the URLs are unauthenticated and time limited);
- *   3. `PATCH /v1/appScreenshots/{id}` with `uploaded: true` and `sourceFileChecksum`, the MD5 of the
- *      whole file, then `UPLOAD_COMPLETE`;
- *   4. read the screenshot until `assetDeliveryState.state` is `COMPLETE` (success) or `FAILED` (terminal: delete
- *      it and start again).
- *   `POST /v1/appScreenshotSets` (a display type and the version localization), `DELETE /v1/appScreenshots/{id}`
- *   and the reordering `PATCH /v1/appScreenshotSets/{id}/relationships/appScreenshots` (VERIFIED names and
- *   titles; UNVERIFIED bodies: `{ data: [{ type: 'appScreenshots', id }] }` is assumed). The
- *   `screenshotDisplayType` values are UNVERIFIED (see core `APPLE_DISPLAY_TYPES`).
+ * - Screenshots: the APP ASSET LIBRARY (App Store Connect API 4.5.0, "Understanding the App Asset Library",
+ *   https://developer.apple.com/documentation/appstoreconnectapi/understanding-the-app-asset-library; Apple
+ *   DEPRECATED the set based `appScreenshotSets` / `appScreenshots` in 4.5.1 and this connector no longer
+ *   touches them: https://developer.apple.com/documentation/appstoreconnectapi/migrating-to-the-app-asset-library).
+ *   VERIFIED on Apple's pages on 2026-11-18, with request bodies as Apple's examples show them:
+ *   1. `GET /v1/apps/{id}/assetLibrary`: the library id (`appAssetLibraries`), stable for the life of the app;
+ *   2. `GET /v1/appAssetLibraryRefData`: reference data (`features`, `placementProfileGroups`, `imageSpecs`,
+ *      `placementTypes` with `specMappings` per `placementGroupId`, `displayClasses`). Placement group ids
+ *      (`IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE`) are NOT an enumeration: this connector finds the group of a set
+ *      by the pixel size of its files (the group whose `APP_SCREENSHOT` specs have exactly that size, narrowed
+ *      by the device family when several do) and refuses a set it cannot place unambiguously;
+ *   3. `POST /v1/appAssetLibraryImages` (`fileName`, `fileSize`, `category: APP_SCREENSHOTS_AND_PREVIEWS`,
+ *      `referenceName`, relationship `assetLibrary`): `AWAITING_UPLOAD` and `uploadOperations`;
+ *   4. every operation: the bytes `offset` to `offset + length` to `url`, no JWT (unauthenticated, time limited);
+ *   5. `PATCH /v1/appAssetLibraryImages/{id}` with `uploaded: true` ALONE (no checksum: Apple checks the bytes
+ *      against the declared `fileSize`), then `UPLOAD_COMPLETE`;
+ *   6. read the image until `state` is `PREPARE_FOR_SUBMISSION` (processed; `specId` and `imageAsset` are set) or
+ *      `FAILED` (`stateDetails`; delete it and reserve again). `specId` is compared with the specs of the group
+ *      ("a file that matches a different specification limits which groups accept it");
+ *   7. `POST /v1/appAssetLibraryPlacements` (`placementType: APP_SCREENSHOT`, `placementGroup`, relationships `image`
+ *      and `appStoreVersionLocalization`): only while the version is editable; at most 10 per group
+ *      (`features[].placementPolicies[].groupLimits[].maxCount`, read from the reference data);
+ *   8. `POST /v1/appAssetLibraryPlacementOrderingRequests` (`placementGroup`, `orderedPlacements`, the localization)
+ *      sets the display order of ONE group of ONE localization;
+ *   9. read: `GET /v1/appStoreVersionLocalizations/{id}/placements?filter[placementType]=APP_SCREENSHOT&sort=placementGroupPosition&include=image`
+ *      (the order of the answer is the display order);
+ *   10. a placement cannot be changed, only deleted (`DELETE /v1/appAssetLibraryPlacements/{id}`, 204); deleting a
+ *      library image that still has placements is `409 STATE_ERROR.ASSET_HAS_PLACEMENTS`.
+ *   UNVERIFIED: the checksum. The library has none, so the SHA-256 (first 32 hex characters) of every file this
+ *   connector uploads is written into the image's `referenceName` (`mrm:sha256:<hex>`) and read back from there to
+ *   tell "the same file" (idempotent pushes, reuse of an image that is already in the library); whether Apple
+ *   accepts that text and length, the `filter[referenceName]` semantics of `GET /v1/appAssetLibraries/{id}/images`,
+ *   the `limit` and `fields` parameters of the placements list, the `deviceFamily` strings of the display
+ *   classes, and the success statuses (any 2xx counts). Images of the library are never deleted by this connector
+ *   except one that failed processing here: replacing a set deletes PLACEMENTS only (the library is shared with
+ *   custom product pages and may hold the image elsewhere; an unused image is harmless).
  *
- * Replacing a set: the new files are uploaded and processed FIRST and the old ones deleted after, when
- * the set has room for both (at most 10); when it does not, the old ones are deleted first (and a failure in
- * between leaves the set short: the step list says so). A set that already holds exactly the new files
- * is left alone, so a repeated push does not duplicate anything.
+ * Replacing a set: the images it needs are found in the library (by their reference name) or uploaded and processed
+ * FIRST (nothing visible changes), then the placements: new ones are created before the old ones are deleted when
+ * the group has room for both (at most 10), else the old ones first (a failure in between leaves the group short:
+ * the step list says so); a placement whose image already is the wanted file is kept. Finally the order is set.
+ * A set that already holds exactly the new files in the new order is left alone, so a repeated push does not
+ * duplicate anything.
  *
  * Writes never retry, not even a 429 or a part upload (a half finished reservation is replaced by the next
  * push). Every request changes the draft at once, there is no transaction: a refusal after some steps is a
@@ -115,6 +132,42 @@ const UPLOAD_HOST = /(^|\.)apple\.com$/i;
 
 type LocalizationRef = { id: string; attributes: Json };
 
+/** A placement of the editable version's localization, with the library image behind it. */
+type PlacementRef = { id: string; group: string; imageId: string | null; image: Json };
+type Dims = { minWidth: number; maxWidth: number; minHeight: number; maxHeight: number };
+type RefData = {
+  /** placement group -> the ids of the image specs its `APP_SCREENSHOT` placements accept. */
+  screenshotSpecs: Map<string, Set<string>>;
+  specs: Map<string, Dims>;
+  groups: Map<string, { platform: string | null; displayClass: string | null }>;
+  displayClasses: Map<string, { family: string | null; screens: string[] }>;
+  /** placement group -> most screenshots per group (default `MAX_SET_FILES`). */
+  maxCount: Map<string, number>;
+};
+
+const REFERENCE_PREFIX = 'mrm:sha256:';
+const REFERENCE_HEX = 32;
+const referenceName = (sha256: string): string => `${REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
+const hashOfReference = (name: string | undefined): string | null => {
+  if (name === undefined || !name.startsWith(REFERENCE_PREFIX)) return null;
+  const hex = name.slice(REFERENCE_PREFIX.length).toLowerCase();
+  return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
+};
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+/** The family keyword of a device id of this server's (`iphone_6_5` is an IPHONE display, and so on). */
+const familyOf = (device: string | null): string | null => {
+  if (device === null) return null;
+  if (device.startsWith('iphone')) return 'IPHONE';
+  if (device.startsWith('ipad')) return 'IPAD';
+  if (device === 'mac') return 'MAC';
+  if (device === 'apple_tv') return 'TV';
+  return null;
+};
+const screenOf = (device: string | null): string | null => {
+  const m = device === null ? null : /^i(?:phone|pad)_(\d+)_(\d+)$/.exec(device);
+  return m ? `${m[1]}.${m[2]}` : null;
+};
+
 const attr = (field: string): string => APPLE_VERSION_LOCALIZATION_ATTRIBUTES[field] ?? '';
 
 export class AppleDraftConnector implements StoreDraftConnector {
@@ -130,6 +183,8 @@ export class AppleDraftConnector implements StoreDraftConnector {
   readonly #pollMs: number;
   readonly #maxPolls: number;
   readonly #sleep: (ms: number) => Promise<void>;
+  #library: string | undefined;
+  #ref: RefData | undefined;
 
   constructor(options: AppleDraftConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
@@ -164,17 +219,47 @@ export class AppleDraftConnector implements StoreDraftConnector {
   async readDraft(request: DraftReadRequest): Promise<DraftState> {
     const version = await this.#editableVersion();
     const locs = await this.#localizations(version.id);
-    return this.#state(request, version, locs);
+    return (await this.#read(request, version, locs)).state;
+  }
+
+  /**
+   * READ ONLY, for the submit connector: the listing of a version (any state): every locale's texts (the fields of
+   * the version localization) and the facts of every screenshot placement group. Writes nothing.
+   */
+  async readListing(versionId: string): Promise<
+    {
+      locale: string;
+      text: Record<string, string | null>;
+      groups: { group: string; images: { id: string; checksum: string | null; width: number | null; height: number | null; state: string | null }[] }[];
+    }[]
+  > {
+    const locs = await this.#localizations(versionId);
+    const out = [];
+    for (const [locale, ref] of locs) {
+      const text_: Record<string, string | null> = {};
+      for (const field of Object.keys(APPLE_VERSION_LOCALIZATION_ATTRIBUTES)) text_[field] = text(ref.attributes[attr(field)]) ?? null;
+      const groups = new Map<string, { id: string; checksum: string | null; width: number | null; height: number | null; state: string | null }[]>();
+      for (const p of await this.#placements(ref.id)) {
+        const a = isRecord(p.image.attributes) ? p.image.attributes : {};
+        const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
+        const list = groups.get(p.group) ?? [];
+        list.push({ id: p.id, checksum: hashOfReference(text(a.referenceName)), width: num(asset.width) ?? null, height: num(asset.height) ?? null, state: text(a.state) ?? null });
+        groups.set(p.group, list);
+      }
+      out.push({ locale, text: text_, groups: [...groups].map(([group, images]) => ({ group, images })) });
+    }
+    return out;
   }
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
-      assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target })),
+      assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target, width: a.width ?? null, height: a.height ?? null })),
     };
     const version = await this.#editableVersion();
     const locs = await this.#localizations(version.id);
-    const before = await this.#state(request, version, locs);
+    const read = await this.#read(request, version, locs);
+    const before = read.state;
     if (!input.guard(before)) throw new DraftDriftError(before);
 
     const steps: DraftStep[] = [];
@@ -244,7 +329,8 @@ export class AppleDraftConnector implements StoreDraftConnector {
           at = { type: 'asset', locale: write.locale, target: write.target };
         }
         const state = before.assets.find((a) => a.locale === write.locale && a.target === write.target);
-        steps.push(await this.#replaceSet(locId, write, state));
+        const group = state?.placementGroup ?? (await this.#groupFor(write));
+        steps.push(await this.#replaceSet(locId, write, group, state, read.placements.get(`${write.locale}\u0000${group}`) ?? []));
       }
     } catch (error) {
       throw this.#settle(error, steps, at);
@@ -316,128 +402,325 @@ export class AppleDraftConnector implements StoreDraftConnector {
     return out;
   }
 
-  async #state(
+  async #read(
     request: DraftReadRequest,
     version: { id: string; versionString: string | null; state: string },
     locs: Map<string, LocalizationRef>,
-  ): Promise<DraftState> {
+  ): Promise<{ state: DraftState; placements: Map<string, PlacementRef[]> }> {
     const textState: DraftTextState[] = request.text.map((t) => {
       const ref = locs.get(t.locale);
       const value = ref ? text(ref.attributes[attr(t.field)]) : undefined;
       return { locale: t.locale, field: t.field, value: value ?? null, localeExists: ref !== undefined };
     });
-    const sets = new Map<string, Map<string, { id: string; images: DraftImageState[] }>>();
+    const read = new Map<string, PlacementRef[]>();
     for (const locale of new Set(request.assets.map((a) => a.locale))) {
       const ref = locs.get(locale);
-      if (ref) sets.set(locale, await this.#sets(ref.id));
+      if (ref) read.set(locale, await this.#placements(ref.id));
     }
-    const assets: DraftAssetState[] = request.assets.map((slot) => {
-      const set = sets.get(slot.locale)?.get(slot.target);
-      return {
+    const placements = new Map<string, PlacementRef[]>();
+    const assets: DraftAssetState[] = [];
+    for (const slot of request.assets) {
+      const group = await this.#groupFor(slot);
+      const mine = (read.get(slot.locale) ?? []).filter((p) => p.group === group);
+      placements.set(`${slot.locale}\u0000${group}`, mine);
+      assets.push({
         locale: slot.locale,
         kind: slot.kind,
         device: slot.device,
         target: slot.target,
-        setExists: set !== undefined,
-        images: set?.images ?? [],
-      };
-    });
-    return { store: 'appstoreconnect', platform: 'ios', version, text: textState, assets };
+        placementGroup: group,
+        setExists: mine.length > 0,
+        images: mine.map((p) => {
+          const a = isRecord(p.image.attributes) ? p.image.attributes : {};
+          const hash = hashOfReference(text(a.referenceName));
+          return { id: p.id, name: text(a.fileName) ?? null, checksum: hash, checksumKind: 'sha256' as const, state: text(a.state) ?? null };
+        }),
+      });
+    }
+    return { state: { store: 'appstoreconnect', platform: 'ios', version, text: textState, assets }, placements };
   }
 
-  /** The screenshot sets of a localization by display type, with their screenshots in the store's order. */
-  async #sets(localizationId: string): Promise<Map<string, { id: string; images: DraftImageState[] }>> {
-    const what = 'reading the screenshot sets';
+  /** The screenshot placements of a localization, in display order, each with its library image. */
+  async #placements(localizationId: string): Promise<PlacementRef[]> {
+    const what = 'reading the screenshot placements';
     const query =
-      'limit=200&limit[appScreenshots]=50&include=appScreenshots&fields[appScreenshotSets]=screenshotDisplayType,appScreenshots&fields[appScreenshots]=fileName,sourceFileChecksum,assetDeliveryState';
-    const body = (await this.#get(`${this.#base}/v1/appStoreVersionLocalizations/${enc(localizationId)}/appScreenshotSets?${query}`, what)).json;
-    const included = new Map<string, Json>();
-    for (const item of records(body.included)) {
-      const id = text(item.id);
-      if (id && text(item.type) === 'appScreenshots') included.set(id, item);
-    }
-    const out = new Map<string, { id: string; images: DraftImageState[] }>();
-    for (const set of records(body.data)) {
-      const a = isRecord(set.attributes) ? set.attributes : {};
-      const type = text(a.screenshotDisplayType);
-      const id = text(set.id);
-      if (!type || !id) continue;
-      const rels = isRecord(set.relationships) ? set.relationships : {};
-      const rel = isRecord(rels.appScreenshots) ? rels.appScreenshots : {};
-      const images: DraftImageState[] = [];
-      for (const ref of records(rel.data)) {
-        const shotId = text(ref.id);
-        if (!shotId) continue;
-        const shot = included.get(shotId);
-        const sa = shot && isRecord(shot.attributes) ? shot.attributes : {};
-        const delivery = isRecord(sa.assetDeliveryState) ? sa.assetDeliveryState : {};
-        images.push({
-          id: shotId,
-          name: text(sa.fileName) ?? null,
-          checksum: text(sa.sourceFileChecksum)?.toLowerCase() ?? null,
-          checksumKind: 'md5',
-          state: text(delivery.state) ?? null,
-        });
+      'filter[placementType]=APP_SCREENSHOT&sort=placementGroupPosition&include=image&limit=200&fields[appAssetLibraryImages]=fileName,referenceName,state,specId,fileSize,category,imageAsset';
+    let url: string | undefined = `${this.#base}/v1/appStoreVersionLocalizations/${enc(localizationId)}/placements?${query}`;
+    const out: PlacementRef[] = [];
+    const images = new Map<string, Json>();
+    for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
+      const body = (await this.#get(url, what)).json;
+      for (const item of records(body.included)) {
+        const id = text(item.id);
+        if (id && text(item.type) === 'appAssetLibraryImages') images.set(id, item);
       }
-      out.set(type, { id, images });
+      for (const item of records(body.data)) {
+        const id = text(item.id);
+        const a = isRecord(item.attributes) ? item.attributes : {};
+        const group = text(a.placementGroup);
+        if (!id || !group || (text(a.placementType) ?? 'APP_SCREENSHOT') !== 'APP_SCREENSHOT') continue;
+        const rels = isRecord(item.relationships) ? item.relationships : {};
+        const rel = isRecord(rels.image) ? rels.image : {};
+        const imageId = isRecord(rel.data) ? text(rel.data.id) : undefined;
+        out.push({ id, group, imageId: imageId ?? null, image: (imageId ? images.get(imageId) : undefined) ?? {} });
+      }
+      const links = isRecord(body.links) ? body.links : {};
+      const next = text(links.next);
+      url = next === undefined ? undefined : this.#checkNext(next, what);
     }
+    // `included` may come on a later page than the placement that points at it.
+    for (const p of out) if (p.imageId && Object.keys(p.image).length === 0) p.image = images.get(p.imageId) ?? {};
     return out;
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // The asset library: reference data, the library, placement groups
+
+  async #libraryId(): Promise<string> {
+    if (this.#library) return this.#library;
+    const body = (await this.#get(`${this.#base}/v1/apps/${enc(this.#appId)}/assetLibrary`, 'reading the app asset library')).json;
+    const id = isRecord(body.data) ? text(body.data.id) : undefined;
+    if (!id) throw new StoreError('appstoreconnect', 'unexpected', 'App Store Connect sent no asset library for this app.');
+    this.#library = id;
+    return id;
+  }
+
+  async #refData(): Promise<RefData> {
+    if (this.#ref) return this.#ref;
+    const what = 'reading the asset library reference data';
+    const fields = 'features,placementProfileGroups,imageSpecs,placementTypes,displayClasses';
+    const body = (await this.#get(`${this.#base}/v1/appAssetLibraryRefData?fields[appAssetLibraryRefData]=${fields}`, what)).json;
+    const first = records(body.data)[0];
+    const a = first && isRecord(first.attributes) ? first.attributes : undefined;
+    if (!a) throw new StoreError('appstoreconnect', 'unexpected', 'App Store Connect sent no asset library reference data.');
+    const specs = new Map<string, Dims>();
+    for (const spec of records(a.imageSpecs)) {
+      const id = text(spec.specId);
+      const d = isRecord(spec.dimensions) ? spec.dimensions : {};
+      const dims = { minWidth: num(d.minWidth), maxWidth: num(d.maxWidth), minHeight: num(d.minHeight), maxHeight: num(d.maxHeight) };
+      if (id && dims.minWidth !== undefined && dims.maxWidth !== undefined && dims.minHeight !== undefined && dims.maxHeight !== undefined) {
+        specs.set(id, { minWidth: dims.minWidth, maxWidth: dims.maxWidth, minHeight: dims.minHeight, maxHeight: dims.maxHeight });
+      }
+    }
+    const screenshotSpecs = new Map<string, Set<string>>();
+    for (const type of records(a.placementTypes)) {
+      if (text(type.placementTypeId) !== 'APP_SCREENSHOT') continue;
+      for (const mapping of records(type.specMappings)) {
+        const group = text(mapping.placementGroupId);
+        if (!group) continue;
+        const ids = Array.isArray(mapping.specs) ? mapping.specs.filter((x): x is string => typeof x === 'string') : [];
+        screenshotSpecs.set(group, new Set([...(screenshotSpecs.get(group) ?? []), ...ids]));
+      }
+    }
+    const groups = new Map<string, { platform: string | null; displayClass: string | null }>();
+    for (const g of records(a.placementProfileGroups)) {
+      const id = text(g.placementProfileGroupId);
+      if (id) groups.set(id, { platform: text(g.platform) ?? null, displayClass: text(g.displayClassId) ?? null });
+    }
+    const displayClasses = new Map<string, { family: string | null; screens: string[] }>();
+    for (const d of records(a.displayClasses)) {
+      const id = text(d.displayClassId);
+      if (id) {
+        const screens = Array.isArray(d.screenDimensions) ? d.screenDimensions.filter((x): x is string => typeof x === 'string') : [];
+        displayClasses.set(id, { family: text(d.deviceFamily) ?? null, screens });
+      }
+    }
+    const maxCount = new Map<string, number>();
+    for (const feature of records(a.features)) {
+      if (text(feature.featureId) !== 'APP_STORE_VERSIONS') continue;
+      for (const policy of records(feature.placementPolicies)) {
+        if (text(policy.placementType) !== 'APP_SCREENSHOT') continue;
+        for (const limit of records(policy.groupLimits)) {
+          const max = num(limit.maxCount);
+          if (max === undefined || !Array.isArray(limit.groupIds)) continue;
+          for (const id of limit.groupIds) if (typeof id === 'string') maxCount.set(id, max);
+        }
+      }
+    }
+    if (screenshotSpecs.size === 0) {
+      throw new StoreError('appstoreconnect', 'unexpected', 'The App Store Connect reference data lists no screenshot placement groups, so this server cannot place a screenshot.');
+    }
+    this.#ref = { screenshotSpecs, specs, groups, displayClasses, maxCount };
+    return this.#ref;
+  }
+
+  /**
+   * The placement group a set belongs to: the groups whose screenshot specs have exactly the size of its files, narrowed
+   * by the device family and then the screen size when several do. Never a guess: no group, or no single group, is a
+   * refusal that names the size.
+   */
+  async #groupFor(slot: Pick<DraftSlot, 'device' | 'width' | 'height' | 'target'>): Promise<string> {
+    const ref = await this.#refData();
+    const w = slot.width ?? null;
+    const h = slot.height ?? null;
+    if (w === null || h === null) {
+      throw new StoreError('appstoreconnect', 'invalid_input', `The size of the files of the ${slot.target} set is not known, so its App Store placement group cannot be found.`);
+    }
+    let found = [...ref.screenshotSpecs]
+      .filter(([, ids]) => [...ids].some((id) => {
+        const d = ref.specs.get(id);
+        return d !== undefined && w >= d.minWidth && w <= d.maxWidth && h >= d.minHeight && h <= d.maxHeight;
+      }))
+      .map(([group]) => group);
+    const describe = () => `${w}x${h}`;
+    if (found.length === 0) {
+      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect's reference data has no screenshot placement group for ${describe()} pixels.`);
+    }
+    if (found.length > 1) {
+      const family = familyOf(slot.device);
+      const info = (g: string) => {
+        const group = ref.groups.get(g);
+        return { platform: group?.platform ?? '', display: (group?.displayClass ? ref.displayClasses.get(group.displayClass) : undefined) ?? { family: null, screens: [] } };
+      };
+      if (family) {
+        const narrowed = found.filter((g) => {
+          const i = info(g);
+          return `${i.platform} ${i.display.family ?? ''}`.toUpperCase().includes(family);
+        });
+        if (narrowed.length > 0) found = narrowed;
+      }
+      const screen = screenOf(slot.device);
+      if (found.length > 1 && screen) {
+        const narrowed = found.filter((g) => info(g).display.screens.includes(screen));
+        if (narrowed.length > 0) found = narrowed;
+      }
+    }
+    if (found.length !== 1) {
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `More than one App Store placement group takes ${describe()} pixel screenshots (${found.slice(0, 4).join(', ')}), so this server will not guess. Place this set in App Store Connect.`,
+      );
+    }
+    return found[0] as string;
   }
 
   // -------------------------------------------------------------------------------------------
   // Replacing a set of screenshots
 
-  async #replaceSet(localizationId: string, write: DraftAssetWrite, state: DraftAssetState | undefined): Promise<DraftStep> {
-    const existing = state?.images ?? [];
+  async #replaceSet(
+    localizationId: string,
+    write: DraftAssetWrite,
+    group: string,
+    state: DraftAssetState | undefined,
+    existing: PlacementRef[],
+  ): Promise<DraftStep> {
     const base = { type: 'asset' as const, locale: write.locale, target: write.target };
-    if (state?.setExists && setMatches(existing, write.files)) return { ...base, outcome: 'already_same' };
-
-    let setId = state?.setExists ? await this.#setId(localizationId, write.target) : undefined;
-    if (!setId) {
-      const created = await this.#write('POST', '/v1/appScreenshotSets', `creating the ${write.target} set of ${write.locale}`, {
-        data: {
-          type: 'appScreenshotSets',
-          attributes: { screenshotDisplayType: write.target },
-          relationships: { appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: localizationId } } },
-        },
-      });
-      setId = idOf(created);
-      if (!setId) throw new StoreError('appstoreconnect', 'unexpected', 'App Store Connect created a screenshot set but sent no id.', created.status);
+    if (state?.setExists && setMatches(state.images, write.files)) return { ...base, outcome: 'already_same' };
+    const ref = await this.#refData();
+    const max = ref.maxCount.get(group) ?? MAX_SET_FILES;
+    if (write.files.length > max) {
+      throw new StoreError('appstoreconnect', 'invalid_input', `The ${write.target} set of ${write.locale} has ${write.files.length} files; the group takes at most ${max}.`);
     }
-    const old = existing.map((i) => i.id);
+
+    // 1. Which placements already show a wanted file, in which place.
+    const pool = existing.map((p) => ({ p, hash: hashOfReference(text((isRecord(p.image.attributes) ? p.image.attributes : {}).referenceName)), used: false }));
+    const plan = write.files.map((file) => {
+      const wanted = file.sha256.slice(0, REFERENCE_HEX);
+      const hit = pool.find((e) => !e.used && e.hash === wanted && text((isRecord(e.p.image.attributes) ? e.p.image.attributes : {}).state) !== 'FAILED');
+      if (hit) hit.used = true;
+      return { file, placementId: hit?.p.id as string | undefined, imageId: undefined as string | undefined };
+    });
+    // 2. Images first: nothing visible changes until a placement is made.
+    let uploaded = 0;
+    for (const item of plan) {
+      if (item.placementId) continue;
+      item.imageId = await this.#libraryImage(item.file, group, ref);
+      if (item.imageId === undefined) {
+        item.imageId = await this.#upload(item.file, group, ref);
+        uploaded++;
+      }
+    }
+    // 3. Placements: new ones before the old are deleted when the group has room for both.
+    const stale = pool.filter((e) => !e.used).map((e) => e.p.id);
+    const fresh = plan.filter((p) => !p.placementId).length;
+    const kept = plan.length - fresh;
+    const roomForBoth = kept + stale.length + fresh <= max;
     let removed = 0;
-    const removeOld = async () => {
-      for (const id of old) {
-        await this.#write('DELETE', `/v1/appScreenshots/${enc(id)}`, 'deleting a screenshot of the draft', undefined, [404]);
+    const removeStale = async () => {
+      for (const id of stale) {
+        await this.#write('DELETE', `/v1/appAssetLibraryPlacements/${enc(id)}`, 'removing a screenshot placement of the draft', undefined, [404]);
         removed++;
       }
     };
-    // Room for both: the new files first, so a failure never leaves the set empty.
-    const roomForBoth = old.length + write.files.length <= MAX_SET_FILES;
-    if (!roomForBoth) await removeOld();
-    const added: string[] = [];
-    for (const file of write.files) added.push(await this.#upload(setId, file));
-    if (roomForBoth) await removeOld();
-    if (added.length > 1 || old.length > 0) {
-      await this.#write('PATCH', `/v1/appScreenshotSets/${enc(setId)}/relationships/appScreenshots`, 'ordering the screenshots', {
-        data: added.map((id) => ({ type: 'appScreenshots', id })),
+    if (!roomForBoth) await removeStale();
+    for (const item of plan) {
+      if (item.placementId) continue;
+      const created = await this.#write('POST', '/v1/appAssetLibraryPlacements', `placing ${item.file.name}`, {
+        data: {
+          type: 'appAssetLibraryPlacements',
+          attributes: { placementType: 'APP_SCREENSHOT', placementGroup: group },
+          relationships: {
+            image: { data: { type: 'appAssetLibraryImages', id: item.imageId } },
+            appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: localizationId } },
+          },
+        },
+      });
+      const id = idOf(created);
+      if (!id) throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect placed ${item.file.name} but sent no placement id.`, created.status);
+      item.placementId = id;
+    }
+    if (roomForBoth) await removeStale();
+    // 4. The order: only when it is not already the wanted one.
+    // New placements are appended in the order they were made, so the group is already in order when the kept
+    // placements come first, in their own order, and the new ones follow in the wanted order.
+    const wantedOrder = plan.map((p) => p.placementId as string);
+    const keptIds = new Set(plan.filter((p) => existing.some((e) => e.id === p.placementId)).map((p) => p.placementId));
+    const resulting = [...existing.filter((p) => keptIds.has(p.id)).map((p) => p.id), ...plan.filter((p) => !keptIds.has(p.placementId)).map((p) => p.placementId as string)];
+    const inOrder = resulting.length === wantedOrder.length && resulting.every((id, i) => id === wantedOrder[i]);
+    if (!inOrder && wantedOrder.length > 0) {
+      await this.#write('POST', '/v1/appAssetLibraryPlacementOrderingRequests', 'ordering the screenshots', {
+        data: {
+          type: 'appAssetLibraryPlacementOrderingRequests',
+          attributes: { placementGroup: group },
+          relationships: {
+            orderedPlacements: { data: wantedOrder.map((id) => ({ type: 'appAssetLibraryPlacements', id })) },
+            appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: localizationId } },
+          },
+        },
       });
     }
-    return { ...base, outcome: 'applied', uploaded: added.length, removed };
+    return { ...base, outcome: 'applied', uploaded, removed };
   }
 
-  async #setId(localizationId: string, target: string): Promise<string | undefined> {
-    return (await this.#sets(localizationId)).get(target)?.id;
+  /** An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found". */
+  async #libraryImage(file: DraftAssetWrite['files'][number], group: string, ref: RefData): Promise<string | undefined> {
+    const library = await this.#libraryId();
+    const name = referenceName(file.sha256);
+    let body: Json;
+    try {
+      body = (
+        await this.#get(
+          `${this.#base}/v1/appAssetLibraries/${enc(library)}/images?filter[referenceName]=${encodeURIComponent(name)}&limit=20&fields[appAssetLibraryImages]=fileName,fileSize,referenceName,state,specId,category`,
+          `looking for ${file.name} in the asset library`,
+        )
+      ).json;
+    } catch (error) {
+      if (error instanceof StoreError && error.kind !== 'network' && error.kind !== 'server' && error.kind !== 'rate_limited' && error.kind !== 'auth' && error.kind !== 'forbidden') return undefined;
+      throw error;
+    }
+    const accepted = ref.screenshotSpecs.get(group) ?? new Set<string>();
+    for (const item of records(body.data)) {
+      const a = isRecord(item.attributes) ? item.attributes : {};
+      const id = text(item.id);
+      const specId = text(a.specId);
+      if (!id || text(a.referenceName) !== name || a.fileSize !== file.bytes.length) continue;
+      if (!DRAFT_IMAGE_READY_STATES.includes(text(a.state) ?? '') || (text(a.category) ?? 'APP_SCREENSHOTS_AND_PREVIEWS') !== 'APP_SCREENSHOTS_AND_PREVIEWS') continue;
+      if (specId === undefined || !accepted.has(specId)) continue;
+      return id;
+    }
+    return undefined;
   }
 
-  /** Reserve, upload every part, commit, wait until Apple has processed it. Returns the screenshot id. */
-  async #upload(setId: string, file: DraftAssetWrite['files'][number]): Promise<string> {
+  /** Reserve, upload every part, commit, wait until Apple has processed it. Returns the library image id. */
+  async #upload(file: DraftAssetWrite['files'][number], group: string, ref: RefData): Promise<string> {
     const what = `uploading ${file.name}`;
-    const reserved = await this.#write('POST', '/v1/appScreenshots', `reserving the upload of ${file.name}`, {
+    const library = await this.#libraryId();
+    const reserved = await this.#write('POST', '/v1/appAssetLibraryImages', `reserving the upload of ${file.name}`, {
       data: {
-        type: 'appScreenshots',
-        attributes: { fileName: file.name, fileSize: file.bytes.length },
-        relationships: { appScreenshotSet: { data: { type: 'appScreenshotSets', id: setId } } },
+        type: 'appAssetLibraryImages',
+        attributes: { fileName: file.name, fileSize: file.bytes.length, category: 'APP_SCREENSHOTS_AND_PREVIEWS', referenceName: referenceName(file.sha256) },
+        relationships: { assetLibrary: { data: { type: 'appAssetLibraries', id: library } } },
       },
     });
     const id = idOf(reserved);
@@ -448,11 +731,28 @@ export class AppleDraftConnector implements StoreDraftConnector {
       throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect reserved ${file.name} but sent no upload instructions.`, reserved.status);
     }
     for (const op of operations) await this.#putPart(op, file.bytes, what);
-    await this.#write('PATCH', `/v1/appScreenshots/${enc(id)}`, `committing ${file.name}`, {
-      data: { type: 'appScreenshots', id, attributes: { uploaded: true, sourceFileChecksum: file.md5 } },
+    await this.#write('PATCH', `/v1/appAssetLibraryImages/${enc(id)}`, `committing ${file.name}`, {
+      data: { type: 'appAssetLibraryImages', id, attributes: { uploaded: true } },
     });
-    await this.#waitProcessed(id, file.name);
+    const specId = await this.#waitProcessed(id, file.name);
+    if (specId === undefined || !(ref.screenshotSpecs.get(group) ?? new Set<string>()).has(specId)) {
+      await this.#discard(id, file.name);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `App Store Connect matched ${file.name} to a specification that the ${group} placement group does not take (${specId === undefined ? 'none' : 'spec ' + specId}). Check the size of the file.`,
+      );
+    }
     return id;
+  }
+
+  /** Removes an image THIS connector made and could not use: it has no placements, so the delete is safe. */
+  async #discard(id: string, name: string): Promise<void> {
+    try {
+      await this.#write('DELETE', `/v1/appAssetLibraryImages/${enc(id)}`, `removing the unusable ${name}`, undefined, [404]);
+    } catch {
+      // An unused image in the library is harmless; the next push finds or replaces it.
+    }
   }
 
   async #putPart(op: Json, bytes: Uint8Array, what: string): Promise<void> {
@@ -494,32 +794,24 @@ export class AppleDraftConnector implements StoreDraftConnector {
     }
   }
 
-  async #waitProcessed(id: string, name: string): Promise<void> {
+  /** Polls until the image is processed. Returns the specification Apple matched. */
+  async #waitProcessed(id: string, name: string): Promise<string | undefined> {
     for (let attempt = 0; attempt < this.#maxPolls; attempt++) {
       const body = (
-        await this.#get(`${this.#base}/v1/appScreenshots/${enc(id)}?fields[appScreenshots]=assetDeliveryState,fileName`, `checking ${name}`)
+        await this.#get(`${this.#base}/v1/appAssetLibraryImages/${enc(id)}?fields[appAssetLibraryImages]=state,stateDetails,specId,fileName`, `checking ${name}`)
       ).json;
       const data = isRecord(body.data) ? body.data : {};
       const a = isRecord(data.attributes) ? data.attributes : {};
-      const delivery = isRecord(a.assetDeliveryState) ? a.assetDeliveryState : {};
-      const state = text(delivery.state);
-      if (state === 'COMPLETE') return;
+      const state = text(a.state);
+      if (state !== undefined && DRAFT_IMAGE_READY_STATES.includes(state)) return text(a.specId);
       if (state === 'FAILED') {
-        const errors = records(delivery.errors)
-          .slice(0, 3)
-          .map((e) => this.#http.redact(text(e.description) ?? text(e.code) ?? 'unspecified'))
-          .join('; ');
-        // A failed asset is terminal: remove it so it does not stay in the set.
-        try {
-          await this.#write('DELETE', `/v1/appScreenshots/${enc(id)}`, `removing the failed ${name}`, undefined, [404]);
-        } catch {
-          // The next push replaces whatever is left.
-        }
-        throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect rejected ${name} while processing it (${errors || 'no reason given'}).`);
+        const details = isRecord(a.stateDetails) ? (text(a.stateDetails.description) ?? text(a.stateDetails.message) ?? text(a.stateDetails.code)) : text(a.stateDetails);
+        await this.#discard(id, name);
+        throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect rejected ${name} while processing it (${this.#http.redact(details ?? 'no reason given')}).`);
       }
       await this.#sleep(this.#pollMs);
     }
-    throw new StoreError('appstoreconnect', 'server', `App Store Connect had not finished processing ${name} after ${this.#maxPolls} checks. It stays in the draft; push again to replace it.`);
+    throw new StoreError('appstoreconnect', 'server', `App Store Connect had not finished processing ${name} after ${this.#maxPolls} checks. It stays in the asset library without a placement; push again to use it.`);
   }
 
   // -------------------------------------------------------------------------------------------
