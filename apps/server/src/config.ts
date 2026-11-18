@@ -158,6 +158,12 @@ const schema = z.object({
   // default: every reply route answers 409 reply_disabled until this is 'true'. Reading and
   // triaging reviews do not depend on it.
   MRM_REVIEW_REPLY_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Kill switch for changing a LIVE rollout in a store (docs/adr/0008-store-rollout-writes.md): the
+  // Google Play staged rollout share, halt, resume and complete, and the App Store phased release
+  // pause, resume and release to all. It changes what users receive, so it is off by default: every
+  // rollout route answers 409 rollout_disabled until this is 'true'. Planning data (rollout steps)
+  // does not depend on it.
+  MRM_STORE_ROLLOUT_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Minutes between scheduled reads of the store listing of every app (texts, categories, age
   // rating, screenshot counts). 0 (the default) turns them off; otherwise 30 to 10080 (a week). A
   // listing read is many requests, so the floor is higher than the sync's. They use the stored
@@ -433,6 +439,8 @@ export type Config = {
   reviewRetentionDays: number;
   /** Replying to customer reviews in the stores is allowed (MRM_REVIEW_REPLY_ENABLED). Default false. */
   reviewReplyEnabled: boolean;
+  /** Changing a live rollout in the stores is allowed (MRM_STORE_ROLLOUT_ENABLED). Default false. */
+  storeRolloutEnabled: boolean;
   /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
   listingIntervalMinutes: number;
   /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
@@ -493,6 +501,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
     reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
     reviewReplyEnabled: data.MRM_REVIEW_REPLY_ENABLED === 'true',
+    storeRolloutEnabled: data.MRM_STORE_ROLLOUT_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
     localRepoRoots,

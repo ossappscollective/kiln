@@ -20,6 +20,7 @@ import { memberRoutes } from './routes/members.ts';
 import { planRoutes } from './routes/plans.ts';
 import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
+import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
@@ -191,6 +192,12 @@ export type AppDeps = {
     reply?: NonNullable<ReviewRoutesContext['reply']>;
   };
   /**
+   * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
+   * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
+   * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
+   */
+  rollout?: RolloutRoutesContext['rollout'];
+  /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
    * address); `fetch`, `resolve`, `exchange` and `timeoutMs` replace the network in tests;
@@ -344,6 +351,16 @@ export function createApp(deps: AppDeps) {
       ...(deps.reviews?.reply ? { reply: deps.reviews.reply } : {}),
       translation: translationSeams,
       limiter: deps.reviews?.limiter ?? appSyncLimiter,
+    }),
+  );
+  // Changing a live rollout in a store: off unless MRM_STORE_ROLLOUT_ENABLED. Gated like review replies.
+  app.route(
+    '/api/workspaces',
+    rolloutRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      ...(deps.rollout ? { rollout: deps.rollout } : {}),
     }),
   );
   // Release planning: our own checklists, notes and deadlines. No store is read or written.

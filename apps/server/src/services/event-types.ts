@@ -19,6 +19,7 @@ export const eventTypes = [
   'review.new_low_rating',
   'review.sync_failed',
   'review.reply_sent',
+  'release.rollout_changed',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -43,4 +44,5 @@ export const eventReadAction: Record<EventType, Action> = {
   'review.new_low_rating': 'reviews.read',
   'review.sync_failed': 'reviews.read',
   'review.reply_sent': 'reviews.read',
+  'release.rollout_changed': 'apps.read',
 };

@@ -350,6 +350,10 @@ export async function deleteApp(
     await deleteListingData(tx, input.workspaceId, input.id);
     await deleteReviewData(tx, input.workspaceId, input.id);
     await deleteAppIcon(tx, input.workspaceId, input.id);
+    await tx.execute('DELETE FROM store_rollout_claims WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

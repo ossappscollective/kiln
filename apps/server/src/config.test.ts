@@ -437,3 +437,13 @@ test('MRM_REVIEW_REPLY_ENABLED is off by default; only true and false are accept
     assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_REVIEW_REPLY_ENABLED: bad }), /MRM_REVIEW_REPLY_ENABLED/, bad);
   }
 });
+
+test('MRM_STORE_ROLLOUT_ENABLED is off by default; only true and false are accepted; blank means off', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storeRolloutEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: '' }).storeRolloutEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: 'false' }).storeRolloutEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: 'true' }).storeRolloutEnabled, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: bad }), /MRM_STORE_ROLLOUT_ENABLED/, bad);
+  }
+});

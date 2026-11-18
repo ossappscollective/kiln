@@ -124,6 +124,7 @@ const app = createApp({
   appSync: { limiter: syncLimiter },
   listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
   reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays, reply: { enabled: config.reviewReplyEnabled } },
+  rollout: { enabled: config.storeRolloutEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   reads,
   cloneUpkeep,
@@ -223,6 +224,9 @@ if (config.worker === 'inline') {
   }
   if (config.reviewReplyEnabled) {
     console.log('Replying to customer reviews is ON (MRM_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores');
+  }
+  if (config.storeRolloutEnabled) {
+    console.log('Changing store rollouts is ON (MRM_STORE_ROLLOUT_ENABLED): owners and admins can change a live rollout in the stores');
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);
