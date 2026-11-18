@@ -185,7 +185,7 @@
     This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports disappears.
   </p>
 
-  <RolloutControls />
+  <RolloutControls {api} {workspaceId} {role} {members} {releases} />
 </div>
 
 <style>

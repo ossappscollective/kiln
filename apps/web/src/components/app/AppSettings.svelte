@@ -12,8 +12,12 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import DefaultsSection from './settings/DefaultsSection.svelte';
+  import NotificationsSection from './settings/NotificationsSection.svelte';
+  import RepositorySection from './settings/RepositorySection.svelte';
+  import SettingsCard from './settings/SettingsCard.svelte';
+  import StoresSection from './settings/StoresSection.svelte';
   import Button from '../ui/Button.svelte';
-  import CopyButton from '../ui/CopyButton.svelte';
   import Modal from '../ui/Modal.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
 
@@ -51,39 +55,40 @@
 </script>
 
 <div class="stack loose">
-  {#each members as app (app.id)}
-    <section class="card" aria-label="{platformLabel(app.platform)} record">
-      <div class="row between">
-        <PlatformBadge platform={app.platform} tinted />
-        {#if canWrite}
-          <Button
-            variant="danger"
-            icon="trash"
-            onclick={() => {
-              target = app;
-              problem = '';
-              open = true;
-            }}>Delete {platformLabel(app.platform)} app</Button
-          >
-        {/if}
+  <StoresSection {api} {workspaceId} {role} {members} {now} />
+  <RepositorySection {api} {workspaceId} {role} {members} />
+  <DefaultsSection {api} {workspaceId} {role} {members} />
+  <NotificationsSection {api} {workspaceId} {role} />
+
+  <SettingsCard
+    title="Danger zone"
+    icon="trash"
+    description="Removing an app deletes its stored releases, reviews and plans from this workspace. Nothing in the store is changed, and you can add the app again later."
+  >
+    {#if canWrite}
+      <div class="stack">
+        {#each members as app (app.id)}
+          <div class="row between">
+            <span class="row">
+              <PlatformBadge platform={app.platform} tinted />
+              <span class="muted">Added <time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{timeAgo(app.createdAt, now)}</time></span>
+            </span>
+            <Button
+              variant="danger"
+              icon="trash"
+              onclick={() => {
+                target = app;
+                problem = '';
+                open = true;
+              }}>Delete {platformLabel(app.platform)} app</Button
+            >
+          </div>
+        {/each}
       </div>
-      <dl class="facts">
-        <div>
-          <dt>Store</dt>
-          <dd>{storeName(app.platform)}</dd>
-        </div>
-        <div>
-          <dt>{app.platform === 'ios' ? 'Bundle ID' : 'Package name'}</dt>
-          <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
-        </div>
-        <div>
-          <dt>Added</dt>
-          <dd><time datetime={new Date(app.createdAt).toISOString()} title={fullTime(app.createdAt)}>{timeAgo(app.createdAt, now)}</time></dd>
-        </div>
-      </dl>
-    </section>
-  {/each}
-  <p class="muted note">Stores and credentials, repository targets, release defaults and notifications for an app are not available here yet.</p>
+    {:else}
+      <p class="muted note">Only an admin can remove an app.</p>
+    {/if}
+  </SettingsCard>
 </div>
 
 {#if canWrite}
@@ -105,26 +110,6 @@
 {/if}
 
 <style>
-  .facts {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--space-4) var(--space-6);
-    margin: var(--space-4) 0 0;
-  }
-
-  .facts dt {
-    margin-bottom: var(--space-1);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    color: var(--muted);
-  }
-
-  .facts dd {
-    min-width: 0;
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
   .note {
     margin: 0;
     font-size: var(--text-sm);
