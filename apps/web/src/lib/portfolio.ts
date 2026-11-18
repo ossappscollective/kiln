@@ -1,7 +1,19 @@
 import { type Platform, type ReleaseEvent, type ReleaseState, transition } from '@mrm/core';
 import { type Api, ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
-import type { AppSummary, NewApp, ReleaseSummary, SyncSummary } from './types.ts';
+import type {
+  AppSummary,
+  DiscoverCandidate,
+  DiscoverFailure,
+  DiscoverResult,
+  ImportItem,
+  ImportItemResult,
+  ImportResult,
+  ImportSummary,
+  NewApp,
+  ReleaseSummary,
+  SyncSummary,
+} from './types.ts';
 
 export type BadgeTone = 'neutral' | 'ok' | 'bad' | 'warn' | 'info' | 'accent';
 
@@ -318,7 +330,7 @@ function waitPhrase(seconds: number): string {
   return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
-export type AppErrorContext = 'load' | 'add' | 'sync' | 'delete';
+export type AppErrorContext = 'load' | 'add' | 'sync' | 'delete' | 'discover' | 'import';
 
 type ErrorLike = Pick<ApiError, 'status' | 'code' | 'message'> & Partial<Pick<ApiError, 'retryAfter' | 'body'>>;
 
@@ -353,7 +365,7 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
     case 'already_exists':
       return 'This workspace already has an app with that identifier on this platform.';
     case 'credential_not_found':
-      return context === 'add'
+      return context === 'add' || context === 'discover' || context === 'import'
         ? 'That credential no longer exists. Pick another one.'
         : 'The credential this app uses was deleted. Add a new credential, then add the app again.';
     case 'credential_kind':
@@ -372,6 +384,9 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
       return 'The store has no app with this identifier for this key. Check the identifier and the credential.';
     case 'rate_limited': {
       const when = wait === null ? 'a minute' : waitPhrase(wait);
+      if (context === 'discover' && !error.body?.app) {
+        return `This workspace has read the stores too often (finding apps and syncs share a limit of 10 a minute). Try again in ${when}.`;
+      }
       // The workspace limit answers without an app; the store's own limit comes with one.
       return error.body?.app
         ? `The store asked us to slow down. Try again in ${when}.`
@@ -381,6 +396,10 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
       return 'The store failed to answer properly. Try again in a moment.';
     case 'timeout':
       return 'The store did not answer in time. Try again.';
+    case 'packages_required':
+      return 'Google Play cannot list the apps of an account. Enter the package names to check, one per line.';
+    case 'discover_failed':
+      return 'The apps could not be read and the server has no more detail. Try again; if it keeps failing, check the server log.';
     case 'sync_failed':
       return 'The sync failed and the server has no more detail. Try again; if it keeps failing, check the server log.';
     default:
@@ -565,4 +584,218 @@ export function batchSummary(results: readonly BatchResult[]): string {
 /** What to say for the apps a stopped run never reached. */
 export function notRunMessage(failure: SyncFailure | null): string {
   return failure ? `Not run: ${failure.message}` : 'Not run: you stopped the sync.';
+}
+
+// ---------------------------------------------------------------------------------------------
+// Finding and importing apps with a credential
+
+/** Most package names one Google Play check takes, and most apps one import request takes. */
+export const MAX_PACKAGES = 50;
+export const MAX_IMPORT_BATCH = 50;
+
+const isPackageName = (value: string) => value.length <= 255 && PACKAGE_NAME.test(value);
+
+/** True for the credentials that can find apps: App Store Connect and Google Play. */
+export const isDiscoverableKind = (kind: string): kind is CredentialKind =>
+  kind === 'app_store_connect' || kind === 'google_play';
+
+export const discoverableCredentials = <T extends { kind: string }>(credentials: readonly T[]): T[] =>
+  credentials.filter((c) => isDiscoverableKind(c.kind));
+
+export const platformForKind = (kind: CredentialKind): Platform => (kind === 'app_store_connect' ? 'ios' : 'android');
+
+export type PackageList = {
+  /** The valid package names, in the order given, each once. */
+  packages: string[];
+  /** Entries that are not package names, with the line (counted from 1) they are on. */
+  invalid: { line: number; value: string }[];
+  /** How many repeats were dropped. */
+  duplicates: number;
+};
+
+/** Reads a pasted list: one package name per line (commas and spaces also separate). */
+export function parsePackageList(text: string): PackageList {
+  const packages: string[] = [];
+  const invalid: PackageList['invalid'] = [];
+  const seen = new Set<string>();
+  let duplicates = 0;
+  text.split(/\r?\n/).forEach((line, index) => {
+    for (const value of line.split(/[\s,;]+/)) {
+      if (value === '') continue;
+      if (!isPackageName(value)) invalid.push({ line: index + 1, value });
+      else if (seen.has(value)) duplicates += 1;
+      else {
+        seen.add(value);
+        packages.push(value);
+      }
+    }
+  });
+  return { packages, invalid, duplicates };
+}
+
+/** What is wrong with a package list, in a sentence, or '' when it can be checked. */
+export function packageListProblem(list: PackageList): string {
+  const first = list.invalid[0];
+  if (first) {
+    const shown = first.value.length > 40 ? `${first.value.slice(0, 40)}…` : first.value;
+    const more = list.invalid.length > 1 ? ` (and ${list.invalid.length - 1} more)` : '';
+    return `Line ${first.line} is not a package name: “${shown}”${more}. A package name has at least two parts separated by dots, such as com.acme.app.`;
+  }
+  if (list.packages.length === 0) return 'Enter at least one package name, one per line.';
+  if (list.packages.length > MAX_PACKAGES) return `Check at most ${MAX_PACKAGES} packages at a time. You entered ${list.packages.length}.`;
+  return '';
+}
+
+/** The key a candidate is selected by. iOS bundle ids are not case sensitive, package names are. */
+export const candidateKey = (c: Pick<DiscoverCandidate, 'platform' | 'identifier'>): string =>
+  `${c.platform}:${c.platform === 'ios' ? c.identifier.toLowerCase() : c.identifier}`;
+
+/** The candidates that can still be added. */
+export const selectableCandidates = (candidates: readonly DiscoverCandidate[]): DiscoverCandidate[] =>
+  candidates.filter((c) => !c.alreadyAdded);
+
+/** The selection with `key` switched on or off. A new set, so the screen sees the change. */
+export function withSelection(selected: ReadonlySet<string>, key: string, on: boolean): Set<string> {
+  const next = new Set(selected);
+  if (on) next.add(key);
+  else next.delete(key);
+  return next;
+}
+
+/** "Found 5 apps. 2 are already added." / "Checked 3 packages: 2 found, 1 could not be verified." */
+export function discoverSummaryText(result: Pick<DiscoverResult, 'kind' | 'candidates' | 'failures'>): string {
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const added = result.candidates.filter((c) => c.alreadyAdded).length;
+  if (result.kind === 'google_play') {
+    const total = result.candidates.length + result.failures.length;
+    const found = `${result.candidates.length} verified`;
+    const failed = result.failures.length > 0 ? `, ${result.failures.length} could not be verified` : '';
+    const existing = added > 0 ? ` ${added} already added.` : '';
+    return `Checked ${plural(total, 'package')}: ${found}${failed}.${existing}`;
+  }
+  if (result.candidates.length === 0) return 'This key can see no apps.';
+  return `Found ${plural(result.candidates.length, 'app')}.${added > 0 ? ` ${added} already added.` : ''}`;
+}
+
+/** Why one Google Play package could not be verified, as a sentence a person can act on. */
+export function discoverFailureMessage(failure: Pick<DiscoverFailure, 'error' | 'message'>): string {
+  switch (failure.error) {
+    case 'store_not_found':
+      return 'Google Play has no app with this package name that this service account can see. Check the spelling, and that the service account is invited to the app in the Play Console.';
+    case 'store_forbidden':
+      return 'The service account has no access to this app. Invite it in the Play Console (Users and permissions), and check that the Google Play Android Developer API is enabled.';
+    case 'store_auth':
+      return 'Google rejected the service account key. Replace the secret of this credential on the Credentials screen.';
+    case 'rate_limited':
+      return 'Google asked us to slow down, so this package was not checked. Check it again in a minute.';
+    case 'timeout':
+      return 'Not checked: the time ran out. Check this package again.';
+    case 'store_unavailable':
+      return 'Google Play failed to answer properly. Check this package again in a moment.';
+    case 'discover_failed':
+      return 'This package could not be read and the server has no more detail. Try again.';
+    default:
+      return failure.message.trim() || 'This package could not be verified.';
+  }
+}
+
+/** The import items for the selected candidates. `repositories` maps a candidate key to a repository id. */
+export function buildImportItems(
+  candidates: readonly DiscoverCandidate[],
+  selected: ReadonlySet<string>,
+  repositories: Readonly<Record<string, string | undefined>> = {},
+): ImportItem[] {
+  const items: ImportItem[] = [];
+  for (const c of selectableCandidates(candidates)) {
+    const key = candidateKey(c);
+    if (!selected.has(key)) continue;
+    const item: ImportItem = { platform: c.platform, identifier: c.identifier, storeAppId: c.storeId };
+    if (c.name.trim()) item.name = c.name.trim().slice(0, 100);
+    const repositoryId = repositories[key];
+    if (repositoryId) item.repositoryId = repositoryId;
+    items.push(item);
+  }
+  return items;
+}
+
+/** Splits a list into pieces of at most `size`, in order. */
+export function chunk<T>(list: readonly T[], size: number): T[][] {
+  const pieces: T[][] = [];
+  for (let i = 0; i < list.length; i += size) pieces.push(list.slice(i, i + size));
+  return pieces;
+}
+
+/** Joins the answers of several import requests into one. */
+export function mergeImports(parts: readonly ImportResult[]): ImportResult {
+  const results: ImportItemResult[] = [];
+  for (const part of parts) results.push(...part.results);
+  const count = (status: ImportItemResult['status']) => results.filter((r) => r.status === status).length;
+  return { results, summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') } };
+}
+
+/** "Added 3 apps. 1 was already added, 2 could not be added." */
+export function importSummaryText(summary: ImportSummary): string {
+  const rest = [
+    summary.skipped > 0 ? `${summary.skipped} ${summary.skipped === 1 ? 'was' : 'were'} already added` : '',
+    summary.failed > 0 ? `${summary.failed} could not be added` : '',
+  ].filter(Boolean);
+  const head = summary.created > 0 ? `Added ${summary.created} app${summary.created === 1 ? '' : 's'}.` : 'No app was added.';
+  return rest.length > 0 ? `${head} ${rest.join(', ')}.` : head;
+}
+
+/** What to say about one item of an import that did not create an app. */
+export function importItemMessage(result: Pick<ImportItemResult, 'status' | 'error' | 'message'>): string {
+  if (result.status === 'skipped') return 'Already in this workspace.';
+  if (result.status === 'failed') {
+    return appErrorMessage({ status: 422, code: result.error ?? 'error', message: result.message ?? '', body: { message: result.message } }, 'import');
+  }
+  return '';
+}
+
+/** The apps an import created, in order. */
+export function importedApps(result: ImportResult): AppSummary[] {
+  const apps: AppSummary[] = [];
+  for (const r of result.results) if (r.status === 'created' && r.app) apps.push(r.app);
+  return apps;
+}
+
+/**
+ * Syncs apps one after another (as "Sync all" does). A workspace rate limit or a lost connection
+ * ends the run and the apps not reached say why. `onProgress` is called before each app and after
+ * every result, with copies it may keep.
+ */
+export async function syncApps(
+  api: Pick<Api, 'syncApp'>,
+  workspaceId: string,
+  apps: readonly Pick<AppSummary, 'id' | 'name'>[],
+  onProgress?: (results: readonly BatchResult[], current: string) => void,
+): Promise<BatchResult[]> {
+  const results: BatchResult[] = apps.map((a) => ({ appId: a.id, name: a.name, status: 'pending', message: '' }));
+  const report = (current: string) => onProgress?.(results.map((r) => ({ ...r })), current);
+  for (let i = 0; i < apps.length; i++) {
+    const app = apps[i] as Pick<AppSummary, 'id' | 'name'>;
+    const result = results[i] as BatchResult;
+    result.status = 'running';
+    report(app.name);
+    const outcome = await syncApp(api, workspaceId, app.id);
+    if (outcome.ok) {
+      result.status = 'ok';
+      result.message = syncDetail(outcome.sync);
+      report('');
+      continue;
+    }
+    result.status = outcome.failure.kind === 'busy' ? 'busy' : 'failed';
+    result.message = outcome.failure.message;
+    if (outcome.failure.kind === 'limited' || outcome.failure.kind === 'abort') {
+      for (let j = i + 1; j < results.length; j++) {
+        const rest = results[j] as BatchResult;
+        rest.status = 'skipped';
+        rest.message = notRunMessage(outcome.failure);
+      }
+      report('');
+      break;
+    }
+    report('');
+  }
+  return results;
 }

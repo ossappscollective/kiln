@@ -8,7 +8,10 @@ import type {
   ChangeSetView,
   CreatedInvitation,
   CredentialSummary,
+  DiscoverResult,
   Health,
+  ImportItem,
+  ImportResult,
   Invitation,
   InvitationPreview,
   Me,
@@ -278,6 +281,12 @@ export function createApi(options: ApiOptions = {}) {
     /** Reads the store with the app's credential and replaces the stored snapshot. Can take seconds. */
     syncApp: (workspaceId: string, id: string) =>
       request<SyncResult>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}/sync`),
+    /** Finds the apps behind a credential. Google Play needs `packages`: its API cannot list apps. */
+    discoverApps: (workspaceId: string, input: { credentialId: string; packages?: string[] }) =>
+      request<DiscoverResult>('POST', `${workspace(workspaceId)}/apps/discover`, input),
+    /** Adds the chosen apps in one transaction. Apps that exist are skipped; the answer is per item. */
+    importApps: (workspaceId: string, input: { credentialId: string; items: ImportItem[] }) =>
+      request<ImportResult>('POST', `${workspace(workspaceId)}/apps/import`, input),
     audit: (workspaceId: string, limit = 100) =>
       request<{ events: AuditEvent[] }>('GET', `${workspace(workspaceId)}/audit?limit=${limit}`),
   };

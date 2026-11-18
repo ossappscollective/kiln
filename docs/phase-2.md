@@ -40,6 +40,11 @@ fixtures on SQLite. Nothing has talked to a live store, and no screen shows the 
 
 - [x] Portfolio list and app detail screens in the web UI (`apps/web/src/components/Portfolio.svelte`
       and `components/portfolio/`). Written and unit tested, **never rendered in a browser**
+- [x] Discovery: add apps from a credential instead of typing them. `POST /apps/discover` finds the
+      apps behind an App Store Connect key (or verifies Google Play package names one by one, since
+      Play cannot list an account's apps) and `POST /apps/import` adds the chosen ones in one
+      transaction; the Add app dialog has an "Import from a credential" path. Unit and API tested
+      with fake connectors, **never rendered in a browser**, never run against a live account
 - [ ] A release screen beyond the app detail (the design canvas also has a kanban by dashboard bucket)
 - [ ] Verify the whole slice on Postgres (`MRM_TEST_POSTGRES_URL`)
 - [ ] Record real store responses from a test App Store Connect key and a Play service account,

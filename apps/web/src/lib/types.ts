@@ -245,3 +245,48 @@ export type NewApp = {
   name?: string;
   repositoryId?: string;
 };
+
+/** An app the store knows, as found by discovery with a credential. */
+export type DiscoverCandidate = {
+  platform: Platform;
+  /** The store's own id: Apple's numeric app id, or the package name. */
+  storeId: string;
+  /** The bundle id (iOS) or the package name (Android). */
+  identifier: string;
+  name: string;
+  alreadyAdded: boolean;
+  /** The app in this workspace, when `alreadyAdded`. */
+  appId?: string;
+};
+
+/** A Google Play package that could not be verified. `error` is a code of the apps API. */
+export type DiscoverFailure = { identifier: string; error: string; message: string };
+
+export type DiscoverResult = {
+  credentialId: string;
+  kind: 'app_store_connect' | 'google_play';
+  candidates: DiscoverCandidate[];
+  failures: DiscoverFailure[];
+};
+
+export type ImportItem = {
+  platform: Platform;
+  identifier: string;
+  storeAppId?: string;
+  name?: string;
+  repositoryId?: string;
+};
+
+export type ImportItemResult = {
+  platform: Platform;
+  identifier: string;
+  status: 'created' | 'skipped' | 'failed';
+  /** The new app, or the one that already exists (skipped). */
+  app?: AppSummary;
+  error?: string;
+  message?: string;
+};
+
+export type ImportSummary = { created: number; skipped: number; failed: number };
+
+export type ImportResult = { results: ImportItemResult[]; summary: ImportSummary };

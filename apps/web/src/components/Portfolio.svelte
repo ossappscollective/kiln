@@ -322,7 +322,7 @@
   </section>
 
   {#if canWrite}
-    <AddAppModal {api} {workspaceId} bind:open={adding} onadded={added} />
+    <AddAppModal {api} {workspaceId} {canSync} bind:open={adding} onadded={added} onchanged={load} />
   {/if}
 {/if}
 
