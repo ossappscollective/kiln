@@ -27,6 +27,10 @@ export const actions = [
   'reviews.read',
   'reviews.sync',
   'reviews.triage',
+  'reviews.reply',
+  'reviews.translate',
+  'settings.read',
+  'settings.write',
   'tokens.read',
   'tokens.manage',
   'webhooks.read',
@@ -55,6 +59,8 @@ const allowed: Record<Role, readonly Action[]> = {
     'reviews.read',
     'reviews.sync',
     'reviews.triage',
+    'reviews.translate',
+    'settings.read',
     'events.read',
   ],
   viewer: [
@@ -100,6 +106,13 @@ export const tokenForbiddenActions: readonly Action[] = [
 /** The actions a token may be given, in the order of `actions`. */
 export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbiddenActions.includes(a));
 
+/**
+ * Actions that publish text to a store in the organisation's name. A token gets one only when its
+ * list of actions names it: a token with no list ("everything the ceiling allows") never does, so
+ * widening an old token's role cannot start answering customers.
+ */
+export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply'];
+
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);
 }
@@ -119,5 +132,6 @@ export function lowerRole(a: Role, b: Role): Role {
 export function canToken(ceiling: Role, allowlist: readonly Action[] | null, action: Action): boolean {
   if (tokenForbiddenActions.includes(action)) return false;
   if (!can(ceiling, action)) return false;
-  return allowlist === null || allowlist.includes(action);
+  if (allowlist === null) return !tokenExplicitOnlyActions.includes(action);
+  return allowlist.includes(action);
 }

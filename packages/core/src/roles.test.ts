@@ -9,6 +9,7 @@ import {
   lowerRole,
   roles,
   tokenActions,
+  tokenExplicitOnlyActions,
   tokenForbiddenActions,
   tokenRoles,
 } from './roles.ts';
@@ -139,8 +140,11 @@ test('a token holds the role ceiling, and an allowlist can only narrow it', () =
   assert.equal(canToken('member', [], 'apps.read'), false);
 });
 
-test('every grantable action is one the admin ceiling can do', () => {
-  for (const action of tokenActions) assert.equal(canToken('admin', null, action), true, action);
+test('every grantable action is one the admin ceiling can do, those that publish to a store only when named', () => {
+  for (const action of tokenActions) {
+    assert.equal(canToken('admin', null, action), !tokenExplicitOnlyActions.includes(action), action);
+    assert.equal(canToken('admin', [action], action), true, action);
+  }
 });
 
 test('lowerRole picks the weaker of two roles', () => {
@@ -156,11 +160,38 @@ test('reviews: everyone reads, members sync and triage, nothing can reply to a s
     assert.equal(can('member', action), true, action);
     assert.equal(can('admin', action), true, action);
   }
-  // Replying to a review is a store write and has no action at all (see docs/api/reviews.md).
-  assert.ok(!actions.some((a) => /^reviews\./.test(a) && !['reviews.read', 'reviews.sync', 'reviews.triage'].includes(a)));
+  // Replying to a review is a store write with its own action (see docs/api/reviews.md).
+  assert.ok(!actions.some((a) => /^reviews\./.test(a) && !['reviews.read', 'reviews.sync', 'reviews.triage', 'reviews.reply', 'reviews.translate'].includes(a)));
   // All three can be given to an API token.
   for (const action of ['reviews.read', 'reviews.sync', 'reviews.triage'] as const) {
     assert.equal(canToken('member', null, action), true, action);
   }
   assert.equal(canToken('viewer', null, 'reviews.triage'), false);
+});
+
+test('reviews.reply: owners and admins only; a token needs the action named and an admin ceiling', () => {
+  assert.equal(can('owner', 'reviews.reply'), true);
+  assert.equal(can('admin', 'reviews.reply'), true);
+  assert.equal(can('member', 'reviews.reply'), false);
+  assert.equal(can('viewer', 'reviews.reply'), false);
+  // Drafting stays with members (reviews.triage).
+  assert.equal(can('member', 'reviews.triage'), true);
+  assert.ok(tokenActions.includes('reviews.reply'));
+  assert.ok(tokenExplicitOnlyActions.includes('reviews.reply'));
+  assert.equal(canToken('admin', null, 'reviews.reply'), false, 'no list: never');
+  assert.equal(canToken('admin', ['reviews.read'], 'reviews.reply'), false);
+  assert.equal(canToken('admin', ['reviews.reply'], 'reviews.reply'), true);
+  assert.equal(canToken('member', ['reviews.reply'], 'reviews.reply'), false, 'the ceiling still applies');
+  assert.equal(canToken('viewer', ['reviews.reply'], 'reviews.reply'), false);
+});
+
+test('settings: members read them, only owners and admins change them; members translate reviews', () => {
+  assert.equal(can('viewer', 'settings.read'), false);
+  assert.equal(can('member', 'settings.read'), true);
+  assert.equal(can('member', 'settings.write'), false);
+  assert.equal(can('admin', 'settings.write'), true);
+  assert.equal(can('owner', 'settings.write'), true);
+  assert.equal(can('viewer', 'reviews.translate'), false);
+  assert.equal(can('member', 'reviews.translate'), true);
+  assert.equal(can('admin', 'reviews.translate'), true);
 });

@@ -11,3 +11,4 @@ export * from './release-plan.ts';
 export * from './build-patterns.ts';
 export * from './image-header.ts';
 export * from './store-asset-specs.ts';
+export * from './translation.ts';
