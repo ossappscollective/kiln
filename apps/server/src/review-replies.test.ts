@@ -513,14 +513,15 @@ dbTest('template rendering is pure plain text', async () => {
 
 // ----- translation seam --------------------------------------------------------------------------------------------------------
 
-dbTest('translation seam: unavailable and 409 unless a translator is injected; it never saves or sends', async (db) => {
+dbTest('translation seam: wired to the workspace translator by default; without a credential it fails and changes nothing', async (db) => {
   const t = await bootReviews(db);
   const appId = await t.addApp('ios');
   const reviewId = await t.seed(appId, 'ios', 1);
-  assert.equal((await t.call(t.owner, 'GET', '/reviews/reply-config')).body.translation.available, false);
+  assert.equal((await t.call(t.owner, 'GET', '/reviews/reply-config')).body.translation.available, true);
   const none = await t.call(t.owner, 'POST', rp(appId, reviewId, '/reply-draft/translate'), { text: 'Hello', target: 'de' });
-  assert.equal(none.status, 409);
-  assert.equal(none.body.error, 'translation_unavailable');
+  assert.notEqual(none.status, 200, 'no translation credential is stored in this test');
+  assert.equal((await db.query('SELECT id FROM review_reply_drafts')).length, 0);
+  assert.equal(t.stores.ios.replies.length, 0);
 });
 
 dbTest('translation seam: with a translator injected it returns text and changes nothing', async (db) => {

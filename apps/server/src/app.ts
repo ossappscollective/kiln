@@ -21,6 +21,7 @@ import { planRoutes } from './routes/plans.ts';
 import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
+import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
@@ -48,7 +49,7 @@ import {
   defaultReviewConnectorFactory,
 } from './services/review-sync.ts';
 import { buildOpenApiDocument } from './services/openapi.ts';
-import type { TranslationContext } from './services/translation.ts';
+import { type TranslationContext, createTranslateDraft } from './services/translation.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import type { LocalWriteConfig } from './services/local-reads.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
@@ -197,6 +198,12 @@ export type AppDeps = {
    * rollout (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   rollout?: RolloutRoutesContext['rollout'];
+  /**
+   * Staged listing text and graphics, and writing them to the store as a DRAFT (docs/api/staged-changes.md):
+   * a store write that is OFF unless `enabled` (MRM_STORE_DRAFT_WRITE_ENABLED). `connectorFactory` builds the
+   * connector that can read and write a draft (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
+   */
+  storeDraft?: StagedRoutesContext['draft'];
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
@@ -348,7 +355,17 @@ export function createApp(deps: AppDeps) {
       timeoutMs: deps.reviews?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS,
       ...(deps.reviews?.lowRatingThreshold !== undefined ? { lowRatingThreshold: deps.reviews.lowRatingThreshold } : {}),
       ...(deps.reviews?.retentionDays !== undefined ? { retentionDays: deps.reviews.retentionDays } : {}),
-      ...(deps.reviews?.reply ? { reply: deps.reviews.reply } : {}),
+      // Reply drafts can be translated with the workspace's translation provider, unless a test supplies its own.
+      ...(deps.reviews?.reply
+        ? {
+            reply: {
+              ...deps.reviews.reply,
+              translateDraft:
+                deps.reviews.reply.translateDraft ??
+                createTranslateDraft({ db: services.db, masterKey: services.masterKey, now: services.now, ...translationSeams }),
+            },
+          }
+        : {}),
       translation: translationSeams,
       limiter: deps.reviews?.limiter ?? appSyncLimiter,
     }),
@@ -418,13 +435,14 @@ export function createApp(deps: AppDeps) {
     timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
     reads: deps.reads,
   };
+  const assetsLimiter = deps.assets?.limiter ?? createTestLimiter({ limit: 30, now: services.now });
   app.route(
     '/api/workspaces',
     assetRoutes({
       db: services.db,
       now: services.now,
       repo: assetsRepo,
-      limiter: deps.assets?.limiter ?? createTestLimiter({ limit: 30, now: services.now }),
+      limiter: assetsLimiter,
       icons: createAppIcons({
         db: services.db,
         now: services.now,
@@ -432,6 +450,20 @@ export function createApp(deps: AppDeps) {
         ...(deps.assets?.icons?.limiter ? { limiter: deps.assets.icons.limiter } : {}),
         ...(deps.assets?.icons?.net ? { net: deps.assets.icons.net } : {}),
       }),
+    }),
+  );
+  // Staged listing text and graphics of an app, and writing them to the store as a draft. Staging touches the
+  // database only (files are read through the asset index, with the budget of the Assets tab); the push is
+  // off unless MRM_STORE_DRAFT_WRITE_ENABLED and never submits anything.
+  app.route(
+    '/api/workspaces',
+    stagedRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      repo: assetsRepo,
+      limiter: assetsLimiter,
+      ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.
