@@ -37,10 +37,12 @@
     filesChangedLabel,
     prLabel,
   } from '../../lib/repositories.ts';
+  import { type RefreshResult, canRefresh } from '../../lib/change-set-refresh.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChangeSetView, LocalSigningConfig } from '../../lib/types.ts';
   import ExternalLink from '../credentials/ExternalLink.svelte';
   import ApplyDialog from './ApplyDialog.svelte';
+  import ChangeSetStale from './ChangeSetStale.svelte';
   import LocalOutcomeCard from './LocalOutcomeCard.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -84,6 +86,8 @@
   /** The retry that is running (push, push_pr or pr), or ''. */
   let retrying = $state<'' | RetryOption['id']>('');
   let actionError = $state('');
+  /** The error code of the last apply on this page, so a stale change set is told apart from other failures. */
+  let applyCode = $state<string | null>(null);
   let applyOpen = $state(false);
   let discardOpen = $state(false);
   let titleEl = $state<HTMLElement>();
@@ -143,6 +147,7 @@
     if (!changeSet || busy || retrying) return;
     busy = kind;
     actionError = '';
+    if (kind === 'apply') applyCode = null;
     try {
       if (kind === 'approve') {
         changeSet = (await api.approveChangeSet(workspaceId, id)).changeSet;
@@ -161,6 +166,7 @@
       onchanged();
     } catch (e) {
       actionError = e instanceof ApiError ? e.message : 'That did not work. Try again.';
+      if (kind === 'apply' && e instanceof ApiError) applyCode = e.code ?? null;
       // A failed apply changes the status on the server, so look again.
       await load(true);
       onchanged();
@@ -198,6 +204,14 @@
     } finally {
       retrying = '';
     }
+  }
+
+  /** A refresh answered: show the new change set (a draft again when its text changed). */
+  function refreshed(result: RefreshResult) {
+    changeSet = result.changeSet;
+    applyCode = null;
+    actionError = '';
+    onchanged();
   }
 
   function confirmDiscard() {
@@ -309,10 +323,18 @@
             {#if changeSet.branch}
               A branch named <code>{changeSet.branch}</code> was created before the failure; delete it in GitHub if you do not need it.
             {/if}
-            Discard this change set and create a new one from the current listing.
+            {#if canRefresh(role, changeSet)}
+              Refresh it to put your change on top of what the repository has now, or discard it and create a new one from the current listing.
+            {:else}
+              Discard this change set and create a new one from the current listing.
+            {/if}
           </Alert>
         </div>
       {/if}
+
+      <div class="gap">
+        <ChangeSetStale {api} {workspaceId} {changeSet} {role} {applyCode} onrefreshed={refreshed} ondiscard={() => void run('discard')} />
+      </div>
 
       {#if actionError && changeSet.status !== 'failed'}
         <div class="gap"><Alert tone="error">{actionError}</Alert></div>

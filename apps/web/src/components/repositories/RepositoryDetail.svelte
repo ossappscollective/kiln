@@ -30,6 +30,7 @@
   import Tabs from '../ui/Tabs.svelte';
   import CiPanel from '../ci/CiPanel.svelte';
   import ChangeSetsPanel from './ChangeSetsPanel.svelte';
+  import CloneCard from './CloneCard.svelte';
   import KindBadge from './KindBadge.svelte';
   import LocalCheckoutCard from './LocalCheckoutCard.svelte';
   import ListingPanel from './ListingPanel.svelte';
@@ -167,6 +168,7 @@
   </p>
 
   <LocalCheckoutCard {api} {workspaceId} {repository} {role} config={localConfig} onchanged={localChanged} />
+  <CloneCard {api} {workspaceId} {repository} {role} />
 
   {#if error}
     <div class="stack">
