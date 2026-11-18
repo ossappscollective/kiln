@@ -13,6 +13,7 @@
   import type {
     ChangeSetView,
     ProjectDetection,
+    ListingSelection,
     RepositoryDetail,
     RepositoryListing,
     RepositorySummary,
@@ -60,6 +61,8 @@
   let tab = $state('project');
   let listingData = $state<RepositoryListing | null>(null);
   let listingEdited = $state<Listing | null>(null);
+  // The target the person chose, kept for this repository while the page is open.
+  let listingSelection = $state<ListingSelection>({});
   let openChangeSetId = $state<string | null>(null);
   let leaveOpen = $state(false);
   let root = $state<HTMLElement>();
@@ -157,6 +160,7 @@
             {canEdit}
             bind:data={listingData}
             bind:edited={listingEdited}
+            bind:selection={listingSelection}
             oncreated={created}
           />
         {:else}

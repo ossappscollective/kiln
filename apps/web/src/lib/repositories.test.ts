@@ -8,10 +8,12 @@ import {
   changeSetStatusInfo,
   changeSetStatuses,
   changelogCodes,
+  checkListingRoot,
   collapseDiff,
   connectProblem,
   detectionPaths,
   emptyListingDescription,
+  emptyTargetForm,
   diffLines,
   diffStats,
   differsOnlyInLineEnds,
@@ -24,6 +26,14 @@ import {
   listingForChangeSet,
   parseRepositoryInput,
   platformsSummary,
+  selectionForRequest,
+  showTargetBar,
+  targetFormFrom,
+  targetFormProblems,
+  targetInput,
+  targetOptionLabel,
+  targetRootsSummary,
+  targetServerProblems,
   projectKindBadge,
   projectKindSummary,
   readField,
@@ -409,4 +419,85 @@ test('the project summaries no longer say Expo editing is missing', () => {
   assert.doesNotMatch(projectKindSummary('expo'), /not supported yet/);
   assert.match(projectKindSummary('both'), /store\.config\.json/);
   assert.match(projectKindSummary('both'), /Google Play listing comes from fastlane/);
+});
+
+// ---- listing targets --------------------------------------------------------------------------
+
+test('a listing folder follows the repository path rules', () => {
+  for (const ok of ['fastlane/metadata/ios', './fastlane/metadata/', 'metadata', 'a b/c.d']) {
+    assert.equal(checkListingRoot(ok), undefined, ok);
+  }
+  for (const bad of ['', '  ', '/etc', '../x', 'a/../b', 'a//b', 'a\\b', '.git/hooks', 'x/.GIT/y', 'a/./b', 'x'.repeat(301)]) {
+    assert.notEqual(checkListingRoot(bad), undefined, JSON.stringify(bad));
+  }
+});
+
+test('the target form needs a name and at least one valid folder', () => {
+  const form = { ...emptyTargetForm(), name: 'Cards', appStoreRoot: 'fastlane/metadata/com.x/ios' };
+  assert.deepEqual(targetFormProblems(form), {});
+  assert.ok(targetFormProblems({ ...form, name: ' ' }).name);
+  assert.ok(targetFormProblems({ ...form, appStoreRoot: '../x' }).appStoreRoot);
+  assert.ok(targetFormProblems({ ...form, googlePlayRoot: '/abs' }).googlePlayRoot);
+  assert.ok(targetFormProblems({ ...emptyTargetForm(), name: 'x' }).roots);
+  assert.deepEqual(targetInput({ name: ' Cards ', appId: ' ', appStoreRoot: ' a/ios ', googlePlayRoot: '' }), {
+    name: 'Cards',
+    appId: null,
+    appStoreRoot: 'a/ios',
+    googlePlayRoot: null,
+  });
+  assert.deepEqual(
+    targetFormFrom({ label: 'Cards', app: null, roots: { appStore: null, googlePlay: 'a/android' } }),
+    { name: 'Cards', appId: '', appStoreRoot: '', googlePlayRoot: 'a/android' },
+  );
+});
+
+test('a refused save is shown at the field it is about', () => {
+  const refused = (code: string, body: Record<string, unknown> = {}, message = 'm') => ({ code, message, body });
+  assert.deepEqual(targetServerProblems(refused('duplicate_name', {}, 'Taken.')), { name: 'Taken.' });
+  assert.deepEqual(
+    targetServerProblems(refused('invalid_target', { problems: [{ field: 'appStoreRoot', message: 'No ..' }, { field: 'name', message: 'Name?' }] })),
+    { appStoreRoot: 'No ..', name: 'Name?' },
+  );
+  assert.deepEqual(targetServerProblems(refused('boom')), {});
+});
+
+test('targets are labelled and summarized for the selector', () => {
+  assert.equal(targetOptionLabel({ label: 'com.x', origin: 'detected' }), 'com.x');
+  assert.equal(targetOptionLabel({ label: 'Mine', origin: 'custom' }), 'Mine (custom)');
+  assert.equal(targetRootsSummary({ appStore: 'a/ios', googlePlay: 'a/android' }), 'App Store: a/ios · Google Play: a/android');
+  assert.equal(targetRootsSummary({ appStore: null, googlePlay: 'a/android' }), 'Google Play: a/android');
+  assert.equal(targetRootsSummary({ appStore: null, googlePlay: null }), 'no folders');
+});
+
+test('the target bar shows for several targets, a saved one, chosen folders, or a person who may add one', () => {
+  const one = { targets: [{ id: 'auto:default', origin: 'detected' as const, label: 'Default', app: null, roots: { appStore: 'a', googlePlay: null } }] };
+  assert.equal(showTargetBar({ ...one, selected: { id: 'auto:default', origin: 'default', label: 'Default' } }, false), false);
+  assert.equal(showTargetBar({ ...one, selected: { id: 'auto:default', origin: 'default', label: 'Default' } }, true), true);
+  assert.equal(showTargetBar({ targets: [...one.targets, ...one.targets] }, false), true);
+  assert.equal(showTargetBar({ ...one, selected: { id: null, origin: 'folders', label: 'Chosen folders' } }, false), true);
+  assert.equal(showTargetBar({}, false), false);
+});
+
+test('a change set is made in the target that was read, or in the folders that were chosen', () => {
+  const roots = { appStore: 'a/ios', googlePlay: '' };
+  assert.deepEqual(selectionForRequest({ roots, selected: { id: 'auto:app:x', origin: 'detected', label: 'x' } }), { target: 'auto:app:x' });
+  assert.deepEqual(selectionForRequest({ roots, selected: { id: 'abc', origin: 'custom', label: 'x' } }), { target: 'abc' });
+  assert.deepEqual(selectionForRequest({ roots, selected: { id: null, origin: 'folders', label: 'x' } }), { roots });
+  assert.deepEqual(selectionForRequest({ roots }), { roots });
+});
+
+test('a scan with several apps lists each one with its folders', () => {
+  const detection = {
+    paths: { fastlaneDirs: [], fastfiles: [] },
+    listing: {
+      candidates: [],
+      targets: [
+        { key: 'app:a', label: 'a', app: 'a', roots: { appStore: 'm/a/ios', googlePlay: 'm/a/android' } },
+        { key: 'app:b', label: 'b', app: 'b', roots: { appStore: null, googlePlay: 'm/b/android' } },
+      ],
+    },
+  } as unknown as ProjectDetection;
+  const row = detectionPaths(detection).find((r) => r.label === 'Listing targets');
+  assert.deepEqual(row?.values, ['a: App Store: m/a/ios · Google Play: m/a/android', 'b: Google Play: m/b/android']);
+  assert.equal(detectionPaths({ ...detection, listing: undefined } as ProjectDetection).some((r) => r.label === 'Listing targets'), false);
 });

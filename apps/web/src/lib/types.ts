@@ -3,6 +3,7 @@ import type {
   InvitableRole,
   Listing,
   ListingProblem,
+  ListingStore,
   Platform,
   ReleaseState,
   Role,
@@ -114,6 +115,8 @@ export type ProjectDetection = {
     easJson?: string;
     packageJson?: string;
   };
+  /** Every folder that looks like a listing root and the apps they belong to. Absent in old scans. */
+  listing?: { candidates: ListingCandidate[]; targets: DetectedTarget[] };
   expo?: {
     configPath?: string;
     dynamicConfig: boolean;
@@ -148,6 +151,75 @@ export type StoreSource = {
   unknown: string[];
 };
 
+/** A folder that looks like a store listing: one store, one place, one app. */
+export type ListingCandidate = {
+  store: ListingStore;
+  root: string;
+  app?: string;
+  platform: 'ios' | 'android';
+  origin: 'convention' | 'hint';
+  locales: string[];
+  files: number;
+  label: string;
+};
+
+/** One app (or folder) with the folders of its two stores. A null root: no folder for that store. */
+export type DetectedTarget = {
+  key: string;
+  label: string;
+  app?: string;
+  roots: { appStore: string | null; googlePlay: string | null };
+};
+
+/** A place the listing can be read from: found by the scan (`auto:<key>`), or saved by a person. */
+export type ListingTargetView = {
+  id: string;
+  origin: 'detected' | 'custom';
+  label: string;
+  app: string | null;
+  roots: { appStore: string | null; googlePlay: string | null };
+  createdAt?: number;
+  updatedAt?: number;
+};
+
+/** A listing target a person saved for a repository. */
+export type SavedListingTarget = {
+  id: string;
+  repositoryId: string;
+  name: string;
+  appId: string | null;
+  appStoreRoot: string | null;
+  googlePlayRoot: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/** What to read: a target (`auto:<key>` or a saved id) and/or folders, which win. '' = not read. */
+export type ListingSelection = {
+  target?: string;
+  roots?: { appStore?: string; googlePlay?: string };
+};
+
+/** What to send to create or change a saved target. A null or empty folder: none for that store. */
+export type ListingTargetInput = {
+  name: string;
+  appId?: string | null;
+  appStoreRoot?: string | null;
+  googlePlayRoot?: string | null;
+};
+
+export type UnusedFolder = { path: string; store: ListingStore | null; reason: string };
+
+export type StoreDiagnostic = {
+  root: string;
+  explicit: boolean;
+  state: 'found' | 'missing' | 'no_listing_files' | 'not_used';
+  entries: string[];
+  message: string;
+  searched: string[];
+  unused: UnusedFolder[];
+};
+
 /** The listing files of a repository, as the API reads them at the default branch. */
 export type RepositoryListing = {
   listing: Listing;
@@ -156,6 +228,12 @@ export type RepositoryListing = {
   warnings: string[];
   problems: ListingProblem[];
   sources: { appStore: StoreSource; googlePlay: StoreSource };
+  /** Every place the listing can be read from, detected and saved. Absent from an older server. */
+  targets?: ListingTargetView[];
+  /** Which of them was read. */
+  selected?: { id: string | null; origin: 'custom' | 'detected' | 'folders' | 'default'; label: string };
+  candidates?: ListingCandidate[];
+  diagnostics?: { appStore: StoreDiagnostic; googlePlay: StoreDiagnostic };
 };
 
 export type ChangeSetFile = {

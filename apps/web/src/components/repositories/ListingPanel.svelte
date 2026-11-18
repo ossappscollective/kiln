@@ -1,8 +1,11 @@
 <!--
   ListingPanel: the store listing files of a repository, per locale, with the store limits.
   Props: api, workspaceId, repository, role (the listing is read with repositories.scan: member and
-  up), canEdit (may create a change set), data and edited (both bindable, so the edits survive a switch
-  of tab), oncreated (called with the new draft).
+  up), canEdit (may create a change set), data, edited and selection (all bindable, so the edits and
+  the chosen target survive a switch of tab), oncreated (called with the new draft).
+  A repository can have several apps or a listing in an unusual place: the target bar picks which
+  one is read (a detected one, or a saved one that an admin keeps in "Manage targets"). Edits are
+  kept per target: switching is blocked while there are unsaved edits.
   Each store shows where its listing comes from (the Expo store.config.json or fastlane) and the
   path. Editing never writes anything: "Create draft change set" makes a draft that an admin approves.
   A viewer never calls the listing endpoint and gets a read-only message instead.
@@ -14,6 +17,7 @@
     type ListingStore,
     PLAY_CHANGELOG_SPEC,
     type Role,
+    can,
     validateListing,
   } from '@mrm/core';
   import { untrack } from 'svelte';
@@ -33,15 +37,26 @@
     localeFieldSpecs,
     readField,
     repositoryName,
+    selectionForRequest,
+    showTargetBar,
     sourcePathKind,
     sourceProblem,
     storeLabel,
     storeLocales,
     suggestSummary,
+    type TargetForm,
+    targetOptionLabel,
+    targetRootsSummary,
     writeField,
   } from '../../lib/repositories.ts';
   import { toast } from '../../lib/toast.svelte.ts';
-  import type { ChangeSetView, RepositoryListing, RepositorySummary, StoreSource } from '../../lib/types.ts';
+  import type {
+    ChangeSetView,
+    ListingSelection,
+    RepositoryListing,
+    RepositorySummary,
+    StoreSource,
+  } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -50,6 +65,8 @@
   import Tabs from '../ui/Tabs.svelte';
   import TextField from '../ui/TextField.svelte';
   import FieldEditor from './FieldEditor.svelte';
+  import ListingDiagnostics from './ListingDiagnostics.svelte';
+  import ListingTargetsDialog from './ListingTargetsDialog.svelte';
 
   let {
     api,
@@ -59,6 +76,7 @@
     canEdit,
     data = $bindable(null),
     edited = $bindable(null),
+    selection = $bindable({}),
     oncreated,
   }: {
     api: Api;
@@ -68,6 +86,7 @@
     canEdit: boolean;
     data?: RepositoryListing | null;
     edited?: Listing | null;
+    selection?: ListingSelection;
     oncreated: (changeSet: ChangeSetView) => void;
   } = $props();
 
@@ -81,12 +100,14 @@
   let summaryTouched = $state(false);
   let creating = $state(false);
   let createError = $state('');
+  let targetsOpen = $state(false);
+  let targetsPrefill = $state<Partial<TargetForm>>({});
 
   async function load() {
     loading = true;
     loadError = '';
     try {
-      const result = await api.repositoryListing(workspaceId, repository.id);
+      const result = await api.repositoryListing(workspaceId, repository.id, selection);
       data = result;
       edited = cloneListing(result.listing);
     } catch (e) {
@@ -109,6 +130,47 @@
 
   const base = $derived(data?.listing ?? {});
   const edits = $derived(data && edited ? listingEdits(base, edited) : []);
+  const canManageTargets = $derived(can(role, 'repositories.write'));
+  const savedTargets = $derived((data?.targets ?? []).filter((t) => t.origin === 'custom'));
+  const switching = $derived(edits.length > 0);
+
+  // Reads the listing of another target. The edits belong to the target that was read, so the
+  // switch is blocked while there are any (the selector is disabled and says why).
+  async function choose(next: ListingSelection) {
+    if (switching || loading) return;
+    selection = next;
+    data = null;
+    edited = null;
+    summaryTouched = false;
+    await load();
+  }
+
+  // A folder from the diagnostic, used for one store. Folders win over the target on the server.
+  function useFolder(store: ListingStore, path: string) {
+    const key = store === 'app_store' ? 'appStore' : 'googlePlay';
+    void choose({ ...selection, roots: { ...selection.roots, [key]: path } });
+  }
+
+  function saveFolder(store: ListingStore, path: string) {
+    targetsPrefill = store === 'app_store' ? { appStoreRoot: path } : { googlePlayRoot: path };
+    targetsOpen = true;
+  }
+
+  function openTargets() {
+    targetsPrefill = {};
+    targetsOpen = true;
+  }
+
+  async function targetsChanged(info: { selectId?: string; deletedId?: string }) {
+    if (info.selectId) selection = { target: info.selectId };
+    else if (info.deletedId && (selection.target === info.deletedId || data?.selected?.id === info.deletedId)) {
+      selection = {};
+    }
+    data = null;
+    edited = null;
+    summaryTouched = false;
+    await load();
+  }
   const problems = $derived(edited ? validateListing(edited) : []);
   const errorCount = $derived(problems.filter((p) => p.severity === 'error').length);
   const localesEdited = $derived(new Set(edits.map((e) => `${e.store}:${e.locale ?? ''}`)));
@@ -150,9 +212,11 @@
     creating = true;
     createError = '';
     try {
+      // Made in the folders the person was looking at, not whatever is detected by default now.
       const result = await api.createChangeSet(workspaceId, repository.id, {
         summary: summary.trim(),
         listing: listingForChangeSet(data.listing, edited),
+        ...selectionForRequest(data),
       });
       toast.success('Draft change set created. An admin or owner can review and approve it.');
       if (result.warnings?.length) toast.warning(result.warnings.join(' '));
@@ -170,6 +234,61 @@
   const problemsFor = (s: ListingStore, locale: string | undefined, field: string) =>
     problems.filter((p) => p.store === s && p.locale === locale && p.field === field);
 </script>
+
+{#snippet targetBar()}
+  {#if data && showTargetBar(data, canManageTargets)}
+    {@const targets = data.targets ?? []}
+    <div class="card target-bar">
+      <div class="locale-bar">
+        <div class="field">
+          <label for="{uid}-target">Listing target</label>
+          <select
+            id="{uid}-target"
+            value={data.selected?.id ?? ''}
+            disabled={switching || loading}
+            aria-describedby={switching ? `${uid}-target-hint` : undefined}
+            onchange={(e) => void choose({ target: e.currentTarget.value })}
+          >
+            {#if data.selected?.id == null}
+              <option value="" disabled>{data.selected?.label ?? 'Detected folders'}</option>
+            {/if}
+            {#each targets as target (target.id)}
+              <option value={target.id}>{targetOptionLabel(target)}</option>
+            {/each}
+          </select>
+        </div>
+        {#if canManageTargets}
+          <Button icon="settings" disabled={switching || loading} onclick={openTargets}>Manage targets</Button>
+        {/if}
+      </div>
+      <p class="hint root" id="{uid}-target-hint">
+        {#if switching}
+          Create the change set or discard your edits before switching target.
+        {:else}
+          Reading <code>{targetRootsSummary({ appStore: data.roots.appStore || null, googlePlay: data.roots.googlePlay || null })}</code>.
+          {#if targets.filter((t) => t.origin === 'detected').length > 1 && data.selected?.origin === 'default'}
+            Several apps were found; the first is shown until you choose one.
+          {/if}
+        {/if}
+      </p>
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet diagnosticFor(s: ListingStore)}
+  {@const diag = s === 'app_store' ? data?.diagnostics?.appStore : data?.diagnostics?.googlePlay}
+  {#if diag}
+    <ListingDiagnostics
+      diagnostic={diag}
+      label={storeLabel[s]}
+      store={s}
+      canChoose={readNotice === null}
+      canSave={canManageTargets}
+      onuse={(path) => useFolder(s, path)}
+      onsave={(path) => saveFolder(s, path)}
+    />
+  {/if}
+{/snippet}
 
 {#snippet sourceLine(src: StoreSource)}
   {@const badge = listingSourceBadge(src.source)}
@@ -206,6 +325,7 @@
               : `Nothing was found under ${src.path}. A fastlane listing has one folder per locale, such as ${src.path}/en-US, with a text file for each field.`
             : 'The listing has no locales yet.'}
         />
+        {#if found === false && src.source === 'fastlane'}{@render diagnosticFor(s)}{/if}
       </div>
     </div>
   {:else if edited && src}
@@ -314,13 +434,23 @@
     </div>
   </div>
 {:else if listingIsEmpty(data)}
-  <div class="card">
-    <EmptyState icon="file-text" title="No listing files found" description={emptyListingDescription(data)}>
-      {#snippet actions()}<Button icon="refresh" onclick={load}>Check again</Button>{/snippet}
-    </EmptyState>
+  <div class="stack loose">
+    {@render targetBar()}
+    <div class="card">
+      <EmptyState icon="file-text" title="No listing files found" description={emptyListingDescription(data)}>
+        {#snippet actions()}<Button icon="refresh" onclick={load}>Check again</Button>{/snippet}
+      </EmptyState>
+      {#each listingStores as s (s)}
+        {#if s === 'app_store' ? data.sources.appStore.source === 'fastlane' : true}
+          <h3 class="diag-title">{storeLabel[s]}</h3>
+          {@render diagnosticFor(s)}
+        {/if}
+      {/each}
+    </div>
   </div>
 {:else}
   <div class="stack loose">
+    {@render targetBar()}
     {#if !canEdit}
       <Alert tone="info">Your role can read the listing but not edit it.</Alert>
     {/if}
@@ -382,7 +512,25 @@
   </div>
 {/if}
 
+{#if canManageTargets}
+  <ListingTargetsDialog
+    {api}
+    {workspaceId}
+    {repository}
+    targets={savedTargets}
+    bind:open={targetsOpen}
+    prefill={targetsPrefill}
+    onchanged={targetsChanged}
+  />
+{/if}
+
 <style>
+  .diag-title {
+    padding: var(--space-3) var(--space-5) 0;
+    margin: 0;
+    font-size: var(--text-md, 1rem);
+  }
+
   .locale-bar {
     display: flex;
     flex-wrap: wrap;

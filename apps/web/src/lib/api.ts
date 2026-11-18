@@ -14,12 +14,15 @@ import type {
   ImportResult,
   Invitation,
   InvitationPreview,
+  ListingSelection,
+  ListingTargetInput,
   Me,
   Member,
   NewApp,
   RepositoryDetail,
   RepositoryListing,
   RepositorySummary,
+  SavedListingTarget,
   SyncResult,
   TestResult,
   User,
@@ -238,9 +241,44 @@ export function createApi(options: ApiOptions = {}) {
     /** Lists the repository's files, detects the project type and stores the result. */
     scanRepository: (workspaceId: string, id: string) =>
       request<RepositoryDetail>('POST', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/scan`),
-    repositoryListing: (workspaceId: string, id: string) =>
-      request<RepositoryListing>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/listing`),
-    createChangeSet: (workspaceId: string, repositoryId: string, input: { summary: string; listing: Listing }) =>
+    repositoryListing: (workspaceId: string, id: string, selection: ListingSelection = {}) => {
+      const query = new URLSearchParams();
+      if (selection.target) query.set('target', selection.target);
+      if (selection.roots?.appStore !== undefined) query.set('appStoreRoot', selection.roots.appStore);
+      if (selection.roots?.googlePlay !== undefined) query.set('googlePlayRoot', selection.roots.googlePlay);
+      const text = query.toString();
+      return request<RepositoryListing>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/listing${text ? `?${text}` : ''}`,
+      );
+    },
+    listingTargets: (workspaceId: string, repositoryId: string) =>
+      request<{ targets: SavedListingTarget[] }>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/listing-targets`,
+      ),
+    createListingTarget: (workspaceId: string, repositoryId: string, input: ListingTargetInput) =>
+      request<{ target: SavedListingTarget }>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/listing-targets`,
+        input,
+      ),
+    updateListingTarget: (workspaceId: string, repositoryId: string, id: string, input: Partial<ListingTargetInput>) =>
+      request<{ target: SavedListingTarget }>(
+        'PATCH',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/listing-targets/${encodeURIComponent(id)}`,
+        input,
+      ),
+    deleteListingTarget: (workspaceId: string, repositoryId: string, id: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/listing-targets/${encodeURIComponent(id)}`,
+      ),
+    createChangeSet: (
+      workspaceId: string,
+      repositoryId: string,
+      input: { summary: string; listing: Listing } & ListingSelection,
+    ) =>
       request<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings?: string[] }>(
         'POST',
         `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/change-sets`,

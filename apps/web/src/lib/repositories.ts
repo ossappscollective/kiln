@@ -15,7 +15,16 @@ import {
   countCharacters,
 } from '@mrm/core';
 import type { ApiError } from './api.ts';
-import type { ChangeSetView, ProjectDetection, ProjectKind, RepositoryListing, StoreSource } from './types.ts';
+import type {
+  ChangeSetView,
+  ListingSelection,
+  ListingTargetInput,
+  ListingTargetView,
+  ProjectDetection,
+  ProjectKind,
+  RepositoryListing,
+  StoreSource,
+} from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Connecting a repository
@@ -648,6 +657,14 @@ export function detectionPaths(detection: ProjectDetection): Array<{ label: stri
     const values = Array.isArray(row.values) ? row.values : row.values ? [row.values] : [];
     if (values.length > 0) out.push({ label: row.label, values });
   }
+  // Several apps in one repository: each with its folders, so the person sees what can be chosen.
+  const targets = detection.listing?.targets ?? [];
+  if (targets.length > 1) {
+    out.push({
+      label: 'Listing targets',
+      values: targets.map((t) => `${t.label}: ${targetRootsSummary(t.roots)}`),
+    });
+  }
   return out;
 }
 
@@ -662,4 +679,132 @@ export function platformsSummary(detection: Pick<ProjectDetection, 'platforms' |
   ];
   if (parts.length === 0) return 'None found';
   return parts.length === 1 ? (parts[0] as string) : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Listing targets: which app or folder of the repository the listing is read from
+
+/**
+ * Why a path is not a valid listing folder, or undefined when it is. The same rules as the server
+ * (checkListingRoot of @mrm/connectors, which follows the repository path rules): relative, no
+ * leading slash, no empty, `.` or `..` segment, no `.git`, no backslash. A leading `./` and a
+ * trailing slash are tolerated.
+ */
+export function checkListingRoot(path: string): string | undefined {
+  const text = normalizeRoot(path);
+  if (text === '') return 'Enter a folder path inside the repository.';
+  if (text.length > 300) return 'The path is too long (at most 300 characters).';
+  if (text.startsWith('/')) return 'The path must be relative to the repository, without a leading slash.';
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are refused on purpose
+  if (/[\\\x00-\x1f\x7f]/.test(text)) return 'The path must not contain backslashes or control characters.';
+  for (const segment of text.split('/')) {
+    if (segment === '' || segment === '.' || segment === '..') {
+      return 'The path must not contain empty, "." or ".." segments.';
+    }
+    if (segment.toLowerCase() === '.git') return 'The path must not point into .git.';
+  }
+  return undefined;
+}
+
+/** A folder as the server stores it: space, a leading `./` and trailing slashes removed. */
+export const normalizeRoot = (path: string): string => path.trim().replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+
+export type TargetForm = { name: string; appId: string; appStoreRoot: string; googlePlayRoot: string };
+export type TargetFormField = 'name' | 'appId' | 'appStoreRoot' | 'googlePlayRoot' | 'roots';
+
+export const emptyTargetForm = (): TargetForm => ({ name: '', appId: '', appStoreRoot: '', googlePlayRoot: '' });
+
+export function targetFormFrom(target: Pick<ListingTargetView, 'label' | 'app' | 'roots'>): TargetForm {
+  return {
+    name: target.label,
+    appId: target.app ?? '',
+    appStoreRoot: target.roots.appStore ?? '',
+    googlePlayRoot: target.roots.googlePlay ?? '',
+  };
+}
+
+/** What is wrong with the form, by field. Empty: it can be saved. */
+export function targetFormProblems(form: TargetForm): Partial<Record<TargetFormField, string>> {
+  const problems: Partial<Record<TargetFormField, string>> = {};
+  const name = form.name.trim();
+  if (name === '') problems.name = 'Give the target a name.';
+  else if (name.length > 60) problems.name = 'Use at most 60 characters.';
+  for (const field of ['appStoreRoot', 'googlePlayRoot'] as const) {
+    if (form[field].trim() === '') continue;
+    const message = checkListingRoot(form[field]);
+    if (message) problems[field] = message;
+  }
+  if (form.appStoreRoot.trim() === '' && form.googlePlayRoot.trim() === '') {
+    problems.roots = 'Give an App Store folder, a Google Play folder or both.';
+  }
+  return problems;
+}
+
+/** The request body for a form: trimmed, a blank value as null. */
+export function targetInput(form: TargetForm): ListingTargetInput {
+  const blank = (v: string) => (v.trim() === '' ? null : v.trim());
+  return {
+    name: form.name.trim(),
+    appId: blank(form.appId),
+    appStoreRoot: blank(form.appStoreRoot),
+    googlePlayRoot: blank(form.googlePlayRoot),
+  };
+}
+
+/** The problems a refused save came with (`invalid_target`), by field, or the message under the name. */
+export function targetServerProblems(
+  error: Pick<ApiError, 'code' | 'message' | 'body'>,
+): Partial<Record<TargetFormField, string>> {
+  if (error.code === 'duplicate_name') return { name: error.message };
+  const list = error.body.problems;
+  if (error.code === 'invalid_target' && Array.isArray(list)) {
+    const out: Partial<Record<TargetFormField, string>> = {};
+    for (const item of list) {
+      const entry = item as { field?: TargetFormField; message?: string };
+      if (entry.field && entry.message && out[entry.field] === undefined) out[entry.field] = entry.message;
+    }
+    if (Object.keys(out).length > 0) return out;
+  }
+  return {};
+}
+
+/** "App Store: a/ios · Google Play: a/android", leaving out a store the target has no folder for. */
+export function targetRootsSummary(roots: { appStore: string | null; googlePlay: string | null }): string {
+  const parts = [
+    roots.appStore ? `App Store: ${roots.appStore}` : '',
+    roots.googlePlay ? `Google Play: ${roots.googlePlay}` : '',
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'no folders';
+}
+
+export const targetOptionLabel = (target: Pick<ListingTargetView, 'label' | 'origin'>): string =>
+  target.origin === 'custom' ? `${target.label} (custom)` : target.label;
+
+/**
+ * Whether the listing panel shows the target bar: several places to read from, a saved one, folders
+ * chosen one by one, or a person who may add one.
+ */
+export function showTargetBar(
+  data: Pick<RepositoryListing, 'targets' | 'selected'>,
+  canManage: boolean,
+): boolean {
+  const targets = data.targets ?? [];
+  return (
+    targets.length > 1 ||
+    targets.some((t) => t.origin === 'custom') ||
+    data.selected?.origin === 'folders' ||
+    canManage
+  );
+}
+
+/**
+ * What to send with a change set so it is made in the folders the person was looking at: the
+ * target that was read (an id never changes meaning), or the folders when none was.
+ */
+export function selectionForRequest(
+  data: Pick<RepositoryListing, 'selected' | 'roots'>,
+): ListingSelection {
+  const id = data.selected?.id;
+  if (id && data.selected?.origin !== 'folders') return { target: id };
+  return { roots: { appStore: data.roots.appStore, googlePlay: data.roots.googlePlay } };
 }
