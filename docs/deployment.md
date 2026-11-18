@@ -388,6 +388,28 @@ Things to settle first:
 
 See [adr/0009-staged-store-drafts](adr/0009-staged-store-drafts.md) and [api/staged-changes](api/staged-changes.md).
 
+### Submitting a draft for store review (a store write, off by default)
+
+`MRM_STORE_SUBMIT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for handing
+the **pushed** draft of an app to App Review or to Google Play review. It is independent of
+`MRM_STORE_DRAFT_WRITE_ENABLED`. While `false`, the preview and submit routes answer `409 store_submit_disabled`; the
+state and config routes still work. Things to settle first:
+
+- **It cannot be taken back from this server.** A submission is cancelled only in App Store Connect, a Google Play
+  review only in Play Console. It never releases a version and never changes a rollout.
+- **Who can submit.** Only owners and admins (`store.submit`). An API token only when its list of actions names it.
+- **The flow.** A successful draft push, then a preview (reads the store, shows what goes to review, the checks, a
+  hash and a phrase to type), then the submit with the hash and the typed phrase. The store is read again right before
+  the write; one submit per app at a time; never retried.
+- **App Store:** the version must be set to be released manually and have a valid build; otherwise it is blocked.
+  **Google Play:** everything held back for the app goes to review, including changes made in Play Console.
+- **The store credential must be allowed to submit** (App Store Connect: a role that can submit for review; Google
+  Play: a service account that can edit and release; UNVERIFIED which minimum).
+- The tables `store_draft_pushes` (what the last pushes wrote, as hashes) and `store_submit_claims` (one row while a
+  submit is in flight) are created by migration 24.
+
+See [adr/0010-store-submit](adr/0010-store-submit.md) and [api/submit](api/submit.md).
+
 See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
 
 ### Review translation

@@ -3,7 +3,8 @@
 Status: implemented and tested against fakes on SQLite; **never run against App Store Connect or
 Google Play**. The facts that were not verified are listed in
 [api/staged-changes](../api/staged-changes.md#unverified-check-with-a-real-account). Submitting or
-publishing is **not implemented**; a design is in [api/staged-changes](../api/staged-changes.md#submit-and-publish-designed-only-unverified-not-implemented).
+publishing is **not part of this ADR**: submitting for review is the separate, gated step of [ADR 0010](0010-store-submit.md)
+([api/submit](../api/submit.md)); this server never publishes a release.
 
 ## Context
 
@@ -28,8 +29,9 @@ but it overwrites what is in the store's draft, which someone else may be editin
    64 MiB per push). A file that changed or vanished is `asset_changed`, never a silent substitution.
 3. **Pushing a draft is a different action from submitting.** `POST .../staged/push` writes to the store's
    *editable draft* only. It never submits for review, never sends for review, never releases, never
-   publishes, and the result says `draft: true, submitted: false`. Submit/publish is not part of this
-   ADR's implementation.
+   publishes, and the result says `draft: true, submitted: false`. A successful push records what it wrote
+   (hashes and ids, `store_draft_pushes`, migration 24) so that the separate submit step of
+   [ADR 0010](0010-store-submit.md) can check the store against it.
 4. **A kill switch, off by default.** `MRM_STORE_DRAFT_WRITE_ENABLED=true` turns it on. While off,
    preview and push answer `409 store_draft_disabled` (after the rights check) and no connector is built.
    Staging, viewing and the config route work.
@@ -68,10 +70,13 @@ but it overwrites what is in the store's draft, which someone else may be editin
 
 ## Consequences
 
-- **Apple's set-based screenshot resources are deprecated** (App Store Connect API 4.5.1, in favour of the
-  App Asset Library). The connector uses them because the read side already does and their upload flow is
-  documented; whether Apple still accepts them for writes is UNVERIFIED. Moving to the asset library is
-  future work.
+- **Apple deprecated the set-based screenshot resources** (App Store Connect API 4.5.1, in favour of the App Asset
+  Library), so the connector writes screenshots through the **App Asset Library** (library, reference data, images,
+  placements, ordering requests; read from Apple's pages on 2026-11-18). The placement group of a set is found
+  from Apple's reference data and the pixel size, never from a hard-coded id. The library has no checksum, so
+  the SHA-256 is kept in the image's `referenceName`; replacing a set deletes placements, not library images (the
+  library is shared with custom product pages). Details and what is UNVERIFIED:
+  [api/staged-changes](../api/staged-changes.md#unverified-check-with-a-real-account).
 - The change set is per app and is not a pull request: it lives in the server's database, not in the repository.
   A person who wants the change in the repository uses the existing [change sets](../api/repositories.md).
 - Asset reverse sync (store images into the repository) is not built: see

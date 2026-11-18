@@ -2,8 +2,9 @@
 
 Collect listing changes (texts per locale, icon, screenshots, Google Play graphics) for an app,
 check them against the stores' rules, and write them to the store's **draft**. Nothing is submitted:
-"push to store as draft" is a different action from submitting, sending for review or publishing, and
-this server does not do the second. Design: [ADR 0009](../adr/0009-staged-store-drafts.md).
+"push to store as draft" is a different action from submitting, sending for review or publishing. Submitting
+is a separate, gated and irreversible step with its own switch and right: [submit](submit.md).
+Design: [ADR 0009](../adr/0009-staged-store-drafts.md), [ADR 0010](../adr/0010-store-submit.md).
 
 **Never run against a real store**: the connectors are tested with fakes only. See
 [below](#unverified-check-with-a-real-account).
@@ -36,7 +37,7 @@ connector.
 
 ### `GET /store-draft/config`
 
-`{ enabled, envName, submit: { implemented: false, note }, limits }`. `limits` is the server's caps
+`{ enabled, envName, submit: { implemented: true, configRoute: "/store-submit/config", note }, limits }`. A push never submits; `submit` only points to the separate step. `limits` is the server's caps
 (`maxItems` 600, `maxTextChars` 20000, `maxAssetFilesPerPush` 100, `maxAssetBytesPerPush` 64 MiB,
 `maxAssetFileBytes` 8 MiB).
 
@@ -90,7 +91,8 @@ Reads the store's draft (not a write) and the staged files. Returns `{ preview }
 - `text[]`: `{ id, locale, field, before, after, localeExists, status }`.
 - `assets[]`: `{ id, locale, slot, slotKey, target, before { setExists, files[] { id, name, checksum,
   state } }, after { files[] { path, name, oid, bytes, width, height, format } }, status, willUpload,
-  willRemove }`. `target` is the store's own name of the set.
+  willRemove }`. `target` is the store's own name of the set; `placementGroup` (App Store only) is the App Asset
+  Library placement group the set is written to, found from Apple's reference data and the pixel size.
 - `summary` `{ textChanged, textUnchanged, assetSetsChanged, assetSetsUnchanged, filesToUpload,
   filesToRemove, nothingToDo }`.
 
@@ -101,6 +103,11 @@ Body `{ confirmHash }` (64 lower-case hex characters; anything else is `400`). R
 counts { applied, alreadySame, filesUploaded, filesRemoved }, commit (not_sent_for_review|none), draft: true,
 submitted: false, confirmedByReread, pushedAt, note }`. What was written is marked `pushed` in the staged view.
 Staged items stay staged (a second push skips what matches).
+
+A successful push also **records what it wrote** (`store_draft_pushes`: for each text the locale, field and a hash
+of the value; for each set the locale, slot, target, pixel size and the MD5 and SHA-256 of each file; the version
+for the App Store). Later pushes of the same version merge into it; a refused or partial push records nothing.
+The [submit](submit.md) step requires it and checks the store's draft against it.
 
 | Status | `error` | Meaning |
 | --- | --- | --- |
@@ -148,30 +155,28 @@ a file, a credential or an upload address.
   `from: "store"` answers `source_not_supported`. Download the images from the store consoles and commit
   them to the repository; stage them from there.
 
-## Submit and publish (designed only; UNVERIFIED; not implemented)
+## Submit and publish
 
-Not built, and not reachable from any route. A later change would need its own action
-(`store.submit_for_review`), its own kill switch, a separate preview and hash, and would be a different
-call from the push. What the stores document (to be verified before building):
-
-- **App Store:** `POST /v1/reviewSubmissions` with the version as an item, then `PATCH` it with `submitted: true`
-  (UNVERIFIED names and bodies; the version must have a build and complete metadata).
-- **Google Play:** the commit without `changesNotSentForReview`, or sending the held changes for review
-  in Play Console (UNVERIFIED whether an API call can do the second).
-- Open: whether a second person must approve; what a submit does to a version whose draft was
-  changed by somebody else after the preview.
+A push never submits, sends for review or publishes. Handing the pushed draft to the store's review is a separate
+step with its own switch (`MRM_STORE_SUBMIT_ENABLED`), right (`store.submit`), preview, hash and typed
+confirmation: see [submit](submit.md). Publishing a release is not done by this server at all.
 
 ## UNVERIFIED (check with a real account)
 
-Read on Apple's and Google's pages on 2026-11-18: the screenshot upload flow of App Store Connect
-(reserve, PUT parts to the unauthenticated upload URLs, PATCH `uploaded` with the MD5, poll
-`COMPLETE`/`FAILED`), the names of the resources and of Play's `edits.listings`, `edits.images` and
-`edits.commit` with `changesNotSentForReview`. Not verified (nothing was run):
+Read on Apple's and Google's pages on 2026-11-18: the **App Asset Library** screenshot flow of App Store Connect
+(the library id, the reference data, reserve an image, PUT parts to the unauthenticated upload URLs, PATCH
+`uploaded: true`, poll until processed or `FAILED`, placements, ordering requests; Apple deprecated the set based
+`appScreenshotSets` / `appScreenshots` in API 4.5.1 and this server no longer uses them), the names of the
+resources and of Play's `edits.listings`, `edits.images` and `edits.commit` with `changesNotSentForReview`.
+Not verified (nothing was run):
 
-- App Store: the request bodies of the PATCH and POST of version localizations and of screenshot sets,
-  the body that reorders screenshots, the `screenshotDisplayType` names, the states in which a version
-  can be edited, whether Apple still accepts the **deprecated** set resources for writes, and which key
-  role is needed.
+- App Store: the request bodies of the PATCH and POST of version localizations, the `screenshotDisplayType` names
+  that `target` shows (the placement group is found from the reference data, not from these names), the states in
+  which a version can be edited, which key role is needed, and the **checksum**: the library has none, so this server
+  writes the SHA-256 (first 32 hex characters) into the image's `referenceName` (`mrm:sha256:<hex>`) to tell "the same
+  file"; whether Apple accepts that text, the `filter[referenceName]` semantics and the `limit` / `fields` parameters
+  of the placements list, and the `deviceFamily` strings of the display classes. Images of the library are never
+  deleted except one that failed processing here: replacing a set deletes its placements only.
 - Google Play: whether `edits.listings.update` replaces the listing (the connector sends every member it
   read), `uploadType=media`, accepted image types and sizes, whether upload order is display order,
   whether `changesNotSentForReview` is allowed for every app (e.g. managed publishing off), and

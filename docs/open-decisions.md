@@ -257,12 +257,21 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Today:** off by default (`MRM_STORE_DRAFT_WRITE_ENABLED`); an admin or owner previews and confirms a
   push of the staged texts and screenshot sets to the store's draft; a token needs `store.push_draft`
   named explicitly; nothing is submitted. Server only: no screens yet. Nothing was run against a real store.
-- **Decide:** whether to build submit/publish at all (designed in
-  [api/staged-changes](api/staged-changes.md#submit-and-publish-designed-only-unverified-not-implemented)); whether name and
-  subtitle of the App Store (app info) should be pushable; whether to move the App Store screenshots to
-  Apple's App Asset Library (the set resources are deprecated); whether asset reverse sync (store
-  images into the repository) is worth a binary-capable repository write.
+- **Decide:** whether name and subtitle of the App Store (app info) should be pushable; whether asset reverse
+  sync (store images into the repository) is worth a binary-capable repository write. (Screenshots now go
+  through Apple's App Asset Library; submitting is built, see below.)
 - **Check with a real account:** [api/staged-changes](api/staged-changes.md#unverified-check-with-a-real-account).
+
+### Submitting the pushed draft for review ([ADR 0010](adr/0010-store-submit.md))
+
+- **Today:** off by default (`MRM_STORE_SUBMIT_ENABLED`, separate from the draft switch); an admin or owner previews,
+  then confirms with a hash and a typed phrase; a token needs `store.submit` named explicitly; never releases, never
+  changes a rollout; a version that would release by itself is blocked. Server only: no screens yet. Nothing was run
+  against a real store.
+- **Decide:** whether submitting should be owner-only or need a second person's approval (admin and up today); whether
+  a blocked release type should instead be changed by this tool (it is not: that is a different decision); whether
+  Google Play's lack of a review state in the API is acceptable for the "unknown outcome" case.
+- **Check with a real account:** [api/submit](api/submit.md#unverified-check-with-a-real-account).
 
 ## Smaller items
 
