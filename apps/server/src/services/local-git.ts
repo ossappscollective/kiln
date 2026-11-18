@@ -1,5 +1,5 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
-import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { devNull, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { redactSecrets, secretStrings } from '@mrm/connectors';
@@ -871,6 +871,112 @@ function parseCatBatch(buffer: Buffer): Map<string, Buffer> {
   return found;
 }
 
+type RunGit = (args: string[], options?: RawOptions) => Promise<RawGitResult>;
+
+type SignedCommit =
+  | { ok: true; commit: string; signature?: { format: 'ssh' | 'gpg' } }
+  | Extract<BranchCommitOutcome, { ok: false }>;
+
+/**
+ * `git commit-tree` for `treeSha` on top of `parentSha`, signed with the server's own key when
+ * `signing` is given, and checked for the signature header before anything points at the commit
+ * (see "Signing" in docs/adr/0005-local-clone-reads.md). Shared by the commit on a new branch and
+ * the fix-up commit. `scratch` is a private temporary folder that the caller removes.
+ */
+async function signedCommitTree(args: {
+  run: RunGit;
+  scratch: string;
+  treeSha: string;
+  parentSha: string;
+  message: string;
+  author: CommitIdentity;
+  now: number;
+  deadline?: number;
+  signing?: GitSigning;
+}): Promise<SignedCommit> {
+  const { run, scratch, treeSha, author } = args;
+  const baseSha = args.parentSha;
+  const input = { now: args.now, signing: args.signing, message: args.message, deadline: args.deadline };
+  const problem = (result: RawGitResult) => {
+    const p = gitProblem(asText(result));
+    return { ok: false as const, code: p.code, message: p.message };
+  };
+  const when = `${Math.floor(input.now / 1000)} +0000`;
+  const signing = input.signing;
+  let signingConfig: string[] = [];
+  const signingEnv: Record<string, string> = {};
+  if (signing) {
+    // Everything about signing comes from the server's configuration (a pinned program and key),
+    // set on the command line so that nothing in the repository's config can change it. A
+    // private HOME (inside the temporary folder that is removed below) is all ssh-keygen and gpg
+    // see of the system; gpg gets its keyring through GNUPGHOME.
+    if (/['\u0000-\u001f]/.test(signing.program)) {
+      return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
+    }
+    const home = join(scratch, 'home');
+    const temp = join(scratch, 'tmp');
+    await mkdir(home, { mode: 0o700 });
+    await mkdir(temp, { mode: 0o700 });
+    signingEnv.HOME = home;
+    // git keeps the message in a temporary file while signing, and ssh-keygen writes the signature
+    // next to it: in a folder of ours, so a killed run leaves nothing behind.
+    signingEnv.TMPDIR = temp;
+    signingEnv.TMP = temp;
+    signingEnv.TEMP = temp;
+    if (signing.format === 'ssh') {
+      signingConfig = ['gpg.format=ssh', `gpg.ssh.program=${signing.program}`, `user.signingkey=${signing.key}`];
+      if (signing.sshAuthSock) signingEnv.SSH_AUTH_SOCK = signing.sshAuthSock;
+    } else {
+      const wrapper = join(scratch, 'gpg-no-prompt');
+      await writeFile(wrapper, gpgWrapper(signing.program), { mode: 0o700 });
+      await chmod(wrapper, 0o700);
+      signingConfig = [
+        'gpg.format=openpgp',
+        `gpg.program=${wrapper}`,
+        `gpg.openpgp.program=${wrapper}`,
+        `user.signingkey=${signing.key}`,
+      ];
+      if (signing.gnupgHome) signingEnv.GNUPGHOME = signing.gnupgHome;
+    }
+  }
+  const remaining = input.deadline === undefined ? Infinity : Math.max(1000, input.deadline - Date.now());
+  const committed = await run(
+    ['commit-tree', treeSha, '-p', baseSha, ...(signing ? [signing.format === 'gpg' ? `-S${signing.key}` : '-S'] : []), '-F', '-'],
+    {
+      input: `${input.message.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`,
+      ...(signing
+        ? { extraConfig: [...WRITE_CONFIG, ...signingConfig], timeoutMs: Math.min(signing.timeoutMs ?? DEFAULT_SIGNING_TIMEOUT_MS, remaining) }
+        : {}),
+      env: {
+        GIT_AUTHOR_NAME: author.name,
+        GIT_AUTHOR_EMAIL: author.email,
+        GIT_AUTHOR_DATE: when,
+        GIT_COMMITTER_NAME: author.name,
+        GIT_COMMITTER_EMAIL: author.email,
+        GIT_COMMITTER_DATE: when,
+        ...signingEnv,
+      },
+    },
+  );
+  const commitSha = committed.stdout.toString('utf8').trim();
+  if (signing && (committed.code !== 0 || committed.failed)) {
+    // git_missing keeps its own message; anything else is a signing problem, in fixed words.
+    if (committed.failed === 'missing') return problem(committed);
+    const why = classifySigningFailure(committed);
+    return { ok: false, code: 'signing_failed', message: why.message, reason: why.reason };
+  }
+  if (committed.code !== 0 || !SHA.test(commitSha)) return problem(committed);
+  if (signing) {
+    // Look at the object itself before any ref points at it: a commit that was meant to be
+    // signed and is not never becomes a branch. This says "signed", not "verified".
+    const object = await run(['cat-file', 'commit', commitSha]);
+    if (object.code !== 0 || !hasSignatureHeader(object.stdout.toString('utf8'), signing.format)) {
+      return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.failed, reason: 'failed' };
+    }
+  }
+  return { ok: true, commit: commitSha, ...(signing ? { signature: { format: signing.format } } : {}) };
+}
+
 /**
  * Commits `files` on top of the tip of `baseBranch` as a new branch `branch`, in the repository
  * at `path`, and returns the commit. What happens, in order:
@@ -1041,79 +1147,20 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
     const treeSha = written.stdout.toString('utf8').trim();
     if (written.code !== 0 || !SHA.test(treeSha)) return problem(written);
 
-    const when = `${Math.floor(input.now / 1000)} +0000`;
     const signing = input.signing;
-    let signingConfig: string[] = [];
-    const signingEnv: Record<string, string> = {};
-    if (signing) {
-      // Everything about signing comes from the server's configuration (a pinned program and key),
-      // set on the command line so that nothing in the repository's config can change it. A
-      // private HOME (inside the temporary folder that is removed below) is all ssh-keygen and gpg
-      // see of the system; gpg gets its keyring through GNUPGHOME.
-      if (/['\u0000-\u001f]/.test(signing.program)) {
-        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
-      }
-      const home = join(scratch, 'home');
-      const temp = join(scratch, 'tmp');
-      await mkdir(home, { mode: 0o700 });
-      await mkdir(temp, { mode: 0o700 });
-      signingEnv.HOME = home;
-      // git keeps the message in a temporary file while signing, and ssh-keygen writes the signature
-      // next to it: in a folder of ours, so a killed run leaves nothing behind.
-      signingEnv.TMPDIR = temp;
-      signingEnv.TMP = temp;
-      signingEnv.TEMP = temp;
-      if (signing.format === 'ssh') {
-        signingConfig = ['gpg.format=ssh', `gpg.ssh.program=${signing.program}`, `user.signingkey=${signing.key}`];
-        if (signing.sshAuthSock) signingEnv.SSH_AUTH_SOCK = signing.sshAuthSock;
-      } else {
-        const wrapper = join(scratch, 'gpg-no-prompt');
-        await writeFile(wrapper, gpgWrapper(signing.program), { mode: 0o700 });
-        await chmod(wrapper, 0o700);
-        signingConfig = [
-          'gpg.format=openpgp',
-          `gpg.program=${wrapper}`,
-          `gpg.openpgp.program=${wrapper}`,
-          `user.signingkey=${signing.key}`,
-        ];
-        if (signing.gnupgHome) signingEnv.GNUPGHOME = signing.gnupgHome;
-      }
-    }
-    const remaining = input.deadline === undefined ? Infinity : Math.max(1000, input.deadline - Date.now());
-    const committed = await run(
-      ['commit-tree', treeSha, '-p', baseSha, ...(signing ? [signing.format === 'gpg' ? `-S${signing.key}` : '-S'] : []), '-F', '-'],
-      {
-        input: `${input.message.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`,
-        ...(signing
-          ? { extraConfig: [...WRITE_CONFIG, ...signingConfig], timeoutMs: Math.min(signing.timeoutMs ?? DEFAULT_SIGNING_TIMEOUT_MS, remaining) }
-          : {}),
-        env: {
-          GIT_AUTHOR_NAME: author.name,
-          GIT_AUTHOR_EMAIL: author.email,
-          GIT_AUTHOR_DATE: when,
-          GIT_COMMITTER_NAME: author.name,
-          GIT_COMMITTER_EMAIL: author.email,
-          GIT_COMMITTER_DATE: when,
-          ...signingEnv,
-        },
-      },
-    );
-    const commitSha = committed.stdout.toString('utf8').trim();
-    if (signing && (committed.code !== 0 || committed.failed)) {
-      // git_missing keeps its own message; anything else is a signing problem, in fixed words.
-      if (committed.failed === 'missing') return problem(committed);
-      const why = classifySigningFailure(committed);
-      return { ok: false, code: 'signing_failed', message: why.message, reason: why.reason };
-    }
-    if (committed.code !== 0 || !SHA.test(commitSha)) return problem(committed);
-    if (signing) {
-      // Look at the object itself before any ref points at it: a commit that was meant to be
-      // signed and is not never becomes a branch. This says "signed", not "verified".
-      const object = await run(['cat-file', 'commit', commitSha]);
-      if (object.code !== 0 || !hasSignatureHeader(object.stdout.toString('utf8'), signing.format)) {
-        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.failed, reason: 'failed' };
-      }
-    }
+    const made = await signedCommitTree({
+      run,
+      scratch,
+      treeSha,
+      parentSha: baseSha,
+      message: input.message,
+      author,
+      now: input.now,
+      ...(input.deadline !== undefined ? { deadline: input.deadline } : {}),
+      ...(signing ? { signing } : {}),
+    });
+    if (!made.ok) return made;
+    const commitSha = made.commit;
     if (expired()) return tooSlow();
 
     // The only write to a ref: creating the branch. The old value must be the zero id, so an
@@ -1316,6 +1363,392 @@ export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
     return {
       ok: false,
       ...classifyPush({ ...pushed, stderr: clean(pushed.stderr), stdout: Buffer.from(clean(pushed.stdout.toString('utf8'))) }),
+    };
+  } finally {
+    await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixing up a branch: one more commit on top of a branch that exists
+//
+// docs/adr/0005-local-clone-reads.md ("Fixing up a branch"). The same plumbing as a commit on a
+// new branch (private index, `hash-object --no-filters`, `commit-tree`, the same signing), but the
+// ref is MOVED, and only forward: `update-ref refs/heads/<branch> <new> <old tip>` supplies the
+// tip that was read, so it can only succeed from that exact commit, and the new commit's only
+// parent is that tip. History is never rewritten, no other ref is created, moved or deleted, and a
+// branch that is checked out anywhere (the person's working tree or a linked worktree) or in the
+// middle of a rebase is refused, because moving it would leave that working tree and index stale.
+
+export type FixupProblemCode =
+  | BranchCommitProblemCode
+  | 'branch_moved'
+  | 'branch_checked_out'
+  | 'not_text';
+
+export type FixupProblem = { ok: false; code: FixupProblemCode; message: string; paths?: string[]; reason?: SigningFailureReason };
+
+const fixupProblem = (code: FixupProblemCode, message: string, paths?: string[]): FixupProblem => ({
+  ok: false,
+  code,
+  message,
+  ...(paths ? { paths } : {}),
+});
+
+/** Where a branch is in use. `checked_out`: HEAD of the main working tree or of a linked worktree. `rebasing`: a rebase of it is in progress. */
+export type BranchUse = { inUse: false } | { inUse: true; where: 'checked_out' | 'rebasing' };
+
+/** `git worktree list --porcelain`: the branches that are checked out (`branch refs/heads/<name>` lines). */
+export function parseWorktreeBranches(output: string): string[] {
+  const branches: string[] = [];
+  for (const line of output.split('\n')) {
+    if (line.startsWith('branch refs/heads/')) branches.push(line.slice('branch refs/heads/'.length).trim());
+  }
+  return branches;
+}
+
+async function smallFile(path: string): Promise<string | undefined> {
+  try {
+    const info = await lstat(path);
+    if (!info.isFile() || info.size > 1000) return undefined;
+    return (await readFile(path, 'utf8')).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Is `branch` checked out (in the main working tree or any linked worktree) or being rebased? Only
+ * git's own bookkeeping is read: `symbolic-ref HEAD`, `worktree list --porcelain` and the
+ * `rebase-merge` / `rebase-apply` markers. A question git cannot answer is "in use": refusing is
+ * the safe side.
+ */
+export async function branchUse(gitPath: string, cwd: string, branch: string): Promise<BranchUse | FixupProblem> {
+  const head = await runLocalGit(gitPath, cwd, ['symbolic-ref', '-q', 'HEAD']);
+  if (head.failed) {
+    const p = gitProblem(head);
+    return fixupProblem(p.code, p.message);
+  }
+  if (head.code === 0 && head.stdout.trim() === `refs/heads/${branch}`) return { inUse: true, where: 'checked_out' };
+  const list = await runLocalGit(gitPath, cwd, ['worktree', 'list', '--porcelain'], { maxBytes: 1024 * 1024 });
+  if (list.failed === 'missing') {
+    const p = gitProblem(list);
+    return fixupProblem(p.code, p.message);
+  }
+  if (list.code !== 0) {
+    return fixupProblem('git_failed', 'git could not say whether the branch is checked out, so it was not changed.');
+  }
+  if (parseWorktreeBranches(list.stdout).includes(branch)) return { inUse: true, where: 'checked_out' };
+  // A rebase in progress has a detached HEAD: its branch is named in head-name.
+  const common = await runLocalGit(gitPath, cwd, ['rev-parse', '--git-common-dir']);
+  if (common.code !== 0) return { inUse: false };
+  const commonDir = resolve(cwd, common.stdout.trim());
+  const dirs = [commonDir];
+  try {
+    for (const entry of await readdir(join(commonDir, 'worktrees'), { withFileTypes: true })) {
+      if (entry.isDirectory()) dirs.push(join(commonDir, 'worktrees', entry.name));
+    }
+  } catch {
+    // No linked worktrees.
+  }
+  for (const dir of dirs) {
+    for (const marker of ['rebase-merge', 'rebase-apply']) {
+      if ((await smallFile(join(dir, marker, 'head-name'))) === `refs/heads/${branch}`) {
+        return { inUse: true, where: 'rebasing' };
+      }
+    }
+  }
+  return { inUse: false };
+}
+
+const IN_USE_MESSAGES: Record<'checked_out' | 'rebasing', string> = {
+  checked_out:
+    'This branch is checked out in the local clone (or one of its worktrees), and moving it would leave that working folder out of date. Nothing was changed. Switch away from it (for example `git switch main`), then fix it up again.',
+  rebasing: 'A rebase of this branch is in progress in the local clone. Nothing was changed. Finish or abort the rebase, then fix it up again.',
+};
+
+const inUseProblem = (use: Extract<BranchUse, { inUse: true }>): FixupProblem =>
+  fixupProblem('branch_checked_out', IN_USE_MESSAGES[use.where]);
+
+const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+export type BranchFilesInput = {
+  gitPath: string;
+  /** The folder as stored. It is validated again here. */
+  path: string;
+  roots: LocalRoots;
+  /** An existing local branch. */
+  branch: string;
+  paths: readonly string[];
+};
+
+export type BranchFilesOutcome =
+  | { ok: true; tip: string; texts: Map<string, string | undefined> }
+  | FixupProblem;
+
+/**
+ * The tip of `refs/heads/<branch>` and the text of each path in it (`undefined`: no such file).
+ * Read only. Refused: a branch that is checked out or rebasing, a path that is a symlink, a
+ * submodule or not UTF-8 text.
+ */
+export async function readBranchFiles(input: BranchFilesInput): Promise<BranchFilesOutcome> {
+  const named = checkNewBranchName(input.branch);
+  if (!named.ok) return fixupProblem('invalid_branch', named.message);
+  for (const path of input.paths) {
+    if (!isSafeRepoPath(path)) return fixupProblem('invalid_file_path', `Not a valid repository path: ${JSON.stringify(path)}.`);
+  }
+  const check = await validateLocalPath(input.path, input.roots);
+  if (!check.ok) return fixupProblem(check.code, check.message);
+  const cwd = check.realPath;
+  const run = (args: string[], options: RawOptions = {}) => runGitRaw(input.gitPath, cwd, args, { extraConfig: WRITE_CONFIG, ...options });
+  const problem = (result: RawGitResult) => {
+    const p = gitProblem(asText(result));
+    return fixupProblem(p.code, p.message);
+  };
+  const tipResult = await run(['rev-parse', '--verify', '-q', `refs/heads/${named.name}^{commit}`]);
+  const tip = tipResult.stdout.toString('utf8').trim();
+  if (tipResult.code === 1) return fixupProblem('branch_not_found', `The local repository has no branch named ${named.name} any more.`);
+  if (tipResult.code !== 0) return problem(tipResult);
+  if (!SHA.test(tip)) return fixupProblem('git_failed', 'git could not read that repository.');
+  const use = await branchUse(input.gitPath, cwd, named.name);
+  if ('ok' in use) return use;
+  if (use.inUse) return inUseProblem(use);
+
+  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', tip], { maxBytes: 64 * MIB, timeoutMs: 60_000 });
+  if (listing.failed === 'output') return fixupProblem('too_large', 'The repository has too many files to list.');
+  if (listing.code !== 0) return problem(listing);
+  const tree = parseLsTree(listing.stdout);
+  const wanted = new Map<string, TreeEntry>();
+  for (const path of input.paths) {
+    const entry = tree.get(path);
+    if (entry) wanted.set(path, entry);
+  }
+  const unsupported = [...wanted].filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000').map(([p]) => p);
+  if (unsupported.length > 0) {
+    return fixupProblem('unsupported_entry', 'Some of these files are a symbolic link or a submodule on the branch, which cannot be edited here.', unsupported.slice(0, 50));
+  }
+  const blobIds = [...new Set([...wanted.values()].map((e) => e.oid))];
+  let contents = new Map<string, Buffer>();
+  if (blobIds.length > 0) {
+    const cat = await run(['cat-file', '--batch'], { input: `${blobIds.join('\n')}\n`, maxBytes: 128 * MIB, timeoutMs: 60_000 });
+    if (cat.failed === 'output') return fixupProblem('too_large', 'The files to change are too large.');
+    if (cat.code !== 0) return problem(cat);
+    contents = parseCatBatch(cat.stdout);
+  }
+  const texts = new Map<string, string | undefined>();
+  const notText: string[] = [];
+  for (const path of input.paths) {
+    const entry = wanted.get(path);
+    if (!entry) {
+      texts.set(path, undefined);
+      continue;
+    }
+    const blob = contents.get(entry.oid);
+    if (!blob) return fixupProblem('git_failed', 'git could not read that repository.');
+    try {
+      texts.set(path, decoder.decode(blob));
+    } catch {
+      notText.push(path);
+    }
+  }
+  if (notText.length > 0) {
+    return fixupProblem('not_text', 'Some of these files are not UTF-8 text on the branch, so they cannot be merged.', notText.slice(0, 50));
+  }
+  return { ok: true, tip, texts };
+}
+
+export type FixupCommitInput = {
+  gitPath: string;
+  path: string;
+  roots: LocalRoots;
+  branch: string;
+  /** The commit the branch must be at now (from `readBranchFiles`). It becomes the new commit's only parent. */
+  expectedTip: string;
+  /** The files to change: a path and its new text (no `content`: the file is deleted). */
+  changes: readonly { path: string; content?: string }[];
+  message: string;
+  author: CommitIdentity;
+  now: number;
+  deadline?: number;
+  signing?: GitSigning;
+};
+
+export type FixupCommitOutcome =
+  | { ok: true; commit: string; parent: string; tree: string; changed: number; signature?: { format: 'ssh' | 'gpg' } }
+  | FixupProblem;
+
+/**
+ * Adds one commit on top of `expectedTip` on the existing branch, and moves the branch to it with
+ * `update-ref refs/heads/<branch> <new> <expectedTip>`: the old value is supplied, so the update
+ * can only happen from that exact commit (a branch that moved meanwhile is `branch_moved` and
+ * nothing is changed). Everything else is as for `createBranchCommit` (see there): the folder is
+ * validated again, blobs are written byte for byte, the tree comes from a private index, the commit
+ * is signed only with the server's key, and no working tree, index, HEAD, hook or other ref is
+ * touched. The branch is refused when it is checked out or being rebased, checked again right
+ * before the ref moves. A failure before `update-ref` leaves only unreachable objects.
+ */
+export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupCommitOutcome> {
+  const named = checkNewBranchName(input.branch);
+  if (!named.ok) return fixupProblem('invalid_branch', named.message);
+  if (!SHA.test(input.expectedTip)) return fixupProblem('git_failed', 'The branch tip is not a commit id.');
+  for (const change of input.changes) {
+    if (!isSafeRepoPath(change.path)) return fixupProblem('invalid_file_path', `Not a valid repository path: ${JSON.stringify(change.path)}.`);
+  }
+  if (new Set(input.changes.map((c) => c.path)).size !== input.changes.length) {
+    return fixupProblem('invalid_file_path', 'A path appears twice in the change.');
+  }
+  const author = cleanIdentity(input.author);
+  const expired = () => input.deadline !== undefined && Date.now() > input.deadline;
+  const tooSlow = () => fixupProblem('timeout', 'Writing the commit took too long and was stopped before anything was changed.');
+
+  const check = await validateLocalPath(input.path, input.roots);
+  if (!check.ok) return fixupProblem(check.code, check.message);
+  const cwd = check.realPath;
+  const run = (args: string[], options: RawOptions = {}) => runGitRaw(input.gitPath, cwd, args, { extraConfig: WRITE_CONFIG, ...options });
+  const problem = (result: RawGitResult) => {
+    const p = gitProblem(asText(result));
+    return fixupProblem(p.code, p.message);
+  };
+  const ref = `refs/heads/${named.name}`;
+  const tip = input.expectedTip;
+  const zero = '0'.repeat(tip.length);
+
+  const current = await run(['rev-parse', '--verify', '-q', `${ref}^{commit}`]);
+  if (current.code === 1) return fixupProblem('branch_not_found', `The local repository has no branch named ${named.name} any more.`);
+  if (current.code !== 0) return problem(current);
+  if (current.stdout.toString('utf8').trim() !== tip) {
+    return fixupProblem('branch_moved', `The branch ${named.name} moved while this was being prepared. Nothing was changed; look at it again and retry.`);
+  }
+  const use = await branchUse(input.gitPath, cwd, named.name);
+  if ('ok' in use) return use;
+  if (use.inUse) return inUseProblem(use);
+  if (expired()) return tooSlow();
+
+  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', tip], { maxBytes: 64 * MIB, timeoutMs: 60_000 });
+  if (listing.failed === 'output') return fixupProblem('too_large', 'The repository has too many files to list.');
+  if (listing.code !== 0) return problem(listing);
+  const tree = parseLsTree(listing.stdout);
+  const directories = new Set<string>();
+  for (const path of tree.keys()) {
+    for (let slash = path.indexOf('/'); slash >= 0; slash = path.indexOf('/', slash + 1)) {
+      directories.add(path.slice(0, slash));
+    }
+  }
+  const wanted = new Map<string, TreeEntry>();
+  for (const change of input.changes) {
+    const entry = tree.get(change.path);
+    if (entry) wanted.set(change.path, entry);
+  }
+  const unsupported = [...wanted].filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000').map(([p]) => p);
+  if (unsupported.length > 0) {
+    return fixupProblem('unsupported_entry', 'Some of these files are a symbolic link or a submodule on the branch, which cannot be edited here.', unsupported.slice(0, 50));
+  }
+  const conflicts: string[] = [];
+  for (const change of input.changes) {
+    if (change.content === undefined) continue;
+    const parts = change.path.split('/');
+    let underFile = false;
+    for (let i = 1; i < parts.length; i += 1) if (tree.has(parts.slice(0, i).join('/'))) underFile = true;
+    if (underFile || directories.has(change.path)) conflicts.push(change.path);
+  }
+  if (conflicts.length > 0) {
+    return fixupProblem('path_conflict', 'A file of the change would replace a folder, or sit under a file, on the branch.', conflicts.slice(0, 50));
+  }
+  const blobIds = [...new Set([...wanted.values()].map((e) => e.oid))];
+  let contents = new Map<string, Buffer>();
+  if (blobIds.length > 0) {
+    const cat = await run(['cat-file', '--batch'], { input: `${blobIds.join('\n')}\n`, maxBytes: 128 * MIB, timeoutMs: 60_000 });
+    if (cat.failed === 'output') return fixupProblem('too_large', 'The files to change are too large.');
+    if (cat.code !== 0) return problem(cat);
+    contents = parseCatBatch(cat.stdout);
+  }
+
+  // Only what actually differs from the tip: a file that already has the text is not part of the commit.
+  const plan: { path: string; mode: string; content?: string }[] = [];
+  for (const change of input.changes) {
+    const entry = wanted.get(change.path);
+    if (change.content === undefined) {
+      if (entry) plan.push({ path: change.path, mode: entry.mode });
+      continue;
+    }
+    const blob = entry ? contents.get(entry.oid) : undefined;
+    if (blob?.equals(Buffer.from(change.content, 'utf8'))) continue;
+    plan.push({ path: change.path, mode: entry?.mode ?? '100644', content: change.content });
+  }
+  if (plan.length === 0) return fixupProblem('no_changes', 'Nothing to commit: the branch already has these changes.');
+
+  const blobs = new Map<string, string>();
+  const queue = plan.filter((p) => p.content !== undefined);
+  let failure: FixupProblem | undefined;
+  const worker = async () => {
+    for (let item = queue.shift(); item && !failure; item = queue.shift()) {
+      const made = await run(['hash-object', '-w', '--no-filters', '-t', 'blob', '--stdin'], { input: Buffer.from(item.content ?? '', 'utf8') });
+      const oid = made.stdout.toString('utf8').trim();
+      if (made.code !== 0 || oid.length !== tip.length || !SHA.test(oid)) failure ??= problem(made);
+      else blobs.set(item.path, oid);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, Math.max(1, queue.length)) }, worker));
+  if (failure) return failure;
+
+  const scratch = await mkdtemp(join(tmpdir(), 'mrm-index-'));
+  try {
+    const indexEnv = { GIT_INDEX_FILE: join(scratch, 'index') };
+    const read = await run(['read-tree', tip], { env: indexEnv });
+    if (read.code !== 0) return problem(read);
+    const info = plan
+      .map((p) => {
+        const oid = blobs.get(p.path);
+        return oid === undefined ? `0 ${zero}\t${p.path}\0` : `${p.mode} ${oid}\t${p.path}\0`;
+      })
+      .join('');
+    const updated = await run(['update-index', '--add', '-z', '--index-info'], { env: indexEnv, input: info });
+    if (updated.code !== 0) return problem(updated);
+    const written = await run(['write-tree'], { env: indexEnv });
+    const treeSha = written.stdout.toString('utf8').trim();
+    if (written.code !== 0 || !SHA.test(treeSha)) return problem(written);
+    const tipTree = await run(['rev-parse', '--verify', '-q', `${tip}^{tree}`]);
+    if (tipTree.stdout.toString('utf8').trim() === treeSha) {
+      return fixupProblem('no_changes', 'Nothing to commit: the branch already has these changes.');
+    }
+
+    const signing = input.signing;
+    const made = await signedCommitTree({
+      run,
+      scratch,
+      treeSha,
+      parentSha: tip,
+      message: input.message,
+      author,
+      now: input.now,
+      ...(input.deadline !== undefined ? { deadline: input.deadline } : {}),
+      ...(signing ? { signing } : {}),
+    });
+    if (!made.ok) return made;
+    if (expired()) return tooSlow();
+
+    // Once more, as late as possible: the person may have switched to the branch meanwhile.
+    const again = await branchUse(input.gitPath, cwd, named.name);
+    if ('ok' in again) return again;
+    if (again.inUse) return inUseProblem(again);
+
+    // The only write to a ref: move this branch forward from the tip that was read. `update-ref`
+    // takes the old value as its last argument and fails when the ref is anywhere else.
+    const moved = await run(['update-ref', '-m', 'mrm: fix up change set', ref, made.commit, tip]);
+    if (moved.code !== 0) {
+      const now = await run(['rev-parse', '--verify', '-q', ref]);
+      if (now.code === 1 || (now.code === 0 && now.stdout.toString('utf8').trim() !== tip)) {
+        return fixupProblem('branch_moved', `The branch ${named.name} moved while the commit was being made. Nothing was changed; look at it again and retry.`);
+      }
+      return problem(moved);
+    }
+    return {
+      ok: true,
+      commit: made.commit,
+      parent: tip,
+      tree: treeSha,
+      changed: plan.length,
+      ...(made.signature ? { signature: made.signature } : {}),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true }).catch(() => undefined);

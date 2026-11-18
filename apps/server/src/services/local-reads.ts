@@ -1,5 +1,7 @@
 import {
+  type BlobReads,
   GitCloneError,
+  isBlobReads,
   type ProposalResult,
   type RepoConnector,
 } from '@mrm/connectors';
@@ -230,6 +232,10 @@ export async function openLocalConnector(input: LocalOpenInput): Promise<LocalOp
       throw translateLocalError(error, branch);
     }
   };
+  const blobs = (): BlobReads => {
+    if (!isBlobReads(inner)) throw new GitCloneError('unexpected', 'This reader cannot read binary files.', 'not_managed');
+    return inner;
+  };
   const reader: CloneReader = {
     listFiles: (ref, options) => guard(() => inner.listFiles(map(ref), options)),
     readFile: (path, ref, options) => guard(() => inner.readFile(path, map(ref), options)),
@@ -248,6 +254,9 @@ export async function openLocalConnector(input: LocalOpenInput): Promise<LocalOp
       }),
     warm: (paths, ref, options) => guard(() => inner.warm(paths, map(ref), options)),
     remove: () => inner.remove(),
+    listBlobEntries: (ref, options) => guard(() => blobs().listBlobEntries(map(ref), options)),
+    readBlobHeads: (paths, options) =>
+      guard(() => blobs().readBlobHeads(paths, options.ref === undefined ? options : { ...options, ref: map(options.ref) })),
   };
   const connector = withCloneReads(input.api ?? localOnlyStub(), reader, { fallback: false, origin: 'local' });
   return { ok: true, connector };

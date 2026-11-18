@@ -362,6 +362,8 @@ export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
   // Re-basing a stale change set and checking whether it is stale (change-set-refresh.ts).
   'changeset.refresh',
   'changeset.staleness',
+  // Making a store pull again from the current repository (listing-pull.ts, planRecompute).
+  'changeset.recompute',
   // Media files of the Assets tab and the app icons (asset-repo.ts): only headers and single files.
   'repository.assets',
 ]);

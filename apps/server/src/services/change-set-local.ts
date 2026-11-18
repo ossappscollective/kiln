@@ -59,7 +59,7 @@ import {
 
 type Actor = { type: ActorType; id: string };
 
-const PUBLISH_CLAIM_TTL_MS = APPLY_CLAIM_TTL_MS;
+export const PUBLISH_CLAIM_TTL_MS = APPLY_CLAIM_TTL_MS;
 
 export type LocalApplyInput = {
   workspaceId: string;
@@ -114,12 +114,16 @@ const LOCAL_PATH_CODES = new Set([
 ]);
 
 /** A failed commit as a response a person can act on. */
-function commitFailure(outcome: Extract<BranchCommitOutcome, { ok: false }>): Failure {
+export function commitFailure(outcome: { code: string; message: string; paths?: string[] | undefined; reason?: string | undefined }): Failure {
   const extra = outcome.paths ? { paths: outcome.paths } : {};
   switch (outcome.code) {
     case 'base_changed':
     case 'branch_exists':
+    case 'branch_moved':
+    case 'branch_checked_out':
       return failure(409, outcome.code, outcome.message, extra);
+    case 'not_text':
+      return failure(422, outcome.code, outcome.message, extra);
     case 'git_missing':
       return failure(409, 'local_git_missing', outcome.message);
     case 'timeout':
@@ -155,7 +159,7 @@ const unavailable = (ctx: RepoContext): Failure | undefined => {
  * switch, a local clone, the options, and for a push the GitHub connection and that the clone's
  * `origin` is the connected repository.
  */
-async function preflight(
+export async function preflight(
   ctx: RepoContext,
   repository: Repository,
   want: { branch?: string | undefined; push: boolean; openPr: boolean },
@@ -202,7 +206,7 @@ async function preflight(
 }
 
 /** `MRM_GIT_AUTHOR_*`, else the acting person's name and email, else a fixed name. */
-async function identityFor(ctx: RepoContext, actor: Actor): Promise<CommitIdentity> {
+export async function identityFor(ctx: RepoContext, actor: Actor): Promise<CommitIdentity> {
   let name = ctx.localWrite?.authorName;
   let email = ctx.localWrite?.authorEmail;
   if ((!name || !email) && actor.type === 'user') {
@@ -225,7 +229,7 @@ const stepFailure = (message: string): string => message.replace(/\s+/g, ' ').sl
  * failure, if any. It never throws for a failed step: a failure is recorded, not raised, so the
  * commit stays and the step can be retried. Steps already done (`pushed`, `opened`) are skipped.
  */
-async function publish(
+export async function publish(
   ctx: RepoContext,
   args: {
     workspaceId: string;
@@ -338,7 +342,7 @@ async function publish(
 }
 
 /** Writes the result of `publish` and audits each step. Releases the publish claim. */
-async function savePublished(
+export async function savePublished(
   ctx: RepoContext,
   args: {
     workspaceId: string;
@@ -383,12 +387,12 @@ async function savePublished(
 }
 
 /** Releases the publish claim without a result (an unexpected error). */
-const releasePublishClaim = (ctx: RepoContext, workspaceId: string, id: string) =>
+export const releasePublishClaim = (ctx: RepoContext, workspaceId: string, id: string) =>
   ctx.db
     .execute('UPDATE change_sets SET publish_claim_at = NULL WHERE id = ? AND workspace_id = ?', [id, workspaceId])
     .catch(() => undefined);
 
-const failedStep = (
+export const failedStep = (
   step: { step: 'push' | 'pr'; code: string; message: string },
   changeSet: ChangeSetView,
 ): Failure => ({

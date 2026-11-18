@@ -57,7 +57,11 @@ export type LocalOutcome = {
    * header of this format. It says "signed", never "verified": that needs the verifier's keys.
    */
   signature?: { status: 'signed'; format: 'ssh' | 'gpg' };
-  push: { status: 'not_requested' | 'pushed' | 'failed'; at?: number; code?: string; error?: string };
+  /**
+   * `behind`: the branch on GitHub is behind the local branch, because a fix-up commit was added
+   * after the push and not pushed yet (`POST .../push` pushes the latest commit).
+   */
+  push: { status: 'not_requested' | 'pushed' | 'failed' | 'behind'; at?: number; code?: string; error?: string };
   pr: {
     status: 'not_requested' | 'opened' | 'failed' | 'skipped';
     at?: number;
@@ -66,7 +70,29 @@ export type LocalOutcome = {
     code?: string;
     error?: string;
   };
+  /** Fix-up commits added on top of the branch, oldest first (docs/adr/0005-local-clone-reads.md, "Fixing up a branch"). */
+  fixups?: FixupRecord[];
 };
+
+/**
+ * One fix-up: a commit added on top of the branch of an applied (or failed) change set. For the
+ * GitHub pull request apply it is kept in `outcome_json` as `{ mode: 'github_pr', fixups }`. No
+ * text, no path of the server, no secret.
+ */
+export type FixupRecord = {
+  at: number;
+  /** The new commit and the tip it was added on. */
+  commit: string;
+  parent: string;
+  /** Files the commit changes. */
+  files: number;
+  /** Local mode: the commit was pushed by the same request. */
+  pushed: boolean;
+  signature?: { status: 'signed'; format: 'ssh' | 'gpg' };
+};
+
+/** What a change set was made from, enough to make it again (the store pull). Stored as `origin_json`. */
+export type ChangeSetOrigin = { v: 1; source: string; appId?: string; channel?: string } & Record<string, unknown>;
 
 export type ChangeSetView = {
   id: string;
@@ -86,6 +112,10 @@ export type ChangeSetView = {
   appliedAt: number | null;
   /** How it was applied, step by step, for a commit in a local clone. Null for the GitHub pull request apply. */
   outcome: LocalOutcome | null;
+  /** Fix-up commits added to its branch, oldest first (empty when there is none). */
+  fixups: FixupRecord[];
+  /** Where it came from, when it can be recomputed (the store pull); null otherwise. Never the request itself. */
+  origin: { source: string; appId?: string; channel?: string } | null;
   filesChanged: number;
   files: ChangeSetFile[];
 };
@@ -97,10 +127,33 @@ const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
 export const changeOf = (f: FileChange): ChangeSetFile['change'] =>
   f.before === undefined ? 'added' : f.after === undefined ? 'deleted' : 'modified';
 
-export const parseOutcome = (row: Row): LocalOutcome | null => {
+const parseOutcomeJson = (row: Row): Record<string, unknown> | null => {
   if (row.outcome_json === null || row.outcome_json === undefined) return null;
   try {
-    return JSON.parse(String(row.outcome_json)) as LocalOutcome;
+    const parsed = JSON.parse(String(row.outcome_json)) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** The outcome of a commit in a local clone. A GitHub pull request apply has none (its column holds only fix-ups). */
+export const parseOutcome = (row: Row): LocalOutcome | null => {
+  const parsed = parseOutcomeJson(row);
+  return parsed && parsed.mode === 'local_branch' ? (parsed as unknown as LocalOutcome) : null;
+};
+
+export const parseFixups = (row: Row): FixupRecord[] => {
+  const parsed = parseOutcomeJson(row);
+  return parsed && Array.isArray(parsed.fixups) ? (parsed.fixups as FixupRecord[]) : [];
+};
+
+/** The stored origin, or null for a row that has none (an old row, or a source that cannot be recomputed). */
+export const parseOrigin = (row: Row): ChangeSetOrigin | null => {
+  if (row.origin_json === null || row.origin_json === undefined) return null;
+  try {
+    const parsed = JSON.parse(String(row.origin_json)) as ChangeSetOrigin;
+    return typeof parsed === 'object' && parsed !== null && typeof parsed.source === 'string' ? parsed : null;
   } catch {
     return null;
   }
@@ -135,10 +188,21 @@ export function toView(row: Row, withContent: boolean): ChangeSetView {
     approvedAt: orNull(row.approved_at, Number),
     appliedAt: orNull(row.applied_at, Number),
     outcome: parseOutcome(row),
+    fixups: parseFixups(row),
+    origin: summariseOrigin(parseOrigin(row)),
     filesChanged: files.length,
     files,
   };
 }
+
+const summariseOrigin = (origin: ChangeSetOrigin | null): ChangeSetView['origin'] =>
+  origin
+    ? {
+        source: origin.source,
+        ...(origin.appId ? { appId: origin.appId } : {}),
+        ...(origin.channel ? { channel: origin.channel } : {}),
+      }
+    : null;
 
 export const rowOf = async (sql: Sql, workspaceId: string, id: string): Promise<Row | undefined> =>
   (await sql.query('SELECT * FROM change_sets WHERE id = ? AND workspace_id = ?', [id, workspaceId]))[0];
@@ -197,36 +261,27 @@ export type ListingBuilder = (read: {
 const isFailure = (value: Listing | Failure): value is Failure =>
   (value as { ok?: unknown }).ok === false;
 
-export async function createChangeSet(
+/**
+ * Reads the repository's listing now and works out which files turn it into `listing`. Writes
+ * nothing. Shared by `createChangeSet` (a new draft) and the recompute of a store pull (the files
+ * of an existing draft are replaced). An empty `files` is not a failure here: the caller decides.
+ */
+export async function computeListingFiles(
   ctx: RepoContext,
   input: {
     workspaceId: string;
     repositoryId: string;
-    summary: string;
     listing: Listing | ListingBuilder;
-    /** Which target's folders the change is made in (the same choice the listing was read with). */
-    selection?: ListingSelection;
-    /** Extra keys of the `changeset.create` audit event (`source`, ...). They never replace its own. */
-    auditDetail?: Record<string, unknown>;
+    selection?: ListingSelection | undefined;
+    /** The purpose of the credential use (audited); a read purpose that is in CLONE_READ_PURPOSES may use a clone. */
+    purpose: string;
   },
   actor: Actor,
-): Promise<
-  Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings: string[] }>
-> {
+): Promise<Outcome<{ files: FileChange[]; warnings: string[]; desired: Listing }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found');
-  const opened = await openConnectorForRepository(
-    ctx,
-    input.workspaceId,
-    repository,
-    actor,
-    'changeset.create',
-  );
+  const opened = await openConnectorForRepository(ctx, input.workspaceId, repository, actor, input.purpose);
   if (!opened.ok) return opened;
-
-  let files: FileChange[];
-  let warnings: string[];
-  let desired: Listing;
   try {
     const read = await readRepositoryListing(
       ctx,
@@ -238,8 +293,7 @@ export async function createChangeSet(
     if (!read.ok) return read;
     const wanted = typeof input.listing === 'function' ? input.listing(read) : input.listing;
     if (isFailure(wanted)) return wanted;
-    desired = wanted;
-    const changes = listingChanges(read.listings, desired);
+    const changes = listingChanges(read.listings, wanted);
     if (!changes.ok) {
       if (changes.code === 'outside_target') {
         return failure(422, 'outside_target', changes.error, { path: changes.path });
@@ -251,21 +305,57 @@ export async function createChangeSet(
         { path: changes.path },
       );
     }
-    files = changes.files;
-    warnings = changes.warnings;
+    return { ok: true, files: changes.files, warnings: changes.warnings, desired: wanted };
   } catch (error) {
     return githubFailure(error, opened.secret);
   }
+}
+
+export async function createChangeSet(
+  ctx: RepoContext,
+  input: {
+    workspaceId: string;
+    repositoryId: string;
+    summary: string;
+    listing: Listing | ListingBuilder;
+    /** Which target's folders the change is made in (the same choice the listing was read with). */
+    selection?: ListingSelection;
+    /** Extra keys of the `changeset.create` audit event (`source`, ...). They never replace its own. */
+    auditDetail?: Record<string, unknown>;
+    /**
+     * What the change set is made from, stored as `origin_json` so it can be made again (the store
+     * pull). A function is called once the listing builder has run, so it may use what it computed.
+     */
+    origin?: ChangeSetOrigin | (() => ChangeSetOrigin);
+  },
+  actor: Actor,
+): Promise<
+  Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings: string[] }>
+> {
+  const computed = await computeListingFiles(
+    ctx,
+    {
+      workspaceId: input.workspaceId,
+      repositoryId: input.repositoryId,
+      listing: input.listing,
+      selection: input.selection,
+      purpose: 'changeset.create',
+    },
+    actor,
+  );
+  if (!computed.ok) return computed;
+  const { files, warnings, desired } = computed;
   if (files.length === 0) {
     return failure(422, 'no_changes', 'The listing is the same as in the repository.', {
       warnings,
     });
   }
+  const origin = typeof input.origin === 'function' ? input.origin() : input.origin;
 
   const id = randomUUID();
   const now = ctx.now();
   try {
-    await insertDraft(ctx, { id, now, files, input, actor });
+    await insertDraft(ctx, { id, now, files, input, actor, origin });
   } catch (error) {
     // The repository was disconnected while GitHub was being read.
     if (isForeignKeyViolation(error)) {
@@ -290,15 +380,16 @@ async function insertDraft(
       auditDetail?: Record<string, unknown>;
     };
     actor: Actor;
+    origin?: ChangeSetOrigin | undefined;
   },
 ): Promise<void> {
-  const { id, now, files, input, actor } = args;
+  const { id, now, files, input, actor, origin } = args;
   await ctx.db.transaction(async (tx) => {
     await tx.execute(
       `INSERT INTO change_sets
          (id, workspace_id, repository_id, summary, status, created_by_type, created_by_id,
-          files_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`,
+          files_json, created_at, updated_at, origin_json)
+       VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.workspaceId,
@@ -309,6 +400,7 @@ async function insertDraft(
         JSON.stringify(files),
         now,
         now,
+        origin ? JSON.stringify(origin) : null,
       ],
     );
     await recordAudit(tx, {

@@ -9,8 +9,21 @@ import type {
 } from '@mrm/core';
 import { validateListing } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { type ChangeSetView, createChangeSet, type ListingBuilder } from './change-sets.ts';
-import type { ManagedApp } from './apps.ts';
+import { createHash } from 'node:crypto';
+import { recordAudit } from './audit.ts';
+import {
+  type ChangeSetOrigin,
+  type ChangeSetView,
+  computeListingFiles,
+  createChangeSet,
+  getChangeSet,
+  invalidState,
+  type ListingBuilder,
+  parseFiles,
+  parseOrigin,
+  rowOf,
+} from './change-sets.ts';
+import { getApp, type ManagedApp } from './apps.ts';
 import {
   classifyDrift,
   fieldKey,
@@ -44,6 +57,7 @@ import {
   listingTargetViews,
   type Outcome,
   type RepoContext,
+  type Repository,
   selectedTarget,
 } from './repositories.ts';
 
@@ -375,9 +389,14 @@ export async function loadPullHistory(
   workspaceId: string,
   appId: string,
   channel: PullChannel,
+  /**
+   * A change set whose own recorded values are left out of the repository side: when it is
+   * recomputed or fixed up, what it committed must not make the store look "behind" the repository.
+   */
+  excludeChangeSet?: string,
 ): Promise<PullHistory> {
   const rows = await sql.query(
-    `SELECT locale, field, channel, source, value_hash FROM listing_snapshots
+    `SELECT locale, field, channel, source, source_ref, value_hash FROM listing_snapshots
       WHERE workspace_id = ? AND app_id = ? ORDER BY observed_at, id`,
     [workspaceId, appId],
   );
@@ -388,6 +407,7 @@ export async function loadPullHistory(
     const key = fieldKey(String(r.locale), String(r.field));
     const hash = String(r.value_hash);
     const source = String(r.source);
+    if (source === 'change_set' && excludeChangeSet !== undefined && String(r.source_ref) === excludeChangeSet) continue;
     if (source === 'repo' || source === 'change_set') {
       const list = repo.get(key) ?? [];
       if (!list.includes(hash)) list.push(hash);
@@ -417,6 +437,8 @@ export type PullInput = {
   selection?: ListingSelection | undefined;
   /** Runs the existing read-only store read first. The caller owns the rate limit. */
   refresh?: (() => Promise<Failure | undefined>) | undefined;
+  /** A change set (a recompute of it) whose own recorded values do not count as the repository's. */
+  excludeChangeSet?: string | undefined;
 };
 
 export type PullTarget = {
@@ -487,11 +509,28 @@ async function chooseSelection(
   return auto ? { ok: true, selection: { target: `auto:${auto.key}` } } : { ok: true };
 }
 
-export async function pullStoreListing(
-  ctx: { repo: RepoContext },
-  input: PullInput,
-  actor: Actor,
-): Promise<Outcome<{ result: PullResult }>> {
+/** What a pull needs besides the app: the request itself (see `PullInput`). */
+type Prepared = {
+  repository: Repository;
+  channel: PullChannel;
+  live: Awaited<ReturnType<typeof getLiveListing>>;
+  snapshot: LiveChannel;
+  /** The folders the request chose (or the ones that were picked for it). */
+  selection: ListingSelection | undefined;
+  slot: 'appStore' | 'googlePlay';
+  history: PullHistory;
+  refreshed: boolean;
+};
+
+/** What the listing builder works out while the files are being made. */
+type PullState = { plan?: PullPlan; target?: PullTarget };
+
+/**
+ * Everything before the repository is read: the app's repository, the checks of the request, the
+ * optional store read, the stored store snapshot, the folders and the recorded histories. Shared by
+ * the pull and the recompute of a pull.
+ */
+async function preparePull(ctx: { repo: RepoContext }, input: PullInput): Promise<Outcome<{ prepared: Prepared }>> {
   const { workspaceId, app } = input;
   const { db } = ctx.repo;
   if (!app.repositoryId) {
@@ -534,22 +573,29 @@ export async function pullStoreListing(
   if (!chosen.ok) return chosen;
 
   const slot = app.platform === 'ios' ? 'appStore' : 'googlePlay';
-  const history = await loadPullHistory(db, workspaceId, app.id, channel);
-  const hasChoice = chosen.selection !== undefined;
-  let plan: PullPlan | undefined;
-  let target: PullTarget | undefined;
+  const history = await loadPullHistory(db, workspaceId, app.id, channel, input.excludeChangeSet);
+  return {
+    ok: true,
+    prepared: { repository, channel, live, snapshot, selection: chosen.selection, slot, history, refreshed },
+  };
+}
 
-  const build: ListingBuilder = ({ listings, custom }) => {
+/** The listing builder of a pull: plans the pull against the listings that `createChangeSet` just read. */
+function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): ListingBuilder {
+  const { repository, snapshot, selection, slot, history } = prepared;
+  const { app } = input;
+  const hasChoice = selection !== undefined;
+  return ({ listings, custom }) => {
     const sources = listingSources(listings);
     const source = sources[slot];
     const views = listingTargetViews(listings.fastlane, []);
-    target = {
+    state.target = {
       repositoryId: repository.id,
       repository: `${repository.owner}/${repository.repo}`,
       branch: repository.defaultBranch,
       source: source.source,
       path: source.path,
-      selected: selectedTarget(views, listings.fastlane, chosen.selection, custom),
+      selected: selectedTarget(views, listings.fastlane, selection, custom),
     };
     // Several places the listing could be, and nothing chose one: ask instead of guessing.
     const usesExpo = slot === 'appStore' && listings.expo !== undefined;
@@ -570,7 +616,7 @@ export async function pullStoreListing(
         `The selected listing target has no ${storeName(app.platform)} folder to pull into.`,
       );
     }
-    plan = planPull({
+    state.plan = planPull({
       platform: app.platform,
       source: source.source,
       store: snapshot.locales,
@@ -584,8 +630,77 @@ export async function pullStoreListing(
       },
     });
     // Nothing to write: an empty listing leaves every file as it is (and ends as `no_changes`).
-    return plan.changes.length === 0 ? {} : plan.desired;
+    return state.plan.changes.length === 0 ? {} : state.plan.desired;
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// What a pull remembers, so that it can be made again
+
+/** A short stable hash of a text: enough to tell that the store's text changed, and no text is kept. */
+export const textHash = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 16);
+
+export type PullOriginField = { locale: string; repoLocale: string; field: string; hash: string };
+
+/**
+ * The origin of a change set made by a pull (`change_sets.origin_json`): the request, as it was
+ * made, and the fields it pulled with a hash of each text. No text, no path of the server.
+ */
+export type StorePullOrigin = ChangeSetOrigin & {
+  source: 'store_pull';
+  appId: string;
+  channel: PullChannel;
+  request: {
+    channel?: PullChannel;
+    locales?: string[];
+    fields?: string[];
+    items?: PullItem[];
+    addLocales: boolean;
+    selection?: ListingSelection;
+  };
+  fields: PullOriginField[];
+  /** When the store text was read that the pull used (the snapshot's time), or null. */
+  storeReadAt: number | null;
+};
+
+function originOf(prepared: Prepared, input: PullInput, plan: PullPlan | undefined): StorePullOrigin {
+  return {
+    v: 1,
+    source: 'store_pull',
+    appId: input.app.id,
+    channel: prepared.channel,
+    request: {
+      ...(input.channel ? { channel: input.channel } : {}),
+      ...(input.locales ? { locales: [...input.locales] } : {}),
+      ...(input.fields ? { fields: [...input.fields] } : {}),
+      ...(input.items ? { items: input.items.map((i) => ({ locale: i.locale, field: i.field })) } : {}),
+      addLocales: input.addLocales === true,
+      ...(prepared.selection ? { selection: prepared.selection } : {}),
+    },
+    fields: (plan?.changes ?? []).map((c) => ({ locale: c.locale, repoLocale: c.repoLocale, field: c.field, hash: textHash(c.after) })),
+    storeReadAt: prepared.live.readAt,
+  };
+}
+
+const isStorePullOrigin = (origin: ChangeSetOrigin | null): origin is StorePullOrigin =>
+  origin !== null &&
+  origin.source === 'store_pull' &&
+  typeof origin.appId === 'string' &&
+  typeof (origin as { request?: unknown }).request === 'object' &&
+  (origin as { request?: unknown }).request !== null &&
+  Array.isArray((origin as { fields?: unknown }).fields);
+
+export async function pullStoreListing(
+  ctx: { repo: RepoContext },
+  input: PullInput,
+  actor: Actor,
+): Promise<Outcome<{ result: PullResult }>> {
+  const { workspaceId, app } = input;
+  const prepared = await preparePull(ctx, input);
+  if (!prepared.ok) return prepared;
+  const { repository, channel, live, selection, refreshed } = prepared.prepared;
+  const state: PullState = {};
+  const build = pullBuilder(prepared.prepared, input, state);
 
   const done = await createChangeSet(
     ctx.repo,
@@ -594,12 +709,14 @@ export async function pullStoreListing(
       repositoryId: repository.id,
       summary: input.summary ?? DEFAULT_PULL_SUMMARY(app),
       listing: build,
-      ...(chosen.selection ? { selection: chosen.selection } : {}),
+      ...(selection ? { selection } : {}),
       auditDetail: { source: 'store_pull', appId: app.id, channel, refreshed },
+      origin: () => originOf(prepared.prepared, input, state.plan),
     },
     actor,
   );
 
+  const { plan, target } = state;
   const store = { readAt: live.readAt, error: live.error, refreshed };
   const baseWarnings: string[] = [];
   if (live.error) {
@@ -651,4 +768,262 @@ export async function pullStoreListing(
       warnings: [...baseWarnings, ...done.warnings],
     },
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recompute: the same pull, made again from the current store snapshot and the current repository
+
+/** What happened to one pulled field since the draft was made. */
+export type FieldDiff = {
+  locale: string;
+  repoLocale: string;
+  field: string;
+  /**
+   * `store_changed`: the store's text is not the one the draft had. `unchanged`: the same text.
+   * `added`: a field the draft did not have. `dropped`: a field the draft had that is not pulled
+   * any more (`reason`: `identical` when the repository and the store agree now, which is what a
+   * store that went back to the repository's text looks like, else the skip reason).
+   */
+  change: 'store_changed' | 'unchanged' | 'added' | 'dropped';
+  reason?: string;
+};
+
+const fieldId = (repoLocale: string, field: string) => `${repoLocale}\u0000${field}`;
+
+/** Per field, what changed between the draft's origin and a new plan. Pure. */
+export function diffFromPrevious(previous: readonly PullOriginField[], plan: PullPlan): FieldDiff[] {
+  const before = new Map(previous.map((f) => [fieldId(f.repoLocale, f.field), f]));
+  const out: FieldDiff[] = [];
+  const seen = new Set<string>();
+  for (const change of plan.changes) {
+    const key = fieldId(change.repoLocale, change.field);
+    seen.add(key);
+    const old = before.get(key);
+    out.push({
+      locale: change.locale,
+      repoLocale: change.repoLocale,
+      field: change.field,
+      change: old === undefined ? 'added' : old.hash === textHash(change.after) ? 'unchanged' : 'store_changed',
+    });
+  }
+  for (const old of previous) {
+    const key = fieldId(old.repoLocale, old.field);
+    if (seen.has(key)) continue;
+    const skip = plan.skipped.find(
+      (s) => (s.repoLocale ?? s.locale) === old.repoLocale && (s.field === undefined || s.field === old.field),
+    );
+    out.push({
+      locale: old.locale,
+      repoLocale: old.repoLocale,
+      field: old.field,
+      change: 'dropped',
+      reason: skip?.reason ?? 'identical',
+    });
+  }
+  return out;
+}
+
+export type RecomputeInput = {
+  workspaceId: string;
+  id: string;
+  /** Runs the existing read-only store read first. The caller owns the rate limit. */
+  refresh?: (() => Promise<Failure | undefined>) | undefined;
+};
+
+/** The new content of a recompute, before anything is written. */
+export type RecomputePlan = {
+  files: ReturnType<typeof parseFiles>;
+  origin: StorePullOrigin;
+  result: Omit<PullResult, 'changeSet'>;
+  diffFromPrevious: FieldDiff[];
+  summary: string;
+};
+
+type Row = Record<string, unknown>;
+
+/**
+ * Works out the pull again from the stored request, the latest stored store snapshot (or one just
+ * read) and the repository now. Writes nothing. `row` is the change set row: its origin must be a
+ * store pull. Used by `recomputeStorePull` (replaces a draft's files) and by the fix-up of a set
+ * that has a branch (the new files are the content to put on the branch).
+ */
+export async function planRecompute(
+  ctx: { repo: RepoContext },
+  input: RecomputeInput & { row: Row },
+  actor: Actor,
+): Promise<Outcome<{ plan: RecomputePlan }>> {
+  const { workspaceId, row } = input;
+  const origin = parseOrigin(row);
+  if (!isStorePullOrigin(origin)) {
+    return failure(
+      409,
+      'not_recomputable',
+      'This change set was not made from a store pull (or was made before pulls could be recomputed), so it cannot be recomputed. Pull again from the Listing tab.',
+    );
+  }
+  const app = await getApp(ctx.repo.db, workspaceId, origin.appId);
+  if (!app) return failure(409, 'app_gone', 'The app this change set was pulled for is not there any more.');
+  if (app.repositoryId !== String(row.repository_id)) {
+    return failure(409, 'app_relinked', 'The app is linked to another repository now, so this change set cannot be recomputed.');
+  }
+  const request = origin.request;
+  const pull: PullInput = {
+    workspaceId,
+    app,
+    ...(request.channel ? { channel: request.channel } : {}),
+    ...(request.locales ? { locales: request.locales } : {}),
+    ...(request.fields ? { fields: request.fields } : {}),
+    ...(request.items ? { items: request.items } : {}),
+    addLocales: request.addLocales === true,
+    ...(request.selection ? { selection: request.selection } : {}),
+    ...(input.refresh ? { refresh: input.refresh } : {}),
+    excludeChangeSet: String(row.id),
+  };
+  const prepared = await preparePull(ctx, pull);
+  if (!prepared.ok) return prepared;
+  const state: PullState = {};
+  const computed = await computeListingFiles(
+    ctx.repo,
+    {
+      workspaceId,
+      repositoryId: String(row.repository_id),
+      listing: pullBuilder(prepared.prepared, pull, state),
+      ...(prepared.prepared.selection ? { selection: prepared.prepared.selection } : {}),
+      purpose: 'changeset.recompute',
+    },
+    actor,
+  );
+  if (!computed.ok) return computed;
+  const { plan, target } = state;
+  if (!plan || !target) return failure(422, 'no_changes', 'Nothing to pull.');
+  const { live, channel, refreshed } = prepared.prepared;
+  const warnings: string[] = [...computed.warnings];
+  if (live.error) {
+    warnings.unshift(`The last attempt to read the store failed (${live.error}); the values of the last successful read were used.`);
+  }
+  return {
+    ok: true,
+    plan: {
+      files: computed.files,
+      origin: originOf(prepared.prepared, pull, plan),
+      summary: String(row.summary),
+      diffFromPrevious: diffFromPrevious(origin.fields, plan),
+      result: {
+        channel,
+        store: { readAt: live.readAt, error: live.error, refreshed },
+        target,
+        changes: plan.changes,
+        skipped: plan.skipped,
+        problems: plan.problems,
+        locales: plan.locales,
+        warnings,
+      },
+    },
+  };
+}
+
+export type RecomputeResult = Omit<PullResult, 'changeSet'> & {
+  changeSet: ChangeSetView;
+  /** What changed since the draft was made, per field. */
+  diffFromPrevious: FieldDiff[];
+  /** No file is left: the store and the repository agree now. Discard the change set. */
+  nothingLeft: boolean;
+  /** The files did not change. Nothing was written, and an approval stays. */
+  unchanged: boolean;
+  /** The change set had been approved and is a draft again. */
+  approvalCleared: boolean;
+};
+
+const RECOMPUTABLE = ['draft', 'approved', 'failed'];
+
+/**
+ * Recomputes a change set that came from a store pull (`POST /change-sets/:id/recompute`): the
+ * pull is planned again from its stored request, the latest stored store snapshot (or a fresh
+ * read, with `refresh`) and the repository now, and the files of the same change set are
+ * replaced. Same id and creator; the status is `draft` and the approval is cleared when the files
+ * change (the approver approved other text). A set with a branch is not replaced here: it is fixed
+ * up with the recomputed content (`fixupChangeSet` with `desired`).
+ */
+export async function recomputeStorePull(
+  ctx: { repo: RepoContext },
+  input: RecomputeInput,
+  actor: Actor,
+): Promise<Outcome<{ result: RecomputeResult }>> {
+  const { workspaceId, id } = input;
+  const { db } = ctx.repo;
+  const row = await rowOf(db, workspaceId, id);
+  if (!row) return failure(404, 'not_found');
+  const status = String(row.status);
+  if (!RECOMPUTABLE.includes(status)) return invalidState(status, 'a draft, approved or failed');
+  if (row.branch) {
+    return failure(
+      409,
+      'has_branch',
+      'A branch was created for this change set, so it cannot be replaced. Fix it up (it adds one commit to the branch) with the recomputed content, or discard it and pull again.',
+    );
+  }
+  const origin = parseOrigin(row);
+  if (!isStorePullOrigin(origin)) {
+    return failure(
+      409,
+      'not_recomputable',
+      'This change set was not made from a store pull (or was made before pulls could be recomputed), so it cannot be recomputed. Pull again from the Listing tab.',
+    );
+  }
+  const planned = await planRecompute(ctx, { ...input, row }, actor);
+  if (!planned.ok) return planned;
+  const { plan } = planned;
+
+  const before = parseFiles(row);
+  const unchanged = JSON.stringify(before) === JSON.stringify(plan.files);
+  const nothingLeft = plan.files.length === 0;
+  const view = async () => (await getChangeSet(db, workspaceId, id)) as ChangeSetView;
+  const base = { ...plan.result, diffFromPrevious: plan.diffFromPrevious, nothingLeft, unchanged };
+  // A failed set always goes back to draft (it cannot be approved otherwise); the others only when their files changed.
+  if (unchanged && status !== 'failed') {
+    return { ok: true, result: { ...base, changeSet: await view(), approvalCleared: false } };
+  }
+  const approvalCleared = status === 'approved' || row.approved_by !== null;
+  const written = await db.transaction(async (tx): Promise<Failure | undefined> => {
+    const at = ctx.repo.now();
+    const changed = await tx.execute(
+      `UPDATE change_sets
+          SET files_json = ?, origin_json = ?, status = 'draft', approved_by = NULL, approved_at = NULL,
+              error = NULL, updated_at = ?
+        WHERE id = ? AND workspace_id = ? AND status = ? AND updated_at = ?`,
+      [JSON.stringify(plan.files), JSON.stringify(plan.origin), at, id, workspaceId, status, Number(row.updated_at)],
+    );
+    if (changed === 0) {
+      return failure(
+        409,
+        'changed_meanwhile',
+        'This change set was changed while it was being recomputed (approved, applied, refreshed or recomputed by someone else). Look again and retry.',
+      );
+    }
+    await recordAudit(tx, {
+      workspaceId,
+      actor,
+      action: 'changeset.recompute',
+      target: { type: 'change_set', id },
+      // Counts only: never a text.
+      detail: {
+        repositoryId: String(row.repository_id),
+        appId: plan.origin.appId,
+        was: status,
+        refreshed: plan.result.store.refreshed,
+        files: { before: before.length, after: plan.files.length },
+        changes: plan.result.changes.length,
+        skipped: plan.result.skipped.length,
+        storeChanged: plan.diffFromPrevious.filter((d) => d.change === 'store_changed').length,
+        added: plan.diffFromPrevious.filter((d) => d.change === 'added').length,
+        dropped: plan.diffFromPrevious.filter((d) => d.change === 'dropped').length,
+        approvalCleared,
+        nothingLeft,
+      },
+      at,
+    });
+    return undefined;
+  });
+  if (written) return written;
+  return { ok: true, result: { ...base, changeSet: await view(), approvalCleared } };
 }

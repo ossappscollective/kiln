@@ -131,13 +131,13 @@ export const STALENESS_PURPOSE = 'changeset.staleness';
 
 const READ_BATCH = 8;
 
-type Current = {
+export type Current = {
   /** The commit that was read, or the branch name when the connector cannot name commits. */
   ref: string;
   texts: Map<string, string | undefined>;
 };
 
-async function readCurrent(
+export async function readCurrent(
   ctx: RepoContext,
   input: { workspaceId: string; repositoryId: string; paths: string[]; purpose: string },
   actor: Actor,
@@ -245,7 +245,7 @@ async function load(
     return failure(
       409,
       'branch_created',
-      'A branch was created for this change set before it failed, so it cannot be refreshed. Discard it and create a new one.',
+      'A branch was created for this change set before it failed, so it cannot be refreshed in place. Use "Fix up" (POST /change-sets/{id}/fixup) to add a commit to that branch, or discard the change set and create a new one.',
     );
   }
   const files = parseFiles(row);
