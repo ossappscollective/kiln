@@ -119,5 +119,3 @@ export function storeStatusOf(compare: StoreCompare): StoreStatus {
 export function storeOnlyCount(compare: StoreCompare, repoCount: number): number {
   return compare.state === 'differs' && compare.storeCount > repoCount ? compare.storeCount - repoCount : 0;
 }
-
-export const STAGING_NOTE = 'Staging and pulling assets arrive with the draft push (docs/ux-ia.md, section 4). Until then this tab only reads the repository.';

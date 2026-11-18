@@ -1,9 +1,10 @@
-import type { Listing, ListingProblem } from '@mrm/core';
+import type { Listing, ListingProblem, StagedChangesView } from '@mrm/core';
 import type { ApplyBody } from './change-set-apply.ts';
 import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup.ts';
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
+import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
 import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
@@ -752,6 +753,35 @@ export function createApi(options: ApiOptions = {}) {
     // are loaded by the browser from `assetFileUrl` (lib/assets.ts), not through this client.
     appAssets: (workspaceId: string, appId: string) =>
       request<AssetIndex>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets`),
+    // Staged listing changes and pushing them to a store as a DRAFT (docs/api/staged-changes.md). Staging,
+    // unstaging and clearing change our own database only. `pushStagedDraft` is the one call that writes to a
+    // store (the editable draft; it never submits), is sent once with the preview's hash, and is never retried.
+    storeDraftConfig: (workspaceId: string) => request<StoreDraftConfig>('GET', `${workspace(workspaceId)}/store-draft/config`),
+    appStaged: (workspaceId: string, appId: string) =>
+      request<{ staged: StagedChangesView }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`),
+    stageText: (
+      workspaceId: string,
+      appId: string,
+      body: { locale: string; field: string; from: 'local' | 'repo' | 'store'; value?: string },
+    ) =>
+      request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/text`, body),
+    stageAssets: (
+      workspaceId: string,
+      appId: string,
+      body: { locale: string; kind: string; device?: string | null; from?: 'repo'; paths?: string[]; commit?: string },
+    ) =>
+      request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets`, body),
+    unstageItem: (workspaceId: string, appId: string, id: string) =>
+      request<{ staged: StagedChangesView }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/items?id=${encodeURIComponent(id)}`,
+      ),
+    clearStaged: (workspaceId: string, appId: string) =>
+      request<{ staged: StagedChangesView }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`),
+    previewStagedPush: (workspaceId: string, appId: string) =>
+      request<{ preview: DraftPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push/preview`, {}),
+    pushStagedDraft: (workspaceId: string, appId: string, confirmHash: string) =>
+      request<{ result: DraftPushResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push`, { confirmHash }),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>

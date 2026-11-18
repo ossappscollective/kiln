@@ -214,3 +214,28 @@ test('the refresh and clone codes have a message', () => {
   }
   assert.match(messageFor(409, { error: 'change_conflict' }), /refresh/i);
 });
+
+test('the staged-changes calls use the documented routes, and the push sends only the hash', async () => {
+  const { calls, fetchImpl } = fake(() => jsonResponse({ staged: {} }));
+  const api = createApi({ fetch: fetchImpl });
+  await api.storeDraftConfig('w1');
+  await api.appStaged('w1', 'a/1');
+  await api.stageText('w1', 'a1', { locale: 'en-US', field: 'description', from: 'repo' });
+  await api.stageAssets('w1', 'a1', { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 'repo', paths: ['x.png'] });
+  await api.unstageItem('w1', 'a1', 'en-US/screenshot:iphone_6_5');
+  await api.clearStaged('w1', 'a1');
+  await api.previewStagedPush('w1', 'a1');
+  await api.pushStagedDraft('w1', 'a1', 'f'.repeat(64));
+  const seen = calls.map((c) => `${c.init?.method} ${c.path}`);
+  assert.deepEqual(seen, [
+    'GET /api/workspaces/w1/store-draft/config',
+    'GET /api/workspaces/w1/apps/a%2F1/staged',
+    'PUT /api/workspaces/w1/apps/a1/staged/text',
+    'PUT /api/workspaces/w1/apps/a1/staged/assets',
+    'DELETE /api/workspaces/w1/apps/a1/staged/items?id=en-US%2Fscreenshot%3Aiphone_6_5',
+    'DELETE /api/workspaces/w1/apps/a1/staged',
+    'POST /api/workspaces/w1/apps/a1/staged/push/preview',
+    'POST /api/workspaces/w1/apps/a1/staged/push',
+  ]);
+  assert.deepEqual(JSON.parse(String(calls[7]?.init?.body)), { confirmHash: 'f'.repeat(64) });
+});
