@@ -10,6 +10,14 @@ export const eventTypes = [
   'changeset.applied',
   'changeset.failed',
   'credential.test_failed',
+  'plan.rollout_step_done',
+  'plan.rollout_step_skipped',
+  'plan.rollout_step_reopened',
+  'plan.deadline_due_soon',
+  'plan.deadline_overdue',
+  'plan.rollout_step_due',
+  'review.new_low_rating',
+  'review.sync_failed',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -25,4 +33,12 @@ export const eventReadAction: Record<EventType, Action> = {
   'changeset.applied': 'repositories.read',
   'changeset.failed': 'repositories.read',
   'credential.test_failed': 'credentials.read',
+  'plan.rollout_step_done': 'plans.read',
+  'plan.rollout_step_skipped': 'plans.read',
+  'plan.rollout_step_reopened': 'plans.read',
+  'plan.deadline_due_soon': 'plans.read',
+  'plan.deadline_overdue': 'plans.read',
+  'plan.rollout_step_due': 'plans.read',
+  'review.new_low_rating': 'reviews.read',
+  'review.sync_failed': 'reviews.read',
 };

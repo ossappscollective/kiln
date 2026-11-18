@@ -12,10 +12,12 @@ import { appRoutes } from './routes/apps.ts';
 import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
+import { assetRoutes } from './routes/assets.ts';
 import { listingRoutes } from './routes/listing.ts';
 import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
 import { memberRoutes } from './routes/members.ts';
 import { planRoutes } from './routes/plans.ts';
+import { reviewRoutes } from './routes/reviews.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
@@ -26,8 +28,21 @@ import {
   defaultStoreConnectorFactory,
 } from './services/apps.ts';
 import { type CiContext, createCiContext } from './services/ci.ts';
+import {
+  type CloneUpkeep,
+  DEFAULT_CLONE_IDLE_DAYS,
+  DEFAULT_CLONE_MAX_BYTES,
+  createCloneUpkeep,
+} from './services/clone-upkeep.ts';
 import { operations } from './services/api-operations.ts';
+import { createAppIcons, type IconsContext } from './services/app-icons.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
+import {
+  DEFAULT_REVIEW_TIMEOUT_MS,
+  type RatingFetcher,
+  type ReviewConnectorFactory,
+  defaultReviewConnectorFactory,
+} from './services/review-sync.ts';
 import { buildOpenApiDocument } from './services/openapi.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import type { LocalWriteConfig } from './services/local-reads.ts';
@@ -105,6 +120,12 @@ export type AppDeps = {
    * Built at start by `setUpReads`. Omitted: reads go through the GitHub API.
    */
   reads?: CloneReads;
+  /**
+   * Upkeep of the clone folder (limits, pruning, the clones route): built in index.ts, which also
+   * hands it to the scheduler's sweep. Omitted: one with the defaults (2 GiB, 30 days) is made when
+   * `reads` is set, so the routes work; it sweeps nothing until something calls `sweep`.
+   */
+  cloneUpkeep?: CloneUpkeep;
   /** Writing to local clones: MRM_LOCAL_REPO_WRITE, the commit author, and (tests) where a push goes. Omitted: off. */
   localWrite?: LocalWriteConfig;
   /**
@@ -132,6 +153,33 @@ export type AppDeps = {
    * build number conventions, `pollMaxMs` how long `ci.poll` follows a run. All optional.
    */
   ci?: Partial<Pick<CiContext, 'limiter' | 'matchers' | 'pollMaxMs'>>;
+  /**
+   * The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
+   * Only used to tell the Listing tab when the next read is due; the scheduler is built in index.ts.
+   */
+  listing?: { intervalMs?: number };
+  /**
+   * Media files of the repositories and app icons (docs/api/assets.md). `limiter` is the per
+   * workspace limit of index reads that miss the cache (default 30 a minute); `icons` holds the
+   * seams of the App Store icon lookup (`limiter`: lookups per workspace, `net`: resolver,
+   * exchange and allowPrivate, for tests and development). All optional.
+   */
+  assets?: { limiter?: TestLimiter; icons?: Pick<IconsContext, 'limiter' | 'net'> };
+  /**
+   * Customer reviews (docs/api/reviews.md), read-only. `connectorFactory` builds the App Store
+   * Connect / Google Play reviews connector (overridable for tests), `ratingFetcher` the store-wide
+   * rating (null turns it off), `timeoutMs` the longest one sync may run (default 90 seconds).
+   * `limiter` defaults to the one of the app syncs. `retentionDays` (MRM_REVIEW_RETENTION_DAYS) is
+   * only shown to people; the pruning is the scheduler's.
+   */
+  reviews?: {
+    connectorFactory?: ReviewConnectorFactory;
+    ratingFetcher?: RatingFetcher | null;
+    timeoutMs?: number;
+    limiter?: TestLimiter;
+    lowRatingThreshold?: number;
+    retentionDays?: number;
+  };
 };
 
 export function createApp(deps: AppDeps) {
@@ -200,17 +248,30 @@ export function createApp(deps: AppDeps) {
       ...deps.webhooks,
     }),
   );
+  const cloneUpkeep =
+    deps.cloneUpkeep ??
+    (deps.reads
+      ? createCloneUpkeep({
+          reads: deps.reads,
+          db: services.db,
+          config: { maxBytes: DEFAULT_CLONE_MAX_BYTES, idleDays: DEFAULT_CLONE_IDLE_DAYS },
+          now: services.now,
+        })
+      : undefined);
   app.route(
     '/api/workspaces',
-    repositoryRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
-      timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
-      reads: deps.reads,
-      localWrite: deps.localWrite,
-    }),
+    repositoryRoutes(
+      {
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+        timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+        reads: deps.reads,
+        localWrite: deps.localWrite,
+      },
+      cloneUpkeep,
+    ),
   );
   // One context and one budget for the sync routes and for the optional store read of a listing pull.
   const appsContext = {
@@ -222,6 +283,21 @@ export function createApp(deps: AppDeps) {
   };
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
   app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
+  // Customer reviews: a read-only inbox with internal triage. Nothing is ever sent to a store.
+  app.route(
+    '/api/workspaces',
+    reviewRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      connectorFactory: deps.reviews?.connectorFactory ?? defaultReviewConnectorFactory,
+      ...(deps.reviews?.ratingFetcher !== undefined ? { ratingFetcher: deps.reviews.ratingFetcher } : {}),
+      timeoutMs: deps.reviews?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS,
+      ...(deps.reviews?.lowRatingThreshold !== undefined ? { lowRatingThreshold: deps.reviews.lowRatingThreshold } : {}),
+      ...(deps.reviews?.retentionDays !== undefined ? { retentionDays: deps.reviews.retentionDays } : {}),
+      limiter: deps.reviews?.limiter ?? appSyncLimiter,
+    }),
+  );
   // Release planning: our own checklists, notes and deadlines. No store is read or written.
   app.route('/api/workspaces', planRoutes({ db: services.db, now: services.now }));
   // Live store listing, drift and history. Read-only: nothing here writes to a store. Only
@@ -241,6 +317,35 @@ export function createApp(deps: AppDeps) {
       },
       limiter: createTestLimiter({ now: services.now }),
       sync: { apps: appsContext, limiter: appSyncLimiter },
+      ...(deps.listing?.intervalMs ? { listingIntervalMs: deps.listing.intervalMs } : {}),
+    }),
+  );
+  // Media files of the repositories (screenshots, graphics) and the icon of an app. Read-only:
+  // nothing is written to a repository or sent to a store. Reads of the repository use the same
+  // connector factory and clones as the listing reads; the icon lookup also asks the public
+  // iTunes Lookup API for iOS apps whose repository has no icon.
+  const assetsRepo = {
+    db: services.db,
+    masterKey: services.masterKey,
+    now: services.now,
+    connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+    timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+    reads: deps.reads,
+  };
+  app.route(
+    '/api/workspaces',
+    assetRoutes({
+      db: services.db,
+      now: services.now,
+      repo: assetsRepo,
+      limiter: deps.assets?.limiter ?? createTestLimiter({ limit: 30, now: services.now }),
+      icons: createAppIcons({
+        db: services.db,
+        now: services.now,
+        repo: assetsRepo,
+        ...(deps.assets?.icons?.limiter ? { limiter: deps.assets.icons.limiter } : {}),
+        ...(deps.assets?.icons?.net ? { net: deps.assets.icons.net } : {}),
+      }),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

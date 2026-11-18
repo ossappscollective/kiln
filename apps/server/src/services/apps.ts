@@ -18,6 +18,8 @@ import { recordSyncEvents, releaseStatusChanges } from './events.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { recordAppliedChangeSets } from './listing-repo.ts';
 import { deleteListingData, syncListing } from './listing-live.ts';
+import { deleteAppIcon } from './app-icon-store.ts';
+import { deleteReviewData } from './reviews.ts';
 import { type Failure, type Outcome, failure } from './repositories.ts';
 import { enqueue, type JobHandler } from '../jobs.ts';
 
@@ -84,6 +86,16 @@ export type ManagedApp = {
   lastSyncedAt: number | null;
   lastSyncAttemptAt: number | null;
   lastSyncError: string | null;
+  /**
+   * Whether the tool holds an icon for the app right now (app-icons.ts). A hint for the UI, not a
+   * promise: `GET .../icon` is the truth.
+   */
+  hasIcon: boolean;
+  /**
+   * The URL to show the icon from, or null when the last look found none and the next look is
+   * not due (so the UI does not ask for nothing). Ends in `?v=<etag>` when an icon is held.
+   */
+  iconUrl: string | null;
 };
 
 export type AppRelease = {
@@ -116,7 +128,19 @@ const toApp = (r: Row): ManagedApp => ({
   lastSyncedAt: orNull(r.last_synced_at, Number),
   lastSyncAttemptAt: orNull(r.last_sync_attempt_at, Number),
   lastSyncError: orNull(r.last_sync_error, String),
+  ...iconHint(r),
 });
+
+/** The icon hint of an app row joined with its app_icons row (the columns of APP_COLUMNS). */
+function iconHint(r: Row): { hasIcon: boolean; iconUrl: string | null } {
+  const base = `/api/workspaces/${String(r.workspace_id)}/apps/${String(r.id)}/icon`;
+  if (r.icon_has !== null && r.icon_has !== undefined && Number(r.icon_has) === 1) {
+    return { hasIcon: true, iconUrl: r.icon_etag ? `${base}?v=${encodeURIComponent(String(r.icon_etag))}` : base };
+  }
+  // No row: a look has not happened yet. A row without an image: look again only when its backoff is over.
+  const waiting = r.icon_backoff !== null && r.icon_backoff !== undefined && Number(r.icon_backoff) > Date.now();
+  return { hasIcon: false, iconUrl: r.icon_checked === null || r.icon_checked === undefined || !waiting ? base : null };
+}
 
 type Details = { versionCodes?: string[]; rolloutFraction?: number };
 
@@ -152,11 +176,14 @@ const toRelease = (r: Row): AppRelease => {
 const APP_COLUMNS = `a.id, a.name, a.platform, a.identifier, a.store_app_id, a.credential_id,
   (SELECT r.id FROM repositories r WHERE r.id = a.repository_id AND r.workspace_id = a.workspace_id)
     AS repository_id,
-  a.created_at, a.last_synced_at, a.last_sync_attempt_at, a.last_sync_error`;
+  a.created_at, a.last_synced_at, a.last_sync_attempt_at, a.last_sync_error, a.workspace_id,
+  CASE WHEN i.data IS NULL THEN 0 ELSE 1 END AS icon_has, i.etag AS icon_etag,
+  i.backoff_until AS icon_backoff, i.checked_at AS icon_checked`;
+const APP_FROM = `apps a LEFT JOIN app_icons i ON i.app_id = a.id AND i.workspace_id = a.workspace_id`;
 
 export async function listApps(sql: Sql, workspaceId: string): Promise<ManagedApp[]> {
   const rows = await sql.query(
-    `SELECT ${APP_COLUMNS} FROM apps a WHERE a.workspace_id = ? ORDER BY a.created_at, a.id`,
+    `SELECT ${APP_COLUMNS} FROM ${APP_FROM} WHERE a.workspace_id = ? ORDER BY a.created_at, a.id`,
     [workspaceId],
   );
   return rows.map(toApp);
@@ -168,7 +195,7 @@ export async function getApp(
   id: string,
 ): Promise<ManagedApp | undefined> {
   const [row] = await sql.query(
-    `SELECT ${APP_COLUMNS} FROM apps a WHERE a.id = ? AND a.workspace_id = ?`,
+    `SELECT ${APP_COLUMNS} FROM ${APP_FROM} WHERE a.id = ? AND a.workspace_id = ?`,
     [id, workspaceId],
   );
   return row ? toApp(row) : undefined;
@@ -321,6 +348,8 @@ export async function deleteApp(
       input.workspaceId,
     ]);
     await deleteListingData(tx, input.workspaceId, input.id);
+    await deleteReviewData(tx, input.workspaceId, input.id);
+    await deleteAppIcon(tx, input.workspaceId, input.id);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,

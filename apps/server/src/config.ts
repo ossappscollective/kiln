@@ -9,6 +9,29 @@ import { parseExtraHosts } from './single-user.ts';
 const blankIsUnset = <T extends z.ZodTypeAny>(inner: T) =>
   z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
 
+const UNITS: Record<string, number> = { '': 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3, t: 1024 ** 4 };
+
+/** A size in bytes: digits, optionally followed by k, m, g or t (binary multiples; `2g` is 2 GiB, `kb` and `gib` also read). */
+export function parseByteSize(value: string): number | undefined {
+  const match = /^(\d{1,15})\s*([kmgt]?)(?:i?b)?$/i.exec(value.trim());
+  if (!match) return undefined;
+  const bytes = Number(match[1]) * (UNITS[(match[2] as string).toLowerCase()] as number);
+  return Number.isSafeInteger(bytes) && bytes <= 1024 ** 5 ? bytes : undefined;
+}
+
+const byteSize = (name: string) =>
+  z.string().transform((value, ctx): number => {
+    const bytes = parseByteSize(value);
+    if (bytes === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${name} must be a size in bytes, or with a unit (500m, 2g), and at most 1 PiB; 0 is no limit`,
+      });
+      return z.NEVER;
+    }
+    return bytes;
+  });
+
 const schema = z.object({
   // SQLite by default so a bare `pnpm dev` works. Compose sets Postgres.
   DATABASE_URL: z.string().min(1).default('file:./.mrm-data/mrm.db'),
@@ -44,6 +67,19 @@ const schema = z.object({
   MRM_CLONE_DIR: blankIsUnset(z.string().min(1).optional()),
   // How long a fetched branch tip is reused before the next read fetches again.
   MRM_CLONE_TTL_SECONDS: blankIsUnset(z.coerce.number().int().min(0).max(86_400).default(60)),
+  // Upkeep of the clone folder (docs/adr/0005-local-clone-reads.md, "Clone upkeep"). The clones are
+  // a cache, so pruning one only costs a fetch on its next read. MAX_BYTES is a size in bytes (or
+  // with a unit: 500m, 2g); 0 is no limit. IDLE_DAYS: a clone unused for longer is removed; 0 never.
+  // SWEEP_INTERVAL_MINUTES: how often the sweep runs; 0 turns it off, otherwise 5 to 10080.
+  MRM_CLONE_MAX_BYTES: blankIsUnset(byteSize('MRM_CLONE_MAX_BYTES').default('2g')),
+  MRM_CLONE_IDLE_DAYS: blankIsUnset(z.coerce.number().int().min(0).max(3650).default(30)),
+  MRM_CLONE_SWEEP_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
+      .default(360),
+  ),
   // The git program: `git` from PATH, or an absolute path.
   MRM_GIT_PATH: blankIsUnset(z.string().min(1).default('git')),
   // Folders that may hold local git clones to read (docs/adr/0005-local-clone-reads.md). Empty
@@ -89,6 +125,47 @@ const schema = z.object({
       .int()
       .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
       .default(0),
+  ),
+  // Minutes between scheduled reads of the customer reviews of every app. 0 (the default) turns them
+  // off; otherwise 15 to 10080. Google Play serves only about the last 7 days of reviews, so for
+  // Play apps 360 (6 hours) or less is recommended: a longer gap can miss reviews for good.
+  // See docs/api/reviews.md.
+  MRM_REVIEW_SYNC_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 15 && v <= 10_080), 'must be 0 (off) or from 15 to 10080')
+      .default(0),
+  ),
+  // Days a stored customer review is kept (by the store's date of the review); older rows are
+  // pruned by the scheduler. 0 keeps them for ever. Reviews are personal data of third parties.
+  MRM_REVIEW_RETENTION_DAYS: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v >= 0 && v <= 3650, 'must be 0 (keep) or from 1 to 3650')
+      .default(365),
+  ),
+  // Minutes between scheduled reads of the store listing of every app (texts, categories, age
+  // rating, screenshot counts). 0 (the default) turns them off; otherwise 30 to 10080 (a week). A
+  // listing read is many requests, so the floor is higher than the sync's. They use the stored
+  // credentials, so they are opt-in. See docs/api/listing.md.
+  MRM_LISTING_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 30 && v <= 10_080), 'must be 0 (off) or from 30 to 10080')
+      .default(0),
+  ),
+  // Minutes between runs of the plan reminders (deadlines close or passed, rollout steps whose time
+  // has passed; sent as events, never as email). 0 turns them off; otherwise 5 to 10080. They only
+  // run in the process that runs the worker. See docs/api/events.md.
+  MRM_REMINDER_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
+      .default(15),
   ),
 });
 
@@ -326,10 +403,24 @@ export type Config = {
   cloneDir: string;
   /** How long a fetched branch tip is reused, in milliseconds (MRM_CLONE_TTL_SECONDS). */
   cloneTtlMs: number;
+  /** Most bytes the clone folder may hold; 0 is no limit (MRM_CLONE_MAX_BYTES). */
+  cloneMaxBytes: number;
+  /** A clone unused for this many days is removed; 0 never (MRM_CLONE_IDLE_DAYS). */
+  cloneIdleDays: number;
+  /** Minutes between sweeps of the clone folder; 0 is off (MRM_CLONE_SWEEP_INTERVAL_MINUTES). */
+  cloneSweepIntervalMinutes: number;
   /** The git program (MRM_GIT_PATH). */
   gitPath: string;
   /** Minutes between scheduled syncs of every app; 0 is off (MRM_SYNC_INTERVAL_MINUTES). */
   syncIntervalMinutes: number;
+  /** Minutes between scheduled review reads of every app; 0 is off (MRM_REVIEW_SYNC_INTERVAL_MINUTES). */
+  reviewSyncIntervalMinutes: number;
+  /** Days a stored review is kept; 0 keeps them (MRM_REVIEW_RETENTION_DAYS). */
+  reviewRetentionDays: number;
+  /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
+  listingIntervalMinutes: number;
+  /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
+  reminderIntervalMinutes: number;
   /** Folders that may hold local clones (MRM_LOCAL_REPO_ROOTS). Empty: local clones are off. */
   localRepoRoots: string[];
   /** Commits on a new branch of a local clone, and their push, are allowed (MRM_LOCAL_REPO_WRITE). */
@@ -377,8 +468,15 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     reads: data.MRM_READS,
     cloneDir: data.MRM_CLONE_DIR ?? join(data.MRM_DATA_DIR, 'clones'),
     cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,
+    cloneMaxBytes: data.MRM_CLONE_MAX_BYTES,
+    cloneIdleDays: data.MRM_CLONE_IDLE_DAYS,
+    cloneSweepIntervalMinutes: data.MRM_CLONE_SWEEP_INTERVAL_MINUTES,
     gitPath: data.MRM_GIT_PATH,
     syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
+    reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
+    reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
+    listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
+    reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
     localRepoRoots,
     localRepoWrite: data.MRM_LOCAL_REPO_WRITE === 'true',
     ...(data.MRM_GIT_AUTHOR_NAME ? { gitAuthorName: data.MRM_GIT_AUTHOR_NAME } : {}),

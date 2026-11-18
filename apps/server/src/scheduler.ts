@@ -3,6 +3,14 @@ import { enqueue } from './jobs.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './services/ci.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
+import { type ListingQueueSummary, queueListingReads } from './services/listing-schedule.ts';
+import { type ReminderSummary, sendPlanReminders } from './services/plan-reminders.ts';
+import {
+  type ReviewQueueSummary,
+  type ReviewUpkeepSummary,
+  queueReviewSyncs,
+  reviewUpkeep,
+} from './services/review-schedule.ts';
 
 /**
  * A lightweight scheduler on top of the job queue: no cron, no extra process. Each tick it
@@ -13,9 +21,13 @@ import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
  *  - queues a `ci.poll` for any repository that has a run still going but no poll waiting (a
  *    safety net: a poll chain normally keeps itself going, but a restart or a failed job can end
  *    it);
- *  - deletes rows left behind by a disconnected repository or a deleted app.
+ *  - deletes rows left behind by a disconnected repository or a deleted app;
+ *  - every reminder interval (when on), sends reminders about release plans: deadlines close or
+ *    passed and rollout steps whose time has passed, as events (`services/plan-reminders.ts`). That
+ *    is the one thing it does itself instead of queueing a job: a reminder is an event row, written
+ *    once under a unique key, and it never touches a store.
  *
- * It only ever queues jobs; the worker runs them, so a sync still goes through the normal
+ * Syncs and polls are only queued; the worker runs them, so a sync still goes through the normal
  * handler, its audit trail and its retries. The clock, the jitter and the rate limiter are
  * injected, so tests drive `tick()` by hand.
  */
@@ -25,6 +37,10 @@ export const MAX_SYNC_INTERVAL_MINUTES = 7 * 24 * 60;
 /** Syncs the scheduler queues for one workspace in one tick: the rest wait for the next. */
 export const DEFAULT_PER_WORKSPACE_PER_TICK = 5;
 export const DEFAULT_MAX_PER_TICK = 100;
+/** MRM_REMINDER_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
+export const MIN_REMINDER_INTERVAL_MINUTES = 5;
+export const MAX_REMINDER_INTERVAL_MINUTES = 7 * 24 * 60;
+export const DEFAULT_REMINDER_INTERVAL_MINUTES = 15;
 const MINUTE = 60_000;
 
 export type SchedulerOptions = {
@@ -33,6 +49,12 @@ export type SchedulerOptions = {
   now?: () => number;
   /** Milliseconds between syncs of one app. 0 (the default) turns scheduled syncs off. */
   syncIntervalMs?: number;
+  /** Milliseconds between reminder runs. 0 (the default here) turns plan reminders off. */
+  reminderIntervalMs?: number;
+  /** Hours before the end of a target day that "due soon" starts. Default 24. */
+  reminderLeadHours?: number;
+  /** Most reminders one run sends. Default 100. */
+  maxRemindersPerRun?: number;
   /** How often `start` runs a tick. Default one minute. */
   tickMs?: number;
   /**
@@ -50,8 +72,33 @@ export type SchedulerOptions = {
   limiter?: { take(key: string): number };
   perWorkspacePerTick?: number;
   maxPerTick?: number;
+  /**
+   * Milliseconds between scheduled listing reads of one app (MRM_LISTING_INTERVAL_MINUTES). 0 (the
+   * default) turns them off. They queue `app.listing` jobs (services/listing-schedule.ts), bounded
+   * and spaced by `listing`, sharing `limiter` with the syncs.
+   */
+  listingIntervalMs?: number;
+  listing?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  /**
+   * Milliseconds between scheduled reads of the customer reviews of one app
+   * (MRM_REVIEW_SYNC_INTERVAL_MINUTES). 0 (the default) turns them off. They queue `review.sync`
+   * jobs (services/review-schedule.ts), bounded and spaced by `reviews`, sharing `limiter`.
+   */
+  reviewSyncIntervalMs?: number;
+  reviews?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  /**
+   * MRM_REVIEW_RETENTION_DAYS: reviews older than this are deleted, a bounded number per run, at
+   * most once an hour. 0 keeps them all. Absent: no pruning (rows of deleted apps are still removed).
+   */
+  reviewRetentionDays?: number;
   /** Runs started longer ago than this are no longer polled. Default 3 hours. */
   pollMaxMs?: number;
+  /**
+   * Prunes the clone folder (services/clone-upkeep.ts): `run` is called from a tick when
+   * `intervalMs` has passed since the last run (the first tick runs it). It runs here, not through
+   * the job queue, because the clones are on this machine's disk. Absent: no sweep.
+   */
+  cloneSweep?: { intervalMs: number; run: () => Promise<unknown> };
   onError?: (message: string, error: unknown) => void;
 };
 
@@ -61,6 +108,16 @@ export type TickSummary = {
   skipped: { recent: number; alreadyQueued: number; rateLimited: number; capped: number };
   pollsQueued: number;
   purged: number;
+  /** What the reminder run sent; null when none ran this tick (off, or not yet due). */
+  reminders: ReminderSummary | null;
+  /** What the scheduled listing reads queued; absent when they are off. */
+  listings?: ListingQueueSummary;
+  /** What the scheduled review reads queued; absent when they are off. */
+  reviews?: ReviewQueueSummary;
+  /** What the review upkeep deleted; set only in a tick where it ran. */
+  reviewUpkeep?: ReviewUpkeepSummary;
+  /** What a clone sweep returned; set only in a tick where one ran. */
+  cloneSweep?: unknown;
 };
 
 export type Scheduler = {
@@ -81,6 +138,17 @@ export function syncIntervalMs(minutes: number): number {
   return minutes * MINUTE;
 }
 
+/** Minutes from MRM_REMINDER_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+export function reminderIntervalMs(minutes: number): number {
+  if (minutes === 0) return 0;
+  if (!Number.isInteger(minutes) || minutes < MIN_REMINDER_INTERVAL_MINUTES || minutes > MAX_REMINDER_INTERVAL_MINUTES) {
+    throw new Error(
+      `The reminder interval must be 0 (off) or from ${MIN_REMINDER_INTERVAL_MINUTES} to ${MAX_REMINDER_INTERVAL_MINUTES} minutes.`,
+    );
+  }
+  return minutes * MINUTE;
+}
+
 export function createScheduler(options: SchedulerOptions): Scheduler {
   const { db } = options;
   const now = options.now ?? Date.now;
@@ -92,6 +160,12 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   const maxPerTick = options.maxPerTick ?? DEFAULT_MAX_PER_TICK;
   const pollMaxMs = options.pollMaxMs ?? DEFAULT_POLL_MAX_MS;
   const report = options.onError ?? ((message, error) => console.error(message, error));
+  const reminderInterval = options.reminderIntervalMs ?? 0;
+  const listingInterval = options.listingIntervalMs ?? 0;
+  const reviewInterval = options.reviewSyncIntervalMs ?? 0;
+  let lastReviewUpkeepAt: number | undefined;
+  /** When the reminders last ran in this process. Other instances have their own; the unique key keeps them apart. */
+  let lastReminderAt: number | undefined;
 
   /** The ids of apps that have an `app.sync` job waiting or running. */
   async function appsInQueue(): Promise<Set<string>> {
@@ -175,6 +249,8 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     }
   }
 
+  let lastSweepAt: number | undefined;
+
   async function tick(): Promise<TickSummary> {
     const at = now();
     const summary: TickSummary = {
@@ -182,10 +258,69 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
       skipped: { recent: 0, alreadyQueued: 0, rateLimited: 0, capped: 0 },
       pollsQueued: 0,
       purged: 0,
+      reminders: null,
     };
     summary.purged = await purgeOrphans(db);
     if (interval > 0) await queueSyncs(summary, at);
     await queuePolls(summary, at);
+    if (reminderInterval > 0 && (lastReminderAt === undefined || at - lastReminderAt >= reminderInterval)) {
+      lastReminderAt = at;
+      // A failing reminder run must not stop syncs or polls, and nothing may escape the timer.
+      try {
+        summary.reminders = await sendPlanReminders(db, at, {
+          ...(options.reminderLeadHours !== undefined ? { leadHours: options.reminderLeadHours } : {}),
+          ...(options.maxRemindersPerRun !== undefined ? { maxPerRun: options.maxRemindersPerRun } : {}),
+          onError: report,
+        });
+      } catch (error) {
+        report('plan reminders failed', error);
+      }
+    }
+    if (listingInterval > 0) {
+      // Listing reads are optional work: a failure here must not stop syncs or polls.
+      try {
+        summary.listings = await queueListingReads(db, {
+          now: at,
+          intervalMs: listingInterval,
+          ...(options.listing ?? {}),
+          ...(options.jitter ? { jitter: options.jitter } : {}),
+          ...(options.limiter ? { limiter: options.limiter } : {}),
+        });
+      } catch (error) {
+        report('scheduled listing reads failed', error);
+      }
+    }
+    if (reviewInterval > 0) {
+      // Review reads are optional work: a failure here must not stop syncs or polls.
+      try {
+        summary.reviews = await queueReviewSyncs(db, {
+          now: at,
+          intervalMs: reviewInterval,
+          ...(options.reviews ?? {}),
+          ...(options.jitter ? { jitter: options.jitter } : {}),
+          ...(options.limiter ? { limiter: options.limiter } : {}),
+        });
+      } catch (error) {
+        report('scheduled review reads failed', error);
+      }
+    }
+    if (options.reviewRetentionDays !== undefined && (lastReviewUpkeepAt === undefined || at - lastReviewUpkeepAt >= 60 * MINUTE)) {
+      lastReviewUpkeepAt = at;
+      try {
+        summary.reviewUpkeep = await reviewUpkeep(db, { now: at, retentionDays: options.reviewRetentionDays });
+      } catch (error) {
+        report('review upkeep failed', error);
+      }
+    }
+    const sweep = options.cloneSweep;
+    if (sweep && sweep.intervalMs > 0 && (lastSweepAt === undefined || at - lastSweepAt >= sweep.intervalMs)) {
+      lastSweepAt = at;
+      try {
+        summary.cloneSweep = await sweep.run();
+      } catch (error) {
+        report('clone sweep failed', error);
+      }
+    }
     return summary;
   }
 

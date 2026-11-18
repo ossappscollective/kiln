@@ -6,7 +6,7 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createWorker } from './jobs.ts';
 import { createEventStreamHub } from './routes/events.ts';
-import { createScheduler, syncIntervalMs } from './scheduler.ts';
+import { createScheduler, reminderIntervalMs, syncIntervalMs } from './scheduler.ts';
 import {
   APP_SYNC_QUEUE,
   DEFAULT_SYNC_TIMEOUT_MS,
@@ -16,8 +16,22 @@ import {
 import { pruneSessions } from './services/accounts.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './services/ci.ts';
 import { checkGit, setUpReads } from './services/clone-reads.ts';
+import { createCloneUpkeep } from './services/clone-upkeep.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
+import {
+  createListingReadHandler,
+  DEFAULT_LISTING_TIMEOUT_MS,
+  LISTING_READ_QUEUE,
+  listingIntervalMs,
+} from './services/listing-schedule.ts';
 import { pruneEvents } from './services/events.ts';
+import { reviewSyncIntervalMs } from './services/review-schedule.ts';
+import {
+  DEFAULT_REVIEW_TIMEOUT_MS,
+  REVIEW_SYNC_QUEUE,
+  createReviewSyncHandler,
+  defaultReviewConnectorFactory,
+} from './services/review-sync.ts';
 import { WEBHOOK_QUEUE, createWebhookHandler, pruneDeliveries } from './services/webhooks.ts';
 import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
@@ -90,6 +104,13 @@ if (config.gitSigning) {
   console.warn('MRM_GIT_SIGNING_KEY is set but MRM_GIT_SIGN is off: commits are not signed.');
 }
 
+// Pruning of the clone folder: idle clones, then the least recently used above the byte limit.
+const cloneUpkeep = createCloneUpkeep({
+  reads,
+  db: database,
+  config: { maxBytes: config.cloneMaxBytes, idleDays: config.cloneIdleDays },
+});
+
 // One budget for manual and scheduled syncs (10 per workspace per minute).
 const syncLimiter = createTestLimiter();
 
@@ -101,7 +122,10 @@ const app = createApp({
   eventStreams,
   webhooks: { allowPrivate: config.webhooksAllowPrivate },
   appSync: { limiter: syncLimiter },
+  listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
+  reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays },
   reads,
+  cloneUpkeep,
   localWrite: {
     enabled: config.localRepoWrite,
     ...(config.gitAuthorName ? { authorName: config.gitAuthorName } : {}),
@@ -129,6 +153,23 @@ const worker = createWorker({
       connectorFactory: defaultStoreConnectorFactory,
       timeoutMs: DEFAULT_SYNC_TIMEOUT_MS,
     }),
+    // Scheduled reads of the store listing (queued by the scheduler when MRM_LISTING_INTERVAL_MINUTES is set).
+    [LISTING_READ_QUEUE]: createListingReadHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      connectorFactory: defaultStoreConnectorFactory,
+      timeoutMs: DEFAULT_LISTING_TIMEOUT_MS,
+      intervalMs: listingIntervalMs(config.listingIntervalMinutes),
+    }),
+    // Scheduled and background reads of customer reviews (read-only; docs/api/reviews.md).
+    [REVIEW_SYNC_QUEUE]: createReviewSyncHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      connectorFactory: defaultReviewConnectorFactory,
+      timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
+    }),
     [WEBHOOK_QUEUE]: createWebhookHandler({
       db: database,
       masterKey: config.masterKey,
@@ -153,12 +194,33 @@ if (config.worker === 'inline') worker.start();
 const scheduler = createScheduler({
   db: database,
   syncIntervalMs: syncIntervalMs(config.syncIntervalMinutes),
+  reminderIntervalMs: reminderIntervalMs(config.reminderIntervalMinutes),
+  listingIntervalMs: listingIntervalMs(config.listingIntervalMinutes),
+  reviewSyncIntervalMs: reviewSyncIntervalMs(config.reviewSyncIntervalMinutes),
+  reviewRetentionDays: config.reviewRetentionDays,
   limiter: syncLimiter,
+  ...(config.cloneSweepIntervalMinutes > 0 && reads.active
+    ? { cloneSweep: { intervalMs: config.cloneSweepIntervalMinutes * 60_000, run: () => cloneUpkeep.sweep() } }
+    : {}),
 });
 if (config.worker === 'inline') {
   scheduler.start();
   if (config.syncIntervalMinutes > 0) {
     console.log(`Scheduled sync every ${config.syncIntervalMinutes} minutes`);
+  }
+  if (reads.active && config.cloneSweepIntervalMinutes > 0) {
+    console.log(
+      `Clones: swept every ${config.cloneSweepIntervalMinutes} minutes (idle over ${config.cloneIdleDays === 0 ? 'never' : `${config.cloneIdleDays} days`}, limit ${config.cloneMaxBytes === 0 ? 'none' : `${config.cloneMaxBytes} bytes`})`,
+    );
+  }
+  if (config.listingIntervalMinutes > 0) {
+    console.log(`Scheduled listing reads every ${config.listingIntervalMinutes} minutes (read-only)`);
+  }
+  if (config.reviewSyncIntervalMinutes > 0) {
+    console.log(`Scheduled review reads every ${config.reviewSyncIntervalMinutes} minutes (read-only; reviews kept ${config.reviewRetentionDays === 0 ? 'forever' : `${config.reviewRetentionDays} days`})`);
+  }
+  if (config.reminderIntervalMinutes > 0) {
+    console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);
   }
 }
 

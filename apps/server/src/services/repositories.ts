@@ -362,6 +362,8 @@ export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
   // Re-basing a stale change set and checking whether it is stale (change-set-refresh.ts).
   'changeset.refresh',
   'changeset.staleness',
+  // Media files of the Assets tab and the app icons (asset-repo.ts): only headers and single files.
+  'repository.assets',
 ]);
 
 /** The token git authenticates with: the PAT, or the App's installation token as a function. */

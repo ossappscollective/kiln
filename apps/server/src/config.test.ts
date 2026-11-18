@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { MAX_LOCAL_REPO_ROOTS, loadConfig, parseGitSigning, parseLocalRepoRoots } from './config.ts';
+import { MAX_LOCAL_REPO_ROOTS, loadConfig, parseByteSize, parseGitSigning, parseLocalRepoRoots } from './config.ts';
 
 const key = randomBytes(32).toString('base64');
 
@@ -373,4 +373,46 @@ test('gpg: every bad setting is refused at start', () => {
   for (const row of table) raises(row.env, row.pattern, row.name);
   // gpg needs a shell script to forbid prompts: not on Windows.
   assert.throws(() => parseGitSigning({ ...base }, 'win32'), /not supported on Windows/);
+});
+
+test('clone upkeep: defaults are 2 GiB, 30 days and a sweep every 6 hours', () => {
+  const config = loadConfig({ MRM_MASTER_KEY: key });
+  assert.equal(config.cloneMaxBytes, 2 * 1024 ** 3);
+  assert.equal(config.cloneIdleDays, 30);
+  assert.equal(config.cloneSweepIntervalMinutes, 360);
+  const blank = loadConfig({ MRM_MASTER_KEY: key, MRM_CLONE_MAX_BYTES: ' ', MRM_CLONE_IDLE_DAYS: '', MRM_CLONE_SWEEP_INTERVAL_MINUTES: '' });
+  assert.equal(blank.cloneMaxBytes, 2 * 1024 ** 3);
+  assert.equal(blank.cloneIdleDays, 30);
+  assert.equal(blank.cloneSweepIntervalMinutes, 360);
+});
+
+test('clone upkeep: sizes in bytes or with a unit, and 0 turns each limit off', () => {
+  const read = (extra: Record<string, string>) => loadConfig({ MRM_MASTER_KEY: key, ...extra });
+  assert.equal(read({ MRM_CLONE_MAX_BYTES: '1048576' }).cloneMaxBytes, 1048576);
+  assert.equal(read({ MRM_CLONE_MAX_BYTES: '500m' }).cloneMaxBytes, 500 * 1024 ** 2);
+  assert.equal(read({ MRM_CLONE_MAX_BYTES: '2G' }).cloneMaxBytes, 2 * 1024 ** 3);
+  assert.equal(read({ MRM_CLONE_MAX_BYTES: '10 GiB' }).cloneMaxBytes, 10 * 1024 ** 3);
+  assert.equal(read({ MRM_CLONE_MAX_BYTES: '0' }).cloneMaxBytes, 0);
+  assert.equal(read({ MRM_CLONE_IDLE_DAYS: '0' }).cloneIdleDays, 0);
+  assert.equal(read({ MRM_CLONE_SWEEP_INTERVAL_MINUTES: '0' }).cloneSweepIntervalMinutes, 0);
+  assert.equal(read({ MRM_CLONE_SWEEP_INTERVAL_MINUTES: '5' }).cloneSweepIntervalMinutes, 5);
+  assert.equal(parseByteSize('1k'), 1024);
+  assert.equal(parseByteSize('1.5g'), undefined);
+});
+
+test('clone upkeep: bad values are rejected with the variable named', () => {
+  for (const [name, bad] of [
+    ['MRM_CLONE_MAX_BYTES', '-1'],
+    ['MRM_CLONE_MAX_BYTES', 'lots'],
+    ['MRM_CLONE_MAX_BYTES', '2gigabytes'],
+    ['MRM_CLONE_MAX_BYTES', '99999999999999999999'],
+    ['MRM_CLONE_IDLE_DAYS', '-1'],
+    ['MRM_CLONE_IDLE_DAYS', '1.5'],
+    ['MRM_CLONE_IDLE_DAYS', '4000'],
+    ['MRM_CLONE_SWEEP_INTERVAL_MINUTES', '1'],
+    ['MRM_CLONE_SWEEP_INTERVAL_MINUTES', '10081'],
+    ['MRM_CLONE_SWEEP_INTERVAL_MINUTES', 'x'],
+  ] as const) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, [name]: bad }), new RegExp(name), `${name}=${bad}`);
+  }
 });
