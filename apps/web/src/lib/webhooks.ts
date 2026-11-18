@@ -22,6 +22,7 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'review.new_low_rating', label: 'A low-rated customer review arrived (ids and rating only)' },
   { type: 'review.sync_failed', label: 'Reading customer reviews failed' },
   { type: 'review.reply_sent', label: 'A reply to a customer review was published in the store (ids only)' },
+  { type: 'release.rollout_changed', label: 'A staged rollout or phased release was changed in the store (ids and values only)' },
 ];
 
 export type WebhookForm = {
