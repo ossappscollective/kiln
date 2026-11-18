@@ -104,9 +104,126 @@ Each file starts with a comment that lists its props.
 | `Tooltip` | A hint for an icon-only control. CSS only, keyboard accessible, Escape hides it |
 | `CopyButton` | Copy a value with feedback and a fallback for plain http |
 | `Tabs` | Views of one object. Arrow keys move between tabs |
-| `ThemeToggle`, `Logo`, `Icon` | Theme choice, the product mark, and about 45 stroke icons (`icons.ts`) |
+| `ThemeToggle`, `Logo` | Theme choice and the product mark |
+| `Icon` | One of the registered inline SVG icons (`lib/icons.ts`), see Icons below |
+| `StoreBadge`, `PlatformBadge` | A store, tool or platform as a generic glyph plus its name |
+| `IconGallery` | Dev only: every icon, store badge and status icon on one page. Not routed |
 
 To show an icon in the navigation, set `icon` on the view in `lib/views.ts`.
+
+## Icons
+
+All icons are inline SVG from one typed module, `apps/web/src/lib/icons.ts`: no font, no sprite, no
+CDN, no package, no inline style, so the CSP needs nothing new. It is one module of data (about
+14 KB of path strings) and `Icon.svelte` picks one entry. About 100 icons: UI glyphs (status, actions, arrows,
+people and access, time, source control, files, layout, devices) and the generic store, platform and
+tool marks below.
+
+```svelte
+<Icon name="check-circle" />                       <!-- decorative: aria-hidden, put text beside it -->
+<Icon name="alert-triangle" size="lg" />           <!-- sm 14, md 16 (default), lg 20, xl 24, or a number -->
+<Icon name="external-link" title="Opens in a new tab" />   <!-- role="img" with an accessible name -->
+```
+
+| Rule | Why |
+| --- | --- |
+| Colour is `currentColor`; never set a fill or stroke on the icon, set `color` on the parent. Use the tokens (`--ok`, `--bad`, `--warn`, `--info`, `--muted`) and the matching `-ink` for text. | Both themes work, and contrast is already tested for the token pairs |
+| An icon never carries meaning alone. Give it visible text, or give the control an `aria-label`, or pass `title`. | Colour and glyph are not signals for everyone |
+| Status chips are icon plus text: `Badge` has an `icon` prop; `lib/status-icons.ts` maps a release status, a tone and a role to an icon. | One consistent look for live, in review, rejected, draft and the rest |
+| The size is set by `width` and `height`, so an icon never shifts the layout. Use `sm` inside badges (`Badge` uses 12) and `md` next to body text. | No layout shift |
+| `Button` takes `icon`, `EmptyState` takes `icon`, `Alert` and the toasts already draw an icon for their tone. Do not add a second one. | Avoid doubled icons |
+| An unknown name draws the neutral `help` glyph instead of nothing. TypeScript flags it first. | Never an invisible control |
+
+### Store, platform and tool marks
+
+`StoreBadge` and `PlatformBadge` identify where something lives. The glyphs are generic geometric
+marks drawn for this project, not company logos:
+
+| Name | Glyph | Stands beside |
+| --- | --- | --- |
+| `store` | storefront | any store; the fallback for an unknown value |
+| `store-ios` | shopping bag | App Store, App Store Connect |
+| `store-android` | rounded square with a play triangle | Google Play, Google Play Console |
+| `platform-ios`, `platform-android` | phone outlines (top pill, camera dot) | iOS, Android |
+| `send` | paper plane | TestFlight |
+| `repo` | repository outline | GitHub |
+| `code` | code brackets | Expo |
+| `pipeline` | three lanes that fork | Fastlane |
+
+```svelte
+<StoreBadge store="app_store" variant="full" />   <!-- glyph + "App Store Connect" -->
+<StoreBadge store="google_play" />                <!-- chip: glyph + "Google Play" -->
+<StoreBadge store="github" variant="icon" />      <!-- glyph only; the glyph carries the title -->
+<StoreBadge store="google_play" tone="tinted" />  <!-- the one restrained accent: ok tint -->
+<PlatformBadge platform="ios" />                  <!-- tile + "iOS"; showLabel={false} keeps the name for screen readers -->
+```
+
+Use `lib/stores.ts` instead of repeating strings: `storeForCredentialKind('app_store_connect')`,
+`storeForPlatform('android')`, `storeForRepositoryHost('github.com')`, `storeForProjectKind('expo')`
+return `{ store, label, fullLabel, icon, tint }`; an unknown value is the neutral generic store (or
+the neutral Git host for an unknown repository host).
+
+Tints: only the App Store and Google Play (and TestFlight) can be tinted, with the existing `info`
+and `ok` tokens (`-bg`, `-ink`, `-line`), which already pass AA in both themes. The default is
+neutral. Do not add a colour per brand. Do not use a tinted store badge next to a status badge of
+the same tint without the text, because green and blue also mean "ok" and "info".
+
+### Trademarks
+
+Names and logos of third-party services (Apple App Store, App Store Connect, TestFlight, iOS, Google
+Play, Google Play Console, Android, GitHub, Expo, Fastlane) are trademarks of their respective owners,
+used only to identify the service. This project is not affiliated with, endorsed by or sponsored by
+any of them. The official badges ("Download on the App Store", "Get it on Google Play") must never be
+reproduced, and the marks here are small generic glyphs, not logos. See `THIRD_PARTY_NOTICES.md`.
+
+### Adding an icon safely
+
+1. Hand-author it on the 24 x 24 grid in `lib/icons.ts` (`stroke(...)` for a 2px round-stroke
+   outline, geometry inside 1..23; `fill(...)` for a solid, closed shape inside 0..24). Only
+   `<path d>`, `<circle>` and `<rect>`. Do not paste path data you cannot license.
+2. Add its name to `EXPECTED_NAMES` in `lib/icons.test.ts` (that list is the snapshot).
+3. Run `pnpm --filter @mrm/web icons:check` (prints each icon's bounding box and fails on invalid
+   path grammar or anything outside the viewBox) and `pnpm --filter @mrm/web test`.
+4. Look at it in `IconGallery.svelte` in both themes at 14, 16 and 24 px. The checks do not tell you
+   whether it looks right.
+5. A mark for a third-party brand needs a row in `THIRD_PARTY_NOTICES.md` and an entry in
+   `genericBrandIcons` (the test fails without it). A real brand glyph (for example from Simple Icons,
+   CC0 data with a trademark caveat) is only acceptable if its exact `d` is copied byte for byte from
+   the official repository file, recorded there with URL, commit and licence, and passes the checker.
+   Never type brand paths from memory.
+
+To look at the gallery, mount `components/ui/IconGallery.svelte` temporarily (for example in
+`src/main.ts`) and run the dev server. It is dev only and nothing imports it.
+
+### Adoption list for screens still being rewritten
+
+These files were not edited when the icon system landed (other work was in progress). Apply them
+when that work is merged. `PlatformBadge` (portfolio and ui) already uses the new platform glyphs
+everywhere without a change, and `ReleaseStatus` shows its status icon.
+
+| File | Where | Use |
+| --- | --- | --- |
+| `components/release/PlanOverview.svelte` | `<Badge tone="bad" dot>Blocked</Badge>`, the due and readiness badges (about lines 123 to 125) | `icon="alert-triangle"` / `toneIcon(due.tone)` / `icon={readiness.ready ? 'check-circle' : 'alert-triangle'}` instead of `dot` |
+| `components/release/ReleaseDetail.svelte` | Blocked, due and rollout badges (about lines 207 to 209) | Same as above; rollout badge `icon="trending-up"` |
+| `components/release/Rollout.svelte` | `storeSource` (about line 84) and the "Planning only" sentence (about line 221) say "App Store Connect" or "Google Play" in plain text; badges at about lines 255 and 337 | `<StoreBadge store={app_store or google_play} variant="full" size="sm" />` beside the sentence; badges get `toneIcon(tone)` instead of `dot` |
+| `components/release/RolloutObserved.svelte` | `source` (about line 17) | `StoreBadge variant="full" size="sm"` in the header |
+| `components/release/ReleaseNotes.svelte`, `NewPlan.svelte` | Store limits in prose (App Store 4000, Google Play 500) | `StoreBadge variant="chip" size="sm"` before each limit |
+| `components/release/Checklist.svelte` | Required and Optional badges (about line 198) | `icon="flag"` on Required |
+| `components/release/PlatformPanel.svelte`, `components/dashboard/BoardCard.svelte`, `components/dashboard/AttentionStrip.svelte`, `components/portfolio/AppDetail.svelte`, `components/portfolio/BuildsPanel.svelte` | `PlatformBadge` | Nothing to do. Optionally add `<StoreBadge store={storeForPlatform(platform).store} size="sm" />` on the app header of `AppDetail` |
+| `components/dashboard/BoardCard.svelte`, `AttentionStrip.svelte` | `dot` badges (Planned, due, rollout, attention kinds) | `icon={toneIcon(tone)}` instead of `dot` |
+| `components/portfolio/BuildsPanel.svelte` | "on GitHub" link text (about lines 293 and 335); the link badge (about line 276) | `Icon name="repo"` before GitHub text; `icon="link"` on the link badge |
+| `components/portfolio/BuildsPanelChanges.svelte`, `BuildsPanelConventions.svelte` | "GitHub" in prose and the Found / Not found badges (about lines 352 and 356) | `StoreBadge store="github" size="sm"`; badges `icon="check-circle"` and `icon="alert-triangle"` |
+| `components/ci/CiPanel.svelte`, `RunsTable.svelte`, `DispatchDialog.svelte`, `RunStatus.svelte` | "GitHub Actions" headings, the dispatch badge (about line 200), run status | `StoreBadge store="github" variant="chip"` in the card title; `RunStatus` icon from `toneIcon(badge.tone)` (running: `refresh`, queued: `clock`) |
+| `components/repositories/RepositoryDetail.svelte` | Local only badge (about line 159) and the GitHub button (about line 161) | `icon="folder"` on the badge; `StoreBadge store="github" variant="icon"` before the repository name |
+| `components/repositories/ChangeSetReview.svelte`, `ApplyDialog.svelte` | "Open a pull request on GitHub" and "Push the branch to GitHub" | `Icon name="git-pull-request"` and `Icon name="git-branch"` before the option label; file-change badges `plus`, `edit`, `trash` |
+| `components/repositories/LocalCheckoutCard.svelte`, `LocalCheckoutConnect.svelte`, `LocalOutcomeCard.svelte` | Local clone state badge (about line 185), outcome step badges | `Icon name="folder"` on the card title; badges `icon={toneIcon(tone)}` |
+| `components/listing/*` | Source badges in the history drawer, field status badges, "new locale" | `icon="store-ios"` / `repo` for a store or repo source; `toneIcon(statusTone)`; `icon="language"` on "new locale" |
+| `components/assets/*`, `components/reviews/*` | Store names in headings and any status badge | `StoreBadge variant="chip"`; `toneIcon(tone)` on status badges |
+
+For the navigation, `lib/views.ts` keeps its current icons. A `zap` icon exists if you want the
+Webhooks entry to use it; `lib/format.ts` (`eventVisual`) would need the same change so the audit
+log agrees.
+
 
 ## Do
 

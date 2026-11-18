@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "icons:check": "node scripts/check-icons.ts",
     "test": "node --test \"src/**/*.test.ts\""
   },
   "dependencies": {
