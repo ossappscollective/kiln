@@ -40,6 +40,29 @@ export type ChangeSetFile = {
   after?: string;
 };
 
+/**
+ * What applying a change set as a commit on a new branch of a local clone did, step by step
+ * (docs/adr/0005-local-clone-reads.md). Stored as `outcome_json`; no path and no secret. A failed
+ * push or pull request does not undo the commit: it is recorded here and can be retried.
+ */
+export type LocalOutcome = {
+  mode: 'local_branch';
+  /** The local branch the commit was made on top of, and the commit that was its tip. */
+  base: { branch: string; commit: string };
+  commit: { branch: string; sha: string; at: number };
+  /** What the person asked for when applying. */
+  requested: { push: boolean; openPr: boolean };
+  push: { status: 'not_requested' | 'pushed' | 'failed'; at?: number; code?: string; error?: string };
+  pr: {
+    status: 'not_requested' | 'opened' | 'failed' | 'skipped';
+    at?: number;
+    url?: string;
+    number?: number;
+    code?: string;
+    error?: string;
+  };
+};
+
 export type ChangeSetView = {
   id: string;
   repositoryId: string;
@@ -56,6 +79,8 @@ export type ChangeSetView = {
   approvedBy: string | null;
   approvedAt: number | null;
   appliedAt: number | null;
+  /** How it was applied, step by step, for a commit in a local clone. Null for the GitHub pull request apply. */
+  outcome: LocalOutcome | null;
   filesChanged: number;
   files: ChangeSetFile[];
 };
@@ -64,12 +89,21 @@ type Row = Record<string, unknown>;
 const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
   v === null || v === undefined ? null : f(v);
 
-const changeOf = (f: FileChange): ChangeSetFile['change'] =>
+export const changeOf = (f: FileChange): ChangeSetFile['change'] =>
   f.before === undefined ? 'added' : f.after === undefined ? 'deleted' : 'modified';
 
-const parseFiles = (row: Row): FileChange[] => JSON.parse(String(row.files_json)) as FileChange[];
+export const parseOutcome = (row: Row): LocalOutcome | null => {
+  if (row.outcome_json === null || row.outcome_json === undefined) return null;
+  try {
+    return JSON.parse(String(row.outcome_json)) as LocalOutcome;
+  } catch {
+    return null;
+  }
+};
 
-function toView(row: Row, withContent: boolean): ChangeSetView {
+export const parseFiles = (row: Row): FileChange[] => JSON.parse(String(row.files_json)) as FileChange[];
+
+export function toView(row: Row, withContent: boolean): ChangeSetView {
   const files = parseFiles(row).map((f): ChangeSetFile => {
     const base = { path: f.path, change: changeOf(f) };
     if (!withContent) return base;
@@ -95,12 +129,13 @@ function toView(row: Row, withContent: boolean): ChangeSetView {
     approvedBy: orNull(row.approved_by, String),
     approvedAt: orNull(row.approved_at, Number),
     appliedAt: orNull(row.applied_at, Number),
+    outcome: parseOutcome(row),
     filesChanged: files.length,
     files,
   };
 }
 
-const rowOf = async (sql: Sql, workspaceId: string, id: string): Promise<Row | undefined> =>
+export const rowOf = async (sql: Sql, workspaceId: string, id: string): Promise<Row | undefined> =>
   (await sql.query('SELECT * FROM change_sets WHERE id = ? AND workspace_id = ?', [id, workspaceId]))[0];
 
 export async function listChangeSets(
@@ -134,7 +169,7 @@ export async function getChangeSet(
   return row ? toView(row, true) : undefined;
 }
 
-const invalidState = (status: string, wanted: string) =>
+export const invalidState = (status: string, wanted: string) =>
   failure(409, 'invalid_state', `This change set is ${status}; it must be ${wanted} for that.`, {
     status,
   });
@@ -391,7 +426,7 @@ export function neutraliseText(text: string): string {
 /** One line of the summary as a quote, so it cannot start a heading, a list or a code block. */
 const quoted = (summary: string) => `> ${neutraliseText(summary.replace(/\s+/g, ' ').trim())}`;
 
-function pullRequestBody(id: string, summary: string, files: FileChange[]): string {
+export function pullRequestBody(id: string, summary: string, files: FileChange[]): string {
   const shown = files.slice(0, 50).map((f) => `- \`${f.path}\` (${changeOf(f)})`);
   if (files.length > 50) shown.push(`- and ${files.length - 50} more`);
   return [

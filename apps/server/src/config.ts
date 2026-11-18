@@ -48,6 +48,28 @@ const schema = z.object({
   // (the default) turns local clones off. A list separated by `:` (`;` on Windows), absolute paths
   // only. See parseLocalRepoRoots.
   MRM_LOCAL_REPO_ROOTS: z.string().default(''),
+  // 'true' lets the server write to a local clone: a commit on a NEW branch (never the checked out
+  // one, never the working tree), and with the right options its push and a pull request. Off by
+  // default; reading local clones does not need it. See docs/adr/0005-local-clone-reads.md.
+  MRM_LOCAL_REPO_WRITE: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Author and committer of those commits. Optional: the person who applied the change set (their
+  // display name and email) is used for what is not set. One line, no angle brackets.
+  MRM_GIT_AUTHOR_NAME: blankIsUnset(
+    z
+      .string()
+      .trim()
+      .max(100)
+      .regex(/^[^\u0000-\u001f\u007f<>]+$/, 'must be one line without < or >')
+      .optional(),
+  ),
+  MRM_GIT_AUTHOR_EMAIL: blankIsUnset(
+    z
+      .string()
+      .trim()
+      .max(200)
+      .regex(/^[^\s<>@\u0000-\u001f\u007f]+@[^\s<>@\u0000-\u001f\u007f]+$/, 'must look like name@example.com')
+      .optional(),
+  ),
   // Minutes between scheduled store syncs of every app. 0 (the default) turns scheduled syncs off;
   // otherwise 5 to 10080 (a week). Scheduled syncs read the stores with the stored credentials,
   // so they are opt-in. See docs/api/ci.md.
@@ -141,6 +163,11 @@ export type Config = {
   syncIntervalMinutes: number;
   /** Folders that may hold local clones (MRM_LOCAL_REPO_ROOTS). Empty: local clones are off. */
   localRepoRoots: string[];
+  /** Commits on a new branch of a local clone, and their push, are allowed (MRM_LOCAL_REPO_WRITE). */
+  localRepoWrite: boolean;
+  /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL, when set. */
+  gitAuthorName?: string;
+  gitAuthorEmail?: string;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -181,5 +208,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     gitPath: data.MRM_GIT_PATH,
     syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
     localRepoRoots,
+    localRepoWrite: data.MRM_LOCAL_REPO_WRITE === 'true',
+    ...(data.MRM_GIT_AUTHOR_NAME ? { gitAuthorName: data.MRM_GIT_AUTHOR_NAME } : {}),
+    ...(data.MRM_GIT_AUTHOR_EMAIL ? { gitAuthorEmail: data.MRM_GIT_AUTHOR_EMAIL } : {}),
   };
 }

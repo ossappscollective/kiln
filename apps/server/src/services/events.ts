@@ -246,6 +246,7 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
     case 'changeset.approve':
       return { ...base, type: 'changeset.approved', subject, payload: { changeSetId, actor } };
     case 'changeset.apply':
+    case 'changeset.apply_local':
       return {
         ...base,
         type: 'changeset.applied',

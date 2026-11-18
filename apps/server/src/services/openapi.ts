@@ -40,6 +40,8 @@ export type Operation = {
   /** Query parameters, as a zod object (every key a parameter). */
   query?: ZodTypeAny;
   body?: ZodTypeAny;
+  /** The request body may be left out (the operation then does what it did before the body existed). */
+  bodyOptional?: boolean;
   /** Largest body in bytes (documented only; the limit is enforced by the app). */
   bodyLimit?: number;
   /** Success responses by status. Error responses are added by the builder. */
@@ -286,7 +288,7 @@ function operationObject(op: Operation): Record<string, unknown> {
     tags: op.tags,
     ...(parameters.length > 0 ? { parameters } : {}),
     ...(op.body
-      ? { requestBody: { required: true, content: { 'application/json': { schema: zodToJsonSchema(op.body) } } } }
+      ? { requestBody: { required: op.bodyOptional !== true, content: { 'application/json': { schema: zodToJsonSchema(op.body) } } } }
       : {}),
     responses,
     security,

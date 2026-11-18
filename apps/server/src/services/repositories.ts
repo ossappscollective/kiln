@@ -45,6 +45,7 @@ import {
 } from './clone-reads.ts';
 import {
   LOCAL_ONLY_APPLY_MESSAGE,
+  type LocalWriteConfig,
   LOCAL_ONLY_MESSAGE,
   localAvailability,
   localCloneId,
@@ -91,6 +92,11 @@ export type RepoContext = {
    * inactive (`MRM_READS=api`): every read goes through the connector as before.
    */
   reads?: CloneReads;
+  /**
+   * Writing to local clones: a commit on a new branch, and its push (MRM_LOCAL_REPO_WRITE,
+   * docs/adr/0005-local-clone-reads.md). Omitted: off.
+   */
+  localWrite?: LocalWriteConfig;
 };
 
 export const DEFAULT_REPO_TIMEOUT_MS = 90_000;
@@ -343,7 +349,7 @@ export async function getDetection(
 // ---------------------------------------------------------------------------------------------
 // Opening a connector from a stored credential
 
-export type Opened = { connector: RepoClient; secret: string };
+export type Opened = { connector: RepoClient; secret: string; kind?: 'github_app' | 'github_token' };
 
 /**
  * The purposes whose reads may come from a clone. Everything else (connecting, applying a change
@@ -356,7 +362,7 @@ export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
 ]);
 
 /** The token git authenticates with: the PAT, or the App's installation token as a function. */
-function cloneToken(
+export function cloneToken(
   kind: 'github_app' | 'github_token',
   secret: string,
   api: RepoClient,
@@ -464,7 +470,7 @@ export async function openConnector(
     const { repository, workspaceId } = input;
     const reads = ctx.reads;
     if (!repository || !reads?.active || !CLONE_READ_PURPOSES.has(purpose)) {
-      return { ok: true, connector: api, secret };
+      return { ok: true, connector: api, secret, kind };
     }
     const where = { workspaceId, repositoryId: repository.id, purpose, secret };
     try {

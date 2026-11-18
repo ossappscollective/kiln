@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { ChangeSet } from '@mrm/core';
-import type { ProposalResult, ProposeOptions } from '@mrm/connectors';
+import type { OpenPullRequestOptions, OpenPullRequestResult, ProposalResult, ProposeOptions } from '@mrm/connectors';
 import { ChangeConflictError } from '@mrm/connectors';
 import { type Database, migrate } from '@mrm/db';
 import { createApp } from './app.ts';
@@ -45,6 +45,10 @@ export class FakeRepo implements RepoClient {
   proposeSignals: (AbortSignal | undefined)[] = [];
   /** What propose returns instead of a real result. */
   proposeResult?: Partial<ProposalResult>;
+  /** Pull requests opened for a branch that was pushed from a local clone, in order. */
+  pullRequests: OpenPullRequestOptions[] = [];
+  /** Errors thrown by the next openPullRequest calls, in order. */
+  openPullRequestErrors: unknown[] = [];
   #pr = 0;
 
   async defaultBranch(): Promise<string> {
@@ -85,6 +89,13 @@ export class FakeRepo implements RepoClient {
       commitSha: 'a'.repeat(40),
       ...this.proposeResult,
     };
+  }
+  async openPullRequest(options: OpenPullRequestOptions): Promise<OpenPullRequestResult> {
+    this.pullRequests.push(options);
+    const error = this.openPullRequestErrors.shift();
+    if (error) throw error;
+    const number = ++this.#pr;
+    return { url: `https://github.com/acme/app/pull/${number}`, number };
   }
   async dispatchWorkflow(): Promise<never> {
     throw new Error('not used');

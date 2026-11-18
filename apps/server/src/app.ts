@@ -30,6 +30,7 @@ import { operations } from './services/api-operations.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import { buildOpenApiDocument } from './services/openapi.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
+import type { LocalWriteConfig } from './services/local-reads.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
 
@@ -104,6 +105,8 @@ export type AppDeps = {
    * Built at start by `setUpReads`. Omitted: reads go through the GitHub API.
    */
   reads?: CloneReads;
+  /** Writing to local clones: MRM_LOCAL_REPO_WRITE, the commit author, and (tests) where a push goes. Omitted: off. */
+  localWrite?: LocalWriteConfig;
   /**
    * Store sync of apps. `connectorFactory` builds the read-only App Store Connect / Google Play
    * connector from a stored credential (overridable for tests), `timeoutMs` is the longest one
@@ -206,6 +209,7 @@ export function createApp(deps: AppDeps) {
       connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
       timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
       reads: deps.reads,
+      localWrite: deps.localWrite,
     }),
   );
   // One context and one budget for the sync routes and for the optional store read of a listing pull.

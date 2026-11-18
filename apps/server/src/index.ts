@@ -61,6 +61,13 @@ const reads = await setUpReads({
 if (config.localRepoRoots.length > 0) {
   console.log(`Local clones: allowed in ${config.localRepoRoots.join(', ')}`);
 }
+if (config.localRepoWrite) {
+  console.log(
+    config.localRepoRoots.length > 0
+      ? 'Local clones: writing is ON (MRM_LOCAL_REPO_WRITE): change sets may be committed to a new branch of a clone.'
+      : 'MRM_LOCAL_REPO_WRITE=true has no effect until MRM_LOCAL_REPO_ROOTS names the folders that may hold clones.',
+  );
+}
 
 // One budget for manual and scheduled syncs (10 per workspace per minute).
 const syncLimiter = createTestLimiter();
@@ -74,6 +81,11 @@ const app = createApp({
   webhooks: { allowPrivate: config.webhooksAllowPrivate },
   appSync: { limiter: syncLimiter },
   reads,
+  localWrite: {
+    enabled: config.localRepoWrite,
+    ...(config.gitAuthorName ? { authorName: config.gitAuthorName } : {}),
+    ...(config.gitAuthorEmail ? { authorEmail: config.gitAuthorEmail } : {}),
+  },
   masterKey: config.masterKey,
   version: VERSION,
   webDist,

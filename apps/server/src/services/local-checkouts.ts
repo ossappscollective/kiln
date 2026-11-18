@@ -14,6 +14,8 @@ import {
   type LocalAvailability,
   localAvailability,
   localCloneId,
+  localWriteAvailability,
+  WRITE_ENV_NAME,
 } from './local-reads.ts';
 import {
   type Failure,
@@ -43,13 +45,19 @@ export type LocalConfigView = {
   reason?: string;
   /** The allowed folders. Only given to people who may attach a folder. */
   roots?: string[];
+  /** Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE), and if not, why not. */
+  write: { enabled: boolean; envName: string; message?: string };
 };
 
-export function localConfigView(ctx: Pick<RepoContext, 'reads'>, includeRoots: boolean): LocalConfigView {
+export function localConfigView(ctx: Pick<RepoContext, 'reads' | 'localWrite'>, includeRoots: boolean): LocalConfigView {
   const available: LocalAvailability = localAvailability(ctx.reads);
+  const writable = localWriteAvailability(ctx.localWrite);
+  const write = writable.enabled
+    ? { enabled: true, envName: WRITE_ENV_NAME }
+    : { enabled: false, envName: WRITE_ENV_NAME, message: writable.message };
   return available.enabled
-    ? { enabled: true, envName: ENV_NAME, ...(includeRoots ? { roots: available.roots } : {}) }
-    : { enabled: false, envName: ENV_NAME, reason: available.reason, message: available.message };
+    ? { enabled: true, envName: ENV_NAME, ...(includeRoots ? { roots: available.roots } : {}), write }
+    : { enabled: false, envName: ENV_NAME, reason: available.reason, message: available.message, write };
 }
 
 const refusal = (available: LocalAvailability): Failure | undefined =>

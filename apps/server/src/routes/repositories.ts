@@ -32,6 +32,7 @@ import {
   repositoryView,
   scanRepository,
 } from '../services/repositories.ts';
+import { applyChangeSetLocally, publishLocalCommit } from '../services/change-set-local.ts';
 import {
   approveChangeSet,
   applyChangeSet,
@@ -80,6 +81,17 @@ const localAttachBody = z.object({
   branch: localBranch.optional(),
   allowRemoteMismatch: z.boolean().optional(),
 });
+
+// How to apply a change set. No body, or `{}`, is `github_pr`, as before. `local_branch` commits on a
+// new branch of the repository's local clone; `push` and `openPr` go with it only
+// (docs/adr/0005-local-clone-reads.md). The branch name is checked again by the service.
+const applyBody = z.object({
+  mode: z.enum(['github_pr', 'local_branch']).optional(),
+  branch: z.string().trim().min(1).max(200).optional(),
+  push: z.boolean().optional(),
+  openPr: z.boolean().optional(),
+});
+const publishBody = z.object({ openPr: z.boolean().optional() });
 
 // A locale folder (`en-US`, `de`) or the fastlane `default` folder. No slashes, so a key can never
 // point outside the metadata folder.
@@ -393,16 +405,80 @@ export function repositoryRoutes(ctx: RepoContext) {
   });
 
   app.post('/:workspaceId/change-sets/:id/apply', needs('changesets.approve'), async (c) => {
-    // Before the change set is claimed: it stays approved. Local-only repositories cannot be applied yet.
+    // The body is optional: none (or an empty one) is the GitHub pull request, as it always was.
+    const raw = await c.req.text();
+    let parsed: z.infer<typeof applyBody> = {};
+    if (raw.trim() !== '') {
+      let json: unknown;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        return c.json({ error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] }, 400);
+      }
+      const result = applyBody.safeParse(json);
+      if (!result.success) {
+        return c.json(
+          { error: 'invalid_request', issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+          400,
+        );
+      }
+      parsed = result.data;
+    }
+    const answer = (done: Awaited<ReturnType<typeof applyChangeSet>>) => {
+      if (!done.ok) return respond(c, done);
+      return c.json(
+        done.alreadyApplied
+          ? { changeSet: done.changeSet, alreadyApplied: true }
+          : { changeSet: done.changeSet },
+      );
+    };
+
+    if (parsed.mode === 'local_branch') {
+      return answer(
+        await applyChangeSetLocally(
+          ctx,
+          {
+            workspaceId: ws(c),
+            id: param(c, 'id'),
+            branch: parsed.branch,
+            push: parsed.push === true,
+            openPr: parsed.openPr === true,
+          },
+          actor(c),
+        ),
+      );
+    }
+    if (parsed.branch !== undefined || parsed.push !== undefined || parsed.openPr !== undefined) {
+      return c.json(
+        { error: 'invalid_request', message: '"branch", "push" and "openPr" apply to mode local_branch only.' },
+        400,
+      );
+    }
+    // Before the change set is claimed: it stays approved. A local-only repository has no GitHub to open a pull request on.
     const refused = await localOnlyApplyRefusal(ctx, { workspaceId: ws(c), changeSetId: param(c, 'id') });
     if (refused) return respond(c, refused);
-    const done = await applyChangeSet(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    return answer(await applyChangeSet(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c)));
+  });
+
+  // Pushes the branch of a change set that was applied as a local commit, and optionally opens the
+  // pull request. Repeating it is safe: finished steps are skipped. Needs the same right as apply.
+  app.post('/:workspaceId/change-sets/:id/push', needs('changesets.approve'), async (c) => {
+    const raw = await c.req.text();
+    let openPr = false;
+    if (raw.trim() !== '') {
+      let json: unknown;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = undefined;
+      }
+      const body = publishBody.safeParse(json);
+      if (!body.success) return c.json({ error: 'invalid_request' }, 400);
+      openPr = body.data.openPr === true;
+    }
+    const done = await publishLocalCommit(ctx, { workspaceId: ws(c), id: param(c, 'id'), openPr }, actor(c));
     if (!done.ok) return respond(c, done);
-    return c.json(
-      done.alreadyApplied
-        ? { changeSet: done.changeSet, alreadyApplied: true }
-        : { changeSet: done.changeSet },
-    );
+    return c.json(done.alreadyDone ? { changeSet: done.changeSet, alreadyDone: true } : { changeSet: done.changeSet });
   });
 
   app.post('/:workspaceId/change-sets/:id/discard', needs('changesets.write'), async (c) => {

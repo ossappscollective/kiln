@@ -90,7 +90,39 @@ export async function localStatus(
 export const LOCAL_ONLY_MESSAGE =
   'This repository is only a folder on this machine (it has no GitHub connection), so it cannot be used for pull requests, workflow runs or other GitHub features.';
 export const LOCAL_ONLY_APPLY_MESSAGE =
-  'Applying a change set to a local-only repository is not available yet. A later version will commit the change to a branch of the local clone. Until then, connect the repository on GitHub to open a pull request, or copy the changes by hand.';
+  'This repository has no GitHub connection, so its change sets cannot be applied as a pull request on GitHub. Apply it as a commit on a new branch of the local clone instead (mode local_branch).';
+
+export const WRITE_ENV_NAME = 'MRM_LOCAL_REPO_WRITE';
+
+/**
+ * Writing to local clones (a commit on a new branch, docs/adr/0005-local-clone-reads.md) is a
+ * separate opt-in from reading them: `MRM_LOCAL_REPO_WRITE=true`.
+ */
+export type LocalWriteConfig = {
+  enabled: boolean;
+  /** MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL; the acting person is used when they are not set. */
+  authorName?: string;
+  authorEmail?: string;
+  /** For tests only: where a push goes and how, instead of https://github.com/<owner>/<repo>.git. */
+  push?: {
+    url?: (owner: string, repo: string) => string;
+    protocol?: 'http' | 'file';
+    timeoutMs?: number;
+  };
+};
+
+export type LocalWriteAvailability =
+  | { enabled: true }
+  | { enabled: false; envName: typeof WRITE_ENV_NAME; message: string };
+
+export function localWriteAvailability(write: LocalWriteConfig | undefined): LocalWriteAvailability {
+  if (write?.enabled) return { enabled: true };
+  return {
+    enabled: false,
+    envName: WRITE_ENV_NAME,
+    message: `Writing to local clones is not enabled. Set ${WRITE_ENV_NAME}=true and restart the server to allow a commit on a new branch of a local clone.`,
+  };
+}
 
 function localOnlyStub(): RepoConnector & { defaultBranch(): Promise<string> } {
   const refuse = (): never => {

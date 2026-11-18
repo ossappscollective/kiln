@@ -160,3 +160,35 @@ test('MRM_LOCAL_REPO_ROOTS applies the same way in single-user mode', () => {
   const blank = loadConfig({ MRM_MASTER_KEY: key, MRM_MODE: 'single_user', MRM_LAUNCH_SECRET: secret });
   assert.deepEqual(blank.localRepoRoots, []);
 });
+
+test('MRM_LOCAL_REPO_WRITE is off by default; only true and false are accepted; blank means off', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).localRepoWrite, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_WRITE: '' }).localRepoWrite, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_WRITE: 'false' }).localRepoWrite, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_WRITE: 'true' }).localRepoWrite, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_WRITE: bad }), /MRM_LOCAL_REPO_WRITE/, bad);
+  }
+});
+
+test('MRM_GIT_AUTHOR_NAME and MRM_GIT_AUTHOR_EMAIL are optional, trimmed and validated', () => {
+  const none = loadConfig({ MRM_MASTER_KEY: key });
+  assert.equal(none.gitAuthorName, undefined);
+  assert.equal(none.gitAuthorEmail, undefined);
+  const blank = loadConfig({ MRM_MASTER_KEY: key, MRM_GIT_AUTHOR_NAME: '  ', MRM_GIT_AUTHOR_EMAIL: '' });
+  assert.equal(blank.gitAuthorName, undefined);
+  assert.equal(blank.gitAuthorEmail, undefined);
+  const set = loadConfig({
+    MRM_MASTER_KEY: key,
+    MRM_GIT_AUTHOR_NAME: ' Release Bot ',
+    MRM_GIT_AUTHOR_EMAIL: ' bot@example.com ',
+  });
+  assert.equal(set.gitAuthorName, 'Release Bot');
+  assert.equal(set.gitAuthorEmail, 'bot@example.com');
+  for (const name of ['Bot <x@y.z>', 'two\nlines', 'a'.repeat(101)]) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_GIT_AUTHOR_NAME: name }), /MRM_GIT_AUTHOR_NAME/);
+  }
+  for (const email of ['nobody', 'a@b@c', 'a b@c.d', '<a@b.c>']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_GIT_AUTHOR_EMAIL: email }), /MRM_GIT_AUTHOR_EMAIL/);
+  }
+});

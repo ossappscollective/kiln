@@ -178,6 +178,7 @@ dbTest('without MRM_LOCAL_REPO_ROOTS every local route is refused and says which
   assert.equal(config.body.local.envName, 'MRM_LOCAL_REPO_ROOTS');
   assert.match(config.body.local.message, /MRM_LOCAL_REPO_ROOTS=/);
   assert.equal(config.body.local.roots, undefined);
+  assert.equal(config.body.local.write.enabled, false);
   const { repositoryId } = await t.connect();
   for (const [method, path, body] of [
     ['POST', '/repositories/local/check', { path: dir }],
@@ -196,10 +197,12 @@ dbTest('the setting lists the allowed folders to people who may attach one, not 
   const b = await boot(db);
   const { t } = b;
   const owner = await t.call(t.owner, 'GET', '/repositories/local/config');
-  assert.deepEqual(owner.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', roots: [b.root] });
+  const write = { enabled: false, envName: 'MRM_LOCAL_REPO_WRITE', message: owner.body.local.write.message };
+  assert.match(write.message, /MRM_LOCAL_REPO_WRITE=true/);
+  assert.deepEqual(owner.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', roots: [b.root], write });
   const member = await t.addMember('member');
   const seen = await t.call(member, 'GET', '/repositories/local/config');
-  assert.deepEqual(seen.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS' });
+  assert.deepEqual(seen.body.local, { enabled: true, envName: 'MRM_LOCAL_REPO_ROOTS', write });
 });
 
 dbTest('MRM_READS=api means git is never run: local clones are refused with a clear error', async (db) => {
@@ -586,7 +589,7 @@ dbTest('local-only: connect a folder with no GitHub, read it, make a change set,
   const apply = await t.call(t.owner, 'POST', `/change-sets/${draftId}/apply`);
   assert.equal(apply.status, 409, apply.text);
   assert.equal(apply.body.error, 'local_only');
-  assert.match(apply.body.message, /not available yet/);
+  assert.match(apply.body.message, /commit on a new branch of the local clone/);
   assert.equal(b.api.proposals.length, 0);
   const after = await t.call(t.owner, 'GET', `/change-sets/${draftId}`);
   assert.equal(after.body.changeSet.status, 'approved', 'it stays approved, nothing was claimed');
