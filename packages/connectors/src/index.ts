@@ -12,3 +12,4 @@ export * from './mappings.ts';
 export * from './appstoreconnect.ts';
 export * from './googleplay.ts';
 export * from './verify-store.ts';
+export * from './expo-store.ts';
