@@ -637,4 +637,219 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 15,
+    name: 'release plan rollout steps and reminder log',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // Staged rollout as planning data (nothing here is read from or written to a store).
+      // release_plans.rollout_kind: NULL when the plan has no rollout plan, 'steps' (our own list of
+      // percentages) or 'apple_phased' (Apple's fixed 7-day schedule, shown for information, with no
+      // rows of its own). rollout_template: the built-in template the plan started from, if any.
+      // rollout_start_at: epoch milliseconds of the expected day 1 of an Apple phased release.
+      // plan_rollout_steps: one row per step, in position order (a plain index, not a unique one,
+      // so a step can be moved without a transient clash). percent is a whole number 1 to 100;
+      // status is planned, done or skipped; done_source is manual or store (a person confirmed it
+      // against the share a sync saw). A table, not JSON on the plan: a step changes state on its
+      // own (UPDATE ... WHERE status = ... is atomic between server instances) and the reminder
+      // scan finds due steps with an index instead of parsing every plan.
+      // plan_reminders: which reminder was already sent, so a restart, a second tick or a second
+      // server instance never sends one twice. The primary key is the lock: an instance sends a
+      // reminder only if its INSERT ... ON CONFLICT DO NOTHING added the row. item_id is
+      // 'target_date' for the deadline of the plan or a rollout step id; kind is due_soon,
+      // overdue or rollout_step_due; due_key is the due date (YYYY-MM-DD) or the planned time of
+      // the step, so changing the date makes a new key and re-arms the reminder.
+      return [
+        'ALTER TABLE release_plans ADD COLUMN rollout_kind TEXT',
+        'ALTER TABLE release_plans ADD COLUMN rollout_template TEXT',
+        `ALTER TABLE release_plans ADD COLUMN rollout_start_at ${t}`,
+        `CREATE TABLE IF NOT EXISTS plan_rollout_steps (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           plan_id TEXT NOT NULL REFERENCES release_plans(id),
+           position INTEGER NOT NULL,
+           percent INTEGER NOT NULL,
+           planned_at ${t},
+           note TEXT,
+           status TEXT NOT NULL DEFAULT 'planned',
+           done_at ${t},
+           done_by TEXT,
+           done_source TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS plan_rollout_steps_plan_idx ON plan_rollout_steps (plan_id, position)',
+        'CREATE INDEX IF NOT EXISTS plan_rollout_steps_due_idx ON plan_rollout_steps (status, planned_at)',
+        `CREATE TABLE IF NOT EXISTS plan_reminders (
+           plan_id TEXT NOT NULL REFERENCES release_plans(id),
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           item_id TEXT NOT NULL,
+           kind TEXT NOT NULL,
+           due_key TEXT NOT NULL,
+           sent_at ${t} NOT NULL,
+           PRIMARY KEY (plan_id, item_id, kind, due_key)
+         )`,
+        'CREATE INDEX IF NOT EXISTS plan_reminders_workspace_idx ON plan_reminders (workspace_id)',
+      ];
+    },
+  },
+  {
+    id: 16,
+    name: 'listing read attempts: listing_attempt_at, listing_failures and listing_warnings',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // app_listing_status.listing_attempt_at: when the last listing read of the app was tried, by
+      // any path (a manual refresh, an app sync or a scheduled read), successful or not. The
+      // scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) is due an interval after it, and
+      // claims a read with a compare-and-set on it so two instances do not read one app at once.
+      // listing_failures: reads in a row that failed (0 after a success); the scheduler backs off
+      // by it. Both are NULL / 0 for every row that existed before: such an app is simply due.
+      // listing_warnings: the connector's warnings of the last successful read (a JSON array of
+      // short sentences), NULL when there were none or no read has happened since the upgrade.
+      // The new listing sections (categories, age rating, ...) need no column: they are rows of
+      // listing_snapshots (locale _app, field section:<name>).
+      return [
+        `ALTER TABLE app_listing_status ADD COLUMN listing_attempt_at ${t}`,
+        'ALTER TABLE app_listing_status ADD COLUMN listing_failures INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE app_listing_status ADD COLUMN listing_warnings TEXT',
+      ];
+    },
+  },
+  {
+    id: 17,
+    name: 'change set origin: the request a change set was made from (origin_json)',
+    statements: () => {
+      // change_sets.origin_json: what a change set was made from, as JSON, so it can be made again
+      // from the current sources (docs/api/listing.md, "Recompute a pull"). Today only the store
+      // pull writes it: { v, source: 'store_pull', appId, channel, request (the locales, fields,
+      // items, addLocales, folders and summary of the pull), fields (per pulled field: locale, repo
+      // locale, field and a hash of the text, never the text) }. NULL for every row that existed
+      // before and for change sets from other sources: those cannot be recomputed.
+      return ['ALTER TABLE change_sets ADD COLUMN origin_json TEXT'];
+    },
+  },
+  {
+    id: 18,
+    name: 'app icons: app_icons, the resolved icon of an app',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // app_icons: at most one row per app (app_id is the key; it has no foreign key on purpose,
+      // deleting an app removes the row in code, like the listing snapshots). The icon is stored
+      // as base64 text (at most 256 KB of image, so at most about 342 KB of text), which both
+      // dialects take without a binary column. source is repository, app_store or google_play;
+      // source_id is what identifies the bytes there: the git blob id of the file, or the host
+      // of the image URL. etag is a hash of the bytes (the HTTP ETag of the icon route).
+      // checked_at is the last time the source was looked at (a successful read or not),
+      // failures the failed attempts in a row and backoff_until when the next attempt is allowed.
+      // A row without data records only a failed or empty look (there is no icon to show).
+      return [
+        `CREATE TABLE IF NOT EXISTS app_icons (
+           app_id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           source TEXT,
+           source_id TEXT,
+           media_type TEXT,
+           data TEXT,
+           size INTEGER,
+           width INTEGER,
+           height INTEGER,
+           etag TEXT,
+           fetched_at ${t},
+           checked_at ${t} NOT NULL,
+           failures INTEGER NOT NULL DEFAULT 0,
+           backoff_until ${t},
+           last_error TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS app_icons_workspace_idx ON app_icons (workspace_id)',
+      ];
+    },
+  },
+  {
+    id: 19,
+    name: 'customer reviews inbox: app_reviews, review_sync_state and app_rating_summaries',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // app_reviews: one row per review the store returned (read only; nothing is ever sent to a
+      // store). The review text and the public display name are third-party personal data that the
+      // store itself shows: only what the store returns is kept, and MRM_REVIEW_RETENTION_DAYS
+      // prunes old rows. app_id has no foreign key on purpose (deleting an app removes its rows in
+      // code, like the listing snapshots). store is appstoreconnect or googleplay; store_review_id
+      // is the store's own id, unique per app, so a re-sync upserts. created_at and updated_at are
+      // the store's times (Google Play sends only a last modification time: it fills both on the
+      // first read, and created_at is kept after that); first_seen_at is when we first read it and
+      // fetched_at the last read. developer_response is JSON {body, at?, state?} or NULL.
+      // status is our own triage state (new, triaged, replied_in_console, ignored) with the
+      // assignee, an internal note and who changed it when; none of it goes to a store.
+      // low_rating_notified_at: when review.new_low_rating was emitted for this review (or when it
+      // was recorded as part of a quiet baseline), so a re-sync never emits it twice.
+      // review_sync_state: one row per app and store with the continuation cursor of an unfinished
+      // read (App Store), the last attempt and success, the last error, the failure streak, the
+      // time before which the scheduler does not try again (backoff), when review.sync_failed was
+      // last emitted for the streak, when a gap (a Play window missed) was last detected, and the
+      // last result as JSON. app_rating_summaries: the store-wide rating of an app per territory
+      // (public iTunes lookup), a row only when a value changed; averages are thousandths.
+      return [
+        `CREATE TABLE IF NOT EXISTS app_reviews (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           store TEXT NOT NULL,
+           store_review_id TEXT NOT NULL,
+           rating INTEGER NOT NULL,
+           title TEXT,
+           body TEXT NOT NULL,
+           author_name TEXT,
+           territory TEXT,
+           language TEXT,
+           app_version TEXT,
+           build_number TEXT,
+           device TEXT,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL,
+           first_seen_at ${t} NOT NULL,
+           fetched_at ${t} NOT NULL,
+           developer_response TEXT,
+           status TEXT NOT NULL DEFAULT 'new',
+           assignee_user_id TEXT,
+           internal_note TEXT,
+           status_changed_at ${t},
+           status_changed_by TEXT,
+           low_rating_notified_at ${t}
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS app_reviews_store_id_idx ON app_reviews (app_id, store_review_id)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_app_created_idx ON app_reviews (app_id, created_at)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_app_rating_idx ON app_reviews (app_id, rating)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_app_status_idx ON app_reviews (app_id, status)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_workspace_idx ON app_reviews (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS review_sync_state (
+           app_id TEXT NOT NULL,
+           store TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           cursor TEXT,
+           last_attempt_at ${t},
+           last_success_at ${t},
+           last_error TEXT,
+           consecutive_failures INTEGER NOT NULL DEFAULT 0,
+           backoff_until ${t},
+           failure_notified_at ${t},
+           last_gap_at ${t},
+           last_result TEXT,
+           PRIMARY KEY (app_id, store)
+         )`,
+        'CREATE INDEX IF NOT EXISTS review_sync_state_workspace_idx ON review_sync_state (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS app_rating_summaries (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           store TEXT NOT NULL,
+           territory TEXT NOT NULL,
+           average_milli INTEGER,
+           rating_count INTEGER,
+           current_average_milli INTEGER,
+           current_count INTEGER,
+           observed_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS app_rating_summaries_app_idx ON app_rating_summaries (app_id, store, territory, observed_at)',
+        'CREATE INDEX IF NOT EXISTS app_rating_summaries_workspace_idx ON app_rating_summaries (workspace_id)',
+      ];
+    },
+  },
 ];

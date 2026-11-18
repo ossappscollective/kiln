@@ -26,7 +26,7 @@ dbTest('migration 14 adds outcome_json and publish_claim_at to change_sets and k
   );
 
   const applied = await migrate(db);
-  assert.deepEqual(applied, [14]);
+  assert.ok(applied.includes(14), 'migration 14 was applied');
 
   const [row] = await db.query('SELECT status, outcome_json, publish_claim_at FROM change_sets WHERE id = ?', ['cs1']);
   assert.equal(row?.status, 'applied');

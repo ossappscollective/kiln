@@ -174,6 +174,8 @@ export const changeSets = sqliteTable(
     outcomeJson: text('outcome_json'),
     /** Set while a push or pull request of a local commit is being made. */
     publishClaimAt: integer('publish_claim_at'),
+    /** What the change set was made from (the store pull's request) as JSON, so it can be recomputed; null otherwise. */
+    originJson: text('origin_json'),
   },
   (t) => [
     index('change_sets_workspace_idx').on(t.workspaceId, t.createdAt),
@@ -392,6 +394,12 @@ export const appListingStatus = sqliteTable('app_listing_status', {
     .references(() => workspaces.id),
   listingReadAt: integer('listing_read_at'),
   listingError: text('listing_error'),
+  /** When the last listing read was tried (any path, success or not). */
+  listingAttemptAt: integer('listing_attempt_at'),
+  /** Failed reads in a row; 0 after a success. */
+  listingFailures: integer('listing_failures').notNull().default(0),
+  /** The connector's warnings of the last successful read, a JSON array of sentences. */
+  listingWarnings: text('listing_warnings'),
   repoReadAt: integer('repo_read_at'),
   repoRef: text('repo_ref'),
   repoError: text('repo_error'),
@@ -538,6 +546,12 @@ export const releasePlans = sqliteTable(
     createdBy: text('created_by').notNull(),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
+    /** Null: no rollout plan. steps (our own percentages) or apple_phased (Apple's fixed schedule, informational). */
+    rolloutKind: text('rollout_kind'),
+    /** The built-in rollout template the plan started from, if any. */
+    rolloutTemplate: text('rollout_template'),
+    /** Epoch milliseconds of the expected day 1 of an Apple phased release. */
+    rolloutStartAt: integer('rollout_start_at'),
   },
   (t) => [
     uniqueIndex('release_plans_app_version_idx').on(t.appId, t.version),
@@ -637,4 +651,177 @@ export const repositoryLocalCheckouts = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [uniqueIndex('repository_local_checkouts_path_idx').on(t.workspaceId, t.path)],
+);
+
+export const planRolloutSteps = sqliteTable(
+  'plan_rollout_steps',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    planId: text('plan_id')
+      .notNull()
+      .references(() => releasePlans.id),
+    position: integer('position').notNull(),
+    /** A whole number, 1 to 100. */
+    percent: integer('percent').notNull(),
+    plannedAt: integer('planned_at'),
+    note: text('note'),
+    /** planned, done or skipped. */
+    status: text('status').notNull().default('planned'),
+    doneAt: integer('done_at'),
+    doneBy: text('done_by'),
+    /** manual, or store when a person confirmed the step against the share a sync saw. */
+    doneSource: text('done_source'),
+  },
+  (t) => [
+    index('plan_rollout_steps_plan_idx').on(t.planId, t.position),
+    index('plan_rollout_steps_due_idx').on(t.status, t.plannedAt),
+  ],
+);
+
+export const planReminders = sqliteTable(
+  'plan_reminders',
+  {
+    planId: text('plan_id')
+      .notNull()
+      .references(() => releasePlans.id),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** target_date for the plan's deadline, or a rollout step id. */
+    itemId: text('item_id').notNull(),
+    /** due_soon, overdue or rollout_step_due. */
+    kind: text('kind').notNull(),
+    /** The due date (YYYY-MM-DD) or the planned time of the step: a new date is a new key. */
+    dueKey: text('due_key').notNull(),
+    sentAt: integer('sent_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.planId, t.itemId, t.kind, t.dueKey] }),
+    index('plan_reminders_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** Customer reviews read from a store (read only). See migration 19 for what each column means. */
+export const appReviews = sqliteTable(
+  'app_reviews',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: deleting an app removes its rows in code. */
+    appId: text('app_id').notNull(),
+    /** appstoreconnect or googleplay. */
+    store: text('store').notNull(),
+    storeReviewId: text('store_review_id').notNull(),
+    rating: integer('rating').notNull(),
+    title: text('title'),
+    body: text('body').notNull(),
+    authorName: text('author_name'),
+    territory: text('territory'),
+    language: text('language'),
+    appVersion: text('app_version'),
+    buildNumber: text('build_number'),
+    device: text('device'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    firstSeenAt: integer('first_seen_at').notNull(),
+    fetchedAt: integer('fetched_at').notNull(),
+    /** JSON { body, at?, state? } or null. */
+    developerResponse: text('developer_response'),
+    /** Our own triage state: new, triaged, replied_in_console or ignored. Never sent to a store. */
+    status: text('status').notNull().default('new'),
+    assigneeUserId: text('assignee_user_id'),
+    internalNote: text('internal_note'),
+    statusChangedAt: integer('status_changed_at'),
+    statusChangedBy: text('status_changed_by'),
+    lowRatingNotifiedAt: integer('low_rating_notified_at'),
+  },
+  (t) => [
+    uniqueIndex('app_reviews_store_id_idx').on(t.appId, t.storeReviewId),
+    index('app_reviews_app_created_idx').on(t.appId, t.createdAt),
+    index('app_reviews_app_rating_idx').on(t.appId, t.rating),
+    index('app_reviews_app_status_idx').on(t.appId, t.status),
+    index('app_reviews_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const reviewSyncState = sqliteTable(
+  'review_sync_state',
+  {
+    appId: text('app_id').notNull(),
+    store: text('store').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** Where an unfinished read continues (App Store). */
+    cursor: text('cursor'),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastSuccessAt: integer('last_success_at'),
+    lastError: text('last_error'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    backoffUntil: integer('backoff_until'),
+    failureNotifiedAt: integer('failure_notified_at'),
+    lastGapAt: integer('last_gap_at'),
+    /** JSON of the last result: counts and warnings. */
+    lastResult: text('last_result'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.store] }),
+    index('review_sync_state_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The store-wide rating per territory, a row only when a value changed. Averages are thousandths. */
+export const appRatingSummaries = sqliteTable(
+  'app_rating_summaries',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    store: text('store').notNull(),
+    territory: text('territory').notNull(),
+    averageMilli: integer('average_milli'),
+    ratingCount: integer('rating_count'),
+    currentAverageMilli: integer('current_average_milli'),
+    currentCount: integer('current_count'),
+    observedAt: integer('observed_at').notNull(),
+  },
+  (t) => [
+    index('app_rating_summaries_app_idx').on(t.appId, t.store, t.territory, t.observedAt),
+    index('app_rating_summaries_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The resolved icon of an app (services/app-icons.ts): the image as base64 text, or only the state of a failed look. */
+export const appIcons = sqliteTable(
+  'app_icons',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** repository, app_store or google_play. */
+    source: text('source'),
+    /** The git blob id of the file, or the host of the image URL. */
+    sourceId: text('source_id'),
+    mediaType: text('media_type'),
+    /** The image bytes in base64 (at most 256 KB of image). */
+    data: text('data'),
+    size: integer('size'),
+    width: integer('width'),
+    height: integer('height'),
+    etag: text('etag'),
+    fetchedAt: integer('fetched_at'),
+    checkedAt: integer('checked_at').notNull(),
+    failures: integer('failures').notNull().default(0),
+    backoffUntil: integer('backoff_until'),
+    lastError: text('last_error'),
+  },
+  (t) => [index('app_icons_workspace_idx').on(t.workspaceId)],
 );
