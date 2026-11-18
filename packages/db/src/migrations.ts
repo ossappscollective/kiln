@@ -965,4 +965,32 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 22,
+    name: 'store rollout claims (one live-store rollout write in flight per app and platform)',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // store_rollout_claims: the claim a gated rollout write takes before it touches a store (see
+      // docs/adr/0008-store-rollout-writes.md). One row per (app, platform): the primary key is what
+      // makes "one write in flight" true across several processes. status: writing (a write is in
+      // flight; claim_at is its start and the claim expires after a time to live) or unknown (the
+      // outcome of the last write could not be told; it blocks writing until a successful re-read of
+      // the store, i.e. a new preview, clears it). The row is deleted when a write settles. No foreign
+      // key on app_id (like the review tables): deleting an app deletes its claims in the code.
+      // action is the requested change (halt, resume, ...); never a credential or a store response.
+      return [
+        `CREATE TABLE IF NOT EXISTS store_rollout_claims (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           action TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'writing',
+           claimed_by TEXT NOT NULL,
+           claim_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS store_rollout_claims_workspace_idx ON store_rollout_claims (workspace_id)',
+      ];
+    },
+  },
 ];

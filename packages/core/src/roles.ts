@@ -24,6 +24,7 @@ export const actions = [
   'ci.dispatch',
   'plans.read',
   'plans.write',
+  'releases.rollout',
   'reviews.read',
   'reviews.sync',
   'reviews.triage',
@@ -107,11 +108,13 @@ export const tokenForbiddenActions: readonly Action[] = [
 export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbiddenActions.includes(a));
 
 /**
- * Actions that publish text to a store in the organisation's name. A token gets one only when its
- * list of actions names it: a token with no list ("everything the ceiling allows") never does, so
- * widening an old token's role cannot start answering customers.
+ * Actions that change what a store shows to customers, in the organisation's name: publish a reply
+ * (`reviews.reply`) or change a live rollout (`releases.rollout`: staged rollout share, halt, resume,
+ * release to everyone). A token gets one only when its list of actions names it: a token with no list
+ * ("everything the ceiling allows") never does, so widening an old token's role cannot start
+ * answering customers or moving a rollout.
  */
-export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply'];
+export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout'];
 
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);

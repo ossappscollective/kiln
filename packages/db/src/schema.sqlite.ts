@@ -943,3 +943,27 @@ export const reviewReplyTemplates = sqliteTable(
   },
   (t) => [index('review_reply_templates_workspace_idx').on(t.workspaceId)],
 );
+
+/**
+ * The claim a gated store rollout write holds while it runs, one row per app and platform (see
+ * migration 22 and docs/adr/0008-store-rollout-writes.md). Deleted when the write settles.
+ */
+export const storeRolloutClaims = sqliteTable(
+  'store_rollout_claims',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    action: text('action').notNull(),
+    /** writing (in flight, expires after a TTL) or unknown (outcome not told; a re-read clears it). */
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('store_rollout_claims_workspace_idx').on(t.workspaceId),
+  ],
+);

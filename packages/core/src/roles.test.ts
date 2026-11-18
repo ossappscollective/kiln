@@ -185,6 +185,21 @@ test('reviews.reply: owners and admins only; a token needs the action named and 
   assert.equal(canToken('viewer', ['reviews.reply'], 'reviews.reply'), false);
 });
 
+test('releases.rollout: owners and admins only; a token needs the action named and an admin ceiling', () => {
+  assert.equal(can('owner', 'releases.rollout'), true);
+  assert.equal(can('admin', 'releases.rollout'), true);
+  assert.equal(can('member', 'releases.rollout'), false);
+  assert.equal(can('viewer', 'releases.rollout'), false);
+  // Planning the rollout (plans.write) stays with members: it changes nothing in a store.
+  assert.equal(can('member', 'plans.write'), true);
+  assert.ok(tokenActions.includes('releases.rollout'));
+  assert.ok(tokenExplicitOnlyActions.includes('releases.rollout'));
+  assert.equal(canToken('admin', null, 'releases.rollout'), false, 'no list: never');
+  assert.equal(canToken('admin', ['plans.write'], 'releases.rollout'), false);
+  assert.equal(canToken('admin', ['releases.rollout'], 'releases.rollout'), true);
+  assert.equal(canToken('member', ['releases.rollout'], 'releases.rollout'), false, 'the ceiling still applies');
+});
+
 test('settings: members read them, only owners and admins change them; members translate reviews', () => {
   assert.equal(can('viewer', 'settings.read'), false);
   assert.equal(can('member', 'settings.read'), true);
