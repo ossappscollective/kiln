@@ -227,4 +227,29 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 7,
+    name: 'repository listing targets',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // A named place a repository's store listing lives: one app of a monorepo, or a custom
+      // folder. Each root is a repository relative folder, or NULL when the target has no folder
+      // for that store. repository_id has a foreign key: disconnecting a repository deletes its
+      // targets first. The name is unique per repository.
+      return [
+        `CREATE TABLE IF NOT EXISTS repository_listing_targets (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           repository_id TEXT NOT NULL REFERENCES repositories(id),
+           name TEXT NOT NULL,
+           app_id TEXT,
+           app_store_root TEXT,
+           google_play_root TEXT,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS repository_listing_targets_name_idx ON repository_listing_targets (repository_id, name)',
+      ];
+    },
+  },
 ];

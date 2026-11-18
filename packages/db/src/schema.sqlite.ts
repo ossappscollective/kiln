@@ -231,3 +231,25 @@ export const appReleases = sqliteTable(
     index('app_releases_workspace_idx').on(t.workspaceId),
   ],
 );
+
+export const repositoryListingTargets = sqliteTable(
+  'repository_listing_targets',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    repositoryId: text('repository_id')
+      .notNull()
+      .references(() => repositories.id),
+    name: text('name').notNull(),
+    /** The app id of a monorepo app (informational). */
+    appId: text('app_id'),
+    /** A repository relative folder, or null when the target has none for this store. */
+    appStoreRoot: text('app_store_root'),
+    googlePlayRoot: text('google_play_root'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('repository_listing_targets_name_idx').on(t.repositoryId, t.name)],
+);
