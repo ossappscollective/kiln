@@ -1,0 +1,704 @@
+<script lang="ts">
+  import { tick } from 'svelte';
+  import type { Api } from '../lib/api.ts';
+  import { can } from '@mrm/core';
+  import { initials } from '../lib/format.ts';
+  import type { Me } from '../lib/types.ts';
+  import { views } from '../lib/views.ts';
+  import Button from './ui/Button.svelte';
+  import EmptyState from './ui/EmptyState.svelte';
+  import Icon from './ui/Icon.svelte';
+  import Logo from './ui/Logo.svelte';
+  import ThemeToggle from './ui/ThemeToggle.svelte';
+  import { productName } from './ui/brand.ts';
+  import { isIconName } from './ui/icons.ts';
+
+  let {
+    api,
+    me,
+    onsignout,
+    canSignOut = true,
+  }: { api: Api; me: Me; onsignout: () => void; canSignOut?: boolean } = $props();
+
+  const KEY = 'mrm.workspace';
+  const remembered = () => {
+    try {
+      return localStorage.getItem(KEY);
+    } catch {
+      return null;
+    }
+  };
+
+  // The person's last choice, if it is still one of their workspaces; otherwise the first.
+  let chosen = $state(remembered());
+  const workspaceId = $derived(
+    me.workspaces.find((w) => w.id === chosen)?.id ?? me.workspaces[0]?.id ?? '',
+  );
+  const workspace = $derived(me.workspaces.find((w) => w.id === workspaceId));
+  const roleLabel = $derived(workspace ? workspace.role.charAt(0).toUpperCase() + workspace.role.slice(1) : '');
+
+  const visibleViews = $derived(
+    views.filter((v) => !v.requires || !workspace || can(workspace.role, v.requires)),
+  );
+  const fromHash = () => location.hash.replace(/^#\//, '');
+  let hash = $state(fromHash());
+  // The section named by the URL, or the first one the person may see.
+  const current = $derived(visibleViews.find((v) => v.id === hash) ?? visibleViews[0]);
+
+  let drawerOpen = $state(false);
+  let menuOpen = $state(false);
+  let navEl = $state<HTMLElement>();
+  let mainEl = $state<HTMLElement>();
+  let menuButton = $state<HTMLButtonElement>();
+  let userButton = $state<HTMLButtonElement>();
+  let userEl = $state<HTMLElement>();
+
+  $effect(() => {
+    const onhash = () => {
+      hash = fromHash();
+      drawerOpen = false;
+    };
+    window.addEventListener('hashchange', onhash);
+    return () => window.removeEventListener('hashchange', onhash);
+  });
+
+  // The drawer only exists on narrow screens. Growing the window closes it.
+  $effect(() => {
+    const query = window.matchMedia('(min-width: 900px)');
+    const onchange = () => {
+      if (query.matches) drawerOpen = false;
+    };
+    query.addEventListener('change', onchange);
+    return () => query.removeEventListener('change', onchange);
+  });
+
+  $effect(() => {
+    const parts = [current?.label, workspace?.name, productName].filter(Boolean);
+    document.title = parts.join(' · ');
+  });
+
+  async function openDrawer() {
+    drawerOpen = true;
+    await tick();
+    navEl?.querySelector<HTMLElement>('a')?.focus();
+  }
+
+  function closeDrawer(restoreFocus = true) {
+    drawerOpen = false;
+    if (restoreFocus) menuButton?.focus();
+  }
+
+  function closeMenu(restoreFocus = true) {
+    menuOpen = false;
+    if (restoreFocus) userButton?.focus();
+  }
+
+  function onkeydown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+    if (menuOpen) closeMenu();
+    else if (drawerOpen) closeDrawer();
+  }
+
+  function onpointerdown(event: PointerEvent) {
+    if (menuOpen && userEl && !userEl.contains(event.target as Node)) menuOpen = false;
+  }
+
+  function onUserFocusOut(event: FocusEvent) {
+    const next = event.relatedTarget as Node | null;
+    if (menuOpen && next && userEl && !userEl.contains(next)) menuOpen = false;
+  }
+
+  function chooseWorkspace(id: string) {
+    chosen = id;
+    try {
+      localStorage.setItem(KEY, id);
+    } catch {
+      // A private window can refuse storage. The choice just will not be remembered.
+    }
+  }
+
+  // The skip link must not change the hash: the hash is the router.
+  function skipToContent(event: Event) {
+    event.preventDefault();
+    mainEl?.focus();
+  }
+
+  let signingOut = $state(false);
+  async function signOut() {
+    signingOut = true;
+    try {
+      await api.logout();
+    } finally {
+      onsignout();
+    }
+  }
+</script>
+
+<svelte:window {onkeydown} {onpointerdown} />
+
+<a class="skip-link" href="#main" onclick={skipToContent}>Skip to content</a>
+
+<div class="shell">
+  <aside id="sidebar" class="sidebar no-print" data-open={drawerOpen}>
+    <div class="side-head">
+      <Logo size={28} wordmark />
+      <button type="button" class="ghost icon sm close" aria-label="Close navigation" onclick={() => closeDrawer()}>
+        <Icon name="x" />
+      </button>
+    </div>
+
+    {#if workspace}
+      <div class="ws" class:single={me.workspaces.length < 2}>
+        <span class="ws-mark" aria-hidden="true">{initials(workspace.name)}</span>
+        <span class="ws-text">
+          <span class="ws-name">{workspace.name}</span>
+          <span class="ws-role">{roleLabel}</span>
+        </span>
+        {#if me.workspaces.length > 1}
+          <Icon name="chevron-down" />
+          <label class="visually-hidden" for="workspace">Workspace</label>
+          <select id="workspace" value={workspaceId} onchange={(e) => chooseWorkspace(e.currentTarget.value)}>
+            {#each me.workspaces as w (w.id)}<option value={w.id}>{w.name}</option>{/each}
+          </select>
+        {/if}
+      </div>
+    {/if}
+
+    <nav bind:this={navEl} aria-label="Sections">
+      <ul>
+        {#each visibleViews as v (v.id)}
+          <li>
+            <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined}>
+              <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
+              <span>{v.label}</span>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    </nav>
+  </aside>
+
+  <button
+    type="button"
+    class="bare scrim no-print"
+    data-open={drawerOpen}
+    aria-label="Close navigation"
+    tabindex="-1"
+    onclick={() => closeDrawer()}
+  ></button>
+
+  <div class="column" inert={drawerOpen}>
+    <header class="topbar no-print">
+      <button
+        bind:this={menuButton}
+        type="button"
+        class="ghost icon menu-button"
+        aria-label="Open navigation"
+        aria-expanded={drawerOpen}
+        aria-controls="sidebar"
+        onclick={openDrawer}
+      >
+        <Icon name="menu" size={20} />
+      </button>
+
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <ol>
+          {#if workspace}<li class="crumb-ws">{workspace.name}</li>{/if}
+          {#if current}<li aria-current="page">{current.label}</li>{/if}
+        </ol>
+      </nav>
+
+      <span class="spacer"></span>
+
+      <div class="user" bind:this={userEl} onfocusout={onUserFocusOut}>
+        <button
+          bind:this={userButton}
+          type="button"
+          class="bare user-button"
+          aria-label="Account menu for {me.user.displayName}"
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          aria-controls="user-menu"
+          onclick={() => (menuOpen = !menuOpen)}
+        >
+          <span class="avatar" aria-hidden="true">{initials(me.user.displayName)}</span>
+          <span class="who" aria-hidden="true">{me.user.displayName}</span>
+          <Icon name="chevron-down" />
+        </button>
+
+        {#if menuOpen}
+          <div id="user-menu" class="menu" role="group" aria-label="Account">
+            <div class="menu-head">
+              <span class="avatar large" aria-hidden="true">{initials(me.user.displayName)}</span>
+              <div class="menu-who">
+                <p class="menu-name">{me.user.displayName}</p>
+                <p class="menu-email">{me.user.email}</p>
+              </div>
+            </div>
+            <div class="menu-section">
+              <p class="eyebrow">Theme</p>
+              <ThemeToggle block />
+            </div>
+            {#if canSignOut}
+              <div class="menu-section">
+                <Button variant="ghost" block icon="log-out" loading={signingOut} onclick={signOut}>Sign out</Button>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1" bind:this={mainEl}>
+      <div class="content">
+        {#if !workspace}
+          <EmptyState
+            icon="layers"
+            title="No workspace yet"
+            description="You are not a member of any workspace. Ask an owner to invite you."
+          />
+        {:else if current}
+          <current.component {api} workspaceId={workspace.id} role={workspace.role} />
+        {:else}
+          <EmptyState
+            icon="lock"
+            title="Nothing to show yet"
+            description="Your role does not include any sections yet."
+          />
+        {/if}
+      </div>
+    </main>
+  </div>
+</div>
+
+<style>
+  .skip-link {
+    position: fixed;
+    top: var(--space-2);
+    left: var(--space-2);
+    z-index: calc(var(--z-toast) + 10);
+    padding: var(--space-2) var(--space-4);
+    font-weight: var(--weight-medium);
+    color: var(--accent-ink);
+    text-decoration: none;
+    background: var(--accent);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-200%);
+  }
+
+  .skip-link:focus {
+    transform: none;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* ---- Sidebar ---- */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sidebar);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    height: 100vh;
+    height: 100dvh;
+    padding: var(--space-4) var(--space-3);
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid var(--line);
+  }
+
+  .side-head {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--control-md);
+    padding: 0 var(--space-2);
+  }
+
+  .close {
+    display: none;
+  }
+
+  .ws {
+    position: relative;
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-2);
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    transition:
+      border-color var(--duration-fast) var(--ease),
+      background-color var(--duration-fast) var(--ease);
+  }
+
+  .ws:not(.single):hover {
+    background: var(--surface-hover);
+    border-color: var(--line-hover);
+  }
+
+  .ws:has(select:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .ws select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    opacity: 0;
+  }
+
+  .ws-mark {
+    display: grid;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    place-items: center;
+  }
+
+  .ws-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+  }
+
+  .ws-name {
+    overflow: hidden;
+    font-weight: var(--weight-medium);
+    color: var(--ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ws-role {
+    font-size: var(--text-xs);
+    color: var(--muted);
+  }
+
+  nav ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  nav a {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    min-height: var(--control-md);
+    padding: 0 var(--space-3);
+    font-weight: var(--weight-medium);
+    color: var(--muted);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    transition:
+      background-color var(--duration-fast) var(--ease),
+      color var(--duration-fast) var(--ease);
+  }
+
+  nav a:hover {
+    color: var(--ink);
+    background: var(--surface-hover);
+  }
+
+  nav a[aria-current='page'] {
+    color: var(--ink);
+    background: var(--accent-bg);
+  }
+
+  nav a[aria-current='page'] :global(.icon) {
+    color: var(--accent);
+  }
+
+  /* ---- Top bar ---- */
+  .column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    height: var(--topbar-height);
+    padding: 0 var(--space-8);
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
+  .menu-button {
+    display: none;
+  }
+
+  .crumbs {
+    min-width: 0;
+  }
+
+  .crumbs ol {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    font-weight: var(--weight-medium);
+    color: var(--muted);
+    white-space: nowrap;
+    list-style: none;
+  }
+
+  .crumbs li + li::before {
+    margin-right: var(--space-2);
+    color: var(--faint);
+    content: '/';
+  }
+
+  .crumbs li[aria-current='page'] {
+    overflow: hidden;
+    color: var(--ink);
+    text-overflow: ellipsis;
+  }
+
+  /* ---- User menu ---- */
+  .user {
+    position: relative;
+  }
+
+  .user-button {
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: var(--radius-full);
+    transition: background-color var(--duration-fast) var(--ease);
+  }
+
+  .user-button:hover {
+    background: var(--surface-hover);
+  }
+
+  .who {
+    max-width: 160px;
+    overflow: hidden;
+    font-weight: var(--weight-medium);
+    color: var(--ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .avatar {
+    display: grid;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-radius: 50%;
+    place-items: center;
+  }
+
+  .avatar.large {
+    width: 40px;
+    height: 40px;
+    font-size: var(--text-base);
+  }
+
+  .menu {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    z-index: var(--z-dropdown);
+    width: 280px;
+    max-width: calc(100vw - var(--space-8));
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    animation: menu-in var(--duration-base) var(--ease);
+  }
+
+  .menu-head {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-4);
+  }
+
+  .menu-who {
+    min-width: 0;
+  }
+
+  .menu-name,
+  .menu-email {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menu-name {
+    font-weight: var(--weight-semibold);
+  }
+
+  .menu-email {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .menu-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  /* ---- Content ---- */
+  main {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-8);
+  }
+
+  main:focus {
+    outline: none;
+  }
+
+  .content {
+    width: 100%;
+    max-width: var(--content-width);
+    margin: 0 auto;
+  }
+
+  .scrim {
+    display: none;
+  }
+
+  /* ---- Narrow screens: the sidebar becomes a drawer ---- */
+  @media (max-width: 899px) {
+    .shell {
+      display: block;
+    }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: var(--z-overlay);
+      width: min(300px, 86vw);
+      visibility: hidden;
+      box-shadow: var(--shadow-lg);
+      transform: translateX(-100%);
+      transition:
+        transform var(--duration-slow) var(--ease),
+        visibility var(--duration-slow);
+    }
+
+    .sidebar[data-open='true'] {
+      visibility: visible;
+      transform: none;
+    }
+
+    .close,
+    .menu-button {
+      display: inline-flex;
+    }
+
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: calc(var(--z-overlay) - 1);
+      display: block;
+      visibility: hidden;
+      background: var(--scrim);
+      opacity: 0;
+      transition:
+        opacity var(--duration-slow) var(--ease),
+        visibility var(--duration-slow);
+    }
+
+    .scrim[data-open='true'] {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .topbar {
+      padding: 0 var(--space-4);
+    }
+
+    .crumb-ws {
+      display: none;
+    }
+
+    .crumbs li:nth-child(2)::before {
+      display: none;
+    }
+
+    main {
+      padding: var(--space-6) var(--space-4);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .who {
+      display: none;
+    }
+
+    .user-button {
+      padding-right: var(--space-1);
+    }
+  }
+
+  @media print {
+    .shell {
+      display: block;
+    }
+
+    main {
+      padding: 0;
+    }
+  }
+</style>
