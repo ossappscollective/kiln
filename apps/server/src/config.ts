@@ -1,6 +1,11 @@
+import { join } from 'node:path';
 import { parseMasterKey } from '@mrm/vault';
 import { z } from 'zod';
 import { parseExtraHosts } from './single-user.ts';
+
+/** `KEY=` in an .env file is an empty string, which should read as "not set". */
+const blankIsUnset = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
 
 const schema = z.object({
   // SQLite by default so a bare `pnpm dev` works. Compose sets Postgres.
@@ -24,6 +29,31 @@ const schema = z.object({
   // client address (for the login rate limit) is then the last X-Forwarded-For entry. Leave it at
   // '0' otherwise: the header is client-controlled and would let anyone dodge the limit.
   MRM_TRUST_PROXY: z.enum(['0', '1']).default('0'),
+  // '1' lets outbound webhooks go to loopback and private-network addresses, and to http://localhost
+  // (for development and for receivers on your own network). Off by default: webhooks are https
+  // to public addresses only, so a webhook cannot be aimed at the server's own network. Link-local
+  // addresses, which hold the cloud metadata service, are refused either way.
+  MRM_WEBHOOKS_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),
+  // Where scans and listings read the repository. 'auto' (default) uses a local git clone and
+  // falls back to the GitHub API for a request when the clone cannot be used. 'clone' never falls
+  // back. 'api' is the GitHub REST API only. See docs/adr/0005-local-clone-reads.md.
+  MRM_READS: blankIsUnset(z.enum(['api', 'clone', 'auto']).default('auto')),
+  // An empty value (a bare `MRM_CLONE_DIR=` line in .env) means the default.
+  MRM_CLONE_DIR: blankIsUnset(z.string().min(1).optional()),
+  // How long a fetched branch tip is reused before the next read fetches again.
+  MRM_CLONE_TTL_SECONDS: blankIsUnset(z.coerce.number().int().min(0).max(86_400).default(60)),
+  // The git program: `git` from PATH, or an absolute path.
+  MRM_GIT_PATH: blankIsUnset(z.string().min(1).default('git')),
+  // Minutes between scheduled store syncs of every app. 0 (the default) turns scheduled syncs off;
+  // otherwise 5 to 10080 (a week). Scheduled syncs read the stores with the stored credentials,
+  // so they are opt-in. See docs/api/ci.md.
+  MRM_SYNC_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
+      .default(0),
+  ),
 });
 
 /** At least 43 URL-safe characters (32 bytes as base64url) or 64 hex characters. */
@@ -60,6 +90,18 @@ export type Config = {
   allowedHosts: string[];
   /** Believe X-Forwarded-For for the client address. See MRM_TRUST_PROXY. */
   trustProxy: boolean;
+  /** Webhooks may reach private addresses and http://localhost. See MRM_WEBHOOKS_ALLOW_PRIVATE. */
+  webhooksAllowPrivate: boolean;
+  /** How scans and listings read the repository. See MRM_READS. */
+  reads: 'api' | 'clone' | 'auto';
+  /** Where git clones live: MRM_CLONE_DIR, default `<dataDir>/clones`. */
+  cloneDir: string;
+  /** How long a fetched branch tip is reused, in milliseconds (MRM_CLONE_TTL_SECONDS). */
+  cloneTtlMs: number;
+  /** The git program (MRM_GIT_PATH). */
+  gitPath: string;
+  /** Minutes between scheduled syncs of every app; 0 is off (MRM_SYNC_INTERVAL_MINUTES). */
+  syncIntervalMinutes: number;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -92,5 +134,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     host: data.MRM_MODE === 'single_user' ? '127.0.0.1' : undefined,
     allowedHosts,
     trustProxy: data.MRM_TRUST_PROXY === '1',
+    webhooksAllowPrivate: data.MRM_WEBHOOKS_ALLOW_PRIVATE === '1',
+    reads: data.MRM_READS,
+    cloneDir: data.MRM_CLONE_DIR ?? join(data.MRM_DATA_DIR, 'clones'),
+    cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,
+    gitPath: data.MRM_GIT_PATH,
+    syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
   };
 }

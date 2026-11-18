@@ -14,7 +14,10 @@ import {
 } from '@mrm/connectors';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
+import { recordSyncEvents, releaseStatusChanges } from './events.ts';
 import { useCredentialSecret } from './credentials.ts';
+import { recordAppliedChangeSets } from './listing-repo.ts';
+import { deleteListingData, syncListing } from './listing-live.ts';
 import { type Failure, type Outcome, failure } from './repositories.ts';
 import { enqueue, type JobHandler } from '../jobs.ts';
 
@@ -317,6 +320,7 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    await deleteListingData(tx, input.workspaceId, input.id);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
@@ -620,8 +624,9 @@ async function runSync(
     }, ctx.timeoutMs);
   });
   let read: Read;
+  let connector: StoreConnector | undefined;
   try {
-    const connector = ctx.connectorFactory({
+    connector = ctx.connectorFactory({
       kind: kind as StoreConnectorInput['kind'],
       secret,
       identifier: app.identifier,
@@ -731,9 +736,33 @@ async function runSync(
       detail: { ok: true, found: sync.found, added, updated, removed, unmapped, ...trigger },
       at,
     });
+    // `app.release.status_changed` per release whose status moved, then `app.synced`. The first
+    // sync of an app is a quiet baseline (see releaseStatusChanges).
+    await recordSyncEvents(tx, {
+      workspaceId,
+      appId: app.id,
+      at,
+      summary: sync,
+      changes: releaseStatusChanges(existing, wanted, app.lastSyncedAt !== null),
+      trigger: trigger.trigger,
+    });
     return sync;
   });
   if (!outcome) return { ...failure(404, 'not_found'), transient: false } as SyncFailure;
+  // Best effort and read-only: the live listing (name, description, ...) is read and recorded as
+  // snapshots. It never fails the sync; a failure is kept as the app's `listing_error`.
+  if (connector) {
+    await syncListing(ctx, {
+      workspaceId,
+      app,
+      appStoreId: read.appStoreId,
+      connector,
+      abort: () => controller.abort(),
+      secret,
+      actor,
+    });
+  }
+  await recordAppliedChangeSets(db, workspaceId, app, ctx.now()).catch(() => 0);
   return {
     ok: true as const,
     app: (await getApp(db, workspaceId, app.id)) as ManagedApp,

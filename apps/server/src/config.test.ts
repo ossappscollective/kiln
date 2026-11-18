@@ -92,3 +92,11 @@ test('bad clone settings are rejected, and blank ones mean the default', () => {
   assert.equal(blank.cloneTtlMs, 60_000);
   assert.equal(blank.gitPath, 'git');
 });
+
+test('webhooks may not reach private addresses unless MRM_WEBHOOKS_ALLOW_PRIVATE=1', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).webhooksAllowPrivate, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_WEBHOOKS_ALLOW_PRIVATE: '0' }).webhooksAllowPrivate, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_WEBHOOKS_ALLOW_PRIVATE: '1' }).webhooksAllowPrivate, true);
+  // Only the exact opt-in counts: a loose "yes" must not open the door by accident.
+  assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_WEBHOOKS_ALLOW_PRIVATE: 'true' }), /Invalid configuration/);
+});

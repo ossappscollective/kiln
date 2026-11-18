@@ -4,7 +4,14 @@ import type { Context, MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
 import type { User } from './services/accounts.ts';
 
-export type AppEnv = { Variables: { user: User; role: Role } };
+export type AppEnv = {
+  Variables: {
+    user: User;
+    role: Role;
+    /** Set only when the request was authenticated with an API token (see bearer.ts). */
+    token?: import('./services/tokens.ts').TokenPrincipal;
+  };
+};
 
 /** Everything the routes need, injected so tests can control the clock and the cost. */
 export type Services = {
@@ -56,6 +63,10 @@ export function sameOrigin(trusted: string[] = []): MiddlewareHandler {
   return async (c, next) => {
     const method = c.req.method;
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+    // A bearer token with no session cookie is not ambient: a browser never adds it on its own, so
+    // a cross-site page cannot ride on it. Any request that carries the session cookie keeps the
+    // check below, whatever else it carries.
+    if (isBearerOnly(c)) return next();
     const origin = c.req.header('origin');
     if (!origin) return next();
     let host: string;
@@ -68,6 +79,20 @@ export function sameOrigin(trusted: string[] = []): MiddlewareHandler {
     if (host === own || trusted.includes(origin)) return next();
     return c.json({ error: 'bad_origin' }, 403);
   };
+}
+
+/** The session cookie's name, repeated here so this file needs nothing from the routes (a test pins it). */
+export const SESSION_COOKIE_NAME = 'mrm_session';
+const SESSION_COOKIE_PRESENT = new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=`);
+
+/**
+ * True for a request that authenticates with `Authorization: Bearer` and carries no session cookie.
+ * Only the presence of the cookie matters, not whether it is valid: an invalid cookie still means a
+ * browser is involved.
+ */
+export function isBearerOnly(c: Context): boolean {
+  if (SESSION_COOKIE_PRESENT.test(c.req.header('cookie') ?? '')) return false;
+  return /^Bearer\s+\S+$/i.test(c.req.header('authorization') ?? '');
 }
 
 /**

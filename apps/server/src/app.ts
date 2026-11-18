@@ -4,23 +4,33 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { secureHeaders } from 'hono/secure-headers';
+import { type BearerOptions, requireAuth } from './bearer.ts';
 import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { appRoutes } from './routes/apps.ts';
+import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
+import { listingRoutes } from './routes/listing.ts';
+import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
 import { memberRoutes } from './routes/members.ts';
+import { planRoutes } from './routes/plans.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
+import { tokenRoutes } from './routes/tokens.ts';
+import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
 import {
   DEFAULT_SYNC_TIMEOUT_MS,
   type StoreConnectorFactory,
   defaultStoreConnectorFactory,
 } from './services/apps.ts';
+import { type CiContext, createCiContext } from './services/ci.ts';
+import { operations } from './services/api-operations.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
+import { buildOpenApiDocument } from './services/openapi.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
-import type { ConnectorFactory } from './services/repositories.ts';
+import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
 
 /** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */
@@ -90,11 +100,35 @@ export type AppDeps = {
   /** Longest a synchronous repository job (scan, listing, apply) may run. Default 90 seconds. */
   repositoryTimeoutMs?: number;
   /**
+   * Local clones for scan and listing reads (MRM_READS, docs/adr/0005-local-clone-reads.md).
+   * Built at start by `setUpReads`. Omitted: reads go through the GitHub API.
+   */
+  reads?: CloneReads;
+  /**
    * Store sync of apps. `connectorFactory` builds the read-only App Store Connect / Google Play
    * connector from a stored credential (overridable for tests), `timeoutMs` is the longest one
    * sync may run (default 60 seconds), `limiter` defaults to 10 syncs per workspace per minute.
    */
   appSync?: { connectorFactory?: StoreConnectorFactory; timeoutMs?: number; limiter?: TestLimiter };
+  /** API token requests: the per-token rate limit (default 300 a minute) and the bad-token limit. Overridable for tests. */
+  tokens?: BearerOptions;
+  /**
+   * The open event streams. index.ts makes one so it can end them at shutdown (`closeAll`); omitted,
+   * the app has a private one. Streams are capped per person.
+   */
+  eventStreams?: EventStreamHub;
+  /**
+   * Outbound webhooks. `allowPrivate` is MRM_WEBHOOKS_ALLOW_PRIVATE=1 (loopback and private
+   * addresses, and http to localhost); `resolve` and `send` are for tests. The delivery job itself
+   * is registered in index.ts with the same options.
+   */
+  webhooks?: Pick<WebhookRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'limiter'>;
+  /**
+   * CI runs and build linking (docs/api/ci.md). Uses `connectorFactory` and `repositoryTimeoutMs`.
+   * `limiter` is the per workspace limit of dispatches (default 10 per minute), `matchers` the
+   * build number conventions, `pollMaxMs` how long `ci.poll` follows a run. All optional.
+   */
+  ci?: Partial<Pick<CiContext, 'limiter' | 'matchers' | 'pollMaxMs'>>;
 };
 
 export function createApp(deps: AppDeps) {
@@ -143,12 +177,26 @@ export function createApp(deps: AppDeps) {
   app.route('/api/auth', authRoutes(services));
   app.use('/api/me', requireUser(services));
   app.route('/api/me', meRoute(services));
-  app.use('/api/workspaces/*', requireUser(services));
+  // The session cookie, or an API token (bearer.ts). Cookie requests are handled exactly as before.
+  const auth = requireAuth(services, deps.tokens);
+  app.use('/api/workspaces/*', auth);
+  app.use('/api/openapi.json', auth);
   // Before the other workspace routes, so /credentials/test is never read as a credential id.
   app.route('/api/workspaces', credentialTestRoutes(services, deps.credentialTests));
   app.route('/api/workspaces', workspaceRoutes(services));
   app.route('/api/workspaces', memberRoutes(services));
   app.route('/api/workspaces', workspaceInvitationRoutes(services));
+  app.route('/api/workspaces', tokenRoutes(services));
+  app.route('/api/workspaces', eventRoutes(services, deps.eventStreams ?? createEventStreamHub()));
+  app.route(
+    '/api/workspaces',
+    webhookRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      ...deps.webhooks,
+    }),
+  );
   app.route(
     '/api/workspaces',
     repositoryRoutes({
@@ -157,6 +205,7 @@ export function createApp(deps: AppDeps) {
       now: services.now,
       connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
       timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+      reads: deps.reads,
     }),
   );
   app.route(
@@ -170,8 +219,47 @@ export function createApp(deps: AppDeps) {
       limiter: deps.appSync?.limiter ?? createTestLimiter({ now: services.now }),
     }),
   );
+  // Release planning: our own checklists, notes and deadlines. No store is read or written.
+  app.route('/api/workspaces', planRoutes({ db: services.db, now: services.now }));
+  // Live store listing, drift and history. Read-only: nothing here writes to a store. Only
+  // `repo-refresh` sends traffic (to GitHub), with its own per-workspace rate limit.
+  app.route(
+    '/api/workspaces',
+    listingRoutes({
+      db: services.db,
+      now: services.now,
+      repo: {
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+        timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+        reads: deps.reads,
+      },
+      limiter: createTestLimiter({ now: services.now }),
+    }),
+  );
+  // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.
+  app.route(
+    '/api/workspaces',
+    ciRoutes(
+      createCiContext(
+        {
+          db: services.db,
+          masterKey: services.masterKey,
+          now: services.now,
+          connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+          timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+        },
+        deps.ci,
+      ),
+    ),
+  );
   // Public: the person with the link is not signed in yet.
   app.route('/api/invitations', publicInvitationRoutes(services));
+
+  const openApiDocument = buildOpenApiDocument(operations, { version: deps.version });
+  app.get('/api/openapi.json', (c) => c.json(openApiDocument));
 
   // Anything else under /api is an unknown route, not a page.
   app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404));
