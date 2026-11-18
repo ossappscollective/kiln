@@ -1,6 +1,9 @@
 <!--
   ReviewTranslation: "Translate" for one review, with the result below it.
-  Props: api, workspaceId, appId, review (id, title, body, language).
+  Props: api, workspaceId, appId, review (id, title, body, language), and optionally stored (a translation
+  already made elsewhere, for example by "Translate all visible" of the Reviews tab), onstore (called with a
+  translation made here, so the owner can keep it) and showAll (false hides every translation body; the
+  head stays, with "Show").
   Shown only when translation is turned on in the workspace settings, the person may translate
   (members and above), and the review is not already in the target language. The server reads the
   review's text from its own database: only the review id is sent. The translation is machine
@@ -26,11 +29,17 @@
     workspaceId,
     appId,
     review,
+    stored = undefined,
+    onstore = undefined,
+    showAll = true,
   }: {
     api: Api;
     workspaceId: string;
     appId: string;
     review: { id: string; title: string | null; body: string; language: string | null };
+    stored?: ReviewTranslation | undefined;
+    onstore?: ((t: ReviewTranslation) => void) | undefined;
+    showAll?: boolean;
   } = $props();
 
   let config = $state<TranslationConfig | null>(null);
@@ -59,7 +68,15 @@
     void review.title;
     result = null;
     problem = '';
-    visible = true;
+    visible = showAll;
+  });
+
+  // A translation made elsewhere (translate all) is shown here; the toggle of the list hides or shows them all.
+  $effect(() => {
+    if (stored) result = stored;
+  });
+  $effect(() => {
+    visible = showAll;
   });
 
   const available = $derived(!!config && config.enabled && config.mode !== 'off' && needsTranslation(review, config.target));
@@ -75,6 +92,7 @@
       if (found) {
         result = found;
         visible = true;
+        onstore?.(found);
       } else {
         problem = 'This review is no longer stored here. Reload the list.';
       }

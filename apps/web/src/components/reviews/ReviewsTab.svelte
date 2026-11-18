@@ -4,6 +4,11 @@
   (MRM_REVIEW_REPLY_ENABLED), needs an admin to send, and goes through ReplyDialog (draft, confirm).
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when the app was synced, so this
   tab reloads).
+  Platform scope: the app record is one platform; the app section mounts one tab per platform in scope.
+  Also here: a quick filter for low ratings (the server's threshold), and for translation a toggle that
+  shows or hides every translation and "Translate all visible", which sends the stored text of the
+  reviews in the list that need it to the workspace's translation provider, 25 at a time, one request
+  after the other, and stops at the first failure.
 
   Review text is written by customers and is shown as plain text only. It never goes into a URL.
 -->
@@ -37,6 +42,13 @@
     type ReviewsSummary,
   } from '../../lib/reviews.ts';
   import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
+  import {
+    type ReviewTranslation,
+    canTranslate,
+    translationErrorMessage,
+  } from '../../lib/review-translation.ts';
+  import { isLowOnly, mergeTranslations, pendingTranslationBatches, ratingsWithLowOnly, translateAllLabel } from '../../lib/reviews-tab.ts';
+  import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -68,6 +80,12 @@
   let members = $state<Member[]>([]);
   /** The server's reply settings; null until known (the reply row waits for it). */
   let replyConfig = $state<ReplyConfig | null>(null);
+  /** The workspace's translation settings; null until known or when the person cannot read them. */
+  let translationConfig = $state<TranslationConfig | null>(null);
+  let translations = $state<Record<string, ReviewTranslation | undefined>>({});
+  let showTranslations = $state(true);
+  let translatingAll = $state(false);
+  let translateProblem = $state('');
   let loading = $state(true);
   let listLoading = $state(false);
   let moreLoading = $state(false);
@@ -145,6 +163,9 @@
         if (mine === generation) replyConfig = c;
       })
       .catch(() => {});
+    void loadTranslationConfig(api, workspaceId).then((c) => {
+      if (mine === generation) translationConfig = c;
+    });
     // The people who can be assigned. Best effort: without them the assignee is just not offered.
     void api
       .members(workspaceId)
@@ -169,6 +190,9 @@
       sinceChoice = 'all';
       searchText = '';
       syncProblem = '';
+      translations = {};
+      translateProblem = '';
+      showTranslations = true;
     }
     untrack(() => void loadAll(!fresh));
   });
@@ -215,6 +239,37 @@
       await loadSummary();
     } finally {
       if (owner === generation) syncing = false;
+    }
+  }
+
+  const translationOn = $derived(
+    canTranslate(role) && translationConfig !== null && translationConfig.enabled && translationConfig.mode !== 'off',
+  );
+  const pendingBatches = $derived(translationConfig ? pendingTranslationBatches(reviews, translationConfig.target, translations) : []);
+  const pendingCount = $derived(pendingBatches.reduce((n, b) => n + b.length, 0));
+  const anyTranslated = $derived(Object.keys(translations).some((id) => translations[id] !== undefined));
+  const lowOnly = $derived(summary ? isLowOnly(filters.ratings, summary.lowRatingThreshold) : false);
+
+  /** One request per 25 reviews, one after the other. Stops at the first failure and says which. Nothing is retried. */
+  async function translateAll() {
+    if (translatingAll || !translationConfig || pendingBatches.length === 0) return;
+    const owner = generation;
+    const batches = pendingBatches;
+    const target = translationConfig.target;
+    translatingAll = true;
+    translateProblem = '';
+    try {
+      for (const ids of batches) {
+        const done = await api.translateReviews(workspaceId, app.id, { reviewIds: ids, target });
+        if (owner !== generation) return;
+        translations = mergeTranslations(translations, done.translations);
+      }
+      showTranslations = true;
+    } catch (e) {
+      if (owner !== generation) return;
+      translateProblem = translationErrorMessage(e);
+    } finally {
+      if (owner === generation) translatingAll = false;
     }
   }
 
@@ -307,6 +362,16 @@
               {n} {n === 1 ? 'star' : 'stars'}
             </label>
           {/each}
+          {#if summary.lowRatingThreshold > 0}
+            <Button
+              size="sm"
+              variant={lowOnly ? 'primary' : 'secondary'}
+              aria-pressed={lowOnly}
+              onclick={() => change({ ratings: ratingsWithLowOnly(!lowOnly, summary?.lowRatingThreshold ?? 0) })}
+            >
+              Low ratings only ({summary.lowRatingThreshold} {summary.lowRatingThreshold === 1 ? 'star' : 'stars'} or less)
+            </Button>
+          {/if}
         </fieldset>
 
         <div class="filter-grid">
@@ -373,6 +438,26 @@
         </div>
       </form>
 
+      {#if translationOn && translationConfig}
+        <div class="translate-bar row wrap">
+          <Button
+            size="sm"
+            icon="globe"
+            loading={translatingAll}
+            disabled={pendingCount === 0 || translatingAll}
+            onclick={translateAll}
+          >
+            {translateAllLabel(pendingCount, languageName(translationConfig.target))}
+          </Button>
+          <label class="check">
+            <input type="checkbox" bind:checked={showTranslations} disabled={!anyTranslated} />
+            Show translations
+          </label>
+          <span class="muted small">The stored text of those reviews is sent to the translation provider, 25 at a time.</span>
+        </div>
+        {#if translateProblem}<Alert tone="error" title="Translation stopped">{translateProblem}</Alert>{/if}
+      {/if}
+
       <div class="list" aria-busy={listLoading}>
         {#if listProblem}
           <Alert tone="error" title="Reviews could not be loaded">{listProblem}</Alert>
@@ -405,6 +490,9 @@
                   {canTriage}
                   lowThreshold={summary.lowRatingThreshold}
                   {now}
+                  translation={translations[review.id]}
+                  ontranslate={(t) => (translations = mergeTranslations(translations, [t]))}
+                  {showTranslations}
                   onchange={updated}
                 />
               </li>
@@ -494,6 +582,10 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  .translate-bar {
+    gap: var(--space-3);
   }
 
   .more {

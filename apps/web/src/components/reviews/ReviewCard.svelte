@@ -3,7 +3,8 @@
   Props: api, workspaceId, appId, appName, role, review, members (for the assignee), canTriage,
   lowThreshold, now (ms), replyConfig (the server's reply settings, or null while unknown: the reply
   row is hidden until it is known), onchange (called with the updated review after a triage change
-  or a reply change). Exports `markTriaged()` and `openReply()` for the keyboard shortcuts of the inbox.
+  or a reply change), translation, ontranslate and showTranslations (optional: a translation kept by the
+  Reviews tab, told when one is made here, and the list-wide show or hide). Exports `markTriaged()` and `openReply()` for the keyboard shortcuts of the inbox.
 
   The review text, title and display name are written by customers: they are text nodes only (never
   markup, never in a URL). Triage (status, assignee, note) is internal and changes nothing in a store.
@@ -34,6 +35,7 @@
     type Review,
     type ReviewStatus,
   } from '../../lib/reviews.ts';
+  import type { ReviewTranslation as ReviewTranslationResult } from '../../lib/review-translation.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -55,6 +57,9 @@
     lowThreshold,
     now,
     replyConfig = null,
+    translation = undefined,
+    ontranslate = undefined,
+    showTranslations = true,
     onchange,
   }: {
     api: Api;
@@ -68,6 +73,9 @@
     lowThreshold: number;
     now: number;
     replyConfig?: ReplyConfig | null;
+    translation?: ReviewTranslationResult | undefined;
+    ontranslate?: ((t: ReviewTranslationResult) => void) | undefined;
+    showTranslations?: boolean;
     onchange: (updated: Review) => void;
   } = $props();
 
@@ -193,7 +201,7 @@
     <p class="muted body">This review has no text.</p>
   {/if}
 
-  <ReviewTranslation {api} {workspaceId} {appId} {review} />
+  <ReviewTranslation {api} {workspaceId} {appId} {review} stored={translation} onstore={ontranslate} showAll={showTranslations} />
 
   <p class="meta muted">
     {#if review.authorName}<span>{review.authorName}</span>{/if}
