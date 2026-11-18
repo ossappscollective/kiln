@@ -1,0 +1,22 @@
+{
+  "name": "@mrm/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "node --disable-warning=ExperimentalWarning --watch --env-file-if-exists=../../.env src/index.ts",
+    "start": "node --disable-warning=ExperimentalWarning src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@mrm/connectors": "workspace:*",
+    "@mrm/core": "workspace:*",
+    "@mrm/db": "workspace:*",
+    "@mrm/vault": "workspace:*",
+    "hono": "^4.6.0",
+    "zod": "^3.25.0"
+  }
+}
