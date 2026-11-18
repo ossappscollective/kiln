@@ -14,7 +14,7 @@
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import AssetsTab from '../assets/AssetsTab.svelte';
-  import ListingTab from '../listing/ListingTab.svelte';
+  import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
@@ -54,9 +54,6 @@
   const canSync = $derived(can(role, 'apps.sync'));
 </script>
 
-{#snippet listing(app: AppSummary)}
-  <ListingTab {api} {workspaceId} {role} {app} {now} syncing={syncing[app.id] === true} onrefresh={() => onsync(app)} refreshKey={syncRuns} />
-{/snippet}
 {#snippet assets(app: AppSummary)}
   <AssetsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
 {/snippet}
@@ -81,9 +78,9 @@
 {#if section === 'releases' && version !== null}
   <ReleaseDetail {api} {workspaceId} {role} appId={openId} {version} />
 {:else if section === 'releases'}
-  <AppReleases {members} {releases} {now} {canSync} {syncing} {onsync} />
+  <AppReleases {api} {workspaceId} {role} {members} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
 {:else if section === 'listing'}
-  {@render perPlatform(listing)}
+  <ListingMatrix {api} {workspaceId} {role} {members} {now} {syncing} {onsync} refreshKey={syncRuns} />
 {:else if section === 'assets'}
   {@render perPlatform(assets)}
 {:else if section === 'reviews'}

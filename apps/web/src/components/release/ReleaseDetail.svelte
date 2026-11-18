@@ -9,7 +9,9 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
-  import { appHref, appLabel, describeError, portfolioHref } from '../../lib/portfolio.ts';
+  import { address } from '../../lib/address.svelte.ts';
+  import { appAddress } from '../../lib/app-scope.ts';
+  import { appLabel, describeError, portfolioHref } from '../../lib/portfolio.ts';
   import { attentionOf } from '../../lib/dashboard.ts';
   import { dueText, findSibling, planPlatformLabel, releaseHref, releasesOfVersion, rolloutBadge } from '../../lib/release.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
@@ -31,6 +33,9 @@
   import Rollout from './Rollout.svelte';
 
   let { api, workspaceId, role, appId, version }: { api: Api; workspaceId: string; role: Role; appId: string; version: string } = $props();
+
+  /** Back to the app's Releases tab, keeping the platform scope that is in the address. */
+  const backHref = $derived(appAddress(appId, 'releases', address.platform));
 
   const canReadPlans = $derived(can(role, 'plans.read'));
   const canWrite = $derived(can(role, 'plans.write'));
@@ -168,8 +173,8 @@
 
 <section aria-busy={loading}>
   <p class="back">
-    <a href={portfolioHref}><Icon name="chevron-left" size={16} /> Portfolio</a>
-    {#if app}<span aria-hidden="true"> / </span><a href={appHref(app.id)}>{app.name}</a>{/if}
+    <a href={backHref}><Icon name="chevron-left" size={16} /> Releases</a>
+    {#if app}<span aria-hidden="true"> / </span><span>{app.name} {version}</span>{/if}
   </p>
   <p class="visually-hidden" role="status">{announcement}</p>
 
@@ -189,7 +194,7 @@
       <div class="card">
         <EmptyState icon="box" title="App not found" description="This app is not in this workspace. It may have been deleted.">
           {#snippet actions()}
-            <Button href={portfolioHref} variant="primary">Back to the portfolio</Button>
+            <Button href={portfolioHref} variant="primary">Back to all apps</Button>
           {/snippet}
         </EmptyState>
       </div>
@@ -198,7 +203,7 @@
         <Alert tone="error" title="Could not load the release">{loadError.message}</Alert>
         <div class="row">
           <Button icon="refresh" onclick={load}>Try again</Button>
-          <Button href={portfolioHref} variant="ghost">Back to the portfolio</Button>
+          <Button href={portfolioHref} variant="ghost">Back to all apps</Button>
         </div>
       </div>
     {/if}
