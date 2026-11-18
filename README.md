@@ -88,8 +88,9 @@ packages/
   core/       Release lifecycle, change sets, roles, credential guides, listing model (pure, tested)
   vault/      AES-256-GCM encryption for store credentials (tested)
   db/         Portable SQL migrations, SQLite (node:sqlite) and Postgres adapters, Drizzle schemas
-  connectors/ GitHub, App Store Connect (read-only), Google Play (read-only), fastlane and Expo
-              store config files. A local-clone repo connector is still a stub
+  connectors/ GitHub, App Store Connect, Google Play, fastlane and Expo store config files,
+              translation providers. Store reads by default; every store write (review replies,
+              rollout, staged draft push, submit) is off until its MRM_*_ENABLED flag is set
 docs/         Architecture, ADRs, spikes, API notes, phase checklists, open decisions
 ```
 

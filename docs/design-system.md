@@ -108,6 +108,11 @@ Each file starts with a comment that lists its props.
 | `Icon` | One of the registered inline SVG icons (`lib/icons.ts`), see Icons below |
 | `StoreBadge`, `PlatformBadge` | A store, tool or platform as a generic glyph plus its name |
 | `AppIcon` | The icon of an app in a square of a fixed size. Loads `iconUrl` of the app JSON (same origin only), falls back to the initials of the app and the platform glyph, never a broken image. Decorative beside the app's name (`labelled`), named when alone. See `docs/api/assets.md` |
+| `Disclosure` | A summary line that expands in place. Use it for anything that is not the main task of the screen (notes, warnings with detail, history). Open state is kept in memory per screen (`lib/disclosure-state.ts`) |
+| `InfoTip` | A small popover for explanations, legends and read times, so they do not take room on the page. Flips at the window edge |
+| `StatusPill` | One line that expands to details; the quiet form of a warning or a disabled feature |
+| `StatChip` | A compact counter; zero values are dimmed |
+| `SegmentTabs` | iOS and Android (or other) tabs inside a page, instead of stacked copies |
 | `IconGallery` | Dev only: every icon, store badge and status icon on one page. Not routed |
 
 To show an icon in the navigation, set `icon` on the view in `lib/views.ts`.
@@ -222,6 +227,14 @@ For the navigation, `lib/views.ts` keeps its current icons. A `zap` icon exists 
 Webhooks entry to use it; `lib/format.ts` (`eventVisual`) would need the same change so the audit
 log agrees.
 
+
+## Hierarchy and density
+
+Important things are visible first: the screen's data (the locale grid, the review list, the current
+releases) starts on the first screen. Everything else is quiet by default: explanations and legends in
+`InfoTip`, warnings as a `StatusPill`, history under a `Disclosure`, a switched-off or empty feature as
+one slim line. A block with nothing to show is not drawn. Safety UI for store writes (previews,
+confirmations, typed phrases) is never shortened; only its idle state is.
 
 ## Do
 
