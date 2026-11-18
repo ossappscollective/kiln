@@ -3,6 +3,8 @@ import { type ChangeSet, checkSecret, type FileChange } from '@mrm/core';
 import type { BlobEntry, BlobHeadItem, BlobHeads, BlobHeadsOptions, BlobListing } from './blobs.ts';
 import {
   BranchExistsError,
+  BranchMissingError,
+  BranchMovedError,
   ChangeConflictError,
   DefaultBranchError,
   GithubError,
@@ -11,6 +13,9 @@ import {
   redactSecrets,
 } from './errors.ts';
 import type {
+  CommitOnBranchOptions,
+  CommitOnBranchResult,
+  PullRequestInfo,
   DispatchResult,
   ListWorkflowRunsOptions,
   ProposalResult,
@@ -823,6 +828,162 @@ export class GithubRepoConnector implements RepoConnector {
     const url = text(json.html_url);
     const number = num(json.number);
     return { ...(url ? { url } : {}), ...(number !== undefined ? { number } : {}) };
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Fix-up: one more commit on a branch that exists (never a rewrite, never forced)
+
+  /** The commit a branch points to now, or undefined when GitHub has no such branch. */
+  async branchTip(branch: string, signal?: AbortSignal): Promise<string | undefined> {
+    checkBranchName(branch);
+    const reply = await this.#api('GET', this.#repoPath(`/git/ref/${encPath(`heads/${branch}`)}`), {
+      allow: [404],
+      ...(signal ? { signal } : {}),
+    });
+    if (reply.status === 404) return undefined;
+    const object = isRecord(reply.json) && isRecord(reply.json.object) ? reply.json.object : {};
+    return text(object.sha);
+  }
+
+  /** A pull request by number, or the newest one (open first) whose head is `branch`. */
+  async findPullRequest(
+    options: { number?: number; branch?: string; signal?: AbortSignal } = {},
+  ): Promise<PullRequestInfo | undefined> {
+    const info = (json: Json): PullRequestInfo | undefined => {
+      const number = num(json.number);
+      if (number === undefined) return undefined;
+      const state = text(json.state) === 'open' ? 'open' : json.merged === true || text(json.merged_at) ? 'merged' : 'closed';
+      const head = isRecord(json.head) ? text(json.head.ref) : undefined;
+      const base = isRecord(json.base) ? text(json.base.ref) : undefined;
+      const url = text(json.html_url);
+      return { number, state, ...(url ? { url } : {}), ...(head ? { branch: head } : {}), ...(base ? { base } : {}) };
+    };
+    const signal = options.signal ? { signal: options.signal } : {};
+    if (options.number !== undefined) {
+      const reply = await this.#api('GET', this.#repoPath(`/pulls/${enc(String(options.number))}`), { allow: [404], ...signal });
+      return reply.status === 404 || !isRecord(reply.json) ? undefined : info(reply.json);
+    }
+    if (options.branch === undefined) return undefined;
+    const branch = checkBranchName(options.branch);
+    const reply = await this.#api('GET', this.#repoPath('/pulls'), {
+      query: { head: `${this.owner}:${branch}`, state: 'all', sort: 'created', direction: 'desc', per_page: '10' },
+      ...signal,
+    });
+    const found = records(reply.json)
+      .map(info)
+      .filter((p): p is PullRequestInfo => p !== undefined);
+    return found.find((p) => p.state === 'open') ?? found[0];
+  }
+
+  /**
+   * One commit on top of `expectedTip`, on the existing branch `branch`: blobs, a tree built on the
+   * tip's tree, a commit whose only parent is the tip, then the ref moved with `force: false`. The
+   * default branch is refused, as `propose` does. A branch that is not at `expectedTip`, or a ref
+   * update GitHub refuses as not a fast-forward, is a `BranchMovedError`; nothing is forced. Files
+   * that already have the text are skipped; if none is left it is a `no_changes` error.
+   */
+  async commitOnBranch(options: CommitOnBranchOptions): Promise<CommitOnBranchResult> {
+    const branch = checkBranchName(options.branch);
+    const seen = new Set<string>();
+    for (const change of options.changes) {
+      checkRepoPath(change.path);
+      if (seen.has(change.path)) {
+        throw new GithubError('invalid_input', `${change.path} appears twice in the change.`);
+      }
+      seen.add(change.path);
+      if (this.#blocked.some((prefix) => change.path.startsWith(prefix))) {
+        throw new GithubError(
+          'blocked_path',
+          `Refusing to change ${change.path}: that location is not edited by this tool.`,
+        );
+      }
+    }
+    const signal = options.signal;
+    const base = await this.defaultBranch(signal);
+    if (branch.toLowerCase() === base.toLowerCase()) throw new DefaultBranchError(base);
+
+    const tip = await this.branchTip(branch, signal);
+    if (tip === undefined) throw new BranchMissingError(branch);
+    if (tip !== options.expectedTip) throw new BranchMovedError(branch);
+
+    const tipCommit = await this.#api('GET', this.#repoPath(`/git/commits/${enc(tip)}`), {
+      ...(signal ? { signal } : {}),
+    });
+    const tipTree = text(
+      isRecord(tipCommit.json) && isRecord(tipCommit.json.tree) ? tipCommit.json.tree.sha : undefined,
+    );
+    if (!tipTree) throw new GithubError('unexpected', 'GitHub did not return the tree of the branch.');
+    const existing = new Map<string, Json>();
+    for (const entry of await this.#tree(tipTree, signal)) {
+      const path = text(entry.path);
+      if (path !== undefined && seen.has(path)) existing.set(path, entry);
+    }
+
+    const planned: { path: string; mode: string; content?: string }[] = [];
+    for (const change of options.changes) {
+      const entry = existing.get(change.path);
+      const mode = text(entry?.mode) ?? '100644';
+      if (entry && (entry.type !== 'blob' || mode === '120000' || mode === '160000')) {
+        throw new GithubError(
+          'invalid_input',
+          `${change.path} is a symlink, submodule or folder, which cannot be edited here.`,
+        );
+      }
+      if (change.content === undefined) {
+        if (entry) planned.push({ path: change.path, mode });
+        continue;
+      }
+      if (text(entry?.sha) === gitBlobSha(change.content)) continue;
+      planned.push({ path: change.path, mode, content: change.content });
+    }
+    if (planned.length === 0) {
+      throw new GithubError('no_changes', 'Nothing to commit: the branch already has these files.');
+    }
+
+    const treeEntries: Json[] = [];
+    const queue = [...planned];
+    const worker = async () => {
+      for (let change = queue.shift(); change; change = queue.shift()) {
+        if (change.content === undefined) {
+          treeEntries.push({ path: change.path, mode: change.mode, type: 'blob', sha: null });
+          continue;
+        }
+        const blob = await this.#api('POST', this.#repoPath('/git/blobs'), {
+          body: { content: change.content, encoding: 'utf-8' },
+          ...(signal ? { signal } : {}),
+        });
+        const sha = text(isRecord(blob.json) ? blob.json.sha : undefined);
+        if (!sha) throw new GithubError('unexpected', `GitHub did not return a blob for ${change.path}.`);
+        treeEntries.push({ path: change.path, mode: change.mode, type: 'blob', sha });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+    treeEntries.sort((a, b) => ((text(a.path) ?? '') < (text(b.path) ?? '') ? -1 : 1));
+
+    const tree = await this.#api('POST', this.#repoPath('/git/trees'), {
+      body: { base_tree: tipTree, tree: treeEntries },
+      ...(signal ? { signal } : {}),
+    });
+    const treeSha = text(isRecord(tree.json) ? tree.json.sha : undefined);
+    if (!treeSha) throw new GithubError('unexpected', 'GitHub did not return the new tree.');
+    const commit = await this.#api('POST', this.#repoPath('/git/commits'), {
+      body: { message: options.message, tree: treeSha, parents: [tip] },
+      ...(signal ? { signal } : {}),
+    });
+    const commitSha = text(isRecord(commit.json) ? commit.json.sha : undefined);
+    if (!commitSha) throw new GithubError('unexpected', 'GitHub did not return the new commit.');
+
+    try {
+      // `force: false` is GitHub's default; it is sent so that this can only ever be a fast-forward.
+      await this.#api('PATCH', this.#repoPath(`/git/refs/${encPath(`heads/${branch}`)}`), {
+        body: { sha: commitSha, force: false },
+        ...(signal ? { signal } : {}),
+      });
+    } catch (error) {
+      if (error instanceof GithubError && error.kind === 'validation') throw new BranchMovedError(branch);
+      throw error;
+    }
+    return { commit: commitSha, parent: tip, tree: treeSha, changed: planned.length };
   }
 
   /** Compares each change with the tree it will be applied to. */

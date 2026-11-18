@@ -149,6 +149,36 @@ export type OpenPullRequestResult = {
   number?: number;
 };
 
+/** A pull request as the host reports it. `merged` is a closed pull request that was merged. */
+export type PullRequestInfo = {
+  number: number;
+  url?: string;
+  state: 'open' | 'closed' | 'merged';
+  /** The head branch and the branch it merges into. */
+  branch?: string;
+  base?: string;
+};
+
+/** What a fix-up commit changes: a path and its new text (no `content`: the file is deleted). */
+export type BranchFileChange = { path: string; content?: string };
+
+export type CommitOnBranchOptions = {
+  branch: string;
+  /** The commit the branch must point to now. Anything else is a `BranchMovedError`, and nothing is written. */
+  expectedTip: string;
+  changes: BranchFileChange[];
+  message: string;
+  signal?: AbortSignal;
+};
+
+export type CommitOnBranchResult = {
+  /** The new commit, whose only parent is `parent` (the tip that was read). */
+  commit: string;
+  parent: string;
+  tree: string;
+  changed: number;
+};
+
 export type DispatchResult = {
   /**
    * The workflow run that was started. GitHub only reports it when asked for run details, so it
@@ -199,6 +229,19 @@ export interface RepoConnector {
    * Optional: a connector without it cannot open one for an existing branch.
    */
   openPullRequest?(options: OpenPullRequestOptions): Promise<OpenPullRequestResult>;
+  /** The commit a branch points to, or undefined when there is no such branch. Optional (fix-up). */
+  branchTip?(branch: string, signal?: AbortSignal): Promise<string | undefined>;
+  /**
+   * Adds ONE commit on top of the tip of an existing branch and moves the branch to it with a
+   * fast-forward only (never forced). Optional (fix-up): a connector without it cannot fix up.
+   */
+  commitOnBranch?(options: CommitOnBranchOptions): Promise<CommitOnBranchResult>;
+  /** A pull request by number, or the newest one whose head is `branch`; undefined when there is none. Optional (fix-up). */
+  findPullRequest?(options: {
+    number?: number;
+    branch?: string;
+    signal?: AbortSignal;
+  }): Promise<PullRequestInfo | undefined>;
   dispatchWorkflow(
     workflow: string,
     ref: string,

@@ -21,7 +21,9 @@ export type GithubErrorKind =
   | 'default_branch'
   | 'change_conflict'
   | 'blocked_path'
-  | 'pull_request_failed';
+  | 'pull_request_failed'
+  | 'branch_moved'
+  | 'branch_missing';
 
 export class GithubError extends Error {
   readonly kind: GithubErrorKind;
@@ -82,6 +84,34 @@ export class DefaultBranchError extends GithubError {
       `Refusing to write to the default branch (${branch}). Use a new branch.`,
     );
     this.name = 'DefaultBranchError';
+    this.branch = branch;
+  }
+}
+
+/**
+ * A fix-up commit was meant for an exact tip of a branch and the branch is somewhere else now
+ * (somebody pushed, or GitHub refused to move the ref because it would not be a fast-forward).
+ * Nothing was moved: the ref is never forced.
+ */
+export class BranchMovedError extends GithubError {
+  readonly branch: string;
+  constructor(branch: string) {
+    super(
+      'branch_moved',
+      `The branch ${branch} has moved since it was read, so nothing was added to it.`,
+      422,
+    );
+    this.name = 'BranchMovedError';
+    this.branch = branch;
+  }
+}
+
+/** The branch a fix-up commit is meant for does not exist (any more). */
+export class BranchMissingError extends GithubError {
+  readonly branch: string;
+  constructor(branch: string) {
+    super('branch_missing', `The branch ${branch} does not exist on GitHub.`, 404);
+    this.name = 'BranchMissingError';
     this.branch = branch;
   }
 }

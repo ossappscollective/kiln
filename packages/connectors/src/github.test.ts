@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import type { ChangeSet } from '@mrm/core';
 import {
   BranchExistsError,
+  BranchMissingError,
+  BranchMovedError,
   ChangeConflictError,
   DefaultBranchError,
   GithubError,
@@ -1255,4 +1257,172 @@ test('openPullRequest refuses branch names that are not valid, and reports a ref
   await rejects(make(fake).openPullRequest({ branch: 'a', base: 'main', title: 'T' }), (e) =>
     assert.match(e.message, /PullRequest\.custom/),
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// fix-up: one more commit on an existing branch
+
+const FIX_BRANCH = 'mrm/update-listing';
+const FIX_TIP = 'e5f60718293a4b5c6d7e8f9012345678901234ab';
+const FIX_TREE = 'f60718293a4b5c6d7e8f9012345678901234abcd';
+
+const fixupRoutes = (fake: Fake) =>
+  withDefaultBranch(fake)
+    .on({ method: 'GET', path: `${R}/git/ref/heads/${FIX_BRANCH}`, json: fx.ref(`heads/${FIX_BRANCH}`, FIX_TIP) })
+    .on({ method: 'GET', path: `${R}/git/commits/${FIX_TIP}`, json: fx.commit(FIX_TIP, FIX_TREE) })
+    .on({
+      method: 'GET',
+      path: `${R}/git/trees/${FIX_TREE}`,
+      query: { recursive: '1' },
+      json: fx.tree(FIX_TREE, [
+        { path: NAME, sha: gitBlob('Trail Notes Pro\n') },
+        { path: OLD, sha: gitBlob('Hike, log, share\n') },
+        { path: 'bin/release.sh', mode: '100755', sha: gitBlob('#!/bin/sh\n') },
+        { path: 'docs/link', mode: '120000', sha: 'linksha' },
+      ]),
+    })
+    .on({ method: 'POST', path: `${R}/git/blobs`, status: 201, json: { sha: 'newblob' } })
+    .on({ method: 'POST', path: `${R}/git/trees`, status: 201, json: fx.tree(fx.SHA_NEW_TREE, []) })
+    .on({ method: 'POST', path: `${R}/git/commits`, status: 201, json: fx.commit(fx.SHA_NEW_COMMIT, fx.SHA_NEW_TREE) })
+    .on({ method: 'PATCH', path: `${R}/git/refs/heads/${FIX_BRANCH}`, json: fx.ref(`heads/${FIX_BRANCH}`, fx.SHA_NEW_COMMIT) });
+
+test('commitOnBranch adds one commit on the tip and fast-forwards the ref with force false', async () => {
+  const fake = new Fake();
+  fixupRoutes(fake);
+  const result = await make(fake).commitOnBranch({
+    branch: FIX_BRANCH,
+    expectedTip: FIX_TIP,
+    message: 'Fix up',
+    changes: [
+      { path: NAME, content: 'Trail Notes Max\n' },
+      { path: OLD }, // a deletion
+      { path: 'bin/release.sh', content: '#!/bin/sh\nset -e\n' },
+    ],
+  });
+  assert.deepEqual(result, { commit: fx.SHA_NEW_COMMIT, parent: FIX_TIP, tree: fx.SHA_NEW_TREE, changed: 3 });
+  fake.assertClean();
+  const writes = fake.calls.filter((c) => c.method !== 'GET' && !c.path.includes('access_tokens'));
+  assert.deepEqual(writes.map((c) => `${c.method} ${c.path.replace(R, '')}`), [
+    'POST /git/blobs',
+    'POST /git/blobs',
+    'POST /git/trees',
+    'POST /git/commits',
+    `PATCH /git/refs/heads/${FIX_BRANCH}`,
+  ]);
+  const tree = writes[2]?.body;
+  assert.equal(tree.base_tree, FIX_TREE);
+  assert.deepEqual(
+    tree.tree.map((e: { path: string; mode: string; sha: string | null }) => [e.path, e.mode, e.sha === null]),
+    [
+      [NAME, '100644', false],
+      [OLD, '100644', true],
+      ['bin/release.sh', '100755', false],
+    ].sort((a, b) => ((a[0] as string) < (b[0] as string) ? -1 : 1)),
+  );
+  assert.deepEqual(writes[3]?.body, { message: 'Fix up', tree: fx.SHA_NEW_TREE, parents: [FIX_TIP] });
+  assert.deepEqual(writes[4]?.body, { sha: fx.SHA_NEW_COMMIT, force: false });
+  // No other ref is created, moved or deleted.
+  assert.equal(fake.calls.some((c) => c.path.endsWith('/git/refs') || c.method === 'DELETE'), false);
+});
+
+test('commitOnBranch: a tip that is not the expected one, or a ref update GitHub refuses, is branch_moved', async () => {
+  const fake = new Fake();
+  fixupRoutes(fake);
+  await rejects(
+    make(fake).commitOnBranch({ branch: FIX_BRANCH, expectedTip: SHA_OTHER, message: 'm', changes: [{ path: NAME, content: 'x\n' }] }),
+    (e) => {
+      assert.ok(e instanceof BranchMovedError);
+      assert.equal(e.kind, 'branch_moved');
+    },
+  );
+  assert.equal(fake.writes.length, 0, 'nothing is written when the tip is not the expected one');
+
+  const racing = new Fake();
+  fixupRoutes(racing);
+  racing.replace({
+    method: 'PATCH',
+    path: `${R}/git/refs/heads/${FIX_BRANCH}`,
+    status: 422,
+    json: { message: 'Update is not a fast forward' },
+  });
+  await rejects(
+    make(racing).commitOnBranch({ branch: FIX_BRANCH, expectedTip: FIX_TIP, message: 'm', changes: [{ path: NAME, content: 'x\n' }] }),
+    (e) => assert.ok(e instanceof BranchMovedError),
+  );
+});
+
+const SHA_OTHER = '0123456789abcdef0123456789abcdef01234567';
+
+test('commitOnBranch refuses the default branch, a missing branch, bad paths, blocked paths and symlinks', async () => {
+  const fake = new Fake();
+  fixupRoutes(fake).on({ method: 'GET', path: `${R}/git/ref/heads/gone`, status: 404, json: { message: 'Not Found' } });
+  const change = [{ path: NAME, content: 'x\n' }];
+  for (const branch of ['main', 'Main']) {
+    await rejects(make(fake).commitOnBranch({ branch, expectedTip: FIX_TIP, message: 'm', changes: change }), (e) =>
+      assert.ok(e instanceof DefaultBranchError),
+    );
+  }
+  await rejects(make(fake).commitOnBranch({ branch: 'gone', expectedTip: FIX_TIP, message: 'm', changes: change }), (e) =>
+    assert.ok(e instanceof BranchMissingError),
+  );
+  for (const [changes, kind] of [
+    [[{ path: '../x', content: 'x' }], 'invalid_input'],
+    [[{ path: NAME, content: 'a' }, { path: NAME, content: 'b' }], 'invalid_input'],
+    [[{ path: '.github/workflows/x.yml', content: 'x' }], 'blocked_path'],
+    [[{ path: 'docs/link', content: 'x' }], 'invalid_input'],
+  ] as const) {
+    await rejects(
+      make(fake).commitOnBranch({ branch: FIX_BRANCH, expectedTip: FIX_TIP, message: 'm', changes: [...changes] }),
+      (e) => assert.equal(e.kind, kind),
+    );
+  }
+  await rejects(make(fake).commitOnBranch({ branch: '--bad', expectedTip: FIX_TIP, message: 'm', changes: change }), (e) =>
+    assert.equal(e.kind, 'invalid_input'),
+  );
+  assert.equal(fake.writes.length, 0);
+});
+
+test('commitOnBranch skips files that already have the text and says no_changes when nothing is left', async () => {
+  const fake = new Fake();
+  fixupRoutes(fake);
+  await rejects(
+    make(fake).commitOnBranch({
+      branch: FIX_BRANCH,
+      expectedTip: FIX_TIP,
+      message: 'm',
+      changes: [{ path: NAME, content: 'Trail Notes Pro\n' }, { path: 'not/there.txt' }],
+    }),
+    (e) => assert.equal(e.kind, 'no_changes'),
+  );
+  assert.equal(fake.writes.length, 0);
+});
+
+test('branchTip and findPullRequest', async () => {
+  const fake = new Fake();
+  withDefaultBranch(fake)
+    .on({ method: 'GET', path: `${R}/git/ref/heads/${FIX_BRANCH}`, json: fx.ref(`heads/${FIX_BRANCH}`, FIX_TIP) })
+    .on({ method: 'GET', path: `${R}/git/ref/heads/gone`, status: 404, json: { message: 'Not Found' } })
+    .on({ method: 'GET', path: `${R}/pulls/17`, json: { ...fx.pullRequest(17, FIX_BRANCH), state: 'closed', merged: true, base: { ref: 'main' } } })
+    .on({ method: 'GET', path: `${R}/pulls/18`, status: 404, json: { message: 'Not Found' } })
+    .on({
+      method: 'GET',
+      path: `${R}/pulls`,
+      query: { head: `acme:${FIX_BRANCH}` },
+      json: [{ ...fx.pullRequest(20, FIX_BRANCH), state: 'closed' }, fx.pullRequest(19, FIX_BRANCH)],
+    });
+  const connector = make(fake);
+  assert.equal(await connector.branchTip(FIX_BRANCH), FIX_TIP);
+  assert.equal(await connector.branchTip('gone'), undefined);
+  assert.deepEqual(await connector.findPullRequest({ number: 17 }), {
+    number: 17,
+    state: 'merged',
+    url: 'https://github.com/acme/trail-notes/pull/17',
+    branch: FIX_BRANCH,
+    base: 'main',
+  });
+  assert.equal(await connector.findPullRequest({ number: 18 }), undefined);
+  // By branch: an open pull request wins over a newer closed one.
+  assert.equal((await connector.findPullRequest({ branch: FIX_BRANCH }))?.number, 19);
+  assert.equal((await connector.findPullRequest({ branch: FIX_BRANCH }))?.state, 'open');
+  fake.assertClean();
 });
