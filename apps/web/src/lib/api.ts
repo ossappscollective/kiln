@@ -6,6 +6,7 @@ import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.t
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
+import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
 import type { InboxPage, Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody, WorkspaceReviewsSummary } from './reviews.ts';
 import type {
   AcceptedInvitation,
@@ -598,6 +599,19 @@ export function createApi(options: ApiOptions = {}) {
         `${planPath(workspaceId, appId, planId)}/rollout/steps/${encodeURIComponent(stepId)}/${action}`,
         action === 'complete' && options.fromStore ? { fromStore: true } : {},
       ),
+    // Store rollout writes (docs/api/rollout.md): off unless the server sets MRM_STORE_ROLLOUT_ENABLED. State,
+    // preview and apply need `releases.rollout` (admin and up); only `rolloutApply` changes a store, once,
+    // with the `confirmHash` of a preview. `query` is `stateQuery(base)` of lib/store-rollout.ts.
+    rolloutConfig: (workspaceId: string) => request<RolloutConfig>('GET', `${workspace(workspaceId)}/rollout/config`),
+    rolloutState: (workspaceId: string, appId: string, query = '') =>
+      request<RolloutStateView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/state${query ? `?${query}` : ''}`,
+      ),
+    rolloutPreview: (workspaceId: string, appId: string, body: RolloutRequest) =>
+      request<{ preview: RolloutPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/preview`, body),
+    rolloutApply: (workspaceId: string, appId: string, body: RolloutRequest & { confirmHash: string }) =>
+      request<{ result: RolloutResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/apply`, body),
     checklistTemplates: (workspaceId: string) =>
       request<{ templates: ChecklistTemplate[] }>('GET', `${workspace(workspaceId)}/checklist-templates`),
     createChecklistTemplate: (workspaceId: string, input: { name: string; items: { text: string; required: boolean }[] }) =>
