@@ -64,6 +64,17 @@ rendered in a browser, and Expo is only done at library level.
       API. Tested with real local git repositories as the source for the fastlane layouts, the
       fall back, tokens in logs and audit rows, and disconnect; **never run against real GitHub
       over https**, with a GitHub App installation token, or in the Docker image (not built here)
+- [x] Local clones: read a git folder on the server as a repository (`MRM_LOCAL_REPO_ROOTS`, off
+      unless set, [ADR 0005](adr/0005-local-clone-reads.md)). Attach a folder to a connected GitHub
+      repository, or connect it as a **local-only** repository (no credential, no owner/repo;
+      apply is refused with `409 local_only`). Committed state only, with the uncommitted count
+      shown; the real path is validated against the roots at every read; git runs hardened in the
+      user's repository; admin/owner only; audited. Migration 13 (nullable `credential_id`,
+      `owner`, `repo`; `repository_local_checkouts`). API: [api/repositories.md](api/repositories.md).
+      Web: a "Local clone" tab in the Connect dialog and a Local clone card on the repository
+      page. Tested with real local git repositories (the fastlane layouts give the same results as
+      the API), a hostile repository config, symlink swaps and roles; **not run on macOS, against a
+      real repository, with a real dubious-ownership case, on Postgres, or in a browser**
 - [x] CI workflows, runs and build linking ([docs/api/ci.md](api/ci.md)): list workflows and their
       `workflow_dispatch` inputs, dispatch a workflow (new right `ci.dispatch`, member and up,
       rate limited, audited with input names only), store runs in `workflow_runs` and follow them

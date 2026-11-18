@@ -13,6 +13,14 @@ import {
   updateListingTarget,
 } from '../services/listing-targets.ts';
 import {
+  attachLocalCheckout,
+  checkLocalPath,
+  connectLocalRepository,
+  detachLocalCheckout,
+  localConfigView,
+  localOnlyApplyRefusal,
+} from '../services/local-checkouts.ts';
+import {
   type Failure,
   type RepoContext,
   connectRepository,
@@ -21,6 +29,7 @@ import {
   getRepository,
   getRepositoryListing,
   listRepositories,
+  repositoryView,
   scanRepository,
 } from '../services/repositories.ts';
 import {
@@ -54,6 +63,22 @@ const connectBody = z.object({
     .max(100)
     .regex(/^[A-Za-z0-9._-]+$/, 'Not a GitHub repository name.')
     .refine((v) => v !== '.' && v !== '..' && !v.endsWith('.git'), 'Not a GitHub repository name.'),
+});
+
+// A folder on the server and a branch name. The service checks them again (real path inside an
+// allowed root, a branch that exists); these only bound the size of what is read.
+const localPath = z.string().min(1).max(4096);
+const localBranch = z.string().trim().min(1).max(200);
+const localCheckBody = z.object({ path: localPath, branch: localBranch.optional() });
+const localConnectBody = z.object({
+  path: localPath,
+  branch: localBranch.optional(),
+  name: z.string().trim().max(100).optional(),
+});
+const localAttachBody = z.object({
+  path: localPath.optional(),
+  branch: localBranch.optional(),
+  allowRemoteMismatch: z.boolean().optional(),
 });
 
 // A locale folder (`en-US`, `de`) or the fastlane `default` folder. No slashes, so a key can never
@@ -162,15 +187,69 @@ export function repositoryRoutes(ctx: RepoContext) {
 
   // ----- repositories ---------------------------------------------------------------------
 
-  app.get('/:workspaceId/repositories', needs('repositories.read'), async (c) =>
-    c.json({ repositories: await listRepositories(db, ws(c)) }),
-  );
+  app.get('/:workspaceId/repositories', needs('repositories.read'), async (c) => {
+    const repositories = await listRepositories(db, ws(c));
+    return c.json({ repositories: await Promise.all(repositories.map((r) => repositoryView(ctx, r))) });
+  });
 
   app.post('/:workspaceId/repositories', needs('repositories.write'), async (c) => {
     const body = await parseBody(c, connectBody);
     if (!body.ok) return body.response;
     const done = await connectRepository(ctx, { workspaceId: ws(c), ...body.data }, actor(c));
-    return done.ok ? c.json({ repository: done.repository }, 201) : respond(c, done);
+    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }, 201) : respond(c, done);
+  });
+
+  // ----- local clones (docs/adr/0005-local-clone-reads.md) ---------------------------------
+  // Registered before `/repositories/:id`. All of them need the right to change repositories
+  // (admin and owner), and refuse with 409 unless MRM_LOCAL_REPO_ROOTS is set.
+
+  // Whether the feature is on. Anyone who may look sees that; only who may attach sees the folders.
+  app.get('/:workspaceId/repositories/local/config', needs('repositories.read'), async (c) =>
+    c.json({ local: localConfigView(ctx, can(c.get('role'), 'repositories.write')) }),
+  );
+
+  app.post('/:workspaceId/repositories/local/check', needs('repositories.write'), async (c) => {
+    const body = await parseBody(c, localCheckBody);
+    if (!body.ok) return body.response;
+    const done = await checkLocalPath(
+      ctx,
+      { workspaceId: ws(c), path: body.data.path, branch: body.data.branch },
+      actor(c),
+    );
+    return done.ok ? c.json({ check: done.check }) : respond(c, done);
+  });
+
+  app.post('/:workspaceId/repositories/local', needs('repositories.write'), async (c) => {
+    const body = await parseBody(c, localConnectBody);
+    if (!body.ok) return body.response;
+    const done = await connectLocalRepository(
+      ctx,
+      { workspaceId: ws(c), path: body.data.path, branch: body.data.branch, name: body.data.name },
+      actor(c),
+    );
+    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }, 201) : respond(c, done);
+  });
+
+  app.put('/:workspaceId/repositories/:id/local', needs('repositories.write'), async (c) => {
+    const body = await parseBody(c, localAttachBody);
+    if (!body.ok) return body.response;
+    const done = await attachLocalCheckout(
+      ctx,
+      {
+        workspaceId: ws(c),
+        repositoryId: param(c, 'id'),
+        path: body.data.path,
+        branch: body.data.branch,
+        allowRemoteMismatch: body.data.allowRemoteMismatch,
+      },
+      actor(c),
+    );
+    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }) : respond(c, done);
+  });
+
+  app.delete('/:workspaceId/repositories/:id/local', needs('repositories.write'), async (c) => {
+    const done = await detachLocalCheckout(ctx, { workspaceId: ws(c), repositoryId: param(c, 'id') }, actor(c));
+    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }) : respond(c, done);
   });
 
   app.get('/:workspaceId/repositories/:id', needs('repositories.read'), async (c) => {
@@ -178,7 +257,7 @@ export function repositoryRoutes(ctx: RepoContext) {
     if (!repository) return notFound(c);
     const detection = await getDetection(db, ws(c), repository.id);
     return c.json({
-      repository,
+      repository: await repositoryView(ctx, repository),
       detection,
       ...(detection ? { listingSources: detectedSources(detection) } : {}),
     });
@@ -193,7 +272,7 @@ export function repositoryRoutes(ctx: RepoContext) {
     const done = await scanRepository(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
     if (!done.ok) return respond(c, done);
     return c.json({
-      repository: done.repository,
+      repository: await repositoryView(ctx, done.repository),
       detection: done.detection,
       listingSources: done.listingSources,
     });
@@ -314,6 +393,9 @@ export function repositoryRoutes(ctx: RepoContext) {
   });
 
   app.post('/:workspaceId/change-sets/:id/apply', needs('changesets.approve'), async (c) => {
+    // Before the change set is claimed: it stays approved. Local-only repositories cannot be applied yet.
+    const refused = await localOnlyApplyRefusal(ctx, { workspaceId: ws(c), changeSetId: param(c, 'id') });
+    if (refused) return respond(c, refused);
     const done = await applyChangeSet(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
     if (!done.ok) return respond(c, done);
     return c.json(

@@ -44,7 +44,26 @@ export type ReadFallback = {
   message: string;
 };
 
-export type ReadReport = { fallbacks: ReadFallback[] };
+export type ReadReport = {
+  fallbacks: ReadFallback[];
+  /** `local`: the repository's attached local folder (docs/adr/0005). Absent: a managed clone of GitHub. */
+  origin?: 'local';
+};
+
+/**
+ * A local clone could not be read, with a code and a message written to be shown (no path outside
+ * the allowed folders, no secret). `githubFailure` turns it into a response with this status and code.
+ */
+export class LocalReadError extends Error {
+  readonly code: string;
+  readonly status: 404 | 409 | 422;
+  constructor(code: string, message: string, status: 404 | 409 | 422 = 422) {
+    super(message);
+    this.name = 'LocalReadError';
+    this.code = code;
+    this.status = status;
+  }
+}
 
 /** What `withCloneReads` returns: the API connector with the clone's reads, and a few extras. */
 export type CloneBackedClient = ApiClient & {
@@ -77,6 +96,8 @@ export type WithCloneReadsOptions = {
   /** Awaited before the API is used. Must not throw. */
   onFallback?: (fallback: ReadFallback) => void | Promise<void>;
   signal?: AbortSignal;
+  /** Marks the reads as coming from an attached local folder, for the audit detail. */
+  origin?: 'local';
 };
 
 /**
@@ -98,7 +119,7 @@ export function withCloneReads(
 ): CloneBackedClient {
   let signal = options.signal;
   let fellBack = false;
-  const reads: ReadReport = { fallbacks: [] };
+  const reads: ReadReport = { fallbacks: [], ...(options.origin ? { origin: options.origin } : {}) };
   const call = () => (signal ? { signal } : {});
 
   async function run<T>(
@@ -202,6 +223,18 @@ export type CloneTarget = {
   owner: string;
   repo: string;
   defaultBranch: string;
+  /** Read from this source instead of GitHub: a local folder that has been validated by the caller. */
+  source?: CloneSource;
+  /** Overrides the pool's freshness window for this reader. 0 fetches the branch tip on every read. */
+  ttlMs?: number;
+};
+
+/** Where local clones may be (docs/adr/0005-local-clone-reads.md). Empty `roots`: the feature is off. */
+export type LocalReposConfig = {
+  /** Allowed parent folders, absolute (MRM_LOCAL_REPO_ROOTS). Their real paths are used when a path is checked. */
+  roots: readonly string[];
+  /** Folders a local clone must never be in (the server's data and clone folders). */
+  excluded: readonly string[];
 };
 
 export type CloneReadsOptions = {
@@ -223,11 +256,17 @@ export type CloneReadsOptions = {
   log?: (line: string) => void;
   /** Longest a pooled reader is kept. Default 64 repositories. */
   maxReaders?: number;
+  /** Local clones a person may attach. Default: none (off). */
+  local?: LocalReposConfig;
 };
 
 export type CloneReads = {
   readonly mode: ReadsMode;
   readonly cloneDir: string;
+  /** The git program. Optional so a stand-in pool in a test need not have it. Default `git`. */
+  readonly gitPath?: string;
+  /** Where local clones may be. Absent or empty `roots`: the feature is off. */
+  readonly local?: LocalReposConfig;
   /** Reads go through a clone: `clone`, or `auto` with git present. False in `api` mode. */
   readonly active: boolean;
   /** `auto`: the API takes over for a request when the clone cannot be used. */
@@ -255,17 +294,19 @@ export function createCloneReads(options: CloneReadsOptions): CloneReads {
   return {
     mode: options.mode,
     cloneDir: options.cloneDir,
+    gitPath: options.gitPath ?? 'git',
+    local: options.local ?? { roots: [], excluded: [] },
     active,
     fallback: options.mode === 'auto',
     log,
     reader(target, token) {
-      const source: CloneSource = options.source?.(target) ?? {
+      const source: CloneSource = target.source ?? options.source?.(target) ?? {
         type: 'github',
         owner: target.owner,
         repo: target.repo,
       };
       const key = keyOf(target.workspaceId, target.repositoryId);
-      const shape = JSON.stringify([source, target.defaultBranch]);
+      const shape = JSON.stringify([source, target.defaultBranch, target.ttlMs ?? null]);
       let entry = pool.get(key);
       if (entry && entry.shape !== shape) {
         pool.delete(key);
@@ -280,7 +321,7 @@ export function createCloneReads(options: CloneReadsOptions): CloneReads {
           source,
           token: () => (typeof holder.current === 'function' ? holder.current() : holder.current),
           defaultBranch: target.defaultBranch,
-          ttlMs: options.ttlMs ?? 60_000,
+          ttlMs: target.ttlMs ?? options.ttlMs ?? 60_000,
           ...(options.gitPath ? { gitPath: options.gitPath } : {}),
         });
         entry = { reader, shape, token: holder };

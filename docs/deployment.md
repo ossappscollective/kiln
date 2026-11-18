@@ -52,6 +52,7 @@ change set (branch, commit, pull request) and connecting a repository still use 
 | `MRM_CLONE_DIR` | `<MRM_DATA_DIR>/clones` | Where clones live. Created with mode 0700 at start. |
 | `MRM_CLONE_TTL_SECONDS` | `60` | How long a fetched branch tip is reused. A scan always fetches. |
 | `MRM_GIT_PATH` | `git` | The git program. |
+| `MRM_LOCAL_REPO_ROOTS` | unset (off) | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below. |
 
 - **git 2.34 or newer** must be on the server. The Docker image installs it (Debian 12 ships 2.39).
   At start, unless `MRM_READS=api`, the server runs `git --version` once and logs one line. If git is
@@ -76,6 +77,68 @@ change set (branch, commit, pull request) and connecting a repository still use 
   to git. GitHub Enterprise Server is not wired up.
 - **Not verified against real GitHub yet** (HTTPS fetch with a PAT or installation token, fetch by
   commit id): keep `MRM_READS=api` if you need the proven path.
+
+
+## Local clones: read a folder on the server
+
+A repository can be read from a git clone that already exists on the machine the server runs on
+(for example `/Volumes/dev/nativescript/oss-weather`), instead of from GitHub. Two uses:
+
+- **Attach** a folder to a repository that is connected to GitHub. Scans, listings and change set
+  creation read the folder; applying a change set still opens a pull request on GitHub with the
+  stored credential.
+- **Connect as a local-only repository**: no credential, no `owner/repo`. Reads come from the
+  folder. Applying a change set is refused with `409 local_only` (a pull request needs GitHub).
+  This is read-only for now; see [ADR 0005](adr/0005-local-clone-reads.md).
+
+The feature is **off unless `MRM_LOCAL_REPO_ROOTS` is set**, in every mode (hosted, and
+`single_user` too):
+
+    MRM_LOCAL_REPO_ROOTS=/Volumes/dev                # one folder
+    MRM_LOCAL_REPO_ROOTS=/Volumes/dev:/Users/me/src  # several, separated by ':'
+
+Each entry must be an absolute path with no `..` and no control characters, and `/` itself is
+refused. At most 20 entries. A bad value stops the server at start with a message naming the
+entry. With nothing set, the web app shows "Local clones are not enabled: set
+`MRM_LOCAL_REPO_ROOTS=/Volumes/dev`"; with it set, the Connect dialog lists the roots. It does
+nothing with `MRM_READS=api` (git is never run in that mode) and needs git on the server.
+
+**What a folder must be, checked when it is attached and again before every read:**
+
+- Its real path (symbolic links resolved) is inside one of the roots, and it is a directory.
+- It has a `.git` directory with a `HEAD`, or a `.git` file (a worktree) whose git directory is also
+  inside a root. A symlinked `.git` and a bare repository are refused.
+- It is not the server's own data or clone folder (`MRM_DATA_DIR`, `MRM_CLONE_DIR`) and holds no
+  `mrm-clone.json`.
+- The person has the right `repositories.write` (admin or owner). Members and viewers can see which
+  repository reads from a folder, but cannot check, attach, change or detach one.
+
+**What is read.** Only what is committed: the tip of one chosen branch (the folder's own checkout is
+not changed, and nothing is checked out). Uncommitted and untracked files are never read. The web
+app says so ("Reads commit abc1234 on branch main; 3 uncommitted changes are not included"); the
+count comes from a read-only `git status`.
+
+**How git is run in your folder.** The repository is untrusted input even when it is yours. git
+runs with hooks, `fsmonitor`, external diff, credential helpers, askpass and `ssh` commands switched
+off on the command line, with `filter.*` drivers emptied for `status`, with global and system
+config ignored, an allowlisted environment, optional locks off (so `git status` does not write the
+index), lazy fetching and all network transports blocked, and a timeout. Reading goes through the
+same hardened reader as GitHub clones, over a managed copy in `MRM_CLONE_DIR`. The origin URL is
+shown as host, owner and name only; credentials in a URL are never returned or logged.
+
+**Ownership.** Newer git refuses a repository owned by another user ("dubious ownership"). The
+server does not set `safe.directory`, because that would let it read any folder. The error says to
+run the server as the folder's owner or to change the owner. Run the server as the user who owns
+your clones (on a Mac, your own account).
+
+**Audit.** `repository.local_check`, `repository.local_connect`, `repository.local_attach`,
+`repository.local_change` and `repository.local_detach` record the actor, the path and the branch,
+never any file content. A scan says `reads: "local"`.
+
+**Limits to know.** The path is checked and then opened by git a moment later, so a person with
+write access to a root could swap a folder in between; keep roots to folders only you can write.
+Files inside the roots are trusted as paths (a repository's `.git/objects/info/alternates` is
+followed by git). Do not put a root over a folder that other people can write to.
 
 
 ## Tokens, event streams and webhooks

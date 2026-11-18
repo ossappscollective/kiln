@@ -3,7 +3,10 @@
 Status: proposed. It stays proposed until the clone path has run against real GitHub (see "What is
 verified, and what is not"). Phase 1 is `GitCloneReader` in `packages/connectors/src/git-clone.ts`
 (41 tests, no network). Phase 2, the server integration, is implemented and tested with local git
-repositories (see "Implemented" below). Nothing was measured against GitHub itself.
+repositories (see "Implemented" below). Phase 3 adds **local clones**: a folder on the server read as
+a repository, attached to a GitHub repository or on its own (see "Local clones"). Nothing was
+measured against GitHub itself, and phase 3 was not run on macOS, with a real repository, or in a
+browser.
 
 ## Context
 
@@ -190,20 +193,96 @@ is the volume the container already writes to. Needed: git 2.34 or newer (tested
 2.32). Debian 12 ships a newer git (expected 2.39); behaviour on it is unverified. The server
 checks `git --version` at start when `MRM_READS` is not `api`.
 
-## Desktop single-user mode: "use my local checkout"
+## Local clones (phase 3)
 
-`source: { type: 'local', path }` clones from a path on the machine, over the `file` protocol,
-without a filter (copying from disk is cheap; the user's checkout is rarely set up to filter). Only
-commits are read, so the desktop UI should say "committed changes only". This lets a person read a
-private repository with no GitHub token at all and no network.
+The original idea was "use my local checkout" in the desktop app only. It became a general feature
+with a stricter model, because the maintainer runs the multi-user server on their own Mac with
+projects under `/Volumes/dev`. Reading a folder is only safe if the operator names, in advance,
+which folders may ever be read.
 
-It must be limited to `MRM_MODE=single_user`: in the hosted server a user-chosen path would let
-anyone read any repository on the server. The path is chosen in the desktop shell (a folder
-dialog), stored on the repository (`local_path`, a migration), resolved with `realpath` and checked
-to be a directory. `file` is enabled only for that source and only for its fetch. git running
-`upload-pack` on the source reads that repository's config, but ignores the settings that run
-programs (`uploadpack.packObjectsHook` in the source's config did not run, checked on 2.34.1). Newer git refuses
-a repository owned by another user (`safe.directory`); that is reported as `forbidden`.
+### Decision
+
+- **Off by default.** `MRM_LOCAL_REPO_ROOTS` is an absolute-path list (colon separated). Unset means
+  no folder can be checked, attached or read, in hosted and in `single_user` mode alike. The web app
+  says so and names the variable; when it is set, the Connect dialog lists the roots.
+  `MRM_READS=api` ("git is never run") also turns it off.
+- **Two uses.** (a) Attach a folder to an existing GitHub repository: reads come from the folder,
+  apply still opens a pull request on GitHub. (b) Connect a folder as a **local-only** repository
+  with no credential and no `owner/repo`: reads come from the folder, apply is refused with `409
+  local_only` (checked before the change set is claimed, so it stays approved), and the UI says what
+  is not available yet instead of hiding it.
+- **Committed state only.** The reader fetches the tip of one chosen branch from the folder into a
+  managed bare clone (`<MRM_CLONE_DIR>/<ws>/<repoId>-local`, ttl 0, so every request sees the newest
+  commit). Nothing is checked out and the folder is never written to. Uncommitted work is not read;
+  the UI shows the count from a read-only `git status` ("Reads commit abc1234 on branch main; 3
+  uncommitted changes are not included").
+
+### Data model
+
+Migration 13 makes `repositories.credential_id`, `owner` and `repo` nullable (NULL, not a sentinel
+such as an empty string: a unique index on `owner, repo` must not collide, and a foreign key to
+`credentials` must not point at an invented row) and adds `repository_local_checkouts`
+(`repository_id` primary key, `workspace_id`, `path`, `branch`, `name`, `last_commit`,
+`last_read_at`, audit columns; unique on `(workspace_id, path)`). A separate table keeps the local
+facts out of every query that does not care and lets a GitHub repository gain or lose a folder.
+SQLite cannot drop NOT NULL, so the migration rebuilds the table inside its transaction with
+`PRAGMA defer_foreign_keys = ON` (the foreign keys from change sets and listing targets resolve at
+commit); Postgres uses `DROP NOT NULL`. A migration test runs migrations 1 to 12 with data, then 13,
+and checks the rows, the joins, `foreign_key_check` and the unique index.
+In TypeScript, `Repository` keeps `credentialId`, `owner` and `repo` as strings (`''` for a
+local-only one) with `localOnly` as the discriminator, so code written for GitHub repositories still
+compiles; HTTP responses give `null`, and `openConnector` refuses an empty credential with `409
+local_only`.
+
+### Threat model
+
+The person who attaches a folder is an admin or owner, but the *contents* of the folder are
+untrusted (a cloned repository carries its own config), and the *path* is attacker-shaped input.
+
+| Threat | Mitigation | Tested |
+| --- | --- | --- |
+| Reading any folder on the machine | allowed roots from the environment only; the real path must be inside one; `/` is refused as a root | yes |
+| Traversal, symlink out of a root, NUL bytes, long paths | text rules (absolute, no `..`, no control characters, 4096 bytes); `realpath` before the root test; a symlinked `.git` is refused; a `.git` file's git directory (and `commondir`) must be inside a root too | yes |
+| Swapping a folder for a symlink after it was attached | the real path is validated again at every read, not only when attached | yes |
+| Reading the server's own data or clones | `MRM_DATA_DIR`, `MRM_CLONE_DIR` and any folder with `mrm-clone.json` are refused | yes |
+| Bare repositories and non-repositories | need a `.git` directory with `HEAD` or a worktree `.git` file | yes |
+| Code execution through the repository's own config (`core.fsmonitor`, hooks, `core.sshCommand`, `diff.external`, filters, `core.alternateRefsCommand`) | every git call gets `--no-pager` and `-c` overrides that empty them; `status` also empties configured `filter.<name>.*` drivers; `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM`, an allowlisted environment, `GIT_OPTIONAL_LOCKS=0`, lazy fetch and all transports blocked | yes, with a hostile repository config and a control showing plain git does run it |
+| A person without the right | `repositories.write` (admin, owner) for check, connect, attach, detach; config shows the roots only to them; non-members get 404 | yes |
+| Credentials in the origin URL | the URL is parsed to host, owner and name; userinfo is dropped and never returned, logged or audited | yes |
+| Using git when told not to | `MRM_READS=api` means git never runs; attached repositories then read from GitHub, local-only ones refuse | yes |
+| Audit gaps | check, connect, attach, change and detach are audited with the path and branch, never content | yes |
+
+Decisions:
+
+- **No `safe.directory`.** Newer git refuses a repository owned by another user. Setting
+  `safe.directory=*` would make that protection meaningless for exactly the folders we should be
+  careful about. The error is `dubious_ownership` with advice to run the server as the folder's
+  owner or change the owner. Not tested for real (it needs a different owner and the test run is
+  unprivileged); only the mapping of git's message is tested.
+- **A branch, not "whatever is checked out".** The person picks the branch; a detached HEAD must be
+  resolved by choosing one.
+- **Remote mismatch needs a confirmation.** Attaching a clone whose `origin` names another GitHub
+  repository is refused unless `allowRemoteMismatch` (forks, mirrors); the confirmation is audited.
+
+Accepted residuals, to be revisited:
+
+- **Check, then use.** The path is validated with `realpath`, then git opens it a moment later. A
+  person who can write inside a root can swap things in that gap. Keep roots to folders only the
+  operator writes.
+- **Trust inside a root.** A repository's `.git/objects/info/alternates`, or a worktree's `commondir`
+  inside a root, is followed by git. Roots must not hold folders other people control.
+- **Cost.** ttl 0 means one local fetch (file protocol, no network) per request. It is cheap for a
+  disk-to-disk copy; revisit with a short ttl if a large repository makes it slow.
+- **Working-tree reads.** Not built. Reading uncommitted edits would mean running git with a working
+  tree (filters, `core.autocrlf`, smudge) and is a different risk class.
+
+### What is not built
+
+- **Applying a local-only change set.** It needs a design decision: write a branch or a commit in
+  the folder (a write into the user's repository), produce a patch file, or push to a remote that
+  does not exist. Until then it is refused, visibly.
+- Reading uncommitted work, a folder picker (the web app takes a typed path), pruning of the managed
+  copies, a per-workspace list of roots, Windows paths.
 
 ## Implemented (phase 2)
 
@@ -241,7 +320,7 @@ How it differs from or adds to the plan:
 - **Disconnect** removes the clone after the transaction commits; a failure is logged and ignored.
   There is no workspace deletion in the server yet, so `removeWorkspaceClones` is available
   (`CloneReads.removeWorkspace`) but not called.
-- **Not built:** step 8 (desktop "use my checkout", below), `MRM_CLONE_FILTER` (the filter stays
+- **Not built here:** step 8 was done later as "Local clones" (above), `MRM_CLONE_FILTER` (the filter stays
   `blob:none` for GitHub), idle pruning and the disk budget. `GitCloneError.reason` is not added to
   response messages.
 
@@ -343,6 +422,8 @@ Not verified: real GitHub over https (the `extraheader` with an installation tok
 fetch by blob id and by commit sha, the `--filter` support, rate-limit and 403 bodies, redirects
 for a renamed repository); the App installation token flow (`installationToken` is unit tested against the connector's fake,
 never against GitHub); the Docker image with git installed (never built); GitHub Enterprise Server; git newer
-than 2.34; macOS and Windows (`detached` process groups, `/dev/null` as `GIT_CONFIG_GLOBAL`, path
+than 2.34; local clones (phase 3) on macOS, with a real repository, with a real dubious-ownership
+case, with Postgres, and in a browser (the web screens compile and are type checked, and their
+logic is unit tested, but were never run); macOS and Windows (`detached` process groups, `/dev/null` as `GIT_CONFIG_GLOBAL`, path
 and `file://` forms); behaviour on a very large repository; a read-only or `noexec` data folder.
 No timing against GitHub exists: the benchmark compares local reads with simulated latency only.

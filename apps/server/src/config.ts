@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { delimiter, isAbsolute, join, parse as parsePath, resolve } from 'node:path';
 import { parseMasterKey } from '@mrm/vault';
 import { z } from 'zod';
 import { parseExtraHosts } from './single-user.ts';
@@ -44,6 +44,10 @@ const schema = z.object({
   MRM_CLONE_TTL_SECONDS: blankIsUnset(z.coerce.number().int().min(0).max(86_400).default(60)),
   // The git program: `git` from PATH, or an absolute path.
   MRM_GIT_PATH: blankIsUnset(z.string().min(1).default('git')),
+  // Folders that may hold local git clones to read (docs/adr/0005-local-clone-reads.md). Empty
+  // (the default) turns local clones off. A list separated by `:` (`;` on Windows), absolute paths
+  // only. See parseLocalRepoRoots.
+  MRM_LOCAL_REPO_ROOTS: z.string().default(''),
   // Minutes between scheduled store syncs of every app. 0 (the default) turns scheduled syncs off;
   // otherwise 5 to 10080 (a week). Scheduled syncs read the stores with the stored credentials,
   // so they are opt-in. See docs/api/ci.md.
@@ -55,6 +59,39 @@ const schema = z.object({
       .default(0),
   ),
 });
+
+/** Most allowed roots, and the longest path, accepted for MRM_LOCAL_REPO_ROOTS. */
+export const MAX_LOCAL_REPO_ROOTS = 20;
+export const MAX_LOCAL_PATH_LENGTH = 4096;
+
+/**
+ * Parses MRM_LOCAL_REPO_ROOTS: the folders local git clones may live in. Blank is an empty list
+ * (the feature is off). Throws a message that names the variable, never anything else, when an
+ * entry is not an absolute path, has a `..` segment, a NUL byte or a line break, is the file
+ * system root (which would allow every folder), or when there are too many. Paths are normalised
+ * (`/Volumes/dev/` is `/Volumes/dev`) and listed once. Whether a folder exists is checked when
+ * it is used, not here: a drive that is not mounted yet must not stop the server from starting.
+ */
+export function parseLocalRepoRoots(value: string | undefined, separator: string = delimiter): string[] {
+  const roots: string[] = [];
+  for (const raw of (value ?? '').split(separator)) {
+    const entry = raw.trim();
+    if (entry === '') continue;
+    const problem = (why: string) =>
+      new Error(`Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS ${why} (entries are separated by "${separator}").`);
+    if (entry.length > MAX_LOCAL_PATH_LENGTH) throw problem('has an entry that is too long');
+    if (/[\u0000-\u001f\u007f]/.test(entry)) throw problem('has an entry with a control character');
+    if (!isAbsolute(entry)) throw problem(`entry "${entry}" is not an absolute path`);
+    if (entry.split(/[\\/]+/).includes('..')) throw problem(`entry "${entry}" must not contain ".."`);
+    const normal = resolve(entry);
+    if (parsePath(normal).root === normal) {
+      throw problem(`entry "${entry}" is the root of the file system; name the folder that holds your projects`);
+    }
+    if (!roots.includes(normal)) roots.push(normal);
+  }
+  if (roots.length > MAX_LOCAL_REPO_ROOTS) throw new Error(`Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS has more than ${MAX_LOCAL_REPO_ROOTS} entries.`);
+  return roots;
+}
 
 /** At least 43 URL-safe characters (32 bytes as base64url) or 64 hex characters. */
 const LAUNCH_SECRET_SHAPE = /^[A-Za-z0-9_-]{43,512}$/;
@@ -102,6 +139,8 @@ export type Config = {
   gitPath: string;
   /** Minutes between scheduled syncs of every app; 0 is off (MRM_SYNC_INTERVAL_MINUTES). */
   syncIntervalMinutes: number;
+  /** Folders that may hold local clones (MRM_LOCAL_REPO_ROOTS). Empty: local clones are off. */
+  localRepoRoots: string[];
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -118,6 +157,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const data = parsed.data;
   // Ignored in multi-user mode: nothing there consumes it.
   const launchSecret = data.MRM_MODE === 'single_user' ? checkLaunchSecret(data.MRM_LAUNCH_SECRET) : undefined;
+  const localRepoRoots = parseLocalRepoRoots(data.MRM_LOCAL_REPO_ROOTS);
   const allowedHosts = data.MRM_MODE === 'single_user' ? parseExtraHosts(data.MRM_ALLOWED_HOSTS) : [];
   return {
     databaseUrl: data.DATABASE_URL,
@@ -140,5 +180,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,
     gitPath: data.MRM_GIT_PATH,
     syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
+    localRepoRoots,
   };
 }

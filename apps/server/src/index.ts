@@ -55,7 +55,12 @@ const reads = await setUpReads({
   cloneDir: config.cloneDir,
   ttlMs: config.cloneTtlMs,
   gitPath: config.gitPath,
+  // Local clones (docs/adr/0005-local-clone-reads.md): off unless MRM_LOCAL_REPO_ROOTS names folders.
+  local: { roots: config.localRepoRoots, excluded: [config.dataDir, config.cloneDir] },
 });
+if (config.localRepoRoots.length > 0) {
+  console.log(`Local clones: allowed in ${config.localRepoRoots.join(', ')}`);
+}
 
 // One budget for manual and scheduled syncs (10 per workspace per minute).
 const syncLimiter = createTestLimiter();

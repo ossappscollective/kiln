@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { loadConfig } from './config.ts';
+import { MAX_LOCAL_REPO_ROOTS, loadConfig, parseLocalRepoRoots } from './config.ts';
 
 const key = randomBytes(32).toString('base64');
 
@@ -99,4 +99,64 @@ test('webhooks may not reach private addresses unless MRM_WEBHOOKS_ALLOW_PRIVATE
   assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_WEBHOOKS_ALLOW_PRIVATE: '1' }).webhooksAllowPrivate, true);
   // Only the exact opt-in counts: a loose "yes" must not open the door by accident.
   assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_WEBHOOKS_ALLOW_PRIVATE: 'true' }), /Invalid configuration/);
+});
+
+// ----- MRM_LOCAL_REPO_ROOTS ------------------------------------------------------------------
+
+test('MRM_LOCAL_REPO_ROOTS is blank by default: local clones are off', () => {
+  assert.deepEqual(loadConfig({ MRM_MASTER_KEY: key }).localRepoRoots, []);
+  assert.deepEqual(loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_ROOTS: '' }).localRepoRoots, []);
+  assert.deepEqual(loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_ROOTS: '  ' }).localRepoRoots, []);
+  assert.deepEqual(parseLocalRepoRoots(undefined, ':'), []);
+  assert.deepEqual(parseLocalRepoRoots(' : ::', ':'), []);
+});
+
+test('MRM_LOCAL_REPO_ROOTS is a list of absolute folders: normalised, trimmed, listed once', () => {
+  assert.deepEqual(parseLocalRepoRoots('/Volumes/dev', ':'), ['/Volumes/dev']);
+  assert.deepEqual(parseLocalRepoRoots(' /Volumes/dev/ : /home/ada/code//work :/Volumes/dev', ':'), [
+    '/Volumes/dev',
+    '/home/ada/code/work',
+  ]);
+  assert.deepEqual(parseLocalRepoRoots('/a;/b', ';'), ['/a', '/b']);
+});
+
+test('MRM_LOCAL_REPO_ROOTS refuses what could widen the exposure, naming the variable only', () => {
+  const bad = [
+    'relative/path',
+    '~/code',
+    './code',
+    '/Volumes/dev/../etc',
+    '/',
+    '/ok:/tmp/../../x',
+    '/with\u0000nul',
+    '/with\nnewline',
+    `/${'a'.repeat(5000)}`,
+  ];
+  for (const value of bad) {
+    assert.throws(() => parseLocalRepoRoots(value, ':'), /MRM_LOCAL_REPO_ROOTS/, JSON.stringify(value.slice(0, 40)));
+  }
+  const many = Array.from({ length: MAX_LOCAL_REPO_ROOTS + 1 }, (_, i) => `/r${i}`).join(':');
+  assert.throws(() => parseLocalRepoRoots(many, ':'), /more than/);
+  // loadConfig reports it as a configuration error, with the platform's separator.
+  assert.throws(
+    () => loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_ROOTS: 'not-absolute' }),
+    /Invalid configuration[\s\S]*MRM_LOCAL_REPO_ROOTS/,
+  );
+  assert.deepEqual(
+    loadConfig({ MRM_MASTER_KEY: key, MRM_LOCAL_REPO_ROOTS: '/Volumes/dev' }).localRepoRoots,
+    ['/Volumes/dev'],
+  );
+});
+
+test('MRM_LOCAL_REPO_ROOTS applies the same way in single-user mode', () => {
+  const secret = randomBytes(32).toString('hex');
+  const config = loadConfig({
+    MRM_MASTER_KEY: key,
+    MRM_MODE: 'single_user',
+    MRM_LAUNCH_SECRET: secret,
+    MRM_LOCAL_REPO_ROOTS: '/Volumes/dev',
+  });
+  assert.deepEqual(config.localRepoRoots, ['/Volumes/dev']);
+  const blank = loadConfig({ MRM_MASTER_KEY: key, MRM_MODE: 'single_user', MRM_LAUNCH_SECRET: secret });
+  assert.deepEqual(blank.localRepoRoots, []);
 });

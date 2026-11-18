@@ -39,9 +39,19 @@ import {
 import {
   type CloneReads,
   isCloneBacked,
+  LocalReadError,
   type ReadFallback,
   withCloneReads,
 } from './clone-reads.ts';
+import {
+  LOCAL_ONLY_APPLY_MESSAGE,
+  LOCAL_ONLY_MESSAGE,
+  localAvailability,
+  localCloneId,
+  type LocalStatus,
+  localStatus,
+  openLocalConnector,
+} from './local-reads.ts';
 import { openRepoSnapshot } from './repo-snapshot.ts';
 
 export { type CloneReads, withCloneReads };
@@ -146,6 +156,8 @@ export function githubFailure(error: unknown, secret = ''): Failure {
   if (error instanceof TimeoutError) {
     return failure(504, 'timeout', 'GitHub did not answer in time. Try again.');
   }
+  // A local clone that cannot be read: a code and a message written for a person.
+  if (error instanceof LocalReadError) return failure(error.status, error.code, error.message);
   if (error instanceof GithubRateLimitError) {
     const wait = error.retryAfterSeconds;
     return {
@@ -197,41 +209,111 @@ export function githubFailure(error: unknown, secret = ''): Failure {
 // ---------------------------------------------------------------------------------------------
 // Rows
 
+/** Where a repository's local folder is and what was last read from it. See docs/adr/0005-local-clone-reads.md. */
+export type LocalCheckout = {
+  /** The real path (symbolic links resolved) when it was attached. */
+  path: string;
+  /** The branch whose tip is read. */
+  branch: string;
+  /** What a local-only repository is called. */
+  name: string;
+  /** The commit the last read used, once there was one. */
+  headSha: string | null;
+  lastReadAt: number | null;
+};
+
+/**
+ * `localOnly` repositories have no GitHub connection: in the database `credential_id`, `owner` and
+ * `repo` are NULL, and here they are empty strings, so code that handles GitHub repositories keeps
+ * its types (every use of them goes through `openConnector`, which refuses an empty credential
+ * with `local_only`). Check `localOnly`, not the strings. Responses turn them back into null
+ * (`repositoryView`).
+ */
 export type Repository = {
   id: string;
   credentialId: string;
   owner: string;
   repo: string;
+  /** `owner/repo`, or the folder name of a local-only repository. */
+  name: string;
   defaultBranch: string;
   projectKind: string | null;
   detectedAt: number | null;
   createdAt: number;
+  localOnly: boolean;
+  local: LocalCheckout | null;
 };
 
 type Row = Record<string, unknown>;
 const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
   v === null || v === undefined ? null : f(v);
 
-const toRepository = (r: Row): Repository => ({
-  id: String(r.id),
-  credentialId: String(r.credential_id),
-  owner: String(r.owner),
-  repo: String(r.repo),
-  defaultBranch: String(r.default_branch),
-  projectKind: orNull(r.project_kind, String),
-  detectedAt: orNull(r.detected_at, Number),
-  createdAt: Number(r.created_at),
-});
+const toRepository = (r: Row): Repository => {
+  const localOnly = r.credential_id === null || r.credential_id === undefined;
+  const local: LocalCheckout | null =
+    r.local_path === null || r.local_path === undefined
+      ? null
+      : {
+          path: String(r.local_path),
+          branch: String(r.local_branch),
+          name: String(r.local_name),
+          headSha: orNull(r.local_last_commit, String),
+          lastReadAt: orNull(r.local_last_read_at, Number),
+        };
+  const owner = orNull(r.owner, String) ?? '';
+  const repo = orNull(r.repo, String) ?? '';
+  return {
+    id: String(r.id),
+    credentialId: localOnly ? '' : String(r.credential_id),
+    owner,
+    repo,
+    name: localOnly ? (local?.name ?? 'Local repository') : `${owner}/${repo}`,
+    defaultBranch: String(r.default_branch),
+    projectKind: orNull(r.project_kind, String),
+    detectedAt: orNull(r.detected_at, Number),
+    createdAt: Number(r.created_at),
+    localOnly,
+    local,
+  };
+};
 
-const COLUMNS =
-  'id, credential_id, owner, repo, default_branch, project_kind, detected_at, created_at';
+const COLUMNS = `r.id, r.credential_id, r.owner, r.repo, r.default_branch, r.project_kind, r.detected_at, r.created_at,
+  k.path AS local_path, k.branch AS local_branch, k.name AS local_name,
+  k.last_commit AS local_last_commit, k.last_read_at AS local_last_read_at`;
+const FROM = 'repositories r LEFT JOIN repository_local_checkouts k ON k.repository_id = r.id';
 
 export async function listRepositories(sql: Sql, workspaceId: string): Promise<Repository[]> {
   const rows = await sql.query(
-    `SELECT ${COLUMNS} FROM repositories WHERE workspace_id = ? ORDER BY created_at, id`,
+    `SELECT ${COLUMNS} FROM ${FROM} WHERE r.workspace_id = ? ORDER BY r.created_at, r.id`,
     [workspaceId],
   );
   return rows.map(toRepository);
+}
+
+/** A repository as the API shows it: no made-up GitHub values for a local-only one, and the state of its folder. */
+export type RepositoryView = Omit<Repository, 'credentialId' | 'owner' | 'repo' | 'local'> & {
+  credentialId: string | null;
+  owner: string | null;
+  repo: string | null;
+  local: (LocalCheckout & { status: LocalStatus; statusMessage?: string }) | null;
+};
+
+export async function repositoryView(
+  ctx: Pick<RepoContext, 'reads'>,
+  repository: Repository,
+): Promise<RepositoryView> {
+  const { credentialId, owner, repo, local, ...rest } = repository;
+  const state = local ? await localStatus(ctx.reads, local.path) : undefined;
+  return {
+    ...rest,
+    credentialId: repository.localOnly ? null : credentialId,
+    owner: repository.localOnly ? null : owner,
+    repo: repository.localOnly ? null : repo,
+    local:
+      local && state
+        ? { ...local, status: state.status, ...(state.message ? { statusMessage: state.message } : {}) }
+        : null,
+  };
 }
 
 export async function getRepository(
@@ -240,7 +322,7 @@ export async function getRepository(
   id: string,
 ): Promise<Repository | undefined> {
   const [row] = await sql.query(
-    `SELECT ${COLUMNS} FROM repositories WHERE id = ? AND workspace_id = ?`,
+    `SELECT ${COLUMNS} FROM ${FROM} WHERE r.id = ? AND r.workspace_id = ?`,
     [id, workspaceId],
   );
   return row ? toRepository(row) : undefined;
@@ -333,6 +415,14 @@ export async function openConnector(
   actor: Actor,
   purpose: string,
 ): Promise<Outcome<Opened>> {
+  // A local-only repository has no credential (see `Repository`): nothing on GitHub can be done for it.
+  if (!input.credentialId) {
+    return failure(
+      409,
+      'local_only',
+      purpose === 'changeset.apply' ? LOCAL_ONLY_APPLY_MESSAGE : LOCAL_ONLY_MESSAGE,
+    );
+  }
   const [cred] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
     input.credentialId,
     input.workspaceId,
@@ -421,13 +511,72 @@ export async function openConnector(
   }
 }
 
-const openFor = (ctx: RepoContext, ws: string, r: Repository, actor: Actor, purpose: string) =>
-  openConnector(
+/** Last commit written to `repository_local_checkouts` per repository, so a read does not write every time. */
+const recordedCommits = new Map<string, { sha: string; at: number }>();
+const RECORD_EVERY_MS = 60_000;
+
+function commitRecorder(ctx: RepoContext, workspaceId: string, repository: Repository): (sha: string) => Promise<void> {
+  return async (sha) => {
+    const now = ctx.now();
+    const seen = recordedCommits.get(repository.id);
+    if (seen && seen.sha === sha && now - seen.at < RECORD_EVERY_MS) return;
+    try {
+      await ctx.db.execute(
+        'UPDATE repository_local_checkouts SET last_commit = ?, last_read_at = ? WHERE repository_id = ? AND workspace_id = ?',
+        [sha, now, repository.id, workspaceId],
+      );
+      recordedCommits.set(repository.id, { sha, at: now });
+    } catch {
+      // Only the "last read" line in the UI; the read itself is fine.
+    }
+  };
+}
+
+/** Reads from the repository's local folder: no credential, no GitHub, nothing but committed content. */
+async function openLocalFor(ctx: RepoContext, workspaceId: string, r: Repository): Promise<Outcome<Opened>> {
+  if (!r.local) return failure(409, 'local_only', LOCAL_ONLY_MESSAGE);
+  if (!ctx.reads) {
+    const off = localAvailability(undefined);
+    return failure(409, 'local_not_enabled', off.enabled ? '' : off.message);
+  }
+  const opened = await openLocalConnector({
+    reads: ctx.reads,
+    workspaceId,
+    repositoryId: r.id,
+    path: r.local.path,
+    branch: r.local.branch,
+    defaultBranch: r.defaultBranch,
+    onCommit: commitRecorder(ctx, workspaceId, r),
+  });
+  if (!opened.ok) return failure(opened.status, opened.code, opened.message);
+  return { ok: true, connector: opened.connector, secret: '' };
+}
+
+/**
+ * Opens the connector for a purpose. Reads of a repository with a local folder come from the
+ * folder, when local clones are enabled (MRM_LOCAL_REPO_ROOTS, and not MRM_READS=api); a
+ * local-only repository can only be read, and is refused for anything else.
+ */
+const openFor = async (
+  ctx: RepoContext,
+  ws: string,
+  r: Repository,
+  actor: Actor,
+  purpose: string,
+): Promise<Outcome<Opened>> => {
+  if (CLONE_READ_PURPOSES.has(purpose) && r.local && (r.localOnly || localAvailability(ctx.reads).enabled)) {
+    return openLocalFor(ctx, ws, r);
+  }
+  if (r.localOnly) {
+    return failure(409, 'local_only', purpose === 'changeset.apply' ? LOCAL_ONLY_APPLY_MESSAGE : LOCAL_ONLY_MESSAGE);
+  }
+  return openConnector(
     ctx,
     { workspaceId: ws, credentialId: r.credentialId, owner: r.owner, repo: r.repo, repository: r },
     actor,
     purpose,
   );
+};
 
 // ---------------------------------------------------------------------------------------------
 // Connect, disconnect
@@ -499,7 +648,11 @@ export async function disconnectRepository(
   try {
     const result = await disconnect(ctx, input, actor);
     // After the commit: the clone is a cache, so a failure to remove it (logged) changes nothing.
-    if (result.ok) await ctx.reads?.remove(input.workspaceId, input.id);
+    if (result.ok) {
+      await ctx.reads?.remove(input.workspaceId, input.id);
+      await ctx.reads?.remove(input.workspaceId, localCloneId(input.id));
+      recordedCommits.delete(input.id);
+    }
     return result;
   } catch (error) {
     // A change set was created for this repository after the check below and before the delete.
@@ -547,6 +700,10 @@ async function disconnect(
           AND status NOT IN ('draft', 'approved', 'applying')`,
       [input.id, input.workspaceId],
     );
+    await tx.execute(
+      'DELETE FROM repository_local_checkouts WHERE repository_id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
     await tx.execute('DELETE FROM repositories WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
@@ -556,7 +713,9 @@ async function disconnect(
       actor,
       action: 'repository.disconnect',
       target: { type: 'repository', id: input.id },
-      detail: { owner: repository.owner, repo: repository.repo },
+      detail: repository.localOnly
+        ? { localOnly: true, name: repository.name, ...(repository.local ? { path: repository.local.path } : {}) }
+        : { owner: repository.owner, repo: repository.repo },
       at: ctx.now(),
     });
     return { ok: true };
@@ -567,11 +726,11 @@ async function disconnect(
 // Scan and listing
 
 /** Where a scan read from, for the audit row: `clone`, or `api_fallback` with what failed. */
-function readsDetail(connector: { reads: { fallbacks: ReadFallback[] } }): Record<string, unknown> {
+function readsDetail(connector: { reads: { fallbacks: ReadFallback[]; origin?: 'local' } }): Record<string, unknown> {
   const [first] = connector.reads.fallbacks;
   return first
     ? { reads: 'api_fallback', fallback: { operation: first.operation, kind: first.kind, reason: first.reason } }
-    : { reads: 'clone' };
+    : { reads: connector.reads.origin ?? 'clone' };
 }
 
 export async function scanRepository(
