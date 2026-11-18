@@ -1,0 +1,847 @@
+<!--
+  ListingMatrix: the store listing of an app as a locale grid. Rows are locales, columns are listing
+  fields, and each cell is a status dot per platform in scope: in sync, differs from the repository,
+  differs from the store, diverged, missing, or over the limit. One click on a chip filters the
+  locales (needs attention, missing only, over limit); a click on a locale opens its drawer with the
+  full comparison of each field. The platform scope (iOS, Android or both) comes from the shell; with
+  both, one grid merges the two stores and the header shows a platform badge per column.
+  Read-only toward the store: "Refresh from store" runs the app's sync, which only reads. The one
+  thing it can write is a draft change set ("Pull into repository", the existing PullDialog), which a
+  person reviews in the repository. The staged-changes tray is a visible placeholder (draft push).
+  Props: api, workspaceId, role, members (the platform records in scope), now (ms), syncing (by app
+  id), onsync (runs the sync of one app; the shell owns it), refreshKey (changes when a sync
+  finished, so this tab reloads).
+-->
+<script lang="ts">
+  import { type Platform, type Role, can } from '@mrm/core';
+  import { untrack } from 'svelte';
+  import { ApiError, type Api } from '../../lib/api.ts';
+  import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { shortRef } from '../../lib/listing-drift.ts';
+  import {
+    LEGEND_ORDER,
+    MODE_LABELS,
+    MODE_ORDER,
+    type CellStatus,
+    type MatrixFilter,
+    buildMatrix,
+    cellInfo,
+    cellMatchesMode,
+    cellText,
+    cellsSummary,
+    columnScopeNote,
+    defaultMatrixFilter,
+    filterRows,
+    limitText,
+    matrixSummary,
+    modeCounts,
+  } from '../../lib/listing-matrix.ts';
+  import { pullDisabledReason, pullableFields, summarizePull } from '../../lib/listing-pull.ts';
+  import { cleanWarnings } from '../../lib/listing-sections.ts';
+  import { describeError, platformLabel, storeName } from '../../lib/portfolio.ts';
+  import { requestChangeSetReview, reviewHref } from '../../lib/repository-intent.ts';
+  import { platformById } from '../../lib/stores.ts';
+  import { toast } from '../../lib/toast.svelte.ts';
+  import type { AppSummary, DriftField, ListingDrift, LiveListing, PullResult } from '../../lib/types.ts';
+  import Alert from '../ui/Alert.svelte';
+  import Button from '../ui/Button.svelte';
+  import EmptyState from '../ui/EmptyState.svelte';
+  import Icon from '../ui/Icon.svelte';
+  import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import Skeleton from '../ui/Skeleton.svelte';
+  import HistoryDrawer from './HistoryDrawer.svelte';
+  import ListingSections from './ListingSections.svelte';
+  import LocaleDrawer from './LocaleDrawer.svelte';
+  import PullDialog from './PullDialog.svelte';
+  import PullResultSummary from './PullResultSummary.svelte';
+  import StagedTray from './StagedTray.svelte';
+  import StatusDot from './StatusDot.svelte';
+
+  let {
+    api,
+    workspaceId,
+    role,
+    members,
+    now,
+    syncing,
+    onsync,
+    refreshKey,
+  }: {
+    api: Api;
+    workspaceId: string;
+    role: Role;
+    members: AppSummary[];
+    now: number;
+    syncing: Record<string, boolean | undefined>;
+    onsync: (app: AppSummary) => void;
+    refreshKey: number;
+  } = $props();
+
+  const canSync = $derived(can(role, 'apps.sync'));
+  const readable = $derived(members.filter((m) => can(role, 'repositories.scan') && m.repositoryId !== null));
+  const anySyncing = $derived(members.some((m) => syncing[m.id] === true));
+
+  type View = { drift: ListingDrift | null; live: LiveListing | null; loading: boolean; reloading: boolean; problem: string };
+  const blank = (): View => ({ drift: null, live: null, loading: true, reloading: false, problem: '' });
+
+  let views = $state<Record<string, View | undefined>>({});
+  let filter = $state<MatrixFilter>(defaultMatrixFilter());
+  let repoReading = $state(false);
+  let announcement = $state('');
+  let lastPull = $state<PullResult | null>(null);
+
+  let drawerOpen = $state(false);
+  let drawerLocale = $state<string | null>(null);
+
+  let pullOpen = $state(false);
+  let pullApp = $state<AppSummary | null>(null);
+  let pullFieldsList = $state<DriftField[]>([]);
+
+  let historyOpen = $state(false);
+  let historyApp = $state<AppSummary | null>(null);
+  let historyTarget = $state<{
+    locale: string;
+    field: string;
+    label: string;
+    limit: number | null;
+    unit: 'characters' | 'bytes';
+  } | null>(null);
+
+  /** One counter per app, so a late answer for an earlier load of that app is dropped. */
+  const generations: Record<string, number> = {};
+
+  async function load(app: AppSummary) {
+    const mine = (generations[app.id] = (generations[app.id] ?? 0) + 1);
+    const before = views[app.id] ?? blank();
+    views[app.id] = { ...before, loading: before.drift === null, reloading: before.drift !== null, problem: '' };
+    try {
+      const [drift, live] = await Promise.all([
+        api.appListingDrift(workspaceId, app.id),
+        api.appListingLive(workspaceId, app.id).catch(() => null),
+      ]);
+      if (mine !== generations[app.id]) return;
+      views[app.id] = { drift, live: live ?? before.live, loading: false, reloading: false, problem: '' };
+      announcement = `Listing of ${platformLabel(app.platform)} compared.`;
+    } catch (e) {
+      if (mine !== generations[app.id]) return;
+      const current = views[app.id] ?? before;
+      views[app.id] = { ...current, loading: false, reloading: false, problem: describeError(e, 'load') };
+    }
+  }
+
+  const reloadAll = () => {
+    for (const app of members) void load(app);
+  };
+
+  // A different app, scope or workspace starts clean; a finished sync loads again. The key is a
+  // string, so a refreshed app record (a new object) does not reload the grid.
+  const key = $derived(`${workspaceId}/${members.map((m) => m.id).join(',')}`);
+  let shownFor = '';
+  $effect(() => {
+    void refreshKey;
+    const next = key;
+    untrack(() => {
+      if (next !== shownFor) {
+        shownFor = next;
+        views = {};
+        filter = defaultMatrixFilter();
+        drawerOpen = false;
+        drawerLocale = null;
+        pullOpen = false;
+        historyOpen = false;
+        lastPull = null;
+      }
+      reloadAll();
+    });
+  });
+
+  const matrix = $derived(buildMatrix(members.map((m) => ({ platform: m.platform, drift: views[m.id]?.drift ?? null }))));
+  const shown = $derived(matrix.platforms);
+  const both = $derived(shown.length > 1);
+  const counts = $derived(modeCounts(matrix.rows));
+  const rows = $derived(filterRows(matrix.rows, filter));
+  const filtering = $derived(filter.mode !== 'all' || filter.query.trim() !== '');
+  const loading = $derived(members.some((m) => views[m.id] === undefined || (views[m.id]?.loading === true && views[m.id]?.drift === null)));
+  const failed = $derived(members.filter((m) => views[m.id]?.drift === null && (views[m.id]?.problem ?? '') !== ''));
+  const nothingLoaded = $derived(members.every((m) => (views[m.id]?.drift ?? null) === null));
+  const channels = $derived(
+    members.reduce<Partial<Record<Platform, 'live' | 'editable' | null>>>((acc, m) => {
+      acc[m.platform] = views[m.id]?.drift?.channel ?? null;
+      return acc;
+    }, {}),
+  );
+
+  const pullReason = (app: AppSummary): string | null =>
+    pullDisabledReason({ role, repositoryId: app.repositoryId, storeRead: (views[app.id]?.drift?.store.readAt ?? null) !== null });
+  const pullReasons = $derived(
+    members.reduce<Partial<Record<Platform, string | null>>>((acc, m) => {
+      acc[m.platform] = pullReason(m);
+      return acc;
+    }, {}),
+  );
+  const pullables = $derived(
+    members.map((app) => ({
+      app,
+      fields: pullableFields(views[app.id]?.drift?.locales ?? []),
+      reason: pullReasons[app.platform] ?? null,
+    })),
+  );
+  const anyPullable = $derived(pullables.some((p) => p.fields.length > 0));
+  const pullBlocked = $derived(pullables.length > 0 && pullables.every((p) => p.reason !== null) ? (pullables[0]?.reason ?? null) : null);
+
+  const drawerRow = $derived(drawerLocale === null ? null : (rows.find((r) => r.locale === drawerLocale) ?? matrix.rows.find((r) => r.locale === drawerLocale) ?? null));
+  const drawerIndex = $derived(drawerLocale === null ? 0 : Math.max(0, rows.findIndex((r) => r.locale === drawerLocale)));
+
+  function openLocale(locale: string) {
+    drawerLocale = locale;
+    drawerOpen = true;
+  }
+
+  function step(delta: -1 | 1) {
+    const next = rows[drawerIndex + delta];
+    if (next) drawerLocale = next.locale;
+  }
+
+  function openPull(app: AppSummary, fields: DriftField[]) {
+    if (pullReason(app) !== null || fields.length === 0) return;
+    pullApp = app;
+    pullFieldsList = fields;
+    pullOpen = true;
+  }
+
+  function openHistory(app: AppSummary, field: DriftField) {
+    historyApp = app;
+    historyTarget = { locale: field.locale, field: field.field, label: field.label, limit: field.limit, unit: field.unit };
+    historyOpen = true;
+  }
+
+  const labelOf = (field: string): string => {
+    for (const m of members) {
+      for (const locale of views[m.id]?.drift?.locales ?? []) {
+        const found = locale.fields.find((f) => f.field === field);
+        if (found) return found.label;
+      }
+    }
+    return field;
+  };
+
+  function pulled(result: PullResult) {
+    lastPull = result;
+    const summary = summarizePull(result);
+    if (result.changeSet === null) {
+      toast.info(summary.headline);
+      return;
+    }
+    const changeSetId = result.changeSet.id;
+    const repositoryId = result.target.repositoryId;
+    const options = {
+      action: {
+        label: 'Review the draft',
+        href: reviewHref,
+        onclick: () => requestChangeSetReview({ repositoryId, changeSetId }),
+      },
+    };
+    if (summary.tone === 'warn') toast.warning(summary.headline, options);
+    else toast.success(summary.headline, options);
+  }
+
+  async function readRepository() {
+    if (repoReading) return;
+    repoReading = true;
+    try {
+      for (const app of readable) {
+        try {
+          const result = await api.refreshAppRepoListing(workspaceId, app.id);
+          const who = both ? `${platformLabel(app.platform)}: ` : '';
+          if (!result.found) {
+            toast.warning(`${who}The repository has no store listing for this app. Check the listing settings of the repository.`);
+          } else {
+            const ref = shortRef('repo', result.ref);
+            toast.success(
+              `${who}Read the repository listing${ref ? ` at ${ref}` : ''}: ${result.changed} changed, ${result.removed} removed, ${result.unchanged} unchanged.`,
+            );
+          }
+          await load(app);
+        } catch (e) {
+          toast.error(e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
+        }
+      }
+    } finally {
+      repoReading = false;
+    }
+  }
+
+  const refreshAll = () => {
+    for (const app of members) onsync(app);
+  };
+
+  function setMode(mode: MatrixFilter['mode']) {
+    filter = { ...filter, mode };
+  }
+
+  const dimmed = (status: CellStatus) => filter.mode !== 'all' && !cellMatchesMode(status, filter.mode);
+  const platformNames = (platforms: Platform[]) => platforms.map(platformLabel).join(' and ');
+</script>
+
+<div class="stack loose listing" aria-busy={loading}>
+  <p class="visually-hidden" role="status">{announcement}</p>
+
+  <div class="intro">
+    <p class="muted">
+      Each cell compares one listing field of one locale between the repository and the store
+      ({members.map((m) => storeName(m.platform)).join(' and ')}). This view only reads: it never changes a store.
+      Open a locale for the full comparison.
+    </p>
+    <div class="row wrap">
+      {#if canSync}
+        <Button variant="primary" icon="refresh" loading={anySyncing} onclick={refreshAll}>{anySyncing ? 'Reading…' : 'Refresh from store'}</Button>
+      {/if}
+      {#if readable.length > 0}
+        <Button icon="git-branch" loading={repoReading} onclick={readRepository}>{repoReading ? 'Reading…' : 'Read repository'}</Button>
+      {/if}
+    </div>
+  </div>
+
+  {#if loading && nothingLoaded && failed.length === 0}
+    <div role="status" aria-label="Loading the listing" class="stack">
+      <Skeleton width="50%" height="16px" />
+      <div class="card"><div class="stack"><Skeleton width="30%" height="16px" /><Skeleton width="100%" height="96px" /></div></div>
+    </div>
+  {:else}
+    {#each members as app (app.id)}
+      {@const view = views[app.id]}
+      {#if view?.problem}
+        <Alert tone="error" title="Could not load the {platformLabel(app.platform)} listing">
+          {view.problem}{view.drift ? ' The values below are from before.' : ''}
+          {#if !view.drift}<div class="retry"><Button size="sm" icon="refresh" onclick={() => load(app)}>Try again</Button></div>{/if}
+        </Alert>
+      {/if}
+      {#if view?.drift}
+        {#if view.drift.store.error}
+          <Alert tone="warn" title="The last read of the {platformLabel(app.platform)} store listing failed">
+            <p class="alert-text">{view.drift.store.error}</p>
+            <p class="alert-text">The values are from the last successful read. The release sync is not affected.</p>
+          </Alert>
+        {/if}
+        {#if cleanWarnings(view.live?.warnings).length > 0}
+          <Alert tone="warn" title="The {platformLabel(app.platform)} store read had warnings">
+            <ul class="alert-list">
+              {#each cleanWarnings(view.live?.warnings) as warning (warning)}
+                <li>{warning}</li>
+              {/each}
+            </ul>
+            <p class="alert-text">Parts of the listing that could not be read are left out, not shown as empty.</p>
+          </Alert>
+        {/if}
+        {#if view.drift.repo.error && app.repositoryId !== null}
+          <Alert tone="warn" title="The last read of the {platformLabel(app.platform)} repository listing failed">
+            <p class="alert-text">{view.drift.repo.error}</p>
+          </Alert>
+        {/if}
+      {/if}
+    {/each}
+
+    <dl class="sources">
+      {#each members as app (app.id)}
+        {@const view = views[app.id]}
+        {#if view?.drift}
+          <div>
+            <dt>{both ? platformLabel(app.platform) : storeName(app.platform)}</dt>
+            <dd>
+              {#if view.drift.store.readAt !== null}
+                store read <time datetime={new Date(view.drift.store.readAt).toISOString()} title={fullTime(view.drift.store.readAt)}>{timeAgo(view.drift.store.readAt, now)}</time>
+                {#if view.drift.channel === 'editable'}<span class="muted"> (editable version: no version is live yet)</span>{/if}
+              {:else}
+                <span class="muted">store not read yet</span>
+              {/if}
+              <span class="muted"> · </span>
+              {#if app.repositoryId === null}
+                <span class="muted">no repository linked</span>
+              {:else if view.drift.repo.readAt !== null}
+                repository read <time datetime={new Date(view.drift.repo.readAt).toISOString()} title={fullTime(view.drift.repo.readAt)}>{timeAgo(view.drift.repo.readAt, now)}</time>
+                {#if view.drift.repo.ref}<span class="muted"> at <code>{shortRef('repo', view.drift.repo.ref)}</code></span>{/if}
+              {:else}
+                <span class="muted">repository not read yet</span>
+              {/if}
+            </dd>
+          </div>
+        {/if}
+      {/each}
+    </dl>
+
+    {#if !nothingLoaded && matrix.rows.length === 0}
+      <div class="card">
+        <EmptyState
+          icon="file-text"
+          title="No listing values yet"
+          description="The store and the repository have no listing values to compare. The listing is read when the app is synced; a new app may not have one yet."
+        >
+          {#snippet actions()}
+            {#if canSync}
+              <Button variant="primary" icon="refresh" loading={anySyncing} onclick={refreshAll}>Refresh from store</Button>
+            {:else}
+              <span class="muted">A member or admin can refresh the listing.</span>
+            {/if}
+          {/snippet}
+        </EmptyState>
+      </div>
+    {:else if !nothingLoaded}
+      <div class="toolbar">
+        <p class="summary" aria-live="polite">
+          {matrixSummary(matrix.rows)}{members.some((m) => views[m.id]?.reloading) ? ' · updating…' : ''}
+        </p>
+        <div class="filters">
+          <div class="chips" role="group" aria-label="Filter the locales">
+            {#each MODE_ORDER as mode (mode)}
+              <button type="button" class="bare chip" aria-pressed={filter.mode === mode} onclick={() => setMode(mode)}>
+                {MODE_LABELS[mode]} <span class="count tabular">{counts[mode]}</span>
+              </button>
+            {/each}
+          </div>
+          <label class="visually-hidden" for="listing-locale-query">Search locales</label>
+          <input id="listing-locale-query" type="search" placeholder="Search locale or language" bind:value={filter.query} />
+        </div>
+      </div>
+
+      <ul class="legend" aria-label="What the marks mean">
+        {#each LEGEND_ORDER as status (status)}
+          <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
+        {/each}
+        {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
+      </ul>
+
+      {#if lastPull}
+        <PullResultSummary
+          result={lastPull}
+          {labelOf}
+          onreview={(r) => r.changeSet && requestChangeSetReview({ repositoryId: r.target.repositoryId, changeSetId: r.changeSet.id })}
+          ondismiss={() => (lastPull = null)}
+        />
+      {/if}
+
+      <div class="pullbar" aria-label="Pull into the repository">
+        {#if pullBlocked !== null}
+          <p class="muted pullnote"><Icon name="info" size={14} /> Pulling into the repository is not available. {pullBlocked}</p>
+        {:else if !anyPullable}
+          <p class="muted pullnote"><Icon name="check" size={14} /> No differences to pull: the repository already has the store's text, or is ahead of it.</p>
+        {:else}
+          <p class="pullnote">Where the store is ahead of the repository, its text can be pulled into the repository as a draft change set.</p>
+          <div class="row wrap">
+            {#each pullables as p (p.app.id)}
+              {#if p.fields.length > 0}
+                <Button variant="primary" icon="git-pull-request" disabled={p.reason !== null} onclick={() => openPull(p.app, p.fields)}>
+                  Pull {both ? `${platformLabel(p.app.platform)} ` : ''}differences into repository… ({p.fields.length})
+                </Button>
+              {/if}
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      {#if rows.length === 0}
+        <div class="card">
+          <EmptyState icon="search" title="No locales match" description="Change the filter or the search to see more.">
+            {#snippet actions()}
+              {#if filtering}<Button onclick={() => (filter = defaultMatrixFilter())}>Clear the filter</Button>{/if}
+            {/snippet}
+          </EmptyState>
+        </div>
+      {:else}
+        <div class="card flush table-scroll">
+          <table class="matrix compact">
+            <caption class="visually-hidden">
+              Listing status by locale and field{both ? ` for ${platformNames(shown)}` : ''}. Open a locale for the full comparison.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" class="loc">Locale</th>
+                {#if both}<th scope="col" class="stores">Stores</th>{/if}
+                {#each matrix.columns as column (column.key)}
+                  {@const note = columnScopeNote(column, shown)}
+                  <th scope="col" class="col">
+                    <span class="label">{column.label}</span>
+                    <span class="sub muted">{limitText(column)}{note ? `${limitText(column) ? ' · ' : ''}${note}` : ''}</span>
+                    {#if both}
+                      <span class="plats" aria-hidden="true">
+                        {#each shown as platform (platform)}
+                          <span class="plat" class:off={!column.platforms.includes(platform)} title={platformLabel(platform)}>
+                            <Icon name={platformById(platform).icon} size={12} />
+                          </span>
+                        {/each}
+                      </span>
+                    {/if}
+                  </th>
+                {/each}
+              </tr>
+            </thead>
+            <tbody>
+              {#each rows as row (row.locale)}
+                <tr class:current={drawerOpen && drawerLocale === row.locale}>
+                  <th scope="row" class="loc">
+                    <button type="button" class="bare locale-btn" onclick={() => openLocale(row.locale)} aria-label="Open locale {row.locale}{row.name === row.locale ? '' : `, ${row.name}`}">
+                      <span class="code">{row.locale}</span>
+                      {#if row.name !== row.locale}<span class="name muted">{row.name}</span>{/if}
+                    </button>
+                  </th>
+                  {#if both}
+                    <td class="stores">
+                      {#each row.platforms as platform (platform)}<PlatformBadge {platform} showLabel={false} tinted />{/each}
+                    </td>
+                  {/if}
+                  {#each matrix.columns as column (column.key)}
+                    {@const cells = row.cells[column.key] ?? []}
+                    <td class="cell">
+                      <button
+                        type="button"
+                        class="bare dots"
+                        class:dim={cells.every((c) => dimmed(c.status))}
+                        aria-label="{column.label}, {row.locale}: {cellsSummary(cells, both)}. Open the locale."
+                        onclick={() => openLocale(row.locale)}
+                      >
+                        {#each cells as cell (cell.platform)}
+                          <StatusDot status={cell.status} label={cellText(column, cell, both)} />
+                        {/each}
+                      </button>
+                    </td>
+                  {/each}
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted hint">
+          <Icon name="info" size={14} /> A dimmed cell is one the filter is not about. A field only one store has is marked
+          "iOS only" or "Android only"; a field with a different limit on each store shows both limits.
+        </p>
+      {/if}
+    {/if}
+
+    {#each members as app (app.id)}
+      {@const view = views[app.id]}
+      {#if view?.drift?.sections && view.drift.sections.length > 0}
+        <section aria-label="{platformLabel(app.platform)} sections beyond the texts" class="stack">
+          {#if both}<h2 class="phead"><PlatformBadge platform={app.platform} tinted /></h2>{/if}
+          <ListingSections
+            sections={view.drift.sections}
+            platform={view.drift.platform}
+            {now}
+            storeReadAt={view.drift.store.readAt}
+            repositoryLinked={app.repositoryId !== null}
+          />
+        </section>
+      {/if}
+    {/each}
+
+    <StagedTray />
+  {/if}
+</div>
+
+<LocaleDrawer
+  bind:open={drawerOpen}
+  row={drawerRow}
+  {members}
+  {channels}
+  {now}
+  {pullReasons}
+  position={{ index: drawerIndex, count: rows.length }}
+  onstep={step}
+  onpull={openPull}
+  onhistory={openHistory}
+/>
+
+{#if members.length > 0}
+  <PullDialog
+    bind:open={pullOpen}
+    {api}
+    {workspaceId}
+    {role}
+    app={pullApp ?? (members[0] as AppSummary)}
+    fields={pullFieldsList}
+    channel={views[(pullApp ?? (members[0] as AppSummary)).id]?.drift?.channel ?? null}
+    onpulled={pulled}
+  />
+  <HistoryDrawer bind:open={historyOpen} {api} {workspaceId} appId={(historyApp ?? (members[0] as AppSummary)).id} target={historyTarget} {now} />
+{/if}
+
+<style>
+  .intro {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-6);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .intro p {
+    flex: 1 1 320px;
+    max-width: 62ch;
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .alert-text {
+    margin: var(--space-1) 0 0;
+  }
+
+  .alert-list {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-5);
+  }
+
+  .retry {
+    margin-top: var(--space-2);
+  }
+
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-8);
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .sources dt {
+    display: inline;
+    font-weight: var(--weight-semibold);
+  }
+
+  .sources dt::after {
+    content: ': ';
+  }
+
+  .sources dd {
+    display: inline;
+    margin: 0;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .summary {
+    margin: 0;
+    font-weight: var(--weight-medium);
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .filters input {
+    min-width: 14rem;
+  }
+
+  .chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .chip {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    min-height: var(--control-sm);
+    padding: 0 var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--muted);
+    cursor: pointer;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-full);
+  }
+
+  .chip:hover {
+    color: var(--ink);
+    background: var(--surface-hover);
+  }
+
+  .chip[aria-pressed='true'] {
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-color: var(--accent);
+  }
+
+  .chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .count {
+    font-weight: var(--weight-semibold);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    padding: 0;
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--muted);
+    list-style: none;
+  }
+
+  .legend li {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+  }
+
+  .pullbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .pullnote {
+    display: flex;
+    flex: 1 1 280px;
+    gap: var(--space-1);
+    align-items: center;
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .matrix th,
+  .matrix td {
+    padding: var(--space-2) var(--space-3);
+    vertical-align: middle;
+  }
+
+  .matrix thead th {
+    vertical-align: bottom;
+    white-space: nowrap;
+  }
+
+  .col .label {
+    display: block;
+  }
+
+  .col .sub {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-regular);
+  }
+
+  .plats {
+    display: flex;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    color: var(--muted);
+  }
+
+  .plat {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+  }
+
+  .plat.off {
+    opacity: 0.35;
+  }
+
+  .loc {
+    position: sticky;
+    left: 0;
+    min-width: 9rem;
+    text-align: left;
+    background: var(--surface);
+  }
+
+  .stores {
+    white-space: nowrap;
+  }
+
+  .stores :global(.platform) {
+    margin-right: var(--space-1);
+  }
+
+  tr.current .loc,
+  tr.current td {
+    background: var(--accent-bg);
+  }
+
+  .locale-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .locale-btn:hover .code {
+    text-decoration: underline;
+  }
+
+  .locale-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .code {
+    font-weight: var(--weight-semibold);
+  }
+
+  .name {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-regular);
+  }
+
+  .dots {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    padding: var(--space-1);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+  }
+
+  .dots:hover {
+    background: var(--surface-hover);
+  }
+
+  .dots:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .dots.dim {
+    opacity: 0.3;
+  }
+
+  .hint {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  h2.phead {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+</style>
