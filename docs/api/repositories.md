@@ -17,7 +17,7 @@ contents or secrets).
 | `repositories.read`: list and read stored repositories and change sets | yes | yes | yes |
 | `repositories.scan`: scan a repository, read its listing from GitHub | no | yes | yes |
 | `changesets.write`: create a draft, discard your own draft | no | yes | yes |
-| `repositories.write`: connect and disconnect repositories, add, change and delete listing targets | no | no | yes |
+| `repositories.write`: connect and disconnect repositories, attach, change and detach local clones, add, change and delete listing targets | no | no | yes |
 | `changesets.approve`: approve, apply, discard anyone's | no | no | yes |
 
 Only admins and owners can approve, so a creator who is an admin or owner may approve their own
@@ -33,6 +33,11 @@ credential. Its shape:
   "projectKind": "fastlane" | "expo" | "both" | "unknown" | null,
   "detectedAt": 1731900000000 | null, "createdAt": 1731900000000 }
 ```
+
+A repository that has a local clone attached, or that is **local-only**, has more fields (all
+additive; see "Local clones" below): `name` (`owner/repo`, or the folder name of a local-only
+repository), `localOnly`, and `local` (null without a clone). A local-only repository has
+`credentialId`, `owner` and `repo` all `null`.
 
 - `GET /repositories` returns `{ repositories: [...] }`. `GET /repositories/:id` returns
   `{ repository, detection }` (`detection` is the last scan, or null).
@@ -205,6 +210,12 @@ Lists return the same without `before`/`after` and with `filesChanged` instead o
 `files` (paths and `change` only). The detail response carries both sides of every file; the
 client renders the diff.
 
+A change set comes from a person's `POST /repositories/:id/change-sets`, or from **`POST
+/apps/:id/listing/pull`** ([listing](listing.md)), which drafts one from the live store listing. A
+pull is a normal draft: its audit event `changeset.create` has `source: "store_pull"` (with the app,
+the channel and whether the store was refreshed first), and it is reviewed, approved and applied below
+the same way: applying opens a branch and a pull request on GitHub.
+
 Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `draft`, `approved` and
 `failed` can be `discarded`. `applied` always has a PR url or a commit sha.
 
@@ -334,6 +345,81 @@ reading faster and spends no rate limit.
   is only a cache; `DELETE /repositories/:id` removes it after the repository is deleted (a
   failure to remove it is logged and does not fail the request).
 - **Cancelling.** The 90 second request timeout also stops a running git.
+
+## Local clones
+
+A repository can be read from a git folder on the server instead of GitHub. Design, threat model and
+limits: [ADR 0005](../adr/0005-local-clone-reads.md); server settings: [deployment.md](../deployment.md).
+It is **off unless `MRM_LOCAL_REPO_ROOTS` is set** (and needs git, so not with `MRM_READS=api`).
+
+Two uses, one folder per repository, one repository per folder (compared by real path):
+
+- **Existing repository**: attach a folder to a GitHub repository. Scan, listing and change set
+  creation read the folder; applying still opens a pull request on GitHub.
+- **Local-only repository**: no credential and no `owner/repo`. Reads come from the folder.
+  `POST /change-sets/:id/apply` answers `409 local_only` before the change set is touched (it stays
+  approved), and anything else that needs GitHub (CI) answers the same.
+
+Only the **committed** tip of the chosen branch is read, never the working files. All five routes
+need `repositories.write` (admin, owner) except the config; a non-member gets `404`, a member or
+viewer `403`.
+
+The `local` object of a repository:
+
+```json
+{ "path": "/Volumes/dev/nativescript/oss-weather", "branch": "main", "name": "oss-weather",
+  "headSha": "abc123…" | null, "lastReadAt": 1731900000000 | null,
+  "status": "ok", "statusMessage": "…" }
+```
+
+`path` is the real path as stored. `headSha` and `lastReadAt` are the commit of the last read.
+`status` is checked now, from the file system only (no git): `ok`, `not_enabled` (the setting is
+off), `reads_api` (`MRM_READS=api`), `git_missing`, `invalid_path`, `not_found`, `not_accessible`,
+`not_directory`, `outside_roots`, `data_folder`, `bare_repository`, `not_a_repository`. A GitHub
+repository whose status is not `ok` is read from GitHub meanwhile; a local-only one cannot be read
+(`409 local_not_enabled`, `local_reads_disabled` or the path error).
+
+- `GET /repositories/local/config` (`repositories.read`) returns `{ local: { enabled, envName } }`;
+  with it off also `reason` (`no_roots`, `reads_api`, `git_missing`) and `message` (names
+  `MRM_LOCAL_REPO_ROOTS`). `roots` (the allowed folders) is included only for `repositories.write`.
+- `POST /repositories/local/check` with `{ path, branch? }` reads nothing into the tool and saves
+  nothing. It returns `{ check }`: `realPath`, `folderName`, `worktree`, `checkedOutBranch` (null
+  when HEAD is detached), `branch` (the one that would be read, null when detached and none was
+  chosen), `branches` (local branches), `headSha`, `branchSha`, `remote` (`{ host, owner, repo,
+  github }` from `origin`, with URL credentials stripped; null without one), `dirtyCount` (files with
+  uncommitted changes; null if they could not be counted), `match` (the connected GitHub repository
+  the origin names, or null), `existing` (the repository that already uses this folder, or null) and
+  `warnings`. Audit `repository.local_check` (path only).
+- `POST /repositories/local` with `{ path, branch?, name? }` connects the folder as a local-only
+  repository: `201 { repository }`. `name` defaults to the folder name. Its default branch is the
+  branch read. Errors: `409 already_connected` (the folder is used) and the path errors below.
+  Audit `repository.local_connect`.
+- `PUT /repositories/:id/local` with `{ path?, branch?, allowRemoteMismatch? }` attaches a folder to a
+  repository, or changes its folder or branch (omit `path` to keep the folder and change the
+  branch). `200 { repository }`. If the clone's `origin` names another GitHub repository: `409
+  remote_mismatch` (the message names both), unless `allowRemoteMismatch: true` (a fork or a
+  mirror); the confirmation is audited (`originConfirmed`). `409 path_in_use` when another
+  repository has the folder. Audit `repository.local_attach` or `repository.local_change` (path and
+  branch, and the previous ones).
+- `DELETE /repositories/:id/local` takes the folder off a GitHub repository: reads go back to GitHub,
+  the folder is not touched. `200 { repository }`. `404 no_local_checkout`; `409 local_only` for a
+  local-only repository (disconnect it instead). Audit `repository.local_detach`.
+- `DELETE /repositories/:id` also deletes the local record and the managed copy; the folder itself
+  is never changed. The audit event names a local-only repository and its path.
+
+Path errors, all `422` with a `message` written to be shown (`local_` plus the code):
+`outside_roots`, `invalid_path` (not absolute, `..`, NUL or control characters, too long),
+`not_found`, `not_directory`, `not_a_repository`, `bare_repository`, `data_folder`; and `local_no_commits`,
+`local_detached_head` (choose a branch), `local_branch_not_found`, `local_invalid_branch`,
+`local_path_required`. Others: `409 local_not_enabled`, `409 local_reads_disabled` (a local-only
+repository with `MRM_READS=api`), `422 dubious_ownership` (git refuses a folder owned by another
+user; the server never sets `safe.directory`), `409 local_git_missing`, `422 local_missing`
+(the folder is gone) and `422 local_branch_missing` (the branch was deleted), both found when a read
+runs.
+
+Reads: a scan, a listing and a change set read the branch tip fresh each time (no reuse window), so
+a commit made a second ago is seen. The scan's audit event says `reads: "local"`. Untested against
+real GitHub, as above; the folder path is checked again, against the real path, before every read.
 
 ## Not done yet
 

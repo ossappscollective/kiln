@@ -136,6 +136,13 @@ const changeSetSchema = z.object({
   files: z.array(z.object({ path: z.string(), change: z.enum(['added', 'modified', 'deleted']) })),
 });
 const object = z.record(z.unknown());
+const conventionsInput = z.object({
+  appId: z.string().optional().describe('Set for an override of one app; leave out for the repository.'),
+  tagPatterns: z.array(z.string()).describe('Patterns with {buildNumber}, {version}, {platform}, {flavor}, {prefix}, *. Empty: defaults.'),
+  releasePatterns: z.array(z.string()).describe('The same for release names. Empty: defaults.'),
+  prefix: z.string().optional().describe('The literal that fills {prefix}.'),
+  workflow: z.string().nullable().optional().describe('The release workflow (file name or name); null to detect it.'),
+});
 const changeSetAnswer = { description: 'The change set.', schema: z.object({ changeSet: changeSetSchema }) };
 const none = { description: 'Done. No body.' };
 const testOutcome = z.object({ ok: z.boolean(), message: z.string(), details: z.array(z.string()).optional(), superseded: z.boolean().optional() });
@@ -188,6 +195,15 @@ const connectBody = z.object({
   owner: z.string().trim().describe('A GitHub user or organization name.'),
   repo: z.string().trim().max(100).describe('A GitHub repository name.'),
 });
+const localPathText = z.string().min(1).max(4096).describe('An absolute folder on the server, inside one of the folders MRM_LOCAL_REPO_ROOTS allows. Symbolic links are resolved first.');
+const localBranchText = z.string().trim().min(1).max(200).describe('A local branch whose committed tip is read. Default: the branch the clone has checked out.');
+const localCheckBody = z.object({ path: localPathText, branch: localBranchText.optional() });
+const localConnectBody = z.object({ path: localPathText, branch: localBranchText.optional(), name: z.string().trim().max(100).optional().describe('Default: the folder name.') });
+const localAttachBody = z.object({
+  path: localPathText.optional().describe('Omit to keep the attached folder and change only the branch.'),
+  branch: localBranchText.optional(),
+  allowRemoteMismatch: z.boolean().optional().describe('Confirm a clone whose origin is another repository (a fork or mirror).'),
+});
 const targetBody = z.object({
   name: z.string().max(200),
   appId: z.string().max(400).nullable().optional(),
@@ -199,6 +215,18 @@ const changeSetBody = z.object({
   roots: z.object({ appStore: z.string().max(400).optional(), googlePlay: z.string().max(400).optional() }).strict().optional(),
   summary: z.string().trim().min(1).max(200),
   listing: z.record(z.unknown()).describe('The store listing to write: `{ appStore?: {...}, googlePlay?: {...} }`. See docs/api/repositories.md.'),
+});
+
+const pullListingBody = z.object({
+  channel: z.enum(['live', 'editable']).optional().describe('Which store copy to pull. Default: live, or editable when the app has no live version.'),
+  locales: z.array(z.string().max(35)).max(100).optional().describe('Only these locales (store codes).'),
+  fields: z.array(z.string().max(40)).max(20).optional().describe('Only these fields. Naming fields also pulls a field the repository has no value for.'),
+  items: z.array(z.object({ locale: z.string().max(35), field: z.string().max(40) }).strict()).max(1000).optional().describe('Exactly these locale and field pairs.'),
+  addLocales: z.boolean().optional().describe('Create the folders of store locales the repository does not have. Default: only locales that exist in the repository.'),
+  summary: z.string().trim().min(1).max(200).optional(),
+  refresh: z.boolean().optional().describe('Read the store again first (needs `apps.sync`; shares the sync rate limit).'),
+  target: z.string().min(1).max(200).optional().describe('A saved listing target id, or `auto:<key>`.'),
+  roots: z.object({ appStore: z.string().max(400).optional(), googlePlay: z.string().max(400).optional() }).strict().optional(),
 });
 
 const listingQuery = z.object({
@@ -264,6 +292,11 @@ const drafts: Draft[] = [
   // ----- repositories and change sets -----------------------------------------------------------
   { id: 'listRepositories', method: 'get', path: `${W}/repositories`, tags: ['repositories'], summary: 'List connected repositories', risk: 'read', access: { action: 'repositories.read' }, partial: true, responses: { '200': { description: 'Repositories.', schema: z.object({ repositories: z.array(object) }) } } },
   { id: 'connectRepository', method: 'post', path: `${W}/repositories`, tags: ['repositories'], summary: 'Connect a GitHub repository', risk: 'write', access: { action: 'repositories.write' }, body: connectBody, partial: true, responses: { '201': { description: 'The repository.', schema: z.object({ repository: object }) } } },
+  { id: 'getLocalCloneConfig', method: 'get', path: `${W}/repositories/local/config`, tags: ['repositories'], summary: 'Whether local clones are enabled on this server', description: 'Local clones are off unless MRM_LOCAL_REPO_ROOTS is set. The allowed folders are listed only to people who may attach one.', risk: 'read', access: { action: 'repositories.read' }, partial: true, responses: { '200': { description: 'The setting.', schema: z.object({ local: object }) } } },
+  { id: 'checkLocalClone', method: 'post', path: `${W}/repositories/local/check`, tags: ['repositories'], summary: 'Check a folder before attaching it', description: 'Reads the folder with hardened, read-only git: real path, branch, tip commit, origin (owner/repo only), number of uncommitted files, and the connected repository it matches. Only the committed branch is ever read, never uncommitted edits.', risk: 'read', access: { action: 'repositories.write' }, body: localCheckBody, partial: true, responses: { '200': { description: 'What was found.', schema: z.object({ check: object }) } } },
+  { id: 'connectLocalRepository', method: 'post', path: `${W}/repositories/local`, tags: ['repositories'], summary: 'Connect a local folder as a repository without GitHub', description: 'A local-only repository is read from the folder. Applying changes to it is not available yet (409 local_only).', risk: 'write', access: { action: 'repositories.write' }, body: localConnectBody, partial: true, responses: { '201': { description: 'The repository (owner, repo and credentialId are null).', schema: z.object({ repository: object }) } } },
+  { id: 'attachLocalClone', method: 'put', path: `${W}/repositories/{id}/local`, tags: ['repositories'], summary: 'Attach a local clone to a repository, or change its folder or branch', description: 'Scan, listing and change set creation then read the committed branch of the folder. Applying a change set as a pull request still uses GitHub.', risk: 'write', access: { action: 'repositories.write' }, body: localAttachBody, partial: true, responses: { '200': { description: 'The repository.', schema: z.object({ repository: object }) } } },
+  { id: 'detachLocalClone', method: 'delete', path: `${W}/repositories/{id}/local`, tags: ['repositories'], summary: 'Detach the local clone of a repository', description: 'Reads go back to GitHub. A local-only repository cannot be detached (409 local_only): disconnect it.', risk: 'destructive', access: { action: 'repositories.write' }, partial: true, responses: { '200': { description: 'The repository.', schema: z.object({ repository: object }) } } },
   { id: 'getRepository', method: 'get', path: `${W}/repositories/{id}`, tags: ['repositories'], summary: 'A repository and what was detected in it', risk: 'read', access: { action: 'repositories.read' }, partial: true, responses: { '200': { description: 'The repository and its detection.', schema: object } } },
   { id: 'disconnectRepository', method: 'delete', path: `${W}/repositories/{id}`, tags: ['repositories'], summary: 'Disconnect a repository', risk: 'destructive', access: { action: 'repositories.write' }, responses: { '204': none } },
   { id: 'scanRepository', method: 'post', path: `${W}/repositories/{id}/scan`, tags: ['repositories'], summary: 'Scan a repository and store what is detected', risk: 'write', access: { action: 'repositories.scan' }, partial: true, responses: { '200': { description: 'The repository and its detection.', schema: object } } },
@@ -333,6 +366,7 @@ const drafts: Draft[] = [
   { id: 'getListingDrift', method: 'get', path: `${W}/apps/{id}/listing/drift`, tags: ['listing'], summary: 'How the live listing differs from the repository', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: listingQuery, partial: true, responses: { '200': { description: 'The differences.', schema: object } } },
   { id: 'getListingHistory', method: 'get', path: `${W}/apps/{id}/listing/history`, tags: ['listing'], summary: 'How a listing field changed between syncs', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ locale: z.string().optional(), field: z.string().optional(), limit: z.number().int().min(1).max(200).optional(), cursor: z.string().optional() }), partial: true, responses: { '200': { description: 'Changes, newest first.', schema: object } } },
   { id: 'refreshListingFromRepo', method: 'post', path: `${W}/apps/{id}/listing/repo-refresh`, tags: ['listing'], summary: 'Read the listing from the connected repository again', description: 'Reads GitHub; writes only to this server’s database.', risk: 'write', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'The refreshed listing.', schema: object } } },
+  { id: 'pullStoreListing', method: 'post', path: `${W}/apps/{id}/listing/pull`, tags: ['listing'], summary: 'Draft a change set from the live store listing', description: 'Applies the store\u2019s values to the repository\u2019s own listing files as a draft change set. Reads GitHub (and the store with `refresh`); writes nothing to a store or to the repository: the draft is reviewed, approved and applied like any change set. Needs `changesets.write` and `listing.read`; `refresh` also needs `apps.sync`.', risk: 'write', access: { action: 'changesets.write' }, appScope: { kind: 'param', name: 'id' }, body: pullListingBody, partial: true, responses: { '200': { description: 'Nothing to pull: `changeSet` is null and `explanation` says why.', schema: object }, '201': { description: 'The draft, what changes, what was skipped and why.', schema: z.object({ changeSet: changeSetSchema, changes: z.array(object), skipped: z.array(object), problems: z.array(object), warnings: z.array(z.string()) }) } } },
 
   // ----- CI workflows and builds ----------------------------------------------------------------
   { id: 'listWorkflows', method: 'get', path: `${W}/repositories/{id}/workflows`, tags: ['ci'], summary: 'GitHub Actions workflows of a repository', risk: 'read', access: { action: 'repositories.scan' }, partial: true, responses: { '200': { description: 'Workflows.', schema: object } } },
@@ -344,6 +378,10 @@ const drafts: Draft[] = [
   { id: 'getBuildChanges', method: 'get', path: `${W}/apps/{id}/builds/changes`, tags: ['ci'], summary: 'Commits between two builds', risk: 'read', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ platform: z.enum(['ios', 'android']), build: z.string(), base: z.string().optional() }), partial: true, responses: { '200': { description: 'The changes.', schema: object } } },
   { id: 'linkBuild', method: 'put', path: `${W}/apps/{id}/builds/{platform}/{buildNumber}/link`, tags: ['ci'], summary: 'Link a build to a workflow run', risk: 'write', access: { action: 'apps.sync' }, appScope: { kind: 'param', name: 'id' }, body: object, partial: true, responses: { '200': { description: 'The build.', schema: z.object({ build: object }) } } },
   { id: 'unlinkBuild', method: 'delete', path: `${W}/apps/{id}/builds/{platform}/{buildNumber}/link`, tags: ['ci'], summary: 'Remove the link of a build', risk: 'destructive', access: { action: 'apps.sync' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'The build.', schema: z.object({ build: object }) } } },
+  { id: 'rematchBuilds', method: 'post', path: `${W}/apps/{id}/builds/rematch`, tags: ['ci'], summary: 'Search runs, tags and releases again for the unlinked builds of an app', description: 'Reads GitHub (runs, tags, releases, a few commits) and stores the links it finds. Rate limited per workspace.', risk: 'write', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'The builds, with diagnostics, and what the search did.', schema: object } } },
+  { id: 'getBuildConventions', method: 'get', path: `${W}/repositories/{id}/build-conventions`, tags: ['ci'], summary: 'How build numbers are found in tags and releases', description: 'Stored and effective tag and release-name patterns of a repository, or of one app with `appId`.', risk: 'read', access: { action: 'repositories.read' }, query: z.object({ appId: z.string().optional() }), partial: true, responses: { '200': { description: 'The conventions.', schema: object } } },
+  { id: 'setBuildConventions', method: 'put', path: `${W}/repositories/{id}/build-conventions`, tags: ['ci'], summary: 'Set how build numbers are found in tags and releases', description: 'Replaces the convention of the repository, or of one app with `appId`. An empty pattern list means the built-in defaults. Body at most 16 KiB.', risk: 'write', access: { action: 'repositories.write' }, body: conventionsInput, partial: true, responses: { '200': { description: 'The conventions after the change.', schema: object } } },
+  { id: 'listBuildConventionTags', method: 'get', path: `${W}/repositories/{id}/build-conventions/tags`, tags: ['ci'], summary: 'Tags and releases of a repository, to try patterns against', description: 'Reads GitHub (a bounded number of pages) and keeps the answer for a minute.', risk: 'read', access: { action: 'repositories.scan' }, partial: true, responses: { '200': { description: 'Tag names with their commits, and release names.', schema: object } } },
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

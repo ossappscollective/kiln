@@ -81,16 +81,78 @@ export type AcceptedInvitation = { user: User; workspaceId: string; role: Role }
 
 export type ProjectKind = 'fastlane' | 'expo' | 'both' | 'unknown';
 
+/** Whether a repository's local folder can be read now (docs/adr/0005-local-clone-reads.md). */
+export type LocalStatus =
+  | 'ok'
+  | 'not_enabled'
+  | 'reads_api'
+  | 'git_missing'
+  | 'invalid_path'
+  | 'not_found'
+  | 'not_accessible'
+  | 'not_directory'
+  | 'outside_roots'
+  | 'data_folder'
+  | 'bare_repository'
+  | 'not_a_repository';
+
+export type LocalCheckoutSummary = {
+  /** The real path (symbolic links resolved) when it was attached. */
+  path: string;
+  /** The local branch whose committed tip is read. */
+  branch: string;
+  name: string;
+  /** The commit the last read used. */
+  headSha: string | null;
+  lastReadAt: number | null;
+  status: LocalStatus;
+  statusMessage?: string;
+};
+
 export type RepositorySummary = {
   id: string;
-  credentialId: string;
-  owner: string;
-  repo: string;
+  /** Null for a local-only repository (a folder, no GitHub). */
+  credentialId: string | null;
+  owner: string | null;
+  repo: string | null;
+  /** `owner/repo`, or the folder name of a local-only repository. */
+  name: string;
   defaultBranch: string;
   /** Null until the repository is first scanned. */
   projectKind: ProjectKind | null;
   detectedAt: number | null;
   createdAt: number;
+  /** No GitHub connection: read from the local folder, and changes cannot be applied yet. */
+  localOnly: boolean;
+  local: LocalCheckoutSummary | null;
+};
+
+/** Whether local clones are on (MRM_LOCAL_REPO_ROOTS). `roots` only for people who may attach one. */
+export type LocalConfig = {
+  enabled: boolean;
+  envName: string;
+  reason?: string;
+  message?: string;
+  roots?: string[];
+};
+
+/** What `POST /repositories/local/check` found in a folder. */
+export type LocalCheck = {
+  realPath: string;
+  folderName: string;
+  worktree: boolean;
+  checkedOutBranch: string | null;
+  /** The branch that would be read. Null when HEAD is detached and none was chosen. */
+  branch: string | null;
+  branches: string[];
+  headSha: string;
+  branchSha: string | null;
+  remote: { host: string; owner: string; repo: string; github: boolean } | null;
+  /** Files with uncommitted changes, null when they could not be counted. */
+  dirtyCount: number | null;
+  match: { id: string; name: string; owner: string; repo: string; localPath: string | null } | null;
+  existing: { id: string; name: string; localOnly: boolean } | null;
+  warnings: string[];
 };
 
 export type DetectionEvidence = {
@@ -600,10 +662,35 @@ export type WorkflowRuns = {
 
 export type DispatchResult = { dispatched: boolean; runKnown: boolean; run: WorkflowRun };
 
+/** How sure a link is. A manual link and an exact matcher are `high`. */
+export type LinkConfidence = 'high' | 'medium' | 'low';
+
+/** What a tag or release link rests on: the name, the pattern, the commit and the reasoning. */
+export type BuildLinkEvidence = {
+  kind: 'tag' | 'release';
+  tag: string;
+  releaseName: string | null;
+  pattern: string;
+  /** The tag's commit (the version bump), not the run's head. */
+  sha: string;
+  parents: string[];
+  committedAt: number | null;
+  message: string | null;
+  /** Whether the version in the name is the build's version; null when the name has no version. */
+  versionMatch: boolean | null;
+  runId: string | null;
+  noRunReason: string | null;
+  reason: string;
+  confidence: LinkConfidence;
+};
+
 export type BuildLink = {
-  state: 'linked';
-  /** `manual`, or the matcher: `dispatch_input`, `run_title`, ... */
+  /** `linked`: a run is known (or was). `tag`: a tag or release carries the number and no run was found. */
+  state: 'linked' | 'tag';
+  /** `manual`, the matcher (`dispatch_input`, `run_title`, ...), or `tag` / `release`. */
   source: string;
+  confidence: LinkConfidence;
+  evidence: BuildLinkEvidence | null;
   manual: boolean;
   reason: string;
   candidates: number;
@@ -634,14 +721,91 @@ export type AppBuild = {
   rawState: string;
   uploadedAt: number | null;
   syncedAt: number;
-  linkState: 'linked' | 'unlinked';
+  /** `tag`: a tag or release carries the number, but no run was found ("Tag found"). */
+  linkState: 'linked' | 'tag' | 'unlinked';
   link: BuildLink | null;
+  /** For an unlinked build: why the last search found nothing. */
+  diagnostic: BuildDiagnostic | null;
+};
+
+export type BuildDiagnostic = { code: string; message: string };
+
+/** What the last search of tags and releases saw: why a build may be unlinked. */
+export type BuildDiagnostics = {
+  /** When tags were last searched for this repository; null when never. */
+  scannedAt: number | null;
+  scanOk: boolean | null;
+  scanError: string | null;
+  patterns: {
+    tags: string[];
+    releases: string[];
+    prefix: string;
+    workflow: string | null;
+    usingDefaults: boolean;
+    source: 'app' | 'repository' | 'defaults';
+  };
+  tags: { seen: number; truncated: boolean; sample: string[]; targeted: string[] } | null;
+  releases: { seen: number; truncated: boolean; error: string | null } | null;
+  newestRelease: { name: string | null; tag: string; at: number | null } | null;
+  /** Names that fit a pattern, and the one with the highest number for this app's platform. */
+  fitting: number;
+  newestFit: { name: string; buildNumber: string } | null;
+  runs: { stored: number; newestAt: number | null };
+  canReadTags: boolean;
 };
 
 export type AppBuilds = {
   repository: { id: string; owner: string; repo: string } | null;
   matchers: { id: string; description: string }[];
   builds: AppBuild[];
+  /** Null for an app without a repository. */
+  diagnostics: BuildDiagnostics | null;
+};
+
+/** The answer of "Re-run matching": the builds again, and what the search did. */
+export type RematchedBuilds = AppBuilds & {
+  rematch: { scanned: boolean; written: number; error: string | null };
+};
+
+/** How a team's tags and releases carry the build number (docs/api/ci.md). */
+export type BuildConventionValues = {
+  tagPatterns: string[];
+  releasePatterns: string[];
+  prefix: string;
+  workflow: string | null;
+};
+
+export type StoredBuildConventions = BuildConventionValues & {
+  /** The app this row is for, or null for the whole repository. */
+  appId: string | null;
+  updatedBy: string;
+  updatedAt: number;
+};
+
+export type BuildConventionsView = {
+  repositoryId: string;
+  appId: string | null;
+  /** What is stored for this scope; null when nothing is (the defaults or the repository's apply). */
+  stored: StoredBuildConventions | null;
+  /** The repository-wide convention that is stored, when the view is for an app. */
+  repository: StoredBuildConventions | null;
+  /** What matching really uses: the stored values with the defaults filled in. */
+  effective: BuildConventionValues & {
+    usingDefaultTags: boolean;
+    usingDefaultReleases: boolean;
+    source: 'app' | 'repository' | 'defaults';
+  };
+  defaults: { tagPatterns: string[]; releasePatterns: string[] };
+};
+
+/** The tag and release names of a repository, as read from GitHub now (for the pattern preview). */
+export type RepositoryTags = {
+  tags: { name: string; sha: string }[];
+  releases: { name: string | null; tagName: string; draft: boolean; publishedAt: number | null }[];
+  tagsTruncated: boolean;
+  releasesTruncated: boolean;
+  releasesError: string | null;
+  readAt: number;
 };
 
 export type ChangedCommit = {
@@ -726,4 +890,94 @@ export type WebhookDelivery = {
   redeliveryOf: string | null;
   createdAt: number;
   deliveredAt: number | null;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Pulling the live store listing into the repository as a draft change set (docs/api/listing.md).
+// The store is only read; the draft is reviewed, approved and applied like any change set.
+
+/** Why a field is pulled. The last two are fields the repository does not have yet. */
+export type PullStatus = 'store-ahead' | 'diverged' | 'missing-in-repo' | 'new-locale';
+
+export type PullChange = {
+  /** The locale as the store has it. */
+  locale: string;
+  /** The folder (or Expo key) it is written to. */
+  repoLocale: string;
+  field: string;
+  label: string;
+  status: PullStatus;
+  /** The repository's value now, or null. */
+  before: string | null;
+  after: string;
+  /** The locale folder does not exist yet and is created. */
+  newLocale: boolean;
+};
+
+export type PullSkipReason =
+  | 'repo_ahead'
+  | 'missing_in_store'
+  | 'identical'
+  | 'over_limit'
+  | 'locale_not_in_repo'
+  | 'locale_ambiguous'
+  | 'locale_invalid'
+  | 'locale_unsupported'
+  | 'locale_conflict';
+
+export type PullSkip = {
+  locale: string;
+  repoLocale?: string;
+  /** Absent: the whole locale was skipped. */
+  field?: string;
+  reason: PullSkipReason;
+  message: string;
+};
+
+export type PullLocaleMapping = { locale: string; repoLocale: string; how: 'exact' | 'normalized' | 'equivalent' | 'new' };
+
+export type PullTarget = {
+  repositoryId: string;
+  /** `owner/repo`. */
+  repository: string;
+  branch: string;
+  source: ListingSourceKind;
+  /** The Expo store config file, or the fastlane metadata folder. */
+  path: string;
+  selected: { id: string | null; origin: 'custom' | 'detected' | 'folders' | 'default'; label: string };
+};
+
+export type PullResult = {
+  /** Null when nothing differs in a way that can be pulled. */
+  changeSet: ChangeSetView | null;
+  channel: 'live' | 'editable';
+  store: { readAt: number | null; error: string | null; refreshed: boolean };
+  target: PullTarget;
+  changes: PullChange[];
+  skipped: PullSkip[];
+  problems: ListingProblem[];
+  locales: PullLocaleMapping[];
+  warnings: string[];
+  /** Why there is no change set. */
+  explanation?: string;
+};
+
+/** What to send. `items` are exact locale and field pairs; without them every field that can be pulled is. */
+export type PullRequestBody = {
+  channel?: 'live' | 'editable';
+  locales?: string[];
+  fields?: string[];
+  items?: { locale: string; field: string }[];
+  addLocales?: boolean;
+  summary?: string;
+  refresh?: boolean;
+} & ListingSelection;
+
+/** A place the listing could be, as `target_required` lists them. */
+export type PullCandidate = {
+  id: string;
+  origin: 'detected' | 'custom';
+  label: string;
+  app: string | null;
+  roots: { appStore: string | null; googlePlay: string | null };
 };

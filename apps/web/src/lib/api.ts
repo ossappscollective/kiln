@@ -9,6 +9,7 @@ import type {
   AuditEvent,
   AuthStatus,
   BuildChanges,
+  BuildConventionsView,
   ChangeSetView,
   CreatedApiToken,
   CreatedInvitation,
@@ -28,6 +29,8 @@ import type {
   ListingSelection,
   ListingTargetInput,
   LiveListing,
+  LocalCheck,
+  LocalConfig,
   Me,
   Member,
   NewApp,
@@ -35,8 +38,12 @@ import type {
   PlanChanges,
   PlanDetail,
   PlanSummary,
+  RematchedBuilds,
+  PullRequestBody,
+  PullResult,
   RepositoryDetail,
   RepositoryListing,
+  RepositoryTags,
   RepoRefreshResult,
   RepositorySummary,
   SavedListingTarget,
@@ -85,6 +92,9 @@ export function messageFor(
   body: { error?: string; message?: string; issues?: Issue[]; paths?: string[] },
   retryAfter?: number,
 ): string {
+  // Local clones: the server's messages are written to be shown (they name MRM_LOCAL_REPO_ROOTS, the
+  // folder rule or the fix), so they are used as they are.
+  if (body.error?.startsWith('local_') && body.message) return body.message;
   switch (body.error) {
     case 'invalid_credentials':
       return 'The email or password is wrong.';
@@ -141,7 +151,12 @@ export function messageFor(
     case 'timeout':
       return 'GitHub took too long to answer. Try again.';
     case 'already_connected':
-      return 'That repository is already connected to this workspace.';
+      // A folder that is already connected says so in the server's words (it names the repository).
+      return body.message?.startsWith('That folder') ? body.message : 'That repository is already connected to this workspace.';
+    case 'remote_mismatch':
+    case 'path_in_use':
+    case 'no_local_checkout':
+      return body.message ?? 'That local clone cannot be used here.';
     case 'open_change_sets':
       return 'This repository has open change sets. Apply or discard them first.';
     case 'invalid_state':
@@ -292,6 +307,28 @@ export function createApi(options: ApiOptions = {}) {
       request<{ repository: RepositorySummary }>('POST', `${workspace(workspaceId)}/repositories`, input),
     disconnectRepository: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}`),
+    // Local clones (docs/adr/0005-local-clone-reads.md). Admin and owner only, except `localConfig`.
+    localConfig: (workspaceId: string) =>
+      request<{ local: LocalConfig }>('GET', `${workspace(workspaceId)}/repositories/local/config`),
+    checkLocalClone: (workspaceId: string, input: { path: string; branch?: string }) =>
+      request<{ check: LocalCheck }>('POST', `${workspace(workspaceId)}/repositories/local/check`, input),
+    connectLocalRepository: (workspaceId: string, input: { path: string; branch?: string; name?: string }) =>
+      request<{ repository: RepositorySummary }>('POST', `${workspace(workspaceId)}/repositories/local`, input),
+    attachLocalClone: (
+      workspaceId: string,
+      id: string,
+      input: { path?: string; branch?: string; allowRemoteMismatch?: boolean },
+    ) =>
+      request<{ repository: RepositorySummary }>(
+        'PUT',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/local`,
+        input,
+      ),
+    detachLocalClone: (workspaceId: string, id: string) =>
+      request<{ repository: RepositorySummary }>(
+        'DELETE',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/local`,
+      ),
     /** Lists the repository's files, detects the project type and stores the result. */
     scanRepository: (workspaceId: string, id: string) =>
       request<RepositoryDetail>('POST', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/scan`),
@@ -401,6 +438,17 @@ export function createApi(options: ApiOptions = {}) {
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/repo-refresh`,
       ),
+    /**
+     * Drafts a change set that applies the live store listing to the repository's listing files.
+     * Reads the repository (and the store, with `refresh`); writes only a draft. 201 with the draft,
+     * or 200 with `changeSet: null` and an explanation when nothing can be pulled.
+     */
+    pullAppListing: (workspaceId: string, appId: string, input: PullRequestBody = {}) =>
+      request<PullResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/pull`,
+        input,
+      ),
     /** Finds the apps behind a credential. Google Play needs `packages`: its API cannot list apps. */
     discoverApps: (workspaceId: string, input: { credentialId: string; packages?: string[] }) =>
       request<DiscoverResult>('POST', `${workspace(workspaceId)}/apps/discover`, input),
@@ -509,6 +557,32 @@ export function createApi(options: ApiOptions = {}) {
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/${encodeURIComponent(build.platform)}/${encodeURIComponent(build.buildNumber)}/link`,
         { runId },
+      ),
+    /** Reads the runs, tags and releases from GitHub again and matches this app's builds. Needs the right of a scan. */
+    rematchBuilds: (workspaceId: string, appId: string) =>
+      request<RematchedBuilds>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/rematch`),
+    /** How the repository's tags carry build numbers: the stored patterns and the defaults. */
+    buildConventions: (workspaceId: string, repositoryId: string, appId?: string) =>
+      request<BuildConventionsView>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/build-conventions${appId ? `?appId=${encodeURIComponent(appId)}` : ''}`,
+      ),
+    /** Saves the conventions of the repository, or of `appId` as an override. Needs `repositories.write`. */
+    setBuildConventions: (
+      workspaceId: string,
+      repositoryId: string,
+      input: { appId?: string; tagPatterns: string[]; releasePatterns: string[]; prefix: string; workflow: string | null },
+    ) =>
+      request<BuildConventionsView>(
+        'PUT',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/build-conventions`,
+        input,
+      ),
+    /** The repository's tag and release names, read from GitHub (cached for a minute). Needs the right of a scan. */
+    conventionTags: (workspaceId: string, repositoryId: string) =>
+      request<RepositoryTags>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/build-conventions/tags`,
       ),
     unlinkBuild: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string }) =>
       request<{ build: AppBuild | null }>(
