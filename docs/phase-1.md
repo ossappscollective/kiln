@@ -64,7 +64,19 @@ rendered in a browser, and Expo is only done at library level.
       API. Tested with real local git repositories as the source for the fastlane layouts, the
       fall back, tokens in logs and audit rows, and disconnect; **never run against real GitHub
       over https**, with a GitHub App installation token, or in the Docker image (not built here)
-- [ ] Workflow run tracking and build linking (the connector can list runs; nothing uses it)
+- [x] CI workflows, runs and build linking ([docs/api/ci.md](api/ci.md)): list workflows and their
+      `workflow_dispatch` inputs, dispatch a workflow (new right `ci.dispatch`, member and up,
+      rate limited, audited with input names only), store runs in `workflow_runs` and follow them
+      with a `ci.poll` job (backoff, 3 hour limit) or an on-demand refresh, link store builds to
+      runs by build number (pluggable matchers, an Unlinked state, a manual link that wins),
+      `GET /apps/:id/builds`, and "what changed" between two builds through a new
+      `compareCommits` connector method. Web: a CI tab on the repository page (workflows, a
+      Dispatch dialog with a confirmation, runs that update every few seconds only while one is
+      active and the tab is visible) and a Builds tab on the app page. Tested against a fake GitHub
+      and fixtures on SQLite; **never run against live GitHub, never rendered in a browser**, and
+      not run on Postgres. Build numbers are matched only by the conventions in the doc, so a
+      team whose CI does not put the number in a run input or title sees "Unlinked" until the
+      matcher or a manual link covers it
 - [ ] Move scan and listing to the job queue if they prove slow (they run in the request today)
 - [ ] Refresh stale change sets (today a conflict means discarding and creating a new one)
 - [ ] Decide whether approval needs a second person, and whether `.github/` stays blocked

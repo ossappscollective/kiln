@@ -84,6 +84,33 @@ Summary; the operator-facing detail is in [docs/deployment.md](deployment.md).
 - **Desktop**: single-user mode adds loopback bind, a Host allowlist and a single-use launch secret
   ([ADR 0003](adr/0003-single-user-mode.md)).
 
+## Automation surface
+
+How scripts, CI and assistants use the server. Details: [tokens](api/tokens.md),
+[events](api/events.md), [webhooks](api/webhooks.md), [OpenAPI](api/openapi.md).
+
+- **Authentication** (`apps/server/src/bearer.ts`): `/api/workspaces/*` and `/api/openapi.json` take
+  a session cookie, or `Authorization: Bearer mrm_...` when there is no cookie. A token is looked up
+  by the SHA-256 of what was presented, belongs to one workspace, and acts for its creator with a
+  role ceiling (never owner), optionally some apps and some actions. Token requests carry no cookie,
+  so they skip the same-origin check that guards cookie writes; they have their own rate limit.
+- **Default deny for tokens**: the operation registry (`services/api-operations.ts`) lists every
+  documented route with its permission and risk. A token may call only listed routes whose action
+  tokens may hold, never token, member, credential-value or webhook management. The registry also
+  produces `GET /api/openapi.json`; tests check it against the routes the app really has.
+- **Audit**: a token request records the actor as `token` (id and name) with the creator in
+  `detail.onBehalfOf`. The routes did not change for this: `recordAudit` reads the token from the
+  request's async context (`AsyncLocalStorage`).
+- **Events** (`services/events.ts`): `emitEvent(sql, ...)` writes a row to `events` (pass the
+  transaction, so the event exists only if the change does) and queues webhook deliveries. Change
+  set and credential-test events are derived inside `recordAudit`; sync events are emitted by
+  `syncApp`. Read by cursor (`GET /events`) or live (`GET /events/stream`, server-sent events with
+  `Last-Event-ID`, a heartbeat, a cap of 5 streams per person, closed at shutdown).
+- **Webhooks** (`services/webhooks.ts`, `webhook-transport.ts`): one delivery row and one job per
+  matching endpoint, HMAC-SHA256 signed, retried by the job queue, logged. The transport is the
+  SSRF boundary: public addresses only, checked after resolving and again after connecting, no
+  redirects, bounded time and size.
+
 ## Release lifecycle
 
 `draft → build_chosen → ready → in_review → approved → rolling_out → live`
@@ -102,6 +129,7 @@ The dashboard groups states into preparing, in review, ready to release and live
 - Spikes with what was and was not verified: [docs/spikes](spikes/store-api-conventions.md)
   (store API conventions, repo conventions, Expo store config, dual dialect, sidecar, credential
   guides)
-- API notes: [apps](api/apps.md), [repositories](api/repositories.md), [members](api/members.md),
-  [credential tests](api/credential-tests.md)
+- API notes: [apps](api/apps.md), [listing](api/listing.md), [repositories](api/repositories.md), [members](api/members.md),
+  [credential tests](api/credential-tests.md), [tokens](api/tokens.md), [events](api/events.md),
+  [webhooks](api/webhooks.md), [OpenAPI](api/openapi.md)
 - Decisions waiting for a person: [open-decisions.md](open-decisions.md)

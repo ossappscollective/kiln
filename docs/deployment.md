@@ -77,3 +77,16 @@ change set (branch, commit, pull request) and connecting a repository still use 
 - **Not verified against real GitHub yet** (HTTPS fetch with a PAT or installation token, fetch by
   commit id): keep `MRM_READS=api` if you need the proven path.
 
+
+## Tokens, event streams and webhooks
+
+- **API tokens** work with a `Authorization: Bearer` header and are rate limited per token (300 a
+  minute) in memory. Do not log request headers at the proxy. Revoke a token in the web app.
+- **The event stream** (`/api/workspaces/<id>/events/stream`) is a long-lived response. The proxy
+  must not buffer it or cut idle connections within 15 seconds (the server sends a heartbeat comment
+  every 15 seconds and `X-Accel-Buffering: no`). For nginx add `proxy_read_timeout 1h;` for that
+  path. Each person may hold 5 streams. Never tested through a real proxy.
+- **Webhooks** make requests from the server. They go to public https addresses only, so a webhook
+  cannot be pointed at your internal network. `MRM_WEBHOOKS_ALLOW_PRIVATE=1` lifts that for
+  development; leave it off on a shared host. Allow outbound https from the server to the receivers.
+  See [webhooks](api/webhooks.md).

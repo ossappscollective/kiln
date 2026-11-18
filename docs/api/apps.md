@@ -296,14 +296,19 @@ Needs `apps.read`. `200 { "app": App, "releases": [Release, ...] }`. `404 not_fo
 
 ### `DELETE /apps/:id`
 
-Needs `apps.write`. `204`, no body. Deletes the app and its releases (nothing in the store is
-touched). `404 not_found`. Audit: `app.delete`.
+Needs `apps.write`. `204`, no body. Deletes the app, its releases and its stored listing history
+([listing](listing.md)); nothing in the store is touched. `404 not_found`. Audit: `app.delete`.
 
 ### `POST /apps/:id/sync`
 
 Needs `apps.sync`. No body. Reads the store with the app's credential and replaces the snapshot.
 The stored secret is decrypted for this call only and never returned or logged; using it is
 audited as `credential.use` (purpose `app.sync`).
+
+After the releases are stored, the sync also reads the app's store listing (best effort, with the same
+connector and credential) and records changed values for the listing drift and history views
+([listing](listing.md)). A failure there never fails the sync and is not part of this response; it is
+shown as `store.error` by `GET /apps/:id/listing/drift`.
 
 Synchronous (default). It can take several seconds (default limit 60 seconds):
 
