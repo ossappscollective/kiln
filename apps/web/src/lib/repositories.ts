@@ -135,7 +135,7 @@ export function projectKindBadge(kind: ProjectKind | null | undefined): { label:
 export function projectKindSummary(kind: ProjectKind): string {
   switch (kind) {
     case 'fastlane':
-      return 'A fastlane project. Store listing text is read from the metadata folders and changes are proposed as a pull request.';
+      return 'A fastlane project. Store listing text is read from the metadata folders and changes are applied as a pull request, or as a commit on a new branch of a local clone.';
     case 'expo':
       return 'An Expo project. Its App Store listing is read from and edited in store.config.json when the repository has one. Google Play listing text lives in fastlane only.';
     case 'both':
@@ -219,7 +219,7 @@ export type StatusInfo = { label: string; tone: Tone; dot: boolean; description:
 
 const statusInfo: Record<ChangeSetStatus, StatusInfo> = {
   draft: { label: 'Draft', tone: 'neutral', dot: false, description: 'Waiting for an admin or owner to approve it.' },
-  approved: { label: 'Approved', tone: 'info', dot: false, description: 'Approved. It can be applied as a pull request.' },
+  approved: { label: 'Approved', tone: 'info', dot: false, description: 'Approved. It can be applied as a pull request or as a commit on a new branch of the local clone.' },
   applying: { label: 'Applying', tone: 'accent', dot: true, description: 'Creating the branch and the pull request.' },
   applied: { label: 'Applied', tone: 'ok', dot: false, description: 'The pull request is open. Merge it in GitHub.' },
   failed: { label: 'Failed', tone: 'bad', dot: false, description: 'The change did not reach the repository.' },
@@ -263,21 +263,17 @@ export function approverLabel(userId: string, myId: string, names: Readonly<Reco
 
 export type ChangeSetActions = { approve: boolean; apply: boolean; discard: boolean };
 
-/** Why a change set of a local-only repository cannot be applied (the server answers 409 `local_only`). */
-export const LOCAL_ONLY_APPLY_NOTICE =
-  'This repository is only a folder on the server, so the change set cannot be applied yet. A later version will commit it to a branch of the local clone. Until then, connect the repository on GitHub to open a pull request, or copy the changes by hand.';
-
 /**
  * What this person may do to a change set right now. Mirrors the server: only an admin or owner
- * approves, applies, and discards anyone's; a member discards only their own draft. A change set of
- * a local-only repository is never applied (`localOnly`).
+ * approves, applies, and discards anyone's; a member discards only their own draft. How it is
+ * applied (a pull request or a commit in the local clone) is chosen in the Apply dialog, which says
+ * what is not possible and why (lib/change-set-apply.ts).
  */
 export function changeSetActions(input: {
   role: Role;
   status: ChangeSetStatus;
   createdBy: { type: string; id: string };
   myId: string;
-  localOnly?: boolean;
 }): ChangeSetActions {
   const { role, status, createdBy, myId } = input;
   const admin = can(role, 'changesets.approve');
@@ -285,7 +281,7 @@ export function changeSetActions(input: {
     status === 'draft' && can(role, 'changesets.write') && createdBy.type === 'user' && createdBy.id === myId;
   return {
     approve: admin && status === 'draft',
-    apply: admin && status === 'approved' && input.localOnly !== true,
+    apply: admin && status === 'approved',
     discard: (admin && (status === 'draft' || status === 'approved' || status === 'failed')) || ownDraft,
   };
 }

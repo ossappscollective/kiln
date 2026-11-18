@@ -2,6 +2,7 @@
   import { type Role, can } from '@mrm/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../lib/api.ts';
+  import { resolveChangeSetReview, takeChangeSetReview } from '../lib/repository-intent.ts';
   import { repositoryName } from '../lib/repositories.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import type { RepositorySummary } from '../lib/types.ts';
@@ -24,6 +25,8 @@
   let connecting = $state(false);
   /** The repository that is open. A copy taken when it was opened; the details load their own. */
   let selected = $state<RepositorySummary | null>(null);
+  /** A change set to open on the Changes tab of the selected repository (the link from the Listing tab). */
+  let initialChangeSetId = $state<string | null>(null);
   let busyId = $state('');
   let myId = $state('');
   /** Display names by user id, to say who made a change set. Empty when the role cannot list members. */
@@ -36,7 +39,21 @@
     } catch (e) {
       items = null;
       error = e instanceof ApiError ? e.message : 'Could not load repositories.';
+      return;
     }
+    openRequestedChangeSet(items);
+  }
+
+  /** "Review the draft" on the Listing tab left an intent: open its repository with that change set. */
+  function openRequestedChangeSet(list: RepositorySummary[]) {
+    const found = resolveChangeSetReview(takeChangeSetReview(), list);
+    if (!found) return;
+    if ('missing' in found) {
+      toast.info('The repository of that change set is no longer connected.');
+      return;
+    }
+    initialChangeSetId = found.changeSetId;
+    selected = found.repository;
   }
 
   async function loadPeople() {
@@ -61,6 +78,7 @@
     void workspaceId;
     items = null;
     selected = null;
+    initialChangeSetId = null;
     names = {};
     if (canRead) {
       void load();
@@ -104,6 +122,7 @@
   async function back() {
     const id = selected?.id;
     selected = null;
+    initialChangeSetId = null;
     await tick();
     if (id) document.getElementById(`repo-open-${id}`)?.focus();
   }
@@ -112,7 +131,7 @@
 <section>
   <PageHeader
     title="Repositories"
-    description="Repositories with your fastlane or Expo project, from GitHub or from a clone on the server. Listing text is read from them, and changes go back as pull requests that a person approves."
+    description="Repositories with your fastlane or Expo project, from GitHub or from a clone on the server. Listing text is read from them, and changes go back as pull requests, or as commits on a new branch of a local clone, that a person approves."
   >
     {#snippet actions()}
       {#if canRead && canConnect && !selected && items !== null}
@@ -124,7 +143,7 @@
   {#if !canRead}
     <Alert tone="info">Your role does not include repositories.</Alert>
   {:else if selected}
-    <RepositoryDetail {api} {workspaceId} {role} {myId} {names} initial={selected} onback={back} onupdated={patch} />
+    <RepositoryDetail {api} {workspaceId} {role} {myId} {names} initial={selected} {initialChangeSetId} onback={back} onupdated={patch} />
   {:else if error}
     <div class="stack">
       <Alert tone="error">{error}</Alert>

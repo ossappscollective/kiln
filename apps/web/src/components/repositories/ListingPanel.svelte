@@ -480,7 +480,7 @@
               {#if edits.length === 0}
                 Edit a field above. Your changes become a draft that an admin or owner approves before anything is written to the repository.
               {:else}
-                {edits.length} {edits.length === 1 ? 'field' : 'fields'} edited. Nothing is written until an admin or owner approves the draft and applies it as a pull request.
+                {edits.length} {edits.length === 1 ? 'field' : 'fields'} edited. Nothing is written until an admin or owner approves the draft and applies it, as a pull request or as a commit on a new branch of the local clone.
               {/if}
             </p>
           </div>

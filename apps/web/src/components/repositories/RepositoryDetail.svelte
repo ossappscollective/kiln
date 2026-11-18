@@ -3,7 +3,8 @@
   then four tabs: the detected project, the store listing, the change sets, and CI (workflows and
   runs). A local-only repository (a folder, no GitHub) has no CI tab and no GitHub link.
   Props: api, workspaceId, role, myId, names (user id to display name), initial (the row from the
-  list, shown while the details load), onback, onupdated (called with a fresh repository row).
+  list, shown while the details load), initialChangeSetId? (a change set to open on the Change sets
+  tab, from the link on the Listing tab), onback, onupdated (called with a fresh repository row).
 -->
 <script lang="ts">
   import { type Listing, type Role, can } from '@mrm/core';
@@ -41,6 +42,7 @@
     myId,
     names,
     initial,
+    initialChangeSetId = null,
     onback,
     onupdated,
   }: {
@@ -50,6 +52,7 @@
     myId: string;
     names: Record<string, string>;
     initial: RepositorySummary;
+    initialChangeSetId?: string | null;
     onback: () => void;
     onupdated: (repository: RepositorySummary) => void;
   } = $props();
@@ -63,12 +66,13 @@
   let detection = $state<ProjectDetection | null>(null);
   let loaded = $state(false);
   let error = $state('');
-  let tab = $state('project');
+  // Opened from a link to a change set: start on the Change sets tab, with it open.
+  let tab = $state(untrack(() => (initialChangeSetId ? 'changes' : 'project')));
   let listingData = $state<RepositoryListing | null>(null);
   let listingEdited = $state<Listing | null>(null);
   // The target the person chose, kept for this repository while the page is open.
   let listingSelection = $state<ListingSelection>({});
-  let openChangeSetId = $state<string | null>(null);
+  let openChangeSetId = $state<string | null>(untrack(() => initialChangeSetId));
   let leaveOpen = $state(false);
   /** Whether local clones are on, for the Local clone card. Null while it loads or when it cannot be read. */
   let localConfig = $state<LocalConfig | null>(null);
@@ -205,6 +209,7 @@
             {myId}
             {names}
             bind:openId={openChangeSetId}
+            {localConfig}
             ongotolisting={() => (tab = 'listing')}
           />
         {/if}

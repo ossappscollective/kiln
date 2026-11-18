@@ -3,7 +3,7 @@
   set. Shows where it goes (repository, branch, file or folder, kind of source) and exactly the old
   and the new text of every field, with the words that differ marked. Creating the draft changes
   nothing in the store and nothing in the repository: a person with approval rights reviews it, then
-  it is applied as a pull request.
+  it is applied.
   Props: open (bindable), api, workspaceId, role, app, fields (the DriftField rows to pull),
   channel (the store copy the listing view shows), onpulled (called with the answer, also when there
   was nothing to change).
@@ -145,7 +145,7 @@
   size="lg"
   dismissible={!busy}
   title="Pull into the repository"
-  description="Copies the store's text into the listing files of the repository as a draft change set. Nothing changes in the store or in the repository until a person approves the change set and it is applied as a pull request."
+  description="Copies the store's text into the listing files of the repository as a draft change set. Nothing changes in the store or in the repository until a person approves the change set and it is applied."
 >
   <form id="pull-{uid}" class="stack" onsubmit={submit}>
     <section aria-label="Where it goes">

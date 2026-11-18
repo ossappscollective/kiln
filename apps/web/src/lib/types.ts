@@ -122,7 +122,7 @@ export type RepositorySummary = {
   projectKind: ProjectKind | null;
   detectedAt: number | null;
   createdAt: number;
-  /** No GitHub connection: read from the local folder, and changes cannot be applied yet. */
+  /** No GitHub connection: read from the local folder. A change set is applied as a commit on a new branch of it. */
   localOnly: boolean;
   local: LocalCheckoutSummary | null;
 };
@@ -134,7 +134,11 @@ export type LocalConfig = {
   reason?: string;
   message?: string;
   roots?: string[];
+  /** Whether a change set may be committed to a new branch of a local clone (MRM_LOCAL_REPO_WRITE), and if not, why not. */
+  write: LocalWriteConfig;
 };
+
+export type LocalWriteConfig = { enabled: boolean; envName: string; message?: string };
 
 /** What `POST /repositories/local/check` found in a folder. */
 export type LocalCheck = {
@@ -310,6 +314,26 @@ export type ChangeSetFile = {
   after?: string;
 };
 
+/**
+ * How a change set was applied as a commit in the local clone, step by step. A failed push or pull
+ * request does not undo the commit; it is recorded here and can be retried.
+ */
+export type LocalOutcome = {
+  mode: 'local_branch';
+  base: { branch: string; commit: string };
+  commit: { branch: string; sha: string; at: number };
+  requested: { push: boolean; openPr: boolean };
+  push: { status: 'not_requested' | 'pushed' | 'failed'; at?: number; code?: string; error?: string };
+  pr: {
+    status: 'not_requested' | 'opened' | 'failed' | 'skipped';
+    at?: number;
+    url?: string;
+    number?: number;
+    code?: string;
+    error?: string;
+  };
+};
+
 export type ChangeSetView = {
   id: string;
   repositoryId: string;
@@ -326,6 +350,8 @@ export type ChangeSetView = {
   approvedBy: string | null;
   approvedAt: number | null;
   appliedAt: number | null;
+  /** Null for a pull request apply; the steps of a commit in the local clone otherwise. */
+  outcome: LocalOutcome | null;
   filesChanged: number;
   files: ChangeSetFile[];
 };

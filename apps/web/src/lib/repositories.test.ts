@@ -12,7 +12,6 @@ import {
   connectChoices,
   defaultChoice,
   githubUrl,
-  LOCAL_ONLY_APPLY_NOTICE,
   localDisabledNotice,
   localReadSummary,
   localRootsHint,
@@ -549,14 +548,12 @@ test('a local-only repository is named by its folder and has no GitHub address t
   assert.equal(githubUrl('acme', 'app'), 'https://github.com/acme/app');
 });
 
-test('apply is never offered for a change set of a local-only repository, and the notice says what is coming', () => {
+test('apply is offered to an admin for an approved change set, for any repository: the dialog says what is possible', () => {
   const base = { role: 'admin', status: 'approved', createdBy: { type: 'user', id: 'u2' }, myId: 'u1' } as const;
-  assert.equal(changeSetActions(base).apply, true);
-  assert.equal(changeSetActions({ ...base, localOnly: false }).apply, true);
-  assert.deepEqual(changeSetActions({ ...base, localOnly: true }), { approve: false, apply: false, discard: true });
-  assert.equal(changeSetActions({ ...base, status: 'draft', localOnly: true }).approve, true);
-  assert.match(LOCAL_ONLY_APPLY_NOTICE, /not be applied yet/);
-  assert.match(LOCAL_ONLY_APPLY_NOTICE, /branch of the local clone/);
+  assert.deepEqual(changeSetActions(base), { approve: false, apply: true, discard: true });
+  assert.equal(changeSetActions({ ...base, role: 'member' }).apply, false);
+  assert.equal(changeSetActions({ ...base, status: 'draft' }).apply, false);
+  assert.equal(changeSetActions({ ...base, status: 'draft' }).approve, true);
 });
 
 test('a folder path is checked as text before it is sent: absolute, no .., no control characters', () => {

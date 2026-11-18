@@ -36,3 +36,17 @@ export function clearChangeSetReview(): void {
 
 /** Where to go: the Repositories section. */
 export const reviewHref = '#/repositories';
+
+/**
+ * What the Repositories screen does with a waiting intent once its list has loaded: open that
+ * repository (on its Change sets tab, with the change set under review), or say it is gone (the
+ * repository was disconnected since). Null when nothing is waiting.
+ */
+export function resolveChangeSetReview<T extends { id: string }>(
+  intent: ChangeSetReviewIntent | null,
+  repositories: readonly T[],
+): { repository: T; changeSetId: string } | { missing: true } | null {
+  if (!intent) return null;
+  const repository = repositories.find((item) => item.id === intent.repositoryId);
+  return repository ? { repository, changeSetId: intent.changeSetId } : { missing: true };
+}

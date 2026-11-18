@@ -1,4 +1,5 @@
 import type { Listing, ListingProblem } from '@mrm/core';
+import type { ApplyBody } from './change-set-apply.ts';
 import type {
   AcceptedInvitation,
   ApiToken,
@@ -390,10 +391,19 @@ export function createApi(options: ApiOptions = {}) {
         'POST',
         `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/approve`,
       ),
-    applyChangeSet: (workspaceId: string, id: string) =>
+    /** No body opens a pull request on GitHub; `{ mode: 'local_branch', … }` commits to a new branch of the local clone. */
+    applyChangeSet: (workspaceId: string, id: string, body?: ApplyBody) =>
       request<{ changeSet: ChangeSetView; alreadyApplied?: boolean }>(
         'POST',
         `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/apply`,
+        body,
+      ),
+    /** Pushes the branch of a commit made in the local clone, and with `openPr` opens the pull request. Safe to repeat. */
+    pushChangeSet: (workspaceId: string, id: string, body: { openPr?: boolean } = {}) =>
+      request<{ changeSet: ChangeSetView; alreadyDone?: boolean }>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/push`,
+        body,
       ),
     discardChangeSet: (workspaceId: string, id: string) =>
       request<{ changeSet: ChangeSetView }>(

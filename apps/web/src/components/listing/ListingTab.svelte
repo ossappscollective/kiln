@@ -7,7 +7,7 @@
 
   The one thing it can write is a draft: "Pull into repository" copies the store text of fields
   where the store is ahead (or the two diverged) into the repository's listing files as a draft
-  change set. The draft is reviewed and applied as a pull request in the repository's Change sets tab.
+  change set. The draft is reviewed and applied (as a pull request or a commit on a new branch of the local clone) in the repository's Change sets tab.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';

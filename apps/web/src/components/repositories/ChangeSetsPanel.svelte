@@ -1,8 +1,9 @@
 <!--
   ChangeSetsPanel: the change sets of one repository, newest first, and the review of one.
   Props: api, workspaceId, repository, role, myId, names (user id to display name), openId
-  (bindable: the change set under review, or null for the list), ongotolisting (opens the listing
-  tab, shown when there is nothing yet).
+  (bindable: the change set under review, or null for the list), localConfig (the server's local
+  clone settings, for whether a commit to the local clone is allowed; null while they load),
+  ongotolisting (opens the listing tab, shown when there is nothing yet).
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -10,7 +11,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { actorLabel, filesChangedLabel } from '../../lib/repositories.ts';
-  import type { ChangeSetView, RepositorySummary } from '../../lib/types.ts';
+  import type { ChangeSetView, LocalConfig, RepositorySummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
@@ -26,6 +27,7 @@
     myId,
     names,
     openId = $bindable(null),
+    localConfig = null,
     ongotolisting,
   }: {
     api: Api;
@@ -35,6 +37,7 @@
     myId: string;
     names: Record<string, string>;
     openId?: string | null;
+    localConfig?: LocalConfig | null;
     ongotolisting: () => void;
   } = $props();
 
@@ -80,6 +83,8 @@
     onback={back}
     onchanged={load}
     localOnly={repository.localOnly}
+    hasLocalClone={repository.local !== null}
+    write={localConfig?.write ?? null}
   />
 {:else if error}
   <div class="stack">
@@ -102,7 +107,7 @@
     <EmptyState
       icon="git-pull-request"
       title="No change sets yet"
-      description="A change set is the only way text reaches this repository. Edit the listing to create a draft; an admin or owner approves it, then it opens as a pull request."
+      description="A change set is the only way text reaches this repository. Edit the listing to create a draft; an admin or owner approves it, then applies it as a pull request or as a commit on a new branch of the local clone."
     >
       {#snippet actions()}
         {#if can(role, 'changesets.write')}

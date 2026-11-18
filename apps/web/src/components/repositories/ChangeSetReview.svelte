@@ -3,9 +3,12 @@
   the person's role allows (approve, apply, discard).
   Props: api, workspaceId, id (the change set), role, myId, names (user id to display name),
   onback (back to the list), onchanged (called after any state change, so the list can refresh),
-  localOnly? (the repository is a local folder with no GitHub: Apply is not offered, and an
-  approved change set says so).
-  Nothing is written to the repository except by Apply, which opens a branch and a pull request.
+  localOnly? (the repository is a local folder with no GitHub: Apply can only commit to a branch of
+  the folder), hasLocalClone? (a folder is attached), write? (the server's setting for writing to
+  local clones, null while it loads).
+  Nothing is written to the repository except by Apply: a branch and a pull request on GitHub, or a
+  commit on a new branch of the local clone (which does not touch its checked out branch). The
+  result of a local commit is shown step by step, and a failed push or pull request can be retried.
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
@@ -14,10 +17,17 @@
   import { isWebUrl } from '../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
+    type ApplyBody,
+    type RetryOption,
+    type WriteConfig,
+    applyDoneMessage,
+    localBranchAvailability,
+    retryOptions,
+  } from '../../lib/change-set-apply.ts';
+  import {
     actorLabel,
     approverLabel,
     changeSetActions,
-    LOCAL_ONLY_APPLY_NOTICE,
     changeSetStatusInfo,
     diffLines,
     diffStats,
@@ -29,6 +39,8 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import type { ChangeSetView } from '../../lib/types.ts';
   import ExternalLink from '../credentials/ExternalLink.svelte';
+  import ApplyDialog from './ApplyDialog.svelte';
+  import LocalOutcomeCard from './LocalOutcomeCard.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -47,6 +59,8 @@
     onback,
     onchanged,
     localOnly = false,
+    hasLocalClone = false,
+    write = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -57,11 +71,15 @@
     onback: () => void;
     onchanged: () => void;
     localOnly?: boolean;
+    hasLocalClone?: boolean;
+    write?: WriteConfig;
   } = $props();
 
   let changeSet = $state<ChangeSetView | null>(null);
   let loadError = $state('');
   let busy = $state<'' | 'approve' | 'apply' | 'discard'>('');
+  /** The retry that is running (push, push_pr or pr), or ''. */
+  let retrying = $state<'' | RetryOption['id']>('');
   let actionError = $state('');
   let applyOpen = $state(false);
   let discardOpen = $state(false);
@@ -105,28 +123,34 @@
     return () => clearInterval(timer);
   });
 
+  const applyContext = $derived({ localOnly, hasLocalClone: hasLocalClone || localOnly, write });
   const actions = $derived(
     changeSet
-      ? changeSetActions({ role, status: changeSet.status, createdBy: changeSet.createdBy, myId, localOnly })
+      ? changeSetActions({ role, status: changeSet.status, createdBy: changeSet.createdBy, myId })
       : { approve: false, apply: false, discard: false },
   );
+  const retries = $derived(changeSet ? retryOptions(changeSet, applyContext, role) : []);
+  const localApplyReason = $derived(localBranchAvailability(applyContext).reason);
   const anyAction = $derived(actions.approve || actions.apply || actions.discard);
   const files = $derived(
     (changeSet?.files ?? []).map((file) => ({ file, stats: diffStats(diffLines(file.before, file.after)) })),
   );
 
-  async function run(kind: 'approve' | 'apply' | 'discard') {
-    if (!changeSet || busy) return;
+  async function run(kind: 'approve' | 'apply' | 'discard', body?: ApplyBody) {
+    if (!changeSet || busy || retrying) return;
     busy = kind;
     actionError = '';
     try {
       if (kind === 'approve') {
         changeSet = (await api.approveChangeSet(workspaceId, id)).changeSet;
-        toast.success('Approved. It can now be applied as a pull request.');
+        toast.success('Approved. It can now be applied.');
       } else if (kind === 'apply') {
-        const result = await api.applyChangeSet(workspaceId, id);
+        const result = await api.applyChangeSet(workspaceId, id, body);
         changeSet = result.changeSet;
-        toast.success(result.alreadyApplied ? 'This change set was already applied.' : 'Pull request opened.');
+        const message = applyDoneMessage(result.changeSet, result.alreadyApplied);
+        const outcome = result.changeSet.outcome;
+        if (outcome && (outcome.push.status === 'failed' || outcome.pr.status === 'failed')) toast.error(message);
+        else toast.success(message);
       } else {
         changeSet = (await api.discardChangeSet(workspaceId, id)).changeSet;
         toast.success('Change set discarded. The repository was not changed.');
@@ -142,9 +166,35 @@
     }
   }
 
-  function confirmApply() {
+  function confirmApply(body: ApplyBody | undefined) {
     applyOpen = false;
-    void run('apply');
+    void run('apply', body);
+  }
+
+  /** Pushes the branch of a local commit, or opens its pull request: only the step that is left runs. */
+  async function retry(option: RetryOption) {
+    if (!changeSet || busy || retrying) return;
+    retrying = option.id;
+    actionError = '';
+    try {
+      const result = await api.pushChangeSet(workspaceId, id, { openPr: option.openPr });
+      changeSet = result.changeSet;
+      toast.success(
+        result.alreadyDone
+          ? 'Nothing left to do.'
+          : option.openPr
+            ? 'The branch is on GitHub and the pull request is open.'
+            : 'The branch was pushed.',
+      );
+      onchanged();
+    } catch (e) {
+      actionError = e instanceof ApiError ? e.message : 'That did not work. Try again.';
+      // The step that failed is recorded on the change set, so look again.
+      await load(true);
+      onchanged();
+    } finally {
+      retrying = '';
+    }
   }
 
   function confirmDiscard() {
@@ -226,12 +276,16 @@
       {#if changeSet.status === 'applying'}
         <div class="gap">
           <Alert tone="info" title="Applying">
-            Creating the branch and the pull request. This page checks again every few seconds.
+            Creating the branch and committing the files. This page checks again every few seconds.
           </Alert>
         </div>
       {/if}
 
-      {#if changeSet.status === 'applied'}
+      {#if changeSet.status === 'applied' && changeSet.outcome}
+        <div class="gap">
+          <LocalOutcomeCard {changeSet} options={retries} busy={retrying} onretry={retry} />
+        </div>
+      {:else if changeSet.status === 'applied'}
         <div class="gap">
           <Alert tone="ok" title="The pull request is open">
             {#if changeSet.prUrl && isWebUrl(changeSet.prUrl)}
@@ -261,8 +315,8 @@
         <div class="gap"><Alert tone="error">{actionError}</Alert></div>
       {/if}
 
-      {#if localOnly && changeSet.status === 'approved'}
-        <div class="gap"><Alert tone="info" title="This change set cannot be applied yet">{LOCAL_ONLY_APPLY_NOTICE}</Alert></div>
+      {#if localOnly && changeSet.status === 'approved' && localApplyReason}
+        <div class="gap"><Alert tone="info" title="Committing to a branch is not possible yet">{localApplyReason}</Alert></div>
       {/if}
 
       {#if anyAction}
@@ -277,8 +331,8 @@
             </Button>
           {/if}
           {#if actions.apply}
-            <Button variant="primary" icon="git-pull-request" loading={busy === 'apply'} disabled={busy !== ''} onclick={() => (applyOpen = true)}>
-              {busy === 'apply' ? 'Applying…' : 'Apply as pull request'}
+            <Button variant="primary" icon={localOnly ? 'git-branch' : 'git-pull-request'} loading={busy === 'apply'} disabled={busy !== ''} onclick={() => (applyOpen = true)}>
+              {busy === 'apply' ? 'Applying…' : 'Apply…'}
             </Button>
           {/if}
         </div>
@@ -309,16 +363,7 @@
   {/if}
 </div>
 
-<Modal bind:open={applyOpen} size="sm" title="Apply this change set?">
-  <p>
-    This creates a new branch in the repository, commits {changeSet ? filesChangedLabel(changeSet.filesChanged) : 'the files'}
-    and opens a pull request. Nothing is pushed to the default branch, and nothing reaches the stores until you merge and release.
-  </p>
-  {#snippet footer()}
-    <Button onclick={() => (applyOpen = false)}>Cancel</Button>
-    <Button variant="primary" onclick={confirmApply}>Apply and open pull request</Button>
-  {/snippet}
-</Modal>
+<ApplyDialog bind:open={applyOpen} {changeSet} context={applyContext} busy={busy === 'apply'} onconfirm={confirmApply} />
 
 <Modal bind:open={discardOpen} size="sm" title="Discard this change set?">
   <p>

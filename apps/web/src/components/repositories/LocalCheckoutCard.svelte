@@ -10,9 +10,9 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { localOnlyNotice } from '../../lib/change-set-apply.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import {
-    LOCAL_ONLY_APPLY_NOTICE,
     localDisabledNotice,
     localReadSummary,
     localStatusInfo,
@@ -215,7 +215,8 @@
       {#if liveError}<Alert tone="error">{liveError}</Alert>{/if}
 
       {#if repository.localOnly}
-        <Alert tone="info" title="Local-only: nothing can be applied yet">{LOCAL_ONLY_APPLY_NOTICE}</Alert>
+        {@const notice = localOnlyNotice(config?.write ?? null)}
+        <Alert tone="info" title={notice.title}>{notice.text}</Alert>
       {/if}
 
       {#if canWrite}
