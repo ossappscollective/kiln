@@ -758,6 +758,9 @@ export const appReviews = pgTable(
     index('app_reviews_app_rating_idx').on(t.appId, t.rating),
     index('app_reviews_app_status_idx').on(t.appId, t.status),
     index('app_reviews_workspace_idx').on(t.workspaceId),
+    index('app_reviews_ws_created_idx').on(t.workspaceId, t.createdAt, t.id),
+    index('app_reviews_ws_updated_idx').on(t.workspaceId, t.updatedAt, t.id),
+    index('app_reviews_ws_rating_idx').on(t.workspaceId, t.rating, t.createdAt, t.id),
   ],
 );
 
@@ -836,4 +839,119 @@ export const appIcons = pgTable(
     lastError: text('last_error'),
   },
   (t) => [index('app_icons_workspace_idx').on(t.workspaceId)],
+);
+
+/** One row per workspace and setting key; the known keys and their defaults live in code. Never a secret. */
+export const workspaceSettings = pgTable(
+  'workspace_settings',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    key: text('key').notNull(),
+    /** JSON of the value. */
+    valueJson: text('value_json').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+    updatedBy: text('updated_by'),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.key] })],
+);
+
+/** A translation of one field of a review, reused until the review text (its hash) changes. */
+export const reviewTranslations = pgTable(
+  'review_translations',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    reviewId: text('review_id').notNull(),
+    /** title or body. */
+    field: text('field').notNull(),
+    targetLang: text('target_lang').notNull(),
+    provider: text('provider').notNull(),
+    /** SHA-256 of the source text. */
+    sourceHash: text('source_hash').notNull(),
+    translatedText: text('translated_text').notNull(),
+    detectedSource: text('detected_source'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('review_translations_key_idx').on(t.reviewId, t.field, t.targetLang, t.provider, t.sourceHash),
+    index('review_translations_app_idx').on(t.appId),
+    index('review_translations_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** Characters sent to a translation provider per workspace and UTC day (YYYY-MM-DD). */
+export const translationUsage = pgTable(
+  'translation_usage',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    day: text('day').notNull(),
+    chars: integer('chars').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.day] })],
+);
+
+/**
+ * The reply being prepared for a review, and once sent the record of the last reply this server
+ * published: one row per review (see migration 21). The text is plain text and never goes to the
+ * audit log, an event or a log line.
+ */
+export const reviewReplyDrafts = pgTable(
+  'review_reply_drafts',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    reviewId: text('review_id')
+      .notNull()
+      .references(() => appReviews.id, { onDelete: 'cascade' }),
+    store: text('store').notNull(),
+    text: text('text').notNull(),
+    /** SHA-256 hex of the text: what a person confirms before it is sent. */
+    textHash: text('text_hash').notNull(),
+    /** draft, sending, sent, failed or unknown. */
+    status: text('status').notNull().default('draft'),
+    errorCode: text('error_code'),
+    /** JSON about how an unknown outcome was settled. Never the text. */
+    evidence: text('evidence'),
+    createdBy: text('created_by').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+    sentAt: epochMs('sent_at'),
+    sentBy: text('sent_by'),
+    /** When the send in flight started; the claim expires after a TTL. */
+    claimAt: epochMs('claim_at'),
+    storeResponseId: text('store_response_id'),
+  },
+  (t) => [
+    uniqueIndex('review_reply_drafts_review_idx').on(t.reviewId),
+    index('review_reply_drafts_workspace_idx').on(t.workspaceId, t.status),
+    index('review_reply_drafts_app_idx').on(t.appId),
+  ],
+);
+
+/** Workspace-wide reply templates with {author} and {app} placeholders. */
+export const reviewReplyTemplates = pgTable(
+  'review_reply_templates',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    body: text('body').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('review_reply_templates_workspace_idx').on(t.workspaceId)],
 );

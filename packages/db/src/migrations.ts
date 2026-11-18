@@ -852,4 +852,117 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 20,
+    name: 'workspace settings, review translations and translation usage',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // workspace_settings: one row per workspace and setting key; value_json is the JSON of the
+      // value. The registry of known keys, their validation and their defaults live in code
+      // (services/workspace-settings.ts): a key that is not set has no row. Secrets never go here:
+      // they live in the vault. updated_by is the user (or token owner) who last changed it.
+      // review_translations: the translation of one field (title or body) of a review into a target
+      // language by one provider, reused until the review text changes: source_hash is the SHA-256 of
+      // the source text, so an edited review misses and is translated again. review_id and app_id
+      // have no foreign key on purpose (a review that is pruned, or an app that is deleted, leaves
+      // rows that code removes, like the other review tables). The translated text is derived from
+      // third-party personal data and is treated like the review itself.
+      // translation_usage: characters sent to a provider per workspace and UTC day (YYYY-MM-DD),
+      // for the daily budget.
+      return [
+        `CREATE TABLE IF NOT EXISTS workspace_settings (
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           key TEXT NOT NULL,
+           value_json TEXT NOT NULL,
+           updated_at ${t} NOT NULL,
+           updated_by TEXT,
+           PRIMARY KEY (workspace_id, key)
+         )`,
+        `CREATE TABLE IF NOT EXISTS review_translations (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           review_id TEXT NOT NULL,
+           field TEXT NOT NULL,
+           target_lang TEXT NOT NULL,
+           provider TEXT NOT NULL,
+           source_hash TEXT NOT NULL,
+           translated_text TEXT NOT NULL,
+           detected_source TEXT,
+           created_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS review_translations_key_idx ON review_translations (review_id, field, target_lang, provider, source_hash)',
+        'CREATE INDEX IF NOT EXISTS review_translations_app_idx ON review_translations (app_id)',
+        'CREATE INDEX IF NOT EXISTS review_translations_workspace_idx ON review_translations (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS translation_usage (
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           day TEXT NOT NULL,
+           chars INTEGER NOT NULL DEFAULT 0,
+           PRIMARY KEY (workspace_id, day)
+         )`,
+      ];
+    },
+  },
+  {
+    id: 21,
+    name: 'review replies (drafts, templates) and workspace-wide inbox indexes',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // review_reply_drafts: the reply a person is preparing for a review, and, once sent, the record
+      // of the last reply this server published. ONE ROW PER REVIEW (UNIQUE review_id) with replace
+      // semantics: saving a draft over a sent one resets it to a draft (the store keeps the text that
+      // is live; the history is in the audit log by hash and length, never by text). A second active
+      // draft per review cannot exist, so there is nothing to merge and the claim below is per row.
+      // status: draft, sending (a send is in flight: claim_at is its start and expires), sent, failed
+      // (the store refused or the call failed: the draft is kept) or unknown (the outcome could not
+      // be told, a re-read of the review settles it). text is the plain text that goes to the store
+      // and text_hash its SHA-256 hex (what the person confirms). evidence is JSON about how an
+      // unknown outcome was settled: NEVER the text. store_response_id is the store's id of the
+      // response (App Store) when it said. review_id is a real foreign key with ON DELETE CASCADE:
+      // retention pruning and deleting an app remove the drafts (the code also deletes them, so it does
+      // not depend on foreign key enforcement). app_id is kept for scoping and has no foreign key
+      // (like the other review tables).
+      // review_reply_templates: workspace-wide reply templates with {{author}} and {{app}}.
+      // The three indexes on app_reviews serve the workspace-wide inbox (workspace_id first, then
+      // the sort key and id, so a page is an index range scan without a sort).
+      return [
+        `CREATE TABLE IF NOT EXISTS review_reply_drafts (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           review_id TEXT NOT NULL REFERENCES app_reviews(id) ON DELETE CASCADE,
+           store TEXT NOT NULL,
+           text TEXT NOT NULL,
+           text_hash TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'draft',
+           error_code TEXT,
+           evidence TEXT,
+           created_by TEXT NOT NULL,
+           updated_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL,
+           sent_at ${t},
+           sent_by TEXT,
+           claim_at ${t},
+           store_response_id TEXT
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS review_reply_drafts_review_idx ON review_reply_drafts (review_id)',
+        'CREATE INDEX IF NOT EXISTS review_reply_drafts_workspace_idx ON review_reply_drafts (workspace_id, status)',
+        'CREATE INDEX IF NOT EXISTS review_reply_drafts_app_idx ON review_reply_drafts (app_id)',
+        `CREATE TABLE IF NOT EXISTS review_reply_templates (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           name TEXT NOT NULL,
+           body TEXT NOT NULL,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS review_reply_templates_workspace_idx ON review_reply_templates (workspace_id)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_ws_created_idx ON app_reviews (workspace_id, created_at, id)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_ws_updated_idx ON app_reviews (workspace_id, updated_at, id)',
+        'CREATE INDEX IF NOT EXISTS app_reviews_ws_rating_idx ON app_reviews (workspace_id, rating, created_at, id)',
+      ];
+    },
+  },
 ];
