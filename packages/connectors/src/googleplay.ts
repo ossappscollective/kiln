@@ -1,3 +1,4 @@
+import type { LocaleText, PlayField } from '@mrm/core';
 import {
   GoogleTokenProvider,
   parseServiceAccount,
@@ -16,7 +17,7 @@ import {
   type StoreReply,
   text,
 } from './store-http.ts';
-import type { StoreApp, StoreBuild, StoreConnector, StoreVersion } from './types.ts';
+import type { StoreApp, StoreBuild, StoreConnector, StoreListing, StoreVersion } from './types.ts';
 
 /**
  * Read-only Google Play Developer API connector.
@@ -339,6 +340,40 @@ export class GooglePlayConnector implements StoreConnector {
         }
       }
       return builds.sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber));
+    });
+  }
+
+  /**
+   * The per-language store listings (title, short description, full description, promo video),
+   * read with `GET .../edits/{editId}/listings` inside a read-only edit that is deleted, never
+   * committed. The listings of an edit are a copy of the deployed state ("Edits" guide). The
+   * Play model has no subtitle, keywords, promotional text or URLs, so those are never present;
+   * release notes belong to track releases and are not read here (`changelogs` is empty).
+   */
+  async readListing(appStoreId: string): Promise<StoreListing> {
+    return this.withEdit(appStoreId, async (edit) => {
+      const body = await this.#editGet(appStoreId, edit, '/listings', 'reading the listings');
+      const locales: Record<string, LocaleText<PlayField>> = {};
+      for (const item of records(body?.listings)) {
+        const language = text(item.language);
+        if (!language) continue;
+        const texts: LocaleText<PlayField> = {};
+        const title = text(item.title);
+        const shortDescription = text(item.shortDescription);
+        const fullDescription = text(item.fullDescription);
+        const video = text(item.video);
+        if (title !== undefined) texts.title = title;
+        if (shortDescription !== undefined) texts.short_description = shortDescription;
+        if (fullDescription !== undefined) texts.full_description = fullDescription;
+        if (video !== undefined) texts.video = video;
+        locales[language] = texts;
+      }
+      return {
+        platform: 'android' as const,
+        appStoreId,
+        channels: [{ channel: 'live' as const, listing: { googlePlay: { locales, changelogs: {} } } }],
+        warnings: [],
+      };
     });
   }
 

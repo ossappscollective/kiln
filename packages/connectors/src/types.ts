@@ -1,4 +1,4 @@
-import type { ChangeSet, Platform, ReleaseState } from '@mrm/core';
+import type { ChangeSet, Listing, Platform, ReleaseState } from '@mrm/core';
 
 /**
  * Each store and each repo host sits behind one of these interfaces. Anything that is
@@ -48,12 +48,47 @@ export type StoreBuild = {
   expired?: boolean;
 };
 
+/**
+ * The localized listing as the store holds it, in the shared per-locale model of `@mrm/core`.
+ *
+ * - App Store Connect has two copies: the version users see (`live`) and the version being
+ *   prepared (`editable`). Either can be absent (a new app has no live version; an app without a
+ *   draft has no editable one).
+ * - Google Play has one listing per language, reported as `live`. The Play model has no
+ *   subtitle, keywords, promotional text, marketing, support or privacy URLs; the App Store model has
+ *   no short description or promo video. A field the store does not have is absent, never empty.
+ */
+export type StoreListingChannel = {
+  channel: 'live' | 'editable';
+  /** App Store only: the marketing version the texts were read from. */
+  versionString?: string;
+  /** App Store only: the version's state, verbatim (`appVersionState`, else `appStoreState`). */
+  versionRawState?: string;
+  /** App Store only: the app info's state, verbatim (`state`, else `appStoreState`). */
+  infoRawState?: string;
+  /** Exactly one of `appStore` and `googlePlay` is set, matching the connector's platform. */
+  listing: Listing;
+};
+
+export type StoreListing = {
+  platform: Platform;
+  appStoreId: string;
+  channels: StoreListingChannel[];
+  /** Things a person should know about what was (not) read. Safe to show. */
+  warnings: string[];
+};
+
 export interface StoreConnector {
   readonly platform: Platform;
   verifyCredentials(): Promise<void>;
   listApps(): Promise<StoreApp[]>;
   listVersions(appStoreId: string): Promise<StoreVersion[]>;
   listBuilds(appStoreId: string): Promise<StoreBuild[]>;
+  /**
+   * Reads the localized listing from the store. Read-only. Optional so that a connector without
+   * it (a test double) still works; the listing read is then skipped.
+   */
+  readListing?(appStoreId: string): Promise<StoreListing>;
 }
 
 export type ProposalResult = {

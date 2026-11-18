@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import type { AppStoreField, LocaleText, Platform } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -18,7 +18,14 @@ import {
   serverTime,
   text,
 } from './store-http.ts';
-import type { StoreApp, StoreBuild, StoreConnector, StoreVersion } from './types.ts';
+import type {
+  StoreApp,
+  StoreBuild,
+  StoreConnector,
+  StoreListing,
+  StoreListingChannel,
+  StoreVersion,
+} from './types.ts';
 
 /**
  * Read-only App Store Connect API connector. Nothing here writes: every request is a GET.
@@ -63,6 +70,90 @@ const MAX_PAGE_SIZE = 200;
 /** The documented maximum of `limit[builds]` (included builds per pre-release version). */
 const MAX_INCLUDED_BUILDS = 50;
 const MAX_ERROR_DETAILS = 5;
+
+// ---------------------------------------------------------------------------------------------
+// Listing (localizations)
+
+/**
+ * App info localizations (`GET /v1/appInfos/{id}/appInfoLocalizations`): Apple attribute to the
+ * `@mrm/core` field. `privacyChoicesUrl` has no field in the listing model and is not read.
+ */
+const INFO_LOCALIZATION_FIELDS = {
+  name: 'name',
+  subtitle: 'subtitle',
+  privacyPolicyUrl: 'privacy_url',
+  privacyPolicyText: 'apple_tv_privacy_policy',
+} as const satisfies Record<string, AppStoreField>;
+
+/** Version localizations (`GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations`). */
+const VERSION_LOCALIZATION_FIELDS = {
+  description: 'description',
+  keywords: 'keywords',
+  marketingUrl: 'marketing_url',
+  promotionalText: 'promotional_text',
+  supportUrl: 'support_url',
+  whatsNew: 'release_notes',
+} as const satisfies Record<string, AppStoreField>;
+
+/**
+ * Which version is "live" and which is "editable". The names of the states are Apple's
+ * (`AppVersionState`, `AppStoreVersionState`); that these are the ones in which the version is the
+ * one on sale, or one a person can still change, is not on Apple's pages (they list the names
+ * without descriptions). The editable set follows fastlane's `AppStoreVersion` model. A version in
+ * review or waiting to be released is neither.
+ */
+const LIVE_VERSION_STATES = new Set(['READY_FOR_DISTRIBUTION', 'READY_FOR_SALE']);
+const EDITABLE_VERSION_STATES = new Set([
+  'PREPARE_FOR_SUBMISSION',
+  'DEVELOPER_REJECTED',
+  'REJECTED',
+  'METADATA_REJECTED',
+  'INVALID_BINARY',
+  'WAITING_FOR_REVIEW',
+  'READY_FOR_REVIEW',
+]);
+/** `AppInfo.state` values (Apple's page lists them): the same split for the app info. */
+const LIVE_INFO_STATES = new Set(['READY_FOR_DISTRIBUTION', 'READY_FOR_SALE']);
+const EDITABLE_INFO_STATES = new Set([
+  'PREPARE_FOR_SUBMISSION',
+  'DEVELOPER_REJECTED',
+  'REJECTED',
+  'WAITING_FOR_REVIEW',
+  'READY_FOR_REVIEW',
+]);
+
+type ListingResource = {
+  id: string;
+  rawState: string;
+  versionString?: string;
+  createdAt?: number;
+};
+
+/** The newest by creation time (when sent), else the last one listed. */
+function newest(items: ListingResource[]): ListingResource | undefined {
+  return items.reduce<ListingResource | undefined>(
+    (best, item) => (best === undefined || (item.createdAt ?? 0) >= (best.createdAt ?? 0) ? item : best),
+    undefined,
+  );
+}
+
+function localizedTexts<F extends string>(
+  items: Json[],
+  fields: Record<string, F>,
+  into: Record<string, LocaleText<F>>,
+): void {
+  for (const item of items) {
+    const attributes = isRecord(item.attributes) ? item.attributes : {};
+    const locale = text(attributes.locale);
+    if (!locale) continue;
+    const target = (into[locale] ??= {});
+    for (const [attribute, field] of Object.entries(fields)) {
+      // Apple sends null for a value that is not set: the field is then absent.
+      const value = text(attributes[attribute]);
+      if (value !== undefined) target[field] = value;
+    }
+  }
+}
 
 /** The marketing version and platform of a pre-release version (Apple's `preReleaseVersions`). */
 type PreRelease = { version?: string; platform?: string };
@@ -391,6 +482,127 @@ export class AppStoreConnectConnector implements StoreConnector {
       });
     }
     return builds;
+  }
+
+  /**
+   * The localized listing: the app info localizations (name, subtitle, privacy policy URL and text)
+   * and the version localizations (description, keywords, promotional text, what's new, marketing
+   * and support URL) of the app's live version and of its editable version, when it has them.
+   *
+   * Four kinds of request, all GET, each with only the parameters Apple documents for it:
+   * `GET /v1/apps/{id}/appStoreVersions?limit`, `GET /v1/apps/{id}/appInfos?limit`,
+   * `GET /v1/appInfos/{id}/appInfoLocalizations?limit` and
+   * `GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations?limit`.
+   *
+   * An editable version without an editable app info (Apple creates a second app info when a name
+   * or subtitle is to be changed) reads its name and subtitle from the live app info, which is what
+   * the store would show; a warning says so.
+   */
+  async readListing(appStoreId: string): Promise<StoreListing> {
+    const what = `reading the listing of app ${appStoreId}`;
+    const id = enc(appStoreId);
+    const warnings: string[] = [];
+
+    const versions: ListingResource[] = [];
+    for await (const item of this.#pages(`/v1/apps/${id}/appStoreVersions?limit=${this.#pageSize}`, what)) {
+      const attributes = isRecord(item.attributes) ? item.attributes : {};
+      const versionId = text(item.id);
+      // Same rule as `listVersions`: the new state field first, the deprecated one as fallback.
+      const rawState = text(attributes.appVersionState) ?? text(attributes.appStoreState);
+      if (!versionId || rawState === undefined || asPlatform(text(attributes.platform)) === undefined) continue;
+      const versionString = text(attributes.versionString);
+      const created = Date.parse(text(attributes.createdDate) ?? '');
+      versions.push({
+        id: versionId,
+        rawState: rawState.toUpperCase(),
+        ...(versionString !== undefined ? { versionString } : {}),
+        ...(Number.isNaN(created) ? {} : { createdAt: created }),
+      });
+    }
+    const infos: ListingResource[] = [];
+    for await (const item of this.#pages(`/v1/apps/${id}/appInfos?limit=${this.#pageSize}`, what)) {
+      const attributes = isRecord(item.attributes) ? item.attributes : {};
+      const infoId = text(item.id);
+      // `appStoreState` of an app info is deprecated in favour of `state` (Apple's AppInfo page).
+      const rawState = text(attributes.state) ?? text(attributes.appStoreState);
+      if (!infoId || rawState === undefined) continue;
+      infos.push({ id: infoId, rawState: rawState.toUpperCase() });
+    }
+
+    const liveVersion = newest(versions.filter((v) => LIVE_VERSION_STATES.has(v.rawState)));
+    const editableVersion = newest(versions.filter((v) => EDITABLE_VERSION_STATES.has(v.rawState)));
+    const liveInfo = newest(infos.filter((i) => LIVE_INFO_STATES.has(i.rawState)));
+    const editableInfo = newest(infos.filter((i) => EDITABLE_INFO_STATES.has(i.rawState)));
+    if (!liveVersion && !editableVersion) {
+      warnings.push(
+        'No App Store version is live or editable, so no version texts (description, keywords, ...) were read.',
+      );
+    }
+
+    // Each resource is read once, even when two channels use it.
+    const infoTexts = new Map<string, Record<string, LocaleText<AppStoreField>>>();
+    const versionTexts = new Map<string, Record<string, LocaleText<AppStoreField>>>();
+    const readInfo = async (info: ListingResource) => {
+      let locales = infoTexts.get(info.id);
+      if (!locales) {
+        locales = {};
+        const items: Json[] = [];
+        const path = `/v1/appInfos/${enc(info.id)}/appInfoLocalizations?limit=${this.#pageSize}`;
+        for await (const item of this.#pages(path, what)) items.push(item);
+        localizedTexts(items, INFO_LOCALIZATION_FIELDS, locales);
+        infoTexts.set(info.id, locales);
+      }
+      return locales;
+    };
+    const readVersion = async (version: ListingResource) => {
+      let locales = versionTexts.get(version.id);
+      if (!locales) {
+        locales = {};
+        const items: Json[] = [];
+        const path = `/v1/appStoreVersions/${enc(version.id)}/appStoreVersionLocalizations?limit=${this.#pageSize}`;
+        for await (const item of this.#pages(path, what)) items.push(item);
+        localizedTexts(items, VERSION_LOCALIZATION_FIELDS, locales);
+        versionTexts.set(version.id, locales);
+      }
+      return locales;
+    };
+
+    const channels: StoreListingChannel[] = [];
+    const build = async (
+      channel: 'live' | 'editable',
+      version: ListingResource | undefined,
+      info: ListingResource | undefined,
+    ) => {
+      if (!version && !info) return;
+      const locales: Record<string, LocaleText<AppStoreField>> = {};
+      for (const source of [info ? await readInfo(info) : {}, version ? await readVersion(version) : {}]) {
+        for (const [locale, texts] of Object.entries(source)) {
+          locales[locale] = { ...locales[locale], ...texts };
+        }
+      }
+      channels.push({
+        channel,
+        ...(version?.versionString !== undefined ? { versionString: version.versionString } : {}),
+        ...(version ? { versionRawState: version.rawState } : {}),
+        ...(info ? { infoRawState: info.rawState } : {}),
+        listing: { appStore: { locales } },
+      });
+    };
+    await build('live', liveVersion, liveInfo);
+    if (editableVersion) {
+      if (!editableInfo && liveInfo) {
+        warnings.push(
+          'The editable version has no app info of its own: its name and subtitle are those of the live app info.',
+        );
+      }
+      await build('editable', editableVersion, editableInfo ?? liveInfo);
+    } else if (editableInfo) {
+      await build('editable', undefined, editableInfo);
+    }
+    if (!liveInfo && !editableInfo) {
+      warnings.push('No app info was found, so name, subtitle and privacy policy were not read.');
+    }
+    return { platform: 'ios', appStoreId, channels, warnings };
   }
 
   /**
