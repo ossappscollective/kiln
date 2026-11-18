@@ -21,6 +21,8 @@ import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
+import { type AutoTranslateSummary, type TranslationContext, autoTranslateNewReviews } from './translation.ts';
+import { lowRatingThresholdFor } from './workspace-settings.ts';
 import { type StoreKey, parseResponse } from './reviews.ts';
 
 /**
@@ -52,7 +54,10 @@ type RunApp = ManagedApp & { workspaceId: string };
 
 export const REVIEW_SYNC_QUEUE = 'review.sync';
 export const DEFAULT_REVIEW_TIMEOUT_MS = 90_000;
-/** Ratings at or below this are "low" (`review.new_low_rating`). A constant for now, not a setting. */
+/**
+ * Ratings at or below the threshold are "low" (`review.new_low_rating`). This is the default of the
+ * workspace setting `reviews.lowRatingThreshold` (services/workspace-settings.ts), which wins.
+ */
 export const LOW_RATING_THRESHOLD = 2;
 /** Most low-rating events one read emits; the rest are recorded as notified without an event. */
 export const MAX_LOW_RATING_EVENTS_PER_SYNC = 50;
@@ -111,8 +116,13 @@ export type ReviewsContext = {
   ratingFetcher?: RatingFetcher | null;
   /** Longest one read may take. Default 90 seconds. */
   timeoutMs: number;
-  /** Default LOW_RATING_THRESHOLD. */
+  /** The threshold when the workspace has not set `reviews.lowRatingThreshold`. Default LOW_RATING_THRESHOLD. */
   lowRatingThreshold?: number;
+  /**
+   * Seams of the optional automatic translation after a sync (workspace setting `translation.mode`
+   * = auto). Tests replace the network; production passes `allowPrivateUrls` from the config.
+   */
+  translation?: Pick<TranslationContext, 'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'>;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -134,7 +144,11 @@ export type ReviewSyncResult = {
   /** Whether this was the quiet first read (no events). */
   baseline: boolean;
   lowRatingEvents: number;
+  /** The threshold this read used (the workspace setting at that time). */
+  lowRatingThreshold?: number;
   ratingSummary: 'stored' | 'unchanged' | 'unavailable' | 'off';
+  /** Automatic translation of the new reviews (mode `auto` only). A failure there never fails the sync. */
+  translation?: AutoTranslateSummary;
 };
 
 export type ReviewSyncState = {
@@ -451,7 +465,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   }
 
   const at = ctx.now();
-  const threshold = ctx.lowRatingThreshold ?? LOW_RATING_THRESHOLD;
+  // The workspace setting, read once per sync: a change applies from the next read on.
+  const threshold = await lowRatingThresholdFor(db, workspaceId, ctx.lowRatingThreshold ?? LOW_RATING_THRESHOLD);
   const warnings = [...read.warnings];
   if (gap) {
     const missedUntil = gap.to - PLAY_REVIEW_WINDOW_MS;
@@ -459,7 +474,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       `Gap: the last successful read was ${Math.floor((gap.to - gap.from) / DAY_MS)} days ago, and Google Play serves only about the last 7 days. Reviews written before ${new Date(missedUntil).toISOString().slice(0, 10)} since then could not be read and are not in this inbox.`,
     );
   }
-  const outcome = await db.transaction(async (tx) => {
+  const done = await db.transaction(async (tx) => {
     // The app may have been deleted while the store was being read.
     const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [app.id, workspaceId]);
     if (!still) return undefined;
@@ -483,6 +498,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
     let responses = 0;
     let events = 0;
     let lowSeen = 0;
+    const addedIds: string[] = [];
     const untouched: string[] = [];
     const notify = async (id: string, review: StoreReview, source: 'new' | 'edited'): Promise<number | null> => {
       lowSeen++;
@@ -535,6 +551,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
           ],
         );
         added++;
+        addedIds.push(id);
         continue;
       }
       const edited =
@@ -556,7 +573,14 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       );
       const responseChanged = oldResponse !== response;
       let notified: number | null | undefined;
-      if (review.rating <= threshold && (old.low_rating_notified_at === null || old.low_rating_notified_at === undefined)) {
+      // Threshold semantics (docs/api/reviews.md): a review notifies at most once, when it is first seen
+      // low or when its rating changes to a low one. Raising the threshold never re-emits for reviews
+      // already stored (the store read overlaps, so they come back); only a changed rating counts.
+      if (
+        Number(old.rating) !== review.rating &&
+        review.rating <= threshold &&
+        (old.low_rating_notified_at === null || old.low_rating_notified_at === undefined)
+      ) {
         notified = await notify(String(old.id), review, 'edited');
       }
       if (!edited && !responseChanged && notified === undefined) {
@@ -609,6 +633,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       warnings: warnings.slice(0, MAX_WARNINGS),
       baseline,
       lowRatingEvents: events,
+      lowRatingThreshold: threshold,
       ratingSummary: 'off',
     };
     const cursor: Param = read.nextCursor ? JSON.stringify({ c: read.nextCursor, s: since ?? null } satisfies Cursor) : null;
@@ -634,14 +659,31 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       detail: { ok: true, store, fetched: result.fetched, added, updated, responses, complete: result.complete, gap: gap !== null, baseline, ...trigger },
       at,
     });
-    return result;
+    return { result, addedIds };
   });
-  if (!outcome) return { ...failure(404, 'not_found'), transient: false } as ReviewSyncFailure;
+  if (!done) return { ...failure(404, 'not_found'), transient: false } as ReviewSyncFailure;
+  const outcome = done.result;
 
   // Best effort, after the reviews are safe: the store-wide rating of an iOS app.
+  let changed = false;
   if (app.platform === 'ios' && app.storeAppId && ctx.ratingFetcher !== null) {
     const fetcher = ctx.ratingFetcher ?? defaultRatingFetcher;
     outcome.ratingSummary = await recordRatingSummary(ctx, app, app.storeAppId, fetcher);
+    changed = true;
+  }
+  // Best effort too: translate the new reviews when the workspace set translation to `auto`. It never
+  // throws, never fails the sync, and records its own failure in the summary and the audit log.
+  const translation = await autoTranslateNewReviews(
+    { db, masterKey: ctx.masterKey, now: ctx.now, ...(ctx.translation ?? {}) },
+    workspaceId,
+    app.id,
+    done.addedIds,
+  );
+  if (translation) {
+    outcome.translation = translation;
+    changed = true;
+  }
+  if (changed) {
     await db
       .execute('UPDATE review_sync_state SET last_result = ? WHERE app_id = ? AND store = ?', [
         JSON.stringify(outcome),

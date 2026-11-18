@@ -72,6 +72,9 @@ test('classifyAddress: IPv6, including the IPv4 forms that hide a private addres
     ['2002:7f00:1::1', 'private'],
     ['2001:db8::1', 'blocked'],
     ['2001:0:4136:e378:8000:63bf:3fff:fdd2', 'blocked'],
+    // Unique local is private, but AWS's metadata address inside it is never allowed.
+    ['fd12:3456::1', 'private'],
+    ['fd00:ec2::254', 'blocked'],
   ];
   for (const [address, want] of cases) assert.equal(classifyAddress(address), want, address);
 });

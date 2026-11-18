@@ -2,6 +2,7 @@ import type { Database } from '@mrm/db';
 import { enqueue } from '../jobs.ts';
 import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './review-sync.ts';
 import { pruneReviews, purgeOrphanReviewRows } from './reviews.ts';
+import { purgeOrphanTranslations } from './translation.ts';
 
 /**
  * Scheduled review reads (MRM_REVIEW_SYNC_INTERVAL_MINUTES, off by default) and the data
@@ -164,5 +165,8 @@ export async function reviewUpkeep(db: Database, options: ReviewUpkeepOptions): 
   const maxRows = options.maxRows ?? 1000;
   const pruned =
     options.retentionDays > 0 ? await pruneReviews(db, options.now - options.retentionDays * DAY, maxRows) : 0;
-  return { pruned, orphans: await purgeOrphanReviewRows(db, maxRows) };
+  const orphans = await purgeOrphanReviewRows(db, maxRows);
+  // Stored translations of reviews that are gone (pruned or deleted with their app).
+  await purgeOrphanTranslations(db, maxRows).catch(() => 0);
+  return { pruned, orphans };
 }

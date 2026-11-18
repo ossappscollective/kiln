@@ -21,6 +21,12 @@ const verifierNames: Record<CredentialKind, string> = {
   google_play: 'verifyGooglePlayCredential',
   github_app: 'verifyGithubAppCredential',
   github_token: 'verifyGithubTokenCredential',
+  translate_google: 'verifyTranslateGoogleCredential',
+  translate_deepl: 'verifyTranslateDeeplCredential',
+  translate_azure: 'verifyTranslateAzureCredential',
+  // Checked together with the workspace's server address by services/translation.ts (the route
+  // calls it): a key alone cannot be tested.
+  translate_libretranslate: 'verifyTranslateLibretranslateCredential',
 };
 
 /**

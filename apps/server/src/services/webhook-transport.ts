@@ -90,8 +90,8 @@ function classify6(g: number[]): AddressClass {
   if (g0 === 0x2001 && g1 === 0) return 'blocked'; // Teredo
   if (g0 === 0x2001 && g1 === 0xdb8) return 'blocked'; // documentation
   if (g0 === 0x0100 && g1 === 0 && g2 === 0 && g3 === 0) return 'blocked'; // discard-only
-  if ((g0 & 0xfe00) === 0xfc00) return 'private'; // unique local fc00::/7 (AWS's fd00:ec2::254 is blocked below)
-  if (g0 === 0xfd00 && g1 === 0x0ec2) return 'blocked';
+  if (g0 === 0xfd00 && g1 === 0x0ec2) return 'blocked'; // AWS's fd00:ec2::254 metadata address: before the unique local range
+  if ((g0 & 0xfe00) === 0xfc00) return 'private'; // unique local fc00::/7
   if ((g0 & 0xffc0) === 0xfe80) return 'blocked'; // link-local
   if ((g0 & 0xffc0) === 0xfec0) return 'private'; // deprecated site-local
   if ((g0 & 0xff00) === 0xff00) return 'blocked'; // multicast

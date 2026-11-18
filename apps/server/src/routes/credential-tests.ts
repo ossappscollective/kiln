@@ -17,8 +17,14 @@ import {
   recordCredentialTest,
   recordUnsavedCredentialTest,
 } from '../services/credentials.ts';
+import { type TranslationContext, testLibreTranslateSecret } from '../services/translation.ts';
 
 export type CredentialTestDeps = CredentialTesterOptions & {
+  /**
+   * The LibreTranslate key is tested against the address saved in the workspace settings, through the
+   * same SSRF rules as translation (MRM_TRANSLATE_ALLOW_PRIVATE_URLS); these are the seams for it.
+   */
+  translate?: Pick<TranslationContext, 'allowPrivateUrls' | 'resolve' | 'exchange'>;
   /** Defaults to 10 tests per workspace per minute, on the app's clock. */
   limiter?: TestLimiter;
 };
@@ -37,7 +43,12 @@ const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
  */
 export function credentialTestRoutes(services: Services, deps: CredentialTestDeps = {}) {
   const { db, masterKey, now } = services;
-  const test = createCredentialTester({ now, ...deps });
+  const { translate, limiter: _limiter, ...testerOptions } = deps;
+  const baseTest = createCredentialTester({ now, ...testerOptions });
+  const test = (workspaceId: string, kind: string, secret: string): Promise<TestOutcome> =>
+    kind === 'translate_libretranslate'
+      ? testLibreTranslateSecret({ db, masterKey, now, ...(translate ?? {}) }, workspaceId, secret)
+      : baseTest(kind, secret);
   const limiter = deps.limiter ?? createTestLimiter({ now });
   const app = new Hono<AppEnv>();
 
@@ -69,7 +80,7 @@ export function credentialTestRoutes(services: Services, deps: CredentialTestDep
     if (problem) return c.json({ error: 'invalid_secret', message: problem }, 400);
     const wait = limiter.take(ws(c));
     if (wait > 0) return tooMany(c, wait);
-    const outcome = await test(body.data.kind, body.data.secret);
+    const outcome = await test(ws(c), body.data.kind, body.data.secret);
     await recordUnsavedCredentialTest(
       db,
       { workspaceId: ws(c), kind: body.data.kind, ok: outcome.ok },
@@ -103,7 +114,7 @@ export function credentialTestRoutes(services: Services, deps: CredentialTestDep
             ok: false,
             message: 'The stored secret could not be decrypted. Enter it again to replace it.',
           }
-        : await test(loaded.kind, loaded.secret);
+        : await test(ws(c), loaded.kind, loaded.secret);
     const recorded = await recordCredentialTest(
       db,
       { workspaceId: ws(c), id, ok: outcome.ok, message: outcome.message, version: loaded.version },
