@@ -50,9 +50,10 @@ rendered in a browser, and Expo is only done at library level.
 
 ## To build
 
-- [ ] Wire Expo `store.config.json` into the server: scan, read, change set. Decided: when a
-      repository has both, the Expo config wins as the App Store source
-      ([open-decisions.md](open-decisions.md)); not implemented
+- [x] Expo `store.config.json` wired into the server and the repositories screen: when detection finds
+      one it is the App Store listing source (fastlane otherwise; Google Play stays fastlane), edits
+      are written back as a one-file change, an unreadable config blocks App Store edits. Tested with
+      fake connector fixtures on SQLite; never run against real GitHub or in a browser
 - [ ] Workflow run tracking and build linking (the connector can list runs; nothing uses it)
 - [ ] Move scan and listing to the job queue if they prove slow (they run in the request today)
 - [ ] Refresh stale change sets (today a conflict means discarding and creating a new one)

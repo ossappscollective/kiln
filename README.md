@@ -30,8 +30,8 @@ production.
   listing, and turn edits into a change set that an admin approves and that is applied as a branch
   and pull request, never as a push to the default branch
   ([docs/api/repositories.md](docs/api/repositories.md)).
-- Expo `store.config.json`: read, validate and write back at library level in `@mrm/connectors`.
-  It is not wired into the server or the UI yet.
+- Expo `store.config.json`: read, validate and write back in `@mrm/connectors`, and used as the App
+  Store listing source by the server and the repositories screen when a repo has one.
 - Read-only store sync: apps are bound to an App Store Connect or Google Play credential, and a
   sync (inline, or as a background job) stores a snapshot of their versions and tracks
   ([docs/api/apps.md](docs/api/apps.md)). No write call to a store exists in the code.
@@ -45,7 +45,6 @@ production.
 
 - Release workflow screens beyond the Portfolio list and app detail, which are written but have never
   been rendered in a browser.
-- Wiring Expo `store.config.json` into the server and UI.
 - Bundling the server into the desktop app: [ADR 0004](docs/adr/0004-desktop-sidecar.md) proposes
   how (the official Node binary as a Tauri sidecar plus the server as resources) and a staging
   script exists, but the Tauri app has never been compiled or bundled, so **the desktop app does

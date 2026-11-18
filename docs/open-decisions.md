@@ -71,10 +71,10 @@ linked document and remove it from this list.
 
 - **Decided:** when a repository has both, the Expo config (`store.config.json`) wins as the source
   for the App Store listing.
-- **Not built:** the server does not read Expo yet, so nothing enforces this. The Expo spike text
-  still says the choice is not decided; it should be updated when the server is wired
-  ([docs/spikes/expo-store-config.md](spikes/expo-store-config.md)). EAS Metadata has no Google Play
-  support, so Play listings still come from fastlane.
+- **Built:** the server and the repositories screen follow this rule (tested with fixtures only).
+  An unreadable Expo config blocks App Store edits (422) instead of falling back to fastlane, and
+  a dynamic `store.config.js` is never read. EAS Metadata has no Google Play support, so Play
+  listings always come from fastlane. See [docs/spikes/expo-store-config.md](spikes/expo-store-config.md).
 
 ## Store sync
 
