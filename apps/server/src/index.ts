@@ -123,7 +123,8 @@ const app = createApp({
   webhooks: { allowPrivate: config.webhooksAllowPrivate },
   appSync: { limiter: syncLimiter },
   listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
-  reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays },
+  reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays, reply: { enabled: config.reviewReplyEnabled } },
+  translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   reads,
   cloneUpkeep,
   localWrite: {
@@ -169,6 +170,7 @@ const worker = createWorker({
       now: Date.now,
       connectorFactory: defaultReviewConnectorFactory,
       timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
+      translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
     }),
     [WEBHOOK_QUEUE]: createWebhookHandler({
       db: database,
@@ -218,6 +220,9 @@ if (config.worker === 'inline') {
   }
   if (config.reviewSyncIntervalMinutes > 0) {
     console.log(`Scheduled review reads every ${config.reviewSyncIntervalMinutes} minutes (read-only; reviews kept ${config.reviewRetentionDays === 0 ? 'forever' : `${config.reviewRetentionDays} days`})`);
+  }
+  if (config.reviewReplyEnabled) {
+    console.log('Replying to customer reviews is ON (MRM_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores');
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);

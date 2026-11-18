@@ -13,11 +13,14 @@ import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
 import { assetRoutes } from './routes/assets.ts';
+import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
 import { listingRoutes } from './routes/listing.ts';
 import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
 import { memberRoutes } from './routes/members.ts';
 import { planRoutes } from './routes/plans.ts';
-import { reviewRoutes } from './routes/reviews.ts';
+import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
+import { reviewTranslationRoutes } from './routes/review-translation.ts';
+import { settingsRoutes } from './routes/settings.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
@@ -44,6 +47,7 @@ import {
   defaultReviewConnectorFactory,
 } from './services/review-sync.ts';
 import { buildOpenApiDocument } from './services/openapi.ts';
+import type { TranslationContext } from './services/translation.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import type { LocalWriteConfig } from './services/local-reads.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
@@ -179,6 +183,21 @@ export type AppDeps = {
     limiter?: TestLimiter;
     lowRatingThreshold?: number;
     retentionDays?: number;
+    /**
+     * Replying to reviews, a store write that is OFF unless `enabled` (MRM_REVIEW_REPLY_ENABLED).
+     * `connectorFactory` builds the connector that can reply (fakes in tests), `translateDraft` is
+     * the optional seam for translating a draft (wired to services/translation.ts by the lead).
+     */
+    reply?: NonNullable<ReviewRoutesContext['reply']>;
+  };
+  /**
+   * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
+   * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
+   * address); `fetch`, `resolve`, `exchange` and `timeoutMs` replace the network in tests;
+   * `limiter` is the per workspace budget of translation requests (default 20 a minute).
+   */
+  translation?: Pick<TranslationContext, 'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'> & {
+    limiter?: TestLimiter;
   };
 };
 
@@ -233,7 +252,14 @@ export function createApp(deps: AppDeps) {
   app.use('/api/workspaces/*', auth);
   app.use('/api/openapi.json', auth);
   // Before the other workspace routes, so /credentials/test is never read as a credential id.
-  app.route('/api/workspaces', credentialTestRoutes(services, deps.credentialTests));
+  const translationSeams = {
+    ...(deps.translation?.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
+    ...(deps.translation?.fetch ? { fetch: deps.translation.fetch } : {}),
+    ...(deps.translation?.resolve ? { resolve: deps.translation.resolve } : {}),
+    ...(deps.translation?.exchange ? { exchange: deps.translation.exchange } : {}),
+    ...(deps.translation?.timeoutMs !== undefined ? { timeoutMs: deps.translation.timeoutMs } : {}),
+  };
+  app.route('/api/workspaces', credentialTestRoutes(services, { ...deps.credentialTests, translate: translationSeams }));
   app.route('/api/workspaces', workspaceRoutes(services));
   app.route('/api/workspaces', memberRoutes(services));
   app.route('/api/workspaces', workspaceInvitationRoutes(services));
@@ -283,7 +309,27 @@ export function createApp(deps: AppDeps) {
   };
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
   app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
-  // Customer reviews: a read-only inbox with internal triage. Nothing is ever sent to a store.
+  // Workspace settings (any member reads, admins write) and the translation of stored reviews.
+  app.route(
+    '/api/workspaces',
+    settingsRoutes({
+      db: services.db,
+      now: services.now,
+      ...(translationSeams.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
+      ...(translationSeams.resolve ? { resolve: translationSeams.resolve } : {}),
+    }),
+  );
+  app.route(
+    '/api/workspaces',
+    reviewTranslationRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      ...translationSeams,
+      limiter: deps.translation?.limiter ?? createTestLimiter({ now: services.now, limit: 20 }),
+    }),
+  );
+  // Customer reviews: an inbox with internal triage. Replying (a store write) is off unless MRM_REVIEW_REPLY_ENABLED.
   app.route(
     '/api/workspaces',
     reviewRoutes({
@@ -295,6 +341,8 @@ export function createApp(deps: AppDeps) {
       timeoutMs: deps.reviews?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS,
       ...(deps.reviews?.lowRatingThreshold !== undefined ? { lowRatingThreshold: deps.reviews.lowRatingThreshold } : {}),
       ...(deps.reviews?.retentionDays !== undefined ? { retentionDays: deps.reviews.retentionDays } : {}),
+      ...(deps.reviews?.reply ? { reply: deps.reviews.reply } : {}),
+      translation: translationSeams,
       limiter: deps.reviews?.limiter ?? appSyncLimiter,
     }),
   );
@@ -318,6 +366,27 @@ export function createApp(deps: AppDeps) {
       limiter: createTestLimiter({ now: services.now }),
       sync: { apps: appsContext, limiter: appSyncLimiter },
       ...(deps.listing?.intervalMs ? { listingIntervalMs: deps.listing.intervalMs } : {}),
+    }),
+  );
+  // Fix up the branch of a change set (one more commit on top of it) and recompute a store pull.
+  // They share the context of the repository routes (clones, the local write switch) and the store
+  // read of a pull (the app sync's context and per workspace budget).
+  app.route(
+    '/api/workspaces',
+    changeSetFixupRoutes({
+      db: services.db,
+      now: services.now,
+      repo: {
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        connectorFactory: deps.connectorFactory ?? defaultConnectorFactory,
+        timeoutMs: deps.repositoryTimeoutMs ?? DEFAULT_REPO_TIMEOUT_MS,
+        reads: deps.reads,
+        localWrite: deps.localWrite,
+      },
+      limiter: createTestLimiter({ now: services.now }),
+      sync: { apps: appsContext, limiter: appSyncLimiter },
     }),
   );
   // Media files of the repositories (screenshots, graphics) and the icon of an app. Read-only:

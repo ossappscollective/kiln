@@ -1,4 +1,4 @@
-import { credentialKinds, invitableRoles, roles } from '@mrm/core';
+import { credentialKinds, invitableRoles, roles, translationModes, translationProviders } from '@mrm/core';
 import { z } from 'zod';
 import { eventTypes } from './event-types.ts';
 import type { Operation } from './openapi.ts';
@@ -143,11 +143,27 @@ const changeSetSchema = z.object({
       commit: z.object({ branch: z.string(), sha: z.string(), at: timestamp }),
       requested: z.object({ push: z.boolean(), openPr: z.boolean() }),
       signature: z.object({ status: z.literal('signed'), format: z.enum(['ssh', 'gpg']) }).optional().describe('Present when the commit was signed with the server\'s key (MRM_GIT_SIGN): the commit object holds a signature header of that format. It means signed, not verified; GitHub shows Verified only when the public key is a signing key on the committer\'s account.'),
-      push: z.object({ status: z.enum(['not_requested', 'pushed', 'failed']), at: timestamp.optional(), code: z.string().optional(), error: z.string().optional() }),
+      push: z.object({ status: z.enum(['not_requested', 'pushed', 'failed', 'behind']), at: timestamp.optional(), code: z.string().optional(), error: z.string().optional() }).describe('`behind`: a fix-up commit was added after the push and the branch on GitHub is behind the local one.'),
       pr: z.object({ status: z.enum(['not_requested', 'opened', 'failed', 'skipped']), at: timestamp.optional(), url: z.string().optional(), number: z.number().int().optional(), code: z.string().optional(), error: z.string().optional() }),
     })
     .nullable()
-    .describe('Step by step result of a commit on a new branch of a local clone (commit, push, pull request). Null for a change set applied as a pull request through GitHub. A failed push or pull request does not undo the commit.'),
+    .describe('Step by step result of a commit on a new branch of a local clone (commit, push, pull request). Null for a change set applied as a pull request through GitHub. A failed push or pull request does not undo the commit. After a fix-up `commit` is the latest commit and `base` is unchanged.'),
+  fixups: z
+    .array(
+      z.object({
+        at: timestamp,
+        commit: z.string(),
+        parent: z.string().describe('The branch tip the commit was added on.'),
+        files: z.number().int(),
+        pushed: z.boolean(),
+        signature: z.object({ status: z.literal('signed'), format: z.enum(['ssh', 'gpg']) }).optional(),
+      }),
+    )
+    .describe('Fix-up commits added on top of the branch, oldest first (local commit or pull request through GitHub).'),
+  origin: z
+    .object({ source: z.string(), appId: z.string().optional(), channel: z.string().optional() })
+    .nullable()
+    .describe('Where the change set came from when it can be recomputed (`store_pull`); null otherwise.'),
 });
 const object = z.record(z.unknown());
 const localConfigSchema = z.object({
@@ -197,6 +213,35 @@ const refreshFileSchema = z.object({
   ours: z.string().nullable().optional(),
   theirs: z.string().nullable().optional(),
 });
+const choicesSchema = z.record(z.enum(['mine', 'theirs']));
+const fixupBody = z.object({
+  resolutions: choicesSchema.optional().describe('Per path that conflicts with the REPOSITORY (the 409 `refresh_conflicts` of the first comparison): `mine` keeps the change set\'s text, `theirs` drops its change and resets the file on the branch to the repository\'s text.'),
+  branchResolutions: choicesSchema.optional().describe('Per path that conflicts with the BRANCH (the 409 `fixup_conflicts` of the second comparison): `mine` overwrites the branch\'s text, `theirs` keeps the branch\'s.'),
+  push: z.boolean().optional().describe('Local commit only: push the new tip (never forced).'),
+  openPr: z.boolean().optional().describe('Local commit only: open the pull request when there is none (needs push).'),
+  dryRun: z.boolean().optional().describe('Work out and report everything, write nothing.'),
+  recompute: z.boolean().optional().describe('Take the content from the live store listing (a store pull only), as `POST /change-sets/{id}/recompute` does, instead of the stored files. Needs `listing.read`.'),
+  refresh: z.boolean().optional().describe('With `recompute`: read the store first (needs `apps.sync`; rate limited like the pull).'),
+});
+const fixupFileSchema = z.object({
+  path: z.string(),
+  state: z.enum(['same', 'changed', 'already_applied', 'conflict', 'recomputed', 'removed']),
+  outcome: z.enum(['commit', 'unchanged', 'kept_branch', 'kept_mine', 'kept_theirs', 'conflict']),
+  leavesSet: z.boolean(),
+  stage: z.enum(['repository', 'branch']).optional(),
+  reason: z.enum(['overlap', 'added_upstream', 'edited_upstream', 'deleted_upstream', 'invalid_json', 'too_large']).optional(),
+  base: z.string().nullable().optional(),
+  ours: z.string().nullable().optional(),
+  theirs: z.string().nullable().optional(),
+});
+const fieldDiffSchema = z.object({
+  locale: z.string(),
+  repoLocale: z.string(),
+  field: z.string(),
+  change: z.enum(['store_changed', 'unchanged', 'added', 'dropped']),
+  reason: z.string().optional(),
+});
+const recomputeBody = z.object({ refresh: z.boolean().optional().describe('Read the store first (needs `apps.sync`; rate limited like the pull).') });
 const changeSetAnswer = { description: 'The change set.', schema: z.object({ changeSet: changeSetSchema }) };
 const none = { description: 'Done. No body.' };
 const testOutcome = z.object({ ok: z.boolean(), message: z.string(), details: z.array(z.string()).optional(), superseded: z.boolean().optional() });
@@ -313,7 +358,7 @@ export const reviewSchema = z.object({
   updatedAt: timestamp.describe('When the review was last edited, per the store.'),
   firstSeenAt: timestamp,
   fetchedAt: timestamp,
-  developerResponse: z.object({ body: z.string(), at: timestamp.nullable(), state: z.string().nullable() }).nullable().describe('The reply the developer already published in the store console. This server never sends one.'),
+  developerResponse: z.object({ body: z.string(), at: timestamp.nullable(), state: z.string().nullable() }).nullable().describe('The reply the store shows for this review (published from this server, or from the store console).'),
   status: reviewStatusEnum.describe('Internal triage state. `replied_in_console` is a note by a person; nothing is sent.'),
   assigneeUserId: z.string().nullable(),
   internalNote: z.string().nullable().describe('Internal. Never sent to a store.'),
@@ -333,7 +378,19 @@ const reviewSyncResultSchema = z.object({
   warnings: z.array(z.string()),
   baseline: z.boolean().describe('The first read of an app: no events are emitted for the reviews it finds.'),
   lowRatingEvents: z.number().int(),
+  lowRatingThreshold: z.number().int().optional().describe('The threshold this read used: the workspace setting `reviews.lowRatingThreshold` at that time.'),
   ratingSummary: z.enum(['stored', 'unchanged', 'unavailable', 'off']),
+  translation: z
+    .object({
+      mode: z.literal('auto'),
+      attempted: z.number().int().describe('New reviews in another language that were considered (at most 20 per sync).'),
+      translated: z.number().int(),
+      fromCache: z.number().int(),
+      chars: z.number().int().describe('Characters sent to the provider.'),
+      error: z.string().optional().describe('The translation error code when it stopped. It never fails the sync.'),
+    })
+    .optional()
+    .describe('Only when `translation.mode` is `auto`.'),
 });
 
 const reviewSyncStateSchema = z.object({
@@ -398,10 +455,121 @@ const reviewsSummarySchema = z.object({
   retentionDays: z.number().int().nullable().describe('MRM_REVIEW_RETENTION_DAYS; 0 keeps every review.'),
 });
 
+// ----- replying to reviews (a store write, off by default: docs/api/reviews.md#replying-to-a-review) ----
+
+const replyStatusEnum = z.enum(['draft', 'sending', 'sent', 'failed', 'unknown']);
+export const replyDraftSchema = z.object({
+  id: z.string(),
+  reviewId: z.string(),
+  appId: z.string(),
+  store: reviewStore,
+  text: z.string().describe('The plain text that would be published. Written by your team; shown to members who can read reviews.'),
+  textHash: z.string().describe('SHA-256 hex of `text`. Repeat it as `confirmHash` to send exactly this text.'),
+  length: z.number().int(),
+  limit: z.number().int().describe('What the store allows: 350 for Google Play (documented); 5000 for the App Store (this server\u2019s own cap, unverified).'),
+  status: replyStatusEnum.describe('`draft`: not sent. `sending`: a send is in flight. `sent`: published (the App Store may show it as pending for a while). `failed`: the store refused or did not apply it; the draft is kept. `unknown`: it is not known whether it was published; send again to check.'),
+  errorCode: z.string().nullable(),
+  evidence: z.record(z.unknown()).nullable().describe('How an unknown outcome was settled by reading the review back. Never the text.'),
+  createdBy: z.string(),
+  updatedBy: z.string(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  sentAt: timestamp.nullable(),
+  sentBy: z.string().nullable(),
+  storeResponseId: z.string().nullable(),
+});
+const replyStateSchema = z.object({ status: z.enum(['none', 'draft', 'sending', 'sent', 'failed', 'unknown']), sentAt: timestamp.nullable() });
+export const reviewViewSchema = reviewSchema.extend({
+  replyDraft: replyDraftSchema.nullable().describe('The draft reply of this review, or the record of the last reply sent from here.'),
+  reply: replyStateSchema.describe('The state of the reply in one place; `none` without a draft. `developerResponse` is what the store shows.'),
+});
+const inboxReviewSchema = reviewViewSchema.extend({
+  app: z.object({ id: z.string(), name: z.string(), platform: z.enum(['ios', 'android']) }),
+});
+const replyDraftBody = z.object({
+  text: z.string().max(20000).optional().describe('Plain text. Line breaks are kept; HTML-looking tags, tabs and other control characters are refused. At most the store\u2019s limit.'),
+  templateId: z.string().min(1).max(100).optional().describe('Instead of `text`: fill this workspace template (`{{author}}`, `{{app}}`) for this review.'),
+});
+const replySendBody = z.object({ confirmHash: z.string().regex(/^[0-9a-f]{64}$/).describe('The `textHash` of the draft as the person saw it. A draft that changed since answers `409 stale_draft`.') });
+const replyTemplateSchema = z.object({ id: z.string(), name: z.string(), body: z.string(), createdBy: z.string(), createdAt: timestamp, updatedAt: timestamp });
+const replyTemplateBody = z.object({ name: z.string().min(1).max(80), body: z.string().min(1).max(5000).describe('Plain text with `{{author}}` and `{{app}}`.') });
+const replyTranslateBody = z.object({ text: z.string().min(1).max(5000), target: z.string().max(20), source: z.string().max(20).optional() });
+const replyConfigSchema = z.object({
+  enabled: z.boolean().describe('MRM_REVIEW_REPLY_ENABLED. While false every reply route answers `409 reply_disabled`.'),
+  envName: z.string(),
+  limits: z.object({ appstoreconnect: z.number().int(), googleplay: z.number().int() }),
+  sendsPerHour: z.number().int(),
+  translation: z.object({ available: z.boolean() }),
+  templates: z.object({ max: z.number().int(), placeholders: z.array(z.string()) }),
+});
+const inboxQuery = reviewListQuery.extend({
+  appIds: z.string().optional().describe('Only these apps, comma separated (at most 50). A token limited to some apps sees only those.'),
+  assignee: z.string().optional().describe('`me` or a member\u2019s user id.'),
+  unassigned: z.enum(['true', 'false']).optional(),
+  unanswered: z.enum(['true', 'false']).optional().describe('`true`: no developer response yet.'),
+});
+const workspaceCounts = z.object({
+  total: z.number().int(),
+  new: z.number().int().describe('Triage status `new`.'),
+  unanswered: z.number().int().describe('No developer response and not ignored.'),
+  lowRating: z.number().int().describe('Rating at or below the threshold and not ignored.'),
+  average: z.number().nullable().describe('Mean of the stored ratings, two decimals.'),
+});
+const workspaceSummarySchema = z.object({
+  basis: z.literal('stored_reviews'),
+  label: z.string().describe('Where the numbers come from, to show next to them.'),
+  lowRatingThreshold: z.number().int(),
+  apps: z.array(workspaceCounts.extend({ app: z.object({ id: z.string(), name: z.string(), platform: z.enum(['ios', 'android']), store: reviewStore }), oldestAt: timestamp.nullable(), newestAt: timestamp.nullable() })),
+  totals: workspaceCounts,
+});
+
 const triageReviewBody = z.object({
   status: reviewStatusEnum.optional(),
   assigneeUserId: z.string().min(1).max(100).nullable().optional().describe('A member of the workspace, or null to clear.'),
   internalNote: z.string().max(2000).nullable().optional().describe('Internal. Null or empty clears it.'),
+});
+
+// ----- workspace settings and review translation ----------------------------------------------------
+const translationLang = z.string().regex(/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})*$/).max(35).describe('A BCP-47 language tag such as en, pt-BR or zh-Hant.');
+const settingValueSchema = z.union([z.number(), z.boolean(), z.string()]);
+const settingsBody = z.object({
+  'reviews.lowRatingThreshold': z.number().int().min(1).max(4).nullable().optional().describe('Ratings at or below this raise `review.new_low_rating`. Default 2. Raising it never re-sends events for reviews already read.'),
+  'translation.enabled': z.boolean().nullable().optional().describe('Default false.'),
+  'translation.provider': z.enum(translationProviders).nullable().optional().describe('Default google.'),
+  'translation.targetLanguage': translationLang.nullable().optional().describe('Default en.'),
+  'translation.mode': z.enum(translationModes).nullable().optional().describe('Default on_demand.'),
+  'translation.dailyCharBudget': z.number().int().min(0).max(100_000_000).nullable().optional().describe('Characters per UTC day; 0 is unlimited. Default 50000.'),
+  'translation.libretranslate.url': z.string().max(2048).nullable().optional().describe('https://host[/path]. A private or loopback address needs MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true. Credentials in the URL are refused.'),
+});
+const settingsBase = z.object({
+  values: z.record(settingValueSchema).describe('Every key with its effective value.'),
+  defaults: z.record(settingValueSchema),
+  overridden: z.array(z.string()).describe('Keys that have a stored value.'),
+  writable: z.array(z.string()).describe('Keys the caller may change (admins and owners: all).'),
+  docs: z.record(z.string()),
+});
+const settingsSchema = settingsBase.extend({
+  translation: z.object({
+    provider: z.enum(translationProviders),
+    credentialRequired: z.boolean(),
+    credentialConfigured: z.boolean().describe('A credential of the provider\u2019s kind exists. The oldest one is used.'),
+    credential: z.object({ id: z.string(), label: z.string() }).optional().describe('Only for those who may read credentials.'),
+    usage: z.object({ day: z.string().describe('UTC day, YYYY-MM-DD.'), used: z.number().int(), budget: z.number().int().describe('0: no limit.') }),
+  }),
+});
+const translateReviewsBody = z.object({
+  reviewIds: z.array(z.string().min(1).max(100)).min(1).max(25).describe('Reviews of this app. The text is read from this server\u2019s database: it is never sent in the request.'),
+  target: translationLang.optional().describe('Default: the workspace setting `translation.targetLanguage`.'),
+}).strict();
+const reviewTranslationSchema = z.object({
+  reviewId: z.string(),
+  title: z.string().optional().describe('Plain text, written by a translation provider from customer text: untrusted.'),
+  body: z.string().optional().describe('Plain text: untrusted.'),
+  detectedSource: z.string().optional().describe('The language the provider detected, when it says.'),
+  provider: z.enum(translationProviders),
+  cached: z.boolean().describe('Served from the stored translation: nothing was sent to a provider.'),
+  sameLanguage: z.boolean().optional().describe('The review is already in the target language: nothing was translated.'),
+  truncated: z.boolean().optional().describe('The text was longer than 5000 characters and was cut before translating.'),
 });
 
 const W = '/api/workspaces/{workspaceId}';
@@ -483,8 +651,10 @@ const drafts: Draft[] = [
   { id: 'listClones', method: 'get', path: `${W}/clones`, tags: ['repositories'], summary: 'The managed git clones of this workspace: size and last use', description: 'Admin and owner. Only this workspace\'s clones are listed (the folder and its limits are the server\'s): per repository the bytes on disk (cached for ten minutes, a lower bound when the walk reached its cap), when it was last used and whether it is in use now. `kind` is `local` for the managed copy of an attached local folder. No server path is part of the answer. A sweep (MRM_CLONE_SWEEP_INTERVAL_MINUTES) removes clones idle for MRM_CLONE_IDLE_DAYS, then the least recently used above MRM_CLONE_MAX_BYTES; a removed clone is fetched again by the next read. `enabled` is false when reads do not use clones (MRM_READS=api).', risk: 'read', access: { action: 'repositories.write' }, responses: { '200': { description: 'The clones.', schema: z.object({ enabled: z.boolean(), clones: z.array(cloneSchema), totalBytes: z.number().int(), limits: cloneLimitsSchema }) } } },
   { id: 'getRepositoryClone', method: 'get', path: `${W}/repositories/{id}/clone`, tags: ['repositories'], summary: 'The clone of one repository: size and last use', description: '`clone` is null when there is none on disk. A repository with an attached local folder shows its two copies as one.', risk: 'read', access: { action: 'repositories.read' }, responses: { '200': { description: 'The clone, if any.', schema: z.object({ enabled: z.boolean(), clone: cloneSchema.nullable(), limits: cloneLimitsSchema }) } } },
   { id: 'purgeRepositoryClone', method: 'post', path: `${W}/repositories/{id}/clone/purge`, tags: ['repositories'], summary: 'Remove the clone of a repository now (free the space)', description: 'Admin and owner. The clone is a cache: the next read fetches it again. `409 clone_busy` while a read is running. Audited as `clone.purge` with counts.', risk: 'destructive', access: { action: 'repositories.write' }, responses: { '200': { description: 'What was removed.', schema: z.object({ removed: z.number().int(), freedBytes: z.number().int() }) } } },
-  { id: 'refreshChangeSet', method: 'post', path: `${W}/change-sets/{id}/refresh`, tags: ['change-sets'], summary: 'Refresh a stale change set: re-base it onto the repository as it is now', description: 'For a draft, approved or failed change set (a failed one only when no branch was created). Each file is read again (from the local clone, or GitHub) and compared: unchanged files stay, files whose change is already in the repository leave the set, and files that changed elsewhere are merged line by line (a three-way merge; an Expo JSON file must still parse). Where both sides changed the same place the answer is `409 refresh_conflicts` with, per conflicting file, `base`, `ours` (the change set\'s text) and `theirs` (the repository\'s), and NOTHING is changed; send `resolutions` (`mine`: keep our text and overwrite theirs, `theirs`: drop our change) for each conflicting path to settle it. A refresh that changes the text returns the set to `draft` and clears its approval (`approvalCleared`); one that changes nothing leaves it as it is (`unchanged`). `nothingLeft` means no file remains: discard it. Audited as `changeset.refresh` with counts only.', risk: 'write', access: { action: 'changesets.write' }, body: refreshBody, bodyOptional: true, partial: true, responses: { '200': { description: 'The refreshed change set and what happened to each file.', schema: z.object({ changeSet: changeSetSchema, files: z.array(refreshFileSchema), refreshedFrom: z.string(), unchanged: z.boolean(), nothingLeft: z.boolean(), approvalCleared: z.boolean() }) } } },
+  { id: 'refreshChangeSet', method: 'post', path: `${W}/change-sets/{id}/refresh`, tags: ['change-sets'], summary: 'Refresh a stale change set: re-base it onto the repository as it is now', description: 'For a draft, approved or failed change set (a failed one only when no branch was created; once a branch exists the answer is `409 branch_created`, and `POST /change-sets/{id}/fixup` adds one commit to the branch instead). Each file is read again (from the local clone, or GitHub) and compared: unchanged files stay, files whose change is already in the repository leave the set, and files that changed elsewhere are merged line by line (a three-way merge; an Expo JSON file must still parse). Where both sides changed the same place the answer is `409 refresh_conflicts` with, per conflicting file, `base`, `ours` (the change set\'s text) and `theirs` (the repository\'s), and NOTHING is changed; send `resolutions` (`mine`: keep our text and overwrite theirs, `theirs`: drop our change) for each conflicting path to settle it. A refresh that changes the text returns the set to `draft` and clears its approval (`approvalCleared`); one that changes nothing leaves it as it is (`unchanged`). `nothingLeft` means no file remains: discard it. Audited as `changeset.refresh` with counts only.', risk: 'write', access: { action: 'changesets.write' }, body: refreshBody, bodyOptional: true, partial: true, responses: { '200': { description: 'The refreshed change set and what happened to each file.', schema: z.object({ changeSet: changeSetSchema, files: z.array(refreshFileSchema), refreshedFrom: z.string(), unchanged: z.boolean(), nothingLeft: z.boolean(), approvalCleared: z.boolean() }) } } },
   { id: 'getChangeSetStaleness', method: 'get', path: `${W}/change-sets/{id}/staleness`, tags: ['change-sets'], summary: 'Is the change set still what the repository holds? (read only)', description: 'Reads the files of the change set from the repository now and says, per file, `same`, `changed` (a clean merge is possible), `already_applied` or `conflict`. Writes nothing. Needs the right a scan needs, because it reads with the stored credential.', risk: 'read', access: { action: 'repositories.scan' }, partial: true, responses: { '200': { description: 'Whether it is stale, and per file.', schema: z.object({ stale: z.boolean(), files: z.array(z.object({ path: z.string(), state: fileStateSchema })), readAt: z.string() }) } } },
+  { id: 'fixupChangeSet', method: 'post', path: `${W}/change-sets/{id}/fixup`, tags: ['change-sets'], summary: 'Fix up the branch of a change set: add ONE commit on top of it', description: 'For a change set that has a branch: `applied` (a pull request through GitHub, or a commit on a new branch of a local clone) or `failed` with the branch GitHub made before the pull request failed. The content is refreshed first (a three-way merge against the repository, then against the branch: the base of that merge is the text this tool last committed, so edits a person made on the branch are merged, not overwritten), the difference is committed as ONE new commit whose parent is the branch tip that was read, and the branch is moved forward to it with a fast-forward only. History is never rewritten and nothing is forced. 409 `refresh_conflicts` (per file against the repository, resolve with `resolutions`) and 409 `fixup_conflicts` (per file against the branch, resolve with `branchResolutions`) change nothing. No difference: 200 with `nothingToFix` and no commit. `dryRun` reports the plan and writes nothing. Refusals that write nothing: 409 `branch_moved` (the branch is not at the tip that was read), 409 `branch_checked_out` (the local branch is checked out, in a worktree or being rebased: moving it would leave that working folder stale), 409 `pr_closed` (the pull request is merged or closed: create a new change set), 409 `branch_missing`, 409 `fixup_in_progress`, 409 `no_branch`. Local mode needs MRM_LOCAL_REPO_WRITE (409 `local_write_disabled`), signs like apply, and with `push` pushes the new tip without force (409 `remote_diverged` when the branch on GitHub has other commits; the local commit is kept). With `recompute` the content comes from the live store listing. Needs `changesets.approve` (and `listing.read` for `recompute`, `apps.sync` for `refresh`). Audited as `changeset.fixup` / `changeset.fixup_failed` with counts only.', risk: 'write', access: { action: 'changesets.approve' }, body: fixupBody, bodyOptional: true, partial: true, responses: { '200': { description: 'What was done.', schema: z.object({ changeSet: changeSetSchema, mode: z.enum(['local_branch', 'github_pr']), branch: z.string(), nothingToFix: z.boolean(), files: z.array(fixupFileSchema), willCommit: z.array(z.string()), refreshedFrom: z.string(), tip: z.string(), commit: z.object({ sha: z.string(), parent: z.string(), files: z.number().int(), signed: z.boolean() }).optional(), pullRequest: z.object({ state: z.enum(['open', 'opened', 'none']), number: z.number().int().optional(), url: z.string().optional() }), dryRun: z.boolean().optional(), conflicts: z.number().int().optional(), recompute: object.optional() }) } } },
+  { id: 'recomputeChangeSet', method: 'post', path: `${W}/change-sets/{id}/recompute`, tags: ['change-sets'], summary: 'Recompute a store pull from the live store listing and the current repository', description: 'For a change set made by the store pull (`origin.source` is `store_pull`; older change sets and other sources answer 409 `not_recomputable`). The pull is planned again from its stored request, the latest stored store snapshot (or a fresh read with `refresh`) and the repository now, and the files of the SAME change set are replaced: same id and creator, status `draft`, approval cleared (`approvalCleared`). Allowed for a draft, approved or failed change set without a branch; one with a branch answers 409 `has_branch` (use `POST /change-sets/{id}/fixup` with `recompute`). The answer has the shape of the pull plus `diffFromPrevious` (per field: `store_changed`, `unchanged`, `added`, `dropped` with a reason, such as `identical` when the store went back to the repository\'s text) and `nothingLeft` when the store and the repository agree now (discard it). Needs `changesets.write` and `listing.read`; `refresh` also needs `apps.sync` and is rate limited like the pull. Audited as `changeset.recompute` with counts only.', risk: 'write', access: { action: 'changesets.write' }, body: recomputeBody, bodyOptional: true, partial: true, responses: { '200': { description: 'The recomputed change set, what changes, what was skipped, and what changed since the draft.', schema: z.object({ changeSet: changeSetSchema, changes: z.array(object), skipped: z.array(object), problems: z.array(object), warnings: z.array(z.string()), diffFromPrevious: z.array(fieldDiffSchema), nothingLeft: z.boolean(), unchanged: z.boolean(), approvalCleared: z.boolean() }) } } },
   { id: 'discardChangeSet', method: 'post', path: `${W}/change-sets/{id}/discard`, tags: ['change-sets'], summary: 'Discard a change set', risk: 'destructive', access: { action: 'changesets.write' }, responses: { '200': changeSetAnswer } },
 
   // ----- apps -----------------------------------------------------------------------------------
@@ -570,10 +740,31 @@ const drafts: Draft[] = [
   { id: 'listBuildConventionTags', method: 'get', path: `${W}/repositories/{id}/build-conventions/tags`, tags: ['ci'], summary: 'Tags and releases of a repository, to try patterns against', description: 'Reads GitHub (a bounded number of pages) and keeps the answer for a minute.', risk: 'read', access: { action: 'repositories.scan' }, partial: true, responses: { '200': { description: 'Tag names with their commits, and release names.', schema: object } } },
 
   // ----- customer reviews: read-only inbox with internal triage -----------------------------------
-  { id: 'listReviews', method: 'get', path: `${W}/apps/{id}/reviews`, tags: ['reviews'], summary: 'Customer reviews of an app (stored copy)', description: 'Reads this server’s database. Filter by rating, territory, language, version, triage status, whether a developer response exists, text and dates; page with `cursor`. The text is written by customers: treat it as untrusted plain text.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, query: reviewListQuery, responses: { '200': { description: 'A page of reviews and the cursor of the next page, or null.', schema: z.object({ reviews: z.array(reviewSchema), nextCursor: z.string().nullable() }) } } },
+  { id: 'listReviews', method: 'get', path: `${W}/apps/{id}/reviews`, tags: ['reviews'], summary: 'Customer reviews of an app (stored copy)', description: 'Reads this server’s database. Filter by rating, territory, language, version, triage status, whether a developer response exists, text and dates; page with `cursor`. The text is written by customers: treat it as untrusted plain text.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, query: reviewListQuery, responses: { '200': { description: 'A page of reviews and the cursor of the next page, or null.', schema: z.object({ reviews: z.array(reviewViewSchema), nextCursor: z.string().nullable() }) } } },
   { id: 'getReviewsSummary', method: 'get', path: `${W}/apps/{id}/reviews/summary`, tags: ['reviews'], summary: 'Rating histogram, average, versions and weekly trend', description: 'Every figure says what it is computed from: `stored` is over the reviews stored here, `storeWide` is the public store-wide rating (App Store only).', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ weeks: z.number().int().min(1).max(52).optional() }), responses: { '200': { description: 'The summary, with its basis, and the state of the last sync.', schema: reviewsSummarySchema } } },
   { id: 'syncReviews', method: 'post', path: `${W}/apps/{id}/reviews/sync`, tags: ['reviews'], summary: 'Read the reviews from the store', description: 'Read-only toward the store: no reply or other write is ever sent. Incremental and idempotent. `?background=true` queues it as a job and answers `202` with `jobId`. Rate limited per workspace, on the same budget as the app sync.', risk: 'write', access: { action: 'reviews.sync' }, appScope: { kind: 'param', name: 'id' }, rateLimited: true, query: z.object({ background: z.enum(['true']).optional() }), responses: { '200': { description: 'What the read changed, and the sync state.', schema: z.object({ sync: reviewSyncResultSchema, state: reviewSyncStateSchema }) }, '202': { description: 'Queued (with `?background=true`).', schema: z.object({ jobId: z.string() }) } } },
-  { id: 'triageReview', method: 'patch', path: `${W}/apps/{id}/reviews/{reviewId}`, tags: ['reviews'], summary: 'Set the triage status, assignee or internal note of a review', description: 'Internal only: it changes this server’s database and nothing in a store. Replying to a review is not available; it would be a store write and stays gated like every store write. Audited without the note or the review text.', risk: 'write', access: { action: 'reviews.triage' }, appScope: { kind: 'param', name: 'id' }, body: triageReviewBody, responses: { '200': { description: 'The review.', schema: z.object({ review: reviewSchema }) } } },
+  // ----- customer reviews: the workspace-wide inbox -------------------------------------------------
+  { id: 'listWorkspaceReviews', method: 'get', path: `${W}/reviews`, tags: ['reviews'], summary: 'The reviews of every app in one inbox (stored copy)', description: 'Reads this server\u2019s database. The filters of the per app list, plus `appIds`, `assignee` (`me` or a user id), `unassigned` and `unanswered`; keyset paging with `cursor`. Every item carries its app. A token limited to some apps sees only those apps. The text is written by customers: untrusted plain text.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'list' }, query: inboxQuery, responses: { '200': { description: 'A page of reviews and the cursor of the next page, or null.', schema: z.object({ reviews: z.array(inboxReviewSchema), nextCursor: z.string().nullable() }) } } },
+  { id: 'getWorkspaceReviewsSummary', method: 'get', path: `${W}/reviews/summary`, tags: ['reviews'], summary: 'Counts of new, unanswered and low rated reviews per app and in total', description: 'Over the stored reviews only, with its basis stated. No review text and no names. A token limited to some apps counts only those apps.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'list' }, responses: { '200': { description: 'Counts per app and the totals.', schema: workspaceSummarySchema } } },
+
+  // ----- replying to reviews (a store write; off unless MRM_REVIEW_REPLY_ENABLED=true) --------------
+  { id: 'getReviewReplyConfig', method: 'get', path: `${W}/reviews/reply-config`, tags: ['reviews'], summary: 'Whether replying is switched on, and its limits', risk: 'read', access: { action: 'reviews.read' }, responses: { '200': { description: 'The switch, the limits and what is available.', schema: replyConfigSchema } } },
+  { id: 'listReviewReplyTemplates', method: 'get', path: `${W}/reviews/reply-templates`, tags: ['reviews'], summary: 'Reply templates of the workspace', risk: 'read', access: { action: 'reviews.read' }, responses: { '200': { description: 'The templates.', schema: z.object({ templates: z.array(replyTemplateSchema) }) } } },
+  { id: 'createReviewReplyTemplate', method: 'post', path: `${W}/reviews/reply-templates`, tags: ['reviews'], summary: 'Create a reply template', description: 'At most 50 per workspace. `409 reply_disabled` while replying is switched off.', risk: 'write', access: { action: 'reviews.triage' }, body: replyTemplateBody, responses: { '201': { description: 'The template.', schema: z.object({ template: replyTemplateSchema }) } } },
+  { id: 'updateReviewReplyTemplate', method: 'put', path: `${W}/reviews/reply-templates/{templateId}`, tags: ['reviews'], summary: 'Replace a reply template', risk: 'write', access: { action: 'reviews.triage' }, body: replyTemplateBody, responses: { '200': { description: 'The template.', schema: z.object({ template: replyTemplateSchema }) } } },
+  { id: 'deleteReviewReplyTemplate', method: 'delete', path: `${W}/reviews/reply-templates/{templateId}`, tags: ['reviews'], summary: 'Delete a reply template', risk: 'destructive', access: { action: 'reviews.triage' }, responses: { '204': none } },
+  { id: 'getReview', method: 'get', path: `${W}/apps/{id}/reviews/{reviewId}`, tags: ['reviews'], summary: 'One review with its reply draft and reply state', description: 'Reads this server\u2019s database.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, responses: { '200': { description: 'The review.', schema: z.object({ review: reviewViewSchema }) } } },
+  { id: 'saveReviewReplyDraft', method: 'put', path: `${W}/apps/{id}/reviews/{reviewId}/reply-draft`, tags: ['reviews'], summary: 'Write or replace the draft reply of a review', description: 'Nothing is sent to a store. Needs `reviews.triage`. One draft per review; saving over a sent reply makes it a draft again. Refused while a send is in progress or its outcome is unknown. `409 reply_disabled` while replying is switched off. Audited by length and hash, never by text.', risk: 'write', access: { action: 'reviews.triage' }, appScope: { kind: 'param', name: 'id' }, body: replyDraftBody, responses: { '200': { description: 'The draft.', schema: z.object({ draft: replyDraftSchema }) } } },
+  { id: 'deleteReviewReplyDraft', method: 'delete', path: `${W}/apps/{id}/reviews/{reviewId}/reply-draft`, tags: ['reviews'], summary: 'Delete the draft reply of a review', description: 'Removes only this server\u2019s draft (or its record of a sent reply); a published reply stays in the store.', risk: 'destructive', access: { action: 'reviews.triage' }, appScope: { kind: 'param', name: 'id' }, responses: { '204': none } },
+  { id: 'translateReviewReplyDraft', method: 'post', path: `${W}/apps/{id}/reviews/{reviewId}/reply-draft/translate`, tags: ['reviews'], summary: 'Suggest a translation of a draft', description: 'Only when translation is set up (`translation.available` in the reply config), else `409 translation_unavailable`. Returns text; nothing is saved or sent.', risk: 'read', access: { action: 'reviews.triage' }, appScope: { kind: 'param', name: 'id' }, body: replyTranslateBody, responses: { '200': { description: 'The suggested text.', schema: z.object({ text: z.string() }) } } },
+  { id: 'sendReviewReply', method: 'post', path: `${W}/apps/{id}/reviews/{reviewId}/reply`, tags: ['reviews'], summary: 'Publish the draft reply in the store (public, not recallable here)', description: 'A STORE WRITE: the text is published publicly in the App Store or Google Play in the organisation\u2019s name. Needs `reviews.reply` (owner and admin; a token only when its actions name it) and `MRM_REVIEW_REPLY_ENABLED=true`. `confirmHash` must be the hash of the current draft (`409 stale_draft` otherwise); a second send of the same text is `409 already_sent`; one send per review at a time (`409 send_in_progress`); 30 an hour per workspace (`429 rate_limited`). Never retried: a timeout is checked by reading the review back and the answer is `200` with the settled state, `409 outcome_unknown`, or `502 send_failed` with the draft kept. Audited as `review.reply_sent` / `review.reply_failed` (ids, store, length, hash: never the text) and emitted as the event `review.reply_sent`.', risk: 'destructive', access: { action: 'reviews.reply' }, appScope: { kind: 'param', name: 'id' }, body: replySendBody, responses: { '200': { description: 'The reply as settled and the refreshed review.', schema: z.object({ reply: replyDraftSchema, review: reviewViewSchema, confirmedByReread: z.boolean().describe('True when the send\u2019s outcome was unknown and reading the review back showed the reply.') }) } } },
+  // ----- workspace settings -------------------------------------------------------------------------
+  { id: 'getWorkspaceSettings', method: 'get', path: `${W}/settings`, tags: ['settings'], summary: 'Workspace settings: values, defaults and which keys the caller may change', description: 'A fixed list of keys (`reviews.lowRatingThreshold`, `translation.*`). Secrets are never settings: provider keys live in the credential vault. `translation` adds today\u2019s usage against the daily budget.', risk: 'read', access: { action: 'settings.read' }, responses: { '200': { description: 'The settings.', schema: settingsSchema } } },
+  { id: 'updateWorkspaceSettings', method: 'put', path: `${W}/settings`, tags: ['settings'], summary: 'Change workspace settings (partial)', description: 'Admin or owner. Send only the keys to change; `null` resets a key to its default. All or nothing: one invalid value changes nothing (`400 invalid_setting`); an unknown key is `400 unknown_setting`. Audited as `settings.update` with the key names and the old and new values.', risk: 'write', access: { action: 'settings.write' }, body: settingsBody, partial: true, responses: { '200': { description: 'The keys that changed, and the settings after the change.', schema: settingsBase.extend({ changed: z.array(z.string()) }) } } },
+  // ----- translating reviews (a text is sent to the provider the workspace chose) --------------------
+  { id: 'translateReviews', method: 'post', path: `${W}/apps/{id}/reviews/translate`, tags: ['reviews'], summary: 'Translate stored reviews', description: 'Sends the text of up to 25 stored reviews to the translation provider set in the workspace settings (`translation.provider`; Google by default) and keeps the translations, so a second request is served from the cache. Needs `translation.enabled`; otherwise `422 translation_not_configured`. Errors: `422 translation_auth`, `translation_quota`, `translation_unsupported_language`, `429 translation_rate_limited` (with `Retry-After`), `429 translation_budget` (the daily character budget), `502`/`504 translation_unavailable`. Rate limited per workspace. Review text is never logged or audited; the audit entry `review.translate` has counts and the provider only.', risk: 'write', access: { action: 'reviews.translate' }, appScope: { kind: 'param', name: 'id' }, rateLimited: true, body: translateReviewsBody, responses: { '200': { description: 'One entry per found review.', schema: z.object({ provider: z.enum(translationProviders), target: z.string(), translations: z.array(reviewTranslationSchema), notFound: z.array(z.string()), cached: z.boolean().describe('Every review was served from the cache.') }) } } },
+  { id: 'testTranslation', method: 'post', path: `${W}/translate/test`, tags: ['settings'], summary: 'Test the translation provider with the saved settings', description: 'Translates one fixed word (not review text) with the saved provider, credential and address. Counts nothing against the budget. The answer is `ok` or a fixed sentence; it never echoes a key or a provider message. Rate limited per workspace.', risk: 'read', access: { action: 'settings.write' }, rateLimited: true, responses: { '200': { description: 'The outcome.', schema: z.object({ ok: z.boolean(), message: z.string(), provider: z.enum(translationProviders).optional(), reason: z.string().optional() }) } } },
+  { id: 'triageReview', method: 'patch', path: `${W}/apps/{id}/reviews/{reviewId}`, tags: ['reviews'], summary: 'Set the triage status, assignee or internal note of a review', description: 'Internal only: it changes this server’s database and nothing in a store (replying is `sendReviewReply`, a separate right). Audited without the note or the review text.', risk: 'write', access: { action: 'reviews.triage' }, appScope: { kind: 'param', name: 'id' }, body: triageReviewBody, responses: { '200': { description: 'The review.', schema: z.object({ review: reviewSchema }) } } },
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

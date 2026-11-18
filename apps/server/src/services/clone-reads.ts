@@ -33,7 +33,9 @@ type ApiClient = RepoConnector & {
 export type CloneReader = Pick<
   GitCloneReader,
   'listFiles' | 'readFile' | 'resolveCommit' | 'defaultBranch' | 'refresh' | 'warm' | 'remove'
->;
+> &
+  // Binary reads for the asset index (asset-repo.ts). A stand-in without them cannot serve it.
+  Partial<Pick<GitCloneReader, 'listBlobEntries' | 'readBlobHeads'>>;
 
 /** One read that went to the API because the clone could not be used. Never carries a message. */
 export type ReadFallback = {

@@ -191,3 +191,100 @@ export async function reviewsSummary(
   }
   return { stored, storeWide: await latestStoreWide(sql, workspaceId, appId), byStatus };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Workspace-wide (the reviews inbox of every app)
+
+export type WorkspaceAppCounts = {
+  app: { id: string; name: string; platform: 'ios' | 'android'; store: 'appstoreconnect' | 'googleplay' };
+  total: number;
+  /** Triage status `new`. */
+  new: number;
+  /** No developer response, and not ignored. */
+  unanswered: number;
+  /** Rating at or below the threshold, and not ignored. */
+  lowRating: number;
+  /** Mean of the stored ratings, two decimals; null with no review. */
+  average: number | null;
+  oldestAt: number | null;
+  newestAt: number | null;
+};
+
+export type WorkspaceReviewsSummary = {
+  basis: 'stored_reviews';
+  /** Where every number comes from: only the reviews this server holds, never store-wide. */
+  label: string;
+  lowRatingThreshold: number;
+  apps: WorkspaceAppCounts[];
+  totals: { total: number; new: number; unanswered: number; lowRating: number; average: number | null };
+};
+
+/**
+ * Counts per app and in total over the stored reviews, in one grouped query. No review text and no
+ * names of reviewers. `appIds` limits the apps (an API token limited to some apps); an empty list
+ * matches nothing.
+ */
+export async function workspaceReviewsSummary(
+  sql: Sql,
+  workspaceId: string,
+  options: { appIds?: readonly string[]; lowRatingThreshold: number },
+): Promise<WorkspaceReviewsSummary> {
+  const limited = options.appIds !== undefined;
+  const ids = [...(options.appIds ?? [])];
+  const emptySummary = (): WorkspaceReviewsSummary => ({
+    basis: 'stored_reviews',
+    label: 'From 0 stored reviews, not store-wide',
+    lowRatingThreshold: options.lowRatingThreshold,
+    apps: [],
+    totals: { total: 0, new: 0, unanswered: 0, lowRating: 0, average: null },
+  });
+  if (limited && ids.length === 0) return emptySummary();
+  const scope = limited ? ` AND id IN (${ids.map(() => '?').join(', ')})` : '';
+  const apps = await sql.query(
+    `SELECT id, name, platform FROM apps WHERE workspace_id = ?${scope} ORDER BY name, id`,
+    [workspaceId, ...ids],
+  );
+  const reviewScope = limited ? ` AND app_id IN (${ids.map(() => '?').join(', ')})` : '';
+  const rows = await sql.query(
+    `SELECT app_id, COUNT(*) AS total,
+            SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) AS new_count,
+            SUM(CASE WHEN developer_response IS NULL AND status <> 'ignored' THEN 1 ELSE 0 END) AS unanswered,
+            SUM(CASE WHEN rating <= ? AND status <> 'ignored' THEN 1 ELSE 0 END) AS low_rating,
+            SUM(rating) AS rating_sum, MIN(created_at) AS oldest, MAX(created_at) AS newest
+       FROM app_reviews WHERE workspace_id = ?${reviewScope} GROUP BY app_id`,
+    [options.lowRatingThreshold, workspaceId, ...ids],
+  );
+  const byApp = new Map(rows.map((r) => [String(r.app_id), r]));
+  const n = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
+  const out: WorkspaceAppCounts[] = [];
+  const totals = { total: 0, new: 0, unanswered: 0, lowRating: 0, average: null as number | null };
+  let sum = 0;
+  for (const a of apps) {
+    const r = byApp.get(String(a.id));
+    const total = n(r?.total);
+    const platform = String(a.platform) === 'android' ? 'android' : 'ios';
+    out.push({
+      app: { id: String(a.id), name: String(a.name), platform, store: platform === 'android' ? 'googleplay' : 'appstoreconnect' },
+      total,
+      new: n(r?.new_count),
+      unanswered: n(r?.unanswered),
+      lowRating: n(r?.low_rating),
+      average: total > 0 ? round2(n(r?.rating_sum) / total) : null,
+      oldestAt: r?.oldest === null || r?.oldest === undefined ? null : Number(r.oldest),
+      newestAt: r?.newest === null || r?.newest === undefined ? null : Number(r.newest),
+    });
+    totals.total += total;
+    totals.new += n(r?.new_count);
+    totals.unanswered += n(r?.unanswered);
+    totals.lowRating += n(r?.low_rating);
+    sum += n(r?.rating_sum);
+  }
+  totals.average = totals.total > 0 ? round2(sum / totals.total) : null;
+  return {
+    basis: 'stored_reviews',
+    label: `From ${totals.total} stored review${totals.total === 1 ? '' : 's'} across ${out.length} app${out.length === 1 ? '' : 's'}, not store-wide`,
+    lowRatingThreshold: options.lowRatingThreshold,
+    apps: out,
+    totals,
+  };
+}

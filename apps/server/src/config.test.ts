@@ -103,6 +103,17 @@ test('webhooks may not reach private addresses unless MRM_WEBHOOKS_ALLOW_PRIVATE
   assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_WEBHOOKS_ALLOW_PRIVATE: 'true' }), /Invalid configuration/);
 });
 
+test('the LibreTranslate address may not be private unless MRM_TRANSLATE_ALLOW_PRIVATE_URLS=true', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).translateAllowPrivateUrls, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_TRANSLATE_ALLOW_PRIVATE_URLS: '' }).translateAllowPrivateUrls, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_TRANSLATE_ALLOW_PRIVATE_URLS: 'false' }).translateAllowPrivateUrls, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_TRANSLATE_ALLOW_PRIVATE_URLS: 'true' }).translateAllowPrivateUrls, true);
+  // Only the exact opt-in counts.
+  for (const loose of ['1', 'yes', 'TRUE']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_TRANSLATE_ALLOW_PRIVATE_URLS: loose }), /Invalid configuration/, loose);
+  }
+});
+
 // ----- MRM_LOCAL_REPO_ROOTS ------------------------------------------------------------------
 
 test('MRM_LOCAL_REPO_ROOTS is blank by default: local clones are off', () => {
@@ -414,5 +425,15 @@ test('clone upkeep: bad values are rejected with the variable named', () => {
     ['MRM_CLONE_SWEEP_INTERVAL_MINUTES', 'x'],
   ] as const) {
     assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, [name]: bad }), new RegExp(name), `${name}=${bad}`);
+  }
+});
+
+test('MRM_REVIEW_REPLY_ENABLED is off by default; only true and false are accepted; blank means off', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).reviewReplyEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_REVIEW_REPLY_ENABLED: '' }).reviewReplyEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_REVIEW_REPLY_ENABLED: 'false' }).reviewReplyEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_REVIEW_REPLY_ENABLED: 'true' }).reviewReplyEnabled, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_REVIEW_REPLY_ENABLED: bad }), /MRM_REVIEW_REPLY_ENABLED/, bad);
   }
 });

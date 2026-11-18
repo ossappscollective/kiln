@@ -122,49 +122,67 @@ export type ReviewFilter = {
   until?: number;
 };
 
+/** The extra filters of the workspace-wide inbox. */
+export type InboxFilter = ReviewFilter & {
+  /** Only these apps. An empty list matches nothing. */
+  appIds?: string[];
+  store?: StoreKey;
+  /** A member's user id: reviews assigned to them. */
+  assigneeUserId?: string;
+  /** Only reviews nobody is assigned to. */
+  unassigned?: boolean;
+};
+
 /** `!`, `%` and `_` escaped, so a search for "100%" finds "100%" and not everything. */
 export const escapeLike = (value: string): string => value.replace(/[!%_]/g, (c) => `!${c}`);
 
-function where(workspaceId: string, appId: string, filter: ReviewFilter): { clause: string; params: Param[] } {
-  const parts = ['workspace_id = ?', 'app_id = ?'];
-  const params: Param[] = [workspaceId, appId];
+/** `prefix` is a table alias with its dot (`r.`) or empty. */
+function conditions(filter: ReviewFilter & Partial<InboxFilter>, prefix: string): { parts: string[]; params: Param[] } {
+  const parts: string[] = [];
+  const params: Param[] = [];
+  const c = (name: string) => `${prefix}${name}`;
   if (filter.ratings && filter.ratings.length > 0) {
-    parts.push(`rating IN (${filter.ratings.map(() => '?').join(', ')})`);
+    parts.push(`${c('rating')} IN (${filter.ratings.map(() => '?').join(', ')})`);
     params.push(...filter.ratings);
   }
   if (filter.territory) {
-    parts.push('territory = ?');
+    parts.push(`${c('territory')} = ?`);
     params.push(filter.territory);
   }
   if (filter.language) {
-    parts.push('language = ?');
+    parts.push(`${c('language')} = ?`);
     params.push(filter.language);
   }
   if (filter.version) {
-    parts.push('app_version = ?');
+    parts.push(`${c('app_version')} = ?`);
     params.push(filter.version);
   }
   if (filter.statuses && filter.statuses.length > 0) {
-    parts.push(`status IN (${filter.statuses.map(() => '?').join(', ')})`);
+    parts.push(`${c('status')} IN (${filter.statuses.map(() => '?').join(', ')})`);
     params.push(...filter.statuses);
   }
   if (filter.hasResponse !== undefined) {
-    parts.push(filter.hasResponse ? 'developer_response IS NOT NULL' : 'developer_response IS NULL');
+    parts.push(filter.hasResponse ? `${c('developer_response')} IS NOT NULL` : `${c('developer_response')} IS NULL`);
   }
   if (filter.q) {
     const like = `%${escapeLike(filter.q.toLowerCase())}%`;
-    parts.push("(LOWER(COALESCE(title, '')) LIKE ? ESCAPE '!' OR LOWER(body) LIKE ? ESCAPE '!')");
+    parts.push(`(LOWER(COALESCE(${c('title')}, '')) LIKE ? ESCAPE '!' OR LOWER(${c('body')}) LIKE ? ESCAPE '!')`);
     params.push(like, like);
   }
   if (filter.since !== undefined) {
-    parts.push('created_at >= ?');
+    parts.push(`${c('created_at')} >= ?`);
     params.push(filter.since);
   }
   if (filter.until !== undefined) {
-    parts.push('created_at < ?');
+    parts.push(`${c('created_at')} < ?`);
     params.push(filter.until);
   }
-  return { clause: parts.join(' AND '), params };
+  return { parts, params };
+}
+
+function where(workspaceId: string, appId: string, filter: ReviewFilter): { clause: string; params: Param[] } {
+  const found = conditions(filter, '');
+  return { clause: ['workspace_id = ?', 'app_id = ?', ...found.parts].join(' AND '), params: [workspaceId, appId, ...found.params] };
 }
 
 type Cursor = { s: ReviewSort; v: number[]; id: string };
@@ -191,19 +209,24 @@ export function decodeCursor(raw: string, sort: ReviewSort): Cursor | undefined 
   }
 }
 
-const ORDER: Record<ReviewSort, string> = {
-  newest: 'created_at DESC, id DESC',
-  updated: 'updated_at DESC, id DESC',
-  // Lowest first: the reviews that need looking at, newest of each rating first.
-  rating: 'rating ASC, created_at DESC, id DESC',
-};
+const orderFor = (sort: ReviewSort, p: string): string =>
+  sort === 'newest'
+    ? `${p}created_at DESC, ${p}id DESC`
+    : sort === 'updated'
+      ? `${p}updated_at DESC, ${p}id DESC`
+      : // Lowest first: the reviews that need looking at, newest of each rating first.
+        `${p}rating ASC, ${p}created_at DESC, ${p}id DESC`;
 
-function after(sort: ReviewSort, c: Cursor): { clause: string; params: Param[] } {
+function after(sort: ReviewSort, c: Cursor, p = ''): { clause: string; params: Param[] } {
   const [a = 0, b = 0] = c.v;
-  if (sort === 'newest') return { clause: '(created_at < ? OR (created_at = ? AND id < ?))', params: [a, a, c.id] };
-  if (sort === 'updated') return { clause: '(updated_at < ? OR (updated_at = ? AND id < ?))', params: [a, a, c.id] };
+  if (sort === 'newest') {
+    return { clause: `(${p}created_at < ? OR (${p}created_at = ? AND ${p}id < ?))`, params: [a, a, c.id] };
+  }
+  if (sort === 'updated') {
+    return { clause: `(${p}updated_at < ? OR (${p}updated_at = ? AND ${p}id < ?))`, params: [a, a, c.id] };
+  }
   return {
-    clause: '(rating > ? OR (rating = ? AND (created_at < ? OR (created_at = ? AND id < ?))))',
+    clause: `(${p}rating > ? OR (${p}rating = ? AND (${p}created_at < ? OR (${p}created_at = ? AND ${p}id < ?))))`,
     params: [a, a, b, b, c.id],
   };
 }
@@ -231,11 +254,80 @@ export async function listReviews(
     params.push(...more.params);
   }
   const rows = await sql.query(
-    `SELECT ${REVIEW_COLUMNS} FROM app_reviews WHERE ${clause} ORDER BY ${ORDER[sort]} LIMIT ?`,
+    `SELECT ${REVIEW_COLUMNS} FROM app_reviews WHERE ${clause} ORDER BY ${orderFor(sort, '')} LIMIT ?`,
     [...params, limit + 1],
   );
   const page = rows.slice(0, limit).map(toReview);
   const last = page[page.length - 1];
+  return { reviews: page, nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null };
+}
+
+/** One review of the workspace-wide inbox: the review and the app it belongs to. */
+export type InboxReview = Review & { app: { id: string; name: string; platform: Platform } };
+
+export type InboxPage = { reviews: InboxReview[]; nextCursor: string | null };
+
+/**
+ * The reviews of every app of the workspace (or of `filter.appIds`), newest first by default.
+ * Efficient on the workspace-first indexes of migration 21: the page is an index range scan in
+ * the sort order with `LIMIT`; the app's name comes from one extra query for the apps on the
+ * page. A review whose app no longer exists is not listed. `invalid_cursor` as in `listReviews`.
+ */
+export async function listWorkspaceReviews(
+  sql: Sql,
+  workspaceId: string,
+  filter: InboxFilter,
+  options: { sort?: ReviewSort; cursor?: string; limit?: number } = {},
+): Promise<InboxPage | { error: 'invalid_cursor' }> {
+  const sort = options.sort ?? 'newest';
+  const limit = Math.min(Math.max(Math.trunc(options.limit ?? DEFAULT_REVIEWS_PAGE), 1), MAX_REVIEWS_PAGE);
+  if (filter.appIds && filter.appIds.length === 0) return { reviews: [], nextCursor: null };
+  const found = conditions(filter, 'r.');
+  const parts = ['r.workspace_id = ?', ...found.parts];
+  const params: Param[] = [workspaceId, ...found.params];
+  if (filter.appIds) {
+    parts.push(`r.app_id IN (${filter.appIds.map(() => '?').join(', ')})`);
+    params.push(...filter.appIds);
+  }
+  if (filter.store) {
+    parts.push('r.store = ?');
+    params.push(filter.store);
+  }
+  if (filter.assigneeUserId) {
+    parts.push('r.assignee_user_id = ?');
+    params.push(filter.assigneeUserId);
+  }
+  if (filter.unassigned) parts.push('r.assignee_user_id IS NULL');
+  parts.push('EXISTS (SELECT 1 FROM apps a WHERE a.id = r.app_id AND a.workspace_id = r.workspace_id)');
+  if (options.cursor) {
+    const cursor = decodeCursor(options.cursor, sort);
+    if (!cursor) return { error: 'invalid_cursor' };
+    const more = after(sort, cursor, 'r.');
+    parts.push(more.clause);
+    params.push(...more.params);
+  }
+  const columns = REVIEW_COLUMNS.split(',')
+    .map((c) => `r.${c.trim()}`)
+    .join(', ');
+  const rows = await sql.query(
+    `SELECT ${columns} FROM app_reviews r WHERE ${parts.join(' AND ')} ORDER BY ${orderFor(sort, 'r.')} LIMIT ?`,
+    [...params, limit + 1],
+  );
+  const reviews = rows.slice(0, limit).map(toReview);
+  const appIds = [...new Set(reviews.map((r) => r.appId))];
+  const apps = new Map<string, { id: string; name: string; platform: Platform }>();
+  if (appIds.length > 0) {
+    const appRows = await sql.query(
+      `SELECT id, name, platform FROM apps WHERE workspace_id = ? AND id IN (${appIds.map(() => '?').join(', ')})`,
+      [workspaceId, ...appIds],
+    );
+    for (const a of appRows) apps.set(String(a.id), { id: String(a.id), name: String(a.name), platform: String(a.platform) as Platform });
+  }
+  const page = reviews.map((r) => ({
+    ...r,
+    app: apps.get(r.appId) ?? { id: r.appId, name: '', platform: r.platform },
+  }));
+  const last = reviews[reviews.length - 1];
   return { reviews: page, nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null };
 }
 
@@ -318,7 +410,8 @@ export async function triageReview(
 
 /** Removes every row about an app's reviews. Called in the transaction that deletes the app. */
 export async function deleteReviewData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
-  for (const table of ['app_reviews', 'review_sync_state', 'app_rating_summaries']) {
+  // The reply drafts first (they point at reviews); the foreign key would cascade anyway.
+  for (const table of ['review_translations', 'review_reply_drafts', 'app_reviews', 'review_sync_state', 'app_rating_summaries']) {
     await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
   }
 }
@@ -326,7 +419,7 @@ export async function deleteReviewData(sql: Sql, workspaceId: string, appId: str
 /** Rows of deleted apps, left behind by anything other than `deleteApp`. Bounded. */
 export async function purgeOrphanReviewRows(sql: Sql, limit = 1000): Promise<number> {
   let removed = 0;
-  for (const table of ['app_reviews', 'app_rating_summaries']) {
+  for (const table of ['review_reply_drafts', 'app_reviews', 'app_rating_summaries']) {
     removed += await sql.execute(
       `DELETE FROM ${table} WHERE id IN (
          SELECT x.id FROM ${table} x WHERE NOT EXISTS (SELECT 1 FROM apps a WHERE a.id = x.app_id) LIMIT ?)`,
@@ -344,9 +437,17 @@ export async function purgeOrphanReviewRows(sql: Sql, limit = 1000): Promise<num
  * deleted, at most `maxRows` at a time. Returns how many. `olderThan` is epoch milliseconds.
  */
 export async function pruneReviews(sql: Sql, olderThan: number, maxRows = 1000): Promise<number> {
+  const limit = Math.max(1, Math.trunc(maxRows));
+  // The drafts of the reviews that go (the foreign key cascades too; this does not depend on it).
+  await sql.execute(
+    `DELETE FROM review_reply_drafts WHERE review_id IN (
+       SELECT id FROM app_reviews WHERE id IN (
+         SELECT id FROM app_reviews WHERE created_at < ? ORDER BY created_at LIMIT ?))`,
+    [olderThan, limit],
+  );
   return sql.execute(
     `DELETE FROM app_reviews WHERE id IN (
        SELECT id FROM app_reviews WHERE created_at < ? ORDER BY created_at LIMIT ?)`,
-    [olderThan, Math.max(1, Math.trunc(maxRows))],
+    [olderThan, limit],
   );
 }

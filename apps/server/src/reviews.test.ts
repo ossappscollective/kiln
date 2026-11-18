@@ -185,14 +185,25 @@ dbTest('rights: everyone reads, members sync and triage, viewers do neither, non
   t.noLeaks();
 });
 
-dbTest('there is no way to reply: no such route exists', async (db) => {
+dbTest('replying is off by default: the reply routes answer 409 reply_disabled and no store is called', async (db) => {
   const t = await boot(db);
   const id = await t.addIos();
   t.stores.ios.reviews = [review(1)];
   await t.call(t.owner, 'POST', path(id, '/sync'));
   const rid = (await t.call(t.owner, 'GET', path(id))).body.reviews[0].id as string;
+  const calls = t.built.length;
+  for (const [method, p, body] of [
+    ['PUT', path(id, `/${rid}/reply-draft`), { text: 'Thanks' }],
+    ['POST', path(id, `/${rid}/reply`), { confirmHash: 'a'.repeat(64) }],
+    ['DELETE', path(id, `/${rid}/reply-draft`)],
+  ] as const) {
+    const res = await t.call(t.owner, method, p, body);
+    assert.equal(res.status, 409, `${method} ${p}`);
+    assert.equal(res.body.error, 'reply_disabled');
+    assert.match(res.body.message, /MRM_REVIEW_REPLY_ENABLED/);
+  }
+  // Routes that do not exist stay 404 or 405.
   for (const [method, p] of [
-    ['POST', path(id, `/${rid}/reply`)],
     ['PUT', path(id, `/${rid}/response`)],
     ['POST', path(id, `/${rid}/respond`)],
     ['DELETE', path(id, `/${rid}`)],
@@ -200,7 +211,8 @@ dbTest('there is no way to reply: no such route exists', async (db) => {
     const res = await t.call(t.owner, method, p, { body: 'hello' });
     assert.ok(res.status === 404 || res.status === 405, `${method} ${p} gave ${res.status}`);
   }
-  // The connector interface has no write method either.
+  assert.equal(t.built.length, calls, 'no connector was built');
+  // The sync connector has no write method: the writing one is a separate interface.
   assert.deepEqual(Object.getOwnPropertyNames(FakeReviews.prototype).sort(), ['constructor', 'listReviews']);
 });
 

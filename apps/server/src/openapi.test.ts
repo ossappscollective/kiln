@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { can, roles } from '@mrm/core';
+import { can, roles, tokenExplicitOnlyActions} from '@mrm/core';
 import { dbTest } from '@mrm/db/testing';
 import { z } from 'zod';
 import { bootRepoApp } from './repo-test-helpers.ts';
@@ -236,7 +236,19 @@ dbTest('an admin token reaches exactly the operations the registry offers to tok
       ...(op.method === 'get' || op.method === 'delete' ? {} : { body: '{}' }),
     });
     const text = await res.text();
-    if (tokenAllowedFor(op)) {
+    if (typeof op.access === 'object' && tokenExplicitOnlyActions.includes(op.access.action)) {
+      // Publishes to a store: a token with no list of actions never gets it, only one that names it.
+      assert.equal(res.status, 403, `${op.id} needs the action named in the token`);
+      assert.match(text, /does not allow/, op.id);
+      const named = await t.call(t.owner, 'POST', '/tokens', { name: 'Names it', role: 'admin', actions: [op.access.action] });
+      const again = await t.app.request(filled(op.path), {
+        method: op.method.toUpperCase(),
+        headers: { authorization: `Bearer ${named.body.token}`, 'content-type': 'application/json' },
+        ...(op.method === 'get' || op.method === 'delete' ? {} : { body: '{}' }),
+      });
+      await again.body?.cancel();
+      assert.notEqual(again.status, 403, `${op.id} is open to a token that names ${op.access.action}`);
+    } else if (tokenAllowedFor(op)) {
       assert.notEqual(res.status, 403, `${op.id} should be open to a token: ${text}`);
       assert.notEqual(res.status, 401, `${op.id} accepts the token`);
     } else if (op.path.startsWith('/api/workspaces/')) {

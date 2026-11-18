@@ -59,6 +59,13 @@ const schema = z.object({
   // to public addresses only, so a webhook cannot be aimed at the server's own network. Link-local
   // addresses, which hold the cloud metadata service, are refused either way.
   MRM_WEBHOOKS_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),
+  // 'true' lets the LibreTranslate address of a workspace (a workspace setting an admin can change)
+  // point at loopback and private-network addresses, and at http://localhost: self-hosted instances
+  // are often on a LAN. Off by default: the address must then be https to a public host, so an admin
+  // cannot aim review translation at this server's own network. Link-local addresses (cloud
+  // metadata, 169.254.169.254, fd00:ec2::254) are refused either way. Turn it on only when every
+  // person who can change workspace settings is trusted with your network. See docs/deployment.md.
+  MRM_TRANSLATE_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Where scans and listings read the repository. 'auto' (default) uses a local git clone and
   // falls back to the GitHub API for a request when the clone cannot be used. 'clone' never falls
   // back. 'api' is the GitHub REST API only. See docs/adr/0005-local-clone-reads.md.
@@ -146,6 +153,11 @@ const schema = z.object({
       .refine((v) => v >= 0 && v <= 3650, 'must be 0 (keep) or from 1 to 3650')
       .default(365),
   ),
+  // Kill switch for replying to customer reviews (docs/adr/0007-review-replies.md). A reply is
+  // published publicly in the App Store or Google Play in the organisation's name, so it is off by
+  // default: every reply route answers 409 reply_disabled until this is 'true'. Reading and
+  // triaging reviews do not depend on it.
+  MRM_REVIEW_REPLY_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Minutes between scheduled reads of the store listing of every app (texts, categories, age
   // rating, screenshot counts). 0 (the default) turns them off; otherwise 30 to 10080 (a week). A
   // listing read is many requests, so the floor is higher than the sync's. They use the stored
@@ -397,6 +409,8 @@ export type Config = {
   trustProxy: boolean;
   /** Webhooks may reach private addresses and http://localhost. See MRM_WEBHOOKS_ALLOW_PRIVATE. */
   webhooksAllowPrivate: boolean;
+  /** The LibreTranslate address may be private or loopback. See MRM_TRANSLATE_ALLOW_PRIVATE_URLS. */
+  translateAllowPrivateUrls: boolean;
   /** How scans and listings read the repository. See MRM_READS. */
   reads: 'api' | 'clone' | 'auto';
   /** Where git clones live: MRM_CLONE_DIR, default `<dataDir>/clones`. */
@@ -417,6 +431,8 @@ export type Config = {
   reviewSyncIntervalMinutes: number;
   /** Days a stored review is kept; 0 keeps them (MRM_REVIEW_RETENTION_DAYS). */
   reviewRetentionDays: number;
+  /** Replying to customer reviews in the stores is allowed (MRM_REVIEW_REPLY_ENABLED). Default false. */
+  reviewReplyEnabled: boolean;
   /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
   listingIntervalMinutes: number;
   /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
@@ -465,6 +481,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     allowedHosts,
     trustProxy: data.MRM_TRUST_PROXY === '1',
     webhooksAllowPrivate: data.MRM_WEBHOOKS_ALLOW_PRIVATE === '1',
+    translateAllowPrivateUrls: data.MRM_TRANSLATE_ALLOW_PRIVATE_URLS === 'true',
     reads: data.MRM_READS,
     cloneDir: data.MRM_CLONE_DIR ?? join(data.MRM_DATA_DIR, 'clones'),
     cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,
@@ -475,6 +492,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
     reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
     reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
+    reviewReplyEnabled: data.MRM_REVIEW_REPLY_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
     localRepoRoots,

@@ -149,17 +149,17 @@ function capRole(c: Context<AppEnv>, ceiling: Role): void {
     set(key, key === 'role' ? lowerRole(value as Role, ceiling) : value);
 }
 
-/** A token limited to some apps sees only those in the list of apps. */
+/** A token limited to some apps sees only those in the list of apps (an entry is an app or `{ app }`). */
 async function filterApps(c: Context<AppEnv>, principal: TokenPrincipal): Promise<void> {
   if (principal.appIds === null) return;
   const found = findOperation(c.req.method, c.req.path);
   if (found?.op.appScope?.kind !== 'list' || !c.res.ok) return;
-  const body = (await c.res.clone().json().catch(() => undefined)) as { apps?: { id?: string }[] } | undefined;
+  const body = (await c.res.clone().json().catch(() => undefined)) as { apps?: { id?: string; app?: { id?: string } }[] } | undefined;
   if (!body || !Array.isArray(body.apps)) return;
   const allowed = new Set(principal.appIds);
   const headers = new Headers(c.res.headers);
   headers.delete('content-length');
-  c.res = new Response(JSON.stringify({ ...body, apps: body.apps.filter((a) => allowed.has(String(a.id))) }), {
+  c.res = new Response(JSON.stringify({ ...body, apps: body.apps.filter((a) => allowed.has(String(a.id ?? a.app?.id))) }), {
     status: c.res.status,
     headers,
   });
