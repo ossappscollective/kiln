@@ -215,6 +215,18 @@ export class GithubRepoConnector implements RepoConnector {
     return this.#tokenRequest;
   }
 
+  /**
+   * A token that authenticates as this connector's credential: the personal access token, or the
+   * installation token of the GitHub App (minted on demand, scoped to this repository, cached and
+   * renewed before it expires). For code that talks to GitHub by another route than this class,
+   * such as git over https (see `GitCloneReader`). Treat it as a secret: never log it. It is
+   * already known to this connector's redaction.
+   */
+  async installationToken(signal?: AbortSignal): Promise<string> {
+    if (signal?.aborted) throw new GithubError('network', 'The request was cancelled.');
+    return this.#installationToken();
+  }
+
   async #mintToken(): Promise<string> {
     if (this.#auth.type !== 'app') throw new GithubError('auth', 'No GitHub App configured.');
     const reply = await this.#send(
@@ -814,4 +826,220 @@ export class GithubRepoConnector implements RepoConnector {
       return [out];
     });
   }
+
+  // -------------------------------------------------------------------------------------------
+  // CI reads: workflows, runs with their details, and comparing two commits. Read-only.
+
+  /** The workflows of the repository (up to 100), by path. */
+  async listWorkflows(signal?: AbortSignal): Promise<CiWorkflow[]> {
+    const reply = await this.#api('GET', this.#repoPath('/actions/workflows'), {
+      query: { per_page: '100' },
+      signal,
+    });
+    const body = isRecord(reply.json) ? reply.json : {};
+    return records(body.workflows)
+      .flatMap((w) => {
+        const id = w.id;
+        const path = text(w.path);
+        if ((typeof id !== 'number' && typeof id !== 'string') || !path) return [];
+        const out: CiWorkflow = {
+          id: String(id),
+          name: text(w.name) ?? path,
+          path,
+          state: text(w.state) ?? 'unknown',
+        };
+        const url = text(w.html_url);
+        if (url) out.url = url;
+        return [out];
+      })
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /**
+   * Like `listWorkflowRuns`, with the extra fields CI tracking needs (run title, workflow path,
+   * start time, commit message), and a cancellable request.
+   */
+  async listCiRuns(
+    options: ListWorkflowRunsOptions & { signal?: AbortSignal } = {},
+  ): Promise<CiRun[]> {
+    const path = options.workflow
+      ? this.#repoPath(`/actions/workflows/${enc(options.workflow)}/runs`)
+      : this.#repoPath('/actions/runs');
+    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 30), 1), 100);
+    const reply = await this.#api('GET', path, {
+      query: {
+        per_page: String(limit),
+        branch: options.branch,
+        event: options.event,
+        status: options.status,
+        head_sha: options.headSha,
+      },
+      signal: options.signal,
+    });
+    const body = isRecord(reply.json) ? reply.json : {};
+    return records(body.workflow_runs).flatMap((run) => {
+      const mapped = mapCiRun(run);
+      return mapped ? [mapped] : [];
+    });
+  }
+
+  /** One workflow run, or undefined when GitHub has no such run (any more). */
+  async getCiRun(runId: string, signal?: AbortSignal): Promise<CiRun | undefined> {
+    if (!/^[0-9]{1,20}$/.test(runId)) {
+      throw new GithubError('invalid_input', `Not a workflow run id: ${JSON.stringify(runId)}.`);
+    }
+    const reply = await this.#api('GET', this.#repoPath(`/actions/runs/${runId}`), {
+      allow: [404],
+      signal,
+    });
+    if (reply.status === 404 || !isRecord(reply.json)) return undefined;
+    return mapCiRun(reply.json);
+  }
+
+  /**
+   * The commits between two commits, branches or tags (what `head` has that `base` does not).
+   * `commits` are oldest first, as GitHub sends them. When there are more than `limit` (at most
+   * 100, the default), the newest `limit` are returned and `truncated` is true.
+   */
+  async compareCommits(
+    base: string,
+    head: string,
+    options: { limit?: number; signal?: AbortSignal } = {},
+  ): Promise<CommitComparison> {
+    checkBranchName(base);
+    checkBranchName(head);
+    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 100), 1), 100);
+    const path = this.#repoPath(`/compare/${encPath(base)}...${encPath(head)}`);
+    const page = async (n: number) => {
+      const reply = await this.#api('GET', path, {
+        query: { per_page: '100', page: String(n) },
+        signal: options.signal,
+      });
+      return isRecord(reply.json) ? reply.json : {};
+    };
+    const first = await page(1);
+    const total = num(first.total_commits) ?? records(first.commits).length;
+    const pages = Math.max(1, Math.ceil(total / 100));
+    let commits = records(first.commits).flatMap(mapCommit);
+    if (pages > 1) {
+      // Commits are oldest first, so the newest ones are on the last page(s).
+      const last = records((await page(pages)).commits).flatMap(mapCommit);
+      commits = last;
+      if (last.length < limit) {
+        commits = [...records((await page(pages - 1)).commits).flatMap(mapCommit), ...last];
+      }
+    }
+    if (commits.length > limit) commits = commits.slice(commits.length - limit);
+    const out: CommitComparison = {
+      status: text(first.status) ?? 'unknown',
+      aheadBy: num(first.ahead_by) ?? 0,
+      behindBy: num(first.behind_by) ?? 0,
+      totalCommits: total,
+      commits,
+      truncated: total > commits.length,
+    };
+    const url = text(first.html_url);
+    if (url) out.url = url;
+    return out;
+  }
+}
+
+/** A workflow of a repository, as `GET /actions/workflows` lists it. */
+export type CiWorkflow = {
+  id: string;
+  name: string;
+  /** For example `.github/workflows/release.yml`. */
+  path: string;
+  /** GitHub's own state: `active`, `disabled_manually`, ... */
+  state: string;
+  url?: string;
+};
+
+/** A workflow run with the fields that CI tracking and build linking use. */
+export type CiRun = WorkflowRun & {
+  /** The run title: the `run-name` of the workflow, else the commit or pull request title. */
+  displayTitle?: string;
+  /** The workflow file, for example `.github/workflows/release.yml`. */
+  path?: string;
+  workflowId?: string;
+  /** Epoch milliseconds the run (this attempt) started. */
+  startedAt?: number;
+  attempt?: number;
+  actor?: string;
+  /** The message of the commit the run is for, as GitHub reports it (can be several lines). */
+  commitMessage?: string;
+};
+
+export type CommitInfo = {
+  sha: string;
+  /** The whole commit message. */
+  message: string;
+  author?: string;
+  /** Epoch milliseconds. */
+  date?: number;
+  url?: string;
+};
+
+export type CommitComparison = {
+  /** `ahead`, `behind`, `identical` or `diverged` (GitHub's words, kept verbatim). */
+  status: string;
+  aheadBy: number;
+  behindBy: number;
+  totalCommits: number;
+  /** Oldest first. At most the requested limit: the newest ones when there are more. */
+  commits: CommitInfo[];
+  truncated: boolean;
+  url?: string;
+};
+
+const isoTime = (v: unknown): number | undefined => {
+  const parsed = Date.parse(text(v) ?? '');
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+function mapCommit(entry: Json): CommitInfo[] {
+  const sha = text(entry.sha);
+  if (!sha) return [];
+  const commit = isRecord(entry.commit) ? entry.commit : {};
+  const author = isRecord(commit.author) ? commit.author : {};
+  const out: CommitInfo = { sha, message: text(commit.message) ?? '' };
+  const name = text(author.name);
+  if (name) out.author = name;
+  const date = isoTime(author.date);
+  if (date !== undefined) out.date = date;
+  const url = text(entry.html_url);
+  if (url) out.url = url;
+  return [out];
+}
+
+function mapCiRun(run: Json): CiRun | undefined {
+  const id = run.id;
+  const url = text(run.html_url);
+  if ((typeof id !== 'number' && typeof id !== 'string') || !url) return undefined;
+  const out: CiRun = { id: String(id), status: text(run.status) ?? 'unknown', url };
+  const set = <K extends keyof CiRun>(key: K, value: CiRun[K] | undefined | null) => {
+    if (value !== undefined && value !== null) out[key] = value;
+  };
+  const workflowId = run.workflow_id;
+  const head = isRecord(run.head_commit) ? run.head_commit : {};
+  const actor = isRecord(run.actor) ? run.actor : {};
+  set('name', text(run.name));
+  set('conclusion', text(run.conclusion));
+  set('branch', text(run.head_branch));
+  set('headSha', text(run.head_sha));
+  set('event', text(run.event));
+  set('runNumber', num(run.run_number));
+  set('createdAt', isoTime(run.created_at));
+  set('updatedAt', isoTime(run.updated_at));
+  set('displayTitle', text(run.display_title));
+  set('path', text(run.path));
+  set(
+    'workflowId',
+    typeof workflowId === 'number' || typeof workflowId === 'string' ? String(workflowId) : undefined,
+  );
+  set('startedAt', isoTime(run.run_started_at));
+  set('attempt', num(run.run_attempt));
+  set('actor', text(actor.login));
+  set('commitMessage', text(head.message));
+  return out;
 }

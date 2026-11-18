@@ -210,6 +210,28 @@ test('the installation token is scoped to the repository, used for calls, and ca
   assert.equal(fake.mints, 1);
 });
 
+test('installationToken() hands out the cached token, mints once, and honours an aborted signal', async () => {
+  const fake = new Fake();
+  withDefaultBranch(fake);
+  const connector = make(fake);
+  const [a, b] = await Promise.all([connector.installationToken(), connector.installationToken()]);
+  assert.equal(a, TOKEN);
+  assert.equal(b, TOKEN);
+  assert.equal(fake.mints, 1);
+  // The same token the API calls use: no second mint.
+  await connector.defaultBranch();
+  assert.equal(await connector.installationToken(), TOKEN);
+  assert.equal(fake.mints, 1);
+  const stopped = new AbortController();
+  stopped.abort();
+  await rejects(connector.installationToken(stopped.signal), (e) => assert.equal(e.kind, 'network'));
+  // A personal access token is returned as it is, with no request.
+  const pat = new Fake();
+  const withPat = make(pat, { auth: { type: 'token', token: 'ghp_personal_token_value' } });
+  assert.equal(await withPat.installationToken(), 'ghp_personal_token_value');
+  assert.equal(pat.calls.length, 0);
+});
+
 test('the token is renewed a minute before it expires, once for concurrent calls', async () => {
   const fake = new Fake();
   withDefaultBranch(fake);
