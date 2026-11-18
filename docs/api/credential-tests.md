@@ -25,6 +25,10 @@ The secret is decrypted for the call. The result is remembered on the credential
 (`at` in epoch milliseconds), or `null` when never tested. Rotating the secret clears it.
 An unknown id, or one in another workspace, is `404`.
 
+The result is recorded only on the exact secret that was tested. If the secret is rotated (or
+the credential deleted) while the test is still running, the response carries `"superseded": true`
+and nothing is stored: the answer is about the old secret and must not appear next to the new one.
+
 ## Response (both routes)
 
 `200`, always, when the test ran, whether or not it passed:

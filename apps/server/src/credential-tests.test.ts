@@ -422,3 +422,53 @@ test('the tester bounds the size of what a verifier returns', async () => {
   assert.equal(out.details?.length, 20);
   assert.equal(out.details?.[0]?.length, 300);
 });
+
+dbTest('a test that finishes after the secret was rotated is not attached to the new secret', async (db) => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let started: () => void = () => {};
+  const running = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const slowPass: Verifier = async () => {
+    started();
+    await gate;
+    return { ok: true, message: 'Connected as the OLD token.' };
+  };
+  const v = fakeVerifiers({ github_token: slowPass });
+  const b = await boot(db, { credentialTests: { verifiers: v.lookup } });
+  const id = await save(b, 'github_token', TOKEN);
+
+  const pending = b.app.request(`${b.base}/credentials/${id}/test`, post(b.cookie));
+  await running; // the verifier holds the old secret
+  const rotated = await b.app.request(
+    `${b.base}/credentials/${id}`,
+    { method: 'PUT', headers: { 'content-type': 'application/json', cookie: b.cookie }, body: JSON.stringify({ secret: 'ghp_ROTATEDTOKEN1234567890abcdef' }) },
+  );
+  assert.equal(rotated.status, 204);
+  release();
+
+  const answer = (await (await pending).json()) as { ok: boolean; superseded?: boolean };
+  assert.equal(answer.ok, true);
+  assert.equal(answer.superseded, true);
+
+  const list = (await (await b.app.request(`${b.base}/credentials`, { headers: { cookie: b.cookie } })).json()) as {
+    credentials: { id: string; lastTest: unknown }[];
+  };
+  assert.equal(list.credentials.find((c) => c.id === id)?.lastTest, null, 'nothing remembered for the new secret');
+  assert.equal((await auditOf(b, 'credential.test')).length, 0);
+});
+
+test('the limiter never clears everything when it is full: busy keys keep their count', () => {
+  const limiter = createTestLimiter({ limit: 1, maxKeys: 5 });
+  assert.equal(limiter.take('busy'), 0);
+  assert.ok(limiter.take('busy') > 0);
+  // Other workspaces arrive; 'busy' is the oldest, so it may go once the map is full, but a flood
+  // of keys never resets the ones that are newer than the oldest.
+  for (const k of ['a', 'b', 'c']) assert.equal(limiter.take(k), 0);
+  assert.equal(limiter.take('d'), 0); // full: evicts one, not all
+  assert.ok(limiter.take('c') > 0, 'a recent key kept its count');
+  assert.ok(limiter.take('d') > 0);
+});

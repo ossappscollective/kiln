@@ -182,11 +182,22 @@ export async function credentialExists(
 /** What a saved credential's test needs: its kind, and its secret decrypted (audited as a use). */
 export type CredentialForTest =
   | { found: false }
-  | { found: true; kind: string; secret: string | undefined };
+  | {
+      found: true;
+      kind: string;
+      secret: string | undefined;
+      /**
+       * Names the exact secret that was read (its stored ciphertext, which changes on every
+       * rotation). Hand it back to `recordCredentialTest` so a result is only written to the
+       * secret it was measured on.
+       */
+      version: string;
+    };
 
 /**
  * Decrypts a saved credential for a connection test. The secret is undefined when it cannot be
  * decrypted (wrong master key, or a row that was moved). Reading it is audited as `credential.use`.
+ * The kind, the ciphertext and the secret all come from one read, so they belong together.
  */
 export async function loadCredentialForTest(
   db: Database,
@@ -195,18 +206,27 @@ export async function loadCredentialForTest(
   actor: Actor,
   now: number,
 ): Promise<CredentialForTest> {
-  const [row] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
-    input.id,
-    input.workspaceId,
-  ]);
+  const [row] = await db.query(
+    'SELECT kind, ciphertext FROM credentials WHERE id = ? AND workspace_id = ?',
+    [input.id, input.workspaceId],
+  );
   if (!row) return { found: false };
+  const version = String(row.ciphertext);
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(db, key, { ...input, purpose: 'connection test' }, actor, now);
+    secret = decryptSecret(version, key, credentialAad(input.workspaceId, input.id));
+    await recordAudit(db, {
+      workspaceId: input.workspaceId,
+      actor,
+      action: 'credential.use',
+      target: { type: 'credential', id: input.id },
+      detail: { purpose: 'connection test' },
+      at: now,
+    });
   } catch {
     secret = undefined;
   }
-  return { found: true, kind: String(row.kind), secret };
+  return { found: true, kind: String(row.kind), secret, version };
 }
 
 const MAX_TEST_MESSAGE = 500;
@@ -214,18 +234,29 @@ const MAX_TEST_MESSAGE = 500;
 /**
  * Remembers the outcome of a connection test on the credential and audits it. The message is
  * stored for display next to the credential; the audit event carries only whether it passed.
+ *
+ * `version` is what `loadCredentialForTest` returned when the test began. If the secret was
+ * rotated (or the credential deleted) while the test ran, nothing is written and this returns
+ * false: a result about the old secret must not show up next to the new one.
  */
 export async function recordCredentialTest(
   db: Database,
-  input: { workspaceId: string; id: string; ok: boolean; message: string },
+  input: { workspaceId: string; id: string; ok: boolean; message: string; version?: string },
   actor: Actor,
   now: number,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
     const changed = await tx.execute(
       `UPDATE credentials SET last_test_at = ?, last_test_ok = ?, last_test_message = ?
-        WHERE id = ? AND workspace_id = ?`,
-      [now, input.ok ? 1 : 0, input.message.slice(0, MAX_TEST_MESSAGE), input.id, input.workspaceId],
+        WHERE id = ? AND workspace_id = ?${input.version === undefined ? '' : ' AND ciphertext = ?'}`,
+      [
+        now,
+        input.ok ? 1 : 0,
+        input.message.slice(0, MAX_TEST_MESSAGE),
+        input.id,
+        input.workspaceId,
+        ...(input.version === undefined ? [] : [input.version]),
+      ],
     );
     if (changed === 0) return false;
     await recordAudit(tx, {

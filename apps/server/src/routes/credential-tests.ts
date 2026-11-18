@@ -104,13 +104,15 @@ export function credentialTestRoutes(services: Services, deps: CredentialTestDep
             message: 'The stored secret could not be decrypted. Enter it again to replace it.',
           }
         : await test(loaded.kind, loaded.secret);
-    await recordCredentialTest(
+    const recorded = await recordCredentialTest(
       db,
-      { workspaceId: ws(c), id, ok: outcome.ok, message: outcome.message },
+      { workspaceId: ws(c), id, ok: outcome.ok, message: outcome.message, version: loaded.version },
       actor(c),
       now(),
     );
-    return answer(c, outcome);
+    // The secret was replaced (or the credential deleted) while the test ran: the answer is about
+    // the old secret, so it is shown once but not remembered.
+    return recorded ? answer(c, outcome) : c.json({ ...outcome, superseded: true });
   });
 
   return app;

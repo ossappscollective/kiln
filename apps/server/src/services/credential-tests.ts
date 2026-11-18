@@ -118,10 +118,11 @@ export type TestLimiter = {
 };
 
 export function createTestLimiter(
-  options: { limit?: number; windowMs?: number; now?: () => number } = {},
+  options: { limit?: number; windowMs?: number; maxKeys?: number; now?: () => number } = {},
 ): TestLimiter {
   const limit = options.limit ?? 10;
   const windowMs = options.windowMs ?? 60_000;
+  const maxKeys = options.maxKeys ?? 10_000;
   const now = options.now ?? Date.now;
   const taken = new Map<string, number[]>();
   return {
@@ -132,7 +133,18 @@ export function createTestLimiter(
         taken.set(key, recent);
         return Math.max(1, Math.ceil(((recent[0] ?? at) + windowMs - at) / 1000));
       }
-      if (taken.size > 10_000) taken.clear();
+      if (taken.size >= maxKeys) {
+        // Never wipe the whole map (that would hand every workspace a fresh allowance): drop
+        // keys with nothing in the window first, then the oldest key.
+        for (const [k, times] of taken) {
+          if (times.every((t) => at - t >= windowMs)) taken.delete(k);
+        }
+        while (taken.size >= maxKeys) {
+          const oldest = taken.keys().next().value;
+          if (oldest === undefined) break;
+          taken.delete(oldest);
+        }
+      }
       recent.push(at);
       taken.set(key, recent);
       return 0;
