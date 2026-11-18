@@ -182,6 +182,10 @@ export const changeSets = pgTable(
     approvedBy: text('approved_by'),
     approvedAt: epochMs('approved_at'),
     appliedAt: epochMs('applied_at'),
+    /** What a local commit did (commit, push, pull request) as JSON; null for the GitHub API apply. */
+    outcomeJson: text('outcome_json'),
+    /** Set while a push or pull request of a local commit is being made. */
+    publishClaimAt: epochMs('publish_claim_at'),
   },
   (t) => [
     index('change_sets_workspace_idx').on(t.workspaceId, t.createdAt),

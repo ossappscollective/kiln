@@ -170,6 +170,10 @@ export const changeSets = sqliteTable(
     approvedBy: text('approved_by'),
     approvedAt: integer('approved_at'),
     appliedAt: integer('applied_at'),
+    /** What a local commit did (commit, push, pull request) as JSON; null for the GitHub API apply. */
+    outcomeJson: text('outcome_json'),
+    /** Set while a push or pull request of a local commit is being made. */
+    publishClaimAt: integer('publish_claim_at'),
   },
   (t) => [
     index('change_sets_workspace_idx').on(t.workspaceId, t.createdAt),

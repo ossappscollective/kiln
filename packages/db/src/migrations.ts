@@ -619,4 +619,22 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 14,
+    name: 'change set outcomes of local commits: outcome_json and publish_claim_at',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // change_sets.outcome_json: what applying as a commit on a new branch of a local clone did,
+      // step by step (the commit, the optional push, the optional pull request), as JSON with no
+      // secret and no path (docs/adr/0005-local-clone-reads.md). NULL for a change set applied
+      // through the GitHub API, whose result is in branch, pr_url, pr_number and commit_sha.
+      // publish_claim_at: epoch milliseconds while a push or a pull request is being made for an
+      // applied local commit, so two requests cannot publish at once; NULL otherwise. A claim
+      // older than ten minutes is taken to be abandoned.
+      return [
+        'ALTER TABLE change_sets ADD COLUMN outcome_json TEXT',
+        `ALTER TABLE change_sets ADD COLUMN publish_claim_at ${t}`,
+      ];
+    },
+  },
 ];
