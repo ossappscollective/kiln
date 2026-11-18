@@ -3,7 +3,7 @@
   Props: api, workspaceId, appId, appName, role, review, members (for the assignee), canTriage,
   lowThreshold, now (ms), replyConfig (the server's reply settings, or null while unknown: the reply
   row is hidden until it is known), onchange (called with the updated review after a triage change
-  or a reply change), translation, ontranslate and showTranslations (optional: a translation kept by the
+  or a reply change), full (the detail view: the whole review and response, never cut), translation, ontranslate and showTranslations (optional: a translation kept by the
   Reviews tab, told when one is made here, and the list-wide show or hide). Exports `markTriaged()` and `openReply()` for the keyboard shortcuts of the inbox.
 
   The review text, title and display name are written by customers: they are text nodes only (never
@@ -60,6 +60,7 @@
     translation = undefined,
     ontranslate = undefined,
     showTranslations = true,
+    full = false,
     onchange,
   }: {
     api: Api;
@@ -76,6 +77,7 @@
     translation?: ReviewTranslationResult | undefined;
     ontranslate?: ((t: ReviewTranslationResult) => void) | undefined;
     showTranslations?: boolean;
+    full?: boolean;
     onchange: (updated: Review) => void;
   } = $props();
 
@@ -94,8 +96,10 @@
   let problem = $state('');
   let replyOpen = $state(false);
 
-  const text = $derived(collapseText(review.body));
-  const response = $derived(review.developerResponse ? collapseText(review.developerResponse.body) : null);
+  const text = $derived(collapseText(review.body, full ? Number.MAX_SAFE_INTEGER : undefined));
+  const response = $derived(
+    review.developerResponse ? collapseText(review.developerResponse.body, full ? Number.MAX_SAFE_INTEGER : undefined) : null,
+  );
   const facts = $derived(reviewFacts(review));
   const low = $derived(isLowRating(review.rating, lowThreshold));
   const edited = $derived(review.updatedAt > review.createdAt + 60_000);

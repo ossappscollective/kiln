@@ -10,6 +10,9 @@
   reviews in the list that need it to the workspace's translation provider, 25 at a time, one request
   after the other, and stops at the first failure.
 
+  On wide screens (lib/review-split.ts) the list is a dense list with the selected review in full beside it
+  (ReviewSplit; the selection is kept in the address as `?review=<id>`); narrow screens keep the cards.
+
   Review text is written by customers and is shown as plain text only. It never goes into a URL.
 -->
 <script lang="ts">
@@ -49,6 +52,7 @@
   } from '../../lib/review-translation.ts';
   import { isLowOnly, mergeTranslations, pendingTranslationBatches, ratingsWithLowOnly, translateAllLabel } from '../../lib/reviews-tab.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
+  import { splitView } from '../../lib/split-view.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -61,6 +65,7 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import RatingOverview from './RatingOverview.svelte';
   import ReviewCard from './ReviewCard.svelte';
+  import ReviewSplit from './ReviewSplit.svelte';
 
   let {
     api,
@@ -285,6 +290,11 @@
     }
   }
 
+  /** The next page of the list (the button, and the keyboard of the list and detail view). */
+  function loadMore() {
+    if (!moreLoading && nextCursor !== null) void loadList(false);
+  }
+
   function updated(next: Review) {
     reviews = replaceReview(reviews, next);
     // The counts by status moved: refresh them without touching the list.
@@ -493,33 +503,57 @@
             </EmptyState>
           </div>
         {:else}
-          <ul class="cards">
-            {#each reviews as review (review.id)}
-              <li>
-                <ReviewCard
-                  {api}
-                  {workspaceId}
-                  appId={app.id}
-                  appName={app.name}
-                  {role}
-                  {replyConfig}
-                  {review}
-                  {members}
-                  {canTriage}
-                  lowThreshold={summary.lowRatingThreshold}
-                  {now}
-                  translation={translations[review.id]}
-                  ontranslate={(t) => (translations = mergeTranslations(translations, [t]))}
-                  {showTranslations}
-                  onchange={updated}
-                />
-              </li>
-            {/each}
-          </ul>
-          {#if nextCursor}
-            <div class="more"><Button loading={moreLoading} onclick={() => void loadList(false)}>Show more reviews</Button></div>
+          {#if splitView.wide}
+            <ReviewSplit
+              {api}
+              {workspaceId}
+              {role}
+              {reviews}
+              appName={app.name}
+              {members}
+              {canTriage}
+              {replyConfig}
+              lowThreshold={summary.lowRatingThreshold}
+              {now}
+              {translations}
+              ontranslate={(t) => (translations = mergeTranslations(translations, [t]))}
+              {showTranslations}
+              settled={!listLoading}
+              hasMore={nextCursor !== null}
+              {moreLoading}
+              onmore={loadMore}
+              onsearch={() => document.getElementById(`${uid}-q`)?.focus()}
+              onchange={updated}
+            />
           {:else}
-            <p class="muted small">That is every review that matches.</p>
+            <ul class="cards">
+              {#each reviews as review (review.id)}
+                <li>
+                  <ReviewCard
+                    {api}
+                    {workspaceId}
+                    appId={app.id}
+                    appName={app.name}
+                    {role}
+                    {replyConfig}
+                    {review}
+                    {members}
+                    {canTriage}
+                    lowThreshold={summary.lowRatingThreshold}
+                    {now}
+                    translation={translations[review.id]}
+                    ontranslate={(t) => (translations = mergeTranslations(translations, [t]))}
+                    {showTranslations}
+                    onchange={updated}
+                  />
+                </li>
+              {/each}
+            </ul>
+            {#if nextCursor}
+              <div class="more"><Button loading={moreLoading} onclick={() => void loadList(false)}>Show more reviews</Button></div>
+            {:else}
+              <p class="muted small">That is every review that matches.</p>
+            {/if}
           {/if}
         {/if}
       </div>

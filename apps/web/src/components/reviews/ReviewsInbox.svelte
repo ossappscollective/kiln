@@ -10,6 +10,10 @@
   survives a reload. Keyboard: j and k move between reviews, t marks the review triaged, r opens its
   reply, / goes to the search box. Shortcuts never fire while typing or while a dialog is open.
 
+  On wide screens (lib/review-split.ts) the reviews are a dense list with the selected review in full beside
+  it (ReviewSplit); the selected review is kept in the address as `?review=<id>`. Narrow screens keep the cards
+  and the keyboard above.
+
   Review text is written by customers: plain text only, never markup, never in a URL.
 -->
 <script lang="ts">
@@ -52,6 +56,8 @@
     type ReviewStatus,
     type WorkspaceReviewsSummary,
   } from '../../lib/reviews.ts';
+  import { reviewFromHash, withReview } from '../../lib/review-split.ts';
+  import { splitView } from '../../lib/split-view.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
@@ -61,6 +67,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import ReviewCard from './ReviewCard.svelte';
+  import ReviewSplit from './ReviewSplit.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
 
@@ -183,7 +190,8 @@
 
   function remember() {
     // replaceState: no history entry per filter click, and no hashchange for the shell to handle.
-    history.replaceState(history.state, '', inboxHref(filters));
+    // The selected review stays in the address; the list and detail view picks the first one again if the new list lacks it.
+    history.replaceState(history.state, '', withReview(inboxHref(filters), reviewFromHash(location.hash)));
   }
 
   function change(next: Partial<InboxFilters>) {
@@ -241,7 +249,13 @@
     el?.scrollIntoView({ block: 'nearest' });
   }
 
+  function loadMore() {
+    if (!moreLoading && nextCursor !== null) void loadList(false);
+  }
+
   function onKey(event: KeyboardEvent) {
+    // The list and detail view has its own keys (ReviewSplit).
+    if (splitView.wide) return;
     if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
     const action = shortcutFor({
       key: event.key,
@@ -449,7 +463,7 @@
         {#if active}<Button variant="ghost" onclick={clear}>Clear filters</Button>{/if}
       </div>
       <p class="hint">
-        Keyboard: <kbd>j</kbd> and <kbd>k</kbd> move between reviews, <kbd>t</kbd> marks one triaged, <kbd>r</kbd> opens its reply, <kbd>/</kbd> searches.
+        Keyboard: <kbd>j</kbd> and <kbd>k</kbd> move between reviews, <kbd>Enter</kbd> opens one in the detail view, <kbd>t</kbd> marks one triaged, <kbd>r</kbd> opens its reply, <kbd>/</kbd> searches.
       </p>
     </form>
 
@@ -466,39 +480,62 @@
           </EmptyState>
         </div>
       {:else}
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-        <ul class="cards" onfocusin={onFocusIn}>
-          {#each reviews as review (review.id)}
-            <li>
-              <p class="from">
-                <AppIcon name={review.app.name} url={iconUrls[review.app.id] ?? null} platform={review.app.platform} size="xs" labelled={true} />
-                <span class="app-name">{review.app.name}</span>
-                <PlatformBadge platform={review.app.platform} showLabel={false} />
-                <a class="link sm" href={appReviewsHref(review.app.id)} title="Opens the reviews of this app.">Open app</a>
-                <span class="muted small">{timeAgo(review.createdAt, now)}</span>
-              </p>
-              <ReviewCard
-                bind:this={cards[review.id]}
-                {api}
-                {workspaceId}
-                appId={review.app.id}
-                appName={review.app.name}
-                {role}
-                {replyConfig}
-                {review}
-                {members}
-                {canTriage}
-                {lowThreshold}
-                {now}
-                onchange={updated}
-              />
-            </li>
-          {/each}
-        </ul>
-        {#if nextCursor}
-          <div class="more-row"><Button loading={moreLoading} onclick={() => void loadList(false)}>Show more reviews</Button></div>
+        {#if splitView.wide}
+          <ReviewSplit
+            {api}
+            {workspaceId}
+            {role}
+            {reviews}
+            showApp={true}
+            {iconUrls}
+            {members}
+            {canTriage}
+            {replyConfig}
+            {lowThreshold}
+            {now}
+            settled={!loading}
+            hasMore={nextCursor !== null}
+            {moreLoading}
+            onmore={loadMore}
+            onsearch={() => searchEl?.focus()}
+            onchange={updated}
+            showKeys={false}
+          />
         {:else}
-          <p class="muted small">That is every review that matches.</p>
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <ul class="cards" onfocusin={onFocusIn}>
+            {#each reviews as review (review.id)}
+              <li>
+                <p class="from">
+                  <AppIcon name={review.app.name} url={iconUrls[review.app.id] ?? null} platform={review.app.platform} size="xs" labelled={true} />
+                  <span class="app-name">{review.app.name}</span>
+                  <PlatformBadge platform={review.app.platform} showLabel={false} />
+                  <a class="link sm" href={appReviewsHref(review.app.id)} title="Opens the reviews of this app.">Open app</a>
+                  <span class="muted small">{timeAgo(review.createdAt, now)}</span>
+                </p>
+                <ReviewCard
+                  bind:this={cards[review.id]}
+                  {api}
+                  {workspaceId}
+                  appId={review.app.id}
+                  appName={review.app.name}
+                  {role}
+                  {replyConfig}
+                  {review}
+                  {members}
+                  {canTriage}
+                  {lowThreshold}
+                  {now}
+                  onchange={updated}
+                />
+              </li>
+            {/each}
+          </ul>
+          {#if nextCursor}
+            <div class="more-row"><Button loading={moreLoading} onclick={() => void loadList(false)}>Show more reviews</Button></div>
+          {:else}
+            <p class="muted small">That is every review that matches.</p>
+          {/if}
         {/if}
       {/if}
     </div>
