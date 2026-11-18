@@ -51,6 +51,9 @@ change set (branch, commit, pull request) and connecting a repository still use 
 | `MRM_READS` | `auto` | `auto`: clone, and the GitHub API for a request when the clone cannot be used. `clone`: clone only, errors are shown. `api`: API only, git is never run. |
 | `MRM_CLONE_DIR` | `<MRM_DATA_DIR>/clones` | Where clones live. Created with mode 0700 at start. |
 | `MRM_CLONE_TTL_SECONDS` | `60` | How long a fetched branch tip is reused. A scan always fetches. |
+| `MRM_CLONE_MAX_BYTES` | `2g` | Disk budget for `MRM_CLONE_DIR`: `500m`, `2g`, `10 GiB` or plain bytes. When the folder is over it, the sweep removes the least recently used clones. `0` = no limit. |
+| `MRM_CLONE_IDLE_DAYS` | `30` | The sweep removes clones not used for this many days. `0` = never. |
+| `MRM_CLONE_SWEEP_INTERVAL_MINUTES` | `360` | How often the sweep runs (`0` = off, else 5 to 10080). Needs reads to use clones (`MRM_READS` other than `api`). |
 | `MRM_GIT_PATH` | `git` | The git program. |
 | `MRM_LOCAL_REPO_ROOTS` | unset (off) | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below. |
 | `MRM_LOCAL_REPO_WRITE` | `false` | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below. |
@@ -70,8 +73,11 @@ change set (branch, commit, pull request) and connecting a repository still use 
 - **Disk.** A clone holds the trees and the commit of the default branch plus the files that were
   read (shallow and partial: for a 4,000 file repository measured at about 0.1 to 0.3 MiB). It is a
   cache. Disconnecting a repository deletes its clone; you can delete the folder at any time and it
-  is made again on demand. Old objects stay until the clone is compacted, so watch the volume.
-  Idle pruning and a disk budget are proposed, not built.
+  is made again on demand. Old objects stay until the clone is removed. A scheduled sweep (see the
+  three `MRM_CLONE_*` settings above) removes clones idle for `MRM_CLONE_IDLE_DAYS`, then the least
+  recently used until the folder fits `MRM_CLONE_MAX_BYTES`; it never removes a clone that is being
+  read, logs one line when it removed something, and an admin can free one clone from the repository
+  page. The budget is checked at each sweep, so the folder can exceed it between sweeps.
 - **Docker.** `/data/clones` is under the `/data` volume and owned by the unprivileged `node` user.
   The image was not built in this change's environment: `docker compose build` is the first real test.
 - **Network.** git talks to `github.com` over https with the credential's token (a personal access
@@ -263,6 +269,68 @@ macOS Keychain agent, `pinentry-mac`, hardware keys and a launchd-started server
 signing fails there, the `reason` in the answer (`locked`, `key`, `program`, `timeout`, `failed`) is
 the first place to look; the program's own error text is deliberately not shown.
 
+
+## Reminders
+
+The scheduler sends **plan reminders** as events (a plan's target date due soon or passed, a rollout
+step whose planned time passed): they reach the event stream and [webhooks](api/webhooks.md), **not
+email and not push**. `MRM_REMINDER_INTERVAL_MINUTES` sets how often it looks (default 15; `0` turns
+reminders off; otherwise 5 to 10080). They run in the process that runs the background worker
+(`MRM_WORKER=inline`, the default); with `MRM_WORKER=off` nothing is sent from that process. Each
+reminder is recorded in the table `plan_reminders` under a unique key in the same transaction as its
+event, so a restart or several server instances sharing one Postgres database send it once (the
+Postgres path was **not** run). The first run after an upgrade sends one overdue reminder for each
+open plan whose target date passed in the last 30 days; set the interval to `0` first if you do not
+want that. See [events](api/events.md#plan-reminders).
+
+## Scheduled listing reads
+
+The store listing of an app (texts, categories, age rating, privacy choices URL, screenshot and
+preview counts; see [listing](api/listing.md)) is read when the app is synced. To also read it on a
+schedule, set `MRM_LISTING_INTERVAL_MINUTES` (default `0`, off; otherwise 30 to 10080). The scheduler
+only queues `app.listing` jobs, at most 3 per pass and 2 per workspace, 15 seconds apart plus a random
+delay, one per store credential at a time, never for an app that already has a sync or a listing read
+queued or running, and with a growing wait after failures (doubling, at most a day). It shares the
+per workspace store rate limit of the app sync and runs where the background worker runs
+(`MRM_WORKER=inline`). With several server instances on one database an app is still read once (the
+job claims it with a compare-and-set on `app_listing_status.listing_attempt_at`).
+
+- **Request volume.** One read of a large listing is roughly 100 to 200 store requests (up to 30
+  locales of screenshots and previews per App Store version, up to 25 languages of images on Google
+  Play). Use an interval of hours, not minutes, with many apps; the default of off is deliberate.
+- It is read-only: no store is written, and the use of the credential is audited as `credential.use`
+  by the system actor `app.listing`. **Never run against a real store**, so the defaults (3 per pass,
+  15 seconds, the backoff) are untried.
+- Upgrade: migration 16 adds three columns to `app_listing_status` (last attempt, failures in a row
+  and the connector warnings). Nothing else changes for an existing database; apps read before the
+  upgrade have no sections until their next read.
+
+## Customer reviews and data protection
+
+The reviews of an app are read from its store (read-only; no reply is ever sent) by hand from the
+Reviews tab, and on a schedule when `MRM_REVIEW_SYNC_INTERVAL_MINUTES` is set (default `0`, off;
+otherwise 15 to 10080). The scheduler only queues `review.sync` jobs, a few per run and spread out,
+and shares the per workspace rate limit of the app sync. It runs in the process that runs the
+background worker (`MRM_WORKER=inline`, the default).
+
+- **Google Play returns only the last 7 days of reviews.** Set the interval to **360 (6 hours) or
+  less** if you have Android apps. If nothing reads for more than 7 days, the reviews written in
+  between cannot be recovered; the app's Reviews tab and the sync result then show a gap warning.
+  Google also limits `reviews.list` to 200 requests per hour per app.
+- A failing read is retried by the scheduler with a growing backoff (15 minutes, doubling, at most 6 hours), and a
+  `review.sync_failed` event is sent once per failure streak.
+- **Personal data.** Review text and display names are written by people who are not users of this
+  server. They are stored in the database (`app_reviews`) in plain text, shown only to workspace
+  members with `reviews.read`, and are never put in events, webhooks, audit entries or URLs.
+  `MRM_REVIEW_RETENTION_DAYS` (default `365`; `0` keeps everything; at most `3650`) deletes older
+  reviews by the store's date, at most 1000 per run and once an hour. Deleting an app deletes its
+  reviews. Decide a retention that fits your privacy policy, include the database in your backups
+  accordingly, and note that a backup keeps deleted reviews until it expires.
+- Network: the server needs outbound https to `api.appstoreconnect.apple.com`,
+  `androidpublisher.googleapis.com` and, for the App Store's store-wide rating,
+  `itunes.apple.com`.
+
+See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
 
 ## Tokens, event streams and webhooks
 

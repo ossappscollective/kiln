@@ -39,6 +39,56 @@ wait and retry. Google does not document how long this takes.
 
 Docs: https://developers.google.com/android-publisher/getting_started
 
+## Customer reviews (what the same credentials need)
+
+Reading reviews uses the **same** App Store Connect key and Google Play service account as the
+app sync; there is no extra credential. The server only reads: it never calls the endpoints that
+reply to a review. Which role or permission a read needs was **not verified against a real
+account**:
+
+- **App Store Connect.** `GET /v1/apps/{id}/customerReviews` is documented at
+  https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-customerreviews
+  and that page names no required role. If a key is refused with `store_forbidden`, use a team key
+  with a role that can see the app's customer reviews. Keep the lowest role that works. Note that
+  Apple's role for responding to reviews is separate from this read, and this server never responds.
+- **Google Play.** `reviews.list` is documented at
+  https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/list and the guide
+  https://developers.google.com/android-publisher/reply-to-reviews names the permission **Reply to
+  reviews** for the review calls. Play Console's read-only permission is **View app information and
+  download bulk reports**. Whether that alone is enough to list reviews is **unverified**. If the
+  read-only permission is refused (`store_forbidden`), the service account needs **Reply to
+  reviews**, which in Play Console also lets that account answer reviews through the API. This server
+  does not, but the key itself could. Grant it only for the apps whose reviews you want, and treat
+  the key accordingly.
+- The Google Cloud Storage statistics export and the Play Developer Reporting API are **not used**
+  (see [api/reviews](api/reviews.md#what-each-store-provides) for why).
+
+## Store listing sections (what the same credentials need)
+
+The listing sections ([api/listing](api/listing.md#sections-beyond-the-texts): categories, age rating,
+privacy choices URL, app details, screenshot and preview counts, Play release notes) use the **same**
+App Store Connect key and Google Play service account as the app sync. There is no extra credential
+and no new kind of access: every call is a read. Which role or permission is enough was **not verified
+against a real account**:
+
+- **App Store Connect.** The new reads are `GET` of the app info with its categories and age rating
+  declaration, and of the screenshot and preview sets of a version localization (endpoints linked in
+  the listing doc). They need a key that can see the app's metadata; the role is the one the sync's
+  listing read already needs, and this tool does not ask for more. The **review detail** (contact
+  person, phone number, demo account) is never requested, so the key does not need to see it. If one
+  of these reads is refused (HTTP 403) the section is left out and the Listing tab shows a warning,
+  while the rest of the listing and the release sync keep working; raise the role only as far as you
+  need.
+- **Google Play.** The new reads (`edits.details.get`, `edits.images.list`, `edits.tracks`) happen
+  inside the **same edit** the listing read already opens and deletes (never committed), so they need
+  the same app permissions as that read. Play Console's read-only permission is **View app
+  information and download bulk reports**; whether it is enough to open an edit at all is
+  **unverified** (the Play guide describes edits as the way to change an app, and this tool never
+  changes one). If the account is refused, grant the permission that lets it manage the store
+  listing for that app only, and treat the key accordingly: the key itself could do more than this
+  server does. The contact phone number in the app details is never read.
+- Nothing here lets this tool change a store: no upload, no delete, no commit of an edit.
+
 ## GitHub App (recommended for teams)
 
 1. In Settings, Developer settings, GitHub Apps, click New GitHub App. Give it a name and homepage

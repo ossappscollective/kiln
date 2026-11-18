@@ -308,6 +308,10 @@ exists puts the change set back to `approved`, with nothing written.
   fails answers `502 { error, message, step: "push" | "pr", changeSet }`; the commit and the other
   step are kept and it can be called again. `409 not_local_commit` for a change set that was applied
   as a pull request.
+- `POST /change-sets/:id/refresh` (`changesets.write`; draft, approved, or failed with no branch) re-bases
+  the change set onto the repository as it is now. See "Refreshing a stale change set" below.
+- `GET /change-sets/:id/staleness` (`repositories.scan`) says whether it is stale, per file, and writes
+  nothing.
 - `POST /change-sets/:id/discard` (draft, approved or failed) returns `{ changeSet }`. A member
   may discard only their own draft.
 
@@ -353,7 +357,7 @@ to `approved` (nothing was written) so it can be retried:
 
 | GitHub | HTTP | `error` |
 | --- | --- | --- |
-| files changed since the draft | 409 | `change_conflict` with `paths` and a hint to discard and re-read |
+| files changed since the draft | 409 | `change_conflict` with `paths` and a hint to refresh the change set (or discard and re-read) |
 | rate limit | 429 | `rate_limited`, `retryAfterSeconds`, `Retry-After` header |
 | branch exists, default branch, repo already matches | 409 | `branch_exists`, `default_branch`, `no_changes` |
 | refused input, blocked path (`.github/`), not text | 422 | `github_invalid` |
@@ -377,11 +381,84 @@ listing also time out (`504`), but they only read, so nothing is left half done.
 Audit actions: `repository.connect`, `repository.disconnect`, `repository.scan`,
 `repository.listing_target_create`, `repository.listing_target_update`,
 `repository.listing_target_delete`, `repository.read_fallback`, `changeset.create`, `changeset.approve`, `changeset.apply`,
-`changeset.apply_failed`, `changeset.apply_timeout`, `changeset.discard`; for a local commit
+`changeset.apply_failed`, `changeset.apply_timeout`, `changeset.refresh`, `changeset.discard`, `clone.purge`, `clone.prune`; for a local commit
 `changeset.apply_local` (the folder path, the base and new branch, the commit, how many files,
 whether a push and a pull request were asked for), `changeset.push`, `changeset.push_failed`,
 `changeset.pr_open`, `changeset.pr_failed` (code only). No file content and no secret is in any of
 them; a push also records `credential.use`.
+
+### Refreshing a stale change set
+
+A change set stores, per file, `before` (the text it was made from, the **base**) and `after` (the
+text it proposes, **ours**). A refresh reads each file again (**theirs**: from the local clone or
+the GitHub API, like a scan, with the stored credential) and compares:
+
+| State | Meaning | Refresh does |
+| --- | --- | --- |
+| `same` | the repository still has `before` | nothing; the file stays |
+| `already_applied` | the repository already has `after` (or the merge equals it) | drops the file from the set |
+| `changed` | the repository changed the file, elsewhere than we did | a three-way merge; the clean result becomes the new `after` and the repository's text the new `before` |
+| `conflict` | both changed the same place | reported, nothing changed, until the person chooses |
+
+The merge (`services/text-merge.ts`) is a line based diff3 with no dependency and is deterministic.
+Lines keep their terminators, so CRLF stays CRLF. Two edits that touch or overlap the same lines
+conflict, unless both made the same change. A file added or deleted on one side only is a conflict
+(`reason` `added_upstream`, `deleted_upstream`, `edited_upstream`). A `.json` file (Expo
+`store.config.json`) whose merged text does not parse is a conflict, `invalid_json`; a file too
+large to diff within the bound is `too_large`. Fastlane layouts (`fastlane/metadata/<locale>/…` and a
+root `metadata/`) are plain files and merge the same way.
+
+`GET /change-sets/:id/staleness` answers `200 { stale, files: [{ path, state }], readAt }` and writes
+nothing. `stale` is true when any file is not `same`.
+
+`POST /change-sets/:id/refresh` takes an optional `{ resolutions: { "<path>": "mine" | "theirs" } }`.
+`mine` keeps the change set's text for that file and overwrites the repository's; `theirs` drops the
+change set's change to it.
+
+- If some file conflicts and has no resolution: `409 refresh_conflicts` with `files` (for each
+  conflicting file `path`, `reason`, `base`, `ours`, `theirs`; the other files with their state) and
+  `conflicts`. **Nothing was changed.** Send the call again with a resolution for every conflicting
+  path. `422 unknown_path` for a path that is not in the set.
+- Otherwise `200 { changeSet, files, refreshedFrom, unchanged, nothingLeft, approvalCleared }`. Each
+  file has an `outcome`: `unchanged`, `merged`, `dropped`, `kept_mine`, `kept_theirs`. `refreshedFrom`
+  is the commit the repository was read at (the branch name when the connector cannot say).
+- A refresh that changes the text returns the set to `draft` and clears its approval, because the
+  approver saw other text; the id and the creator stay. One that changes nothing (`unchanged`) leaves
+  the status as it is. A failed set (a conflict at apply) becomes a draft too.
+- `nothingLeft`: every file was already in the repository. The set has no files, cannot be approved
+  (`422 nothing_to_apply`) and should be discarded.
+- Errors: `409 invalid_state` (applying, applied or discarded), `409 branch_created` (a failed set
+  that already made a branch), `409 changed_meanwhile` (someone changed the set during the refresh;
+  an optimistic check on the status and `updatedAt`), `502`/`504` when the repository cannot be read.
+- Audit `changeset.refresh`: repository id, the status it had, `refreshedFrom`, file counts before and
+  after, and how many were unchanged, merged, dropped, kept mine or theirs, and whether an approval
+  was cleared. No file text and no path.
+
+The refresh also makes a local branch apply work again: `409 base_changed` compares `before` with the
+branch tip, and the refreshed `before` is the tip.
+
+Recomputing the change from the live store listing is not offered: it would need the listing pull
+for every locale, which is a different (and slow) operation. Discard the set and create a new one
+from the listing when you want that.
+
+## Clones on the server
+
+A clone is a cache (see "How a read stays fast"). Upkeep keeps `MRM_CLONE_DIR` bounded.
+
+- `GET /clones` (`repositories.write`) lists this workspace's clones: `{ enabled, clones: [{ repositoryId,
+  name, kind, bytes, sizeIsLowerBound, lastUsedAt, createdAt, inUse }], totalBytes, limits: {
+  maxBytes, idleDays } }`. `kind` is `local` for the managed copy of an attached local folder. No
+  server path is returned. Sizes are cached for ten minutes and capped (`sizeIsLowerBound`).
+- `GET /repositories/:id/clone` (`repositories.read`) is the same for one repository:
+  `{ enabled, clone, limits }`, `clone` null when none is on disk.
+- `POST /repositories/:id/clone/purge` (`repositories.write`) removes it now: `200 { removed,
+  freedBytes }`. `409 clone_busy` while a read is running. The next read clones again. Audit `clone.purge`
+  with counts.
+- The sweep (`MRM_CLONE_SWEEP_INTERVAL_MINUTES`, in the scheduler) removes clones unused for
+  `MRM_CLONE_IDLE_DAYS`, then the least recently used until the folder is under `MRM_CLONE_MAX_BYTES`. It never
+  removes a clone that is in use, symlinks, or anything that does not resolve inside `MRM_CLONE_DIR`.
+  Audit `clone.prune` (once per workspace, counts only). See
+  [ADR 0005](../adr/0005-local-clone-reads.md).
 
 ## How a read stays fast
 
@@ -527,5 +604,6 @@ real GitHub, as above; the folder path is checked again, against the real path, 
 
 ## Not done yet
 
-Only a static JSON `store.config.json` is edited; `store.config.js` is never read. Scan and listing run in the request; they may
-move to the job queue. Stale change sets are not refreshed: after a conflict, create a new one.
+Only a static JSON `store.config.json` is edited; `store.config.js` is never read. Scan and listing run in the request, with
+one fetch per repository at a time (single-flight); they may move to the job queue. A stale change set
+can be refreshed, but not recomputed from the live store listing.

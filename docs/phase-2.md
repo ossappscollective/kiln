@@ -80,8 +80,8 @@ and a release page show the result; none of those screens has been rendered in a
 ## Release planning (groundwork for Phase 4, no store write)
 
 Our own planning data, kept in our database and shown beside the read-only store state. It writes
-nothing to a store and sends no reminder or event; it only prepares the ground for the phases that
-build and submit releases. API: [docs/api/plans.md](api/plans.md).
+nothing to a store; the only things it sends are events for rollout steps and reminders (never email
+or push). It prepares the ground for the phases that build and submit releases. API: [docs/api/plans.md](api/plans.md).
 
 - [x] Tables `release_plans`, `checklist_items`, `release_notes`, `checklist_templates` (migration 11
       at the time of writing) with SQLite and Postgres schema files. Postgres has **not** run them
@@ -100,8 +100,27 @@ build and submit releases. API: [docs/api/plans.md](api/plans.md).
       with a reason). **Never rendered in a browser**; no drag and drop (keyboard buttons only)
 - [ ] Remove a deleted app's plans in the same transaction (`purgePlansOfApp` exists, the app
       deletion does not call it yet; the plans are hidden meanwhile)
-- [ ] Reminders and notifications for deadlines (out of scope here; the flags are data only)
-- [ ] Staged rollout steps as planning data (a plan of "10%, then 50%, then 100%"): not built
+- [x] Staged rollout steps as planning data (migration 15): up to 12 ordered steps with a strictly
+      increasing percentage, an optional planned time and note, and a status (planned, done,
+      skipped); templates for Google Play (1, 5, 20, 50, 100%), Apple's phased release and an
+      immediate 100%. **It changes nothing in a store.** Apple's phased schedule (1, 2, 5, 10, 20,
+      50, 100% over days 1 to 7) is fixed by Apple, so it is informational only (no editable
+      steps). The Rollout card shows the store's last synced state next to the plan and flags a
+      mismatch: Google Play's `rolloutFraction` is compared with the plan; **our connector does not
+      read Apple's phased release**, so for iOS the comparison is "unknown". A step is never marked
+      done automatically; a person may confirm one from the store's share with an explicit click.
+      Tested on SQLite only; the card was never rendered in a browser
+- [x] Reminders from the scheduler (`MRM_REMINDER_INTERVAL_MINUTES`, default 15, 0 turns them off):
+      a plan's target date due soon (24 hours) or passed, and a rollout step whose planned time
+      passed. They are **events only** (`plan.deadline_due_soon`, `plan.deadline_overdue`,
+      `plan.rollout_step_due`): they reach the event stream and signed webhooks, **not email and
+      not push**. Sent once per plan, item and date (a table with a unique key, written in the same
+      transaction as the event, so it is also the lock between server instances; a changed date
+      arms it again), at most 100 per run, never older than 30 days. Tested on SQLite, with two
+      concurrent runs simulated in one process; **not run on Postgres, nor against a live
+      receiver, nor over a long period**
+- [ ] A workspace setting for the reminder lead time (24 hours is a code default) and a per-plan
+      "do not remind" switch; email or push delivery
 - [ ] Verify the planning tables and routes on Postgres
 
 ## Store listing read side (groundwork for Phase 3, no store write)
@@ -133,7 +152,19 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       no push control toward a store exists (see the pull action below)
 - [ ] Record real store responses and replace the fixtures; settle which Apple states are "live" and
       "editable" (named, not described, on Apple's pages)
-- [ ] Categories, age rating, screenshots, Apple's privacy choices URL and Play changelogs are not read
+- [x] More of the listing, read-only ([docs/api/listing.md](api/listing.md#sections-beyond-the-texts)):
+      App Store primary and secondary category (and subcategories), the age rating declaration, Apple's
+      privacy choices URL, the copyright, and screenshot and preview **counts** per locale and device type
+      (file names and delivery states, never an image); Google Play app details, image counts per
+      language and type (ids only) and the release notes of each track. Compared with fastlane files and
+      Expo `store.config.json` where they can say it (names, URLs and counts only; the age rating only
+      key by key, else "not comparable"), and **never pulled into the repository**. The App Store review
+      detail is deliberately not read (contact person, phone number, demo account password). Google Play
+      has no categories or age rating in the API this tool reads. Sections are rows of
+      `listing_snapshots` (locale `_app`), "not read" is told from "empty", old snapshots do not look
+      changed. Tested with fakes and fixtures from the reference pages; **real store responses are still
+      unverified** (see "UNVERIFIED" in the listing API doc), and the Listing tab shows them but was
+      **never rendered in a browser**
 - [x] "Pull from the store into the repository" (`POST /apps/:id/listing/pull`): the store's text of the
       fields where the store is ahead or the two diverged becomes a **draft** change set in the repository's
       listing files (Expo `store.config.json` or fastlane, by the same source rule as a read), then the
@@ -149,9 +180,16 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       (`lib/repository-intent.ts`); the Repositories screen takes it once its list has loaded, opens that
       repository on its Change sets tab with the change set open. Unit tested (the resolver); never
       rendered in a browser
-- [ ] Scheduled listing reads (a listing is read only when an app is synced by hand or by job)
-- [ ] Connector warnings (a version in no known state, an editable version without its own app info) are
-      returned but not stored or shown
+- [x] Scheduled listing reads (`MRM_LISTING_INTERVAL_MINUTES`, off by default; 0 or 30 to 10080): the
+      scheduler queues an `app.listing` job per app that is due, at most 3 per pass and 2 per workspace,
+      spaced and jittered, one per credential at a time, never twice for one app (also across instances,
+      by a compare-and-set claim), sharing the sync's store rate limit, with a growing backoff after
+      failures, audited as the system actor `app.listing`. Migration 16 holds the last attempt, the
+      failure count and the warnings. Unit tested on SQLite with an injected clock; **never run against a
+      live store or for a long time**, so the defaults are untried
+- [x] Connector warnings (a version in no known state, an editable version without its own app info, a
+      section that could not be read) are stored on the app (`warnings` in `GET .../listing/live`, at most
+      20, redacted) and shown in the Listing tab
 - [x] The listing routes are in the OpenAPI registry (`services/api-operations.ts`), so an API token can read
       them (`listing.read`) and they appear in `/api/openapi.json`; their bodies and answers are described in part
 - [ ] Verify the listing tables and routes on Postgres

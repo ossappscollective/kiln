@@ -7,7 +7,7 @@ when the server starts.
 
 Rights: `events.read` (every role). What you see depends on what you may read: `app.*` events need
 `apps.read`, `changeset.*` need `repositories.read`, `credential.*` need `credentials.read` (owner,
-admin, member), `plan.*` need `plans.read` (every role). An API token sees the same as its ceiling allows, and a token limited to some apps
+admin, member), `plan.*` need `plans.read` (every role), `review.*` need `reviews.read` (every role). An API token sees the same as its ceiling allows, and a token limited to some apps
 sees only events about those apps; see [tokens](tokens.md). A non-member gets 404.
 
 ## Event shape
@@ -48,6 +48,8 @@ sees only events about those apps; see [tokens](tokens.md). A non-member gets 40
 | `plan.deadline_due_soon` | A reminder: the target date of an open plan is within the lead time (24 hours before the end of the day, UTC, by default). Sent once per plan and date. | `planId`, `appName`, `platform`, `version`, `targetDate`, `hoursLeft`, `blocked`, `openRequiredItems`, `actor` (`system`, `plan.reminders`). Subject has `appId`. |
 | `plan.deadline_overdue` | A reminder: the target day is over and the plan is still open. Sent once per plan and date; not sent for a deadline more than 30 days past. | `planId`, `appName`, `platform`, `version`, `targetDate`, `daysOverdue`, `blocked`, `openRequiredItems`, `actor` |
 | `plan.rollout_step_due` | A reminder: the planned time of a rollout step has passed and the step is still open. Sent once per step and planned time; not sent more than 30 days late. | `planId`, `appName`, `platform`, `version`, `stepId`, `index`, `total`, `percent`, `plannedAt`, `minutesLate`, `actor` |
+| `review.new_low_rating` | A customer review with a rating at or below the threshold (2) was stored: a new one, or an existing one edited down to it. Sent once per store review. Not sent for the first read of an app (a quiet baseline), and at most 50 per read. | `reviewId`, `storeReviewId`, `appId`, `store` (`appstoreconnect` or `googleplay`), `rating`, `threshold`, `source` (`new` or `edited`). **Never the review text or the display name**: read the review with [the reviews API](reviews.md). Subject has `appId`. |
+| `review.sync_failed` | Reading the reviews of an app failed. Sent once per failure streak, not for every failed try; a successful read ends the streak. | `appId`, `store`, `code` (the error code), `transient`, `failures`. Subject has `appId`. |
 
 `actor` is `{ "type": "user" | "token" | "system", "id": "..." }`. The first sync of an app is a
 quiet baseline: it emits `app.synced` but no status changes.
