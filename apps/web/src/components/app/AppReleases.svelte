@@ -1,8 +1,10 @@
 <!--
   AppReleases: the releases tab of an app: a compact table of the releases the store reports for the
   platforms in scope, grouped by version (version, platform, build, status, rollout share, date, CI
-  state, plan state), each row opening to its store and plan detail. Below it, a visible but
-  disabled "Rollout controls" section (store writes are not built yet).
+  state, plan state), each row opening to its store and plan detail. The default view is what matters
+  now (the newest release of each platform, what is live, in progress or planned); the rest is under a
+  collapsed "Older releases" with a search. Below it, the "Rollout controls" section (a slim line while
+  rollout changes are switched off).
   The plans and the builds are extras: when they cannot be loaded the table still shows the store's
   releases, with the plan and CI cells reading "—".
   Props: api, workspaceId, role, members (the records in scope), releases (by app id), now, canSync,
@@ -18,7 +20,7 @@
     buildReleaseTable,
     defaultReleaseFilter,
     filterGroups,
-    tableSummary,
+    splitCurrent,
     type ReleaseFilter,
   } from '../../lib/releases-table.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -26,7 +28,9 @@
   import ReleaseTable from '../release/ReleaseTable.svelte';
   import RolloutControls from '../release/RolloutControls.svelte';
   import Button from '../ui/Button.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
 
   let {
     api,
@@ -114,7 +118,13 @@
       appIds: members.map((m) => m.id),
     }),
   );
-  const visible = $derived(filterGroups(groups, filter));
+  // What matters now is the default view; the rest is under "Older releases". The "not live yet" switch
+  // applies to both; the search only to the older ones, so the short list stays short.
+  const notLive = $derived(filterGroups(groups, { query: '', inProgressOnly: filter.inProgressOnly }));
+  const split = $derived(splitCurrent(notLive));
+  const olderShown = $derived(filterGroups(split.older, { query: filter.query, inProgressOnly: false }));
+  const olderShownCount = $derived(olderShown.reduce((n, g) => n + g.rows.length, 0));
+  const visible = $derived(split.current);
   const apps = $derived(
     members.reduce<Record<string, AppSummary | undefined>>((acc, m) => {
       acc[m.id] = m;
@@ -123,6 +133,8 @@
   );
   const empty = $derived(members.filter((m) => (releases[m.id] ?? []).length === 0));
   const filtering = $derived(filter.query.trim() !== '' || filter.inProgressOnly);
+  const searching = $derived(filter.query.trim() !== '');
+  let olderOpen = $state(false);
   const scope = $derived(address.platform);
 </script>
 
@@ -151,14 +163,25 @@
     </div>
   {:else}
     <div class="toolbar">
-      <p class="summary" aria-live="polite">{tableSummary(visible)}</p>
+      <p class="summary" aria-live="polite">
+        Current and in progress
+        <span class="muted">{split.currentCount} {split.currentCount === 1 ? 'release' : 'releases'}</span>
+      </p>
       <div class="filters">
         <label class="check">
           <input type="checkbox" bind:checked={filter.inProgressOnly} />
           <span>Not live yet</span>
         </label>
-        <label class="visually-hidden" for="releases-query">Search releases</label>
-        <input id="releases-query" type="search" placeholder="Search version, build or state" bind:value={filter.query} />
+        <InfoTip label="About this list" align="end">
+          <p>
+            Shown here: the newest release of each platform, what is live now, what is not live yet, and what has a plan.
+            Everything else is under Older releases.
+          </p>
+          <p>
+            This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports
+            disappears.
+          </p>
+        </InfoTip>
       </div>
     </div>
 
@@ -170,20 +193,35 @@
 
     {#if visible.length === 0}
       <div class="card">
-        <EmptyState icon="search" title="No releases match" description="Change the filter or the search to see more.">
+        <EmptyState icon="check-circle" title="Nothing in progress" description="No release matches the filter. The older releases are below.">
           {#snippet actions()}
-            {#if filtering}<Button onclick={() => (filter = defaultReleaseFilter())}>Clear the filter</Button>{/if}
+            {#if filter.inProgressOnly}<Button onclick={() => (filter = defaultReleaseFilter())}>Clear the filter</Button>{/if}
           {/snippet}
         </EmptyState>
       </div>
     {:else}
       <ReleaseTable {api} {workspaceId} {role} groups={visible} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
     {/if}
-  {/if}
 
-  <p class="muted note snapshot">
-    This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports disappears.
-  </p>
+    {#if split.olderCount > 0}
+      <Disclosure bind:open={olderOpen} stateKey="releases.older" variant="boxed">
+        {#snippet summary()}Older releases ({split.olderCount}){/snippet}
+        {#snippet meta()}{#if searching}{olderShownCount} match{olderShownCount === 1 ? '' : 'es'}{:else}newest first{/if}{/snippet}
+        <div class="stack">
+          <div class="older-tools">
+            <label class="visually-hidden" for="releases-query">Search older releases</label>
+            <input id="releases-query" type="search" placeholder="Search version, build or state" bind:value={filter.query} />
+            {#if searching}<Button size="sm" variant="ghost" onclick={() => (filter = { ...filter, query: '' })}>Clear the search</Button>{/if}
+          </div>
+          {#if olderShown.length === 0}
+            <p class="muted note">No older release matches the search.</p>
+          {:else}
+            <ReleaseTable {api} {workspaceId} {role} groups={olderShown} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
+          {/if}
+        </div>
+      </Disclosure>
+    {/if}
+  {/if}
 
   <RolloutControls {api} {workspaceId} {role} {members} {releases} />
 </div>
@@ -198,8 +236,16 @@
   }
 
   .summary {
+    display: flex;
+    gap: var(--space-3);
+    align-items: baseline;
     margin: 0;
-    font-weight: var(--weight-medium);
+    font-weight: var(--weight-semibold);
+  }
+
+  .summary .muted {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-regular);
   }
 
   .filters {
@@ -209,8 +255,19 @@
     align-items: center;
   }
 
-  .filters input[type='search'] {
-    min-width: 14rem;
+  .filters {
+    gap: var(--space-2);
+  }
+
+  .older-tools {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .older-tools input[type='search'] {
+    width: 18rem;
+    min-height: var(--control-sm);
   }
 
   .note {

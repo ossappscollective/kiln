@@ -277,7 +277,7 @@
     </header>
 
     <main id="main" tabindex="-1" bind:this={mainEl}>
-      <div class="content">
+      <div class="content" class:wide={current?.id === 'portfolio'}>
         {#if !workspace}
           <EmptyState
             icon="layers"
@@ -644,6 +644,11 @@
     width: 100%;
     max-width: var(--content-width);
     margin: 0 auto;
+  }
+
+  /* The apps and the screens of an app are dense: they use the width there is. */
+  .content.wide {
+    max-width: 1600px;
   }
 
   .scrim {

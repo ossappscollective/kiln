@@ -1,55 +1,33 @@
 <!--
-  OverviewStats: the strip above the all-apps table: how many apps, what is in review or rolling
-  out, what needs a look and the new reviews. Counts of what the table shows.
+  OverviewStats: the counts above the all-apps table as one row of small chips: how many apps, what
+  is in review or rolling out, what needs a look and the new reviews. Counts of what the table shows;
+  a zero is dimmed so the numbers that matter stand out.
   Props: stats (from overviewStats).
 -->
 <script lang="ts">
   import type { OverviewStats } from '../../lib/app-overview.ts';
+  import StatChip from '../ui/StatChip.svelte';
 
   let { stats }: { stats: OverviewStats } = $props();
-
-  const tiles = $derived([
-    { label: 'Apps', value: String(stats.apps) },
-    { label: 'In review', value: String(stats.inReview) },
-    { label: 'Rolling out', value: String(stats.rollingOut) },
-    { label: 'Need a look', value: String(stats.problems) },
-    { label: 'New reviews', value: stats.newReviews === null ? '–' : String(stats.newReviews) },
-  ]);
 </script>
 
-<dl class="strip" aria-label="Summary of all apps">
-  {#each tiles as t (t.label)}
-    <div class="tile">
-      <dt>{t.label}</dt>
-      <dd>{t.value}</dd>
-    </div>
-  {/each}
-</dl>
+<ul class="strip" aria-label="Summary of all apps">
+  <li><StatChip label="Apps" value={stats.apps} /></li>
+  <li><StatChip label="In review" value={stats.inReview} tone="info" /></li>
+  <li><StatChip label="Rolling out" value={stats.rollingOut} tone="info" /></li>
+  <li><StatChip label="Need a look" value={stats.problems} tone="warn" /></li>
+  <li>
+    <StatChip label="New reviews" value={stats.newReviews === null ? '–' : stats.newReviews} tone="info" dim={stats.newReviews === null} />
+  </li>
+</ul>
 
 <style>
   .strip {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: var(--space-3);
-    margin: 0 0 var(--space-5);
-  }
-
-  .tile {
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
-  }
-
-  dt {
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    color: var(--muted);
-  }
-
-  dd {
-    margin: var(--space-1) 0 0;
-    font-size: var(--text-xl, 1.5rem);
-    font-weight: var(--weight-semibold);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: 0;
+    margin: 0;
+    list-style: none;
   }
 </style>

@@ -1,7 +1,7 @@
 <!--
   AppSection: the screen of the open section, for the platforms in scope. The existing screens
   (listing, assets, reviews, builds, release) are mounted as they are, once per platform record;
-  with both platforms in scope they are stacked under a platform heading.
+  with both platforms in scope they sit under an iOS | Android tab list, one visible at a time.
   Props: api, workspaceId, role, section, members (records in scope), openId (the id in the
   address), version (an open release or null), releases (by app id), now, syncRuns, syncing (by app
   id), onsync.
@@ -18,7 +18,7 @@
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
-  import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
   import AppSettings from './AppSettings.svelte';
@@ -52,6 +52,11 @@
   } = $props();
 
   const canSync = $derived(can(role, 'apps.sync'));
+  const uid = $props.id();
+
+  // The platform shown when both are in scope. Kept while the person moves between tabs of the app.
+  let platformTab = $state('');
+  const activeTab = $derived(members.find((m) => m.platform === platformTab)?.platform ?? members[0]?.platform ?? '');
 </script>
 
 {#snippet assets(app: AppSummary)}
@@ -65,14 +70,31 @@
 {/snippet}
 
 {#snippet perPlatform(render: Snippet<[AppSummary]>)}
-  <div class="stack loose">
+  {#if members.length > 1}
+    <!-- Both platforms: one tab per platform instead of two full copies stacked. Both stay mounted (the inactive one is hidden), so nothing is read twice. -->
+    <div class="stack">
+      <div class="row platform-tabs">
+        <SegmentTabs
+          tabs={members.map((m) => ({ id: m.platform, label: platformLabel(m.platform) }))}
+          bind:value={platformTab}
+          label="Platform"
+          idPrefix="{uid}-{section}"
+        />
+      </div>
+      {#each members as app (app.id)}
+        {@const ids = segmentIds(`${uid}-${section}`, app.platform)}
+        <div role="tabpanel" id={ids.panel} aria-labelledby={ids.tab} hidden={activeTab !== app.platform}>
+          {@render render(app)}
+        </div>
+      {/each}
+    </div>
+  {:else}
     {#each members as app (app.id)}
       <section aria-label="{platformLabel(app.platform)} {section}">
-        {#if members.length > 1}<h2 class="plat"><PlatformBadge platform={app.platform} tinted /></h2>{/if}
         {@render render(app)}
       </section>
     {/each}
-  </div>
+  {/if}
 {/snippet}
 
 {#if section === 'releases' && version !== null}
@@ -90,12 +112,11 @@
 {:else if section === 'settings'}
   <AppSettings {api} {workspaceId} {role} {members} {now} />
 {:else}
-  <AppDashboard {members} {releases} {now} {canSync} {syncing} {onsync} />
+  <AppDashboard {api} {workspaceId} {role} {members} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
 {/if}
 
 <style>
-  .plat {
-    margin: 0 0 var(--space-3);
-    font-size: var(--text-base);
+  .platform-tabs {
+    justify-content: flex-start;
   }
 </style>

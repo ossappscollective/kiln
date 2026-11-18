@@ -32,7 +32,7 @@
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
-  import PageHeader from './ui/PageHeader.svelte';
+  import InfoTip from './ui/InfoTip.svelte';
   import Skeleton from './ui/Skeleton.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -285,11 +285,19 @@
   <AppShell {api} {workspaceId} {role} id={open.id} />
 {:else}
   <section>
-    <PageHeader
-      title="All apps"
-      description="The apps of this workspace as the stores report them, one row per app with its iOS and Android versions side by side. Everything here is read from the stores; nothing is written to them."
-    >
-      {#snippet actions()}
+    <header class="allhead">
+      <div class="titleblock">
+        <h1 class="page-title">All apps</h1>
+        <InfoTip
+          label="About this list"
+          text="The apps of this workspace as the stores report them, one row per app with its iOS and Android versions side by side. Everything here is read from the stores; nothing is written to them."
+        />
+      </div>
+      {#if canRead && apps !== null && apps.length > 0}
+        <OverviewStats {stats} />
+      {/if}
+      <span class="spacer"></span>
+      <div class="page-actions">
         {#if canRead && apps !== null && apps.length > 0}
           <ViewToggle mode={viewMode} onchange={setView} />
           {#if canSync}
@@ -299,8 +307,8 @@
             <Button variant="primary" icon="plus" onclick={() => (adding = true)}>Add app</Button>
           {/if}
         {/if}
-      {/snippet}
-    </PageHeader>
+      </div>
+    </header>
 
     {#if !canRead}
       <Alert tone="info">Your role does not include apps.</Alert>
@@ -354,7 +362,6 @@
           </EmptyState>
         </div>
       {:else}
-        <OverviewStats {stats} />
         {#if viewMode === 'board'}
           <Board {api} {workspaceId} {role} apps={sorted} {releases} {now} />
         {:else}
@@ -370,6 +377,24 @@
 {/if}
 
 <style>
+  .allhead {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
+    margin-bottom: var(--space-4);
+  }
+
+  .titleblock {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+  }
+
+  .page-title {
+    font-size: var(--text-xl);
+  }
+
   .skeleton-row {
     display: flex;
     gap: var(--space-4);

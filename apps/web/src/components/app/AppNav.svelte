@@ -76,9 +76,8 @@
     color: var(--muted);
     text-decoration: none;
     border-radius: var(--radius-md);
-    transition:
-      background-color var(--duration-fast) var(--ease),
-      color var(--duration-fast) var(--ease);
+    /* No background fade: switching section must show one current item, not two for a moment. */
+    transition: color var(--duration-fast) var(--ease);
   }
 
   nav a:hover {

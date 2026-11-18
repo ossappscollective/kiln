@@ -22,7 +22,6 @@
   import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
-  import Icon from '../ui/Icon.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
   import AppSectionView from './AppSection.svelte';
@@ -169,28 +168,24 @@
       </div>
     {/if}
   {:else if group}
-    <nav class="crumb" aria-label="Breadcrumb">
-      <a href={portfolioHref}><Icon name="chevron-left" size={16} /> All apps</a>
-      <span aria-hidden="true">/</span>
-      <span>{group.name}</span>
-    </nav>
-
     <header class="head">
       <AppIcon
         name={group.name}
         url={members.map((m) => m.iconUrl ?? null).find((u) => u) ?? null}
         platform={members.length === 1 ? members[0]?.platform : undefined}
         seed={group.key}
-        size="xl"
+        size="lg"
       />
-      <div class="main">
-        <h1 class="page-title">{group.name}</h1>
+      <div class="id">
+        <div class="titleline">
+          <h1 class="page-title">{group.name}</h1>
+          <DataChips {chips} />
+        </div>
         <p class="sub">
           {#each members as m (m.id)}
             <span class="store"><StoreBadge store={storeForPlatform(m.platform).store} size="sm" /> <code>{m.identifier}</code></span>
           {/each}
         </p>
-        <DataChips {chips} />
       </div>
       <div class="tools">
         <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
@@ -227,47 +222,46 @@
     margin-bottom: var(--space-6);
   }
 
-  .crumb {
-    display: flex;
-    gap: var(--space-2);
-    align-items: center;
-    margin-bottom: var(--space-3);
-    color: var(--muted);
-  }
-
-  .crumb a {
-    display: inline-flex;
-    gap: var(--space-1);
-    align-items: center;
-  }
-
   .head {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-4);
-    align-items: flex-start;
-    margin-bottom: var(--space-6);
+    gap: var(--space-2) var(--space-4);
+    align-items: center;
+    margin-bottom: var(--space-4);
   }
 
-  .main {
+  .id {
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
     min-width: 240px;
+  }
+
+  .titleline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    align-items: center;
+  }
+
+  .page-title {
+    font-size: var(--text-xl);
+    line-height: 1.2;
   }
 
   .sub {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1) var(--space-4);
+    gap: var(--space-1) var(--space-3);
     margin: 0;
+    font-size: var(--text-xs);
     color: var(--muted);
   }
 
   .store {
     display: inline-flex;
-    gap: var(--space-2);
+    gap: var(--space-1);
     align-items: center;
   }
 
