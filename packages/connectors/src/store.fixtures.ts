@@ -155,8 +155,43 @@ export const appleBuilds = {
     { type: 'preReleaseVersions', id: 'pre-20', attributes: { version: '2.0', platform: 'IOS' } },
     { type: 'preReleaseVersions', id: 'pre-mac', attributes: { version: '9.0', platform: 'MAC_OS' } },
   ],
+  links: { self: `${APPLE_BASE}/v1/builds?filter[app]=10746822401` },
+  meta: { paging: { total: 7, limit: 50 } },
+};
+
+/**
+ * What `GET /v1/apps/{id}/builds?limit=...` answers: the same builds, but `preReleaseVersion` is a
+ * link only (as on Apple's example for that endpoint), so the marketing version is not in the answer.
+ */
+export const appleBuildsMinimal = {
+  data: appleBuilds.data.map((b) => ({
+    ...b,
+    relationships: { preReleaseVersion: { links: b.relationships.preReleaseVersion.links } },
+  })),
   links: { self: `${APPLE_BASE}/v1/apps/10746822401/builds` },
   meta: { paging: { total: 7, limit: 50 } },
+};
+
+const preReleaseVersion = (id: string, versionString: string, platform: string, buildIds: string[]) => ({
+  type: 'preReleaseVersions',
+  id,
+  attributes: { version: versionString, platform },
+  relationships: {
+    builds: { data: buildIds.map((buildId) => ({ type: 'builds', id: buildId })) },
+  },
+  links: { self: `${APPLE_BASE}/v1/preReleaseVersions/${id}` },
+});
+
+/** `GET /v1/preReleaseVersions?filter[app]=...&include=builds`: versions with the ids of their builds. */
+export const applePreReleaseVersions = {
+  data: [
+    preReleaseVersion('pre-21', '2.1', 'IOS', ['b-valid', 'b-processing']),
+    preReleaseVersion('pre-20', '2.0', 'IOS', ['b-failed', 'b-invalid', 'b-future']),
+    preReleaseVersion('pre-mac', '9.0', 'MAC_OS', ['b-mac']),
+  ],
+  included: [{ type: 'builds', id: 'b-valid', attributes: { version: '210' } }],
+  links: { self: `${APPLE_BASE}/v1/preReleaseVersions?filter[app]=10746822401` },
+  meta: { paging: { total: 3, limit: 50 } },
 };
 
 const appleError = (status: string, code: string, title: string, detail: string) => ({
@@ -178,6 +213,28 @@ export const apple403 = appleError(
 );
 export const apple404 = appleError('404', 'NOT_FOUND', 'The specified resource does not exist', 'There is no resource of type apps with id 1');
 export const apple429 = appleError('429', 'RATE_LIMIT_EXCEEDED', 'Rate limit exceeded', 'Too many requests.');
+
+/**
+ * A 400 that names the rejected query parameter. The structure (`errors[].code`, `title`, `detail`,
+ * `source.parameter`) is Apple's `ErrorResponse`; the code and title are the ones in the
+ * maintainer's real failure (`PARAMETER_ERROR.ILLEGAL`, "A given parameter is not allowed for this
+ * request"). The `detail` wording is reconstructed, not recorded.
+ */
+export const appleParameterError = (parameter: string) => ({
+  errors: [
+    {
+      id: 'a1b2c3d4-0000-4000-8000-000000000001',
+      status: '400',
+      code: 'PARAMETER_ERROR.ILLEGAL',
+      title: 'A given parameter is not allowed for this request',
+      detail: `The parameter '${parameter}' can not be used with this request`,
+      source: { parameter },
+    },
+  ],
+});
+export const apple400Sort = appleParameterError('sort');
+/** A 400 that is not about a parameter (a body or state problem): never retried. */
+export const apple400Entity = appleError('400', 'ENTITY_ERROR.ATTRIBUTE.INVALID', 'An attribute value is invalid', 'The value is not allowed.');
 
 // ---------------------------------------------------------------------------------------------
 // Google

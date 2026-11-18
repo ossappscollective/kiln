@@ -88,8 +88,9 @@ Verified: example response (`data[]` of `type: apps` with `attributes.name`, `bu
 `primaryLocale`, ...), `links.next` with a `cursor`, `meta.paging.total` and `limit`. Verification
 calls `GET /v1/apps?limit=1` and reads `meta.paging.total` for the count of visible apps.
 
-Not verified: the maximum `limit` (the code asks for 200, the value remembered from Apple's
-guidance; the page does not state it); that `App` has no platform (the example has none, so every app
+Verified later (see "Parameter check of the other list calls"): `limit` has a maximum of 200.
+
+Not verified: that `App` has no platform (the example has none, so every app
 is reported as `ios`; a macOS-only app would show up too).
 
 ### `GET /v1/apps/{id}/appStoreVersions` (`listVersions`)
@@ -141,26 +142,102 @@ Judgment calls in the table, to review (each is a decision, not a documented fac
   into `rolling_out` and `PAUSED` into `halted`, but the connector does not read the phased release
   resource yet, and Apple's `PhasedReleaseState` page lists no values (the strings are from memory).
 
-Also not verified: that `filter[platform]` is accepted on this endpoint (not used; non-iOS versions
-are filtered client-side).
+`filter[platform]` is documented on this endpoint (see the parameter check below); it is not used,
+non-iOS versions are filtered client-side.
 
-### `GET /v1/apps/{id}/builds` (`listBuilds`)
+### `GET /v1/builds` and `GET /v1/apps/{id}/builds` (`listBuilds`)
 
-Page: <https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-builds>
+Pages: [List builds](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds),
+[List all builds of an app](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-builds),
+[List prerelease versions](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-prereleaseversions).
+The query parameters were read on 2026-11-18 from the JSON behind each page
+(`https://developer.apple.com/tutorials/data/documentation/appstoreconnectapi/<page>.json`, the
+"Query Parameters" section; the `.md` form has no parameter table). The pages were read through a
+summarizing fetch tool, not downloaded, so the lists should be re-checked against the raw JSON or
+Apple's OpenAPI spec (not reachable from this sandbox) when someone has network access.
 
-Verified: example response with `attributes.version` (the build number: "1"), `uploadedDate`
-(`2022-09-07T10:42:15-07:00`), `expirationDate`, `expired`, `processingState: "VALID"`,
-`buildAudienceType`, relationship `preReleaseVersion` (link only, no `data` in the example).
+**What went wrong (bug).** The connector used `GET /v1/apps/{id}/builds?limit=200&sort=-uploadedDate&include=preReleaseVersion`.
+The maintainer's sync of an iOS app failed with `HTTP 400 (PARAMETER_ERROR.ILLEGAL: A given parameter
+is not allowed for this request)`. The page of the **app-scoped** endpoint lists only two query
+parameters, `fields[builds]` and `limit` (max 200). It has **no `sort` and no `include`**, so both were
+rejected. The top-level `GET /v1/builds` does list them. The 400 body that Apple sent was not kept (the
+old message dropped `errors[].source`), so which of the two Apple named first is not known; both are
+undocumented for that path.
 
-Not verified (the page body was not retrievable for these; they are standard API behaviour recalled
-from memory and flagged as such):
+Verified (parameter lists as read from the pages above):
 
-- `processingState` values `PROCESSING`, `FAILED`, `INVALID`, `VALID`. Only `VALID` appears on the
-  page. Anything else maps to `processing` (not usable yet) and is kept in `rawProcessingState`.
-- `include=preReleaseVersion` on this endpoint, and `PreReleaseVersion.attributes.version` /
-  `platform` for the marketing version and platform. If the include is ignored, builds are returned
-  without `versionString` (it is optional), not wrongly.
-- `sort=-uploadedDate` (newest first) and the `limit` maximum.
+- `GET /v1/apps/{id}/builds`: `fields[builds]`, `limit` (max 200). Nothing else. The example response
+  shows `meta.paging.limit: 50` (the default page size), `attributes.version` (the build number),
+  `uploadedDate`, `expirationDate`, `expired`, `processingState: "VALID"`, `buildAudienceType`, and
+  `relationships.preReleaseVersion` as a link only, with no `data`.
+- `GET /v1/builds`: `filter[app]`, `filter[expired]`, `filter[id]`, `filter[preReleaseVersion]`,
+  `filter[preReleaseVersion.version]`, `filter[preReleaseVersion.platform]`, `filter[processingState]`,
+  `filter[version]`, `filter[usesNonExemptEncryption]`, `filter[buildAudienceType]`, ..., `include`
+  (`preReleaseVersion`, `individualTesters`, `betaGroups`, `betaBuildLocalizations`,
+  `appEncryptionDeclaration`, `betaAppReviewSubmission`, `app`, `buildBetaDetail`, `appStoreVersion`,
+  `icons`, `buildBundles`, `buildUpload`), `limit` (max 200), `limit[individualTesters]` (max 50),
+  `sort` (`version`, `-version`, `uploadedDate`, `-uploadedDate`, `preReleaseVersion`,
+  `-preReleaseVersion`).
+- `GET /v1/preReleaseVersions`: `filter[app]`, `filter[platform]` (`IOS`, `MAC_OS`, `TV_OS`,
+  `VISION_OS`), `filter[version]`, `filter[builds...]`, `include` (`builds`, `app`), `limit` (max 200),
+  `limit[builds]` (max 50), `sort` (`version`, `-version`).
+- `GET /v1/builds/{id}/preReleaseVersion` takes only `fields[preReleaseVersions]`.
+
+**Decision.** `listBuilds` now calls
+`GET /v1/builds?filter[app]=<id>&include=preReleaseVersion&limit=200&sort=-uploadedDate`: every
+parameter is on the page of that endpoint, and one filtered request returns the builds and their
+pre-release versions (marketing version and platform) as before. If Apple still answers a 400 whose body
+names a parameter (`PARAMETER_ERROR.*` or `source.parameter`), the read is repeated once with
+`GET /v1/apps/<id>/builds?limit=200` (documented minimal query), and the marketing versions come from
+`GET /v1/preReleaseVersions?filter[app]=<id>&include=builds&limit=200&limit[builds]=50`, matched by the
+build ids in each version's `relationships.builds.data`. The result has the same shape. Limits of that
+fallback: a pre-release version with more than 50 builds leaves its older builds without a
+`versionString`; if that request is rejected too, the builds come back without versions and without the
+macOS/tvOS filter (the platform lives on the pre-release version). A 400 that is not about a parameter
+is not retried.
+
+**Error text.** Every Apple error now keeps `errors[].code`, `title`, `detail` and `source.parameter`
+or `source.pointer` (clipped, redacted like the message) in `StoreError.details`; for answers that are
+not a credential problem the message lists them, e.g. `... with HTTP 400 (PARAMETER_ERROR.ILLEGAL: A
+given parameter is not allowed for this request - <detail> (parameter: sort))`. The next failure of this
+class names the parameter.
+
+**Paging.** The loop follows `links.next` verbatim (after checking it stays on the API host), at most
+`maxPages` (10) times, so at most 2,000 builds are read, newest first. `pageSize` defaults to and is
+clamped at 200, the documented `limit` maximum of every list used here. The shape of Apple's `next` link
+(a `cursor` plus the original parameters) is taken from the example on the `GET /v1/apps` page
+(`links.next` with `cursor` and `limit`); that it carries `filter[app]`, `sort` and `include` unchanged
+is **not verified** (the pages show no `next` link for builds). The test only proves that a link is
+followed as given and that `included` data of every page is used.
+
+Not verified (no live call was possible; the fixtures are hand-written, see the top of this page):
+
+- `processingState` values `PROCESSING`, `FAILED`, `INVALID`, `VALID`. Only `VALID` appears in the
+  examples; `filter[builds.processingState]` on the pre-release page lists exactly those four, which
+  supports them. Anything else maps to `processing` and is kept in `rawProcessingState`.
+- That `GET /v1/builds?filter[app]=...` accepts all of its documented parameters together as one request
+  (each is documented; the combination was not run).
+- That `include=builds` on `GET /v1/preReleaseVersions` fills `relationships.builds.data` (standard
+  JSON:API behaviour; the page shows no example).
+- The `detail` wording of the 400 (the test fixture reconstructs it; `code` and `title` are the ones
+  from the real failure).
+
+## Parameter check of the other list calls
+
+Read from the same JSON as above, on 2026-11-18. Both calls were already within the documented
+parameters; this only records it.
+
+- `GET /v1/apps?limit=200` (`listApps`, and `limit=1` for verification): `limit` max **200**; `sort`
+  (`name`, `-name`, `bundleId`, `-bundleId`, `sku`, `-sku`), `include`, `filter[bundleId|id|name|sku]`
+  also exist and are not used.
+- `GET /v1/apps/{id}/appStoreVersions?limit=200` (`listVersions`): `limit` max **200**; `include`,
+  `filter[platform]` (`IOS`, `MAC_OS`, `TV_OS`, `VISION_OS`), `filter[appVersionState]`,
+  `filter[appStoreState]` (deprecated), `filter[versionString]`, `filter[id]`. **There is no `sort`** on
+  this endpoint, which is why none is sent. `filter[platform]=IOS` is documented and would drop
+  non-iOS versions server-side; the code still filters on the client.
+
+`connectors/src/appstoreconnect.test.ts` asserts that every request the connector makes (including the
+fallback) uses only parameters from these lists, with `limit` at most 200 and `limit[builds]` at most 50.
 
 ## Google Play Developer API
 
@@ -327,4 +404,4 @@ takes to work, so the message says "wait and try again" without a number.
    compliance unmapped) and what the dashboard should show for an unmapped state.
 6. **Platforms.** App Store Connect apps and versions can be macOS, tvOS or visionOS; `Platform` is only
    `ios | android`, so non-iOS versions and builds are skipped. Is that right for the product?
-7. **Apple `limit` maximum** (200 assumed) and a lower default if Apple rejects it with a 400.
+7. **Apple `limit` maximum**: 200 is documented for every list used here (verified 2026-11-18). A live run should still confirm that a `next` link for `GET /v1/builds` keeps `filter[app]`, `sort` and `include`.

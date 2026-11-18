@@ -158,7 +158,7 @@ test('listBuilds joins the marketing version and maps processing states', async 
   const { fake, connector } = setup();
   fake.on({
     method: 'GET',
-    match: '/v1/apps/10746822401/builds?limit=200&sort=-uploadedDate&include=preReleaseVersion',
+    match: '/v1/builds?filter[app]=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate',
     json: fx.appleBuilds,
   });
   const builds = await connector.listBuilds('10746822401');
@@ -176,6 +176,211 @@ test('listBuilds joins the marketing version and maps processing states', async 
   assert.equal(builds[0]?.uploadedAt, Date.parse('2022-09-07T10:42:15-07:00'));
   assert.equal(builds[2]?.expired, true);
   assert.equal(builds[0]?.expired, false);
+});
+
+const BUILDS_EXPECTED = [
+  ['b-valid', '210', '2.1', 'processed', 'VALID'],
+  ['b-processing', '211', '2.1', 'processing', 'PROCESSING'],
+  ['b-failed', '200', '2.0', 'invalid', 'FAILED'],
+  ['b-invalid', '201', '2.0', 'invalid', 'INVALID'],
+  ['b-future', '202', '2.0', 'processing', 'SOMETHING_NEW'],
+  ['b-nopre', '7', undefined, 'processed', 'VALID'],
+];
+const BUILDS_PRIMARY = '/v1/builds?filter[app]=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate';
+const BUILDS_MINIMAL = '/v1/apps/10746822401/builds?limit=200';
+const PRERELEASE_PATH =
+  '/v1/preReleaseVersions?filter[app]=10746822401&include=builds&limit=200&limit[builds]=50';
+const summarize = (builds: Awaited<ReturnType<AppStoreConnectConnector['listBuilds']>>) =>
+  builds.map((b) => [b.storeId, b.buildNumber, b.versionString, b.processing, b.rawProcessingState]);
+
+test('listBuilds: when Apple rejects sort, the message names the parameter and a minimal query is retried', async () => {
+  const { fake, connector } = setup();
+  fake
+    .on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort })
+    .on({ method: 'GET', match: BUILDS_MINIMAL, json: fx.appleBuildsMinimal })
+    .on({ method: 'GET', match: PRERELEASE_PATH, json: fx.applePreReleaseVersions });
+  const builds = await connector.listBuilds('10746822401');
+  // The same result as the one-request path, with the marketing versions read the other way.
+  assert.deepEqual(summarize(builds), BUILDS_EXPECTED);
+  assert.deepEqual(
+    fake.calls.map((c) => c.url.pathname + c.url.search),
+    [BUILDS_PRIMARY, BUILDS_MINIMAL, PRERELEASE_PATH],
+  );
+  assert.deepEqual(fake.unexpected, []);
+  // The retry has no sort and no include on the builds request.
+  const minimal = (fake.calls[1] as fx.Call).url.searchParams;
+  assert.deepEqual([...minimal.keys()], ['limit']);
+});
+
+test('listBuilds: the rejected parameter is in the error message and in details when nothing works', async () => {
+  const { fake, connector } = setup();
+  fake
+    .on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort })
+    .on({ method: 'GET', match: BUILDS_MINIMAL, status: 400, json: fx.appleParameterError('limit') });
+  let caught: unknown;
+  try {
+    await connector.listBuilds('10746822401');
+  } catch (error) {
+    caught = error;
+  }
+  assert.ok(caught instanceof StoreError);
+  assertNoSecrets(caught, fake);
+  assert.equal(caught.status, 400);
+  assert.equal(caught.kind, 'unexpected');
+  assert.match(caught.message, /listing the builds of app 10746822401 with HTTP 400/);
+  assert.match(caught.message, /PARAMETER_ERROR\.ILLEGAL: A given parameter is not allowed for this request/);
+  assert.match(caught.message, /parameter: limit/);
+  assert.deepEqual(caught.details?.map((d) => [d.code, d.parameter]), [['PARAMETER_ERROR.ILLEGAL', 'limit']]);
+  // Only the two builds requests were made: no second retry loop.
+  assert.equal(fake.calls.length, 2);
+});
+
+test('a 400 names the rejected parameter (listVersions)', async () => {
+  const e = await failure(
+    (f) =>
+      f.on({
+        method: 'GET',
+        match: '/v1/apps/10746822401/appStoreVersions?limit=200',
+        status: 400,
+        json: fx.appleParameterError('limit'),
+      }),
+    (c) => c.listVersions('10746822401'),
+  );
+  assert.equal(e.status, 400);
+  assert.match(e.message, /parameter: limit/);
+  assert.match(e.message, /can not be used with this request/);
+  assert.equal(e.details?.[0]?.parameter, 'limit');
+});
+
+test('the structured details are redacted like the message', async () => {
+  const line = key.privateKey.split('\n')[1] as string;
+  const body = fx.appleParameterError('filter[app]');
+  const [entry] = body.errors;
+  assert.ok(entry);
+  entry.detail = `echoed ${line}`;
+  const e = await failure(
+    (f) => f.on({ method: 'GET', match: '/v1/apps/10746822401/appStoreVersions?limit=200', status: 400, json: body }),
+    (c) => c.listVersions('10746822401'),
+  );
+  assert.ok(!JSON.stringify(e.details).includes(line));
+  assert.match(JSON.stringify(e.details), /\[redacted\]/);
+  assert.equal(e.details?.[0]?.parameter, 'filter[app]');
+});
+
+test('a 400 that is not about a parameter is not retried', async () => {
+  const { fake, connector } = setup();
+  fake.on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Entity });
+  await assert.rejects(connector.listBuilds('10746822401'), (e: unknown) => {
+    assert.ok(e instanceof StoreError);
+    assert.match(e.message, /ENTITY_ERROR\.ATTRIBUTE\.INVALID/);
+    return true;
+  });
+  assert.equal(fake.calls.length, 1);
+});
+
+test('the fallback still returns builds when the pre-release versions are rejected too', async () => {
+  const { fake, connector } = setup();
+  fake
+    .on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort })
+    .on({ method: 'GET', match: BUILDS_MINIMAL, json: fx.appleBuildsMinimal })
+    .on({ method: 'GET', match: PRERELEASE_PATH, status: 400, json: fx.appleParameterError('include') });
+  const builds = await connector.listBuilds('10746822401');
+  // Without versions, and without a platform to filter on: every build is kept, none has a version.
+  assert.equal(builds.length, 7);
+  assert.ok(builds.every((b) => b.versionString === undefined));
+});
+
+test('listBuilds follows links.next and keeps the versions that arrive with each page', async () => {
+  const { fake, connector } = setup();
+  const next = `${fx.APPLE_BASE}/v1/builds?cursor=AoJ4g7mg6o4&filter%5Bapp%5D=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate`;
+  const [first, ...rest] = fx.appleBuilds.data;
+  assert.ok(first);
+  fake
+    .on({
+      method: 'GET',
+      match: BUILDS_PRIMARY,
+      json: {
+        data: [first],
+        included: fx.appleBuilds.included.slice(0, 1),
+        links: { next },
+      },
+    })
+    .on({
+      method: 'GET',
+      match: '/v1/builds?cursor=AoJ4g7mg6o4&filter%5Bapp%5D=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate',
+      json: { data: rest, included: fx.appleBuilds.included.slice(1) },
+    });
+  const builds = await connector.listBuilds('10746822401');
+  assert.deepEqual(summarize(builds), BUILDS_EXPECTED);
+  assert.deepEqual(fake.unexpected, []);
+});
+
+test('only parameters that Apple documents for each endpoint are sent, and limit stays within 200', async () => {
+  // From the "Query Parameters" of each page (see docs/spikes/store-api-conventions.md).
+  const documented: Record<string, { params: string[]; sort?: string[]; include?: string[] }> = {
+    '/v1/apps': {
+      params: ['limit', 'sort', 'include', 'filter[bundleId]', 'filter[id]', 'filter[name]', 'filter[sku]'],
+      sort: ['name', '-name', 'bundleId', '-bundleId', 'sku', '-sku'],
+    },
+    '/v1/apps/10746822401/appStoreVersions': {
+      params: ['limit', 'include', 'filter[platform]', 'filter[appVersionState]', 'filter[id]', 'filter[versionString]'],
+    },
+    '/v1/builds': {
+      params: ['limit', 'sort', 'include', 'filter[app]', 'filter[id]', 'filter[version]', 'filter[expired]', 'filter[processingState]'],
+      sort: ['version', '-version', 'uploadedDate', '-uploadedDate', 'preReleaseVersion', '-preReleaseVersion'],
+      include: ['preReleaseVersion', 'app', 'appStoreVersion', 'buildBetaDetail'],
+    },
+    '/v1/preReleaseVersions': {
+      params: ['limit', 'limit[builds]', 'sort', 'include', 'filter[app]', 'filter[platform]'],
+      sort: ['version', '-version'],
+      include: ['builds', 'app'],
+    },
+    // The app-scoped builds endpoint lists only `limit` and `fields[builds]`: no sort, no include.
+    '/v1/apps/10746822401/builds': { params: ['limit', 'fields[builds]'] },
+  };
+  const { fake, connector } = setup();
+  fake
+    .on({ method: 'GET', match: /^\/v1\/apps\?/, json: { data: [] } })
+    .on({ method: 'GET', match: /appStoreVersions/, json: { data: [] } })
+    .on({ method: 'GET', match: /^\/v1\/builds\?/, json: { data: [] } });
+  await connector.verifyCredentials();
+  await connector.listApps();
+  await connector.listVersions('10746822401');
+  await connector.listBuilds('10746822401');
+  // And the fallback, which is only reached after a parameter error.
+  const rejected = setup();
+  rejected.fake
+    .on({ method: 'GET', match: /^\/v1\/builds\?/, status: 400, json: fx.apple400Sort })
+    .on({ method: 'GET', match: /^\/v1\/apps\/10746822401\/builds\?/, json: { data: [] } })
+    .on({ method: 'GET', match: /^\/v1\/preReleaseVersions\?/, json: { data: [] } });
+  await rejected.connector.listBuilds('10746822401');
+  const calls = [...fake.calls, ...rejected.fake.calls];
+  assert.equal(calls.length, 4 + 3);
+  for (const call of calls) {
+    const rule = documented[call.url.pathname];
+    assert.ok(rule, `no documented endpoint ${call.url.pathname}`);
+    for (const [name, value] of call.url.searchParams) {
+      assert.ok(rule.params.includes(name), `${call.url.pathname}: ${name} is not a documented parameter`);
+      if (name === 'sort') assert.ok(rule.sort?.includes(value), `${call.url.pathname}: sort=${value}`);
+      if (name === 'include') assert.ok(rule.include?.includes(value), `${call.url.pathname}: include=${value}`);
+      if (name === 'limit') assert.ok(Number(value) >= 1 && Number(value) <= 200, `limit=${value}`);
+      if (name === 'limit[builds]') assert.ok(Number(value) >= 1 && Number(value) <= 50, `limit[builds]=${value}`);
+    }
+  }
+  assert.deepEqual(fake.unexpected, []);
+});
+
+test('pageSize above Apple\'s maximum is clamped to 200', async () => {
+  const fake = new fx.FakeFetch().on({ method: 'GET', match: /.*/, json: { data: [] } });
+  const connector = new AppStoreConnectConnector({
+    credential: { keyId: fx.KEY_ID, issuerId: fx.ISSUER_ID, privateKey: key.privateKey },
+    fetch: fake.fetch,
+    pageSize: 1000,
+  });
+  await connector.listApps();
+  await connector.listVersions('1');
+  await connector.listBuilds('1');
+  assert.ok(fake.calls.every((c) => c.url.searchParams.get('limit') === '200'));
 });
 
 test('the app id is encoded into the path', async () => {

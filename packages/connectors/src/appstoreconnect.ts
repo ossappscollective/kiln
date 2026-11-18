@@ -4,7 +4,7 @@ import {
   type AppStoreConnectKey,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
-import { StoreError } from './errors.ts';
+import { StoreError, type StoreErrorDetail } from './errors.ts';
 import { mapAppStoreState } from './mappings.ts';
 import {
   enc,
@@ -32,13 +32,19 @@ import type { StoreApp, StoreBuild, StoreConnector, StoreVersion } from './types
  *   no `Retry-After`; its limit is a rolling hour per key (`X-Rate-Limit: user-hour-lim:..;
  *   user-hour-rem:..;`).
  * - No message carries the key or a JWT (see `redactSecrets`).
+ * - Every request uses only query parameters that Apple's page for that endpoint lists (see
+ *   docs/spikes/store-api-conventions.md). A 400 names the rejected parameter in the message and in
+ *   `StoreError.details`, and `listBuilds` retries once with a minimal query when Apple rejects one.
  */
 
 export type AppStoreConnectConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
   credential: AppStoreConnectKey;
   /** Defaults to https://api.appstoreconnect.apple.com. */
   apiBase?: string;
-  /** Items per page. Default 200, which is the documented maximum for most list endpoints. */
+  /**
+   * Items per page. Default 200, which is the documented maximum of `limit` on every list endpoint
+   * used here (apps, appStoreVersions, builds, preReleaseVersions). Larger values are clamped.
+   */
   pageSize?: number;
   /** A safety stop for runaway paging. Default 10 pages. Lists are newest first where sortable. */
   maxPages?: number;
@@ -52,18 +58,102 @@ export type AppStoreConnectAccess = {
 
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
 const SKEW_TOLERANCE_SECONDS = 30;
+/** The documented maximum of `limit` on the list endpoints this connector calls. */
+const MAX_PAGE_SIZE = 200;
+/** The documented maximum of `limit[builds]` (included builds per pre-release version). */
+const MAX_INCLUDED_BUILDS = 50;
+const MAX_ERROR_DETAILS = 5;
+
+/** The marketing version and platform of a pre-release version (Apple's `preReleaseVersions`). */
+type PreRelease = { version?: string; platform?: string };
+
+function preReleaseById(included: Json[]): Map<string, PreRelease> {
+  const found = new Map<string, PreRelease>();
+  for (const entry of included) {
+    if (text(entry.type) !== 'preReleaseVersions') continue;
+    const id = text(entry.id);
+    const attributes = isRecord(entry.attributes) ? entry.attributes : {};
+    const version = text(attributes.version);
+    const platform = text(attributes.platform);
+    if (!id) continue;
+    found.set(id, {
+      ...(version !== undefined ? { version } : {}),
+      ...(platform !== undefined ? { platform } : {}),
+    });
+  }
+  return found;
+}
 
 const asPlatform = (apple: string | undefined): Platform | undefined =>
   apple === 'IOS' ? 'ios' : undefined;
 
+const clip = (value: string | undefined, max: number): string | undefined =>
+  value === undefined ? undefined : value.length > max ? `${value.slice(0, max)}…` : value;
+
+/**
+ * Apple's `errors[]` (an `ErrorResponse`), reduced to the fields that are safe to show: `code`,
+ * `title`, `detail`, and `source.parameter` or `source.pointer`, which name what was rejected.
+ */
+export function appleErrorDetails(json: unknown): StoreErrorDetail[] {
+  if (!isRecord(json)) return [];
+  const found: StoreErrorDetail[] = [];
+  for (const entry of records(json.errors).slice(0, MAX_ERROR_DETAILS)) {
+    const source = isRecord(entry.source) ? entry.source : {};
+    const code = clip(text(entry.code), 100);
+    const title = clip(text(entry.title), 200);
+    const detail = clip(text(entry.detail), 300);
+    const parameter = clip(text(source.parameter), 100);
+    const pointer = clip(text(source.pointer), 200);
+    const one: StoreErrorDetail = {
+      ...(code !== undefined ? { code } : {}),
+      ...(title !== undefined ? { title } : {}),
+      ...(detail !== undefined ? { detail } : {}),
+      ...(parameter !== undefined ? { parameter } : {}),
+      ...(pointer !== undefined ? { pointer } : {}),
+    };
+    if (Object.keys(one).length > 0) found.push(one);
+  }
+  return found;
+}
+
 /** Apple's first error object, as short safe text: `CODE: title`. */
-function describeApple(json: unknown): { code?: string; summary: string } {
-  const first = isRecord(json) ? records(json.errors)[0] : undefined;
+function describeApple(details: StoreErrorDetail[]): { code?: string; summary: string } {
+  const first = details[0];
   if (!first) return { summary: '' };
-  const code = text(first.code);
-  const title = text(first.title);
-  const summary = [code, title].filter(Boolean).join(': ');
-  return code === undefined ? { summary } : { code, summary };
+  const summary = [first.code, first.title].filter(Boolean).join(': ');
+  return first.code === undefined ? { summary } : { code: first.code, summary };
+}
+
+/**
+ * Every error object with what it objected to: `CODE: title - detail (parameter: sort)`. Used for
+ * the answers that are not credential problems, where naming the parameter is the whole point.
+ */
+function describeAppleFully(details: StoreErrorDetail[]): string {
+  return details
+    .map((d) => {
+      const head = [d.code, d.title].filter(Boolean).join(': ');
+      const named = [
+        d.parameter !== undefined ? `parameter: ${d.parameter}` : '',
+        d.pointer !== undefined ? `pointer: ${d.pointer}` : '',
+      ].filter(Boolean);
+      return [head, d.detail ? ` - ${d.detail}` : '', named.length > 0 ? ` (${named.join(', ')})` : '']
+        .join('')
+        .trim();
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
+/** True for a 400 whose body says a query parameter is wrong (`PARAMETER_ERROR.*`, or a named one). */
+export function isAppleParameterError(error: unknown): boolean {
+  return (
+    error instanceof StoreError &&
+    error.store === 'appstoreconnect' &&
+    error.status === 400 &&
+    (error.details ?? []).some(
+      (d) => d.code?.startsWith('PARAMETER_ERROR') === true || d.parameter !== undefined,
+    )
+  );
 }
 
 /**
@@ -71,9 +161,11 @@ function describeApple(json: unknown): { code?: string; summary: string } {
  * Exported for the verifier. `nowMs` is our clock, to compare with Apple's `Date` header.
  */
 export function appleError(reply: StoreReply, nowMs: number, what: string): StoreError {
-  const { code, summary } = describeApple(reply.json);
+  const details = appleErrorDetails(reply.json);
+  const { code, summary } = describeApple(details);
   const tail = summary ? ` (${summary.slice(0, 200)})` : '';
   const status = reply.status;
+  const fully = describeAppleFully(details);
   if (status === 401) {
     const server = serverTime(reply.headers);
     const skew = server === undefined ? undefined : Math.round((nowMs - server) / 1000);
@@ -85,6 +177,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
           skew,
         )} seconds (${skew > 0 ? 'ahead' : 'behind'}). Apple refuses tokens issued in the future or already expired. Synchronize the server clock (NTP) and try again.`,
         status,
+        details,
       );
     }
     return new StoreError(
@@ -92,6 +185,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
       'auth',
       `Apple rejected the credentials (401)${tail}. The Key ID, the Issuer ID or the private key is wrong, or they do not belong together: the Key ID must be the one of this .p8 file (AuthKey_<KeyID>.p8), and the Issuer ID is the team's, shown above the keys list.`,
       status,
+      details,
     );
   }
   if (status === 403) {
@@ -101,6 +195,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
         'auth',
         `Apple does not accept this key (403)${tail}. It may be revoked, or the token is malformed.`,
         status,
+        details,
       );
     }
     return new StoreError(
@@ -108,6 +203,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
       'forbidden',
       `Apple refused ${what} (403)${tail}. The key was understood but is not allowed to do this: the key may have been revoked, or its role (for example Marketing or Sales) gives no access to apps. Use a key with the App Manager role or higher.`,
       status,
+      details,
     );
   }
   if (status === 404) {
@@ -116,6 +212,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
       'not_found',
       `Apple has no such resource for ${what} (404)${tail}. Check the app's Apple ID, and that this key's team owns the app.`,
       status,
+      details,
     );
   }
   if (status >= 500) {
@@ -124,13 +221,15 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
       'server',
       `App Store Connect failed while ${what} (HTTP ${status}). Try again in a few minutes.`,
       status,
+      details,
     );
   }
   return new StoreError(
     'appstoreconnect',
     'unexpected',
-    `App Store Connect answered ${what} with HTTP ${status}${tail}.`,
+    `App Store Connect answered ${what} with HTTP ${status}${fully || summary ? ` (${(fully || summary).slice(0, 600)})` : ''}.`,
     status,
+    details,
   );
 }
 
@@ -145,7 +244,10 @@ export class AppStoreConnectConnector implements StoreConnector {
   constructor(options: AppStoreConnectConnectorOptions) {
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
-    this.#pageSize = options.pageSize ?? 200;
+    const wanted = options.pageSize ?? MAX_PAGE_SIZE;
+    this.#pageSize = Number.isFinite(wanted)
+      ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(wanted)))
+      : MAX_PAGE_SIZE;
     this.#maxPages = options.maxPages ?? 10;
     // Everything that must never appear in a message: the key and each of its lines.
     const pem = options.credential.privateKey;
@@ -231,45 +333,53 @@ export class AppStoreConnectConnector implements StoreConnector {
     return versions;
   }
 
+  /**
+   * The builds of an app, newest first, with the marketing version joined in.
+   *
+   * `GET /v1/apps/{id}/builds` cannot be used for this: Apple's page for it lists only `limit` and
+   * `fields[builds]`, so `sort` and `include` are rejected with `400 PARAMETER_ERROR.ILLEGAL`. The
+   * top-level `GET /v1/builds` lists `filter[app]`, `sort` (`-uploadedDate`), `include`
+   * (`preReleaseVersion`) and `limit` (max 200), so one filtered request gives builds and versions.
+   *
+   * If Apple still answers a 400 that names a parameter, the read is repeated with the minimal
+   * documented query (`limit` only, on the app-scoped endpoint) and the marketing versions are read
+   * from `GET /v1/preReleaseVersions?filter[app]=<id>&include=builds`. The result has the same shape.
+   */
   async listBuilds(appStoreId: string): Promise<StoreBuild[]> {
-    const builds: StoreBuild[] = [];
-    // `include=preReleaseVersion` brings the marketing version (the build's own `version` is the
-    // build number). Newest first, so a `maxPages` cut drops the oldest builds.
-    const query = `limit=${this.#pageSize}&sort=-uploadedDate&include=preReleaseVersion`;
-    const path = `/v1/apps/${enc(appStoreId)}/builds?${query}`;
-    const preRelease = new Map<string, { version?: string; platform?: string }>();
-    const found: Json[] = [];
-    const remember = (included: Json[]) => {
-      for (const entry of included) {
-        if (text(entry.type) !== 'preReleaseVersions') continue;
-        const id = text(entry.id);
-        const attributes = isRecord(entry.attributes) ? entry.attributes : {};
-        const version = text(attributes.version);
-        const platform = text(attributes.platform);
-        if (!id) continue;
-        preRelease.set(id, {
-          ...(version !== undefined ? { version } : {}),
-          ...(platform !== undefined ? { platform } : {}),
-        });
-      }
-    };
     const what = `listing the builds of app ${appStoreId}`;
-    for await (const item of this.#pages(path, what, remember)) found.push(item);
+    const id = enc(appStoreId);
+    // Newest first, so a `maxPages` cut drops the oldest builds.
+    const primary = `/v1/builds?filter[app]=${id}&include=preReleaseVersion&limit=${this.#pageSize}&sort=-uploadedDate`;
+    let found: Json[];
+    let preRelease: Map<string, PreRelease>;
+    let byBuild = new Map<string, PreRelease>();
+    try {
+      const read = await this.#collect(primary, what);
+      found = read.items;
+      preRelease = preReleaseById(read.included);
+    } catch (error) {
+      if (!isAppleParameterError(error)) throw error;
+      const read = await this.#collect(`/v1/apps/${id}/builds?limit=${this.#pageSize}`, what);
+      found = read.items;
+      preRelease = new Map();
+      byBuild = await this.#preReleaseByBuild(appStoreId);
+    }
+    const builds: StoreBuild[] = [];
     for (const item of found) {
       const attributes = isRecord(item.attributes) ? item.attributes : {};
-      const id = text(item.id);
+      const buildId = text(item.id);
       const buildNumber = text(attributes.version);
-      if (!id || !buildNumber) continue;
+      if (!buildId || !buildNumber) continue;
       const relationships = isRecord(item.relationships) ? item.relationships : {};
       const link = isRecord(relationships.preReleaseVersion) ? relationships.preReleaseVersion : {};
       const data = isRecord(link.data) ? link.data : undefined;
-      const pre = data ? preRelease.get(text(data.id) ?? '') : undefined;
+      const pre = (data ? preRelease.get(text(data.id) ?? '') : undefined) ?? byBuild.get(buildId);
       // Builds of other platforms (macOS, tvOS, ...) are not iOS builds.
       if (pre?.platform !== undefined && pre.platform !== 'IOS') continue;
       const raw = text(attributes.processingState);
       const uploaded = Date.parse(text(attributes.uploadedDate) ?? '');
       builds.push({
-        storeId: id,
+        storeId: buildId,
         appStoreId,
         platform: 'ios',
         buildNumber,
@@ -281,6 +391,46 @@ export class AppStoreConnectConnector implements StoreConnector {
       });
     }
     return builds;
+  }
+
+  /**
+   * The fallback of `listBuilds`: which pre-release version (marketing version and platform) each
+   * build belongs to, from `GET /v1/preReleaseVersions?filter[app]=<id>&include=builds`. Apple caps
+   * the included builds at 50 per version (`limit[builds]`), so a version with more builds leaves
+   * the older ones without a `versionString`. If Apple rejects this query too, the builds are
+   * returned without versions rather than failing the sync.
+   */
+  async #preReleaseByBuild(appStoreId: string): Promise<Map<string, PreRelease>> {
+    const path = `/v1/preReleaseVersions?filter[app]=${enc(appStoreId)}&include=builds&limit=${this.#pageSize}&limit[builds]=${MAX_INCLUDED_BUILDS}`;
+    const byBuild = new Map<string, PreRelease>();
+    try {
+      const { items } = await this.#collect(path, `listing the pre-release versions of app ${appStoreId}`);
+      for (const item of items) {
+        const attributes = isRecord(item.attributes) ? item.attributes : {};
+        const version = text(attributes.version);
+        const platform = text(attributes.platform);
+        const relationships = isRecord(item.relationships) ? item.relationships : {};
+        const builds = isRecord(relationships.builds) ? relationships.builds : {};
+        const pre: PreRelease = {
+          ...(version !== undefined ? { version } : {}),
+          ...(platform !== undefined ? { platform } : {}),
+        };
+        for (const ref of Array.isArray(builds.data) ? builds.data.filter(isRecord) : []) {
+          const id = text(ref.id);
+          if (id) byBuild.set(id, pre);
+        }
+      }
+    } catch (error) {
+      if (!isAppleParameterError(error)) throw error;
+    }
+    return byBuild;
+  }
+
+  async #collect(path: string, what: string): Promise<{ items: Json[]; included: Json[] }> {
+    const items: Json[] = [];
+    const included: Json[] = [];
+    for await (const item of this.#pages(path, what, (more) => included.push(...more))) items.push(item);
+    return { items, included };
   }
 
   // -------------------------------------------------------------------------------------------
@@ -305,11 +455,26 @@ export class AppStoreConnectConnector implements StoreConnector {
     if (reply.status === 401) this.#tokens.invalidate();
     const error = appleError(reply, this.#http.now(), what);
     // Apple's own error text is included in the message: make sure it cannot carry a secret.
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
+    const details = (error.details ?? []).map((d) => {
+      const fields = {
+        code: redact(d.code),
+        title: redact(d.title),
+        detail: redact(d.detail),
+        parameter: redact(d.parameter),
+        pointer: redact(d.pointer),
+      };
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
+    });
     throw new StoreError(
       'appstoreconnect',
       error.kind,
       this.#http.redact(error.message),
       error.status,
+      details,
     );
   }
 

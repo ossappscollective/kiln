@@ -144,6 +144,21 @@ export type StoreErrorKind =
   | 'unsupported';
 
 /**
+ * One entry of a store's own error body, kept so a failure names what the store objected to. For
+ * App Store Connect this is one `errors[]` object: `code`, `title`, `detail`, and `source.parameter`
+ * (a rejected query parameter) or `source.pointer` (a rejected body field). Redacted like a message.
+ */
+export type StoreErrorDetail = {
+  code?: string;
+  title?: string;
+  detail?: string;
+  /** The query parameter the store rejected, e.g. `sort`. */
+  parameter?: string;
+  /** A JSON pointer to the rejected field of a request body. */
+  pointer?: string;
+};
+
+/**
  * Typed errors for the app stores. Like `GithubError`: the message is safe to show and to log and
  * never carries a key, a JWT or an access token.
  */
@@ -152,12 +167,21 @@ export class StoreError extends Error {
   readonly kind: StoreErrorKind;
   /** The HTTP status, when the error came from a response. */
   readonly status?: number;
-  constructor(store: StoreName, kind: StoreErrorKind, message: string, status?: number) {
+  /** What the store said was wrong (at most a few entries), when its error body was readable. */
+  readonly details?: StoreErrorDetail[];
+  constructor(
+    store: StoreName,
+    kind: StoreErrorKind,
+    message: string,
+    status?: number,
+    details?: StoreErrorDetail[],
+  ) {
     super(message);
     this.name = 'StoreError';
     this.store = store;
     this.kind = kind;
     if (status !== undefined) this.status = status;
+    if (details !== undefined && details.length > 0) this.details = details;
   }
 }
 
