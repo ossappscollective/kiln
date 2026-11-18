@@ -780,3 +780,403 @@ export function createAppSyncHandler(ctx: AppsContext): JobHandler {
     if (done.transient) throw new Error(String(done.body.message ?? done.body.error));
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Discover and import
+
+export const APP_DISCOVER_PURPOSE = 'app.discover';
+/** Most apps one import may carry, and most package names one Google Play check may carry. */
+export const MAX_IMPORT_ITEMS = 50;
+const MAX_CANDIDATES = 1_000;
+
+const DISCOVERABLE = {
+  app_store_connect: 'ios',
+  google_play: 'android',
+} as const satisfies Record<string, Platform>;
+
+type DiscoverKind = keyof typeof DISCOVERABLE;
+
+const isDiscoverKind = (kind: string): kind is DiscoverKind => kind in DISCOVERABLE;
+
+export type DiscoverCandidate = {
+  platform: Platform;
+  /** The store's own id: Apple's numeric app id, or the package name. */
+  storeId: string;
+  /** The bundle id (iOS) or the package name (Android). */
+  identifier: string;
+  name: string;
+  alreadyAdded: boolean;
+  /** The id of the app in this workspace, when `alreadyAdded`. */
+  appId?: string;
+};
+
+/** A package that could not be verified. `error` is one of the documented codes. */
+export type DiscoverFailure = { identifier: string; error: string; message: string };
+
+export type Discovery = {
+  credentialId: string;
+  kind: DiscoverKind;
+  candidates: DiscoverCandidate[];
+  failures: DiscoverFailure[];
+};
+
+const identityKey = (platform: string, identifier: string) =>
+  `${platform}\u0000${platform === 'ios' ? identifier.toLowerCase() : identifier}`;
+
+/** The apps of the workspace by platform and identifier (bundle ids compared without case). */
+async function existingApps(sql: Sql, workspaceId: string): Promise<Map<string, string>> {
+  const rows = await sql.query('SELECT id, platform, identifier FROM apps WHERE workspace_id = ?', [
+    workspaceId,
+  ]);
+  return new Map(rows.map((r) => [identityKey(String(r.platform), String(r.identifier)), String(r.id)]));
+}
+
+/** Looks up the credential's kind. Not found, and another workspace's, are the same. */
+async function discoverableCredential(
+  db: Database,
+  workspaceId: string,
+  credentialId: string,
+): Promise<{ ok: true; kind: DiscoverKind } | Failure> {
+  const [credential] = await db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [credentialId, workspaceId],
+  );
+  if (!credential) {
+    return failure(
+      422,
+      'credential_not_found',
+      'That credential does not exist in this workspace (it may have been deleted).',
+    );
+  }
+  const kind = String(credential.kind);
+  if (!isDiscoverKind(kind)) {
+    return failure(
+      422,
+      'credential_kind',
+      'Apps can be found with an App Store Connect API key or a Google Play service account credential.',
+    );
+  }
+  return { ok: true, kind };
+}
+
+/** A clean one-line name of at most 100 characters, or the identifier. */
+const cleanName = (name: string, identifier: string): string =>
+  name.replace(/[\r\n]+/g, ' ').trim().slice(0, 100) || identifier;
+
+/**
+ * Finds the apps behind a credential, read-only, and marks the ones the workspace already has.
+ *
+ * - App Store Connect: every app the key can see.
+ * - Google Play: the API cannot list a developer account's apps, so `packages` is required.
+ *   Each package is verified on its own with a read-only edit (never committed), and one that
+ *   fails is reported in `failures` with a code, without failing the call. A problem of the
+ *   credential itself (rejected key, API disabled, rate limit) or the time limit ends the checks;
+ *   the packages not reached carry that code.
+ *
+ * The secret is decrypted for this call only (audited as `credential.use`, purpose
+ * `app.discover`); every message is redacted against it. `take` is the per-workspace rate limit,
+ * asked only once the credential is known to be usable.
+ */
+export async function discoverApps(
+  ctx: AppsContext,
+  input: { workspaceId: string; credentialId: string; packages?: string[] | undefined },
+  actor: Actor,
+  take: (workspaceId: string) => number = () => 0,
+): Promise<Outcome<{ discovery: Discovery }>> {
+  const { db } = ctx;
+  const { workspaceId } = input;
+  const found = await discoverableCredential(db, workspaceId, input.credentialId);
+  if (!found.ok) return found;
+  const { kind } = found;
+  const packages = [...new Set(input.packages ?? [])];
+  if (kind === 'google_play' && packages.length === 0) {
+    return failure(
+      422,
+      'packages_required',
+      'Google Play cannot list the apps of an account. Enter the package names to check.',
+    );
+  }
+  const wait = take(workspaceId);
+  if (wait > 0) {
+    return {
+      ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`, {
+        retryAfterSeconds: wait,
+      }),
+      headers: { 'Retry-After': String(wait) },
+    };
+  }
+
+  let secret: string | undefined;
+  try {
+    secret = await useCredentialSecret(
+      db,
+      ctx.masterKey,
+      { workspaceId, id: input.credentialId, purpose: APP_DISCOVER_PURPOSE },
+      actor,
+      ctx.now(),
+    );
+  } catch {
+    return failure(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+    );
+  }
+  if (secret === undefined) {
+    return failure(422, 'credential_not_found', 'That credential no longer exists.');
+  }
+
+  // Aborting also cancels the request the connector has in flight.
+  const controller = new AbortController();
+  const baseFetch = globalThis.fetch;
+  const guardedFetch: typeof fetch = (url, init) =>
+    baseFetch(url, {
+      ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new SyncTimeout('timeout'));
+    }, ctx.timeoutMs);
+  });
+  timedOut.catch(() => undefined);
+  const read = async (identifier: string) => {
+    const connector = ctx.connectorFactory({ kind, secret: secret as string, identifier, fetch: guardedFetch });
+    const work = connector.listApps();
+    // The race may lose to the timeout; the abandoned read must not become an unhandled rejection.
+    work.catch(() => undefined);
+    return Promise.race([work, timedOut]);
+  };
+  // The text a person sees for a failure: the classified message, with a discovery-specific
+  // wording for the one generic case.
+  const describe = (error: unknown) => {
+    const c = classify(error, secret as string);
+    if (c.failure.body.error === 'sync_failed') {
+      return {
+        c,
+        code: 'discover_failed',
+        message: 'The apps could not be read. Try again in a moment.',
+      };
+    }
+    return { c, code: c.failure.body.error, message: c.message };
+  };
+
+  const taken = await existingApps(db, workspaceId);
+  const candidates: DiscoverCandidate[] = [];
+  const failures: DiscoverFailure[] = [];
+  const add = (platform: Platform, storeId: string, identifier: string, name: string) => {
+    const appId = taken.get(identityKey(platform, identifier));
+    candidates.push({
+      platform,
+      storeId,
+      identifier,
+      name: cleanName(name, identifier),
+      alreadyAdded: appId !== undefined,
+      ...(appId !== undefined ? { appId } : {}),
+    });
+  };
+
+  try {
+    if (kind === 'app_store_connect') {
+      let apps: Awaited<ReturnType<StoreConnector['listApps']>>;
+      try {
+        apps = await read('');
+      } catch (error) {
+        const { c, code, message } = describe(error);
+        if (code === 'discover_failed') return failure(502, code, message);
+        return c.failure;
+      }
+      const seen = new Set<string>();
+      for (const a of apps) {
+        if (a.platform !== 'ios' || checkIdentifier('ios', a.bundleId)) continue;
+        const key = identityKey('ios', a.bundleId);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        add('ios', a.storeId, a.bundleId, a.name);
+        if (candidates.length >= MAX_CANDIDATES) break;
+      }
+      candidates.sort((a, b) => a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier));
+    } else {
+      let stop: { error: string; message: string } | undefined;
+      for (const name of packages) {
+        if (stop) {
+          failures.push({ identifier: name, ...stop });
+          continue;
+        }
+        try {
+          const apps = await read(name);
+          const hit = apps.find((a) => a.bundleId === name || a.storeId === name);
+          if (!hit) {
+            failures.push({
+              identifier: name,
+              error: 'store_not_found',
+              message: `Google Play returned no app named ${name}.`,
+            });
+            continue;
+          }
+          add('android', hit.storeId, name, hit.name);
+        } catch (error) {
+          const { code, message } = describe(error);
+          failures.push({ identifier: name, error: code, message });
+          // These say something about the key or the time left, not about this package.
+          const global =
+            error instanceof SyncTimeout ||
+            error instanceof StoreRateLimitError ||
+            (error instanceof StoreError &&
+              (error.kind === 'auth' || error.kind === 'clock_skew' || error.kind === 'api_disabled'));
+          if (global) stop = { error: code, message };
+        }
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+  return { ok: true, discovery: { credentialId: input.credentialId, kind, candidates, failures } };
+}
+
+export type ImportItem = {
+  platform: Platform;
+  identifier: string;
+  storeAppId?: string | undefined;
+  name?: string | undefined;
+  repositoryId?: string | undefined;
+};
+
+export type ImportResult = {
+  platform: Platform;
+  identifier: string;
+  status: 'created' | 'skipped' | 'failed';
+  /** The new app, or (skipped) the one that already exists. */
+  app?: ManagedApp;
+  error?: string;
+  message?: string;
+};
+
+export type ImportSummary = { created: number; skipped: number; failed: number };
+
+/**
+ * Adds the selected apps in one transaction: apps the workspace already has are skipped, an item
+ * that cannot be added (wrong credential kind for its platform, unknown repository) fails alone,
+ * and the rest are created and audited as `app.create` (with `source: 'import'`). Nothing contacts
+ * a store. Importing the same items again creates nothing.
+ */
+export async function importApps(
+  ctx: AppsContext,
+  input: { workspaceId: string; credentialId: string; items: ImportItem[] },
+  actor: Actor,
+): Promise<Outcome<{ results: ImportResult[]; summary: ImportSummary }>> {
+  const { db } = ctx;
+  const { workspaceId } = input;
+  const found = await discoverableCredential(db, workspaceId, input.credentialId);
+  if (!found.ok) return found;
+  const platform = DISCOVERABLE[found.kind];
+
+  const repositoryIds = [...new Set(input.items.flatMap((i) => (i.repositoryId ? [i.repositoryId] : [])))];
+  const knownRepositories = new Set<string>();
+  for (const id of repositoryIds) {
+    const [row] = await db.query('SELECT id FROM repositories WHERE id = ? AND workspace_id = ?', [
+      id,
+      workspaceId,
+    ]);
+    if (row) knownRepositories.add(id);
+  }
+
+  const run = () =>
+    db.transaction(async (tx) => {
+      const taken = await existingApps(tx, workspaceId);
+      const results: ImportResult[] = [];
+      for (const item of input.items) {
+        const base = { platform: item.platform, identifier: item.identifier };
+        const key = identityKey(item.platform, item.identifier);
+        if (item.platform !== platform) {
+          results.push({
+            ...base,
+            status: 'failed',
+            error: 'credential_kind',
+            message:
+              item.platform === 'ios'
+                ? 'An iOS app needs an App Store Connect API key credential.'
+                : 'An Android app needs a Google Play service account credential.',
+          });
+          continue;
+        }
+        if (item.repositoryId !== undefined && !knownRepositories.has(item.repositoryId)) {
+          results.push({
+            ...base,
+            status: 'failed',
+            error: 'repository_not_found',
+            message: 'That repository is not connected in this workspace.',
+          });
+          continue;
+        }
+        const existingId = taken.get(key);
+        if (existingId !== undefined) {
+          const app = await getApp(tx, workspaceId, existingId);
+          results.push({
+            ...base,
+            status: 'skipped',
+            error: 'already_exists',
+            message: `${item.identifier} is already added for ${item.platform}.`,
+            ...(app ? { app } : {}),
+          });
+          continue;
+        }
+        const id = randomUUID();
+        const now = ctx.now();
+        await tx.execute(
+          `INSERT INTO apps
+             (id, workspace_id, name, platform, identifier, store_app_id, credential_id,
+              repository_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            workspaceId,
+            cleanName(item.name ?? '', item.identifier),
+            item.platform,
+            item.identifier,
+            item.storeAppId ?? (item.platform === 'android' ? item.identifier : null),
+            input.credentialId,
+            item.repositoryId ?? null,
+            now,
+          ],
+        );
+        await recordAudit(tx, {
+          workspaceId,
+          actor,
+          action: 'app.create',
+          target: { type: 'app', id },
+          detail: {
+            platform: item.platform,
+            identifier: item.identifier,
+            credentialId: input.credentialId,
+            source: 'import',
+          },
+          at: now,
+        });
+        taken.set(key, id);
+        results.push({
+          ...base,
+          status: 'created',
+          app: (await getApp(tx, workspaceId, id)) as ManagedApp,
+        });
+      }
+      return results;
+    });
+
+  let results: ImportResult[];
+  try {
+    results = await run();
+  } catch {
+    // Another request may have added one of these meanwhile (the unique index refused it and the
+    // whole transaction was rolled back). Once more: that app is now seen as existing.
+    results = await run();
+  }
+  const count = (status: ImportResult['status']) => results.filter((r) => r.status === status).length;
+  return {
+    ok: true,
+    results,
+    summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') },
+  };
+}

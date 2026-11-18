@@ -18,7 +18,7 @@ not contact the store; the first sync does.
 | --- | --- | --- | --- |
 | `apps.read`: list and read apps and their releases | yes | yes | yes |
 | `apps.sync`: run a sync (now, or as a background job) | no | yes | yes |
-| `apps.write`: add and remove apps | no | no | yes |
+| `apps.write`: add and remove apps, discover and import apps | no | no | yes |
 
 ## Shapes
 
@@ -136,6 +136,154 @@ Validation and errors:
 
 Audit: `app.create`.
 
+### `POST /apps/discover`
+
+Needs `apps.write`. Finds the apps behind a stored credential, so they can be added without typing
+identifiers. Reads the store only; nothing is created. Request (body at most 16 KB):
+
+```json
+{ "credentialId": "b2d7…", "packages": ["com.acme.app", "com.acme.beta"] }
+```
+
+- `credentialId` is an `app_store_connect` or `google_play` credential of this workspace.
+- App Store Connect: every app the key can see is listed. `packages` is ignored.
+- Google Play: the Play API cannot list the apps of a developer account, so `packages` is
+  **required**: 1 to 50 package names, validated like the Android `identifier` of `POST /apps`
+  (`400 invalid_request` with `issues[].path` such as `packages.1` otherwise; repeats are dropped).
+  Each package is verified on its own with a read-only edit that is never committed. A package that
+  fails is reported in `failures` and does not fail the call.
+
+`200`:
+
+```json
+{
+  "credentialId": "b2d7…",
+  "kind": "google_play",
+  "candidates": [
+    {
+      "platform": "android",
+      "storeId": "com.acme.app",
+      "identifier": "com.acme.app",
+      "name": "Acme Mobile",
+      "alreadyAdded": true,
+      "appId": "6f1c…"
+    },
+    {
+      "platform": "android",
+      "storeId": "com.acme.beta",
+      "identifier": "com.acme.beta",
+      "name": "Acme Beta",
+      "alreadyAdded": false
+    }
+  ],
+  "failures": [
+    {
+      "identifier": "com.acme.missing",
+      "error": "store_not_found",
+      "message": "No app com.acme.missing for this account."
+    }
+  ]
+}
+```
+
+- `storeId` is Apple's numeric app id (iOS) or the package name (Android). `identifier` is the bundle
+  id or the package name. `name` is one line of at most 100 characters.
+- `alreadyAdded` is true when this workspace already has that identifier on that platform (iOS
+  bundle ids compared without case); `appId` is then that app. Other workspaces never count.
+- iOS candidates are sorted by name. Apps without a usable bundle id are left out.
+- `failures` is always present (empty for App Store Connect). Each has an `error` code from the
+  table below and a safe `message`. A problem of the credential itself (`store_auth`, API
+  disabled, `rate_limited`) or the time limit ends the checks: the packages not reached carry the
+  same code. A slow check keeps what was verified and marks the rest `timeout`.
+
+Errors of the whole call:
+
+| Status | `error` | Meaning |
+| --- | --- | --- |
+| 422 | `credential_not_found` | No such credential in this workspace (another workspace's looks the same) |
+| 422 | `credential_kind` | Not an App Store Connect or Google Play credential |
+| 422 | `packages_required` | A Google Play credential needs `packages` |
+| 422 | `credential_unreadable` | The stored secret cannot be decrypted. Enter it again |
+| 422 | `store_auth` | The store rejected the key (App Store Connect; for Google Play it is per package) |
+| 422 | `store_forbidden` | The key is valid but has no access (App Store Connect) |
+| 422 | `store_not_found` | The store has no such app (App Store Connect) |
+| 429 | `rate_limited` | More than 10 store reads a minute in this workspace (**shared with syncs**), or the store said slow down. `Retry-After` and `retryAfterSeconds` |
+| 502 | `store_unavailable` | The store failed or sent something unreadable |
+| 502 | `discover_failed` | Anything else. The message is generic on purpose |
+| 504 | `timeout` | The store did not answer in time (default 60 seconds for the whole call; App Store Connect only, Google Play keeps partial results) |
+
+The per-package `error` codes in `failures` are `store_not_found` (no such package, or this service
+account cannot see it), `store_forbidden` (no access, or the API is disabled), `store_auth`,
+`rate_limited`, `store_unavailable`, `timeout` and `discover_failed`. A request refused before the
+store is read (wrong credential, missing packages, bad body) costs no rate limit slot.
+
+Audit: using the secret is recorded as `credential.use` with purpose `app.discover`. No separate
+`app.discover` event, and never a secret or a store response body.
+
+### `POST /apps/import`
+
+Needs `apps.write`. Adds many apps in one transaction, typically from the candidates of
+`POST /apps/discover`. Does not contact the store, so it is not rate limited; the first sync does.
+Request (body at most 32 KB):
+
+```json
+{
+  "credentialId": "b2d7…",
+  "items": [
+    { "platform": "ios", "identifier": "com.acme.app", "storeAppId": "1234567890", "name": "Acme Mobile", "repositoryId": "c41a…" },
+    { "platform": "ios", "identifier": "com.acme.old" }
+  ]
+}
+```
+
+- `items`: 1 to 50. `platform` and `identifier` are validated like `POST /apps`. `storeAppId`
+  (optional, letters, digits, dots, hyphens, underscores) is stored so the first sync can skip the
+  lookup of the Apple id; for Android it defaults to the package name. It is taken as given, not
+  checked against the store. `name` (optional, at most 100 characters) defaults to the identifier.
+  `repositoryId` is optional.
+- Every item must fit the credential's platform: App Store Connect for `ios`, Google Play for
+  `android`.
+
+`200` (also when some items failed):
+
+```json
+{
+  "results": [
+    { "platform": "ios", "identifier": "com.acme.app", "status": "created", "app": { "...": "App" } },
+    {
+      "platform": "ios",
+      "identifier": "com.acme.old",
+      "status": "skipped",
+      "error": "already_exists",
+      "message": "com.acme.old is already added for ios.",
+      "app": { "...": "the existing App" }
+    },
+    {
+      "platform": "ios",
+      "identifier": "com.acme.ghost",
+      "status": "failed",
+      "error": "repository_not_found",
+      "message": "That repository is not connected in this workspace."
+    }
+  ],
+  "summary": { "created": 1, "skipped": 1, "failed": 1 }
+}
+```
+
+- `results` has one entry per item, in order. `created` carries the new `app`. `skipped` means the
+  workspace already had it (an earlier import, a manual add, or a repeat in the same request) and
+  carries that `app`: importing the same items again creates nothing. `failed` means that item
+  could not be added: `credential_kind` (platform does not fit the credential) or
+  `repository_not_found`; the other items are unaffected.
+- All created apps and their audit events are written in one transaction: if the database fails,
+  nothing is created and the response is `500`.
+- Errors of the whole request: `400 invalid_request`, `413 payload_too_large`, `422
+  credential_not_found`, `422 credential_kind` (not an App Store Connect or Google Play
+  credential).
+
+Audit: `app.create` for each created app, with `source: "import"` in the detail. Skipped and failed
+items write nothing.
+
 ### `GET /apps/:id`
 
 Needs `apps.read`. `200 { "app": App, "releases": [Release, ...] }`. `404 not_found`.
@@ -195,8 +343,9 @@ shown; `app` is present for failures after the app was found). The 404 and 409 b
 
 ## Audit events
 
-`app.create` (platform, identifier, credentialId), `app.delete`, `app.sync` (`ok`, counts or
-`code`, `trigger` `request` or `job`), and `credential.use` with purpose `app.sync`. Never a
+`app.create` (platform, identifier, credentialId; `source: "import"` when added by import),
+`app.delete`, `app.sync` (`ok`, counts or `code`, `trigger` `request` or `job`), and
+`credential.use` with purpose `app.sync` or `app.discover`. Never a
 secret, a token or a store response body.
 
 ## Not verified

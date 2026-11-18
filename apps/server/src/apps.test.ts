@@ -854,3 +854,558 @@ dbTest('the default factory builds the real App Store Connect connector, and a 4
   assert.equal(bad.body.error, 'store_auth');
   assert.ok(!bad.text.includes('PRIVATE KEY'));
 });
+
+// ---------------------------------------------------------------------------------------------
+// Discover and import
+
+const discoverPath = '/apps/discover';
+const importPath = '/apps/import';
+
+const appleApp = (storeId: string, name: string, bundleId: string): StoreApp => ({
+  storeId,
+  platform: 'ios',
+  name,
+  bundleId,
+});
+
+/**
+ * A Google Play fake that answers one package per connector, like the real factory is used:
+ * a StoreApp for a package it knows, an error to throw otherwise (not found when unlisted).
+ */
+function playTable(table: Record<string, StoreApp | Error>, delays: Record<string, number> = {}) {
+  const asked: string[] = [];
+  const factory: StoreConnectorFactory = (input) => {
+    const store = new FakeStore('android');
+    store.listApps = async () => {
+      asked.push(input.identifier);
+      const wait = delays[input.identifier];
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      const hit = table[input.identifier];
+      if (hit instanceof Error) throw hit;
+      if (!hit) throw new StoreError('googleplay', 'not_found', `No app ${input.identifier} for this account.`, 404);
+      return [hit];
+    };
+    return store;
+  };
+  return { factory, asked };
+}
+
+const playApp = (name: string, id: string): StoreApp => ({
+  storeId: id,
+  platform: 'android',
+  name,
+  bundleId: id,
+});
+
+dbTest('discover and import need apps.write; a non-member gets 404', async (db) => {
+  const t = await boot(db);
+  t.stores.ios.apps = [appleApp('111', 'Acme', 'com.acme.app')];
+  const viewer = await t.addMember('viewer');
+  const member = await t.addMember('member');
+  const admin = await t.addMember('admin');
+  const discover = { credentialId: t.iosCredential };
+  const imports = {
+    credentialId: t.iosCredential,
+    items: [{ platform: 'ios', identifier: 'com.acme.app' }],
+  };
+  for (const cookie of [viewer, member]) {
+    assert.equal((await t.call(cookie, 'POST', discoverPath, discover)).status, 403);
+    assert.equal((await t.call(cookie, 'POST', importPath, imports)).status, 403);
+  }
+  assert.equal(t.stores.ios.calls.length, 0);
+  assert.equal(t.built.length, 0);
+  assert.equal((await t.call(admin, 'POST', discoverPath, discover)).status, 200);
+  assert.equal((await t.call(admin, 'POST', importPath, imports)).status, 200);
+
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+  const outsider = await t.addMember('owner', 'other');
+  for (const [path, body] of [
+    [discoverPath, discover],
+    [importPath, imports],
+  ] as const) {
+    const res = await t.call(outsider, 'POST', path, body);
+    assert.equal(res.status, 404, path);
+    assert.deepEqual(res.body, { error: 'not_found' });
+    assert.equal((await t.call(outsider, 'POST', path, body, 'no-such-workspace')).status, 404);
+  }
+  assert.equal(t.stores.ios.calls.length, 1, 'only the admin read the store');
+});
+
+dbTest('discover and import refuse an unknown, foreign or unsuitable credential', async (db) => {
+  const t = await boot(db);
+  const github = await t.addCredential();
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+  const outsider = await t.addMember('owner', 'other');
+  const theirs = await t.addCredential('app_store_connect', ASC_SECRET, outsider, 'other');
+  const items = [{ platform: 'ios', identifier: 'com.acme.app' }];
+
+  for (const [credentialId, error] of [
+    [github, 'credential_kind'],
+    ['nope', 'credential_not_found'],
+    [theirs, 'credential_not_found'],
+  ] as const) {
+    const d = await t.call(t.owner, 'POST', discoverPath, { credentialId, packages: ['com.acme.app'] });
+    assert.equal(d.status, 422, `discover ${error}`);
+    assert.equal(d.body.error, error);
+    const i = await t.call(t.owner, 'POST', importPath, { credentialId, items });
+    assert.equal(i.status, 422, `import ${error}`);
+    assert.equal(i.body.error, error);
+  }
+  assert.equal(t.built.length, 0, 'no secret was decrypted for them');
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 0);
+  assert.equal((await t.auditActions()).filter((a) => a.action === 'credential.use').length, 0);
+});
+
+dbTest('discover validates its body', async (db) => {
+  const t = await boot(db);
+  const bad = async (body: unknown) => (await t.call(t.owner, 'POST', discoverPath, body)).status;
+  assert.equal(await bad({}), 400);
+  assert.equal(await bad({ credentialId: '' }), 400);
+  assert.equal(await bad({ credentialId: t.playCredential, packages: [] }), 400);
+  assert.equal(await bad({ credentialId: t.playCredential, packages: 'com.acme.app' }), 400);
+  const many = Array.from({ length: 51 }, (_, i) => `com.acme.app${i}`);
+  assert.equal(await bad({ credentialId: t.playCredential, packages: many }), 400);
+  const res = await t.call(t.owner, 'POST', discoverPath, {
+    credentialId: t.playCredential,
+    packages: ['com.acme.app', 'nodots'],
+  });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.issues[0].path, 'packages.1');
+  const huge = await t.call(t.owner, 'POST', discoverPath, {
+    credentialId: t.playCredential,
+    packages: ['com.acme.app'],
+    padding: 'x'.repeat(20_000),
+  });
+  assert.equal(huge.status, 413);
+  assert.equal(t.built.length, 0);
+});
+
+dbTest('Apple discovery lists what the key sees and marks the apps already added', async (db) => {
+  const t = await boot(db);
+  t.stores.ios.apps = [
+    appleApp('222', 'Zeta', 'com.acme.zeta'),
+    appleApp('111', 'Acme', 'com.acme.app'),
+    appleApp('333', 'Beta\nApp', 'com.acme.beta'),
+    appleApp('111', 'Acme again', 'COM.ACME.APP'),
+    { storeId: '9', platform: 'android', name: 'Odd', bundleId: 'com.acme.odd' },
+    appleApp('8', 'Bad', 'bad id!'),
+  ];
+  const created = await t.addIos({ identifier: 'com.acme.BETA', name: 'Beta' });
+  const res = await t.call(t.owner, 'POST', discoverPath, {
+    credentialId: t.iosCredential,
+    packages: ['ignored.for.apple'],
+  });
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.body.credentialId, t.iosCredential);
+  assert.equal(res.body.kind, 'app_store_connect');
+  assert.deepEqual(res.body.failures, []);
+  assert.deepEqual(res.body.candidates, [
+    { platform: 'ios', storeId: '111', identifier: 'com.acme.app', name: 'Acme', alreadyAdded: false },
+    {
+      platform: 'ios',
+      storeId: '333',
+      identifier: 'com.acme.beta',
+      name: 'Beta App',
+      alreadyAdded: true,
+      appId: created.body.app.id,
+    },
+    { platform: 'ios', storeId: '222', identifier: 'com.acme.zeta', name: 'Zeta', alreadyAdded: false },
+  ]);
+  assert.deepEqual(t.stores.ios.calls, ['listApps'], 'a single read, nothing else');
+  assert.equal(t.built.length, 1);
+  assert.equal(t.built[0]?.kind, 'app_store_connect');
+  assert.equal(t.built[0]?.secret, ASC_SECRET);
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 1, 'discovery adds nothing');
+
+  const use = (await t.auditActions()).filter((a) => a.action === 'credential.use');
+  assert.equal(use.length, 1);
+  assert.match(use[0]?.detail ?? '', /app\.discover/);
+  assert.equal(use[0]?.targetId, t.iosCredential);
+  t.noLeaks();
+});
+
+dbTest('discovery failures of the whole call are mapped like sync failures, with safe messages', async (db) => {
+  const t = await boot(db);
+  const discover = () => t.call(t.owner, 'POST', discoverPath, { credentialId: t.iosCredential });
+  t.stores.ios.error = new StoreError('appstoreconnect', 'auth', 'Apple rejected the key.', 401);
+  const auth = await discover();
+  assert.equal(auth.status, 422);
+  assert.equal(auth.body.error, 'store_auth');
+  t.stores.ios.error = new StoreError('appstoreconnect', 'forbidden', 'The key has no access.', 403);
+  assert.equal((await discover()).body.error, 'store_forbidden');
+  t.stores.ios.error = new StoreError('appstoreconnect', 'server', 'Apple failed.', 500);
+  const down = await discover();
+  assert.equal(down.status, 502);
+  assert.equal(down.body.error, 'store_unavailable');
+  t.stores.ios.error = new StoreRateLimitError('appstoreconnect', 42);
+  const limited = await discover();
+  assert.equal(limited.status, 429);
+  assert.equal(limited.body.retryAfterSeconds, 42);
+  assert.equal(limited.headers.get('retry-after'), '42');
+  // An error that is not ours to explain says nothing of what it carried.
+  t.stores.ios.error = new Error(`boom ${KEY_LINE}`);
+  const other = await discover();
+  assert.equal(other.status, 502);
+  assert.equal(other.body.error, 'discover_failed');
+  assert.ok(!other.text.includes(KEY_LINE));
+  t.noLeaks();
+});
+
+dbTest('Google Play discovery needs package names and verifies each one on its own', async (db) => {
+  const table = playTable({
+    'com.acme.app': playApp('Acme Android', 'com.acme.app'),
+    'com.acme.other': playApp('Other', 'com.acme.other'),
+    'com.acme.locked': new StoreError('googleplay', 'forbidden', 'The service account may not open this app.', 403),
+    'com.acme.flaky': new StoreError('googleplay', 'server', 'Google Play failed.', 503),
+    'com.acme.crash': new Error(`boom ${KEY_LINE}`),
+  });
+  const t = await boot(db, { connectorFactory: table.factory });
+  const created = await t.addAndroid({ name: 'Mine' });
+
+  const none = await t.call(t.owner, 'POST', discoverPath, { credentialId: t.playCredential });
+  assert.equal(none.status, 422);
+  assert.equal(none.body.error, 'packages_required');
+  assert.match(none.body.message, /package names/);
+  assert.equal(table.asked.length, 0);
+
+  const res = await t.call(t.owner, 'POST', discoverPath, {
+    credentialId: t.playCredential,
+    packages: [
+      'com.acme.app',
+      'com.acme.other',
+      'com.acme.missing',
+      'com.acme.locked',
+      'com.acme.flaky',
+      'com.acme.crash',
+      'com.acme.other',
+    ],
+  });
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.body.kind, 'google_play');
+  assert.deepEqual(res.body.candidates, [
+    {
+      platform: 'android',
+      storeId: 'com.acme.app',
+      identifier: 'com.acme.app',
+      name: 'Acme Android',
+      alreadyAdded: true,
+      appId: created.body.app.id,
+    },
+    {
+      platform: 'android',
+      storeId: 'com.acme.other',
+      identifier: 'com.acme.other',
+      name: 'Other',
+      alreadyAdded: false,
+    },
+  ]);
+  const codes = Object.fromEntries(
+    (res.body.failures as { identifier: string; error: string; message: string }[]).map((f) => [
+      f.identifier,
+      f.error,
+    ]),
+  );
+  assert.deepEqual(codes, {
+    'com.acme.missing': 'store_not_found',
+    'com.acme.locked': 'store_forbidden',
+    'com.acme.flaky': 'store_unavailable',
+    'com.acme.crash': 'discover_failed',
+  });
+  assert.ok(res.body.failures.every((f: { message: string }) => f.message.length > 0));
+  assert.deepEqual(
+    table.asked,
+    ['com.acme.app', 'com.acme.other', 'com.acme.missing', 'com.acme.locked', 'com.acme.flaky', 'com.acme.crash'],
+    'each distinct package is checked once',
+  );
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 1);
+  t.noLeaks();
+});
+
+dbTest('a problem of the Google credential itself ends the checks and marks the rest', async (db) => {
+  const table = playTable({
+    'com.acme.a': playApp('A', 'com.acme.a'),
+    'com.acme.b': new StoreError('googleplay', 'api_disabled', 'The Android Developer API is not enabled.', 403),
+    'com.acme.c': playApp('C', 'com.acme.c'),
+  });
+  const t = await boot(db, { connectorFactory: table.factory });
+  const res = await t.call(t.owner, 'POST', discoverPath, {
+    credentialId: t.playCredential,
+    packages: ['com.acme.a', 'com.acme.b', 'com.acme.c'],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.candidates.length, 1);
+  assert.deepEqual(
+    res.body.failures.map((f: { identifier: string; error: string }) => [f.identifier, f.error]),
+    [
+      ['com.acme.b', 'store_forbidden'],
+      ['com.acme.c', 'store_forbidden'],
+    ],
+  );
+  assert.deepEqual(table.asked, ['com.acme.a', 'com.acme.b'], 'no further requests after that');
+});
+
+dbTest('discovery is limited per workspace; a refused request costs no slot', async (db) => {
+  let time = 1_000_000;
+  const limiter = createTestLimiter({ limit: 2, windowMs: 60_000, now: () => time });
+  const t = await boot(db, { limiter });
+  const github = await t.addCredential();
+  for (let i = 0; i < 5; i++) {
+    assert.equal((await t.call(t.owner, 'POST', discoverPath, { credentialId: github })).status, 422);
+    assert.equal(
+      (await t.call(t.owner, 'POST', discoverPath, { credentialId: t.playCredential })).status,
+      422,
+      'packages_required',
+    );
+  }
+  const ok = { credentialId: t.iosCredential };
+  assert.equal((await t.call(t.owner, 'POST', discoverPath, ok)).status, 200);
+  assert.equal((await t.call(t.owner, 'POST', discoverPath, ok)).status, 200);
+  const limited = await t.call(t.owner, 'POST', discoverPath, ok);
+  assert.equal(limited.status, 429);
+  assert.equal(limited.body.error, 'rate_limited');
+  assert.ok(limited.body.retryAfterSeconds > 0);
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  assert.equal(t.stores.ios.calls.length, 2, 'the refused request never reached the store');
+  assert.equal(t.built.length, 2, 'and decrypted nothing');
+  time += 61_000;
+  assert.equal((await t.call(t.owner, 'POST', discoverPath, ok)).status, 200);
+});
+
+dbTest('a slow Apple discovery is stopped with a 504', async (db) => {
+  const t = await boot(db, { timeoutMs: 30 });
+  t.stores.ios.delayMs = 300;
+  const res = await t.call(t.owner, 'POST', discoverPath, { credentialId: t.iosCredential });
+  assert.equal(res.status, 504);
+  assert.equal(res.body.error, 'timeout');
+  await new Promise((r) => setTimeout(r, 400));
+});
+
+dbTest('a slow Google Play check keeps what it verified and marks the rest as timed out', async (db) => {
+  const table = playTable(
+    {
+      'com.acme.fast': playApp('Fast', 'com.acme.fast'),
+      'com.acme.slow': playApp('Slow', 'com.acme.slow'),
+      'com.acme.late': playApp('Late', 'com.acme.late'),
+    },
+    { 'com.acme.slow': 400 },
+  );
+  const t = await boot(db, { connectorFactory: table.factory, timeoutMs: 60 });
+  const res = await t.call(t.owner, 'POST', discoverPath, {
+    credentialId: t.playCredential,
+    packages: ['com.acme.fast', 'com.acme.slow', 'com.acme.late'],
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(
+    res.body.candidates.map((c: { identifier: string }) => c.identifier),
+    ['com.acme.fast'],
+  );
+  assert.deepEqual(
+    res.body.failures.map((f: { identifier: string; error: string }) => [f.identifier, f.error]),
+    [
+      ['com.acme.slow', 'timeout'],
+      ['com.acme.late', 'timeout'],
+    ],
+  );
+  assert.deepEqual(table.asked, ['com.acme.fast', 'com.acme.slow']);
+  await new Promise((r) => setTimeout(r, 400));
+});
+
+dbTest('import creates the selected apps in one go, reports each item, and is idempotent', async (db) => {
+  const t = await boot(db);
+  const { repositoryId } = await t.connect();
+  const preexisting = await t.addIos({ identifier: 'com.acme.old', name: 'Old' });
+  const items = [
+    { platform: 'ios', identifier: 'com.acme.app', storeAppId: '111', name: 'Acme', repositoryId },
+    { platform: 'ios', identifier: 'COM.ACME.OLD' },
+    { platform: 'ios', identifier: 'com.acme.noname' },
+    { platform: 'ios', identifier: 'com.acme.app' },
+    { platform: 'ios', identifier: 'com.acme.ghost', repositoryId: 'nope' },
+    { platform: 'android', identifier: 'com.acme.droid' },
+  ];
+  const res = await t.call(t.owner, 'POST', importPath, { credentialId: t.iosCredential, items });
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(res.body.summary, { created: 2, skipped: 2, failed: 2 });
+  const results = res.body.results as {
+    identifier: string;
+    status: string;
+    error?: string;
+    app?: Record<string, unknown>;
+  }[];
+  assert.deepEqual(
+    results.map((r) => [r.identifier, r.status, r.error]),
+    [
+      ['com.acme.app', 'created', undefined],
+      ['COM.ACME.OLD', 'skipped', 'already_exists'],
+      ['com.acme.noname', 'created', undefined],
+      ['com.acme.app', 'skipped', 'already_exists'],
+      ['com.acme.ghost', 'failed', 'repository_not_found'],
+      ['com.acme.droid', 'failed', 'credential_kind'],
+    ],
+  );
+  const first = results[0]?.app;
+  assert.equal(first?.name, 'Acme');
+  assert.equal(first?.storeAppId, '111');
+  assert.equal(first?.repositoryId, repositoryId);
+  assert.equal(first?.credentialId, t.iosCredential);
+  assert.equal(first?.lastSyncedAt, null);
+  assert.equal(results[1]?.app?.id, preexisting.body.app.id, 'a skipped item points at the existing app');
+  assert.equal(results[2]?.app?.name, 'com.acme.noname', 'the name defaults to the identifier');
+  assert.equal(results[2]?.app?.storeAppId, null);
+  assert.equal(results[3]?.app?.id, first?.id);
+  assert.equal(t.stores.ios.calls.length, 0, 'importing does not contact the store');
+
+  const before = (await t.call(t.owner, 'GET', '/apps')).body.apps;
+  assert.equal(before.length, 3);
+  const again = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.iosCredential,
+    items: items.slice(0, 3),
+  });
+  assert.deepEqual(again.body.summary, { created: 0, skipped: 3, failed: 0 });
+  assert.deepEqual((await t.call(t.owner, 'GET', '/apps')).body.apps, before);
+
+  const creates = (await t.auditActions()).filter((a) => a.action === 'app.create');
+  assert.equal(creates.length, 3, 'one for the manual app, one per imported app, none for skips');
+  const imported = creates.filter((a) => a.detail.includes('"source":"import"'));
+  assert.equal(imported.length, 2);
+  assert.deepEqual(imported.map((a) => a.targetId).sort(), [first?.id, results[2]?.app?.id].sort());
+  assert.ok(imported.every((a) => a.actorType === 'user'));
+  for (const a of creates) for (const leak of LEAKS) assert.ok(!a.detail.includes(leak));
+  t.noLeaks();
+});
+
+dbTest('import of Google Play apps stores the package name as the store id', async (db) => {
+  const t = await boot(db);
+  const res = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.playCredential,
+    items: [
+      { platform: 'android', identifier: 'com.acme.app', name: 'Acme Android', storeAppId: 'com.acme.app' },
+      { platform: 'android', identifier: 'com.acme.second' },
+      { platform: 'ios', identifier: 'com.acme.app' },
+    ],
+  });
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(res.body.summary, { created: 2, skipped: 0, failed: 1 });
+  assert.equal(res.body.results[0].app.storeAppId, 'com.acme.app');
+  assert.equal(res.body.results[1].app.storeAppId, 'com.acme.second');
+  assert.equal(res.body.results[2].error, 'credential_kind');
+  assert.equal(t.stores.android.calls.length, 0);
+});
+
+dbTest('import validates its body', async (db) => {
+  const t = await boot(db);
+  const post = (items: unknown, extra: Record<string, unknown> = {}) =>
+    t.call(t.owner, 'POST', importPath, { credentialId: t.iosCredential, items, ...extra });
+  const many = Array.from({ length: 51 }, (_, i) => ({ platform: 'ios', identifier: `com.a.b${i}` }));
+  assert.equal((await post([])).status, 400);
+  assert.equal((await post('x')).status, 400);
+  assert.equal((await post(many)).status, 400);
+  assert.equal((await post([{ platform: 'windows', identifier: 'a.b' }])).status, 400);
+  assert.equal((await post([{ platform: 'ios', identifier: 'has space' }])).status, 400);
+  assert.equal((await post([{ platform: 'ios', identifier: 'com.a.b', storeAppId: 'a/b' }])).status, 400);
+  assert.equal((await post([{ platform: 'ios', identifier: 'com.a.b', name: 'x'.repeat(101) }])).status, 400);
+  const bad = await post([
+    { platform: 'ios', identifier: 'com.a.b' },
+    { platform: 'android', identifier: 'nodots' },
+  ]);
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.issues[0].path, 'items.1.identifier');
+  assert.equal((await t.call(t.owner, 'POST', importPath, { items: [] })).status, 400);
+  const big = await post([{ platform: 'ios', identifier: 'com.a.b' }], { padding: 'x'.repeat(40_000) });
+  assert.equal(big.status, 413);
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 0, 'nothing was created');
+});
+
+dbTest('import is transactional: a database error leaves nothing behind', async (db) => {
+  if (db.dialect !== 'sqlite') return;
+  const t = await boot(db);
+  await db.execute(
+    `CREATE TRIGGER apps_boom BEFORE INSERT ON apps WHEN NEW.identifier = 'com.acme.boom'
+       BEGIN SELECT RAISE(ABORT, 'boom'); END`,
+  );
+  // A 500 is not JSON, so this goes around the helper.
+  const res = await t.app.request(`/api/workspaces/${t.workspaceId}${importPath}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: t.owner },
+    body: JSON.stringify({
+      credentialId: t.iosCredential,
+      items: [
+        { platform: 'ios', identifier: 'com.acme.first' },
+        { platform: 'ios', identifier: 'com.acme.boom' },
+        { platform: 'ios', identifier: 'com.acme.third' },
+      ],
+    }),
+  });
+  assert.equal(res.status, 500);
+  assert.equal((await db.query('SELECT id FROM apps')).length, 0, 'the first insert was rolled back');
+  assert.equal((await t.auditActions()).filter((a) => a.action === 'app.create').length, 0);
+  await db.execute('DROP TRIGGER apps_boom');
+  const ok = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.iosCredential,
+    items: [{ platform: 'ios', identifier: 'com.acme.first' }],
+  });
+  assert.equal(ok.body.summary.created, 1);
+});
+
+dbTest('import and discovery never cross workspaces', async (db) => {
+  const t = await boot(db);
+  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('other', 'Other', 0)");
+  const outsider = await t.addMember('owner', 'other');
+  const theirs = await t.addCredential('app_store_connect', ASC_SECRET, outsider, 'other');
+  const mine = (await t.addIos()).body.app.id as string;
+
+  // The same bundle id in the other workspace is a different app, and is not "already added".
+  const found = await t.call(outsider, 'POST', discoverPath, { credentialId: theirs }, 'other');
+  assert.equal(found.status, 200);
+  assert.deepEqual(
+    found.body.candidates.map((c: { alreadyAdded: boolean }) => c.alreadyAdded),
+    [false],
+  );
+  const done = await t.call(
+    outsider,
+    'POST',
+    importPath,
+    { credentialId: theirs, items: [{ platform: 'ios', identifier: 'com.acme.app' }] },
+    'other',
+  );
+  assert.equal(done.body.summary.created, 1);
+  assert.notEqual(done.body.results[0].app.id, mine);
+  // Their credential cannot be used from this workspace, and the reverse.
+  const cross = await t.call(t.owner, 'POST', importPath, {
+    credentialId: theirs,
+    items: [{ platform: 'ios', identifier: 'com.acme.cross' }],
+  });
+  assert.equal(cross.body.error, 'credential_not_found');
+  const reverse = await t.call(
+    outsider,
+    'POST',
+    importPath,
+    { credentialId: t.iosCredential, items: [{ platform: 'ios', identifier: 'com.acme.cross' }] },
+    'other',
+  );
+  assert.equal(reverse.body.error, 'credential_not_found');
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 1);
+  assert.equal((await t.call(outsider, 'GET', '/apps', undefined, 'other')).body.apps.length, 1);
+});
+
+dbTest('an imported app can be synced like any other, and nothing leaks a secret', async (db) => {
+  const t = await boot(db);
+  t.stores.ios.apps = [appleApp('1234567890', 'Acme', 'com.acme.app')];
+  t.stores.ios.versions = [ios('2.0', 'READY_FOR_SALE', 'live')];
+  const found = await t.call(t.owner, 'POST', discoverPath, { credentialId: t.iosCredential });
+  const c = found.body.candidates[0];
+  const done = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.iosCredential,
+    items: [{ platform: c.platform, identifier: c.identifier, storeAppId: c.storeId, name: c.name }],
+  });
+  const id = done.body.results[0].app.id as string;
+  t.stores.ios.calls.length = 0;
+  const sync = await t.call(t.owner, 'POST', syncPath(id));
+  assert.equal(sync.status, 200, sync.text);
+  assert.deepEqual(
+    t.stores.ios.calls,
+    ['listVersions:1234567890', 'listBuilds:1234567890'],
+    'the store id from discovery spares the lookup',
+  );
+  for (const a of await t.auditActions()) for (const leak of LEAKS) assert.ok(!a.detail.includes(leak));
+  t.noLeaks();
+});

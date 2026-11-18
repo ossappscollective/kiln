@@ -1,5 +1,7 @@
+import { isPlayPackageName } from '@mrm/connectors';
 import { type Action, can } from '@mrm/core';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
@@ -8,8 +10,11 @@ import {
   type AppsContext,
   checkIdentifier,
   deleteApp,
+  discoverApps,
   enqueueAppSync,
   getApp,
+  importApps,
+  MAX_IMPORT_ITEMS,
   listAppReleases,
   listApps,
   registerApp,
@@ -51,6 +56,52 @@ const registerBody = z
     if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: problem });
   });
 
+const discoverBody = z
+  .object({
+    credentialId: z.string().min(1).max(100),
+    /** Google Play only: the package names to verify. Ignored for App Store Connect. */
+    packages: z.array(z.string().trim().min(1).max(255)).min(1).max(MAX_IMPORT_ITEMS).optional(),
+  })
+  .superRefine((value, ctx) => {
+    value.packages?.forEach((name, index) => {
+      if (!isPlayPackageName(name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['packages', index],
+          message: checkIdentifier('android', name) ?? 'Not an Android package name.',
+        });
+      }
+    });
+  });
+
+const importItem = z
+  .object({
+    platform: z.enum(['ios', 'android']),
+    identifier: z.string().trim().min(1).max(255),
+    storeAppId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .regex(/^[A-Za-z0-9._-]+$/, 'Letters, digits, dots, hyphens and underscores only.')
+      .optional(),
+    name: z.string().trim().max(100).optional(),
+    repositoryId: z.string().min(1).max(100).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const problem = checkIdentifier(value.platform, value.identifier);
+    if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: problem });
+  });
+
+const importBody = z.object({
+  credentialId: z.string().min(1).max(100),
+  items: z.array(importItem).min(1).max(MAX_IMPORT_ITEMS),
+});
+
+/** The two discovery bodies are small: 50 package names or items fit well inside these. */
+const DISCOVER_BODY_LIMIT = 16 * 1024;
+const IMPORT_BODY_LIMIT = 32 * 1024;
+
 /** App and store sync routes. Mounted under /api/workspaces. */
 export function appRoutes(ctx: AppRoutesContext) {
   const { db } = ctx;
@@ -76,6 +127,39 @@ export function appRoutes(ctx: AppRoutesContext) {
     const done = await registerApp(ctx, { workspaceId: ws(c), ...body.data }, actor(c));
     return done.ok ? c.json({ app: done.app }, 201) : respond(c, done);
   });
+
+  const tooLarge = (c: Context) =>
+    c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
+
+  // Reads the store with the credential, so it shares the per-workspace budget of syncs.
+  app.post(
+    '/:workspaceId/apps/discover',
+    needs('apps.write'),
+    bodyLimit({ maxSize: DISCOVER_BODY_LIMIT, onError: tooLarge }),
+    async (c) => {
+      const body = await parseBody(c, discoverBody);
+      if (!body.ok) return body.response;
+      const done = await discoverApps(
+        ctx,
+        { workspaceId: ws(c), ...body.data },
+        actor(c),
+        (key) => ctx.limiter.take(key),
+      );
+      return done.ok ? c.json(done.discovery) : respond(c, done);
+    },
+  );
+
+  app.post(
+    '/:workspaceId/apps/import',
+    needs('apps.write'),
+    bodyLimit({ maxSize: IMPORT_BODY_LIMIT, onError: tooLarge }),
+    async (c) => {
+      const body = await parseBody(c, importBody);
+      if (!body.ok) return body.response;
+      const done = await importApps(ctx, { workspaceId: ws(c), ...body.data }, actor(c));
+      return done.ok ? c.json({ results: done.results, summary: done.summary }) : respond(c, done);
+    },
+  );
 
   app.get('/:workspaceId/apps/:id', needs('apps.read'), async (c) => {
     const found = await getApp(db, ws(c), param(c, 'id'));
