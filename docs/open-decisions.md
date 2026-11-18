@@ -150,3 +150,5 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - A security contact address in [SECURITY.md](../SECURITY.md) before the first release.
 - Whether the web `Portfolio` screen shows `rawState` for unmapped statuses, and how to present Play
   `rolloutFraction` ("share of users eligible", not "installed").
+- Device install and test (phase 5, proposed): the maintainer's decisions are listed at the end of
+  [ADR 0006](adr/0006-device-install-and-test.md#open-decisions-for-the-maintainer).
