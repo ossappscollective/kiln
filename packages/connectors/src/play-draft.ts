@@ -1,0 +1,376 @@
+import { PLAY_LISTING_MEMBERS } from '@mrm/core';
+import { StoreError, StoreRateLimitError } from './errors.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
+import {
+  type DraftApplyInput,
+  type DraftApplyResult,
+  type DraftAssetState,
+  DraftDriftError,
+  type DraftImageState,
+  DraftOutcomeUnknownError,
+  type DraftReadRequest,
+  type DraftState,
+  type DraftStep,
+  type DraftTextState,
+  setMatches,
+  type StoreDraftConnector,
+} from './store-draft-types.ts';
+import {
+  enc,
+  isRecord,
+  type Json,
+  records,
+  type StoreHttpOptions,
+  StoreHttp,
+  type StoreReply,
+  text,
+} from './store-http.ts';
+
+/**
+ * Google Play: write listing text and images into an EDIT and commit it WITHOUT sending it for
+ * review. A STORE WRITE. Only ever called by the server's draft service, after a rights check, a
+ * preview, a confirmation hash and a re-read (docs/adr/0009-staged-store-drafts.md). It is never
+ * retried and never publishes or submits anything on purpose.
+ *
+ * An edit is the transactional unit of the Play Developer API
+ * (https://developers.google.com/android-publisher/edits): nothing changes until `edits.commit`, so a
+ * failure before the commit (a refused upload, a drift refusal, a timeout) changes nothing and the edit
+ * is deleted. The commit is the one request that changes the store.
+ *
+ * Endpoints. VERIFIED on Google's pages on 2026-11-18 unless marked UNVERIFIED:
+ *
+ * - `POST .../edits` (insert), `DELETE .../edits/{editId}` (as the read-only connector).
+ * - `GET .../edits/{editId}/listings` (`edits.listings.list`), `PUT .../edits/{editId}/listings/{language}`
+ *   (`edits.listings.update`: "Creates or updates a localized store listing"; the body is a `Listing`:
+ *   `language`, `title`, `fullDescription`, `shortDescription`, `video`). UNVERIFIED: whether `update`
+ *   REPLACES the listing, so this connector sends every member it read, with the changed ones replaced.
+ * - `GET .../edits/{editId}/listings/{language}/{imageType}` (`edits.images.list`: `images[]` with `id`,
+ *   `url`, `sha1`, `sha256`), `DELETE` of the same path (`edits.images.deleteall`: "Removes all images for a
+ *   given language and image type"), and the upload
+ *   `POST https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{packageName}/edits/{editId}/listings/{language}/{imageType}`
+ *   ("Upload URI, for media upload requests"; the answer has one `image`). `imageType` is an `AppImageType`:
+ *   `phoneScreenshots`, `sevenInchScreenshots`, `tenInchScreenshots`, `tvScreenshots`, `wearScreenshots`,
+ *   `icon`, `featureGraphic`, `tvBanner` (no promo graphic). UNVERIFIED: the query parameter
+ *   `uploadType=media` (Google's usual simple upload) and the accepted types and sizes (the page states
+ *   none; this server only sends png and jpeg within its own caps), and that the upload order is the
+ *   display order of screenshots.
+ * - `POST .../edits/{editId}:commit` with `changesNotSentForReview=true`: "the edit's changes are held
+ *   back from review until someone explicitly sends them for review in the Google Play Console UI"
+ *   (https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit; the page describes it
+ *   as applying "when a rejection happens" and says nothing more about when it is required or allowed).
+ *   `changesInReviewBehavior=ERROR_IF_IN_REVIEW` is sent too, so a review in progress is never cancelled
+ *   (its default `CANCEL_IN_REVIEW_AND_SUBMIT` would cancel it and submit everything). If Play refuses
+ *   `changesNotSentForReview` the answer is a `draft_not_allowed` error and NOTHING is committed: the connector
+ *   never retries without it, because a commit without it may send the changes for review (UNVERIFIED how Play
+ *   behaves per app, e.g. with managed publishing off).
+ * - UNVERIFIED: whether a changed listing or image that was committed but not sent for review shows in
+ *   a later edit, so the state read after a commit may not show the draft: a lost commit answer is
+ *   `DraftOutcomeUnknownError` and the server does not claim to know (it asks the person to look in Play Console).
+ *
+ * Before the commit the connector lists the images of every replaced set again and compares the SHA-256
+ * Google reports with the files it sent: a mismatch deletes the edit (nothing applied). Writes use their
+ * own `StoreHttp` with no rate-limit waits. A timeout, a cut connection or a 5xx on the commit is a
+ * `DraftOutcomeUnknownError`. Edits of one service account are serialized with the read-only connector's queue.
+ *
+ * No message carries the service account key or an access token.
+ */
+
+export type PlayDraftConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
+  /** The service account JSON key file (as stored), or its parsed fields. */
+  serviceAccount: string | ServiceAccount;
+  /** The package name (application id) of the app. */
+  packageName: string;
+  /** Defaults to https://androidpublisher.googleapis.com. */
+  apiBase?: string;
+};
+
+const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
+
+export class PlayDraftConnector implements StoreDraftConnector {
+  readonly store = 'googleplay' as const;
+  readonly platform = 'android' as const;
+  readonly packageName: string;
+  readonly #http: StoreHttp;
+  readonly #writeHttp: StoreHttp;
+  readonly #tokens: GoogleTokenProvider;
+  readonly #base: string;
+  readonly #account: ServiceAccount;
+
+  constructor(options: PlayDraftConnectorOptions) {
+    this.#account =
+      typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+    if (!isPlayPackageName(options.packageName)) {
+      throw new StoreError('googleplay', 'invalid_input', `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`);
+    }
+    this.packageName = options.packageName;
+    this.#http = new StoreHttp({ ...options, store: 'googleplay' });
+    this.#writeHttp = new StoreHttp({ ...options, store: 'googleplay', maxRateLimitRetries: 0 });
+    this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
+    this.#tokens = new GoogleTokenProvider(this.#account, this.#http);
+    for (const known of this.#http.known) this.#writeHttp.known.add(known);
+  }
+
+  async readDraft(request: DraftReadRequest): Promise<DraftState> {
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      for (let attempt = 0; ; attempt++) {
+        const editId = await this.#insertEdit(this.#http);
+        try {
+          return await this.#state(this.#http, editId, request);
+        } catch (error) {
+          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0) continue;
+          throw error;
+        } finally {
+          await this.#deleteEdit(this.#http, editId);
+        }
+      }
+    });
+  }
+
+  async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
+    const request: DraftReadRequest = {
+      text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
+      assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target })),
+    };
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      const http = this.#writeHttp;
+      const editId = await this.#insertEdit(http);
+      let settled = false;
+      try {
+        const listings = await this.#listings(http, editId);
+        const before = await this.#state(http, editId, request, listings);
+        if (!input.guard(before)) throw new DraftDriftError(before);
+        const steps: DraftStep[] = [];
+
+        // Texts: one listing per language, every member as read with the changed ones replaced.
+        const byLocale = new Map<string, Map<string, string>>();
+        for (const t of input.text) {
+          const fields = byLocale.get(t.locale) ?? new Map<string, string>();
+          fields.set(t.field, t.value);
+          byLocale.set(t.locale, fields);
+        }
+        for (const [locale, fields] of byLocale) {
+          const current = listings.get(locale);
+          const body: Json = { ...(current ?? {}), language: locale };
+          const changedFields = new Set<string>();
+          for (const [field, value] of fields) {
+            const member = PLAY_LISTING_MEMBERS[field] ?? '';
+            if (!current || current[member] !== value) changedFields.add(field);
+            body[member] = value;
+          }
+          if (changedFields.size > 0) {
+            await this.#call(http, 'PUT', this.#url(`/${enc(editId)}/listings/${enc(locale)}`), `changing the ${locale} listing`, { json: body });
+          }
+          for (const field of fields.keys()) steps.push({ type: 'text', locale, target: field, outcome: changedFields.has(field) ? 'applied' : 'already_same' });
+        }
+
+        // Graphics: a set is replaced as a whole (delete all, upload in order), then checked against Google's SHA-256.
+        for (const write of input.assets) {
+          const state = before.assets.find((a) => a.locale === write.locale && a.target === write.target);
+          if (state && setMatches(state.images, write.files)) {
+            steps.push({ type: 'asset', locale: write.locale, target: write.target, outcome: 'already_same' });
+            continue;
+          }
+          const path = `/${enc(editId)}/listings/${enc(write.locale)}/${enc(write.target)}`;
+          await this.#call(http, 'DELETE', this.#url(path), `removing the ${write.target} of ${write.locale}`);
+          for (const file of write.files) {
+            await this.#call(http, 'POST', `${this.#base}/upload/androidpublisher/v3/applications/${enc(this.packageName)}/edits${path}?uploadType=media`, `uploading ${file.name}`, {
+              raw: { body: file.bytes, contentType: file.mime },
+            });
+          }
+          const now = await this.#images(http, editId, write.locale, write.target);
+          if (!setMatches(now, write.files)) {
+            throw new StoreError(
+              'googleplay',
+              'unexpected',
+              `Google Play does not list the ${write.target} of ${write.locale} as it was uploaded (the checksums differ), so nothing was committed.`,
+            );
+          }
+          steps.push({ type: 'asset', locale: write.locale, target: write.target, outcome: 'applied', uploaded: write.files.length, removed: state?.images.length ?? 0 });
+        }
+
+        if (!steps.some((s) => s.outcome === 'applied')) {
+          // Nothing differs: no commit, so nothing is sent anywhere.
+          return { before, steps, commit: 'none' as const };
+        }
+        // From here on the request may be applied even if the answer is lost.
+        settled = true;
+        try {
+          await this.#commit(editId);
+        } catch (error) {
+          // A refused commit (4xx) applied nothing: the edit is deleted below. An unknown one is left alone.
+          if (!(error instanceof DraftOutcomeUnknownError)) settled = false;
+          throw error;
+        }
+        return { before, steps, commit: 'not_sent_for_review' as const };
+      } finally {
+        if (!settled) await this.#deleteEdit(http, editId);
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------------------------------
+
+  async #listings(http: StoreHttp, editId: string): Promise<Map<string, Json>> {
+    const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings`), 'reading the listings');
+    const out = new Map<string, Json>();
+    for (const item of records(isRecord(reply.json) ? reply.json.listings : undefined)) {
+      const language = text(item.language);
+      if (language) out.set(language, item);
+    }
+    return out;
+  }
+
+  async #images(http: StoreHttp, editId: string, language: string, type: string): Promise<DraftImageState[]> {
+    try {
+      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`), `reading the ${type} of ${language}`);
+      return records(isRecord(reply.json) ? reply.json.images : undefined).flatMap((image) => {
+        const id = text(image.id);
+        return id ? [{ id, name: null, checksum: text(image.sha256)?.toLowerCase() ?? null, checksumKind: 'sha256' as const, state: null }] : [];
+      });
+    } catch (error) {
+      // A language that has no listing yet has no images either.
+      if (error instanceof StoreError && error.kind === 'not_found') return [];
+      throw error;
+    }
+  }
+
+  async #state(http: StoreHttp, editId: string, request: DraftReadRequest, known?: Map<string, Json>): Promise<DraftState> {
+    const listings = known ?? (await this.#listings(http, editId));
+    const textState: DraftTextState[] = request.text.map((t) => {
+      const listing = listings.get(t.locale);
+      const value = listing ? text(listing[PLAY_LISTING_MEMBERS[t.field] ?? '']) : undefined;
+      return { locale: t.locale, field: t.field, value: value ?? null, localeExists: listing !== undefined };
+    });
+    const assets: DraftAssetState[] = [];
+    for (const slot of request.assets) {
+      assets.push({
+        locale: slot.locale,
+        kind: slot.kind,
+        device: slot.device,
+        target: slot.target,
+        setExists: true,
+        images: await this.#images(http, editId, slot.locale, slot.target),
+      });
+    }
+    return { store: 'googleplay', platform: 'android', version: null, text: textState, assets };
+  }
+
+  #url(suffix: string): string {
+    return `${this.#base}/androidpublisher/v3/applications/${enc(this.packageName)}/edits${suffix}`;
+  }
+
+  async #insertEdit(http: StoreHttp): Promise<string> {
+    const reply = await this.#call(http, 'POST', this.#url(''), 'opening an edit', { json: {} });
+    const id = isRecord(reply.json) ? text(reply.json.id) : undefined;
+    if (!id) throw new StoreError('googleplay', 'unexpected', 'Google Play opened an edit but sent no edit id.', reply.status);
+    return id;
+  }
+
+  /** Best effort. An undeleted edit is harmless: the next insert invalidates it, and it expires. */
+  async #deleteEdit(http: StoreHttp, editId: string): Promise<void> {
+    try {
+      await this.#call(http, 'DELETE', this.#url(`/${enc(editId)}`), 'deleting the edit');
+    } catch {
+      // Nothing was committed, so there is nothing to undo.
+    }
+  }
+
+  /**
+   * The commit, held back from review (`changesNotSentForReview=true`) and never cancelling a review
+   * in progress (`changesInReviewBehavior=ERROR_IF_IN_REVIEW`). A lost answer or a 5xx is `DraftOutcomeUnknownError`.
+   */
+  async #commit(editId: string): Promise<void> {
+    const what = 'committing the draft';
+    const url = `${this.#url(`/${enc(editId)}`)}:commit?changesNotSentForReview=true&changesInReviewBehavior=ERROR_IF_IN_REVIEW`;
+    for (let attempt = 0; ; attempt++) {
+      const token = await this.#tokens.token();
+      let reply: StoreReply;
+      try {
+        reply = await this.#writeHttp.send('POST', url, { headers: { authorization: `Bearer ${token}` } });
+      } catch (error) {
+        if (error instanceof StoreError && error.kind === 'network') {
+          throw new DraftOutcomeUnknownError(
+            'googleplay',
+            `The connection to Google Play failed while ${what}, so it is not known whether Google applied it. ${error.message}`,
+            [],
+            error.status,
+          );
+        }
+        throw error;
+      }
+      if (reply.status === 401 && attempt === 0) {
+        // Google rejected the token before it looked at the request: a new token is safe to try once.
+        this.#tokens.invalidate();
+        continue;
+      }
+      if (reply.status >= 200 && reply.status < 300) return;
+      if (reply.status >= 500) {
+        throw new DraftOutcomeUnknownError('googleplay', `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`, [], reply.status);
+      }
+      throw this.#refusal(reply, what);
+    }
+  }
+
+  #refusal(reply: StoreReply, what: string): StoreError {
+    const raw = JSON.stringify(reply.json ?? '');
+    if (reply.status === 400 && /CHANGES_ALREADY_IN_REVIEW/.test(raw)) {
+      return new StoreError(
+        'googleplay',
+        'changes_in_review',
+        'Google Play has changes in review for this app, and this server does not cancel a review. Wait for the review to finish (or cancel it in Play Console) and try again. Nothing was changed.',
+        400,
+      );
+    }
+    if (reply.status === 400 && /changesNotSentForReview/i.test(raw)) {
+      return new StoreError(
+        'googleplay',
+        'draft_not_allowed',
+        'Google Play would not keep these changes apart from review for this app, so nothing was committed (a commit without that setting might send them for review, and this server never does that). Make the change in Play Console instead.',
+        400,
+      );
+    }
+    const error = googleError(reply, what, {
+      packageName: this.packageName,
+      ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}),
+    });
+    if (error instanceof StoreRateLimitError) return error;
+    if (reply.status === 403 && error.kind === 'forbidden') {
+      return new StoreError(
+        'googleplay',
+        'forbidden',
+        'Google Play refused the change (403). The service account must be allowed to edit the store listing of this app in Play Console (Users and permissions). See docs/credentials.md.',
+        403,
+      );
+    }
+    return new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
+  }
+
+  async #call(
+    http: StoreHttp,
+    method: string,
+    url: string,
+    what: string,
+    body: { json?: unknown; raw?: { body: Uint8Array; contentType: string } } = {},
+  ): Promise<StoreReply> {
+    for (let attempt = 0; ; attempt++) {
+      const token = await this.#tokens.token();
+      const reply = await http.send(method, url, {
+        headers: { authorization: `Bearer ${token}` },
+        ...(body.json !== undefined ? { json: body.json } : {}),
+        ...(body.raw ? { raw: body.raw } : {}),
+      });
+      if (reply.status === 401 && attempt === 0) {
+        this.#tokens.invalidate();
+        continue;
+      }
+      if (reply.status >= 200 && reply.status < 300) {
+        if (reply.malformed) {
+          throw new StoreError('googleplay', 'unexpected', `Google Play answered ${what} with a response that could not be read.`, reply.status);
+        }
+        return reply;
+      }
+      throw this.#refusal(reply, what);
+    }
+  }
+}

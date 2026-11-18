@@ -172,6 +172,10 @@ export type StoreErrorKind =
   | 'edit_invalid'
   /** Play: changes are in review, and the commit was told not to cancel that review (`ERROR_IF_IN_REVIEW`). */
   | 'changes_in_review'
+  /** App Store: the app has no version whose listing can still be edited (a draft write never creates one). */
+  | 'no_editable_version'
+  /** Play: the commit with `changesNotSentForReview` was refused, so a draft cannot be kept apart from a review. */
+  | 'draft_not_allowed'
   /** The store has no API for this. */
   | 'unsupported';
 

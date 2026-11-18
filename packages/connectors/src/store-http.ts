@@ -40,6 +40,8 @@ export type StoreRequest = {
   json?: unknown;
   /** Sent as `application/x-www-form-urlencoded`. */
   form?: Record<string, string>;
+  /** Sent as is with this content type (an image upload to a store). */
+  raw?: { body: Uint8Array; contentType: string };
 };
 
 export type Json = Record<string, unknown>;
@@ -125,20 +127,24 @@ export class StoreHttp {
       'user-agent': this.#userAgent,
       ...request.headers,
     };
-    let body: string | undefined;
+    let body: string | Uint8Array | undefined;
     if (request.json !== undefined) {
       headers['content-type'] = 'application/json';
       body = JSON.stringify(request.json);
     } else if (request.form) {
       headers['content-type'] = 'application/x-www-form-urlencoded';
       body = new URLSearchParams(request.form).toString();
+    } else if (request.raw) {
+      // A caller's own headers win over the default content type (a pre-signed upload names its own).
+      headers['content-type'] = request.raw.contentType;
+      body = request.raw.body;
     }
     let response: Response;
     try {
       response = await this.#fetch(url, {
         method,
         headers,
-        ...(body !== undefined ? { body } : {}),
+        ...(body !== undefined ? { body: body as unknown as ConstructorParameters<typeof Response>[0] } : {}),
         signal: AbortSignal.timeout(this.#timeoutMs),
       });
     } catch (error) {
