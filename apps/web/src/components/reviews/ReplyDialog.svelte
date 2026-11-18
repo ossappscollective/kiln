@@ -87,7 +87,7 @@
   const status = $derived(saved ? saved.status : 'none');
   const locked = $derived(isLocked(status));
   const explanation = $derived(saved ? statusExplanation(saved) : null);
-  const replacing = $derived(review.developerResponse !== null);
+  const replacing = $derived(review.developerResponse !== null || saved?.status === 'sent');
   const context = $derived(collapseText(review.body, 240));
   const facts = $derived(
     saved ? confirmFacts({ store: review.store, appName: app.name, review, draft: saved, replacing }) : null,
@@ -109,7 +109,7 @@
   function init() {
     step = 'write';
     saved = review.replyDraft ?? null;
-    text = saved ? saved.text : '';
+    text = saved ? saved.text : review.developerResponse ? review.developerResponse.body : '';
     problem = '';
     ack = false;
     templateId = '';
@@ -263,7 +263,7 @@
 <Modal
   bind:open
   size="lg"
-  title={step === 'confirm' ? 'Confirm the public reply' : replacing ? 'Replace the reply' : 'Reply to this review'}
+  title={step === 'confirm' ? 'Confirm the public reply' : replacing ? 'Edit the reply' : 'Reply to this review'}
   description="{app.name} · {storeLabel(review.store)}"
   dismissible={busy === ''}
 >
@@ -286,9 +286,9 @@
         {showContext ? 'Show less' : 'Show the whole review'}
       </button>
     {/if}
-    {#if replacing && review.developerResponse}
+    {#if replacing}
       <p class="muted small">
-        This review already has a reply in the store. Sending a new one replaces it.
+        This review already has a reply. The store keeps one reply per review, so sending your edit replaces it. The text below is the current reply.
       </p>
     {/if}
   </div>

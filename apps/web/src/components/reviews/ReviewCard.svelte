@@ -116,13 +116,15 @@
   const replyState = $derived(review.reply ?? { status: 'none' as const, sentAt: null });
   const replyAvail = $derived(replyAvailability(replyConfig, role));
   const draftPreview = $derived(review.replyDraft && review.replyDraft.status !== 'sent' ? collapseText(review.replyDraft.text, 200) : null);
+  // A reply sent from here counts as answered even before the next sync reads it back from the store.
+  const sentReply = $derived(review.replyDraft && review.replyDraft.status === 'sent' ? review.replyDraft : null);
   const replyButton = $derived(
     review.replyDraft && review.replyDraft.status !== 'sent'
       ? isLocked(review.replyDraft.status)
         ? 'See the reply'
         : 'Edit the reply draft'
-      : review.developerResponse
-        ? 'Write a new reply'
+      : review.developerResponse || sentReply
+        ? 'Edit reply'
         : 'Reply',
   );
 
@@ -224,6 +226,17 @@
           {responseExpanded ? 'Show less' : 'Show the whole response'}
         </button>
       {/if}
+    </div>
+  {/if}
+
+  {#if !review.developerResponse && sentReply}
+    <div class="response">
+      <p class="response-head">
+        <Icon name="message" size={14} />
+        <strong>Your reply</strong>
+        <span class="muted">sent from here{#if sentReply.sentAt !== null} · {timeAgo(sentReply.sentAt, now)}{/if}</span>
+      </p>
+      <p class="body">{sentReply.text}</p>
     </div>
   {/if}
 
