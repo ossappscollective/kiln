@@ -1,14 +1,22 @@
 import {
   type DueFlags,
+  MAX_ROLLOUT_STEPS,
   type Platform,
   type PlanPlatform,
+  type RolloutComparison,
+  type RolloutStepInput,
+  type RolloutStepStatus,
+  type RolloutSummary,
+  type RolloutTemplate,
+  formatPercent,
   isPlanLocale,
   releaseNotesLength,
   releaseNotesLimit,
+  validateRolloutSteps,
 } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { compareVersions, platformLabel } from './portfolio.ts';
-import type { AppSummary, ReleaseSummary } from './types.ts';
+import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Routing: `#/portfolio/<appId>/release/<version>`. The release page is a screen of the portfolio
@@ -211,6 +219,165 @@ export function doneBy(item: { done: boolean; doneBy: { name: string | null } | 
 }
 
 // ---------------------------------------------------------------------------------------------
+// Staged rollout steps (planning data only: nothing here starts or changes a rollout in a store)
+
+export type Chip = { label: string; tone: 'ok' | 'warn' | 'neutral' | 'info' | 'bad' };
+
+/** The status chip of a step. It says the state in words; color is only a hint. */
+export function stepChip(step: Pick<RolloutStep, 'status' | 'due'>): Chip {
+  if (step.status === 'done') return { label: 'Done', tone: 'ok' };
+  if (step.status === 'skipped') return { label: 'Skipped', tone: 'neutral' };
+  return step.due ? { label: 'Planned time has passed', tone: 'warn' } : { label: 'Planned', tone: 'info' };
+}
+
+/** "Tue, 12 Jan 2027, 09:00" in the viewer's time zone; "No time set" without one. */
+export function formatPlannedAt(at: number | null, locale?: string): string {
+  if (at === null) return 'No time set';
+  return new Date(at).toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/** "Step 2 of 5 done (20%). Next: 50%." or "Not started: 5 steps planned." */
+export function rolloutHeadline(summary: Pick<RolloutSummary, 'kind' | 'total' | 'planned' | 'current' | 'next' | 'dueSteps'> | null): string {
+  if (summary === null) return 'No rollout planned.';
+  if (summary.kind === 'apple_phased') return 'Apple phased release over 7 days (fixed schedule, for information).';
+  const steps = `${summary.total} ${summary.total === 1 ? 'step' : 'steps'}`;
+  if (summary.planned === 0) return summary.current ? `All ${steps} done or skipped.` : `${steps}, none open.`;
+  const head = summary.current ? `Step ${summary.current.index} of ${summary.total} done (${formatPercent(summary.current.percent)}).` : `Not started: ${steps} planned.`;
+  return `${head} Next: ${summary.next ? formatPercent(summary.next.percent) : 'none'}.${summary.dueSteps > 0 ? ` ${summary.dueSteps} past its planned time.` : ''}`;
+}
+
+/** A short badge for boards and headers: "Rollout 2 of 5" or "Rollout step due". Null when there is nothing to say. */
+export function rolloutBadge(summary: RolloutSummary | null): Chip | null {
+  if (summary === null || summary.kind === 'apple_phased') return summary ? { label: 'Phased release planned', tone: 'info' } : null;
+  if (summary.dueSteps > 0) return { label: 'Rollout step due', tone: 'warn' };
+  if (summary.planned === 0) return { label: 'Rollout plan complete', tone: 'ok' };
+  return { label: `Rollout ${summary.done} of ${summary.total} done`, tone: 'neutral' };
+}
+
+/** How loud the comparison of the plan with the store should be. */
+export function comparisonTone(comparison: Pick<RolloutComparison, 'verdict' | 'mismatch' | 'halted'>): 'ok' | 'warn' | 'neutral' {
+  if (comparison.mismatch || comparison.halted) return 'warn';
+  return comparison.verdict === 'match' ? 'ok' : 'neutral';
+}
+
+export const comparisonLabel = (comparison: Pick<RolloutComparison, 'verdict'>): string =>
+  ({ match: 'Plan and store agree', store_ahead: 'Store is ahead of the plan', store_behind: 'Store is behind the plan', unknown: 'Cannot compare' })[comparison.verdict];
+
+// A step as it is edited: text fields, so a half typed value is not lost.
+
+export type DraftStep = {
+  /** A stable key for the list, whatever the percent says now. */
+  key: string;
+  /** The stored step this row is, or null for a new one. */
+  id: string | null;
+  percent: string;
+  /** The value of a `datetime-local` input, in the viewer's time zone. */
+  plannedAt: string;
+  note: string;
+  status: RolloutStepStatus;
+};
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** An epoch time as the value of a `datetime-local` input (local time, minutes). */
+export function localInputValue(at: number | null): string {
+  if (at === null) return '';
+  const d = new Date(at);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** The value of a `datetime-local` input as an epoch time: `null` for empty, `NaN` for nonsense. */
+export function parseLocalInput(value: string): number | null {
+  const text = value.trim();
+  if (text === '') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(text);
+  if (!m) return Number.NaN;
+  const [y, mo, d, h, mi] = m.slice(1).map(Number) as [number, number, number, number, number];
+  const date = new Date(y, mo - 1, d, h, mi);
+  const real = date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d && date.getHours() === h;
+  return real ? date.getTime() : Number.NaN;
+}
+
+let draftCounter = 0;
+const draftKey = () => `d${++draftCounter}`;
+
+export const draftFromSteps = (steps: readonly RolloutStep[]): DraftStep[] =>
+  steps.map((s) => ({ key: draftKey(), id: s.id, percent: String(s.percent), plannedAt: localInputValue(s.plannedAt), note: s.note ?? '', status: s.status }));
+
+export const draftFromTemplate = (template: Pick<RolloutTemplate, 'steps'>): DraftStep[] =>
+  template.steps.map((s) => ({ key: draftKey(), id: null, percent: String(s.percent), plannedAt: '', note: s.note ?? '', status: 'planned' }));
+
+/** A percent to offer for a new step: 10 for the first, then about halfway to 100 above the last one, at most 100. */
+export function suggestNextPercent(percents: readonly number[]): number {
+  if (percents.length === 0) return 10;
+  const last = Math.max(...percents);
+  if (last >= 100) return 100;
+  return Math.min(100, Math.max(last + 1, Math.round(last + (100 - last) / 2)));
+}
+
+export function addDraftStep(draft: readonly DraftStep[]): DraftStep[] {
+  if (draft.length >= MAX_ROLLOUT_STEPS) return [...draft];
+  const percents = draft.map((d) => Number(d.percent)).filter((n) => Number.isInteger(n));
+  return [...draft, { key: draftKey(), id: null, percent: String(suggestNextPercent(percents)), plannedAt: '', note: '', status: 'planned' }];
+}
+
+export type DraftResult =
+  | { ok: true; steps: { id?: string; percent: number; plannedAt: number | null; note: string | null }[] }
+  | { ok: false; /** A message per row key. */ rows: Record<string, string>; /** Problems about the list as a whole. */ general: string[] };
+
+/**
+ * The steps to send for an edited list, or the problems to show. The list is put in order of
+ * percentage (they must increase, so the order is not a choice). The rules are the server's own
+ * (`validateRolloutSteps`), so a saved list is rarely refused.
+ */
+export function draftToBody(
+  draft: readonly DraftStep[],
+  options: { planCreatedAt: number; existing: readonly RolloutStep[] },
+): DraftResult {
+  const rows: Record<string, string> = {};
+  const parsed: { row: DraftStep; input: RolloutStepInput }[] = [];
+  for (const row of draft) {
+    const percentText = row.percent.trim();
+    const percent = /^\d{1,3}$/.test(percentText) ? Number(percentText) : Number.NaN;
+    const plannedAt = parseLocalInput(row.plannedAt);
+    if (Number.isNaN(percent)) rows[row.key] = 'A whole number from 1 to 100.';
+    else if (plannedAt !== null && Number.isNaN(plannedAt)) rows[row.key] = 'A date and time.';
+    else {
+      const note = row.note.trim();
+      parsed.push({ row, input: { ...(row.id ? { id: row.id } : {}), percent, plannedAt, note: note === '' ? null : note } });
+    }
+  }
+  if (Object.keys(rows).length > 0) return { ok: false, rows, general: [] };
+  parsed.sort((a, b) => (a.input.percent as number) - (b.input.percent as number));
+  const checked = validateRolloutSteps(
+    parsed.map((p) => p.input),
+    { planCreatedAt: options.planCreatedAt, existing: options.existing },
+  );
+  if (!checked.ok) {
+    const general: string[] = [];
+    for (const issue of checked.issues) {
+      const match = /^steps\.(\d+)\./.exec(issue.path);
+      const row = match ? parsed[Number(match[1])]?.row : undefined;
+      if (row && !(row.key in rows)) rows[row.key] = issue.message;
+      else if (!row) general.push(issue.message);
+    }
+    return { ok: false, rows, general };
+  }
+  return {
+    ok: true,
+    steps: parsed.map((p) => ({
+      ...(p.input.id ? { id: p.input.id } : {}),
+      percent: p.input.percent,
+      plannedAt: p.input.plannedAt ?? null,
+      note: p.input.note ?? null,
+    })),
+  };
+}
+
+/** Width of the percent bar of a step, 0 to 100. */
+export const barWidth = (percent: number): number => Math.min(100, Math.max(0, percent));
+
+// ---------------------------------------------------------------------------------------------
 // Platform of a plan
 
 export function planPlatformLabel(platform: PlanPlatform): string {
@@ -245,8 +412,19 @@ export function planErrorMessage(error: unknown, fallback = 'Something went wron
     case 'too_many_templates':
     case 'builtin_template':
       return message || fallback;
+    case 'invalid_rollout':
+    case 'rollout_platform_mismatch':
+    case 'rollout_has_done_steps':
+    case 'earlier_steps_open':
+    case 'later_steps_done':
+    case 'invalid_transition':
+    case 'no_rollout_steps':
+    case 'store_share_unknown':
+    case 'store_not_at_step':
+    case 'step_changed':
+      return message || fallback;
     case 'template_not_found':
-      return 'That checklist template no longer exists. Reload and pick another.';
+      return /rollout/i.test(message) ? message : 'That checklist template no longer exists. Reload and pick another.';
     case 'not_found':
       return 'That no longer exists. It may have been deleted. Reload to see the current state.';
     case 'payload_too_large':

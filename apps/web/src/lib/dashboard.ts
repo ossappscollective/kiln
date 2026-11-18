@@ -7,10 +7,12 @@ import {
   type Readiness,
   type ReleaseEvent,
   type ReleaseState,
+  type RolloutSummary,
   dashboardBucket,
+  formatPercent,
 } from '@mrm/core';
 import { appHref, compareVersions, latestRelease, type ReleaseLoad } from './portfolio.ts';
-import { releaseHref } from './release.ts';
+import { dueText, releaseHref } from './release.ts';
 import type { AppSummary, PlanSummary } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
@@ -183,6 +185,8 @@ export type BoardCard = {
   planned: boolean;
   blocked: Blocked | null;
   due: DueFlags | null;
+  /** The staged rollout plan in short (planning data); null when the plan has none. */
+  rollout: RolloutSummary | null;
   planId: string | null;
   readiness: Readiness | null;
   lastSyncedAt: number | null;
@@ -289,6 +293,7 @@ export function buildBoard(input: {
           planned: true,
           blocked,
           due: planned.due,
+          rollout: planned.rollout,
           planId: planned.id,
           readiness: planned.readiness,
           next: nextAction({ platform: app.platform, status: null, planned: true, blocked, readiness: planned.readiness }),
@@ -322,6 +327,7 @@ export function buildBoard(input: {
         blocked,
         // A release that is out has no deadline worth showing.
         due: plan && !plan.released ? plan.due : null,
+        rollout: plan && !plan.released ? plan.rollout : null,
         planId: plan?.id ?? null,
         readiness: plan?.readiness ?? null,
         next: nextAction({ platform: app.platform, status: latest.status, rawState: latest.rawState, blocked, readiness: plan?.readiness ?? null }),
@@ -336,3 +342,94 @@ export function buildBoard(input: {
 
 /** How many cards carry a block, for the summary line above the board. */
 export const blockedCount = (board: Board): number => board.columns.reduce((n, c) => n + c.cards.filter((card) => card.blocked).length, 0);
+
+// ---------------------------------------------------------------------------------------------
+// Due soon and overdue
+
+export type AttentionKind = 'overdue' | 'rollout_due' | 'due_soon';
+
+export type Attention = {
+  /** One row per plan. */
+  key: string;
+  planId: string;
+  appId: string;
+  appName: string;
+  platform: Platform;
+  version: string;
+  /** The most urgent reason. */
+  kind: AttentionKind;
+  /** Every reason, most urgent first, as plain sentences. */
+  reasons: string[];
+  /** Days to the target date (negative when passed); null without one. Only for ordering. */
+  daysLeft: number | null;
+  href: string;
+};
+
+const ATTENTION_RANK: Record<AttentionKind, number> = { overdue: 0, rollout_due: 1, due_soon: 2 };
+
+type AttentionPlan = Pick<
+  PlanSummary,
+  'id' | 'appId' | 'appName' | 'appPlatform' | 'version' | 'released' | 'due' | 'rollout' | 'targetDate'
+>;
+
+/**
+ * What needs a look on one plan: a deadline that has passed, a rollout step whose planned time has
+ * passed while it is still open, a deadline that is close. A release that is already out has none.
+ * Pure: the flags come from the server's clock, so a list never disagrees with the plan page.
+ */
+export function attentionOf(plan: AttentionPlan): Attention | null {
+  if (plan.released) return null;
+  const reasons: { kind: AttentionKind; text: string }[] = [];
+  const due = dueText(plan.due, plan.released);
+  if (plan.due.overdue && due) reasons.push({ kind: 'overdue', text: due.text });
+  const rollout = plan.rollout;
+  if (rollout && rollout.kind === 'steps' && rollout.dueSteps > 0) {
+    const next = rollout.next ? ` Next: ${formatPercent(rollout.next.percent)}.` : '';
+    reasons.push({
+      kind: 'rollout_due',
+      text: `${rollout.dueSteps} rollout ${rollout.dueSteps === 1 ? 'step is' : 'steps are'} past the planned time.${next}`,
+    });
+  }
+  if (plan.due.dueSoon && !plan.due.overdue && due) reasons.push({ kind: 'due_soon', text: due.text });
+  const first = reasons.sort((a, b) => ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind])[0];
+  if (!first) return null;
+  return {
+    key: plan.id,
+    planId: plan.id,
+    appId: plan.appId,
+    appName: plan.appName,
+    platform: plan.appPlatform,
+    version: plan.version,
+    kind: first.kind,
+    reasons: reasons.map((r) => r.text),
+    daysLeft: plan.due.daysLeft,
+    href: releaseHref(plan.appId, plan.version),
+  };
+}
+
+/** The plans that need a look, most urgent first: overdue (longest first), rollout steps due, due soon (soonest first). */
+export function attentionItems(plans: readonly AttentionPlan[]): Attention[] {
+  return plans
+    .map(attentionOf)
+    .filter((a): a is Attention => a !== null)
+    .sort(
+      (a, b) =>
+        ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind] ||
+        (a.daysLeft ?? 0) - (b.daysLeft ?? 0) ||
+        a.appName.localeCompare(b.appName, undefined, { sensitivity: 'base' }) ||
+        (a.platform === b.platform ? 0 : a.platform === 'ios' ? -1 : 1) ||
+        (a.version < b.version ? -1 : a.version > b.version ? 1 : 0),
+    );
+}
+
+/** "2 overdue, 1 with a rollout step due, 3 due soon." Empty when there is nothing. */
+export function attentionSummary(items: readonly Attention[]): string {
+  const count = (kind: AttentionKind) => items.filter((i) => i.kind === kind).length;
+  const counts: [number, string][] = [
+    [count('overdue'), 'overdue'],
+    [count('rollout_due'), 'with a rollout step due'],
+    [count('due_soon'), 'due soon'],
+  ];
+  const parts = counts.filter(([n]) => n > 0).map(([n, label]) => `${n} ${label}`);
+  return parts.length === 0 ? '' : `${parts.join(', ')}.`;
+}

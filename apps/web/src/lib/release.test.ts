@@ -18,8 +18,22 @@ import {
   releaseHref,
   releasesOfVersion,
   rolloutView,
+  addDraftStep,
+  barWidth,
+  comparisonLabel,
+  comparisonTone,
+  draftFromSteps,
+  draftFromTemplate,
+  draftToBody,
+  localInputValue,
+  parseLocalInput,
+  rolloutBadge,
+  rolloutHeadline,
+  stepChip,
+  suggestNextPercent,
 } from './release.ts';
-import type { AppSummary, ReleaseSummary } from './types.ts';
+import { rolloutTemplate, summarizeRollout } from '@mrm/core';
+import type { AppSummary, ReleaseSummary, RolloutStep } from './types.ts';
 
 const app = (partial: Partial<AppSummary>): AppSummary => ({
   id: 'a1',
@@ -164,4 +178,126 @@ test('plan errors become sentences', () => {
   assert.equal(planErrorMessage(err(409, 'already_exists', { message: 'This app already has a plan for that version.' })), 'This app already has a plan for that version.');
   assert.equal(planErrorMessage(err(500, 'boom')), 'generic');
   assert.equal(planErrorMessage(new Error('x'), 'Fallback'), 'Fallback');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Staged rollout
+
+const stored = (partial: Partial<RolloutStep> & { id: string; percent: number }): RolloutStep => ({
+  position: 1,
+  plannedAt: null,
+  note: null,
+  status: 'planned',
+  doneAt: null,
+  doneBy: null,
+  doneSource: null,
+  due: false,
+  ...partial,
+});
+
+test('step chips say the state in words', () => {
+  assert.deepEqual(stepChip({ status: 'done', due: false }), { label: 'Done', tone: 'ok' });
+  assert.deepEqual(stepChip({ status: 'skipped', due: false }), { label: 'Skipped', tone: 'neutral' });
+  assert.deepEqual(stepChip({ status: 'planned', due: false }), { label: 'Planned', tone: 'info' });
+  assert.equal(stepChip({ status: 'planned', due: true }).tone, 'warn');
+  assert.match(stepChip({ status: 'planned', due: true }).label, /time has passed/);
+});
+
+test('rollout headline and badge from the summary', () => {
+  const steps = [
+    { id: 'a', percent: 5, plannedAt: null, note: null, status: 'done' as const, doneAt: 1 },
+    { id: 'b', percent: 20, plannedAt: 5, note: null, status: 'planned' as const, doneAt: null },
+    { id: 'c', percent: 100, plannedAt: null, note: null, status: 'planned' as const, doneAt: null },
+  ];
+  const summary = summarizeRollout('steps', steps, 10);
+  assert.equal(rolloutHeadline(summary), 'Step 1 of 3 done (5%). Next: 20%. 1 past its planned time.');
+  assert.deepEqual(rolloutBadge(summary), { label: 'Rollout step due', tone: 'warn' });
+  const quiet = summarizeRollout('steps', steps, 1);
+  assert.deepEqual(rolloutBadge(quiet), { label: 'Rollout 1 of 3 done', tone: 'neutral' });
+  assert.equal(rolloutHeadline(summarizeRollout('steps', [{ ...steps[0], status: 'planned' as const, doneAt: null }], 0)), 'Not started: 1 step planned. Next: 5%.');
+  const finished = summarizeRollout('steps', [steps[0] as (typeof steps)[0]], 0);
+  assert.equal(rolloutBadge(finished)?.label, 'Rollout plan complete');
+  assert.equal(rolloutHeadline(finished), 'All 1 step done or skipped.');
+  assert.equal(rolloutBadge(null), null);
+  assert.equal(rolloutHeadline(null), 'No rollout planned.');
+  const apple = summarizeRollout('apple_phased', [], 0);
+  assert.match(rolloutHeadline(apple), /fixed schedule/);
+  assert.equal(rolloutBadge(apple)?.label, 'Phased release planned');
+});
+
+test('comparison tone and label: a mismatch is a warning, unknown is neutral', () => {
+  assert.equal(comparisonTone({ verdict: 'match', mismatch: false, halted: false }), 'ok');
+  assert.equal(comparisonTone({ verdict: 'store_ahead', mismatch: true, halted: false }), 'warn');
+  assert.equal(comparisonTone({ verdict: 'unknown', mismatch: false, halted: false }), 'neutral');
+  assert.equal(comparisonTone({ verdict: 'match', mismatch: false, halted: true }), 'warn');
+  assert.equal(comparisonLabel({ verdict: 'store_behind' }), 'Store is behind the plan');
+  assert.equal(barWidth(150), 100);
+  assert.equal(barWidth(-3), 0);
+});
+
+test('local date-time inputs round trip, and nonsense is NaN', () => {
+  const at = new Date(2027, 0, 12, 9, 30).getTime();
+  assert.equal(localInputValue(at), '2027-01-12T09:30');
+  assert.equal(parseLocalInput('2027-01-12T09:30'), at);
+  assert.equal(parseLocalInput(''), null);
+  assert.equal(localInputValue(null), '');
+  for (const bad of ['tomorrow', '2027-02-30T10:00', '2027-01-12', '2027-01-12T25:00']) assert.ok(Number.isNaN(parseLocalInput(bad)), bad);
+});
+
+test('editing steps: templates, new rows, order by percent, and the same rules as the server', () => {
+  const template = rolloutTemplate('builtin:play-default');
+  assert.ok(template);
+  const draft = draftFromTemplate(template);
+  assert.deepEqual(draft.map((d) => d.percent), ['1', '5', '20', '50', '100']);
+  assert.equal(new Set(draft.map((d) => d.key)).size, 5);
+  const options = { planCreatedAt: 1_000, existing: [] as RolloutStep[] };
+  const ok = draftToBody(draft, options);
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.ok && ok.steps.map((s) => s.percent), [1, 5, 20, 50, 100]);
+
+  // Out of order rows are sorted by percent; a duplicate is an error on its row.
+  const shuffled = [draft[2], draft[0], draft[1]] as typeof draft;
+  assert.deepEqual((draftToBody(shuffled, options) as { steps: { percent: number }[] }).steps.map((s) => s.percent), [1, 5, 20]);
+  const duplicate = draftToBody([{ ...draft[0]!, percent: '5' }, draft[1]!], options);
+  assert.equal(duplicate.ok, false);
+  assert.match(Object.values(!duplicate.ok ? duplicate.rows : {}).join(' '), /higher than the one before/);
+  // Typing problems are per row.
+  const typo = draftToBody([{ ...draft[0]!, percent: 'ten' }, { ...draft[1]!, plannedAt: 'soon' }], options);
+  assert.equal(typo.ok, false);
+  assert.deepEqual(Object.keys(!typo.ok ? typo.rows : {}).length, 2);
+  assert.equal(draftToBody([], options).ok, false);
+  assert.match((draftToBody([], options) as { general: string[] }).general.join(' '), /at least one step/);
+  const past = draftToBody([{ ...draft[0]!, plannedAt: localInputValue(500) }], options);
+  assert.equal(past.ok, false);
+
+  // A step already done keeps its percent, and its id is sent so it stays the same step.
+  const existing = [stored({ id: 'a', percent: 5, status: 'done', doneAt: 9 }), stored({ id: 'b', percent: 20, position: 2 })];
+  const edit = draftFromSteps(existing);
+  const changed = draftToBody([{ ...edit[0]!, percent: '6' }, edit[1]!], { planCreatedAt: 1_000, existing });
+  assert.equal(changed.ok, false);
+  assert.match(Object.values(!changed.ok ? changed.rows : {}).join(' '), /keeps its percentage/);
+  const kept = draftToBody(edit, { planCreatedAt: 1_000, existing });
+  assert.deepEqual(kept.ok && kept.steps.map((s) => s.id), ['a', 'b']);
+  const removed = draftToBody([edit[1]!], { planCreatedAt: 1_000, existing });
+  assert.equal(removed.ok, false);
+  assert.match((removed as { general: string[] }).general.join(' '), /cannot be removed/);
+
+  // New rows get a percent above the last, at most 12 rows.
+  assert.equal(suggestNextPercent([]), 10);
+  assert.equal(suggestNextPercent([50]), 75);
+  assert.equal(suggestNextPercent([99]), 100);
+  assert.equal(suggestNextPercent([100]), 100);
+  const grown = addDraftStep(draftFromTemplate(template));
+  assert.equal(grown.length, 6);
+  let many = [] as ReturnType<typeof addDraftStep>;
+  for (let i = 0; i < 20; i++) many = addDraftStep(many);
+  assert.equal(many.length, 12);
+});
+
+test('plan errors for the rollout codes show the server sentence', () => {
+  const error = (code: string, message: string) => new ApiError(422, code, message, undefined, { error: code, message });
+  assert.equal(planErrorMessage(error('invalid_rollout', 'Each step must be higher.')), 'Each step must be higher.');
+  assert.equal(planErrorMessage(error('store_not_at_step', 'The store says 5%.')), 'The store says 5%.');
+  assert.equal(planErrorMessage(error('template_not_found', 'That rollout template does not exist or does not fit this app.')), 'That rollout template does not exist or does not fit this app.');
+  assert.match(planErrorMessage(error('template_not_found', 'That checklist template does not exist.')), /checklist template no longer exists/);
 });

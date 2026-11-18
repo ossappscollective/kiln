@@ -9,10 +9,11 @@
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
-  import { blockedCount, buildBoard } from '../../lib/dashboard.ts';
+  import { attentionItems, blockedCount, buildBoard } from '../../lib/dashboard.ts';
   import { appLabel, type ReleaseLoad } from '../../lib/portfolio.ts';
   import type { AppSummary, PlanSummary } from '../../lib/types.ts';
   import Skeleton from '../ui/Skeleton.svelte';
+  import AttentionStrip from './AttentionStrip.svelte';
   import BoardCard from './BoardCard.svelte';
 
   let {
@@ -62,6 +63,7 @@
   const board = $derived(buildBoard({ apps, releases, plans }));
   const placed = $derived(board.columns.reduce((n, c) => n + c.cards.length, 0));
   const blocked = $derived(blockedCount(board));
+  const attention = $derived(attentionItems(plans ?? []));
   const everyoneLoading = $derived(apps.length > 0 && board.unplaced.length === apps.length && board.unplaced.every((u) => u.reason === 'loading'));
   const waiting = $derived(board.unplaced.filter((u) => u.reason === 'loading').length);
 
@@ -90,6 +92,8 @@
       {#if canReadPlans && plans === null && !plansFailed}Loading plans.{/if}
       {#if plansFailed}Plans could not be loaded, so blocked flags and deadlines from plans are missing.{/if}
     </p>
+
+    <AttentionStrip items={attention} />
 
     <div class="board" role="group" aria-label="Releases by stage">
       {#each board.columns as column (column.bucket)}

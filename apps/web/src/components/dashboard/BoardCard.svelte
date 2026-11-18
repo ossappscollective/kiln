@@ -8,7 +8,7 @@
   import type { BoardCard } from '../../lib/dashboard.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { appHref, trackLabel } from '../../lib/portfolio.ts';
-  import { dueText } from '../../lib/release.ts';
+  import { dueText, rolloutBadge } from '../../lib/release.ts';
   import PlatformBadge from '../portfolio/PlatformBadge.svelte';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -18,6 +18,7 @@
 
   const uid = $props.id();
   const due = $derived(card.due ? dueText(card.due) : null);
+  const rollout = $derived(rolloutBadge(card.rollout));
   const showTrack = $derived(card.track !== null && card.track !== 'production');
 </script>
 
@@ -45,9 +46,10 @@
     </p>
   {/if}
 
-  {#if due}
+  {#if due || rollout}
     <p class="due">
-      <Badge tone={due.tone === 'neutral' ? 'neutral' : due.tone} dot>{due.text}</Badge>
+      {#if due}<Badge tone={due.tone === 'neutral' ? 'neutral' : due.tone} dot>{due.text}</Badge>{/if}
+      {#if rollout}<Badge tone={rollout.tone} dot>{rollout.label}</Badge>{/if}
     </p>
   {/if}
 
@@ -134,6 +136,9 @@
   }
 
   .due {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
     margin: 0;
   }
 

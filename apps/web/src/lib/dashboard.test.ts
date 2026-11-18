@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { RELEASE_STATES, type ReleaseState, allowedEvents, computeReadiness, dashboardBucket, transition } from '@mrm/core';
+import { RELEASE_STATES, type ReleaseState, type RolloutSummary, allowedEvents, computeReadiness, dashboardBucket, transition } from '@mrm/core';
 import {
   BUCKET_INFO,
   STEPS,
   VIEW_MODE_KEY,
   buildBoard,
   blockedCount,
+  attentionItems,
+  attentionOf,
+  attentionSummary,
   nextAction,
   readViewMode,
   saveViewMode,
@@ -76,6 +79,7 @@ function plan(appId: string, partial: Partial<PlanSummary> = {}): PlanSummary {
     due: { dueSoon: false, overdue: false, daysLeft: null },
     readiness: computeReadiness({ items: [], notes: [{ locale: 'en-US', text: 'Fixes' }], platform: null }),
     checklist: { total: 0, done: 0 },
+    rollout: null,
     ...partial,
   };
 }
@@ -323,4 +327,68 @@ test('the view choice is remembered, defaults to the list and survives broken st
   // No localStorage at all (node): the list, and no throw.
   assert.equal(readViewMode(), 'list');
   assert.doesNotThrow(() => saveViewMode('board'));
+});
+
+// ---------------------------------------------------------------------------------------------
+// Due soon and overdue
+
+const summary = (partial: Partial<RolloutSummary> = {}): RolloutSummary => ({
+  kind: 'steps',
+  total: 5,
+  done: 2,
+  skipped: 0,
+  planned: 3,
+  planPercent: 5,
+  current: { index: 2, percent: 5 },
+  next: { id: 's3', index: 3, percent: 20, plannedAt: 1 },
+  dueSteps: 0,
+  nextPlannedAt: 1,
+  ...partial,
+});
+
+test('attention: a plan with a passed deadline, a due rollout step or a close deadline is listed; others are not', () => {
+  assert.equal(attentionOf(plan('a1')), null);
+  assert.equal(attentionOf(plan('a1', { due: { dueSoon: false, overdue: false, daysLeft: 9 } })), null);
+  const overdue = attentionOf(plan('a1', { due: { dueSoon: false, overdue: true, daysLeft: -2 } }));
+  assert.equal(overdue?.kind, 'overdue');
+  assert.deepEqual(overdue?.reasons, ['Overdue by 2 days']);
+  const soon = attentionOf(plan('a1', { due: { dueSoon: true, overdue: false, daysLeft: 1 } }));
+  assert.equal(soon?.kind, 'due_soon');
+  assert.deepEqual(soon?.reasons, ['Due in 1 day']);
+  const step = attentionOf(plan('a1', { rollout: summary({ dueSteps: 2 }) }));
+  assert.equal(step?.kind, 'rollout_due');
+  assert.deepEqual(step?.reasons, ['2 rollout steps are past the planned time. Next: 20%.']);
+  // Both: the most urgent is the kind, every reason is kept.
+  const both = attentionOf(plan('a1', { due: { dueSoon: false, overdue: true, daysLeft: -1 }, rollout: summary({ dueSteps: 1 }) }));
+  assert.equal(both?.kind, 'overdue');
+  assert.equal(both?.reasons.length, 2);
+  assert.match(both?.href ?? '', /release\/1\.0\.0$/);
+  // A release that is out, and a phased release (no steps to be late), have none.
+  assert.equal(attentionOf(plan('a1', { released: true, due: { dueSoon: false, overdue: true, daysLeft: -2 } })), null);
+  assert.equal(attentionOf(plan('a1', { rollout: summary({ kind: 'apple_phased', dueSteps: 0, total: 0 }) })), null);
+});
+
+test('attention items are ordered overdue (longest first), rollout due, then due soon (soonest first)', () => {
+  const a = plan('a1', { version: '1.0.0', due: { dueSoon: true, overdue: false, daysLeft: 2 } });
+  const b = plan('a1', { version: '1.1.0', due: { dueSoon: true, overdue: false, daysLeft: 0 } });
+  const c = plan('a1', { version: '1.2.0', due: { dueSoon: false, overdue: true, daysLeft: -1 } });
+  const d = plan('a1', { version: '1.3.0', due: { dueSoon: false, overdue: true, daysLeft: -5 } });
+  const e = plan('a1', { version: '1.4.0', rollout: summary({ dueSteps: 1 }) });
+  const f = plan('a1', { version: '1.5.0' });
+  const items = attentionItems([a, b, c, d, e, f]);
+  assert.deepEqual(items.map((i) => i.version), ['1.3.0', '1.2.0', '1.4.0', '1.1.0', '1.0.0']);
+  assert.equal(attentionSummary(items), '2 overdue, 1 with a rollout step due, 2 due soon.');
+  assert.equal(attentionSummary([]), '');
+  assert.deepEqual(attentionItems([]), []);
+});
+
+test('board cards carry the rollout summary of their plan, none once the release is out', () => {
+  const a = app();
+  const p = plan(a.id, { version: '1.0.0', rollout: summary() });
+  const live = buildBoard({ apps: [a], releases: { [a.id]: ready([release(a.id, { version: '1.0.0', status: 'rolling_out' })]) }, plans: [p] });
+  assert.equal(live.columns.flatMap((c) => c.cards)[0]?.rollout?.done, 2);
+  const out = buildBoard({ apps: [a], releases: { [a.id]: ready([release(a.id, { version: '1.0.0', status: 'live' })]) }, plans: [{ ...p, released: true }] });
+  assert.equal(out.columns.flatMap((c) => c.cards)[0]?.rollout, null);
+  const planned = buildBoard({ apps: [a], releases: { [a.id]: ready([]) }, plans: [plan(a.id, { version: '2.0.0', rollout: summary() })] });
+  assert.equal(planned.columns.flatMap((c) => c.cards)[0]?.rollout?.total, 5);
 });

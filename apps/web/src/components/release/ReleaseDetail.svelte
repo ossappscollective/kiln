@@ -10,8 +10,10 @@
   import { type Role, can } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { appHref, appLabel, describeError, portfolioHref } from '../../lib/portfolio.ts';
-  import { dueText, findSibling, planPlatformLabel, releaseHref, releasesOfVersion } from '../../lib/release.ts';
+  import { attentionOf } from '../../lib/dashboard.ts';
+  import { dueText, findSibling, planPlatformLabel, releaseHref, releasesOfVersion, rolloutBadge } from '../../lib/release.ts';
   import type { AppSummary, PlanDetail, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
+  import AttentionStrip from '../dashboard/AttentionStrip.svelte';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -24,6 +26,7 @@
   import PlanOverview from './PlanOverview.svelte';
   import PlatformPanel from './PlatformPanel.svelte';
   import ReleaseNotes from './ReleaseNotes.svelte';
+  import Rollout from './Rollout.svelte';
 
   let { api, workspaceId, role, appId, version }: { api: Api; workspaceId: string; role: Role; appId: string; version: string } = $props();
 
@@ -149,6 +152,8 @@
   const theirs = $derived(releasesOfVersion(siblingReleases, version));
   const ordered = $derived(app && sibling ? (app.platform === 'ios' ? [app, sibling] : [sibling, app]) : app ? [app] : []);
   const due = $derived(plan?.targetDate ? dueText(plan.due, plan.released) : null);
+  const rollout = $derived(plan ? rolloutBadge(plan.rollout) : null);
+  const attention = $derived(plan ? attentionOf(plan) : null);
 
   const releasesFor = (a: AppSummary) => (a.id === appId ? mine : theirs);
   const planFor = (a: AppSummary) => (a.id === appId ? plan : null);
@@ -201,6 +206,7 @@
         <div class="row">
           {#if plan?.blocked}<Badge tone="bad" dot>Blocked</Badge>{/if}
           {#if due}<Badge tone={due.tone} dot>{due.text}</Badge>{/if}
+          {#if rollout}<Badge tone={rollout.tone} dot>{rollout.label}</Badge>{/if}
         </div>
       {/snippet}
     </PageHeader>
@@ -209,6 +215,7 @@
       {#if plan?.blocked}
         <Alert tone="warn" title="Blocked">{plan.blockedReason}</Alert>
       {/if}
+      {#if attention}<AttentionStrip items={[attention]} compact />{/if}
 
       <div class="columns">
         {#each ordered as a (a.id)}
@@ -229,6 +236,7 @@
       {:else if plan}
         <PlanOverview {api} {workspaceId} {plan} {canWrite} onplan={setPlan} ondelete={() => { plan = null; }} />
         <Checklist {api} {workspaceId} {plan} {canWrite} onplan={setPlan} />
+        <Rollout {api} {workspaceId} {plan} {canWrite} onsummary={(summary) => { if (plan) plan = { ...plan, rollout: summary }; }} />
         <ReleaseNotes {api} {workspaceId} {plan} {canWrite} onplan={setPlan} />
       {:else if canWrite}
         {#if siblingPlan && sibling}
