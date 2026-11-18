@@ -79,6 +79,7 @@
     {names}
     onback={back}
     onchanged={load}
+    localOnly={repository.localOnly}
   />
 {:else if error}
   <div class="stack">

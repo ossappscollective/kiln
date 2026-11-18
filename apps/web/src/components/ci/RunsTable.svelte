@@ -15,7 +15,7 @@
     runs,
     now,
     repository,
-  }: { runs: WorkflowRun[]; now: number; repository: { owner: string; repo: string } } = $props();
+  }: { runs: WorkflowRun[]; now: number; repository: { owner: string | null; repo: string | null } } = $props();
 
   const rows = $derived(sortRuns(runs));
 </script>

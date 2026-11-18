@@ -1,6 +1,7 @@
 <!--
-  RepositoryDetail: one connected repository in four tabs: the detected project, the store
-  listing, the change sets, and CI (workflows and runs).
+  RepositoryDetail: one connected repository: a Local clone card (where its files are read from),
+  then four tabs: the detected project, the store listing, the change sets, and CI (workflows and
+  runs). A local-only repository (a folder, no GitHub) has no CI tab and no GitHub link.
   Props: api, workspaceId, role, myId, names (user id to display name), initial (the row from the
   list, shown while the details load), onback, onupdated (called with a fresh repository row).
 -->
@@ -14,11 +15,13 @@
     ChangeSetView,
     ProjectDetection,
     ListingSelection,
+    LocalConfig,
     RepositoryDetail,
     RepositoryListing,
     RepositorySummary,
   } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
   import PageHeader from '../ui/PageHeader.svelte';
@@ -27,6 +30,7 @@
   import CiPanel from '../ci/CiPanel.svelte';
   import ChangeSetsPanel from './ChangeSetsPanel.svelte';
   import KindBadge from './KindBadge.svelte';
+  import LocalCheckoutCard from './LocalCheckoutCard.svelte';
   import ListingPanel from './ListingPanel.svelte';
   import ProjectPanel from './ProjectPanel.svelte';
 
@@ -66,6 +70,8 @@
   let listingSelection = $state<ListingSelection>({});
   let openChangeSetId = $state<string | null>(null);
   let leaveOpen = $state(false);
+  /** Whether local clones are on, for the Local clone card. Null while it loads or when it cannot be read. */
+  let localConfig = $state<LocalConfig | null>(null);
   let root = $state<HTMLElement>();
 
   // The view just changed, so keyboard focus starts at its first control.
@@ -86,14 +92,30 @@
     }
   }
 
+  async function loadLocalConfig() {
+    try {
+      localConfig = (await api.localConfig(workspaceId)).local;
+    } catch {
+      // The card still shows the stored folder; it only cannot say whether the feature is on.
+      localConfig = null;
+    }
+  }
+
   $effect(() => {
     void repoId;
     void workspaceId;
     untrack(() => {
       loaded = false;
       void load();
+      void loadLocalConfig();
     });
   });
+
+  /** The folder was attached, changed or detached: reads now come from somewhere else. */
+  function localChanged(saved: RepositorySummary) {
+    repository = saved;
+    onupdated(saved);
+  }
 
   function scanned(detail: RepositoryDetail) {
     repository = detail.repository;
@@ -111,12 +133,13 @@
     else onback();
   }
 
-  const tabs = [
+  // CI runs on GitHub: a local-only repository has none.
+  const tabs = $derived([
     { id: 'project', label: 'Project' },
     { id: 'listing', label: 'Store listing' },
     { id: 'changes', label: 'Change sets' },
-    { id: 'ci', label: 'CI' },
-  ];
+    ...(repository.localOnly ? [] : [{ id: 'ci', label: 'CI' }]),
+  ]);
 </script>
 
 <div class="stack loose" bind:this={root}>
@@ -127,13 +150,19 @@
   <PageHeader title={repositoryName(repository)} level={2}>
     {#snippet actions()}
       <KindBadge kind={repository.projectKind} />
-      <Button href={githubUrl(repository.owner, repository.repo)} target="_blank" icon="external-link" label="Open {repositoryName(repository)} on GitHub (opens in a new tab)">GitHub</Button>
+      {#if repository.localOnly}
+        <Badge tone="info">Local only</Badge>
+      {:else}
+        <Button href={githubUrl(repository.owner, repository.repo)} target="_blank" icon="external-link" label="Open {repositoryName(repository)} on GitHub (opens in a new tab)">GitHub</Button>
+      {/if}
     {/snippet}
   </PageHeader>
   <p class="meta muted">
-    Default branch <code>{repository.defaultBranch}</code>. Connected
+    {repository.localOnly ? 'Branch' : 'Default branch'} <code>{repository.defaultBranch}</code>. Connected
     <time datetime={new Date(repository.createdAt).toISOString()} title={fullTime(repository.createdAt)}>{timeAgo(repository.createdAt)}</time>.
   </p>
+
+  <LocalCheckoutCard {api} {workspaceId} {repository} {role} config={localConfig} onchanged={localChanged} />
 
   {#if error}
     <div class="stack">

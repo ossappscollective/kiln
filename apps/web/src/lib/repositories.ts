@@ -20,9 +20,13 @@ import type {
   ListingSelection,
   ListingTargetInput,
   ListingTargetView,
+  LocalCheck,
+  LocalConfig,
+  LocalStatus,
   ProjectDetection,
   ProjectKind,
   RepositoryListing,
+  RepositorySummary,
   StoreSource,
 } from './types.ts';
 
@@ -60,10 +64,11 @@ export function parseRepositoryInput(input: string): ParsedRepository {
   return { ok: true, owner, repo };
 }
 
-export const githubUrl = (owner: string, repo: string) => `https://github.com/${owner}/${repo}`;
+export const githubUrl = (owner: string | null, repo: string | null) => `https://github.com/${owner ?? ''}/${repo ?? ''}`;
 
-export const repositoryName = (repository: { owner: string; repo: string }) =>
-  `${repository.owner}/${repository.repo}`;
+/** `owner/repo`, or the folder name of a local-only repository (it has no owner). */
+export const repositoryName = (repository: { owner: string | null; repo: string | null; name?: string }) =>
+  repository.owner && repository.repo ? `${repository.owner}/${repository.repo}` : (repository.name ?? 'Local repository');
 
 export type ConnectProblem = {
   /** Where to show it: under a field, or above the buttons. */
@@ -258,15 +263,21 @@ export function approverLabel(userId: string, myId: string, names: Readonly<Reco
 
 export type ChangeSetActions = { approve: boolean; apply: boolean; discard: boolean };
 
+/** Why a change set of a local-only repository cannot be applied (the server answers 409 `local_only`). */
+export const LOCAL_ONLY_APPLY_NOTICE =
+  'This repository is only a folder on the server, so the change set cannot be applied yet. A later version will commit it to a branch of the local clone. Until then, connect the repository on GitHub to open a pull request, or copy the changes by hand.';
+
 /**
  * What this person may do to a change set right now. Mirrors the server: only an admin or owner
- * approves, applies, and discards anyone's; a member discards only their own draft.
+ * approves, applies, and discards anyone's; a member discards only their own draft. A change set of
+ * a local-only repository is never applied (`localOnly`).
  */
 export function changeSetActions(input: {
   role: Role;
   status: ChangeSetStatus;
   createdBy: { type: string; id: string };
   myId: string;
+  localOnly?: boolean;
 }): ChangeSetActions {
   const { role, status, createdBy, myId } = input;
   const admin = can(role, 'changesets.approve');
@@ -274,7 +285,7 @@ export function changeSetActions(input: {
     status === 'draft' && can(role, 'changesets.write') && createdBy.type === 'user' && createdBy.id === myId;
   return {
     approve: admin && status === 'draft',
-    apply: admin && status === 'approved',
+    apply: admin && status === 'approved' && input.localOnly !== true,
     discard: (admin && (status === 'draft' || status === 'approved' || status === 'failed')) || ownDraft,
   };
 }
@@ -807,4 +818,176 @@ export function selectionForRequest(
   const id = data.selected?.id;
   if (id && data.selected?.origin !== 'folders') return { target: id };
   return { roots: { appStore: data.roots.appStore, googlePlay: data.roots.googlePlay } };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Local clones (docs/adr/0005-local-clone-reads.md)
+
+export const MAX_LOCAL_PATH_LENGTH = 4096;
+
+/**
+ * The text rules for a folder path, checked before asking the server (which checks again and also
+ * resolves links and the allowed folders): not empty, no control characters, absolute, no `..`.
+ */
+export function checkLocalPathInput(input: string): { ok: true; path: string } | { ok: false; message: string } {
+  const path = input.trim();
+  if (/[\u0000-\u001f\u007f]/.test(path)) return { ok: false, message: 'The path must not contain control characters.' };
+  if (path === '') return { ok: false, message: 'Enter the path of a folder on the server.' };
+  if (path.length > MAX_LOCAL_PATH_LENGTH) return { ok: false, message: 'That path is too long.' };
+  if (!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path)) {
+    return { ok: false, message: 'Use an absolute path, such as /Volumes/dev/my-app. “~” is not expanded.' };
+  }
+  if (path.split(/[\\/]+/).includes('..')) return { ok: false, message: 'The path must not contain “..”.' };
+  return { ok: true, path };
+}
+
+/** The first seven characters of a commit id. */
+export const shortSha = (sha: string | null | undefined): string => (sha ? sha.slice(0, 7) : '');
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * One sentence on what a local folder is read as: the committed tip of a branch, never the
+ * working files. With the result of a check it says how many uncommitted changes are left out,
+ * for the branch the folder has checked out.
+ */
+export function localReadSummary(input: {
+  branch: string;
+  /** The commit the branch is at, or the last one that was read. */
+  sha?: string | null | undefined;
+  checkedOutBranch?: string | null | undefined;
+  dirtyCount?: number | null | undefined;
+}): string {
+  const head = input.sha ? `Reads commit ${shortSha(input.sha)} on branch ${input.branch}` : `Reads the latest commit on branch ${input.branch}`;
+  const { dirtyCount, checkedOutBranch } = input;
+  if (dirtyCount === undefined) return `${head}. Uncommitted changes in the folder are never read.`;
+  if (dirtyCount === null) return `${head}. Uncommitted changes are never read (they could not be counted).`;
+  if (checkedOutBranch !== undefined && checkedOutBranch !== input.branch) {
+    return `${head}. The folder has ${checkedOutBranch ?? 'a detached HEAD'} checked out; only committed work on ${input.branch} is read.`;
+  }
+  if (dirtyCount === 0) return `${head}. The folder has no uncommitted changes.`;
+  return `${head}; ${plural(dirtyCount, 'uncommitted change is', 'uncommitted changes are')} not included.`;
+}
+
+/** The notice for a server where local clones are off: what to set, in the words of the setting. */
+export function localDisabledNotice(config: Pick<LocalConfig, 'enabled' | 'envName' | 'reason' | 'message'>): { title: string; body: string; envName: string } {
+  const reason = config.reason;
+  if (reason === 'reads_api') {
+    return {
+      title: 'Local clones are off: MRM_READS=api',
+      body: config.message ?? 'MRM_READS=api means git is never run, so local clones cannot be read.',
+      envName: config.envName,
+    };
+  }
+  if (reason === 'git_missing') {
+    return { title: 'git is not available on the server', body: config.message ?? 'Install git or set MRM_GIT_PATH.', envName: config.envName };
+  }
+  return {
+    title: 'Local clones are not enabled',
+    body: `Set ${config.envName}=/Volumes/dev (a colon-separated list of the folders that may hold your clones) and restart the server.`,
+    envName: config.envName,
+  };
+}
+
+/** The allowed folders as a hint under the path field. */
+export function localRootsHint(config: Pick<LocalConfig, 'roots'> | null | undefined): string {
+  const roots = config?.roots ?? [];
+  if (roots.length === 0) return 'The folder must be inside an allowed folder on the server.';
+  return `The folder must be inside ${roots.length === 1 ? 'the allowed folder' : 'one of the allowed folders'}: ${roots.join(', ')}.`;
+}
+
+export type LocalStatusInfo = { label: string; tone: Tone; ok: boolean };
+
+/** A badge for whether the stored folder can be read now. */
+export function localStatusInfo(status: LocalStatus): LocalStatusInfo {
+  switch (status) {
+    case 'ok':
+      return { label: 'Readable', tone: 'ok', ok: true };
+    case 'not_enabled':
+      return { label: 'Local clones off', tone: 'warn', ok: false };
+    case 'reads_api':
+      return { label: 'Reading from GitHub', tone: 'warn', ok: false };
+    case 'git_missing':
+      return { label: 'git missing', tone: 'bad', ok: false };
+    case 'not_found':
+      return { label: 'Folder not found', tone: 'bad', ok: false };
+    case 'outside_roots':
+      return { label: 'Outside allowed folders', tone: 'bad', ok: false };
+    case 'not_a_repository':
+    case 'bare_repository':
+      return { label: 'Not a repository', tone: 'bad', ok: false };
+    default:
+      return { label: 'Cannot be read', tone: 'bad', ok: false };
+  }
+}
+
+export type ConnectChoice =
+  | { kind: 'local_only'; id: 'local-only'; label: string; recommended: false; needsConfirm: false }
+  | {
+      kind: 'attach';
+      id: string;
+      repositoryId: string;
+      label: string;
+      /** The clone's origin is this repository. */
+      recommended: boolean;
+      /** The clone's origin is another GitHub repository: the server needs a confirmation. */
+      needsConfirm: boolean;
+      /** The repository already has a local clone, which this replaces. */
+      replaces: string | null;
+    };
+
+const sameRepo = (a: { owner: string; repo: string }, b: { owner: string | null; repo: string | null }) =>
+  a.owner.toLowerCase() === (b.owner ?? '').toLowerCase() && a.repo.toLowerCase() === (b.repo ?? '').toLowerCase();
+
+/**
+ * What a checked folder can be used for: attached to a connected GitHub repository (the one its
+ * origin names first), or connected as a local-only repository. Only when `fixed` is given is the
+ * choice that repository alone (the card of a repository's own page).
+ */
+export function connectChoices(
+  check: Pick<LocalCheck, 'remote' | 'existing' | 'realPath'>,
+  repositories: readonly RepositorySummary[],
+  fixed?: RepositorySummary,
+): ConnectChoice[] {
+  if (check.existing && !(fixed && check.existing.id === fixed.id)) return [];
+  const github = (fixed ? [fixed] : repositories).filter((r) => !r.localOnly);
+  const origin = check.remote?.github ? check.remote : null;
+  const attach = github.map(
+    (r): ConnectChoice => ({
+      kind: 'attach',
+      id: `attach:${r.id}`,
+      repositoryId: r.id,
+      label: `Attach to ${repositoryName(r)}`,
+      recommended: origin !== null && sameRepo(origin, r),
+      needsConfirm: origin !== null && !sameRepo(origin, r),
+      replaces: r.local && r.local.path !== check.realPath ? r.local.path : null,
+    }),
+  );
+  attach.sort((a, b) => Number(b.kind === 'attach' && b.recommended) - Number(a.kind === 'attach' && a.recommended));
+  if (fixed) return attach;
+  return [...attach, { kind: 'local_only', id: 'local-only', label: 'Connect as a local-only repository', recommended: false, needsConfirm: false }];
+}
+
+/** The choice to preselect: the repository the origin names, else local-only. */
+export function defaultChoice(choices: readonly ConnectChoice[]): ConnectChoice | undefined {
+  return choices.find((c) => c.kind === 'attach' && c.recommended) ?? choices.find((c) => c.kind === 'local_only') ?? choices[0];
+}
+
+/** What the primary button says for a choice. */
+export function choiceButtonLabel(choice: ConnectChoice | undefined): string {
+  if (!choice) return 'Choose what to do';
+  return choice.kind === 'local_only' ? 'Connect as local-only repository' : choice.label;
+}
+
+/** A line under a choice: why it is suggested, or what it changes. */
+export function choiceNote(choice: ConnectChoice, remote: LocalCheck['remote']): string | null {
+  if (choice.kind === 'local_only') {
+    return 'No GitHub connection: the folder is the repository. Pull requests are not available for it yet.';
+  }
+  const replaces = choice.replaces ? ` Replaces its current local clone (${choice.replaces}).` : '';
+  if (choice.recommended) return `The clone’s origin points at this repository. Applying still opens a pull request on GitHub.${replaces}`;
+  if (choice.needsConfirm && remote) {
+    return `The clone’s origin is ${remote.owner}/${remote.repo}, a different repository. Attach only if it is a fork or mirror of this one.${replaces}`;
+  }
+  return replaces ? replaces.trim() : null;
 }

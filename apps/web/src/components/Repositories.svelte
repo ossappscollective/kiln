@@ -78,6 +78,16 @@
     selected = repository;
   }
 
+  async function connectedLocal(done: { kind: 'attached' | 'local_only'; repository: RepositorySummary }) {
+    toast.success(
+      done.kind === 'attached'
+        ? `Attached the local clone to ${repositoryName(done.repository)}. Scan it to read from the folder.`
+        : `Connected ${repositoryName(done.repository)} as a local-only repository. Scan it to see what it contains.`,
+    );
+    await load();
+    selected = done.repository;
+  }
+
   async function disconnect(repository: RepositorySummary) {
     busyId = repository.id;
     try {
@@ -102,7 +112,7 @@
 <section>
   <PageHeader
     title="Repositories"
-    description="GitHub repositories with your fastlane or Expo project. Listing text is read from them, and changes go back as pull requests that a person approves."
+    description="Repositories with your fastlane or Expo project, from GitHub or from a clone on the server. Listing text is read from them, and changes go back as pull requests that a person approves."
   >
     {#snippet actions()}
       {#if canRead && canConnect && !selected && items !== null}
@@ -137,7 +147,7 @@
         icon="git-branch"
         title="No repositories connected"
         description={canConnect
-          ? 'Connect the GitHub repository of your app. The tool reads its fastlane or Expo files and never writes to it without an approved change set.'
+          ? 'Connect the GitHub repository of your app, or a clone of it on the server. The tool reads its fastlane or Expo files and never writes to it without an approved change set.'
           : 'An admin or owner connects repositories. Once one is connected it appears here.'}
       >
         {#snippet actions()}
@@ -159,7 +169,7 @@
 </section>
 
 {#if canConnect}
-  <ConnectForm {api} {workspaceId} bind:open={connecting} onconnected={connected} />
+  <ConnectForm {api} {workspaceId} bind:open={connecting} onconnected={connected} onlocal={connectedLocal} />
 {/if}
 
 <style>

@@ -12,6 +12,7 @@
   import { credentialKindInfo, isCredentialKind } from '@mrm/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { repositoryName } from '../../lib/repositories.ts';
   import {
     MAX_IMPORT_BATCH,
     type BatchResult,
@@ -425,7 +426,7 @@
                       <select id="{uid}-repo-{key}" bind:value={repositoryFor[key]}>
                         <option value="">No repository</option>
                         {#each repositories as repository (repository.id)}
-                          <option value={repository.id}>{repository.owner}/{repository.repo}</option>
+                          <option value={repository.id}>{repositoryName(repository)}</option>
                         {/each}
                       </select>
                     </div>

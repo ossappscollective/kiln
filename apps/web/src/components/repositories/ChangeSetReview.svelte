@@ -2,7 +2,9 @@
   ChangeSetReview: one change set: its status, the diff of every changed file, and the actions
   the person's role allows (approve, apply, discard).
   Props: api, workspaceId, id (the change set), role, myId, names (user id to display name),
-  onback (back to the list), onchanged (called after any state change, so the list can refresh).
+  onback (back to the list), onchanged (called after any state change, so the list can refresh),
+  localOnly? (the repository is a local folder with no GitHub: Apply is not offered, and an
+  approved change set says so).
   Nothing is written to the repository except by Apply, which opens a branch and a pull request.
 -->
 <script lang="ts">
@@ -15,6 +17,7 @@
     actorLabel,
     approverLabel,
     changeSetActions,
+    LOCAL_ONLY_APPLY_NOTICE,
     changeSetStatusInfo,
     diffLines,
     diffStats,
@@ -43,6 +46,7 @@
     names,
     onback,
     onchanged,
+    localOnly = false,
   }: {
     api: Api;
     workspaceId: string;
@@ -52,6 +56,7 @@
     names: Record<string, string>;
     onback: () => void;
     onchanged: () => void;
+    localOnly?: boolean;
   } = $props();
 
   let changeSet = $state<ChangeSetView | null>(null);
@@ -102,7 +107,7 @@
 
   const actions = $derived(
     changeSet
-      ? changeSetActions({ role, status: changeSet.status, createdBy: changeSet.createdBy, myId })
+      ? changeSetActions({ role, status: changeSet.status, createdBy: changeSet.createdBy, myId, localOnly })
       : { approve: false, apply: false, discard: false },
   );
   const anyAction = $derived(actions.approve || actions.apply || actions.discard);
@@ -254,6 +259,10 @@
 
       {#if actionError && changeSet.status !== 'failed'}
         <div class="gap"><Alert tone="error">{actionError}</Alert></div>
+      {/if}
+
+      {#if localOnly && changeSet.status === 'approved'}
+        <div class="gap"><Alert tone="info" title="This change set cannot be applied yet">{LOCAL_ONLY_APPLY_NOTICE}</Alert></div>
       {/if}
 
       {#if anyAction}

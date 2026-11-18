@@ -8,6 +8,7 @@
   import { githubUrl, repositoryName } from '../../lib/repositories.ts';
   import type { RepositorySummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
+  import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
   import KindBadge from './KindBadge.svelte';
@@ -47,7 +48,7 @@
     <thead>
       <tr>
         <th scope="col">Repository</th>
-        <th scope="col">Default branch</th>
+        <th scope="col">Branch</th>
         <th scope="col">Project type</th>
         <th scope="col">Last scan</th>
         <th scope="col"><span class="visually-hidden">Actions</span></th>
@@ -68,9 +69,17 @@
               >
                 {repositoryName(repository)}
               </button>
+              {#if repository.localOnly}
+                <Badge tone="info">Local only</Badge>
+              {:else if repository.local}
+                <Badge>Local clone</Badge>
+              {/if}
             </div>
+            {#if repository.local}
+              <p class="path muted"><code>{repository.local.path}</code></p>
+            {/if}
           </td>
-          <td><code>{repository.defaultBranch}</code></td>
+          <td><code>{repository.local ? repository.local.branch : repository.defaultBranch}</code></td>
           <td><KindBadge kind={repository.projectKind} /></td>
           <td class="muted">
             {#if repository.detectedAt}
@@ -81,13 +90,15 @@
           </td>
           <td class="actions">
             <div class="row end">
-              <Button
-                size="sm"
-                href={githubUrl(repository.owner, repository.repo)}
-                target="_blank"
-                icon="external-link"
-                label="{repositoryName(repository)} on GitHub (opens in a new tab)">GitHub</Button
-              >
+              {#if !repository.localOnly}
+                <Button
+                  size="sm"
+                  href={githubUrl(repository.owner, repository.repo)}
+                  target="_blank"
+                  icon="external-link"
+                  label="{repositoryName(repository)} on GitHub (opens in a new tab)">GitHub</Button
+                >
+              {/if}
               {#if canWrite}
                 <Button
                   size="sm"
@@ -109,7 +120,12 @@
   {#if confirming}
     <p>
       <strong>{repositoryName(confirming)}</strong> will be removed from this workspace, together with its finished change
-      sets. The repository on GitHub is not changed.
+      sets.
+      {#if confirming.localOnly}
+        The folder <code>{confirming.local?.path}</code> is not changed or deleted.
+      {:else}
+        The repository on GitHub{confirming.local ? ' and the local folder are' : ' is'} not changed.
+      {/if}
     </p>
     <p class="muted">A repository with a draft, approved or applying change set cannot be disconnected.</p>
   {/if}
@@ -130,6 +146,12 @@
   .name-button {
     font-weight: var(--weight-medium);
     text-align: left;
+  }
+
+  .path {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
   }
 
   .row.end {

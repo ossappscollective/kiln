@@ -13,6 +13,7 @@
   import type { Platform } from '@mrm/core';
   import { credentialKindInfo, isCredentialKind } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { repositoryName } from '../../lib/repositories.ts';
   import {
     type DraftProblems,
     addProblem,
@@ -274,7 +275,7 @@
         >
           <option value="">None</option>
           {#each repositories as repository (repository.id)}
-            <option value={repository.id}>{repository.owner}/{repository.repo}</option>
+            <option value={repository.id}>{repositoryName(repository)}</option>
           {/each}
         </select>
         <p class="hint" id="{formId}-repository-hint">Optional. The repository that holds this app’s fastlane or Expo project.</p>

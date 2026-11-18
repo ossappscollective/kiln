@@ -2,9 +2,23 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Listing } from '@mrm/core';
 import { ApiError, messageFor } from './api.ts';
+import type { RepositorySummary } from './types.ts';
 import {
   actorLabel,
   changeSetActions,
+  checkLocalPathInput,
+  choiceButtonLabel,
+  choiceNote,
+  connectChoices,
+  defaultChoice,
+  githubUrl,
+  LOCAL_ONLY_APPLY_NOTICE,
+  localDisabledNotice,
+  localReadSummary,
+  localRootsHint,
+  localStatusInfo,
+  repositoryName,
+  shortSha,
   changeSetStatusInfo,
   changeSetStatuses,
   changelogCodes,
@@ -500,4 +514,166 @@ test('a scan with several apps lists each one with its folders', () => {
   const row = detectionPaths(detection).find((r) => r.label === 'Listing targets');
   assert.deepEqual(row?.values, ['a: App Store: m/a/ios · Google Play: m/a/android', 'b: Google Play: m/b/android']);
   assert.equal(detectionPaths({ ...detection, listing: undefined } as ProjectDetection).some((r) => r.label === 'Listing targets'), false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Local clones
+
+const repo = (over: Partial<RepositorySummary> = {}): RepositorySummary => ({
+  id: 'r1',
+  credentialId: 'c1',
+  owner: 'acme',
+  repo: 'app',
+  name: 'acme/app',
+  defaultBranch: 'main',
+  projectKind: null,
+  detectedAt: null,
+  createdAt: 1,
+  localOnly: false,
+  local: null,
+  ...over,
+});
+const localOnly = (over: Partial<RepositorySummary> = {}) =>
+  repo({ id: 'l1', credentialId: null, owner: null, repo: null, name: 'oss-weather', localOnly: true, ...over });
+const checked = (over: Partial<Parameters<typeof connectChoices>[0]> = {}) => ({
+  realPath: '/Volumes/dev/nativescript/oss-weather',
+  remote: { host: 'github.com', owner: 'acme', repo: 'app', github: true },
+  existing: null,
+  ...over,
+});
+
+test('a local-only repository is named by its folder and has no GitHub address to open', () => {
+  assert.equal(repositoryName(repo()), 'acme/app');
+  assert.equal(repositoryName(localOnly()), 'oss-weather');
+  assert.equal(repositoryName({ owner: null, repo: null }), 'Local repository');
+  assert.equal(githubUrl('acme', 'app'), 'https://github.com/acme/app');
+});
+
+test('apply is never offered for a change set of a local-only repository, and the notice says what is coming', () => {
+  const base = { role: 'admin', status: 'approved', createdBy: { type: 'user', id: 'u2' }, myId: 'u1' } as const;
+  assert.equal(changeSetActions(base).apply, true);
+  assert.equal(changeSetActions({ ...base, localOnly: false }).apply, true);
+  assert.deepEqual(changeSetActions({ ...base, localOnly: true }), { approve: false, apply: false, discard: true });
+  assert.equal(changeSetActions({ ...base, status: 'draft', localOnly: true }).approve, true);
+  assert.match(LOCAL_ONLY_APPLY_NOTICE, /not be applied yet/);
+  assert.match(LOCAL_ONLY_APPLY_NOTICE, /branch of the local clone/);
+});
+
+test('a folder path is checked as text before it is sent: absolute, no .., no control characters', () => {
+  assert.deepEqual(checkLocalPathInput('  /Volumes/dev/nativescript/oss-weather \n'), { ok: true, path: '/Volumes/dev/nativescript/oss-weather' });
+  assert.deepEqual(checkLocalPathInput('C:\\code\\app'), { ok: true, path: 'C:\\code\\app' });
+  for (const bad of ['', '   ', 'dev/app', '~/dev/app', './app', '/a/../b', '/a/..', '/a\u0000b', `/${'x'.repeat(4100)}`]) {
+    assert.equal(checkLocalPathInput(bad).ok, false, JSON.stringify(bad).slice(0, 30));
+  }
+  assert.match((checkLocalPathInput('~/x') as { message: string }).message, /absolute/);
+});
+
+test('the read summary says which commit and branch are read and what is left out', () => {
+  const sha = 'abc1234def5678abc1234def5678abc1234def56';
+  assert.equal(shortSha(sha), 'abc1234');
+  assert.equal(shortSha(null), '');
+  assert.equal(
+    localReadSummary({ branch: 'main', sha, checkedOutBranch: 'main', dirtyCount: 3 }),
+    'Reads commit abc1234 on branch main; 3 uncommitted changes are not included.',
+  );
+  assert.equal(
+    localReadSummary({ branch: 'main', sha, checkedOutBranch: 'main', dirtyCount: 1 }),
+    'Reads commit abc1234 on branch main; 1 uncommitted change is not included.',
+  );
+  assert.equal(
+    localReadSummary({ branch: 'main', sha, checkedOutBranch: 'main', dirtyCount: 0 }),
+    'Reads commit abc1234 on branch main. The folder has no uncommitted changes.',
+  );
+  assert.match(localReadSummary({ branch: 'main', sha, checkedOutBranch: 'dev', dirtyCount: 3 }), /has dev checked out; only committed work on main is read/);
+  assert.match(localReadSummary({ branch: 'main', sha, checkedOutBranch: null, dirtyCount: 3 }), /detached HEAD/);
+  assert.match(localReadSummary({ branch: 'main', sha, dirtyCount: null }), /could not be counted/);
+  assert.equal(localReadSummary({ branch: 'main', sha: null }), 'Reads the latest commit on branch main. Uncommitted changes in the folder are never read.');
+});
+
+test('the disabled notice names the setting and its value, or says why else', () => {
+  const off = localDisabledNotice({ enabled: false, envName: 'MRM_LOCAL_REPO_ROOTS', reason: 'no_roots' });
+  assert.equal(off.title, 'Local clones are not enabled');
+  assert.match(off.body, /MRM_LOCAL_REPO_ROOTS=\/Volumes\/dev/);
+  assert.equal(off.envName, 'MRM_LOCAL_REPO_ROOTS');
+  assert.match(localDisabledNotice({ enabled: false, envName: 'X', reason: 'reads_api' }).title, /MRM_READS=api/);
+  assert.match(localDisabledNotice({ enabled: false, envName: 'X', reason: 'git_missing', message: 'Install git.' }).body, /Install git/);
+  assert.match(localRootsHint({ roots: ['/Volumes/dev'] }), /the allowed folder: \/Volumes\/dev/);
+  assert.match(localRootsHint({ roots: ['/a', '/b'] }), /one of the allowed folders: \/a, \/b/);
+  assert.match(localRootsHint(null), /allowed folder/);
+});
+
+test('the status of a stored folder is a label and a tone, never colour alone', () => {
+  assert.deepEqual(localStatusInfo('ok'), { label: 'Readable', tone: 'ok', ok: true });
+  for (const status of ['not_found', 'outside_roots', 'not_a_repository', 'git_missing', 'data_folder'] as const) {
+    const info = localStatusInfo(status);
+    assert.equal(info.ok, false);
+    assert.ok(info.label.length > 3);
+  }
+  assert.equal(localStatusInfo('reads_api').label, 'Reading from GitHub');
+});
+
+test('a checked folder is offered to the repository its origin names first, then others, then as local-only', () => {
+  const app = repo();
+  const other = repo({ id: 'r2', repo: 'other', name: 'acme/other' });
+  const draft = localOnly();
+  const choices = connectChoices(checked(), [other, draft, app]);
+  assert.deepEqual(
+    choices.map((c) => c.id),
+    ['attach:r1', 'attach:r2', 'local-only'],
+  );
+  const first = choices[0];
+  assert.ok(first?.kind === 'attach' && first.recommended && !first.needsConfirm);
+  const second = choices[1];
+  assert.ok(second?.kind === 'attach' && !second.recommended && second.needsConfirm);
+  assert.equal(defaultChoice(choices)?.id, 'attach:r1');
+  assert.equal(choiceButtonLabel(first), 'Attach to acme/app');
+  assert.equal(choiceButtonLabel(choices[2]), 'Connect as local-only repository');
+  assert.match(choiceNote(first as never, checked().remote) ?? '', /origin points at this repository/);
+  assert.match(choiceNote(second as never, checked().remote) ?? '', /acme\/app, a different repository/);
+  assert.match(choiceNote(choices[2] as never, null) ?? '', /Pull requests are not available/);
+});
+
+test('without a matching origin nothing is confirmed and local-only is the default; case does not matter', () => {
+  const app = repo();
+  const noOrigin = connectChoices(checked({ remote: null }), [app]);
+  assert.equal(defaultChoice(noOrigin)?.id, 'local-only');
+  const first = noOrigin[0];
+  assert.ok(first?.kind === 'attach' && !first.needsConfirm && !first.recommended);
+  const gitlab = connectChoices(checked({ remote: { host: 'gitlab.com', owner: 'acme', repo: 'app', github: false } }), [app]);
+  assert.ok(gitlab[0]?.kind === 'attach' && !gitlab[0].needsConfirm);
+  const upper = connectChoices(checked({ remote: { host: 'github.com', owner: 'ACME', repo: 'App', github: true } }), [app]);
+  assert.ok(upper[0]?.kind === 'attach' && upper[0].recommended);
+  assert.equal(defaultChoice([]), undefined);
+  assert.equal(choiceButtonLabel(undefined), 'Choose what to do');
+});
+
+test('a folder that is already used offers nothing, except to the repository that has it', () => {
+  const existing = { id: 'r1', name: 'acme/app', localOnly: false };
+  assert.deepEqual(connectChoices(checked({ existing }), [repo()]), []);
+  const own = repo({ local: { path: '/Volumes/dev/nativescript/oss-weather', branch: 'main', name: 'x', headSha: null, lastReadAt: null, status: 'ok' } });
+  assert.equal(connectChoices(checked({ existing }), [own], own).length, 1);
+  assert.deepEqual(connectChoices(checked({ existing }), [own], repo({ id: 'r9' })), []);
+});
+
+test('attaching from a repository’s own page offers only that repository, and says what it replaces', () => {
+  const withLocal = repo({ local: { path: '/Volumes/dev/old', branch: 'main', name: 'old', headSha: null, lastReadAt: null, status: 'ok' } });
+  const choices = connectChoices(checked(), [repo(), localOnly()], withLocal);
+  assert.equal(choices.length, 1);
+  const only = choices[0];
+  assert.ok(only?.kind === 'attach');
+  assert.equal(only.replaces, '/Volumes/dev/old');
+  assert.match(choiceNote(only, null) ?? '', /Replaces its current local clone/);
+  // A local-only repository is never a target.
+  assert.deepEqual(connectChoices(checked(), [localOnly()]).map((c) => c.id), ['local-only']);
+});
+
+test('the local clone error codes read as the server’s own message', () => {
+  const m = (code: string, message: string) => messageFor(422, { error: code, message });
+  assert.equal(m('local_outside_roots', 'Not inside an allowed folder.'), 'Not inside an allowed folder.');
+  assert.equal(m('local_not_enabled', 'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev'), 'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev');
+  assert.match(messageFor(409, { error: 'local_only', message: 'Applying is not available yet.' }), /not available yet/);
+  assert.match(messageFor(409, { error: 'remote_mismatch', message: 'origin is acme/other' }), /origin is acme\/other/);
+  assert.equal(messageFor(409, { error: 'already_connected', message: 'That folder is already connected as x.' }), 'That folder is already connected as x.');
+  assert.equal(messageFor(409, { error: 'already_connected', message: 'acme/app is already connected.' }), 'That repository is already connected to this workspace.');
+  assert.match(messageFor(409, { error: 'local_only' }), /request failed|local/i);
 });
