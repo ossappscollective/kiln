@@ -1,0 +1,27 @@
+{
+  "name": "@mrm/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts",
+    "./schema.pg": "./src/schema.pg.ts",
+    "./schema.sqlite": "./src/schema.sqlite.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "generate:pg": "drizzle-kit generate --config drizzle.pg.config.ts",
+    "generate:sqlite": "drizzle-kit generate --config drizzle.sqlite.config.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "drizzle-kit": "^0.31.0"
+  }
+}
