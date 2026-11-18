@@ -504,4 +504,119 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 12,
+    name: 'build number conventions, tag scans and link evidence',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // build_conventions: how a team names the tags and releases that carry a build number, per
+      // repository (app_id '' ) or per app (the app's own row wins). *_patterns_json are JSON arrays
+      // of pattern strings (see @mrm/core build-patterns); an empty array means "use the defaults".
+      // tag_prefix is the literal that fills {prefix}; workflow is the release workflow (file name
+      // or name) used when a tag is matched to a run by time, NULL to detect it.
+      // build_scans: what the last tag and release read of a repository saw (counts, newest tag,
+      // why builds did not match), as JSON, so the builds panel can explain an unlinked build
+      // without asking GitHub. One row per repository, kept until the repository goes.
+      // build_links.evidence_json: why a tag-based link was made (tag, pattern, commit, reason,
+      // confidence). A link without a run has run_id '' and the tag's commit in head_sha.
+      return [
+        `CREATE TABLE IF NOT EXISTS build_conventions (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           repository_id TEXT NOT NULL,
+           app_id TEXT NOT NULL,
+           tag_patterns_json TEXT NOT NULL,
+           release_patterns_json TEXT NOT NULL,
+           tag_prefix TEXT NOT NULL,
+           workflow TEXT,
+           updated_by TEXT NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS build_conventions_scope_idx ON build_conventions (repository_id, app_id)',
+        'CREATE INDEX IF NOT EXISTS build_conventions_workspace_idx ON build_conventions (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS build_scans (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           repository_id TEXT NOT NULL,
+           scanned_at ${t} NOT NULL,
+           ok INTEGER NOT NULL,
+           error TEXT,
+           summary_json TEXT NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS build_scans_repository_idx ON build_scans (repository_id)',
+        'CREATE INDEX IF NOT EXISTS build_scans_workspace_idx ON build_scans (workspace_id)',
+        'ALTER TABLE build_links ADD COLUMN evidence_json TEXT',
+      ];
+    },
+  },
+  {
+    id: 13,
+    name: 'local clones: repositories without GitHub, and repository_local_checkouts',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // A repository that is only a folder on this machine has no credential, owner or repo, so
+      // those three columns lose NOT NULL (NULL, never a made-up value: the unique index on
+      // (workspace_id, owner, repo) treats NULLs as distinct, so any number of local-only
+      // repositories can exist). Postgres changes the columns in place. SQLite cannot, so the
+      // table is rebuilt: change_sets and repository_listing_targets point at repositories(id), so
+      // the foreign key check is deferred to the commit of this migration's transaction and the
+      // rows are copied through a backup table. DROP TABLE removes the old rows, which the deferred
+      // check counts as children without a parent; inserting the same ids into the new table
+      // resolves them, and the commit fails (rolling the whole migration back) if any is left.
+      // repository_local_checkouts holds where a repository's clone is, one row per repository:
+      // for a GitHub repository it is the optional local copy reads come from, for a local-only one
+      // it is the repository itself. The path is unique per workspace. name is what a local-only
+      // repository is called (the folder's name unless a person chose one). last_commit and
+      // last_read_at are the commit the last read used. The default branch of a local-only
+      // repository is the branch it reads.
+      const rebuild =
+        dialect === 'postgres'
+          ? [
+              'ALTER TABLE repositories ALTER COLUMN credential_id DROP NOT NULL',
+              'ALTER TABLE repositories ALTER COLUMN owner DROP NOT NULL',
+              'ALTER TABLE repositories ALTER COLUMN repo DROP NOT NULL',
+            ]
+          : [
+              'PRAGMA defer_foreign_keys = ON',
+              'CREATE TABLE repositories_backup AS SELECT * FROM repositories',
+              'DROP TABLE repositories',
+              `CREATE TABLE repositories (
+                 id TEXT PRIMARY KEY,
+                 workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+                 credential_id TEXT,
+                 owner TEXT,
+                 repo TEXT,
+                 default_branch TEXT NOT NULL,
+                 project_kind TEXT,
+                 detected_at ${t},
+                 detection_json TEXT,
+                 created_at ${t} NOT NULL
+               )`,
+              `INSERT INTO repositories
+                 (id, workspace_id, credential_id, owner, repo, default_branch, project_kind,
+                  detected_at, detection_json, created_at)
+               SELECT id, workspace_id, credential_id, owner, repo, default_branch, project_kind,
+                      detected_at, detection_json, created_at
+                 FROM repositories_backup`,
+              'DROP TABLE repositories_backup',
+              'CREATE UNIQUE INDEX IF NOT EXISTS repositories_workspace_repo_idx ON repositories (workspace_id, owner, repo)',
+            ];
+      return [
+        ...rebuild,
+        `CREATE TABLE IF NOT EXISTS repository_local_checkouts (
+           repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           path TEXT NOT NULL,
+           branch TEXT NOT NULL,
+           name TEXT NOT NULL,
+           last_commit TEXT,
+           last_read_at ${t},
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS repository_local_checkouts_path_idx ON repository_local_checkouts (workspace_id, path)',
+      ];
+    },
+  },
 ];

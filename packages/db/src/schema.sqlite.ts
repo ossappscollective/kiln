@@ -128,10 +128,11 @@ export const repositories = sqliteTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspaces.id),
-    /** No foreign key: a credential can be deleted while a repository still names it. */
-    credentialId: text('credential_id').notNull(),
-    owner: text('owner').notNull(),
-    repo: text('repo').notNull(),
+    /** No foreign key: a credential can be deleted while a repository still names it. NULL for a local-only repository. */
+    credentialId: text('credential_id'),
+    /** NULL for a local-only repository (a folder on this machine, no GitHub). */
+    owner: text('owner'),
+    repo: text('repo'),
     defaultBranch: text('default_branch').notNull(),
     projectKind: text('project_kind'),
     detectedAt: integer('detected_at'),
@@ -452,11 +453,63 @@ export const buildLinks = sqliteTable(
     source: text('source').notNull(),
     reason: text('reason'),
     linkedBy: text('linked_by'),
+    /** Why a tag-based link was made, as JSON (tag, pattern, commit, reason, confidence). */
+    evidenceJson: text('evidence_json'),
     linkedAt: integer('linked_at').notNull(),
   },
   (t) => [
     uniqueIndex('build_links_app_build_idx').on(t.appId, t.platform, t.buildNumber),
     index('build_links_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const buildConventions = sqliteTable(
+  'build_conventions',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: a repository can be disconnected while rows remain; the services purge them. */
+    repositoryId: text('repository_id').notNull(),
+    /** An app's own convention, or '' for the whole repository. */
+    appId: text('app_id').notNull(),
+    /** JSON array of tag patterns; empty means the built-in defaults. */
+    tagPatternsJson: text('tag_patterns_json').notNull(),
+    /** JSON array of release-name patterns; empty means the built-in defaults. */
+    releasePatternsJson: text('release_patterns_json').notNull(),
+    /** The literal that fills {prefix} in a pattern. */
+    tagPrefix: text('tag_prefix').notNull(),
+    /** The release workflow (file name or name) for matching a tag to a run by time. */
+    workflow: text('workflow'),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('build_conventions_scope_idx').on(t.repositoryId, t.appId),
+    index('build_conventions_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const buildScans = sqliteTable(
+  'build_scans',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key, like workflow_runs. One row per repository. */
+    repositoryId: text('repository_id').notNull(),
+    scannedAt: integer('scanned_at').notNull(),
+    /** 0 or 1: did the last read of tags and releases work. */
+    ok: integer('ok').notNull(),
+    error: text('error'),
+    /** What the scan saw and why builds did not match, as JSON. */
+    summaryJson: text('summary_json').notNull(),
+  },
+  (t) => [
+    uniqueIndex('build_scans_repository_idx').on(t.repositoryId),
+    index('build_scans_workspace_idx').on(t.workspaceId),
   ],
 );
 
@@ -550,4 +603,34 @@ export const checklistTemplates = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [uniqueIndex('checklist_templates_name_idx').on(t.workspaceId, t.name)],
+);
+
+/**
+ * Where a repository's local clone is (docs/adr/0005-local-clone-reads.md). One row per
+ * repository: the optional local copy reads come from for a GitHub repository, or the repository
+ * itself when it has no GitHub connection (then credentialId, owner and repo are NULL).
+ */
+export const repositoryLocalCheckouts = sqliteTable(
+  'repository_local_checkouts',
+  {
+    repositoryId: text('repository_id')
+      .primaryKey()
+      .references(() => repositories.id),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** The real path (symbolic links resolved) when it was attached, inside an allowed root. */
+    path: text('path').notNull(),
+    /** The branch whose tip is read. */
+    branch: text('branch').notNull(),
+    /** What a local-only repository is called: the folder's name unless a person chose one. */
+    name: text('name').notNull(),
+    /** The commit the last read used, for the UI. */
+    lastCommit: text('last_commit'),
+    lastReadAt: integer('last_read_at'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('repository_local_checkouts_path_idx').on(t.workspaceId, t.path)],
 );
