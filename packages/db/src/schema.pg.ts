@@ -265,3 +265,301 @@ export const repositoryListingTargets = pgTable(
   },
   (t) => [uniqueIndex('repository_listing_targets_name_idx').on(t.repositoryId, t.name)],
 );
+
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    createdBy: text('created_by').notNull(),
+    name: text('name').notNull(),
+    /** SHA-256 of the token. The token itself is never stored. */
+    tokenHash: text('token_hash').notNull(),
+    prefix: text('prefix').notNull(),
+    /** The role ceiling: admin, member or viewer. Never owner. */
+    role: text('role').notNull(),
+    /** JSON array of app ids, or null for all apps. */
+    appIds: text('app_ids'),
+    /** JSON array of actions, or null for everything the role ceiling allows. */
+    actions: text('actions'),
+    expiresAt: epochMs('expires_at'),
+    lastUsedAt: epochMs('last_used_at'),
+    revokedAt: epochMs('revoked_at'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('api_tokens_hash_idx').on(t.tokenHash),
+    index('api_tokens_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const events = pgTable(
+  'events',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    type: text('type').notNull(),
+    appId: text('app_id'),
+    repositoryId: text('repository_id'),
+    releaseId: text('release_id'),
+    /** JSON. Never holds a secret. */
+    payload: text('payload').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [index('events_workspace_idx').on(t.workspaceId, t.id)],
+);
+
+export const webhookEndpoints = pgTable(
+  'webhook_endpoints',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    url: text('url').notNull(),
+    description: text('description'),
+    /** The signing secret, encrypted with the vault. */
+    ciphertext: text('ciphertext').notNull(),
+    /** JSON array of event types, or ["*"]. */
+    eventTypes: text('event_types').notNull(),
+    enabled: integer('enabled').notNull().default(1),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('webhook_endpoints_workspace_idx').on(t.workspaceId)],
+);
+
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    endpointId: text('endpoint_id')
+      .notNull()
+      .references(() => webhookEndpoints.id),
+    eventId: epochMs('event_id'),
+    eventType: text('event_type').notNull(),
+    /** The exact JSON that is signed and sent. Never holds a secret. */
+    body: text('body').notNull(),
+    status: text('status').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    responseCode: integer('response_code'),
+    responseBody: text('response_body'),
+    error: text('error'),
+    redeliveryOf: text('redelivery_of'),
+    createdAt: epochMs('created_at').notNull(),
+    deliveredAt: epochMs('delivered_at'),
+  },
+  (t) => [index('webhook_deliveries_endpoint_idx').on(t.endpointId, t.createdAt)],
+);
+
+export const listingSnapshots = pgTable(
+  'listing_snapshots',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: deleting an app removes its rows in code. */
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    locale: text('locale').notNull(),
+    field: text('field').notNull(),
+    /** `live` or `editable` for the store; `default` for repo and change_set. */
+    channel: text('channel').notNull().default('live'),
+    /** Null when the field is absent. */
+    value: text('value'),
+    valueHash: text('value_hash').notNull(),
+    /** `store`, `repo` or `change_set`. */
+    source: text('source').notNull(),
+    /** A store version, a commit sha or a change set id. */
+    sourceRef: text('source_ref'),
+    observedAt: epochMs('observed_at').notNull(),
+    actorType: text('actor_type'),
+    actorId: text('actor_id'),
+  },
+  (t) => [
+    index('listing_snapshots_field_idx').on(t.appId, t.locale, t.field, t.observedAt),
+    index('listing_snapshots_ref_idx').on(t.appId, t.source, t.sourceRef),
+    index('listing_snapshots_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const appListingStatus = pgTable('app_listing_status', {
+  appId: text('app_id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id),
+  listingReadAt: epochMs('listing_read_at'),
+  listingError: text('listing_error'),
+  repoReadAt: epochMs('repo_read_at'),
+  repoRef: text('repo_ref'),
+  repoError: text('repo_error'),
+});
+
+export const workflowRuns = pgTable(
+  'workflow_runs',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: a repository can be disconnected while rows remain; the services purge them. */
+    repositoryId: text('repository_id').notNull(),
+    /** The app the run was dispatched for, when it was started from this tool for one. */
+    appId: text('app_id'),
+    /** GitHub's run id, or `pending-<uuid>` for a dispatch whose run is not known yet. */
+    runId: text('run_id').notNull(),
+    workflow: text('workflow').notNull(),
+    workflowPath: text('workflow_path'),
+    /** The run title (`run-name`, or GitHub's default). */
+    title: text('title'),
+    /** GitHub's own status and conclusion, verbatim; `pending` for a placeholder. */
+    status: text('status').notNull(),
+    conclusion: text('conclusion'),
+    headSha: text('head_sha'),
+    commitMessage: text('commit_message'),
+    branch: text('branch'),
+    event: text('event'),
+    runNumber: integer('run_number'),
+    url: text('url'),
+    /** The inputs this tool dispatched with, as JSON. */
+    inputsJson: text('inputs_json'),
+    dispatchedBy: text('dispatched_by'),
+    startedAt: epochMs('started_at').notNull(),
+    runUpdatedAt: epochMs('run_updated_at').notNull(),
+    syncedAt: epochMs('synced_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('workflow_runs_repository_run_idx').on(t.repositoryId, t.runId),
+    index('workflow_runs_repository_started_idx').on(t.repositoryId, t.startedAt),
+    index('workflow_runs_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const buildLinks = pgTable(
+  'build_links',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: deleting an app must stay possible; the services purge orphans. */
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    buildNumber: text('build_number').notNull(),
+    repositoryId: text('repository_id').notNull(),
+    runId: text('run_id').notNull(),
+    headSha: text('head_sha').notNull(),
+    runUrl: text('run_url'),
+    workflow: text('workflow'),
+    /** `manual`, or the id of the matcher that found the link. */
+    source: text('source').notNull(),
+    reason: text('reason'),
+    linkedBy: text('linked_by'),
+    linkedAt: epochMs('linked_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('build_links_app_build_idx').on(t.appId, t.platform, t.buildNumber),
+    index('build_links_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const releasePlans = pgTable(
+  'release_plans',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: deleting an app must stay possible; plans of a deleted app are not shown. */
+    appId: text('app_id').notNull(),
+    version: text('version').notNull(),
+    /** ios, android, or null for a plan that covers both. */
+    platform: text('platform'),
+    /** A calendar day, YYYY-MM-DD, compared in UTC. */
+    targetDate: text('target_date'),
+    /** 0 or 1. */
+    blocked: integer('blocked').notNull().default(0),
+    blockedReason: text('blocked_reason'),
+    notes: text('notes').notNull().default(''),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('release_plans_app_version_idx').on(t.appId, t.version),
+    index('release_plans_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const checklistItems = pgTable(
+  'checklist_items',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    planId: text('plan_id')
+      .notNull()
+      .references(() => releasePlans.id),
+    position: integer('position').notNull(),
+    text: text('text').notNull(),
+    /** 0 or 1. */
+    required: integer('required').notNull().default(0),
+    /** 0 or 1. */
+    done: integer('done').notNull().default(0),
+    /** The user who ticked it. No foreign key, so a later kind of actor can be stored. */
+    doneBy: text('done_by'),
+    doneAt: epochMs('done_at'),
+  },
+  (t) => [
+    index('checklist_items_plan_idx').on(t.planId, t.position),
+    index('checklist_items_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const releaseNotes = pgTable(
+  'release_notes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    planId: text('plan_id')
+      .notNull()
+      .references(() => releasePlans.id),
+    locale: text('locale').notNull(),
+    /** May be empty: an expected locale that is not written yet. */
+    text: text('text').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('release_notes_plan_locale_idx').on(t.planId, t.locale),
+    index('release_notes_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+export const checklistTemplates = pgTable(
+  'checklist_templates',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    /** A JSON array of { text, required }. */
+    itemsJson: text('items_json').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('checklist_templates_name_idx').on(t.workspaceId, t.name)],
+);

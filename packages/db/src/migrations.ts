@@ -252,4 +252,256 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 8,
+    name: 'api tokens, events and webhooks',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // The event log gets a monotonically increasing integer id (the cursor for paging and for
+      // Last-Event-ID); the other ids stay application generated text.
+      const eventId =
+        dialect === 'postgres'
+          ? 'id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY'
+          : 'id INTEGER PRIMARY KEY AUTOINCREMENT';
+      return [
+        // Only the SHA-256 of a token is stored. role is the ceiling (admin, member or viewer);
+        // app_ids and actions are JSON arrays, NULL meaning "no restriction".
+        `CREATE TABLE IF NOT EXISTS api_tokens (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           created_by TEXT NOT NULL,
+           name TEXT NOT NULL,
+           token_hash TEXT NOT NULL,
+           prefix TEXT NOT NULL,
+           role TEXT NOT NULL,
+           app_ids TEXT,
+           actions TEXT,
+           expires_at ${t},
+           last_used_at ${t},
+           revoked_at ${t},
+           created_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_hash_idx ON api_tokens (token_hash)',
+        'CREATE INDEX IF NOT EXISTS api_tokens_workspace_idx ON api_tokens (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS events (
+           ${eventId},
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           type TEXT NOT NULL,
+           app_id TEXT,
+           repository_id TEXT,
+           release_id TEXT,
+           payload TEXT NOT NULL,
+           created_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS events_workspace_idx ON events (workspace_id, id)',
+        // The secret is encrypted with the vault, like a credential. event_types is a JSON array.
+        `CREATE TABLE IF NOT EXISTS webhook_endpoints (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           url TEXT NOT NULL,
+           description TEXT,
+           ciphertext TEXT NOT NULL,
+           event_types TEXT NOT NULL,
+           enabled INTEGER NOT NULL DEFAULT 1,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS webhook_endpoints_workspace_idx ON webhook_endpoints (workspace_id)',
+        // body is the exact JSON that is signed and sent (no secrets), so a redelivery repeats it.
+        `CREATE TABLE IF NOT EXISTS webhook_deliveries (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           endpoint_id TEXT NOT NULL REFERENCES webhook_endpoints(id),
+           event_id ${t},
+           event_type TEXT NOT NULL,
+           body TEXT NOT NULL,
+           status TEXT NOT NULL,
+           attempts INTEGER NOT NULL DEFAULT 0,
+           response_code INTEGER,
+           response_body TEXT,
+           error TEXT,
+           redelivery_of TEXT,
+           created_at ${t} NOT NULL,
+           delivered_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS webhook_deliveries_endpoint_idx ON webhook_deliveries (endpoint_id, created_at)',
+      ];
+    },
+  },
+  {
+    id: 9,
+    name: 'listing snapshots and listing status',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // History of store listing fields. A row is written only when a value differs from the
+      // previous row of the same stream (same app, platform, locale, field, channel and source), so
+      // the rows of one field are the sequence of its changes. value is NULL when the field is
+      // absent (removed); value_hash tells NULL from an empty string. source is store, repo or
+      // change_set; source_ref is a store version, a commit sha or a change set id. channel is
+      // live or editable for the store, default for the others. app_id has no foreign key on
+      // purpose (like credential_id on apps): deleting an app removes its rows in code.
+      // app_listing_status is the last listing read per app, kept apart from apps so a failed
+      // listing read never touches the release sync status.
+      return [
+        `CREATE TABLE IF NOT EXISTS listing_snapshots (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           locale TEXT NOT NULL,
+           field TEXT NOT NULL,
+           channel TEXT NOT NULL DEFAULT 'live',
+           value TEXT,
+           value_hash TEXT NOT NULL,
+           source TEXT NOT NULL,
+           source_ref TEXT,
+           observed_at ${t} NOT NULL,
+           actor_type TEXT,
+           actor_id TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS listing_snapshots_field_idx ON listing_snapshots (app_id, locale, field, observed_at)',
+        'CREATE INDEX IF NOT EXISTS listing_snapshots_ref_idx ON listing_snapshots (app_id, source, source_ref)',
+        'CREATE INDEX IF NOT EXISTS listing_snapshots_workspace_idx ON listing_snapshots (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS app_listing_status (
+           app_id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           listing_read_at ${t},
+           listing_error TEXT,
+           repo_read_at ${t},
+           repo_ref TEXT,
+           repo_error TEXT
+         )`,
+      ];
+    },
+  },
+  {
+    id: 10,
+    name: 'ci workflow runs and build links',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // workflow_runs: one row per GitHub Actions run of a connected repository, or a placeholder
+      // (status 'pending', run_id 'pending-<uuid>') for a dispatch whose run is not known yet.
+      // repository_id and app_id have no foreign key on purpose (a repository can be disconnected
+      // and an app deleted while rows remain; the services delete orphans). status and conclusion
+      // are GitHub's own words, kept verbatim. started_at falls back to the creation time so the
+      // column is never NULL and sorts the same on both dialects.
+      // build_links: the run (and so the commit) a store build was made by. source is 'manual' or
+      // the id of the matcher that found it; head_sha is kept so the link outlives the run row.
+      return [
+        `CREATE TABLE IF NOT EXISTS workflow_runs (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           repository_id TEXT NOT NULL,
+           app_id TEXT,
+           run_id TEXT NOT NULL,
+           workflow TEXT NOT NULL,
+           workflow_path TEXT,
+           title TEXT,
+           status TEXT NOT NULL,
+           conclusion TEXT,
+           head_sha TEXT,
+           commit_message TEXT,
+           branch TEXT,
+           event TEXT,
+           run_number INTEGER,
+           url TEXT,
+           inputs_json TEXT,
+           dispatched_by TEXT,
+           started_at ${t} NOT NULL,
+           run_updated_at ${t} NOT NULL,
+           synced_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS workflow_runs_repository_run_idx ON workflow_runs (repository_id, run_id)',
+        'CREATE INDEX IF NOT EXISTS workflow_runs_repository_started_idx ON workflow_runs (repository_id, started_at)',
+        'CREATE INDEX IF NOT EXISTS workflow_runs_workspace_idx ON workflow_runs (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS build_links (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           build_number TEXT NOT NULL,
+           repository_id TEXT NOT NULL,
+           run_id TEXT NOT NULL,
+           head_sha TEXT NOT NULL,
+           run_url TEXT,
+           workflow TEXT,
+           source TEXT NOT NULL,
+           reason TEXT,
+           linked_by TEXT,
+           linked_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS build_links_app_build_idx ON build_links (app_id, platform, build_number)',
+        'CREATE INDEX IF NOT EXISTS build_links_workspace_idx ON build_links (workspace_id)',
+      ];
+    },
+  },
+  {
+    id: 11,
+    name: 'release plans, checklists and release notes',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // Release planning is our own data: nothing here is read from or written to a store.
+      // release_plans: one plan per app and version. platform is ios, android or NULL for a plan
+      // that covers both; target_date is a calendar day (YYYY-MM-DD, compared in UTC); blocked is
+      // 0 or 1 with its reason. app_id has no foreign key on purpose: deleting an app must stay
+      // possible, and plans of a deleted app are not shown (the join with apps finds none).
+      // checklist_items: position orders the list, required and done are 0 or 1, done_by is the user
+      // who ticked it (no foreign key, so a later actor kind can be stored). release_notes: one row
+      // per plan and locale; the text may be empty (an expected locale not written yet).
+      // checklist_templates: items_json is a JSON array of { text, required }; the templates that ship
+      // with the product are not stored.
+      return [
+        `CREATE TABLE IF NOT EXISTS release_plans (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           version TEXT NOT NULL,
+           platform TEXT,
+           target_date TEXT,
+           blocked INTEGER NOT NULL DEFAULT 0,
+           blocked_reason TEXT,
+           notes TEXT NOT NULL DEFAULT '',
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS release_plans_app_version_idx ON release_plans (app_id, version)',
+        'CREATE INDEX IF NOT EXISTS release_plans_workspace_idx ON release_plans (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS checklist_items (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           plan_id TEXT NOT NULL REFERENCES release_plans(id),
+           position INTEGER NOT NULL,
+           text TEXT NOT NULL,
+           required INTEGER NOT NULL DEFAULT 0,
+           done INTEGER NOT NULL DEFAULT 0,
+           done_by TEXT,
+           done_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS checklist_items_plan_idx ON checklist_items (plan_id, position)',
+        'CREATE INDEX IF NOT EXISTS checklist_items_workspace_idx ON checklist_items (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS release_notes (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           plan_id TEXT NOT NULL REFERENCES release_plans(id),
+           locale TEXT NOT NULL,
+           text TEXT NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS release_notes_plan_locale_idx ON release_notes (plan_id, locale)',
+        'CREATE INDEX IF NOT EXISTS release_notes_workspace_idx ON release_notes (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS checklist_templates (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           name TEXT NOT NULL,
+           items_json TEXT NOT NULL,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS checklist_templates_name_idx ON checklist_templates (workspace_id, name)',
+      ];
+    },
+  },
 ];
