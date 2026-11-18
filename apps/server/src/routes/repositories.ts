@@ -33,6 +33,8 @@ import {
   scanRepository,
 } from '../services/repositories.ts';
 import { applyChangeSetLocally, publishLocalCommit } from '../services/change-set-local.ts';
+import { changeSetStaleness, refreshChangeSet } from '../services/change-set-refresh.ts';
+import type { CloneUpkeep } from '../services/clone-upkeep.ts';
 import {
   approveChangeSet,
   applyChangeSet,
@@ -92,6 +94,16 @@ const applyBody = z.object({
   openPr: z.boolean().optional(),
 });
 const publishBody = z.object({ openPr: z.boolean().optional() });
+
+// Refreshing a stale change set: the person's choice per conflicting file, by path. No body is "no
+// choices yet" (a conflict is then reported, not resolved). Paths are checked against the set.
+const MAX_RESOLUTIONS = 500;
+const refreshBody = z.object({
+  resolutions: z
+    .record(z.string().min(1).max(1000), z.enum(['mine', 'theirs']))
+    .refine((value) => Object.keys(value).length <= MAX_RESOLUTIONS, `At most ${MAX_RESOLUTIONS} choices.`)
+    .optional(),
+});
 
 // A locale folder (`en-US`, `de`) or the fastlane `default` folder. No slashes, so a key can never
 // point outside the metadata folder.
@@ -183,7 +195,7 @@ const createBodySchema = z.object({
 });
 
 /** Repository and change set routes. Mounted under /api/workspaces. */
-export function repositoryRoutes(ctx: RepoContext) {
+export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
   const { db } = ctx;
   const app = new Hono<AppEnv>();
 
@@ -262,6 +274,44 @@ export function repositoryRoutes(ctx: RepoContext) {
   app.delete('/:workspaceId/repositories/:id/local', needs('repositories.write'), async (c) => {
     const done = await detachLocalCheckout(ctx, { workspaceId: ws(c), repositoryId: param(c, 'id') }, actor(c));
     return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }) : respond(c, done);
+  });
+
+  // ----- the managed clones (docs/adr/0005-local-clone-reads.md, "Clone upkeep") -----------------
+  // Admin and owner see the clones of THEIR workspace only: size and last use per repository. No path
+  // of the server is part of an answer. The sweep that prunes them runs on its own (scheduler).
+
+  app.get('/:workspaceId/clones', needs('repositories.write'), async (c) =>
+    c.json(
+      upkeep
+        ? await upkeep.report(ws(c))
+        : { enabled: false, clones: [], totalBytes: 0, limits: { maxBytes: 0, idleDays: 0 } },
+    ),
+  );
+
+  app.get('/:workspaceId/repositories/:id/clone', needs('repositories.read'), async (c) => {
+    const repository = await getRepository(db, ws(c), param(c, 'id'));
+    if (!repository) return notFound(c);
+    return c.json({
+      enabled: ctx.reads?.active === true,
+      clone: (await upkeep?.forRepository(ws(c), repository.id)) ?? null,
+      limits: upkeep?.config ?? { maxBytes: 0, idleDays: 0 },
+    });
+  });
+
+  // Drops the clones of one repository now. They are a cache: the next read fetches again. 409
+  // clone_busy while a read is running.
+  app.post('/:workspaceId/repositories/:id/clone/purge', needs('repositories.write'), async (c) => {
+    const repository = await getRepository(db, ws(c), param(c, 'id'));
+    if (!repository) return notFound(c);
+    if (!upkeep) return c.json({ removed: 0, freedBytes: 0 });
+    const done = await upkeep.purge(ws(c), repository.id, actor(c));
+    if (!done.ok) {
+      return c.json(
+        { error: 'clone_busy', message: 'The repository is being read right now. Try again in a moment.' },
+        409,
+      );
+    }
+    return c.json({ removed: done.removed, freedBytes: done.freedBytes });
   });
 
   app.get('/:workspaceId/repositories/:id', needs('repositories.read'), async (c) => {
@@ -479,6 +529,47 @@ export function repositoryRoutes(ctx: RepoContext) {
     const done = await publishLocalCommit(ctx, { workspaceId: ws(c), id: param(c, 'id'), openPr }, actor(c));
     if (!done.ok) return respond(c, done);
     return c.json(done.alreadyDone ? { changeSet: done.changeSet, alreadyDone: true } : { changeSet: done.changeSet });
+  });
+
+  // Re-bases a stale change set onto the repository as it is now (change-set-refresh.ts). A conflict
+  // is 409 refresh_conflicts with the three texts per file and changes nothing; the same request with
+  // `resolutions` settles it. A refresh that changes the text returns the set to draft: no approval carries over.
+  app.post('/:workspaceId/change-sets/:id/refresh', needs('changesets.write'), async (c) => {
+    const raw = await c.req.text();
+    let resolutions: Record<string, 'mine' | 'theirs'> | undefined;
+    if (raw.trim() !== '') {
+      let json: unknown;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        return c.json({ error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] }, 400);
+      }
+      const result = refreshBody.safeParse(json);
+      if (!result.success) {
+        return c.json(
+          { error: 'invalid_request', issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+          400,
+        );
+      }
+      resolutions = result.data.resolutions;
+    }
+    const done = await refreshChangeSet(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id'), ...(resolutions ? { resolutions } : {}) },
+      actor(c),
+    );
+    if (!done.ok) return respond(c, done);
+    const { ok: _ok, ...view } = done;
+    return c.json(view);
+  });
+
+  // Read-only: is the change set still what the repository holds? Reads with the stored credential
+  // (or the local clone), so it needs the right a scan needs, and it writes nothing.
+  app.get('/:workspaceId/change-sets/:id/staleness', needs('repositories.scan'), async (c) => {
+    const done = await changeSetStaleness(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    if (!done.ok) return respond(c, done);
+    const { ok: _ok, ...view } = done;
+    return c.json(view);
   });
 
   app.post('/:workspaceId/change-sets/:id/discard', needs('changesets.write'), async (c) => {

@@ -197,7 +197,7 @@ export function githubFailure(error: unknown, secret = ''): Failure {
       const paths = (error as { paths?: string[] }).paths ?? [];
       return failure(409, 'change_conflict', message, {
         paths,
-        hint: 'The repository changed after this change set was made. Discard it, read the listing again and create a new change set.',
+        hint: 'The repository changed after this change set was made. Refresh it to re-base the change onto the repository, or discard it, read the listing again and create a new change set.',
       });
     }
     case 'pull_request_failed': {
@@ -359,6 +359,9 @@ export const CLONE_READ_PURPOSES: ReadonlySet<string> = new Set([
   'repository.scan',
   'repository.listing',
   'changeset.create',
+  // Re-basing a stale change set and checking whether it is stale (change-set-refresh.ts).
+  'changeset.refresh',
+  'changeset.staleness',
 ]);
 
 /** The token git authenticates with: the PAT, or the App's installation token as a function. */

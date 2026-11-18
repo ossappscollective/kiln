@@ -332,6 +332,11 @@ export async function approveChangeSet(
 ): Promise<Outcome<{ changeSet: ChangeSetView }>> {
   const result = await ctx.db.transaction(async (tx): Promise<Outcome<Record<never, never>>> => {
     const now = ctx.now();
+    // A refresh can leave a change set with no file (the repository already has all of it).
+    const current = await rowOf(tx, input.workspaceId, input.id);
+    if (current && String(current.status) === 'draft' && parseFiles(current).length === 0) {
+      return failure(422, 'nothing_to_apply', 'Nothing left to apply: the repository already has this change. Discard the change set.');
+    }
     const changed = await tx.execute(
       `UPDATE change_sets SET status = 'approved', approved_by = ?, approved_at = ?, updated_at = ?
         WHERE id = ? AND workspace_id = ? AND status = 'draft'`,

@@ -8,11 +8,13 @@ import {
   rm,
   rmdir,
   stat,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { devNull } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { BlobEntry, BlobHeadItem, BlobHeads, BlobHeadsOptions, BlobListing } from './blobs.ts';
 import { GithubError, GithubRateLimitError, redactSecrets } from './errors.ts';
 import type { RepoConnector } from './types.ts';
 
@@ -165,6 +167,8 @@ const MARKER_VERSION = 1;
 const MIB = 1024 * 1024;
 const BATCH_MAX = 500;
 const STDERR_CAP = 64 * 1024;
+/** The marker's modification time is when the clone was last used; it is rewritten at most this often. */
+const TOUCH_EVERY_MS = 30_000;
 
 /**
  * A path inside the repository. The same rules as the GitHub connector's `checkRepoPath` (kept
@@ -308,6 +312,8 @@ type RunOptions = {
   input?: string;
   timeoutMs: number;
   maxStdout: number;
+  /** Keep the first `maxStdout` bytes and stop the process, instead of failing (`readBlobHeads`). */
+  truncate?: boolean;
   signal?: AbortSignal;
   gitPath: string;
   children: Set<ChildProcess>;
@@ -359,8 +365,17 @@ function runGit(o: RunOptions): Promise<RunResult> {
       stop(new GitCloneError('network', 'The request was cancelled.', 'aborted'));
     o.signal?.addEventListener('abort', onAbort, { once: true });
 
+    let headOnly = false;
     child.stdout?.on('data', (chunk: Buffer) => {
+      if (headOnly) return;
       outBytes += chunk.length;
+      if (outBytes > o.maxStdout && o.truncate) {
+        const keep = o.maxStdout - (outBytes - chunk.length);
+        if (keep > 0) out.push(chunk.subarray(0, keep));
+        headOnly = true;
+        killTree(child);
+        return;
+      }
       if (outBytes > o.maxStdout) {
         stop(
           new GitCloneError(
@@ -394,7 +409,7 @@ function runGit(o: RunOptions): Promise<RunResult> {
       o.signal?.removeEventListener('abort', onAbort);
       o.children.delete(child);
       if (failure) reject(failure);
-      else resolvePromise({ stdout: Buffer.concat(out), stderr, code: code ?? -1 });
+      else resolvePromise({ stdout: Buffer.concat(out), stderr, code: headOnly ? 0 : (code ?? -1) });
     });
     if (o.input !== undefined) child.stdin?.end(o.input);
     else child.stdin?.end();
@@ -431,6 +446,7 @@ type GitCall = {
   input?: string;
   signal?: AbortSignal;
   maxStdout?: number;
+  truncate?: boolean;
   init?: boolean;
   what: string;
 };
@@ -547,6 +563,7 @@ type BlobResult =
   | { kind: 'too_large'; size: number }
   | { kind: 'missing' };
 type Waiter = { resolve: (result: BlobResult) => void; reject: (error: unknown) => void };
+type SharedRefresh = { promise: Promise<CloneRefreshResult>; controller: AbortController; waiters: number };
 
 const cancelled = () => new GitCloneError('network', 'The request was cancelled.', 'aborted');
 
@@ -622,6 +639,8 @@ export class GitCloneReader implements RepoReader {
   readonly #refreshing = new Map<string, Promise<CloneRefreshResult>>();
   readonly #trees = new Map<string, Promise<Tree>>();
   readonly #warmed = new Map<string, Promise<void>>();
+  readonly #sharedRefresh = new Map<string, SharedRefresh>();
+  #lastTouch = 0;
   #queue = new Map<string, Waiter[]>();
   #flushTimer?: ReturnType<typeof setImmediate>;
 
@@ -792,6 +811,7 @@ export class GitCloneReader implements RepoReader {
       ...(o.input !== undefined ? { input: o.input } : {}),
       timeoutMs: o.network ? this.#fetchTimeoutMs : this.#timeoutMs,
       maxStdout: o.maxStdout ?? 1024 * 1024,
+      ...(o.truncate ? { truncate: true } : {}),
       signal: AbortSignal.any(signals),
       gitPath: this.#gitPath,
       children: this.#children,
@@ -808,6 +828,18 @@ export class GitCloneReader implements RepoReader {
     const result = await this.#git(args, o);
     if (result.code !== 0) throw classifyFailure(this.#clean(result.stderr), where);
     return result;
+  }
+
+  /**
+   * Notes that the clone is in use: the marker's modification time is the "last used" time that
+   * idle pruning goes by (`listClones`). At most once per 30 seconds, never waits, never throws.
+   */
+  #touch(): void {
+    const at = Date.now();
+    if (at - this.#lastTouch < TOUCH_EVERY_MS) return;
+    this.#lastTouch = at;
+    const when = new Date(at);
+    utimes(join(this.dir, MARKER), when, when).catch(() => undefined);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -854,9 +886,13 @@ export class GitCloneReader implements RepoReader {
     const url = await this.#remoteUrl();
     const marker = join(this.dir, MARKER);
     const existing = await readMarker(marker);
-    if (existing && existing.url === url && this.#verified) return;
+    if (existing && existing.url === url && this.#verified) {
+      this.#touch();
+      return;
+    }
     if (existing && existing.url === url && (await this.#healthy())) {
       this.#verified = true;
+      this.#touch();
       return;
     }
     if (existing) {
@@ -970,13 +1006,46 @@ export class GitCloneReader implements RepoReader {
     if (options.signal?.aborted) throw cancelled();
     const name = ref ?? (await this.defaultBranch(options));
     const spec = parseRef(name);
-    return raceAbort(
-      withLock(this.dir, async () => {
-        await this.#ensure();
-        return this.#fetchRef(spec, options.signal);
-      }),
-      options.signal,
-    );
+    // One fetch for everyone who asks for the same ref while it runs (two scans or listings of one
+    // repository at once). It does not carry one caller's signal: git is stopped when every caller
+    // has given up, and a caller that gives up is released at once.
+    let shared = this.#sharedRefresh.get(spec.name);
+    if (!shared || shared.controller.signal.aborted) {
+      const controller = new AbortController();
+      const entry: SharedRefresh = {
+        controller,
+        waiters: 0,
+        promise: withLock(this.dir, async () => {
+          await this.#ensure();
+          return this.#fetchRef(spec, controller.signal);
+        }).finally(() => {
+          if (this.#sharedRefresh.get(spec.name) === entry) this.#sharedRefresh.delete(spec.name);
+        }),
+      };
+      entry.promise.catch(() => undefined);
+      this.#sharedRefresh.set(spec.name, entry);
+      shared = entry;
+    }
+    const entry = shared;
+    entry.waiters++;
+    const signal = options.signal;
+    let left = false;
+    const leave = () => {
+      if (left) return;
+      left = true;
+      entry.waiters--;
+      if (entry.waiters === 0) entry.controller.abort();
+    };
+    signal?.addEventListener('abort', leave, { once: true });
+    try {
+      return await raceAbort(entry.promise, signal);
+    } finally {
+      signal?.removeEventListener('abort', leave);
+      if (!left) {
+        left = true;
+        entry.waiters--;
+      }
+    }
   }
 
   async #fetchRef(spec: RefSpec, signal?: AbortSignal): Promise<CloneRefreshResult> {
@@ -1036,6 +1105,7 @@ export class GitCloneReader implements RepoReader {
    * `ttlMs`. A full sha is returned as is when the clone has it, else fetched.
    */
   async resolve(ref?: string, options: CloneCallOptions = {}): Promise<string> {
+    this.#touch();
     const name = ref ?? (await this.defaultBranch(options));
     const spec = parseRef(name);
     if (spec.kind === 'commit') {
@@ -1186,6 +1256,98 @@ export class GitCloneReader implements RepoReader {
       if (entry && entry.mode !== '120000') oids.add(entry.oid);
     }
     await raceAbort(this.#ensurePresent([...oids]), options.signal);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Binary files, bounded (see blobs.ts). Additive: the text reads above are unchanged.
+
+  /** Every file of a commit with its object id. A symlink is not listed. Sizes are not known without reading. */
+  async listBlobEntries(ref?: string, options: CloneCallOptions = {}): Promise<BlobListing> {
+    const commit = await this.resolve(ref, options);
+    const tree = await this.#tree(commit, options.signal);
+    const entries: BlobEntry[] = [];
+    for (const path of tree.paths) {
+      const entry = tree.entries.get(path);
+      if (entry && entry.mode !== '120000') entries.push({ path, oid: entry.oid, mode: entry.mode, size: null });
+    }
+    return { commit, entries };
+  }
+
+  /**
+   * The first `headBytes` bytes of each file, for reading image headers. Sizes of the blobs that
+   * are in the clone are free (`cat-file --batch-check`; a local source copies them all); the ones
+   * that are not are fetched a few at a time while the transfer budget lasts. A file over
+   * `maxFileBytes` is never read, but a missing one has to be fetched to learn its size, so one
+   * chunk of eight can overshoot the budget.
+   */
+  async readBlobHeads(paths: readonly string[], options: BlobHeadsOptions): Promise<BlobHeads> {
+    const signal = options.signal;
+    const commit = await this.resolve(options.ref, signal ? { signal } : {});
+    const tree = await this.#tree(commit, signal);
+    const items = new Map<string, BlobHeadItem>();
+    const wanted = new Map<string, string>();
+    for (const path of paths) {
+      if (items.has(path) || wanted.has(path)) continue;
+      const entry = tree.entries.get(path);
+      if (!entry || entry.mode === '120000' || !/^[0-9a-f]{40,64}$/.test(entry.oid)) {
+        items.set(path, { ok: false, oid: null, reason: 'missing', size: null });
+      } else wanted.set(path, entry.oid);
+    }
+    const oids = [...new Set(wanted.values())];
+    const sizes = new Map<string, number | undefined>();
+    for (let i = 0; i < oids.length; i += BATCH_MAX) {
+      for (const [oid, size] of await raceAbort(this.#check(oids.slice(i, i + BATCH_MAX)), signal)) sizes.set(oid, size);
+    }
+    const budget = options.maxTransferBytes;
+    const sizesOnly = options.headBytes <= 0;
+    let transferred = 0;
+    const refused = new Set<string>();
+    const absent = oids.filter((oid) => sizes.get(oid) === undefined);
+    for (let i = 0; i < absent.length && !sizesOnly; i += 8) {
+      const chunk = absent.slice(i, i + 8);
+      if (transferred >= budget) {
+        for (const oid of chunk) refused.add(oid);
+        continue;
+      }
+      await raceAbort(this.#fetchBlobs(chunk), signal);
+      for (const [oid, size] of await raceAbort(this.#check(chunk), signal)) {
+        sizes.set(oid, size);
+        if (size !== undefined) transferred += size;
+      }
+    }
+    const readable = sizesOnly
+      ? []
+      : oids.filter((oid) => {
+          const size = sizes.get(oid);
+          return size !== undefined && size <= options.maxFileBytes && !refused.has(oid);
+        });
+    const heads = new Map<string, Uint8Array>();
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < readable.length; i = next++) {
+        const oid = readable[i] as string;
+        const r = await this.#gitOk(['cat-file', 'blob', oid], {
+          maxStdout: options.headBytes,
+          truncate: true,
+          what: 'cat-file',
+          ...(signal ? { signal } : {}),
+        });
+        heads.set(oid, new Uint8Array(r.stdout));
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, readable.length) }, worker));
+    for (const [path, oid] of wanted) {
+      const size = sizes.get(oid);
+      const head = heads.get(oid);
+      if (refused.has(oid)) items.set(path, { ok: false, oid, reason: 'budget', size: null });
+      else if (size === undefined) {
+        items.set(path, { ok: false, oid, reason: sizesOnly ? 'unsized' : 'missing', size: null });
+      } else if (size > options.maxFileBytes) items.set(path, { ok: false, oid, reason: 'too_large', size });
+      else if (sizesOnly) items.set(path, { ok: true, oid, size, head: new Uint8Array(0) });
+      else if (head) items.set(path, { ok: true, oid, size, head });
+      else items.set(path, { ok: false, oid, reason: 'missing', size });
+    }
+    return { items, transferredBytes: transferred };
   }
 
   #warmOnce(commit: string, tree: Tree, signal?: AbortSignal): Promise<void> {
@@ -1375,18 +1537,9 @@ export class GitCloneReader implements RepoReader {
     this.#warmed.clear();
   }
 
-  /** Bytes on disk, for the clone's folder. 0 when there is none. */
+  /** Bytes on disk, for the clone's folder. 0 when there is none. The walk is capped (`cloneSize`). */
   async diskUsage(): Promise<number> {
-    let total = 0;
-    const entries = await readdir(this.dir, { recursive: true, withFileTypes: true }).catch(
-      () => [],
-    );
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const info = await lstat(join(entry.parentPath, entry.name)).catch(() => undefined);
-      total += info?.size ?? 0;
-    }
-    return total;
+    return (await cloneSize(this.dir)).bytes;
   }
 
   /**
@@ -1403,6 +1556,7 @@ export class GitCloneReader implements RepoReader {
     this.#warmed.clear();
     this.#tips.clear();
     this.#refreshing.clear();
+    this.#sharedRefresh.clear();
     this.#discovered = undefined;
     this.#verified = false;
     return removed;
@@ -1462,4 +1616,140 @@ export async function removeWorkspaceClones(
     if (await removeClone(baseDir, workspaceId, name)) removed++;
   }
   return removed;
+}
+
+// -----------------------------------------------------------------------------------------------
+// Upkeep: what is on disk, how big, when it was last used
+
+/** Most files and folders one size walk visits. A bare shallow clone has a few thousand. */
+export const SIZE_WALK_MAX_ENTRIES = 200_000;
+
+export type CloneSize = { bytes: number; entries: number; truncated: boolean };
+
+/**
+ * Bytes of the files under `dir`, like `du` (apparent size, symbolic links counted as links and
+ * never followed), visiting at most `maxEntries` entries: a bigger folder reports what it found so
+ * far with `truncated: true`. Takes no lock: a clone being fetched into is measured as it is.
+ */
+export async function cloneSize(dir: string, maxEntries = SIZE_WALK_MAX_ENTRIES): Promise<CloneSize> {
+  let bytes = 0;
+  let entries = 0;
+  const pending = [dir];
+  while (pending.length > 0) {
+    const folder = pending.pop() as string;
+    const items = await readdir(folder, { withFileTypes: true }).catch(() => []);
+    for (const item of items) {
+      if (++entries > maxEntries) return { bytes, entries: maxEntries, truncated: true };
+      const path = join(folder, item.name);
+      if (item.isDirectory() && !item.isSymbolicLink()) {
+        pending.push(path);
+        continue;
+      }
+      const info = await lstat(path).catch(() => undefined);
+      bytes += info?.size ?? 0;
+    }
+  }
+  return { bytes, entries, truncated: false };
+}
+
+export type ClonedRepository = {
+  workspaceId: string;
+  /** The folder name: the repository's id, with `-local` added for the copy of an attached local folder. */
+  cloneId: string;
+  /** The real path of the clone. */
+  dir: string;
+  bytes: number;
+  /** The size walk stopped at its cap: `bytes` is a lower bound. */
+  truncated: boolean;
+  /** Epoch milliseconds: when the clone was made. 0 when unknown. */
+  createdAt: number;
+  /** Epoch milliseconds: the last time a reader used it (the marker's modification time). */
+  lastUsedAt: number;
+};
+
+/**
+ * The managed clones under `baseDir`: real folders that carry our marker, directly under a
+ * workspace folder, whose real path is inside the base directory. A symbolic link at either level,
+ * a marker that is not a regular file and anything that resolves outside are not listed and are
+ * counted in `refused`: nothing here ever follows a link out of the base directory.
+ */
+export async function listClones(
+  baseDir: string,
+  options: {
+    workspaceId?: string;
+    maxEntries?: number;
+    /** Measures a clone's folder. Default `cloneSize`; a caller may cache. */
+    size?: (dir: string) => Promise<CloneSize>;
+  } = {},
+): Promise<{ clones: ClonedRepository[]; refused: number }> {
+  const clones: ClonedRepository[] = [];
+  let refused = 0;
+  let realBase: string;
+  try {
+    realBase = await realpath(resolve(baseDir));
+  } catch {
+    return { clones, refused };
+  }
+  const base = resolve(baseDir);
+  const workspaces =
+    options.workspaceId !== undefined
+      ? [checkId('workspaceId', options.workspaceId)]
+      : (await readdir(base).catch(() => [] as string[])).filter((name) => SAFE_ID.test(name));
+  for (const workspaceId of workspaces) {
+    const folder = join(base, workspaceId);
+    const info = await lstat(folder).catch(() => undefined);
+    if (!info) continue;
+    if (info.isSymbolicLink()) {
+      refused++;
+      continue;
+    }
+    if (!info.isDirectory()) continue;
+    const names = (await readdir(folder).catch(() => [] as string[])).filter((name) => SAFE_ID.test(name));
+    for (const cloneId of names) {
+      const dir = join(folder, cloneId);
+      const own = await lstat(dir).catch(() => undefined);
+      if (!own) continue;
+      if (own.isSymbolicLink()) {
+        refused++;
+        continue;
+      }
+      if (!own.isDirectory()) continue;
+      const markerPath = join(dir, MARKER);
+      const marker = await lstat(markerPath).catch(() => undefined);
+      if (!marker || !marker.isFile()) {
+        refused++;
+        continue;
+      }
+      const real = await realpath(dir).catch(() => undefined);
+      if (!real || !real.startsWith(realBase + sep) || real === realBase) {
+        refused++;
+        continue;
+      }
+      const parsed = await readMarker(markerPath);
+      if (!parsed) {
+        refused++;
+        continue;
+      }
+      const size = await (options.size ? options.size(real) : cloneSize(real, options.maxEntries));
+      clones.push({
+        workspaceId,
+        cloneId,
+        dir: real,
+        bytes: size.bytes,
+        truncated: size.truncated,
+        createdAt: parsed.createdAt,
+        lastUsedAt: Math.max(marker.mtimeMs, 0),
+      });
+    }
+  }
+  return { clones, refused };
+}
+
+/**
+ * Whether something in this process holds or waits for the clone's lock (a fetch, a read of the
+ * object store, `compact`, `removeClone`). A clone that is busy must not be pruned. This sees only
+ * this process; the grace period of recent use covers the time between two git calls of one request.
+ */
+export function isCloneBusy(baseDir: string, workspaceId: string, repositoryId: string): boolean {
+  return mutexes.has(GitCloneReader.cloneDir(baseDir, workspaceId, repositoryId));
 }

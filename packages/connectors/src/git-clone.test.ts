@@ -10,6 +10,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -20,10 +21,13 @@ import { after, before, test } from 'node:test';
 import { GithubError, GithubRateLimitError } from './errors.ts';
 import { GithubRepoConnector } from './github.ts';
 import {
+  cloneSize,
   defaultWarmPaths,
   GitCloneError,
   GitCloneReader,
   type GitCloneReaderOptions,
+  isCloneBusy,
+  listClones,
   removeClone,
   removeWorkspaceClones,
 } from './git-clone.ts';
@@ -975,4 +979,143 @@ test('removeWorkspaceClones removes every clone of one workspace only', async ()
   assert.equal(await removeWorkspaceClones(base, 'w1'), 2);
   assert.deepEqual(readdirSync(base), ['w2']);
   assert.ok(statSync(join(base, 'w2', 'c')).isDirectory());
+});
+
+// -----------------------------------------------------------------------------------------------
+// Upkeep: sizes, the list of clones, last use, one refresh for simultaneous callers
+
+test('cloneSize adds up the files, does not follow links and stops at its cap', async () => {
+  const dir = scratch();
+  mkdirSync(join(dir, 'a', 'b'), { recursive: true });
+  writeFileSync(join(dir, 'one'), 'x'.repeat(100));
+  writeFileSync(join(dir, 'a', 'two'), 'y'.repeat(50));
+  writeFileSync(join(dir, 'a', 'b', 'three'), 'z'.repeat(25));
+  const outside = scratch();
+  writeFileSync(join(outside, 'big'), 'q'.repeat(100_000));
+  symlinkSync(outside, join(dir, 'link'));
+  const size = await cloneSize(dir);
+  assert.equal(size.truncated, false);
+  assert.ok(size.bytes >= 175 && size.bytes < 5_000, `link not followed: ${size.bytes}`);
+  const capped = await cloneSize(dir, 2);
+  assert.equal(capped.truncated, true);
+  assert.deepEqual(await cloneSize(join(dir, 'missing')), { bytes: 0, entries: 0, truncated: false });
+});
+
+test('listClones lists managed clones with size and last use, and refuses links and strangers', async () => {
+  const source = makeSource({ 'a.txt': 'x' });
+  const base = join(scratch(), 'clones');
+  const make = (workspaceId: string, repositoryId: string) =>
+    new GitCloneReader({
+      baseDir: base,
+      workspaceId,
+      repositoryId,
+      source: { type: 'local', path: source },
+      defaultBranch: 'main',
+    });
+  await Promise.all([make('w1', 'a').refresh(), make('w1', 'b-local').refresh(), make('w2', 'c').refresh()]);
+
+  // Things that are not clones: a folder without our marker, a link to a real clone, a link to a folder outside.
+  mkdirSync(join(base, 'w1', 'stranger'));
+  writeFileSync(join(base, 'w1', 'stranger', 'file'), 'not ours');
+  if (posix) {
+    symlinkSync(join(base, 'w2', 'c'), join(base, 'w1', 'linked'));
+    const outside = scratch();
+    writeFileSync(join(outside, 'mrm-clone.json'), '{"version":1,"url":"x","createdAt":1}');
+    symlinkSync(outside, join(base, 'w1', 'escape'));
+    symlinkSync(outside, join(base, 'w3'));
+  }
+
+  const all = await listClones(base);
+  assert.deepEqual(all.clones.map((c) => `${c.workspaceId}/${c.cloneId}`).sort(), ['w1/a', 'w1/b-local', 'w2/c']);
+  assert.equal(all.refused, posix ? 4 : 1);
+  for (const clone of all.clones) {
+    assert.ok(clone.bytes > 0);
+    assert.equal(clone.truncated, false);
+    assert.ok(clone.createdAt > 0);
+    assert.ok(Math.abs(clone.lastUsedAt - Date.now()) < 60_000);
+  }
+  assert.deepEqual((await listClones(base, { workspaceId: 'w2' })).clones.map((c) => c.cloneId), ['c']);
+  assert.deepEqual((await listClones(join(base, 'nope'))).clones, []);
+  await assert.rejects(() => listClones(base, { workspaceId: '../etc' }), GithubError);
+  // The stranger and the outside folder are untouched.
+  assert.equal(readFileSync(join(base, 'w1', 'stranger', 'file'), 'utf8'), 'not ours');
+});
+
+test('reading touches the clone: its last use moves, at most every 30 seconds', async () => {
+  const source = makeSource({ 'a.txt': 'x' });
+  const base = join(scratch(), 'clones');
+  const r = reader(source, { base });
+  await r.listFiles();
+  const marker = join(r.dir, 'mrm-clone.json');
+  const old = new Date(Date.now() - 3 * 24 * 3600_000);
+  utimesSync(marker, old, old);
+  // Within the throttle window of the first read: not touched again.
+  await r.readFile('a.txt');
+  await new Promise((done) => setTimeout(done, 50));
+  assert.ok(statSync(marker).mtimeMs < Date.now() - 24 * 3600_000, 'throttled');
+  // A new reader (a new process, in effect) touches at its first use.
+  const next = reader(source, { base });
+  await next.readFile('a.txt');
+  await new Promise((done) => setTimeout(done, 50));
+  assert.ok(Math.abs(statSync(marker).mtimeMs - Date.now()) < 60_000, 'touched');
+  const [listed] = (await listClones(base)).clones;
+  assert.ok(listed && Math.abs(listed.lastUsedAt - Date.now()) < 60_000);
+});
+
+posixTest('isCloneBusy is true while git runs for the clone, and false after', async () => {
+  const slow = wrapper(`case "$*" in *" fetch "*) sleep 1;; esac`);
+  const base = join(scratch(), 'clones');
+  const r = reader(makeSource({ 'a.txt': 'x' }), { base, gitPath: slow.path });
+  assert.equal(isCloneBusy(base, 'ws1', 'repo1'), false);
+  const running = r.refresh();
+  await new Promise((done) => setTimeout(done, 200));
+  assert.equal(isCloneBusy(base, 'ws1', 'repo1'), true);
+  assert.equal(isCloneBusy(base, 'ws1', 'other'), false);
+  await running;
+  assert.equal(isCloneBusy(base, 'ws1', 'repo1'), false);
+});
+
+posixTest('simultaneous refreshes of one ref share one fetch', async () => {
+  const slow = wrapper(`case "$*" in *" fetch "*) sleep 1;; esac`);
+  const source = makeSource({ 'a.txt': 'x' });
+  const r = reader(source, { gitPath: slow.path, warmPaths: null });
+  const results = await Promise.all([r.refresh(), r.refresh(), r.refresh('main'), r.refresh()]);
+  assert.equal(fetches(slow.invocations()).length, 1, 'one fetch for four callers');
+  assert.equal(new Set(results.map((x) => x.commit)).size, 1);
+  // The next one, after it finished, fetches again: a person asked for the newest.
+  commit(source, { 'a.txt': 'y' });
+  const later = await r.refresh();
+  assert.equal(fetches(slow.invocations()).length, 2);
+  assert.notEqual(later.commit, results[0]?.commit);
+});
+
+posixTest('a caller that gives up does not cancel the fetch the others wait for; the last one does', async () => {
+  const slow = wrapper(`case "$*" in *" fetch "*) sleep 1;; esac`);
+  const r = reader(makeSource({ 'a.txt': 'x' }), { gitPath: slow.path, warmPaths: null });
+  const first = new AbortController();
+  const second = new AbortController();
+  const a = r.refresh('main', { signal: first.signal });
+  const b = r.refresh('main', { signal: second.signal });
+  const c = r.refresh('main');
+  const lost = a.then(() => 'done', (e: unknown) => (e as GitCloneError).reason);
+  await new Promise((done) => setTimeout(done, 200));
+  first.abort();
+  assert.equal(await lost, 'aborted');
+  assert.equal((await b).ref, 'main');
+  assert.equal((await c).ref, 'main');
+  assert.equal(fetches(slow.invocations()).length, 1);
+
+  // Alone, an abort stops the git process, as it did before.
+  const stuck = wrapper(`case "$*" in *" fetch "*) sleep 30;; esac`);
+  const lone = reader(makeSource({ 'a.txt': 'x' }), { gitPath: stuck.path, warmPaths: null });
+  const stop = new AbortController();
+  const outcome = lone.refresh('main', { signal: stop.signal }).then(() => undefined, (e: unknown) => e);
+  await new Promise((done) => setTimeout(done, 300));
+  const started = Date.now();
+  stop.abort();
+  const error = await outcome;
+  assert.ok(error instanceof GitCloneError && error.reason === 'aborted');
+  // The process was killed: the lock is free again quickly.
+  await Promise.race([lone.remove(), new Promise((done) => setTimeout(done, 5000))]);
+  assert.ok(Date.now() - started < 6_000);
 });
