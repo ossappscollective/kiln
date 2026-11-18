@@ -447,3 +447,17 @@ test('MRM_STORE_ROLLOUT_ENABLED is off by default; only true and false are accep
     assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: bad }), /MRM_STORE_ROLLOUT_ENABLED/, bad);
   }
 });
+
+test('MRM_STORE_DRAFT_WRITE_ENABLED is off by default; only true and false are accepted; blank means off', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storeDraftWriteEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: '' }).storeDraftWriteEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: 'false' }).storeDraftWriteEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: 'true' }).storeDraftWriteEnabled, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: bad }), /MRM_STORE_DRAFT_WRITE_ENABLED/, bad);
+  }
+  // Independent of the rollout switch.
+  const both = loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_ROLLOUT_ENABLED: 'true' });
+  assert.equal(both.storeRolloutEnabled, true);
+  assert.equal(both.storeDraftWriteEnabled, false);
+});

@@ -125,6 +125,7 @@ const app = createApp({
   listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
   reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays, reply: { enabled: config.reviewReplyEnabled } },
   rollout: { enabled: config.storeRolloutEnabled },
+  storeDraft: { enabled: config.storeDraftWriteEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   reads,
   cloneUpkeep,
@@ -227,6 +228,9 @@ if (config.worker === 'inline') {
   }
   if (config.storeRolloutEnabled) {
     console.log('Changing store rollouts is ON (MRM_STORE_ROLLOUT_ENABLED): owners and admins can change a live rollout in the stores');
+  }
+  if (config.storeDraftWriteEnabled) {
+    console.log('Writing store drafts is ON (MRM_STORE_DRAFT_WRITE_ENABLED): owners and admins can push staged listing text and graphics to the stores as a draft (never submitted)');
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);

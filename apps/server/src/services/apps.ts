@@ -354,6 +354,14 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    await tx.execute('DELETE FROM staged_changes WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM store_draft_claims WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
