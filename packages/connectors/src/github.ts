@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, type KeyObject, sign } from 'node:crypto';
 import { type ChangeSet, checkSecret, type FileChange } from '@mrm/core';
+import type { BlobEntry, BlobHeadItem, BlobHeads, BlobHeadsOptions, BlobListing } from './blobs.ts';
 import {
   BranchExistsError,
   ChangeConflictError,
@@ -160,6 +161,8 @@ export class GithubRepoConnector implements RepoConnector {
   #token?: { value: string; expiresAt: number };
   #tokenRequest?: Promise<string>;
   #defaultBranch?: string;
+  /** Blob listings of the last few commits (see `listBlobEntries`). */
+  readonly #blobTrees = new Map<string, Promise<BlobEntry[]>>();
 
   constructor(options: GithubRepoConnectorOptions) {
     this.owner = options.owner;
@@ -560,6 +563,106 @@ export class GithubRepoConnector implements RepoConnector {
     } catch {
       throw new GithubError('not_text', `${path} is not UTF-8 text.`);
     }
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Binary files, bounded (see blobs.ts). Additive: `readFile` above is for text.
+
+  /** Every file of a commit with its blob sha and size (the tree gives both). Symlinks are left out. */
+  async listBlobEntries(ref?: string, options: { signal?: AbortSignal } = {}): Promise<BlobListing> {
+    const commit = await this.#commitSha(ref ?? (await this.defaultBranch(options.signal)), options.signal);
+    let pending = this.#blobTrees.get(commit);
+    if (!pending) {
+      pending = this.#tree(commit, options.signal).then((entries) =>
+        entries
+          .filter((e) => e.type === 'blob' && e.mode !== '120000')
+          .flatMap((e): BlobEntry[] => {
+            const path = text(e.path);
+            const oid = text(e.sha);
+            return path && oid ? [{ path, oid, mode: text(e.mode) ?? '100644', size: num(e.size) ?? null }] : [];
+          })
+          .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
+      );
+      pending.catch(() => this.#blobTrees.delete(commit));
+      this.#blobTrees.set(commit, pending);
+      while (this.#blobTrees.size > 4) {
+        const oldest = this.#blobTrees.keys().next().value;
+        if (oldest === undefined) break;
+        this.#blobTrees.delete(oldest);
+      }
+    }
+    return { commit, entries: await pending };
+  }
+
+  /**
+   * The first `headBytes` bytes of each path. The REST API has no range read, so a file is pulled
+   * whole (`/git/blobs/<sha>`, base64) and its size is taken from the tree beforehand: a file over
+   * `maxFileBytes` is not requested, and once the sizes of the files already planned add up to
+   * `maxTransferBytes` the rest is `budget`. A file the API cannot serve is `missing`; a rate limit,
+   * an authorisation failure or a network failure stops the whole call.
+   */
+  async readBlobHeads(paths: readonly string[], options: BlobHeadsOptions): Promise<BlobHeads> {
+    const signal = options.signal;
+    const { entries } = await this.listBlobEntries(options.ref, signal ? { signal } : {});
+    const byPath = new Map(entries.map((e) => [e.path, e]));
+    const items = new Map<string, BlobHeadItem>();
+    const plan: BlobEntry[] = [];
+    let reserved = 0;
+    for (const path of paths) {
+      if (items.has(path) || plan.some((p) => p.path === path)) continue;
+      const entry = byPath.get(path);
+      if (!entry) items.set(path, { ok: false, oid: null, reason: 'missing', size: null });
+      else if (entry.size !== null && entry.size > options.maxFileBytes) {
+        items.set(path, { ok: false, oid: entry.oid, reason: 'too_large', size: entry.size });
+      } else if (options.headBytes > 0 && reserved + (entry.size ?? 0) > options.maxTransferBytes) {
+        items.set(path, { ok: false, oid: entry.oid, reason: 'budget', size: entry.size });
+      } else {
+        plan.push(entry);
+        reserved += entry.size ?? 0;
+      }
+    }
+    let transferred = 0;
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < plan.length; i = next++) {
+        const entry = plan[i] as BlobEntry;
+        if (options.headBytes <= 0) {
+          // Sizes only: the tree has them, nothing is downloaded.
+          items.set(
+            entry.path,
+            entry.size === null
+              ? { ok: false, oid: entry.oid, reason: 'unsized', size: null }
+              : { ok: true, oid: entry.oid, size: entry.size, head: new Uint8Array(0) },
+          );
+          continue;
+        }
+        try {
+          const reply = await this.#api('GET', this.#repoPath(`/git/blobs/${enc(entry.oid)}`), signal ? { signal } : {});
+          const body = isRecord(reply.json) ? reply.json : {};
+          if (body.encoding !== 'base64' || typeof body.content !== 'string') {
+            items.set(entry.path, { ok: false, oid: entry.oid, reason: 'missing', size: entry.size });
+            continue;
+          }
+          const bytes = Buffer.from(body.content, 'base64');
+          transferred += bytes.length;
+          items.set(
+            entry.path,
+            bytes.length > options.maxFileBytes
+              ? { ok: false, oid: entry.oid, reason: 'too_large', size: bytes.length }
+              : { ok: true, oid: entry.oid, size: bytes.length, head: new Uint8Array(bytes.subarray(0, options.headBytes)) },
+          );
+        } catch (error) {
+          const fatal =
+            error instanceof GithubRateLimitError ||
+            (error instanceof GithubError && ['auth', 'forbidden', 'network', 'server'].includes(error.kind)) ||
+            !(error instanceof GithubError);
+          if (fatal) throw error;
+          items.set(entry.path, { ok: false, oid: entry.oid, reason: 'missing', size: entry.size });
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, plan.length) }, worker));
+    return { items, transferredBytes: transferred };
   }
 
   async propose(changeSet: ChangeSet, options: ProposeOptions): Promise<ProposalResult> {

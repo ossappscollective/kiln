@@ -1,11 +1,14 @@
 import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import {
+  type BlobHeadsOptions,
+  type BlobReads,
   type CloneSource,
   GitCloneError,
   GitCloneReader,
   GithubError,
   type RepoConnector,
+  isBlobReads,
   removeClone,
   removeWorkspaceClones,
 } from '@mrm/connectors';
@@ -198,6 +201,23 @@ export function withCloneReads(
       // The reads that follow report the real problem; a failed warm-up only costs time.
       await reader.warm(paths, ref, call()).catch(() => undefined);
     },
+    // Binary reads for the asset index (blobs.ts): the clone's, with the API's as the fall back.
+    listBlobEntries: (ref?: string, options: { signal?: AbortSignal } = {}) =>
+      run(
+        'listBlobEntries',
+        () => cloneBlobs().listBlobEntries(ref, options.signal ? options : { ...options, ...call() }),
+        isBlobReads(api) ? () => (api as BlobReads).listBlobEntries(ref, options) : undefined,
+      ),
+    readBlobHeads: (paths: readonly string[], options: BlobHeadsOptions) =>
+      run(
+        'readBlobHeads',
+        () => cloneBlobs().readBlobHeads(paths, options.signal ? options : { ...options, ...call() }),
+        isBlobReads(api) ? () => (api as BlobReads).readBlobHeads(paths, options) : undefined,
+      ),
+  };
+  const cloneBlobs = (): BlobReads => {
+    if (isBlobReads(reader)) return reader;
+    throw new GitCloneError('unexpected', 'This reader cannot read binary files.', 'not_managed');
   };
 
   return new Proxy(api, {

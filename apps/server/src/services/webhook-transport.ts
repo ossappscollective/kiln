@@ -224,7 +224,7 @@ export type SendResult =
   | { ok: false; kind: 'blocked' | 'dns' | 'timeout' | 'network'; message: string; transient: boolean };
 
 /** Equal addresses, whatever the spelling (an IPv4-mapped IPv6 form counts as its IPv4 address). */
-function sameAddress(a: string, b: string): boolean {
+export function sameAddress(a: string, b: string): boolean {
   const norm = (x: string) => {
     const lower = x.toLowerCase();
     if (lower.startsWith('::ffff:') && v4(lower.slice(7))) return lower.slice(7);
