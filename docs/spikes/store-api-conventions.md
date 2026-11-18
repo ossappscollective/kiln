@@ -239,6 +239,63 @@ parameters; this only records it.
 `connectors/src/appstoreconnect.test.ts` asserts that every request the connector makes (including the
 fallback) uses only parameters from these lists, with `limit` at most 200 and `limit[builds]` at most 50.
 
+## Live store listing reads (`readListing`)
+
+Added for the listing drift view ([docs/api/listing.md](../api/listing.md)). Read on 2026-11-18 through
+the same summarizing fetch tool as above (not downloaded), so the lists should be re-checked against
+Apple's OpenAPI spec when someone has network access. Pages (the `.md` form of each):
+[App Infos](https://developer.apple.com/documentation/appstoreconnectapi/app-infos),
+[App Info Localizations](https://developer.apple.com/documentation/appstoreconnectapi/app-info-localizations),
+[App Store Version Localizations](https://developer.apple.com/documentation/appstoreconnectapi/app-store-version-localizations),
+and the three endpoint pages below (parameters from the JSON behind each page).
+
+| Request | What it gives | Query parameters Apple documents | Sent |
+| --- | --- | --- | --- |
+| `GET /v1/apps/{id}/appStoreVersions` | version string and state, both live and editable | see above | `limit` |
+| `GET /v1/apps/{id}/appInfos` | the app info(s) of the app, with their state | `fields[appInfos]`, `limit` (max **200**), `include` (`app`, `ageRatingDeclaration`, `appInfoLocalizations`, the category relationships), `fields[apps]`, `fields[appInfoLocalizations]`, `fields[appCategories]`, `fields[ageRatingDeclarations]`, `limit[appInfoLocalizations]` (max **50**). No `sort`, no `filter` | `limit` |
+| `GET /v1/appInfos/{id}/appInfoLocalizations` | per locale: `name`, `subtitle`, `privacyPolicyUrl`, `privacyChoicesUrl`, `privacyPolicyText` | `fields[appInfoLocalizations]`, `fields[appInfos]`, `filter[locale]`, `include` (`appInfo`), `limit` (max **200**). No `sort` | `limit` |
+| `GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations` | per locale: `description`, `keywords`, `marketingUrl`, `promotionalText`, `supportUrl`, `whatsNew` | `filter[locale]`, `fields[...]` of five types, `include` (`appStoreVersion`, `appScreenshotSets`, `appPreviewSets`, `searchKeywords`), `limit` (max **200**), `limit[appScreenshotSets]`, `limit[appPreviewSets]`, `limit[searchKeywords]` (each max **50**). No `sort` | `limit` |
+
+Verified on the pages:
+
+- The three endpoints exist and are read-only `GET`s ("List all app infos for an app", "List all app info
+  localizations for an app info", "List all app store version localizations for an app store version").
+- Apple's example for `GET /v1/apps/{id}/appInfos` says: "If the app has both a "Ready for Sale" version
+  and a version you're preparing for release, it will have two app infos. One represents information
+  about the app currently in the App Store, and the other represents the information that takes effect
+  when you release the next version. Use the `appStoreState` attribute to differentiate them." That is
+  why a listing read needs both app infos, and why the code keeps the live and the editable one apart.
+- `AppInfo` carries `state`; `appStoreState` is its deprecated predecessor (the parameter lists name both;
+  release notes 3.3 and 3.7 above). The code reads `state` first, then `appStoreState`.
+- The version localization attributes are the ones the page lists (locale, description, keywords,
+  marketing URL, promotional text, support URL, what's new). Promotional text "can be updated at any
+  time"; the others only "when your app is in an editable state".
+- Every request the connector sends uses only parameters from these lists (`limit`, at most 200).
+  `connectors/src/store-listing.test.ts` asserts it for each of the four paths, plus no `sort`, no
+  `include`, and that a `pageSize` above 200 is clamped.
+- A rejected parameter surfaces Apple's `source.parameter` (and `source.pointer`) in `StoreError.details`,
+  as for builds.
+
+Not verified:
+
+- **Which states mean "live" and "editable".** The names are Apple's, but the pages do not say which
+  `AppVersionState` or `AppInfo.State` values are the one on sale and which a person can still edit.
+  `READY_FOR_DISTRIBUTION` and `READY_FOR_SALE` are treated as live; `PREPARE_FOR_SUBMISSION`,
+  `DEVELOPER_REJECTED`, `REJECTED`, `METADATA_REJECTED`, `INVALID_BINARY`, `WAITING_FOR_REVIEW`,
+  `READY_FOR_REVIEW` as editable. A version in neither set is ignored. The sets come from the state names and
+  fastlane's `AppStoreVersion` model (a secondary source), not from a response. Versions in review
+  (`IN_REVIEW`) or waiting to be released are in neither set.
+- **Whether a second app info always exists** when a new version is being prepared, and what
+  `appStoreState` and `state` say on each; the fixtures follow Apple's example only.
+- **Empty versus absent.** Whether an attribute Apple has no value for comes back as `null`, as `""` or not
+  at all. The code treats `null` and absent as "no value" and keeps `""` as an empty value.
+- **`links.next`** keeps `limit` and every other parameter on these three endpoints (assumed, as for builds).
+- **Not read:** categories (relationships of the app info; they would need `include` or the related
+  endpoints), `privacyChoicesUrl`, age ratings, screenshots, previews and search keywords. The core listing
+  model has no field for them.
+- **Which locales a version has** when only some were localized for a new version; the code reports what
+  the endpoint returns and does not copy a missing locale from the live version.
+
 ## Google Play Developer API
 
 Base URL `https://androidpublisher.googleapis.com/androidpublisher/v3`; scope
@@ -338,6 +395,15 @@ Verified:
   is **not** in details; it is `Listing.title` in `listings.list` (`{kind, listings[]}`, per language).
   `listApps` takes the title of the default-language listing, else the first one, else the package name.
 - No pagination parameters are documented for these list calls; the code does not paginate.
+- **Listing read (`readListing`).** The listing drift view calls `edits.listings.list` through the same
+  serialized `withEdit` as every other read: insert an edit, `GET .../edits/{editId}/listings`, delete the
+  edit. It never commits or validates. The Listing resource is `language` (a BCP-47 tag such as "de-AT"),
+  `title`, `fullDescription`, `shortDescription` and `video` (a YouTube URL); the page lists methods
+  `delete`, `deleteall`, `get`, `list`, `patch`, `update`, and states no field limits and nothing about
+  committing (read 2026-11-18). They are mapped to `title`, `full_description`, `short_description`,
+  `video` per locale. Not verified: whether an edit shows listing changes that are saved in the Console
+  but not yet published (the edit is documented as a copy of the live state), and the language-tag casing
+  Play returns (kept as returned).
 
 `mapPlayTrackRelease` (`mappings.ts`): `draft` is `draft`; `inProgress` is `rolling_out` with the fraction;
 `halted` is `halted` with the fraction; `completed` is `live`; anything else (including
@@ -405,3 +471,7 @@ takes to work, so the message says "wait and try again" without a number.
 6. **Platforms.** App Store Connect apps and versions can be macOS, tvOS or visionOS; `Platform` is only
    `ios | android`, so non-iOS versions and builds are skipped. Is that right for the product?
 7. **Apple `limit` maximum**: 200 is documented for every list used here (verified 2026-11-18). A live run should still confirm that a `next` link for `GET /v1/builds` keeps `filter[app]`, `sort` and `include`.
+8. **Live listing read.** Run `readListing` against a real app that has a live version and a version in
+   preparation, and a real Play package, and replace the hand-written listing fixtures
+   (`connectors/src/store-listing.fixtures.ts`). That settles the live and editable state sets, the second
+   app info, and whether `null` or `""` marks an empty field.
