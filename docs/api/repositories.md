@@ -18,7 +18,7 @@ contents or secrets).
 | `repositories.scan`: scan a repository, read its listing from GitHub | no | yes | yes |
 | `changesets.write`: create a draft, discard your own draft | no | yes | yes |
 | `repositories.write`: connect and disconnect repositories, attach, change and detach local clones, add, change and delete listing targets | no | no | yes |
-| `changesets.approve`: approve, apply, discard anyone's | no | no | yes |
+| `changesets.approve`: approve, apply (either mode) and push, discard anyone's | no | no | yes |
 
 Only admins and owners can approve, so a creator who is an admin or owner may approve their own
 change set; a member never can. Approval and apply are recorded with the person who did them.
@@ -202,9 +202,27 @@ Endpoints (`/repositories/:id/listing-targets`), for the saved ones:
   "createdBy": { "type": "user", "id": "…" },
   "branch": null, "prUrl": null, "prNumber": null, "commitSha": null, "error": null,
   "createdAt": 0, "updatedAt": 0, "approvedBy": null, "approvedAt": null, "appliedAt": null,
+  "outcome": null,
   "files": [{ "path": "…", "change": "added" | "modified" | "deleted",
               "before": "…", "after": "…" }] }
 ```
+
+`outcome` is `null` unless the change set was applied as a commit in the local clone (`mode:
+"local_branch"` below). Then it tells each step on its own:
+
+```json
+{ "mode": "local_branch",
+  "base": { "branch": "main", "commit": "…" },
+  "commit": { "branch": "mrm/update-german-subtitle-1a2b3c4d", "sha": "…", "at": 0 },
+  "requested": { "push": true, "openPr": true },
+  "push": { "status": "not_requested" | "pushed" | "failed", "at": 0, "code": "push_rejected", "error": "…" },
+  "pr": { "status": "not_requested" | "opened" | "failed" | "skipped", "at": 0, "url": "…", "number": 1,
+          "code": "…", "error": "…" } }
+```
+
+`pr.status: "skipped"` means the push failed, so no pull request was tried. `error` is a fixed
+sentence for the class of failure, never git's own text. `branch` and `commitSha` of the change set are
+the local ones, and `prUrl`/`prNumber` are set once the pull request is open.
 
 Lists return the same without `before`/`after` and with `filesChanged` instead of content in
 `files` (paths and `change` only). The detail response carries both sides of every file; the
@@ -214,10 +232,14 @@ A change set comes from a person's `POST /repositories/:id/change-sets`, or from
 /apps/:id/listing/pull`** ([listing](listing.md)), which drafts one from the live store listing. A
 pull is a normal draft: its audit event `changeset.create` has `source: "store_pull"` (with the app,
 the channel and whether the store was refreshed first), and it is reviewed, approved and applied below
-the same way: applying opens a branch and a pull request on GitHub.
+the same way: applying opens a branch and a pull request on GitHub, or commits to a new branch of the
+local clone.
 
 Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `draft`, `approved` and
-`failed` can be `discarded`. `applied` always has a PR url or a commit sha.
+`failed` can be `discarded`. `applied` always has a PR url or a commit sha. For a local commit,
+`applied` means **the commit exists**; a failed push or pull request leaves it `applied` (the commit
+is never rolled back) and is recorded in `outcome`. A local apply that fails before the branch
+exists puts the change set back to `approved`, with nothing written.
 
 - `POST /repositories/:id/change-sets` with `{ summary, listing, target?, roots? }`. `target` and
   `roots` (`{ appStore?, googlePlay? }`) pick the folders exactly as for `GET .../listing`: send
@@ -248,16 +270,69 @@ Lifecycle: `draft` → `approved` → `applying` → `applied` or `failed`; `dra
 - `GET /change-sets?repositoryId=&status=` returns `{ changeSets }`, newest first.
   `GET /change-sets/:id` returns `{ changeSet }` with file contents.
 - `POST /change-sets/:id/approve` (draft only) returns `{ changeSet }`.
-- `POST /change-sets/:id/apply` (approved only) claims the change set atomically, then opens
-  branch `mrm/<first 8 of id>-<slug>` and a pull request. `200 { changeSet }` with `branch`,
-  `prUrl`, `prNumber`, `commitSha`. A second apply while the first runs returns `409
-  apply_in_progress`; after it finished it returns `200` with `alreadyApplied: true` and no new
-  pull request. A claim older than 10 minutes counts as abandoned and can be claimed again.
-  The request is cut off after 90 seconds (see below).
+- `POST /change-sets/:id/apply` (approved only) claims the change set atomically, then applies it.
+  The body is optional (empty, or `{}` with no `mode`, means `github_pr`):
+  `{ mode?: "github_pr" | "local_branch", branch?, push?, openPr? }`.
+  - **`github_pr`** (default; the only mode before): opens branch `mrm/<first 8 of id>-<slug>` and a
+    pull request through the GitHub API. `200 { changeSet }` with `branch`, `prUrl`, `prNumber`,
+    `commitSha`. `branch`, `push` and `openPr` with this mode are `400 invalid_request`. A
+    local-only repository answers `409 local_only` before the change set is touched (it stays
+    approved).
+  - **`local_branch`**: one commit on a **new branch of the repository's local clone**, made with
+    git plumbing (no checkout, no hooks, no signing; the checked out branch, the working folder and
+    the index are not touched), on top of the tip of the branch the clone is read from. It needs
+    `MRM_LOCAL_REPO_WRITE=true`, an attached local clone, and the right `changesets.approve`.
+    `branch` (optional) is a new branch name: ASCII letters, digits and `. _ - /`, starting with a
+    letter, digit or `_`, at most 200 characters, no `..`, `//`, `@{`, `/.`, trailing `/` or `.`,
+    no `.lock`, not `HEAD` or `refs/…`; the default is `mrm/<slug of the summary>-<first 8 of id>`.
+    `push: true` then pushes that branch to `https://github.com/<owner>/<repo>.git` with the
+    repository's credential (a repository with a GitHub connection only), and `openPr: true` (which
+    needs `push: true`) opens the pull request into the branch the commit was made on.
+    The commit's author and committer are `MRM_GIT_AUTHOR_NAME`/`MRM_GIT_AUTHOR_EMAIL`, or the
+    person who applied. See [ADR 0005](../adr/0005-local-clone-reads.md) for the design.
+
+  A second apply while the first runs returns `409 apply_in_progress`; after it finished it returns
+  `200` with `alreadyApplied: true` and nothing new is done. A claim older than 10 minutes counts as
+  abandoned and can be claimed again. The request is cut off after 90 seconds (see below).
+- `POST /change-sets/:id/push` with an optional `{ openPr? }` pushes the branch of a change set that
+  was **applied as a local commit** and, with `openPr: true`, opens the pull request. It finishes
+  what is left: a push that is done is not repeated, a pull request that is open is not opened again,
+  and `200 { changeSet, alreadyDone: true }` when there is nothing left. Needs
+  `changesets.approve`, `MRM_LOCAL_REPO_WRITE=true` and a repository with a GitHub connection whose
+  local clone's `origin` is that repository. Two at once: `409 publish_in_progress`. A step that
+  fails answers `502 { error, message, step: "push" | "pr", changeSet }`; the commit and the other
+  step are kept and it can be called again. `409 not_local_commit` for a change set that was applied
+  as a pull request.
 - `POST /change-sets/:id/discard` (draft, approved or failed) returns `{ changeSet }`. A member
   may discard only their own draft.
 
 Wrong state: `409 { error: "invalid_state", status }`.
+
+Errors of `mode: "local_branch"` (nothing was written to the repository unless it says so; the
+change set stays `approved`):
+
+| When | HTTP | `error` |
+| --- | --- | --- |
+| `MRM_LOCAL_REPO_WRITE` is not `true` | 409 | `local_write_disabled` (with `envName`) |
+| no local clone attached | 409 | `no_local_checkout` |
+| `github_pr`, or `push` / `openPr`, on a local-only repository (no GitHub connection) | 409 | `local_only` |
+| the clone's `origin` is not the connected GitHub repository (push only) | 409 | `remote_mismatch` with `origin` and `repository` |
+| bad branch name; `openPr` without `push` | 422 / 422 | `invalid_branch` / `invalid_request` |
+| the branch already exists | 409 | `branch_exists` |
+| a file changed in the clone since the draft | 409 | `base_changed` with `paths` (discard and read again) |
+| nothing would change; a path the rules refuse; a symlink or submodule in the way; a file too large | 422 | `no_changes`, `invalid_file_path`, `path_conflict`, `unsupported_entry`, `too_large` |
+| the folder cannot be used (outside the roots, moved, not a repository, branch deleted, detached HEAD) | 422 | `local_` plus the code, `local_branch_missing` (see Local clones) |
+| `MRM_LOCAL_REPO_ROOTS` unset, or `MRM_READS=api`, or git missing | 409 | `local_not_enabled`, `local_reads_disabled`, `local_git_missing` |
+| git ran too long | 504 | `timeout` |
+| another apply is running | 409 | `apply_in_progress` |
+| git failed in a way that was not expected | 502 | `local_git_failed` |
+
+A push or pull request that fails is **not** an error of apply: the answer is `200` and the failure is
+in `outcome` (`push.status: "failed"`). Push classes (`outcome.push.code`): `push_auth` (the credential
+was refused), `push_declined` (a protected branch or a rule), `push_rejected` (the branch exists on
+GitHub with other history; never forced), `push_not_found`, `push_network`, `push_timeout`,
+`push_failed`. A pull request that fails carries GitHub's own message for it (as a pull request apply
+does).
 
 Apply failures set `status: "failed"` with `error` text, except a rate limit, which puts it back
 to `approved` (nothing was written) so it can be retried:
@@ -288,7 +363,11 @@ listing also time out (`504`), but they only read, so nothing is left half done.
 Audit actions: `repository.connect`, `repository.disconnect`, `repository.scan`,
 `repository.listing_target_create`, `repository.listing_target_update`,
 `repository.listing_target_delete`, `repository.read_fallback`, `changeset.create`, `changeset.approve`, `changeset.apply`,
-`changeset.apply_failed`, `changeset.apply_timeout`, `changeset.discard`.
+`changeset.apply_failed`, `changeset.apply_timeout`, `changeset.discard`; for a local commit
+`changeset.apply_local` (the folder path, the base and new branch, the commit, how many files,
+whether a push and a pull request were asked for), `changeset.push`, `changeset.push_failed`,
+`changeset.pr_open`, `changeset.pr_failed` (code only). No file content and no secret is in any of
+them; a push also records `credential.use`.
 
 ## How a read stays fast
 
@@ -333,8 +412,10 @@ reading faster and spends no rate limit.
   repeat (`github_auth`, `github_not_found` for a missing branch, rate limits, timeouts, files that
   are too large or not text) are returned as they are. In `clone` mode they all are.
 - **What is not read from the clone.** Connecting a repository, the credential tests, and applying
-  a change set (the conflict check against the live tree, the branch, the commit and the pull
-  request) always use the GitHub API.
+  a change set as a pull request (`github_pr`: the conflict check against the live tree, the
+  branch, the commit and the pull request) always use the GitHub API. Applying as `local_branch`
+  works on the folder (it reads the tip of the branch and writes one commit); only its optional
+  push and pull request go to GitHub.
 - **Freshness.** A scan always fetches the newest commit of the default branch. A listing, and the
   change set made from it, reuse the last fetched tip for `MRM_CLONE_TTL_SECONDS` (default 60),
   so a commit pushed a few seconds ago may appear one minute later; a scan makes it visible at
@@ -355,12 +436,17 @@ It is **off unless `MRM_LOCAL_REPO_ROOTS` is set** (and needs git, so not with `
 Two uses, one folder per repository, one repository per folder (compared by real path):
 
 - **Existing repository**: attach a folder to a GitHub repository. Scan, listing and change set
-  creation read the folder; applying still opens a pull request on GitHub.
+  creation read the folder; applying opens a pull request on GitHub by default, or, with
+  `mode: "local_branch"` and `MRM_LOCAL_REPO_WRITE=true`, commits to a new branch of the folder
+  (optionally pushing it and opening the pull request).
 - **Local-only repository**: no credential and no `owner/repo`. Reads come from the folder.
-  `POST /change-sets/:id/apply` answers `409 local_only` before the change set is touched (it stays
-  approved), and anything else that needs GitHub (CI) answers the same.
+  A change set is applied with `mode: "local_branch"` (a commit on a new branch of the folder, no
+  push). `POST /change-sets/:id/apply` with `github_pr` answers `409 local_only` before the change
+  set is touched (it stays approved), and anything else that needs GitHub (CI) answers the same.
 
-Only the **committed** tip of the chosen branch is read, never the working files. All five routes
+Only the **committed** tip of the chosen branch is read, never the working files. Writing is a
+separate, opt-in switch (`MRM_LOCAL_REPO_WRITE`): a commit is added on a new branch and nothing in
+the working folder changes. All five routes
 need `repositories.write` (admin, owner) except the config; a non-member gets `404`, a member or
 viewer `403`.
 
@@ -379,9 +465,11 @@ off), `reads_api` (`MRM_READS=api`), `git_missing`, `invalid_path`, `not_found`,
 repository whose status is not `ok` is read from GitHub meanwhile; a local-only one cannot be read
 (`409 local_not_enabled`, `local_reads_disabled` or the path error).
 
-- `GET /repositories/local/config` (`repositories.read`) returns `{ local: { enabled, envName } }`;
+- `GET /repositories/local/config` (`repositories.read`) returns `{ local: { enabled, envName, write } }`;
   with it off also `reason` (`no_roots`, `reads_api`, `git_missing`) and `message` (names
   `MRM_LOCAL_REPO_ROOTS`). `roots` (the allowed folders) is included only for `repositories.write`.
+  `write` is `{ enabled, envName }`, with a `message` that names `MRM_LOCAL_REPO_WRITE` when it is
+  off: whether a change set may be committed to the clone.
 - `POST /repositories/local/check` with `{ path, branch? }` reads nothing into the tool and saves
   nothing. It returns `{ check }`: `realPath`, `folderName`, `worktree`, `checkedOutBranch` (null
   when HEAD is detached), `branch` (the one that would be read, null when detached and none was

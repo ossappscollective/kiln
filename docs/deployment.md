@@ -53,6 +53,8 @@ change set (branch, commit, pull request) and connecting a repository still use 
 | `MRM_CLONE_TTL_SECONDS` | `60` | How long a fetched branch tip is reused. A scan always fetches. |
 | `MRM_GIT_PATH` | `git` | The git program. |
 | `MRM_LOCAL_REPO_ROOTS` | unset (off) | Folders that may hold local clones, absolute paths separated by `:` (`;` on Windows). See "Local clones" below. |
+| `MRM_LOCAL_REPO_WRITE` | `false` | `true` allows applying a change set as a commit on a new branch of a local clone, and pushing it. See "Writing to a local clone" below. |
+| `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset | Author and committer of those commits; unset means the person who applied. |
 
 - **git 2.34 or newer** must be on the server. The Docker image installs it (Debian 12 ships 2.39).
   At start, unless `MRM_READS=api`, the server runs `git --version` once and logs one line. If git is
@@ -85,11 +87,12 @@ A repository can be read from a git clone that already exists on the machine the
 (for example `/Volumes/dev/nativescript/oss-weather`), instead of from GitHub. Two uses:
 
 - **Attach** a folder to a repository that is connected to GitHub. Scans, listings and change set
-  creation read the folder; applying a change set still opens a pull request on GitHub with the
-  stored credential.
+  creation read the folder; applying a change set opens a pull request on GitHub with the stored
+  credential (the default), or commits it to a new branch of the folder (opt-in, below).
 - **Connect as a local-only repository**: no credential, no `owner/repo`. Reads come from the
-  folder. Applying a change set is refused with `409 local_only` (a pull request needs GitHub).
-  This is read-only for now; see [ADR 0005](adr/0005-local-clone-reads.md).
+  folder. A change set is applied as a commit on a new branch of the folder (opt-in, below); a pull
+  request needs GitHub, so `github_pr` is refused with `409 local_only`. See
+  [ADR 0005](adr/0005-local-clone-reads.md).
 
 The feature is **off unless `MRM_LOCAL_REPO_ROOTS` is set**, in every mode (hosted, and
 `single_user` too):
@@ -139,6 +142,50 @@ never any file content. A scan says `reads: "local"`.
 write access to a root could swap a folder in between; keep roots to folders only you can write.
 Files inside the roots are trusted as paths (a repository's `.git/objects/info/alternates` is
 followed by git). Do not put a root over a folder that other people can write to.
+
+### Writing to a local clone
+
+Applying an approved change set can also **commit it to a new branch of the local clone**, with an
+optional push of that branch to GitHub and an optional pull request. It is **off unless
+`MRM_LOCAL_REPO_WRITE=true`**, and it needs `MRM_LOCAL_REPO_ROOTS` to name the folder. Without it,
+`POST /change-sets/:id/apply` with `mode: "local_branch"` answers `409 local_write_disabled`, the web
+app shows the option disabled with the reason, and nothing is written to any folder.
+
+    MRM_LOCAL_REPO_WRITE=true
+    MRM_GIT_AUTHOR_NAME="Release Bot"          # optional
+    MRM_GIT_AUTHOR_EMAIL=release-bot@example.com   # optional
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MRM_LOCAL_REPO_WRITE` | `false` | `true` allows a commit on a new branch of a local clone, and its push. Anything other than `true` or `false` stops the server at start. |
+| `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset | Author and committer of those commits. Unset means the name and email of the person who applied. One line, no `<` or `>`; the email must look like `name@example.com`. |
+
+What you are allowing:
+
+- **A new branch and one commit, nothing else.** The commit is made from git objects: the folder's
+  checked out branch, working files, index and `HEAD` are never touched, no hook runs, nothing is
+  signed (the commit is unsigned whatever `commit.gpgsign` says) and no filter or line-ending
+  conversion is applied. The branch must not exist (it is never moved or overwritten), and every file
+  must still match what the change set was drafted from (otherwise `base_changed`, nothing written).
+  Look at it later with `git switch <branch>`; delete it with `git branch -D <branch>`.
+- **Who:** the same right as apply (admin or owner). A viewer, a member, or a non-member cannot.
+- **The push** (only when asked for, and only for a repository connected to GitHub) uses the
+  repository's stored credential, to `https://github.com/<owner>/<repo>.git`, for that one branch name
+  and that one commit, never forced. It does not use the folder's own remotes, git config, credential
+  helpers or hooks: it runs from a private temporary repository that reads the clone's objects only.
+  The clone's `origin` must name that same GitHub repository (`409 remote_mismatch` otherwise). A
+  failed push keeps the commit and can be retried from the change set. The token is never in a URL,
+  an argument, a file, the audit log or a response.
+- **Permissions on the folder.** The server process needs write access to the folder's `.git`
+  (objects and `refs/heads`). If the server runs as another user than the folder's owner, git refuses
+  ("dubious ownership") as it does for reading.
+- **Audit.** `changeset.apply_local` (folder path, branch, commit, number of files, whether a push
+  and a pull request were asked for), `changeset.push`, `changeset.push_failed`, `changeset.pr_open`,
+  `changeset.pr_failed`. No file content, no secret.
+- **Limits to know.** The folder is validated again right before the write, but the gap between
+  checking and writing remains for anyone who can write inside a root. Git LFS and
+  `.gitattributes` filters are not applied to the files. Not run on macOS or Windows, and not
+  against real GitHub: see the verified list in [ADR 0005](adr/0005-local-clone-reads.md).
 
 
 ## Tokens, event streams and webhooks

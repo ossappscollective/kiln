@@ -254,8 +254,10 @@ Pull the live store listing into the repository: it takes the store's text for t
 **store is ahead** of the repository (or the two **diverged**) and makes a **draft change set** that
 writes those values into the repository's listing files. Nothing is written to a store and nothing is
 written to the repository: the draft is reviewed, approved and applied like every change set
-(`POST /change-sets/:id/approve`, then `/apply`), and applying opens a **pull request on GitHub**
-([repositories](repositories.md)). Committing straight to a branch of a local clone is a later task.
+(`POST /change-sets/:id/approve`, then `/apply`), and applying opens a **pull request on GitHub**, or, with `mode: "local_branch"` (opt-in,
+`MRM_LOCAL_REPO_WRITE=true`), **commits to a new branch of the repository's local clone** with an
+optional push and pull request ([repositories](repositories.md)). For a repository with a local clone,
+that is the way to "sync the store listing into fastlane metadata and commit it in git".
 
 Needs `listing.read` and `changesets.write` (member and up), and `apps.sync` as well when `refresh` is
 true. The app must be linked to a repository. The request body is limited to 64 KB.
@@ -385,6 +387,6 @@ for example "The store did not answer in time while reading the listing."
   new. A change set is recorded when the next read of drift or history finds it, with the time it was applied.
 - Deleting an app deletes its listing history with it.
 - The listing routes, including `pull`, are in the OpenAPI registry (`services/api-operations.ts`); `pull` needs `changesets.write` for an API token too, and its answer is described in part.
-- No push or submit action toward a store exists, in the API or in the web UI. `pull` only makes a draft in the repository's change sets; applying it opens a pull request on GitHub. Committing to a branch of a local clone is a later task.
+- No push or submit action toward a store exists, in the API or in the web UI. `pull` only makes a draft in the repository's change sets; applying it opens a pull request on GitHub or commits to a new branch of a local clone (opt-in).
 - **`pull` has not been run against a real store, GitHub or Postgres.** It is tested on SQLite with fakes for the store and GitHub; the store snapshot it uses is the last sync (or the refresh it runs).
 - A token whose scopes include only `changesets.write` can pull, because the registry names one action per operation; the session route still checks `listing.read` too.

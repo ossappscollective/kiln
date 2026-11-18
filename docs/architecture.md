@@ -22,8 +22,8 @@ Web UI · Tauri shell · CLI and webhooks
    code sees the normalized lifecycle in `@mrm/core`.
 2. **Change sets are the only way to write.** UI edits, repo commits and, in V2, assistant
    suggestions all create a change set with a diff that a person approves. Today this is built for
-   GitHub repositories only (an admin or owner approves; apply opens a pull request). No store
-   write exists yet.
+   repositories only (an admin or owner approves; apply opens a pull request on GitHub, or, opt-in,
+   commits to a new branch of a local clone and optionally pushes it). No store write exists yet.
 3. **Every write is audited**, with the actor type (user, token, assistant, system).
 4. **Secrets are encrypted before they reach the database** and bound to their owner.
 5. **Read before write.** No phase writes to a store until the read-only sync matches the console.

@@ -6,7 +6,10 @@ verified, and what is not"). Phase 1 is `GitCloneReader` in `packages/connectors
 repositories (see "Implemented" below). Phase 3 adds **local clones**: a folder on the server read as
 a repository, attached to a GitHub repository or on its own (see "Local clones"). Nothing was
 measured against GitHub itself, and phase 3 was not run on macOS, with a real repository, or in a
-browser.
+browser. Phase 4 adds **writing to a local clone**: an approved change set as one commit on a new
+branch of the folder, with an optional push and pull request (see "Writing to a local clone"). It
+was tested with real git repositories and a bare repository as the push remote; it was never run on
+macOS, against GitHub, with real hooks or signing, in a browser or on Postgres.
 
 ## Context
 
@@ -18,7 +21,9 @@ local clone of the github repo? all that would be much faster".
 
 Writes are different and stay as they are: the connector applies a change set as a branch, blobs,
 tree, commit and a pull request through the API, with a conflict check against the live tree
-([api/repositories.md](../api/repositories.md)). Nothing here changes that.
+([api/repositories.md](../api/repositories.md)). Nothing in phases 1 to 3 changes that. Phase 4
+adds a second, opt-in way to apply, into a local clone (below); the GitHub way is unchanged and
+still the default for a repository with a GitHub connection.
 
 ## Decision
 
@@ -207,10 +212,11 @@ which folders may ever be read.
   says so and names the variable; when it is set, the Connect dialog lists the roots.
   `MRM_READS=api` ("git is never run") also turns it off.
 - **Two uses.** (a) Attach a folder to an existing GitHub repository: reads come from the folder,
-  apply still opens a pull request on GitHub. (b) Connect a folder as a **local-only** repository
-  with no credential and no `owner/repo`: reads come from the folder, apply is refused with `409
-  local_only` (checked before the change set is claimed, so it stays approved), and the UI says what
-  is not available yet instead of hiding it.
+  apply still opens a pull request on GitHub by default (or commits to the folder, phase 4). (b)
+  Connect a folder as a **local-only** repository with no credential and no `owner/repo`: reads come
+  from the folder; a change set is applied as a commit on a new branch of the folder (phase 4,
+  `MRM_LOCAL_REPO_WRITE=true`); `github_pr` is refused with `409 local_only` (checked before the
+  change set is claimed, so it stays approved).
 - **Committed state only.** The reader fetches the tip of one chosen branch from the folder into a
   managed bare clone (`<MRM_CLONE_DIR>/<ws>/<repoId>-local`, ttl 0, so every request sees the newest
   commit). Nothing is checked out and the folder is never written to. Uncommitted work is not read;
@@ -278,11 +284,199 @@ Accepted residuals, to be revisited:
 
 ### What is not built
 
-- **Applying a local-only change set.** It needs a design decision: write a branch or a commit in
-  the folder (a write into the user's repository), produce a patch file, or push to a remote that
-  does not exist. Until then it is refused, visibly.
+- ~~Applying a local-only change set.~~ Built in phase 4 as a commit on a new branch of the folder
+  ("Writing to a local clone"): the decision was a commit made with git plumbing, not a patch file.
 - Reading uncommitted work, a folder picker (the web app takes a typed path), pruning of the managed
   copies, a per-workspace list of roots, Windows paths.
+
+## Writing to a local clone (phase 4)
+
+Phase 3 read a folder. The request that started this phase was "sync listing data from store to
+fastlane metadata and commit in git with optional PR". The first half exists (`POST
+/apps/:id/listing/pull` makes a draft change set). This phase adds the second: an approved change
+set can be applied as **one commit on a new branch of the local clone**, with an **optional push**
+of that branch to GitHub and an **optional pull request**. It is the first place this tool writes
+into a repository on the server's disk, so it has its own opt-in, its own threat model and its own
+git path.
+
+### Decision
+
+- **Opt-in, off by default.** `MRM_LOCAL_REPO_WRITE=true` (and `MRM_LOCAL_REPO_ROOTS`, which
+  must name the folder). Without it, `mode: local_branch` is refused with `409 local_write_disabled`
+  and nothing is touched. Reading local clones does not need it. The web app reads the setting from
+  `GET /repositories/local/config` (`write`) and shows the option disabled with the reason.
+- **Same right as apply.** `changesets.approve` (admin, owner). Members and viewers get 403,
+  non-members 404 (as every change set route). The push endpoint needs the same right.
+- **Two modes of apply.** `POST /change-sets/:id/apply` takes an optional body
+  `{ mode?: 'github_pr' | 'local_branch', branch?, push?, openPr? }`. No body or `github_pr` is the
+  call as it was (a branch and a pull request through the GitHub API). `local_branch` commits to
+  the local clone. A local-only repository can use `local_branch` only; `github_pr` stays `409
+  local_only`. `branch`, `push` and `openPr` with `github_pr` are `400`.
+- **A commit, not a checkout.** The base is the tip of the branch the clone is read from. The new
+  branch is `refs/heads/<name>` (default `mrm/<slug of the summary>-<first 8 of the id>`). The
+  checked out branch, the working folder, the index and HEAD are not touched, so nothing the person
+  has open changes. The UI shows `git switch <branch>` to look at it.
+- **Each step reports on its own.** The result and the stored outcome carry three steps: commit,
+  push, pull request. A failed push or pull request **does not roll back the commit**; the change
+  set stays `applied`, the step is marked failed with a fixed message and a code, and
+  `POST /change-sets/:id/push` (`{ openPr? }`) retries exactly what is left. Repeating it when
+  everything is done answers `alreadyDone`.
+- **The push goes to the repository's own GitHub address**, `https://github.com/<owner>/<repo>.git`
+  from the stored connection, with that connection's credential, never to a remote configured in
+  the folder. A local-only repository has no GitHub connection: push and pull request are refused
+  (`409 local_only`).
+
+### State machine and data
+
+```
+approved --claim (applying, TTL 10 min)--> [commit ok] --> applied  (commit exists)
+   ^                                  \--> [nothing written] --> approved (+ error, retry later)
+applied --publish claim (publish_claim_at, TTL 10 min)--> push --> pull request --> applied
+```
+
+- `applied` means the commit exists. `outcome_json` holds `{ mode, base: {branch, commit}, commit:
+  {branch, sha, at}, requested: {push, openPr}, push: {status, at?, code?, error?}, pr: {status,
+  at?, url?, number?, code?, error?} }`. `push.status` is `not_requested | pushed | failed`;
+  `pr.status` is `not_requested | opened | failed | skipped` (skipped: the push failed first). The
+  older columns `branch`, `commit_sha`, `pr_url`, `pr_number` are kept in step for the existing
+  screens and the list.
+- The `applying` claim is the existing atomic one, so two applies cannot both commit. The push
+  has its own claim, `publish_claim_at`, so two retries cannot push or open two pull requests; a
+  second caller gets `409 publish_in_progress`. A claim older than its TTL can be taken over (a
+  crashed process does not wedge the change set).
+- A failure before the branch exists (`base_changed`, `branch_exists`, `no_changes`, a path rule)
+  returns the change set to `approved` with the reason and writes nothing. After `update-ref`
+  succeeded, the change set is `applied` whatever happens next.
+- Migration 14 adds `change_sets.outcome_json` (TEXT) and `change_sets.publish_claim_at`
+  (timestamp), in both dialects. A migration test runs 1 to 13 with data, then 14.
+
+### Why plumbing, and not `git commit`
+
+`git commit`, `switch`, `worktree add` or `stash` all read or write the working tree and the
+index, and run the repository's hooks (`pre-commit`, `commit-msg`, `post-commit`, `post-checkout`),
+filters (`clean`, `smudge`, `autocrlf`), signing (`commit.gpgsign` runs `gpg.program`) and
+config-defined programs. Those are the things the read path took pains to keep out, and the person
+may have uncommitted work in that working tree. So the commit is built from objects:
+
+1. The folder is validated again (real path inside an allowed root, the `.git` rules), immediately
+   before anything is written.
+2. The base is `refs/heads/<base>`; the new branch must not exist.
+3. Every changed file is compared with the base: the blob there must equal the change set's
+   `before` text (absent for a new file). Anything else is `base_changed`, nothing is written. This
+   is the same conflict check the GitHub apply makes against the live tree.
+4. `hash-object -w --no-filters --stdin` writes each blob byte for byte (no line-ending
+   conversion, no filter). A private index (`GIT_INDEX_FILE` in a new temporary folder) gets
+   `read-tree <base>`, `update-index --index-info` and `write-tree`. `commit-tree` makes the commit
+   (parent: the base; author and committer set explicitly; never signed). `update-ref
+   refs/heads/<branch> <commit> <zero oid>` creates the branch and can only create it: if it appeared
+   in the meantime the call fails and nothing is replaced.
+5. Every git call carries the same hardening as the read path (`--no-pager`, `-c` overrides that
+   empty `core.hooksPath` (so the `reference-transaction` hook that `update-ref` would run does not),
+   `core.fsmonitor`, `core.sshCommand`, `credential.helper` and the like; an allowlisted
+   environment; `GIT_CONFIG_GLOBAL=/dev/null`; `GIT_CONFIG_NOSYSTEM`; process group kill on
+   timeout), plus write-time overrides (`commit.gpgSign=false`, `core.splitIndex=false`, sparse
+   checkout off). Aliases cannot shadow built-in commands, so a configured `alias.update-ref` is
+   never run.
+6. Never run in the person's repository: `checkout`, `switch`, `reset`, `add`, `commit`, `merge`,
+   `stash`, `clean`, `push`, `gc`. A test records every git subcommand of an apply and checks that
+   list.
+
+A failure before `update-ref` leaves only unreachable objects, which `git gc` removes.
+
+### The push
+
+`git push` run inside the person's clone would read its config (remotes, `url.<x>.insteadOf`,
+credential helpers, `core.sshCommand`) and run its hooks (`pre-push`). So the push runs in
+a **private, empty bare repository** made in a temporary folder for the one push, whose
+`objects/info/alternates` names the clone's object folder (read only). Git finds the commit and its
+history there, and reads no other file of the clone: its config, hooks and remotes are never
+consulted.
+
+- **The URL is explicit** and built from the stored owner and repository name. Only `https` is
+  allowed (`GIT_ALLOW_PROTOCOL`), redirects are off.
+- **The token** (from the repository's credential: a PAT, or a GitHub App installation token minted
+  for this call) goes in the environment of the one process as `http.<url>.extraheader`
+  (`GIT_CONFIG_COUNT`/`KEY_0`/`VALUE_0`), scoped to that URL. It is not in argv, not in a file, not
+  in a URL. This is how the clone path (phase 1) already sends it.
+- **The refspec is exact:** `<commit>:refs/heads/<branch>`. No `+`, no delete, no tags, no
+  `--all`, no `--mirror`; a branch that exists on the remote with other history is rejected by the
+  remote (`push_rejected`), never forced. `--no-verify` and an empty template: no hook runs.
+- **A timeout** (the request timeout, at most 60 seconds) kills the process group.
+- **Output is never passed on.** What git printed is scrubbed (the token and its encodings,
+  `Authorization:` lines, URL credentials, the folder paths), classified (`push_auth`,
+  `push_declined`, `push_rejected`, `push_not_found`, `push_network`, `push_timeout`,
+  `push_failed`) and replaced by a fixed message for the class.
+- The pull request is opened by the GitHub connector (`openPullRequest`, the same call `propose`
+  uses), from the pushed branch into the base branch the commit was made on.
+- **Tested with a bare repository as the remote** (`file` protocol through a test-only seam), a
+  clone whose config has `insteadOf`, hooks and a credential helper (none of it is used), a
+  rejected non-fast-forward, an unreachable remote followed by a successful retry, a timeout, and an
+  HTTP stub that receives the extraheader (the token arrives there and appears in no response,
+  audit row, log line, git argument or stored outcome).
+
+### Threat model for writes
+
+| Threat | Mitigation | Tested |
+| --- | --- | --- |
+| Writing into repositories nobody agreed to write to | `MRM_LOCAL_REPO_WRITE` off by default; `409 local_write_disabled` before the change set is claimed; the folder must be inside `MRM_LOCAL_REPO_ROOTS` | yes |
+| A person without the right | `changesets.approve` for apply and push; viewers and members 403; non-members and other workspaces 404 | yes |
+| Swapping the folder (symlink, other repository) after it was attached | the real path is validated again immediately before the write (and the read); a symlinked `.git` is refused | yes |
+| Code execution through the repository (hooks, `core.fsmonitor`, filters, `gpg.program`, `core.sshCommand`, aliases, `reference-transaction`) | plumbing only; `-c` overrides; `core.hooksPath` emptied; allowlisted environment; the hostile repository in the tests runs none of its hooks or programs, with a control that plain git does | yes |
+| Overwriting the person's work | working tree, index, HEAD and the checked out branch are never touched (snapshot before and after); the branch is created, never moved (`update-ref` with the zero oid) | yes |
+| Committing over changes made after the draft | the base blob of every file must equal the change set's `before`: `base_changed`, nothing written | yes |
+| Branch name as an option or a ref trick | ASCII letters, digits and `._-/` only, a letter, digit or `_` first, no `..`, `//`, `@{`, `/.`, `.lock`, not `HEAD` or `refs/...`, at most 200 characters; always used as `refs/heads/<name>` | yes |
+| File paths that leave the repository or hit a symlink, a submodule or a file/folder clash | the same path rules as the GitHub connector; symlink, submodule and conflicting entries are refused (`unsupported_entry`, `path_conflict`) | yes |
+| Line-ending or filter rewriting of the text | `hash-object --no-filters`; a CRLF text is committed as is | yes |
+| A secret in the commit, the audit trail, a response or a log | the commit holds the files and a message from the summary; the message is neutralised (@mentions, `#1`) when the repository has a GitHub connection, as for a pull request body; the token never leaves the environment of the push process; output scrubbed | yes |
+| Pushing somewhere else (a remote in the folder's config, `insteadOf`, `pushurl`) | explicit URL from the stored repository; the clone's config is never read; `GIT_ALLOW_PROTOCOL=https`; the push (not the commit) is refused with `409 remote_mismatch` unless the clone's `origin` names this very GitHub repository, so the folder is the one the person thinks it is; the origin is only compared, never used | yes |
+| Force-pushing, deleting or touching other refs | exact refspec, no `+`; the remote rejects a branch with other history | yes |
+| Two applies or two retries at once | the `applying` claim and `publish_claim_at`; one commit, one push, one pull request | yes |
+| A hung git | a deadline checked before the ref is written; the process group is killed on timeout (git and push) | yes |
+| Audit gaps | `changeset.apply_local` (folder path, branch, files changed, whether push and pull request were requested), `changeset.push`, `changeset.push_failed`, `changeset.pr_open`, `changeset.pr_failed`, `credential.use`; no content, no secret | yes |
+
+Decisions:
+
+- **Author and committer** are `MRM_GIT_AUTHOR_NAME` and `MRM_GIT_AUTHOR_EMAIL` when set, otherwise
+  the person who applied (their display name and email). Cleaned to one line, no `<`, `>` or control
+  characters, with a fixed fallback. Never read from the folder's git config.
+- **No signing.** The commit is not signed, whatever `commit.gpgsign` says. A repository that
+  requires signed commits will not merge it as is; the person can re-sign after `git switch`
+  (`git commit --amend -S`). Running the person's `gpg.program` from a server request is the kind
+  of code execution this phase exists to avoid.
+- **No hooks.** `pre-commit` and `commit-msg` do not run. Checks that depend on them (a linter, a
+  length limit) should be in CI, where the pull request will meet them anyway.
+- **Stricter branch names than git** (ASCII only), so that a name is never an option, a ref trick or
+  a case-folding surprise.
+- **The push is a separate, retryable step**, not a part of apply that can fail the whole apply: the
+  commit is the thing the person asked for and it is kept.
+- **`local_write_disabled` is a 409**, like `local_not_enabled`: the request is fine, the server's
+  setting refuses it.
+
+Accepted residuals, to be revisited:
+
+- **Check, then use.** The folder is validated, then git opens it a moment later (the same gap as
+  reading, narrowed by validating again right before the write). A person who can write inside a
+  root can still race it. Keep roots to folders only the operator writes.
+- **Trust inside a root.** `objects/info/alternates` or `commondir` of a repository in a root is
+  followed by git (read path) and the new objects are written into that object store. Roots must
+  not hold folders other people control.
+- **LFS and attribute-driven filters are not applied.** The text is written byte for byte, so a
+  path that `.gitattributes` sends to Git LFS is committed as the text, not as a pointer. Listing
+  text files are not normally LFS-tracked; nothing checks.
+- **Unreachable objects** remain after a failure before `update-ref` until the next `git gc`.
+- **Unsigned commits**, above.
+- **A server credential pushes.** Anyone with `changesets.approve` can cause a push with the
+  repository's stored credential to its own repository, only of a branch this tool just made, only
+  with a new name. The audit trail names who and what.
+- **Shallow clones, case-insensitive file systems, Windows** are not exercised (below).
+
+### What is not built (writing)
+
+- Checking out the new branch or switching to it for the person (they run `git switch`), merging,
+  rebasing, signing, running hooks, pushing to a remote other than the repository's GitHub address,
+  force-push, deleting the branch, a patch file as an alternative, writing the first commit into an
+  empty repository (a base is required), writing to a local clone of a repository that is not in the
+  allowed roots, and applying to a branch other than the one the clone is read from.
 
 ## Implemented (phase 2)
 
@@ -392,6 +586,8 @@ Read the current code: `apps/server/src/services/repositories.ts` (`RepoClient`,
 | `MRM_CLONE_TTL_SECONDS` | `60` | how long a fetched tip is reused (`ttlMs`) |
 | `MRM_CLONE_FILTER` | `blob:none` | partial clone filter; `none` downloads all blobs (not built) |
 | `MRM_GIT_PATH` | `git` | the git program |
+| `MRM_LOCAL_REPO_WRITE` | `false` | allow a change set to be committed to a new branch of a local clone, and pushed (phase 4, built) |
+| `MRM_GIT_AUTHOR_NAME`, `MRM_GIT_AUTHOR_EMAIL` | unset | author and committer of those commits; unset means the person who applied (built) |
 | `MRM_CLONE_MAX_MB`, `MRM_CLONE_IDLE_DAYS` | unset, `30` | disk budget and idle pruning (not built) |
 
 ## Alternatives considered
@@ -427,3 +623,34 @@ case, with Postgres, and in a browser (the web screens compile and are type chec
 logic is unit tested, but were never run); macOS and Windows (`detached` process groups, `/dev/null` as `GIT_CONFIG_GLOBAL`, path
 and `file://` forms); behaviour on a very large repository; a read-only or `noexec` data folder.
 No timing against GitHub exists: the benchmark compares local reads with simulated latency only.
+
+Verified in phase 4 (server and connector tests; real git 2.34.1 repositories, a bare repository as
+the push remote over the `file` protocol, an HTTP stub for the header; no network):
+- the commit: tree, parent, author and message; `update-ref` creates only; working tree, index,
+  HEAD, checked out branch and the folder's config are byte-identical before and after; the list of
+  git subcommands run is exactly the plumbing set; hooks (`pre-commit`, `post-commit`,
+  `reference-transaction`, `pre-push`), `core.fsmonitor`, `core.sshCommand`, `credential.helper`,
+  `commit.gpgsign` with a `gpg.program`, and an `alias.update-ref` in a hostile repository run
+  nothing; `base_changed`, `branch_exists`, symlink, submodule and path conflicts, deleted and new
+  files, a CRLF text, the branch name table, the deadline, and the re-validation of the path;
+- through the API, for the fastlane layouts (one app, a monorepo with `auto:app:<id>`, android only)
+  and Expo `store.config.json`: the commit holds exactly the change set's files with its texts;
+  roles, workspace isolation, `local_write_disabled`, `local_only`, the audit rows, concurrency (one
+  commit from many applies);
+- the push: bare remote, the clone's `insteadOf`, hooks and credential helper unused, a rejected
+  non-fast-forward, an unreachable remote then a successful retry, the timeout, the token header
+  at the stub and nowhere else, the classification and the scrubbing; the pull request step and its
+  retry through the fake connector, and `openPullRequest` against the GitHub connector's fake HTTP
+  layer;
+- migration 14 with data, schema drift (SQLite and Postgres definitions agree), the OpenAPI
+  registry, and the web logic (the choices, their reasons, the body, the steps, the retries, the
+  default branch name equal to the server's) as unit tests.
+
+Not verified in phase 4: a push to real GitHub (https, the extraheader with a real PAT or an
+installation token, protected branches, a push from a shallow clone, rate limits), a real pull
+request; macOS, Windows, a case-insensitive file system (two branch names differing only by case);
+a real GPG signing setup (the test proves `gpg.program` is not run, not that a signing repository
+behaves); real hook scripts beyond the test ones; Git LFS repositories; Postgres (the migration is
+written for it and drift-tested, but the Postgres run is skipped without `MRM_TEST_POSTGRES_URL`);
+the web screens in a browser (they type check, compile without warnings and their logic is unit
+tested); a very large change set.

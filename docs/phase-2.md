@@ -141,9 +141,14 @@ planned for Phase 3: it shows drift **before** anything is pushed, and writes no
       bulk actions in the Listing tab. It is Phase 3 read-side groundwork: nothing is written to a
       store. Tested with fakes on SQLite; **no real store, GitHub or Postgres call, and never rendered in a
       browser**
-- [ ] Commit a pulled listing to a branch of a local clone instead of a pull request (later task)
-- [ ] Open the pulled change set directly from the toast (the Repositories screen does not take a route to
-      a change set yet; the web side keeps the intent in `lib/repository-intent.ts`)
+- [x] Commit a pulled listing to a branch of a local clone instead of a pull request, with an optional push
+      and pull request: the change set is applied with `mode: "local_branch"`
+      ([phase 1](phase-1.md), [ADR 0005](adr/0005-local-clone-reads.md)). Opt-in, **not run against real
+      GitHub, on macOS or in a browser**
+- [x] Open the pulled change set directly from the toast: "Review the draft" records the intent
+      (`lib/repository-intent.ts`); the Repositories screen takes it once its list has loaded, opens that
+      repository on its Change sets tab with the change set open. Unit tested (the resolver); never
+      rendered in a browser
 - [ ] Scheduled listing reads (a listing is read only when an app is synced by hand or by job)
 - [ ] Connector warnings (a version in no known state, an editable version without its own app info) are
       returned but not stored or shown
