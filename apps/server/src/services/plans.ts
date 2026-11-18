@@ -9,6 +9,8 @@ import {
   type PlanPlatform,
   type Platform,
   type Readiness,
+  type RolloutStepState,
+  type RolloutSummary,
   DEFAULT_CHECKLIST_TEMPLATES,
   computeReadiness,
   defaultTemplate,
@@ -20,6 +22,7 @@ import {
 import type { Database, Param, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { getApp } from './apps.ts';
+import { loadRolloutSteps, loadRolloutStepsByPlan, purgeRolloutOfPlan, rolloutSummaryOf } from './plan-rollout.ts';
 import { type Failure, type Outcome, failure } from './repositories.ts';
 
 /**
@@ -86,6 +89,11 @@ export type PlanSummary = {
   due: DueFlags;
   readiness: Readiness;
   checklist: { total: number; done: number };
+  /**
+   * The staged rollout plan in short: how far it is, the next step, steps whose time has passed.
+   * Null when the plan has no rollout plan. Planning data only; see `GET .../rollout` for the steps.
+   */
+  rollout: RolloutSummary | null;
 };
 
 export type PlanDetail = PlanSummary & { items: PlanItem[]; releaseNotes: PlanNote[] };
@@ -108,7 +116,7 @@ const FROM = `FROM release_plans p
   JOIN apps a ON a.id = p.app_id AND a.workspace_id = p.workspace_id`;
 
 const SELECT = `SELECT p.id, p.app_id, p.version, p.platform, p.target_date, p.blocked,
-       p.blocked_reason, p.notes, p.created_by, p.created_at, p.updated_at,
+       p.blocked_reason, p.notes, p.created_by, p.created_at, p.updated_at, p.rollout_kind,
        a.name AS app_name, a.platform AS app_platform, a.identifier AS app_identifier,
        CASE WHEN EXISTS (
          SELECT 1 FROM app_releases r
@@ -132,7 +140,13 @@ const toNote = (r: Row): PlanNote => {
   return { locale: String(r.locale), text, length: releaseNotesLength(text), updatedAt: Number(r.updated_at) };
 };
 
-function summarize(r: Row, items: PlanItem[], notes: PlanNote[], now: number): PlanSummary {
+function summarize(
+  r: Row,
+  items: PlanItem[],
+  notes: PlanNote[],
+  now: number,
+  steps: readonly RolloutStepState[] = [],
+): PlanSummary {
   const platform = orNull(r.platform, String) as PlanPlatform;
   const targetDate = orNull(r.target_date, String);
   const released = Number(r.released) === 1;
@@ -155,6 +169,7 @@ function summarize(r: Row, items: PlanItem[], notes: PlanNote[], now: number): P
     due: dueFlags(targetDate, now, { released }),
     readiness: computeReadiness({ items, notes, platform }),
     checklist: { total: items.length, done: items.filter((i) => i.done).length },
+    rollout: rolloutSummaryOf(r.rollout_kind, steps, now),
   };
 }
 
@@ -200,13 +215,14 @@ export async function listPlans(
     ? await ctx.db.query(`${SELECT} WHERE p.workspace_id = ? AND p.app_id = ?`, [workspaceId, filter.appId])
     : await ctx.db.query(`${SELECT} WHERE p.workspace_id = ?`, [workspaceId]);
   const ids = rows.map((r) => String(r.id));
-  const [items, notes] = await Promise.all([
+  const now = ctx.now();
+  const [items, notes, steps] = await Promise.all([
     loadItems(ctx.db, workspaceId, ids),
     loadNotes(ctx.db, workspaceId, ids),
+    loadRolloutStepsByPlan(ctx.db, workspaceId, now),
   ]);
-  const now = ctx.now();
   return rows
-    .map((r, i) => summarize(r, items[i] ?? [], notes[i] ?? [], now))
+    .map((r, i) => summarize(r, items[i] ?? [], notes[i] ?? [], now, steps.get(ids[i] as string) ?? []))
     .sort((a, b) => {
       if (a.targetDate !== b.targetDate) {
         if (a.targetDate === null) return 1;
@@ -246,7 +262,8 @@ export async function getPlan(
       [planId, workspaceId],
     )
   ).map(toNote);
-  return { ...summarize(row, items, notes, now), items, releaseNotes: notes };
+  const steps = row.rollout_kind === 'steps' ? await loadRolloutSteps(sql, workspaceId, planId, now) : [];
+  return { ...summarize(row, items, notes, now, steps), items, releaseNotes: notes };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -567,6 +584,7 @@ export async function deletePlan(
     for (const table of ['checklist_items', 'release_notes']) {
       await tx.execute(`DELETE FROM ${table} WHERE plan_id = ? AND workspace_id = ?`, [input.planId, input.workspaceId]);
     }
+    await purgeRolloutOfPlan(tx, input.workspaceId, input.planId);
     await tx.execute('DELETE FROM release_plans WHERE id = ? AND workspace_id = ?', [input.planId, input.workspaceId]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -919,6 +937,7 @@ export async function purgePlansOfApp(tx: Sql, workspaceId: string, appId: strin
   for (const id of ids) {
     await tx.execute('DELETE FROM checklist_items WHERE plan_id = ? AND workspace_id = ?', [id, workspaceId]);
     await tx.execute('DELETE FROM release_notes WHERE plan_id = ? AND workspace_id = ?', [id, workspaceId]);
+    await purgeRolloutOfPlan(tx, workspaceId, id);
   }
   await tx.execute('DELETE FROM release_plans WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
 }

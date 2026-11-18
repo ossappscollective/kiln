@@ -5,6 +5,7 @@ import {
   MAX_CHECKLIST_TEXT_LENGTH,
   MAX_PLAN_NOTES_LENGTH,
   MAX_PLAN_VERSION_LENGTH,
+  MAX_ROLLOUT_NOTE_LENGTH,
   MAX_TEMPLATE_NAME_LENGTH,
   can,
   isPlanLocale,
@@ -18,6 +19,7 @@ import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
+import { clearRollout, getRollout, rolloutStepAction, setRollout } from '../services/plan-rollout.ts';
 import {
   type PlansContext,
   addItem,
@@ -98,6 +100,30 @@ const orderBody = z.strictObject({ order: z.array(id).max(MAX_CHECKLIST_ITEMS) }
 const applyBody = z.strictObject({ templateId: id });
 // Generous in UTF-16 units; the exact limit is the store's, in characters, and answers 422 with numbers.
 const notesBody = z.strictObject({ text: z.string().max(MAX_PLAN_NOTES_LENGTH * 4) });
+
+// A time as an ISO 8601 date-time (with an offset) or as epoch milliseconds, the form every answer uses.
+const instant = z.union([
+  z.string().datetime({ offset: true }).transform((v) => Date.parse(v)),
+  z.number().int().min(0),
+]);
+const rolloutStep = z.strictObject({
+  id: id.optional(),
+  // Range, order and the rest are checked by `validateRolloutSteps`, which answers 422 with a path per problem.
+  percent: z.number(),
+  plannedAt: instant.nullable().optional(),
+  note: z
+    .string()
+    .trim()
+    .max(MAX_ROLLOUT_NOTE_LENGTH * 2)
+    .transform((v) => (v === '' ? null : v))
+    .nullable()
+    .optional(),
+});
+const rolloutBody = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('steps'), template: id.optional(), steps: z.array(rolloutStep).max(100) }),
+  z.strictObject({ kind: z.literal('apple_phased'), template: id.optional(), startsAt: instant.nullable().optional() }),
+]);
+const stepActionBody = z.strictObject({ fromStore: z.boolean().optional() });
 
 const templateItem = z.strictObject({
   text: oneLine(MAX_CHECKLIST_TEXT_LENGTH),
@@ -235,6 +261,58 @@ export function planRoutes(ctx: PlansContext) {
     const done = await deleteReleaseNotes(ctx, { ...ref(c), locale }, actor(c));
     return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
   });
+
+  // --- Staged rollout (planning data only: nothing here reaches a store) -----------------------
+
+  app.get('/:workspaceId/apps/:id/plans/:planId/rollout', needs('plans.read'), async (c) => {
+    const rollout = await getRollout(ctx, ref(c));
+    return rollout ? c.json({ rollout }) : notFound(c);
+  });
+
+  app.put('/:workspaceId/apps/:id/plans/:planId/rollout', needs('plans.write'), small, async (c) => {
+    const body = await parseBody(c, rolloutBody);
+    if (!body.ok) return body.response;
+    const done = await setRollout(ctx, { ...ref(c), body: body.data }, actor(c));
+    return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
+  });
+
+  app.delete('/:workspaceId/apps/:id/plans/:planId/rollout', needs('plans.write'), async (c) => {
+    const done = await clearRollout(ctx, ref(c), actor(c));
+    return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
+  });
+
+  /** The body is optional ({} or nothing); only `complete` reads `fromStore`. */
+  const stepAction = (action: 'complete' | 'skip' | 'reopen') =>
+    async (c: Context<AppEnv>) => {
+      const text = await c.req.text();
+      let raw: unknown = {};
+      if (text.trim() !== '') {
+        try {
+          raw = JSON.parse(text);
+        } catch {
+          raw = undefined;
+        }
+      }
+      const parsed = stepActionBody.safeParse(raw);
+      if (!parsed.success) {
+        return c.json(
+          { error: 'invalid_request', issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+          400,
+        );
+      }
+      if (action !== 'complete' && parsed.data.fromStore) {
+        return c.json({ error: 'invalid_request', issues: [{ path: 'fromStore', message: 'Only a step that is completed can be confirmed from the store.' }] }, 400);
+      }
+      const done = await rolloutStepAction(
+        ctx,
+        { ...ref(c), stepId: param(c, 'stepId'), action, fromStore: parsed.data.fromStore },
+        actor(c),
+      );
+      return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
+    };
+  for (const action of ['complete', 'skip', 'reopen'] as const) {
+    app.post(`/:workspaceId/apps/:id/plans/:planId/rollout/steps/:stepId/${action}`, needs('plans.write'), small, stepAction(action));
+  }
 
   // --- Checklist templates ---------------------------------------------------------------------
 

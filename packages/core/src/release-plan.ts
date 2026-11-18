@@ -230,3 +230,6 @@ export const DEFAULT_CHECKLIST_TEMPLATES: readonly DefaultChecklistTemplate[] = 
 export function defaultTemplate(id: string): DefaultChecklistTemplate | undefined {
   return DEFAULT_CHECKLIST_TEMPLATES.find((t) => t.id === id);
 }
+
+// Staged rollout steps and reminders (planning data only).
+export * from './rollout-plan.ts';
