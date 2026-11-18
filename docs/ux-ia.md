@@ -83,8 +83,8 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 
 | Control | Kind | Gate |
 | --- | --- | --- |
-| Increase Android staged rollout %, halt, resume, release to 100% | store write | proposed `MRM_STORE_WRITE_ROLLOUT` |
-| Apple phased release: pause, resume, release to all | store write | proposed `MRM_STORE_WRITE_ROLLOUT` |
+| Increase Android staged rollout %, halt, resume, release to 100% | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md); screens not built) |
+| Apple phased release: pause, resume, release to all | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md); screens not built) |
 | Push listing text as draft | store write | proposed `MRM_STORE_WRITE_LISTING` |
 | Push assets as draft | store write | proposed `MRM_STORE_WRITE_ASSETS` |
 | Reply to a review | store write | `MRM_REVIEW_REPLY_ENABLED` (exists), plus the credential role |

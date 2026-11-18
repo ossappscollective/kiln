@@ -237,6 +237,19 @@ the raw state). A phased release currently shows as `live` because it is not rea
   `MRM_WEBHOOKS_ALLOW_PRIVATE`.
 - **Decide:** whether an allow list of hosts would be better than one switch.
 
+## Store rollout ([ADR 0008](adr/0008-store-rollout-writes.md))
+
+### Changing a store rollout
+
+- **Today:** off by default (`MRM_STORE_ROLLOUT_ENABLED`); an admin or owner previews and confirms one
+  change at a time; Google Play only goes up (halt is the way down); complete and release to all are
+  irreversible; a token needs `releases.rollout` named explicitly. Server only: no screens yet. Nothing
+  was run against a real store.
+- **Decide:** whether a second person must approve an irreversible change, and whether the web should
+  offer these changes at all before the connectors have run against a real account.
+- **Check with a real account:** the unverified items in
+  [api/rollout](api/rollout.md#unverified-check-with-a-real-account).
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

@@ -92,6 +92,21 @@ this tool. Issue it only for the apps that need it.
 - If a send says `store_forbidden`, the key lacks the permission: grant it, or answer in the store's
   own console and mark the review "Replied in store console".
 
+## Changing a rollout (what the same credentials need)
+
+Only when the server runs with `MRM_STORE_ROLLOUT_ENABLED=true` ([deployment](deployment.md#changing-a-store-rollout-a-store-write-off-by-default)).
+The same credential is used; no new one is needed, but it must be allowed to release the app.
+
+- **Google Play:** the service account must be allowed to manage releases of the app in Play Console
+  (UNVERIFIED which exact permission an `edits.tracks.update` and `edits.commit` need; the account
+  that only reads needs less). The changes go through the edits API, documented at
+  https://developers.google.com/android-publisher/tracks.
+- **App Store Connect:** the key needs a role allowed to manage the version's phased release (App
+  Manager or Admin is assumed; UNVERIFIED). The app must have been synced once (its App Store id is
+  needed).
+- If a change says `store_forbidden`, the key lacks the permission; the rollout can still be changed
+  in the store's own console.
+
 ## Store listing sections (what the same credentials need)
 
 The listing sections ([api/listing](api/listing.md#sections-beyond-the-texts): categories, age rating,

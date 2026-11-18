@@ -5,7 +5,7 @@ about. Read it with a cursor, or follow it live. The same events are pushed to
 [webhooks](webhooks.md). The log is a feed, not an archive: events older than 90 days are removed
 when the server starts.
 
-Rights: `events.read` (every role). What you see depends on what you may read: `app.*` events need
+Rights: `events.read` (every role). What you see depends on what you may read: `app.*` and `release.*` events need
 `apps.read`, `changeset.*` need `repositories.read`, `credential.*` need `credentials.read` (owner,
 admin, member), `plan.*` need `plans.read` (every role), `review.*` need `reviews.read` (every role). An API token sees the same as its ceiling allows, and a token limited to some apps
 sees only events about those apps; see [tokens](tokens.md). A non-member gets 404.
@@ -51,6 +51,7 @@ sees only events about those apps; see [tokens](tokens.md). A non-member gets 40
 | `review.new_low_rating` | A customer review with a rating at or below the workspace's threshold (setting `reviews.lowRatingThreshold`, default 2) was stored: a new one, or an existing one whose rating changed to it. Raising the threshold does not re-send events for reviews already read. Sent once per store review. Not sent for the first read of an app (a quiet baseline), and at most 50 per read. | `reviewId`, `storeReviewId`, `appId`, `store` (`appstoreconnect` or `googleplay`), `rating`, `threshold`, `source` (`new` or `edited`). **Never the review text or the display name**: read the review with [the reviews API](reviews.md). Subject has `appId`. |
 | `review.sync_failed` | Reading the reviews of an app failed. Sent once per failure streak, not for every failed try; a successful read ends the streak. | `appId`, `store`, `code` (the error code), `transient`, `failures`. Subject has `appId`. |
 | `review.reply_sent` | A reply to a customer review was published in the store from this server (App Store Connect or Google Play), or an unknown outcome was later confirmed as published. Not sent for a failed or unconfirmed send. | `reviewId`, `storeReviewId`, `appId`, `store`, `actor`. **Never the reply text, the review text or any name**: read the review with [the reviews API](reviews.md#replying-to-a-review). Subject has `appId`. |
+| `release.rollout_changed` | A staged rollout (Google Play) or phased release (App Store) was changed in the store from this server ([rollout](rollout.md)), or an unknown outcome was later confirmed by reading the store. Not sent for a refused, failed or unconfirmed change. | `appId`, `store`, `platform`, `action` (`set_fraction`, `halt`, `resume`, `complete`, `pause`, `release_to_all`), `track` and `versionCodes` (Google Play) or `version` (App Store), `from` and `to` (`{ status, userFraction }` or `{ phasedReleaseState }`), `irreversible`, `confirmedByReread`, `actor`. Never a credential. Subject has `appId`. |
 
 `actor` is `{ "type": "user" | "token" | "system", "id": "..." }`. The first sync of an app is a
 quiet baseline: it emits `app.synced` but no status changes.

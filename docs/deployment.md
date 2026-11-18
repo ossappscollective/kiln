@@ -350,6 +350,24 @@ organisation's name**. Things to settle first:
 
 See [adr/0007-review-replies](adr/0007-review-replies.md).
 
+### Changing a store rollout (a store write, off by default)
+
+`MRM_STORE_ROLLOUT_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill
+switch for changing the staged rollout of Google Play and the phased release of the App Store from
+this tool. While `false`, the rollout state, preview and apply routes answer `409 rollout_disabled`;
+reading, syncing and planning are not affected. Set it to `true` only when you want people to change
+**who receives an update in the live stores**. Things to settle first:
+
+- **Who can change it.** Only owners and admins (`releases.rollout`). An API token only when its list
+  of actions names `releases.rollout`.
+- **The store credential must be allowed to release** (see [credentials](credentials.md#changing-a-rollout-what-the-same-credentials-need)).
+- Google Play only goes up (the way down is halt); completing a Play rollout and releasing an App
+  Store phased release to all users cannot be undone from this tool. Changes are confirmed against a
+  fresh read of the store, one at a time per app, and never retried after an unknown outcome.
+- The table `store_rollout_claims` (one row while a change is in flight) is created by migration 22.
+
+See [adr/0008-store-rollout-writes](adr/0008-store-rollout-writes.md) and [api/rollout](api/rollout.md).
+
 See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
 
 ### Review translation
