@@ -17,7 +17,7 @@ typed query builders are separate per dialect.
 2. **Runtime queries are portable SQL** behind one small interface (`Sql`: `query`, `execute`,
    `transaction`) with `?` placeholders. The Postgres adapter rewrites them to `$1, $2`.
 3. **Migrations are an ordered list of SQL** in `packages/db/src/migrations.ts`, applied at boot,
-   each in a transaction, recorded in `schema_migrations`. Postgres takes an advisory lock so two
+   each in a transaction, recorded in `schema_migrations`. Postgres takes an advisory lock (per schema) so two
    instances cannot race.
 4. **The Drizzle schemas stay** as the typed description of the tables, and
    `schema-drift.test.ts` checks them against the migrated database and against each other.

@@ -33,13 +33,19 @@ export async function createDatabase(url: string): Promise<Database> {
   return dialect === 'postgres' ? connectPostgres(url) : connectSqlite(url);
 }
 
-/** Applies every migration that has not run yet, each in its own transaction. */
+/**
+ * Applies every migration that has not run yet, each in its own transaction.
+ *
+ * The advisory lock is per schema: instances sharing a schema (the normal case, `public`) still
+ * take turns, while separate schemas in one database (each test gets its own) do not queue behind
+ * each other.
+ */
 export async function migrate(database: Database): Promise<number[]> {
   const timestamp = database.dialect === 'postgres' ? 'BIGINT' : 'INTEGER';
   // Under the lock too: two instances running CREATE TABLE IF NOT EXISTS at the same moment can
   // make Postgres fail with a duplicate key on its catalog.
   await database.transaction(async (tx) => {
-    if (tx.dialect === 'postgres') await tx.query('SELECT pg_advisory_xact_lock(727274)');
+    if (tx.dialect === 'postgres') await tx.query('SELECT pg_advisory_xact_lock(727274, hashtext(current_schema()))');
     await tx.execute(
       `CREATE TABLE IF NOT EXISTS schema_migrations (
          id INTEGER PRIMARY KEY,
@@ -52,7 +58,7 @@ export async function migrate(database: Database): Promise<number[]> {
   for (const migration of migrations) {
     await database.transaction(async (tx) => {
       // Two instances booting together must not both run a migration.
-      if (tx.dialect === 'postgres') await tx.query('SELECT pg_advisory_xact_lock(727274)');
+      if (tx.dialect === 'postgres') await tx.query('SELECT pg_advisory_xact_lock(727274, hashtext(current_schema()))');
       const done = await tx.query('SELECT id FROM schema_migrations WHERE id = ?', [migration.id]);
       if (done.length > 0) return;
       for (const statement of migration.statements(tx.dialect)) await tx.execute(statement);
