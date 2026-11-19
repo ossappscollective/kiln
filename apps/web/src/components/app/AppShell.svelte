@@ -1,18 +1,19 @@
 <!--
-  AppShell: an open app. Everything below the workspace is scoped to it: a header with the icon,
-  the stores, the "where the data lives" chips and the platform control, then the section the
-  address names (the left panel is AppNav, drawn by the shell). The records of the two stores that
-  are one product are shown as one app (lib/app-groups.ts).
+  AppShell: an open app. Everything below the workspace is scoped to it: one slim header, then the page the address names (the
+  left panel is AppNav, drawn by the shell). The header is the name of the page and the app, the platform control (only for an app
+  on several platforms, and not on the settings page), the version and locale pickers on the pages they apply to (Releases and Store
+  listing, AppHeaderRow) and a small Status button (StatusPopover) that holds the store chips, the bundle ids, the last sync and the
+  one Sync now action. Under it, while the app has changes waiting, one quiet strip with "Review and publish" (PendingBar).
+  The records of the two stores that are one product are shown as one app (lib/app-groups.ts).
   Props: api, workspaceId, role, id (an id of one of its platform records, from the address).
-  The section, the open release and the platform scope all come from the address.
-  Versioned pages (listing, releases, assets, ASO fit) carry one compact row under the title: platform, version
-  (with its state) and locale (AppHeaderRow), kept in the address as ?platform=&version=&locale= and shared by the
-  tabs; the other pages keep the platform control at the top right. The versions come from the releases already
-  loaded here. When the selected version is live (or in review where the store forbids edits) a slim banner says
-  so and the listing and assets are read-only (lockedPlatforms).
+  The page, its view (`?view=`: Store listing text or graphics, Insights analytics or ASO, Builds builds, workflows or test builds),
+  the open release and the platform scope all come from the address. An old address (assets, aso, analytics, workflows, test-builds)
+  is replaced by its new one (lib/app-nav.ts `canonicalAppHash`) and reads as the new page at once.
+  The versions come from the releases already loaded here. When the selected version is live (or in review where the store forbids
+  edits) a slim banner says so and the listing and graphics are read-only (lockedPlatforms).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Action, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, appContext, replaceHash, setPlatformScope } from '../../lib/address.svelte.ts';
@@ -29,12 +30,13 @@
   import { asoViewFromHash } from '../../lib/aso.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
+  import { canonicalAppHash, canonicalSection, pageTitle, resolveView, showsScope, viewsFor } from '../../lib/app-nav.ts';
+  import { pendingBar } from '../../lib/app-page.ts';
   import { lineFor } from '../../lib/pending.ts';
   import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
   import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
-  import { storeForPlatform } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -42,11 +44,10 @@
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
-  import StoreBadge from '../ui/StoreBadge.svelte';
   import AppHeaderRow from './AppHeaderRow.svelte';
   import AppSectionView from './AppSection.svelte';
-  import DataChips from './DataChips.svelte';
-  import PendingChip from '../publish/PendingChip.svelte';
+  import PendingBar from './PendingBar.svelte';
+  import StatusPopover from './StatusPopover.svelte';
   import LockedBanner from './LockedBanner.svelte';
   import ScopeControl from './ScopeControl.svelte';
 
@@ -77,17 +78,22 @@
     }, {}),
   );
   const open = $derived(address.app);
-  /** The section the address names, or the dashboard when the role may not open it. */
-  const section = $derived<AppSection>(
-    open && visibleSections((a) => can(role, a)).some((s) => s.id === open.section) ? open.section : 'dashboard',
-  );
+  const allowed = (a: Action) => can(role, a);
+  /** The address as the new page reads it: an old address (assets, aso, ...) is replaced below, and meanwhile reads as its new page. */
+  const hash = $derived(canonicalAppHash(address.hash) ?? address.hash);
+  /** The page the address names (an old page as the page that replaced it), or the overview when the role may not open it. */
+  const section = $derived<AppSection>(open && visibleSections(allowed).some((s) => s.id === canonicalSection(open.section)) ? canonicalSection(open.section) : 'dashboard');
+  const views = $derived(viewsFor(section, allowed));
+  const view = $derived(resolveView(section, hash, allowed));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
   const pendingLine = $derived(lineFor(pendingStore.summary(workspaceId), members.map((m) => m.id)));
+  const bar = $derived(pendingBar(pendingLine, section));
+  const scopeShown = $derived(showsScope(section, members.length));
 
   // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
-  const picker = $derived(pickersFor(section, { asoView: asoViewFromHash(address.hash), releaseOpen: open?.release != null }));
-  const params = $derived(headerParams(address.hash));
+  const picker = $derived(pickersFor(section, { asoView: asoViewFromHash(hash), releaseOpen: open?.release != null }));
+  const params = $derived(headerParams(hash));
   const scopedReleases = $derived(scoped.reduce<ReleaseSummary[]>((all, m) => all.concat(releaseLists[m.id] ?? []), []));
   const versionOptions = $derived(buildVersionOptions(scopedReleases, resolved.platforms));
   const version = $derived(resolveVersion(params.version, versionOptions));
@@ -151,6 +157,12 @@
     });
   });
 
+  // An old address (workflows, assets, aso, ...) is replaced by the address of the page that holds it now; the history keeps one entry.
+  $effect(() => {
+    const target = canonicalAppHash(address.hash);
+    if (target !== null) replaceHash(target);
+  });
+
   $effect(() => {
     const timer = setInterval(() => {
       now = Date.now();
@@ -210,50 +222,45 @@
     {/if}
   {:else if group}
     <header class="head">
-      <AppIcon
-        name={group.name}
-        url={members.map((m) => m.iconUrl ?? null).find((u) => u) ?? null}
-        platform={members.length === 1 ? members[0]?.platform : undefined}
-        seed={group.key}
-        size="lg"
-      />
       <div class="id">
-        <div class="titleline">
-          <h1 class="page-title">{group.name}</h1>
-          <DataChips {chips} />
-          <PendingChip line={pendingLine} href={open?.section === 'pending' ? undefined : appAddress(id, 'pending', address.platform)} />
-        </div>
-        <p class="sub">
-          {#each members as m (m.id)}
-            <span class="store"><StoreBadge store={storeForPlatform(m.platform).store} size="sm" /> <code>{m.identifier}</code></span>
-          {/each}
-        </p>
+        <AppIcon
+          name={group.name}
+          url={members.map((m) => m.iconUrl ?? null).find((u) => u) ?? null}
+          platform={members.length === 1 ? members[0]?.platform : undefined}
+          seed={group.key}
+          size="sm"
+        />
+        <h1 class="page-title">{pageTitle(section)}</h1>
+        <span class="appname" title={group.name}>{group.name}</span>
       </div>
       <div class="tools">
-        {#if !picker}<ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />{/if}
-        {#if canSync}
-          <Button variant="primary" icon="refresh" loading={anySyncing} onclick={syncScoped}>{anySyncing ? 'Syncing…' : 'Sync now'}</Button>
+        {#if picker}
+          <AppHeaderRow
+            scopeOptions={resolved.options}
+            scope={resolved.scope}
+            onscope={setPlatformScope}
+            showScope={scopeShown}
+            versions={versionOptions}
+            {version}
+            onversion={setVersion}
+            showVersion={picker.version}
+            locales={localeList}
+            locale={params.locale}
+            onlocale={setLocale}
+            showLocale={picker.locale}
+          />
+        {:else if scopeShown}
+          <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
+        {/if}
+        <StatusPopover {members} {chips} {now} {canSync} syncing={anySyncing} onsync={syncScoped} settingsHref={appAddress(id, 'settings', address.platform)} />
+        {#if section !== 'settings'}
+          <Button href={appAddress(id, 'settings', address.platform)} variant="ghost" icon="settings" iconOnly label="App settings" />
         {/if}
       </div>
     </header>
 
-    {#if picker}
-      <div class="picks">
-        <AppHeaderRow
-          scopeOptions={resolved.options}
-          scope={resolved.scope}
-          onscope={setPlatformScope}
-          versions={versionOptions}
-          {version}
-          onversion={setVersion}
-          showVersion={picker.version}
-          locales={localeList}
-          locale={params.locale}
-          onlocale={setLocale}
-          showLocale={picker.locale}
-        />
-      </div>
-    {/if}
+    <PendingBar {bar} href={appAddress(id, 'pending', address.platform)} />
+
     {#if lock.text !== ''}
       <LockedBanner text={lock.text} href={appAddress(id, 'releases', address.platform)} />
     {/if}
@@ -264,6 +271,8 @@
         {workspaceId}
         {role}
         {section}
+        {view}
+        {views}
         members={scoped}
         all={members}
         openId={id}
@@ -293,46 +302,30 @@
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-4);
     align-items: center;
+    justify-content: space-between;
     margin-bottom: var(--space-4);
   }
 
   .id {
     display: flex;
     flex: 1;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 240px;
-  }
-
-  .titleline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-4);
+    gap: var(--space-2) var(--space-3);
     align-items: center;
+    min-width: 12rem;
   }
 
   .page-title {
+    margin: 0;
     font-size: var(--text-xl);
     line-height: 1.2;
   }
 
-  .sub {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
-    margin: 0;
-    font-size: var(--text-xs);
+  .appname {
+    min-width: 0;
+    overflow: hidden;
     color: var(--muted);
-  }
-
-  .store {
-    display: inline-flex;
-    gap: var(--space-1);
-    align-items: center;
-  }
-
-  .picks {
-    margin-bottom: var(--space-4);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tools {

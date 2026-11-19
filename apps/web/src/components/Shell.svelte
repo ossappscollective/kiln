@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { tick, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { can } from '@mrm/core';
   import { address, appContext } from '../lib/address.svelte.ts';
   import { carryHeaderParams } from '../lib/app-header.ts';
   import { groupApps } from '../lib/app-groups.ts';
   import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
+  import { pageTitle } from '../lib/app-nav.ts';
   import { jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { breadcrumbItems } from '../lib/breadcrumb.ts';
+  import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';
   import { pendingStore } from '../lib/pending-store.svelte.ts';
@@ -34,6 +36,12 @@
     onsignout,
     canSignOut = true,
   }: { api: Api; me: Me; onsignout: () => void; canSignOut?: boolean } = $props();
+
+  // The demo workspace (`pnpm demo`) says so in a slim bar; any other server has no /demo/status and the bar never shows.
+  let demo = $state(false);
+  onMount(() => {
+    void api.demoStatus().then((yes) => (demo = yes));
+  });
 
   const KEY = 'mrm.workspace';
   const remembered = () => {
@@ -203,6 +211,8 @@
       section: current ? { label: current.label, href: `#/${current.id}` } : null,
       appName: appContext.name,
       appOpen: Boolean(appAddr && current),
+      page: appAddr ? pageTitle(appAddr.section) : null,
+      appHref: appAddr ? appAddress(appAddr.id, 'dashboard', appAddr.platform) : null,
     }),
   );
 
@@ -315,7 +325,7 @@
 
     <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} counts={appCounts} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} {unanswered} workspaceItems={visibleViews} counts={appCounts} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
         <nav aria-label="Sections">
           <ul>
@@ -346,6 +356,9 @@
   ></button>
 
   <div class="column" inert={drawerOpen}>
+    {#if demo}
+      <p class="demo-bar no-print" role="note" data-testid="demo-banner">{DEMO_BANNER_TEXT}</p>
+    {/if}
     <header class="topbar no-print">
       <button
         bind:this={menuButton}
@@ -501,6 +514,17 @@
 
   .close {
     display: none;
+  }
+
+  /* The demo bar: slim and permanent (it cannot be dismissed), above the top bar. */
+  .demo-bar {
+    padding: var(--space-1) var(--space-4);
+    margin: 0;
+    font-size: var(--text-xs);
+    text-align: center;
+    color: var(--ink);
+    background: var(--warn-bg);
+    border-bottom: 1px solid var(--line);
   }
 
   .ws {

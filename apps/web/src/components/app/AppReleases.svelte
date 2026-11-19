@@ -7,14 +7,14 @@
   rollout changes are switched off).
   The plans and the builds are extras: when they cannot be loaded the table still shows the store's
   releases, with the plan and CI cells reading "—".
-  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id), now, canSync,
-  syncing (by app id), onsync, syncRuns (changes when a sync finished, so plans and builds reload).
-  "Prepare release" opens the stepper (components/release/stepper) in place of the list; the step is kept in the address
-  (`&step=`), so the "Release left unfinished" item and a reload land on it. Under "Start release", a five-step strip
-  (PipelineStrip, one per release train) shows a release on its way.
-  The platform scope for links comes from the address. "Start release" (StartRelease) sits above the table: it opens the
-  dispatch dialog on the app's release workflow, follows the run it started and offers "Prepare release" when its build
-  appears.
+  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id), now,
+  syncRuns (changes when a sync finished, so plans and builds reload). Sync lives in the app header's Status button.
+  Above the table one "Next step" card (NextStep) with ONE primary button chosen by state: the release that waits for you, the one
+  in store review, or "Start release" (opens the dispatch dialog on the app's release workflow, follows the run it started) when nothing
+  is going on; the five steps of a release on its way are inside it. Preparing a release by hand ("Prepare without CI", or "Prepare
+  release" without a linked repository) opens the stepper (components/release/stepper) in place of the list; the step is kept in the
+  address (`&step=`), so the "Release left unfinished" item and a reload land on it.
+  The platform scope for links comes from the address.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -32,8 +32,7 @@
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseTable from '../release/ReleaseTable.svelte';
-  import StartRelease from './StartRelease.svelte';
-  import PipelineStrip from '../release/PipelineStrip.svelte';
+  import NextStep from './NextStep.svelte';
   import ReleaseStepper from '../release/stepper/ReleaseStepper.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import RolloutControls from '../release/RolloutControls.svelte';
@@ -50,9 +49,6 @@
     all,
     releases,
     now,
-    canSync,
-    syncing,
-    onsync,
     syncRuns,
   }: {
     api: Api;
@@ -62,9 +58,6 @@
     all?: AppSummary[];
     releases: Record<string, ReleaseSummary[]>;
     now: number;
-    canSync: boolean;
-    syncing: Record<string, boolean | undefined>;
-    onsync: (app: AppSummary) => void;
     syncRuns: number;
   } = $props();
 
@@ -161,10 +154,8 @@
 </script>
 
 <div class="stack loose">
-  <StartRelease {api} {workspaceId} {role} {members} {all} scopeIsBoth={members.length > 1} />
-
-  {#if can(role, 'apps.read')}
-    <PipelineStrip {api} {workspaceId} apps={members} {scope} refreshKey={syncRuns} />
+  {#if step === null}
+    <NextStep {api} {workspaceId} {role} {members} {all} {scope} refreshKey={syncRuns} onprepare={canPrepare ? openStepper : undefined} showRunning />
   {/if}
 
   {#if step !== null}
@@ -193,13 +184,6 @@
         </div>
       {/each}
     </div>
-  {:else}
-    {#if canPrepare && members.length > 0}
-      <div class="row prepare">
-        <Button variant="primary" icon="play" onclick={openStepper}>Prepare release</Button>
-        <span class="muted note">Choose the build, write the notes, check it and send it to the store, one step at a time.</span>
-      </div>
-    {/if}
   {/if}
 
   {#if step !== null}
@@ -212,16 +196,9 @@
             icon="box"
             title={app.lastSyncedAt === null ? `Not synced yet${members.length > 1 ? `: ${platformLabel(app.platform)}` : ''}` : `No releases reported${members.length > 1 ? `: ${platformLabel(app.platform)}` : ''}`}
             description={app.lastSyncedAt === null
-              ? 'Adding an app does not contact the store. A sync reads its versions and tracks.'
+              ? 'Adding an app does not contact the store. Open Status in the header and choose Sync now to read its versions and tracks.'
               : 'The last sync found no versions or tracks for this app.'}
           >
-            {#snippet actions()}
-              {#if canSync}
-                <Button variant="primary" icon="refresh" loading={syncing[app.id] === true} onclick={() => onsync(app)}>Sync now</Button>
-              {:else}
-                <span class="muted">A member or admin can run the first sync.</span>
-              {/if}
-            {/snippet}
           </EmptyState>
         </div>
       {/each}
@@ -322,13 +299,6 @@
 
   .filters {
     gap: var(--space-2);
-  }
-
-  .prepare {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-3);
-    align-items: center;
   }
 
   .older-tools {

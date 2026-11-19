@@ -10,7 +10,9 @@
   The button is hidden for a role that cannot dispatch; without a linked repository it is disabled and says why.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dialog),
   scopeIsBoth (the scope covers several platforms), showRunning = true (false where the screen already draws
-  RunningNow: then feed its answers to `observe`).
+  RunningNow: then feed its answers to `observe`), button = 'primary' | 'secondary' | 'none' (the Next step card draws the
+  button as its one primary action, as a quiet secondary one, or not at all: the dialog and the follow-up stay), showPrepare = true
+  (false where the Next step card already leads to the release steps).
   onstarted? (called with the started run, changed when GitHub names it, and with null when it is forgotten: a screen
   that draws its own RunningNow can then show that run too).
   Exports: observe(data) takes a RunningNow answer, so a screen with its own feed does not read twice.
@@ -46,6 +48,8 @@
     all,
     scopeIsBoth = false,
     showRunning = true,
+    button = 'primary',
+    showPrepare = true,
     onstarted,
   }: {
     api: Api;
@@ -55,6 +59,8 @@
     all?: AppSummary[];
     scopeIsBoth?: boolean;
     showRunning?: boolean;
+    button?: 'primary' | 'secondary' | 'none';
+    showPrepare?: boolean;
     onstarted?: (started: StartedRun | null) => void;
   } = $props();
 
@@ -212,15 +218,17 @@
 <div class="start">
   {#if canDispatch}
     <div class="row head">
-      <Button
-        variant={started ? 'secondary' : 'primary'}
-        icon="rocket"
-        loading={preparing}
-        disabled={linked.length === 0}
-        title={linked.length === 0 ? 'Link a repository to this app in its settings to start its release workflow.' : 'Open the release workflow with the values it needs. Nothing starts until you confirm.'}
-        onclick={begin}
-      >Start release</Button>
-      {#if build}
+      {#if button !== 'none'}
+        <Button
+          variant={started || button === 'secondary' ? 'secondary' : 'primary'}
+          icon="rocket"
+          loading={preparing}
+          disabled={linked.length === 0}
+          title={linked.length === 0 ? 'Link a repository to this app in its settings to start its release workflow.' : 'Open the release workflow with the values it needs. Nothing starts until you confirm.'}
+          onclick={begin}
+        >Start release</Button>
+      {/if}
+      {#if build && showPrepare}
         <Button variant="primary" icon="arrow-right" href={prepareReleaseHref(build.appId, build.build, scopeIsBoth)}>Prepare release</Button>
       {/if}
       {#if line}<p class="line" role="status">{line}</p>{/if}

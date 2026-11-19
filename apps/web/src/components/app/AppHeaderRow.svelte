@@ -3,7 +3,7 @@
   (Listing, Releases, Assets, ASO fit). The platform control keeps iOS | macOS | Android | Both; the
   version carries its state (dot and word); the locale is a plain select with "All locales". The choices
   live in the address (?platform=&version=&locale=), so every tab of the app reads the same ones.
-  Props: scopeOptions, scope, onscope (the platform control, see ScopeControl), versions, version, onversion,
+  Props: scopeOptions, scope, onscope (the platform control, see ScopeControl), showScope = true (false for an app on one platform), versions, version, onversion,
   showVersion, locales, locale, onlocale, showLocale. The locale list is what a page has read so far; with
   none it is one disabled "All locales" control.
 -->
@@ -17,6 +17,7 @@
     scopeOptions,
     scope,
     onscope,
+    showScope = true,
     versions,
     version,
     onversion,
@@ -29,6 +30,8 @@
     scopeOptions: ScopeOption[];
     scope: PlatformScope;
     onscope: (scope: PlatformScope) => void;
+    /** False for an app on one platform: there is nothing to choose. */
+    showScope?: boolean;
     versions: VersionOption[];
     version: string | null;
     onversion: (version: string) => void;
@@ -43,7 +46,7 @@
 </script>
 
 <div class="row picks" role="group" aria-label="What you are looking at">
-  <ScopeControl options={scopeOptions} {scope} onchange={onscope} />
+  {#if showScope}<ScopeControl options={scopeOptions} {scope} onchange={onscope} />{/if}
   {#if showVersion}<VersionPicker options={versions} value={version} onchange={onversion} />{/if}
   {#if showLocale}
     <label class="pick" for="{uid}-locale">

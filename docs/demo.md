@@ -19,7 +19,7 @@ The server, the API, the database schema (migrations), permissions, previews, co
 
 - `POST /demo/advance {"hours": 30, "outcome": "approve" | "reject" | "none"}`: time passes, reviews finish, phased releases start.
 - `POST /demo/fail {"connector": "appstoreconnect", "kind": "rate_limit", "count": 1}`: make the next calls fail. Connectors: appstoreconnect, googleplay, stores, github, translation, ai, analytics, aso. Kinds: rate_limit, auth, forbidden, server, unknown, unknown_applied. `DELETE /demo/fail` clears them.
-- `GET /demo/status`, `POST /demo/reset`.
+- `GET /demo/status`, `POST /demo/reset`. The web app reads `GET /demo/status` once at start: when it answers `demo: true` the shell shows a slim, permanent "Demo workspace" bar (any other server has no such route, so no bar).
 
 A walk through: fix the alpha screenshot on Demo Notes (iOS), push the draft, submit, advance 30 hours with approve, release, advance 2 hours, pause the rollout.
 

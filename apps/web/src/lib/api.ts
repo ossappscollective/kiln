@@ -1,4 +1,5 @@
 import type { BuildsList, DownloadLink } from './builds.ts';
+import { isDemoStatus } from './demo.ts';
 import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
 import type {
   AnalyticsOverview,
@@ -388,6 +389,9 @@ export function createApi(options: ApiOptions = {}) {
 
   return {
     health: () => request<Health>('GET', '/api/health'),
+    /** True on the demo server only (`GET /demo/status` answers `demo: true`); any failure or other answer is false. Reads nothing else. */
+    demoStatus: (): Promise<boolean> =>
+      request<unknown>('GET', '/demo/status').then(isDemoStatus, () => false),
     status: () => request<AuthStatus>('GET', '/api/auth/status'),
     register: (input: { email: string; displayName: string; password: string; workspaceName: string }) =>
       request<{ user: User; workspaceId: string }>('POST', '/api/auth/register', input),

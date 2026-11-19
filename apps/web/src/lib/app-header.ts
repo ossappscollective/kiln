@@ -235,14 +235,14 @@ export type PickerSet = { version: boolean; locale: boolean };
 
 /**
  * The pickers a page shows, or null for a page without them (the dashboard, reviews, workflows, builds,
- * settings, and one open release). Listing and assets: version and locale. Releases: version only (a
+ * settings, and one open release). Store listing and assets: version and locale. Releases: version only (a
  * release has no locale). ASO: only its fit view, which is read per locale of the live listing.
  */
 export function pickersFor(section: string, options: { asoView?: string; releaseOpen?: boolean } = {}): PickerSet | null {
   if (options.releaseOpen) return null;
   if (section === 'listing' || section === 'assets') return { version: true, locale: true };
   if (section === 'releases') return { version: true, locale: false };
-  if (section === 'aso' && options.asoView === 'fit') return { version: true, locale: true };
+  if ((section === 'aso' || section === 'insights') && options.asoView === 'fit') return { version: true, locale: true };
   return null;
 }
 

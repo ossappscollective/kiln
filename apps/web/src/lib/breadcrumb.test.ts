@@ -27,3 +27,17 @@ test('an app without a name yet shows App, and empty parts are dropped', () => {
   assert.equal(breadcrumbItems({ workspace: ' ', section, appName: '', appOpen: true })[1]?.label, 'App');
   assert.equal(breadcrumbItems({ workspace: '', section: null, appOpen: false }).length, 0);
 });
+
+test('an open app page follows the app, and the app links to its overview', () => {
+  const items = breadcrumbItems({ workspace: 'Akylas', section, appName: 'OSS Weather', appOpen: true, page: 'Insights', appHref: '#/portfolio/a1' });
+  assert.deepEqual(
+    items.map((i) => [i.label, i.href, i.current]),
+    [
+      ['Akylas', null, false],
+      ['All apps', '#/portfolio', false],
+      ['OSS Weather', '#/portfolio/a1', false],
+      ['Insights', null, true],
+    ],
+  );
+  assert.equal(items[3]?.kind, 'page');
+});

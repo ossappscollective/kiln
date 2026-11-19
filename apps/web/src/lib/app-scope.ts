@@ -37,21 +37,26 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'analytics' | 'builds' | 'test-builds' | 'settings';
+export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'insights' | 'aso' | 'analytics' | 'builds' | 'test-builds' | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'analytics', 'builds', 'test-builds', 'settings'];
+export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'insights', 'aso', 'analytics', 'builds', 'test-builds', 'settings'];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
-/** The left panel of an app, in order. Listing and assets have their own right; the rest need the app. */
+/**
+ * Every page an app address can name, in order: the six of the left panel (lib/app-nav.ts), the ones reached from elsewhere
+ * (pending changes, settings) and the old ones that now redirect (workflows, assets, aso, analytics, test-builds: `canonicalAppHash`).
+ * Listing and assets have their own right; the rest need the app.
+ */
 export const appSectionDefs: readonly SectionDef[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'grid', requires: 'apps.read' },
+  { id: 'dashboard', label: 'Overview', icon: 'grid', requires: 'apps.read' },
   { id: 'pending', label: 'Pending changes', icon: 'upload', requires: 'listing.read' },
-  { id: 'listing', label: 'Listing', icon: 'file-text', requires: 'listing.read' },
+  { id: 'listing', label: 'Store listing', icon: 'file-text', requires: 'listing.read' },
   { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
   { id: 'workflows', label: 'Workflows', icon: 'play', requires: 'apps.read' },
   { id: 'assets', label: 'Assets', icon: 'images', requires: 'listing.read' },
   { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
+  { id: 'insights', label: 'Insights', icon: 'trending-up', requires: 'analytics.read' },
   { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },
   { id: 'analytics', label: 'Analytics', icon: 'activity', requires: 'analytics.read' },
   { id: 'builds', label: 'Builds and CI', icon: 'pipeline', requires: 'apps.read' },
@@ -59,7 +64,7 @@ export const appSectionDefs: readonly SectionDef[] = [
   { id: 'settings', label: 'Settings', icon: 'settings', requires: 'apps.read' },
 ];
 
-/** The sections a person may open. */
+/** The pages a person may open (the left panel shows six of them: `visibleNav` in lib/app-nav.ts). */
 export const visibleSections = (allowed: (action: Action) => boolean): SectionDef[] =>
   appSectionDefs.filter((s) => allowed(s.requires));
 

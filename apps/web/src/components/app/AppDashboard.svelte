@@ -1,18 +1,15 @@
 <!--
-  AppDashboard: the first screen of an app, in two columns. On the left, one compact card per platform
-  in scope: the latest release, what is live and the state of the last sync. On the right, "Needs
-  attention": new reviews, a failed CI build, listing drift, staged changes not pushed, a pushed draft
-  that is ready to be submitted (admin and up; the button opens a preview first), an overdue or
-  blocked plan, a failed sync. It is built from reads of our own database that the other tabs make too
-  (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed
-  is left out, and a kind of item with nothing to show is not drawn. With nothing to flag, the cards use
-  the whole width. Nothing here reads a store or writes anything by itself: the submit button only opens a dialog,
-  whose preview reads the store and whose confirmation is the one write.
-  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id), now, canSync,
-  syncing (by app id), onsync, syncRuns (changes when a sync finished, so the reads run again).
-  Above the cards, "Running now" lists the GitHub Actions runs of the app's repository that are going
-  (it draws nothing when none is); see components/ci/RunningNow.svelte. Above it, "Start release"
-  (StartRelease): the run it starts shows in that same list, and "Prepare release" appears when its build does.
+  AppDashboard: the Overview of an app. At the top one "Next step" card (NextStep) with ONE primary button chosen by state: the
+  release that waits for you, the one in store review, or "Start release" when nothing is going on. "Needs attention" is part of that
+  card (new reviews, a failed CI build, listing drift, staged changes not pushed, a pushed draft ready to be submitted, an overdue
+  or blocked plan, a failed sync), so nothing is said twice. Under it, three compact platform tiles (what is live, what is in
+  flight) and a collapsed "Details" (bundle ids, last sync, analytics). The signals are reads of our own database that the other
+  pages make too (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed is left out.
+  Nothing here reads a store or writes anything by itself. Sync lives in the app header's Status button, not here.
+  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id),
+  now, syncRuns (changes when a sync finished, so the reads run again).
+  "Running now" lists the GitHub Actions runs of the app's repository that are going (it draws nothing when none is); see
+  components/ci/RunningNow.svelte. The run "Start release" starts shows in that same list.
 -->
 <script lang="ts">
   import { type Role, can, platformLabel } from '@mrm/core';
@@ -34,14 +31,12 @@
   import type { ActiveRuns, AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
-  import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
+  import Disclosure from '../ui/Disclosure.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
-  import PipelineStrip from '../release/PipelineStrip.svelte';
   import AnalyticsStrip from '../analytics/AnalyticsStrip.svelte';
-  import AttentionList from './AttentionList.svelte';
-  import StartRelease from './StartRelease.svelte';
+  import NextStep from './NextStep.svelte';
 
   let {
     api,
@@ -51,9 +46,6 @@
     all,
     releases,
     now,
-    canSync,
-    syncing,
-    onsync,
     syncRuns,
   }: {
     api: Api;
@@ -63,9 +55,6 @@
     all?: AppSummary[];
     releases: Record<string, ReleaseSummary[]>;
     now: number;
-    canSync: boolean;
-    syncing: Record<string, boolean | undefined>;
-    onsync: (app: AppSummary) => void;
     syncRuns: number;
   } = $props();
 
@@ -77,8 +66,8 @@
   let generation = 0;
 
   // The run started from "Start release": it is shown in "Running now" even when the app's tied runs hide it,
-  // and its answers go back to StartRelease so it can look for the build.
-  let startRelease = $state<{ observe: (data: ActiveRuns) => void }>();
+  // and its answers go back to the Next step card so it can look for the build.
+  let nextStep = $state<{ observe: (data: ActiveRuns) => void }>();
   let startedRun = $state<StartedRun | null>(null);
 
   // Running now: the runs of the repositories of this app. They are tied to the app when started for it
@@ -218,133 +207,143 @@
   );
 </script>
 
-<div class="start-row"><StartRelease bind:this={startRelease} {api} {workspaceId} {role} {members} {all} scopeIsBoth={members.length > 1} showRunning={false} onstarted={(s) => (startedRun = s)} /></div>
-
-{#if showRunning}
-  <RunningNow
+<div class="stack loose">
+  <NextStep
+    bind:this={nextStep}
     {api}
     {workspaceId}
-    {repositoryIds}
-    apps={members}
-    stateKey="ci.running.recent.app"
-    ondata={(d) => startRelease?.observe(d)}
-    scope={(runs) => {
-      const base = scopeRunsToApps(
-        runs,
-        members.map((m) => ({ id: m.id, repositoryId: m.repositoryId, workflow: releaseWorkflows[m.id] ?? null })),
-      );
-      const started = startedRun;
-      const extra = started ? runs.filter((r) => isStartedRun(r, started) && base.runs.indexOf(r) < 0) : [];
-      return extra.length > 0 ? { ...base, runs: [...base.runs, ...extra] } : base;
-    }}
+    {role}
+    {members}
+    {all}
+    scope={address.platform}
+    attention={items}
+    refreshKey={syncRuns}
+    onstarted={(s) => (startedRun = s)}
   />
-{/if}
 
-<AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
+  {#if showRunning}
+    <RunningNow
+      {api}
+      {workspaceId}
+      {repositoryIds}
+      apps={members}
+      stateKey="ci.running.recent.app"
+      ondata={(d) => nextStep?.observe(d)}
+      scope={(runs) => {
+        const base = scopeRunsToApps(
+          runs,
+          members.map((m) => ({ id: m.id, repositoryId: m.repositoryId, workflow: releaseWorkflows[m.id] ?? null })),
+        );
+        const started = startedRun;
+        const extra = started ? runs.filter((r) => isStartedRun(r, started) && base.runs.indexOf(r) < 0) : [];
+        return extra.length > 0 ? { ...base, runs: [...base.runs, ...extra] } : base;
+      }}
+    />
+  {/if}
 
-<div class="layout" class:split={items.length > 0}>
-  <div class="cards">
+  <div class="tiles">
     {#each members as app (app.id)}
       {@const list = releases[app.id] ?? []}
       {@const latest = latestRelease(list, app.platform)}
       {@const live = liveRelease(list, app.platform)}
-      <section class="card" aria-label="{platformLabel(app.platform)} summary">
-        <div class="row between">
-          <div class="row ident">
-            <PlatformBadge platform={app.platform} tinted />
-            <code>{app.identifier}</code>
-            <CopyButton value={app.identifier} iconOnly label="Copy the {app.platform === 'android' ? 'package name' : 'bundle ID'}" />
-          </div>
-          {#if canSync}
-            <Button size="sm" icon="refresh" loading={syncing[app.id] === true} onclick={() => onsync(app)}>Sync</Button>
-          {/if}
-        </div>
+      {@const inFlight = latest && (!live || latest.version !== live.version || latest.status !== 'live') ? latest : null}
+      <section class="card tile" aria-label="{platformLabel(app.platform)} summary">
+        <PlatformBadge platform={app.platform} tinted />
         <dl class="facts">
-          <div class="wide">
+          <div>
+            <dt>Live</dt>
+            <dd>{#if live}<strong>{live.version}</strong>{:else}<span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'None reported'}</span>{/if}</dd>
+          </div>
+          <div>
+            <dt>In flight</dt>
+            <dd>
+              {#if inFlight}
+                <span class="latest">
+                  <strong>{inFlight.version}</strong>
+                  <ReleaseStatus status={inFlight.status} rawState={inFlight.rawState} rolloutFraction={inFlight.rolloutFraction} />
+                  <a href={appAddress(app.id, 'releases', null, inFlight.version)}>Open<span class="visually-hidden"> version {inFlight.version}</span></a>
+                </span>
+              {:else}
+                <span class="muted">Nothing</span>
+              {/if}
+            </dd>
+          </div>
+        </dl>
+      </section>
+    {/each}
+  </div>
+
+  <Disclosure summary="Details" stateKey="app.overview.details">
+    <div class="stack">
+      {#each members as app (app.id)}
+        {@const latest = latestRelease(releases[app.id] ?? [], app.platform)}
+        <dl class="detail" aria-label="{platformLabel(app.platform)} details">
+          <div>
+            <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
+            <dd class="ident">
+              <PlatformBadge platform={app.platform} tinted />
+              <code>{app.identifier}</code>
+              <CopyButton value={app.identifier} iconOnly label="Copy the {app.platform === 'android' ? 'package name' : 'bundle ID'}" />
+            </dd>
+          </div>
+          <div>
             <dt>Latest release</dt>
             <dd>
               {#if latest}
-                <span class="latest">
-                  <strong>{latest.version}</strong>
-                  {#if latest.track && latest.track !== 'production'}<span class="muted">{trackLabel(latest.track)}</span>{/if}
-                  <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} />
-                  <a href={appAddress(app.id, 'releases', null, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a>
-                </span>
+                <strong>{latest.version}</strong>
+                {#if latest.track && latest.track !== 'production'}<span class="muted">{trackLabel(latest.track)}</span>{/if}
+                <ReleaseStatus status={latest.status} rawState={latest.rawState} rolloutFraction={latest.rolloutFraction} />
+                <a href={appAddress(app.id, 'releases', null, latest.version)}>Plan and details<span class="visually-hidden"> for version {latest.version}</span></a>
               {:else}
                 <span class="muted">{app.lastSyncedAt === null ? 'Not synced yet' : 'No releases reported'}</span>
               {/if}
             </dd>
           </div>
           <div>
-            <dt>Live now</dt>
-            <dd>{#if live}<strong>{live.version}</strong>{:else}<span class="muted">None reported</span>{/if}</dd>
-          </div>
-          <div>
             <dt>Last synced</dt>
             <dd><SyncStatus {app} {now} /></dd>
           </div>
         </dl>
-        {#if can(role, 'apps.read')}
-          <PipelineStrip {api} {workspaceId} apps={[app]} scope={address.platform} refreshKey={syncRuns} />
-        {/if}
-      </section>
-    {/each}
-  </div>
-
-  {#if items.length > 0}
-    <aside aria-label="Needs attention"><AttentionList {items} {api} {workspaceId} {role} {members} /></aside>
-  {/if}
+      {/each}
+      <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
+    </div>
+  </Disclosure>
 </div>
 
 <style>
-  .start-row:has(:global(.head)) {
-    margin-bottom: var(--space-4);
-  }
-
-  .layout {
+  .tiles {
     display: grid;
-    gap: var(--space-4);
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-3);
     align-items: start;
   }
 
-  .layout.split {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
-  }
-
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: var(--space-4);
-    align-items: start;
-  }
-
-  .card {
-    padding: var(--space-4);
-  }
-
-  .ident {
-    min-width: 0;
+  .tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+    padding: var(--space-3) var(--space-4);
   }
 
   .facts {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3) var(--space-4);
-    margin: var(--space-3) 0 0;
+    gap: var(--space-2) var(--space-4);
+    width: 100%;
+    margin: 0;
   }
 
-  .facts .wide {
-    grid-column: 1 / -1;
-  }
-
-  .facts dt {
+  .facts dt,
+  .detail dt {
     margin-bottom: 2px;
     font-size: var(--text-xs);
     font-weight: var(--weight-semibold);
     color: var(--muted);
   }
 
-  .facts dd {
+  .facts dd,
+  .detail dd {
     min-width: 0;
     margin: 0;
     overflow-wrap: anywhere;
@@ -353,13 +352,27 @@
   .latest {
     display: inline-flex;
     flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+  }
+
+  .detail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-3) var(--space-4);
+    margin: 0;
+  }
+
+  /* The bundle id wraps, so a narrow window never cuts it off. */
+  .ident {
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
   }
 
-  @media (max-width: 960px) {
-    .layout.split {
-      grid-template-columns: minmax(0, 1fr);
-    }
+  .ident code {
+    overflow-wrap: anywhere;
+    word-break: break-all;
   }
 </style>

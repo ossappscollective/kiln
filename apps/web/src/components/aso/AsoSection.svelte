@@ -1,5 +1,5 @@
 <!--
-  AsoSection: the ASO section of an open app (#/portfolio/<id>/aso?view=...). Nine views as segmented tabs,
+  AsoSection: the ASO view of Insights of an open app (#/portfolio/<id>/insights?view=aso, the old #/portfolio/<id>/aso redirects). Nine views as segmented tabs,
   kept in the address (`?view=keywords|listing|competitors|ideas|fit|gaps|markets|terms|rank`): Keywords, In your listing, Competitors, Ideas,
   Fit, Gaps, Markets, Search terms (Google Play apps only, from a Play Console file) and Rank and downloads (the rank history of tracked
   keywords laid on downloads; a correlation view). It reads the tracked keywords of every app record in scope once and hands them to
@@ -14,7 +14,8 @@
   import { untrack } from 'svelte';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViewHref, asoViewsFor, availableAsoView, localesOf, withAsoView } from '../../lib/aso.ts';
+  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViewHref, asoViewsFor, availableAsoView, localesOf } from '../../lib/aso.ts';
+  import { withInsightsAsoView } from '../../lib/app-nav.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
@@ -58,7 +59,8 @@
   const androidInScope = $derived(members.some((m) => m.platform === 'android'));
   const view = $derived(availableAsoView(asoViewFromHash(address.hash), androidInScope));
   const views = $derived(asoViewsFor(androidInScope));
-  const setView = (next: string) => replaceHash(withAsoView(location.hash, next as AsoView));
+  // Inside Insights: the address stays on ASO for every tab, Keywords included (`?view=aso`), so it never falls back to Analytics.
+  const setView = (next: string) => replaceHash(withInsightsAsoView(location.hash, next));
 
   let config = $state<AsoConfig | null>(null);
   let keywords = $state<AsoKeyword[]>([]);
@@ -178,7 +180,7 @@
               {now}
               {version}
               heading={members.length > 1}
-              analyticsHref={appAddress(m.id, 'analytics', address.platform)}
+              analyticsHref={appAddress(m.id, 'insights', address.platform)}
               keywordsHref={asoViewHref(m.id, 'keywords', address.platform)}
             />
           {/each}

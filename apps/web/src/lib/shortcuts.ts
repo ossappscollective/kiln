@@ -23,18 +23,20 @@ export type SectionChord = { key: string; target: string; label: string };
 
 /** Inside an app: the target is an app section id (lib/app-scope.ts). */
 export const appChords: readonly SectionChord[] = [
-  { key: 'd', target: 'dashboard', label: 'Dashboard' },
-  { key: 'p', target: 'pending', label: 'Pending changes' },
-  { key: 'l', target: 'listing', label: 'Listing' },
+  { key: 'd', target: 'dashboard', label: 'Overview' },
   { key: 'r', target: 'releases', label: 'Releases' },
-  { key: 'w', target: 'workflows', label: 'Workflows' },
-  { key: 'a', target: 'assets', label: 'Assets' },
+  { key: 'l', target: 'listing', label: 'Store listing' },
   { key: 'v', target: 'reviews', label: 'Reviews' },
-  { key: 'o', target: 'aso', label: 'ASO' },
-  { key: 'n', target: 'analytics', label: 'Analytics' },
-  { key: 'b', target: 'builds', label: 'Builds and CI' },
-  { key: 't', target: 'test-builds', label: 'Test builds' },
-  { key: 's', target: 'settings', label: 'Settings' },
+  { key: 'i', target: 'insights', label: 'Insights' },
+  { key: 'b', target: 'builds', label: 'Builds' },
+  // The pages that now sit inside another page keep their keys: the address redirects (lib/app-nav.ts).
+  { key: 'p', target: 'pending', label: 'Pending changes' },
+  { key: 'a', target: 'assets', label: 'Graphics (in Store listing)' },
+  { key: 'o', target: 'aso', label: 'ASO (in Insights)' },
+  { key: 'n', target: 'analytics', label: 'Analytics (in Insights)' },
+  { key: 'w', target: 'workflows', label: 'Workflows (in Builds)' },
+  { key: 't', target: 'test-builds', label: 'Test builds (in Builds)' },
+  { key: 's', target: 'settings', label: 'App settings' },
 ];
 
 /** In the workspace: the target is a view id (lib/views.ts). */

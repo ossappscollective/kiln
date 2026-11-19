@@ -187,6 +187,9 @@ test('the header shows on the versioned pages only', () => {
   assert.deepEqual(pickersFor('aso', { asoView: 'fit' }), { version: true, locale: true });
   assert.equal(pickersFor('aso', { asoView: 'keywords' }), null);
   assert.equal(pickersFor('aso'), null);
+  assert.deepEqual(pickersFor('insights', { asoView: 'fit' }), { version: true, locale: true });
+  assert.equal(pickersFor('insights', { asoView: 'keywords' }), null);
+  assert.equal(pickersFor('insights'), null);
   for (const s of ['dashboard', 'settings', 'reviews', 'workflows', 'builds']) assert.equal(pickersFor(s), null);
   assert.deepEqual([...lockableSections], ['listing', 'assets']);
 });

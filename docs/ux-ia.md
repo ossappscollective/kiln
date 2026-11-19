@@ -3,6 +3,39 @@
 Status: proposal from the revised mockups on the design canvas (R1 to R8). Nothing here is built.
 It replaces "portfolio, then one app with tabs". Visual language stays as in design-system.md.
 
+## 0. Shell and navigation, phase 1 (built)
+
+An audit of the running app found a header that took a third of every app page, the same control in two places (Sync, Start
+release, Prepare release) and the same state said four times. Phase 1 changes the shell only; the page internals are unchanged
+(phase 2: Store listing, Reviews and Insights). Pure logic: `apps/web/src/lib/app-nav.ts`, `next-step.ts`, `app-page.ts`, `demo.ts`.
+
+- **Left panel of an app** (`AppNav`): the app switcher on top (search as you type, Cmd or Ctrl + K), then exactly six entries:
+  Overview, Releases, Store listing, Reviews, Insights, Builds. At the bottom: All apps, Inbox, Settings, and a collapsed "More"
+  with Repositories, Credentials, Members, API tokens, Webhooks, Audit log and the other workspace pages the role may open.
+  App settings (stores, credentials) is the gear in the page header and the link in the Status popover.
+- **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
+  Insights = Analytics, ASO and keywords (the ASO tabs keep their own `?view=fit|rank|...`, Keywords is `?view=aso`); Builds = Builds,
+  Workflows, Test builds.
+- **Old addresses redirect** (`canonicalAppHash`, replaces the history entry): `/workflows` to `/builds?view=workflows`,
+  `/test-builds` to `/builds?view=tests`, `/assets` to `/listing?view=graphics`, `/analytics` to `/insights`, `/aso[?view=x]` to
+  `/insights?view=aso|x`. `/pending`, `/settings` and `/release/<version>` stay. The `g` chords keep their letters
+  (`g i` is Insights; `g a`, `g o`, `g n`, `g w`, `g t` still work through the redirects).
+- **One slim header per page** (`AppShell`): page name and app name, the platform control (only for an app on several platforms, not
+  on app settings), the version and locale pickers only on Releases and Store listing, and a **Status** button (`StatusPopover`) that
+  holds the Repository and Store live chips, each store record with its full bundle id (wraps, never truncated), the last sync and the
+  one **Sync now** action.
+- **Pending bar** (`PendingBar`): while an app has changes waiting, one quiet strip under the header on every app page, "N changes
+  waiting. Nothing is published until you review them." and one "Review and publish" button to `/pending`. Hidden with nothing pending
+  and on the pending page. Pending changes is not a navigation entry any more.
+- **Next step card** (`NextStep`, Overview and Releases): one primary button chosen by state, in this order: a release whose step
+  failed (rejected), a release that waits for you (finish, attach a build, release it), a release in store review (quiet "Start release"
+  beside it), then with nothing on its way "Start release" (or "Prepare release" without a linked repository). The five release steps,
+  the other releases on their way and "Also needs attention" are inside the card, so the old "waiting for you" strip, the separate
+  "Needs attention" card and the Prepare release / Open the release steps buttons are gone. Overview then shows three compact platform
+  tiles (live, in flight) and a collapsed Details (bundle ids, last sync, analytics).
+- **Demo bar**: when `GET /demo/status` answers `demo: true` (only the `pnpm demo` server has that route), a slim, permanent bar says
+  "Demo workspace — simulated stores, nothing leaves your machine" above the top bar.
+
 ## 1. IA tree
 
 ```

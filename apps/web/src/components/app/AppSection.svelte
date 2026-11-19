@@ -1,26 +1,29 @@
 <!--
-  AppSection: the screen of the open section, for the platforms in scope. The existing screens
-  (listing, assets, reviews, builds, release) are mounted as they are, once per platform record;
-  with several platforms in scope they sit under an iOS | macOS | Android tab list, one visible at a time.
-  Props: api, workspaceId, role, section, members (records in scope), all? (every record of the app, to
-  tell that a macOS record's reviews are the iOS record's; the members when not given), openId (the id in the
-  address), version (an open release or null), releases (by app id), now, syncRuns, syncing (by app
-  id), onsync, lockedPlatforms? (platforms whose selected version is locked: listing and assets are read-only for
-  them), locale? (the locale of the page header).
+  AppSection: the screen of the open page, for the platforms in scope. The existing screens (listing, assets, reviews, builds, workflows,
+  test builds, ASO, analytics, release) are mounted as they are, once per platform record where they are per platform; with several
+  platforms in scope they sit under an iOS | macOS | Android tab list, one visible at a time.
+  Three pages hold several old pages as views, chosen with a small segmented control (ViewSwitch) and kept in the address as `?view=`:
+  Store listing (text, graphics), Insights (analytics, ASO and keywords) and Builds (builds, workflows, test builds). The old addresses
+  redirect to them (lib/app-nav.ts).
+  Props: api, workspaceId, role, section (a page of the left panel, or pending or settings), view (the open view of a page with views,
+  '' otherwise), members (records in scope), all? (every record of the app, to tell that a macOS record's reviews are the iOS record's;
+  the members when not given), openId (the id in the address), version (an open release or null), releases (by app id), now, syncRuns,
+  syncing (by app id), onsync (the listing's own sync prompts), lockedPlatforms? (platforms whose selected version is locked: listing
+  and assets are read-only for them), locale? (the locale of the page header).
 -->
 <script lang="ts">
-  import { type Platform, type Role, can } from '@mrm/core';
+  import type { Platform, Role } from '@mrm/core';
   import type { Snippet } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import { withHeaderParams } from '../../lib/app-header.ts';
+  import { type SectionView, withView } from '../../lib/app-nav.ts';
   import type { AppSection } from '../../lib/app-scope.ts';
-  import { appAddress, appWorkflowsHref } from '../../lib/app-scope.ts';
+  import { appAddress } from '../../lib/app-scope.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { reviewsOwner } from '../../lib/reviews.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
-  import Button from '../ui/Button.svelte';
   import AssetsTab from '../assets/AssetsTab.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
@@ -36,12 +39,15 @@
   import AppReleases from './AppReleases.svelte';
   import AppWorkflows from './AppWorkflows.svelte';
   import AppSettings from './AppSettings.svelte';
+  import ViewSwitch from './ViewSwitch.svelte';
 
   let {
     api,
     workspaceId,
     role,
     section,
+    view = '',
+    views = [],
     members,
     all,
     openId,
@@ -58,6 +64,10 @@
     workspaceId: string;
     role: Role;
     section: AppSection;
+    /** The open view of a page with views ('' for a page without). */
+    view?: string;
+    /** The views the person may open on this page (empty: nothing to switch). */
+    views?: readonly SectionView[];
     members: AppSummary[];
     all?: AppSummary[];
     openId: string;
@@ -71,7 +81,6 @@
     locale?: string | null;
   } = $props();
 
-  const canSync = $derived(can(role, 'apps.sync'));
   const uid = $props.id();
 
   // The platform shown when both are in scope. Kept while the person moves between tabs of the app.
@@ -109,11 +118,11 @@
           tabs={members.map((m) => ({ id: m.platform, label: platformLabel(m.platform) }))}
           bind:value={platformTab}
           label="Platform"
-          idPrefix="{uid}-{section}"
+          idPrefix="{uid}-{section}-{view}"
         />
       </div>
       {#each members as app (app.id)}
-        {@const ids = segmentIds(`${uid}-${section}`, app.platform)}
+        {@const ids = segmentIds(`${uid}-${section}-${view}`, app.platform)}
         <div role="tabpanel" id={ids.panel} aria-labelledby={ids.tab} hidden={activeTab !== app.platform}>
           {@render render(app)}
         </div>
@@ -128,10 +137,14 @@
   {/if}
 {/snippet}
 
+{#snippet switcher(current: AppSection)}
+  <div class="switch"><ViewSwitch {views} value={view} hrefFor={(id) => withView(address.hash, current, id)} label="Views of this page" /></div>
+{/snippet}
+
 {#if section === 'releases' && version !== null}
   <ReleaseDetail {api} {workspaceId} {role} appId={openId} {version} />
 {:else if section === 'releases'}
-  <AppReleases {api} {workspaceId} {role} {members} {all} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
+  <AppReleases {api} {workspaceId} {role} {members} {all} {releases} {now} {syncRuns} />
 {:else if section === 'pending'}
   <div class="stack loose">
     <PendingChanges {api} {workspaceId} {role} {members} />
@@ -141,41 +154,46 @@
     {/each}
   </div>
 {:else if section === 'listing'}
-  <ListingMatrix
-    {api}
-    {workspaceId}
-    {role}
-    {members}
-    {now}
-    {syncing}
-    {onsync}
-    refreshKey={syncRuns}
-    {lockedPlatforms}
-    {locale}
-    onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
-  />
-{:else if section === 'assets'}
-  {@render perPlatform(assets)}
+  {@render switcher('listing')}
+  {#if view === 'graphics'}
+    {@render perPlatform(assets)}
+  {:else}
+    <ListingMatrix
+      {api}
+      {workspaceId}
+      {role}
+      {members}
+      {now}
+      {syncing}
+      {onsync}
+      refreshKey={syncRuns}
+      {lockedPlatforms}
+      {locale}
+      onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
+    />
+  {/if}
 {:else if section === 'reviews'}
   {@render perPlatform(reviews)}
-{:else if section === 'workflows'}
-  <AppWorkflows {api} {workspaceId} {role} {members} {all} />
 {:else if section === 'builds'}
-  <div class="row workflows-link">
-    <Button href={appWorkflowsHref(openId, address.platform)} icon="play" size="sm">Workflows</Button>
-    <span class="muted text-sm">Run the GitHub workflows that make these builds, and follow them.</span>
-  </div>
-  {@render perPlatform(builds)}
-{:else if section === 'test-builds'}
-  {@render perPlatform(testBuilds)}
-{:else if section === 'aso'}
-  <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
-{:else if section === 'analytics'}
-  <AnalyticsSection {api} {workspaceId} {role} {members} {now} />
+  {@render switcher('builds')}
+  {#if view === 'workflows'}
+    <AppWorkflows {api} {workspaceId} {role} {members} {all} />
+  {:else if view === 'tests'}
+    {@render perPlatform(testBuilds)}
+  {:else}
+    {@render perPlatform(builds)}
+  {/if}
+{:else if section === 'insights'}
+  {@render switcher('insights')}
+  {#if view === 'aso'}
+    <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
+  {:else}
+    <AnalyticsSection {api} {workspaceId} {role} {members} {now} />
+  {/if}
 {:else if section === 'settings'}
   <AppSettings {api} {workspaceId} {role} {members} {all} {now} />
 {:else}
-  <AppDashboard {api} {workspaceId} {role} {members} {all} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
+  <AppDashboard {api} {workspaceId} {role} {members} {all} {releases} {now} {syncRuns} />
 {/if}
 
 <style>
@@ -183,7 +201,7 @@
     justify-content: flex-start;
   }
 
-  .workflows-link {
-    margin: 0 0 var(--space-3);
+  .switch {
+    margin: 0 0 var(--space-4);
   }
 </style>

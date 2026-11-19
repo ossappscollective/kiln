@@ -14,12 +14,12 @@
   import type { PlatformScope } from '../../lib/app-scope.ts';
   import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
-  import { STEP_HELP, releaseTrains, trainInputOf } from '../../lib/release-trains.ts';
+  import { releaseTrains, trainInputOf } from '../../lib/release-trains.ts';
   import { releaseStepHref } from '../../lib/release-stepper.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
-  import InfoTip from '../ui/InfoTip.svelte';
+  import TrainSteps from './TrainSteps.svelte';
 
   let {
     api,
@@ -66,20 +66,7 @@
       <strong class="title">{t.title}</strong>
       {#if t.platforms.length > 1}<span class="muted">{t.platforms.map((p) => platformLabel(p)).join(' and ')}</span>{/if}
       {#if t.waiting}<Badge tone={t.waiting.who === 'you' ? 'warn' : 'neutral'}>{t.waiting.text}</Badge>{/if}
-      <ol class="steps">
-        {#each t.steps as s (s.id)}
-          <li class="s {s.status}" class:current={s.current} aria-current={s.current ? 'step' : undefined} title={s.detail ? `${STEP_HELP[s.id]} ${s.detail}` : STEP_HELP[s.id]}>
-            <span class="dot" aria-hidden="true"></span>
-            <span class="name">{s.label}</span>
-            <span class="visually-hidden">: {s.word}</span>
-          </li>
-        {/each}
-      </ol>
-      <InfoTip label="About these steps" width="24rem">
-        <ul class="help">
-          {#each t.steps as s (s.id)}<li>{STEP_HELP[s.id]}</li>{/each}
-        </ul>
-      </InfoTip>
+      <TrainSteps steps={t.steps} />
     </div>
     <div class="bottom">
       <div class="lines">
@@ -100,61 +87,6 @@
     background: var(--surface-sunken);
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
-  }
-
-  .steps {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
-    padding: 0;
-    margin: 0;
-    list-style: none;
-  }
-
-  .s {
-    display: inline-flex;
-    gap: var(--space-1);
-    align-items: center;
-    color: var(--muted);
-  }
-
-  .s.current {
-    font-weight: var(--weight-semibold);
-    color: var(--text);
-  }
-
-  .dot {
-    display: inline-block;
-    width: 0.55rem;
-    height: 0.55rem;
-    background: transparent;
-    border: 2px solid var(--line-strong, var(--muted));
-    border-radius: 50%;
-  }
-
-  .s.done .dot {
-    background: var(--ok);
-    border-color: var(--ok);
-  }
-
-  .s.current .dot,
-  .s.waiting .dot {
-    border-color: var(--accent);
-  }
-
-  .s.current .dot {
-    background: var(--accent);
-  }
-
-  .s.failed .dot,
-  .s.stalled .dot {
-    background: var(--bad);
-    border-color: var(--bad);
-  }
-
-  .s.stalled .dot {
-    background: var(--warn);
-    border-color: var(--warn);
   }
 
   .top,
@@ -181,10 +113,5 @@
 
   .title {
     font-weight: var(--weight-semibold);
-  }
-
-  .help {
-    padding-left: var(--space-4);
-    margin: 0;
   }
 </style>

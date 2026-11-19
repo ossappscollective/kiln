@@ -4,7 +4,8 @@
   An item with `submitAppId` ("Draft pushed — ready to submit?") shows the submit control of that app
   (SubmitReady, bare) instead of a link; it is only built for admin and up.
   Props: items (from attentionItems in lib/app-attention.ts), api, workspaceId, role, members (the app records
-  in scope, for the submit control).
+  in scope, for the submit control), bare = false (drawn inside the Next step card: no card of its own and a quieter
+  "Also needs attention" heading).
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
@@ -21,12 +22,13 @@
     workspaceId,
     role,
     members,
-  }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[] } = $props();
+    bare = false,
+  }: { items: AttentionItem[]; api: Api; workspaceId: string; role: Role; members: AppSummary[]; bare?: boolean } = $props();
 </script>
 
-<section class="card attention" aria-labelledby="attention-title">
+<section class="attention" class:card={!bare} class:bare aria-labelledby="attention-title">
   <div class="head">
-    <h2 id="attention-title">Needs attention</h2>
+    <h2 id="attention-title">{bare ? 'Also needs attention' : 'Needs attention'}</h2>
     <Badge tone={items.some((i) => i.tone === 'bad') ? 'bad' : 'warn'}>{items.length}</Badge>
   </div>
   <ul>
@@ -48,8 +50,16 @@
 </section>
 
 <style>
-  .attention {
+  .attention:not(.bare) {
     padding: var(--space-4);
+  }
+
+  .bare {
+    padding-top: var(--space-3);
+  }
+
+  .bare h2 {
+    font-size: var(--text-base);
   }
 
   .head {
