@@ -37,9 +37,9 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'analytics' | 'builds' | 'settings';
+export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'analytics' | 'builds' | 'test-builds' | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'analytics', 'builds', 'settings'];
+export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'analytics', 'builds', 'test-builds', 'settings'];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
@@ -55,6 +55,7 @@ export const appSectionDefs: readonly SectionDef[] = [
   { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },
   { id: 'analytics', label: 'Analytics', icon: 'activity', requires: 'analytics.read' },
   { id: 'builds', label: 'Builds and CI', icon: 'pipeline', requires: 'apps.read' },
+  { id: 'test-builds', label: 'Test builds', icon: 'smartphone', requires: 'builds.read' },
   { id: 'settings', label: 'Settings', icon: 'settings', requires: 'apps.read' },
 ];
 

@@ -22,6 +22,8 @@ export const actions = [
   'apps.sync',
   'listing.read',
   'ci.dispatch',
+  'builds.read',
+  'builds.download',
   'plans.read',
   'plans.write',
   'releases.rollout',
@@ -66,6 +68,8 @@ const allowed: Record<Role, readonly Action[]> = {
     'apps.sync',
     'listing.read',
     'ci.dispatch',
+    'builds.read',
+    'builds.download',
     'plans.read',
     'plans.write',
     'reviews.read',
@@ -137,7 +141,7 @@ export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbi
  * ("everything the ceiling allows") never does, so widening an old token's role cannot start
  * answering customers or moving a rollout.
  */
-export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage'];
+export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage', 'builds.download'];
 
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);

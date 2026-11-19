@@ -76,7 +76,7 @@ test('resolveScope disables the missing store and Both for a one-store app', () 
 });
 
 test('visibleSections follows the actions a role has', () => {
-  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'analytics', 'builds', 'settings']);
+  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'analytics', 'builds', 'test-builds', 'settings']);
   assert.deepEqual(visibleSections((a) => a === 'apps.read').map((s) => s.id), ['dashboard', 'releases', 'workflows', 'builds', 'settings']);
   assert.ok(appSectionDefs.every((s) => isIconName(s.icon)));
 });

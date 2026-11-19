@@ -24,6 +24,7 @@
   import AssetsTab from '../assets/AssetsTab.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
+  import TestBuilds from '../builds/TestBuilds.svelte';
   import PendingChanges from '../publish/PendingChanges.svelte';
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
@@ -95,6 +96,9 @@
 {#snippet builds(app: AppSummary)}
   <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
 {/snippet}
+{#snippet testBuilds(app: AppSummary)}
+  <TestBuilds {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+{/snippet}
 
 {#snippet perPlatform(render: Snippet<[AppSummary]>)}
   {#if members.length > 1}
@@ -162,6 +166,8 @@
     <span class="muted text-sm">Run the GitHub workflows that make these builds, and follow them.</span>
   </div>
   {@render perPlatform(builds)}
+{:else if section === 'test-builds'}
+  {@render perPlatform(testBuilds)}
 {:else if section === 'aso'}
   <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
 {:else if section === 'analytics'}

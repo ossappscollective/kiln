@@ -236,6 +236,13 @@ const schema = z.object({
   // be recalled from here, so it is off by default and separate from the draft and submit switches: the release routes
   // answer 409 store_release_disabled until this is 'true'. Reading builds and version codes does not depend on it.
   MRM_STORE_RELEASE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Kill switch for DOWNLOADING build binaries (docs/api/builds.md): the zips CI uploaded as workflow artifacts, streamed through this
+  // server, and the short-lived links that hand one to a phone. An unreleased build is the product itself, so it is off by default:
+  // the lists work, the download routes answer 409 builds_download_disabled until this is 'true'. Needs the GitHub credential to read
+  // Actions (fine-grained 'Actions: read').
+  MRM_BUILDS_DOWNLOAD_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Largest artifact a download may carry, in megabytes (1 to 4096, default 500). Bigger ones are refused before any byte is sent.
+  MRM_BUILDS_DOWNLOAD_MAX_MB: blankIsUnset(z.coerce.number().int().min(1).max(4096).default(500)),
   // Master switch for the BATCH PUBLISH of an app (docs/adr/0015-pending-and-batch-publish.md): one preview and one typed confirmation for
   // several gated steps (push the draft, submit, release, rollout). It adds no power of its own: every step in the batch still needs its
   // own switch above, its own role right and its own hash, so turning this on does not turn any step on. Off by default: the batch routes
@@ -556,6 +563,10 @@ export type Config = {
   storeSubmitEnabled: boolean;
   /** Releasing an approved version or starting a Google Play draft release is allowed (MRM_STORE_RELEASE_ENABLED). Default false. */
   storeReleaseEnabled: boolean;
+  /** Downloading build binaries and handing them to a phone is allowed (MRM_BUILDS_DOWNLOAD_ENABLED). Default false. */
+  buildsDownloadEnabled: boolean;
+  /** Largest artifact a download may carry, in bytes (MRM_BUILDS_DOWNLOAD_MAX_MB, default 500 MB). */
+  buildsDownloadMaxBytes: number;
   /** The batch publish (one confirmation for several gated steps) is allowed (MRM_STORE_PUBLISH_BATCH_ENABLED). Default false. Turns no step on. */
   storePublishBatchEnabled: boolean;
   /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
@@ -638,6 +649,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     storeDraftWriteEnabled: data.MRM_STORE_DRAFT_WRITE_ENABLED === 'true',
     storeSubmitEnabled: data.MRM_STORE_SUBMIT_ENABLED === 'true',
     storeReleaseEnabled: data.MRM_STORE_RELEASE_ENABLED === 'true',
+    buildsDownloadEnabled: data.MRM_BUILDS_DOWNLOAD_ENABLED === 'true',
+    buildsDownloadMaxBytes: data.MRM_BUILDS_DOWNLOAD_MAX_MB * 1024 * 1024,
     storePublishBatchEnabled: data.MRM_STORE_PUBLISH_BATCH_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,

@@ -296,6 +296,8 @@ export class GithubRepoConnector implements RepoConnector {
       signal?: AbortSignal;
       /** A conditional read: GitHub answers 304 (not counted against the rate limit) when nothing changed. */
       ifNoneMatch?: string;
+      /** Do not follow redirects: the caller reads `Location` itself (artifact downloads). */
+      manual?: boolean;
     },
   ): Promise<Reply> {
     const url = new URL(`${this.#base}${path}`);
@@ -305,6 +307,7 @@ export class GithubRepoConnector implements RepoConnector {
     try {
       response = await this.#fetch(url.toString(), {
         method,
+        ...(options.manual ? { redirect: 'manual' as const } : {}),
         headers: {
           accept: 'application/vnd.github+json',
           authorization: `Bearer ${options.bearer}`,
@@ -1223,6 +1226,115 @@ export class GithubRepoConnector implements RepoConnector {
     return { jobs, notModified: false, truncated: total > jobs.length, ...(etag ? { etag } : {}) };
   }
 
+  /**
+   * The artifacts of the repository, newest first (`GET /actions/artifacts`, 100 a page, at most `maxPages`),
+   * or of one run. Names, sizes, times and the run they belong to; never a download address.
+   */
+  async listArtifacts(
+    options: { runId?: string; maxPages?: number; signal?: AbortSignal; etag?: string | undefined } = {},
+  ): Promise<CiArtifactList> {
+    if (options.runId !== undefined && !/^[0-9]{1,20}$/.test(options.runId)) {
+      throw new GithubError('invalid_input', `Not a workflow run id: ${JSON.stringify(options.runId)}.`);
+    }
+    const path = this.#repoPath(options.runId ? `/actions/runs/${options.runId}/artifacts` : '/actions/artifacts');
+    const maxPages = Math.min(Math.max(Math.trunc(options.maxPages ?? 1), 1), 5);
+    const artifacts: CiArtifact[] = [];
+    let etag: string | undefined;
+    let truncated = false;
+    for (let page = 1; page <= maxPages; page++) {
+      const first = page === 1;
+      const reply = await this.#api('GET', path, {
+        query: { per_page: '100', page: String(page) },
+        signal: options.signal,
+        allow: first && options.etag ? [304] : [],
+        ...(first && options.etag ? { ifNoneMatch: options.etag } : {}),
+      });
+      if (first) etag = reply.headers.get('etag') ?? undefined;
+      if (reply.status === 304) return { artifacts: [], truncated: false, notModified: true, ...(options.etag ? { etag: options.etag } : {}) };
+      const body = isRecord(reply.json) ? reply.json : {};
+      const got = records(body.artifacts).flatMap(mapCiArtifact);
+      artifacts.push(...got);
+      const total = num(body.total_count) ?? artifacts.length;
+      if (got.length < 100 || artifacts.length >= total) break;
+      if (page === maxPages) truncated = true;
+    }
+    return { artifacts, truncated, notModified: false, ...(etag ? { etag } : {}) };
+  }
+
+  /**
+   * Opens the zip of an artifact. GitHub answers `302` with a short-lived address; it is followed here (at most
+   * three hops, https to a public host only) WITHOUT the credential, and the body is returned unread, so the caller
+   * decides how much of it to take. `410` is an expired artifact, `404` an unknown one.
+   */
+  async openArtifactDownload(
+    artifactId: string,
+    options: { signal?: AbortSignal; allowHttp?: boolean } = {},
+  ): Promise<CiArtifactDownload> {
+    if (!/^[0-9]{1,20}$/.test(artifactId)) {
+      throw new GithubError('invalid_input', `Not an artifact id: ${JSON.stringify(artifactId)}.`);
+    }
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(this.#timeoutMs)])
+      : AbortSignal.timeout(this.#timeoutMs);
+    const first = await this.#send('GET', this.#repoPath(`/actions/artifacts/${artifactId}/zip`), {
+      bearer: await this.#installationToken(),
+      signal,
+      manual: true,
+    });
+    if (first.status === 410) return { status: 'gone' };
+    if (first.status === 404) return { status: 'missing' };
+    if (first.status < 300 || first.status >= 400) {
+      throw this.#errorFrom('GET', `/actions/artifacts/${artifactId}/zip`, first);
+    }
+    let location = first.headers.get('location');
+    for (let hop = 0; hop < 3; hop++) {
+      let target: URL;
+      try {
+        target = new URL(location ?? '', this.#base);
+      } catch {
+        throw new GithubError('unexpected', 'GitHub sent a download address that could not be read.');
+      }
+      if (!isSafeRedirectTarget(target, options.allowHttp)) {
+        throw new GithubError('unexpected', 'GitHub sent a download address that is not a public https address.');
+      }
+      let response: Response;
+      try {
+        // The time limit covers the headers only; the body is the caller's to bound (size and time).
+        const headers = new AbortController();
+        const timer = setTimeout(() => headers.abort(), this.#timeoutMs);
+        try {
+          response = await this.#fetch(target.toString(), {
+            method: 'GET',
+            headers: { 'user-agent': this.#userAgent },
+            redirect: 'manual',
+            signal: options.signal ? AbortSignal.any([options.signal, headers.signal]) : headers.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch (error) {
+        const name = error instanceof Error ? error.name : 'Error';
+        throw new GithubError('network', `Could not reach the artifact storage: ${name}.`);
+      }
+      if (response.status >= 300 && response.status < 400) {
+        await response.body?.cancel().catch(() => undefined);
+        location = response.headers.get('location');
+        continue;
+      }
+      if (response.status === 404 || response.status === 410) {
+        await response.body?.cancel().catch(() => undefined);
+        return { status: 'gone' };
+      }
+      if (!response.ok || !response.body) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new GithubError('server', `The artifact storage answered ${response.status}.`, response.status);
+      }
+      const length = Number(response.headers.get('content-length'));
+      return { status: 'ok', body: response.body, contentLength: Number.isFinite(length) && length >= 0 && response.headers.has('content-length') ? length : null };
+    }
+    throw new GithubError('unexpected', 'GitHub redirected the artifact download too many times.');
+  }
+
   /** One workflow run, or undefined when GitHub has no such run (any more). */
   async getCiRun(runId: string, signal?: AbortSignal): Promise<CiRun | undefined> {
     if (!/^[0-9]{1,20}$/.test(runId)) {
@@ -1504,6 +1616,37 @@ export type CiJobList = {
   etag?: string;
 };
 
+/** A workflow artifact (a zip a run uploaded). `archive_download_url` is never kept: it needs the token, and the download goes through `openArtifactDownload`. */
+export type CiArtifact = {
+  id: string;
+  name: string;
+  sizeInBytes: number;
+  expired: boolean;
+  createdAt: number | null;
+  expiresAt: number | null;
+  runId: string | null;
+  headBranch: string | null;
+  headSha: string | null;
+  digest: string | null;
+};
+
+export type CiArtifactList = { artifacts: CiArtifact[]; truncated: boolean; notModified: boolean; etag?: string };
+
+/** The answer of an artifact download: the zip as a stream, or why there is none. The stream is not read yet. */
+export type CiArtifactDownload =
+  | { status: 'ok'; body: ReadableStream<Uint8Array>; contentLength: number | null }
+  | { status: 'gone' }
+  | { status: 'missing' };
+
+/** The host of a redirect target must be a public name over https: never an address, `localhost` or a name without a dot. */
+export function isSafeRedirectTarget(url: URL, allowHttp = false): boolean {
+  if (url.protocol !== 'https:' && !(allowHttp && url.protocol === 'http:')) return false;
+  const host = url.hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false;
+  if (host.startsWith('[') || /^[0-9.]+$/.test(host)) return false;
+  return host.includes('.');
+}
+
 export type CommitInfo = {
   sha: string;
   /** The whole commit message. */
@@ -1588,6 +1731,27 @@ function mapCommit(entry: Json): CommitInfo[] {
 }
 
 const MAX_STEPS_PER_JOB = 100;
+
+function mapCiArtifact(a: Json): CiArtifact[] {
+  const id = a.id;
+  if (typeof id !== 'number' && typeof id !== 'string') return [];
+  const run = isRecord(a.workflow_run) ? a.workflow_run : {};
+  const runId = run.id;
+  return [
+    {
+      id: String(id),
+      name: text(a.name) ?? '',
+      sizeInBytes: num(a.size_in_bytes) ?? 0,
+      expired: a.expired === true,
+      createdAt: isoTime(a.created_at) ?? null,
+      expiresAt: isoTime(a.expires_at) ?? null,
+      runId: typeof runId === 'number' || typeof runId === 'string' ? String(runId) : null,
+      headBranch: text(run.head_branch) ?? null,
+      headSha: text(run.head_sha) ?? null,
+      digest: text(a.digest) ?? null,
+    },
+  ];
+}
 
 function mapCiJob(job: Json): CiJob[] {
   const id = job.id;

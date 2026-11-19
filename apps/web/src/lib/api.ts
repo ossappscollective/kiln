@@ -1,3 +1,4 @@
+import type { BuildsList, DownloadLink } from './builds.ts';
 import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
 import type {
   AnalyticsOverview,
@@ -739,6 +740,12 @@ export function createApi(options: ApiOptions = {}) {
       ),
     appBuilds: (workspaceId: string, appId: string) =>
       request<AppBuilds>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds`),
+    /** Builds to test: the CI artifacts of the runs of an app and its store builds (docs/api/builds.md). Needs the member role. */
+    buildArtifacts: (workspaceId: string, appId: string) =>
+      request<BuildsList>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts`),
+    /** A link a phone can open without signing in: ten minutes, once. Needs `builds.download` and the server switch. */
+    createBuildLink: (workspaceId: string, appId: string, artifactId: string) =>
+      request<DownloadLink>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/link`),
     /** The commits between a build and the one before it (or `base`). Reads GitHub. */
     buildChanges: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string; base?: string }) => {
       const query = new URLSearchParams({ platform: build.platform, build: build.buildNumber });

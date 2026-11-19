@@ -1,6 +1,8 @@
 import { type ActorType, DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS, type Platform } from '@mrm/core';
 import type {
   CiJob,
+  CiArtifactDownload,
+  CiArtifactList,
   CiJobList,
   CiRun,
   CiRunPage,
@@ -138,6 +140,10 @@ export type CiClient = RepoClient &
     ): Promise<CiRunPage>;
     /** The jobs and steps of a run (no logs). A client without it cannot show job progress. */
     listRunJobs?(runId: string, options?: { signal?: AbortSignal; etag?: string | undefined }): Promise<CiJobList>;
+    /** The workflow artifacts of the repository (names, sizes, times; no address). A client without it cannot list builds. */
+    listArtifacts?(options?: { runId?: string; maxPages?: number; signal?: AbortSignal; etag?: string | undefined }): Promise<CiArtifactList>;
+    /** Opens the zip of an artifact (the redirect is followed inside, without the credential). */
+    openArtifactDownload?(artifactId: string, options?: { signal?: AbortSignal; allowHttp?: boolean }): Promise<CiArtifactDownload>;
     compareCommits(
       base: string,
       head: string,

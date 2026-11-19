@@ -1,0 +1,645 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { CiArtifact } from '@mrm/connectors';
+import { type Platform, can } from '@mrm/core';
+import { type CiContext, guarded, openCi } from './ci.ts';
+import { getApp, type ManagedApp } from './apps.ts';
+import { recordAudit } from './audit.ts';
+import { memberRole } from './accounts.ts';
+import { listRuns, runCountsForApp, type WorkflowRunView } from './ci-runs.ts';
+import { type Failure, getRepository } from './repositories.ts';
+import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
+import { timedCache } from './timed-cache.ts';
+
+/**
+ * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs
+ * uploaded as workflow artifacts, and the builds the last store sync saw. Listing asks GitHub for artifact names and
+ * sizes; downloading streams the zip THROUGH this server, so the GitHub credential and the short-lived storage address
+ * never reach the browser. Both are read-only towards GitHub and the stores.
+ */
+
+type Actor = { type: 'user' | 'token' | 'assistant' | 'system'; id: string };
+
+export const DEFAULT_MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024;
+export const DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
+export const LINK_TTL_MS = 10 * 60_000;
+export const LIST_CACHE_TTL_MS = 30_000;
+export const PROBLEM_CACHE_TTL_MS = 60_000;
+export const DOWNLOADS_PER_MINUTE = 20;
+export const LISTS_PER_MINUTE = 60;
+export const MAX_PARALLEL_DOWNLOADS = 3;
+/** TestFlight builds stop being installable 90 days after upload (Apple's TestFlight help); the build's `expired` flag is the truth. */
+export const TESTFLIGHT_LIFETIME_MS = 90 * 24 * 60 * 60_000;
+const ARTIFACT_PAGES = 2;
+
+export type BuildsSettings = {
+  /** MRM_BUILDS_DOWNLOAD_ENABLED. Off: the lists work, downloads and links answer `409 builds_download_disabled`. */
+  downloadEnabled: boolean;
+  maxDownloadBytes: number;
+  downloadTimeoutMs: number;
+  linkTtlMs: number;
+  /** Tests only: let the fake storage be an http address. */
+  allowHttpRedirects: boolean;
+};
+
+export type BuildsContext = CiContext & {
+  builds: BuildsSettings;
+  listLimiter: TestLimiter;
+  downloadLimiter: TestLimiter;
+  /** The links handed out and not yet expired, by their id. Per process: a restart forgets them. */
+  links: Map<string, { w: string; a: string; i: string; u: string; e: number; used: boolean }>;
+  downloading: Map<string, number>;
+};
+
+export function createBuildsContext(
+  ci: CiContext,
+  options: Partial<BuildsSettings> & { listLimiter?: TestLimiter; downloadLimiter?: TestLimiter } = {},
+): BuildsContext {
+  return {
+    ...ci,
+    builds: {
+      downloadEnabled: options.downloadEnabled ?? false,
+      maxDownloadBytes: options.maxDownloadBytes ?? DEFAULT_MAX_DOWNLOAD_BYTES,
+      downloadTimeoutMs: options.downloadTimeoutMs ?? DOWNLOAD_TIMEOUT_MS,
+      linkTtlMs: options.linkTtlMs ?? LINK_TTL_MS,
+      allowHttpRedirects: options.allowHttpRedirects ?? false,
+    },
+    listLimiter: options.listLimiter ?? createTestLimiter({ limit: LISTS_PER_MINUTE, now: ci.now }),
+    downloadLimiter: options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
+    links: new Map(),
+    downloading: new Map(),
+  };
+}
+
+type BuildsFailure = { ok: false; status: number; body: Record<string, unknown> & { error: string }; headers?: Record<string, string> };
+const fail = (status: number, error: string, message?: string, extra: Record<string, unknown> = {}): BuildsFailure => ({
+  ok: false,
+  status,
+  body: { error, ...(message ? { message } : {}), ...extra },
+});
+export type { BuildsFailure };
+
+// ---------------------------------------------------------------------------------------------
+// What an artifact is, from its name
+
+export type ArtifactKind = 'ipa' | 'apk' | 'aab' | 'app' | 'dmg' | 'pkg' | 'zip' | 'other';
+
+const NOT_A_BUILD = /(^|[^a-z])(tests?|reports?|coverage|logs?|junit|results?|screenshots?|symbols?|dsyms?|mapping|lint|sbom|docs?|cache)([^a-z]|$)/;
+const BUILDISH = /(^|[^a-z])(ipa|apk|aab|app|build|builds|release|bundle|binary|archive|artifact|dmg|pkg|ios|android|macos|debug|adhoc|ad-hoc|testflight|nightly)([^a-z]|$)/;
+
+/**
+ * A guess from the artifact's name (an artifact is always a zip; the name is the team's own, so this can be wrong).
+ * `platform` falls back to the platform of the app for something that looks like a build, and is null for `other`.
+ */
+export function guessArtifact(name: string, appPlatform: Platform): { kind: ArtifactKind; platform: Platform | null } {
+  const n = name.toLowerCase();
+  const ext = /\.(ipa|apk|aab|dmg|pkg)(\.zip)?$/.exec(n)?.[1] as 'ipa' | 'apk' | 'aab' | 'dmg' | 'pkg' | undefined;
+  let kind: ArtifactKind;
+  if (ext) kind = ext;
+  else if (/\.app(\.zip)?$/.test(n)) kind = 'app';
+  else if (NOT_A_BUILD.test(n)) kind = 'other';
+  else {
+    const word = /(^|[^a-z])(ipa|apk|aab|dmg|pkg)([^a-z]|$)/.exec(n)?.[2] as ArtifactKind | undefined;
+    kind = word ?? (BUILDISH.test(n) ? 'zip' : 'other');
+  }
+  const byKind: Partial<Record<ArtifactKind, Platform>> = { ipa: 'ios', apk: 'android', aab: 'android', app: 'macos', dmg: 'macos', pkg: 'macos' };
+  const byWord = /(^|[^a-z])(ios|iphone|ipad)([^a-z]|$)/.test(n)
+    ? 'ios'
+    : /(^|[^a-z])(android)([^a-z]|$)/.test(n)
+      ? 'android'
+      : /(^|[^a-z])(macos|osx|mac)([^a-z]|$)/.test(n)
+        ? 'macos'
+        : undefined;
+  const platform = byKind[kind] ?? byWord ?? (kind === 'zip' ? appPlatform : null);
+  return { kind, platform };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The list
+
+export type ArtifactItem = {
+  id: string;
+  name: string;
+  kind: ArtifactKind;
+  /** True: `kind` and `platform` come from the name only. */
+  guessed: boolean;
+  platform: Platform | null;
+  sizeBytes: number;
+  expired: boolean;
+  createdAt: number | null;
+  expiresAt: number | null;
+  /** Not expired and within the size limit. Whether downloads are on at all is `downloadEnabled`. */
+  downloadable: boolean;
+  tooLarge: boolean;
+  run: {
+    id: string;
+    number: number | null;
+    workflow: string;
+    title: string | null;
+    branch: string | null;
+    shortSha: string | null;
+    status: string;
+    conclusion: string | null;
+    url: string | null;
+  };
+};
+
+export type StoreBuildItem = {
+  platform: Platform;
+  buildNumber: string;
+  version: string | null;
+  state: 'processing' | 'processed' | 'invalid' | 'unknown';
+  rawState: string | null;
+  expired: boolean | null;
+  uploadedAt: number | null;
+  /** TestFlight: upload plus 90 days, an estimate (`expiresAtEstimated`) unless the store says expired. */
+  expiresAt: number | null;
+  expiresAtEstimated: boolean;
+  /** `testflight` (App Store Connect builds) or `play` (version codes on tracks). */
+  channel: 'testflight' | 'play';
+  tracks: string[];
+  releaseStatus: string | null;
+  /** Play: where a tester who was invited opts in (not for the internal track: the API does not give that link). */
+  optInUrl: string | null;
+  runId: string | null;
+};
+
+export type ArtifactProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'unsupported' | 'no_repository';
+
+export type BuildsList = {
+  app: { id: string; name: string; platform: Platform; identifier: string };
+  repository: { id: string; owner: string; repo: string } | null;
+  artifacts: ArtifactItem[];
+  /** Artifacts of runs this app does not own or that are not stored here (not shown). */
+  hiddenArtifacts: number;
+  /** More artifacts exist than were read. */
+  truncated: boolean;
+  store: StoreBuildItem[];
+  /** Why CI artifacts could not be listed, in a fixed vocabulary (never GitHub's text). */
+  problem: { reason: ArtifactProblemReason; needs: string | null } | null;
+  downloadEnabled: boolean;
+  maxDownloadBytes: number;
+  readAt: number | null;
+  cached: boolean;
+};
+
+type RepoArtifacts = { at: number; artifacts: CiArtifact[]; truncated: boolean; etag?: string };
+const repoCache = timedCache<RepoArtifacts>(LIST_CACHE_TTL_MS, 100);
+const stale = new Map<string, RepoArtifacts>();
+const troubleCache = timedCache<ArtifactProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
+const inFlight = new Map<string, Promise<{ ok: true; value: RepoArtifacts; cached: boolean } | Failure>>();
+
+/** For tests. */
+export function clearBuildCaches(): void {
+  repoCache.clear();
+  stale.clear();
+  troubleCache.clear();
+  inFlight.clear();
+}
+
+const reasonOf = (f: Failure): ArtifactProblemReason => {
+  const code = String(f.body.error);
+  if (f.status === 429) return 'rate_limited';
+  if (code === 'ci_unsupported') return 'unsupported';
+  if (['github_auth', 'github_forbidden', 'github_not_found', 'credential_not_found', 'credential_kind', 'credential_unreadable'].includes(code)) return 'no_access';
+  return 'unavailable';
+};
+
+/** One read of a repository's artifacts, kept 30 seconds, conditional (ETag) after that, shared by callers that arrive together. */
+async function readRepoArtifacts(
+  ctx: BuildsContext,
+  workspaceId: string,
+  repository: NonNullable<Awaited<ReturnType<typeof getRepository>>>,
+  actor: Actor,
+): Promise<{ ok: true; value: RepoArtifacts; cached: boolean } | Failure> {
+  const key = `${workspaceId}|${repository.id}`;
+  const hit = repoCache.get(key, ctx.now());
+  if (hit) return { ok: true, value: hit, cached: true };
+  const running = inFlight.get(key);
+  if (running) return running;
+  const work = (async () => {
+    const opened = await openCi(ctx, workspaceId, repository, actor, 'builds.list');
+    if (!opened.ok) return opened;
+    const { client } = opened;
+    if (!client.listArtifacts) return { ok: false, status: 422, body: { error: 'ci_unsupported', message: 'This repository connection cannot list artifacts.' } } as Failure;
+    const before = stale.get(key);
+    const read = await guarded(ctx, opened.secret, (signal) =>
+      (client.listArtifacts as NonNullable<typeof client.listArtifacts>)({ maxPages: ARTIFACT_PAGES, signal, etag: before?.etag }),
+    );
+    if (!read.ok) return read;
+    const list = read.value;
+    const value: RepoArtifacts =
+      list.notModified && before
+        ? { ...before, at: ctx.now() }
+        : { at: ctx.now(), artifacts: list.artifacts, truncated: list.truncated, ...(list.etag ? { etag: list.etag } : {}) };
+    stale.set(key, value);
+    repoCache.set(key, value, ctx.now());
+    return { ok: true as const, value, cached: false };
+  })().finally(() => inFlight.delete(key));
+  inFlight.set(key, work);
+  return work;
+}
+
+const shortSha = (sha: string | null) => (sha ? sha.slice(0, 7) : null);
+
+function artifactItem(a: CiArtifact, run: WorkflowRunView, app: ManagedApp, maxBytes: number): ArtifactItem {
+  const guess = guessArtifact(a.name, app.platform);
+  const tooLarge = a.sizeInBytes > maxBytes;
+  return {
+    id: a.id,
+    name: a.name,
+    kind: guess.kind,
+    guessed: true,
+    platform: guess.platform,
+    sizeBytes: a.sizeInBytes,
+    expired: a.expired,
+    createdAt: a.createdAt,
+    expiresAt: a.expiresAt,
+    downloadable: !a.expired && !tooLarge,
+    tooLarge,
+    run: {
+      id: run.id,
+      number: run.runNumber,
+      workflow: run.workflow,
+      title: run.title,
+      branch: run.branch ?? a.headBranch,
+      shortSha: shortSha(run.headSha ?? a.headSha),
+      status: run.status,
+      conclusion: run.conclusion,
+      url: run.url,
+    },
+  };
+}
+
+async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: ManagedApp): Promise<StoreBuildItem[]> {
+  const rows = await ctx.db.query(
+    `SELECT build_number, version, processing_state, raw_state, expired, uploaded_at FROM app_builds
+      WHERE workspace_id = ? AND app_id = ? AND platform = ?`,
+    [workspaceId, app.id, app.platform],
+  );
+  const releases = await ctx.db.query(
+    'SELECT version, track, build, status, details_json FROM app_releases WHERE workspace_id = ? AND app_id = ?',
+    [workspaceId, app.id],
+  );
+  const tracksOf = new Map<string, { tracks: Set<string>; status: string | null }>();
+  for (const r of releases) {
+    let codes: string[] = [];
+    try {
+      const d = JSON.parse(String(r.details_json ?? '{}')) as { versionCodes?: unknown };
+      if (Array.isArray(d.versionCodes)) codes = d.versionCodes.map((c) => String(c));
+    } catch {
+      // not JSON: only the build column counts
+    }
+    for (const code of app.platform === 'android' ? (codes.length ? codes : String(r.build ?? '').split(',')) : [String(r.build ?? '')]) {
+      const k = code.trim();
+      if (!k) continue;
+      const e = tracksOf.get(k) ?? { tracks: new Set<string>(), status: null };
+      if (r.track) e.tracks.add(String(r.track));
+      e.status ??= r.status ? String(r.status) : null;
+      tracksOf.set(k, e);
+    }
+  }
+  const play = app.platform === 'android';
+  const items = rows.map((r): StoreBuildItem => {
+    const number = String(r.build_number);
+    const uploadedAt = r.uploaded_at === null || r.uploaded_at === undefined ? null : Number(r.uploaded_at);
+    const expired = r.expired === null || r.expired === undefined ? null : Number(r.expired) === 1;
+    const state = String(r.processing_state);
+    const extra = tracksOf.get(number);
+    const tracks = [...(extra?.tracks ?? [])].sort();
+    const estimated = !play && uploadedAt !== null && expired !== true;
+    return {
+      platform: app.platform,
+      buildNumber: number,
+      version: r.version ? String(r.version) : null,
+      state: state === 'processing' || state === 'processed' || state === 'invalid' ? state : 'unknown',
+      rawState: r.raw_state ? String(r.raw_state) : null,
+      expired,
+      uploadedAt,
+      expiresAt: estimated ? (uploadedAt as number) + TESTFLIGHT_LIFETIME_MS : null,
+      expiresAtEstimated: estimated,
+      channel: play ? 'play' : 'testflight',
+      tracks,
+      releaseStatus: extra?.status ?? null,
+      optInUrl: play && tracks.some((t) => t !== 'internal' && t !== 'production') ? `https://play.google.com/apps/testing/${encodeURIComponent(app.identifier)}` : null,
+      runId: null,
+    };
+  });
+  return items.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber));
+}
+
+export async function listBuildArtifacts(
+  ctx: BuildsContext,
+  input: { workspaceId: string; appId: string },
+  actor: Actor,
+): Promise<{ ok: true; list: BuildsList } | BuildsFailure | Failure> {
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app) return fail(404, 'not_found');
+  const repository = app.repositoryId ? await getRepository(ctx.db, input.workspaceId, app.repositoryId) : undefined;
+  const store = await storeBuilds(ctx, input.workspaceId, app);
+  const base = {
+    app: { id: app.id, name: app.name, platform: app.platform, identifier: app.identifier },
+    repository: repository && !repository.localOnly ? { id: repository.id, owner: repository.owner, repo: repository.repo } : null,
+    store,
+    downloadEnabled: ctx.builds.downloadEnabled,
+    maxDownloadBytes: ctx.builds.maxDownloadBytes,
+  };
+  if (!repository || repository.localOnly) {
+    return { ok: true, list: { ...base, artifacts: [], hiddenArtifacts: 0, truncated: false, problem: { reason: 'no_repository', needs: null }, readAt: null, cached: false } };
+  }
+  const key = `${input.workspaceId}|${repository.id}`;
+  const trouble = troubleCache.get(key, ctx.now());
+  if (trouble) {
+    return { ok: true, list: { ...base, artifacts: [], hiddenArtifacts: 0, truncated: false, problem: { reason: trouble, needs: trouble === 'no_access' ? 'actions: read' : null }, readAt: null, cached: true } };
+  }
+  const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
+  if (!read.ok) {
+    const reason = reasonOf(read);
+    troubleCache.set(key, reason, ctx.now());
+    return { ok: true, list: { ...base, artifacts: [], hiddenArtifacts: 0, truncated: false, problem: { reason, needs: reason === 'no_access' ? 'actions: read' : null }, readAt: null, cached: false } };
+  }
+  const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
+  const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
+  const artifacts: ArtifactItem[] = [];
+  let hidden = 0;
+  for (const a of read.value.artifacts) {
+    const run = a.runId ? byRun.get(a.runId) : undefined;
+    if (!run) {
+      hidden++;
+      continue;
+    }
+    const item = artifactItem(a, run, app, ctx.builds.maxDownloadBytes);
+    // A run can build several platforms: an APK is not a build of the iOS app of the same repository.
+    if (item.platform !== null && item.platform !== app.platform) hidden++;
+    else artifacts.push(item);
+  }
+  artifacts.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || b.id.localeCompare(a.id));
+  return {
+    ok: true,
+    list: { ...base, artifacts, hiddenArtifacts: hidden, truncated: read.value.truncated, problem: null, readAt: read.value.at, cached: read.cached },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Download
+
+export type OpenedDownload = {
+  ok: true;
+  body: ReadableStream<Uint8Array>;
+  /** Only when GitHub said so and it is within the limit. */
+  contentLength: number | null;
+  filename: string;
+  artifact: CiArtifact;
+};
+
+/** `ios build #12 (main).zip` becomes `ios_build_12_main.zip`: letters, digits, dot, dash, underscore; never a path. */
+export function safeFilename(name: string, fallback = 'build'): string {
+  const cleaned = name
+    .replace(/\.zip$/i, '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^[._-]+|[._-]+$/g, '')
+    .replace(/_{2,}/g, '_')
+    .slice(0, 100);
+  return `${cleaned || fallback}.zip`;
+}
+
+/** The zip as a stream that stops at the limit, at the time limit, and when the reader goes away. */
+function guardStream(
+  body: ReadableStream<Uint8Array>,
+  limits: { maxBytes: number; timeoutMs: number; onDone: () => void },
+  abort: AbortController,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  let sent = 0;
+  let done = false;
+  const timer = setTimeout(() => abort.abort(), limits.timeoutMs);
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    limits.onDone();
+  };
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await reader.read();
+        if (next.done) {
+          finish();
+          controller.close();
+          return;
+        }
+        sent += next.value.byteLength;
+        if (sent > limits.maxBytes) {
+          finish();
+          abort.abort();
+          await reader.cancel().catch(() => undefined);
+          controller.error(new Error('The artifact is larger than the download limit.'));
+          return;
+        }
+        controller.enqueue(next.value);
+      } catch (error) {
+        finish();
+        controller.error(error instanceof Error ? error : new Error('The download failed.'));
+      }
+    },
+    async cancel(reason) {
+      finish();
+      abort.abort();
+      await reader.cancel(reason).catch(() => undefined);
+    },
+  });
+}
+
+export type FoundArtifact = {
+  ok: true;
+  app: ManagedApp;
+  repository: NonNullable<Awaited<ReturnType<typeof getRepository>>>;
+  artifact: CiArtifact;
+  run: WorkflowRunView;
+};
+
+/** The artifact of a run of this app, that can still be downloaded: the listing decides, never the id alone. */
+export async function findArtifact(
+  ctx: BuildsContext,
+  input: { workspaceId: string; appId: string; artifactId: string },
+  actor: Actor,
+): Promise<FoundArtifact | BuildsFailure | Failure> {
+  if (!/^[0-9]{1,20}$/.test(input.artifactId)) return fail(400, 'invalid_request', 'An artifact id is a number.');
+  const app = await getApp(ctx.db, input.workspaceId, input.appId);
+  if (!app || !app.repositoryId) return fail(404, 'not_found');
+  const repository = await getRepository(ctx.db, input.workspaceId, app.repositoryId);
+  if (!repository || repository.localOnly) return fail(404, 'not_found');
+  const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
+  if (!read.ok) return read;
+  const artifact = read.value.artifacts.find((a) => a.id === input.artifactId);
+  const runs = artifact?.runId ? await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 }) : [];
+  const run = runs.find((r) => r.id === artifact?.runId && runCountsForApp(r, app.id));
+  if (!artifact || !run) return fail(404, 'not_found');
+  if (artifact.expired || (artifact.expiresAt !== null && artifact.expiresAt <= ctx.now())) {
+    return fail(410, 'artifact_expired', 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.');
+  }
+  if (artifact.sizeInBytes > ctx.builds.maxDownloadBytes) {
+    return fail(413, 'artifact_too_large', `This artifact is larger than the download limit (${Math.floor(ctx.builds.maxDownloadBytes / 1024 / 1024)} MB).`, { sizeBytes: artifact.sizeInBytes, maxBytes: ctx.builds.maxDownloadBytes });
+  }
+  return { ok: true, app, repository, artifact, run };
+}
+
+export async function openArtifactDownload(
+  ctx: BuildsContext,
+  input: { workspaceId: string; appId: string; artifactId: string; via: 'session' | 'link' },
+  actor: Actor,
+): Promise<OpenedDownload | BuildsFailure | Failure> {
+  if (!ctx.builds.downloadEnabled) {
+    return fail(409, 'builds_download_disabled', 'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).');
+  }
+  if (!/^[0-9]{1,20}$/.test(input.artifactId)) return fail(400, 'invalid_request', 'An artifact id is a number.');
+  const wait = ctx.downloadLimiter.take(input.workspaceId);
+  if (wait > 0) {
+    return { ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, { retryAfterSeconds: wait }), headers: { 'Retry-After': String(wait) } };
+  }
+  const found = await findArtifact(ctx, input, actor);
+  if (!found.ok) return found;
+  const { app, repository, artifact, run } = found;
+  const busy = ctx.downloading.get(input.workspaceId) ?? 0;
+  if (busy >= MAX_PARALLEL_DOWNLOADS) {
+    return { ...fail(429, 'rate_limited', 'Other downloads are still running. Try again in a moment.', { retryAfterSeconds: 10 }), headers: { 'Retry-After': '10' } };
+  }
+
+  const opened = await openCi(ctx, input.workspaceId, repository, actor, 'builds.download');
+  if (!opened.ok) return opened;
+  const { client } = opened;
+  if (!client.openArtifactDownload) return fail(422, 'ci_unsupported', 'This repository connection cannot download artifacts.');
+  const abort = new AbortController();
+  ctx.downloading.set(input.workspaceId, busy + 1);
+  const release = () => {
+    const n = (ctx.downloading.get(input.workspaceId) ?? 1) - 1;
+    if (n <= 0) ctx.downloading.delete(input.workspaceId);
+    else ctx.downloading.set(input.workspaceId, n);
+  };
+  let started = false;
+  try {
+    const got = await guarded(ctx, opened.secret, (signal) =>
+      (client.openArtifactDownload as NonNullable<typeof client.openArtifactDownload>)(artifact.id, {
+        signal: AbortSignal.any([signal, abort.signal]),
+        allowHttp: ctx.builds.allowHttpRedirects,
+      }),
+    );
+    if (!got.ok) return got;
+    if (got.value.status === 'gone') return fail(410, 'artifact_expired', 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.');
+    if (got.value.status === 'missing') return fail(404, 'not_found');
+    const { body, contentLength } = got.value;
+    if (contentLength !== null && contentLength > ctx.builds.maxDownloadBytes) {
+      await body.cancel().catch(() => undefined);
+      return fail(413, 'artifact_too_large', 'This artifact is larger than the download limit.', { sizeBytes: contentLength, maxBytes: ctx.builds.maxDownloadBytes });
+    }
+    // Ids and a size only: no name, no address.
+    await recordAudit(ctx.db, {
+      workspaceId: input.workspaceId,
+      actor,
+      action: 'build.download',
+      target: { type: 'app', id: app.id },
+      detail: { artifactId: artifact.id, runId: run.id, repositoryId: repository.id, sizeBytes: artifact.sizeInBytes, via: input.via },
+      at: ctx.now(),
+    });
+    started = true;
+    return {
+      ok: true,
+      body: guardStream(body, { maxBytes: ctx.builds.maxDownloadBytes, timeoutMs: ctx.builds.downloadTimeoutMs, onDone: release }, abort),
+      contentLength,
+      filename: safeFilename(artifact.name, `build-${artifact.id}`),
+      artifact,
+    };
+  } finally {
+    if (!started) release();
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// A link for a phone: signed, ten minutes, once. The token is short enough for a small QR code: a random id and the expiry,
+// signed. What it opens (workspace, app, artifact, the person) is kept here in memory under that id, never in the token and
+// never a GitHub address. A restart forgets the links, which is fine for something that lives ten minutes.
+
+type LinkClaim = { w: string; a: string; i: string; u: string; e: number; used: boolean };
+export type LinkPayload = { w: string; a: string; i: string; u: string; e: number; n: string };
+const MAX_LINKS = 1_000;
+
+const b64 = (b: Buffer) => b.toString('base64url');
+const signingKey = (ctx: Pick<BuildsContext, 'masterKey'>) => createHmac('sha256', ctx.masterKey).update('mrm-builds-link-v1').digest();
+const macOf = (ctx: BuildsContext, body: string) => createHmac('sha256', signingKey(ctx)).update(body).digest().subarray(0, 16);
+
+export function signDownloadLink(ctx: BuildsContext, input: { workspaceId: string; appId: string; artifactId: string; userId: string }): { token: string; expiresAt: number } {
+  const now = ctx.now();
+  const expiresAt = now + ctx.builds.linkTtlMs;
+  for (const [n, c] of ctx.links) if (c.e <= now) ctx.links.delete(n);
+  while (ctx.links.size >= MAX_LINKS) {
+    const oldest = ctx.links.keys().next().value;
+    if (oldest === undefined) break;
+    ctx.links.delete(oldest);
+  }
+  const nonce = randomBytes(12);
+  const expiry = Buffer.alloc(6);
+  expiry.writeUIntBE(expiresAt, 0, 6);
+  const body = b64(Buffer.concat([nonce, expiry]));
+  ctx.links.set(body, { w: input.workspaceId, a: input.appId, i: input.artifactId, u: input.userId, e: expiresAt, used: false });
+  return { token: `${body}.${b64(macOf(ctx, body))}`, expiresAt };
+}
+
+export function readDownloadLink(ctx: BuildsContext, token: string): { ok: true; payload: LinkPayload } | { ok: false; reason: 'invalid' | 'expired' | 'used' } {
+  const [body, mac, extra] = token.split('.');
+  if (!body || !mac || extra !== undefined || token.length > 200) return { ok: false, reason: 'invalid' };
+  const expected = macOf(ctx, body);
+  const given = Buffer.from(mac, 'base64url');
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, reason: 'invalid' };
+  const claim = ctx.links.get(body);
+  if (!claim) return { ok: false, reason: 'invalid' };
+  if (claim.e <= ctx.now()) return { ok: false, reason: 'expired' };
+  if (claim.used) return { ok: false, reason: 'used' };
+  return { ok: true, payload: { w: claim.w, a: claim.a, i: claim.i, u: claim.u, e: claim.e, n: body } };
+}
+
+/** Marks a link used (before any await, so two requests at once cannot both pass). */
+export function reserveLink(ctx: BuildsContext, payload: LinkPayload): boolean {
+  const claim = ctx.links.get(payload.n);
+  if (!claim || claim.used) return false;
+  claim.used = true;
+  return true;
+}
+
+export const releaseLink = (ctx: BuildsContext, payload: LinkPayload) => {
+  const claim = ctx.links.get(payload.n);
+  if (claim) claim.used = false;
+};
+
+/** Does the person who made the link still have the right (a member who left in the meantime does not)? */
+export async function linkStillAllowed(ctx: BuildsContext, payload: LinkPayload): Promise<boolean> {
+  const role = await memberRole(ctx.db, payload.w, payload.u);
+  return role !== undefined && role !== null && can(role, 'builds.download');
+}
+
+/** A link for a phone, for an artifact that can be downloaded now. Audited with ids only. */
+export async function createDownloadLink(
+  ctx: BuildsContext,
+  input: { workspaceId: string; appId: string; artifactId: string; userId: string },
+  actor: Actor,
+): Promise<{ ok: true; token: string; expiresAt: number; filename: string } | BuildsFailure | Failure> {
+  if (!ctx.builds.downloadEnabled) {
+    return fail(409, 'builds_download_disabled', 'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).');
+  }
+  const wait = ctx.downloadLimiter.take(input.workspaceId);
+  if (wait > 0) {
+    return { ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, { retryAfterSeconds: wait }), headers: { 'Retry-After': String(wait) } };
+  }
+  const found = await findArtifact(ctx, input, actor);
+  if (!found.ok) return found;
+  const link = signDownloadLink(ctx, input);
+  await recordAudit(ctx.db, {
+    workspaceId: input.workspaceId,
+    actor,
+    action: 'build.link_created',
+    target: { type: 'app', id: found.app.id },
+    detail: { artifactId: found.artifact.id, runId: found.run.id, expiresAt: link.expiresAt },
+    at: ctx.now(),
+  });
+  return { ok: true, ...link, filename: safeFilename(found.artifact.name, `build-${found.artifact.id}`) };
+}

@@ -153,6 +153,7 @@ const app = createApp({
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
   storeRelease: { enabled: config.storeReleaseEnabled },
+  builds: { downloadEnabled: config.buildsDownloadEnabled, maxDownloadBytes: config.buildsDownloadMaxBytes },
   storePublish: { enabled: config.storePublishBatchEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   ai: { enabled: config.aiEnabled, allowPrivateUrls: config.aiAllowPrivateUrls },
@@ -293,6 +294,9 @@ if (config.worker === 'inline') {
   }
   if (config.storeReleaseEnabled) {
     console.log('Releasing is ON (MRM_STORE_RELEASE_ENABLED): owners and admins can release an approved App Store version or start a Google Play draft release at a share of users (not recallable from here)');
+  }
+  if (config.buildsDownloadEnabled) {
+    console.log('Build downloads are ON (MRM_BUILDS_DOWNLOAD_ENABLED): members can download CI artifacts through this server and hand one to a phone with a 10 minute single use link');
   }
   if (config.storePublishBatchEnabled) {
     console.log('The batch publish is ON (MRM_STORE_PUBLISH_BATCH_ENABLED): owners and admins can run several gated store steps with one confirmation; every step still needs its own switch and right');

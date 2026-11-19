@@ -11,8 +11,9 @@
   onreadtracks (Google Play: read the tracks the person named).
 -->
 <script lang="ts">
-  import { type Role, isApplePlatform } from '@mrm/core';
+  import { type Role, can, isApplePlatform } from '@mrm/core';
   import type { Api } from '../../../lib/api.ts';
+  import { buildNumberOfTitle, testBuildsHref } from '../../../lib/builds.ts';
   import {
     type AppleCandidates,
     type EditableRelease,
@@ -75,6 +76,7 @@
   const uid = $props.id();
   const apple = $derived(isApplePlatform(app.platform));
   const mayEdit = $derived(canStage(role));
+  const canTest = $derived(can(role, 'builds.read'));
 
   let picked = $state('');
   let pickedCodes = $state<string[]>([]);
@@ -194,6 +196,7 @@
                 <span class="meta">
                   Uploaded {row.uploaded}.
                   {#if row.run.url}Made by <a href={row.run.url} target="_blank" rel="noreferrer">{row.run.text}</a>.{:else}{row.run.text}{/if}
+                  {#if canTest}<a href={testBuildsHref(app.id, app.platform, buildNumberOfTitle(row.title))}>Install to test</a>{/if}
                 </span>
                 <span class="sentence" class:bad={row.eligibility.tone === 'bad'}>{row.eligibility.sentence}</span>
               </span>
@@ -271,6 +274,7 @@
                   {#if row.inSource}<Badge tone="info">In {source}</Badge>{/if}
                 </span>
                 {#if row.where}<span class="meta">Held by: {row.where}.</span>{/if}
+                {#if canTest}<span class="meta"><a href={testBuildsHref(app.id, app.platform, row.versionCode)}>Install to test</a></span>{/if}
                 <span class="sentence" class:bad={row.eligibility.tone === 'bad'}>{row.eligibility.sentence}</span>
               </span>
             </label>
