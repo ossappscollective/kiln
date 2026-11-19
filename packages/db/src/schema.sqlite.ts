@@ -1087,6 +1087,30 @@ export const storeSubmitClaims = sqliteTable(
 );
 
 /**
+ * The claim a store RELEASE takes before it touches a store (see migration 27 and docs/adr/0014-release-management.md): one row
+ * per app and platform. Same semantics as `store_submit_claims`.
+ */
+export const storeReleaseClaims = sqliteTable(
+  'store_release_claims',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    action: text('action').notNull(),
+    /** writing (in flight, expires after a TTL) or unknown (outcome not told; a re-read clears it). */
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('store_release_claims_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/**
  * App Store Optimization (see migration 25 and docs/adr/0011-aso-keywords-competitors.md): tracked
  * search terms, their rank checks, followed competitors and their public snapshots. Public store
  * data only; nothing is ever written to a store.

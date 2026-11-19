@@ -1264,4 +1264,34 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 27,
+    name: 'store release claims (releasing an approved App Store version, starting a Google Play draft release)',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // store_release_claims: the claim a RELEASE takes before it touches a store (docs/adr/0014-release-management.md),
+      // one row per app and platform, with the semantics of store_submit_claims: status writing (claim_at is its
+      // start, it expires after a time to live) or unknown (the outcome of the last release could not be told; it
+      // blocks releasing until a successful re-read, i.e. a new preview). The primary key is what makes "one release
+      // in flight per app and platform" true across processes. No foreign key on app_id (like the other store
+      // tables): deleting an app deletes its row in code.
+      // Nothing else changes: the new staged item kind `release_field` (an App Store version field or a Google Play
+      // draft release field, collected like a listing text) needs no column, because staged_changes.kind is free text
+      // and the existing columns hold it (locale '' for a field that has none, target = the field id, value_text = the
+      // value, value_hash = its SHA-256). Rows of migrations 1 to 26 are not touched.
+      return [
+        `CREATE TABLE IF NOT EXISTS store_release_claims (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           action TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'writing',
+           claimed_by TEXT NOT NULL,
+           claim_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS store_release_claims_workspace_idx ON store_release_claims (workspace_id)',
+      ];
+    },
+  },
 ];

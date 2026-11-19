@@ -1,4 +1,5 @@
 import { isApplePlatform, type Platform } from './platform.ts';
+import type { ReleaseFieldId, StagedReleaseFieldView } from './release-fields.ts';
 import { type AssetKind, type AssetStore, deviceFitsPlatform, PLAY_DEVICES } from './store-asset-specs.ts';
 
 /**
@@ -18,7 +19,7 @@ import { type AssetKind, type AssetStore, deviceFitsPlatform, PLAY_DEVICES } fro
  * server's own name of a set (the `target`), not an Apple id.
  */
 
-export const STAGED_KINDS = ['listing_text', 'asset'] as const;
+export const STAGED_KINDS = ['listing_text', 'asset', 'release_field'] as const;
 export type StagedKind = (typeof STAGED_KINDS)[number];
 
 /**
@@ -285,10 +286,15 @@ export type StagedChangesView = {
   app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
   text: StagedTextView[];
   assets: StagedAssetView[];
-  totals: { text: number; assetSets: number; assetFiles: number; errors: number; warnings: number; changed: number };
+  totals: { text: number; assetSets: number; assetFiles: number; errors: number; warnings: number; changed: number; /** Staged release fields. Present from the server. */ release?: number };
   /** False when any item has an error: a push is refused while there are some. */
   valid: boolean;
+  /**
+   * The release fields staged for this app (docs/api/releases-write.md): App Store version fields or a Google Play draft
+   * release. Always present from the server.
+   */
+  release?: StagedReleaseFieldView[];
   /** What a push can write for this platform (so a screen can say why something cannot be staged). */
-  pushable: { textFields: string[] };
+  pushable: { textFields: string[]; /** Release fields that can be staged (see `PUT .../staged/release-fields`). */ releaseFields?: ReleaseFieldId[] };
   limits: typeof STAGED_LIMITS;
 };

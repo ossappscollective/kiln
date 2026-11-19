@@ -254,3 +254,16 @@ test('ASO: everybody reads, members track keywords and competitors, only admins 
   assert.equal(canToken('viewer', null, 'aso.write'), false);
   assert.equal(canToken('admin', null, 'aso.manage'), true);
 });
+
+test('store.release: owners and admins only; explicit-only on tokens, separate from submit and rollout', () => {
+  assert.equal(can('owner', 'store.release'), true);
+  assert.equal(can('admin', 'store.release'), true);
+  assert.equal(can('member', 'store.release'), false);
+  assert.equal(can('viewer', 'store.release'), false);
+  assert.ok(tokenActions.includes('store.release'));
+  assert.ok(tokenExplicitOnlyActions.includes('store.release'));
+  assert.equal(canToken('admin', null, 'store.release'), false, 'no list: never');
+  assert.equal(canToken('admin', ['store.submit', 'releases.rollout', 'store.push_draft'], 'store.release'), false, 'submitting, rolling out and pushing are not releasing');
+  assert.equal(canToken('admin', ['store.release'], 'store.release'), true);
+  assert.equal(canToken('member', ['store.release'], 'store.release'), false, 'the ceiling still applies');
+});
