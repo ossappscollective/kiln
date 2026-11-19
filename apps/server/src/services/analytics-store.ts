@@ -464,6 +464,9 @@ const TABLES = [
   'analytics_instances',
   'analytics_app_config',
   'analytics_source_state',
+  // Google Play search terms (migration 32): imported from a file, deleted with the app like the rest of analytics.
+  'play_search_terms',
+  'play_search_term_imports',
 ] as const;
 
 /** Everything analytics holds for an app (used when the app is deleted). */

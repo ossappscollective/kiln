@@ -27,6 +27,8 @@ import type {
   AsoSuggestionsResponse,
   AsoSummary,
 } from './aso.ts';
+import type { RankVsDownloadsResponse } from './rank-downloads.ts';
+import type { SearchTermsImportResult, SearchTermsPreview, SearchTermsQuery, SearchTermsResponse } from './search-terms.ts';
 import type { ApplyBody } from './change-set-apply.ts';
 import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup.ts';
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
@@ -1062,6 +1064,24 @@ export function createApi(options: ApiOptions = {}) {
     asoGaps: (workspaceId: string, appId: string, locale?: string) =>
       request<AsoGapsResponse>('GET', `${asoPath(workspaceId, appId)}/gaps${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
     asoSuggestions: (workspaceId: string, appId: string) => request<AsoSuggestionsResponse>('GET', `${asoPath(workspaceId, appId)}/suggestions`),
+    /** Google Play search terms imported from a Console file (our own database; Google Play apps only). */
+    asoSearchTerms: (workspaceId: string, appId: string, query: SearchTermsQuery = {}) => {
+      const params: string[] = [];
+      for (const key of ['from', 'to', 'country', 'locale', 'sort', 'limit'] as const) {
+        const value = query[key];
+        if (value !== undefined && value !== '') params.push(`${key}=${encodeURIComponent(String(value))}`);
+      }
+      return request<SearchTermsResponse>('GET', `${asoPath(workspaceId, appId)}/search-terms${params.length > 0 ? `?${params.join('&')}` : ''}`);
+    },
+    /** Rank history of tracked keywords laid on the days of the downloads. Our own database; a correlation view. */
+    asoRankVsDownloads: (workspaceId: string, appId: string, query: { country?: string; keywords?: string[]; from?: string; to?: string } = {}) => {
+      const params: string[] = [];
+      if (query.country) params.push(`country=${encodeURIComponent(query.country)}`);
+      if (query.keywords && query.keywords.length > 0) params.push(`keywords=${query.keywords.map(encodeURIComponent).join(',')}`);
+      if (query.from) params.push(`from=${encodeURIComponent(query.from)}`);
+      if (query.to) params.push(`to=${encodeURIComponent(query.to)}`);
+      return request<RankVsDownloadsResponse>('GET', `${asoPath(workspaceId, appId)}/rank-vs-downloads${params.length > 0 ? `?${params.join('&')}` : ''}`);
+    },
     asoMarkets: (workspaceId: string, appId: string) => request<AsoMarketsResponse>('GET', `${asoPath(workspaceId, appId)}/markets`),
     /** Reads the public store (Apple: the iTunes Search API; Google Play only when the operator allows it). Read-only toward the stores. */
     refreshAso: (workspaceId: string, appId: string) => request<AsoRefreshOutcome>('POST', `${asoPath(workspaceId, appId)}/refresh`),
@@ -1097,6 +1117,21 @@ export function createApi(options: ApiOptions = {}) {
       request<AnalyticsImportResult>(
         'POST',
         `${analyticsPath(workspaceId, appId)}/import?fileName=${encodeURIComponent(fileName)}&confirmHash=${encodeURIComponent(confirmHash)}`,
+        undefined,
+        file,
+      ),
+    /** Sends a Play Console search terms file to this server only and says what it holds. Stores nothing. A file with no dates needs `period`. */
+    previewSearchTermsImport: (workspaceId: string, appId: string, fileName: string, file: Blob, period: string = '') =>
+      request<SearchTermsPreview>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/search-terms/import/preview?fileName=${encodeURIComponent(fileName)}${period === '' ? '' : `&${period}`}`,
+        undefined,
+        file,
+      ),
+    importSearchTerms: (workspaceId: string, appId: string, fileName: string, confirmHash: string, file: Blob, period: string = '') =>
+      request<SearchTermsImportResult>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/search-terms/import?fileName=${encodeURIComponent(fileName)}&confirmHash=${encodeURIComponent(confirmHash)}${period === '' ? '' : `&${period}`}`,
         undefined,
         file,
       ),

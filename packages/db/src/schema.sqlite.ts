@@ -1619,3 +1619,46 @@ export const analyticsSourceState = sqliteTable(
     index('analytics_source_state_workspace_idx').on(t.workspaceId),
   ],
 );
+
+/** Google Play search terms per app, storefront and period, from a file the developer exports from Play Console. Migration 32. */
+export const playSearchTerms = sqliteTable(
+  'play_search_terms',
+  {
+    appId: text('app_id').notNull(),
+    /** Two letters, lower case; '' when the file is not split by country. */
+    country: text('country').notNull().default(''),
+    periodFrom: text('period_from').notNull(),
+    periodTo: text('period_to').notNull(),
+    /** Folded words of the term; '' is the "Other" line Google groups small terms into. */
+    termKey: text('term_key').notNull().default(''),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    term: text('term').notNull().default(''),
+    visitors: integer('visitors'),
+    installs: integer('installs'),
+    conversionMicro: integer('conversion_micro'),
+    importedAt: integer('imported_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.country, t.periodFrom, t.periodTo, t.termKey] }),
+    index('play_search_terms_workspace_idx').on(t.workspaceId, t.appId, t.periodTo),
+  ],
+);
+
+/** The latest search terms import per app (the freshness line). Migration 32. */
+export const playSearchTermImports = sqliteTable(
+  'play_search_term_imports',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lastImportAt: integer('last_import_at').notNull(),
+    lastPeriodFrom: text('last_period_from'),
+    lastPeriodTo: text('last_period_to'),
+    imports: integer('imports').notNull().default(0),
+    updatedBy: text('updated_by').notNull(),
+  },
+  (t) => [index('play_search_term_imports_workspace_idx').on(t.workspaceId)],
+);

@@ -351,3 +351,16 @@ test('Needs attention gets big drops and competitor changes from the summary, an
   assert.equal(items[1]?.text, '1 competitor changed recently');
   assert.equal(items[1]?.href, '#/portfolio/a1/aso?view=competitors');
 });
+
+import { asoViewsFor, availableAsoView } from './aso.ts';
+
+test('Search terms is offered for Google Play apps only; the others keep their place', () => {
+  assert.equal(asoViewsFor(false).some((v) => v.id === 'terms'), false);
+  assert.equal(asoViewsFor(true).some((v) => v.id === 'terms'), true);
+  assert.deepEqual(asoViewsFor(true).slice(0, 7).map((v) => v.id), ['keywords', 'listing', 'competitors', 'ideas', 'fit', 'gaps', 'markets']);
+  assert.equal(availableAsoView('terms', false), 'keywords', 'an address naming a view this app does not have falls back to Keywords');
+  assert.equal(availableAsoView('terms', true), 'terms');
+  assert.equal(availableAsoView('rank', false), 'rank');
+  assert.equal(asoViewFromHash('#/portfolio/a1/aso?view=rank'), 'rank');
+  assert.equal(asoViewFromHash('#/portfolio/a1/aso?view=terms'), 'terms');
+});

@@ -8,6 +8,7 @@ import { memberRole } from '../services/accounts.ts';
 import { type AnalyticsContext, syncAnalytics } from '../services/analytics-sync.ts';
 import { applyEnable, previewEnable } from '../services/analytics-enable.ts';
 import { applyImport, previewImport } from '../services/analytics-import.ts';
+import { applySearchTermsImport, previewSearchTermsImport } from '../services/play-search-terms.ts';
 import { checkOverviewQuery, overview, status } from '../services/analytics-query.ts';
 import { getApp } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
@@ -37,8 +38,8 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
   return c.json(f.body, f.status);
 };
 
-/** A path of the import routes (the one place a body may be larger than the API's usual limit). */
-export const analyticsImportPath = /^\/api\/workspaces\/[^/]+\/apps\/[^/]+\/analytics\/import(\/preview)?$/;
+/** A path of the import routes, Apple reports and Google Play search terms (the one place a body may be larger than the API's usual limit). */
+export const analyticsImportPath = /^\/api\/workspaces\/[^/]+\/apps\/[^/]+\/analytics\/(import|search-terms\/import)(\/preview)?$/;
 const IMPORT_BODY_LIMIT = analyticsLimits.maxFileBytes + 1024;
 
 export const syncBody = z
@@ -202,6 +203,55 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
       const done = await applyImport(db, ctx.now, { workspaceId: ws(c), appId: app.id, bytes, confirmHash, ...(name.name ? { fileName: name.name } : {}) }, actor(c));
       if (!done.ok) return respond(c, done);
       return c.json({ imported: { source: done.source, points: done.points, written: done.written, unchanged: done.unchanged, dateFrom: done.dateFrom, dateTo: done.dateTo } }, 201);
+    },
+  );
+
+  // ----- Import a Google Play search terms export (raw body: .csv, .zip or .gz; docs/api/aso.md) -----------------
+  const periodQuery = (c: Context<AppEnv>): { ok: true; from?: string; to?: string } | { ok: false; issue: Issue } => {
+    const from = c.req.query('from');
+    const to = c.req.query('to');
+    const given = (v: string | undefined) => v !== undefined && v !== '';
+    if (given(from) !== given(to)) return { ok: false, issue: { path: given(from) ? 'to' : 'from', message: 'Send both from and to, or neither.' } };
+    return { ok: true, ...(given(from) ? { from: from as string, to: to as string } : {}) };
+  };
+
+  routes.post(
+    '/:workspaceId/apps/:id/analytics/search-terms/import/preview',
+    needs('analytics.manage'),
+    bodyLimit({ maxSize: IMPORT_BODY_LIMIT, onError: tooLarge }),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const period = periodQuery(c);
+      if (!period.ok) return bad(c, [period.issue]);
+      const bytes = await fileBytes(c);
+      if (!bytes) return bad(c, [{ path: 'body', message: 'Send the exported file as the request body.' }]);
+      const wait = limited(c);
+      if (wait) return wait;
+      const done = await previewSearchTermsImport(db, { workspaceId: ws(c), appId: app.id, bytes, ...(period.from ? { from: period.from, to: period.to } : {}) });
+      if (!done.ok) return respond(c, done);
+      return c.json({ plan: done.plan, confirmHash: done.confirmHash });
+    },
+  );
+
+  routes.post(
+    '/:workspaceId/apps/:id/analytics/search-terms/import',
+    needs('analytics.manage'),
+    bodyLimit({ maxSize: IMPORT_BODY_LIMIT, onError: tooLarge }),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const period = periodQuery(c);
+      if (!period.ok) return bad(c, [period.issue]);
+      const confirmHash = c.req.query('confirmHash') ?? '';
+      if (!/^[0-9a-f]{64}$/.test(confirmHash)) return bad(c, [{ path: 'confirmHash', message: 'Send the confirmHash of the preview.' }]);
+      const bytes = await fileBytes(c);
+      if (!bytes) return bad(c, [{ path: 'body', message: 'Send the exported file as the request body.' }]);
+      const wait = limited(c);
+      if (wait) return wait;
+      const done = await applySearchTermsImport(db, ctx.now, { workspaceId: ws(c), appId: app.id, bytes, confirmHash, ...(period.from ? { from: period.from, to: period.to } : {}) }, actor(c));
+      if (!done.ok) return respond(c, done);
+      return c.json({ imported: { rows: done.rows, written: done.written, unchanged: done.unchanged, dateFrom: done.dateFrom, dateTo: done.dateTo } }, 201);
     },
   );
 

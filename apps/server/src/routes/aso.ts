@@ -1,5 +1,5 @@
 import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@mrm/connectors';
-import { type Action, FIT_ASSUMPTIONS, INDEXED_FIELDS, can, normalizeCountry } from '@mrm/core';
+import { type Action, FIT_ASSUMPTIONS, INDEXED_FIELDS, can, isGooglePlatform, normalizeCountry } from '@mrm/core';
 import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -26,8 +26,10 @@ import {
   updateKeyword,
 } from '../services/aso.ts';
 import { checkLocale, coachFor, gapsFor, ideasFor, listingFitFor, listingKeywordsFor, listingLocalesFor, marketsFor, suggestionsFor, summaryFor } from '../services/aso-insights.ts';
+import { checkRankDownloadsQuery, rankVsDownloadsFor } from '../services/aso-rank-downloads.ts';
 import { queueAsoRefreshAll } from '../services/aso-schedule.ts';
 import { recordAudit } from '../services/audit.ts';
+import { checkSearchTermsQuery, searchTermsFor } from '../services/play-search-terms.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure } from '../services/repositories.ts';
 import { rankMoveThresholdFor } from '../services/workspace-settings.ts';
@@ -142,6 +144,53 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     return c.json(await coachFor(db, ws(c), app, ctx.now()));
+  });
+
+  // Google Play search terms imported from a Play Console export (reads the database only; docs/api/aso.md). Never contacts a store.
+  routes.get('/:workspaceId/apps/:id/aso/search-terms', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    if (!isGooglePlatform(app.platform)) {
+      return c.json({ error: 'not_google_play_app', message: 'Search terms are a Google Play report. This app is an iOS or macOS app.' }, 422);
+    }
+    const limit = queryInt(c.req.query('limit'), { fallback: 50, max: 200 });
+    const locale = localeQuery(c);
+    const q = (name: string) => c.req.query(name);
+    const checked = checkSearchTermsQuery({
+      ...(q('from') !== undefined ? { from: q('from') as string } : {}),
+      ...(q('to') !== undefined ? { to: q('to') as string } : {}),
+      ...(q('country') !== undefined ? { country: q('country') as string } : {}),
+      ...(q('sort') !== undefined ? { sort: q('sort') as string } : {}),
+      ...(locale.ok && locale.locale ? { locale: locale.locale } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    });
+    const issues: Issue[] = checked.ok ? [] : checked.issues;
+    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 200.' });
+    if (!locale.ok) issues.push(locale.issue);
+    if (!checked.ok || issues.length > 0) return bad(c, issues);
+    return c.json(await searchTermsFor(db, ws(c), app, checked));
+  });
+
+  // Rank versus downloads: rank history and downloads on the same days, from stored data only (docs/api/aso.md). A correlation, never a cause.
+  routes.get('/:workspaceId/apps/:id/aso/rank-vs-downloads', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    const q = (name: string) => c.req.query(name);
+    const checked = checkRankDownloadsQuery(
+      app,
+      {
+        ...(q('platform') !== undefined ? { platform: q('platform') as string } : {}),
+        ...(q('country') !== undefined ? { country: q('country') as string } : {}),
+        ...(q('keywords') !== undefined ? { keywords: q('keywords') as string } : {}),
+        ...(q('from') !== undefined ? { from: q('from') as string } : {}),
+        ...(q('to') !== undefined ? { to: q('to') as string } : {}),
+      },
+      ctx.now(),
+    );
+    if (!checked.ok) return bad(c, checked.issues);
+    const done = await rankVsDownloadsFor(db, ws(c), app, checked, ctx.now());
+    if (!done.ok) return bad(c, done.issues);
+    return c.json(done.answer);
   });
 
   // ----- keywords -------------------------------------------------------------------------------------

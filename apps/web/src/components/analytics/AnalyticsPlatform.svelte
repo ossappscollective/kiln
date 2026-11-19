@@ -4,19 +4,21 @@
   period (for the comparison). Four states, in this order:
   - analytics off and nothing stored: one card that says what turning it on does (AnalyticsOff);
   - on, nothing stored yet: one quiet line, and the sources with their next steps, open;
-  - data: the row of figures, the small-multiple charts, the notes on how to read them, and the sources under a disclosure;
+  - data: the row of figures, the small-multiple charts, the notes on how to read them, "Rank versus downloads" (collapsed; it reads
+    only when opened) and the sources under a disclosure;
   - a failed read: an alert with a retry. A failed previous-period read only drops the comparison.
   While it reloads the previous render stays at reduced opacity (no skeleton, no jump). Reading never reaches a store.
   Props: api, workspaceId, role, app (id and platform), range (ResolvedRange), now, showData (the table twins), heading (draw the
   platform name, when several platforms are shown), onstored (told whether something is stored for the app).
 -->
 <script lang="ts">
-  import { type Platform, type Role, dateToDay } from '@mrm/core';
+  import { type Platform, type Role, can, dateToDay } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, stateInfo } from '../../lib/analytics.ts';
   import { type Loaded, loadOverviews } from '../../lib/analytics-load.ts';
   import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes } from '../../lib/analytics-view.ts';
+  import { asoViewHref } from '../../lib/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import Alert from '../ui/Alert.svelte';
@@ -25,6 +27,7 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import RankVsDownloads from '../aso/RankVsDownloads.svelte';
   import AnalyticsOff from './AnalyticsOff.svelte';
   import ChartCard from './ChartCard.svelte';
   import SourcesPanel from './SourcesPanel.svelte';
@@ -187,6 +190,13 @@
 
         {#if noRatingHistory(app.platform) && loaded}
           <p class="quiet">Ratings over time: Apple does not provide rating history.</p>
+        {/if}
+
+        {#if can(role, 'aso.read')}
+          <Disclosure summary="Rank versus downloads" stateKey="analytics.rank.{app.id}">
+            {#snippet meta()}tracked keywords, a correlation view{/snippet}
+            <RankVsDownloads {api} {workspaceId} {app} {now} keywordsHref={asoViewHref(app.id, 'keywords')} />
+          </Disclosure>
         {/if}
 
         <Disclosure summary="Sources and sync" stateKey="analytics.sources.{app.id}">

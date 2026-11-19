@@ -162,7 +162,7 @@ export type AsoMarketsResponse = { terms: TermAcrossMarkets[] };
 // ---------------------------------------------------------------------------------------------
 // Views of the app section (address backed: `?view=`)
 
-export type AsoView = 'keywords' | 'listing' | 'competitors' | 'ideas' | 'fit' | 'gaps' | 'markets';
+export type AsoView = 'keywords' | 'listing' | 'competitors' | 'ideas' | 'fit' | 'gaps' | 'markets' | 'terms' | 'rank';
 
 export const asoViews: { id: AsoView; label: string }[] = [
   { id: 'keywords', label: 'Keywords' },
@@ -172,7 +172,15 @@ export const asoViews: { id: AsoView; label: string }[] = [
   { id: 'fit', label: 'Fit' },
   { id: 'gaps', label: 'Gaps' },
   { id: 'markets', label: 'Markets' },
+  { id: 'terms', label: 'Search terms' },
+  { id: 'rank', label: 'Rank and downloads' },
 ];
+
+/** The views an app section offers: Search terms is for Google Play apps only (a Play Console file), so it is left out without one. */
+export const asoViewsFor = (androidInScope: boolean): { id: AsoView; label: string }[] => asoViews.filter((v) => v.id !== 'terms' || androidInScope);
+
+/** The view to draw: the one asked for when this section offers it, else Keywords. */
+export const availableAsoView = (view: AsoView, androidInScope: boolean): AsoView => (asoViewsFor(androidInScope).some((v) => v.id === view) ? view : 'keywords');
 
 export const isAsoView = (value: string | null | undefined): value is AsoView =>
   value !== null && value !== undefined && asoViews.some((v) => v.id === value);

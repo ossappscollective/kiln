@@ -1,7 +1,8 @@
 <!--
-  AsoSection: the ASO section of an open app (#/portfolio/<id>/aso?view=...). Seven views as segmented tabs,
-  kept in the address (`?view=keywords|listing|competitors|ideas|fit|gaps|markets`): Keywords, In your listing, Competitors, Ideas,
-  Fit, Gaps and Markets. It reads the tracked keywords of every app record in scope once and hands them to
+  AsoSection: the ASO section of an open app (#/portfolio/<id>/aso?view=...). Nine views as segmented tabs,
+  kept in the address (`?view=keywords|listing|competitors|ideas|fit|gaps|markets|terms|rank`): Keywords, In your listing, Competitors, Ideas,
+  Fit, Gaps, Markets, Search terms (Google Play apps only, from a Play Console file) and Rank and downloads (the rank history of tracked
+  keywords laid on downloads; a correlation view). It reads the tracked keywords of every app record in scope once and hands them to
   the views; the config of the server (is Google Play reading on, are checks scheduled) shows as one quiet
   pill. Above the tabs, the ranked next steps of each app in scope (AsoCoach), and under them the AI suggestions of each app
   (AiSuggestions: drawn only when AI is on and something is open; nothing in them acts until a person accepts it). Nothing here writes to a store: the
@@ -13,7 +14,8 @@
   import { untrack } from 'svelte';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViews, localesOf, withAsoView } from '../../lib/aso.ts';
+  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViewHref, asoViewsFor, availableAsoView, localesOf, withAsoView } from '../../lib/aso.ts';
+  import { appAddress } from '../../lib/app-scope.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -29,7 +31,9 @@
   import AsoKeywords from './AsoKeywords.svelte';
   import AsoListing from './AsoListing.svelte';
   import AsoMarkets from './AsoMarkets.svelte';
+  import AsoSearchTerms from './AsoSearchTerms.svelte';
   import AsoStatus from './AsoStatus.svelte';
+  import RankVsDownloads from './RankVsDownloads.svelte';
 
   let {
     api,
@@ -51,7 +55,9 @@
   const canWrite = $derived(can(role, 'aso.write'));
   const canRead = $derived(can(role, 'aso.read'));
 
-  const view = $derived(asoViewFromHash(address.hash));
+  const androidInScope = $derived(members.some((m) => m.platform === 'android'));
+  const view = $derived(availableAsoView(asoViewFromHash(address.hash), androidInScope));
+  const views = $derived(asoViewsFor(androidInScope));
   const setView = (next: string) => replaceHash(withAsoView(location.hash, next as AsoView));
 
   let config = $state<AsoConfig | null>(null);
@@ -62,7 +68,6 @@
   let version = $state(0);
   let generation = 0;
 
-  const androidInScope = $derived(members.some((m) => m.platform === 'android'));
   const key = $derived(`${workspaceId}/${members.map((m) => m.id).join(',')}`);
 
   async function load() {
@@ -130,7 +135,7 @@
   {/if}
 
   <div class="row bar">
-    <SegmentTabs tabs={asoViews} label="ASO views" idPrefix={uid} bind:value={() => view, setView} />
+    <SegmentTabs tabs={views} label="ASO views" idPrefix={uid} bind:value={() => view, setView} />
     <span class="spacer"></span>
     <AsoStatus {config} {androidInScope} />
   </div>
@@ -161,6 +166,23 @@
         <AsoFit {...shared} />
       {:else if view === 'gaps'}
         <AsoGaps {...shared} {canWrite} />
+      {:else if view === 'terms'}
+        <AsoSearchTerms {...shared} {canWrite} />
+      {:else if view === 'rank'}
+        <div class="stack">
+          {#each members as m (m.id)}
+            <RankVsDownloads
+              {api}
+              {workspaceId}
+              app={m}
+              {now}
+              {version}
+              heading={members.length > 1}
+              analyticsHref={appAddress(m.id, 'analytics', address.platform)}
+              keywordsHref={asoViewHref(m.id, 'keywords', address.platform)}
+            />
+          {/each}
+        </div>
       {:else}
         <AsoMarkets {...shared} />
       {/if}

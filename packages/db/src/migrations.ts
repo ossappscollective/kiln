@@ -1571,4 +1571,48 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 32,
+    name: 'Google Play search terms: terms with store listing visitors and installs per app, country and period, and the last import per app',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // docs/research/play-search-terms.md, docs/api/aso.md. The analytics tables cannot hold this: analytics_daily keys a fact by a
+      // fixed list of metrics and ONE short dimension, with a day and no period, while a search term is free text per storefront and
+      // a file may cover a period instead of a day. play_search_terms is one row per (app, country, period, term): a day row has
+      // period_from = period_to, a file with no dates covers the period the person gave. country '' = not split by country. term_key is
+      // the folded words (the key of a tracked keyword); '' is the "Other" line Google groups small terms into (term '' too). A value
+      // is NULL when the file did not have the column (null is not zero). conversion_micro is a ratio times 1,000,000 as the file gave
+      // it. imported_at is when the row last changed. The terms are the developer's own acquisition data from a file they uploaded: they
+      // are read only through the ASO routes and are never written to a log, an audit row, an event or a job.
+      // play_search_term_imports: one row per app, for the freshness line ("imported on <date>, covering <period>"): the time of the
+      // latest import (a repeat of the same file moves it too), the period of that file, the number of imports and who made it.
+      return [
+        `CREATE TABLE IF NOT EXISTS play_search_terms (
+           app_id TEXT NOT NULL,
+           country TEXT NOT NULL DEFAULT '',
+           period_from TEXT NOT NULL,
+           period_to TEXT NOT NULL,
+           term_key TEXT NOT NULL DEFAULT '',
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           term TEXT NOT NULL DEFAULT '',
+           visitors ${t},
+           installs ${t},
+           conversion_micro ${t},
+           imported_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, country, period_from, period_to, term_key)
+         )`,
+        'CREATE INDEX IF NOT EXISTS play_search_terms_workspace_idx ON play_search_terms (workspace_id, app_id, period_to)',
+        `CREATE TABLE IF NOT EXISTS play_search_term_imports (
+           app_id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           last_import_at ${t} NOT NULL,
+           last_period_from TEXT,
+           last_period_to TEXT,
+           imports INTEGER NOT NULL DEFAULT 0,
+           updated_by TEXT NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS play_search_term_imports_workspace_idx ON play_search_term_imports (workspace_id)',
+      ];
+    },
+  },
 ];

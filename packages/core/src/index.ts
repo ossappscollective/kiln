@@ -22,3 +22,5 @@ export * from './asset-sync.ts';
 export * from './release-pipeline.ts';
 export * from './ai.ts';
 export * from './analytics.ts';
+export * from './play-search-terms.ts';
+export * from './aso-rank-downloads.ts';

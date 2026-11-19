@@ -102,6 +102,8 @@ export const analyticsErrorCodes = [
   'segment_too_large', // a segment is over the size cap
   'file_too_large', // an uploaded or downloaded file is over the size cap
   'bad_gzip', // a .gz file could not be decompressed
+  'bad_zip', // a .zip file could not be opened (not a zip, damaged, too many entries, or an entry that is too large)
+  'period_required', // the file has no date column: send the period it covers (from and to)
   'bad_format', // the table could not be read (encoding, quoting, no header)
   'unknown_report', // the report is not one this server maps
   'missing_columns', // a column the mapping needs is not in the header
@@ -179,6 +181,8 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   segment_too_large: 'A report file from Apple is larger than the limit this server reads.',
   file_too_large: 'The file is larger than the limit this server reads.',
   bad_gzip: 'The file could not be decompressed. Check that it is a complete .gz file.',
+  bad_zip: 'The .zip file could not be opened. Check that it is a complete zip file with the exported .csv inside.',
+  period_required: 'The file has no date column. Say which days it covers (from and to) and preview it again.',
   bad_format: 'The file could not be read as a table of values separated by tabs or commas.',
   unknown_report: 'This server does not know how to read that report. Supported: App Store Discovery and Engagement, App Store Downloads, App Sessions, App Crashes.',
   missing_columns: 'The file does not have the columns this report needs.',

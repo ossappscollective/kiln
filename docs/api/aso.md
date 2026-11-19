@@ -18,7 +18,7 @@ the texts the server holds.
 
 | Action | Who | Routes |
 | --- | --- | --- |
-| `aso.read` | viewers, members, admins, owners | every `GET` |
+| `aso.read` | viewers, members, admins, owners | every `GET` (including search terms and rank versus downloads) |
 | `aso.write` | members, admins, owners | add, change, delete keywords and competitors; refresh one app |
 | `aso.manage` | admins, owners | `POST /aso/refresh` (every app); the setting `aso.rankMoveThreshold` |
 
@@ -185,6 +185,50 @@ Each locale also carries `fields`, the stored listing text the fit was worked ou
 
 **Budgets and the coach (core `listingBudget`, `buildCoach`).** Per locale: used and limit of each field (App Store name and subtitle 30 characters, keyword field 100 bytes; Google Play title 30, short 80, full description 4000 characters), which tracked keywords sit in which field, waste in the keyword field (spaces around commas, empty, repeated and plural entries, entries whose words the name or subtitle already hold), words found in several fields, words no tracked keyword uses, tracked keywords in none of the searched fields, and untapped locales (a tracked locale with no listing text, a locale with an empty keyword field). **UNVERIFIED**: that the App Store ignores a word repeated across name, subtitle and keyword field; that singular and plural are one word (English plurals are folded here); whether commas count toward the 100 bytes (the whole field is measured); and which other locales a storefront reads. The storefront list in `REPORTED_EXTRA_LOCALES` is what ASO tools report (aso.dev, 2026-11-19), not Apple, and is only ever shown as a hint marked UNVERIFIED.
 
+## Search terms (Google Play, from a file)
+
+The terms people searched on Google Play and then opened the app's store listing from, imported from a Play Console file
+(`POST /apps/{id}/analytics/search-terms/import`, see [analytics](analytics.md#import-google-play-search-terms); needs `analytics.manage`). Nothing is read from Google.
+They are **not** search volume: terms nobody opened the listing from are absent, and terms too small to report are grouped by Google into `Other`.
+
+`GET /apps/{id}/aso/search-terms?from=&to=&country=&locale=&sort=installs|visitors&limit=` (`aso.read`; `422 not_google_play_app` for an iOS or macOS app; `400 invalid_request` for a bad query; `limit` 1 to 200, default 50).
+Without `from` and `to` the whole stored period is used (at most 400 days). `country` limits to a storefront (rows with no country are left out of a country view).
+
+```json
+{ "appId": "...", "platform": "android", "from": "2026-10-01", "to": "2026-10-31", "country": null, "sort": "installs",
+  "locale": "en-US", "listingLocale": "en-US", "listingReadAt": 1763500000000,
+  "imported": { "at": 1763500000000, "periodFrom": "2026-10-01", "periodTo": "2026-10-31", "imports": 1 },
+  "stored": { "from": "2026-10-01", "to": "2026-10-31", "countries": [], "rows": 120 },
+  "terms": [ { "key": "coffee timer", "term": "coffee timer", "visitors": 84, "installs": 11, "conversion": 0.131, "countries": [], "rows": 2,
+               "trackedKeywordId": "...", "trackedCountries": ["us"], "listing": "in_listing", "inFields": ["title"], "hint": null } ],
+  "termCount": 3, "other": { "visitors": 90, "installs": 3 }, "totals": { "visitors": 216, "installs": 16 }, "notes": [ { "code": "not_search_volume", "message": "..." } ] }
+```
+
+`imported` and `stored` are `null` when nothing was imported (the web then shows how to export a file). `conversion` is installs divided by visitors when both are known, else the file's own rate. `listing` is
+`in_listing`, `partly`, `not_in_listing` or `unknown` (no listing text stored for `locale`), worked out like the fit (core `fitKeyword`) against the stored Google Play title, short description and full description. `hint` is
+`add_to_listing` when a term **brought installs and is not fully in the listing text**: a suggestion for a person to weigh, not a finding that adding it brings installs (no AI, no prediction). `trackedKeywordId` is a tracked keyword of the
+same words in the chosen storefront (any storefront when none is chosen). The note codes are `not_search_volume`, `other_grouped`, `legacy_metrics_unverified`, `overlapping_periods`, `period_rows_dropped`, `rows_capped`, `no_listing_text`.
+**UNVERIFIED**: the shape of the console's own export, and whether visitors and acquisitions per term are still filled after Google's 2026 change to click metrics ([research](../research/play-search-terms.md)).
+
+## Rank versus downloads
+
+`GET /apps/{id}/aso/rank-vs-downloads?platform=&country=&keywords=&from=&to=` (`aso.read`). The rank history of chosen tracked keywords of **one storefront** laid on the days of the app's downloads, rank moves marked, and the downloads before and
+after each big move. It reads this server's database only (no store, works with whatever analytics source is on). `platform`, when given, must be the app's own (`400` otherwise); `country` defaults to the storefront with most tracked keywords;
+`keywords` is up to 5 keyword ids of that storefront (default: the three with most checks); `from` and `to` default to the 90 days ending yesterday (at most 400 days, `to` not after today).
+
+Downloads: iOS and macOS use **first-time downloads** (Apple Analytics Reports), else the **units of Sales and Trends** (a different measure, labelled as such); Android uses **user installs** of the Play reports, else device installs. The first metric with a day in the range wins.
+
+Answer (core `buildRankVsDownloads`): `{ appId, platform, country, countries, available: [ { id, term, locale, priority, checks, lastCheckedAt } ], selected, from, to, days: [ day ], keywords: [ { id, term, samples: [ { rank, total } | null ], checkDays } ],
+downloads: { metric, label, source: apple|play, delayDays, values: [ number | null ], settledThrough, days } | null, markers: [ { keywordId, day, previousDay, kind, from, to, delta } ],
+comparisons: [ { marker, status: ok|waiting|too_few_days, before: { from, to, days, total, perDay }, after, changePercent, checkGapDays, overlapsOtherMove, settledNeededThrough } ],
+coverage: { rankDays, downloadDays, minDays }, enough, missing: turn_on_analytics|no_downloads|no_rank_checks|null, threshold, windowDays, notes }`.
+
+- A rank is put on its **UTC day** (the last check of the day); a day with no check is `null`, never "not ranked" and never zero. A marker is a move of at least the setting `aso.rankMoveThreshold` places (or entering or leaving the top 10), dated by the **later** check.
+- **Delay.** Apple's numbers arrive about 2 days late and Play CSV files 3 to 7 days late, so the newest `delayDays` days are not settled (`settledThrough` is today minus the delay). A move whose 7 days after are not all settled is `waiting`, not computed on partial days. Ranks are UTC days and the stores use their own (UNVERIFIED which), so a move can sit a day off.
+- **Before and after.** The 7 days ending on the earlier check against the 7 days starting the day after the later check, as the average downloads per day; each window needs at least 5 days with a number (`too_few_days` otherwise); `changePercent` is `null` when there were no downloads before. Moves that share days are flagged (`overlapsOtherMove`).
+- **Hidden with fewer than 14 days of either series** (`enough: false`, no markers or comparisons). `missing` says what is lacking in a fixed vocabulary: `turn_on_analytics` (analytics is off and nothing is stored), `no_downloads`, `no_rank_checks`.
+- **Always a correlation.** `notes` carries `correlation_not_proof`, `downloads_delay`, `time_zones`, `few_checks` and `other_causes`; the web labels every comparison "Correlation, not proof" with the number of days compared. Nothing here says that a rank move changed downloads: a release, a campaign, a holiday or a rating moves downloads too.
+
 ## Events and webhooks
 
 | Type | When | Payload |
@@ -204,6 +248,7 @@ The subject is the app (`subject.appId`). **Neither carries the term, a competit
 | 409 | `refresh_in_progress` | Another refresh of the app holds the claim. |
 | 409 | `already_followed`, `limit_reached` | Competitors. |
 | 422 | `invalid_keyword` (PATCH), `invalid_external_id`, `invalid_country`, `own_app`, `not_found`, `invalid_input` | The value is not accepted. |
+| 422 | `not_google_play_app` | Search terms are for Google Play apps only. |
 | 429 | `rate_limited` | Our per workspace limit, or a store's. `Retry-After` and `retryAfterSeconds` say when. |
 | 502 | `refresh_failed`, `source_unavailable`, `source_failed` | The store could not be read; `reason` is `layout_changed`, `redirect` or `blocked` for an unavailable Google Play page. **Nothing is recorded as "not ranked".** |
 | 504 | `source_timeout` | The store did not answer in time. |
@@ -213,7 +258,7 @@ Error messages never contain a search term or a store address.
 ## Data and retention
 
 Five tables (migration 25): `aso_keywords`, `aso_rank_checks`, `aso_competitors`, `aso_competitor_snapshots`, `aso_app_state`. Rank checks and snapshots older than `MRM_ASO_RETENTION_DAYS` (365; `0` keeps them) are deleted by the
-scheduler, bounded per run and once an hour; the newest snapshot of each competitor is kept. Deleting an app deletes its ASO data. Stored: terms and notes the team typed, ranks, and public data of other apps; no customer data.
+scheduler, bounded per run and once an hour; the newest snapshot of each competitor is kept. Search terms imported from a Play Console file live in `play_search_terms` and `play_search_term_imports` (migration 32); they are not kept by the retention job and go with the app. Deleting an app deletes its ASO data. Stored: terms and notes the team typed, ranks, and public data of other apps; no customer data.
 Network: outbound https to `itunes.apple.com` and, only when switched on, `play.google.com`.
 
 ## UNVERIFIED
@@ -223,5 +268,7 @@ Not on a page that was checked, or not run against the real service (no network 
 - Apple: that the Search API's order equals the App Store's (a "rank" is a proxy); the field names of a software result; `country` on a lookup; no subtitle in a reply; that "approximately 20 calls per minute" still holds. **The undocumented search hints endpoint is not used.**
 - Google Play: all markup assumptions (result links, JSON-LD, `og:` tags, description, screenshots, rating label); that a search page shows `rankDepth` results; the terms of service. Fixtures are synthetic.
 - Which fields each store searches (`indexedFields`, `assumptions`), and the 100 byte iOS keyword budget.
+- Search terms: the shape of the Play Console export, the column names outside English, whether visitors and acquisitions per term survive Google's 2026 change to click metrics, and the time zone of the dates ([research](../research/play-search-terms.md)).
+- Rank versus downloads: the time zone of the stores' days, and how long Play CSV files really take to arrive.
 - Text handling: English plural folding only; stop words for en, de, fr, es, it, pt, nl.
 - Postgres: written for it, tested on SQLite only.

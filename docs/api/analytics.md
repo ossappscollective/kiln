@@ -139,6 +139,29 @@ report name in `fileName` (at most 200 characters) picks the mapping, else the h
   `422 app_not_synced`, `422` with `bad_gzip`, `bad_format`, `missing_columns`, `unknown_report`, `file_too_large` or `no_rows`.
   Audited as `analytics.import`.
 
+### Import Google Play search terms
+
+A Google Play app's **search terms** (the terms people searched on Google Play before they opened the store listing) are not in any API; they
+come from a file exported in Play Console ("Export report" on the store listing report, breakdown "Search term"). See
+[the research](../research/play-search-terms.md) for what is known and what is **UNVERIFIED**. They do not fit `analytics_daily` (free text, and
+possibly a period instead of a day), so they live in two tables of migration 32: `play_search_terms` and `play_search_term_imports`.
+The terms are read back by `GET /apps/{id}/aso/search-terms` ([ASO](aso.md#search-terms-google-play-from-a-file)). Needs `analytics.manage`
+(explicit-only for a token), like the other imports.
+
+- `POST /apps/{id}/analytics/search-terms/import/preview?fileName=&from=&to=` and `POST .../search-terms/import?confirmHash=&fileName=&from=&to=`. The
+  **raw file** is the body: `.csv` (UTF-8 or UTF-16), a `.gz`, or a `.zip` with `.csv` files inside (at most 10 MiB, 64 MiB unpacked, 400,000 rows). Columns are matched **by header name**
+  (case, punctuation and order do not matter; English synonyms of `Search term`, `Store listing visitors`, `Store listing acquisitions`, `Store listing conversion rate`,
+  `Date`, `Country/region`, `Traffic source`, `Start date`, `End date`). Rows of another traffic source than Google Play search are left out; the row `Other` is kept as "terms Google grouped", never as a term.
+  A term is at most 100 characters; a control character makes the row unreadable.
+- A file with **no date column** needs `from` and `to` (both, `YYYY-MM-DD`, at most 400 days, not in the future); the rows are then stored for that period. Without them: `422 period_required`.
+- The preview stores nothing and answers `{ "plan": { platform, report, stats: {rowsRead,rowsUsed,rowsUnreadable,rowsFiltered,rowsOther}, dateFrom, dateTo, hasDates, period, days, rows, terms, countries, files, totals: {visitors,installs}, other, top: [ten terms], overlapsStored, notes }, "confirmHash" }`.
+  The apply parses the file again and compares the hash (`409 confirm_mismatch`), then answers 201 `{ "imported": { rows, written, unchanged, dateFrom, dateTo } }`.
+  The same file again gives `written: 0`; a corrected file replaces the numbers of the rows it holds. A file of days is never counted next to a period file of the same country (the period rows are left out, and the view notes it).
+- Errors: `400 invalid_request` (a bad `from` or `to`), `409 confirm_mismatch`, `413 payload_too_large`, `422 import_not_supported` (an iOS app), `422` with `bad_gzip`, `bad_zip`, `bad_format`, `missing_columns`, `file_too_large`, `no_rows` or `period_required`.
+  Error messages come from a fixed list and never carry a term.
+- **Privacy:** a term is stored only in `play_search_terms` and returned only by the routes above and `GET .../aso/search-terms`. It is never written to a log, an audit row, an event, a job or a note.
+  Audited as `analytics.search_terms_import` with counts and dates only (`rows`, `written`, `terms`, `countries`, `files`, `dateFrom`, `dateTo`). No event is raised.
+
 ## Event
 
 `analytics.synced` (needs `analytics.read`; the subject carries `appId`): `{ appId, platform, trigger, pointsWritten, sources }`. Raised
