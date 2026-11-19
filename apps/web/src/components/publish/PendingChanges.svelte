@@ -4,26 +4,29 @@
   drafts pushed and not yet submitted, approved and waiting for release, rollout, and what is in review, which is information only),
   each with its state, its problems (an error blocks the step it waits for and is shown in red), what happens next, a link to change
   it and, for staged items, a discard (our own database only: the same calls as the staged tray). At the top, "Review and publish all"
-  opens the plan dialog; it is disabled with the reason (role, the server's switch and how to turn it on, nothing waiting, errors).
+  opens the plan dialog; it is disabled with the reason (role, the server's switch and how to turn it on, nothing waiting); with errors it stays enabled and lists what blocks, each with "Show it" (the server plans per step, so a blocked item cannot be left out and nothing is published). The page title comes from the app header, so no heading is drawn here.
   Reads stored state only: no store is contacted until the person opens the plan.
-  Props: api, workspaceId, role, members (the app records in scope), heading? (draw the page heading; the stepper hides it),
-  compact? (the stepper: no page heading, no hint line), list? (false: only the line and the button, no items; the stepper's last step), onpublished? (called after the screens read again following a
+  Props: api, workspaceId, role, members (the app records in scope), 
+  compact? (the stepper: no hint line), list? (false: only the line and the button, no items; the stepper's last step), onpublished? (called after the screens read again following a
   publish or a discard, so a parent can refresh what it shows).
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { timeAgo } from '../../lib/format.ts';
   import {
+    type BlockingItem,
     type PendingItem,
     type PendingView,
+    blockingItems,
     combineTotals,
     discardIds,
     editHref,
     errorsOf,
     groupItems,
     isDiscardable,
+    itemAnchor,
     nextStepText,
     platformGroups,
     publishAvailability,
@@ -54,7 +57,6 @@
     workspaceId,
     role,
     members,
-    heading = true,
     compact = false,
     list = true,
     onpublished,
@@ -63,7 +65,6 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
-    heading?: boolean;
     compact?: boolean;
     list?: boolean;
     onpublished?: () => void;
@@ -78,6 +79,9 @@
   let removing = $state('');
   let confirming = $state('');
   let publishOpen = $state(false);
+  /** After pressing the button while errors block it: the list of what blocks. */
+  let showBlockers = $state(false);
+  let blockedEl = $state<HTMLElement | null>(null);
   let announcement = $state('');
   let now = $state(Date.now());
   let seq = 0;
@@ -103,6 +107,7 @@
       nextSteps,
     }),
   );
+  const blockers = $derived<BlockingItem[]>(blockingItems(groups));
   const mayEdit = $derived(canStage(role));
   const busy = $derived(removing !== '');
   const targets = $derived(
@@ -201,8 +206,22 @@
     items.filter((i) => i.kind === 'listing_text' || i.kind === 'asset_set' || i.kind === 'release_field').reduce((n, i) => n + (i.kind === 'listing_text' ? (i.counts.changes ?? i.refs.length) : 1), 0);
 
   function openPublish() {
+    if (availability.state === 'blocked') {
+      // The server plans per step, so an item with an error cannot be left out: show what blocks, offer no publish.
+      showBlockers = true;
+      void tick().then(() => blockedEl?.focus());
+      return;
+    }
     if (availability.state !== 'ready' || targets.length === 0) return;
     publishOpen = true;
+  }
+
+  /** "Show it": scrolls to the item and puts the focus on its row. */
+  function showItem(anchor: string) {
+    const el = document.getElementById(anchor);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    el.focus({ preventScroll: true });
   }
 </script>
 
@@ -211,7 +230,6 @@
 
   <div class="top">
     <div class="lead">
-      {#if heading && !compact}<h2>Pending changes</h2>{/if}
       <p class="line" class:muted={empty || loading}>
         {#if loading && !known}Reading what is pending…{:else if loadProblem && !known}Could not read what is pending{:else}{empty ? 'Nothing pending' : totalsLine(totals)}{/if}
       </p>
@@ -225,7 +243,7 @@
         variant="primary"
         size="lg"
         icon="upload"
-        disabled={availability.state !== 'ready' || targets.length === 0}
+        disabled={(availability.state !== 'ready' && availability.state !== 'blocked') || targets.length === 0}
         aria-describedby={availability.state !== 'ready' ? `${uid}-why` : undefined}
         onclick={openPublish}
       >Review and publish all…</Button>
@@ -235,7 +253,19 @@
   {#if empty}
     <!-- quiet: nothing is pending, so nothing needs explaining -->
   {:else if availability.state === 'blocked'}
-    <p class="blocked" id="{uid}-why"><Icon name="alert-triangle" size={14} /> {availability.message}</p>
+    <div class="blocked-box" id="{uid}-why" tabindex="-1" bind:this={blockedEl}>
+      <p class="blocked"><Icon name="alert-triangle" size={14} /> {availability.message}</p>
+      {#if showBlockers}
+        <ul class="blockers" data-testid="pending-blockers">
+          {#each blockers as b (b.anchor)}
+            <li>
+              <span><strong>{b.label}</strong> ({platformLabel(b.platform)}): {b.messages.join(' ')}</span>
+              <Button size="sm" variant="ghost" onclick={() => showItem(b.anchor)}>Show it<span class="visually-hidden">: {b.label}</span></Button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
   {:else if availability.state === 'nothing' || availability.state === 'loading'}
     {#if !empty && known}<p class="muted small" id="{uid}-why">{availability.message}</p>{/if}
   {:else if availability.state !== 'ready' && pillLabel !== ''}
@@ -294,7 +324,7 @@
                 {@const warnings = warningsOf(item)}
                 {@const edit = editHref(item, g.appId, null)}
                 {@const key = `${g.appId}/${item.id}`}
-                <li class="item" data-testid="pending-item">
+                <li class="item" id={itemAnchor(g.appId, item.id)} tabindex="-1" data-testid="pending-item">
                   <div class="main">
                     <p class="name">
                       <strong>{item.label}</strong>
@@ -358,11 +388,6 @@
     justify-content: space-between;
   }
 
-  .lead h2 {
-    margin: 0 0 var(--space-1);
-    font-size: var(--text-lg);
-  }
-
   .line {
     margin: 0;
     font-weight: var(--weight-medium);
@@ -380,6 +405,27 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--bad-ink);
+  }
+
+  .blocked-box {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .blockers {
+    display: grid;
+    gap: var(--space-1);
+    padding: 0;
+    margin: 0;
+    font-size: var(--text-sm);
+    list-style: none;
+  }
+
+  .blockers li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    align-items: center;
   }
 
   .empty {

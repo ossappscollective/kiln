@@ -10,6 +10,7 @@ import {
   LINK_SENSITIVE_TEXT,
   applyFilters,
   artifactRow,
+  sharedNote,
   canOfferShare,
   entryChoices,
   linkKeptText,
@@ -317,4 +318,10 @@ test('the status line joins "downloads off" and a problem with the artifacts int
   const warn = statusLine({ ...base, problem: { reason: 'no_access', needs: 'actions: read' }, repository: { owner: 'acme', repo: 'app' } });
   assert.equal(warn?.tone, 'warn');
   assert.match(warn?.details[0]?.body ?? '', /acme\/app/);
+});
+
+test('sharedNote: only an artifact of a shared run with an unknown owner gets the chip text', () => {
+  assert.equal(sharedNote(artifact()), '');
+  assert.equal(sharedNote(artifact({ sharedWith: null })), '');
+  assert.equal(sharedNote(artifact({ sharedWith: ['Demo Notes', 'Demo Weather'] })), 'From a run shared by Demo Notes, Demo Weather');
 });

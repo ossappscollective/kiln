@@ -20,6 +20,8 @@ export type ArtifactItem = {
   expiresAt: number | null;
   downloadable: boolean;
   tooLarge: boolean;
+  /** Apps of a multi-app run whose artifact owner the name does not tell: shown under each of them. */
+  sharedWith?: string[] | null;
   run: {
     id: string;
     number: number | null;
@@ -132,6 +134,10 @@ const storeState = (b: StoreBuildItem): BuildRow['state'] => {
   if (b.state === 'processed') return { label: b.channel === 'play' ? 'On a track' : 'Ready to test', tone: 'ok' };
   return { label: 'Unknown state', tone: 'neutral' };
 };
+
+/** The quiet chip for an artifact of a run shared by several apps when its owner is not known; '' otherwise. */
+export const sharedNote = (a: Pick<ArtifactItem, 'sharedWith'>): string =>
+  a.sharedWith && a.sharedWith.length > 1 ? `From a run shared by ${a.sharedWith.join(', ')}` : '';
 
 export function artifactRow(a: ArtifactItem): BuildRow {
   return {

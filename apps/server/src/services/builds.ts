@@ -6,6 +6,7 @@ import { defaultStoreConnectorFactory, getApp, type ManagedApp, type StoreConnec
 import { useCredentialSecret } from './credentials.ts';
 import { recordAudit } from './audit.ts';
 import { memberRole } from './accounts.ts';
+import { listConventions } from './build-conventions.ts';
 import { listRuns, runCountsForApp, type WorkflowRunView } from './ci-runs.ts';
 import { type Failure, getRepository, withTimeout } from './repositories.ts';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
@@ -157,6 +158,11 @@ export type ArtifactItem = {
   /** Not expired and within the size limit. Whether downloads are on at all is `downloadEnabled`. */
   downloadable: boolean;
   tooLarge: boolean;
+  /**
+   * Names of the apps a multi-app run is shared by, when the name of the artifact does not tell which of them it belongs to
+   * (so it is shown under each of them); null when the run is for one app or the owner is known.
+   */
+  sharedWith: string[] | null;
   run: {
     id: string;
     number: number | null;
@@ -302,6 +308,32 @@ async function readRepoArtifacts(
   return work;
 }
 
+export type OwnerCandidate = { id: string; name: string; identifier: string; prefix?: string };
+
+const squash = (v: string): string => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** What in an artifact name can point at an app: its name, its bundle id or package name (whole and last part), its own tag prefix. */
+function ownerKeys(c: OwnerCandidate): string[] {
+  const last = c.identifier.split('.').pop() ?? '';
+  return [c.name, c.identifier, last, c.prefix ?? ''].map(squash).filter((k, i, all) => k.length >= 3 && all.indexOf(k) === i);
+}
+
+/**
+ * Which of the apps a multi-app run is for does an artifact belong to? By its name only: the one app whose name, bundle id or
+ * package name (or tag prefix) the name contains; when several match, the one with the longest match if that is unique
+ * ("Notes Pro" over "Notes"). Null: the name does not say.
+ */
+export function artifactOwner(artifactName: string, candidates: readonly OwnerCandidate[]): string | null {
+  const n = squash(artifactName);
+  const hits = candidates
+    .map((c) => ({ id: c.id, score: ownerKeys(c).reduce((best, k) => (n.indexOf(k) !== -1 && k.length > best ? k.length : best), 0) }))
+    .filter((h) => h.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (hits.length === 0) return null;
+  const first = hits[0]!;
+  return hits.length === 1 || hits[0]!.score > hits[1]!.score ? first.id : null;
+}
+
 const shortSha = (sha: string | null) => (sha ? sha.slice(0, 7) : null);
 
 function artifactItem(a: CiArtifact, run: WorkflowRunView, app: ManagedApp, maxBytes: number): ArtifactItem {
@@ -319,6 +351,7 @@ function artifactItem(a: CiArtifact, run: WorkflowRunView, app: ManagedApp, maxB
     expiresAt: a.expiresAt,
     downloadable: !a.expired && !tooLarge,
     tooLarge,
+    sharedWith: null,
     run: {
       id: run.id,
       number: run.runNumber,
@@ -513,6 +546,21 @@ export async function listBuildArtifacts(
   const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
   const artifacts: ArtifactItem[] = [];
   let hidden = 0;
+  // A run linked to several apps (a monorepo): who each artifact belongs to is read from its name.
+  const conventions = await listConventions(ctx.db, input.workspaceId, repository.id);
+  const linked = new Map<string, OwnerCandidate | null>();
+  const candidatesOf = async (run: WorkflowRunView): Promise<OwnerCandidate[]> => {
+    const out: OwnerCandidate[] = [];
+    for (const id of run.appIds) {
+      if (!linked.has(id)) {
+        const other = id === app.id ? app : await getApp(ctx.db, input.workspaceId, id);
+        linked.set(id, other ? { id, name: other.name, identifier: other.identifier, prefix: conventions.find((r) => r.appId === id)?.prefix } : null);
+      }
+      const c = linked.get(id);
+      if (c) out.push(c);
+    }
+    return out;
+  };
   for (const a of read.value.artifacts) {
     const run = a.runId ? byRun.get(a.runId) : undefined;
     if (!run) {
@@ -520,6 +568,15 @@ export async function listBuildArtifacts(
       continue;
     }
     const item = artifactItem(a, run, app, ctx.builds.maxDownloadBytes);
+    if (run.appIds.length > 1) {
+      const candidates = await candidatesOf(run);
+      const owner = artifactOwner(a.name, candidates);
+      if (owner !== null && owner !== app.id) {
+        hidden++;
+        continue;
+      }
+      if (owner === null) item.sharedWith = candidates.map((c) => c.name).sort();
+    }
     // A run can build several platforms: an APK is not a build of the iOS app of the same repository.
     if (item.platform !== null && item.platform !== app.platform) hidden++;
     else artifacts.push(item);

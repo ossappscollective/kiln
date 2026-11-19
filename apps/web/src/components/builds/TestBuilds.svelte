@@ -27,6 +27,7 @@
     installGuide,
     kindLabel,
     rowsOf,
+    sharedNote,
     statusLine,
     testflightNote,
     testflightView,
@@ -226,6 +227,7 @@
                   {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>Age unknown</span>{/if}
                   {#if expiryText(row, now) !== ''}<span>{expiryText(row, now)}</span>{/if}
                   {#if row.artifact?.guessed && row.kind !== 'other'}<span>Type guessed from the name</span>{/if}
+                  {#if row.artifact && sharedNote(row.artifact) !== ''}<span class="shared" data-testid="build-shared">{sharedNote(row.artifact)}</span>{/if}
                 </div>
                 {#if row.source === 'store' && row.store}
                   {@const tf = testflightView(data, row.store)}
@@ -439,6 +441,13 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
+  }
+
+  .shared {
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-md);
   }
 
   .buttons {

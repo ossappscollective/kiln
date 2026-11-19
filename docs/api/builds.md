@@ -21,6 +21,7 @@ downloadable, tooLarge, run{id, number, workflow, title, branch, shortSha, statu
 guesses from the artifact name** (an artifact is always a zip; the content is not read). Only artifacts of stored runs that count for
 the app (`appIds`, or no app) and of its platform are listed; the rest are counted in `hiddenArtifacts`. At most the 200 newest
 artifacts of the repository are read (`truncated`) and runs are the 100 newest stored.
+**Runs linked to several apps (a monorepo).** An artifact of such a run is shown for the app it belongs to, read from its name only: the one app whose name, bundle id or package name (whole or last part) or own tag prefix (the per-app convention) the artifact name contains, ignoring case and punctuation; with several matches the strictly longest wins. An artifact that names another app is not listed here and is counted in `hiddenArtifacts`. When the name does not say (no match, or a tie), it is listed under every linked app with `sharedWith` set to the names of those apps (the screen shows "From a run shared by Demo Notes, Demo Weather"); `sharedWith` is `null` otherwise. Runs for one app, or for no app, are unchanged.
 `store[]`: from `app_builds` and `app_releases`: `channel (testflight|play)`, `state`, `expired`, `uploadedAt`, `expiresAt`
 (TestFlight: upload + 90 days, `expiresAtEstimated: true`), `tracks`, `optInUrl` (Play, closed or open tracks only).
 `testflight` (iOS and macOS apps with synced builds; `null` otherwise): a READ of the app's external TestFlight groups that

@@ -9,6 +9,7 @@ import {
   type PublishPlan,
   type PublishResult,
   canPublish,
+  blockingItems,
   chipFor,
   classifyPublishFailure,
   combineTotals,
@@ -17,6 +18,7 @@ import {
   groupItems,
   includedTypes,
   isDiscardable,
+  itemAnchor,
   lineFor,
   needsReview,
   nextStepText,
@@ -207,6 +209,21 @@ test('the publish button: role, switch, nothing to do, step switches and errors,
   assert.match((blocked as { message: string }).message, /1 item has an error/);
   // The role is judged before anything else, so a member never reads about a server switch.
   assert.equal(publishAvailability({ ...base, role: 'member', config: config({ enabled: false }) }).state, 'role');
+});
+
+test('blocking items: only items with an error, in page order, with a safe anchor for "Show it"', () => {
+  const bad = item({ id: 'x y', label: 'Screenshots', state: 'invalid', problems: [{ code: 'x', severity: 'error', message: 'Too small' }, { code: 'w', severity: 'warning', message: 'Soft' }] });
+  const groups = [
+    { appId: 'app/1', platform: { platform: 'ios' as const, store: 'appstoreconnect' as const, items: [item(), bad], totals: platformTotals({ items: [item(), bad] }) } },
+    { appId: 'app2', platform: { platform: 'android' as const, store: 'googleplay' as const, items: [item({ problems: [{ code: 'w', severity: 'warning', message: 'Soft' }] })], totals: { items: 1, actionable: 1, blocking: 0 } } },
+  ];
+  const found = blockingItems(groups);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0]?.messages, ['Too small']);
+  assert.equal(found[0]?.platform, 'ios');
+  assert.equal(found[0]?.anchor, itemAnchor('app/1', 'x y'));
+  assert.match(itemAnchor('app/1', 'x y'), /^[A-Za-z0-9_-]+$/);
+  assert.deepEqual(blockingItems([]), []);
 });
 
 // ---- the plan as UI state

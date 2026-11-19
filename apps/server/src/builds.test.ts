@@ -3,7 +3,7 @@ import { GithubError, StoreError, StoreRateLimitError, type CiArtifact, type CiA
 import { ASC_SECRET } from './review-test-helpers.ts';
 import { dbTest } from '@mrm/db/testing';
 import { bootCi, FakeCi, run } from './ci-test-helpers.ts';
-import { clearBuildCaches, guessArtifact, safeFilename, TESTFLIGHT_LIFETIME_MS } from './services/builds.ts';
+import { artifactOwner, clearBuildCaches, guessArtifact, safeFilename, TESTFLIGHT_LIFETIME_MS } from './services/builds.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
 import { Hono } from 'hono';
 import { publicBuildsRoutes } from './routes/builds.ts';
@@ -112,6 +112,38 @@ dbTest('list: artifacts of this app\'s runs, newest first, with run, kind, size,
   const [b240, b239] = res.body.store;
   assert.deepEqual([b240.buildNumber, b240.channel, b240.state, b240.expiresAtEstimated, b240.expiresAt], ['240', 'testflight', 'processed', true, T0 + TESTFLIGHT_LIFETIME_MS]);
   assert.deepEqual([b239.expired, b239.expiresAt], [true, null], 'an expired build has no estimate');
+});
+
+dbTest('artifactOwner: the one app whose name, package or prefix the artifact name contains; the longest match wins; otherwise unknown', async () => {
+  const notes = { id: 'n', name: 'Demo Notes', identifier: 'com.demo.notes' };
+  const weather = { id: 'w', name: 'Demo Weather', identifier: 'com.demo.weather' };
+  assert.equal(artifactOwner('demo-weather-2.8.1-278.aab', [notes, weather]), 'w');
+  assert.equal(artifactOwner('Demo-Notes-1.0.0.apk', [notes, weather]), 'n');
+  assert.equal(artifactOwner('com.demo.weather-release', [notes, weather]), 'w');
+  assert.equal(artifactOwner('android-release', [notes, weather]), null);
+  const twins = [{ id: 'a', name: 'Alpha', identifier: 'x.alpha' }, { id: 'b', name: 'Bravo', identifier: 'x.bravo' }];
+  assert.equal(artifactOwner('alpha-bravo-1.0.aab', twins), null, 'two matches of the same length are not guessed between');
+  const pro = { id: 'p', name: 'Notes Pro', identifier: 'com.demo.notespro' };
+  assert.equal(artifactOwner('notespro-1.0.aab', [{ ...notes, name: 'Notes', identifier: 'com.demo.n1' }, pro]), 'p');
+  assert.equal(artifactOwner('x-ray.aab', [{ id: 'x', name: 'X', identifier: 'a.b' }]), null, 'keys under three characters are ignored');
+  assert.equal(artifactOwner('tag-two-build', [{ id: 't', name: 'One', identifier: 'a.one', prefix: 'tag-two' }]), 't');
+});
+
+dbTest('list: an artifact of a multi-app run shows for the app it belongs to; when the name does not say, under each app with the apps named', async (db) => {
+  const t = await boot(db);
+  await db.execute("UPDATE apps SET name = 'Demo Notes', identifier = 'com.demo.notes' WHERE id = ?", [t.appId]);
+  const other = await t.seedApp('ios', [], { identifier: 'com.demo.weather' });
+  await db.execute("UPDATE apps SET name = 'Demo Weather' WHERE id = ?", [other]);
+  const [wr] = await db.query("SELECT id FROM workflow_runs WHERE run_id = '101'");
+  for (const id of [t.appId, other]) await db.execute('INSERT INTO ci_run_apps (run_ref, app_id, workspace_id, created_at) VALUES (?, ?, ?, ?)', [String(wr?.id), id, t.workspaceId, 1]);
+  t.fake.artifacts = [art('1', 'demo-notes-ios-build'), art('2', 'demo-weather-ios-build'), art('3', 'ios-build')];
+  const mine = await t.list();
+  assert.deepEqual(mine.body.artifacts.map((a: { id: string }) => a.id), ['1', '3']);
+  assert.equal(mine.body.artifacts[0].sharedWith, null);
+  assert.deepEqual(mine.body.artifacts[1].sharedWith, ['Demo Notes', 'Demo Weather']);
+  assert.equal(mine.body.hiddenArtifacts, 1);
+  const theirs = await t.list(t.owner, other);
+  assert.deepEqual(theirs.body.artifacts.map((a: { id: string }) => a.id), ['2', '3']);
 });
 
 dbTest('list: cached 30 seconds and shared; an ETag keeps the stored copy; a repeat call asks GitHub once', async (db) => {

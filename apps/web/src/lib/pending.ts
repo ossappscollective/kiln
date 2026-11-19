@@ -276,6 +276,24 @@ export function platformGroups(views: readonly (PendingView | null | undefined)[
   return out;
 }
 
+/** An item that has an error: what blocks publishing everything (the server plans per step, so a blocked item cannot be left out). */
+export type BlockingItem = { appId: string; platform: Platform; itemId: string; label: string; messages: string[]; anchor: string };
+
+/** The DOM id of an item row, so "Show it" can scroll to it and focus it. */
+export const itemAnchor = (appId: string, itemId: string): string => `pending-item-${appId}-${itemId}`.replace(/[^A-Za-z0-9_-]/g, '-');
+
+/** The items with an error, in page order. */
+export function blockingItems(groups: readonly PlatformGroup[]): BlockingItem[] {
+  const out: BlockingItem[] = [];
+  for (const g of groups) {
+    for (const i of g.platform.items) {
+      const errors = errorsOf(i);
+      if (errors.length > 0) out.push({ appId: g.appId, platform: g.platform.platform, itemId: i.id, label: i.label, messages: errors.map((e) => e.message), anchor: itemAnchor(g.appId, i.id) });
+    }
+  }
+  return out;
+}
+
 /** The totals of several platform groups added up. */
 export function combineTotals(groups: readonly { totals: PendingTotals }[]): PendingTotals {
   return groups.reduce<PendingTotals>(
