@@ -331,3 +331,83 @@ test('POST /demo/reset starts again from the seed', async () => {
     await rt.close();
   }
 });
+
+// ----- test builds: TestFlight links, workflow artifacts, Google Play internal app sharing --------------------------------
+
+test('Test builds: Demo Notes iOS has a public TestFlight link, Demo Weather iOS one that is off, Demo Focus none; no read fails', async () => {
+  const rt = await seeded();
+  const { call } = await session(rt);
+  const read = async (name: string, platform: string) => (await call('GET', `/apps/${await appOf(call, name, platform)}/builds/artifacts`)).body;
+
+  const notes = await read('Demo Notes', 'ios');
+  assert.equal(notes.testflight.problem, null);
+  assert.deepEqual(notes.testflight.groups.map((g: Json) => [g.name, g.enabled, g.limit]), [['Public beta', true, 100]]);
+  assert.match(notes.testflight.groups[0].publicLink, /^https:\/\/testflight\.apple\.com\/join\//);
+  const linked = (notes.store as Json[]).filter((b) => (b.testflightGroupIds as string[]).length > 0);
+  assert.ok(linked.length >= 2, 'the public group holds the newer builds');
+  assert.equal(notes.downloadEnabled, true);
+
+  const weather = await read('Demo Weather', 'ios');
+  assert.equal(weather.testflight.problem, null);
+  assert.deepEqual(weather.testflight.groups.map((g: Json) => [g.enabled, g.limit]), [[false, null]]);
+
+  const focus = await read('Demo Focus', 'macos');
+  assert.equal(focus.testflight.problem, null);
+  assert.deepEqual(focus.testflight.groups, []);
+
+  // An App Store Connect failure is one fixed problem for the whole list, not an error of it (this app was not read yet, so no cache).
+  await call('POST', '/demo/fail', { connector: 'appstoreconnect', kind: 'server', count: 1 });
+  try {
+    const macNotes = await read('Demo Notes', 'macos');
+    assert.equal(macNotes.testflight.problem.reason, 'unavailable');
+    assert.deepEqual(macNotes.testflight.groups, []);
+  } finally {
+    await call('DELETE', '/demo/fail');
+  }
+});
+
+test('Test builds: the demo repository lists small artifacts named like the builds, and they download', async () => {
+  const rt = await seeded();
+  const { call, cookie, W } = await session(rt);
+  const notes = await appOf(call, 'Demo Notes', 'ios');
+  const list = (await call('GET', `/apps/${notes}/builds/artifacts`)).body;
+  assert.equal(list.problem, null, 'artifacts can be listed');
+  const ipa = (list.artifacts as Json[]).find((a) => a.kind === 'ipa');
+  assert.ok(ipa, 'an .ipa artifact');
+  assert.match(ipa.name, /^demo-notes-.*\.ipa$/);
+  assert.ok(ipa.sizeBytes < 2000 && ipa.downloadable);
+
+  const android = await appOf(call, 'Demo Notes', 'android');
+  const apk = ((await call('GET', `/apps/${android}/builds/artifacts`)).body.artifacts as Json[]).find((a) => a.kind === 'apk');
+  assert.ok(apk, 'an .apk artifact');
+
+  const res = await rt.app.request(`${W}/apps/${notes}/builds/artifacts/${ipa.id}/download`, { headers: { cookie } });
+  assert.equal(res.status, 200);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assert.equal(bytes.length, ipa.sizeBytes);
+  assert.equal(bytes[0], 0x50);
+  assert.equal(bytes[1], 0x4b);
+});
+
+test('Test builds: Share to device works end to end in the demo (no passkey, nothing leaves the machine)', async () => {
+  const rt = await start();
+  try {
+    const { call } = await session(rt);
+    const android = await appOf(call, 'Demo Notes', 'android');
+    assert.equal((await call('GET', '/builds/internal-sharing/config')).body.enabled, true);
+    const apk = ((await call('GET', `/apps/${android}/builds/artifacts`)).body.artifacts as Json[]).find((a) => a.kind === 'apk');
+    assert.ok(apk);
+    const base = `/apps/${android}/builds/artifacts/${apk.id}/internal-share`;
+    const preview = (await call('POST', `${base}/preview`, {})).body.preview as Json;
+    assert.equal(preview.checks.canShare, true);
+    assert.equal(preview.upload.kind, 'apk');
+    const done = await call('POST', base, { confirmHash: preview.confirmHash, confirmation: preview.confirmation.phrase });
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.match(done.body.result.downloadUrl, /^https:\/\/play\.google\.com\/apps\/test\/com\.demostudio\.notes\//);
+    assert.equal(done.body.result.checksumMatches, true);
+    const shares = (await call('GET', `/apps/${android}/builds/internal-shares`)).body;
+    assert.equal(shares.shares.length, 1);
+  } finally {
+    await rt.close();
+  }
+});

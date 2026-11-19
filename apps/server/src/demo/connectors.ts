@@ -5,6 +5,9 @@ import type {
   AppleInstanceRef,
   AppleReportRef,
   AppleReportRequest,
+  InternalSharingConnector,
+  InternalSharingKind,
+  InternalSharingUpload,
   ListReviewsResult,
   PlayReportsPort,
   PlayVitalsPort,
@@ -15,6 +18,8 @@ import type {
   StoreListing,
   StoreReviewConnector,
   StoreVersion,
+  TestFlightGroup,
+  TestFlightLinksConnector,
 } from '@mrm/connectors';
 import { StoreError, createFakeAiClient } from '@mrm/connectors';
 import type { AiAnswerLike } from './ai-answers.ts';
@@ -22,6 +27,7 @@ import { aiAnswer } from './ai-answers.ts';
 import { COMPETITORS, DEMO_APPS, KEYWORDS, type Platform, REVIEW_LINES, LANGS, langOf } from './content.ts';
 import { dailySeries, rng } from './data.ts';
 import { failing } from './failures.ts';
+import { sha256Hex } from './artifacts.ts';
 import { iconPng } from './images.ts';
 import type { AnalyticsConnectorFactory } from '../services/analytics-sync.ts';
 import type { AsoSources, LookupInput, PublicApp, SearchInput, SearchOutcome } from '../services/aso-net.ts';
@@ -79,6 +85,43 @@ class DemoReadStore implements StoreConnector {
   }
 }
 
+/**
+ * The read-only TestFlight beta group read (`GET /v1/betaGroups`, and the builds of a group) of the demo: Demo Notes iOS has a public
+ * group whose link is on (limit 100, in its newer builds), Demo Weather iOS one whose link is switched off, the other apps none.
+ */
+class DemoAppleStore extends DemoReadStore implements TestFlightLinksConnector {
+  readonly #side: Side;
+  constructor(world: DemoWorld, side: Side) {
+    super(world, side, 'app_store_connect');
+    this.#side = side;
+  }
+  async listTestFlightGroups(_appStoreId: string): Promise<TestFlightGroup[]> {
+    const side = this.#side;
+    if (side.platform !== 'ios') return [];
+    const numbers = [...side.builds].sort((a, b) => a.uploadedAt - b.uploadedAt).map((b) => b.number);
+    if (side.app.key === 'notes') {
+      return [{ id: 'bg-demo-notes-public', name: 'Public beta', publicLink: 'https://testflight.apple.com/join/DemoNotes', publicLinkEnabled: true, publicLinkLimit: 100, allBuilds: false, buildNumbers: numbers.slice(1) }];
+    }
+    if (side.app.key === 'weather') {
+      return [{ id: 'bg-demo-weather-friends', name: 'Friends and family', publicLink: 'https://testflight.apple.com/join/DemoWeather', publicLinkEnabled: false, publicLinkLimit: null, allBuilds: false, buildNumbers: numbers.slice(-2) }];
+    }
+    return [];
+  }
+}
+
+/** Google Play internal app sharing of the demo: nothing is sent anywhere; the "link" is a made-up address that says so. */
+class DemoPlayShare implements InternalSharingConnector {
+  readonly store = 'googleplay' as const;
+  readonly packageName: string;
+  constructor(packageName: string) {
+    this.packageName = packageName;
+  }
+  async upload(kind: InternalSharingKind, bytes: Uint8Array): Promise<InternalSharingUpload> {
+    const sha = sha256Hex(bytes);
+    return { downloadUrl: `https://play.google.com/apps/test/${this.packageName}/demo-${kind}-${sha.slice(0, 8)}`, certificateFingerprint: 'DE:MO:00:11:22:33:44:55:66:77:88:99', sha256: sha };
+  }
+}
+
 export type DemoSeams = ReturnType<typeof createSeams>;
 
 /** Everything `createApp` takes as a seam, backed by the demo world. */
@@ -104,6 +147,10 @@ export function createSeams(world: DemoWorld) {
     releaseFactory: (input: In) => store(input.kind, sideOf(input).release),
     rolloutFactory: (input: In) => store(input.kind, sideOf(input).rollout),
     reviewFactory,
+    /** The TestFlight link read of the Test builds page (the builds `storeConnectorFactory`). */
+    flightFactory: (input: In): StoreConnector => store('app_store_connect', new DemoAppleStore(world, sideOf(input))),
+    /** Google Play internal app sharing (the builds `internalSharingConnectorFactory`). */
+    sharingFactory: (input: { packageName: string }): InternalSharingConnector => store('google_play', new DemoPlayShare(input.packageName)),
     ratingFetcher: null,
     analytics: createAnalytics(world),
     aso: createAsoSources(world),

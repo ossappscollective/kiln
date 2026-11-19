@@ -58,7 +58,7 @@
   {#if tiny}
     <Icon name={glyph.icon} size={Math.round(px * 0.7)} />
   {:else}
-    <span class="initials" style:font-size="{Math.round(px * 0.38)}px">{initialsOf(name)}</span>
+    <span class="initials" style:font-size="{Math.max(11, Math.round(px * 0.4))}px">{initialsOf(name)}</span>
     {#if big}<span class="mark"><Icon name={glyph.icon} size={Math.round(px * 0.28)} /></span>{/if}
   {/if}
   {#if showImage && src}
@@ -101,21 +101,28 @@
     border: 1px solid var(--line);
     user-select: none;
   }
+  /*
+    The fallback tile: a solid surface under a tint (so a translucent or highlighted row behind it never shows through), the plain
+    ink color for the letters (readable on every tint in both themes), and a border from the ink color, so the tile still has an edge
+    on the highlighted row of the switcher, whose background is the same accent tint as the first tile.
+  */
+  .app-icon {
+    background-color: var(--surface);
+    background-image: linear-gradient(var(--tile, var(--accent-bg)), var(--tile, var(--accent-bg)));
+    color: var(--ink);
+    border-color: color-mix(in srgb, var(--ink) 24%, transparent);
+  }
   .t0 {
-    background: var(--accent-bg);
-    color: var(--accent);
+    --tile: var(--accent-bg);
   }
   .t1 {
-    background: var(--info-bg);
-    color: var(--info-ink);
+    --tile: var(--info-bg);
   }
   .t2 {
-    background: var(--ok-bg);
-    color: var(--ok-ink);
+    --tile: var(--ok-bg);
   }
   .t3 {
-    background: var(--warn-bg);
-    color: var(--warn-ink);
+    --tile: var(--warn-bg);
   }
   .initials {
     display: block;

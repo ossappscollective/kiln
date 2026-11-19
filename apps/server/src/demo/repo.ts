@@ -1,4 +1,5 @@
-import type { CiJob, CiJobList, CiRun, CiRunPage, CiWorkflow, DispatchResult, ListWorkflowRunsOptions } from '@mrm/connectors';
+import type { CiArtifact, CiArtifactDownload, CiArtifactList, CiJob, CiJobList, CiRun, CiRunPage, CiWorkflow, DispatchResult, ListWorkflowRunsOptions } from '@mrm/connectors';
+import { type ArtifactKind, artifactZip, sha256Hex } from './artifacts.ts';
 import { FakeCi } from '../ci-test-helpers.ts';
 import { BlobRepo } from '../staged-test-helpers.ts';
 import { APPLE_LOCALES, DEMO_APPS, type DemoApp, PLAY_LOCALES, langOf, playTexts } from './content.ts';
@@ -404,6 +405,66 @@ export class DemoRepo extends BlobRepo {
   async listWorkflowRuns(): Promise<never> {
     throw new Error('not used: the CI code uses listCiRuns');
   }
+  // ---- workflow artifacts ------------------------------------------------------------------------------------------------
+  // A finished, successful build run uploads one tiny zip (an .ipa, .dmg, .apk or .aab named like the build). Derived from the
+  // runs, so a run the person starts in the demo gets its artifact when it finishes. Downloads stream the same bytes.
+
+  #artifacts(): { artifact: CiArtifact; zip: Uint8Array }[] {
+    this.tick();
+    const now = this.world.now();
+    const out: { artifact: CiArtifact; zip: Uint8Array }[] = [];
+    for (const run of this.#runs) {
+      const isIos = run.workflow.id === '9002';
+      if ((!isIos && run.workflow.id !== '9003') || run.conclusion !== 'success' || now - run.createdAt < run.durationMs) continue;
+      const app = DEMO_APPS.find((a) => a.key === run.inputs.app);
+      if (!app) continue;
+      const platform = isIos ? (app.platforms.includes('ios') ? 'ios' : 'macos') : 'android';
+      const side = [...this.world.sides.values()].find((s) => s.app.key === app.key && s.platform === platform);
+      if (!side) continue;
+      const finished = run.createdAt + run.durationMs;
+      const build = side.builds.find((b) => b.runId === run.id) ?? [...side.builds].sort((a, b) => Math.abs(a.uploadedAt - finished) - Math.abs(b.uploadedAt - finished))[0];
+      if (!build) continue;
+      const kind: ArtifactKind = platform === 'ios' ? 'ipa' : platform === 'macos' ? 'dmg' : app.key === 'weather' ? 'aab' : 'apk';
+      const name = `${app.name.toLowerCase().replace(/\s+/g, '-')}-${run.inputs.version ?? build.version}-${build.number}.${kind}`;
+      const zip = artifactZip({ name, kind, appName: app.name, version: run.inputs.version ?? build.version, build: build.number });
+      out.push({
+        zip,
+        artifact: {
+          id: String(880_000 + Number(run.id)),
+          name,
+          sizeInBytes: zip.length,
+          expired: false,
+          createdAt: finished,
+          expiresAt: finished + 90 * DAY,
+          runId: run.id,
+          headBranch: 'main',
+          headSha: run.sha,
+          digest: `sha256:${sha256Hex(zip)}`,
+        },
+      });
+    }
+    return out.sort((a, b) => (b.artifact.createdAt ?? 0) - (a.artifact.createdAt ?? 0));
+  }
+  async listArtifacts(options: { runId?: string; maxPages?: number; signal?: AbortSignal; etag?: string | undefined } = {}): Promise<CiArtifactList> {
+    const artifacts = this.#artifacts().map((x) => x.artifact).filter((a) => options.runId === undefined || a.runId === options.runId);
+    return { artifacts, truncated: false, notModified: false };
+  }
+  async openArtifactDownload(artifactId: string, _options: { signal?: AbortSignal; allowHttp?: boolean } = {}): Promise<CiArtifactDownload> {
+    const found = this.#artifacts().find((x) => x.artifact.id === artifactId);
+    if (!found) return { status: 'missing' };
+    const bytes = found.zip;
+    return {
+      status: 'ok',
+      contentLength: bytes.length,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(bytes);
+          controller.close();
+        },
+      }),
+    };
+  }
+
   listTags = (options?: { maxPages?: number; signal?: AbortSignal }) => this.ci.listTags(options);
   listMatchingTags = (prefix: string, options?: { signal?: AbortSignal }) => this.ci.listMatchingTags(prefix, options);
   getCommit = (ref: string, signal?: AbortSignal) => this.ci.getCommit(ref, signal);

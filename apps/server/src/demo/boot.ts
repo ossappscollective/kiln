@@ -111,6 +111,17 @@ export async function createDemoRuntime(config: DemoConfig, options: { worker?: 
       webhooks: { resolve: seams.resolve, send: async () => ({ ok: true, status: 200, body: 'received by the demo (nothing left this machine)' }) },
       assets: { limiter: createTestLimiter({ now, limit: 600 }), icons: { net: { resolve: seams.resolve, exchange: seams.exchange } } },
       ci: { limiter: createTestLimiter({ now, limit: 600 }), activeLimiter: createTestLimiter({ now, limit: 600 }) },
+      // Test builds: the demo's artifacts are a few hundred bytes, so downloads are on (MRM_BUILDS_DOWNLOAD_ENABLED=false turns them
+      // off to see that state), TestFlight links and Google Play internal sharing come from the simulated stores, and nobody is there to
+      // confirm a hard action with a passkey.
+      builds: {
+        downloadEnabled: !/^(false|0)$/i.test(process.env.MRM_BUILDS_DOWNLOAD_ENABLED?.trim() ?? ''),
+        maxDownloadBytes: 5 * 1024 * 1024,
+        internalSharingEnabled: true,
+        storeConnectorFactory: seams.flightFactory,
+        internalSharingConnectorFactory: seams.sharingFactory,
+      },
+      stepUpAutoApprove: true,
     };
     const app = createApp(deps);
 

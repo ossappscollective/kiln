@@ -9,7 +9,7 @@
   import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
   import { pageTitle } from '../lib/app-nav.ts';
   import { appSwitchHash, jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
-  import { breadcrumbItems } from '../lib/breadcrumb.ts';
+  import { breadcrumbItems, charsFor, fitCrumbs } from '../lib/breadcrumb.ts';
   import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';
@@ -253,6 +253,13 @@
     }),
   );
 
+  // The room of the breadcrumb decides which crumbs are shown whole and which go behind the ellipsis menu (lib/breadcrumb.ts fitCrumbs).
+  let crumbsWidth = $state(0);
+  let crumbMenuOpen = $state(false);
+  let crumbMenuEl = $state<HTMLElement>();
+  let crumbMenuButton = $state<HTMLButtonElement>();
+  const shownCrumbs = $derived(crumbsWidth > 0 ? fitCrumbs(crumbs, charsFor(crumbsWidth)) : crumbs);
+
   $effect(() => {
     const parts = [appAddr ? appContext.name : '', current?.label, workspace?.name, productName].filter(Boolean);
     document.title = parts.join(' · ');
@@ -276,11 +283,15 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key !== 'Escape') return;
-    if (menuOpen) closeMenu();
+    if (crumbMenuOpen) {
+      crumbMenuOpen = false;
+      crumbMenuButton?.focus();
+    } else if (menuOpen) closeMenu();
     else if (drawerOpen) closeDrawer();
   }
 
   function onpointerdown(event: PointerEvent) {
+    if (crumbMenuOpen && crumbMenuEl && !crumbMenuEl.contains(event.target as Node)) crumbMenuOpen = false;
     if (menuOpen && userEl && !userEl.contains(event.target as Node)) menuOpen = false;
   }
 
@@ -409,17 +420,40 @@
         <Icon name="menu" size={20} />
       </button>
 
-      <nav class="crumbs" aria-label="Breadcrumb">
+      <nav class="crumbs" aria-label="Breadcrumb" bind:clientWidth={crumbsWidth}>
         <ol>
-          {#each crumbs as c (c.kind)}
-            <li class:crumb-ws={c.kind === 'workspace'} aria-current={c.current ? 'page' : undefined} title={c.label}>
-              {#if c.href}<a href={c.href}>{c.label}</a>{:else}{c.label}{/if}
-            </li>
+          {#each shownCrumbs as c (c.kind)}
+            {#if c.kind === 'more'}
+              <li class="crumb-more" bind:this={crumbMenuEl} onfocusout={(e) => {
+                const next = e.relatedTarget as Node | null;
+                if (crumbMenuOpen && next && crumbMenuEl && !crumbMenuEl.contains(next)) crumbMenuOpen = false;
+              }}>
+                <button
+                  bind:this={crumbMenuButton}
+                  type="button"
+                  class="bare crumb-more-button"
+                  aria-label="Show the rest of the path"
+                  aria-haspopup="true"
+                  aria-expanded={crumbMenuOpen}
+                  aria-controls="crumb-menu"
+                  onclick={() => (crumbMenuOpen = !crumbMenuOpen)}
+                >…</button>
+                {#if crumbMenuOpen}
+                  <ul id="crumb-menu" class="menu crumb-menu" aria-label="Rest of the path" use:floating={{ anchor: crumbMenuButton ?? null, align: 'start', gap: 6 }}>
+                    {#each c.menu as m (m.kind)}
+                      <li><a href={m.href ?? undefined} onclick={() => (crumbMenuOpen = false)}>{m.label}</a></li>
+                    {/each}
+                  </ul>
+                {/if}
+              </li>
+            {:else}
+              <li class:crumb-ws={c.kind === 'workspace'} aria-current={c.current ? 'page' : undefined} title={c.label}>
+                {#if c.href}<a href={c.href}>{c.label}</a>{:else}{c.label}{/if}
+              </li>
+            {/if}
           {/each}
         </ol>
       </nav>
-
-      <span class="spacer"></span>
 
       {#if canApps}
         <button type="button" class="ghost sm go" aria-label="Go to an app ({modKey} K)" onclick={openSwitcher}>
@@ -754,8 +788,9 @@
     display: none;
   }
 
+  /* Takes the room between the menu button and the right side; fitCrumbs decides what is shown from its width. */
   .crumbs {
-    flex: 0 1 auto;
+    flex: 1 1 0;
     min-width: 0;
   }
 
@@ -783,10 +818,64 @@
     text-overflow: ellipsis;
   }
 
+  /* The page you are on is kept whole: fitCrumbs drops the others first. It only shrinks when it alone is wider than the bar. */
   .crumbs li[aria-current='page'] {
-    flex-shrink: 1;
-    max-width: 40ch;
+    flex-shrink: 0;
+    max-width: 100%;
     color: var(--ink);
+  }
+
+  .crumbs li.crumb-more {
+    position: relative;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .crumb-more-button {
+    min-height: 0;
+    padding: 0 var(--space-1);
+    font: inherit;
+    color: inherit;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+
+  .crumb-more-button:hover {
+    color: var(--ink);
+    background: var(--hover, var(--surface-sunken));
+  }
+
+  .crumb-menu {
+    width: max-content;
+    min-width: 10rem;
+    max-width: calc(100vw - var(--space-8));
+    padding: var(--space-1);
+    margin: 0;
+    list-style: none;
+    white-space: normal;
+  }
+
+  .crumb-menu li {
+    display: block;
+    max-width: none;
+    overflow: visible;
+  }
+
+  .crumbs .crumb-menu li + li::before {
+    content: none;
+  }
+
+  .crumbs .crumb-menu a {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    color: var(--ink);
+    border-radius: var(--radius-sm);
+  }
+
+  .crumbs .crumb-menu a:hover {
+    background: var(--hover, var(--surface-sunken));
+    text-decoration: none;
   }
 
   .crumbs li + li::before {

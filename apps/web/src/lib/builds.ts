@@ -394,23 +394,45 @@ export type TestFlightView =
 export const TESTFLIGHT_NONE_TEXT =
   'No TestFlight group has a public link. Mobile Release Manager only reads TestFlight and never creates or turns on a group or a link: set one up in App Store Connect (TestFlight, a group, Enable Public Link).';
 
+/** The one line for a failed TestFlight read, in the fixed vocabulary of the server (never Apple's text). */
+const flightProblemText = (reason: TestFlightProblemReason): string => {
+  switch (reason) {
+    case 'no_access':
+      return 'App Store Connect did not let us read the TestFlight groups. The API key of this app needs the App Manager role (the least role that works is not confirmed). Change the key in App Store Connect, then reload.';
+    case 'rate_limited':
+      return 'App Store Connect asked us to slow down. The TestFlight links are paused for a moment: try again in a minute.';
+    case 'not_synced':
+      return 'Sync this app once so its App Store id is known, then the TestFlight links can be read.';
+    default:
+      return 'The TestFlight links could not be read. Try again in a moment.';
+  }
+};
+
+/**
+ * What to say ONCE for the whole list about TestFlight, instead of on every row: the read failed (with a way to retry), or no group has a
+ * public link. Null when there is nothing to say (no TestFlight build, or links to show). `short` is the line; `text` the full words.
+ */
+export type TestFlightNote = { tone: 'info' | 'warn'; short: string; text: string; retry: boolean };
+export function testflightNote(list: Pick<BuildsList, 'testflight' | 'store'>): TestFlightNote | null {
+  const info = list.testflight;
+  if (!info || !list.store.some((b) => b.channel === 'testflight')) return null;
+  if (info.problem) {
+    const warn = info.problem.reason !== 'not_synced';
+    return {
+      tone: warn ? 'warn' : 'info',
+      short: info.problem.reason === 'not_synced' ? 'TestFlight links: sync this app first.' : 'TestFlight links could not be read.',
+      text: flightProblemText(info.problem.reason),
+      retry: info.problem.reason !== 'not_synced',
+    };
+  }
+  if (info.groups.length === 0) return { tone: 'info', short: 'No TestFlight public link yet.', text: TESTFLIGHT_NONE_TEXT, retry: false };
+  return null;
+}
+
+/** The TestFlight links of one store build. Whole-list messages (a failed read, no public link, an expired build) are not repeated per row: see `testflightNote`. */
 export function testflightView(list: Pick<BuildsList, 'testflight'>, b: StoreBuildItem): TestFlightView {
   const info = list.testflight;
-  if (!info || b.channel !== 'testflight') return { kind: 'hidden' };
-  if (info.problem) {
-    switch (info.problem.reason) {
-      case 'no_access':
-        return { kind: 'message', tone: 'warn', text: 'App Store Connect did not let us read the TestFlight groups. The API key of this app needs the App Manager role (the least role that works is not confirmed). Change the key in App Store Connect, then reload.' };
-      case 'rate_limited':
-        return { kind: 'message', tone: 'warn', text: 'App Store Connect asked us to slow down. The TestFlight links are paused for a moment: try again in a minute.' };
-      case 'not_synced':
-        return { kind: 'message', tone: 'info', text: 'Sync this app once so its App Store id is known, then the TestFlight links can be read.' };
-      default:
-        return { kind: 'message', tone: 'warn', text: 'The TestFlight links could not be read. Try again in a moment.' };
-    }
-  }
-  if (b.expired === true) return { kind: 'message', tone: 'info', text: 'This build has expired: TestFlight no longer lets testers install it, so there is no link for it.' };
-  if (info.groups.length === 0) return { kind: 'message', tone: 'info', text: TESTFLIGHT_NONE_TEXT };
+  if (!info || b.channel !== 'testflight' || info.problem || b.expired === true || info.groups.length === 0) return { kind: 'hidden' };
   const ids = new Set(b.testflightGroupIds ?? []);
   const links = info.groups.filter((g) => ids.has(g.id)).map((g) => ({
     ...g,
@@ -420,6 +442,28 @@ export function testflightView(list: Pick<BuildsList, 'testflight'>, b: StoreBui
   }));
   if (links.length === 0) return { kind: 'message', tone: 'info', text: 'This build is not in a TestFlight group that has a public link.' };
   return { kind: 'links', links };
+}
+
+/**
+ * One compact status line for the page, in place of stacked notices: downloads switched off and a problem reading the CI artifacts become
+ * one sentence with their full words behind a "Details" button. Null when all is well.
+ */
+export type StatusLine = { tone: 'info' | 'warn' | 'error'; text: string; details: { title: string; body: string }[] };
+export function statusLine(list: Pick<BuildsList, 'downloadEnabled' | 'problem' | 'repository'>): StatusLine | null {
+  const notice = problemNotice(list.problem, list.repository);
+  const parts: string[] = [];
+  const details: StatusLine['details'] = [];
+  if (!list.downloadEnabled) {
+    parts.push('Downloads are off');
+    details.push({ title: 'Downloads are switched off', body: DOWNLOADS_OFF_TEXT });
+  }
+  if (notice) {
+    parts.push(notice.title);
+    details.push({ title: notice.title, body: notice.body });
+  }
+  if (parts.length === 0) return null;
+  const tone = notice && notice.tone !== 'info' ? notice.tone : 'info';
+  return { tone, text: parts.join(' · '), details };
 }
 
 /** Shown instead of a download button while the server switch is off. */

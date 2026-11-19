@@ -16,7 +16,6 @@
     type BuildFilters,
     type BuildRow,
     type BuildsList,
-    DOWNLOADS_OFF_TEXT,
     type InternalSharingConfig,
     applyFilters,
     canOfferShare,
@@ -27,8 +26,9 @@
     humanSize,
     installGuide,
     kindLabel,
-    problemNotice,
     rowsOf,
+    statusLine,
+    testflightNote,
     testflightView,
   } from '../../lib/builds.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
@@ -113,7 +113,11 @@
     applyFilters(rows, focus ? { ...filters, hideExpired: false, hideOther: false, platform: 'all', source: 'all' } : filters),
   );
   const hidden = $derived(hiddenBy(rows, filters));
-  const notice = $derived(data ? problemNotice(data.problem, data.repository) : null);
+  const status = $derived(data ? statusLine(data) : null);
+  const flightNote = $derived(data ? testflightNote(data) : null);
+  let statusOpen = $state(false);
+  // The install steps of one row, opened by its Install button.
+  let installKey = $state<string | null>(null);
   const isFocus = (row: BuildRow) => focus !== null && row.store?.buildNumber === focus;
   const platforms = $derived(Array.from(new Set(rows.map((r) => r.platform).filter((p): p is NonNullable<typeof p> => p !== null))));
 </script>
@@ -142,11 +146,23 @@
       <div class="retry"><Button size="sm" icon="refresh" onclick={() => void load()}>Try again</Button></div>
     </Alert>
   {:else if data}
-    {#if !data.downloadEnabled}
-      <Alert tone="info" title="Downloads are switched off">{DOWNLOADS_OFF_TEXT}</Alert>
-    {/if}
-    {#if notice}
-      <Alert tone={notice.tone === 'error' ? 'error' : notice.tone === 'warn' ? 'warn' : 'info'} title={notice.title}>{notice.body}</Alert>
+    {#if status}
+      <div class="status {status.tone}" role={status.tone === 'error' ? 'alert' : 'status'}>
+        <span class="status-line">
+          <Icon name={status.tone === 'info' ? 'info' : 'alert-triangle'} size={16} />
+          <span class="status-text">{status.text}</span>
+          <button type="button" class="link-button" aria-expanded={statusOpen} aria-controls="builds-status-details" onclick={() => (statusOpen = !statusOpen)}>
+            Details
+          </button>
+        </span>
+        {#if statusOpen}
+          <div id="builds-status-details" class="status-details">
+            {#each status.details as d (d.title)}
+              <p><strong>{d.title}.</strong> {d.body}</p>
+            {/each}
+          </div>
+        {/if}
+      </div>
     {/if}
 
     {#if rows.length > 0}
@@ -176,83 +192,75 @@
       <EmptyState icon="smartphone" title={rows.length === 0 ? 'No builds to test yet' : 'Nothing matches the filters'} description={rows.length === 0 ? 'Run a workflow that uploads the build as an artifact (actions/upload-artifact), or sync the app so its store builds appear. CI builds show here for the runs linked to this app.' : 'Change the filters above to see the other builds.'} />
     {:else}
       <Section title="Test builds" key="test-builds" count={shown.length} flush>
-      <div class="table-wrap">
-        <table>
-          <caption class="visually-hidden">Builds of {app.name} to test</caption>
-          <thead>
-            <tr>
-              <th scope="col">Build</th>
-              <th scope="col">Source</th>
-              <th scope="col">Size</th>
-              <th scope="col">Age</th>
-              <th scope="col">State</th>
-              <th scope="col"><span class="visually-hidden">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each shown as row (row.key)}
-              {@const blocker = downloadBlocker(row, data)}
-              {@const guide = installGuide(row)}
-              <tr class:focus={isFocus(row)} class:faded={row.expired}>
-                <td>
-                  <div class="cell">
-                    <span class="line">
-                      {#if row.platform}<PlatformBadge platform={row.platform} showLabel={false} />{/if}
-                      <strong class="title">{row.title}</strong>
-                      <Badge tone="neutral">{kindLabel(row.kind)}</Badge>
-                    </span>
-                    {#if row.artifact?.guessed && row.kind !== 'other'}<span class="muted text-sm">Type guessed from the name</span>{/if}
-                  </div>
-                </td>
-                <td>
-                  <div class="cell">
-                    {#if row.source === 'ci'}
-                      <span class="line"><Icon name="pipeline" size={14} /> CI run</span>
-                      {#if row.runUrl}
-                        <a class="text-sm" href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail}<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
-                      {:else}<span class="muted text-sm">{row.detail}</span>{/if}
-                    {:else}
-                      <span class="line"><Icon name="store" size={14} /> Store</span>
-                      <span class="muted text-sm">{row.detail}</span>
-                      {#if row.store}
-                        {@const tf = testflightView(data, row.store)}
-                        {#if tf.kind !== 'hidden'}<TestFlightLinks view={tf} />{/if}
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-                <td>{humanSize(row.sizeBytes)}</td>
-                <td>
-                  <div class="cell">
-                    {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span class="muted">Unknown</span>{/if}
-                    {#if expiryText(row, now) !== ''}<span class="muted text-sm">{expiryText(row, now)}</span>{/if}
-                  </div>
-                </td>
-                <td><Badge tone={row.state.tone === 'neutral' ? 'neutral' : row.state.tone} dot>{row.state.label}</Badge></td>
-                <td class="actions">
-                  <div class="buttons">
-                    {#if row.artifact && blocker === null}
-                      <Button size="sm" icon="download" onclick={() => (downloadRow = row)}>Download</Button>
-                      {#if guide.qr}<Button size="sm" icon="qr" onclick={() => (phoneRow = row)}>Phone</Button>{/if}
-                    {:else if row.artifact}
-                      <InfoTip label="Why this cannot be downloaded" icon="lock" text={blocker ?? ''} align="end" />
-                    {/if}
-                    {#if canOfferShare(row, sharing)}
-                      <Button size="sm" icon="upload" onclick={() => (shareRow = row)}>Share to device</Button>
-                    {/if}
-                    {#if guide.link}
-                      <Button size="sm" icon="external-link" href={guide.link.href} target="_blank">{guide.link.label}</Button>
-                    {/if}
-                    <InfoTip label="How to install {row.title}" buttonText="Install" icon="smartphone" align="end" width="26rem">
-                      <InstallGuide {guide} />
-                    </InfoTip>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+        {#if flightNote}
+          <p class="flight-note muted text-sm" role="status" title={flightNote.text}>
+            <Icon name={flightNote.tone === 'warn' ? 'alert-triangle' : 'info'} size={14} />
+            <span>{flightNote.short}</span>
+            {#if flightNote.retry}<button type="button" class="link-button" disabled={loading} onclick={() => void load()}>Retry</button>{/if}
+            <InfoTip label="About the TestFlight links" width="24rem" text={flightNote.text} />
+          </p>
+        {/if}
+        <ul class="rows" aria-label="Builds of {app.name} to test">
+          {#each shown as row (row.key)}
+            {@const blocker = downloadBlocker(row, data)}
+            {@const guide = installGuide(row)}
+            <li class="row" class:focus={isFocus(row)} class:faded={row.expired}>
+              <div class="main">
+                <div class="head">
+                  <span class="line">
+                    {#if row.platform}<PlatformBadge platform={row.platform} showLabel={false} />{/if}
+                    <strong class="title">{row.title}</strong>
+                    <Badge tone="neutral">{kindLabel(row.kind)}</Badge>
+                  </span>
+                  <Badge tone={row.state.tone === 'neutral' ? 'neutral' : row.state.tone} dot>{row.state.label}</Badge>
+                </div>
+                <div class="meta muted text-sm">
+                  <span class="src">
+                    <Icon name={row.source === 'ci' ? 'pipeline' : 'store'} size={13} />
+                    {row.source === 'ci' ? 'CI' : 'Store'}
+                  </span>
+                  {#if row.source === 'ci' && row.runUrl}
+                    <a href={row.runUrl} target="_blank" rel="noopener noreferrer">{row.detail}<Icon name="external-link" size={12} /><span class="visually-hidden"> (opens in a new tab)</span></a>
+                  {:else if row.detail}<span>{row.detail}</span>{/if}
+                  {#if row.sizeBytes !== null}<span>{humanSize(row.sizeBytes)}</span>{/if}
+                  {#if row.at !== null}<time datetime={new Date(row.at).toISOString()} title={fullTime(row.at)}>{timeAgo(row.at, now)}</time>{:else}<span>Age unknown</span>{/if}
+                  {#if expiryText(row, now) !== ''}<span>{expiryText(row, now)}</span>{/if}
+                  {#if row.artifact?.guessed && row.kind !== 'other'}<span>Type guessed from the name</span>{/if}
+                </div>
+                {#if row.source === 'store' && row.store}
+                  {@const tf = testflightView(data, row.store)}
+                  {#if tf.kind !== 'hidden'}<TestFlightLinks view={tf} />{/if}
+                {/if}
+              </div>
+              <div class="buttons">
+                {#if row.artifact && blocker === null}
+                  <Button size="sm" icon="download" onclick={() => (downloadRow = row)}>Download</Button>
+                  {#if guide.qr}<Button size="sm" icon="qr" onclick={() => (phoneRow = row)}>Phone</Button>{/if}
+                {:else if row.artifact}
+                  <InfoTip label="Why this cannot be downloaded" icon="lock" text={blocker ?? ''} align="end" />
+                {/if}
+                {#if canOfferShare(row, sharing)}
+                  <Button size="sm" icon="upload" onclick={() => (shareRow = row)}>Share to device</Button>
+                {/if}
+                {#if guide.link}
+                  <Button size="sm" icon="external-link" href={guide.link.href} target="_blank">{guide.link.label}</Button>
+                {/if}
+                <Button
+                  size="sm"
+                  icon="smartphone"
+                  aria-expanded={installKey === row.key}
+                  aria-controls="install-{row.key}"
+                  onclick={() => (installKey = installKey === row.key ? null : row.key)}
+                >
+                  Install
+                </Button>
+              </div>
+              {#if installKey === row.key}
+                <div id="install-{row.key}" class="install"><InstallGuide {guide} /></div>
+              {/if}
+            </li>
+          {/each}
+        </ul>
       </Section>
       {#if data.truncated}<p class="muted text-sm">Only the newest artifacts of the repository were read.</p>{/if}
       {#if data.hiddenArtifacts > 0}<p class="muted text-sm">{data.hiddenArtifacts} other artifact{data.hiddenArtifacts === 1 ? '' : 's'} of this repository belong to other runs or platforms and are not shown.</p>{/if}
@@ -296,12 +304,109 @@
     align-items: center;
   }
 
-  .cell {
+  /* One quiet line for the whole page: downloads off and a CI problem, with the long words behind "Details". */
+  .status {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--info-bg);
+    color: var(--info-ink);
+  }
+
+  .status.warn {
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+  }
+
+  .status.error {
+    background: var(--bad-bg, var(--warn-bg));
+    color: var(--bad-ink, var(--warn-ink));
+  }
+
+  .status-line {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .status-text {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  .status-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  .status-details p {
+    margin: 0;
+  }
+
+  .link-button {
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-decoration: underline;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .link-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .flight-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2) var(--space-4);
+    margin: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* A build: the name and the state on one line, the rest in one muted line below, the actions after. They wrap, they do not stack by force. */
+  .rows {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .row + .row {
+    border-top: 1px solid var(--line);
+  }
+
+  .main {
+    display: flex;
+    flex: 1 1 22rem;
     flex-direction: column;
     gap: var(--space-1);
     min-width: 0;
-    overflow-wrap: anywhere;
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
   }
 
   .line {
@@ -309,29 +414,53 @@
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
+    min-width: 0;
   }
 
   .title {
     overflow-wrap: anywhere;
   }
 
-  .actions {
-    text-align: right;
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
+    align-items: center;
+    overflow-wrap: anywhere;
+  }
+
+  .meta > :global(* + *)::before {
+    margin-right: var(--space-2);
+    color: var(--faint);
+    content: '·';
+  }
+
+  .src {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
   }
 
   .buttons {
-    display: inline-flex;
+    display: flex;
+    flex: 0 1 auto;
     flex-wrap: wrap;
     gap: var(--space-2);
-    justify-content: flex-end;
     align-items: center;
+  }
+
+  .install {
+    flex: 1 1 100%;
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border-radius: var(--radius-md);
   }
 
   .faded {
     opacity: 0.7;
   }
 
-  .focus > td {
+  .row.focus {
     background: var(--accent-soft, var(--surface-sunken));
   }
 

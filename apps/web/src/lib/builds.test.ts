@@ -38,6 +38,8 @@ import {
   secondsLeft,
   storeRow,
   testBuildsHref,
+  statusLine,
+  testflightNote,
   testflightView,
   TESTFLIGHT_NONE_TEXT,
 } from './builds.ts';
@@ -200,15 +202,25 @@ test('TestFlight row: links with state and limit, and plain words when there is 
   const some = testflightView({ testflight: info() }, store({ testflightGroupIds: ['g2'] }));
   assert.equal(some.kind === 'links' && some.links.length, 1);
   assert.match((testflightView({ testflight: info() }, store({ testflightGroupIds: [] })) as { text: string }).text, /not in a TestFlight group/);
-  assert.equal((testflightView({ testflight: info({ groups: [] }) }, store({ testflightGroupIds: [] })) as { text: string }).text, TESTFLIGHT_NONE_TEXT);
+  // Whole-list words are not repeated on every row: they come once, from testflightNote.
+  assert.equal(testflightView({ testflight: info({ groups: [] }) }, store({ testflightGroupIds: [] })).kind, 'hidden');
   assert.match(TESTFLIGHT_NONE_TEXT, /never creates or turns on/);
-  assert.match((testflightView({ testflight: info() }, store({ expired: true })) as { text: string }).text, /expired/);
+  assert.equal(testflightView({ testflight: info() }, store({ expired: true })).kind, 'hidden');
   assert.equal(testflightView({ testflight: info() }, store({ channel: 'play' })).kind, 'hidden');
   assert.equal(testflightView({ testflight: null }, store()).kind, 'hidden');
-  const denied = testflightView({ testflight: info({ groups: [], problem: { reason: 'no_access', needs: 'x' } }) }, store());
-  assert.equal(denied.kind === 'message' && denied.tone, 'warn');
-  assert.match((denied as { text: string }).text, /App Manager/);
-  assert.match((testflightView({ testflight: info({ groups: [], problem: { reason: 'not_synced', needs: null } }) }, store()) as { text: string }).text, /Sync this app/);
+  const broken = info({ groups: [], problem: { reason: 'no_access', needs: 'x' } });
+  assert.equal(testflightView({ testflight: broken }, store()).kind, 'hidden');
+  const withStore = (testflight: BuildsList['testflight'], builds = [store()]) => ({ testflight, store: builds });
+  const denied = testflightNote(withStore(broken));
+  assert.equal(denied?.tone, 'warn');
+  assert.equal(denied?.retry, true);
+  assert.match(denied?.text ?? '', /App Manager/);
+  assert.match(testflightNote(withStore(info({ groups: [], problem: { reason: 'not_synced', needs: null } })))?.text ?? '', /Sync this app/);
+  assert.equal(testflightNote(withStore(info({ groups: [], problem: { reason: 'unavailable', needs: null } })))?.short, 'TestFlight links could not be read.');
+  assert.equal(testflightNote(withStore(info({ groups: [] })))?.text, TESTFLIGHT_NONE_TEXT);
+  assert.equal(testflightNote(withStore(info())), null);
+  assert.equal(testflightNote(withStore(broken, [store({ channel: 'play' })])), null);
+  assert.equal(testflightNote(withStore(null)), null);
 });
 
 // ---- Share to device (Google Play internal app sharing) ----
@@ -290,4 +302,19 @@ test('the link warnings say it is sensitive and how long this server keeps it', 
   assert.match(LINK_SENSITIVE_TEXT, /sensitive/);
   assert.match(linkKeptText(24), /24 hours/);
   assert.match(linkKeptText(1), /1 hour,/);
+});
+
+test('the status line joins "downloads off" and a problem with the artifacts into one line with details', () => {
+  const base = { downloadEnabled: true, problem: null, repository: null } as const;
+  assert.equal(statusLine(base), null);
+  const off = statusLine({ ...base, downloadEnabled: false });
+  assert.equal(off?.text, 'Downloads are off');
+  assert.equal(off?.tone, 'info');
+  assert.deepEqual(off?.details.map((d) => d.body), [DOWNLOADS_OFF_TEXT]);
+  const both = statusLine({ downloadEnabled: false, problem: { reason: 'unsupported', needs: null }, repository: null });
+  assert.equal(both?.text, 'Downloads are off · This connection cannot list artifacts');
+  assert.equal(both?.details.length, 2);
+  const warn = statusLine({ ...base, problem: { reason: 'no_access', needs: 'actions: read' }, repository: { owner: 'acme', repo: 'app' } });
+  assert.equal(warn?.tone, 'warn');
+  assert.match(warn?.details[0]?.body ?? '', /acme\/app/);
 });
