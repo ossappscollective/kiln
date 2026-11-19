@@ -26,7 +26,7 @@ test('members read but never change credentials or members', () => {
   assert.equal(can('member', 'members.manage'), false);
 });
 
-test('viewers only read the workspace, repositories, apps, listings, plans, reviews and events', () => {
+test('viewers only read the workspace, repositories, apps, listings, plans, reviews, events and ASO', () => {
   const reads = [
     'workspace.read',
     'repositories.read',
@@ -35,6 +35,7 @@ test('viewers only read the workspace, repositories, apps, listings, plans, revi
     'plans.read',
     'reviews.read',
     'events.read',
+    'aso.read',
   ];
   for (const action of reads) assert.equal(can('viewer', action as never), true, action);
   for (const action of actions.filter((a) => !reads.includes(a))) {
@@ -237,4 +238,19 @@ test('store.submit: owners and admins only; a token needs the action named and a
   assert.equal(canToken('admin', ['store.push_draft'], 'store.submit'), false, 'pushing a draft is not submitting');
   assert.equal(canToken('admin', ['store.submit'], 'store.submit'), true);
   assert.equal(canToken('member', ['store.submit'], 'store.submit'), false, 'the ceiling still applies');
+});
+
+test('ASO: everybody reads, members track keywords and competitors, only admins refresh everything', () => {
+  for (const role of ['viewer', 'member', 'admin', 'owner'] as const) assert.equal(can(role, 'aso.read'), true, role);
+  assert.equal(can('viewer', 'aso.write'), false);
+  assert.equal(can('member', 'aso.write'), true);
+  assert.equal(can('member', 'aso.manage'), false);
+  for (const role of ['admin', 'owner'] as const) {
+    assert.equal(can(role, 'aso.write'), true, role);
+    assert.equal(can(role, 'aso.manage'), true, role);
+  }
+  // A token may hold them (they read public store data and write only this server's database).
+  assert.equal(canToken('member', null, 'aso.write'), true);
+  assert.equal(canToken('viewer', null, 'aso.write'), false);
+  assert.equal(canToken('admin', null, 'aso.manage'), true);
 });

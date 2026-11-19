@@ -1085,3 +1085,153 @@ export const storeSubmitClaims = sqliteTable(
     index('store_submit_claims_workspace_idx').on(t.workspaceId),
   ],
 );
+
+/**
+ * App Store Optimization (see migration 25 and docs/adr/0011-aso-keywords-competitors.md): tracked
+ * search terms, their rank checks, followed competitors and their public snapshots. Public store
+ * data only; nothing is ever written to a store.
+ */
+export const asoKeywords = sqliteTable(
+  'aso_keywords',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    /** Two letter storefront, lower case. */
+    country: text('country').notNull(),
+    locale: text('locale').notNull(),
+    term: text('term').notNull(),
+    /** The normalized term: two spellings of one keyword share it. */
+    termKey: text('term_key').notNull(),
+    tag: text('tag'),
+    notes: text('notes'),
+    /** 1 low, 2 normal, 3 high. */
+    priority: integer('priority').notNull().default(2),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    lastCheckedAt: integer('last_checked_at'),
+    /** ranked, not_ranked or unavailable. */
+    lastState: text('last_state'),
+    lastRankPos: integer('last_rank_pos'),
+    lastTotal: integer('last_total'),
+    prevState: text('prev_state'),
+    prevRankPos: integer('prev_rank_pos'),
+    lastError: text('last_error'),
+  },
+  (t) => [
+    uniqueIndex('aso_keywords_unique_idx').on(t.appId, t.country, t.locale, t.termKey),
+    index('aso_keywords_workspace_idx').on(t.workspaceId, t.appId),
+  ],
+);
+
+export const asoRankChecks = sqliteTable(
+  'aso_rank_checks',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    keywordId: text('keyword_id')
+      .notNull()
+      .references(() => asoKeywords.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    checkedAt: integer('checked_at').notNull(),
+    /** 1-based position in the source's results; null: not among the first `total`. */
+    rankPos: integer('rank_pos'),
+    total: integer('total').notNull(),
+    /** apple_search or play_public. */
+    source: text('source').notNull(),
+    /** JSON [{id, name}]: the first results (public), for competitor suggestions. */
+    topResults: text('top_results'),
+  },
+  (t) => [
+    index('aso_rank_checks_keyword_idx').on(t.keywordId, t.checkedAt),
+    index('aso_rank_checks_workspace_idx').on(t.workspaceId, t.checkedAt),
+  ],
+);
+
+export const asoCompetitors = sqliteTable(
+  'aso_competitors',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    /** app_store or google_play. */
+    store: text('store').notNull(),
+    /** The numeric App Store id, or the Android package name. */
+    externalId: text('external_id').notNull(),
+    country: text('country').notNull(),
+    name: text('name').notNull(),
+    addedBy: text('added_by').notNull(),
+    addedAt: integer('added_at').notNull(),
+    lastCheckedAt: integer('last_checked_at'),
+    /** ok, not_found or unavailable. */
+    lastState: text('last_state'),
+    lastError: text('last_error'),
+  },
+  (t) => [
+    uniqueIndex('aso_competitors_unique_idx').on(t.appId, t.store, t.externalId, t.country),
+    index('aso_competitors_workspace_idx').on(t.workspaceId, t.appId),
+  ],
+);
+
+export const asoCompetitorSnapshots = sqliteTable(
+  'aso_competitor_snapshots',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    competitorId: text('competitor_id')
+      .notNull()
+      .references(() => asoCompetitors.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    checkedAt: integer('checked_at').notNull(),
+    /** first, change or heartbeat. */
+    kind: text('kind').notNull(),
+    version: text('version'),
+    ratingMilli: integer('rating_milli'),
+    ratingCount: integer('rating_count'),
+    price: text('price'),
+    currency: text('currency'),
+    title: text('title'),
+    subtitle: text('subtitle'),
+    descriptionExcerpt: text('description_excerpt'),
+    textHash: text('text_hash').notNull(),
+    descriptionHash: text('description_hash'),
+    screenshotCount: integer('screenshot_count'),
+    mediaHash: text('media_hash'),
+    /** JSON: the fields that differ from the previous snapshot. */
+    changes: text('changes'),
+  },
+  (t) => [
+    index('aso_competitor_snapshots_competitor_idx').on(t.competitorId, t.checkedAt),
+    index('aso_competitor_snapshots_workspace_idx').on(t.workspaceId, t.checkedAt),
+  ],
+);
+
+/** The run state of the ASO refresh per app: last run, failure streak, backoff and the claim. */
+export const asoAppState = sqliteTable(
+  'aso_app_state',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastSuccessAt: integer('last_success_at'),
+    lastError: text('last_error'),
+    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    backoffUntil: integer('backoff_until'),
+    claimedAt: integer('claimed_at'),
+    claimedBy: text('claimed_by'),
+    lastResult: text('last_result'),
+  },
+  (t) => [index('aso_app_state_workspace_idx').on(t.workspaceId)],
+);

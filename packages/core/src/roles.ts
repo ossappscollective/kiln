@@ -39,6 +39,9 @@ export const actions = [
   'webhooks.read',
   'webhooks.manage',
   'events.read',
+  'aso.read',
+  'aso.write',
+  'aso.manage',
 ] as const;
 export type Action = (typeof actions)[number];
 
@@ -65,6 +68,8 @@ const allowed: Record<Role, readonly Action[]> = {
     'reviews.translate',
     'settings.read',
     'events.read',
+    'aso.read',
+    'aso.write',
   ],
   viewer: [
     'workspace.read',
@@ -74,6 +79,7 @@ const allowed: Record<Role, readonly Action[]> = {
     'plans.read',
     'reviews.read',
     'events.read',
+    'aso.read',
   ],
 };
 

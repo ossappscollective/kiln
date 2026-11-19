@@ -1105,4 +1105,132 @@ export const migrations: Migration[] = [
       ];
     },
   },
+
+  {
+    id: 25,
+    name: 'ASO: tracked keywords, rank checks, competitors, competitor snapshots and per app run state',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // App Store Optimization (docs/adr/0011-aso-keywords-competitors.md). Everything here is PUBLIC
+      // store data read without a credential (the iTunes Search API; optionally the public pages of
+      // Google Play), kept for ranking history. Nothing is ever written to a store. app_id has no
+      // foreign key on purpose (like the review and listing tables): deleting an app deletes its rows
+      // in code. Counts, ids and public short fields only; MRM_ASO_RETENTION_DAYS prunes old rows.
+      // aso_keywords: one tracked search term of an app in one storefront (country, two letters, lower
+      // case) and listing locale. term is as typed (white space collapsed), term_key the normalized form
+      // that makes two spellings one keyword (unique per app, country and locale). priority 1 low, 2
+      // normal, 3 high (orders the gaps of the listing fit). last_* and prev_* are the latest and the
+      // previous check, kept here so lists need no join: last_state is ranked, not_ranked or
+      // unavailable (the source could not say: a changed page, a block; never "not ranked"), last_total
+      // the number of results looked at, last_error a short code (no text from the store).
+      // aso_rank_checks: one row per check of a keyword. rank_pos is the 1-based position in the
+      // source's results, NULL when the app is not among the first `total` results. source is
+      // apple_search or play_public. top_results is JSON [{id, name}] of the first results (at most 20,
+      // public app ids and names), what competitor suggestions are computed from.
+      // aso_competitors: an app a person chose to follow, for one of our apps. store is app_store or
+      // google_play, external_id the numeric App Store id or the Android package name, country the
+      // storefront. last_state is ok, not_found or unavailable.
+      // aso_competitor_snapshots: the public data of a competitor, stored on its first look, when it
+      // changed, and as a heartbeat (kind first, change or heartbeat). rating_milli is the average in
+      // thousandths. text_hash covers title, subtitle and description, description_hash the description
+      // alone, media_hash the icon and screenshot addresses; description_excerpt is at most 1000
+      // characters of the public description; changes is a JSON list of the fields that differ from the
+      // previous snapshot.
+      // aso_app_state: one row per app: the last run, its failure streak and backoff for the scheduler,
+      // and the claim (claimed_at, which expires) that keeps one refresh of an app at a time across
+      // processes; last_result is a JSON summary of counts.
+      return [
+        `CREATE TABLE IF NOT EXISTS aso_keywords (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           country TEXT NOT NULL,
+           locale TEXT NOT NULL,
+           term TEXT NOT NULL,
+           term_key TEXT NOT NULL,
+           tag TEXT,
+           notes TEXT,
+           priority INTEGER NOT NULL DEFAULT 2,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           updated_at ${t} NOT NULL,
+           last_checked_at ${t},
+           last_state TEXT,
+           last_rank_pos INTEGER,
+           last_total INTEGER,
+           prev_state TEXT,
+           prev_rank_pos INTEGER,
+           last_error TEXT
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS aso_keywords_unique_idx ON aso_keywords (app_id, country, locale, term_key)',
+        'CREATE INDEX IF NOT EXISTS aso_keywords_workspace_idx ON aso_keywords (workspace_id, app_id)',
+        `CREATE TABLE IF NOT EXISTS aso_rank_checks (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           keyword_id TEXT NOT NULL REFERENCES aso_keywords(id) ON DELETE CASCADE,
+           app_id TEXT NOT NULL,
+           checked_at ${t} NOT NULL,
+           rank_pos INTEGER,
+           total INTEGER NOT NULL,
+           source TEXT NOT NULL,
+           top_results TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS aso_rank_checks_keyword_idx ON aso_rank_checks (keyword_id, checked_at)',
+        'CREATE INDEX IF NOT EXISTS aso_rank_checks_workspace_idx ON aso_rank_checks (workspace_id, checked_at)',
+        `CREATE TABLE IF NOT EXISTS aso_competitors (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           store TEXT NOT NULL,
+           external_id TEXT NOT NULL,
+           country TEXT NOT NULL,
+           name TEXT NOT NULL,
+           added_by TEXT NOT NULL,
+           added_at ${t} NOT NULL,
+           last_checked_at ${t},
+           last_state TEXT,
+           last_error TEXT
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS aso_competitors_unique_idx ON aso_competitors (app_id, store, external_id, country)',
+        'CREATE INDEX IF NOT EXISTS aso_competitors_workspace_idx ON aso_competitors (workspace_id, app_id)',
+        `CREATE TABLE IF NOT EXISTS aso_competitor_snapshots (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           competitor_id TEXT NOT NULL REFERENCES aso_competitors(id) ON DELETE CASCADE,
+           app_id TEXT NOT NULL,
+           checked_at ${t} NOT NULL,
+           kind TEXT NOT NULL,
+           version TEXT,
+           rating_milli INTEGER,
+           rating_count INTEGER,
+           price TEXT,
+           currency TEXT,
+           title TEXT,
+           subtitle TEXT,
+           description_excerpt TEXT,
+           text_hash TEXT NOT NULL,
+           description_hash TEXT,
+           screenshot_count INTEGER,
+           media_hash TEXT,
+           changes TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS aso_competitor_snapshots_competitor_idx ON aso_competitor_snapshots (competitor_id, checked_at)',
+        'CREATE INDEX IF NOT EXISTS aso_competitor_snapshots_workspace_idx ON aso_competitor_snapshots (workspace_id, checked_at)',
+        `CREATE TABLE IF NOT EXISTS aso_app_state (
+           app_id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           last_attempt_at ${t},
+           last_success_at ${t},
+           last_error TEXT,
+           consecutive_failures INTEGER NOT NULL DEFAULT 0,
+           backoff_until ${t},
+           claimed_at ${t},
+           claimed_by TEXT,
+           last_result TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS aso_app_state_workspace_idx ON aso_app_state (workspace_id)',
+      ];
+    },
+  },
 ];
