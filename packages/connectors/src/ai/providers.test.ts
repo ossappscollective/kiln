@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fakeFetch } from '../translate/fake.ts';
 import {
+  AI_MODEL_LIST_CAP,
   AiError,
   ANTHROPIC_API_VERSION,
+  ANTHROPIC_FALLBACK_MODELS,
+  OPENAI_FALLBACK_MODELS,
+  aiFallbackModels,
+  normalizeModels,
   PROBE_SCHEMA,
   aiErrorMessage,
   createAiClient,
@@ -359,4 +364,108 @@ test('the connection test asks for one boolean, sends no workspace data, and rep
     assert.equal(probe.kind, 'auth');
     assert.equal(probe.message, aiErrorMessage('auth'));
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Models (discovery)
+
+test('normalizeModels: bad ids are dropped, duplicates removed, sorted, capped; labels are plain single lines', () => {
+  const list = normalizeModels([
+    { id: 'zeta-1' },
+    { id: 'alpha-1', label: 'Alpha  One\u202e' },
+    { id: 'alpha-1', label: 'duplicate' },
+    { id: 'has space' },
+    { id: '../etc/passwd' },
+    { id: '<script>' },
+    { id: '' },
+    { id: 42 },
+    { id: 'x'.repeat(101) },
+    { id: 'llama3.2:latest', label: 'llama3.2:latest' },
+    { id: 'org/model@v1+q4' },
+  ]);
+  assert.deepEqual(list, [{ id: 'alpha-1', label: 'Alpha One' }, { id: 'llama3.2:latest' }, { id: 'org/model@v1+q4' }, { id: 'zeta-1' }]);
+  const many = normalizeModels(Array.from({ length: 500 }, (_v, i) => ({ id: `m-${String(i).padStart(3, '0')}` })));
+  assert.equal(many.length, AI_MODEL_LIST_CAP);
+  assert.equal(many[0]?.id, 'm-000');
+});
+
+test('anthropic: GET /v1/models with the key in a header, retired models skipped, display names kept', async () => {
+  const f = fakeFetch({
+    status: 200,
+    json: { data: [{ id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5', lifecycle: 'active' }, { id: 'claude-old', lifecycle: 'retired' }, { id: 'bad id!' }], has_more: false },
+  });
+  const client = createAiClient({ provider: 'anthropic', model: 'list-models', secret: KEY, options: { fetch: f.fetch } });
+  assert.deepEqual(await client.listModels(), [{ id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' }]);
+  const [req] = f.requests;
+  assert.equal(req?.method, 'GET');
+  assert.equal(req?.url, 'https://api.anthropic.com/v1/models?limit=1000');
+  assert.equal(req?.headers['x-api-key'], KEY);
+  assert.equal(req?.headers['anthropic-version'], ANTHROPIC_API_VERSION);
+  assert.equal(req?.body, undefined, 'a read has no body');
+  assert.equal('content-type' in (req?.headers ?? {}), false);
+});
+
+test('openai: GET /v1/models, obviously non-chat models are filtered unless that would leave nothing', async () => {
+  const f = fakeFetch({ status: 200, json: { object: 'list', data: [{ id: 'gpt-x' }, { id: 'text-embedding-9' }, { id: 'whisper-2' }, { id: 'gpt-x-mini' }] } });
+  const client = createAiClient({ provider: 'openai', model: 'list-models', secret: KEY, options: { fetch: f.fetch } });
+  assert.deepEqual(await client.listModels(), [{ id: 'gpt-x' }, { id: 'gpt-x-mini' }]);
+  assert.equal(f.requests[0]?.url, 'https://api.openai.com/v1/models');
+  assert.equal(f.requests[0]?.headers.authorization, `Bearer ${KEY}`);
+  const only = fakeFetch({ status: 200, json: { data: [{ id: 'text-embedding-9' }] } });
+  assert.deepEqual(await createAiClient({ provider: 'openai', model: 'm', secret: KEY, options: { fetch: only.fetch } }).listModels(), [{ id: 'text-embedding-9' }]);
+});
+
+test('openai compatible: the call goes to <base>/models and <base>/chat/completions, with or without /v1, with or without a trailing slash', async () => {
+  const cases: [string, string, string][] = [
+    ['http://localhost:11234/v1', 'http://localhost:11234/v1/models', 'http://localhost:11234/v1/chat/completions'],
+    ['http://localhost:11234/v1/', 'http://localhost:11234/v1/models', 'http://localhost:11234/v1/chat/completions'],
+    ['http://localhost:11234', 'http://localhost:11234/models', 'http://localhost:11234/chat/completions'],
+    ['https://gw.example/api/openai/v1', 'https://gw.example/api/openai/v1/models', 'https://gw.example/api/openai/v1/chat/completions'],
+  ];
+  for (const [base, models, chat] of cases) {
+    const f = fakeFetch({ status: 200, json: { object: 'list', data: [{ id: 'qwen2.5:7b' }, { id: 'llama3.2' }] } }, chatOk(JSON.stringify(GOOD)));
+    const client = createAiClient({ provider: 'openai_compatible', model: 'llama3.2', baseUrl: base, options: { fetch: f.fetch } });
+    assert.deepEqual(await client.listModels(), [{ id: 'llama3.2' }, { id: 'qwen2.5:7b' }]);
+    await client.complete(REQUEST);
+    assert.equal(f.requests[0]?.url, models, base);
+    assert.equal(f.requests[1]?.url, chat, base);
+    assert.equal(f.requests[0]?.url.includes('/v1/v1'), false);
+    assert.equal('authorization' in (f.requests[0]?.headers ?? {}), false, 'a local server needs no key');
+  }
+});
+
+test('listing models: auth, 404 and odd answers are fixed errors; the key and the provider text never leak', async () => {
+  const auth = await kindOf(createAiClient({ provider: 'openai', model: 'm', secret: KEY, options: { fetch: fakeFetch({ status: 401, json: { error: { message: `bad key ${KEY}` } } }).fetch } }).listModels());
+  assert.equal(auth.kind, 'auth');
+  assert.ok(!auth.message.includes(KEY));
+  const missing = await kindOf(createAiClient({ provider: 'anthropic', model: 'm', secret: KEY, options: { fetch: fakeFetch({ status: 404, json: { error: { message: `no route ${KEY}` } } }).fetch } }).listModels());
+  assert.equal(missing.kind, 'unavailable');
+  assert.equal(missing.detail, 'http_404');
+  assert.ok(!missing.message.includes(KEY));
+  const limited = await kindOf(createAiClient({ provider: 'anthropic', model: 'm', secret: KEY, options: { fetch: fakeFetch({ status: 429, headers: { 'retry-after': '7' } }).fetch } }).listModels());
+  assert.equal(limited.kind, 'rate_limited');
+  assert.equal(limited.retryAfterSeconds, 7);
+  for (const answer of [{ status: 200, text: '<html>nope</html>' }, { status: 200, json: { data: 'x' } }, { status: 200, json: [] }]) {
+    const odd = await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'https://gw.example/v1', options: { fetch: fakeFetch(answer).fetch } }).listModels());
+    assert.equal(odd.kind, 'unavailable');
+    assert.equal(odd.detail, 'bad_reply');
+  }
+  const down = await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'https://gw.example/v1', options: { fetch: fakeFetch({ throws: new Error(`ECONNREFUSED ${KEY}`) }).fetch } }).listModels());
+  assert.equal(down.detail, 'connection');
+  const redirected = await kindOf(createAiClient({ provider: 'openai', model: 'm', secret: KEY, options: { fetch: fakeFetch({ status: 302, headers: { location: 'https://evil.example/' } }).fetch } }).listModels());
+  assert.equal(redirected.detail, 'http_302');
+  const big = await kindOf(createAiClient({ provider: 'openai', model: 'm', secret: KEY, options: { fetch: fakeFetch({ status: 200, text: 'x'.repeat(5000) }).fetch, maxResponseBytes: 1000 } }).listModels());
+  assert.equal(big.detail, 'reply_too_big');
+});
+
+test('the fallback lists are fixed and valid ids; a compatible server has none; the fake client lists what it was given', async () => {
+  assert.deepEqual(aiFallbackModels('anthropic').map((m) => m.id), ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']);
+  assert.deepEqual(normalizeModels([...ANTHROPIC_FALLBACK_MODELS, ...OPENAI_FALLBACK_MODELS]).length, ANTHROPIC_FALLBACK_MODELS.length + OPENAI_FALLBACK_MODELS.length);
+  assert.ok(aiFallbackModels('openai').length > 0);
+  assert.deepEqual(aiFallbackModels('openai_compatible'), []);
+  const fake = createFakeAiClient({ answers: [], models: [{ id: 'b' }, { id: 'a', label: 'A' }, { id: 'bad id' }] });
+  assert.deepEqual(await fake.listModels(), [{ id: 'a', label: 'A' }, { id: 'b' }]);
+  assert.equal(fake.listCalls, 1);
+  const failing = createFakeAiClient({ answers: [], models: new AiError('auth') });
+  assert.equal((await kindOf(failing.listModels())).kind, 'auth');
 });

@@ -17,7 +17,8 @@ export type JsonReply = {
 export type JsonRequest = {
   url: string;
   headers: Record<string, string>;
-  body: unknown;
+  /** Sent as JSON for a POST; a GET has none. */
+  body?: unknown;
   /** Aborts the call (the caller went away). */
   signal?: AbortSignal | undefined;
 };
@@ -52,7 +53,12 @@ async function readCapped(response: Response, maxBytes: number): Promise<string 
   return new TextDecoder().decode(all);
 }
 
-export async function postJson(request: JsonRequest, options: AiClientOptions): Promise<JsonReply> {
+export const postJson = (request: JsonRequest, options: AiClientOptions): Promise<JsonReply> => sendJson('POST', request, options);
+
+/** The same guarded call as `postJson` for a read (the list of models): no body, same limits, same fixed errors. */
+export const getJson = (request: Omit<JsonRequest, 'body'>, options: AiClientOptions): Promise<JsonReply> => sendJson('GET', request, options);
+
+async function sendJson(method: 'GET' | 'POST', request: JsonRequest, options: AiClientOptions): Promise<JsonReply> {
   const send = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS;
   const maxBytes = options.maxResponseBytes ?? DEFAULT_AI_MAX_RESPONSE_BYTES;
@@ -66,9 +72,9 @@ export async function postJson(request: JsonRequest, options: AiClientOptions): 
   let text: string | undefined;
   try {
     response = await send(request.url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json', ...request.headers },
-      body: JSON.stringify(request.body),
+      method,
+      headers: { ...(method === 'POST' ? { 'content-type': 'application/json' } : {}), accept: 'application/json', ...request.headers },
+      ...(method === 'POST' ? { body: JSON.stringify(request.body) } : {}),
       // A redirect would carry the key to another address.
       redirect: 'manual',
       signal: controller.signal,

@@ -1,5 +1,5 @@
 import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
-import type { AiAcceptBody, AiAcceptResult, AiConfig, AiRunBody, AiSettingsChanges, AiTasksResponse, AiTestOutcome } from './ai.ts';
+import type { AiAcceptBody, AiAcceptResult, AiConfig, AiModelsBody, AiModelsResponse, AiRunBody, AiSettingsChanges, AiTasksResponse, AiTestOutcome } from './ai.ts';
 import type {
   AsoAddResult,
   AsoCompetitor,
@@ -1001,6 +1001,8 @@ export function createApi(options: ApiOptions = {}) {
     aiConfig: (workspaceId: string) => request<AiConfig>('GET', `${workspace(workspaceId)}/ai/config`),
     updateAiConfig: (workspaceId: string, changes: AiSettingsChanges) => request<AiConfig>('PUT', `${workspace(workspaceId)}/ai/config`, changes),
     testAi: (workspaceId: string) => request<AiTestOutcome>('POST', `${workspace(workspaceId)}/ai/test`),
+    // The models a provider offers. A typed key is used for this call only (never stored); without one the stored credential is used.
+    aiModels: (workspaceId: string, body: AiModelsBody) => request<AiModelsResponse>('POST', `${workspace(workspaceId)}/ai/models`, body),
     aiTasks: (workspaceId: string) => request<AiTasksResponse>('GET', `${workspace(workspaceId)}/ai/tasks`),
     runAiTask: (workspaceId: string, taskId: string, body: AiRunBody) =>
       request<{ suggestion: AiSuggestionView }>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/run`, body),

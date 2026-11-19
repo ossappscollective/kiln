@@ -5,6 +5,10 @@
     is missing), ready.
   - Provider (Anthropic, OpenAI, or an OpenAI compatible server, for example a local one), model, address (for the compatible one), the API key,
     and the monthly usage limit with a meter. The key is write-only: it goes to the credential vault, and what is saved is never shown back.
+  - The model is a combobox: any typed name is allowed, and "Load models" asks the provider for its list (POST /ai/models, with the typed key for
+    that one call, never stored). It also loads once by itself when the form is ready (debounced, one call at a time, never on every keystroke).
+    A list that could not be read says so quietly and offers well known names. The chosen name is kept even when it is not listed.
+  - A local address is explained before it fails: this server only talks to public addresses unless its operator sets MRM_AI_ALLOW_PRIVATE_URLS=true.
   - "Test connection" sends one fixed small request (no workspace data) through the saved settings.
   - Who receives the text is stated plainly, and for each task a "What is sent" popover lists what is sent and what never is.
   Nothing an AI task does changes a store: it makes suggestions a person accepts (see the AI suggestions of ASO, the locale drawer and replies).
@@ -16,6 +20,7 @@
   import {
     type AiConfig,
     type AiForm,
+    type AiModelsResponse,
     type AiTasksResponse,
     type AiTestOutcome,
     aiChanges,
@@ -23,9 +28,18 @@
     aiSaveMessage,
     aiStateInfo,
     aiTestText,
+    addressAdvice,
+    canAutoLoadModels,
     formFromConfig,
     isAiDirty,
     keyTyped,
+    modelNotListed,
+    modelOptions,
+    modelsBody,
+    modelsCountText,
+    modelsNote,
+    modelsSignature,
+    needsV1Hint,
     oldestCredentialOfKind,
     providerSentence,
     usageFraction,
@@ -67,6 +81,19 @@
   const saved = $derived(data ? (data.providers.find((p) => p.id === data?.settings.provider) ?? null) : null);
   const fraction = $derived(data ? usageFraction(data.usage) : null);
   const readyTasks = $derived((tasks?.tasks ?? []).filter((t) => t.status === 'ready'));
+  /** The models the provider listed, and for which provider and address (a list of another one is not shown). */
+  let models = $state<AiModelsResponse | null>(null);
+  let modelsFor = $state('');
+  let loadingModels = $state(false);
+  let modelsProblem = $state('');
+  /** What the last automatic load was for, so the same form is never loaded twice by itself. */
+  let lastAutoSignature = $state('');
+  const scope = (f: AiForm) => `${f.provider}|${f.baseUrl.trim()}`;
+  const shownModels = $derived(models !== null && form !== null && modelsFor === scope(form) ? models : null);
+  const options = $derived(shownModels && form ? modelOptions(shownModels.models, form.model) : []);
+  const modelNote = $derived(modelsNote(shownModels, choice));
+  const notListed = $derived(form ? modelNotListed(shownModels, form.model) : false);
+  const advice = $derived(data && form && choice?.needsUrl ? addressAdvice(form.baseUrl, data.server.allowPrivateUrls) : null);
   const result = $derived(testProblem !== '' ? { ok: false, text: testProblem } : outcome === null ? null : aiTestText(outcome, data?.providers ?? []));
 
   async function load() {
@@ -93,7 +120,45 @@
     testProblem = '';
     saveError = '';
     showErrors = false;
+    models = null;
+    modelsFor = '';
+    modelsProblem = '';
+    lastAutoSignature = '';
     untrack(() => void load());
+  });
+
+  /** Asks the provider for its models with the values in the form. One call at a time; an answer for a form that has changed since is dropped. */
+  async function loadModels(manual: boolean) {
+    if (!data || !form || !editable || loadingModels) return;
+    if (choice?.needsUrl && form.baseUrl.trim() === '') {
+      if (manual) modelsProblem = 'Enter the server address first.';
+      return;
+    }
+    const asked = modelsSignature(form);
+    const askedScope = scope(form);
+    lastAutoSignature = asked;
+    loadingModels = true;
+    modelsProblem = '';
+    try {
+      const answer = await api.aiModels(workspaceId, modelsBody(form, data));
+      models = answer;
+      modelsFor = askedScope;
+    } catch (e) {
+      models = null;
+      modelsProblem = aiErrorMessage(e, 'Could not load the list of models. You can still type the name.');
+    } finally {
+      loadingModels = false;
+    }
+  }
+
+  // Once when the card opens and the form is ready, and again when the provider, the address or the key settle: after a pause, never per keystroke.
+  $effect(() => {
+    if (!data || !form || !editable) return;
+    const signature = modelsSignature(form);
+    const ready = canAutoLoadModels(form, data);
+    if (!ready || loadingModels || signature === lastAutoSignature) return;
+    const timer = setTimeout(() => untrack(() => void loadModels(false)), 900);
+    return () => clearTimeout(timer);
   });
 
   /** The key goes to the vault: it replaces the oldest key of the provider's kind (the one the server uses), or adds the first one. */
@@ -204,26 +269,55 @@
           {/each}
         </fieldset>
 
-        <TextField
-          label="Model"
-          bind:value={form.model}
-          placeholder="the model name from your provider"
-          hint="Exactly as your provider names it. There is no default: model names change, so you choose. The model must be able to return structured answers."
-          error={errors.model}
-          autocomplete="off"
-          spellcheck="false"
-        />
+        <div class="field">
+          <label for="{uid}-model">Model</label>
+          <div class="row wrap">
+            <input
+              id="{uid}-model"
+              class="grow"
+              list="{uid}-models"
+              bind:value={form.model}
+              placeholder="pick one or type the name"
+              autocomplete="off"
+              spellcheck="false"
+              aria-invalid={errors.model ? 'true' : undefined}
+              aria-describedby="{uid}-model-hint"
+            />
+            <datalist id="{uid}-models">
+              {#each options as m (m.id)}<option value={m.id}>{m.label ?? ''}</option>{/each}
+            </datalist>
+            <Button icon="refresh" loading={loadingModels} disabled={loadingModels} onclick={() => void loadModels(true)}>Load models</Button>
+          </div>
+          <p class="hint" id="{uid}-model-hint">
+            Choose from the list or type the name exactly as your provider gives it. Any name is accepted. The model must be able to return structured answers.
+          </p>
+          {#if errors.model}<p class="field-error" role="alert">{errors.model}</p>{/if}
+          {#if modelsProblem}
+            <p class="hint" role="status">{modelsProblem}</p>
+          {:else if loadingModels}
+            <p class="hint" role="status">Loading the list of models...</p>
+          {:else if modelNote}
+            <p class="hint" role="status">{modelNote}</p>
+          {:else if shownModels && shownModels.models.length > 0}
+            <p class="hint" role="status">{modelsCountText(shownModels.models.length)}{notListed ? ' The name you typed is not in the list; it is kept as typed.' : ''}</p>
+          {/if}
+        </div>
 
         {#if choice?.needsUrl}
           <TextField
             label="Server address"
             bind:value={form.baseUrl}
             placeholder="https://models.example.com/v1"
-            hint="The address of an OpenAI compatible server. https only, with no name, password or key in it. A model on this machine or your network (Ollama, LM Studio) needs MRM_AI_ALLOW_PRIVATE_URLS=true on this server."
+            hint="The address of an OpenAI compatible server, usually ending in /v1. https, or http://localhost when the person who runs this server allows it. No name, password or key in the address."
             error={errors.baseUrl}
             autocomplete="off"
             spellcheck="false"
           />
+          {#if advice}
+            <Alert tone={advice.tone}>{advice.text}</Alert>
+          {:else if needsV1Hint(form.baseUrl)}
+            <p class="hint">Most servers expect the address to end in /v1 (for example http://localhost:1234/v1). It is used exactly as typed.</p>
+          {/if}
         {/if}
 
         <div class="field">
@@ -347,6 +441,11 @@
 
   .block {
     display: block;
+  }
+
+  .grow {
+    flex: 1 1 14rem;
+    min-width: 0;
   }
 
   .status {

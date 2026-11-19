@@ -13,7 +13,17 @@ import {
   aiSaveMessage,
   aiStateInfo,
   aiTestText,
+  ADDRESS_TEXTS,
+  addressAdvice,
   budgetUsedUp,
+  canAutoLoadModels,
+  looksPrivateAddress,
+  modelNotListed,
+  modelOptions,
+  modelsBody,
+  modelsNote,
+  modelsSignature,
+  needsV1Hint,
   canImproveField,
   createDisclosureGate,
   disclosureKey,
@@ -389,4 +399,86 @@ test('a failed save names the setting the server refused, in the server\'s own v
   assert.match(aiSaveMessage(apiError(400, 'invalid_secret')), /key cannot be used/);
   assert.equal(aiSaveMessage(apiError(403, 'forbidden')), 'Your role does not allow that.');
   assert.equal(aiSaveMessage(new Error('x')), 'The settings could not be saved. Try again.');
+});
+
+// ----- model discovery and the address of a local server
+
+test('model request: only what the form holds; the typed key goes in the body for this call, a saved key is not sent', () => {
+  const c = config();
+  const form = formFromConfig(c);
+  assert.deepEqual(modelsBody(form, c), { provider: 'anthropic' });
+  assert.deepEqual(modelsBody({ ...form, apiKey: '  sk-typed  ' }, c), { provider: 'anthropic', apiKey: 'sk-typed' });
+  assert.deepEqual(modelsBody({ ...form, provider: 'openai_compatible', baseUrl: ' http://localhost:11234/v1 ' }, c), { provider: 'openai_compatible', baseUrl: 'http://localhost:11234/v1' });
+  assert.deepEqual(modelsBody({ ...form, baseUrl: 'https://ignored.example/v1' }, c), { provider: 'anthropic' }, 'a hosted provider has no address');
+});
+
+test('the list loads by itself only when the form is ready: a key (typed or saved) for a hosted provider, a valid and allowed address for a compatible one', () => {
+  const c = config({ server: { enabled: true, allowPrivateUrls: false } });
+  const base = formFromConfig(c);
+  const hosted = c.providers.find((p) => p.id === 'anthropic');
+  const noKey = { ...c, providers: c.providers.map((p) => (p.id === 'anthropic' ? { ...p, credentialPresent: false } : p)) };
+  assert.equal(canAutoLoadModels(base, noKey), false, 'no key yet');
+  assert.equal(canAutoLoadModels({ ...base, apiKey: 'sk-ant-api03-0123456789abcdefghijklmnop' }, noKey), true);
+  assert.equal(canAutoLoadModels(base, { ...c, providers: c.providers.map((p) => (p.id === 'anthropic' && hosted ? { ...p, credentialPresent: true } : p)) }), true, 'a saved key is enough');
+  const compat = { ...base, provider: 'openai_compatible' as const };
+  assert.equal(canAutoLoadModels(compat, c), false, 'no address');
+  assert.equal(canAutoLoadModels({ ...compat, baseUrl: 'not a url' }, c), false);
+  assert.equal(canAutoLoadModels({ ...compat, baseUrl: 'https://models.example.com/v1' }, c), true);
+  assert.equal(canAutoLoadModels({ ...compat, baseUrl: 'http://localhost:11234/v1' }, c), false, 'this server refuses local addresses: no point in asking by itself');
+  assert.equal(canAutoLoadModels({ ...compat, baseUrl: 'http://localhost:11234/v1' }, { ...c, server: { enabled: true, allowPrivateUrls: true } }), true);
+});
+
+test('the signature changes with the provider, the address and the key length, never holding the key', () => {
+  const form = { provider: 'anthropic' as const, baseUrl: '', apiKey: '' };
+  assert.equal(modelsSignature(form), modelsSignature({ ...form }));
+  assert.notEqual(modelsSignature(form), modelsSignature({ ...form, apiKey: 'sk-secret' }));
+  assert.ok(!modelsSignature({ ...form, apiKey: 'sk-secret' }).includes('sk-secret'));
+  assert.notEqual(modelsSignature(form), modelsSignature({ ...form, provider: 'openai' }));
+  assert.equal(modelsSignature({ ...form, baseUrl: ' https://a/v1 ' }), modelsSignature({ ...form, baseUrl: 'https://a/v1' }));
+});
+
+test('the chosen model stays in the options even when it is not listed, and the notes are quiet and honest', () => {
+  const list = [{ id: 'a' }, { id: 'b' }];
+  assert.deepEqual(modelOptions(list, 'b'), list);
+  assert.deepEqual(modelOptions(list, 'zzz').map((m) => m.id), ['zzz', 'a', 'b']);
+  assert.deepEqual(modelOptions(list, ''), list);
+  assert.equal(modelNotListed({ source: 'provider', models: list }, 'zzz'), true);
+  assert.equal(modelNotListed({ source: 'provider', models: list }, 'a'), false);
+  assert.equal(modelNotListed({ source: 'fallback', models: list }, 'zzz'), false, 'a fixed list says nothing about what exists');
+  const anthropic = config().providers[0] ?? null;
+  assert.equal(modelsNote({ source: 'provider', models: list }, anthropic), null);
+  assert.match(modelsNote({ source: 'fallback', reason: 'list_unavailable', models: list }, anthropic) ?? '', /Could not read the list.*well known names/);
+  assert.match(modelsNote({ source: 'fallback', reason: 'list_unavailable', models: [] }, anthropic) ?? '', /Type the model name/);
+  assert.match(modelsNote({ source: 'fallback', reason: 'no_credential', models: list }, anthropic) ?? '', /Add a key/);
+  assert.equal(modelsNote(null, anthropic), null);
+});
+
+test('a local address is explained BEFORE it fails when this server only talks to public addresses', () => {
+  for (const url of ['http://localhost:11234/v1', 'http://127.0.0.1:1234/v1', 'http://192.168.1.20:11434/v1', 'http://10.0.0.5/v1', 'https://172.20.0.3/v1', 'http://host.docker.internal:11434/v1', 'http://[::1]:11434/v1', 'http://mybox.local/v1', 'http://ollama:11434/v1']) {
+    assert.equal(looksPrivateAddress(url), true, url);
+    assert.equal(addressAdvice(url, false)?.text, ADDRESS_TEXTS.private_address_blocked, url);
+  }
+  for (const url of ['https://models.example.com/v1', 'https://8.8.8.8/v1', 'https://172.32.0.1/v1']) assert.equal(looksPrivateAddress(url), false, url);
+  assert.equal(addressAdvice('https://models.example.com/v1', false), null);
+  assert.equal(addressAdvice('', false), null);
+  assert.equal(addressAdvice('http://localhost:11234/v1', true), null, 'allowed by the operator: nothing to say');
+  assert.equal(addressAdvice('http://192.168.1.20:11434/v1', true)?.text, ADDRESS_TEXTS.plain_http_not_allowed, 'plain http is for localhost only, switch or not');
+  assert.equal(addressAdvice('http://example.com/v1', true)?.text, ADDRESS_TEXTS.plain_http_not_allowed);
+  assert.match(ADDRESS_TEXTS.private_address_blocked, /only talks to public addresses/);
+  assert.match(ADDRESS_TEXTS.private_address_blocked, /MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it/);
+  assert.match(ADDRESS_TEXTS.private_address_blocked, /Docker, localhost is the container/);
+  assert.equal(needsV1Hint('http://localhost:11234'), true);
+  assert.equal(needsV1Hint('http://localhost:11234/'), true);
+  assert.equal(needsV1Hint('http://localhost:11234/v1'), false);
+});
+
+test('the fixed codes of a refused address turn into the same sentence on save, on test, on models and on a run', () => {
+  const text = ADDRESS_TEXTS.private_address_blocked;
+  assert.equal(aiSaveMessage(apiError(400, 'invalid_setting', { issues: [{ path: 'baseUrl', message: 'RAW SERVER SENTENCE', code: 'private_address_blocked' }] })), text);
+  assert.equal(aiErrorMessage(apiError(422, 'ai_not_configured', { reason: 'bad_url', hint: 'private_address_blocked' })), text);
+  assert.equal(aiErrorMessage(apiError(502, 'ai_unavailable', { reason: 'private_address_blocked' })), text);
+  assert.equal(aiTestText({ ok: false, kind: 'unavailable', reason: 'private_address_blocked' }).text, text);
+  assert.equal(aiErrorMessage(apiError(422, 'ai_not_configured', { reason: 'bad_url', hint: 'plain_http_not_allowed' })), ADDRESS_TEXTS.plain_http_not_allowed);
+  assert.match(aiTestText({ ok: false, kind: 'unavailable', reason: 'http_404' }).text, /not found/);
+  assert.equal(aiErrorMessage(apiError(422, 'ai_not_configured', { reason: 'no_model' })), 'AI assistance is not set up yet. An admin can finish it in Settings.');
 });

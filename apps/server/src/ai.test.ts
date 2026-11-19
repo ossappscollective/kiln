@@ -714,6 +714,221 @@ dbTest('settings: validated, all or nothing, null resets, audited without secret
   assert.ok(generic.status === 400 || generic.status === 422, `generic settings refuse ai.*: ${generic.status}`);
 });
 
+// ----- model discovery -------------------------------------------------------------------------------
+
+const json = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers });
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
+const TYPED_KEY = 'sk-ant-typed-9876543210zyxwvutsrq';
+
+dbTest('models: the typed key is used for this call only; the list is sorted, deduplicated, validated and capped; the key is stored and audited nowhere', async (db) => {
+  const t = await bootAi(db, {
+    models: [{ id: 'zeta' }, { id: 'alpha', label: 'Alpha' }, { id: 'alpha' }, { id: 'bad id' }, { id: '<b>x</b>' }, ...Array.from({ length: 300 }, (_v, i) => ({ id: `m-${String(i).padStart(3, '0')}` }))],
+  });
+  const res = await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY });
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.body.source, 'provider');
+  assert.equal(res.body.models.length, 200);
+  assert.deepEqual(res.body.models[0], { id: 'alpha', label: 'Alpha' });
+  assert.equal(res.body.models.filter((m: { id: string }) => m.id === 'alpha').length, 1);
+  assert.ok(!res.body.models.some((m: { id: string }) => m.id.includes(' ') || m.id.includes('<')));
+  assert.equal(t.fake.listCalls, 1);
+  assert.equal(t.fake.calls.length, 0, 'no completion, no workspace data');
+  assert.equal(t.built[0]?.secret, TYPED_KEY);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  assert.ok(!res.text.includes(TYPED_KEY));
+  assert.ok(!(await t.trail()).includes(TYPED_KEY), 'audit, events, jobs and usage never hold the key');
+  const rows = await db.query('SELECT secret_enc FROM credentials WHERE workspace_id = ?', [t.workspaceId]).catch(() => []);
+  assert.ok(!JSON.stringify(rows).includes(TYPED_KEY), 'it is not stored as a credential');
+  const audit = (await t.auditActions()).filter((a) => a.action === 'ai.models_list');
+  assert.equal(audit.length, 1);
+  assert.ok(!JSON.stringify(await db.query('SELECT detail FROM audit_events WHERE action = ?', ['ai.models_list'])).includes(TYPED_KEY));
+});
+
+dbTest('models: rights and switches. Admins only; the server switch is needed, the workspace switch is not; a bad body is 400', async (db) => {
+  const t = await bootAi(db, { models: [{ id: 'm1' }] });
+  const member = await t.addMember('member');
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(member, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY })).status, 403);
+  assert.equal((await t.call(viewer, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY })).status, 403);
+  assert.equal((await t.call(t.owner, 'POST', '/ai/models', { provider: 'gemini' })).status, 400);
+  assert.equal((await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic', model: 'x' })).status, 400, 'unknown keys are refused');
+  assert.equal((await t.call(t.owner, 'GET', '/ai/config')).body.settings.enabled, false);
+  assert.equal((await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY })).status, 200, 'the workspace switch is not needed');
+});
+
+dbTest('models: with the server switch off nothing is asked', async (db) => {
+  const off = await bootAi(db, { enabled: false, models: [{ id: 'm1' }] });
+  const res = await off.call(off.owner, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.reason, 'server');
+  assert.equal(off.fake.listCalls, 0);
+  assert.equal(off.built.length, 0);
+});
+
+dbTest('models: without a key a hosted provider gets the fixed list; a compatible server needs none; a stored key is used when none is typed', async (db) => {
+  const seen: { url: string; headers: Record<string, string> }[] = [];
+  const t = await bootAi(db, {
+    real: {
+      fetch: (async (input: string | URL | Request, init?: RequestInit) => {
+        seen.push({ url: String(input), headers: Object.fromEntries(new Headers(init?.headers).entries()) });
+        return json(200, { data: [{ id: 'claude-live-1', display_name: 'Live One' }] });
+      }) as typeof fetch,
+    },
+  });
+  const none = await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic' });
+  assert.equal(none.status, 200, none.text);
+  assert.equal(none.body.source, 'fallback');
+  assert.equal(none.body.reason, 'no_credential');
+  assert.equal(none.body.models.length, 3);
+  assert.ok(none.body.models.some((m: { id: string }) => m.id === 'claude-sonnet-5-5'));
+  assert.equal(seen.length, 0, 'nothing was asked without a key');
+  await t.addKey('ai_anthropic');
+  const stored = await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic' });
+  assert.equal(stored.body.source, 'provider');
+  assert.deepEqual(stored.body.models, [{ id: 'claude-live-1', label: 'Live One' }]);
+  assert.equal(seen[0]?.url, 'https://api.anthropic.com/v1/models?limit=1000');
+  assert.equal(seen[0]?.headers['x-api-key'], API_KEY, 'the stored credential');
+  const typed = await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY });
+  assert.equal(typed.status, 200);
+  assert.equal(seen[1]?.headers['x-api-key'], TYPED_KEY, 'the typed key wins for this call');
+  assert.ok(!(await t.auditActions()).some((a) => JSON.stringify(a).includes(TYPED_KEY)));
+});
+
+dbTest('models: a server that does not answer a list gets the fallback; a refused key and a rate limit are errors with fixed sentences and no key in them', async (db) => {
+  let next: Response = json(404, { error: { message: `nothing here ${TYPED_KEY}` } });
+  const t = await bootAi(db, { real: { fetch: (async () => next.clone()) as typeof fetch } });
+  const gone = await t.call(t.owner, 'POST', '/ai/models', { provider: 'openai', apiKey: TYPED_KEY });
+  assert.equal(gone.status, 200, gone.text);
+  assert.equal(gone.body.source, 'fallback');
+  assert.equal(gone.body.reason, 'list_unavailable');
+  assert.ok(gone.body.models.length > 0);
+  next = json(200, { unexpected: true });
+  assert.equal((await t.call(t.owner, 'POST', '/ai/models', { provider: 'anthropic', apiKey: TYPED_KEY })).body.source, 'fallback', 'an answer that is not a list');
+  next = json(401, { error: { message: `Incorrect API key provided: ${TYPED_KEY}` } });
+  const auth = await t.call(t.owner, 'POST', '/ai/models', { provider: 'openai', apiKey: TYPED_KEY });
+  assert.equal(auth.status, 422);
+  assert.equal(auth.body.error, 'ai_auth');
+  assert.ok(!auth.text.includes(TYPED_KEY));
+  next = json(429, {}, { 'retry-after': '9' });
+  const limited = await t.call(t.owner, 'POST', '/ai/models', { provider: 'openai', apiKey: TYPED_KEY });
+  assert.equal(limited.status, 429);
+  assert.equal(limited.body.retryAfterSeconds, 9);
+  next = json(500, { error: { message: TYPED_KEY } });
+  const broken = await t.call(t.owner, 'POST', '/ai/models', { provider: 'openai', apiKey: TYPED_KEY });
+  assert.equal(broken.status, 502);
+  assert.equal(broken.body.error, 'ai_unavailable');
+  assert.equal(broken.body.reason, 'http_500');
+  assert.ok(!broken.text.includes(TYPED_KEY));
+  assert.ok(!(await t.trail()).includes(TYPED_KEY));
+});
+
+dbTest('models: a compatible server on a private address is refused with a clear hint, before any connection; with the operator switch it is read at <base>/models', async (db) => {
+  const closed = await bootAi(db, { resolve: async () => ['93.184.216.34'] });
+  for (const baseUrl of ['http://localhost:11234/v1', 'http://127.0.0.1:11234/v1', 'https://10.0.0.5/v1', 'https://192.168.1.20:1234/v1']) {
+    const res = await closed.call(closed.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl });
+    assert.equal(res.status, 422, `${baseUrl}: ${res.text}`);
+    assert.equal(res.body.error, 'ai_not_configured');
+    assert.equal(res.body.reason, 'bad_url');
+    assert.equal(res.body.hint, 'private_address_blocked', baseUrl);
+  }
+  const plain = await closed.call(closed.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'http://example.com/v1' });
+  assert.equal(plain.body.hint, 'plain_http_not_allowed');
+  assert.equal((await closed.call(closed.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'http://192.168.1.20:1234/v1' })).body.hint, 'plain_http_not_allowed', 'plain http is only for localhost, switch or not');
+  assert.equal((await closed.call(closed.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'https://169.254.169.254/v1' })).body.hint, undefined, 'metadata is refused and never explained as "allow it"');
+  assert.equal((await closed.call(closed.owner, 'POST', '/ai/models', { provider: 'openai_compatible' })).body.reason, 'no_url');
+  assert.equal(closed.exchanges.length, 0);
+});
+
+dbTest('models: with the operator switch a local server is read at <base>/models, nothing is added to the address, and plain http to a LAN address stays refused', async (db) => {
+  const asked: { url: string; method: string; address: string }[] = [];
+  const open = await bootAi(db, {
+    allowPrivateUrls: true,
+    resolve: async () => ['127.0.0.1'],
+    real: {
+      exchange: (async (request: { url: URL; method: string; address?: string }) => {
+        asked.push({ url: request.url.toString(), method: request.method, address: request.address ?? '' });
+        return { status: 200, headers: { 'content-type': 'application/json' }, body: bytes({ data: [{ id: 'qwen2.5:7b' }, { id: 'llama3.2:latest' }] }), overflow: false };
+      }) as never,
+    },
+  });
+  const res = await open.call(open.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'http://localhost:11234/v1' });
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.body.source, 'provider');
+  assert.deepEqual(res.body.models.map((m: { id: string }) => m.id), ['llama3.2:latest', 'qwen2.5:7b']);
+  assert.deepEqual(asked.map((a) => [a.method, a.url]), [['GET', 'http://localhost:11234/v1/models']]);
+  const noSlash = await open.call(open.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'http://localhost:11234' });
+  assert.equal(noSlash.status, 200);
+  assert.equal(asked[1]?.url, 'http://localhost:11234/models', 'the address is used as typed: nothing is added or rewritten');
+  // Plain http to a LAN address stays refused even with the switch, with its own hint.
+  const lan = await open.call(open.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'http://192.168.1.20:11434/v1' });
+  assert.equal(lan.status, 422);
+  assert.equal(lan.body.hint, 'plain_http_not_allowed');
+  assert.equal(asked.length, 2);
+});
+
+dbTest('models: a compatible server without a list endpoint gives an empty fallback', async (db) => {
+  const t = await bootAi(db, {
+    allowPrivateUrls: true,
+    resolve: async () => ['127.0.0.1'],
+    real: { exchange: (async () => ({ status: 404, headers: {}, body: bytes({ error: 'not found' }), overflow: false })) as never },
+  });
+  const res = await t.call(t.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'http://localhost:11234/v1' });
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(res.body, { models: [], source: 'fallback', reason: 'list_unavailable' });
+});
+
+dbTest('models: a name that resolves to a private address is refused with the same hint, before any connection', async (db) => {
+  const closed = await bootAi(db, { resolve: async () => ['10.0.0.5'], real: { exchange: (async () => { throw new Error('never'); }) as never } });
+  const named = await closed.call(closed.owner, 'POST', '/ai/models', { provider: 'openai_compatible', baseUrl: 'https://models.example.com/v1' });
+  assert.equal(named.status, 502, named.text);
+  assert.equal(named.body.error, 'ai_unavailable');
+  assert.equal(named.body.reason, 'private_address_blocked');
+  assert.equal(closed.exchanges.length, 0);
+});
+
+dbTest('the settings refuse a local address with a fixed code and a sentence that says what to do; the test and a run say the same', async (db) => {
+  const t = await bootAi(db, { resolve: async () => ['93.184.216.34'] });
+  const local = await t.configure({ provider: 'openai_compatible', baseUrl: 'http://localhost:11234/v1', model: 'llama3.2' });
+  assert.equal(local.status, 400, local.text);
+  assert.equal(local.body.issues[0].path, 'baseUrl');
+  assert.equal(local.body.issues[0].code, 'private_address_blocked');
+  assert.match(local.body.issues[0].message, /only talks to public addresses/);
+  assert.match(local.body.issues[0].message, /MRM_AI_ALLOW_PRIVATE_URLS=true/);
+  const plain = await t.configure({ provider: 'openai_compatible', baseUrl: 'http://example.com/v1', model: 'llama3.2' });
+  assert.equal(plain.body.issues[0].code, 'plain_http_not_allowed');
+  const junk = await t.configure({ provider: 'openai_compatible', baseUrl: 'not a url', model: 'llama3.2' });
+  assert.equal(junk.body.issues[0].code, undefined);
+  assert.equal((await t.call(t.owner, 'GET', '/ai/config')).body.server.allowPrivateUrls, false, 'the screen can warn before the failure');
+  // Written around the API: the test says the same thing.
+  for (const [key, value] of [['ai.enabled', true], ['ai.provider', 'openai_compatible'], ['ai.model', 'llama3.2'], ['ai.baseUrl', 'http://localhost:11234/v1']] as const) {
+    await db.execute('INSERT INTO workspace_settings (workspace_id, key, value_json, updated_at, updated_by) VALUES (?, ?, ?, 1, ?)', [t.workspaceId, key, JSON.stringify(value), 'x']);
+  }
+  const test = await t.call(t.owner, 'POST', '/ai/test');
+  assert.equal(test.body.error, 'ai_not_configured');
+  assert.equal(test.body.hint, 'private_address_blocked');
+});
+
+dbTest('a connection test through a compatible server calls <base>/chat/completions once, with /v1 only where the address has it', async (db) => {
+  const asked: string[] = [];
+  const t = await bootAi(db, {
+    allowPrivateUrls: true,
+    resolve: async () => ['127.0.0.1'],
+    real: {
+      exchange: (async (request: { url: URL }) => {
+        asked.push(request.url.toString());
+        return { status: 200, headers: {}, body: bytes({ choices: [{ message: { content: JSON.stringify({ ok: true }) }, finish_reason: 'stop' }], usage: { prompt_tokens: 3, completion_tokens: 2 } }), overflow: false };
+      }) as never,
+    },
+  });
+  for (const [base, expected] of [['http://localhost:11234/v1', 'http://localhost:11234/v1/chat/completions'], ['http://localhost:11234', 'http://localhost:11234/chat/completions']] as const) {
+    asked.length = 0;
+    assert.equal((await t.configure({ provider: 'openai_compatible', baseUrl: base, model: 'llama3.2' })).status, 200);
+    const test = await t.call(t.owner, 'POST', '/ai/test');
+    assert.equal(test.body.ok, true, test.text);
+    assert.deepEqual(asked, [expected]);
+  }
+});
+
 // ----- nothing leaks --------------------------------------------------------------------------------------
 
 dbTest('the key is never returned; audit, events, jobs and usage hold ids, hashes and counts and no prompt, answer, review text or goal', async (db) => {
@@ -785,10 +1000,10 @@ dbTest('deleting an app deletes its suggestions; retention purges old ones', asy
 
 test('structure: the AI modules import only the services they may and never name an action that leaves the tool', () => {
   const dir = new URL('./services/', import.meta.url);
-  const files = ['ai.ts', 'ai-tasks.ts', 'ai-task-types.ts', 'ai-task-keywords.ts', 'ai-task-listing.ts', 'ai-task-reply.ts', 'ai-suggestions.ts', 'ai-usage.ts', 'ai-config.ts'].map((f) => [f, new URL(f, dir)] as const);
+  const files = ['ai.ts', 'ai-tasks.ts', 'ai-task-types.ts', 'ai-task-keywords.ts', 'ai-task-listing.ts', 'ai-task-reply.ts', 'ai-suggestions.ts', 'ai-usage.ts', 'ai-config.ts', 'ai-models.ts'].map((f) => [f, new URL(f, dir)] as const);
   const routes = readFileSync(new URL('./routes/ai.ts', import.meta.url), 'utf8');
   const allowed = new Set([
-    'ai-config', 'ai-suggestions', 'ai-tasks', 'ai-task-types', 'ai-task-keywords', 'ai-task-listing', 'ai-task-reply', 'ai-usage',
+    'ai-config', 'ai-models', 'ai-suggestions', 'ai-tasks', 'ai-task-types', 'ai-task-keywords', 'ai-task-listing', 'ai-task-reply', 'ai-usage',
     'aso', 'aso-net', 'apps', 'audit', 'events', 'listing-drift', 'listing-live', 'review-replies', 'reviews', 'asset-repo', 'staged-changes',
     'credentials', 'translate-net', 'webhook-transport',
   ]);

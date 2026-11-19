@@ -1,5 +1,5 @@
 import { validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiCompleteRequest, type AiCompleteResult, type AiProviderId, type AiUsage, guessTokens, renderUserMessage } from './types.ts';
+import { AiError, type AiClient, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiProviderId, type AiUsage, guessTokens, normalizeModels, renderUserMessage } from './types.ts';
 
 /**
  * A scripted AI client for tests: no network, no model. It plays the answers it was given and goes through the
@@ -21,6 +21,8 @@ export type FakeAnswer = {
 export type FakeAiClient = AiClient & {
   /** Every request made, in order. */
   calls: AiCompleteRequest[];
+  /** How many times `listModels` was called. */
+  listCalls: number;
   /** Everything ever sent as the system text and the user message: for the "nothing leaks" assertions. */
   sent(): string[];
 };
@@ -30,6 +32,8 @@ export type FakeAiOptions = {
   model?: string;
   /** The answers in order (the last one repeats), or a function of the request. */
   answers: FakeAnswer[] | ((request: AiCompleteRequest, index: number) => FakeAnswer);
+  /** What `listModels` returns (raw: it is normalized like a real list), or an error to fail with. Default: an empty list. */
+  models?: { id: unknown; label?: unknown }[] | AiError;
 };
 
 export function createFakeAiClient(options: FakeAiOptions): FakeAiClient {
@@ -39,6 +43,13 @@ export function createFakeAiClient(options: FakeAiOptions): FakeAiClient {
     provider: options.provider ?? 'anthropic',
     model,
     calls,
+    listCalls: 0,
+    async listModels(request = {}): Promise<AiModelInfo[]> {
+      client.listCalls += 1;
+      if (request.signal?.aborted) throw new AiError('unavailable', { detail: 'timeout' });
+      if (options.models instanceof AiError) throw options.models;
+      return normalizeModels(options.models ?? []);
+    },
     sent: () => calls.flatMap((c) => [c.system, renderUserMessage(c.input)]),
     async complete(request: AiCompleteRequest): Promise<AiCompleteResult> {
       const index = calls.length;

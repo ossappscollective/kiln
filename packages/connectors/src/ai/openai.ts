@@ -1,6 +1,6 @@
-import { countOf, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
+import { countOf, getJson, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
 import { parseModelJson, providerSchema, validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiUsage, renderUserMessage } from './types.ts';
+import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, renderUserMessage } from './types.ts';
 
 /**
  * OpenAI Responses API, `POST /v1/responses`, one request, structured output, no tools, nothing stored.
@@ -15,12 +15,27 @@ import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, t
  * - Answer: `status` (`completed`, `incomplete`, `failed`), `output` is a list of items; an item `type: 'message'` has
  *   `content` parts `type: 'output_text'` (`text`) or `type: 'refusal'` (`refusal`); `usage` has `input_tokens`,
  *   `output_tokens` and `total_tokens`.
+ * List of models (checked 2026-11-19, developers.openai.com/api/reference/resources/models/methods/list): `GET /v1/models`, answer
+ * `{ object: 'list', data: [{ id, created, owned_by }] }`. The list holds every model of the account, embeddings, speech and image
+ * models included; ids that obviously are not chat models are filtered (`NOT_CHAT`), never required: when the filter would empty the list it
+ * is not applied. UNVERIFIED against a live account.
  * UNVERIFIED (not visible on the pages that could be read): the request fields `instructions` and `store` (seen only in an
  * example response), the values of `incomplete_details.reason`, and the HTTP error table of this API. Errors are classified
  * by status (401 and 403 auth, 413 and 429 as usual, 400 with a context message too large, 5xx unavailable).
  */
 
 export const OPENAI_URL = 'https://api.openai.com';
+
+/** Used when the account's list cannot be read: the flagship text models named on developers.openai.com/api/docs/models, 2026-11-19. UNVERIFIED against a live account. */
+export const OPENAI_FALLBACK_MODELS: readonly AiModelInfo[] = [
+  { id: 'gpt-6.2-astra' },
+  { id: 'gpt-6.2-sol' },
+  { id: 'gpt-6.1-terra' },
+  { id: 'gpt-6-luna' },
+];
+
+/** Ids that obviously are not chat models (embeddings, speech, images, moderation, realtime, transcription). A hint, not a rule. */
+export const NOT_CHAT = /(embedding|whisper|tts|dall-e|moderation|image|audio|transcribe|realtime|sora|davinci|babbage)/i;
 
 export type OpenAiOptions = AiClientOptions & { apiKey: string; model: string };
 
@@ -50,6 +65,14 @@ export function createOpenAiClient(options: OpenAiOptions): AiClient {
   return {
     provider: 'openai',
     model,
+    async listModels(request = {}): Promise<AiModelInfo[]> {
+      const reply = await getJson({ url: `${options.baseUrl ?? OPENAI_URL}/v1/models`, headers: { authorization: `Bearer ${key}` }, signal: request.signal }, options);
+      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+      if (!isRecord(reply.json) || !Array.isArray(reply.json.data)) throw new AiError('unavailable', { detail: 'bad_reply' });
+      const all = normalizeModels(reply.json.data.map((m) => ({ id: isRecord(m) ? m.id : undefined })));
+      const chat = all.filter((m) => !NOT_CHAT.test(m.id));
+      return chat.length > 0 ? chat : all;
+    },
     async complete(request: AiCompleteRequest): Promise<AiCompleteResult> {
       const reply = await postJson(
         {

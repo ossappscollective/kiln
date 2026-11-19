@@ -82,6 +82,19 @@ proposal, and a person accepts it through a mechanism that already exists.** New
     `taskVersion`, `kind`. A suggestion row holds the proposal (a reply draft or listing text is the product the person reads) and is
     deleted with its app and after 90 days; usage rows are kept 400 days without the app id.
 
+## Addendum: model discovery and local addresses
+
+- **Listing models.** `AiClient.listModels({ signal })` returns `[{ id, label? }]` (ids validated to the charset of the `model` setting, deduplicated, sorted, at most 200) over
+  the same guarded fetch, limits and fixed errors as `complete`. `POST /ai/models` (`ai.manage`) exposes it; a key typed in the form is used for that call only, otherwise the
+  stored credential. A server without a list (404 and the like) is not an error: a fixed `fallback` list per provider (none for a compatible server) says "could not read the
+  list". The choice is still free text: a list is an offer, never a restriction.
+- **Why `http://localhost:11234/v1` was refused.** `MRM_AI_ALLOW_PRIVATE_URLS` is `false` by default, and with it off `checkWebhookUrl` answered *"Use an https URL."* for any `http`
+  address, which hid the real reason. The policy is unchanged; the refusal now carries a fixed code (`private_address_blocked`, `plain_http_not_allowed`), `GET /ai/config` already
+  said `server.allowPrivateUrls`, and the screen explains it before the failure. Plain `http` stays limited to localhost even with the switch on: a model on another machine (or on
+  the host, from inside Docker, as `host.docker.internal`) needs `https`. Under `docker compose` the container only receives the variables the compose file lists under
+  `environment:`; a line in `.env` is not forwarded by itself.
+- **Addresses are used as typed**: `<base>/chat/completions` and `<base>/models`, nothing added, so `/v1` is part of what the person enters.
+
 ## Prompt injection
 
 The data a task sends contains text written by people who are not the user: reviews above all, and the names and subtitles of

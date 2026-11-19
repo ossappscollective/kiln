@@ -69,8 +69,39 @@ const NOT_CONFIGURED = {
 } as const;
 export type AiNotConfiguredReason = keyof typeof NOT_CONFIGURED;
 
-export const aiNotConfigured = (reason: AiNotConfiguredReason, provider?: AiProvider): AiFailure =>
-  aiFail(422, 'ai_not_configured', NOT_CONFIGURED[reason], { reason, ...(provider ? { provider } : {}) });
+export const aiNotConfigured = (reason: AiNotConfiguredReason, provider?: AiProvider, extra: Record<string, unknown> = {}): AiFailure =>
+  aiFail(422, 'ai_not_configured', NOT_CONFIGURED[reason], { reason, ...(provider ? { provider } : {}), ...extra });
+
+/**
+ * Why an address of a model server is refused, as a FIXED code a screen can explain (the policy itself is not weakened by naming it):
+ * - `private_address_blocked`: the address is a loopback, private or LAN address (or a name that resolves to one) and this server only talks
+ *   to public addresses. The operator allows it with MRM_AI_ALLOW_PRIVATE_URLS=true.
+ * - `plain_http_not_allowed`: plain http is only accepted for localhost (and only with that switch on); every other address needs https.
+ */
+export type AddressHint = 'private_address_blocked' | 'plain_http_not_allowed';
+
+export const ADDRESS_HINT_MESSAGES: Record<AddressHint, string> = {
+  private_address_blocked:
+    'This server only talks to public addresses. To use a model on this machine or your network, the person who runs this server sets MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it.',
+  plain_http_not_allowed: 'Plain http is accepted only for localhost, and only when MRM_AI_ALLOW_PRIVATE_URLS=true. Use an https address for any other server.',
+};
+
+/**
+ * Explains a refused address. Never loosens anything: it only asks "would this pass if private addresses were allowed?". Cheap checks first; the
+ * name is resolved only when the text of the address passes both ways (a name can point at a private address).
+ */
+export async function addressHint(raw: string, ctx: { allowPrivateUrls?: boolean; resolve?: Resolver }): Promise<AddressHint | undefined> {
+  const text = raw.trim();
+  const relaxed = checkWebhookUrl(text, { allowPrivate: true });
+  if (!relaxed.ok) return /^Plain http/.test(relaxed.message) ? 'plain_http_not_allowed' : undefined;
+  if (ctx.allowPrivateUrls) return undefined;
+  const strict = checkWebhookUrl(text, {});
+  if (!strict.ok) return 'private_address_blocked';
+  const options = ctx.resolve ? { resolve: ctx.resolve } : {};
+  const open = await resolveAllowed(relaxed, { allowPrivate: true, ...options });
+  const closed = await resolveAllowed(strict, options);
+  return open.ok && !closed.ok && !closed.transient ? 'private_address_blocked' : undefined;
+}
 
 export const aiNotEnabled = (which: 'server' | 'workspace'): AiFailure =>
   aiFail(409, 'ai_not_enabled', NOT_ENABLED[which], { reason: which });
@@ -238,7 +269,7 @@ export type AiConfigChange = { key: AiConfigKey; from: unknown; to: unknown };
 
 export type UpdateAiConfigResult =
   | { ok: true; changes: AiConfigChange[]; config: AiConfig }
-  | { ok: false; status: 400 | 403; body: { error: string; message: string; issues?: { path: string; message: string }[] } };
+  | { ok: false; status: 400 | 403; body: { error: string; message: string; issues?: { path: string; message: string; code?: AddressHint }[] } };
 
 /**
  * A partial update: each key to a new value, or null to go back to the default. All or nothing. Unknown keys
@@ -262,7 +293,7 @@ export async function updateAiConfig(
   }
   const manage: Action = 'ai.manage';
   if (!can(input.role, manage)) return { ok: false, status: 403, body: { error: 'forbidden', message: 'Only an admin may change the AI settings.' } };
-  const issues: { path: string; message: string }[] = [];
+  const issues: { path: string; message: string; code?: AddressHint }[] = [];
   const next = new Map<AiConfigKey, unknown>();
   for (const [rawKey, raw] of entries) {
     const key = rawKey as AiConfigKey;
@@ -271,13 +302,12 @@ export async function updateAiConfig(
       continue;
     }
     const parsed = def(key).parse(raw, ctx);
-    if (!parsed.ok) {
-      issues.push({ path: key, message: parsed.message });
-      continue;
-    }
-    const refusal = await def(key).verify?.(parsed.value, ctx);
-    if (refusal) issues.push({ path: key, message: refusal });
-    else next.set(key, parsed.value);
+    const refusal = parsed.ok ? await def(key).verify?.(parsed.value, ctx) : parsed.message;
+    if (!parsed.ok || refusal) {
+      // A refused address gets a fixed code and a sentence that says what to do (the policy is not weakened by saying so).
+      const hint = key === 'baseUrl' && typeof raw === 'string' ? await addressHint(raw, ctx) : undefined;
+      issues.push({ path: key, message: hint ? ADDRESS_HINT_MESSAGES[hint] : (refusal ?? ''), ...(hint ? { code: hint } : {}) });
+    } else next.set(key, parsed.value);
   }
   if (issues.length > 0) return { ok: false, status: 400, body: { error: 'invalid_setting', message: 'An AI setting is not valid.', issues } };
 
@@ -416,7 +446,10 @@ export async function buildAiClient(
     if (provider === 'openai_compatible') {
       // The address is checked again here: a policy change (or a row written around the API) never hides a bad address.
       const check = checkTranslateUrl(baseUrl, ctx.allowPrivateUrls ? { allowPrivate: true } : {});
-      if (!check.ok) return aiNotConfigured('bad_url', provider);
+      if (!check.ok) {
+        const hint = await addressHint(baseUrl, ctx);
+        return aiNotConfigured('bad_url', provider, hint ? { hint } : {});
+      }
       const guard = createGuardedFetch({
         ...(ctx.allowPrivateUrls ? { allowPrivate: true } : {}),
         ...(ctx.resolve ? { resolve: ctx.resolve } : {}),
@@ -435,10 +468,19 @@ export async function buildAiClient(
   }
 }
 
+/**
+ * The fixed `reason` of a call the guarded fetch refused before sending it: `private_address_blocked` or `plain_http_not_allowed` when
+ * that is why, else `address_not_allowed`. Undefined when the guard refused nothing.
+ */
+export async function guardReason(ctx: Pick<AiContext, 'allowPrivateUrls' | 'resolve'>, baseUrl: string, guard: GuardedFetch | undefined): Promise<string | undefined> {
+  if (!guard?.blocked()) return undefined;
+  return (await addressHint(baseUrl, ctx)) ?? 'address_not_allowed';
+}
+
 /** Adds the fixed hint about a refused address to a failure, when the guard refused the request. */
-export function withGuardHint(failure: AiFailure, guard: GuardedFetch | undefined): AiFailure {
-  const blocked = guard?.blocked();
-  return blocked ? { ...failure, body: { ...failure.body, reason: 'address_not_allowed', detail: blocked } } : failure;
+export async function withGuardHint(failure: AiFailure, guard: GuardedFetch | undefined, ctx: Pick<AiContext, 'allowPrivateUrls' | 'resolve'>, baseUrl: string): Promise<AiFailure> {
+  const reason = await guardReason(ctx, baseUrl, guard);
+  return reason ? { ...failure, body: { ...failure.body, reason, detail: guard?.blocked() } } : failure;
 }
 
 export const newId = (): string => randomUUID();

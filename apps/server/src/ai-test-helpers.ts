@@ -29,11 +29,15 @@ export type AiBootOptions = {
   answers?: Script;
   app?: Deps;
   resolve?: (host: string) => Promise<string[]>;
+  /** What the fake client lists as models (raw ids; or an AiError to fail with). */
+  models?: Parameters<typeof createFakeAiClient>[0]['models'];
+  /** Build the REAL connectors (no client factory): the network is then the `fetch` (Anthropic, OpenAI) or the `exchange` (a compatible server) given here. */
+  real?: { fetch?: typeof fetch; exchange?: (request: { url: URL; method: string; headers: Record<string, string> }) => Promise<{ status: number; headers: Record<string, string | undefined>; body: Uint8Array; overflow: boolean }> };
 };
 
 export async function bootAi(db: Database, options: AiBootOptions = {}) {
   let script: Script = options.answers ?? [{ output: {} }];
-  const fake: FakeAiClient = createFakeAiClient({ answers: (request, index) => (typeof script === 'function' ? script(request, index) : (script[Math.min(index, script.length - 1)] ?? { output: {} })) });
+  const fake: FakeAiClient = createFakeAiClient({ ...(options.models !== undefined ? { models: options.models } : {}), answers: (request, index) => (typeof script === 'function' ? script(request, index) : (script[Math.min(index, script.length - 1)] ?? { output: {} })) });
   const built: CreateAiClientInput[] = [];
   const store = new FakeReplyStore('ios');
   const exchanges: unknown[] = [];
@@ -45,15 +49,25 @@ export async function bootAi(db: Database, options: AiBootOptions = {}) {
     ai: {
       enabled: options.enabled ?? true,
       ...(options.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
-      clientFactory: (input) => {
-        built.push(input);
-        return fake;
-      },
+      ...(options.real
+        ? {}
+        : {
+            clientFactory: (input: CreateAiClientInput) => {
+              built.push(input);
+              return fake;
+            },
+          }),
+      ...(options.real?.fetch ? { fetch: options.real.fetch } : {}),
       ...(options.resolve ? { resolve: async (host: string) => (await options.resolve?.(host) ?? []).map((address) => ({ address, family: address.includes(':') ? 6 : 4 })) } : {}),
-      exchange: ((...args: unknown[]) => {
-        exchanges.push(args);
-        throw new Error('The network must not be used in tests.');
-      }) as never,
+      exchange: (options.real?.exchange
+        ? (request: Parameters<NonNullable<typeof options.real.exchange>>[0]) => {
+            exchanges.push(request);
+            return (options.real as NonNullable<typeof options.real>).exchange?.(request);
+          }
+        : (...args: unknown[]) => {
+            exchanges.push(args);
+            throw new Error('The network must not be used in tests.');
+          }) as never,
       limiter: createTestLimiter({ limit: options.limiterLimit ?? 1000, now }),
     },
     reviews: {

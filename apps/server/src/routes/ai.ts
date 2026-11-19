@@ -7,6 +7,7 @@ import { type AppEnv, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { type AiServices, acceptSuggestion, dismissSuggestion, getAiConfigView, getSuggestion, listAiTasks, listAppSuggestions, runAiTask, testAiConnection } from '../services/ai.ts';
 import { type AiFailure, updateAiConfig } from '../services/ai-config.ts';
+import { listAiModels } from '../services/ai-models.ts';
 import { getApp } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 
@@ -61,6 +62,15 @@ export const updateConfigBody = z
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, 'Send at least one setting.');
+
+/** `apiKey` is a key typed in the form and not saved yet: it is used for this one call and never stored, logged or audited. */
+export const listModelsBody = z
+  .object({
+    provider: z.enum(aiProviders),
+    baseUrl: z.string().max(500).optional(),
+    apiKey: z.string().max(500).optional(),
+  })
+  .strict();
 
 export const acceptBody = z
   .object({
@@ -121,6 +131,22 @@ export function aiRoutes(ctx: AiRoutesContext) {
     const wait = limited(c);
     if (wait) return wait;
     const done = await testAiConnection(ctx, { workspaceId: ws(c), actor: actor(c) });
+    return done.ok ? c.json(done.result) : respond(c, done);
+  });
+
+  routes.post('/:workspaceId/ai/models', needs('ai.manage'), small, async (c) => {
+    const body = await parseBody(c, listModelsBody);
+    if (!body.ok) return body.response;
+    const wait = limited(c);
+    if (wait) return wait;
+    const done = await listAiModels(ctx, {
+      workspaceId: ws(c),
+      actor: actor(c),
+      provider: body.data.provider,
+      baseUrl: body.data.baseUrl,
+      apiKey: body.data.apiKey,
+    });
+    c.header('Cache-Control', 'no-store');
     return done.ok ? c.json(done.result) : respond(c, done);
   });
 

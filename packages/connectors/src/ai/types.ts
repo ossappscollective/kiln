@@ -78,11 +78,43 @@ export type AiCompleteResult = {
   model: string;
 };
 
+/** A model a provider says it serves. `label` is a human readable name when the provider has one. */
+export type AiModelInfo = { id: string; label?: string };
+
+/** The most models a list returns (the rest are cut after sorting). */
+export const AI_MODEL_LIST_CAP = 200;
+
+/** A model id as the settings accept it (same rule as the `model` setting). Anything else in a provider's list is dropped. */
+export const AI_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,99}$/;
+
+/**
+ * Makes a provider's list safe to show and to put in a settings field: ids must match `AI_MODEL_ID` (others are dropped,
+ * never repaired), duplicates are removed, the list is sorted by id and cut to `AI_MODEL_LIST_CAP`. A label is kept only when it
+ * is a short single line of plain text that differs from the id.
+ */
+export function normalizeModels(items: readonly { id: unknown; label?: unknown }[]): AiModelInfo[] {
+  const seen = new Map<string, AiModelInfo>();
+  for (const item of items) {
+    const id = typeof item.id === 'string' ? item.id.trim() : '';
+    if (!AI_MODEL_ID.test(id) || seen.has(id)) continue;
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what is removed
+    const label = typeof item.label === 'string' ? item.label.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+    seen.set(id, label !== '' && label.length <= 80 && label !== id ? { id, label } : { id });
+  }
+  return [...seen.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, AI_MODEL_LIST_CAP);
+}
+
 export interface AiClient {
   readonly provider: AiProviderId;
   /** The model name this client asks for. */
   readonly model: string;
   complete(request: AiCompleteRequest): Promise<AiCompleteResult>;
+  /**
+   * The models the provider says it serves (`GET /models`), valid, deduplicated, sorted and capped. Same guarded fetch, time limit
+   * and fixed error vocabulary as `complete`; it sends no data of the workspace. A server that does not answer a list is `unavailable`
+   * with the hint `http_404` (the caller may fall back to a fixed list).
+   */
+  listModels(request?: { signal?: AbortSignal | undefined }): Promise<AiModelInfo[]>;
 }
 
 export type AiClientOptions = {

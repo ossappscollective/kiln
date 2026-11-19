@@ -26,6 +26,7 @@ import {
   buildAiClient,
   defaultAiConfig,
   failureForAiError,
+  guardReason,
   newId,
   readAiConfig,
   unavailableFailure,
@@ -308,7 +309,7 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
       model = answer.model;
     } catch (error) {
       const known = error instanceof AiError ? error : new AiError('unavailable');
-      const failure = withGuardHint(failureForAiError(known, values.provider), built.guard);
+      const failure = await withGuardHint(failureForAiError(known, values.provider), built.guard, ctx, values.baseUrl);
       const spent = known.usage ?? { inputTokens: 0, outputTokens: 0 };
       await settleUsage(ctx.db, runId, { status: 'failed', errorCode: String(failure.body.error), ...spent, at: ctx.now() });
       await auditRunFailed(ctx, input, task, app.id, values.provider, values.model, failure, spent);
@@ -439,6 +440,7 @@ export async function testAiConnection(ctx: AiServices, input: { workspaceId: st
       return built;
     }
     const probe = await probeAiClient(built.client as AiClient, AbortSignal.timeout((ctx.timeoutMs ?? 60_000) + 5_000));
+    const blockedReason = probe.ok ? undefined : await guardReason(ctx, values.baseUrl, built.guard);
     const result: AiTestOutcome = probe.ok
       ? { ok: true, provider: probe.provider, model: probe.model }
       : {
@@ -446,7 +448,7 @@ export async function testAiConnection(ctx: AiServices, input: { workspaceId: st
           provider: probe.provider,
           kind: probe.kind,
           message: probe.message,
-          ...(built.guard?.blocked() ? { reason: 'address_not_allowed' } : probe.detail ? { reason: probe.detail } : {}),
+          ...(blockedReason ? { reason: blockedReason } : probe.detail ? { reason: probe.detail } : {}),
           ...(probe.retryAfterSeconds !== undefined ? { retryAfterSeconds: probe.retryAfterSeconds } : {}),
         };
     await settleUsage(ctx.db, runId, { status: probe.ok ? 'ok' : 'failed', ...(probe.ok ? {} : { errorCode: `ai_${probe.kind}` }), inputTokens: 0, outputTokens: 0, at: ctx.now() });

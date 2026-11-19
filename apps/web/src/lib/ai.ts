@@ -111,6 +111,17 @@ export type AiSettingsChanges = {
   maxInputTokens?: number | null;
 };
 
+/** A model a provider offers (POST /ai/models). */
+export type AiModel = { id: string; label?: string };
+export type AiModelsResponse = {
+  models: AiModel[];
+  /** `provider`: the server answered a list. `fallback`: it could not, and `models` is a short fixed list (empty for a compatible server). */
+  source: 'provider' | 'fallback';
+  reason?: 'no_credential' | 'list_unavailable';
+};
+/** The body of POST /ai/models. `apiKey` is a key typed in the form and not saved yet: used for this one call only. */
+export type AiModelsBody = { provider: AiProvider; baseUrl?: string; apiKey?: string };
+
 export type AiTestOutcome =
   | { ok: true; provider: AiProvider; model: string }
   | { ok: false; provider?: AiProvider; kind?: string; message?: string; reason?: string };
@@ -518,6 +529,61 @@ const wait = (seconds: number | undefined): string => {
   return `${m} ${m === 1 ? 'minute' : 'minutes'}`;
 };
 
+// ---------------------------------------------------------------------------------------------
+// A refused address of a model server: said plainly, and before the failure when the server's own policy is known
+
+/** The fixed codes the API gives for a refused address (`hint` or `reason` or an issue `code`). */
+export type AddressHintCode = 'private_address_blocked' | 'plain_http_not_allowed';
+export const ADDRESS_ENV = 'MRM_AI_ALLOW_PRIVATE_URLS';
+
+export const ADDRESS_TEXTS: Record<AddressHintCode, string> = {
+  private_address_blocked: `This server only talks to public addresses. To use a model on your own machine or network, the person who runs this server sets ${ADDRESS_ENV}=true and restarts it. In Docker, localhost is the container itself, and plain http is accepted only for localhost, so a model on the host machine needs an https address this server can reach (or the server run outside Docker).`,
+  plain_http_not_allowed: `Plain http is accepted only for localhost, and only when the person who runs this server has set ${ADDRESS_ENV}=true. For any other address use https.`,
+};
+
+const NOT_FOUND_TEXT = 'The provider answered "not found". Check the model name and, for your own server, the address (it usually ends in /v1).';
+
+export const isAddressHint = (value: unknown): value is AddressHintCode => value === 'private_address_blocked' || value === 'plain_http_not_allowed';
+
+/** The hint code of an API error body (`hint`, or `reason` on an unavailable call), if it is one of the fixed ones. */
+export function addressHintOf(error: unknown): AddressHintCode | null {
+  if (!(error instanceof ApiError)) return null;
+  const body = error.body as { hint?: unknown; reason?: unknown };
+  if (isAddressHint(body.hint)) return body.hint;
+  if (isAddressHint(body.reason)) return body.reason;
+  return null;
+}
+
+/** Whether an address looks like this machine or a private network (names and literals; the server decides for real, by resolving it). */
+export function looksPrivateAddress(url: string): boolean {
+  const m = /^https?:\/\/(\[[^\]]+\]|[^\s/:?#]+)/i.exec(url.trim());
+  if (!m) return false;
+  const host = (m[1] as string).replace(/^\[|\]$/g, '').toLowerCase();
+  if (host === 'localhost' || host === 'host.docker.internal' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.lan') || host.endsWith('.home.arpa')) return true;
+  if (host === '::1' || /^f[cd][0-9a-f]{2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host)) return true;
+  const quad = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!quad) return !host.includes('.');
+  const a = Number(quad[1]);
+  const b = Number(quad[2]);
+  return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127);
+}
+
+/**
+ * What to tell a person typing the address of a model server, BEFORE anything fails: this server's own policy is in the configuration
+ * (`server.allowPrivateUrls`). Null when nothing needs saying.
+ */
+export function addressAdvice(url: string, allowPrivateUrls: boolean): { tone: 'warn' | 'info'; text: string } | null {
+  const text = url.trim();
+  if (!/^https?:\/\//i.test(text)) return null;
+  const http = /^http:\/\//i.test(text);
+  if (!allowPrivateUrls && looksPrivateAddress(text)) return { tone: 'warn', text: ADDRESS_TEXTS.private_address_blocked };
+  if (http && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(text)) return { tone: 'warn', text: ADDRESS_TEXTS.plain_http_not_allowed };
+  return null;
+}
+
+/** A soft hint for an address that has no path: most servers expect it to end in /v1 (nothing is added for the person). */
+export const needsV1Hint = (url: string): boolean => /^https?:\/\/[^/\s]+\/?$/i.test(url.trim());
+
 /**
  * One sentence for a failed AI call. The sentence is chosen here from the error code (and the status for `ai_unavailable`):
  * the message of the server and the words of a provider are never shown.
@@ -530,8 +596,11 @@ export function aiErrorMessage(error: unknown, fallback = 'That did not work. Tr
       return error.message;
     case 'ai_not_enabled':
       return body.reason === 'server' ? OFF_SERVER_TEXT : 'AI assistance is off for this workspace. An admin can turn it on in Settings.';
-    case 'ai_not_configured':
+    case 'ai_not_configured': {
+      const hint = addressHintOf(error);
+      if (hint) return ADDRESS_TEXTS[hint];
       return 'AI assistance is not set up yet. An admin can finish it in Settings.';
+    }
     case 'task_not_available':
       return 'This is not available yet.';
     case 'no_listing_text':
@@ -552,8 +621,12 @@ export function aiErrorMessage(error: unknown, fallback = 'That did not work. Tr
       return `Too many requests at the moment. Try again in ${wait(error.retryAfter)}.`;
     case 'ai_invalid_output':
       return 'The answer could not be used, so nothing was saved. Try again.';
-    case 'ai_unavailable':
+    case 'ai_unavailable': {
+      const hint = addressHintOf(error);
+      if (hint) return ADDRESS_TEXTS[hint];
+      if (body.reason === 'http_404') return NOT_FOUND_TEXT;
       return error.status === 504 || body.reason === 'timeout' ? 'The AI provider did not answer in time. Try again.' : 'The AI provider could not be reached. Try again later.';
+    }
     case 'forbidden':
       return 'Your role does not allow that.';
     case 'not_found':
@@ -588,7 +661,12 @@ export function aiSaveMessage(error: unknown): string {
     const issues = (error.body as { issues?: unknown }).issues;
     const lines = Array.isArray(issues)
       ? issues
-          .map((i) => (i && typeof i === 'object' && typeof (i as { message?: unknown }).message === 'string' ? (i as { message: string }).message : ''))
+          .map((i) => {
+            if (!i || typeof i !== 'object') return '';
+            // A refused address has a fixed code: the sentence is chosen here, with what to do about it.
+            if (isAddressHint((i as { code?: unknown }).code)) return ADDRESS_TEXTS[(i as { code: AddressHintCode }).code];
+            return typeof (i as { message?: unknown }).message === 'string' ? (i as { message: string }).message : '';
+          })
           .filter((m) => m !== '')
           .slice(0, 3)
       : [];
@@ -621,7 +699,9 @@ export function aiTestText(outcome: AiTestOutcome, providers: readonly Pick<AiPr
   }
   if (outcome.kind === 'unavailable') {
     if (outcome.reason === 'timeout') return { ok: false, text: 'The provider did not answer in time.' };
+    if (isAddressHint(outcome.reason)) return { ok: false, text: ADDRESS_TEXTS[outcome.reason] };
     if (outcome.reason === 'address_not_allowed') return { ok: false, text: 'This server does not allow that address.' };
+    if (outcome.reason === 'http_404') return { ok: false, text: NOT_FOUND_TEXT };
     return { ok: false, text: 'The provider could not be reached.' };
   }
   return { ok: false, text: TEST_FAILURES[outcome.kind ?? ''] ?? 'The test did not work. Check the settings and try again.' };
@@ -703,3 +783,64 @@ export function oldestCredentialOfKind<T extends { id: string; kind: string; cre
   for (const c of list) if (c.kind === kind && (found === undefined || c.createdAt < found.createdAt)) found = c;
   return found;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Model discovery (POST /ai/models)
+
+/** What the request needs from the form and the saved configuration. Never stored: the key is only sent. */
+export function modelsBody(form: Pick<AiForm, 'provider' | 'baseUrl' | 'apiKey'>, config: Pick<AiConfig, 'providers'>): AiModelsBody {
+  const provider = config.providers.find((p) => p.id === form.provider);
+  const body: AiModelsBody = { provider: form.provider };
+  const url = form.baseUrl.trim();
+  if (provider?.needsUrl && url !== '') body.baseUrl = url;
+  const key = form.apiKey.trim();
+  if (key !== '') body.apiKey = key;
+  return body;
+}
+
+/**
+ * Whether the list may be loaded WITHOUT the person asking (when the card opens and the form settles): the provider and the parts it needs are
+ * there and valid, and the address is not one this server is known to refuse. A hosted provider needs a key (typed or saved); a compatible
+ * server needs its address. The button always works; this only decides the automatic call.
+ */
+export function canAutoLoadModels(form: AiForm, config: Pick<AiConfig, 'providers' | 'limits' | 'server'>): boolean {
+  const provider = config.providers.find((p) => p.id === form.provider);
+  if (!provider) return false;
+  const errors = validateAiForm(form, config);
+  if (errors.apiKey || errors.baseUrl) return false;
+  if (provider.needsUrl) {
+    const url = form.baseUrl.trim();
+    if (url === '') return false;
+    return addressAdvice(url, config.server.allowPrivateUrls) === null;
+  }
+  return form.apiKey.trim() !== '' || provider.credentialPresent;
+}
+
+/** A short signature of what the list depends on, to load once per change and never twice for the same thing. The key is reduced to its length. */
+export const modelsSignature = (form: Pick<AiForm, 'provider' | 'baseUrl' | 'apiKey'>): string =>
+  `${form.provider}|${form.baseUrl.trim()}|${form.apiKey.trim().length}`;
+
+/** The options of the combobox: the list, and the chosen model first when it is not in the list (it is never dropped). */
+export function modelOptions(models: readonly AiModel[], chosen: string): AiModel[] {
+  const current = chosen.trim();
+  if (current === '' || models.some((m) => m.id === current)) return models.slice();
+  return [{ id: current, label: 'current' }, ...models];
+}
+
+/** The quiet line under the field about where the list came from, or null when it came from the provider (or nothing was loaded). */
+export function modelsNote(result: Pick<AiModelsResponse, 'source' | 'reason' | 'models'> | null, provider: AiProviderView | null): string | null {
+  if (!result) return null;
+  if (result.source === 'provider') return result.models.length === 0 ? 'The server answered, but lists no models. Type the model name.' : null;
+  if (result.reason === 'no_credential') return 'Add a key to read the list from the provider. These are well known names; you can type any other.';
+  if (result.models.length === 0) return `Could not read the list of models${provider ? ` from ${provider.label}` : ''}. Type the model name.`;
+  return `Could not read the list from ${provider ? provider.label : 'the provider'}, so these are well known names. You can type any other.`;
+}
+
+/** The model is typed, a list was read from the provider, and the name is not in it: said quietly, the name is kept. */
+export const modelNotListed = (result: Pick<AiModelsResponse, 'source' | 'models'> | null, chosen: string): boolean => {
+  const current = chosen.trim();
+  return result !== null && result.source === 'provider' && result.models.length > 0 && current !== '' && !result.models.some((m) => m.id === current);
+};
+
+/** The count line after a successful read from the provider. */
+export const modelsCountText = (n: number): string => (n === 1 ? '1 model available.' : `${n} models available.`);

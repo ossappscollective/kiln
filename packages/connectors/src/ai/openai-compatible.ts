@@ -1,6 +1,6 @@
-import { countOf, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
+import { countOf, getJson, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
 import { parseModelJson, providerSchema, validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiUsage, guessTokens, renderUserMessage } from './types.ts';
+import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, guessTokens, normalizeModels, renderUserMessage } from './types.ts';
 
 /**
  * Any OpenAI compatible server (Ollama, LM Studio, vLLM, a gateway): Chat Completions,
@@ -17,6 +17,10 @@ import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, t
  * Body: `model`, `messages` (`system` and `user`), `max_tokens`, `stream: false`, `response_format`. Answer:
  * `choices[0].message.content` (a string), `choices[0].finish_reason` (`length` is a cut off answer), `usage` with
  * `prompt_tokens` and `completion_tokens`.
+ * Address rule: the call goes to the base URL as given (trailing slashes removed) plus the endpoint, nothing is rewritten:
+ * `http://localhost:11434/v1` calls `http://localhost:11434/v1/chat/completions` and `http://localhost:11434/v1/models`; a base
+ * without `/v1` calls `<base>/chat/completions` (a gateway may keep its endpoints elsewhere), so the person types the `/v1`.
+ * List of models: `GET <base>/models`, answer `{ data: [{ id }] }` (Ollama, LM Studio and vLLM document it; UNVERIFIED against live servers).
  * UNVERIFIED: that every server ENFORCES the schema (Ollama's page does not mention `json_schema`); the answer is validated
  * here either way, and the schema is also written into the system message because a small model follows words better than
  * a constraint it does not support. That a server reports `usage` (when it does not, the tokens are ESTIMATED at 3 characters
@@ -58,6 +62,12 @@ export function createOpenAiCompatibleClient(options: OpenAiCompatibleOptions): 
   return {
     provider: 'openai_compatible',
     model,
+    async listModels(request = {}): Promise<AiModelInfo[]> {
+      const reply = await getJson({ url: `${base}/models`, headers: key ? { authorization: `Bearer ${key}` } : {}, signal: request.signal }, options);
+      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+      if (!isRecord(reply.json) || !Array.isArray(reply.json.data)) throw new AiError('unavailable', { detail: 'bad_reply' });
+      return normalizeModels(reply.json.data.map((m) => ({ id: isRecord(m) ? m.id : undefined })));
+    },
     async complete(request: AiCompleteRequest): Promise<AiCompleteResult> {
       const schema = providerSchema(request.schema);
       const system = `${request.system}\n\nAnswer with ONE JSON object and nothing else (no Markdown, no explanation). It must match this JSON Schema:\n${JSON.stringify(schema)}`;

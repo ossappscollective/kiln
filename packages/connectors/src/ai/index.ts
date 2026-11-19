@@ -1,13 +1,13 @@
 import { type AiProvider, aiProviderInfo } from '@mrm/core';
-import { createAnthropicClient } from './anthropic.ts';
-import { createOpenAiClient } from './openai.ts';
+import { ANTHROPIC_FALLBACK_MODELS, createAnthropicClient } from './anthropic.ts';
+import { OPENAI_FALLBACK_MODELS, createOpenAiClient } from './openai.ts';
 import { createOpenAiCompatibleClient } from './openai-compatible.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiErrorKind, aiErrorMessage } from './types.ts';
+import { AiError, type AiClient, type AiClientOptions, type AiErrorKind, type AiModelInfo, aiErrorMessage } from './types.ts';
 
 export * from './types.ts';
 export { type SchemaIssue, isStrictCompatible, parseModelJson, providerSchema, validateJson } from './schema.ts';
-export { ANTHROPIC_API_VERSION, ANTHROPIC_URL, createAnthropicClient } from './anthropic.ts';
-export { OPENAI_URL, createOpenAiClient } from './openai.ts';
+export { ANTHROPIC_API_VERSION, ANTHROPIC_FALLBACK_MODELS, ANTHROPIC_URL, createAnthropicClient } from './anthropic.ts';
+export { NOT_CHAT, OPENAI_FALLBACK_MODELS, OPENAI_URL, createOpenAiClient } from './openai.ts';
 export { createOpenAiCompatibleClient } from './openai-compatible.ts';
 export { type FakeAiClient, type FakeAiOptions, type FakeAnswer, createFakeAiClient } from './fake.ts';
 
@@ -52,6 +52,13 @@ export function createAiClient(input: CreateAiClientInput): AiClient {
       return createOpenAiCompatibleClient({ ...options, apiKey, model: input.model, baseUrl: input.baseUrl ?? '' });
   }
 }
+
+/** The fixed list a screen may offer when a provider's own list cannot be read. None for an OpenAI compatible server (it serves what its owner loaded). */
+export const aiFallbackModels = (provider: AiProvider): AiModelInfo[] =>
+  provider === 'anthropic' ? [...ANTHROPIC_FALLBACK_MODELS] : provider === 'openai' ? [...OPENAI_FALLBACK_MODELS] : [];
+
+/** The name a client built only to LIST models carries: no model is needed for that, and it is never sent. */
+export const LIST_ONLY_MODEL = 'list-models';
 
 /** Whether a provider needs a key at all (a local server does not). */
 export const aiNeedsKey = (provider: AiProvider): boolean => aiProviderInfo[provider].credentialRequired;

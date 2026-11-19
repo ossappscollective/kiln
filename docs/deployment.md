@@ -505,7 +505,10 @@ here pushes, submits, publishes, releases or sends a reply.
   `https` to a public host, is checked when saved and at every call, is not redirected, and the connection is pinned to the checked address. **Warning:** `true`
   lets anyone who can change the AI settings (admins and owners) make this server send requests, carrying listing and review text, to any host it can reach; plain
   `http` is then accepted for loopback only. Turn it on only to reach a model on your own network or machine, and only when you trust every admin.
-  Cloud metadata addresses stay refused either way.
+  Cloud metadata addresses stay refused either way. When an address is refused the settings screen says why (`private_address_blocked`: this switch is off; `plain_http_not_allowed`: plain `http`
+  works to `localhost` only, so a model on another machine needs `https`). Changing it needs a restart. **Docker:** `localhost` inside the container is the container, not the host, and `docker compose`
+  passes the container only the variables listed under `environment:` in `docker-compose.yml`, not every line of `.env`: add `MRM_AI_ENABLED` and `MRM_AI_ALLOW_PRIVATE_URLS` there (or use `env_file`) for
+  them to take effect, and reach a model on the host through an `https` address.
 - **Cost.** Each workspace has a monthly token budget (UTC month, input plus output, default 500,000, `0` means no limit here), a cap on the input and on the
   output of one run, two runs at a time and ten runs a minute. The token counts are estimates before a call and the provider's own numbers after it. Also set a
   spending limit with the provider.

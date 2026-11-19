@@ -18,7 +18,7 @@ sending is a different call). Nothing in this feature pushes, submits, publishes
 | Action | Who | Routes |
 | --- | --- | --- |
 | `ai.use` | members, admins, owners (not viewers) | read the configuration, tasks and suggestions; run a task; accept or dismiss |
-| `ai.manage` | admins, owners | change the settings; test the provider |
+| `ai.manage` | admins, owners | change the settings; test the provider; list the provider's models |
 
 Both are **explicit-only for API tokens**: a token holds them only when its `actions` list names them (see [tokens](tokens.md)). Accepting also
 needs the right of what it creates: `aso.write` for keywords, `changesets.write` for listing text, `reviews.triage` for a reply draft; for a token
@@ -58,13 +58,47 @@ gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the toke
   The key is **not** a setting: add a credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible` ([credentials](../credentials.md#ai-provider-keys)).
   The settings are not part of `PUT /settings`.
 - **Addresses.** The `baseUrl` must be `https` to a public host. With `MRM_AI_ALLOW_PRIVATE_URLS=true` loopback and private addresses are allowed and
-  plain `http` only to the same machine (how Ollama or LM Studio is reached). Cloud metadata addresses are always refused. The address is checked
-  when saved and again at every call.
+  plain `http` only to the same machine (`localhost`, `127.0.0.1`, `[::1]`), which is how Ollama or LM Studio is reached. Plain `http` to any other
+  address (a LAN machine, `host.docker.internal`) is refused either way: use `https` there. Cloud metadata addresses are always refused. The address is
+  checked when saved and again at every call. **A refused address gets a fixed code**, so a screen can say what to do (`GET /ai/config` has
+  `server.allowPrivateUrls` to say it before anything fails):
+  `private_address_blocked` (a loopback, private or LAN address, or a name that resolves to one, while the operator has not set the switch) or
+  `plain_http_not_allowed` (plain `http` to anything but localhost). It is `code` of the `baseUrl` entry in `issues` of `400 invalid_setting`,
+  `hint` of `422 ai_not_configured` (`reason: bad_url`) on test, run and models, and `reason` of `502 ai_unavailable` when a name resolves to a private
+  address at call time. The wording is chosen by the client from the code; the server's own sentence says the same: *"This server only talks to public
+  addresses. To use a model on this machine or your network, the person who runs this server sets MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it."*
+  Metadata addresses and malformed URLs have no code (the switch would not help). In Docker `localhost` is the container itself, so a model on the host
+  is not reachable that way.
+- **The address is used as typed.** Nothing is added or rewritten: the call goes to `<baseUrl>/chat/completions` and the list to `<baseUrl>/models`
+  (trailing slashes removed). `http://localhost:11234/v1` calls `http://localhost:11234/v1/chat/completions`; without `/v1` the call goes to
+  `http://localhost:11234/chat/completions`, which most servers answer with a 404 (shown as "not found: check the address, it usually ends in /v1").
 - **Budget.** Input plus output tokens per UTC month, default 500,000. A run reserves its estimated input plus its output cap before it is sent and is
   settled with the tokens the provider reported, so `used` includes runs in flight. Tokens of an answer that was rejected still count.
 
-`POST /ai/test` (`ai.manage`) sends one fixed request (no workspace data) through the configured provider and answers `{ "ok": true, "provider", "model" }`
+`POST /ai/models` (`ai.manage`) is described under [Models](#models) below. `POST /ai/test` (`ai.manage`) sends one fixed request (no workspace data) through the configured provider and answers `{ "ok": true, "provider", "model" }`
 or `{ "ok": false, "provider", "kind", "message", "reason"? }` with a fixed sentence, never provider text. Needs both switches on. Rate limited.
+
+## Models
+
+`POST /ai/models` (`ai.manage`, rate limited like the test) lists what a provider says it serves, so a screen can offer a pick list instead of an empty field. Body
+`{ "provider": "anthropic" | "openai" | "openai_compatible", "baseUrl"?: "...", "apiKey"?: "..." }` (unknown keys are `400`). It sends **no data of the workspace**:
+one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a compatible server; `baseUrl` of the body, else the saved one). Needs
+`MRM_AI_ENABLED=true`; the workspace switch is **not** needed (this is part of setting AI up).
+
+- **The key.** `apiKey` is a key typed in the form and not saved yet: it is used for this one call and is **never stored, logged, audited or put in an error**.
+  Without it the stored credential of the provider's kind is used (decrypted for the call, audited as `credential.use`, purpose `ai`).
+- **The answer** is `{ "models": [{ "id": "...", "label"?: "..." }], "source": "provider" | "fallback", "reason"?: "no_credential" | "list_unavailable" }`. Ids are
+  checked (the charset and length the `model` setting accepts; anything else is dropped), deduplicated, sorted and cut at 200. Anthropic's `retired` models are
+  skipped; for OpenAI, ids that obviously are not chat models (embeddings, speech, images, moderation, realtime) are left out unless that would empty the list. A
+  list is only an offer: **any model name can still be typed and saved**.
+- **`source: "fallback"`** means the provider's list could not be read, so `models` is a short fixed list of well known ids (Anthropic `claude-sonnet-5-5`,
+  `claude-opus-5-5`, `claude-haiku-5-5`; OpenAI the flagship ids of its models page; **none** for a compatible server, whose models are whatever its owner loaded)
+  and a screen should say so quietly. `reason: list_unavailable`: the server answered 404, 405, 501 or something that is not a list. `reason: no_credential`: a hosted
+  provider and no key typed or saved yet; nothing was asked.
+- **Errors** are the usual fixed ones: `409 ai_not_enabled` (server), `422 ai_not_configured` (`reason` `no_url`, `bad_url` with a `hint` as above, `credential_unreadable`),
+  `422 ai_auth` (the provider refused the key), `429 ai_rate_limited`, `502`/`504 ai_unavailable` (`reason` `timeout`, `connection`, `http_500`, `private_address_blocked`, ...).
+- **Audit** `ai.models_list`: the provider, where the key came from (`typed`, `stored`, `none`), the outcome (`provider`, `fallback`, `failed`) and a count. Never an address,
+  a key or the list.
 
 ## Tasks and what they send
 
@@ -136,14 +170,14 @@ Errors (all JSON `{ "error", "message", ... }` with fixed sentences; never provi
 | 404 | `not_found`, `unknown_task` | no such app, review or task |
 | 409 | `ai_not_enabled` | `reason`: `server` or `workspace` |
 | 409 | `task_not_available` | a planned task |
-| 422 | `ai_not_configured` | `reason`: `no_model`, `no_credential`, `no_url`, `credential_unreadable`, `bad_url` |
+| 422 | `ai_not_configured` | `reason`: `no_model`, `no_credential`, `no_url`, `credential_unreadable`, `bad_url` (then often `hint`: `private_address_blocked`, `plain_http_not_allowed`) |
 | 422 | `no_listing_text` | no stored listing text for that language |
 | 422 | `ai_input_too_large` | the data is over the input cap; nothing was sent |
 | 422 | `ai_auth`, `ai_too_large` | the provider refused the key, or says the request is too large |
 | 429 | `ai_budget_exhausted` | `budget`, `used`, `resetsAt`; nothing was sent |
 | 429 | `ai_busy`, `rate_limited`, `ai_rate_limited` | too many runs now (`Retry-After`) |
 | 502 | `ai_invalid_output` | the answer did not match the schema; no suggestion; tokens still count |
-| 502, 504 | `ai_unavailable` | the provider could not be reached or answered with an error; `reason` is a short hint (`timeout`, `http_500`, `address_not_allowed`) |
+| 502, 504 | `ai_unavailable` | the provider could not be reached or answered with an error; `reason` is a short hint (`timeout`, `http_404`, `http_500`, `private_address_blocked`, `plain_http_not_allowed`, `address_not_allowed`) |
 
 Audit: `ai.run` (suggestion id, app id, task, version, provider, model, token counts, `inputHash`, scope) and `ai.run_failed` (code and counts). **Never a prompt, an
 answer, a review text, a goal or a key.** Event `ai.suggestion_created` with `suggestionId`, `appId`, `task`, `taskVersion`, `kind` ([events](events.md)).
@@ -179,5 +213,5 @@ rights stay in one place:
 ## UNVERIFIED
 
 The request and answer shapes of the three providers were written from their documentation and never run against a live endpoint (see ADR 0016). Check with a real key before relying
-on: Anthropic `output_config.format` and the `anthropic-version` header; OpenAI Responses `text.format` with `strict: true`; `response_format` on Ollama, LM Studio and vLLM; which models support
+on: the model lists (Anthropic `GET /v1/models?limit=1000` with the `x-api-key` header, whose docs show `Authorization: Bearer`; OpenAI `GET /v1/models`; `GET <base>/models` on Ollama, LM Studio and vLLM) and the fixed fallback ids (OpenAI: `gpt-6.2-astra`, `gpt-6.2-sol`, `gpt-6.1-terra`, `gpt-6-luna`, read from its models page on 2026-11-19); Anthropic `output_config.format` and the `anthropic-version` header; OpenAI Responses `text.format` with `strict: true`; `response_format` on Ollama, LM Studio and vLLM; which models support
 structured outputs; token counts reported by each provider; the 3-characters-a-token estimate.
