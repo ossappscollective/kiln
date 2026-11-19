@@ -7,7 +7,7 @@ Design and the arguments: [ADR 0010](../adr/0010-store-submit.md).
 
 - **It cannot be taken back from this server.** A submission is cancelled only in App Store Connect, a review
   is cancelled only in Play Console.
-- **It never releases anything.** An App Store version stays unreleased after approval until somebody
+- **It never releases anything.** Releasing is a separate step with its own switch and right ([releases-write](releases-write.md)). An App Store version stays unreleased after approval until somebody
   releases it in App Store Connect; a version whose release type is not manual is *blocked*, not changed. Google
   Play tracks are read, never written: a submit cannot start, raise or complete a rollout.
 - **Never run against a real store**: the connectors are tested with fakes only. See

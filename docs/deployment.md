@@ -412,6 +412,24 @@ See [adr/0010-store-submit](adr/0010-store-submit.md) and [api/submit](api/submi
 
 See [api/reviews](api/reviews.md) and [phase-3-reviews](phase-3-reviews.md).
 
+### Releasing (a store write, off by default)
+
+`MRM_STORE_RELEASE_ENABLED` (default `false`; only `true` and `false`; blank means off) is the kill switch for **releasing**: making
+an approved App Store version available (`POST appStoreVersionReleaseRequests`), or starting a Google Play draft release at a share of
+users you name. It is independent of `MRM_STORE_DRAFT_WRITE_ENABLED` and `MRM_STORE_SUBMIT_ENABLED`. While `false`, the preview and
+release routes answer `409 store_release_disabled`; the config and state routes work, and so do the **reads** of builds and version
+codes (they change nothing). Things to settle first:
+
+- **It cannot be taken back from this server.** Apple does not allow cancelling a release request; a Google Play rollout can be
+  halted or completed with the [rollout](api/rollout.md) controls, not unsent.
+- **Who can release.** Only owners and admins (`store.release`). An API token only when its list of actions names it.
+- **The flow.** A preview (reads the store, shows what is released and to whom, the checks, a hash and a phrase to type), then the
+  release with the hash, the phrase and the same request. The store is read again right before the write; one release per app at a
+  time; never retried. Google Play needs an explicit share every time.
+- **Credentials.** The App Store key must be allowed to release a version (App Manager or Admin is assumed, UNVERIFIED); the Google
+  service account must be allowed to release apps in Play Console.
+- Everything not verified on a real account is listed in [api/releases-write](api/releases-write.md#unverified-check-with-a-real-account).
+
 ### Review translation
 
 Translating reviews is **off by default** and chosen per workspace under Settings

@@ -6,6 +6,10 @@ check them against the stores' rules, and write them to the store's **draft**. N
 is a separate, gated and irreversible step with its own switch and right: [submit](submit.md).
 Design: [ADR 0009](../adr/0009-staged-store-drafts.md), [ADR 0010](../adr/0010-store-submit.md).
 
+**Release fields** (build, version, release type, date, copyright, phased release; a Google Play draft release) are a third kind of staged item
+(`release[]` in the view, `PUT .../staged/release-fields`) written by the same push, with `release[]` and `checks` in the preview: see
+[releases-write](releases-write.md) and [ADR 0014](../adr/0014-release-management.md). Releasing is yet another gated step.
+
 **Never run against a real store**: the connectors are tested with fakes only. See
 [below](#unverified-check-with-a-real-account).
 
