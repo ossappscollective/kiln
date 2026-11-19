@@ -487,3 +487,8 @@ test('openai compatible: a server that refuses strict schemas is asked again wit
   await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:11234/v1', options: { fetch: other.fetch } }).complete(REQUEST));
   assert.equal(other.requests.length, 1);
 });
+
+test('openai compatible: a complete answer is accepted even when the server says it stopped on the length limit', async () => {
+  const out = await createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:1234/v1', options: { fetch: fakeFetch(chatOk(JSON.stringify(GOOD), {}, 'length')).fetch } }).complete(REQUEST);
+  assert.deepEqual(out.output, GOOD);
+});

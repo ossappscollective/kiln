@@ -691,7 +691,7 @@ export function invalidOutputHint(reason: unknown): string {
     case 'not_json':
       return 'The model did not answer with JSON. Models that think first, or small models, often do not: try a model made for structured answers, or turn thinking off.';
     case 'truncated':
-      return 'The answer was cut off before it ended. A model that thinks first can use up the limit: try one that does not.';
+      return 'The answer was cut off before it ended. A very small model can ramble past the limit, and one that thinks first can use it up: try a larger instruct model.';
     case 'schema':
       return 'The answer did not have the shape the task needs. A larger or instruction-tuned model usually fixes that.';
     case 'no_text':

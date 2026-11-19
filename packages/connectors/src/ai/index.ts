@@ -83,7 +83,7 @@ export async function probeAiClient(client: AiClient, signal?: AbortSignal): Pro
       input: { test: true },
       schema: PROBE_SCHEMA as unknown as Record<string, unknown>,
       schemaName: 'connection_test',
-      maxTokens: 50,
+      maxTokens: 300,
       signal,
     });
     return { ok: true, provider: client.provider, model: client.model };

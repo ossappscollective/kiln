@@ -109,11 +109,13 @@ export function createOpenAiCompatibleClient(options: OpenAiCompatibleOptions): 
       const usage = usageOf(json, () => ({ inputTokens: guessTokens(system) + guessTokens(user), outputTokens: guessTokens(content ?? '') }));
       if (!choice || !message) throw new AiError('unavailable', { detail: 'bad_reply' });
       if (typeof message.refusal === 'string' && message.refusal) throw new AiError('invalid_output', { detail: 'refusal', usage });
-      if (choice.finish_reason === 'length') throw new AiError('invalid_output', { detail: 'truncated', usage });
-      if (content === undefined) throw new AiError('invalid_output', { detail: 'no_text', usage });
+      if (content === undefined) throw new AiError('invalid_output', { detail: choice.finish_reason === 'length' ? 'truncated' : 'no_text', usage });
+      // A server that says "length" for an answer that is complete (some local servers do) is accepted: what counts is
+      // whether the JSON is whole and matches the schema. Only an unusable answer is blamed on the limit.
       const output = parseModelJson(content);
-      if (output === undefined) throw new AiError('invalid_output', { detail: 'not_json', usage });
-      if (validateJson(request.schema, output).length > 0) throw new AiError('invalid_output', { detail: 'schema', usage });
+      const cutOff = choice.finish_reason === 'length';
+      if (output === undefined) throw new AiError('invalid_output', { detail: cutOff ? 'truncated' : 'not_json', usage });
+      if (validateJson(request.schema, output).length > 0) throw new AiError('invalid_output', { detail: cutOff ? 'truncated' : 'schema', usage });
       return { output, usage, model: typeof json.model === 'string' && json.model ? json.model : model };
     },
   };
