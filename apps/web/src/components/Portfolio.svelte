@@ -22,6 +22,7 @@
   import type { WorkspaceReviewsSummary } from '../lib/reviews.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import type { AppSummary } from '../lib/types.ts';
+  import RunningNow from './ci/RunningNow.svelte';
   import Board from './dashboard/Board.svelte';
   import ViewToggle from './dashboard/ViewToggle.svelte';
   import AppShell from './app/AppShell.svelte';
@@ -40,6 +41,8 @@
   const canRead = $derived(can(role, 'apps.read'));
   const canWrite = $derived(can(role, 'apps.write'));
   const canSync = $derived(can(role, 'apps.sync'));
+  /** Running workflows of every connected repository: stored runs for everybody who may read repositories. */
+  const canSeeRuns = $derived(can(role, 'repositories.read'));
 
   /** How many apps load their releases at once for the list. */
   const LOAD_PARALLEL = 4;
@@ -362,6 +365,9 @@
           </EmptyState>
         </div>
       {:else}
+        {#if canSeeRuns}
+          <RunningNow {api} {workspaceId} {apps} />
+        {/if}
         {#if viewMode === 'board'}
           <Board {api} {workspaceId} {role} apps={sorted} {releases} {now} />
         {:else}

@@ -1,4 +1,20 @@
 import type { Listing, ListingProblem, StagedChangesView } from '@mrm/core';
+import type {
+  AsoAddResult,
+  AsoCompetitor,
+  AsoCompetitorHistory,
+  AsoConfig,
+  AsoFitResponse,
+  AsoGapsResponse,
+  AsoIdeasResponse,
+  AsoKeyword,
+  AsoKeywordHistory,
+  AsoKeywordInput,
+  AsoMarketsResponse,
+  AsoRefreshOutcome,
+  AsoSuggestionsResponse,
+  AsoSummary,
+} from './aso.ts';
 import type { ApplyBody } from './change-set-apply.ts';
 import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup.ts';
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
@@ -11,6 +27,7 @@ import type { TranslateReviewsResult } from './review-translation.ts';
 import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
 import type { InboxPage, Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody, WorkspaceReviewsSummary } from './reviews.ts';
 import type {
+  ActiveRuns,
   AcceptedInvitation,
   ApiToken,
   AppBuild,
@@ -66,6 +83,7 @@ import type {
   User,
   WebhookDelivery,
   WebhookEndpoint,
+  RunJobs,
   WorkflowInputs,
   WorkflowRun,
   WorkflowRuns,
@@ -313,6 +331,7 @@ export function createApi(options: ApiOptions = {}) {
   }
 
   const workspace = (id: string) => `/api/workspaces/${encodeURIComponent(id)}`;
+  const asoPath = (workspaceId: string, appId: string) => `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/aso`;
   const planPath = (workspaceId: string, appId: string, planId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans/${encodeURIComponent(planId)}`;
 
@@ -654,6 +673,22 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows/runs/${encodeURIComponent(runId)}`,
       ),
+    /**
+     * The runs going now (and those finished in the last 24 hours) across the repositories, or only
+     * `repositoryIds`. A member or admin also refreshes them from GitHub, which is why it is cached
+     * for seconds and limited per workspace; a viewer reads what is stored.
+     */
+    activeRuns: (workspaceId: string, repositoryIds?: readonly string[]) =>
+      request<ActiveRuns>(
+        'GET',
+        `${workspace(workspaceId)}/ci/runs/active${repositoryIds && repositoryIds.length > 0 ? `?repositoryId=${encodeURIComponent(repositoryIds.join(','))}` : ''}`,
+      ),
+    /** The jobs and steps of a run: names, states and times. No logs. */
+    workflowRunJobs: (workspaceId: string, repositoryId: string, runId: string) =>
+      request<RunJobs>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/workflows/runs/${encodeURIComponent(runId)}/jobs`,
+      ),
     /** Starts the workflow on GitHub: this runs the team's CI. */
     dispatchWorkflow: (
       workspaceId: string,
@@ -869,6 +904,40 @@ export function createApi(options: ApiOptions = {}) {
       request<{ template: ReplyTemplate }>('POST', `${workspace(workspaceId)}/reviews/reply-templates`, body),
     deleteReplyTemplate: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/reviews/reply-templates/${encodeURIComponent(id)}`),
+    // ASO (docs/api/aso.md). Every read is our own database; only `refreshAso` and `addAsoCompetitor` read a public store, and nothing writes to one.
+    asoConfig: (workspaceId: string) => request<AsoConfig>('GET', `${workspace(workspaceId)}/aso/config`),
+    asoSummary: (workspaceId: string, appId: string) => request<AsoSummary>('GET', `${asoPath(workspaceId, appId)}/summary`),
+    asoKeywords: (workspaceId: string, appId: string) =>
+      request<{ keywords: AsoKeyword[]; limits: { maxKeywordsPerApp: number } }>('GET', `${asoPath(workspaceId, appId)}/keywords`),
+    addAsoKeywords: (workspaceId: string, appId: string, keywords: AsoKeywordInput[]) =>
+      request<AsoAddResult>('POST', `${asoPath(workspaceId, appId)}/keywords`, { keywords }),
+    updateAsoKeyword: (workspaceId: string, appId: string, keywordId: string, changes: { tag?: string | null; notes?: string | null; priority?: number }) =>
+      request<{ keyword: AsoKeyword }>('PATCH', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}`, changes),
+    deleteAsoKeyword: (workspaceId: string, appId: string, keywordId: string) =>
+      request<void>('DELETE', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}`),
+    asoKeywordHistory: (workspaceId: string, appId: string, keywordId: string, limit = 30) =>
+      request<AsoKeywordHistory>('GET', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/history?limit=${limit}`),
+    asoCompetitors: (workspaceId: string, appId: string) =>
+      request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>('GET', `${asoPath(workspaceId, appId)}/competitors`),
+    /** Reads the public store once, so the name is real. Rate limited per workspace. */
+    addAsoCompetitor: (workspaceId: string, appId: string, body: { externalId: string; country?: string }) =>
+      request<{ competitor: AsoCompetitor }>('POST', `${asoPath(workspaceId, appId)}/competitors`, body),
+    deleteAsoCompetitor: (workspaceId: string, appId: string, competitorId: string) =>
+      request<void>('DELETE', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}`),
+    asoCompetitorHistory: (workspaceId: string, appId: string, competitorId: string, limit = 30) =>
+      request<AsoCompetitorHistory>('GET', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/history?limit=${limit}`),
+    asoFit: (workspaceId: string, appId: string) => request<AsoFitResponse>('GET', `${asoPath(workspaceId, appId)}/fit`),
+    asoIdeas: (workspaceId: string, appId: string, locale?: string) =>
+      request<AsoIdeasResponse>('GET', `${asoPath(workspaceId, appId)}/ideas${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
+    asoGaps: (workspaceId: string, appId: string, locale?: string) =>
+      request<AsoGapsResponse>('GET', `${asoPath(workspaceId, appId)}/gaps${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
+    asoSuggestions: (workspaceId: string, appId: string) => request<AsoSuggestionsResponse>('GET', `${asoPath(workspaceId, appId)}/suggestions`),
+    asoMarkets: (workspaceId: string, appId: string) => request<AsoMarketsResponse>('GET', `${asoPath(workspaceId, appId)}/markets`),
+    /** Reads the public store (Apple: the iTunes Search API; Google Play only when the operator allows it). Read-only toward the stores. */
+    refreshAso: (workspaceId: string, appId: string) => request<AsoRefreshOutcome>('POST', `${asoPath(workspaceId, appId)}/refresh`),
+    /** Admins: queues a refresh of every app that has keywords or competitors. */
+    refreshAsoAll: (workspaceId: string) =>
+      request<{ queued: number; skipped: { alreadyQueued: number; notReady: number; playOff: number; capped: number } }>('POST', `${workspace(workspaceId)}/aso/refresh`),
   };
 }
 

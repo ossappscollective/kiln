@@ -19,6 +19,7 @@
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
+  import AsoSection from '../aso/AsoSection.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
   import AppSettings from './AppSettings.svelte';
@@ -109,6 +110,8 @@
   {@render perPlatform(reviews)}
 {:else if section === 'builds'}
   {@render perPlatform(builds)}
+{:else if section === 'aso'}
+  <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
 {:else if section === 'settings'}
   <AppSettings {api} {workspaceId} {role} {members} {now} />
 {:else}

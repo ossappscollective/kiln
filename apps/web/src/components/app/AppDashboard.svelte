@@ -10,6 +10,8 @@
   whose preview reads the store and whose confirmation is the one write.
   Props: api, workspaceId, role, members (the records in scope), releases (by app id), now, canSync,
   syncing (by app id), onsync, syncRuns (changes when a sync finished, so the reads run again).
+  Above the cards, "Running now" lists the GitHub Actions runs of the app's repository that are going
+  (it draws nothing when none is); see components/ci/RunningNow.svelte.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -18,17 +20,20 @@
   import { address } from '../../lib/address.svelte.ts';
   import { attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
   import { appAddress } from '../../lib/app-scope.ts';
+  import { scopeRunsToApps } from '../../lib/running.ts';
   import { buildMatrix, modeCounts } from '../../lib/listing-matrix.ts';
   import { latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
+  import type { AsoSummary } from '../../lib/aso.ts';
   import type { AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import RunningNow from '../ci/RunningNow.svelte';
   import AttentionList from './AttentionList.svelte';
 
   let {
@@ -59,7 +64,29 @@
   let builds = $state<Record<string, AppBuild[] | undefined>>({});
   let drifts = $state<Record<string, ListingDrift | undefined>>({});
   let plans = $state<Record<string, PlanSummary[] | undefined>>({});
+  let asoSummaries = $state<Record<string, AsoSummary | undefined>>({});
   let generation = 0;
+
+  // Running now: the runs of the repositories of this app. They are tied to the app when started for it
+  // or when they are its release workflow (the build conventions); otherwise the repository's are shown.
+  const repositoryIds = $derived([...new Set(members.map((m) => m.repositoryId).filter((id): id is string => id !== null))]);
+  let releaseWorkflows = $state<Record<string, string | null>>({});
+  let conventionsGeneration = 0;
+  const showRunning = $derived(can(role, 'repositories.read') && repositoryIds.length > 0);
+
+  $effect(() => {
+    if (!showRunning) return;
+    const list = members.filter((m) => m.repositoryId !== null);
+    const mine = ++conventionsGeneration;
+    for (const app of list) {
+      api
+        .buildConventions(workspaceId, app.repositoryId as string, app.id)
+        .then((view) => {
+          if (mine === conventionsGeneration) releaseWorkflows[app.id] = view.effective.workflow ?? null;
+        })
+        .catch(() => undefined);
+    }
+  });
 
   async function loadSignals(list: AppSummary[]) {
     const mine = ++generation;
@@ -100,6 +127,17 @@
         jobs.push(submitStore.load(api, workspaceId, app.id).then(ignore));
         jobs.push(submitStore.loadConfig(api, workspaceId));
       }
+      if (can(role, 'aso.read')) {
+        // One summary per app record, our own database: big rank drops and competitor changes for "Needs attention".
+        jobs.push(
+          api
+            .asoSummary(workspaceId, app.id)
+            .then((s) => {
+              if (mine === generation) asoSummaries[app.id] = s;
+            })
+            .catch(ignore),
+        );
+      }
       if (can(role, 'plans.read')) {
         jobs.push(
           api
@@ -129,6 +167,7 @@
         builds = {};
         drifts = {};
         plans = {};
+        asoSummaries = {};
       }
       void loadSignals(members);
     });
@@ -150,6 +189,7 @@
         return acc;
       }, {}),
       plans,
+      aso: asoSummaries,
       submitReady: members.reduce<Record<string, boolean>>((acc, m) => {
         const s = canSubmit(role) ? submitStore.state(m.id) : null;
         acc[m.id] = s !== null && (s.pushed || s.unknownOutcome.submit);
@@ -158,6 +198,21 @@
     }),
   );
 </script>
+
+{#if showRunning}
+  <RunningNow
+    {api}
+    {workspaceId}
+    {repositoryIds}
+    apps={members}
+    stateKey="ci.running.recent.app"
+    scope={(runs) =>
+      scopeRunsToApps(
+        runs,
+        members.map((m) => ({ id: m.id, repositoryId: m.repositoryId, workflow: releaseWorkflows[m.id] ?? null })),
+      )}
+  />
+{/if}
 
 <div class="layout" class:split={items.length > 0}>
   <div class="cards">

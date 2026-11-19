@@ -798,6 +798,71 @@ export type WorkflowRuns = {
 
 export type DispatchResult = { dispatched: boolean; runKnown: boolean; run: WorkflowRun };
 
+/** Where a run in progress is, read from its jobs. Null on a run that has not started or whose jobs were not read. */
+export type RunProgress = {
+  jobsTotal: number;
+  jobsDone: number;
+  job: string | null;
+  step: string | null;
+  stepsDone: number;
+  stepsTotal: number;
+  /** 0 to 1 over all the jobs. */
+  fraction: number;
+  readAt: number;
+};
+
+/** A run of the "running now" list: the run, where it is, who started it and how far it has got. */
+export type ActiveRun = WorkflowRun & {
+  repository: { id: string; owner: string; repo: string };
+  actor: string | null;
+  progress: RunProgress | null;
+};
+
+/** Why GitHub could not be read for a repository: a short fixed reason, never GitHub's text. */
+export type ActiveRunsProblem = { repositoryId: string; reason: 'no_access' | 'rate_limited' | 'unavailable' | 'unsupported' };
+
+export type ActiveRuns = {
+  runs: ActiveRun[];
+  /** Finished in the last 24 hours, failed first. */
+  recent: ActiveRun[];
+  repositories: { id: string; owner: string; repo: string }[];
+  problems: ActiveRunsProblem[];
+  refreshedAt: number | null;
+  /** False for a viewer: the stored runs, not read from GitHub just now. */
+  live: boolean;
+  cached: boolean;
+};
+
+export type RunJobStep = {
+  number: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  startedAt: number | null;
+  completedAt: number | null;
+};
+
+export type RunJob = {
+  id: string;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  startedAt: number | null;
+  completedAt: number | null;
+  url: string | null;
+  steps: RunJobStep[];
+};
+
+export type RunJobs = {
+  runId: string;
+  jobs: RunJob[];
+  truncated: boolean;
+  readAt: number | null;
+  cached: boolean;
+  /** False for a viewer: only what a member read lately. */
+  live: boolean;
+};
+
 /** How sure a link is. A manual link and an exact matcher are `high`. */
 export type LinkConfidence = 'high' | 'medium' | 'low';
 

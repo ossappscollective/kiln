@@ -37,9 +37,9 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'listing' | 'releases' | 'assets' | 'reviews' | 'builds' | 'settings';
+export type AppSection = 'dashboard' | 'listing' | 'releases' | 'assets' | 'reviews' | 'aso' | 'builds' | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'listing', 'releases', 'assets', 'reviews', 'builds', 'settings'];
+export const appSections: readonly AppSection[] = ['dashboard', 'listing', 'releases', 'assets', 'reviews', 'aso', 'builds', 'settings'];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
@@ -50,6 +50,7 @@ export const appSectionDefs: readonly SectionDef[] = [
   { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
   { id: 'assets', label: 'Assets', icon: 'images', requires: 'listing.read' },
   { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
+  { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },
   { id: 'builds', label: 'Builds and CI', icon: 'pipeline', requires: 'apps.read' },
   { id: 'settings', label: 'Settings', icon: 'settings', requires: 'apps.read' },
 ];

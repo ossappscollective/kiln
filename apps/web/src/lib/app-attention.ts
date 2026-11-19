@@ -1,4 +1,5 @@
 import type { Platform, StagedChangesView } from '@mrm/core';
+import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso.ts';
 import { type PlatformScope, appAddress } from './app-scope.ts';
 import type { IconName } from './icons.ts';
 import { platformLabel } from './portfolio.ts';
@@ -44,6 +45,8 @@ export type AttentionInput = {
   plans: Readonly<Record<string, readonly PlanSummary[] | undefined>>;
   /** Apps whose pushed draft waits to be submitted for review (only filled for admin and up). Optional. */
   submitReady?: Readonly<Record<string, boolean | undefined>>;
+  /** The ASO summary by app id (one call each, our own database). Optional: an app without one has nothing to say. */
+  aso?: Readonly<Record<string, AsoSummary | undefined>>;
 };
 
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
@@ -180,6 +183,34 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         action: 'Submit for review…',
         submitAppId: app.id,
       });
+    }
+
+    const aso = input.aso?.[app.id];
+    if (aso) {
+      const drops = aso.movers.filter((m) => isBigDrop(m));
+      if (drops.length > 0) {
+        const first = drops[0] as AsoMover;
+        out.push({
+          id: `${app.id}:aso-drops`,
+          tone: 'warn',
+          icon: 'arrow-down',
+          text: `${who}${plural(drops.length, 'keyword dropped', 'keywords dropped')} in the store search`,
+          detail: `“${first.term}” ${moverText(first)}${drops.length > 1 ? ` and ${drops.length - 1} more` : ''}`,
+          href: asoViewHref(app.id, 'keywords', input.scope),
+          action: 'Open ASO',
+        });
+      }
+      if (aso.competitors.changedRecently > 0) {
+        out.push({
+          id: `${app.id}:aso-competitors`,
+          tone: 'info',
+          icon: 'activity',
+          text: `${who}${plural(aso.competitors.changedRecently, 'competitor changed', 'competitors changed')} recently`,
+          detail: null,
+          href: asoViewHref(app.id, 'competitors', input.scope),
+          action: 'Open the competitors',
+        });
+      }
     }
 
     const fresh = input.newReviews[app.id] ?? 0;
