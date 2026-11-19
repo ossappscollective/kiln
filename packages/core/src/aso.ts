@@ -115,6 +115,26 @@ export function defaultLocaleFor(country: string): string {
   return COUNTRY_LOCALE[country.toLowerCase()] ?? 'en';
 }
 
+/**
+ * The storefront (two letters) a listing locale most likely belongs to: the reverse of `defaultLocaleFor`.
+ * An exact match of the table wins, then the region of the tag (`fr-CA` gives `ca`), then a script match
+ * (`zh-Hans` gives `cn`), then the first storefront of the language (`ja` gives `jp`). '' when none is known.
+ */
+export function defaultCountryFor(locale: string): string {
+  const tag = locale.trim().replace(/_/g, '-').toLowerCase();
+  if (tag === '') return '';
+  const countries = Object.keys(COUNTRY_LOCALE);
+  const tagOf = (c: string): string => (COUNTRY_LOCALE[c] as string).toLowerCase();
+  for (const c of countries) if (tagOf(c) === tag) return c;
+  const parts = tag.split('-');
+  const last = parts[parts.length - 1] ?? '';
+  if (parts.length > 1 && /^[a-z]{2}$/.test(last)) return last;
+  for (const c of countries) if (tagOf(c).indexOf(`${tag}-`) === 0) return c;
+  const language = parts[0] === 'no' ? 'nb' : (parts[0] ?? '');
+  for (const c of countries) if ((tagOf(c).split('-')[0] ?? '') === language) return c;
+  return '';
+}
+
 /** `pt-BR` gives `pt`. */
 export function languageOf(locale: string): string {
   return (locale.split(/[-_]/)[0] ?? '').toLowerCase();

@@ -17,6 +17,8 @@ import {
   type FitKeyword,
   type FitStatus,
   type RankChange,
+  checkTerm,
+  defaultCountryFor,
   defaultLocaleFor,
   fitKeyword,
   foldWord,
@@ -404,6 +406,87 @@ export function storefrontCombos(
   return { country: c, locales, unverified: true, note: STOREFRONT_NOTE };
 }
 
+/** A tracked keyword, as far as the listing views need it. */
+export type TrackedRef = { term: string; country: string; locale: string };
+
+/** The words of a term as the budgets compare them: lower case, accents folded, English plurals folded. */
+export const termKeyOf = (term: string, locale: string): string => matchWords(term, languageOf(locale)).join(' ');
+
+export type LocaleStorefront = {
+  /** The storefront (two letters) keywords of this locale are tracked in. */
+  country: string;
+  /** Storefronts that already have keywords of this locale, the one with most first. */
+  tracked: string[];
+  /** `tracked` plus the usual storefront of the locale, when that is not one of them. */
+  options: string[];
+};
+
+/**
+ * The storefront rank tracking uses for a listing locale: the one that already has the most tracked
+ * keywords in that locale, else the usual storefront of the locale (`defaultCountryFor`), else `us`.
+ */
+export function storefrontFor(locale: string, tracked: readonly { country: string; locale: string }[]): LocaleStorefront {
+  const counts = new Map<string, number>();
+  for (const t of tracked) if (sameLocale(t.locale, locale)) counts.set(t.country.toLowerCase(), (counts.get(t.country.toLowerCase()) ?? 0) + 1);
+  const list = Array.from(counts.keys()).sort((a, b) => (counts.get(b) as number) - (counts.get(a) as number) || a.localeCompare(b));
+  const usual = defaultCountryFor(locale) || 'us';
+  const options = list.indexOf(usual) >= 0 ? list : list.concat([usual]);
+  return { country: list[0] ?? usual, tracked: list, options };
+}
+
+/** The keys (see `termKeyOf`) of the keywords tracked in this storefront in this locale. */
+export function trackedKeys(tracked: readonly TrackedRef[], locale: string, country: string): Set<string> {
+  const out = new Set<string>();
+  const c = country.toLowerCase();
+  for (const t of tracked) {
+    if (t.country.toLowerCase() !== c || !sameLocale(t.locale, locale)) continue;
+    const key = termKeyOf(t.term, locale);
+    if (key !== '') out.add(key);
+  }
+  return out;
+}
+
+/** The entries of an App Store keyword field: split on commas, trimmed, empty ones dropped, the same words (plurals folded) once. */
+export function keywordFieldEntries(value: string, locale: string): { term: string; key: string }[] {
+  const out: { term: string; key: string }[] = [];
+  const seen = new Set<string>();
+  for (const part of value.split(',')) {
+    const term = part.trim();
+    const key = termKeyOf(term, locale);
+    if (term === '' || key === '' || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ term, key });
+  }
+  return out;
+}
+
+export type UntrackedSetKeywords = { locale: string; country: string; terms: string[] };
+
+/**
+ * The keywords a person SET in the App Store keyword field of each listing locale that no tracked keyword
+ * covers in the locale's storefront. Entries that cannot be tracked (too long, too many words) are left out.
+ * Google Play has no keyword field, so nothing is "set" there and the answer is empty.
+ */
+export function untrackedSetKeywords(input: {
+  platform: AsoPlatform;
+  listingLocales: readonly { locale: string; fields: FitFields }[];
+  tracked: readonly TrackedRef[];
+}): UntrackedSetKeywords[] {
+  if (!isApplePlatform(input.platform)) return [];
+  const out: UntrackedSetKeywords[] = [];
+  for (const l of input.listingLocales) {
+    const value = l.fields.keywords;
+    if (value === undefined || value.trim() === '') continue;
+    const { country } = storefrontFor(l.locale, input.tracked);
+    const have = trackedKeys(input.tracked, l.locale, country);
+    const terms = keywordFieldEntries(value, l.locale)
+      .filter((e) => !have.has(e.key) && checkTerm(e.term).ok)
+      .map((e) => e.term);
+    if (terms.length > 0) out.push({ locale: l.locale, country, terms });
+  }
+  return out.sort((a, b) => b.terms.length - a.terms.length || a.locale.localeCompare(b.locale));
+}
+
 export type UntappedKind = 'no_locale' | 'empty_keyword_field' | 'empty_short_description';
 
 export type UntappedLocale = {
@@ -470,6 +553,7 @@ export type CoachKind =
   | 'check_ranks'
   | 'rank_dropped'
   | 'not_in_listing'
+  | 'untracked_set_keywords'
   | 'competitor_above'
   | 'keyword_field_waste'
   | 'unused_characters'
@@ -482,6 +566,7 @@ export const COACH_ORDER: readonly CoachKind[] = [
   'check_ranks',
   'rank_dropped',
   'not_in_listing',
+  'untracked_set_keywords',
   'competitor_above',
   'keyword_field_waste',
   'unused_characters',
@@ -523,7 +608,7 @@ export type CoachInput = {
 };
 
 export type CoachLink = {
-  to: 'keywords' | 'keywords_add' | 'competitors' | 'fit' | 'ideas' | 'listing';
+  to: 'keywords' | 'keywords_add' | 'listing_keywords' | 'competitors' | 'fit' | 'ideas' | 'listing';
   /** Open this locale (the listing's locale drawer). */
   locale?: string;
   label: string;
@@ -656,6 +741,21 @@ export function buildCoach(input: CoachInput): CoachAction[] {
       detail: `None of their words appear in the ${where}, so the store has little reason to show the app for them.`,
       all: missingLines.map((m) => m.line),
       link: { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` },
+    });
+  }
+
+  // 4b. Keywords set in the App Store keyword field that are not tracked.
+  const untrackedSet = untrackedSetKeywords({ platform, listingLocales: input.listingLocales, tracked: keywords });
+  if (untrackedSet.length > 0) {
+    const total = untrackedSet.reduce((n, u) => n + u.terms.length, 0);
+    const first = untrackedSet[0] as UntrackedSetKeywords;
+    drafts.push({
+      id: 'untracked_set_keywords',
+      kind: 'untracked_set_keywords',
+      title: `${count(total, 'set keyword is', 'set keywords are')} not tracked`,
+      detail: 'These are in the keyword field of the listing, but no rank is recorded for them, so you cannot tell whether they help. Tracking one only reads the public store.',
+      all: untrackedSet.map((u) => `${u.locale} (${u.country.toUpperCase()}): ${u.terms.slice(0, 4).join(', ')}${u.terms.length > 4 ? ` and ${u.terms.length - 4} more` : ''}`),
+      link: { to: 'listing_keywords', locale: first.locale, label: 'See them in the listing' },
     });
   }
 

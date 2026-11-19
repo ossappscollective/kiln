@@ -155,15 +155,18 @@ export type AsoIdeasResponse = {
 export type AsoGapsResponse = { locale: string; competitors: number; gaps: CoverageGap[]; notes: string[] };
 export type AsoSuggestion = SuggestedCompetitor & { country: string; name: string | null };
 export type AsoSuggestionsResponse = { suggestions: AsoSuggestion[]; basedOnKeywords: number; notes: string[] };
+/** The stored text of every locale of the listing (`GET /aso/listing-keywords`); the terms are worked out in the web with core `listingRows`. */
+export type AsoListingKeywordsResponse = { readAt: number | null; error: string | null; locales: { locale: string; fields: FitFields }[]; indexedFields: string[] };
 export type AsoMarketsResponse = { terms: TermAcrossMarkets[] };
 
 // ---------------------------------------------------------------------------------------------
 // Views of the app section (address backed: `?view=`)
 
-export type AsoView = 'keywords' | 'competitors' | 'ideas' | 'fit' | 'gaps' | 'markets';
+export type AsoView = 'keywords' | 'listing' | 'competitors' | 'ideas' | 'fit' | 'gaps' | 'markets';
 
 export const asoViews: { id: AsoView; label: string }[] = [
   { id: 'keywords', label: 'Keywords' },
+  { id: 'listing', label: 'In your listing' },
   { id: 'competitors', label: 'Competitors' },
   { id: 'ideas', label: 'Ideas' },
   { id: 'fit', label: 'Fit' },

@@ -25,7 +25,7 @@ import {
   removeCompetitor,
   updateKeyword,
 } from '../services/aso.ts';
-import { checkLocale, coachFor, gapsFor, ideasFor, listingFitFor, listingLocalesFor, marketsFor, suggestionsFor, summaryFor } from '../services/aso-insights.ts';
+import { checkLocale, coachFor, gapsFor, ideasFor, listingFitFor, listingKeywordsFor, listingLocalesFor, marketsFor, suggestionsFor, summaryFor } from '../services/aso-insights.ts';
 import { queueAsoRefreshAll } from '../services/aso-schedule.ts';
 import { recordAudit } from '../services/audit.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
@@ -291,6 +291,13 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const fit = await listingFitFor(db, ws(c), app, locale.locale ? { locale: locale.locale } : {});
     const stored = await listingLocalesFor(db, ws(c), app);
     return c.json({ ...fit, listingLocales: stored.locales.map((l) => l.locale), indexedFields: INDEXED_FIELDS[app.platform], assumptions: FIT_ASSUMPTIONS });
+  });
+
+  // The terms the listing sets, per locale: the stored text of every locale of the listing (the web works the terms out).
+  routes.get('/:workspaceId/apps/:id/aso/listing-keywords', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    return c.json({ ...(await listingKeywordsFor(db, ws(c), app)), indexedFields: INDEXED_FIELDS[app.platform] });
   });
 
   routes.get('/:workspaceId/apps/:id/aso/ideas', needs('aso.read'), async (c) => {

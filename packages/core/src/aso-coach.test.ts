@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type CoachInput, type CoachKeyword, buildCoach, keywordFieldWaste, listingBudget, matchListingLocale, sameLocale, storefrontCombos, untappedLocales } from './aso-coach.ts';
+import { type CoachInput, type CoachKeyword, buildCoach, keywordFieldWaste, listingBudget, matchListingLocale, sameLocale, storefrontCombos, storefrontFor, untappedLocales, untrackedSetKeywords } from './aso-coach.ts';
 
 const kw = (id: string, term: string, extra: Partial<CoachKeyword> = {}): CoachKeyword => ({
   id,
@@ -322,4 +322,45 @@ test('coach: Google Play has no keyword field to waste and uses its own fields f
   assert.equal(kinds.includes('keyword_field_waste'), false);
   assert.deepEqual(kinds.slice(0, 2), ['not_in_listing', 'unused_characters']);
   assert.match(out[0]?.detail ?? '', /title, short or full description/);
+});
+
+test('coach: keywords set in the keyword field that are not tracked, with the locale to open', () => {
+  const out = buildCoach(
+    base({
+      keywords: [kw('a', 'habit')],
+      lastCheckAt: NOW,
+      competitors: [{ id: 'c', name: 'R' }],
+      listingLocales: [
+        { locale: 'en-US', fields: { title: 'Water Tracker', subtitle: 'Drink more water', keywords: 'habit, hydration,sleep' } },
+        { locale: 'de-DE', fields: { title: 'Wasser', keywords: 'gewohnheit' } },
+      ],
+    }),
+  );
+  const step = out.find((a) => a.kind === 'untracked_set_keywords');
+  assert.equal(step?.title, '3 set keywords are not tracked');
+  assert.deepEqual(step?.items, ['en-US (US): hydration, sleep', 'de-DE (DE): gewohnheit']);
+  assert.deepEqual(step?.link, { to: 'listing_keywords', locale: 'en-US', label: 'See them in the listing' });
+  const kinds = out.map((a) => a.kind);
+  assert.ok(kinds.indexOf('untracked_set_keywords') > kinds.indexOf('not_in_listing') || kinds.indexOf('not_in_listing') < 0);
+});
+
+test('coach: set keywords are matched in the storefront in use, nothing is asked of Google Play', () => {
+  const listing = [{ locale: 'en-US', fields: { title: 'Water', keywords: 'habit,sleep' } }];
+  // `habit` is tracked in the one storefront that has keywords of the locale: only `sleep` is left.
+  const some = buildCoach(base({ keywords: [kw('a', 'Habits', { country: 'ca' })], lastCheckAt: NOW, listingLocales: listing }));
+  assert.deepEqual(some.find((a) => a.kind === 'untracked_set_keywords')?.items, ['en-US (CA): sleep']);
+  const none = buildCoach(base({ keywords: [kw('a', 'habit'), kw('b', 'sleep')], lastCheckAt: NOW, listingLocales: listing }));
+  assert.equal(none.some((a) => a.kind === 'untracked_set_keywords'), false);
+  const play = buildCoach(base({ platform: 'android', keywords: [kw('a', 'habit')], lastCheckAt: NOW, listingLocales: [{ locale: 'en-US', fields: { title: 'Pocket', shortDescription: 'Short' } }] }));
+  assert.equal(play.some((a) => a.kind === 'untracked_set_keywords'), false);
+  // Nothing tracked at all: the first step is still to track, and the set keywords are named too.
+  const first = buildCoach(base({ keywords: [], lastCheckAt: null, listingLocales: listing }));
+  assert.deepEqual(first.map((a) => a.kind).slice(0, 2), ['track_keywords', 'untracked_set_keywords']);
+});
+
+test('storefrontFor and untrackedSetKeywords: the storefront with most keywords, else the usual one', () => {
+  assert.deepEqual(storefrontFor('en-US', []), { country: 'us', tracked: [], options: ['us'] });
+  assert.deepEqual(storefrontFor('de-AT', [{ country: 'de', locale: 'de-AT' }, { country: 'de', locale: 'de-AT' }, { country: 'at', locale: 'de-AT' }]), { country: 'de', tracked: ['de', 'at'], options: ['de', 'at'] });
+  assert.deepEqual(storefrontFor('fr', []).country, 'fr');
+  assert.deepEqual(untrackedSetKeywords({ platform: 'ios', listingLocales: [{ locale: 'en-US', fields: { keywords: 'habit,,Habit,this is a way too long entry of far more than eight words in it all' } }], tracked: [] }), [{ locale: 'en-US', country: 'us', terms: ['habit'] }]);
 });

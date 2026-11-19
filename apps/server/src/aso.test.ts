@@ -606,6 +606,41 @@ dbTest('coach: ranked next steps from what is stored, and the fit view carries t
   assert.equal((await t.call(t.owner, 'GET', `/apps/nope/aso/coach`)).status, 404);
 });
 
+dbTest('listing keywords: the stored text of every locale, read from the database only, and a coach step for set keywords that are not tracked', async (db) => {
+  const t = await bootAso(db);
+  const appId = await t.addApp('ios');
+  const none = await t.call(t.owner, 'GET', `/apps/${appId}/aso/listing-keywords`);
+  assert.equal(none.status, 200, none.text);
+  assert.deepEqual(none.body.locales, []);
+
+  await seedListing(db, t.workspaceId, appId, 'en-US', { name: 'Hydro Buddy', subtitle: 'Water reminder', keywords: 'hydration, drink log', description: 'A long text the store does not search.' });
+  await seedListing(db, t.workspaceId, appId, 'de-DE', { name: 'Wasser Buddy', keywords: 'trinken' });
+  const calls = () => t.sources.searches.length + t.sources.lookups.length;
+  const before = calls();
+  const res = await t.call(t.owner, 'GET', `/apps/${appId}/aso/listing-keywords`);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(calls(), before, 'the view reads the database only');
+  assert.deepEqual(
+    res.body.locales.map((l: { locale: string }) => l.locale),
+    ['de-DE', 'en-US'],
+  );
+  const en = res.body.locales.find((l: { locale: string }) => l.locale === 'en-US');
+  assert.deepEqual(en.fields, { title: 'Hydro Buddy', subtitle: 'Water reminder', keywords: 'hydration, drink log' }, 'no description for the App Store');
+  assert.deepEqual(res.body.indexedFields, ['title', 'subtitle', 'keywords']);
+
+  await t.addKeywords(appId, [{ term: 'hydration' }]);
+  const coach = await t.call(t.owner, 'GET', `/apps/${appId}/aso/coach`);
+  const step = coach.body.actions.find((a: { kind: string }) => a.kind === 'untracked_set_keywords');
+  assert.equal(step.title, '2 set keywords are not tracked');
+  assert.deepEqual(step.items.slice().sort(), ['de-DE (DE): trinken', 'en-US (US): drink log']);
+  assert.deepEqual(step.link, { to: 'listing_keywords', locale: step.link.locale, label: 'See them in the listing' });
+  assert.ok(['en-US', 'de-DE'].includes(step.link.locale));
+
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'GET', `/apps/${appId}/aso/listing-keywords`)).status, 200);
+  assert.equal((await t.call(t.owner, 'GET', `/apps/nope/aso/listing-keywords`)).status, 404);
+});
+
 dbTest('deleting an app deletes what ASO holds for it', async (db) => {
   const t = await bootAso(db);
   const appId = await t.addApp('ios');

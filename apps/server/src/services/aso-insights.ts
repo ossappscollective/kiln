@@ -95,6 +95,24 @@ export async function ownFields(
   return { found: { channel: channel.channel, locale: chosen, fields, observedAt: channel.observedAt }, readAt: listing.readAt, error: listing.error };
 }
 
+/**
+ * The stored text of every locale of the listing that the listing keyword view reads terms from: the App Store name,
+ * subtitle and keyword field, or the Google Play title, short and full description. Our own database only (the copy the
+ * last sync stored); no store is read. The App Store description is left out, because the store does not search it.
+ */
+export async function listingKeywordsFor(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+): Promise<{ readAt: number | null; error: string | null; locales: { locale: string; fields: FitFields }[] }> {
+  const stored = await listingLocalesFor(sql, workspaceId, app);
+  const locales = stored.locales.map((l) => {
+    const { description: _description, ...rest } = l.fields;
+    return { locale: l.locale, fields: isApplePlatform(app.platform) ? rest : l.fields };
+  });
+  return { readAt: stored.readAt, error: stored.error, locales };
+}
+
 const fitKeywordOf = (k: AsoKeyword): FitKeyword => ({ id: k.id, term: k.term, priority: k.priority, rank: k.state === 'ranked' ? k.rank : k.state === 'not_ranked' ? null : undefined });
 
 export type FitView = {

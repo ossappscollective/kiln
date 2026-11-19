@@ -21,6 +21,7 @@ import type {
   AsoKeyword,
   AsoKeywordHistory,
   AsoKeywordInput,
+  AsoListingKeywordsResponse,
   AsoMarketsResponse,
   AsoRefreshOutcome,
   AsoSuggestionsResponse,
@@ -1055,6 +1056,7 @@ export function createApi(options: ApiOptions = {}) {
     /** Ranked next steps, worked out from stored data (no store is read). */
     asoCoach: (workspaceId: string, appId: string) => request<AsoCoachResponse>('GET', `${asoPath(workspaceId, appId)}/coach`),
     asoFit: (workspaceId: string, appId: string) => request<AsoFitResponse>('GET', `${asoPath(workspaceId, appId)}/fit`),
+    asoListingKeywords: (workspaceId: string, appId: string) => request<AsoListingKeywordsResponse>('GET', `${asoPath(workspaceId, appId)}/listing-keywords`),
     asoIdeas: (workspaceId: string, appId: string, locale?: string) =>
       request<AsoIdeasResponse>('GET', `${asoPath(workspaceId, appId)}/ideas${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
     asoGaps: (workspaceId: string, appId: string, locale?: string) =>

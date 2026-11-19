@@ -6,6 +6,7 @@ import {
   defaultLocaleFor,
   coverageGaps,
   decideSnapshot,
+  defaultCountryFor,
   diffCompetitor,
   fitKeyword,
   isBigMove,
@@ -296,4 +297,17 @@ test('termsAcrossMarkets groups one term over countries and locales', () => {
     ['habit', 4, ['de', 'gb', 'us']],
     ['water', null, ['us']],
   ]);
+});
+
+test('defaultCountryFor: the storefront of a listing locale, the reverse of defaultLocaleFor', () => {
+  assert.equal(defaultCountryFor('en-US'), 'us');
+  assert.equal(defaultCountryFor('pt_BR'), 'br');
+  assert.equal(defaultCountryFor('fr-CA'), 'ca', 'the region of the tag');
+  assert.equal(defaultCountryFor('ja'), 'jp');
+  assert.equal(defaultCountryFor('zh-Hans'), 'cn');
+  assert.equal(defaultCountryFor('zh-Hant'), 'tw');
+  assert.equal(defaultCountryFor('no'), 'no');
+  assert.equal(defaultCountryFor('en'), 'us');
+  assert.equal(defaultCountryFor('xx'), '');
+  assert.equal(defaultCountryFor(''), '');
 });

@@ -1,6 +1,6 @@
 <!--
-  AsoSection: the ASO section of an open app (#/portfolio/<id>/aso?view=...). Six views as segmented tabs,
-  kept in the address (`?view=keywords|competitors|ideas|fit|gaps|markets`): Keywords, Competitors, Ideas,
+  AsoSection: the ASO section of an open app (#/portfolio/<id>/aso?view=...). Seven views as segmented tabs,
+  kept in the address (`?view=keywords|listing|competitors|ideas|fit|gaps|markets`): Keywords, In your listing, Competitors, Ideas,
   Fit, Gaps and Markets. It reads the tracked keywords of every app record in scope once and hands them to
   the views; the config of the server (is Google Play reading on, are checks scheduled) shows as one quiet
   pill. Above the tabs, the ranked next steps of each app in scope (AsoCoach), and under them the AI suggestions of each app
@@ -27,6 +27,7 @@
   import AsoGaps from './AsoGaps.svelte';
   import AsoIdeas from './AsoIdeas.svelte';
   import AsoKeywords from './AsoKeywords.svelte';
+  import AsoListing from './AsoListing.svelte';
   import AsoMarkets from './AsoMarkets.svelte';
   import AsoStatus from './AsoStatus.svelte';
 
@@ -150,6 +151,8 @@
     <div role="tabpanel" id={ids.panel} aria-labelledby={ids.tab}>
       {#if view === 'keywords'}
         <AsoKeywords {...shared} {canWrite} />
+      {:else if view === 'listing'}
+        <AsoListing {...shared} {canWrite} />
       {:else if view === 'competitors'}
         <AsoCompetitors {...shared} {canWrite} {releases} />
       {:else if view === 'ideas'}

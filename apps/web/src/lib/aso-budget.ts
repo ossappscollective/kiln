@@ -155,6 +155,8 @@ export function coachHref(link: CoachLink, appId: string, platform: PlatformScop
       const base = asoViewHref(appId, 'keywords', platform);
       return `${base}${base.indexOf('?') < 0 ? '?' : '&'}add=1`;
     }
+    case 'listing_keywords':
+      return asoViewHref(appId, 'listing', platform);
     case 'keywords':
     case 'competitors':
     case 'fit':
