@@ -3,6 +3,7 @@ import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } fro
 import { type PlatformScope, appAddress } from './app-scope.ts';
 import type { IconName } from './icons.ts';
 import { platformLabel } from './portfolio.ts';
+import { type SummaryStall, unfinishedItem } from './release-pipeline.ts';
 import type { AppBuild, PlanSummary } from './types.ts';
 
 /**
@@ -47,6 +48,8 @@ export type AttentionInput = {
   submitReady?: Readonly<Record<string, boolean | undefined>>;
   /** The ASO summary by app id (one call each, our own database). Optional: an app without one has nothing to say. */
   aso?: Readonly<Record<string, AsoSummary | undefined>>;
+  /** The release pipeline's stall by app id (a release left unfinished), from the pipeline summary. Optional. */
+  unfinished?: Readonly<Record<string, SummaryStall | null | undefined>>;
 };
 
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
@@ -69,9 +72,13 @@ export const ciFailed = (build: Pick<AppBuild, 'link'>): boolean => {
 };
 
 /** The staged items (texts and asset sets) that are not in the store draft yet, and not the same as the store. */
-export function stagedUnpushedCount(view: Pick<StagedChangesView, 'text' | 'assets'> | null): number {
+export function stagedUnpushedCount(view: (Pick<StagedChangesView, 'text' | 'assets'> & { release?: readonly { pushed: boolean; localOnly: boolean }[] }) | null): number {
   if (view === null) return 0;
-  return view.text.filter((t) => !t.pushed && t.status !== 'unchanged').length + view.assets.filter((a) => !a.pushed).length;
+  return (
+    view.text.filter((t) => !t.pushed && t.status !== 'unchanged').length +
+    view.assets.filter((a) => !a.pushed).length +
+    (view.release ?? []).filter((r) => !r.pushed && !r.localOnly).length
+  );
 }
 
 const rank: Record<AttentionTone, number> = { bad: 0, warn: 1, info: 2 };
@@ -95,6 +102,9 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
         action: 'Sync',
       });
     }
+
+    const left = unfinishedItem({ appId: app.id, platform: app.platform, scope: input.scope, several, stalled: input.unfinished?.[app.id] ?? null });
+    if (left !== null) out.push(left);
 
     const newest = newestBuild(input.builds[app.id] ?? []);
     if (newest !== null && ciFailed(newest)) {

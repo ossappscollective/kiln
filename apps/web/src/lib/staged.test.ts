@@ -13,6 +13,8 @@ import {
   classifyPushFailure,
   confirmPhrase,
   fieldStage,
+  itemCount,
+  previewFieldStatus,
   mayConfirmAgain,
   normalizeText,
   previewSummaryText,
@@ -444,4 +446,18 @@ test('the summary and the result always say nothing was submitted', () => {
   });
   assert.match(r, /2 changes written to the draft, 1 already the same, 3 files uploaded/);
   assert.match(r, /Nothing is submitted/);
+});
+
+test('release fields count in the tray, the preview text and the push gate', () => {
+  const view = { text: [], assets: [], release: [{ id: 'r1' }, { id: 'r2' }], valid: true } as unknown as Parameters<typeof itemCount>[0];
+  assert.equal(itemCount(view), 2);
+  assert.equal(trayCountText(view), '2 release fields');
+  assert.equal(pushBlockedReason(view), null);
+  const summary = { textChanged: 0, textUnchanged: 0, assetSetsChanged: 0, assetSetsUnchanged: 0, filesToUpload: 0, filesToRemove: 0, nothingToDo: false, fieldsChanged: 1, fieldsUnchanged: 1 };
+  assert.match(previewSummaryText(summary), /1 release field will change; 1 release field is already the same/);
+  const app = { id: 'a', name: 'Acme', platform: 'ios' as const, store: 'appstoreconnect' };
+  assert.equal(canConfirmPush({ app, summary }, 'Acme', true), true);
+  const blocking = { blocking: [{ code: 'build_expired', severity: 'blocking' as const, message: 'm' }], warnings: [], canPush: false };
+  assert.equal(canConfirmPush({ app, summary, checks: blocking }, 'Acme', true), false);
+  assert.equal(previewFieldStatus({ status: 'local' }).label, 'Kept here only');
 });

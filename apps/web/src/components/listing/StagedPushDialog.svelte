@@ -13,6 +13,7 @@
     type DraftPreview,
     canConfirmPush,
     confirmPhrase,
+    previewFieldStatus,
     previewSetText,
     previewSummaryText,
     previewTextStatus,
@@ -77,6 +78,51 @@
           {#each preview.warnings as warning (warning)}<li>{warning}</li>{/each}
         </ul>
       </Alert>
+    {/if}
+
+    {#if preview.checks && preview.checks.blocking.length > 0}
+      <Alert tone="error" title="The store says this cannot be written as it is">
+        <ul class="plain">
+          {#each preview.checks.blocking as check (check.code + (check.item ?? ''))}<li>{check.message}</li>{/each}
+        </ul>
+        Nothing can be pushed until that is fixed. Close this, fix it in the release steps, then preview again.
+      </Alert>
+    {/if}
+    {#if preview.checks && preview.checks.warnings.length > 0}
+      <Alert tone="warn" title="Read before you confirm">
+        <ul class="plain">
+          {#each preview.checks.warnings as check (check.code + (check.item ?? ''))}<li>{check.message}</li>{/each}
+        </ul>
+      </Alert>
+    {/if}
+
+    {#if (preview.release ?? []).length > 0}
+      <section aria-label="Release" class="stack">
+        <h3>Release ({(preview.release ?? []).length})</h3>
+        {#each preview.release ?? [] as r (r.id)}
+          {@const status = previewFieldStatus(r)}
+          <div class="item">
+            <p class="item-head">
+              <strong>{r.label}</strong>{#if r.locale} <span class="muted">{r.locale}</span>{/if}
+              <Badge tone={status.tone}>{status.label}</Badge>
+            </p>
+            {#if r.status === 'local'}
+              <p class="small">Kept here only: {r.after}. It is never written to the store by a push. You name the share again when you release.</p>
+            {:else if r.status !== 'unchanged'}
+              <div class="compare">
+                <div>
+                  <p class="label">In the draft now</p>
+                  <p class="text">{#if r.before === null || r.before === ''}<span class="muted">Not set</span>{:else}{r.before}{/if}</p>
+                </div>
+                <div>
+                  <p class="label">After the push</p>
+                  <p class="text">{r.after}</p>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </section>
     {/if}
 
     {#if preview.text.length > 0}

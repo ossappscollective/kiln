@@ -22,6 +22,7 @@ import {
   replaceInboxReview,
   shortcutFor,
   summaryStripText,
+  unansweredNote,
   appPageHref,
   averageText,
   collapseText,
@@ -480,4 +481,17 @@ test('after a review leaves the list the next one is selected, else the previous
   assert.equal(neighborAfterRemoval(['a', 'b', 'c'], 'c'), 'b');
   assert.equal(neighborAfterRemoval(['a'], 'a'), null);
   assert.equal(neighborAfterRemoval(['a'], 'x'), null);
+});
+
+test('the workspace summary says how old the oldest unanswered review is', () => {
+  const now = Date.UTC(2026, 10, 19, 12);
+  const base = { total: 8, new: 3, unanswered: 5, lowRating: 2, average: 3 };
+  assert.equal(unansweredNote({ totals: { ...base, unansweredOldestAt: now - 72 * 3_600_000 }, unansweredMaxRating: 5 }, now), 'The oldest unanswered review is 3 days old.');
+  assert.equal(
+    unansweredNote({ totals: { ...base, unansweredOldestAt: now - 5 * 3_600_000 }, unansweredMaxRating: 2 }, now),
+    'The oldest unanswered review is 5 hours old, counting reviews of 2 stars or fewer.',
+  );
+  assert.equal(unansweredNote({ totals: { ...base, unansweredOldestAt: null }, unansweredMaxRating: 5 }, now), null);
+  assert.equal(unansweredNote({ totals: base, unansweredMaxRating: undefined }, now), null);
+  assert.equal(unansweredNote({ totals: { ...base, unanswered: 0, unansweredOldestAt: now }, unansweredMaxRating: 5 }, now), null);
 });

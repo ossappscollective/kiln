@@ -117,11 +117,15 @@ export type StoreWideRating = {
   observedAt: number;
 };
 
+export type UnansweredSummary = { count: number; oldestAt: number | null; maxRating: number };
+
 export type ReviewsSummary = {
   app: { id: string; platform: Platform; store: ReviewStore };
   stored: StoredSummary;
   storeWide: StoreWideRating[];
   byStatus: Record<ReviewStatus, number>;
+  /** Reviews with no developer response (not ignored, rated at or below maxRating). Counts and a time only. */
+  unanswered?: UnansweredSummary;
   sync: ReviewSyncState;
   lowRatingThreshold: number;
   retentionDays: number | null;
@@ -539,6 +543,7 @@ export type SummaryApp = {
   total: number;
   new: number;
   unanswered: number;
+  unansweredOldestAt?: number | null;
   lowRating: number;
   average: number | null;
   oldestAt: number | null;
@@ -551,7 +556,8 @@ export type WorkspaceReviewsSummary = {
   label: string;
   lowRatingThreshold: number;
   apps: SummaryApp[];
-  totals: { total: number; new: number; unanswered: number; lowRating: number; average: number | null };
+  unansweredMaxRating?: number;
+  totals: { total: number; new: number; unanswered: number; unansweredOldestAt?: number | null; lowRating: number; average: number | null };
 };
 
 export type InboxFilters = ReviewFilters & {
@@ -720,6 +726,21 @@ export function quickViewFilters(id: QuickView['id'], lowThreshold: number): Inb
 /** The same figures as text for a screen reader: "3 new, 5 unanswered, 2 low rated". */
 export function summaryStripText(totals: WorkspaceReviewsSummary['totals']): string {
   return `${totals.new} new, ${totals.unanswered} unanswered, ${totals.lowRating} low rated, in ${totals.total} stored ${totals.total === 1 ? 'review' : 'reviews'}.`;
+}
+
+/**
+ * "Oldest unanswered review: 3 d old, among the 1 and 2 star reviews": the two new fields of the workspace summary
+ * (`totals.unansweredOldestAt`, `unansweredMaxRating`) as one sentence. Null when there is nothing unanswered or the server
+ * does not send the fields.
+ */
+export function unansweredNote(summary: Pick<WorkspaceReviewsSummary, 'totals' | 'unansweredMaxRating'>, now: number): string | null {
+  const oldest = summary.totals.unansweredOldestAt;
+  if (summary.totals.unanswered <= 0 || oldest === undefined || oldest === null) return null;
+  const hours = Math.max(0, Math.floor((now - oldest) / 3_600_000));
+  const age = hours < 1 ? 'under 1 hour' : hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`;
+  const max = summary.unansweredMaxRating;
+  const ratings = max === undefined || max >= MAX_RATING ? '' : max === 1 ? ', counting 1 star reviews only' : `, counting reviews of ${max} stars or fewer`;
+  return `The oldest unanswered review is ${age} old${ratings}.`;
 }
 
 /** The apps with something to look at first (most new, then most unanswered), for the strip. */

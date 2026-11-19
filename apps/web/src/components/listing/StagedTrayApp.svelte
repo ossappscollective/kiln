@@ -3,7 +3,9 @@
   for it, each with what the store had at the last read and what is staged, remove one or clear all, and
   "Push as draft", which opens a preview and then a confirmation. Staging and removing only change our own
   database. The push writes to the store's DRAFT only (docs/api/staged-changes.md); it never submits.
-  Props: api, workspaceId, role, app, showPlatform (a platform badge in the heading, when two are in scope).
+  Props: api, workspaceId, role, app, showPlatform (a platform badge in the heading, when two are in scope), part
+  ('all' by default; the release stepper shows 'items' on its Review step, the list with remove and clear only, and
+  'push' on its Confirm step, the count and the gated push only: both use the same code and the same dialog).
   Rules it keeps: the preview comes before every push; the push is sent once with the preview's hash; when the
   state changed meanwhile the new preview replaces the old one and must be confirmed again; an unknown outcome
   is never retried (the person previews again, which reads the store); no button submits or publishes.
@@ -55,13 +57,18 @@
     role,
     app,
     showPlatform = false,
+    part = 'all',
   }: {
     api: Api;
     workspaceId: string;
     role: Role;
     app: AppSummary;
     showPlatform?: boolean;
+    part?: 'all' | 'items' | 'push';
   } = $props();
+
+  const showItems = $derived(part !== 'push');
+  const showPush = $derived(part !== 'items');
 
   const uid = $props.id();
 
@@ -267,6 +274,14 @@
         stagedStore.markDisabled(workspaceId);
         notice = { tone: 'warn', title: 'Switched off', text: failure.message };
         break;
+      case 'blocked':
+        closeDialog();
+        notice = {
+          tone: 'error',
+          title: 'Nothing was pushed',
+          text: `${failure.message}${failure.checks.length > 0 ? ` ${failure.checks.map((c) => c.message).slice(0, 3).join(' ')}` : ''}`,
+        };
+        break;
       case 'restage':
         closeDialog();
         notice = { tone: 'error', title: 'A staged file changed', text: failure.message };
@@ -293,6 +308,7 @@
   }
 
   const empty = $derived(itemCount(view) === 0);
+  const releaseFields = $derived(view?.release ?? []);
 </script>
 
 <div class="app" data-testid="staged-app" aria-label="Staged changes, {platformLabel(app.platform)}" role="group">
@@ -306,7 +322,7 @@
       {#if view && view.totals.warnings > 0}<Badge tone="warn">{view.totals.warnings} {view.totals.warnings === 1 ? 'warning' : 'warnings'}</Badge>{/if}
     </h4>
     <span class="spacer"></span>
-    {#if mayEdit && !empty}
+    {#if showItems && mayEdit && !empty}
       {#if confirmingClear}
         <span class="confirm" role="group" aria-label="Clear all staged changes?">
           <span>Remove all {itemCount(view)} staged {itemCount(view) === 1 ? 'item' : 'items'}?</span>
@@ -317,7 +333,9 @@
         <Button size="sm" icon="trash" disabled={busy} onclick={() => (confirmingClear = true)}>Clear all</Button>
       {/if}
     {/if}
-    {#if canPush(role)}
+    {#if !showPush}
+      <!-- the push is on another step -->
+    {:else if canPush(role)}
       <Button
         size="sm"
         variant="primary"
@@ -334,7 +352,9 @@
     {/if}
   </div>
 
-  {#if !canPush(role)}
+  {#if !showPush}
+    <!-- notes about the push are on its step -->
+  {:else if !canPush(role)}
     <p class="muted note">Pushing a draft to {store} needs the admin or owner role. You can still stage changes{mayEdit ? '' : ' if your role allows it'}.</p>
   {:else if availability.state === 'off' || availability.state === 'unknown'}
     <Alert tone="warn" title={availability.state === 'off' ? 'Pushing drafts is switched off' : 'Could not check the switch'}>{availability.message}</Alert>
@@ -349,8 +369,8 @@
     </Alert>
   {/if}
   {#if problem}<Alert tone="error" ondismiss={() => (problem = '')}>{problem}</Alert>{/if}
-  {#if notice}<Alert tone={notice.tone} title={notice.title} ondismiss={() => (notice = null)}>{notice.text}</Alert>{/if}
-  {#if result}
+  {#if notice && showPush}<Alert tone={notice.tone} title={notice.title} ondismiss={() => (notice = null)}>{notice.text}</Alert>{/if}
+  {#if result && showPush}
     <Alert tone="ok" title={result.confirmedByReread ? 'Written to the draft (confirmed by reading the store back)' : 'Written to the draft'} ondismiss={() => (result = null)}>
       <p class="alert-text">{resultText(result)}</p>
       {#if result.commit === 'not_sent_for_review'}
@@ -360,11 +380,13 @@
     </Alert>
   {/if}
 
-  {#if loading && !view}
+  {#if !showItems}
+    <!-- the items are on the Review step -->
+  {:else if loading && !view}
     <div role="status" aria-label="Loading the staged changes"><Skeleton width="60%" height="16px" /></div>
   {:else if view && empty}
     <p class="muted note">
-      Nothing is staged for {platformLabel(app.platform)}. On the Listing tab, a field that differs from the store has a "Stage from repo" button;
+      Nothing is staged for {platformLabel(app.platform)}. The release steps on the Releases tab stage a build and the notes; on the Listing tab, a field that differs from the store has a "Stage from repo" button;
       on the Assets tab, a set of repository files has "Stage for store".
     </p>
   {:else if view}
@@ -414,6 +436,41 @@
       </section>
     {/if}
 
+    {#if releaseFields.length > 0}
+      <section aria-labelledby="{uid}-release">
+        <h5 id="{uid}-release">Release</h5>
+        <ul class="items">
+          {#each releaseFields as r (r.id)}
+            {@const errors = problemsOf(r, 'error')}
+            {@const warnings = problemsOf(r, 'warning')}
+            <li class="item">
+              <div class="main">
+                <p class="name">
+                  <strong>{r.label}</strong>{#if r.locale} <span class="muted">{r.locale}</span>{/if}
+                  <Badge tone={r.status === 'invalid' ? 'bad' : r.localOnly ? 'neutral' : 'info'}>{r.status === 'invalid' ? 'Has an error' : r.localOnly ? 'Kept here only' : 'Staged'}</Badge>
+                  {#if r.pushed}<Badge tone="ok" icon="check">In the store draft</Badge>{/if}
+                </p>
+                <p class="text">{r.value}</p>
+                {#if r.localOnly}<p class="meta">Never written to the store by a push. You name the share again when you release.</p>{/if}
+                {#each errors as p (p.code + p.message)}<p class="problem bad">{p.message}</p>{/each}
+                {#each warnings as p (p.code + p.message)}<p class="problem warn">{p.message}</p>{/each}
+              </div>
+              {#if mayEdit}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="x"
+                  loading={removing === r.id}
+                  disabled={busy}
+                  onclick={() => remove(r.id, r.label)}
+                >Remove<span class="visually-hidden"> {r.label}{r.locale ? ` (${r.locale})` : ''} from the staged changes</span></Button>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     {#if view.assets.length > 0}
       <section aria-labelledby="{uid}-assets">
         <h5 id="{uid}-assets">Graphics</h5>
@@ -451,7 +508,7 @@
   {/if}
 </div>
 
-{#if preview}
+{#if preview && showPush}
   {#key preview.confirmHash}
     <StagedPushDialog
       bind:open={dialogOpen}

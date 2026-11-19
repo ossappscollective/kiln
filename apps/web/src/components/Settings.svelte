@@ -1,6 +1,7 @@
 <!--
   Settings: workspace settings (docs/api/settings.md). Any member sees them; owners and admins change them.
-  Sections: Reviews (the low rating threshold) and Translation (provider, credential, target
+  Sections: Reviews (the low rating threshold and the unanswered reminder), Releases (when a release counts as left
+  unfinished) and Translation (provider, credential, target
   language, mode, daily budget, a test). Secrets are never settings: keys live under Credentials.
 -->
 <script lang="ts">
@@ -20,6 +21,7 @@
   } from '../lib/settings.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
+  import ReleaseSettings from './settings/ReleaseSettings.svelte';
   import ReviewsSettings from './settings/ReviewsSettings.svelte';
   import TranslationSettings from './settings/TranslationSettings.svelte';
   import Alert from './ui/Alert.svelte';
@@ -122,7 +124,7 @@
 </script>
 
 <section>
-  <PageHeader title="Settings" description="How this workspace reads and translates customer reviews." />
+  <PageHeader title="Settings" description="How this workspace reads and translates customer reviews, and when it reminds you about them and about unfinished releases." />
 
   {#if !canRead}
     <Alert tone="info">Your role does not include workspace settings. Members, admins and owners can see them.</Alert>
@@ -141,7 +143,14 @@
     />
   {:else}
     <form class="settings" onsubmit={save} novalidate>
-      <ReviewsSettings bind:form editable={editable && data.writable.indexOf('reviews.lowRatingThreshold') >= 0} error={errors.lowRatingThreshold} />
+      <ReviewsSettings
+        bind:form
+        editable={editable && data.writable.indexOf('reviews.lowRatingThreshold') >= 0}
+        error={errors.lowRatingThreshold}
+        {errors}
+        writable={editable ? data.writable : []}
+      />
+      <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
       <TranslationSettings
         bind:form
         {errors}

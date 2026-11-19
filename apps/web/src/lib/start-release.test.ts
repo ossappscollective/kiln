@@ -92,9 +92,9 @@ test('a build matches by its run, or by being uploaded after the run started', (
   assert.deepEqual(matchingBuilds([], started), []);
 });
 
-test('Prepare release goes to the releases tab with the version selected', () => {
-  assert.equal(prepareReleaseHref('a1', { platform: 'ios', version: '2.4.0' }, false), '#/portfolio/a1/releases?platform=ios&version=2.4.0');
-  assert.equal(prepareReleaseHref('a1', { platform: 'ios', version: '2.4.0' }, true), '#/portfolio/a1/releases?platform=both&version=2.4.0');
+test('Prepare release goes to the Build step of the releases tab with the version selected', () => {
+  assert.equal(prepareReleaseHref('a1', { platform: 'ios', version: '2.4.0' }, false), '#/portfolio/a1/releases?platform=ios&version=2.4.0&step=build');
+  assert.equal(prepareReleaseHref('a1', { platform: 'ios', version: '2.4.0' }, true), '#/portfolio/a1/releases?platform=both&version=2.4.0&step=build');
 });
 
 test('the started run has a line for each moment', () => {

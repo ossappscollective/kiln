@@ -1,6 +1,6 @@
 import type { Platform } from '@mrm/core';
 import { canDispatchWorkflow } from './ci.ts';
-import { isFailedRun } from './running.ts';
+import { isFailedRun, runAppIds } from './running.ts';
 import type { CiWorkflow, WorkflowRun } from './types.ts';
 
 /**
@@ -104,7 +104,7 @@ export type RankContext = {
   /** The ids of the apps in scope: a workflow that was started for one of them is "used for this app". */
   appIds?: readonly string[];
   /** Stored runs, to find the workflows that were started for one of the apps. */
-  runs?: readonly Pick<WorkflowRun, 'workflow' | 'workflowPath' | 'appId'>[];
+  runs?: readonly (Pick<WorkflowRun, 'workflow' | 'workflowPath' | 'appId'> & { appIds?: readonly string[] })[];
 };
 
 /**
@@ -122,7 +122,7 @@ export function rankWorkflows(workflows: readonly CiWorkflow[], context: RankCon
     if (configured.some((c) => isConfiguredWorkflow(workflow, c))) {
       return { workflow, relevance: 'configured', reason: "The release workflow set in this app's build conventions.", platforms };
     }
-    if (runs.some((r) => r.appId !== null && appIds.indexOf(r.appId) >= 0 && runIsOf(r, workflow))) {
+    if (runs.some((r) => runAppIds(r).some((id) => appIds.indexOf(id) >= 0) && runIsOf(r, workflow))) {
       return { workflow, relevance: 'used', reason: 'A run of it was started from here for this app.', platforms };
     }
     if (has(words, RELEASE_WORDS)) return { workflow, relevance: 'release', reason: 'Its name says release, publish or deploy.', platforms };

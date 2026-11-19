@@ -20,6 +20,8 @@
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
+  import { pipelineStore } from '../../lib/pipeline-store.svelte.ts';
+  import type { SummaryStall } from '../../lib/release-pipeline.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { scopeRunsToApps } from '../../lib/running.ts';
   import { type StartedRun, isStartedRun } from '../../lib/start-release.ts';
@@ -36,6 +38,7 @@
   import CopyButton from '../ui/CopyButton.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
+  import PipelineStrip from '../release/PipelineStrip.svelte';
   import AttentionList from './AttentionList.svelte';
   import StartRelease from './StartRelease.svelte';
 
@@ -160,6 +163,7 @@
       }
       await Promise.all(jobs);
     });
+    if (can(role, 'apps.read')) void pipelineStore.loadSummary(api, workspaceId);
     await Promise.all(reads);
   }
 
@@ -200,6 +204,10 @@
       }, {}),
       plans,
       aso: asoSummaries,
+      unfinished: members.reduce<Record<string, SummaryStall | null>>((acc, m) => {
+        acc[m.id] = pipelineStore.summary(workspaceId)?.apps.filter((a) => a.app.id === m.id)[0]?.stalled ?? null;
+        return acc;
+      }, {}),
       submitReady: members.reduce<Record<string, boolean>>((acc, m) => {
         const s = canSubmit(role) ? submitStore.state(m.id) : null;
         acc[m.id] = s !== null && (s.pushed || s.unknownOutcome.submit);
@@ -273,6 +281,9 @@
             <dd><SyncStatus {app} {now} /></dd>
           </div>
         </dl>
+        {#if can(role, 'apps.read')}
+          <PipelineStrip {api} {workspaceId} {app} scope={address.platform} refreshKey={syncRuns} showPlatform={members.length > 1} />
+        {/if}
       </section>
     {/each}
   </div>

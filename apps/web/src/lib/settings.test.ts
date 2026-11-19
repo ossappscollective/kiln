@@ -41,6 +41,10 @@ test('formFromSettings fills the form from the values and falls back to the defa
     mode: 'on_demand',
     dailyCharBudget: '50000',
     libreUrl: '',
+    stalledAfterHours: '6',
+    stalledRepeatHours: '24',
+    unansweredReminderHours: '0',
+    unansweredMaxRating: '5',
   });
   const odd = formFromSettings({ 'translation.provider': 'nope', 'translation.mode': 'nope' });
   assert.equal(odd.provider, 'google');
@@ -147,4 +151,25 @@ test('loadTranslationConfig asks once per workspace for 30 seconds, and null whe
   const denied = { workspaceSettings: async () => { throw new ApiError(403, 'forbidden', 'no'); } };
   assert.equal(await loadTranslationConfig(denied, 'w3', 1000), null);
   forgetTranslationConfig();
+});
+
+test('the release and reminder settings: defaults, limits and the keys they are saved under', () => {
+  const saved = { ...defaults, 'release.stalledAfterHours': 6, 'release.stalledRepeatHours': 24, 'reviews.unansweredReminderHours': 0, 'reviews.unansweredMaxRating': 5 };
+  const form = formFromSettings(saved);
+  assert.deepEqual(validateForm(form), {});
+  for (const bad of ['', '-1', '721', '1.5', 'six']) {
+    assert.ok(validateForm({ ...form, stalledAfterHours: bad }).stalledAfterHours, bad);
+    assert.ok(validateForm({ ...form, stalledRepeatHours: bad }).stalledRepeatHours, bad);
+    assert.ok(validateForm({ ...form, unansweredReminderHours: bad }).unansweredReminderHours, bad);
+  }
+  for (const good of ['0', '720', ' 12 ']) assert.equal(validateForm({ ...form, stalledAfterHours: good }).stalledAfterHours, undefined, good);
+  for (const bad of ['0', '6', '', '2.5']) assert.ok(validateForm({ ...form, unansweredMaxRating: bad }).unansweredMaxRating, bad);
+  const changed = { ...form, stalledAfterHours: '12', unansweredReminderHours: '24', unansweredMaxRating: '2' };
+  assert.deepEqual(settingsChanges(saved, changed, Object.keys(saved)), {
+    'release.stalledAfterHours': 12,
+    'reviews.unansweredReminderHours': 24,
+    'reviews.unansweredMaxRating': 2,
+  });
+  assert.deepEqual(settingsChanges(saved, changed, ['reviews.unansweredMaxRating']), { 'reviews.unansweredMaxRating': 2 });
+  assert.equal(KEYS.stalledRepeatHours, 'release.stalledRepeatHours');
 });

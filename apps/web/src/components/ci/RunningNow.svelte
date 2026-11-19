@@ -25,6 +25,7 @@
     finishedCounts,
     problemPill,
     progressInfo,
+    runAppNames,
     runElapsedMs,
     sortActive,
   } from '../../lib/running.ts';
@@ -123,7 +124,11 @@
     return () => clearInterval(timer);
   });
 
-  const appName = (run: ActiveRun): string | null => apps.find((a) => a.id === run.appId)?.name ?? null;
+  /** The names of the apps the run was started for (several for a workflow that builds more than one app), or null for none. */
+  const appName = (run: ActiveRun): string | null => {
+    const names = runAppNames(run, apps);
+    return names.length === 0 ? null : names.join(', ');
+  };
 
   function follow(run: ActiveRun) {
     selected = { repositoryId: run.repositoryId, id: run.id };

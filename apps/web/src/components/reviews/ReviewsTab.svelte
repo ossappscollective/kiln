@@ -52,7 +52,16 @@
     canTranslate,
     translationErrorMessage,
   } from '../../lib/review-translation.ts';
-  import { isLowOnly, mergeTranslations, pendingTranslationBatches, ratingsWithLowOnly, translateAllLabel } from '../../lib/reviews-tab.ts';
+  import {
+    isLowOnly,
+    mergeTranslations,
+    pendingTranslationBatches,
+    ratingsWithLowOnly,
+    translateAllLabel,
+    unansweredChip,
+    unansweredFilters,
+  } from '../../lib/reviews-tab.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -160,6 +169,8 @@
       const next = await api.appReviewsSummary(workspaceId, app.id);
       if (owner !== generation) return false;
       summary = next;
+      // The sidebar badge of this app reads the same count (fresher than the workspace summary).
+      if (next.unanswered) navSignals.setUnansweredByApp(workspaceId, { [app.id]: next.unanswered.count });
       return true;
     } catch (e) {
       if (owner !== generation) return false;
@@ -219,6 +230,17 @@
 
   function change(next: Partial<ReviewFilters>) {
     filters = { ...filters, ...next };
+    void loadList(true);
+  }
+
+  const chip = $derived(unansweredChip(summary?.unanswered, now));
+  /** The unanswered filter is on: no developer response (and the ratings the count covers). */
+  const showingUnanswered = $derived(filters.response === 'no');
+
+  function showUnanswered() {
+    sinceChoice = 'all';
+    searchText = '';
+    filters = { ...defaultFilters(), ...unansweredFilters(summary?.unanswered?.maxRating ?? 5) };
     void loadList(true);
   }
 
@@ -389,6 +411,13 @@
         </EmptyState>
       </div>
     {:else}
+      {#if chip}
+        <p class="unanswered muted" data-testid="unanswered-chip">
+          <span>{chip.text}</span>
+          <Button size="sm" variant="ghost" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? 'Showing unanswered' : 'Show unanswered'}</Button>
+        </p>
+      {/if}
+
       <RatingOverview {summary} activeStatus={filters.statuses.length === 1 ? (filters.statuses[0] ?? '') : ''} onstatus={(status) => change({ statuses: status === '' ? [] : [status] })} />
 
       <form class="filters" onsubmit={search} aria-label="Filter reviews">
@@ -593,6 +622,15 @@
 
   .lastread {
     min-width: 0;
+  }
+
+  .unanswered {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    margin: 0;
+    font-size: var(--text-sm);
   }
 
   .filters {

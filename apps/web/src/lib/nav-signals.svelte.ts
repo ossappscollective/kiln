@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 import type { Api } from './api.ts';
 import { mergeLocales } from './app-header.ts';
 import type { AppSummary } from './types.ts';
@@ -17,6 +18,7 @@ let workspace = $state('');
 let list = $state<AppSummary[] | null>(null);
 let attention = $state<number | null>(null);
 let unanswered = $state<number | null>(null);
+let unansweredByApp = $state<Record<string, number | undefined>>({});
 let localesByApp = $state<Record<string, string[]>>({});
 let chordPending = $state(false);
 let loadedAt = 0;
@@ -28,6 +30,7 @@ function scope(workspaceId: string): void {
   list = null;
   attention = null;
   unanswered = null;
+  unansweredByApp = {};
   localesByApp = {};
   loadedAt = 0;
   inflight = null;
@@ -79,6 +82,18 @@ export const navSignals = {
   setUnanswered(workspaceId: string, count: number | null): void {
     scope(workspaceId);
     unanswered = count;
+  },
+
+  /** The unanswered reviews of each app record, as the workspace summary or a fresher per-app summary said. */
+  unansweredByAppOf(workspaceId: string): Record<string, number | undefined> {
+    return workspaceId === workspace ? unansweredByApp : {};
+  },
+  setUnansweredByApp(workspaceId: string, counts: Record<string, number>): void {
+    scope(workspaceId);
+    // Read without tracking: this is called from effects, and must not make them depend on what they write.
+    const before = untrack(() => unansweredByApp);
+    if (Object.keys(counts).every((id) => before[id] === counts[id])) return;
+    unansweredByApp = { ...before, ...counts };
   },
 
   /** A page that has read the locales of an app records them, so the header picker can offer them. */

@@ -49,6 +49,14 @@ export type SettingsForm = {
   mode: TranslationMode;
   dailyCharBudget: string;
   libreUrl: string;
+  /** Hours a release may stand still before it is stalled; 0 is off. */
+  stalledAfterHours: string;
+  /** Hours until the same stall is reminded again; 0 is once. */
+  stalledRepeatHours: string;
+  /** Hours an unanswered review may wait before a reminder digest; 0 is off. */
+  unansweredReminderHours: string;
+  /** The highest rating the unanswered digest counts, 1 to 5. */
+  unansweredMaxRating: string;
 };
 
 export const KEYS = {
@@ -59,7 +67,14 @@ export const KEYS = {
   mode: 'translation.mode',
   dailyCharBudget: 'translation.dailyCharBudget',
   libreUrl: 'translation.libretranslate.url',
+  stalledAfterHours: 'release.stalledAfterHours',
+  stalledRepeatHours: 'release.stalledRepeatHours',
+  unansweredReminderHours: 'reviews.unansweredReminderHours',
+  unansweredMaxRating: 'reviews.unansweredMaxRating',
 } as const;
+
+/** The most hours a release or reminder setting takes (docs/api/settings.md). */
+export const MAX_HOURS = 720;
 
 export const MAX_DAILY_CHAR_BUDGET = 100_000_000;
 
@@ -72,6 +87,10 @@ export function formFromSettings(values: Record<string, SettingValue>): Settings
     mode: translationModes.indexOf(values[KEYS.mode] as TranslationMode) >= 0 ? (values[KEYS.mode] as TranslationMode) : 'on_demand',
     dailyCharBudget: String(values[KEYS.dailyCharBudget] ?? 50000),
     libreUrl: String(values[KEYS.libreUrl] ?? ''),
+    stalledAfterHours: String(values[KEYS.stalledAfterHours] ?? 6),
+    stalledRepeatHours: String(values[KEYS.stalledRepeatHours] ?? 24),
+    unansweredReminderHours: String(values[KEYS.unansweredReminderHours] ?? 0),
+    unansweredMaxRating: String(values[KEYS.unansweredMaxRating] ?? 5),
   };
 }
 
@@ -110,6 +129,12 @@ export function validateForm(form: SettingsForm): FormErrors {
   if (!WHOLE.test(budget) || Number(budget) > MAX_DAILY_CHAR_BUDGET) {
     errors.dailyCharBudget = `A whole number from 0 to ${MAX_DAILY_CHAR_BUDGET.toLocaleString('en-US')} (0 means no limit here).`;
   }
+  const hours = (text: string): boolean => WHOLE.test(text.trim()) && Number(text.trim()) <= MAX_HOURS;
+  if (!hours(form.stalledAfterHours)) errors.stalledAfterHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 turns the signal off).`;
+  if (!hours(form.stalledRepeatHours)) errors.stalledRepeatHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 reminds once).`;
+  if (!hours(form.unansweredReminderHours)) errors.unansweredReminderHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 is off).`;
+  const top = form.unansweredMaxRating.trim();
+  if (!WHOLE.test(top) || Number(top) < 1 || Number(top) > 5) errors.unansweredMaxRating = 'A whole number from 1 to 5.';
   const url = checkLibreUrl(form.libreUrl);
   if (url) errors.libreUrl = url;
   if (form.provider === 'libretranslate' && form.enabled && form.libreUrl.trim() === '') {
@@ -132,6 +157,10 @@ export function settingsChanges(
     [KEYS.mode]: form.mode,
     [KEYS.dailyCharBudget]: Number(form.dailyCharBudget),
     [KEYS.libreUrl]: form.libreUrl.trim(),
+    [KEYS.stalledAfterHours]: Number(form.stalledAfterHours),
+    [KEYS.stalledRepeatHours]: Number(form.stalledRepeatHours),
+    [KEYS.unansweredReminderHours]: Number(form.unansweredReminderHours),
+    [KEYS.unansweredMaxRating]: Number(form.unansweredMaxRating),
   };
   const out: Record<string, SettingValue> = {};
   for (const key of Object.keys(next)) {

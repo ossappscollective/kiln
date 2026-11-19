@@ -7,9 +7,27 @@ import type { OverviewRow } from './app-overview.ts';
  * send yet reads as not known.
  */
 
-/** How many apps need attention: a failed sync, or a release the store rejected or halted. */
-export function attentionCount(rows: readonly Pick<OverviewRow, 'syncFailed' | 'attention'>[]): number {
-  return rows.filter((r) => r.syncFailed || (r.attention !== null && (r.attention.status === 'rejected' || r.attention.status === 'halted'))).length;
+/** How many apps need attention: a failed sync, a release the store rejected or halted, or a release left unfinished. */
+export function attentionCount(rows: readonly (Pick<OverviewRow, 'syncFailed' | 'attention'> & { unfinished?: readonly unknown[] })[]): number {
+  return rows.filter(
+    (r) => r.syncFailed || (r.attention !== null && (r.attention.status === 'rejected' || r.attention.status === 'halted')) || (r.unfinished ?? []).length > 0,
+  ).length;
+}
+
+/**
+ * The badges of the sidebar of ONE open app, from what the screens already loaded: the unanswered reviews of its records (null
+ * when none is known) and how many of its records have a release left unfinished (a stale stall, older than the server's limit
+ * for a reminder, does not count). Nothing here reads the network.
+ */
+export function appNavCounts(input: {
+  memberIds: readonly string[];
+  unanswered: Readonly<Record<string, number | undefined>>;
+  stalled: readonly { app: { id: string }; stalled: { stale: boolean } | null }[];
+}): { reviews: number | null; releases: number | null } {
+  const known = input.memberIds.filter((id) => typeof input.unanswered[id] === 'number');
+  const reviews = known.length === 0 ? null : known.reduce((n, id) => n + (input.unanswered[id] as number), 0);
+  const releases = input.stalled.filter((s) => input.memberIds.indexOf(s.app.id) >= 0 && s.stalled !== null && !s.stalled.stale).length;
+  return { reviews, releases: releases === 0 ? null : releases };
 }
 
 /**

@@ -4,7 +4,8 @@
   says what is about to run (workflow, branch or tag, repository, app and every input with its value).
   The inputs are read from the workflow file at the chosen branch or tag, so a change of branch reads
   them again before anything can be started. This tool never builds anything: it asks the team's own CI to.
-  Props: api, workspaceId, repository, workflow, apps (the workspace's apps, to tie a run to one),
+  Props: api, workspaceId, repository, workflow, apps (the workspace's apps, to tie a run to some of them: "For apps", none is
+  allowed and means the run is shown on every app of the repository),
   initialAppId? (the app the run is tied to at first; the person can change it), hint? (the platforms in scope and a
   version, from the app page: a platform or version input of the workflow that is still at its default is filled in
   on the first read, once; the person sees it in the form and can change it), onclose (called after the dialog closes), ondispatched (called with the run that was stored).
@@ -23,12 +24,14 @@
     workflowKey,
     type InputValues,
   } from '../../lib/ci.ts';
+  import { APPS_HINT, APPS_INFO, appsLine, dispatchAppsBody, initialSelection, toggleApp } from '../../lib/dispatch-apps.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import { type DispatchHint, dispatchHints } from '../../lib/start-release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, CiWorkflow, RepositorySummary, WorkflowInputs, WorkflowRun } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import Modal from '../ui/Modal.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
@@ -74,7 +77,7 @@
   let hinted = false;
   let values = $state<InputValues>({});
   let freeText = $state('');
-  let appId = $state(untrack(() => (apps.some((a) => a.id === initialAppId && a.repositoryId === repository.id) ? initialAppId : '')));
+  let appIds = $state<string[]>(untrack(() => initialSelection(apps.filter((a) => a.repositoryId === repository.id), initialAppId)));
   let submitting = $state(false);
   let problem = $state('');
   /** Problems are shown after the first try to continue, not while the person is still typing. */
@@ -119,7 +122,7 @@
   const payload = $derived(freeForm ? free.inputs : dispatchInputs(specs, values));
   const linkable = $derived(apps.filter((a) => a.repositoryId === repository.id));
   const notDispatchable = $derived(info?.dispatchable === false);
-  const chosenApp = $derived(linkable.find((a) => a.id === appId) ?? null);
+  const appsText = $derived(appsLine(linkable, appIds));
 
   async function next() {
     tried = true;
@@ -144,7 +147,7 @@
       const done = await api.dispatchWorkflow(workspaceId, repository.id, key, {
         ref: ref.trim(),
         inputs: payload,
-        ...(appId ? { appId } : {}),
+        ...dispatchAppsBody(appIds),
       });
       maybeStarted = false;
       toast.success(
@@ -280,23 +283,26 @@
         {/if}
 
         {#if linkable.length > 0}
-          <div class="field">
-            <label for="{uid}-app">For app (optional)</label>
-            <select id="{uid}-app" bind:value={appId}>
-              <option value="">No app</option>
-              {#each linkable as app (app.id)}
-                <option value={app.id}>{app.name} ({platformLabel(app.platform)})</option>
-              {/each}
-            </select>
-            <p class="hint">Tied to an app, the run can be matched to that app's builds by the build number in its inputs.</p>
-          </div>
+          <fieldset class="field apps">
+            <legend>
+              For apps (optional)
+              <InfoTip label="About the apps of a run" text={APPS_INFO} />
+            </legend>
+            {#each linkable as app (app.id)}
+              <label class="check">
+                <input type="checkbox" checked={appIds.indexOf(app.id) >= 0} onchange={(e) => (appIds = toggleApp(linkable, appIds, app.id, e.currentTarget.checked))} />
+                <span>{app.name} ({platformLabel(app.platform)})</span>
+              </label>
+            {/each}
+            <p class="hint">{appIds.length === 0 ? APPS_HINT : appsText}</p>
+          </fieldset>
         {/if}
       </form>
     {/if}
   {:else}
     <div class="stack">
       <p>{dispatchSummary({ workflow: key, ref: ref.trim(), repository: repositoryName(repository), inputs: payload })}</p>
-      {#if chosenApp}<p class="muted">For the app {chosenApp.name} ({platformLabel(chosenApp.platform)}).</p>{/if}
+      {#if linkable.length > 0}<p class="muted">{appsText}</p>{/if}
       {#if Object.keys(payload).length > 0}
         <dl class="inputs">
           {#each Object.entries(payload) as [name, value] (name)}
@@ -324,6 +330,21 @@
 </Modal>
 
 <style>
+  .apps {
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  .apps legend {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+    padding: 0;
+    margin-bottom: var(--space-1);
+    font-weight: var(--weight-medium);
+  }
+
   textarea {
     width: 100%;
     font-family: var(--font-mono);

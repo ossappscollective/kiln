@@ -7,7 +7,8 @@
   import { groupApps } from '../lib/app-groups.ts';
   import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
   import { jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
-  import { badgeLabel, badgeText } from '../lib/nav-badges.ts';
+  import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
+  import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';
@@ -63,6 +64,18 @@
   const canApps = $derived(workspace ? can(workspace.role, 'apps.read') : false);
   const attention = $derived(canApps ? navSignals.attentionOf(workspaceId) : null);
   const unanswered = $derived(workspace && can(workspace.role, 'reviews.read') ? navSignals.unansweredOf(workspaceId) : null);
+  /** The badges of the open app's sidebar: unanswered reviews, and a release left unfinished. Nothing is read for this. */
+  const appCounts = $derived.by(() => {
+    if (!appAddr || !canApps) return { reviews: null, releases: null };
+    const apps = navSignals.appsOf(workspaceId);
+    const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
+    const ids = group ? group.members.map((m) => m.id) : [appAddr.id];
+    return appNavCounts({
+      memberIds: ids,
+      unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
+      stalled: pipelineStore.summary(workspaceId)?.apps ?? [],
+    });
+  });
   const switcherList = $derived.by(() => {
     const apps = canApps ? navSignals.appsOf(workspaceId) : null;
     return apps ? switcherItems(groupApps(apps)) : null;
@@ -273,7 +286,7 @@
 
     <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} counts={appCounts} />
       {:else}
         <nav aria-label="Sections">
           <ul>

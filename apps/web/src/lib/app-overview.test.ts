@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { dataChips } from './app-chips.ts';
 import { groupApps } from './app-groups.ts';
 import { buildOverviewRows, overviewStats } from './app-overview.ts';
+import { attentionCount } from './nav-badges.ts';
+import type { PipelineSummaryApp } from './release-pipeline.ts';
 import type { ReleaseLoad } from './portfolio.ts';
 import type { SummaryApp } from './reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
@@ -71,7 +73,7 @@ test('rows tolerate unloaded releases and reviews', () => {
   assert.equal(row.newReviews, null);
   assert.equal(row.syncFailed, true);
   assert.equal(row.syncedAt, null);
-  assert.deepEqual(overviewStats([row]), { apps: 1, inReview: 0, rollingOut: 0, problems: 1, newReviews: null });
+  assert.deepEqual(overviewStats([row]), { apps: 1, inReview: 0, rollingOut: 0, problems: 1, unfinished: 0, newReviews: null });
 });
 
 test('stats count rows by their most urgent release', () => {
@@ -82,7 +84,7 @@ test('stats count rows by their most urgent release', () => {
     k: { state: 'ready', releases: [rel('k', 'ios', '1', 'rolling_out')] },
   };
   const stats = overviewStats(buildOverviewRows(groups, releases, [summaryApp('i', 'ios', 1, 4, 5)]));
-  assert.deepEqual(stats, { apps: 3, inReview: 1, rollingOut: 1, problems: 1, newReviews: 5 });
+  assert.deepEqual(stats, { apps: 3, inReview: 1, rollingOut: 1, problems: 1, unfinished: 0, newReviews: 5 });
 });
 
 test('dataChips reports repository link and sync from the records', () => {
@@ -96,4 +98,18 @@ test('dataChips reports repository link and sync from the records', () => {
   assert.equal(mixed[0]?.value, 'Linked on 1 of 2');
   assert.equal(mixed[1]?.value, 'Not synced yet');
   assert.equal(dataChips([app('i', 'ios', { lastSyncError: 'x' })], now)[1]?.tone, 'warn');
+});
+
+test('a release left unfinished counts for the app and for the badge, a stale one does not', () => {
+  const stall = (stale: boolean) => ({ step: 'approved', label: 'x', message: 'm', hours: 30, since: 1, stale, evidence: [] });
+  const groups = groupApps([app('i', 'ios'), app('d', 'android')]);
+  const line = (id: string, stale: boolean | null) =>
+    ({ app: { id, name: id, platform: 'ios', store: 'appstoreconnect' }, state: 'approved', waitingOn: 'you', since: 1, summary: '', lastSyncedAt: 1, stalled: stale === null ? null : stall(stale) }) as unknown as PipelineSummaryApp;
+  const [row] = buildOverviewRows(groups, {}, null, [line('i', false), line('d', true)]);
+  assert.deepEqual(row!.unfinished.map((p) => p.app.id), ['i']);
+  assert.equal(overviewStats([row!]).unfinished, 1);
+  assert.equal(attentionCount([row!]), 1);
+  const [quiet] = buildOverviewRows(groups, {}, null, [line('i', true), line('d', null)]);
+  assert.equal(quiet!.unfinished.length, 0);
+  assert.equal(attentionCount([quiet!]), 0);
 });

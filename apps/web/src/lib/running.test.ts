@@ -16,6 +16,8 @@ import {
   showsSteps,
   spanMs,
   stateVisual,
+  runAppIds,
+  runAppNames,
   scopeRunsToApps,
   sortActive,
 } from './running.ts';
@@ -273,4 +275,16 @@ test('stateVisual says the state in words; spanMs and showsSteps', () => {
   assert.equal(showsSteps({ status: 'completed', conclusion: 'success' }), false);
   assert.equal(showsSteps({ status: 'completed', conclusion: 'failure' }), true);
   assert.equal(showsSteps({ status: 'in_progress', conclusion: null }), true);
+});
+
+test('a run is tied to every app it was started for (appIds), else to its one appId', () => {
+  assert.deepEqual(runAppIds({ appId: null }), []);
+  assert.deepEqual(runAppIds({ appId: 'a' }), ['a']);
+  assert.deepEqual(runAppIds({ appId: 'a', appIds: ['a', 'b'] }), ['a', 'b']);
+  assert.deepEqual(runAppIds({ appId: null, appIds: [] }), []);
+  const apps = [{ id: 'b', name: 'Beta' }, { id: 'a', name: 'Alpha' }, { id: 'c', name: 'Gamma' }];
+  assert.deepEqual(runAppNames({ appId: 'a', appIds: ['a', 'b'] }, apps), ['Beta', 'Alpha']);
+  const two = [{ id: 'a', repositoryId: 'r1', workflow: null }, { id: 'b', repositoryId: 'r1', workflow: null }];
+  const runs = [run({ id: '1', appId: 'a', appIds: ['a', 'b'] }), run({ id: '2', appId: 'z', appIds: ['z'] })];
+  assert.deepEqual(scopeRunsToApps(runs, [two[1]!]).runs.map((r) => r.id), ['1']);
 });

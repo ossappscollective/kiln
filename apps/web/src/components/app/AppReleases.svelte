@@ -9,6 +9,9 @@
   releases, with the plan and CI cells reading "—".
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id), now, canSync,
   syncing (by app id), onsync, syncRuns (changes when a sync finished, so plans and builds reload).
+  "Prepare release" opens the stepper (components/release/stepper) in place of the list; the step is kept in the address
+  (`&step=`), so the "Release left unfinished" item and a reload land on it. Under "Start release", a five-step strip
+  (PipelineStrip) shows a release on its way.
   The platform scope for links comes from the address. "Start release" (StartRelease) sits above the table: it opens the
   dispatch dialog on the app's release workflow, follows the run it started and offers "Prepare release" when its build
   appears.
@@ -17,7 +20,8 @@
   import { type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { address } from '../../lib/address.svelte.ts';
+  import { address, replaceHash } from '../../lib/address.svelte.ts';
+  import { type StepId, stepFromHash, withStep } from '../../lib/release-stepper.ts';
   import {
     buildReleaseTable,
     defaultReleaseFilter,
@@ -29,6 +33,9 @@
   import type { AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseTable from '../release/ReleaseTable.svelte';
   import StartRelease from './StartRelease.svelte';
+  import PipelineStrip from '../release/PipelineStrip.svelte';
+  import ReleaseStepper from '../release/stepper/ReleaseStepper.svelte';
+  import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import RolloutControls from '../release/RolloutControls.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -141,12 +148,65 @@
   const searching = $derived(filter.query.trim() !== '');
   let olderOpen = $state(false);
   const scope = $derived(address.platform);
+
+  // "Prepare release": the stepper of the address (`&step=`). While it is open it replaces the table, so the page has one job.
+  const canPrepare = $derived(can(role, 'listing.read'));
+  const step = $derived<StepId | null>(canPrepare ? stepFromHash(address.hash) : null);
+  const uid = $props.id();
+  let stepperPlatform = $state('');
+  const stepperTab = $derived(members.find((m) => m.platform === stepperPlatform)?.platform ?? members[0]?.platform ?? '');
+  const openStepper = () => replaceHash(withStep(location.hash, 'build'));
+  const closeStepper = () => replaceHash(withStep(location.hash, null));
+  const moveStep = (next: StepId) => replaceHash(withStep(location.hash, next));
 </script>
 
 <div class="stack loose">
   <StartRelease {api} {workspaceId} {role} {members} {all} scopeIsBoth={members.length > 1} />
 
-  {#if groups.length === 0}
+  {#if can(role, 'apps.read')}
+    {#each members as app (app.id)}
+      <PipelineStrip {api} {workspaceId} {app} {scope} refreshKey={syncRuns} showPlatform={members.length > 1} />
+    {/each}
+  {/if}
+
+  {#if step !== null}
+    <div class="stack">
+      {#if members.length > 1}
+        <div class="row">
+          <SegmentTabs tabs={members.map((m) => ({ id: m.platform, label: platformLabel(m.platform) }))} bind:value={stepperPlatform} label="Platform" idPrefix="{uid}-prepare" />
+        </div>
+      {/if}
+      {#each members as app (app.id)}
+        {@const ids = segmentIds(`${uid}-prepare`, app.platform)}
+        <div role={members.length > 1 ? 'tabpanel' : undefined} id={members.length > 1 ? ids.panel : undefined} aria-labelledby={members.length > 1 ? ids.tab : undefined} hidden={members.length > 1 && stepperTab !== app.platform}>
+          <ReleaseStepper
+            {api}
+            {workspaceId}
+            {role}
+            {app}
+            scope={scope}
+            appBuilds={builds[app.id] ?? []}
+            {releases}
+            {step}
+            onstep={moveStep}
+            onclose={closeStepper}
+            showPlatform={members.length > 1}
+          />
+        </div>
+      {/each}
+    </div>
+  {:else}
+    {#if canPrepare && members.length > 0}
+      <div class="row prepare">
+        <Button variant="primary" icon="play" onclick={openStepper}>Prepare release</Button>
+        <span class="muted note">Choose the build, write the notes, check it and send it to the store, one step at a time.</span>
+      </div>
+    {/if}
+  {/if}
+
+  {#if step !== null}
+    <!-- the steps replace the list while they are open -->
+  {:else if groups.length === 0}
     <div class="stack">
       {#each members as app (app.id)}
         <div class="card">
@@ -230,7 +290,7 @@
     {/if}
   {/if}
 
-  <RolloutControls {api} {workspaceId} {role} {members} {releases} />
+  {#if step === null}<RolloutControls {api} {workspaceId} {role} {members} {releases} />{/if}
 </div>
 
 <style>
@@ -264,6 +324,13 @@
 
   .filters {
     gap: var(--space-2);
+  }
+
+  .prepare {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
   }
 
   .older-tools {

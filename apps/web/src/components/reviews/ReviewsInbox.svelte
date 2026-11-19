@@ -49,6 +49,7 @@
     statusLabel,
     statusOrder,
     summaryStripText,
+    unansweredNote,
     territoryName,
     toggleIn,
     withinChoices,
@@ -109,6 +110,7 @@
     }, {}),
   );
   const busiest = $derived(summary ? busiestApps(summary.apps, 6) : []);
+  const oldestNote = $derived(summary ? unansweredNote(summary, now) : null);
   const noApps = $derived(!loading && summary !== null && summary.apps.length === 0);
   const nothingStored = $derived(summary !== null && summary.totals.total === 0);
   const statusOptions = $derived<{ value: '' | ReviewStatus; label: string }[]>([
@@ -351,6 +353,7 @@
       <p class="muted small">
         {summary.label}. Low rating means {lowThreshold} stars or fewer; ignored reviews are not counted as unanswered or low.
       </p>
+      {#if oldestNote}<p class="muted small" data-testid="unanswered-oldest">{oldestNote}</p>{/if}
       {#if busiest.length > 0}
         <ul class="apps" aria-label="Apps with reviews to look at">
           {#each busiest as row (row.app.id)}

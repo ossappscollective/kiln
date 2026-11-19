@@ -766,6 +766,8 @@ export type WorkflowRun = {
   id: string;
   repositoryId: string;
   appId: string | null;
+  /** Every app this run builds (sorted; empty for none). Older servers send only `appId`. */
+  appIds?: string[];
   workflow: string;
   workflowPath: string | null;
   title: string | null;

@@ -16,6 +16,7 @@
   <li><StatChip label="In review" value={stats.inReview} tone="info" /></li>
   <li><StatChip label="Rolling out" value={stats.rollingOut} tone="info" /></li>
   <li><StatChip label="Need a look" value={stats.problems} tone="warn" /></li>
+  <li><StatChip label="Left unfinished" value={stats.unfinished} tone="warn" hideZero /></li>
   <li>
     <StatChip label="New reviews" value={stats.newReviews === null ? '–' : stats.newReviews} tone="info" dim={stats.newReviews === null} />
   </li>

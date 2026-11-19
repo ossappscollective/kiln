@@ -1,4 +1,4 @@
-import { MAX_RATING } from './reviews.ts';
+import { MAX_RATING, type ReviewFilters, type UnansweredSummary } from './reviews.ts';
 import { type ReviewTranslation, type Translatable, chunkIds, needsTranslation } from './review-translation.ts';
 
 /**
@@ -52,4 +52,38 @@ export function mergeTranslations(
 /** The label of the button: how many reviews it will send. */
 export function translateAllLabel(pending: number, language: string): string {
   return pending === 0 ? 'All visible reviews are translated' : `Translate all visible (${pending}) to ${language}`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Unanswered reviews (the `unanswered` of the per-app summary)
+
+/** How old the oldest unanswered review is, in words for a chip: "2 h", "3 d". Rounded down; never negative. */
+export function ageText(at: number, now: number): string {
+  const hours = Math.max(0, Math.floor((now - at) / 3_600_000));
+  if (hours < 1) return 'under 1 h';
+  if (hours < 48) return `${hours} h`;
+  return `${Math.floor(hours / 24)} d`;
+}
+
+export type UnansweredChip = { text: string; label: string };
+
+/**
+ * The quiet chip of the Reviews tab: "5 unanswered, oldest 3 d". Nothing for none or for a summary without the field (an older
+ * server). When the server counts only the lowest ratings (`maxRating` below 5) it says so, so the number is not misread.
+ */
+export function unansweredChip(unanswered: UnansweredSummary | null | undefined, now: number): UnansweredChip | null {
+  if (!unanswered || !(unanswered.count > 0)) return null;
+  const ratings = unanswered.maxRating >= MAX_RATING ? '' : unanswered.maxRating === 1 ? ' (1 star)' : ` (${unanswered.maxRating} stars or fewer)`;
+  const oldest = unanswered.oldestAt === null ? '' : `, oldest ${ageText(unanswered.oldestAt, now)}`;
+  const text = `${unanswered.count} unanswered${ratings}${oldest}`;
+  return { text, label: `${text}. Show them.` };
+}
+
+/** The filters of "Show unanswered": no developer response, not ignored, and the same ratings the count covers. */
+export function unansweredFilters(maxRating: number): Partial<ReviewFilters> {
+  return {
+    response: 'no',
+    statuses: ['new', 'triaged', 'replied_in_console'],
+    ratings: maxRating >= MAX_RATING ? [] : lowRatings(maxRating),
+  };
 }

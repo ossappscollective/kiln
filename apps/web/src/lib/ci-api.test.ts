@@ -49,6 +49,41 @@ test('dispatching posts the ref, the inputs and the app, and escapes the workflo
   assert.deepEqual(calls[0]?.body, { ref: 'main', inputs: { build_number: '241' }, appId: 'app1' });
 });
 
+test('dispatching for several apps posts appIds, and for none posts no app at all', async () => {
+  const { calls, api } = fake({ dispatched: true, runKnown: false, run: {} }, 202);
+  await api.dispatchWorkflow('w1', 'r1', 'release.yml', { ref: 'main', inputs: {}, appIds: ['a1', 'a2'] });
+  assert.deepEqual(calls[0]?.body, { ref: 'main', inputs: {}, appIds: ['a1', 'a2'] });
+  await api.dispatchWorkflow('w1', 'r1', 'release.yml', { ref: 'main', inputs: {} });
+  assert.deepEqual(calls[1]?.body, { ref: 'main', inputs: {} });
+});
+
+test('the release calls use the app routes and send the request once', async () => {
+  const { calls, api } = fake({});
+  await api.releaseCandidates('w1', 'a1', { track: 'beta' });
+  await api.releaseCandidates('w1', 'a1');
+  await api.releaseEditable('w1', 'a1', 'production');
+  await api.releaseNotesHistory('w1', 'a1', { platform: 'android', locale: 'en-US', limit: 10 });
+  await api.stageReleaseField('w1', 'a1', { field: 'track', value: 'production' });
+  await api.releasePipeline('w1', 'a1');
+  await api.releasePipelineSummary('w1');
+  await api.previewStoreRelease('w1', 'a1', { track: 'production', userFraction: 0.1 });
+  assert.deepEqual(
+    calls.map((c) => [c.method, c.path.replace(`${base.replace('/repositories/r1', '')}`, '')]),
+    [
+      ['GET', '/apps/a1/release/candidates?track=beta'],
+      ['GET', '/apps/a1/release/candidates'],
+      ['GET', '/apps/a1/release/editable?track=production'],
+      ['GET', '/apps/a1/release/notes-history?platform=android&locale=en-US&limit=10'],
+      ['PUT', '/apps/a1/staged/release-fields'],
+      ['GET', '/apps/a1/release/pipeline'],
+      ['GET', '/release/pipeline/summary'],
+      ['POST', '/apps/a1/store-release/preview'],
+    ],
+  );
+  assert.deepEqual(calls[4]?.body, { field: 'track', value: 'production' });
+  assert.deepEqual(calls[7]?.body, { track: 'production', userFraction: 0.1 });
+});
+
 test('the build calls use the app routes', async () => {
   const { calls, api } = fake({ build: null });
   await api.appBuilds('w1', 'a1');

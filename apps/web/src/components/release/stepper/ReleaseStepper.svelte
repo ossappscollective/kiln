@@ -1,0 +1,444 @@
+<!--
+  ReleaseStepper: "Prepare release" for ONE app record: Build, Notes, Assets, Review, Confirm. Each step has a readiness dot
+  (and a word, never colour alone). The steps only STAGE changes in our own database; nothing reaches a store when a step
+  changes. Only the Confirm step does, through the gated flows that already exist: push the draft (typed app name and an
+  acknowledgement), submit for review (typed phrase), release (typed phrase, and for Google Play the share you type), and the
+  rollout controls. Their confirmations are the same components, unchanged. A step the role or the server's switches do not
+  allow is not shown, and one sentence says why.
+  The step is kept in the address (`&step=notes`), so a link, a reload and the "Release left unfinished" item land on it.
+  Props: api, workspaceId, role, app, scope (the platform scope of the address), appBuilds (our CI builds, for the run of each
+  build), releases (the store releases by app id, for the rollout controls), step (the step the address asks for), onstep,
+  onclose, showPlatform.
+-->
+<script lang="ts">
+  import { type Role, isApplePlatform } from '@mrm/core';
+  import { untrack } from 'svelte';
+  import { ApiError, type Api } from '../../../lib/api.ts';
+  import type { PlatformScope } from '../../../lib/app-scope.ts';
+  import { platformLabel } from '../../../lib/portfolio.ts';
+  import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
+  import { noteRows, unsavedLocales } from '../../../lib/release-notes.ts';
+  import { type AppPipeline } from '../../../lib/release-pipeline.ts';
+  import {
+    type EditableState,
+    type StepId,
+    LEVEL_TONE,
+    LEVEL_WORD,
+    chosenOf,
+    confirmHiddenReason,
+    neighbour,
+    resolveStep,
+    stagedFacts,
+    stagedField,
+    stagedNotes,
+    stepStatuses,
+    storeNotes,
+    visibleSteps,
+  } from '../../../lib/release-stepper.ts';
+  import { stagingError } from '../../../lib/staged.ts';
+  import { stagedStore } from '../../../lib/staged-store.svelte.ts';
+  import { canSubmit } from '../../../lib/store-submit.ts';
+  import { submitStore } from '../../../lib/store-submit-store.svelte.ts';
+  import { canRelease } from '../../../lib/store-release.ts';
+  import { releaseStore } from '../../../lib/store-release-store.svelte.ts';
+  import type { AppBuild, AppSummary, ReleaseSummary } from '../../../lib/types.ts';
+  import Alert from '../../ui/Alert.svelte';
+  import Button from '../../ui/Button.svelte';
+  import StepAssets from './StepAssets.svelte';
+  import StepBuild from './StepBuild.svelte';
+  import StepConfirm from './StepConfirm.svelte';
+  import StepNotes from './StepNotes.svelte';
+  import StepReview from './StepReview.svelte';
+
+  let {
+    api,
+    workspaceId,
+    role,
+    app,
+    scope,
+    appBuilds,
+    releases,
+    step,
+    onstep,
+    onclose,
+    showPlatform = false,
+  }: {
+    api: Api;
+    workspaceId: string;
+    role: Role;
+    app: AppSummary;
+    scope: PlatformScope | null;
+    appBuilds: AppBuild[];
+    releases: Record<string, ReleaseSummary[]>;
+    step: StepId | null;
+    onstep: (next: StepId) => void;
+    onclose: () => void;
+    showPlatform?: boolean;
+  } = $props();
+
+  const uid = $props.id();
+  const apple = $derived(isApplePlatform(app.platform));
+
+  let editable = $state<EditableRelease | null>(null);
+  let editableState = $state<EditableState>({ state: 'loading' });
+  let candidates = $state<ReleaseCandidates | null>(null);
+  let candidatesState = $state<EditableState>({ state: 'loading' });
+  let sourceCandidates = $state<PlayCandidates | null>(null);
+  let pipeline = $state<AppPipeline | null>(null);
+  let listingLocales = $state<string[]>([]);
+  let track = $state('production');
+  let source = $state('beta');
+  let drafts = $state<Record<string, string>>({});
+  let extra = $state<string[]>([]);
+  let seq = 0;
+
+  const view = $derived(stagedStore.view(app.id));
+
+  const switches = $derived({
+    draft: stagedStore.config(workspaceId)?.enabled ?? null,
+    submit: canSubmit(role) ? (submitStore.config(workspaceId)?.enabled ?? null) : null,
+    release: canRelease(role) ? (releaseStore.config(workspaceId)?.enabled ?? null) : null,
+  });
+  const visible = $derived(visibleSteps(role, switches));
+  const current = $derived(resolveStep(step, visible));
+  const hidden = $derived(confirmHiddenReason(role, switches));
+
+  const buildList = $derived<BuildCandidate[]>(candidates !== null && candidates.store === 'appstoreconnect' ? candidates.builds : []);
+  const locales = $derived(
+    Array.from(
+      new Set([
+        ...Object.keys(storeNotes(editable)),
+        ...Object.keys(stagedNotes(view, app.platform)),
+        ...extra,
+        ...listingLocales,
+      ]),
+    ).sort(),
+  );
+  const rows = $derived(noteRows({ platform: app.platform, locales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
+  const chosen = $derived(chosenOf({ platform: app.platform, view, editable, builds: buildList }));
+  const choices = $derived.by((): number | null => {
+    if (candidates === null) return null;
+    if (candidates.store === 'appstoreconnect') return candidates.builds.filter((b) => b.eligibility ? b.eligibility.eligible : b.selectable).length;
+    return candidates.codes.filter((c) => (c.eligibility ? c.eligibility.eligible : true)).length;
+  });
+  const statuses = $derived(
+    stepStatuses(
+      {
+        platform: app.platform,
+        editable: editableState,
+        chosen,
+        choices,
+        notes: { withText: rows.filter((r) => r.draft.trim() !== '').length, unsaved: unsavedLocales(rows).length, over: rows.filter((r) => r.over).length },
+        staged: stagedFacts(view),
+        pipeline: pipeline ? { state: pipeline.pipeline.state, waitingOn: pipeline.pipeline.waitingOn } : null,
+      },
+      visible,
+    ),
+  );
+  const chosenBuildId = $derived.by((): string | null => {
+    const staged = stagedField(view, 'build');
+    if (staged !== null) return staged.value;
+    return editable && editable.store === 'appstoreconnect' ? (editable.build?.id ?? null) : null;
+  });
+  const stagedTrack = $derived(stagedField(view, 'track'));
+  const releaseTrack = $derived(stagedTrack !== null ? stagedTrack.value : track);
+  const stagedCodes = $derived(stagedField(view, 'version_codes'));
+  const stagedShare = $derived(stagedField(view, 'user_fraction'));
+  const releaseVersion = $derived(editable && editable.store === 'appstoreconnect' ? editable.version.versionString : null);
+
+  async function loadEditable() {
+    const mine = seq;
+    editableState = { state: 'loading' };
+    try {
+      const out = await api.releaseEditable(workspaceId, app.id, apple ? undefined : track.trim());
+      if (mine !== seq) return;
+      editable = out.editable;
+      editableState = { state: 'ready' };
+    } catch (e) {
+      if (mine !== seq) return;
+      editable = null;
+      editableState = e instanceof ApiError && e.code === 'no_editable_version' ? { state: 'none' } : { state: 'error', message: stagingError(e) };
+    }
+  }
+
+  async function loadCandidates() {
+    const mine = seq;
+    candidatesState = { state: 'loading' };
+    try {
+      const out = await api.releaseCandidates(workspaceId, app.id, apple ? {} : { track: track.trim() });
+      if (mine !== seq) return;
+      candidates = out.candidates;
+      candidatesState = { state: 'ready' };
+    } catch (e) {
+      if (mine !== seq) return;
+      candidates = null;
+      candidatesState = { state: 'error', message: stagingError(e) };
+    }
+  }
+
+  async function loadSource() {
+    const mine = seq;
+    if (apple || source.trim() === '') {
+      sourceCandidates = null;
+      return;
+    }
+    try {
+      const out = await api.releaseCandidates(workspaceId, app.id, { track: source.trim() });
+      if (mine === seq && out.candidates.store === 'googleplay') sourceCandidates = out.candidates;
+    } catch {
+      if (mine === seq) sourceCandidates = null;
+    }
+  }
+
+  async function loadPipeline() {
+    const mine = seq;
+    try {
+      const out = await api.releasePipeline(workspaceId, app.id);
+      if (mine === seq) pipeline = out;
+    } catch {
+      if (mine === seq) pipeline = null;
+    }
+  }
+
+  async function loadLocales() {
+    const mine = seq;
+    try {
+      const out = await api.appListingLive(workspaceId, app.id);
+      if (mine !== seq) return;
+      const channel = out.channels.filter((c) => c.channel === 'editable')[0] ?? out.channels[0];
+      listingLocales = channel ? Object.keys(channel.locales) : [];
+    } catch {
+      if (mine === seq) listingLocales = [];
+    }
+  }
+
+  function readBuilds() {
+    void loadEditable();
+    void loadCandidates();
+  }
+
+  function readTracks() {
+    void loadEditable();
+    void loadCandidates();
+    void loadSource();
+  }
+
+  let shownFor = '';
+  $effect(() => {
+    const key = `${workspaceId}/${app.id}`;
+    if (key === shownFor) return;
+    shownFor = key;
+    untrack(() => {
+      seq++;
+      editable = null;
+      candidates = null;
+      sourceCandidates = null;
+      pipeline = null;
+      drafts = {};
+      extra = [];
+      void stagedStore.load(api, workspaceId, app.id).then(() => {
+        const t = stagedField(stagedStore.view(app.id), 'track');
+        if (t !== null) track = t.value;
+        void loadEditable();
+        void loadCandidates();
+        void loadSource();
+      });
+      void stagedStore.loadConfig(api, workspaceId);
+      if (canSubmit(role)) void submitStore.loadConfig(api, workspaceId);
+      if (canRelease(role)) void releaseStore.loadConfig(api, workspaceId);
+      void loadPipeline();
+      void loadLocales();
+    });
+  });
+
+  const next = $derived(current === null ? null : neighbour(current, visible, 1));
+  const back = $derived(current === null ? null : neighbour(current, visible, -1));
+</script>
+
+<section class="stepper" aria-label="Prepare release, {platformLabel(app.platform)}" data-testid="release-stepper">
+  <header class="head">
+    <h3>Prepare release{showPlatform ? `: ${platformLabel(app.platform)}` : ''}</h3>
+    {#if releaseVersion}<span class="muted">version {releaseVersion}</span>{/if}
+    <span class="spacer"></span>
+    <Button size="sm" variant="ghost" icon="x" onclick={onclose}>Close</Button>
+  </header>
+  <p class="muted note">Each step stages changes in this tool. Nothing is sent to the store until the last step, and you confirm it there.</p>
+
+  <ol class="steps" aria-label="Steps">
+    {#each statuses as s, i (s.id)}
+      {@const tone = LEVEL_TONE[s.level]}
+      <li>
+        <button type="button" class="step" class:current={current === s.id} aria-current={current === s.id ? 'step' : undefined} onclick={() => onstep(s.id)}>
+          <span class="dot {tone}" aria-hidden="true"></span>
+          <span class="label"><span class="num">{i + 1}</span> {s.label}</span>
+          <span class="word">{LEVEL_WORD[s.level]}</span>
+          <span class="text">{s.text}</span>
+        </button>
+      </li>
+    {/each}
+  </ol>
+  {#if hidden}<p class="muted note">{hidden}</p>{/if}
+
+  <div class="body" id="{uid}-body">
+    {#if current === 'build'}
+      <StepBuild
+        {api}
+        {workspaceId}
+        {role}
+        {app}
+        {view}
+        {editable}
+        {editableState}
+        {candidates}
+        {candidatesState}
+        {sourceCandidates}
+        {appBuilds}
+        bind:track
+        bind:source
+        onread={readBuilds}
+        onreadtracks={readTracks}
+      />
+    {:else if current === 'notes'}
+      <StepNotes {api} {workspaceId} {role} {app} {view} {editable} {candidates} {chosenBuildId} track={releaseTrack} {locales} bind:drafts bind:extra />
+    {:else if current === 'assets'}
+      <StepAssets {api} {workspaceId} {app} {view} {scope} />
+    {:else if current === 'review'}
+      <StepReview {api} {workspaceId} {role} {app} confirmVisible={visible.indexOf('confirm') >= 0} />
+    {:else if current === 'confirm'}
+      <StepConfirm
+        {api}
+        {workspaceId}
+        {role}
+        {app}
+        {releases}
+        {apple}
+        version={releaseVersion}
+        track={releaseTrack}
+        codes={stagedCodes === null ? [] : stagedCodes.value.split(',').filter((c) => c !== '')}
+        stagedShare={stagedShare ? stagedShare.value : ''}
+        onreleased={() => void loadPipeline()}
+      />
+    {:else}
+      <Alert tone="info">No step is available for your role.</Alert>
+    {/if}
+  </div>
+
+  <footer class="foot">
+    {#if back}<Button onclick={() => onstep(back)}>Back</Button>{/if}
+    <span class="spacer"></span>
+    {#if next}<Button variant="primary" onclick={() => onstep(next)}>Next</Button>{:else}<Button onclick={onclose}>Close</Button>{/if}
+  </footer>
+</section>
+
+<style>
+  .stepper {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .head,
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+  }
+
+  h3 {
+    margin: 0;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+  }
+
+  .spacer {
+    flex: 1;
+  }
+
+  .note,
+  .small {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    gap: var(--space-2);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .step {
+    display: grid;
+    gap: var(--space-1);
+    width: 100%;
+    height: 100%;
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    cursor: pointer;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+
+  .step.current {
+    background: var(--surface);
+    border-color: var(--accent);
+  }
+
+  .label {
+    font-weight: var(--weight-semibold);
+  }
+
+  .num {
+    color: var(--muted);
+  }
+
+  .word {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--muted);
+  }
+
+  .text {
+    font-size: var(--text-sm);
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    background: var(--muted);
+    border-radius: 50%;
+  }
+
+  .dot.ok {
+    background: var(--ok);
+  }
+
+  .dot.info {
+    background: var(--info);
+  }
+
+  .dot.warn {
+    background: var(--warn);
+  }
+
+  .dot.bad {
+    background: var(--bad);
+  }
+
+  .body {
+    min-width: 0;
+  }
+
+</style>

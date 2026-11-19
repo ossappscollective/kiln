@@ -35,7 +35,7 @@ export const NOT_SUBMITTED = 'Nothing is submitted for review or published by a 
 
 /** The note under the tray: where the next step is, and what this tool never does. */
 export const SUBMIT_NEXT_STEP =
-  'After a push, "Submit for review…" (admin and up, when the server allows it) hands the draft to the store\'s review. This tool never releases or publishes: do that in App Store Connect or Play Console.';
+  'After a push, "Submit for review…" (admin and up, when the server allows it) hands the draft to the store\'s review. Releasing is a separate step with its own switch and confirmation.';
 
 export const REVERSE_IMAGE_SYNC_NOTE =
   'The store\'s images cannot be staged directly. "Pull from store" puts them into the repository as a draft change set to review and apply; after that they can be staged from there. Files you upload here are staged as they are.';
@@ -82,12 +82,32 @@ export type PreviewAssetSet = {
   willRemove: number;
 };
 
+export type PreviewReleaseField = {
+  id: string;
+  field: string;
+  label: string;
+  locale: string;
+  before: string | null;
+  after: string;
+  status: 'changed' | 'unchanged' | 'local';
+  localOnly: boolean;
+};
+
+export type PushCheck = { code: string; severity: 'blocking' | 'warning'; message: string; item?: string };
+
 export type DraftPreview = {
   app: { id: string; name: string; platform: Platform; store: string };
   version: { id: string; versionString: string | null; state: string } | null;
   text: PreviewText[];
   assets: PreviewAssetSet[];
+  /** Staged release fields: a build, a version, a track, ... Present from the server. */
+  release?: PreviewReleaseField[];
+  /** What the store says about the staged release fields. Present from the server. */
+  checks?: { blocking: PushCheck[]; warnings: PushCheck[]; canPush: boolean };
   summary: {
+    /** Release fields that differ from the store (local-only ones are not counted). Present from the server. */
+    fieldsChanged?: number;
+    fieldsUnchanged?: number;
     textChanged: number;
     textUnchanged: number;
     assetSetsChanged: number;
@@ -155,7 +175,9 @@ export const storeName = (platform: Platform): string => (platform === 'android'
 // ---------------------------------------------------------------------------------------------
 // The tray
 
-export const itemCount = (view: StagedChangesView | null): number => (view === null ? 0 : view.text.length + view.assets.length);
+export const releaseCount = (view: StagedChangesView | null): number => (view === null ? 0 : (view.release ?? []).length);
+
+export const itemCount = (view: StagedChangesView | null): number => (view === null ? 0 : view.text.length + view.assets.length + releaseCount(view));
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
@@ -164,6 +186,7 @@ export function trayCountText(view: StagedChangesView | null): string {
   if (view === null || itemCount(view) === 0) return 'Nothing staged';
   const parts: string[] = [];
   if (view.text.length > 0) parts.push(plural(view.text.length, 'text', 'texts'));
+  if (releaseCount(view) > 0) parts.push(plural(releaseCount(view), 'release field', 'release fields'));
   if (view.assets.length > 0) {
     const files = view.assets.reduce((n, s) => n + s.files.length, 0);
     parts.push(`${plural(view.assets.length, 'graphic set', 'graphic sets')} (${plural(files, 'file', 'files')})`);
@@ -383,6 +406,8 @@ export function stagingError(error: unknown): string {
       return REVERSE_IMAGE_SYNC_NOTE;
     case 'rate_limited':
       return `Too many repository reads. Try again in ${error.retryAfter ?? 60} seconds.`;
+    case 'field_not_stageable':
+    case 'empty_value':
     case 'invalid_locale':
     case 'empty_text':
     case 'text_too_long':
@@ -416,6 +441,8 @@ export type PushFailure =
   /** A staged file changed or vanished: stage the set again. */
   | { kind: 'restage'; message: string }
   | { kind: 'invalid'; message: string; problems: StagedProblem[] }
+  /** The store says a staged release field cannot be written as it is. Nothing was written. */
+  | { kind: 'blocked'; message: string; checks: PushCheck[] }
   | { kind: 'rate_limited'; message: string; retryAfter: number | null }
   | { kind: 'forbidden'; message: string }
   | { kind: 'other'; message: string; code: string };
@@ -480,6 +507,12 @@ export function classifyPushFailure(error: unknown, phase: 'preview' | 'push' = 
       return { kind: 'other', code: error.code, message: 'The store has changes in review for this app. Wait until they are decided, then try again. This tool never cancels a review.' };
     case 'no_editable_version':
       return { kind: 'other', code: error.code, message: `${message} Create the next version in App Store Connect, then preview again.` };
+    case 'blocked':
+      return {
+        kind: 'blocked',
+        checks: Array.isArray(body.checks) ? (body.checks as PushCheck[]) : [],
+        message: 'The store says something staged cannot be written as it is. Nothing was written. Fix it in the stepper or remove it, then preview again.',
+      };
     case 'nothing_staged':
       return { kind: 'invalid', message: 'Nothing is staged for this app.', problems: [] };
     case 'staged_invalid':
@@ -529,6 +562,7 @@ export const shouldReloadStaged = (failure: PushFailure): boolean =>
   failure.kind === 'partial' ||
   failure.kind === 'restage' ||
   failure.kind === 'invalid' ||
+  failure.kind === 'blocked' ||
   failure.kind === 'state_changed' ||
   failure.kind === 'outcome_unknown' ||
   failure.kind === 'disabled';
@@ -542,8 +576,9 @@ export const confirmPhrase = (preview: Pick<DraftPreview, 'app'>): string => pre
 export const confirmationMatches = (typed: string, phrase: string): boolean => typed.trim() !== '' && typed.trim().toLowerCase() === phrase.toLowerCase();
 
 /** The push needs something to do, the acknowledgement and the typed name. */
-export function canConfirmPush(preview: Pick<DraftPreview, 'app' | 'summary'>, typed: string, acknowledged: boolean): boolean {
+export function canConfirmPush(preview: Pick<DraftPreview, 'app' | 'summary'> & { checks?: DraftPreview['checks'] }, typed: string, acknowledged: boolean): boolean {
   if (preview.summary.nothingToDo) return false;
+  if (preview.checks && (preview.checks.blocking.length > 0 || !preview.checks.canPush)) return false;
   return acknowledged && confirmationMatches(typed, confirmPhrase(preview));
 }
 
@@ -552,6 +587,8 @@ export function previewSummaryText(summary: DraftPreview['summary']): string {
   const parts: string[] = [];
   if (summary.textChanged > 0) parts.push(`${plural(summary.textChanged, 'text', 'texts')} will change`);
   if (summary.textUnchanged > 0) parts.push(`${plural(summary.textUnchanged, 'text is', 'texts are')} already the same`);
+  if ((summary.fieldsChanged ?? 0) > 0) parts.push(`${plural(summary.fieldsChanged ?? 0, 'release field', 'release fields')} will change`);
+  if ((summary.fieldsUnchanged ?? 0) > 0) parts.push(`${plural(summary.fieldsUnchanged ?? 0, 'release field is', 'release fields are')} already the same`);
   if (summary.assetSetsChanged > 0) parts.push(`${plural(summary.assetSetsChanged, 'graphic set', 'graphic sets')} will change`);
   if (summary.assetSetsUnchanged > 0) parts.push(`${plural(summary.assetSetsUnchanged, 'graphic set is', 'graphic sets are')} already the same`);
   if (summary.filesToUpload > 0) parts.push(`${plural(summary.filesToUpload, 'file', 'files')} will be uploaded`);
@@ -562,6 +599,12 @@ export function previewSummaryText(summary: DraftPreview['summary']): string {
 export function previewTextStatus(t: Pick<PreviewText, 'status'>): { label: string; tone: StagedTone } {
   if (t.status === 'new_locale') return { label: 'New locale in the draft', tone: 'warn' };
   if (t.status === 'unchanged') return { label: 'Already the same', tone: 'neutral' };
+  return { label: 'Will change', tone: 'info' };
+}
+
+export function previewFieldStatus(f: Pick<PreviewReleaseField, 'status'>): { label: string; tone: StagedTone } {
+  if (f.status === 'local') return { label: 'Kept here only', tone: 'neutral' };
+  if (f.status === 'unchanged') return { label: 'Already the same', tone: 'neutral' };
   return { label: 'Will change', tone: 'info' };
 }
 

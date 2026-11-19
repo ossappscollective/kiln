@@ -1,6 +1,5 @@
 import { type Platform, platformLabel } from '@mrm/core';
-import { withHeaderParams } from './app-header.ts';
-import { appAddress } from './app-scope.ts';
+import { releaseStepHref } from './release-stepper.ts';
 import { canDispatchWorkflow } from './ci.ts';
 import type { ActiveRun, AppBuild, CiWorkflow, WorkflowInputSpec } from './types.ts';
 import type { WorkflowEntry } from './workflows.ts';
@@ -137,9 +136,9 @@ export function matchingBuilds(
     .sort((a, b) => (b.uploadedAt ?? b.syncedAt) - (a.uploadedAt ?? a.syncedAt));
 }
 
-/** Where "Prepare release" goes for a build: the releases tab with its version selected (for now). */
+/** Where "Prepare release" goes for a build: the Build step of the stepper on the releases tab, with its version selected. */
 export function prepareReleaseHref(appId: string, build: Pick<AppBuild, 'platform' | 'version'>, scopeIsBoth: boolean): string {
-  return withHeaderParams(appAddress(appId, 'releases', scopeIsBoth ? 'both' : build.platform), { version: build.version });
+  return releaseStepHref(appId, scopeIsBoth ? 'both' : build.platform, 'build', build.version);
 }
 
 /** The line shown with the started run, by what is known about it. */

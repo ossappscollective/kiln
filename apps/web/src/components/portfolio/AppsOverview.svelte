@@ -9,6 +9,7 @@
   import type { AppGroup } from '../../lib/app-groups.ts';
   import { type OverviewRow, type PlatformCell } from '../../lib/app-overview.ts';
   import { appAddress } from '../../lib/app-scope.ts';
+  import { unfinishedItem } from '../../lib/release-pipeline.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import SyncStatus from './SyncStatus.svelte';
@@ -115,6 +116,14 @@
                 <span class="muted">{g.members.every((m) => m.lastSyncedAt === null) ? 'Not synced yet' : 'No releases'}</span>
               {/if}
               {#if row.syncFailed}<Badge tone="bad" icon="alert">Sync failed</Badge>{/if}
+              {#each row.unfinished as left (left.app.id)}
+                {@const item = unfinishedItem({ appId: left.app.id, platform: left.app.platform, scope: left.app.platform, several: false, stalled: left.stalled })}
+                {#if item}
+                  <a class="unfinished" href={item.href ?? undefined} title={item.detail ?? undefined}>
+                    <Badge tone="warn" icon="clock">Release left unfinished{g.members.length > 1 ? `: ${left.app.platform === 'android' ? 'Android' : left.app.platform === 'macos' ? 'macOS' : 'iOS'}` : ''}</Badge>
+                  </a>
+                {/if}
+              {/each}
             </div>
           </td>
           <td>

@@ -116,6 +116,18 @@ export function progressInfo(run: Pick<ActiveRun, 'status' | 'progress'>): Progr
 // ---------------------------------------------------------------------------------------------
 // One app
 
+/** The apps a run was started for. `appIds` when the server sends it, else the one `appId`; empty for none. */
+export function runAppIds(run: Pick<WorkflowRun, 'appId'> & { appIds?: readonly string[] }): string[] {
+  if (run.appIds !== undefined) return [...run.appIds];
+  return run.appId === null ? [] : [run.appId];
+}
+
+/** The names of the apps a run was started for, in the order of `apps`. Empty when it was started for none. */
+export function runAppNames(run: Pick<WorkflowRun, 'appId'> & { appIds?: readonly string[] }, apps: readonly { id: string; name: string }[]): string[] {
+  const ids = runAppIds(run);
+  return apps.filter((a) => ids.indexOf(a.id) >= 0).map((a) => a.name);
+}
+
 const workflowMatches = (run: Pick<WorkflowRun, 'workflow' | 'workflowPath'>, wanted: string) =>
   run.workflowPath === wanted || run.workflowPath?.split('/').pop() === wanted || run.workflow === wanted;
 
@@ -146,7 +158,7 @@ export function scopeRunsToApps(runs: readonly ActiveRun[], targets: readonly Ap
     targets.some(
       (t) =>
         t.repositoryId === r.repositoryId &&
-        (r.appId === t.id || (r.appId === null && t.workflow !== null && workflowMatches(r, t.workflow))),
+        (runAppIds(r).indexOf(t.id) >= 0 || (runAppIds(r).length === 0 && t.workflow !== null && workflowMatches(r, t.workflow))),
     ),
   );
   return tied.length > 0 ? { runs: tied, linked: true } : { runs: inRepos, linked: false };

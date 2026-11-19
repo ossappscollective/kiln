@@ -23,6 +23,10 @@ import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './
 import type { InspectedFile, PullReport, PullSelection, ToRepoResult, UploadQuery } from './assets-sync.ts';
 import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
 import type { StoreSubmitConfig, SubmitPreview, SubmitResult, SubmitState } from './store-submit.ts';
+import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
+import type { NotesHistory } from './release-notes.ts';
+import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
+import type { ReleaseBody, ReleasePreview, ReleaseResult, StoreReleaseConfig, StoreReleaseState } from './store-release.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
 import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
@@ -710,7 +714,7 @@ export function createApi(options: ApiOptions = {}) {
       workspaceId: string,
       repositoryId: string,
       workflow: string,
-      input: { ref?: string; inputs?: Record<string, string>; appId?: string },
+      input: { ref?: string; inputs?: Record<string, string>; appId?: string; appIds?: string[] },
     ) =>
       request<DispatchResult>(
         'POST',
@@ -868,6 +872,41 @@ export function createApi(options: ApiOptions = {}) {
       request<{ preview: SubmitPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit/preview`, {}),
     storeSubmit: (workspaceId: string, appId: string, body: { confirmHash: string; confirmation: string }) =>
       request<{ result: SubmitResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`, body),
+    // Preparing a release (docs/api/releases-write.md): reads of the store for the build picker, the draft and the
+    // earlier notes; staging is the existing staged route and writes nothing to a store.
+    releaseCandidates: (workspaceId: string, appId: string, query: { track?: string; version?: string } = {}) => {
+      const q = new URLSearchParams();
+      if (query.track) q.set('track', query.track);
+      if (query.version) q.set('version', query.version);
+      const text = q.toString();
+      return request<{ candidates: ReleaseCandidates }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/candidates${text ? `?${text}` : ''}`);
+    },
+    releaseEditable: (workspaceId: string, appId: string, track?: string) =>
+      request<{ editable: EditableRelease }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/editable${track ? `?track=${encodeURIComponent(track)}` : ''}`),
+    releaseNotesHistory: (workspaceId: string, appId: string, query: { platform?: string; locale?: string; limit?: number } = {}) => {
+      const q = new URLSearchParams();
+      if (query.platform) q.set('platform', query.platform);
+      if (query.locale) q.set('locale', query.locale);
+      if (query.limit) q.set('limit', String(query.limit));
+      const text = q.toString();
+      return request<{ history: NotesHistory }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/notes-history${text ? `?${text}` : ''}`);
+    },
+    /** Stages one release field (a build, a version, a track, ...). Nothing reaches a store. */
+    stageReleaseField: (workspaceId: string, appId: string, body: { field: string; locale?: string; value: string }) =>
+      request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/release-fields`, body),
+    // The release pipeline (docs/api/release-pipeline.md): reads of our own database.
+    releasePipeline: (workspaceId: string, appId: string) =>
+      request<AppPipeline>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/pipeline`),
+    releasePipelineSummary: (workspaceId: string) => request<PipelineSummary>('GET', `${workspace(workspaceId)}/release/pipeline/summary`),
+    // Releasing (docs/api/releases-write.md): a SEPARATE, IRREVERSIBLE store write, off by default. Like submit:
+    // `storeRelease` is sent once with the preview's hash and the typed phrase, and never retried by this app.
+    storeReleaseConfig: (workspaceId: string) => request<StoreReleaseConfig>('GET', `${workspace(workspaceId)}/store-release/config`),
+    appStoreRelease: (workspaceId: string, appId: string) =>
+      request<{ release: StoreReleaseState }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`),
+    previewStoreRelease: (workspaceId: string, appId: string, body: ReleaseBody) =>
+      request<{ preview: ReleasePreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release/preview`, body),
+    storeRelease: (workspaceId: string, appId: string, body: ReleaseBody & { confirmHash: string; confirmation: string }) =>
+      request<{ result: ReleaseResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`, body),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>

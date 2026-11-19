@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { attentionCount, badgeLabel, badgeText, unansweredCount } from './nav-badges.ts';
+import { appNavCounts, attentionCount, badgeLabel, badgeText, unansweredCount } from './nav-badges.ts';
 import type { ReleaseSummary } from './types.ts';
 
 const release = (status: ReleaseSummary['status']) => ({ status }) as ReleaseSummary;
@@ -48,4 +48,16 @@ test('a badge has a name for a screen reader', () => {
   assert.equal(badgeLabel(250, 'unanswered review', 'unanswered reviews'), '99+ unanswered reviews');
   assert.equal(badgeLabel(0, 'a', 'b'), null);
   assert.equal(badgeLabel(null, 'a', 'b'), null);
+});
+
+test('the sidebar of one app: unanswered reviews of its records, and releases left unfinished', () => {
+  const stalled = [
+    { app: { id: 'a' }, stalled: { stale: false } },
+    { app: { id: 'b' }, stalled: { stale: true } },
+    { app: { id: 'z' }, stalled: { stale: false } },
+    { app: { id: 'c' }, stalled: null },
+  ];
+  assert.deepEqual(appNavCounts({ memberIds: ['a', 'b'], unanswered: { a: 2, b: 3, z: 9 }, stalled }), { reviews: 5, releases: 1 });
+  assert.deepEqual(appNavCounts({ memberIds: ['a', 'b'], unanswered: {}, stalled: [] }), { reviews: null, releases: null });
+  assert.deepEqual(appNavCounts({ memberIds: ['a'], unanswered: { a: 0 }, stalled }), { reviews: 0, releases: 1 });
 });

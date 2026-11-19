@@ -7,6 +7,7 @@
   import { buildOverviewRows, overviewStats } from '../lib/app-overview.ts';
   import { attentionCount, unansweredCount } from '../lib/nav-badges.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
     type BatchResult,
@@ -77,7 +78,8 @@
 
   const sorted = $derived(apps ? sortApps(apps) : []);
   const groups = $derived(groupApps(apps ?? []));
-  const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null));
+  const pipelineApps = $derived(pipelineStore.summary(workspaceId)?.apps ?? null);
+  const rows = $derived(buildOverviewRows(groups, releases, reviewSummary?.apps ?? null, pipelineApps));
   const stats = $derived(overviewStats(rows));
   const batchRunning = $derived(batch?.running === true);
   const busy = $derived(batchRunning || Object.values(syncing).some(Boolean));
@@ -90,7 +92,13 @@
     if (settled) navSignals.setAttention(space, attentionCount(rows));
   });
   $effect(() => {
-    if (reviewSummary) navSignals.setUnanswered(workspaceId, unansweredCount(reviewSummary));
+    if (reviewSummary) {
+      navSignals.setUnanswered(workspaceId, unansweredCount(reviewSummary));
+      // The per-app counts for the sidebar of an open app.
+      const counts: Record<string, number> = {};
+      for (const a of reviewSummary.apps) counts[a.app.id] = a.unanswered;
+      navSignals.setUnansweredByApp(workspaceId, counts);
+    }
   });
 
   // Going back from an app to the overview remembers the app, so focus can return to its link.
@@ -149,6 +157,7 @@
       apps = list;
       navSignals.setApps(workspaceId, list);
       void loadReviewSummary(mine);
+      if (canRead) void pipelineStore.loadSummary(api, workspaceId);
       await loadReleases(list, mine);
     } catch (e) {
       if (mine !== generation) return;
