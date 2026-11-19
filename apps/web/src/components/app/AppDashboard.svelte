@@ -8,10 +8,11 @@
   is left out, and a kind of item with nothing to show is not drawn. With nothing to flag, the cards use
   the whole width. Nothing here reads a store or writes anything by itself: the submit button only opens a dialog,
   whose preview reads the store and whose confirmation is the one write.
-  Props: api, workspaceId, role, members (the records in scope), releases (by app id), now, canSync,
+  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id), now, canSync,
   syncing (by app id), onsync, syncRuns (changes when a sync finished, so the reads run again).
   Above the cards, "Running now" lists the GitHub Actions runs of the app's repository that are going
-  (it draws nothing when none is); see components/ci/RunningNow.svelte.
+  (it draws nothing when none is); see components/ci/RunningNow.svelte. Above it, "Start release"
+  (StartRelease): the run it starts shows in that same list, and "Prepare release" appears when its build does.
 -->
 <script lang="ts">
   import { type Role, can, platformLabel } from '@mrm/core';
@@ -21,13 +22,14 @@
   import { attentionItems, stagedUnpushedCount } from '../../lib/app-attention.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { scopeRunsToApps } from '../../lib/running.ts';
+  import { type StartedRun, isStartedRun } from '../../lib/start-release.ts';
   import { buildMatrix, modeCounts } from '../../lib/listing-matrix.ts';
   import { latestRelease, liveRelease, trackLabel } from '../../lib/portfolio.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import { canSubmit } from '../../lib/store-submit.ts';
   import { submitStore } from '../../lib/store-submit-store.svelte.ts';
   import type { AsoSummary } from '../../lib/aso.ts';
-  import type { AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
+  import type { ActiveRuns, AppBuild, AppSummary, ListingDrift, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
   import Button from '../ui/Button.svelte';
@@ -35,12 +37,14 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
   import AttentionList from './AttentionList.svelte';
+  import StartRelease from './StartRelease.svelte';
 
   let {
     api,
     workspaceId,
     role,
     members,
+    all,
     releases,
     now,
     canSync,
@@ -52,6 +56,7 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
+    all?: AppSummary[];
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     canSync: boolean;
@@ -66,6 +71,11 @@
   let plans = $state<Record<string, PlanSummary[] | undefined>>({});
   let asoSummaries = $state<Record<string, AsoSummary | undefined>>({});
   let generation = 0;
+
+  // The run started from "Start release": it is shown in "Running now" even when the app's tied runs hide it,
+  // and its answers go back to StartRelease so it can look for the build.
+  let startRelease = $state<{ observe: (data: ActiveRuns) => void }>();
+  let startedRun = $state<StartedRun | null>(null);
 
   // Running now: the runs of the repositories of this app. They are tied to the app when started for it
   // or when they are its release workflow (the build conventions); otherwise the repository's are shown.
@@ -199,6 +209,8 @@
   );
 </script>
 
+<div class="start-row"><StartRelease bind:this={startRelease} {api} {workspaceId} {role} {members} {all} scopeIsBoth={members.length > 1} showRunning={false} onstarted={(s) => (startedRun = s)} /></div>
+
 {#if showRunning}
   <RunningNow
     {api}
@@ -206,11 +218,16 @@
     {repositoryIds}
     apps={members}
     stateKey="ci.running.recent.app"
-    scope={(runs) =>
-      scopeRunsToApps(
+    ondata={(d) => startRelease?.observe(d)}
+    scope={(runs) => {
+      const base = scopeRunsToApps(
         runs,
         members.map((m) => ({ id: m.id, repositoryId: m.repositoryId, workflow: releaseWorkflows[m.id] ?? null })),
-      )}
+      );
+      const started = startedRun;
+      const extra = started ? runs.filter((r) => isStartedRun(r, started) && base.runs.indexOf(r) < 0) : [];
+      return extra.length > 0 ? { ...base, runs: [...base.runs, ...extra] } : base;
+    }}
   />
 {/if}
 
@@ -266,6 +283,10 @@
 </div>
 
 <style>
+  .start-row:has(:global(.head)) {
+    margin-bottom: var(--space-4);
+  }
+
   .layout {
     display: grid;
     gap: var(--space-4);

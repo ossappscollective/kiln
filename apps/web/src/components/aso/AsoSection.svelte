@@ -12,7 +12,8 @@
   import { untrack } from 'svelte';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViews, withAsoView } from '../../lib/aso.ts';
+  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViews, localesOf, withAsoView } from '../../lib/aso.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -79,6 +80,11 @@
     await load();
     version += 1;
   }
+
+  // The locales of the tracked keywords are what the page header offers.
+  $effect(() => {
+    for (const m of members) navSignals.setLocales(workspaceId, m.id, localesOf(keywords.filter((k) => k.appId === m.id)));
+  });
 
   // The config is workspace wide; a token limited to some apps may not read it, which only hides the pill.
   $effect(() => {

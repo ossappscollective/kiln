@@ -1,30 +1,49 @@
 <!--
   AppNav: the left panel while an app is open. It replaces the workspace navigation, so the whole
-  UI is scoped to the app. Each link keeps the platform scope of the address.
-  Props: address (the open app: id, section, platform), allowed (does the role have this action).
+  UI is scoped to the app. Each link keeps the platform scope of the address, and the version and locale
+  of the page header (?version=&locale=), so the tabs share them. Each entry shows its `g` shortcut as a quiet
+  hint (on hover, on focus, and while the first key is waiting). The "All apps" link carries the number of
+  apps that need attention, when the overview has loaded it.
+  Props: address (the open app: id, section, platform), allowed (does the role have this action), attention?
+  (the number of apps that need attention, or null).
 -->
 <script lang="ts">
   import type { Action } from '@mrm/core';
-  import { appContext } from '../../lib/address.svelte.ts';
+  import { address as pageAddress, appContext } from '../../lib/address.svelte.ts';
+  import { carryHeaderParams } from '../../lib/app-header.ts';
   import { type AppAddress, appAddress, visibleSections } from '../../lib/app-scope.ts';
+  import { badgeLabel, badgeText } from '../../lib/nav-badges.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { portfolioHref } from '../../lib/portfolio.ts';
+  import { chordHint } from '../../lib/shortcuts.ts';
   import Icon from '../ui/Icon.svelte';
 
-  let { address, allowed }: { address: AppAddress; allowed: (action: Action) => boolean } = $props();
+  let {
+    address,
+    allowed,
+    attention = null,
+  }: { address: AppAddress; allowed: (action: Action) => boolean; attention?: number | null } = $props();
 
   const sections = $derived(visibleSections(allowed));
 </script>
 
-<div class="app-nav">
-  <a class="back" href={portfolioHref}><Icon name="chevron-left" size={16} /> All apps</a>
+<div class="app-nav" class:chord={navSignals.chordPending}>
+  <a class="back" href={portfolioHref}>
+    <Icon name="chevron-left" size={16} /> All apps
+    {#if badgeText(attention)}
+      <span class="badge warn nav-count">{badgeText(attention)}<span class="visually-hidden"> {badgeLabel(attention, 'app needs attention', 'apps need attention')}</span></span>
+    {/if}
+  </a>
   {#if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
   <nav aria-label="This app">
     <ul>
       {#each sections as s (s.id)}
+        {@const hint = chordHint('app', s.id)}
         <li>
-          <a href={appAddress(address.id, s.id, address.platform)} aria-current={address.section === s.id ? 'page' : undefined}>
+          <a href={carryHeaderParams(appAddress(address.id, s.id, address.platform), pageAddress.hash)} aria-current={address.section === s.id ? 'page' : undefined}>
             <Icon name={s.icon} size={18} />
             <span>{s.label}</span>
+            {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
           </a>
         </li>
       {/each}

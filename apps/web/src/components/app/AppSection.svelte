@@ -5,13 +5,15 @@
   Props: api, workspaceId, role, section, members (records in scope), all? (every record of the app, to
   tell that a macOS record's reviews are the iOS record's; the members when not given), openId (the id in the
   address), version (an open release or null), releases (by app id), now, syncRuns, syncing (by app
-  id), onsync.
+  id), onsync, lockedPlatforms? (platforms whose selected version is locked: listing and assets are read-only for
+  them), locale? (the locale of the page header).
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Platform, type Role, can } from '@mrm/core';
   import type { Snippet } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { address } from '../../lib/address.svelte.ts';
+  import { address, replaceHash } from '../../lib/address.svelte.ts';
+  import { withHeaderParams } from '../../lib/app-header.ts';
   import type { AppSection } from '../../lib/app-scope.ts';
   import { appAddress, appWorkflowsHref } from '../../lib/app-scope.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -45,6 +47,8 @@
     syncRuns,
     syncing,
     onsync,
+    lockedPlatforms = [],
+    locale = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -59,6 +63,8 @@
     syncRuns: number;
     syncing: Record<string, boolean | undefined>;
     onsync: (app: AppSummary) => void;
+    lockedPlatforms?: Platform[];
+    locale?: string | null;
   } = $props();
 
   const canSync = $derived(can(role, 'apps.sync'));
@@ -70,7 +76,7 @@
 </script>
 
 {#snippet assets(app: AppSummary)}
-  <AssetsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
+  <AssetsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} locked={lockedPlatforms.indexOf(app.platform) >= 0} {locale} />
 {/snippet}
 {#snippet reviews(app: AppSummary)}
   {@const owner = reviewsOwner(app, all ?? members)}
@@ -118,9 +124,21 @@
 {#if section === 'releases' && version !== null}
   <ReleaseDetail {api} {workspaceId} {role} appId={openId} {version} />
 {:else if section === 'releases'}
-  <AppReleases {api} {workspaceId} {role} {members} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
+  <AppReleases {api} {workspaceId} {role} {members} {all} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
 {:else if section === 'listing'}
-  <ListingMatrix {api} {workspaceId} {role} {members} {now} {syncing} {onsync} refreshKey={syncRuns} />
+  <ListingMatrix
+    {api}
+    {workspaceId}
+    {role}
+    {members}
+    {now}
+    {syncing}
+    {onsync}
+    refreshKey={syncRuns}
+    {lockedPlatforms}
+    {locale}
+    onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
+  />
 {:else if section === 'assets'}
   {@render perPlatform(assets)}
 {:else if section === 'reviews'}
@@ -138,7 +156,7 @@
 {:else if section === 'settings'}
   <AppSettings {api} {workspaceId} {role} {members} {all} {now} />
 {:else}
-  <AppDashboard {api} {workspaceId} {role} {members} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
+  <AppDashboard {api} {workspaceId} {role} {members} {all} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
 {/if}
 
 <style>

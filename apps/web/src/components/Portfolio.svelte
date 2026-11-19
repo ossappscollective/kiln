@@ -5,6 +5,8 @@
   import { address } from '../lib/address.svelte.ts';
   import { type AppGroup, groupApps, groupOf } from '../lib/app-groups.ts';
   import { buildOverviewRows, overviewStats } from '../lib/app-overview.ts';
+  import { attentionCount, unansweredCount } from '../lib/nav-badges.ts';
+  import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { type ViewMode, readViewMode, saveViewMode } from '../lib/dashboard.ts';
   import {
     type BatchResult,
@@ -80,6 +82,17 @@
   const batchRunning = $derived(batch?.running === true);
   const busy = $derived(batchRunning || Object.values(syncing).some(Boolean));
 
+  // What the sidebar counts: apps that need attention (once every release of the list has loaded) and the
+  // unanswered reviews (when the summary has the field). Nothing is read for this.
+  $effect(() => {
+    const space = workspaceId;
+    const settled = apps !== null && rows.every((r) => [r.ios, r.macos, r.android].every((c) => c === null || c.state !== 'loading'));
+    if (settled) navSignals.setAttention(space, attentionCount(rows));
+  });
+  $effect(() => {
+    if (reviewSummary) navSignals.setUnanswered(workspaceId, unansweredCount(reviewSummary));
+  });
+
   // Going back from an app to the overview remembers the app, so focus can return to its link.
   let wasOpen = '';
   $effect(() => {
@@ -134,6 +147,7 @@
       const list = (await api.apps(workspaceId)).apps;
       if (mine !== generation) return;
       apps = list;
+      navSignals.setApps(workspaceId, list);
       void loadReviewSummary(mine);
       await loadReleases(list, mine);
     } catch (e) {

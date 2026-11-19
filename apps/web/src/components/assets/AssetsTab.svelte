@@ -13,14 +13,20 @@
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when a sync finished, so this
   tab reads again), storeSide? (the seam for the store side: the counts the store has per locale,
   kind and device. Left out, the tab uses the one in the index, which is null today, so each set
-  says "Not yet compared with the store").
+  says "Not yet compared with the store"), locked? (the selected version is live or in review: no staging, no file
+  editing and no tray; the images, the comparison with the store and the pull stay), locale? (the locale of the
+  page header, which narrows the sets to it; the tab's own Locale select writes it back to the address).
+  The locales found are handed to the header picker (lib/nav-signals.svelte.ts).
   States: loading, error (with retry), no repository linked, no media found (with the folders that
   were searched), partial (a limit was reached: it says what was left out), ready.
 -->
 <script lang="ts">
   import { type AssetDiffView, type AssetKind, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
+  import { replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { withHeaderParams } from '../../lib/app-header.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import {
     ALL,
     NO_FILTER,
@@ -78,6 +84,8 @@
     now,
     refreshKey,
     storeSide = undefined,
+    locked = false,
+    locale = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -86,6 +94,8 @@
     now: number;
     refreshKey: number;
     storeSide?: AssetStoreSide | null;
+    locked?: boolean;
+    locale?: string | null;
   } = $props();
 
   const allowed = $derived(can(role, 'listing.read'));
@@ -149,6 +159,20 @@
     }
     untrack(() => void load());
   });
+
+  // The locales found are what the header picker offers; the header's locale narrows the sets (and back).
+  $effect(() => {
+    if (index) navSignals.setLocales(workspaceId, app.id, [...new Set(index.assets.map((a) => a.locale))]);
+  });
+  $effect(() => {
+    const want = locale ?? ALL;
+    const found = index;
+    untrack(() => {
+      const known = want === ALL || (found !== null && found.assets.some((a) => a.locale === want));
+      if (found !== null && known && filter.locale !== want) filter = { ...filter, locale: want };
+    });
+  });
+  const writeLocale = (value: string) => replaceHash(withHeaderParams(location.hash, { locale: value === ALL ? null : value }));
 
   const summaries = $derived(index ? groupSummaries(index, app.platform) : []);
   const slice = $derived(index ? sliceIndex(index, asGroupId(group)) : { assets: [], sets: [], problems: [] });
@@ -376,7 +400,7 @@
       <Alert tone="error" title="Could not read the media again">{loadProblem} The files below are from before.</Alert>
     {/if}
 
-    <StagedTray {api} {workspaceId} {role} members={[app]} />
+    {#if !locked}<StagedTray {api} {workspaceId} {role} members={[app]} />{/if}
 
     {#if index.status === 'no_repository'}
       <div class="card">
@@ -431,6 +455,7 @@
             <InfoTip label="About staging" align="end" width="24rem">
               <p>Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</p>
             </InfoTip>
+            {#if !locked}
             <Button
               size="sm"
               icon="layers"
@@ -439,6 +464,7 @@
               title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
               onclick={stageAll}
             >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
+            {/if}
             <Button size="sm" icon="eye" onclick={() => openCompare('', null)} title="Reads what the store holds now (a read, nothing is written there) and shows how it differs from the repository.">Compare with the store</Button>
             <Button size="sm" icon="download" disabled={!mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Downloads the store\'s images into a draft change set.'} onclick={() => pullFromStore(null)}>Pull from store</Button>
           </div>
@@ -447,7 +473,7 @@
         {#if selection.length > 0}
           <section class="bulk" aria-label="Selected sets">
             <span><strong>{selection.length}</strong> {selection.length === 1 ? 'set' : 'sets'} selected</span>
-            <Button size="sm" icon="layers" loading={bulkBusy} disabled={bulkBusy || stagingAll || stagingId !== '' || !canStage(role)} title={!canStage(role) ? STAGE_ROLE_REASON : undefined} onclick={stageSelected}>Stage selected</Button>
+            {#if !locked}<Button size="sm" icon="layers" loading={bulkBusy} disabled={bulkBusy || stagingAll || stagingId !== '' || !canStage(role)} title={!canStage(role) ? STAGE_ROLE_REASON : undefined} onclick={stageSelected}>Stage selected</Button>{/if}
             <Button size="sm" icon="download" disabled={bulkBusy || !mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Pulls the store\'s images of the selected sets into a draft change set.'} onclick={() => pullFromStore(selection.map((p) => storeKeyOf(app.platform, p.locale, p.kind, p.device)))}>Pull selected</Button>
             <Button size="sm" variant="ghost" disabled={bulkBusy} onclick={() => (selection = [])}>Clear selection</Button>
           </section>
@@ -483,7 +509,10 @@
                 <div class="filters">
                   <div class="field">
                     <label for="asset-locale-{app.id}">Locale</label>
-                    <select id="asset-locale-{app.id}" value={active.locale} onchange={(e) => (filter = { ...filter, locale: e.currentTarget.value })}>
+                    <select id="asset-locale-{app.id}" value={active.locale} onchange={(e) => {
+                        filter = { ...filter, locale: e.currentTarget.value };
+                        writeLocale(e.currentTarget.value);
+                      }}>
                       <option value={ALL}>All locales</option>
                       {#each options.locales as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
                     </select>
@@ -507,7 +536,10 @@
                     </div>
                   {/if}
                   {#if isFiltered(active)}
-                    <Button variant="ghost" onclick={() => (filter = { ...NO_FILTER })}>Clear filters</Button>
+                    <Button variant="ghost" onclick={() => {
+                      filter = { ...NO_FILTER };
+                      writeLocale(ALL);
+                    }}>Clear filters</Button>
                   {/if}
                 </div>
 
@@ -515,7 +547,10 @@
                   <div class="card">
                     <EmptyState icon="filter" title="Nothing matches the filters" description="Choose another locale, device or kind.">
                       {#snippet actions()}
-                        <Button onclick={() => (filter = { ...NO_FILTER })}>Clear filters</Button>
+                        <Button onclick={() => {
+                      filter = { ...NO_FILTER };
+                      writeLocale(ALL);
+                    }}>Clear filters</Button>
                       {/snippet}
                     </EmptyState>
                   </div>
@@ -529,14 +564,14 @@
                     {problemMap}
                     storeSide={seam}
                     onopen={openAsset}
-                    {stageFor}
-                    onstage={stageSet}
-                    onunstage={(id) => unstageSet(id)}
+                    stageFor={locked ? undefined : stageFor}
+                    onstage={locked ? undefined : stageSet}
+                    onunstage={locked ? undefined : (id) => unstageSet(id)}
                     {stagingId}
                     {diff}
                     selected={selectedIds}
                     ontoggle={toggleSelected}
-                    onedit={openEditor}
+                    onedit={locked ? undefined : openEditor}
                     oncompare={(locale, set) => openCompare(locale, set)}
                   />
                 {/if}

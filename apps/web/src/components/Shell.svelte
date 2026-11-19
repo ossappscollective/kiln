@@ -3,11 +3,18 @@
   import type { Api } from '../lib/api.ts';
   import { can } from '@mrm/core';
   import { address, appContext } from '../lib/address.svelte.ts';
-  import { parseViewPath } from '../lib/app-scope.ts';
+  import { carryHeaderParams } from '../lib/app-header.ts';
+  import { groupApps } from '../lib/app-groups.ts';
+  import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
+  import { jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
+  import { badgeLabel, badgeText } from '../lib/nav-badges.ts';
+  import { navSignals } from '../lib/nav-signals.svelte.ts';
+  import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';
   import type { Me } from '../lib/types.ts';
   import { views } from '../lib/views.ts';
   import AppNav from './app/AppNav.svelte';
+  import AppSwitcher from './app/AppSwitcher.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import Icon from './ui/Icon.svelte';
@@ -51,6 +58,87 @@
   const workspaceViews = $derived(visibleViews.filter((v) => v.group === 'workspace'));
   /** The open app: while one is open its panel replaces the workspace navigation. */
   const appAddr = $derived(current?.id === 'portfolio' ? address.app : null);
+
+  // ---- Counts beside the navigation, the app switcher and the keyboard shortcuts (lib/shortcuts.ts)
+  const canApps = $derived(workspace ? can(workspace.role, 'apps.read') : false);
+  const attention = $derived(canApps ? navSignals.attentionOf(workspaceId) : null);
+  const unanswered = $derived(workspace && can(workspace.role, 'reviews.read') ? navSignals.unansweredOf(workspaceId) : null);
+  const switcherList = $derived.by(() => {
+    const apps = canApps ? navSignals.appsOf(workspaceId) : null;
+    return apps ? switcherItems(groupApps(apps)) : null;
+  });
+  const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform ?? '');
+  const modKey = isMac ? 'Cmd' : 'Ctrl';
+  let switcherOpen = $state(false);
+  let chord: ChordState = idleChord;
+  let chordTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function openSwitcher() {
+    if (!canApps) return;
+    switcherOpen = true;
+    void navSignals.ensureApps(api, workspaceId);
+  }
+
+  function pickApp(item: SwitcherItem) {
+    location.hash = appAddress(item.key);
+  }
+
+  function setChord(next: ChordState) {
+    chord = next;
+    navSignals.chordPending = next.pendingAt !== null;
+    if (chordTimer !== null) clearTimeout(chordTimer);
+    chordTimer = null;
+    if (next.pendingAt !== null) {
+      chordTimer = setTimeout(() => {
+        chord = idleChord;
+        navSignals.chordPending = false;
+      }, CHORD_TIMEOUT_MS);
+    }
+  }
+
+  /** Capture phase, so a consumed key (the letter after `g`) never reaches the single-key shortcuts of a screen. */
+  function onShortcut(event: KeyboardEvent) {
+    if (!workspace) return;
+    const step = stepShortcut(
+      chord,
+      {
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        repeat: event.repeat,
+        typing: isTypingTarget(event.target as HTMLElement | null),
+        dialogOpen: document.querySelector('dialog[open]') !== null,
+      },
+      Date.now(),
+      appAddr ? 'app' : 'workspace',
+    );
+    setChord(step.state);
+    const action = step.action;
+    if (!action) return;
+    if (step.consume) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (action.type === 'open-switcher') {
+      openSwitcher();
+    } else if (action.type === 'jump-app') {
+      if (!canApps) return;
+      const index = action.index;
+      void navSignals.ensureApps(api, workspaceId).then((apps) => {
+        const item = apps ? jumpTarget(switcherItems(groupApps(apps)), index) : null;
+        if (item) pickApp(item);
+      });
+    } else if (action.type === 'go') {
+      if (appAddr && workspace) {
+        const allowedHere = visibleSections((a) => can(workspace.role, a)).some((s) => s.id === action.target);
+        if (allowedHere) location.hash = carryHeaderParams(appAddress(appAddr.id, action.target as AppSection, appAddr.platform), address.hash);
+      } else if (visibleViews.some((v) => v.id === action.target)) {
+        location.hash = `#/${action.target}`;
+      }
+    }
+  }
 
   let drawerOpen = $state(false);
   let menuOpen = $state(false);
@@ -138,13 +226,19 @@
   }
 </script>
 
-<svelte:window {onkeydown} {onpointerdown} />
+<svelte:window {onkeydown} {onpointerdown} onkeydowncapture={onShortcut} />
 
 {#snippet item(v: (typeof views)[number])}
+  {@const hint = chordHint('workspace', v.id)}
+  {@const count = v.id === 'portfolio' ? attention : v.id === 'reviews' ? unanswered : null}
   <li>
     <a href="#/{v.id}" aria-current={current?.id === v.id ? 'page' : undefined}>
       <Icon name={isIconName(v.icon) ? v.icon : 'box'} size={18} />
       <span>{v.label}</span>
+      {#if badgeText(count)}
+        <span class="badge nav-count {v.id === 'portfolio' ? 'warn' : 'accent'}">{badgeText(count)}<span class="visually-hidden"> {v.id === 'portfolio' ? badgeLabel(count, 'app needs attention', 'apps need attention') : badgeLabel(count, 'unanswered review', 'unanswered reviews')}</span></span>
+      {/if}
+      {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
     </a>
   </li>
 {/snippet}
@@ -177,9 +271,9 @@
       </div>
     {/if}
 
-    <div bind:this={navEl} class="nav-wrap">
+    <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} />
       {:else}
         <nav aria-label="Sections">
           <ul>
@@ -236,6 +330,14 @@
       </nav>
 
       <span class="spacer"></span>
+
+      {#if canApps}
+        <button type="button" class="ghost sm go" aria-label="Go to an app ({modKey} K)" onclick={openSwitcher}>
+          <Icon name="search" size={16} />
+          <span class="go-text">Go to app</span>
+          <kbd aria-hidden="true">{isMac ? '⌘' : 'Ctrl'} K</kbd>
+        </button>
+      {/if}
 
       <div class="user" bind:this={userEl} onfocusout={onUserFocusOut}>
         <button
@@ -297,6 +399,10 @@
     </main>
   </div>
 </div>
+
+{#if workspace && canApps}
+  <AppSwitcher bind:open={switcherOpen} items={switcherList} mod={modKey} onpick={pickApp} />
+{/if}
 
 <style>
   .skip-link {
@@ -468,6 +574,52 @@
 
   nav a[aria-current='page'] :global(.icon) {
     color: var(--accent);
+  }
+
+  /* Counts and shortcut hints beside a navigation entry (also those drawn by AppNav). Quiet by default:
+     a hint shows on hover, on keyboard focus, and while the first key of a `g` chord is waiting. */
+  .sidebar :global(.nav-count) {
+    margin-left: auto;
+  }
+
+  .sidebar :global(.nav-hint) {
+    padding: 0 var(--space-1);
+    margin-left: auto;
+    font-size: var(--text-xs);
+    line-height: 16px;
+    color: var(--muted);
+    border-bottom-width: 1px;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease);
+  }
+
+  .sidebar :global(.nav-count + .nav-hint) {
+    margin-left: var(--space-2);
+  }
+
+  .sidebar :global(nav a:hover .nav-hint),
+  .sidebar :global(nav a:focus-visible .nav-hint),
+  .sidebar :global(.chord .nav-hint) {
+    opacity: 1;
+  }
+
+  .go {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    color: var(--muted);
+  }
+
+  .go kbd {
+    font-size: var(--text-xs);
+    color: var(--muted);
+  }
+
+  @media (max-width: 700px) {
+    .go-text,
+    .go kbd {
+      display: none;
+    }
   }
 
   /* ---- Top bar ---- */

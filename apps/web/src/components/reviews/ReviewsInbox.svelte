@@ -22,6 +22,8 @@
   import type { Api } from '../../lib/api.ts';
   import { appReviewsHref } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { unansweredCount } from '../../lib/nav-badges.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { appLabel } from '../../lib/portfolio.ts';
   import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
   import {
@@ -166,6 +168,7 @@
   async function loadSummary() {
     try {
       summary = await api.workspaceReviewsSummary(workspaceId);
+      navSignals.setUnanswered(workspaceId, unansweredCount(summary));
       summaryProblem = '';
     } catch (e) {
       summaryProblem = reviewErrorMessage(e, 'load');
@@ -174,7 +177,13 @@
 
   function loadAll() {
     // Best effort: without these the inbox still works (no app names in the filter, no assignees).
-    void api.apps(workspaceId).then((r) => (apps = r.apps)).catch(() => {});
+    void api
+      .apps(workspaceId)
+      .then((r) => {
+        apps = r.apps;
+        navSignals.setApps(workspaceId, r.apps);
+      })
+      .catch(() => {});
     void api.members(workspaceId).then((r) => (members = r.members)).catch(() => {});
     void api.reviewReplyConfig(workspaceId).then((c) => (replyConfig = c)).catch(() => {});
     void loadSummary();

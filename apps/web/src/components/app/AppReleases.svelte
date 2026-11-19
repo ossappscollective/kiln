@@ -7,9 +7,11 @@
   rollout changes are switched off).
   The plans and the builds are extras: when they cannot be loaded the table still shows the store's
   releases, with the plan and CI cells reading "—".
-  Props: api, workspaceId, role, members (the records in scope), releases (by app id), now, canSync,
+  Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id), now, canSync,
   syncing (by app id), onsync, syncRuns (changes when a sync finished, so plans and builds reload).
-  The platform scope for links comes from the address.
+  The platform scope for links comes from the address. "Start release" (StartRelease) sits above the table: it opens the
+  dispatch dialog on the app's release workflow, follows the run it started and offers "Prepare release" when its build
+  appears.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -26,6 +28,7 @@
   import { platformLabel } from '../../lib/portfolio.ts';
   import type { AppBuild, AppSummary, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import ReleaseTable from '../release/ReleaseTable.svelte';
+  import StartRelease from './StartRelease.svelte';
   import RolloutControls from '../release/RolloutControls.svelte';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
@@ -37,6 +40,7 @@
     workspaceId,
     role,
     members,
+    all,
     releases,
     now,
     canSync,
@@ -48,6 +52,7 @@
     workspaceId: string;
     role: Role;
     members: AppSummary[];
+    all?: AppSummary[];
     releases: Record<string, ReleaseSummary[]>;
     now: number;
     canSync: boolean;
@@ -139,6 +144,8 @@
 </script>
 
 <div class="stack loose">
+  <StartRelease {api} {workspaceId} {role} {members} {all} scopeIsBoth={members.length > 1} />
+
   {#if groups.length === 0}
     <div class="stack">
       {#each members as app (app.id)}

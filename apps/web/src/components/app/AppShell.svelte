@@ -5,15 +5,32 @@
   are one product are shown as one app (lib/app-groups.ts).
   Props: api, workspaceId, role, id (an id of one of its platform records, from the address).
   The section, the open release and the platform scope all come from the address.
+  Versioned pages (listing, releases, assets, ASO fit) carry one compact row under the title: platform, version
+  (with its state) and locale (AppHeaderRow), kept in the address as ?platform=&version=&locale= and shared by the
+  tabs; the other pages keep the platform control at the top right. The versions come from the releases already
+  loaded here. When the selected version is live (or in review where the store forbids edits) a slim banner says
+  so and the listing and assets are read-only (lockedPlatforms).
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
-  import { address, appContext, setPlatformScope } from '../../lib/address.svelte.ts';
+  import { address, appContext, replaceHash, setPlatformScope } from '../../lib/address.svelte.ts';
+  import {
+    buildVersionOptions,
+    headerParams,
+    lockInfo,
+    lockableSections,
+    noLock,
+    pickersFor,
+    resolveVersion,
+    withHeaderParams,
+  } from '../../lib/app-header.ts';
+  import { asoViewFromHash } from '../../lib/aso.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
   import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
-  import { type AppSection, resolveScope, visibleSections } from '../../lib/app-scope.ts';
+  import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -24,8 +41,10 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StoreBadge from '../ui/StoreBadge.svelte';
+  import AppHeaderRow from './AppHeaderRow.svelte';
   import AppSectionView from './AppSection.svelte';
   import DataChips from './DataChips.svelte';
+  import LockedBanner from './LockedBanner.svelte';
   import ScopeControl from './ScopeControl.svelte';
 
   let { api, workspaceId, role, id }: { api: Api; workspaceId: string; role: Role; id: string } = $props();
@@ -61,12 +80,29 @@
   );
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
 
+  // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
+  const picker = $derived(pickersFor(section, { asoView: asoViewFromHash(address.hash), releaseOpen: open?.release != null }));
+  const params = $derived(headerParams(address.hash));
+  const scopedReleases = $derived(scoped.reduce<ReleaseSummary[]>((all, m) => all.concat(releaseLists[m.id] ?? []), []));
+  const versionOptions = $derived(buildVersionOptions(scopedReleases, resolved.platforms));
+  const version = $derived(resolveVersion(params.version, versionOptions));
+  const localeList = $derived.by(() => {
+    const read = navSignals.localesOf(workspaceId, members.map((m) => m.id));
+    // A locale in the address that no page has read yet stays visible, so the row does not lie about the page.
+    return params.locale !== null && read.indexOf(params.locale) < 0 ? [params.locale, ...read] : read;
+  });
+  const lock = $derived(lockableSections.indexOf(section) >= 0 ? lockInfo(scopedReleases, version, resolved.platforms, { fallbackToNewest: params.version !== version }) : noLock);
+  const setVersion = (next: string) => replaceHash(withHeaderParams(location.hash, { version: next }));
+  const setLocale = (next: string | null) => replaceHash(withHeaderParams(location.hash, { locale: next }));
+
   async function load() {
     const mine = ++generation;
     loading = true;
     loadError = null;
     try {
-      const found = groupOf(groupApps((await api.apps(workspaceId)).apps), id);
+      const list = (await api.apps(workspaceId)).apps;
+      navSignals.setApps(workspaceId, list);
+      const found = groupOf(groupApps(list), id);
       if (mine !== generation) return;
       if (!found) {
         group = null;
@@ -188,12 +224,33 @@
         </p>
       </div>
       <div class="tools">
-        <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
+        {#if !picker}<ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />{/if}
         {#if canSync}
           <Button variant="primary" icon="refresh" loading={anySyncing} onclick={syncScoped}>{anySyncing ? 'Syncing…' : 'Sync now'}</Button>
         {/if}
       </div>
     </header>
+
+    {#if picker}
+      <div class="picks">
+        <AppHeaderRow
+          scopeOptions={resolved.options}
+          scope={resolved.scope}
+          onscope={setPlatformScope}
+          versions={versionOptions}
+          {version}
+          onversion={setVersion}
+          showVersion={picker.version}
+          locales={localeList}
+          locale={params.locale}
+          onlocale={setLocale}
+          showLocale={picker.locale}
+        />
+      </div>
+    {/if}
+    {#if lock.text !== ''}
+      <LockedBanner text={lock.text} href={appAddress(id, 'releases', address.platform)} />
+    {/if}
 
     <div class="body">
       <AppSectionView
@@ -210,6 +267,8 @@
         {syncRuns}
         {syncing}
         onsync={sync}
+        lockedPlatforms={lock.locked}
+        locale={params.locale}
       />
     </div>
   {/if}
@@ -264,6 +323,10 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
+  }
+
+  .picks {
+    margin-bottom: var(--space-4);
   }
 
   .tools {

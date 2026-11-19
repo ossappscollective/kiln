@@ -12,13 +12,17 @@
   mark. The tray pushes staged changes to a store's DRAFT (a gated store write, admin and up) and never submits.
   Props: api, workspaceId, role, members (the platform records in scope), now (ms), syncing (by app
   id), onsync (runs the sync of one app; the shell owns it), refreshKey (changes when a sync
-  finished, so this tab reloads).
+  finished, so this tab reloads), lockedPlatforms? (platforms whose selected version is live or in review: their
+  fields are read-only, with no stage control and no staged-changes tray), locale? (the locale of the page header:
+  naming one the grid has opens its drawer; stepping to another locale there tells onlocale), onlocale?.
+  The locales read here are handed to the header picker (lib/nav-signals.svelte.ts).
 -->
 <script lang="ts">
   import { type Platform, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { shortRef } from '../../lib/listing-drift.ts';
   import {
     LEGEND_ORDER,
@@ -73,6 +77,9 @@
     syncing,
     onsync,
     refreshKey,
+    lockedPlatforms = [],
+    locale = null,
+    onlocale,
   }: {
     api: Api;
     workspaceId: string;
@@ -82,6 +89,9 @@
     syncing: Record<string, boolean | undefined>;
     onsync: (app: AppSummary) => void;
     refreshKey: number;
+    lockedPlatforms?: Platform[];
+    locale?: string | null;
+    onlocale?: (locale: string) => void;
   } = $props();
 
   const canSync = $derived(can(role, 'apps.sync'));
@@ -229,8 +239,34 @@
 
   function step(delta: -1 | 1) {
     const next = rows[drawerIndex + delta];
-    if (next) drawerLocale = next.locale;
+    if (next) {
+      drawerLocale = next.locale;
+      onlocale?.(next.locale);
+    }
   }
+
+  // The locales read here are what the header picker offers.
+  $effect(() => {
+    for (const m of members) {
+      const read = views[m.id]?.drift;
+      if (read) navSignals.setLocales(workspaceId, m.id, read.locales.map((l) => l.locale));
+    }
+  });
+
+  // A locale chosen in the page header opens its drawer once the grid has it. Closing the drawer leaves the choice alone.
+  let openedFor: string | null = null;
+  $effect(() => {
+    const wanted = locale;
+    const known = wanted !== null && matrix.rows.some((r) => r.locale === wanted);
+    untrack(() => {
+      if (wanted === null) {
+        openedFor = null;
+      } else if (known && openedFor !== wanted) {
+        openedFor = wanted;
+        if (drawerLocale !== wanted || !drawerOpen) openLocale(wanted);
+      }
+    });
+  });
 
   function openPull(app: AppSummary, fields: DriftField[]) {
     if (pullReason(app) !== null || fields.length === 0) return;
@@ -617,7 +653,9 @@
       {/if}
     {/each}
 
-    <StagedTray {api} {workspaceId} {role} {members} />
+    {#if lockedPlatforms.length < members.length}
+      <StagedTray {api} {workspaceId} {role} members={members.filter((m) => lockedPlatforms.indexOf(m.platform) < 0)} />
+    {/if}
   {/if}
 </div>
 
@@ -636,6 +674,7 @@
   onstage={stageField}
   onunstage={unstageField}
   {stagingKey}
+  locked={lockedPlatforms}
 />
 
 {#if members.length > 0}

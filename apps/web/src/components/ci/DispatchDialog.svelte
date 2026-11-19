@@ -5,7 +5,9 @@
   The inputs are read from the workflow file at the chosen branch or tag, so a change of branch reads
   them again before anything can be started. This tool never builds anything: it asks the team's own CI to.
   Props: api, workspaceId, repository, workflow, apps (the workspace's apps, to tie a run to one),
-  initialAppId? (the app the run is tied to at first; the person can change it), onclose (called after the dialog closes), ondispatched (called with the run that was stored).
+  initialAppId? (the app the run is tied to at first; the person can change it), hint? (the platforms in scope and a
+  version, from the app page: a platform or version input of the workflow that is still at its default is filled in
+  on the first read, once; the person sees it in the form and can change it), onclose (called after the dialog closes), ondispatched (called with the run that was stored).
   Mount it when a workflow is chosen; unmount it on close, so every open starts clean.
 -->
 <script lang="ts">
@@ -22,6 +24,7 @@
     type InputValues,
   } from '../../lib/ci.ts';
   import { repositoryName } from '../../lib/repositories.ts';
+  import { type DispatchHint, dispatchHints } from '../../lib/start-release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, CiWorkflow, RepositorySummary, WorkflowInputs, WorkflowRun } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -37,6 +40,7 @@
     workflow,
     apps,
     initialAppId = '',
+    hint,
     onclose,
     ondispatched,
   }: {
@@ -46,6 +50,7 @@
     workflow: CiWorkflow;
     apps: AppSummary[];
     initialAppId?: string;
+    hint?: DispatchHint;
     onclose: () => void;
     ondispatched: (run: WorkflowRun) => void;
   } = $props();
@@ -65,6 +70,8 @@
   let reread = $state('');
   /** A timed-out dispatch may have started the run: the button then says so, and asks again only on purpose. */
   let maybeStarted = $state(false);
+  /** The hint is applied to the first read only: later reads (another branch) keep what the person typed. */
+  let hinted = false;
   let values = $state<InputValues>({});
   let freeText = $state('');
   let appId = $state(untrack(() => (apps.some((a) => a.id === initialAppId && a.repositoryId === repository.id) ? initialAppId : '')));
@@ -83,6 +90,11 @@
       const fresh = initialInputValues(read.parsed ? read.inputs : []);
       const kept: InputValues = {};
       for (const name of Object.keys(fresh)) kept[name] = name in values && values[name] !== '' ? (values[name] as string) : (fresh[name] as string);
+      if (hint && !hinted) {
+        const suggested = dispatchHints(read.parsed ? read.inputs : [], hint);
+        for (const name of Object.keys(suggested)) if (name in kept) kept[name] = suggested[name] as string;
+      }
+      hinted = true;
       values = kept;
       inputsRef = at;
     } catch (e) {

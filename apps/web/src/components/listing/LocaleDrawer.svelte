@@ -8,7 +8,8 @@
   available, by platform; null when it is), position ({ index, count } among the filtered locales),
   onstep (-1 or 1: the previous or next locale), onpull (app, fields: opens the pull dialog),
   onhistory (app, field), role, onstage (app, field: stage the repository's text), onunstage (app, id, field),
-  stagingKey (`<app id>\u0000<locale>\u0000<field>` of the field being staged or unstaged, or '').
+  stagingKey (`<app id>\u0000<locale>\u0000<field>` of the field being staged or unstaged, or ''), locked? (the
+  platforms whose version is locked: their fields are read-only here, with no stage control).
   A native <dialog> shown as a side panel, so the focus trap, Escape and the focus return come from
   the browser. A pull or history dialog opened from here stacks above it.
 -->
@@ -43,6 +44,7 @@
     onstage,
     onunstage,
     stagingKey = '',
+    locked = [],
   }: {
     open?: boolean;
     row: MatrixRow | null;
@@ -58,6 +60,7 @@
     onstage: (app: AppSummary, field: DriftField) => void;
     onunstage: (app: AppSummary, id: string, field: DriftField) => void;
     stagingKey?: string;
+    locked?: Platform[];
   } = $props();
 
   const uid = $props.id();
@@ -175,7 +178,7 @@
                 selected={picked.has(keyOf(platform, field))}
                 onselect={(f, on) => select(platform, f, on)}
                 onpull={(f) => app && onpull(app, [f])}
-                stage={app ? fieldStage({ role, platform, field, view: stagedStore.view(app.id) }) : undefined}
+                stage={app && locked.indexOf(platform) < 0 ? fieldStage({ role, platform, field, view: stagedStore.view(app.id) }) : undefined}
                 stageBusy={app !== undefined && stagingKey === `${app.id}\u0000${field.locale}\u0000${field.field}`}
                 onstage={(f) => app && onstage(app, f)}
                 onunstage={(id, f) => app && onunstage(app, id, f)}

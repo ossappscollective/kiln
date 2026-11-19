@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
-  import { address } from '../../lib/address.svelte.ts';
+  import { address, replaceHash } from '../../lib/address.svelte.ts';
   import {
     type AsoFitResponse,
     type AsoKeyword,
@@ -22,6 +22,7 @@
     localesOf,
     priorityLabel,
   } from '../../lib/aso.ts';
+  import { headerParams, withHeaderParams } from '../../lib/app-header.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -48,7 +49,12 @@
   const uid = $props.id();
   const multi = $derived(members.length > 1);
   const allLocales = $derived(localesOf(keywords));
-  let locale = $state('');
+  /** The locale of the page header (?locale=) when this view has keywords for it, else '' (the most used). */
+  const locale = $derived.by(() => {
+    const wanted = headerParams(address.hash).locale;
+    return wanted !== null && allLocales.includes(wanted) ? wanted : '';
+  });
+  const setLocale = (value: string) => replaceHash(withHeaderParams(location.hash, { locale: value === '' ? null : value }));
   let data = $state<Record<string, AsoFitResponse | undefined>>({});
   let errors = $state<Record<string, string | undefined>>({});
   let loading = $state(true);
@@ -82,7 +88,7 @@
   {#if allLocales.length > 1}
     <div class="row">
       <label for="{uid}-locale" class="muted">Locale</label>
-      <select id="{uid}-locale" bind:value={locale}>
+      <select id="{uid}-locale" value={locale} onchange={(e) => setLocale(e.currentTarget.value)}>
         <option value="">Most used ({allLocales[0]})</option>
         {#each allLocales as l (l)}<option value={l}>{l}</option>{/each}
       </select>
