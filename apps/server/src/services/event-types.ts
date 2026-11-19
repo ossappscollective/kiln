@@ -35,6 +35,7 @@ export const eventTypes = [
   'analytics.synced',
   'stepup.verified',
   'stepup.failed',
+  'stepup.recovery_used',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -78,4 +79,5 @@ export const eventReadAction: Record<EventType, Action> = {
   // Who confirmed (or failed to confirm) a hard action: admins only (ids and factor type, never a secret).
   'stepup.verified': 'settings.write',
   'stepup.failed': 'settings.write',
+  'stepup.recovery_used': 'settings.write',
 };

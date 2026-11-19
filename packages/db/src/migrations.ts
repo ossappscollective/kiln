@@ -1679,4 +1679,55 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 34,
+    name: 'Step-up recovery codes, and Google Play internal app sharing: the links kept for a day and one upload in flight per app',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // docs/adr/0019-step-up-confirmation.md (recovery codes) and docs/adr/0020-play-internal-sharing.md.
+      // step_up_recovery_codes: one row per one-time code of a person. code_hash is the SHA-256 of a salted code (a code is 100 random bits,
+      // so a plain hash is enough: there is nothing to guess), never the code. used_at is set by the statement that spends it (one use).
+      // Regenerating deletes the person's rows and inserts new ones in one transaction. No code is ever returned after it was made.
+      // play_internal_shares: one row per successful upload of a build to Google Play internal app sharing. url_secret is the download
+      // link Google returned, ENCRYPTED with the master key (bound to the row by AAD), and set to NULL once expires_at (24 hours) has
+      // passed: the link is sensitive (whoever holds it can install the build) and is never logged, audited or sent as an event.
+      // The other columns are ids, sizes and hashes. play_internal_share_claims: one row per app while an upload runs ('writing') or
+      // whose outcome is not known ('unknown'): one upload in flight per app.
+      return [
+        `CREATE TABLE IF NOT EXISTS step_up_recovery_codes (
+           id TEXT PRIMARY KEY,
+           user_id TEXT NOT NULL REFERENCES users(id),
+           code_hash TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           used_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS step_up_recovery_codes_user_idx ON step_up_recovery_codes (user_id)',
+        `CREATE TABLE IF NOT EXISTS play_internal_shares (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           artifact_id TEXT NOT NULL,
+           run_id TEXT,
+           package_name TEXT NOT NULL,
+           file_kind TEXT NOT NULL,
+           file_name TEXT,
+           size_bytes ${t} NOT NULL,
+           sha256 TEXT NOT NULL,
+           certificate_fingerprint TEXT,
+           url_secret TEXT,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           expires_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS play_internal_shares_app_idx ON play_internal_shares (workspace_id, app_id, created_at)',
+        `CREATE TABLE IF NOT EXISTS play_internal_share_claims (
+           app_id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           status TEXT NOT NULL,
+           claimed_by TEXT NOT NULL,
+           claim_at ${t} NOT NULL
+         )`,
+      ];
+    },
+  },
 ];

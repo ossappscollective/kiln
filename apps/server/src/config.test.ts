@@ -500,6 +500,15 @@ test('MRM_STORE_PUBLISH_BATCH_ENABLED is off by default; only true and false are
   assert.deepEqual([on.storeDraftWriteEnabled, on.storeSubmitEnabled, on.storeReleaseEnabled, on.storeRolloutEnabled], [false, false, false, false]);
 });
 
+test('MRM_PLAY_INTERNAL_SHARING_ENABLED is off by default, blank is unset, and it turns nothing else on', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).playInternalSharingEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_PLAY_INTERNAL_SHARING_ENABLED: '' }).playInternalSharingEnabled, false);
+  const on = loadConfig({ MRM_MASTER_KEY: key, MRM_PLAY_INTERNAL_SHARING_ENABLED: 'true' });
+  assert.equal(on.playInternalSharingEnabled, true);
+  assert.deepEqual([on.buildsDownloadEnabled, on.storeReleaseEnabled, on.storeSubmitEnabled], [false, false, false]);
+  assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_PLAY_INTERNAL_SHARING_ENABLED: 'yes' }), /MRM_PLAY_INTERNAL_SHARING_ENABLED/);
+});
+
 test('MRM_BUILDS_DOWNLOAD_ENABLED is off by default and independent of the store switches; the size limit is bounded', () => {
   assert.equal(loadConfig({ MRM_MASTER_KEY: key }).buildsDownloadEnabled, false);
   assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_ENABLED: '' }).buildsDownloadEnabled, false);

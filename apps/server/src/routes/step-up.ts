@@ -8,11 +8,13 @@ import { recordAudit } from '../services/audit.ts';
 import {
   GRANT_TTL_MS,
   MAX_PASSKEYS,
+  RECOVERY_CODE_COUNT,
   addPasskey,
   assertionOptions,
   consumeChallenge,
   creationOptions,
   defaultCoveredActions,
+  generateRecoveryCodes,
   getPolicy,
   isEnrolled,
   isStepUpAction,
@@ -20,6 +22,7 @@ import {
   listPasskeys,
   lockState,
   passwordKind,
+  recoveryStatus,
   relyingParty,
   removePasskey,
   requireManage,
@@ -56,11 +59,14 @@ const verifyBody = z.discriminatedUnion('factor', [
     challengeId: z.string().min(1).max(100),
     assertion: z.object({ id: b64, clientDataJSON: b64, authenticatorData: b64, signature: b64 }),
   }),
+  z.object({ factor: z.literal('recovery'), action: actionSchema, target: targetSchema.optional(), code: z.string().min(1).max(64) }),
 ]);
 export const stepUpVerifyBody = verifyBody;
 
 const assertionOptionsBody = z.object({ action: actionSchema, target: targetSchema.optional() });
 const registerOptionsBody = z.object({}).strict().optional();
+const recoveryBody = z.object({}).strict().optional();
+export const stepUpRecoveryBody = recoveryBody;
 const registerVerifyBody = z.object({
   challengeId: z.string().min(1).max(100),
   name: z.string().trim().min(1).max(60),
@@ -109,6 +115,8 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
         confirmationPasswordSettable: services.singleUser !== undefined,
       },
       enrolled: passkeys.length > 0 || kind !== undefined,
+      /** Only counts: a code is shown once, when it is made, and never again. */
+      recovery: await recoveryStatus(db, user.id),
       lockedUntil: lock.lockedUntil !== null && lock.lockedUntil > now() ? lock.lockedUntil : null,
       supported: { webauthn: party.webauthnAvailable, rpId: party.rpId, maxPasskeys: MAX_PASSKEYS },
       grantTtlSeconds: GRANT_TTL_MS / 1000,
@@ -188,6 +196,24 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
     return c.body(null, 204);
   });
 
+  // ----- recovery codes ------------------------------------------------------------------------
+  // Owners and admins only (the people who confirm hard actions). Needs a fresh confirmation (a passkey, the password or a code that is
+  // left), so a stolen session cannot mint codes for itself. The codes are in THIS answer only and are never stored in the clear.
+  routes.post('/:workspaceId/step-up/recovery-codes', needs('settings.write'), async (c) => {
+    const body = await parseBody(c, recoveryBody);
+    if (!body.ok) return body.response;
+    const user = c.get('user');
+    if (!(await isEnrolled(db, user.id))) {
+      return c.json({ error: 'factor_not_enrolled', message: 'Recovery codes stand in for a passkey or a confirmation password. Add one of those first.' }, 409);
+    }
+    const refusal = await requireManage(guard, c);
+    if (refusal) return refusal;
+    const made = await generateRecoveryCodes(db, user.id, now());
+    await recordAudit(db, { workspaceId: ws(c), actor: { type: 'user', id: user.id }, action: 'step_up.recovery_generated', detail: { count: made.codes.length, replaced: made.replaced }, at: now() });
+    c.header('Cache-Control', 'no-store');
+    return c.json({ codes: made.codes, remaining: RECOVERY_CODE_COUNT, generatedAt: now() }, 201);
+  });
+
   // ----- verify ---------------------------------------------------------------------------------
   routes.post('/:workspaceId/step-up/passkeys/assertion/options', needs('member'), async (c) => {
     const body = await parseBody(c, assertionOptionsBody);
@@ -211,7 +237,12 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
     const sessionId = sessionIdOf(c);
     if (!sessionId) return c.json({ error: 'unauthenticated' }, 401);
     const common = { workspaceId: ws(c), userId: user.id, sessionId, action: body.data.action, target: body.data.target ?? {}, rp: rp(c), ...(services.cost ? { cost: services.cost } : {}) };
-    const input = body.data.factor === 'password' ? { ...common, factor: 'password' as const, password: body.data.password } : { ...common, factor: 'passkey' as const, challengeId: body.data.challengeId, assertion: body.data.assertion };
+    const input =
+      body.data.factor === 'password'
+        ? { ...common, factor: 'password' as const, password: body.data.password }
+        : body.data.factor === 'recovery'
+          ? { ...common, factor: 'recovery' as const, code: body.data.code }
+          : { ...common, factor: 'passkey' as const, challengeId: body.data.challengeId, assertion: body.data.assertion };
     const done = await verifyFactor(db, input, now());
     c.header('Cache-Control', 'no-store');
     if (done.ok) return c.json({ grant: done.grant, expiresAt: done.expiresAt });

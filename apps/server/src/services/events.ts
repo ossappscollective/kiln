@@ -292,6 +292,8 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
         type: 'stepup.failed',
         payload: { userId: audit.actor.id, factor: text(detail.factor) ?? null, action: text(detail.action) ?? null, reason: text(detail.reason) ?? null, failedCount: typeof detail.failedCount === 'number' ? detail.failedCount : null },
       };
+    case 'step_up.recovery_used':
+      return { ...base, type: 'stepup.recovery_used', payload: { userId: audit.actor.id, action: text(detail.action) ?? null, remaining: typeof detail.remaining === 'number' ? detail.remaining : null } };
     default:
       return undefined;
   }

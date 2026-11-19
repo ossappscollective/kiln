@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { type CiArtifact, StoreError, type TestFlightGroup, type TestFlightLinksConnector } from '@mrm/connectors';
+import { type CiArtifact, type InternalSharingConnector, PlayInternalSharingConnector, StoreError, type TestFlightGroup, type TestFlightLinksConnector } from '@mrm/connectors';
 import { type Platform, can, isApplePlatform } from '@mrm/core';
 import { type CiContext, guarded, openCi } from './ci.ts';
 import { defaultStoreConnectorFactory, getApp, type ManagedApp, type StoreConnectorFactory } from './apps.ts';
@@ -42,7 +42,26 @@ export type BuildsSettings = {
   allowHttpRedirects: boolean;
   /** Builds the read-only App Store Connect connector for the TestFlight public links. Replaced by a fake in tests. */
   storeConnectorFactory: StoreConnectorFactory;
+  /** MRM_PLAY_INTERNAL_SHARING_ENABLED (default false): uploading a build to Google Play internal app sharing (docs/api/internal-sharing.md). */
+  internalSharingEnabled: boolean;
+  /** Builds the connector that uploads to internal app sharing. Replaced by a fake in tests. */
+  internalSharingConnectorFactory: InternalSharingConnectorFactory;
+  /** The whole upload (download from GitHub is separate) is abandoned after this. Tests shorten it. */
+  internalSharingTimeoutMs?: number | undefined;
+  /** An upload in flight is not trusted as one after this long. Tests shorten it. */
+  internalSharingClaimTtlMs?: number | undefined;
 };
+
+export type InternalSharingConnectorInput = {
+  /** The decrypted service account of the app. Never log it or put it in a message. */
+  secret: string;
+  packageName: string;
+  /** Aborted when the upload times out. Pass it to the connector as its `fetch`. */
+  fetch: typeof fetch;
+};
+export type InternalSharingConnectorFactory = (input: InternalSharingConnectorInput) => InternalSharingConnector;
+export const defaultInternalSharingConnectorFactory: InternalSharingConnectorFactory = (input) =>
+  new PlayInternalSharingConnector({ serviceAccount: input.secret, packageName: input.packageName, fetch: input.fetch });
 
 export type BuildsContext = CiContext & {
   builds: BuildsSettings;
@@ -66,6 +85,10 @@ export function createBuildsContext(
       linkTtlMs: options.linkTtlMs ?? LINK_TTL_MS,
       allowHttpRedirects: options.allowHttpRedirects ?? false,
       storeConnectorFactory: options.storeConnectorFactory ?? defaultStoreConnectorFactory,
+      internalSharingEnabled: options.internalSharingEnabled ?? false,
+      internalSharingConnectorFactory: options.internalSharingConnectorFactory ?? defaultInternalSharingConnectorFactory,
+      internalSharingTimeoutMs: options.internalSharingTimeoutMs,
+      internalSharingClaimTtlMs: options.internalSharingClaimTtlMs,
     },
     listLimiter: options.listLimiter ?? createTestLimiter({ limit: LISTS_PER_MINUTE, now: ci.now }),
     downloadLimiter: options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
@@ -75,7 +98,7 @@ export function createBuildsContext(
 }
 
 type BuildsFailure = { ok: false; status: number; body: Record<string, unknown> & { error: string }; headers?: Record<string, string> };
-const fail = (status: number, error: string, message?: string, extra: Record<string, unknown> = {}): BuildsFailure => ({
+export const fail = (status: number, error: string, message?: string, extra: Record<string, unknown> = {}): BuildsFailure => ({
   ok: false,
   status,
   body: { error, ...(message ? { message } : {}), ...extra },
@@ -543,6 +566,8 @@ function guardStream(
   let sent = 0;
   let done = false;
   const timer = setTimeout(() => abort.abort(), limits.timeoutMs);
+  // A download that nobody reads must not keep the process alive for the whole time limit.
+  timer.unref?.();
   const finish = () => {
     if (done) return;
     done = true;
@@ -616,10 +641,11 @@ export async function findArtifact(
 
 export async function openArtifactDownload(
   ctx: BuildsContext,
-  input: { workspaceId: string; appId: string; artifactId: string; via: 'session' | 'link' },
+  input: { workspaceId: string; appId: string; artifactId: string; via: 'session' | 'link' | 'share' },
   actor: Actor,
 ): Promise<OpenedDownload | BuildsFailure | Failure> {
-  if (!ctx.builds.downloadEnabled) {
+  // `share`: the internal sharing service reads the artifact to upload it to Google; it has its own switch and gates.
+  if (!ctx.builds.downloadEnabled && input.via !== 'share') {
     return fail(409, 'builds_download_disabled', 'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).');
   }
   if (!/^[0-9]{1,20}$/.test(input.artifactId)) return fail(400, 'invalid_request', 'An artifact id is a number.');

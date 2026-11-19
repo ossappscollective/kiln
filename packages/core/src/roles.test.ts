@@ -256,6 +256,19 @@ test('ASO: everybody reads, members track keywords and competitors, only admins 
   assert.equal(canToken('admin', null, 'aso.manage'), true);
 });
 
+test('builds.share: owners and admins only; explicit-only on tokens, separate from downloading', () => {
+  assert.equal(can('owner', 'builds.share'), true);
+  assert.equal(can('admin', 'builds.share'), true);
+  assert.equal(can('member', 'builds.share'), false, 'a member may download a build but not hand it to Google');
+  assert.equal(can('viewer', 'builds.share'), false);
+  assert.ok(tokenActions.includes('builds.share'));
+  assert.ok(tokenExplicitOnlyActions.includes('builds.share'));
+  assert.equal(canToken('admin', null, 'builds.share'), false, 'no list: never');
+  assert.equal(canToken('admin', ['builds.download'], 'builds.share'), false);
+  assert.equal(canToken('admin', ['builds.share'], 'builds.share'), true);
+  assert.equal(canToken('member', ['builds.share'], 'builds.share'), false, 'the ceiling still applies');
+});
+
 test('store.release: owners and admins only; explicit-only on tokens, separate from submit and rollout', () => {
   assert.equal(can('owner', 'store.release'), true);
   assert.equal(can('admin', 'store.release'), true);

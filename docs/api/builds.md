@@ -56,6 +56,10 @@ changes a group or a link.
 
 ## Not built
 
-itms-services over-the-air install (needs a public trusted HTTPS origin, a manifest, the bundle id read out of the IPA), Play
-internal app sharing (a binary upload to Google: a store write), creating or enabling TestFlight groups and links (a store write: only read), and reading the zip's
+itms-services over-the-air install (needs a public trusted HTTPS origin, a manifest, the bundle id read out of the IPA), creating or enabling TestFlight groups and links (a store write: only read), and reading the zip's
 central directory over a ranged request. All described in the research note.
+
+## Share to a device (Android)
+
+A gated store write, off by default: upload the `.aab` or `.apk` inside an artifact to Google Play internal app sharing and get an install link
+([internal-sharing](internal-sharing.md), [ADR 0020](../adr/0020-play-internal-sharing.md)).

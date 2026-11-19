@@ -13,6 +13,7 @@ import { aiRoutes } from './routes/ai.ts';
 import { analyticsImportPath, analyticsRoutes } from './routes/analytics.ts';
 import { asoRoutes } from './routes/aso.ts';
 import { buildsRoutes, publicBuildsRoutes } from './routes/builds.ts';
+import { internalSharingRoutes } from './routes/internal-sharing.ts';
 import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
@@ -184,7 +185,8 @@ export type AppDeps = {
   ci?: Partial<Pick<CiContext, 'limiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>>;
   /**
    * Builds to test (docs/api/builds.md): listing CI artifacts always works; downloading them, and the links that hand one to a phone,
-   * answer `409 builds_download_disabled` unless `downloadEnabled` (MRM_BUILDS_DOWNLOAD_ENABLED, default false).
+   * answer `409 builds_download_disabled` unless `downloadEnabled` (MRM_BUILDS_DOWNLOAD_ENABLED, default false). Uploading an Android build
+   * to Google Play internal app sharing (docs/api/internal-sharing.md) is off unless `internalSharingEnabled` (MRM_PLAY_INTERNAL_SHARING_ENABLED).
    */
   builds?: Partial<BuildsSettings>;
   /**
@@ -684,6 +686,7 @@ export function createApp(deps: AppDeps) {
   // Builds to test: CI artifacts and store builds of an app, downloads through the server (off unless switched on), links for a phone.
   const buildsContext = createBuildsContext(ciContext, deps.builds);
   app.route('/api/workspaces', buildsRoutes(buildsContext));
+  app.route('/api/workspaces', internalSharingRoutes(buildsContext));
   app.route('/api/builds', publicBuildsRoutes(buildsContext));
   // Public: the person with the link is not signed in yet.
   app.route('/api/invitations', publicInvitationRoutes(services));

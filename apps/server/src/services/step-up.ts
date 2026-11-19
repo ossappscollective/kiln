@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Database, Sql } from '@mrm/db';
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
@@ -188,6 +188,73 @@ export async function setConfirmationPassword(db: Database, userId: string, pass
 export async function isEnrolled(sql: Sql, userId: string): Promise<boolean> {
   if ((await listPasskeys(sql, userId)).length > 0) return true;
   return (await passwordKind(sql, userId)) !== undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recovery codes: ten one-time codes a person can keep offline. A code is a THIRD way to confirm (one use, then it is gone), and the
+// way back in when the only passkey or confirmation password is lost: confirm with a code for `step_up.manage`, remove or replace the
+// lost factor. A code is 100 random bits, so a salted SHA-256 is enough to store (nothing to guess offline). They are shown once.
+
+export const RECOVERY_CODE_COUNT = 10;
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const RECOVERY_SYMBOLS = 20;
+
+/** `XXXXX-XXXXX-XXXXX-XXXXX`: 20 symbols of 5 bits each = 100 random bits. */
+export function newRecoveryCode(): string {
+  const bytes = randomBytes(RECOVERY_SYMBOLS);
+  let out = '';
+  for (let i = 0; i < RECOVERY_SYMBOLS; i++) {
+    out += CROCKFORD[(bytes[i] as number) & 31];
+    if (i % 5 === 4 && i < RECOVERY_SYMBOLS - 1) out += '-';
+  }
+  return out;
+}
+
+/** What was typed, as the 20 symbols it stands for (case, dashes and spaces do not matter; O is 0, I and L are 1), or undefined. */
+export function normalizeRecoveryCode(input: string): string | undefined {
+  const folded = input.toUpperCase().replace(/[\s-]+/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  return folded.length === RECOVERY_SYMBOLS && [...folded].every((c) => CROCKFORD.includes(c)) ? folded : undefined;
+}
+
+const recoveryHash = (userId: string, normalized: string) => sha256hex(`mrm-recovery-v1:${userId}:${normalized}`);
+
+export type RecoveryStatus = { remaining: number; total: number; generatedAt: number | null };
+
+export async function recoveryStatus(sql: Sql, userId: string): Promise<RecoveryStatus> {
+  const [row] = await sql.query('SELECT COUNT(*) AS n, MIN(created_at) AS at FROM step_up_recovery_codes WHERE user_id = ?', [userId]);
+  const [left] = await sql.query('SELECT COUNT(*) AS n FROM step_up_recovery_codes WHERE user_id = ? AND used_at IS NULL', [userId]);
+  return { remaining: Number(left?.n ?? 0), total: Number(row?.n ?? 0), generatedAt: row?.at == null ? null : Number(row.at) };
+}
+
+/** Replaces every code of the person (the old ones stop working at once) with ten new ones. The codes are returned here and nowhere else. */
+export async function generateRecoveryCodes(db: Database, userId: string, now: number): Promise<{ codes: string[]; replaced: number }> {
+  const codes = Array.from({ length: RECOVERY_CODE_COUNT }, newRecoveryCode);
+  const replaced = await db.transaction(async (tx) => {
+    const [before] = await tx.query('SELECT COUNT(*) AS n FROM step_up_recovery_codes WHERE user_id = ? AND used_at IS NULL', [userId]);
+    await tx.execute('DELETE FROM step_up_recovery_codes WHERE user_id = ?', [userId]);
+    for (const code of codes) {
+      const normalized = normalizeRecoveryCode(code) ?? '';
+      await tx.execute('INSERT INTO step_up_recovery_codes (id, user_id, code_hash, created_at, used_at) VALUES (?, ?, ?, ?, NULL)', [randomUUID(), userId, recoveryHash(userId, normalized), now]);
+    }
+    return Number(before?.n ?? 0);
+  });
+  return { codes, replaced };
+}
+
+/**
+ * Spends the code if it is one of this person's unused ones. Every unused hash is compared in constant time (no early exit), then ONE
+ * statement marks the match used, so two requests with the same code cannot both pass.
+ */
+export async function spendRecoveryCode(db: Database, userId: string, typed: string, now: number): Promise<boolean> {
+  const candidate = Buffer.from(recoveryHash(userId, normalizeRecoveryCode(typed) ?? ''), 'hex');
+  const rows = await db.query('SELECT id, code_hash FROM step_up_recovery_codes WHERE user_id = ? AND used_at IS NULL', [userId]);
+  let matched: string | undefined;
+  for (const row of rows) {
+    const stored = Buffer.from(String(row.code_hash), 'hex');
+    if (stored.length === candidate.length && timingSafeEqual(stored, candidate)) matched = String(row.id);
+  }
+  if (matched === undefined || normalizeRecoveryCode(typed) === undefined) return false;
+  return (await db.execute('UPDATE step_up_recovery_codes SET used_at = ? WHERE id = ? AND user_id = ? AND used_at IS NULL', [now, matched, userId])) === 1;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -395,7 +462,11 @@ export type VerifyInput = {
   target: Target;
   rp: RpInfo;
   cost?: ScryptCost;
-} & ({ factor: 'password'; password: string } | { factor: 'passkey'; challengeId: string; assertion: AssertionInput });
+} & (
+  | { factor: 'password'; password: string }
+  | { factor: 'passkey'; challengeId: string; assertion: AssertionInput }
+  | { factor: 'recovery'; code: string }
+);
 
 export type VerifyResult =
   | { ok: true; grant: string; expiresAt: number }
@@ -421,6 +492,10 @@ export async function verifyFactor(db: Database, input: VerifyInput, now: number
       const [row] = await db.query(column, [userId]);
       const good = row?.h ? await verifyPassword(input.password, String(row.h)) : false;
       if (!good) reason = 'invalid_password';
+    } else if (input.factor === 'recovery') {
+      if ((await recoveryStatus(db, userId)).remaining === 0) return { ok: false, status: 409, error: 'factor_not_enrolled', reason: 'recovery' };
+      // A wrong code counts like a wrong password (same failure count and lockout). A right one is spent here, before the grant exists.
+      if (!(await spendRecoveryCode(db, userId, input.code, now))) reason = 'invalid_recovery_code';
     } else {
       const challenge = await consumeChallenge(db, input.challengeId, { userId, sessionId: input.sessionId, purpose: 'assert', action: input.action, targetId: input.target.id ?? null, targetHash: input.target.hash ?? null, workspaceId: input.workspaceId }, now);
       if (!challenge) reason = 'challenge_invalid';
@@ -446,6 +521,16 @@ export async function verifyFactor(db: Database, input: VerifyInput, now: number
       detail: { factor: input.factor, action: input.action, ...(input.target.id ? { targetId: input.target.id } : {}) },
       at: now,
     });
+    if (input.factor === 'recovery') {
+      // Ids and a count only: never the code. A used code is worth an alert (a stolen laptop would use one), so it has its own event.
+      await recordAudit(db, {
+        workspaceId: input.workspaceId,
+        actor: { type: 'user', id: userId },
+        action: 'step_up.recovery_used',
+        detail: { action: input.action, remaining: (await recoveryStatus(db, userId)).remaining },
+        at: now,
+      });
+    }
     return { ok: true, grant: grant.grant, expiresAt: grant.expiresAt };
   } finally {
     inFlight.delete(userId);
@@ -509,7 +594,10 @@ async function bodyOf(c: Context): Promise<Record<string, unknown> | undefined> 
 async function factorsOf(sql: Sql, userId: string) {
   const passkeys = (await listPasskeys(sql, userId)).length;
   const password = await passwordKind(sql, userId);
-  return { passkeys, password, list: [...(passkeys > 0 ? ['passkey'] : []), ...(password ? ['password'] : [])] };
+  const list = [...(passkeys > 0 ? ['passkey'] : []), ...(password ? ['password'] : [])];
+  // A recovery code is offered beside a real factor, never instead of one (a person with no factor has nothing to recover).
+  if (list.length > 0 && (await recoveryStatus(sql, userId)).remaining > 0) list.push('recovery');
+  return { passkeys, password, list };
 }
 
 async function enforce(ctx: GuardCtx, c: Context<AppEnv>, action: GrantAction, target: GuardTarget, covered: { unattended: boolean }): Promise<Response | undefined> {

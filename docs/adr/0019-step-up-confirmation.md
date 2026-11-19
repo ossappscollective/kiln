@@ -52,8 +52,8 @@ that the person at the keyboard is the owner right now.
    runs: if the action then fails (`409 state_changed`) the person confirms again. That is deliberate.
 7. **Records.** Audit rows `step_up.verified`, `step_up.failed` (with the failure count), `step_up.refused`
    (a token), `step_up.passkey_added`, `step_up.passkey_removed`, `step_up.password_set`,
-   `step_up.policy_changed`: ids and the factor type, never a password, a key or a grant. Events
-   `stepup.verified` and `stepup.failed` (admins read them; the names have no underscore in the first segment
+   `step_up.policy_changed`, `step_up.recovery_generated`, `step_up.recovery_used`: ids and the factor type, never a password, a key, a grant or a
+   code. Events `stepup.verified`, `stepup.failed` and `stepup.recovery_used` (admins read them; the names have no underscore in the first segment
    because the web's event-name test requires it).
 8. **Web.** One `StepUpDialog` (primary "Confirm with Touch ID / passkey", fallback "Use password"). A screen
    wraps its call in `confirmed(...)`; only the answer `step_up_required` opens the dialog, and the same call
@@ -62,21 +62,26 @@ that the person at the keyboard is the owner right now.
 9. **Demo.** `AppDeps.stepUpAutoApprove` (one flag, per database object) makes the guard pass; nothing else
    changes.
 
+10. **Recovery codes (added, migration 34).** Ten one-time codes per person (100 random bits each, shown once, stored as salted SHA-256, constant-time compared,
+    spent by one `UPDATE`, rate limited by the same failure count and lockout as the password and the passkey). A code is a third factor for any class and for
+    `step_up.manage`, which is how a lost only passkey or confirmation password is removed or replaced. Owners and admins make them (regenerating invalidates the old
+    ones) after a fresh confirmation. They stand BESIDE a passkey or password (a person with neither is "not enrolled"), so a stolen session that can mint nothing without
+    a confirmation cannot give itself a way in. A used code has its own audit row and event.
+
 ## Consequences
 
 - With the policy off, every route and every existing test behaves as before.
 - Passkeys need `https` or `http://localhost` and a host name (not an IP address). `MRM_PUBLIC_ORIGIN` pins the
   origin behind a proxy; otherwise the origin of the request is used.
-- Losing the only factor with the policy on locks hard actions and policy changes until someone with database
-  access removes the rows of `step_up_users` / `step_up_credentials` or the `security.stepUp` setting. There is
-  no recovery code (an open decision).
+- Losing the only factor with the policy on is recoverable only with a recovery code (decision 10). Without codes it locks hard actions
+  and policy changes until someone with database access removes the rows of `step_up_users` / `step_up_credentials` or the `security.stepUp` setting.
+  Making codes is optional, so the Security card nudges.
 - A grant is bound to a session. Signing in again needs a new confirmation.
 - A passkey that always sends counter 0 (many platform and synced passkeys) is accepted; the counter check
   only bites once a counter is in use.
 
 ## Not done
 
-- No recovery codes, no per-action "remember for N minutes", no attestation formats other than `none`, no
+- No per-action "remember for N minutes", no attestation formats other than `none`, no
   RS256 (Windows Hello on some hardware offers only RS256: such a device cannot be enrolled, UNVERIFIED).
-- Google Play internal app sharing has a class (`internal_sharing`) but **no route in this server yet**, so
-  nothing is guarded for it today; the guard is one call where that route is added.
+- Google Play internal app sharing is guarded by the class `internal_sharing` ([ADR 0020](0020-play-internal-sharing.md)).

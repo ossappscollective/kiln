@@ -1738,3 +1738,54 @@ export const stepUpUsers = sqliteTable('step_up_users', {
   lockedUntil: integer('locked_until'),
   updatedAt: integer('updated_at').notNull(),
 });
+
+/** One one-time recovery code of a person, as a salted SHA-256. Migration 34. */
+export const stepUpRecoveryCodes = sqliteTable(
+  'step_up_recovery_codes',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    codeHash: text('code_hash').notNull(),
+    createdAt: integer('created_at').notNull(),
+    usedAt: integer('used_at'),
+  },
+  (t) => [index('step_up_recovery_codes_user_idx').on(t.userId)],
+);
+
+/** A build handed to Google Play internal app sharing. The link is encrypted and cleared after 24 hours. Migration 34. */
+export const playInternalShares = sqliteTable(
+  'play_internal_shares',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    artifactId: text('artifact_id').notNull(),
+    runId: text('run_id'),
+    packageName: text('package_name').notNull(),
+    fileKind: text('file_kind').notNull(),
+    fileName: text('file_name'),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    certificateFingerprint: text('certificate_fingerprint'),
+    urlSecret: text('url_secret'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('play_internal_shares_app_idx').on(t.workspaceId, t.appId, t.createdAt)],
+);
+
+/** One upload in flight per app (writing), or one whose outcome is not known (unknown). Migration 34. */
+export const playInternalShareClaims = sqliteTable('play_internal_share_claims', {
+  appId: text('app_id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id),
+  status: text('status').notNull(),
+  claimedBy: text('claimed_by').notNull(),
+  claimAt: integer('claim_at').notNull(),
+});

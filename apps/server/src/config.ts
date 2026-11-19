@@ -257,6 +257,12 @@ const schema = z.object({
   MRM_BUILDS_DOWNLOAD_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Largest artifact a download may carry, in megabytes (1 to 4096, default 500). Bigger ones are refused before any byte is sent.
   MRM_BUILDS_DOWNLOAD_MAX_MB: blankIsUnset(z.coerce.number().int().min(1).max(4096).default(500)),
+  // Kill switch for sharing a build through GOOGLE PLAY INTERNAL APP SHARING (docs/adr/0020-play-internal-sharing.md): uploads the .aab or
+  // .apk inside a CI artifact to Google with the Google credential of the app and returns an install link. It puts a binary on Google's
+  // servers that this server cannot delete (nothing is published to users), so it is off by default and separate from the download switch:
+  // the routes answer 409 internal_sharing_disabled until this is 'true'. Owners and admins only, and a step-up confirmation when that
+  // policy covers the class `internal_sharing`. The file size limit is MRM_BUILDS_DOWNLOAD_MAX_MB; the zip is held in memory while it is read.
+  MRM_PLAY_INTERNAL_SHARING_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Master switch for the BATCH PUBLISH of an app (docs/adr/0015-pending-and-batch-publish.md): one preview and one typed confirmation for
   // several gated steps (push the draft, submit, release, rollout). It adds no power of its own: every step in the batch still needs its
   // own switch above, its own role right and its own hash, so turning this on does not turn any step on. Off by default: the batch routes
@@ -583,6 +589,8 @@ export type Config = {
   buildsDownloadEnabled: boolean;
   /** Largest artifact a download may carry, in bytes (MRM_BUILDS_DOWNLOAD_MAX_MB, default 500 MB). */
   buildsDownloadMaxBytes: number;
+  /** Uploading a build to Google Play internal app sharing is allowed (MRM_PLAY_INTERNAL_SHARING_ENABLED). Default false. */
+  playInternalSharingEnabled: boolean;
   /** The batch publish (one confirmation for several gated steps) is allowed (MRM_STORE_PUBLISH_BATCH_ENABLED). Default false. Turns no step on. */
   storePublishBatchEnabled: boolean;
   /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
@@ -668,6 +676,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     storeReleaseEnabled: data.MRM_STORE_RELEASE_ENABLED === 'true',
     buildsDownloadEnabled: data.MRM_BUILDS_DOWNLOAD_ENABLED === 'true',
     buildsDownloadMaxBytes: data.MRM_BUILDS_DOWNLOAD_MAX_MB * 1024 * 1024,
+    playInternalSharingEnabled: data.MRM_PLAY_INTERNAL_SHARING_ENABLED === 'true',
     storePublishBatchEnabled: data.MRM_STORE_PUBLISH_BATCH_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,

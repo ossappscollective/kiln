@@ -24,6 +24,7 @@ export const actions = [
   'ci.dispatch',
   'builds.read',
   'builds.download',
+  'builds.share',
   'plans.read',
   'plans.write',
   'releases.rollout',
@@ -136,12 +137,14 @@ export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbi
  * (`store.submit`, docs/adr/0010-store-submit.md) or RELEASE an approved version to users / start a Google Play release
  * (`store.release`, docs/adr/0014-release-management.md) or run several of those steps in ONE confirmed batch
  * (`store.publish`, docs/adr/0015-pending-and-batch-publish.md; it never replaces the right of any step in the batch)
+ * or hand a build to Google Play's internal app sharing (`builds.share`, docs/adr/0020-play-internal-sharing.md: uploads the binary to
+ * Google and returns an install link)
  * or SEND the text of a workspace's data to an AI provider and spend its token budget (`ai.use`) or change which provider
  * gets it (`ai.manage`, docs/adr/0016-ai-foundation.md). A token gets one only when its list of actions names it: a token with no list
  * ("everything the ceiling allows") never does, so widening an old token's role cannot start
  * answering customers or moving a rollout.
  */
-export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage', 'builds.download'];
+export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage', 'builds.download', 'builds.share'];
 
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);
