@@ -1,4 +1,5 @@
-import type { AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
+import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
+import type { AiAcceptBody, AiAcceptResult, AiConfig, AiRunBody, AiSettingsChanges, AiTasksResponse, AiTestOutcome } from './ai.ts';
 import type {
   AsoAddResult,
   AsoCompetitor,
@@ -995,6 +996,28 @@ export function createApi(options: ApiOptions = {}) {
       request<{ template: ReplyTemplate }>('POST', `${workspace(workspaceId)}/reviews/reply-templates`, body),
     deleteReplyTemplate: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/reviews/reply-templates/${encodeURIComponent(id)}`),
+    // AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). A run makes a SUGGESTION and changes nothing; accepting calls an
+    // existing service (keywords, a staged text, a reply draft). Nothing here pushes, submits, publishes or sends. No key is ever returned.
+    aiConfig: (workspaceId: string) => request<AiConfig>('GET', `${workspace(workspaceId)}/ai/config`),
+    updateAiConfig: (workspaceId: string, changes: AiSettingsChanges) => request<AiConfig>('PUT', `${workspace(workspaceId)}/ai/config`, changes),
+    testAi: (workspaceId: string) => request<AiTestOutcome>('POST', `${workspace(workspaceId)}/ai/test`),
+    aiTasks: (workspaceId: string) => request<AiTasksResponse>('GET', `${workspace(workspaceId)}/ai/tasks`),
+    runAiTask: (workspaceId: string, taskId: string, body: AiRunBody) =>
+      request<{ suggestion: AiSuggestionView }>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/run`, body),
+    appAiSuggestions: (workspaceId: string, appId: string, query: { status?: AiSuggestionStatus; limit?: number } = {}) => {
+      const params = new URLSearchParams();
+      if (query.status) params.set('status', query.status);
+      if (query.limit) params.set('limit', String(query.limit));
+      const text = params.toString();
+      return request<{ suggestions: AiSuggestionView[] }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/suggestions${text ? `?${text}` : ''}`,
+      );
+    },
+    acceptAiSuggestion: (workspaceId: string, suggestionId: string, body: AiAcceptBody = {}) =>
+      request<AiAcceptResult>('POST', `${workspace(workspaceId)}/ai/suggestions/${encodeURIComponent(suggestionId)}/accept`, body),
+    dismissAiSuggestion: (workspaceId: string, suggestionId: string) =>
+      request<{ suggestion: AiSuggestionView }>('POST', `${workspace(workspaceId)}/ai/suggestions/${encodeURIComponent(suggestionId)}/dismiss`),
     // ASO (docs/api/aso.md). Every read is our own database; only `refreshAso` and `addAsoCompetitor` read a public store, and nothing writes to one.
     asoConfig: (workspaceId: string) => request<AsoConfig>('GET', `${workspace(workspaceId)}/aso/config`),
     asoSummary: (workspaceId: string, appId: string) => request<AsoSummary>('GET', `${asoPath(workspaceId, appId)}/summary`),

@@ -15,7 +15,7 @@ const EXPECTED_NAMES = [
   'images', 'inbox', 'info', 'key', 'language', 'laptop', 'layers', 'link', 'list', 'lock', 'log-out',
   'mail', 'menu', 'message', 'minus', 'monitor', 'moon', 'more', 'network', 'pause', 'percent',
   'pipeline', 'platform-android', 'platform-ios', 'platform-macos', 'play', 'plus', 'qr', 'refresh', 'repo', 'rocket',
-  'search', 'send', 'server', 'settings', 'shield', 'smartphone', 'sort', 'star', 'star-filled', 'stop',
+  'search', 'send', 'server', 'settings', 'shield', 'smartphone', 'sort', 'sparkles', 'star', 'star-filled', 'stop',
   'store', 'store-android', 'store-ios', 'sun', 'tablet', 'tag', 'terminal', 'trash', 'trending-up',
   'unlock', 'upload', 'user', 'users', 'x', 'x-circle', 'zap',
 ];

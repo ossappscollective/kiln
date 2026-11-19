@@ -8,8 +8,10 @@
   "50+" is "not within the first 50", never "does not rank".
   A `?add=1` in the address (the next steps link to it) opens the add panel once.
   Props: api, workspaceId, role, members, config, keywords (all of them), canWrite, onchanged, now.
+  "Suggest keywords" (AI, only when AI is on) asks for ideas in the language each app tracks most; they arrive in the AI suggestions tray above.
 -->
 <script lang="ts">
+  import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -25,6 +27,7 @@
     checkErrorText,
     filterKeywords,
     keywordSorts,
+    localesOf,
     marketText,
     rankText,
     refreshText,
@@ -45,10 +48,12 @@
   import AddKeywords from './AddKeywords.svelte';
   import AsoBar from './AsoBar.svelte';
   import Sparkline from './Sparkline.svelte';
+  import SuggestKeywords from '../ai/SuggestKeywords.svelte';
 
   let {
     api,
     workspaceId,
+    role,
     members,
     config,
     keywords,
@@ -58,6 +63,7 @@
   }: {
     api: Api;
     workspaceId: string;
+    role: Role;
     members: AppSummary[];
     config: AsoConfig | null;
     keywords: AsoKeyword[];
@@ -211,6 +217,16 @@
     {/if}
     <span class="spacer"></span>
     {#if canWrite}
+      {#if keywords.length > 0}
+        <SuggestKeywords
+          {api}
+          {workspaceId}
+          {role}
+          {members}
+          {keywords}
+          localeFor={(app) => localesOf(keywords.filter((k) => k.appId === app.id))[0] ?? null}
+        />
+      {/if}
       <Button
         icon="refresh"
         loading={checking}

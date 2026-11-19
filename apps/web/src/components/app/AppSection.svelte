@@ -28,6 +28,7 @@
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
+  import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoSection from '../aso/AsoSection.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
@@ -127,7 +128,13 @@
 {:else if section === 'releases'}
   <AppReleases {api} {workspaceId} {role} {members} {all} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
 {:else if section === 'pending'}
-  <PendingChanges {api} {workspaceId} {role} {members} />
+  <div class="stack loose">
+    <PendingChanges {api} {workspaceId} {role} {members} />
+    <!-- Open AI suggestions (a staged-text proposal is accepted here, then shows in the list above): drawn only when AI is on and one is open. -->
+    {#each members as m (m.id)}
+      <AiSuggestions {api} {workspaceId} {role} app={m} platform={address.platform} showPlatform={members.length > 1} />
+    {/each}
+  </div>
 {:else if section === 'listing'}
   <ListingMatrix
     {api}

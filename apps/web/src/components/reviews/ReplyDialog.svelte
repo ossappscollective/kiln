@@ -11,11 +11,18 @@
   gets the hash of the text that was shown and refuses when the draft changed since. There is no
   automatic and no bulk sending, and nothing is sent when this dialog is closed.
 
+  "Draft reply" (only when AI assistance is on and the role may draft) asks the assistant for a first draft of this one review and puts it in the
+  editor as an ordinary, editable, UNSAVED text, labelled "AI draft — check before sending", with its flags and an Undo. It changes nothing by
+  itself: saving and sending stay exactly the steps above. When the draft is saved, the AI suggestion is closed (accepted if the text is
+  unchanged, dismissed if it was edited).
+
   The review text and the reply are plain text nodes only, never markup and never in a URL.
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
+  import { type FlagInfo, aiErrorMessage, flagInfos } from '../../lib/ai.ts';
+  import { aiStore } from '../../lib/ai-store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import {
     type ReplyConfig,
@@ -43,7 +50,9 @@
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
+  import SuggestButton from '../ai/SuggestButton.svelte';
 
   let {
     open = $bindable(false),
@@ -70,7 +79,9 @@
   let step = $state<'write' | 'confirm'>('write');
   let text = $state('');
   let saved = $state<ReplyDraft | null>(null);
-  let busy = $state<'' | 'save' | 'delete' | 'send' | 'translate' | 'template'>('');
+  let busy = $state<'' | 'save' | 'delete' | 'send' | 'translate' | 'template' | 'ai'>('');
+  /** The AI draft now in the editor: its suggestion, its text and what the editor held before (for Undo). Never saved by itself. */
+  let aiDraft = $state<{ id: string; text: string; before: string; flags: FlagInfo[] } | null>(null);
   let problem = $state('');
   let ack = $state(false);
   let templates = $state<ReplyTemplate[]>([]);
@@ -116,6 +127,7 @@
     templateName = '';
     target = review.language ?? '';
     showContext = false;
+    aiDraft = null;
     void loadTemplates();
     void reload(false);
   }
@@ -148,6 +160,7 @@
       saved = (await api.saveReplyDraft(workspaceId, app.id, review.id, { text: normalizeReplyText(text) })).draft;
       text = saved.text;
       onchange({ ...review, replyDraft: saved, reply: { status: saved.status, sentAt: saved.sentAt } });
+      void settleAi(saved.text);
       return true;
     } catch (e) {
       problem = replyErrorMessage(e, 'draft');
@@ -173,6 +186,56 @@
       if (needsReload(e)) await reload(false);
     } finally {
       busy = '';
+    }
+  }
+
+  /** The editor now holds the AI draft: an ordinary unsaved text the person edits, checks and saves like any other. */
+  async function draftWithAi() {
+    if (busy !== '' || !canWrite) return;
+    busy = 'ai';
+    problem = '';
+    try {
+      const made = await aiStore.run(api, workspaceId, 'review_reply_draft', { appId: app.id, reviewId: review.id });
+      if (made.proposal.kind !== 'reply_draft') return;
+      const proposed = made.proposal;
+      if (normalizeReplyText(proposed.text) === '') {
+        problem = 'The assistant did not write a usable draft. Try again.';
+        return;
+      }
+      aiDraft = { id: made.id, text: normalizeReplyText(proposed.text), before: text, flags: flagInfos(proposed.flags) };
+      text = proposed.text;
+    } catch (e) {
+      problem = aiErrorMessage(e);
+    } finally {
+      busy = '';
+    }
+  }
+
+  /** Puts back what the editor held and closes the suggestion. */
+  function undoAi() {
+    const mine = aiDraft;
+    if (!mine) return;
+    text = mine.before;
+    aiDraft = null;
+    void closeAi(mine.id, false);
+  }
+
+  /** The draft was saved: the suggestion is accepted when the text is the assistant's, dismissed when it was edited. Best effort. */
+  async function settleAi(finalText: string) {
+    const mine = aiDraft;
+    if (!mine) return;
+    aiDraft = null;
+    await closeAi(mine.id, normalizeReplyText(finalText) === mine.text);
+  }
+
+  async function closeAi(id: string, accept: boolean) {
+    const found = aiStore.byId(app.id, id);
+    if (!found || found.status !== 'proposed') return;
+    try {
+      if (accept) await aiStore.accept(api, workspaceId, found, { replace: true });
+      else await aiStore.dismiss(api, workspaceId, found);
+    } catch {
+      // The suggestion stays open in the list of the app, where it can be dismissed.
     }
   }
 
@@ -298,8 +361,21 @@
       <div class="field">
         <div class="label-row">
           <label for="{uid}-text">Your reply (plain text)</label>
-          {#if saved}<Badge tone={replyStatusTone(status)}>{replyStatusLabel(status)}</Badge>{/if}
+          <span class="label-actions">
+            {#if saved}<Badge tone={replyStatusTone(status)}>{replyStatusLabel(status)}</Badge>{/if}
+            {#if avail.canDraft && !locked}
+              <SuggestButton {api} {workspaceId} {role} kind="reply_draft" taskId="review_reply_draft" label="Draft reply" onrun={draftWithAi} align="end" />
+            {/if}
+          </span>
         </div>
+        {#if aiDraft}
+          <p class="ai-note" role="status" data-testid="ai-draft-label">
+            <Icon name="sparkles" size={14} />
+            <strong>AI draft — check before sending</strong>
+            {#each aiDraft.flags as f (f.flag)}<Badge tone={f.tone}>{f.text}</Badge>{/each}
+            <button type="button" class="link sm" disabled={busy !== ''} onclick={undoAi}>Undo</button>
+          </p>
+        {/if}
         <textarea
           id="{uid}-text"
           rows="7"
@@ -444,6 +520,22 @@
     gap: var(--space-2);
     align-items: center;
     justify-content: space-between;
+  }
+
+  .label-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .ai-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+    margin: 0;
+    font-size: var(--text-sm);
   }
 
   .counter {

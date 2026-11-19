@@ -7,8 +7,10 @@
   Pulling (optional): pullable (the store is ahead or the two diverged, so this field can be pulled
   into the repository), pullDisabled (why pulling is not available now, or null), selected and
   onselect (the checkbox for "Pull selected into repository"), onpull (pull just this field).
+  extra? (a snippet drawn at the end of the open field: the AI "Improve" of the locale drawer).
 -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { timeAgo, fullTime } from '../../lib/format.ts';
   import {
     comparison,
@@ -40,6 +42,7 @@
     stageBusy = false,
     onstage,
     onunstage,
+    extra,
   }: {
     field: DriftField;
     storeLabel?: string;
@@ -54,6 +57,7 @@
     stageBusy?: boolean;
     onstage?: (field: DriftField) => void;
     onunstage?: (id: string, field: DriftField) => void;
+    extra?: Snippet;
   } = $props();
 
   const diff = $derived(comparison(field));
@@ -147,6 +151,7 @@
       {/if}
       <Button size="sm" variant="ghost" icon="history" onclick={() => onhistory(field)}>History<span class="visually-hidden"> of {field.label} ({field.locale})</span></Button>
     </div>
+    {#if extra}{@render extra()}{/if}
   </div>
 </details>
 

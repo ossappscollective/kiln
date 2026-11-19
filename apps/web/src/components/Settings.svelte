@@ -1,8 +1,9 @@
 <!--
   Settings: workspace settings (docs/api/settings.md). Any member sees them; owners and admins change them.
   Sections: Reviews (the low rating threshold and the unanswered reminder), Releases (when a release counts as left
-  unfinished) and Translation (provider, credential, target
-  language, mode, daily budget, a test). Secrets are never settings: keys live under Credentials.
+  unfinished), Translation (provider, credential, target
+  language, mode, daily budget, a test) and the AI assistant (AiSettings: provider, model, key, monthly limit, a test; its own save).
+  Secrets are never settings: keys live under Credentials (the AI key is written from its card into the same vault).
 -->
 <script lang="ts">
   import { type Role, can, translationProviderInfo } from '@mrm/core';
@@ -22,6 +23,7 @@
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
+  import AiSettings from './settings/AiSettings.svelte';
   import ReviewsSettings from './settings/ReviewsSettings.svelte';
   import TranslationSettings from './settings/TranslationSettings.svelte';
   import Alert from './ui/Alert.svelte';
@@ -34,6 +36,8 @@
   const canRead = $derived(can(role, 'settings.read'));
   const editable = $derived(can(role, 'settings.write'));
   const canManageCredentials = $derived(can(role, 'credentials.write'));
+  /** The AI assistant card has its own right and its own save; it does not depend on the other settings loading. */
+  const canAi = $derived(can(role, 'ai.use'));
 
   let data = $state<SettingsResponse | null>(null);
   let form = $state<SettingsForm | null>(null);
@@ -172,9 +176,20 @@
       {/if}
     </form>
   {/if}
+
+  {#if canAi && !addingCredential}
+    <div class="ai">
+      <AiSettings {api} {workspaceId} {role} />
+    </div>
+  {/if}
 </section>
 
 <style>
+  .ai {
+    max-width: 48rem;
+    margin-top: var(--space-5);
+  }
+
   .settings {
     display: flex;
     flex-direction: column;

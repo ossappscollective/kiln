@@ -1,0 +1,240 @@
+<!--
+  SuggestButton: the quiet entry point of an AI suggestion: a small ghost button with a sparkle icon. It is drawn only when AI assistance
+  is on for this workspace and the role may use it and accept what it makes (otherwise nothing is drawn, so a screen without AI looks
+  as before); when AI is on but not ready, or the monthly limit is used up, it is drawn disabled with the reason beside it.
+  Before the first run of a task in a session it shows, in a small popover, what is sent and what never is, and who receives it, and
+  asks to go on ("Don't ask again for this task" is kept in localStorage; a failure to keep it just asks again). A run only makes a
+  suggestion: it changes nothing, and nothing here sends anything to a store.
+  Props: api, workspaceId, role, kind (what the task proposes, which decides the right needed), taskId, label (visible text), hiddenLabel?
+  (extra words for screen readers), onrun (does the run; may throw, the error is shown as a fixed sentence), disabledReason? (a reason
+  the screen has that makes it unavailable now), align ('start' | 'end': which edge the popover lines up with).
+-->
+<script lang="ts">
+  import { type AiProposalKind, type Role, can } from '@mrm/core';
+  import { tick } from 'svelte';
+  import { type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai.ts';
+  import { aiStore } from '../../lib/ai-store.svelte.ts';
+  import type { Api } from '../../lib/api.ts';
+  import { toast } from '../../lib/toast.svelte.ts';
+  import Button from '../ui/Button.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
+
+  let {
+    api,
+    workspaceId,
+    role,
+    kind,
+    taskId,
+    label,
+    hiddenLabel = '',
+    onrun,
+    disabledReason = null,
+    align = 'start',
+  }: {
+    api: Api;
+    workspaceId: string;
+    role: Role;
+    kind: AiProposalKind;
+    taskId: string;
+    label: string;
+    hiddenLabel?: string;
+    onrun: () => Promise<void>;
+    disabledReason?: string | null;
+    align?: 'start' | 'end';
+  } = $props();
+
+  const uid = $props.id();
+
+  let running = $state(false);
+  let asking = $state(false);
+  let info = $state<AiTaskView | null>(null);
+  let providerId = $state<string | null>(null);
+  let remember = $state(false);
+  let root = $state<HTMLElement | null>(null);
+  let confirmButton = $state<HTMLButtonElement | null>(null);
+
+  const config = $derived(aiStore.config(workspaceId));
+  const avail = $derived(suggestAvailability({ role, config, kind }));
+  const tasks = $derived(aiStore.tasks(workspaceId));
+  const reason = $derived(disabledReason ?? avail.reason);
+  const enabled = $derived(avail.enabled && !disabledReason);
+
+  $effect(() => {
+    if (can(role, 'ai.use')) void aiStore.loadConfig(api, workspaceId);
+  });
+
+  // A click outside the popover closes it, like the info popovers.
+  $effect(() => {
+    if (!asking) return;
+    const away = (event: PointerEvent) => {
+      if (root && event.target instanceof Node && !root.contains(event.target)) asking = false;
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  });
+
+  async function go() {
+    running = true;
+    try {
+      await onrun();
+    } catch (e) {
+      toast.error(aiErrorMessage(e));
+    } finally {
+      running = false;
+    }
+  }
+
+  async function start() {
+    if (running || !enabled) return;
+    running = true;
+    let list: Awaited<ReturnType<typeof aiStore.loadTasks>>;
+    try {
+      list = await aiStore.loadTasks(api, workspaceId);
+    } finally {
+      running = false;
+    }
+    const found = list?.tasks.find((t) => t.id === taskId) ?? null;
+    if (found === null || found.status !== 'ready') {
+      // Without the list of what is sent, nothing is sent: the person could not have been told.
+      toast.error('Could not read what this sends, so nothing was sent. Try again.');
+      return;
+    }
+    providerId = list?.provider?.id ?? config?.settings.provider ?? null;
+    if (disclosureGate.needs(found, providerId)) {
+      info = found;
+      remember = false;
+      asking = true;
+      await tick();
+      confirmButton?.focus();
+      return;
+    }
+    await go();
+  }
+
+  function confirm() {
+    if (info === null) return;
+    disclosureGate.confirm(info, providerId, remember);
+    asking = false;
+    void go();
+  }
+
+  function cancel() {
+    asking = false;
+  }
+</script>
+
+{#if avail.visible}
+  <span
+    class="suggest"
+    bind:this={root}
+    role="presentation"
+    onkeydown={(e) => {
+      if (e.key === 'Escape' && asking) {
+        e.stopPropagation();
+        cancel();
+      }
+    }}
+  >
+    <Button variant="ghost" size="sm" icon="sparkles" loading={running} disabled={!enabled} aria-haspopup="dialog" aria-expanded={asking} onclick={() => void start()}>
+      {label}{#if hiddenLabel}<span class="visually-hidden"> {hiddenLabel}</span>{/if}
+    </Button>
+    {#if !enabled && reason}
+      <InfoTip label="Why this is not available" icon="info" text={reason} align={align} />
+    {/if}
+    <span class="visually-hidden" role="status">{running ? 'Asking the assistant. This can take a few seconds.' : ''}</span>
+
+    {#if asking && info}
+      <div class="pop {align}" role="dialog" aria-labelledby="{uid}-title" aria-describedby="{uid}-who">
+        <h4 id="{uid}-title">What is sent</h4>
+        <p class="who" id="{uid}-who">{providerSentence(tasks?.provider ?? null)}</p>
+        {#if tasks?.provider?.privacy}<p class="hint">{tasks.provider.privacy}</p>{/if}
+        <ul class="plain">
+          {#each info.disclosure.sends as line (line)}<li>{line}</li>{/each}
+        </ul>
+        <h4>Never sent</h4>
+        <ul class="plain">
+          {#each info.disclosure.neverSends as line (line)}<li>{line}</li>{/each}
+        </ul>
+        <label class="check">
+          <input type="checkbox" bind:checked={remember} />
+          Don't ask again for this task
+        </label>
+        <div class="row end">
+          <Button size="sm" variant="ghost" onclick={cancel}>Cancel</Button>
+          <button type="button" class="primary sm" bind:this={confirmButton} onclick={confirm}>Send and suggest</button>
+        </div>
+      </div>
+    {/if}
+  </span>
+{/if}
+
+<style>
+  .suggest {
+    position: relative;
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+  }
+
+  .pop {
+    position: absolute;
+    top: 100%;
+    z-index: var(--z-dropdown);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: min(26rem, calc(100vw - var(--space-8)));
+    padding: var(--space-3) var(--space-4);
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+  }
+
+  .pop.start {
+    left: 0;
+  }
+
+  .pop.end {
+    right: 0;
+  }
+
+  h4 {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .who {
+    margin: 0;
+    font-weight: var(--weight-medium);
+  }
+
+  .hint {
+    margin: 0;
+  }
+
+  .plain {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-left: var(--space-4);
+    margin: 0;
+  }
+
+  .check {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin: 0;
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  .end {
+    justify-content: flex-end;
+  }
+</style>

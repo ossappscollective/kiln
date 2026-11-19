@@ -694,6 +694,8 @@
   locked={lockedPlatforms}
   asoKeywords={canReadAso ? asoKeywords : undefined}
   allLocales={matrix.rows.map((r) => r.locale)}
+  {api}
+  {workspaceId}
 />
 
 {#if members.length > 0}

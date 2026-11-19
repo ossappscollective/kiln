@@ -3,9 +3,12 @@
   occur at least twice and are not tracked yet, each with where it came from and why it is suggested. One click
   tracks it. The score behind the order is a frequency in the stored texts, not a search volume or a popularity (no
   free store source publishes one); the tip says so. A suggestion, never advice.
-  Props: api, workspaceId, members, keywords, canWrite, version, onchanged.
+  Props: api, workspaceId, role, members, keywords, canWrite, version, onchanged.
+  "Suggest keywords" (AI, drawn only when AI is on and the role may track keywords) asks an assistant for ideas in the chosen locale; they arrive as a
+  proposal in the AI suggestions tray above, and nothing is tracked until accepted there. The ideas below are counted from stored text, with no AI.
 -->
 <script lang="ts">
+  import type { Role } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import {
     type AsoIdeasResponse,
@@ -27,10 +30,12 @@
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import SuggestKeywords from '../ai/SuggestKeywords.svelte';
 
   let {
     api,
     workspaceId,
+    role,
     members,
     keywords,
     canWrite,
@@ -39,6 +44,7 @@
   }: {
     api: Api;
     workspaceId: string;
+    role: Role;
     members: AppSummary[];
     keywords: AsoKeyword[];
     canWrite: boolean;
@@ -100,6 +106,18 @@
 </script>
 
 <div class="ideas stack">
+  {#if canWrite}
+    <div class="suggest-row">
+      <SuggestKeywords
+        {api}
+        {workspaceId}
+        {role}
+        {members}
+        {keywords}
+        localeFor={(app) => (locale !== '' && locales.indexOf(locale) >= 0 ? locale : (data[app.id]?.locale ?? null))}
+      />
+    </div>
+  {/if}
   {#if locales.length > 1}
     <div class="row">
       <label for="{uid}-locale" class="muted">Locale</label>
@@ -172,6 +190,10 @@
 </div>
 
 <style>
+  .suggest-row:empty {
+    display: none;
+  }
+
   .head {
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);

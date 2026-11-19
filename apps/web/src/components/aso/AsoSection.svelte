@@ -3,7 +3,8 @@
   kept in the address (`?view=keywords|competitors|ideas|fit|gaps|markets`): Keywords, Competitors, Ideas,
   Fit, Gaps and Markets. It reads the tracked keywords of every app record in scope once and hands them to
   the views; the config of the server (is Google Play reading on, are checks scheduled) shows as one quiet
-  pill. Above the tabs, the ranked next steps of each app in scope (AsoCoach). Nothing here writes to a store: the
+  pill. Above the tabs, the ranked next steps of each app in scope (AsoCoach), and under them the AI suggestions of each app
+  (AiSuggestions: drawn only when AI is on and something is open; nothing in them acts until a person accepts it). Nothing here writes to a store: the
   reads are our own database, "Check now" and following a competitor read the public store.
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id), now.
 -->
@@ -19,6 +20,7 @@
   import Button from '../ui/Button.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoCoach from './AsoCoach.svelte';
   import AsoCompetitors from './AsoCompetitors.svelte';
   import AsoFit from './AsoFit.svelte';
@@ -131,6 +133,10 @@
     <span class="spacer"></span>
     <AsoStatus {config} {androidInScope} />
   </div>
+
+  {#each members as m (m.id)}
+    <AiSuggestions {api} {workspaceId} {role} app={m} platform={address.platform} showPlatform={members.length > 1} onaccepted={changed} />
+  {/each}
 
   {#if loadError}
     <Alert tone="error" title="Could not load ASO">{loadError}</Alert>

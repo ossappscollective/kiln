@@ -14,9 +14,10 @@
 -->
 <script lang="ts">
   import { type AsoPlatform, type FitField, type FitFields, type FitKeyword, isApplePlatform, listingBudget, storefrontCombos } from '@mrm/core';
-  import { budgetHeadline, fieldWord, meterNumber, meterTitle, meterTone, wasteReasonText } from '../../lib/aso-budget.ts';
+  import { budgetHeadline, fieldWord, wasteReasonText } from '../../lib/aso-budget.ts';
   import CopyButton from '../ui/CopyButton.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import BudgetMeter from './BudgetMeter.svelte';
 
   let {
     platform,
@@ -144,15 +145,17 @@
 
   <div class="rows">
     {#each budget.fields as f (f.field)}
-      {@const tone = meterTone(f)}
-      <div class="line">
-        <span class="lab" id="{uid}-{f.field}">{f.label}{#if staged.indexOf(f.field) >= 0}<span class="staged"> (staged)</span>{/if}</span>
-        <svg class="meter {tone}" viewBox="0 0 100 4" preserveAspectRatio="none" role="meter" aria-valuemin="0" aria-valuemax={f.limit} aria-valuenow={f.used} aria-labelledby="{uid}-{f.field}" aria-valuetext={meterTitle(f)}>
-          <rect x="0" y="0" width="100" height="4" class="track" />
-          <rect x="0" y="0" width={f.percent} height="4" class="fill" />
-        </svg>
-        <span class="num tabular {tone}" title={meterTitle(f)}>{meterNumber(f)}{#if f.over}<span class="visually-hidden"> over the limit</span>{/if}</span>
-      </div>
+      <BudgetMeter
+        id="{uid}-{f.field}"
+        label={f.label}
+        suffix={staged.indexOf(f.field) >= 0 ? ' (staged)' : ''}
+        used={f.used}
+        limit={f.limit}
+        unit={f.unit}
+        remaining={f.remaining}
+        over={f.over}
+        percent={f.percent}
+      />
     {/each}
   </div>
   {#if headline}<p class="muted headline">{headline}</p>{/if}
@@ -176,63 +179,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-  }
-
-  .line {
-    display: grid;
-    grid-template-columns: 8.5rem minmax(0, 1fr) 4.5rem;
-    gap: var(--space-3);
-    align-items: center;
-  }
-
-  .lab {
-    overflow: hidden;
-    color: var(--muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .staged {
-    font-size: var(--text-xs);
-  }
-
-  .num {
-    text-align: right;
-  }
-
-  .num.ok {
-    color: var(--muted);
-  }
-
-  .num.warn {
-    color: var(--warn-ink);
-  }
-
-  .num.bad {
-    color: var(--bad-ink);
-  }
-
-  .meter {
-    display: block;
-    width: 100%;
-    height: 4px;
-    border-radius: var(--radius-full);
-  }
-
-  .meter .track {
-    fill: var(--surface-sunken);
-  }
-
-  .meter.ok .fill {
-    fill: var(--muted);
-  }
-
-  .meter.warn .fill {
-    fill: var(--warn);
-  }
-
-  .meter.bad .fill {
-    fill: var(--bad);
   }
 
   .headline {

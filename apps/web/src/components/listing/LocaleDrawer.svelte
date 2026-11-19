@@ -9,15 +9,16 @@
   onstep (-1 or 1: the previous or next locale), onpull (app, fields: opens the pull dialog),
   onhistory (app, field), role, onstage (app, field: stage the repository's text), onunstage (app, id, field),
   stagingKey (`<app id>\u0000<locale>\u0000<field>` of the field being staged or unstaged, or ''), locked? (the
-  platforms whose version is locked: their fields are read-only here, with no stage control), asoKeywords? (the
+  platforms whose version is locked: their fields are read-only here, with no stage control, and no AI "Improve"), asoKeywords? (the
   tracked ASO keywords by app id; given when the role can read ASO, it shows the keyword budget of each platform's
-  fields: the store text with the staged text on top, see AsoBudget), allLocales? (every locale of the grid).
+  fields: the store text with the staged text on top, see AsoBudget), allLocales? (every locale of the grid), api? and workspaceId? (given: each field of a platform that can be edited offers the AI "Improve", see ImproveField).
   A native <dialog> shown as a side panel, so the focus trap, Escape and the focus return come from
   the browser. A pull or history dialog opened from here stacks above it.
 -->
 <script lang="ts">
   import { type Platform, type Role, platformLabel } from '@mrm/core';
   import { coachHref, countriesForLocale, fieldsFromDrift, keywordsForLocale } from '../../lib/aso-budget.ts';
+  import type { Api } from '../../lib/api.ts';
   import type { AsoKeyword } from '../../lib/aso.ts';
   import { localeSummary } from '../../lib/listing-drift.ts';
   import { cellInfo, cellStatus } from '../../lib/listing-matrix.ts';
@@ -31,6 +32,7 @@
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import AsoBudget from '../aso/AsoBudget.svelte';
+  import ImproveField from '../ai/ImproveField.svelte';
   import FieldCompare from './FieldCompare.svelte';
   import StatusDot from './StatusDot.svelte';
 
@@ -52,6 +54,8 @@
     locked = [],
     asoKeywords,
     allLocales = [],
+    api,
+    workspaceId,
   }: {
     open?: boolean;
     row: MatrixRow | null;
@@ -70,6 +74,8 @@
     locked?: Platform[];
     asoKeywords?: Record<string, AsoKeyword[] | undefined>;
     allLocales?: string[];
+    api?: Api;
+    workspaceId?: string;
   } = $props();
 
   const uid = $props.id();
@@ -208,7 +214,13 @@
                 stageBusy={app !== undefined && stagingKey === `${app.id}\u0000${field.locale}\u0000${field.field}`}
                 onstage={(f) => app && onstage(app, f)}
                 onunstage={(id, f) => app && onunstage(app, id, f)}
-              />
+              >
+                {#snippet extra()}
+                  {#if app && api && workspaceId && locked.indexOf(platform) < 0}
+                    <ImproveField {api} {workspaceId} {role} {app} {field} />
+                  {/if}
+                {/snippet}
+              </FieldCompare>
             {/each}
           </section>
         {/each}
