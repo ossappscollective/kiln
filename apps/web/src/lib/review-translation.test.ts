@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { unsupportedHint } from './review-translation.ts';
 import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
@@ -70,4 +71,10 @@ test('error messages: fixed, plain, and with the numbers of the budget', () => {
   assert.equal(isRetryable(err(502, 'translation_unavailable')), true);
   assert.equal(isRetryable(err(422, 'translation_auth')), false);
   assert.equal(isRetryable(new Error('x')), false);
+});
+
+test('unsupported-language hints are said in words', () => {
+  assert.match(unsupportedHint('pair_ca_to_en'), /no ca to en model.*detected wrongly/);
+  assert.match(unsupportedHint('lang_target'), /target language/);
+  assert.equal(unsupportedHint('http_404'), 'http_404');
 });

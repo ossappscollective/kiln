@@ -258,3 +258,12 @@ test('probeTranslator translates one fixed word and reports fixed sentences only
     assert.ok(!bad.message.includes(KEY));
   }
 });
+
+test('libretranslate: an unavailable pair names the codes, never the server text', async () => {
+  const f = fakeFetch({ status: 400, json: { error: 'English (en) is not available as a target language from Catalan (ca)' } });
+  const t = createTranslator({ provider: 'libretranslate', baseUrl: 'http://127.0.0.1:5000', options: { fetch: f.fetch } });
+  await assert.rejects(
+    () => t.translate({ texts: ['Hola'], target: 'en' }),
+    (e: unknown) => e instanceof TranslateError && e.kind === 'unsupported_language' && e.detail === 'pair_ca_to_en',
+  );
+});

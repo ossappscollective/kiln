@@ -41,8 +41,16 @@ function classify(status: number, json: unknown, retryAfter: string | null, code
   if (status === 400) {
     if (/exceeds text limit/.test(message)) return new TranslateError('too_large');
     if (/not supported|not available as a target|language/.test(message)) {
-      // Which side the server named (it echoes the code), so a missing language model can be found: a fixed hint only.
-      const side = codes.target && message.includes(codes.target.toLowerCase()) ? 'target' : codes.source && message.includes(codes.source.toLowerCase()) ? 'source' : 'unknown';
+      // A fixed hint only, never the server's text. "English (en) is not available as a target language from German (de)":
+      // the codes are read from the parentheses and kept only when they look like language codes, so a language model that
+      // is missing (or a source that automatic detection got wrong) can be found. "xx is not supported": which side it named.
+      const code = /^[a-z]{2,3}(?:-[a-z]{2,4})?$/;
+      const pair = /\(([a-z]{2,3}(?:-[a-z]{2,4})?)\)[^()]*\(([a-z]{2,3}(?:-[a-z]{2,4})?)\)/.exec(message);
+      if (pair && code.test(pair[1] as string) && code.test(pair[2] as string)) {
+        return new TranslateError('unsupported_language', { detail: `pair_${pair[2]}_to_${pair[1]}` });
+      }
+      const named = /^\s*([a-z-]{2,8}) is not supported/.exec(message)?.[1];
+      const side = named && named === codes.target.toLowerCase() ? 'target' : named && codes.source && named === codes.source.toLowerCase() ? 'source' : 'unknown';
       return new TranslateError('unsupported_language', { detail: `lang_${side}` });
     }
     return new TranslateError('unavailable', { detail: 'http_400' });

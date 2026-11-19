@@ -96,7 +96,7 @@ export function translationErrorMessage(error: unknown): string {
       return 'This app or review no longer exists.';
     case 'translation_unavailable':
     case 'translation_unsupported_language':
-      return reason ? `${error.message} (${reason})` : error.message;
+      return reason ? `${error.message} (${unsupportedHint(reason)})` : error.message;
     case 'translation_auth':
     case 'translation_quota':
     case 'translation_too_large':
@@ -109,3 +109,12 @@ export function translationErrorMessage(error: unknown): string {
 /** Whether a failure is worth showing a "Try again" for. */
 export const isRetryable = (error: unknown): boolean =>
   error instanceof ApiError && (error.code === 'translation_unavailable' || error.code === 'translation_rate_limited' || error.code === 'rate_limited');
+
+/** The fixed hints of an unsupported language, in words. Anything else is shown as it is. */
+export function unsupportedHint(reason: string): string {
+  const pair = /^pair_([a-z-]+)_to_([a-z-]+)$/.exec(reason);
+  if (pair) return `the server has no ${pair[1]} to ${pair[2]} model; if the review is not ${pair[1]}, its language was detected wrongly`;
+  if (reason === 'lang_target') return 'the server does not offer the target language';
+  if (reason === 'lang_source') return 'the server does not offer the source language';
+  return reason;
+}
