@@ -250,8 +250,15 @@ dbTest(
 
     // The failure count is shared with the password: five wrong codes lock confirmation.
     t.clock.now += 5000;
-    for (let i = 0; i < LOCKOUT_AFTER; i++)
-      assert.equal((await t.withCode('ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ', 'flags')).status, 403);
+    // (The parallel loser above was already a failed attempt, so the lock can come one wrong code
+    // early; it must come within LOCKOUT_AFTER wrong codes and never before the first.)
+    let wrong = 0;
+    for (; wrong < LOCKOUT_AFTER; wrong++) {
+      const status = (await t.withCode('ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ', 'flags')).status;
+      if (status === 429) break;
+      assert.equal(status, 403);
+    }
+    assert.ok(wrong >= LOCKOUT_AFTER - 1, 'locked only after the failures');
     const locked = await t.withCode(codes[4] as string, 'flags');
     assert.equal(locked.status, 429);
     assert.equal(locked.body.error, 'step_up_locked');

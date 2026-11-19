@@ -549,7 +549,8 @@ dbTest(
     await db.execute('UPDATE webhook_endpoints SET ciphertext = ? WHERE id = ?', ['garbage', id]);
     await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 2 } });
     await t.run();
-    log = (await deliveries(t, id))[0];
+    // Two deliveries can share a timestamp: look for the one about the secret, not at a position.
+    log = (await deliveries(t, id)).find((d) => /Rotate/.test(d.error ?? ''));
     assert.equal(log?.status, 'failed');
     assert.match(log?.error ?? '', /Rotate/);
     assert.equal(t.sent.length, 0);
