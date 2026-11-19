@@ -23,6 +23,8 @@ import {
   secondsLeft,
   storeRow,
   testBuildsHref,
+  testflightView,
+  TESTFLIGHT_NONE_TEXT,
 } from './builds.ts';
 
 const DAY = 24 * 60 * 60_000;
@@ -36,11 +38,11 @@ const artifact = (over: Partial<ArtifactItem> = {}): ArtifactItem => ({
 });
 const store = (over: Partial<StoreBuildItem> = {}): StoreBuildItem => ({
   platform: 'ios', buildNumber: '240', version: '2.4.0', state: 'processed', rawState: 'VALID', expired: false, uploadedAt: NOW - 2 * DAY,
-  expiresAt: NOW + 88 * DAY, expiresAtEstimated: true, channel: 'testflight', tracks: [], releaseStatus: null, optInUrl: null, runId: null, ...over,
+  expiresAt: NOW + 88 * DAY, expiresAtEstimated: true, channel: 'testflight', tracks: [], releaseStatus: null, optInUrl: null, runId: null, testflightGroupIds: null, ...over,
 });
 const list = (over: Partial<BuildsList> = {}): BuildsList => ({
   app: { id: 'a', name: 'Acme', platform: 'ios', identifier: 'com.acme' }, repository: { id: 'r', owner: 'acme', repo: 'app' },
-  artifacts: [], hiddenArtifacts: 0, truncated: false, store: [], problem: null, downloadEnabled: true, maxDownloadBytes: 500 * 1024 * 1024,
+  artifacts: [], hiddenArtifacts: 0, truncated: false, store: [], testflight: null, problem: null, downloadEnabled: true, maxDownloadBytes: 500 * 1024 * 1024,
   canDownload: true, readAt: NOW, cached: false, ...over,
 });
 
@@ -165,4 +167,31 @@ test('the API calls go to the documented paths', async () => {
     { path: '/api/workspaces/w1/apps/a%201/builds/artifacts', method: 'GET' },
     { path: '/api/workspaces/w1/apps/a%201/builds/artifacts/9/link', method: 'POST' },
   ]);
+});
+
+test('TestFlight row: links with state and limit, and plain words when there is none, nothing for Play, a fixed message for errors', () => {
+  const info = (over: Partial<NonNullable<BuildsList['testflight']>> = {}): BuildsList['testflight'] => ({
+    groups: [
+      { id: 'g1', name: 'Beta', publicLink: 'https://testflight.apple.com/join/AbC', enabled: true, limit: 500 },
+      { id: 'g2', name: 'Off', publicLink: 'https://testflight.apple.com/join/Off', enabled: false, limit: null },
+    ],
+    withoutLink: 0, problem: null, readAt: NOW, cached: false, ...over,
+  });
+  const links = testflightView({ testflight: info() }, store({ testflightGroupIds: ['g1', 'g2'] }));
+  assert.equal(links.kind, 'links');
+  if (links.kind === 'links') {
+    assert.deepEqual(links.links.map((l) => [l.name, l.stateText, l.limitText]), [['Beta', 'Link on', 'Up to 500 testers'], ['Off', 'Link off', 'No tester limit']]);
+  }
+  const some = testflightView({ testflight: info() }, store({ testflightGroupIds: ['g2'] }));
+  assert.equal(some.kind === 'links' && some.links.length, 1);
+  assert.match((testflightView({ testflight: info() }, store({ testflightGroupIds: [] })) as { text: string }).text, /not in a TestFlight group/);
+  assert.equal((testflightView({ testflight: info({ groups: [] }) }, store({ testflightGroupIds: [] })) as { text: string }).text, TESTFLIGHT_NONE_TEXT);
+  assert.match(TESTFLIGHT_NONE_TEXT, /never creates or turns on/);
+  assert.match((testflightView({ testflight: info() }, store({ expired: true })) as { text: string }).text, /expired/);
+  assert.equal(testflightView({ testflight: info() }, store({ channel: 'play' })).kind, 'hidden');
+  assert.equal(testflightView({ testflight: null }, store()).kind, 'hidden');
+  const denied = testflightView({ testflight: info({ groups: [], problem: { reason: 'no_access', needs: 'x' } }) }, store());
+  assert.equal(denied.kind === 'message' && denied.tone, 'warn');
+  assert.match((denied as { text: string }).text, /App Manager/);
+  assert.match((testflightView({ testflight: info({ groups: [], problem: { reason: 'not_synced', needs: null } }) }, store()) as { text: string }).text, /Sync this app/);
 });

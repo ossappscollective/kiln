@@ -48,6 +48,18 @@ export type StoreBuildItem = {
   releaseStatus: string | null;
   optInUrl: string | null;
   runId: string | null;
+  /** TestFlight: ids of the public-link groups the build is in; null when they were not read. */
+  testflightGroupIds: string[] | null;
+};
+
+export type TestFlightProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'not_synced';
+export type TestFlightLink = { id: string; name: string; publicLink: string | null; enabled: boolean; limit: number | null };
+export type TestFlightInfo = {
+  groups: TestFlightLink[];
+  withoutLink: number;
+  problem: { reason: TestFlightProblemReason; needs: string | null } | null;
+  readAt: number | null;
+  cached: boolean;
 };
 
 export type BuildsProblem = {
@@ -62,6 +74,8 @@ export type BuildsList = {
   hiddenArtifacts: number;
   truncated: boolean;
   store: StoreBuildItem[];
+  /** TestFlight public links, read only; null for an Android app. */
+  testflight: TestFlightInfo | null;
   problem: BuildsProblem | null;
   downloadEnabled: boolean;
   maxDownloadBytes: number;
@@ -369,6 +383,43 @@ export function problemNotice(problem: BuildsProblem | null, repo: { owner: stri
     default:
       return { tone: 'warn', title: 'GitHub could not be reached', body: 'The artifact list could not be read. Try again in a moment.' };
   }
+}
+
+/** What the "TestFlight" row of a store build shows. The app only READS these groups: it never creates or turns on a link. */
+export type TestFlightView =
+  | { kind: 'hidden' }
+  | { kind: 'message'; tone: 'info' | 'warn'; text: string }
+  | { kind: 'links'; links: (TestFlightLink & { state: 'on' | 'off'; stateText: string; limitText: string })[] };
+
+export const TESTFLIGHT_NONE_TEXT =
+  'No TestFlight group has a public link. Mobile Release Manager only reads TestFlight and never creates or turns on a group or a link: set one up in App Store Connect (TestFlight, a group, Enable Public Link).';
+
+export function testflightView(list: Pick<BuildsList, 'testflight'>, b: StoreBuildItem): TestFlightView {
+  const info = list.testflight;
+  if (!info || b.channel !== 'testflight') return { kind: 'hidden' };
+  if (info.problem) {
+    switch (info.problem.reason) {
+      case 'no_access':
+        return { kind: 'message', tone: 'warn', text: 'App Store Connect did not let us read the TestFlight groups. The API key of this app needs the App Manager role (the least role that works is not confirmed). Change the key in App Store Connect, then reload.' };
+      case 'rate_limited':
+        return { kind: 'message', tone: 'warn', text: 'App Store Connect asked us to slow down. The TestFlight links are paused for a moment: try again in a minute.' };
+      case 'not_synced':
+        return { kind: 'message', tone: 'info', text: 'Sync this app once so its App Store id is known, then the TestFlight links can be read.' };
+      default:
+        return { kind: 'message', tone: 'warn', text: 'The TestFlight links could not be read. Try again in a moment.' };
+    }
+  }
+  if (b.expired === true) return { kind: 'message', tone: 'info', text: 'This build has expired: TestFlight no longer lets testers install it, so there is no link for it.' };
+  if (info.groups.length === 0) return { kind: 'message', tone: 'info', text: TESTFLIGHT_NONE_TEXT };
+  const ids = new Set(b.testflightGroupIds ?? []);
+  const links = info.groups.filter((g) => ids.has(g.id)).map((g) => ({
+    ...g,
+    state: g.enabled ? ('on' as const) : ('off' as const),
+    stateText: g.enabled ? 'Link on' : 'Link off',
+    limitText: g.limit === null ? 'No tester limit' : `Up to ${g.limit} tester${g.limit === 1 ? '' : 's'}`,
+  }));
+  if (links.length === 0) return { kind: 'message', tone: 'info', text: 'This build is not in a TestFlight group that has a public link.' };
+  return { kind: 'links', links };
 }
 
 /** Shown instead of a download button while the server switch is off. */

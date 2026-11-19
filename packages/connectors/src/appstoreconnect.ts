@@ -34,6 +34,8 @@ import type {
   StoreListing,
   StoreListingChannel,
   StoreVersion,
+  TestFlightGroup,
+  TestFlightLinksConnector,
 } from './types.ts';
 
 /**
@@ -84,6 +86,8 @@ const SKEW_TOLERANCE_SECONDS = 30;
 const MAX_PAGE_SIZE = 200;
 /** The documented maximum of `limit[builds]` (included builds per pre-release version). */
 const MAX_INCLUDED_BUILDS = 50;
+/** Groups whose builds are read for the public links (one request each). */
+const MAX_LINK_GROUPS = 20;
 /** `limit[appStoreVersions]` of the apps read that asks which platforms each app has (UNVERIFIED maximum; 50 is the builds one). */
 const MAX_INCLUDED_VERSIONS = 50;
 const MAX_ERROR_DETAILS = 5;
@@ -376,7 +380,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
   );
 }
 
-export class AppStoreConnectConnector implements StoreConnector {
+export class AppStoreConnectConnector implements StoreConnector, TestFlightLinksConnector {
   readonly platform: 'ios' | 'macos';
   readonly #http: StoreHttp;
   readonly #tokens: AppStoreConnectTokenProvider;
@@ -602,6 +606,63 @@ export class AppStoreConnectConnector implements StoreConnector {
       });
     }
     return builds;
+  }
+
+  /**
+   * The external TestFlight beta groups of an app with their public links. READ ONLY: no group is created, enabled,
+   * disabled or edited, and no tester is touched. Requests (all GET):
+   * - `GET /v1/betaGroups?filter[app]={id}&filter[isInternalGroup]=false&fields[betaGroups]=...&limit=200`
+   *   (documented on https://developer.apple.com/documentation/appstoreconnectapi/get-v1-betagroups; the value format of
+   *   `filter[isInternalGroup]` is UNVERIFIED, so a parameter error falls back to the same list without it and the
+   *   internal groups are dropped here by their `isInternalGroup` attribute);
+   * - for each group that has a public link (at most MAX_LINK_GROUPS), `GET /v1/betaGroups/{id}/builds?fields[builds]=version&limit=200`
+   *   (https://developer.apple.com/documentation/appstoreconnectapi/get-v1-betagroups-_id_-builds): the build numbers in it.
+   * `GET /v1/builds/{id}/betaGroups` is NOT used: its page could not be read when this was written (UNVERIFIED).
+   * Whether Apple returns `publicLink` while `publicLinkEnabled` is false is UNVERIFIED; both are passed on as they are.
+   */
+  async listTestFlightGroups(appStoreId: string): Promise<TestFlightGroup[]> {
+    const what = `listing the TestFlight groups of app ${appStoreId}`;
+    const id = enc(appStoreId);
+    const fields =
+      'fields[betaGroups]=name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled,publicLinkLimitEnabled,publicLinkLimit,publicLink';
+    let found: Json[];
+    try {
+      found = (await this.#collect(`/v1/betaGroups?filter[app]=${id}&filter[isInternalGroup]=false&${fields}&limit=${this.#pageSize}`, what)).items;
+    } catch (error) {
+      if (!isAppleParameterError(error)) throw error;
+      found = (await this.#collect(`/v1/apps/${id}/betaGroups?${fields}&limit=${this.#pageSize}`, what)).items;
+    }
+    const groups: TestFlightGroup[] = [];
+    for (const item of found) {
+      const a = isRecord(item.attributes) ? item.attributes : {};
+      const groupId = text(item.id);
+      if (!groupId || a.isInternalGroup === true) continue;
+      const link = text(a.publicLink) ?? null;
+      const limit = a.publicLinkLimitEnabled === true ? num(a.publicLinkLimit) : undefined;
+      groups.push({
+        id: groupId,
+        name: text(a.name) ?? '',
+        publicLink: link,
+        publicLinkEnabled: a.publicLinkEnabled === true,
+        publicLinkLimit: limit ?? null,
+        allBuilds: a.hasAccessToAllBuilds === true,
+        buildNumbers: [],
+      });
+    }
+    let read = 0;
+    for (const group of groups) {
+      if (group.publicLink === null && !group.publicLinkEnabled) continue;
+      if (group.allBuilds || read++ >= MAX_LINK_GROUPS) continue;
+      const { items } = await this.#collect(
+        `/v1/betaGroups/${enc(group.id)}/builds?fields[builds]=version&limit=${this.#pageSize}`,
+        `listing the builds of TestFlight group ${group.id}`,
+      );
+      group.buildNumbers = items.flatMap((b) => {
+        const n = text(isRecord(b.attributes) ? b.attributes.version : undefined);
+        return n ? [n] : [];
+      });
+    }
+    return groups;
   }
 
   /**

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { GithubError, type CiArtifact, type CiArtifactDownload, type CiArtifactList } from '@mrm/connectors';
+import { GithubError, StoreError, StoreRateLimitError, type CiArtifact, type CiArtifactDownload, type CiArtifactList, type TestFlightGroup } from '@mrm/connectors';
+import { ASC_SECRET } from './review-test-helpers.ts';
 import { dbTest } from '@mrm/db/testing';
 import { bootCi, FakeCi, run } from './ci-test-helpers.ts';
 import { clearBuildCaches, guessArtifact, safeFilename, TESTFLIGHT_LIFETIME_MS } from './services/builds.ts';
@@ -300,4 +301,114 @@ dbTest('link: expires after the time to live, even with a valid signature; a con
   assert.deepEqual(readDownloadLink(createBuildsContext(t.context(clock), { downloadEnabled: true }), token), { ok: false, reason: 'invalid' });
   const off = new Hono().route('/api/builds', publicBuildsRoutes(createBuildsContext(t.context(clock), { downloadEnabled: false })));
   assert.equal((await off.request(`/api/builds/dl/${token}`)).status, 409);
+});
+
+// ---------------------------------------------------------------------------------------------
+// TestFlight public links: a READ of the external beta groups. The fake has no method that could write.
+
+const grp = (id: string, extra: Partial<TestFlightGroup> = {}): TestFlightGroup => ({
+  id, name: `Group ${id}`, publicLink: `https://testflight.apple.com/join/${id}`, publicLinkEnabled: true, publicLinkLimit: null, allBuilds: false, buildNumbers: [], ...extra,
+});
+
+async function bootFlight(db: Parameters<typeof bootCi>[0], read: () => Promise<TestFlightGroup[]>) {
+  const calls: string[] = [];
+  const factory = (input: { kind: string; secret: string }) => {
+    calls.push(input.kind);
+    return { listTestFlightGroups: async (id: string) => { calls.push(`groups:${id}`); return read(); } };
+  };
+  const t = await boot(db, { storeConnectorFactory: factory as never });
+  const credential = await t.addCredential('app_store_connect', ASC_SECRET);
+  await db.execute('UPDATE apps SET credential_id = ?, store_app_id = ? WHERE id = ?', [credential, '6446998023', t.appId]);
+  await db.execute(
+    `INSERT INTO app_builds (app_id, platform, build_number, workspace_id, store_id, version, processing_state, raw_state, expired, uploaded_at, first_seen_at, last_seen_at)
+     VALUES (?, 'ios', '240', ?, 'b1', '2.4.0', 'processed', 'VALID', 0, ?, 1, 1), (?, 'ios', '239', ?, 'b0', '2.3.0', 'processed', 'VALID', 0, ?, 1, 1)`,
+    [t.appId, t.workspaceId, T0, t.appId, t.workspaceId, T0 - DAY],
+  );
+  return { ...t, calls };
+}
+
+dbTest('testflight: an enabled public link with its limit, and which builds are in the group', async (db) => {
+  const t = await bootFlight(db, async () => [
+    grp('g1', { name: 'Beta', publicLinkLimit: 500, buildNumbers: ['240'] }),
+    grp('g2', { name: 'Everyone', allBuilds: true }),
+    grp('g3', { name: 'Invite only', publicLink: null, publicLinkEnabled: false }),
+  ]);
+  const res = await t.list();
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.testflight.groups, [
+    { id: 'g2', name: 'Everyone', publicLink: 'https://testflight.apple.com/join/g2', enabled: true, limit: null },
+    { id: 'g1', name: 'Beta', publicLink: 'https://testflight.apple.com/join/g1', enabled: true, limit: 500 },
+  ].sort((a, b) => a.name.localeCompare(b.name)));
+  assert.equal(res.body.testflight.withoutLink, 1);
+  assert.equal(res.body.testflight.problem, null);
+  const [b240, b239] = res.body.store;
+  assert.deepEqual(b240.testflightGroupIds, ['g1', 'g2']);
+  assert.deepEqual(b239.testflightGroupIds, ['g2']);
+  assert.equal(res.body.testflight.cached, false);
+  const again = await t.list();
+  assert.equal(again.body.testflight.cached, true, 'kept 30 seconds in the read cache');
+  assert.equal(t.calls.filter((c) => c.startsWith('groups:')).length, 1);
+  assert.deepEqual(t.calls.filter((c) => c.startsWith('groups:')), ['groups:6446998023']);
+});
+
+dbTest('testflight: a disabled link is reported as disabled, never enabled by us', async (db) => {
+  const t = await bootFlight(db, async () => [grp('g1', { publicLinkEnabled: false, buildNumbers: ['240'] })]);
+  const res = await t.list();
+  assert.deepEqual(res.body.testflight.groups.map((g: { enabled: boolean; publicLink: string }) => [g.enabled, g.publicLink]), [[false, 'https://testflight.apple.com/join/g1']]);
+  assert.deepEqual(res.body.store[0].testflightGroupIds, ['g1']);
+});
+
+dbTest('testflight: no group with a public link is an empty list, not a problem', async (db) => {
+  let groups = [grp('g1', { publicLink: null, publicLinkEnabled: false })];
+  const t = await bootFlight(db, async () => groups);
+  const res = await t.list();
+  assert.deepEqual([res.body.testflight.groups, res.body.testflight.withoutLink, res.body.testflight.problem], [[], 1, null]);
+  assert.deepEqual(res.body.store.map((b: { testflightGroupIds: string[] }) => b.testflightGroupIds), [[], []]);
+  groups = [];
+  clearBuildCaches();
+  const none = await t.list();
+  assert.deepEqual([none.body.testflight.groups, none.body.testflight.withoutLink], [[], 0]);
+});
+
+dbTest('testflight: errors are a fixed reason, never the store text, and the list still answers', async (db) => {
+  const text = 'Apple said: SECRET-DETAIL token=abc';
+  let error: unknown = new StoreError('appstoreconnect', 'server', text, 503);
+  const t = await bootFlight(db, async () => { throw error; });
+  let res = await t.list();
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.testflight, { groups: [], withoutLink: 0, problem: { reason: 'unavailable', needs: null }, readAt: null, cached: false });
+  assert.equal(JSON.stringify(res.body).includes('SECRET-DETAIL'), false);
+  assert.equal(res.body.store[0].testflightGroupIds, null, 'nothing is claimed about a build when the read failed');
+  assert.equal(res.body.store.length, 2);
+  clearBuildCaches();
+  error = new StoreRateLimitError('appstoreconnect', 30);
+  res = await t.list();
+  assert.equal(res.body.testflight.problem.reason, 'rate_limited');
+  clearBuildCaches();
+  error = new Error('boom with SECRET-DETAIL');
+  res = await t.list();
+  assert.equal(res.body.testflight.problem.reason, 'unavailable');
+  assert.equal(JSON.stringify(res.body).includes('SECRET-DETAIL'), false);
+});
+
+dbTest('testflight: 403 (the key has no role for it) is no_access with what is needed, kept 60 seconds', async (db) => {
+  const t = await bootFlight(db, async () => { throw new StoreError('appstoreconnect', 'forbidden', 'Apple refused (403) SECRET-DETAIL', 403); });
+  const res = await t.list();
+  assert.equal(res.body.testflight.problem.reason, 'no_access');
+  assert.match(res.body.testflight.problem.needs, /App Manager/);
+  const again = await t.list();
+  assert.equal(again.body.testflight.problem.reason, 'no_access');
+  assert.equal(again.body.testflight.cached, true);
+  assert.equal(t.calls.filter((c) => c.startsWith('groups:')).length, 1, 'a missing role is not asked again at once');
+});
+
+dbTest('testflight: not for Android, and an app that was never synced has no store id', async (db) => {
+  const t = await bootFlight(db, async () => [grp('g1')]);
+  const play = await t.seedApp('android', [{ version: '1.0', build: '5', track: 'internal' }]);
+  assert.equal((await t.list(t.owner, play)).body.testflight, null);
+  await db.execute('UPDATE apps SET store_app_id = NULL WHERE id = ?', [t.appId]);
+  clearBuildCaches();
+  const res = await t.list();
+  assert.equal(res.body.testflight.problem.reason, 'not_synced');
+  assert.equal(t.calls.length, 0, 'no store call without an Apple id');
 });

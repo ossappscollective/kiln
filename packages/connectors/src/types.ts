@@ -119,6 +119,30 @@ export interface StoreConnector {
   readListing?(appStoreId: string, options?: ReadStoreListingOptions): Promise<StoreListing>;
 }
 
+/**
+ * An external (not internal) TestFlight beta group as it was READ from App Store Connect: never created, enabled
+ * or changed by this app. `publicLink` is the address a tester opens; it is null while the group has none.
+ */
+export type TestFlightGroup = {
+  id: string;
+  name: string;
+  /** The `publicLink` attribute (https://testflight.apple.com/join/...), or null. */
+  publicLink: string | null;
+  /** `publicLinkEnabled`: false while the link is switched off (testers cannot join with it). */
+  publicLinkEnabled: boolean;
+  /** `publicLinkLimit` when `publicLinkLimitEnabled` is true: the most testers the link lets in; else null (no limit). */
+  publicLinkLimit: number | null;
+  /** `hasAccessToAllBuilds`: every build of the app is available to the group. */
+  allBuilds: boolean;
+  /** Build numbers (`version` of the builds) in the group; read only for groups that have a public link. */
+  buildNumbers: string[];
+};
+
+/** Optional, like `readListing`: a connector without it (a test double, Google Play) has no TestFlight groups. */
+export interface TestFlightLinksConnector {
+  listTestFlightGroups(appStoreId: string): Promise<TestFlightGroup[]>;
+}
+
 export type ProposalResult = {
   branch: string;
   /** Pull request address, when the connector opened one. */

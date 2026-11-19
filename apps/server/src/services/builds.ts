@@ -1,12 +1,13 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { CiArtifact } from '@mrm/connectors';
-import { type Platform, can } from '@mrm/core';
+import { type CiArtifact, StoreError, type TestFlightGroup, type TestFlightLinksConnector } from '@mrm/connectors';
+import { type Platform, can, isApplePlatform } from '@mrm/core';
 import { type CiContext, guarded, openCi } from './ci.ts';
-import { getApp, type ManagedApp } from './apps.ts';
+import { defaultStoreConnectorFactory, getApp, type ManagedApp, type StoreConnectorFactory } from './apps.ts';
+import { useCredentialSecret } from './credentials.ts';
 import { recordAudit } from './audit.ts';
 import { memberRole } from './accounts.ts';
 import { listRuns, runCountsForApp, type WorkflowRunView } from './ci-runs.ts';
-import { type Failure, getRepository } from './repositories.ts';
+import { type Failure, getRepository, withTimeout } from './repositories.ts';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
 import { timedCache } from './timed-cache.ts';
 
@@ -39,6 +40,8 @@ export type BuildsSettings = {
   linkTtlMs: number;
   /** Tests only: let the fake storage be an http address. */
   allowHttpRedirects: boolean;
+  /** Builds the read-only App Store Connect connector for the TestFlight public links. Replaced by a fake in tests. */
+  storeConnectorFactory: StoreConnectorFactory;
 };
 
 export type BuildsContext = CiContext & {
@@ -62,6 +65,7 @@ export function createBuildsContext(
       downloadTimeoutMs: options.downloadTimeoutMs ?? DOWNLOAD_TIMEOUT_MS,
       linkTtlMs: options.linkTtlMs ?? LINK_TTL_MS,
       allowHttpRedirects: options.allowHttpRedirects ?? false,
+      storeConnectorFactory: options.storeConnectorFactory ?? defaultStoreConnectorFactory,
     },
     listLimiter: options.listLimiter ?? createTestLimiter({ limit: LISTS_PER_MINUTE, now: ci.now }),
     downloadLimiter: options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
@@ -161,9 +165,38 @@ export type StoreBuildItem = {
   /** Play: where a tester who was invited opts in (not for the internal track: the API does not give that link). */
   optInUrl: string | null;
   runId: string | null;
+  /**
+   * TestFlight (iOS and macOS): the ids of the public-link groups (`BuildsList.testflight.groups`) this build is in.
+   * Null when the groups were not read (no read, an error, or not an Apple build): then nothing is claimed.
+   */
+  testflightGroupIds: string[] | null;
 };
 
 export type ArtifactProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'unsupported' | 'no_repository';
+
+/** Why the TestFlight groups could not be read, in a fixed vocabulary (never Apple's text). */
+export type TestFlightProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'not_synced';
+
+/** An external TestFlight group that has a public link, as read. This app never creates, enables or changes one. */
+export type TestFlightLinkItem = {
+  id: string;
+  name: string;
+  /** The address a tester opens; null when the store did not give one. */
+  publicLink: string | null;
+  /** False while the link is switched off: testers cannot join with it. */
+  enabled: boolean;
+  /** The tester limit of the link; null means no limit. */
+  limit: number | null;
+};
+
+export type TestFlightInfo = {
+  groups: TestFlightLinkItem[];
+  /** External groups that have no public link (not listed). */
+  withoutLink: number;
+  problem: { reason: TestFlightProblemReason; needs: string | null } | null;
+  readAt: number | null;
+  cached: boolean;
+};
 
 export type BuildsList = {
   app: { id: string; name: string; platform: Platform; identifier: string };
@@ -174,6 +207,8 @@ export type BuildsList = {
   /** More artifacts exist than were read. */
   truncated: boolean;
   store: StoreBuildItem[];
+  /** TestFlight public links (App Store Connect, read only); null for an Android app. */
+  testflight: TestFlightInfo | null;
   /** Why CI artifacts could not be listed, in a fixed vocabulary (never GitHub's text). */
   problem: { reason: ArtifactProblemReason; needs: string | null } | null;
   downloadEnabled: boolean;
@@ -187,12 +222,17 @@ const repoCache = timedCache<RepoArtifacts>(LIST_CACHE_TTL_MS, 100);
 const stale = new Map<string, RepoArtifacts>();
 const troubleCache = timedCache<ArtifactProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
 const inFlight = new Map<string, Promise<{ ok: true; value: RepoArtifacts; cached: boolean } | Failure>>();
+/** The TestFlight groups of an app (30 seconds), and why a read failed (60 seconds, so a missing role is not asked again every click). */
+const flightCache = timedCache<{ at: number; groups: TestFlightGroup[] }>(LIST_CACHE_TTL_MS, 100);
+const flightTrouble = timedCache<TestFlightProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
 
 /** For tests. */
 export function clearBuildCaches(): void {
   repoCache.clear();
   stale.clear();
   troubleCache.clear();
+  flightCache.clear();
+  flightTrouble.clear();
   inFlight.clear();
 }
 
@@ -322,9 +362,84 @@ async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: Managed
       releaseStatus: extra?.status ?? null,
       optInUrl: play && tracks.some((t) => t !== 'internal' && t !== 'production') ? `https://play.google.com/apps/testing/${encodeURIComponent(app.identifier)}` : null,
       runId: null,
+      testflightGroupIds: null,
     };
   });
   return items.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber));
+}
+
+const isFlightReader = (c: unknown): c is TestFlightLinksConnector =>
+  typeof (c as Partial<TestFlightLinksConnector>)?.listTestFlightGroups === 'function';
+
+/** Store errors in the fixed vocabulary. Apple's own text never leaves this function. */
+const flightReason = (error: unknown): TestFlightProblemReason => {
+  if (error instanceof StoreError) {
+    if (error.kind === 'auth' || error.kind === 'forbidden' || error.status === 403) return 'no_access';
+    if (error.kind === 'rate_limited') return 'rate_limited';
+  }
+  return 'unavailable';
+};
+
+const flightProblem = (reason: TestFlightProblemReason, cached = false): TestFlightInfo => ({
+  groups: [],
+  withoutLink: 0,
+  // UNVERIFIED: which App Store Connect role is the least that may read beta groups; App Manager is what the connector tells the user to use.
+  problem: { reason, needs: reason === 'no_access' ? 'App Store Connect API key with the App Manager role' : null },
+  readAt: null,
+  cached,
+});
+
+/**
+ * The TestFlight public links of an iOS or macOS app: a READ of its external beta groups (App Store Connect, GET only).
+ * Kept 30 seconds like the artifact list; a failure is kept 60 seconds. Nothing is created, enabled or changed.
+ */
+async function readTestFlight(ctx: BuildsContext, workspaceId: string, app: ManagedApp, actor: Actor): Promise<{ info: TestFlightInfo; groups: TestFlightGroup[] }> {
+  const fail_ = (reason: TestFlightProblemReason, cached = false) => ({ info: flightProblem(reason, cached), groups: [] as TestFlightGroup[] });
+  if (!app.storeAppId) return fail_('not_synced');
+  const key = `${workspaceId}|${app.id}|${app.storeAppId}|${app.credentialId}`;
+  const trouble = flightTrouble.get(key, ctx.now());
+  if (trouble) return fail_(trouble, true);
+  const hit = flightCache.get(key, ctx.now());
+  if (hit) return { info: flightInfo(hit.groups, hit.at, true), groups: hit.groups };
+  const stop = (reason: TestFlightProblemReason) => {
+    flightTrouble.set(key, reason, ctx.now());
+    return fail_(reason);
+  };
+  const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
+  if (!credential || String(credential.kind) !== 'app_store_connect') return stop('no_access');
+  let secret: string | undefined;
+  try {
+    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: 'builds.testflight' }, actor, ctx.now());
+  } catch {
+    return stop('no_access');
+  }
+  if (secret === undefined) return stop('no_access');
+  const controller = new AbortController();
+  const guardedFetch: typeof fetch = (input, init) =>
+    globalThis.fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+  try {
+    const connector = ctx.builds.storeConnectorFactory({ kind: 'app_store_connect', secret, identifier: app.identifier, platform: app.platform, fetch: guardedFetch });
+    if (!isFlightReader(connector)) return fail_('unavailable');
+    const groups = await withTimeout(connector.listTestFlightGroups(app.storeAppId), ctx.timeoutMs, () => controller.abort());
+    const at = ctx.now();
+    flightCache.set(key, { at, groups }, at);
+    return { info: flightInfo(groups, at, false), groups };
+  } catch (error) {
+    return stop(flightReason(error));
+  }
+}
+
+function flightInfo(groups: TestFlightGroup[], at: number, cached: boolean): TestFlightInfo {
+  const withLink = groups.filter((g) => g.publicLink !== null || g.publicLinkEnabled);
+  return {
+    groups: withLink
+      .map((g) => ({ id: g.id, name: g.name, publicLink: g.publicLink, enabled: g.publicLinkEnabled, limit: g.publicLinkLimit }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+    withoutLink: groups.length - withLink.length,
+    problem: null,
+    readAt: at,
+    cached,
+  };
 }
 
 export async function listBuildArtifacts(
@@ -335,8 +450,22 @@ export async function listBuildArtifacts(
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return fail(404, 'not_found');
   const repository = app.repositoryId ? await getRepository(ctx.db, input.workspaceId, app.repositoryId) : undefined;
-  const store = await storeBuilds(ctx, input.workspaceId, app);
+  let store = await storeBuilds(ctx, input.workspaceId, app);
+  // TestFlight links: only for an Apple app that has builds from a sync. A failure is a fixed reason, never an error of the list.
+  let testflight: TestFlightInfo | null = null;
+  if (isApplePlatform(app.platform) && store.length > 0) {
+    const flight = await readTestFlight(ctx, input.workspaceId, app, actor);
+    testflight = flight.info;
+    if (!flight.info.problem) {
+      const wanted = flight.groups.filter((g) => g.publicLink !== null || g.publicLinkEnabled);
+      store = store.map((b) => ({
+        ...b,
+        testflightGroupIds: wanted.filter((g) => g.allBuilds || g.buildNumbers.includes(b.buildNumber)).map((g) => g.id),
+      }));
+    }
+  }
   const base = {
+    testflight,
     app: { id: app.id, name: app.name, platform: app.platform, identifier: app.identifier },
     repository: repository && !repository.localOnly ? { id: repository.id, owner: repository.owner, repo: repository.repo } : null,
     store,

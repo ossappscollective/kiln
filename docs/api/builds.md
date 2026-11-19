@@ -6,7 +6,7 @@ run against live GitHub. See [../research/test-builds.md](../research/test-build
 
 | Route | Right | Notes |
 | --- | --- | --- |
-| `GET /apps/:id/builds/artifacts` | `builds.read` (member and above) | CI artifacts of the runs that count for the app, and the store builds of the last sync (no store call). Kept 30 s, ETag read, shared between callers; 60 a minute per workspace |
+| `GET /apps/:id/builds/artifacts` | `builds.read` (member and above) | CI artifacts of the runs that count for the app, the store builds of the last sync, and (iOS and macOS) the TestFlight public links (a read-only App Store Connect call). Kept 30 s, ETag read, shared between callers; 60 a minute per workspace |
 | `GET /apps/:id/builds/artifacts/:artifactId/download` | `builds.download` | Streams the zip through the server. `409 builds_download_disabled` unless `MRM_BUILDS_DOWNLOAD_ENABLED=true` |
 | `POST /apps/:id/builds/artifacts/:artifactId/link` | `builds.download` | `{ path, expiresAt, filename }`: `/api/builds/dl/<token>` |
 | `GET /api/builds/dl/:token` | none (the token) | Public, for a phone. Single use, 10 minutes |
@@ -23,6 +23,17 @@ the app (`appIds`, or no app) and of its platform are listed; the rest are count
 artifacts of the repository are read (`truncated`) and runs are the 100 newest stored.
 `store[]`: from `app_builds` and `app_releases`: `channel (testflight|play)`, `state`, `expired`, `uploadedAt`, `expiresAt`
 (TestFlight: upload + 90 days, `expiresAtEstimated: true`), `tracks`, `optInUrl` (Play, closed or open tracks only).
+`testflight` (iOS and macOS apps with synced builds; `null` otherwise): a READ of the app's external TestFlight groups that
+have a public link: `groups[] {id, name, publicLink, enabled, limit}` (`limit` null = no limit), `withoutLink` (external groups
+without a link, not listed), `readAt`, `cached`, and `problem {reason, needs}` with a fixed reason (`no_access` for a 401 or 403 from
+Apple, with `needs` naming the App Manager role (UNVERIFIED as the least role), `rate_limited`, `unavailable`, `not_synced` for an
+app without an App Store id), never Apple's text; the list still answers `200`. Each `store[]` item then carries
+`testflightGroupIds` (the groups the build is in; `null` when not read, so nothing is claimed). One App Store Connect call for the
+groups plus one per group that has a link (at most 20), all GET: `GET /v1/betaGroups?filter[app]&filter[isInternalGroup]=false` and
+`GET /v1/betaGroups/{id}/builds` (the filter value and several details are UNVERIFIED, see
+[../research/test-builds.md](../research/test-builds.md#testflight-public-links-read-only)). Cached 30 s (a failure 60 s) in the same
+read cache; the credential use is audited as `credential.use` with purpose `builds.testflight`. This app never creates, enables or
+changes a group or a link.
 `problem` replaces a GitHub failure with a fixed reason (`no_access` with `needs: "actions: read"`, `rate_limited`, `unavailable`,
 `unsupported`, `no_repository`) and a `200`; a refused repository is left alone for a minute. `downloadEnabled`, `maxDownloadBytes`,
 `canDownload` tell a client whether to draw a download button.
@@ -46,5 +57,5 @@ artifacts of the repository are read (`truncated`) and runs are the 100 newest s
 ## Not built
 
 itms-services over-the-air install (needs a public trusted HTTPS origin, a manifest, the bundle id read out of the IPA), Play
-internal app sharing (a binary upload to Google: a store write), TestFlight public links (`betaGroups`), and reading the zip's
+internal app sharing (a binary upload to Google: a store write), creating or enabling TestFlight groups and links (a store write: only read), and reading the zip's
 central directory over a ranged request. All described in the research note.

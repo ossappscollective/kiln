@@ -27,6 +27,7 @@
     kindLabel,
     problemNotice,
     rowsOf,
+    testflightView,
   } from '../../lib/builds.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -41,6 +42,7 @@
   import DownloadDialog from './DownloadDialog.svelte';
   import InstallGuide from './InstallGuide.svelte';
   import PhoneLinkDialog from './PhoneLinkDialog.svelte';
+  import TestFlightLinks from './TestFlightLinks.svelte';
 
   let { api, workspaceId, role, app, refreshKey }: { api: Api; workspaceId: string; role: Role; app: AppSummary; refreshKey: number } = $props();
 
@@ -188,6 +190,10 @@
                     {:else}
                       <span class="line"><Icon name="store" size={14} /> Store</span>
                       <span class="muted text-sm">{row.detail}</span>
+                      {#if row.store}
+                        {@const tf = testflightView(data, row.store)}
+                        {#if tf.kind !== 'hidden'}<TestFlightLinks view={tf} />{/if}
+                      {/if}
                     {/if}
                   </div>
                 </td>

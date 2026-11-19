@@ -54,8 +54,8 @@ ranged central-directory read is a follow-up (needs a decision, see the report).
 **iOS / iPadOS**
 - Store builds (TestFlight, App Store) cannot be downloaded as files. Install through the TestFlight app:
   internal testers (App Store Connect users, up to 100) get the build automatically; external testers join via
-  an email invite or a **public link** (`betaGroups` attribute `publicLink`, `publicLinkEnabled`;
-  `GET /v1/apps/{id}/betaGroups`: UNVERIFIED against the live API, not built, see report). A TestFlight build
+  an email invite or a **public link** (`betaGroups` attributes `publicLink`, `publicLinkEnabled`, `publicLinkLimit`,
+  `publicLinkLimitEnabled`; read-only, see "TestFlight public links" below). A TestFlight build
   expires 90 days after upload (Apple's TestFlight help; the build's `expired` attribute is the truth).
 - Ad hoc or development-signed IPA: only runs on devices whose UDID is in the provisioning profile (ad hoc
   profile: 100 devices per device type per membership year: UNVERIFIED here, commonly cited). Install options:
@@ -92,5 +92,27 @@ ranged central-directory read is a follow-up (needs a decision, see the report).
   HMAC signed link (47 character token; the claims live in memory) for a phone (QR). The link holds ids only, never a GitHub URL.
 - The QR encoder (`apps/web/src/lib/qr.ts`, no library) was decoded back by the browser's `BarcodeDetector` for 2, 94, 98 and 218 byte
   texts (versions 1, 5, 5, 9). A scan with a real phone camera is not verified.
-- Not built: ranged zip listing, TestFlight public links, Play opt-in URL, internal app sharing upload,
+- Not built: ranged zip listing, creating or enabling TestFlight groups and links, Play opt-in URL, internal app sharing upload,
   itms-services manifest.
+
+## TestFlight public links (read only)
+
+Built against a fake connector and a fake fetch only; never run against live App Store Connect.
+
+| Claim | Status |
+| --- | --- |
+| `GET /v1/betaGroups` takes `filter[app]`, `filter[isInternalGroup]`, `include`, `fields[betaGroups]` and `limit` up to 200 (Apple's reference page "List beta groups", read through its JSON mirror) | read in the docs, not run |
+| `fields[betaGroups]` allows `name`, `isInternalGroup`, `hasAccessToAllBuilds`, `publicLinkEnabled`, `publicLinkId`, `publicLinkLimitEnabled`, `publicLinkLimit`, `publicLink` | read in the docs, not run |
+| `GET /v1/betaGroups/{id}/builds` lists the builds of a group (`fields[builds]=version`, `limit` up to 200) | read in the docs, not run |
+| The value format of `filter[isInternalGroup]` (`false`) | UNVERIFIED (the page gives no values). A parameter error falls back to `GET /v1/apps/{id}/betaGroups` and internal groups are dropped by their `isInternalGroup` attribute |
+| `GET /v1/apps/{id}/betaGroups` accepts a `filter` | UNVERIFIED (the page lists only `fields` and `limit`); only used as the fallback, without it |
+| `GET /v1/builds/{id}/betaGroups` | UNVERIFIED (its page could not be read); NOT used. Build membership comes from `GET /v1/betaGroups/{id}/builds` for each group that has a link (at most 20 groups) |
+| `publicLink` is returned while `publicLinkEnabled` is false | UNVERIFIED. Both are passed on as they are; a group with a link or an enabled flag counts as "has a public link" and a disabled one is shown as off, without a QR code |
+| A group with `hasAccessToAllBuilds` holds every build of the app (its build list is not read) | UNVERIFIED |
+| `publicLinkLimit` means anything while `publicLinkLimitEnabled` is false | UNVERIFIED; the limit is shown only when the flag is true |
+| The lowest API key role that may read beta groups | UNVERIFIED; the message names App Manager, which is what the connector already asks for |
+| Builds of other platforms in a group (iOS and macOS builds share a group) are told apart by build number only | a build number that exists on both platforms would match both; UNVERIFIED how often |
+
+Decisions: nothing is ever created, enabled, disabled or edited (no POST, PATCH or DELETE exists in the connector), so an app
+with no public group shows a plain "none" text that points to App Store Connect. A QR code is drawn from the link address
+with the same encoder as the phone link (`apps/web/src/lib/qr.ts`); a camera scan is not verified.
