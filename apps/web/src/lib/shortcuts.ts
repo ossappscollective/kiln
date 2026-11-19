@@ -31,6 +31,7 @@ export const appChords: readonly SectionChord[] = [
   { key: 'a', target: 'assets', label: 'Assets' },
   { key: 'v', target: 'reviews', label: 'Reviews' },
   { key: 'o', target: 'aso', label: 'ASO' },
+  { key: 'n', target: 'analytics', label: 'Analytics' },
   { key: 'b', target: 'builds', label: 'Builds and CI' },
   { key: 's', target: 'settings', label: 'Settings' },
 ];

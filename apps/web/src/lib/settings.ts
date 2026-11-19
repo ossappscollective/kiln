@@ -1,7 +1,9 @@
 import {
   type TranslationMode,
   type TranslationProvider,
+  normalizeBucketId,
   normalizeLanguageTag,
+  normalizeVendorNumber,
   translationModes,
   translationProviderInfo,
   translationProviders,
@@ -57,6 +59,12 @@ export type SettingsForm = {
   unansweredReminderHours: string;
   /** The highest rating the unanswered digest counts, 1 to 5. */
   unansweredMaxRating: string;
+  /** Analytics is read from the stores (off by default; needs analytics.manage to change). */
+  analyticsEnabled: boolean;
+  /** The Apple vendor number (5 to 12 digits) for Sales and Trends; empty means none. */
+  analyticsVendorNumber: string;
+  /** The Cloud Storage bucket of the Play Console reports (`pubsite_prod_rev_` and digits); empty means none. */
+  analyticsBucketId: string;
 };
 
 export const KEYS = {
@@ -71,6 +79,9 @@ export const KEYS = {
   stalledRepeatHours: 'release.stalledRepeatHours',
   unansweredReminderHours: 'reviews.unansweredReminderHours',
   unansweredMaxRating: 'reviews.unansweredMaxRating',
+  analyticsEnabled: 'analytics.enabled',
+  analyticsVendorNumber: 'analytics.appleVendorNumber',
+  analyticsBucketId: 'analytics.playBucketId',
 } as const;
 
 /** The most hours a release or reminder setting takes (docs/api/settings.md). */
@@ -91,6 +102,9 @@ export function formFromSettings(values: Record<string, SettingValue>): Settings
     stalledRepeatHours: String(values[KEYS.stalledRepeatHours] ?? 24),
     unansweredReminderHours: String(values[KEYS.unansweredReminderHours] ?? 0),
     unansweredMaxRating: String(values[KEYS.unansweredMaxRating] ?? 5),
+    analyticsEnabled: values[KEYS.analyticsEnabled] === true,
+    analyticsVendorNumber: String(values[KEYS.analyticsVendorNumber] ?? ''),
+    analyticsBucketId: String(values[KEYS.analyticsBucketId] ?? ''),
   };
 }
 
@@ -135,6 +149,12 @@ export function validateForm(form: SettingsForm): FormErrors {
   if (!hours(form.unansweredReminderHours)) errors.unansweredReminderHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 is off).`;
   const top = form.unansweredMaxRating.trim();
   if (!WHOLE.test(top) || Number(top) < 1 || Number(top) > 5) errors.unansweredMaxRating = 'A whole number from 1 to 5.';
+  if (form.analyticsVendorNumber.trim() !== '' && !normalizeVendorNumber(form.analyticsVendorNumber)) {
+    errors.analyticsVendorNumber = 'A vendor number is 5 to 12 digits.';
+  }
+  if (form.analyticsBucketId.trim() !== '' && !normalizeBucketId(form.analyticsBucketId)) {
+    errors.analyticsBucketId = 'Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).';
+  }
   const url = checkLibreUrl(form.libreUrl);
   if (url) errors.libreUrl = url;
   if (form.provider === 'libretranslate' && form.enabled && form.libreUrl.trim() === '') {
@@ -161,6 +181,9 @@ export function settingsChanges(
     [KEYS.stalledRepeatHours]: Number(form.stalledRepeatHours),
     [KEYS.unansweredReminderHours]: Number(form.unansweredReminderHours),
     [KEYS.unansweredMaxRating]: Number(form.unansweredMaxRating),
+    [KEYS.analyticsEnabled]: form.analyticsEnabled,
+    [KEYS.analyticsVendorNumber]: normalizeVendorNumber(form.analyticsVendorNumber) ?? form.analyticsVendorNumber.trim(),
+    [KEYS.analyticsBucketId]: normalizeBucketId(form.analyticsBucketId) ?? form.analyticsBucketId.trim(),
   };
   const out: Record<string, SettingValue> = {};
   for (const key of Object.keys(next)) {

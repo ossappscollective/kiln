@@ -37,9 +37,9 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'builds' | 'settings';
+export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'analytics' | 'builds' | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings'];
+export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'analytics', 'builds', 'settings'];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
@@ -53,6 +53,7 @@ export const appSectionDefs: readonly SectionDef[] = [
   { id: 'assets', label: 'Assets', icon: 'images', requires: 'listing.read' },
   { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
   { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },
+  { id: 'analytics', label: 'Analytics', icon: 'activity', requires: 'analytics.read' },
   { id: 'builds', label: 'Builds and CI', icon: 'pipeline', requires: 'apps.read' },
   { id: 'settings', label: 'Settings', icon: 'settings', requires: 'apps.read' },
 ];

@@ -1,4 +1,13 @@
 import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
+import type {
+  AnalyticsOverview,
+  AnalyticsStatus,
+  AnalyticsSyncResult,
+  EnablePreview,
+  EnableResult,
+  ImportPreview,
+  ImportResult as AnalyticsImportResult,
+} from './analytics.ts';
 import type { AiAcceptBody, AiAcceptResult, AiConfig, AiModelsBody, AiModelsResponse, AiRunBody, AiSettingsChanges, AiTasksResponse, AiTestOutcome } from './ai.ts';
 import type {
   AsoAddResult,
@@ -355,6 +364,7 @@ export function createApi(options: ApiOptions = {}) {
 
   const workspace = (id: string) => `/api/workspaces/${encodeURIComponent(id)}`;
   const asoPath = (workspaceId: string, appId: string) => `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/aso`;
+  const analyticsPath = (workspaceId: string, appId: string) => `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/analytics`;
   const planPath = (workspaceId: string, appId: string, planId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans/${encodeURIComponent(planId)}`;
 
@@ -1056,6 +1066,38 @@ export function createApi(options: ApiOptions = {}) {
     /** Admins: queues a refresh of every app that has keywords or competitors. */
     refreshAsoAll: (workspaceId: string) =>
       request<{ queued: number; skipped: { alreadyQueued: number; notReady: number; playOff: number; capped: number } }>('POST', `${workspace(workspaceId)}/aso/refresh`),
+    // Analytics (docs/api/analytics.md). Reads (`analyticsStatus`, `analyticsOverview`) are our own database. `syncAnalytics` reads the stores;
+    // `previewAppleEnable` reads Apple and changes nothing; `enableApple` is the one store write (a report request at Apple), with the
+    // preview's hash; the import sends a report file to this server only. All but the two reads need `analytics.manage`.
+    analyticsStatus: (workspaceId: string, appId: string) => request<AnalyticsStatus>('GET', `${analyticsPath(workspaceId, appId)}/status`),
+    analyticsOverview: (
+      workspaceId: string,
+      appId: string,
+      query: { platform?: string; from?: string; to?: string; granularity?: string; breakdown?: string } = {},
+    ) => {
+      const params = new URLSearchParams();
+      for (const key of ['platform', 'from', 'to', 'granularity', 'breakdown'] as const) {
+        const value = query[key];
+        if (value !== undefined && value !== '') params.set(key, value);
+      }
+      const text = params.toString();
+      return request<AnalyticsOverview>('GET', `${analyticsPath(workspaceId, appId)}/overview${text ? `?${text}` : ''}`);
+    },
+    syncAnalytics: (workspaceId: string, appId: string, sources?: string[]) =>
+      request<AnalyticsSyncResult>('POST', `${analyticsPath(workspaceId, appId)}/sync`, sources && sources.length > 0 ? { sources } : undefined),
+    previewAppleEnable: (workspaceId: string, appId: string, backfill = false) =>
+      request<EnablePreview>('GET', `${analyticsPath(workspaceId, appId)}/apple/enable${backfill ? '?backfill=true' : ''}`),
+    enableApple: (workspaceId: string, appId: string, body: { confirmHash: string; backfill?: boolean }) =>
+      request<EnableResult>('POST', `${analyticsPath(workspaceId, appId)}/apple/enable`, body),
+    previewAnalyticsImport: (workspaceId: string, appId: string, fileName: string, file: Blob) =>
+      request<ImportPreview>('POST', `${analyticsPath(workspaceId, appId)}/import/preview?fileName=${encodeURIComponent(fileName)}`, undefined, file),
+    importAnalytics: (workspaceId: string, appId: string, fileName: string, confirmHash: string, file: Blob) =>
+      request<AnalyticsImportResult>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/import?fileName=${encodeURIComponent(fileName)}&confirmHash=${encodeURIComponent(confirmHash)}`,
+        undefined,
+        file,
+      ),
   };
 }
 

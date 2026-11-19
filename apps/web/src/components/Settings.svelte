@@ -1,7 +1,7 @@
 <!--
   Settings: workspace settings (docs/api/settings.md). Any member sees them; owners and admins change them.
   Sections: Reviews (the low rating threshold and the unanswered reminder), Releases (when a release counts as left
-  unfinished), Translation (provider, credential, target
+  unfinished), Analytics (the opt-in, the Apple vendor number and the Play bucket id), Translation (provider, credential, target
   language, mode, daily budget, a test) and the AI assistant (AiSettings: provider, model, key, monthly limit, a test; its own save).
   Secrets are never settings: keys live under Credentials (the AI key is written from its card into the same vault).
 -->
@@ -22,6 +22,7 @@
   } from '../lib/settings.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
+  import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
   import AiSettings from './settings/AiSettings.svelte';
   import ReviewsSettings from './settings/ReviewsSettings.svelte';
@@ -155,6 +156,7 @@
         writable={editable ? data.writable : []}
       />
       <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
+      <AnalyticsSettings bind:form {editable} {errors} writable={editable ? data.writable : []} />
       <TranslationSettings
         bind:form
         {errors}

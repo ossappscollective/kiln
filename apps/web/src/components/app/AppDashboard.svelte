@@ -39,6 +39,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
   import PipelineStrip from '../release/PipelineStrip.svelte';
+  import AnalyticsStrip from '../analytics/AnalyticsStrip.svelte';
   import AttentionList from './AttentionList.svelte';
   import StartRelease from './StartRelease.svelte';
 
@@ -238,6 +239,8 @@
     }}
   />
 {/if}
+
+<AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
 
 <div class="layout" class:split={items.length > 0}>
   <div class="cards">

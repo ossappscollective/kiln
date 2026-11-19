@@ -45,6 +45,9 @@ test('formFromSettings fills the form from the values and falls back to the defa
     stalledRepeatHours: '24',
     unansweredReminderHours: '0',
     unansweredMaxRating: '5',
+    analyticsEnabled: false,
+    analyticsVendorNumber: '',
+    analyticsBucketId: '',
   });
   const odd = formFromSettings({ 'translation.provider': 'nope', 'translation.mode': 'nope' });
   assert.equal(odd.provider, 'google');
@@ -66,6 +69,24 @@ test('validateForm: threshold, language, budget and address', () => {
   // LibreTranslate with translation on needs an address.
   assert.ok(validateForm({ ...form, provider: 'libretranslate', enabled: true }).libreUrl);
   assert.equal(validateForm({ ...form, provider: 'libretranslate', enabled: false }).libreUrl, undefined);
+});
+
+test('analytics settings: on only when the value is true, ids are checked and saved in their clean form, and only those who may write them send them', () => {
+  const saved = { ...defaults, 'analytics.enabled': false, 'analytics.appleVendorNumber': '', 'analytics.playBucketId': '' };
+  const all = [...ALL, 'analytics.enabled', 'analytics.appleVendorNumber', 'analytics.playBucketId'];
+  assert.equal(formFromSettings({ 'analytics.enabled': true }).analyticsEnabled, true);
+  assert.equal(formFromSettings({ 'analytics.enabled': 'true' }).analyticsEnabled, false);
+  const form = formFromSettings(saved);
+  assert.deepEqual(validateForm(form), {});
+  assert.ok(validateForm({ ...form, analyticsVendorNumber: 'abc' }).analyticsVendorNumber);
+  assert.ok(validateForm({ ...form, analyticsBucketId: 'not a bucket!' }).analyticsBucketId);
+  assert.equal(validateForm({ ...form, analyticsVendorNumber: '12345678' }).analyticsVendorNumber, undefined);
+  assert.equal(validateForm({ ...form, analyticsBucketId: 'pubsite_prod_rev_01234567890123456789' }).analyticsBucketId, undefined);
+  const on = { ...form, analyticsEnabled: true, analyticsVendorNumber: ' 12345678 ' };
+  assert.deepEqual(settingsChanges(saved, on, all), { 'analytics.enabled': true, 'analytics.appleVendorNumber': '12345678' });
+  // without analytics.manage nothing about analytics is sent
+  assert.deepEqual(settingsChanges(saved, on, ALL), {});
+  assert.deepEqual(settingsChanges(saved, form, all), {});
 });
 
 test('checkLibreUrl: https, no credentials, no query; http only on this machine', () => {

@@ -30,6 +30,7 @@
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoSection from '../aso/AsoSection.svelte';
+  import AnalyticsSection from '../analytics/AnalyticsSection.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
   import AppWorkflows from './AppWorkflows.svelte';
@@ -163,6 +164,8 @@
   {@render perPlatform(builds)}
 {:else if section === 'aso'}
   <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
+{:else if section === 'analytics'}
+  <AnalyticsSection {api} {workspaceId} {role} {members} {now} />
 {:else if section === 'settings'}
   <AppSettings {api} {workspaceId} {role} {members} {all} {now} />
 {:else}
