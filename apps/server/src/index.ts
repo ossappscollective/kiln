@@ -150,6 +150,7 @@ const app = createApp({
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
   storeRelease: { enabled: config.storeReleaseEnabled },
+  storePublish: { enabled: config.storePublishBatchEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   reads,
   cloneUpkeep,
@@ -273,6 +274,9 @@ if (config.worker === 'inline') {
   }
   if (config.storeReleaseEnabled) {
     console.log('Releasing is ON (MRM_STORE_RELEASE_ENABLED): owners and admins can release an approved App Store version or start a Google Play draft release at a share of users (not recallable from here)');
+  }
+  if (config.storePublishBatchEnabled) {
+    console.log('The batch publish is ON (MRM_STORE_PUBLISH_BATCH_ENABLED): owners and admins can run several gated store steps with one confirmation; every step still needs its own switch and right');
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);

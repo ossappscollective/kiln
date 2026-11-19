@@ -267,3 +267,19 @@ test('store.release: owners and admins only; explicit-only on tokens, separate f
   assert.equal(canToken('admin', ['store.release'], 'store.release'), true);
   assert.equal(canToken('member', ['store.release'], 'store.release'), false, 'the ceiling still applies');
 });
+
+test('store.publish: owners and admins only; explicit-only on tokens and never a substitute for the rights of the steps', () => {
+  assert.equal(can('owner', 'store.publish'), true);
+  assert.equal(can('admin', 'store.publish'), true);
+  assert.equal(can('member', 'store.publish'), false);
+  assert.equal(can('viewer', 'store.publish'), false);
+  assert.ok(tokenActions.includes('store.publish'));
+  assert.ok(tokenExplicitOnlyActions.includes('store.publish'));
+  assert.equal(canToken('admin', null, 'store.publish'), false, 'no list: never');
+  for (const step of ['store.push_draft', 'store.submit', 'store.release', 'releases.rollout'] as const) {
+    assert.equal(canToken('admin', ['store.publish'], step), false, `store.publish does not give ${step}`);
+    assert.equal(canToken('admin', [step], 'store.publish'), false, `${step} does not give store.publish`);
+  }
+  assert.equal(canToken('admin', ['store.publish'], 'store.publish'), true);
+  assert.equal(canToken('member', ['store.publish'], 'store.publish'), false, 'the ceiling still applies');
+});

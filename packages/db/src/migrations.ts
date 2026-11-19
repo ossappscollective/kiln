@@ -1372,4 +1372,31 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 29,
+    name: 'store publish claims (one batch publish in flight per app)',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // store_publish_claims: the claim a BATCH PUBLISH takes before it runs its steps (docs/adr/0015-pending-and-batch-publish.md),
+      // one row per app and platform, with the shape of store_release_claims. status is `writing` (claim_at is its start; it
+      // expires after a time to live, so a process that died does not block the app for ever). A batch has no `unknown` state of
+      // its own: the claims of the steps it runs (draft push, submit, release, rollout) keep their own unknown outcomes. The
+      // primary key is what makes "one publish in flight per app and platform" true across processes. No foreign key on app_id
+      // (like the other store tables): deleting an app deletes its row in code. Nothing else changes; rows of migrations 1 to 28
+      // are not touched.
+      return [
+        `CREATE TABLE IF NOT EXISTS store_publish_claims (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           action TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'writing',
+           claimed_by TEXT NOT NULL,
+           claim_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS store_publish_claims_workspace_idx ON store_publish_claims (workspace_id)',
+      ];
+    },
+  },
 ];

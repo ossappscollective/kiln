@@ -447,6 +447,18 @@ codes (they change nothing). Things to settle first:
   service account must be allowed to release apps in Play Console.
 - Everything not verified on a real account is listed in [api/releases-write](api/releases-write.md#unverified-check-with-a-real-account).
 
+### Publishing several steps at once (a store write, off by default)
+
+`MRM_STORE_PUBLISH_BATCH_ENABLED` (default `false`; only `true` and `false`; blank means off) is the master switch of the **batch publish**:
+one preview and one typed confirmation for several gated steps of an app (push the draft, submit, release, rollout). **It turns no step on**:
+every step in a batch still needs its own switch (`MRM_STORE_DRAFT_WRITE_ENABLED`, `MRM_STORE_SUBMIT_ENABLED`, `MRM_STORE_RELEASE_ENABLED`,
+`MRM_STORE_ROLLOUT_ENABLED`), its own role right and its own hash; a step whose switch is off is shown as unavailable in the plan, and a
+request that includes it is refused. While `false`, the two batch routes answer `409 publish_batch_disabled` (after the rights check); the
+pending view (`GET /apps/{id}/pending`, `GET /pending/summary`) reads this server's own database only and works either way. Only owners and
+admins (`store.publish`); an API token only when its list of actions names `store.publish` **and** the action of every step in the batch.
+The table `store_publish_claims` (one row while a batch runs) is created by migration 29. See [adr/0015](adr/0015-pending-and-batch-publish.md)
+and [api/pending](api/pending.md).
+
 ### Review translation
 
 Translating reviews is **off by default** and chosen per workspace under Settings

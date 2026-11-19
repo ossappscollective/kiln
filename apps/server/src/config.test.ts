@@ -487,3 +487,15 @@ test('MRM_STORE_RELEASE_ENABLED is off by default; only true and false are accep
   assert.equal(others.storeReleaseEnabled, false);
   assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_RELEASE_ENABLED: 'true' }).storeSubmitEnabled, false);
 });
+
+test('MRM_STORE_PUBLISH_BATCH_ENABLED is off by default; only true and false are accepted; blank means off; it turns no step on', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storePublishBatchEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PUBLISH_BATCH_ENABLED: '' }).storePublishBatchEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PUBLISH_BATCH_ENABLED: 'false' }).storePublishBatchEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PUBLISH_BATCH_ENABLED: 'true' }).storePublishBatchEnabled, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PUBLISH_BATCH_ENABLED: bad }), /MRM_STORE_PUBLISH_BATCH_ENABLED/, bad);
+  }
+  const on = loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PUBLISH_BATCH_ENABLED: 'true' });
+  assert.deepEqual([on.storeDraftWriteEnabled, on.storeSubmitEnabled, on.storeReleaseEnabled, on.storeRolloutEnabled], [false, false, false, false]);
+});

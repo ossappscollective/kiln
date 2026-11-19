@@ -28,6 +28,7 @@ export const actions = [
   'store.push_draft',
   'store.submit',
   'store.release',
+  'store.publish',
   'reviews.read',
   'reviews.sync',
   'reviews.triage',
@@ -122,11 +123,12 @@ export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbi
  * release to everyone) or write listing text and graphics into a store as a draft
  * (`store.push_draft`, docs/adr/0009-staged-store-drafts.md) or submit the editable version for store review
  * (`store.submit`, docs/adr/0010-store-submit.md) or RELEASE an approved version to users / start a Google Play release
- * (`store.release`, docs/adr/0014-release-management.md). A token gets one only when its list of actions names it: a token with no list
+ * (`store.release`, docs/adr/0014-release-management.md) or run several of those steps in ONE confirmed batch
+ * (`store.publish`, docs/adr/0015-pending-and-batch-publish.md; it never replaces the right of any step in the batch). A token gets one only when its list of actions names it: a token with no list
  * ("everything the ceiling allows") never does, so widening an old token's role cannot start
  * answering customers or moving a rollout.
  */
-export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release'];
+export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish'];
 
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);

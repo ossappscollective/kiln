@@ -1373,3 +1373,26 @@ export const reviewUnansweredReminders = sqliteTable('review_unanswered_reminder
   lastCount: integer('last_count').notNull(),
   lastOldestAt: integer('last_oldest_at'),
 });
+
+/**
+ * The claim a BATCH PUBLISH takes before it runs its steps (see migration 29 and docs/adr/0015-pending-and-batch-publish.md): one row
+ * per app and platform. Same shape as `store_release_claims`; only `writing` is used.
+ */
+export const storePublishClaims = sqliteTable(
+  'store_publish_claims',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    action: text('action').notNull(),
+    status: text('status').notNull().default('writing'),
+    claimedBy: text('claimed_by').notNull(),
+    claimAt: integer('claim_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('store_publish_claims_workspace_idx').on(t.workspaceId),
+  ],
+);

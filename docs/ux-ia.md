@@ -95,6 +95,8 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 | Push assets as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (same switch and route; server done; screens not built) |
 | Release (App Store version, or a Google Play draft release at a share) | store write, irreversible | `MRM_STORE_RELEASE_ENABLED` and `store.release` (server done, [api/releases-write](api/releases-write.md); screens not built: pick build or codes, edit fields, preview, a typed confirmation that names the share) |
 | Submit the pushed draft for store review | store write, irreversible | `MRM_STORE_SUBMIT_ENABLED` and `store.submit` (server done, [api/submit](api/submit.md); screens not built: preview, checks, then a typed confirmation) |
+| Publish several steps at once (push draft, submit, release, rollout) after one review | store write, irreversible | `MRM_STORE_PUBLISH_BATCH_ENABLED`, `store.publish` and each step's own switch and right (server done, [api/pending](api/pending.md); screens not built: one Pending changes place per app, a review of the plan, one typed phrase) |
+| See everything an app has pending; which apps have pending changes | read only | `listing.read` (server done, [api/pending](api/pending.md); screens not built) |
 | Reply to a review | store write | `MRM_REVIEW_REPLY_ENABLED` (exists), plus the credential role |
 | Commit or push to a local clone | repository write | `MRM_LOCAL_REPO_WRITE` (exists) |
 | Rollout step plan, mark step done, reminders, checklist | planning data | none |

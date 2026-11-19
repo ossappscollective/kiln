@@ -390,6 +390,10 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    await tx.execute('DELETE FROM store_publish_claims WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     // The release pipeline's own rows: the builds seen, the stall reminder, and the app's share of CI runs.
     await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
     await tx.execute('DELETE FROM release_stall_reminders WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);

@@ -217,6 +217,11 @@ const schema = z.object({
   // be recalled from here, so it is off by default and separate from the draft and submit switches: the release routes
   // answer 409 store_release_disabled until this is 'true'. Reading builds and version codes does not depend on it.
   MRM_STORE_RELEASE_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // Master switch for the BATCH PUBLISH of an app (docs/adr/0015-pending-and-batch-publish.md): one preview and one typed confirmation for
+  // several gated steps (push the draft, submit, release, rollout). It adds no power of its own: every step in the batch still needs its
+  // own switch above, its own role right and its own hash, so turning this on does not turn any step on. Off by default: the batch routes
+  // answer 409 publish_batch_disabled until this is 'true'. Viewing the pending changes of an app does not depend on it.
+  MRM_STORE_PUBLISH_BATCH_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Minutes between scheduled reads of the store listing of every app (texts, categories, age
   // rating, screenshot counts). 0 (the default) turns them off; otherwise 30 to 10080 (a week). A
   // listing read is many requests, so the floor is higher than the sync's. They use the stored
@@ -526,6 +531,8 @@ export type Config = {
   storeSubmitEnabled: boolean;
   /** Releasing an approved version or starting a Google Play draft release is allowed (MRM_STORE_RELEASE_ENABLED). Default false. */
   storeReleaseEnabled: boolean;
+  /** The batch publish (one confirmation for several gated steps) is allowed (MRM_STORE_PUBLISH_BATCH_ENABLED). Default false. Turns no step on. */
+  storePublishBatchEnabled: boolean;
   /** Minutes between scheduled reads of the store listing of every app; 0 is off (MRM_LISTING_INTERVAL_MINUTES). */
   listingIntervalMinutes: number;
   /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
@@ -603,6 +610,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     storeDraftWriteEnabled: data.MRM_STORE_DRAFT_WRITE_ENABLED === 'true',
     storeSubmitEnabled: data.MRM_STORE_SUBMIT_ENABLED === 'true',
     storeReleaseEnabled: data.MRM_STORE_RELEASE_ENABLED === 'true',
+    storePublishBatchEnabled: data.MRM_STORE_PUBLISH_BATCH_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
     releaseWatchIntervalMinutes: data.MRM_RELEASE_WATCH_INTERVAL_MINUTES,

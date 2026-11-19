@@ -273,6 +273,19 @@ the raw state). A phased release currently shows as `live` because it is not rea
   Google Play's lack of a review state in the API is acceptable for the "unknown outcome" case.
 - **Check with a real account:** [api/submit](api/submit.md#unverified-check-with-a-real-account).
 
+### Pending changes and publishing in one go ([ADR 0015](adr/0015-pending-and-batch-publish.md))
+
+- **Today:** the pending view (per app and per workspace) reads stored data only and needs `listing.read`. The batch publish is off by
+  default (`MRM_STORE_PUBLISH_BATCH_ENABLED`, which turns no step on); an admin or owner previews the plan, types ONE phrase
+  (`publish <app name> <n> steps`) and the steps run in order through their own services, each with its own switch, right, re-read and
+  drift refusal; it stops at the first step that is not applied and never retries. A token needs `store.publish` and every step's
+  right named explicitly. Server only: no screens yet. Nothing was run against a real store.
+- **Decide:** whether the batch phrase should also be needed for a plan that has no irreversible step (it is not today: a push alone is
+  a draft); whether a batch that stops halfway should offer a one click "continue" (today the person previews again); whether a
+  Google Play submit followed by a release should be refused in the plan instead of warned (Play is expected to answer
+  `changes_in_review`); whether the pending summary should count items in review (it lists them as `waiting`, not in `count`).
+- **Check with a real account:** [ADR 0015](adr/0015-pending-and-batch-publish.md#not-verified-unverified).
+
 ### ASO: keyword ranks and competitors ([ADR 0011](adr/0011-aso-keywords-competitors.md))
 
 - **Today:** read-only, from public store data. Apple through the documented iTunes Search API; Google Play only when the operator sets

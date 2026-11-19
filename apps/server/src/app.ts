@@ -20,6 +20,7 @@ import { listingRoutes } from './routes/listing.ts';
 import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
 import { memberRoutes } from './routes/members.ts';
 import { planRoutes } from './routes/plans.ts';
+import { type PendingRoutesContext, pendingRoutes } from './routes/pending.ts';
 import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
@@ -229,6 +230,12 @@ export type AppDeps = {
    * tests. The reads of builds and version codes use the draft connector (`storeDraft.connectorFactory`) and no switch.
    */
   storeRelease?: ReleaseRoutesContext['release'];
+  /**
+   * Publishing everything an app has pending in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md): a store write
+   * that is OFF unless `enabled` (MRM_STORE_PUBLISH_BATCH_ENABLED). It turns no step on: the steps keep the switches, the fakes and the
+   * timeouts of `storeDraft`, `storeSubmit`, `storeRelease` and `rollout`. `claimTtlMs` is for tests.
+   */
+  storePublish?: PendingRoutesContext['publish'];
   /**
    * ASO, keyword ranks and competitors from public store data (docs/api/aso.md). `sources` reads the stores (a fake in
    * tests; index.ts builds one and shares it with the worker, so the cache and the rate limits are shared);
@@ -554,6 +561,22 @@ export function createApp(deps: AppDeps) {
       now: services.now,
       ...(deps.storeDraft ? { draft: { ...(deps.storeDraft.connectorFactory ? { connectorFactory: deps.storeDraft.connectorFactory } : {}), ...(deps.storeDraft.timeoutMs !== undefined ? { timeoutMs: deps.storeDraft.timeoutMs } : {}) } } : {}),
       ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
+    }),
+  );
+  // What an app has pending (stored state only) and publishing it in one go: off unless MRM_STORE_PUBLISH_BATCH_ENABLED. Each step
+  // keeps its own switch, right, seams and gates: the seams are the ones the individual routes above were given.
+  app.route(
+    '/api/workspaces',
+    pendingRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      repo: assetsRepo,
+      ...(deps.storePublish ? { publish: deps.storePublish } : {}),
+      ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
+      ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
+      ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
+      ...(deps.rollout ? { rollout: deps.rollout } : {}),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.
