@@ -24,6 +24,9 @@ export type TokenActing = { tokenId: string; userId: string };
 const acting = new AsyncLocalStorage<TokenActing>();
 export const runAsToken = <T>(token: TokenActing, fn: () => T): T => acting.run(token, fn);
 
+/** Postgres refuses a NUL character in text and JSON; a path or a name from a request can hold one. */
+const noNul = (value: string): string => value.replaceAll('\u0000', '\ufffd');
+
 export async function recordAudit(sql: Sql, input: AuditInput): Promise<void> {
   const token = acting.getStore();
   const viaToken = token && input.actor.type === 'user' && input.actor.id === token.userId;
@@ -45,8 +48,12 @@ export async function recordAudit(sql: Sql, input: AuditInput): Promise<void> {
       event.actor.id,
       event.action,
       event.target?.type ?? null,
-      event.target?.id ?? null,
-      event.detail ? JSON.stringify(event.detail) : null,
+      event.target?.id === undefined ? null : noNul(event.target.id),
+      event.detail
+        ? JSON.stringify(event.detail, (_key, value) =>
+            typeof value === 'string' ? noNul(value) : value,
+          )
+        : null,
       event.at,
     ],
   );
