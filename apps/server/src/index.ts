@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server';
 import { createDatabase, migrate } from '@mrm/db';
 import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
+import { demoRequested } from './demo/config.ts';
 import { createWorker } from './jobs.ts';
 import { createEventStreamHub } from './routes/events.ts';
 import { createScheduler, releaseWatchIntervalMs, reminderIntervalMs, syncIntervalMs } from './scheduler.ts';
@@ -41,6 +42,13 @@ import { WEBHOOK_QUEUE, createWebhookHandler, pruneDeliveries } from './services
 import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { VERSION } from './version.ts';
+
+// Demo mode (MRM_DEMO=true) is a separate, self-contained server: it never reads the real configuration, database or master key.
+if (demoRequested(process.env)) {
+  const { runDemo } = await import('./demo/main.ts');
+  await runDemo(process.env);
+  await new Promise<never>(() => {}); // the demo server keeps running; the normal start-up below is never reached
+}
 
 const config = loadConfig();
 

@@ -97,7 +97,7 @@ export class FakeRepo implements RepoClient {
     const number = ++this.#pr;
     return { url: `https://github.com/acme/app/pull/${number}`, number };
   }
-  async dispatchWorkflow(): Promise<never> {
+  async dispatchWorkflow(_workflow?: string, _ref?: string, _inputs?: Record<string, string>): Promise<any> {
     throw new Error('not used');
   }
   async listWorkflowRuns(): Promise<never> {

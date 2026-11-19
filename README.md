@@ -167,3 +167,5 @@ encrypted with the master key from the environment; keep that key out of version
 ## License
 
 [Apache-2.0](LICENSE).
+
+Try it without any account: `pnpm demo` (see [docs/demo.md](docs/demo.md)).

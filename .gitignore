@@ -6,6 +6,7 @@ target/
 *.log
 .DS_Store
 .mrm-data/
+.mrm-demo/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/binaries/
 *.bak

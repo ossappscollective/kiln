@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @mrm/server --filter @mrm/web dev",
     "build": "pnpm --filter @mrm/web build",
+    "demo": "pnpm build && pnpm --filter @mrm/server demo",
+    "demo:reset": "pnpm build && pnpm --filter @mrm/server demo:reset",
     "tauri": "pnpm --filter @mrm/desktop tauri",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

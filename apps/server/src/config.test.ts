@@ -499,3 +499,14 @@ test('MRM_STORE_PUBLISH_BATCH_ENABLED is off by default; only true and false are
   const on = loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_PUBLISH_BATCH_ENABLED: 'true' });
   assert.deepEqual([on.storeDraftWriteEnabled, on.storeSubmitEnabled, on.storeReleaseEnabled, on.storeRolloutEnabled], [false, false, false, false]);
 });
+
+test('MRM_BUILDS_DOWNLOAD_ENABLED is off by default and independent of the store switches; the size limit is bounded', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).buildsDownloadEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_ENABLED: '' }).buildsDownloadEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_ENABLED: 'true' }).buildsDownloadEnabled, true);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_ENABLED: 'true' }).storeReleaseEnabled, false);
+  assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_ENABLED: 'yes' }), /MRM_BUILDS_DOWNLOAD_ENABLED/);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).buildsDownloadMaxBytes, 500 * 1024 * 1024);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_MAX_MB: '2' }).buildsDownloadMaxBytes, 2 * 1024 * 1024);
+  for (const bad of ['0', '5000', 'big']) assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_BUILDS_DOWNLOAD_MAX_MB: bad }), /MRM_BUILDS_DOWNLOAD_MAX_MB/, bad);
+});
