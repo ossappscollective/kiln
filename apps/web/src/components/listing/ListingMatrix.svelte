@@ -5,13 +5,14 @@
   locales (needs attention, missing only, over limit); a click on a locale opens its drawer with the
   full comparison of each field. The platform scope (iOS, macOS, Android or all) comes from the shell; with
   several, one grid merges the stores and the header shows a platform badge per column.
-  Read-only toward the store: "Refresh from store" runs the app's sync, which only reads. The one
+  Read-only toward the store: reading the store again is "Sync now" in the Status popover of the header (this page only points to it).
+  The one
   thing it can write toward the repository is a draft change set ("Pull into repository", the existing
   PullDialog), which a person reviews in the repository. "Stage from repo" (in the locale drawer) collects a
   field's repository text in the staged-changes tray (our own database); a cell with a staged text shows a
   mark. The tray pushes staged changes to a store's DRAFT (a gated store write, admin and up) and never submits.
   Props: api, workspaceId, role, members (the platform records in scope), now (ms), syncing (by app
-  id), onsync (runs the sync of one app; the shell owns it), refreshKey (changes when a sync
+  id), refreshKey (changes when a sync
   finished, so this tab reloads), lockedPlatforms? (platforms whose selected version is live or in review: their
   fields are read-only, with no stage control and no staged-changes tray), locale? (the locale of the page header:
   naming one the grid has opens its drawer; stepping to another locale there tells onlocale), onlocale?.
@@ -23,6 +24,7 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import type { AsoKeyword } from '../../lib/aso.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import { openStatusPopover } from '../../lib/app-page.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { shortRef } from '../../lib/listing-drift.ts';
   import {
@@ -40,6 +42,8 @@
     defaultMatrixFilter,
     filterRows,
     limitText,
+    listingContext,
+    listingStatusLine,
     matrixSummary,
     modeCounts,
     type MatrixCell,
@@ -76,7 +80,6 @@
     members,
     now,
     syncing,
-    onsync,
     refreshKey,
     lockedPlatforms = [],
     locale = null,
@@ -88,7 +91,6 @@
     members: AppSummary[];
     now: number;
     syncing: Record<string, boolean | undefined>;
-    onsync: (app: AppSummary) => void;
     refreshKey: number;
     lockedPlatforms?: Platform[];
     locale?: string | null;
@@ -108,6 +110,7 @@
   let announcement = $state('');
   let lastPull = $state<PullResult | null>(null);
   let warningsOpen = $state(false);
+  let moreOpen = $state(false);
 
   let drawerOpen = $state(false);
   let drawerLocale = $state<string | null>(null);
@@ -200,6 +203,7 @@
   const shown = $derived(matrix.platforms);
   const both = $derived(shown.length > 1);
   const counts = $derived(modeCounts(matrix.rows));
+  const line = $derived(listingStatusLine(matrix.rows));
   const rows = $derived(filterRows(matrix.rows, filter));
   const filtering = $derived(filter.mode !== 'all' || filter.query.trim() !== '');
   const loading = $derived(members.some((m) => views[m.id] === undefined || (views[m.id]?.loading === true && views[m.id]?.drift === null)));
@@ -393,9 +397,6 @@
       return app !== undefined && cellStagedText(stagedStore.view(app.id), c.field) !== null;
     });
 
-  const refreshAll = () => {
-    for (const app of members) onsync(app);
-  };
 
   function setMode(mode: MatrixFilter['mode']) {
     filter = { ...filter, mode };
@@ -417,6 +418,19 @@
       </Alert>
     {/if}
   {/each}
+
+  {#if hasRows}
+    <div class="context">
+      <p class="ctx muted">{listingContext(shown, matrix.rows.length)}</p>
+      <p class="statusline {line.tone}" data-testid="listing-status-line">
+        <StatusDot status={line.tone === 'ok' ? 'sync' : line.tone === 'warn' ? 'repo-differs' : 'na'} />
+        <span>{line.text}{anySyncing ? ' · reading the store…' : ''}</span>
+        {#if line.attention > 0 && filter.mode !== 'differing'}
+          <Button size="sm" variant="link" onclick={() => setMode('differing')}>Show them</Button>
+        {/if}
+      </p>
+    </div>
+  {/if}
 
   <div class="toolbar">
     <div class="filters">
@@ -441,7 +455,31 @@
             controls="listing-warnings"
           />
         {/if}
-        <InfoTip label="Where the values were read from" buttonText="Sources" icon="clock" width="26rem">
+        {#if members.some((m) => views[m.id]?.reloading)}<span class="muted updating">updating…</span>{/if}
+      {/if}
+    </div>
+    {#if !nothingLoaded}
+      <div class="actions row wrap">
+        <InfoTip label="Legend and sources of this grid" buttonText="Legend and sources" icon="info" align="end" width="min(28rem, 92vw)">
+          {#if hasRows}
+            <p>
+              Each cell compares one listing field of one locale between the repository and the store
+              ({members.map((m) => storeName(m.platform)).join(' and ')}). This view only reads: it never changes a store.
+              Open a locale for the full comparison.
+            </p>
+            <ul class="legend" aria-label="What the marks mean">
+              {#each LEGEND_ORDER as status (status)}
+                <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
+              {/each}
+              {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
+              <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>Staged for a draft push</span></li>
+            </ul>
+            <p class="muted">
+              A dimmed cell is one the filter is not about. A field only one store has is marked "iOS only" or "Android only";
+              a field with a different limit on each store shows both limits.
+            </p>
+          {/if}
+          <p class="eyebrow">Sources</p>
           <dl class="sources">
             {#each members as app (app.id)}
               {@const view = views[app.id]}
@@ -469,6 +507,12 @@
               {/if}
             {/each}
           </dl>
+          {#if canSync}
+            <p class="pullnote muted">
+              To read the store again, use Sync now in Status.
+              <Button size="sm" variant="link" onclick={() => openStatusPopover()}>Open Status</Button>
+            </p>
+          {/if}
           {#if hasRows}
             <p class="pullnote muted">
               {#if pullBlocked !== null}
@@ -481,51 +525,37 @@
             </p>
           {/if}
         </InfoTip>
-        {#if hasRows}
-          <InfoTip label="What the marks mean" buttonText="Legend" icon="info" width="26rem">
-            <p>
-              Each cell compares one listing field of one locale between the repository and the store
-              ({members.map((m) => storeName(m.platform)).join(' and ')}). This view only reads: it never changes a store.
-              Open a locale for the full comparison.
-            </p>
-            <ul class="legend" aria-label="What the marks mean">
-              {#each LEGEND_ORDER as status (status)}
-                <li><StatusDot {status} /> <span>{cellInfo(status).short}</span></li>
-              {/each}
-              {#if both}<li><StatusDot status="na" /> <span>Not on that store</span></li>{/if}
-              <li><span class="staged-mark"><Icon name="layers" size={14} /></span> <span>Staged for a draft push</span></li>
+        {#if readable.length > 0 || (hasRows && anyPullable)}
+          <InfoTip label="More listing actions" buttonText="More" icon="more" align="end" width="min(20rem, 92vw)" bind:open={moreOpen}>
+            <ul class="menu">
+              {#if readable.length > 0}
+                <li>
+                  <Button icon="git-branch" loading={repoReading} onclick={() => { moreOpen = false; void readRepository(); }}>{repoReading ? 'Reading…' : 'Read repository'}</Button>
+                  <span class="muted">Reads the listing files of the linked repository. Nothing is sent to a store.</span>
+                </li>
+              {/if}
+              {#if hasRows}
+                {#each pullables as p (p.app.id)}
+                  {#if p.fields.length > 0}
+                    <li>
+                      <Button
+                        icon="git-pull-request"
+                        disabled={p.reason !== null}
+                        title={p.reason ?? "Pull the store's text into the repository as a draft change set"}
+                        onclick={() => { moreOpen = false; openPull(p.app, p.fields); }}
+                      >
+                        Pull {both ? `${platformLabel(p.app.platform)} ` : ''}differences… ({p.fields.length})
+                      </Button>
+                      <span class="muted">{p.reason ?? 'A draft change set you review in the repository.'}</span>
+                    </li>
+                  {/if}
+                {/each}
+              {/if}
             </ul>
-            <p class="muted">
-              A dimmed cell is one the filter is not about. A field only one store has is marked "iOS only" or "Android only";
-              a field with a different limit on each store shows both limits.
-            </p>
           </InfoTip>
         {/if}
-        {#if members.some((m) => views[m.id]?.reloading)}<span class="muted updating">updating…</span>{/if}
-      {/if}
-    </div>
-    <div class="actions row wrap">
-      {#if readable.length > 0}
-        <Button icon="git-branch" loading={repoReading} onclick={readRepository}>{repoReading ? 'Reading…' : 'Read repository'}</Button>
-      {/if}
-      {#if hasRows}
-        {#each pullables as p (p.app.id)}
-          {#if p.fields.length > 0}
-            <Button
-              icon="git-pull-request"
-              disabled={p.reason !== null}
-              title={p.reason ?? "Pull the store's text into the repository as a draft change set"}
-              onclick={() => openPull(p.app, p.fields)}
-            >
-              Pull {both ? `${platformLabel(p.app.platform)} ` : ''}differences… ({p.fields.length})
-            </Button>
-          {/if}
-        {/each}
-      {/if}
-      {#if canSync}
-        <Button variant="primary" icon="refresh" loading={anySyncing} onclick={refreshAll}>{anySyncing ? 'Reading…' : 'Refresh from store'}</Button>
-      {/if}
-    </div>
+      </div>
+    {/if}
   </div>
 
   {#if warningCount > 0 && warningsOpen}
@@ -559,9 +589,9 @@
         >
           {#snippet actions()}
             {#if canSync}
-              <Button variant="primary" icon="refresh" loading={anySyncing} onclick={refreshAll}>Refresh from store</Button>
+              <Button variant="primary" icon="activity" onclick={() => openStatusPopover()}>Open Status to sync</Button>
             {:else}
-              <span class="muted">A member or admin can refresh the listing.</span>
+              <span class="muted">A member or admin can sync the app.</span>
             {/if}
           {/snippet}
         </EmptyState>
@@ -587,7 +617,7 @@
           </EmptyState>
         </div>
       {:else}
-        <div class="card flush table-scroll">
+        <div class="card flush grid-scroll">
           <table class="matrix compact">
             <caption class="visually-hidden">
               Listing status by locale and field{both ? ` for ${platformNames(shown)}` : ''}. Open a locale for the full comparison.
@@ -750,6 +780,47 @@
     font-size: var(--text-xs);
   }
 
+  .context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    align-items: center;
+  }
+
+  .ctx,
+  .statusline {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .statusline {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    font-weight: var(--weight-medium);
+  }
+
+  .menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .menu li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    align-items: flex-start;
+  }
+
+  .menu .muted {
+    font-size: var(--text-sm);
+  }
+
   .toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -845,9 +916,24 @@
     vertical-align: middle;
   }
 
+  /* The grid scrolls inside its own box so the header row (and the locale column) stay in view. */
+  .grid-scroll {
+    max-height: calc(100vh - var(--topbar-height) - var(--space-12));
+    overflow: auto;
+  }
+
   .matrix thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     vertical-align: bottom;
     white-space: nowrap;
+    background: var(--surface-sunken);
+    box-shadow: 0 1px 0 var(--line);
+  }
+
+  .matrix thead th.loc {
+    z-index: 3;
   }
 
   .col .label {

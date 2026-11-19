@@ -1,6 +1,6 @@
 <!--
   TrainSteps: the five steps of a release on its way (CI, Build, Prepare, Review, Release) as one row of dots and words, each with its
-  help on hover and one "About these steps" tip. The step that matters now is marked. Drawn by PipelineStrip and by the Next step card.
+  help on hover and one "About these steps" tip. The step that matters now is marked. Drawn by the Next step card.
   Props: steps (the merged steps of a release train, lib/release-trains.ts).
 -->
 <script lang="ts">

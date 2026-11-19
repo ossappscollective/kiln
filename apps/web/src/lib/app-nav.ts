@@ -12,7 +12,7 @@ import type { IconName } from './icons.ts';
  * under the header (the address `#/portfolio/<id>/pending` stays). The old pages keep their addresses and redirect:
  *   workflows   -> builds?view=workflows        test-builds -> builds?view=tests
  *   assets      -> listing?view=graphics        analytics   -> insights
- *   aso         -> insights?view=aso (or the ASO sub-view it names: `?view=fit`)
+ *   aso         -> insights?view=keywords (or the keyword view it names: `?view=fit`); insights?view=aso -> keywords, ?view=analytics -> overview
  */
 
 // ---------------------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ export function workspaceRail(views: readonly RailItem[]): WorkspaceRail {
 // ---------------------------------------------------------------------------------------------
 // Views inside a page
 
-export type SectionView = { id: string; label: string; requires?: Action };
+export type SectionView = { id: string; label: string; requires?: Action; /** Only drawn when a Google Play app is in scope (Search terms comes from a Play Console file). */ androidOnly?: boolean };
 
 /** The pages that hold several old pages as views; a page opens on its first view. */
 export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionView[]>>> = {
@@ -87,8 +87,9 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
     { id: 'graphics', label: 'Graphics' },
   ],
   insights: [
-    { id: 'analytics', label: 'Analytics' },
-    { id: 'aso', label: 'ASO and keywords', requires: 'aso.read' },
+    { id: 'overview', label: 'Overview' },
+    { id: 'keywords', label: 'Keywords', requires: 'aso.read' },
+    { id: 'terms', label: 'Search terms', requires: 'aso.read', androidOnly: true },
   ],
   builds: [
     { id: 'builds', label: 'Builds' },
@@ -97,30 +98,56 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
   ],
 };
 
+/** What the views of a page may depend on besides the role: whether a Google Play app is in scope (default: yes). */
+export type ViewContext = { androidInScope?: boolean };
+
+const openViews = (section: AppSection, allowed: (action: Action) => boolean, context: ViewContext): SectionView[] =>
+  (sectionViews[section] ?? []).filter((v) => (!v.requires || allowed(v.requires)) && (!v.androidOnly || context.androidInScope !== false));
+
 /** The views of a page a person may open; empty for a page with no views, or with only one (nothing to switch). */
-export function viewsFor(section: AppSection, allowed: (action: Action) => boolean): SectionView[] {
-  const list = (sectionViews[section] ?? []).filter((v) => !v.requires || allowed(v.requires));
+export function viewsFor(section: AppSection, allowed: (action: Action) => boolean, context: ViewContext = {}): SectionView[] {
+  const list = openViews(section, allowed, context);
   return list.length > 1 ? list : [];
 }
 
 /**
- * The view an address names. An unknown or missing value is the first view. For Insights, any ASO sub-view of the ASO page
- * (`?view=fit`, `?view=rank`, ...) is the ASO view: that page keeps its own tabs inside.
+ * The view of Insights an address names, with every old value mapped (see the table in docs/ux-ia.md): nothing, `analytics` and
+ * `overview` are Overview; `terms` is Search terms; `aso` and every ASO sub-view (`keywords`, `rank`, `fit`, ...) are Keywords, which
+ * keeps its own sub-views inside; anything else is Overview.
+ */
+export function insightsViewOf(asked: string | null | undefined): 'overview' | 'keywords' | 'terms' {
+  if (asked === 'terms') return 'terms';
+  return asked === 'aso' || isAsoView(asked) ? 'keywords' : 'overview';
+}
+
+/** The `?view=` an Insights address should carry, or null for none: the current names (`overview` is the default and not written). */
+export function canonicalInsightsView(asked: string | null): string | null {
+  if (asked === null || asked === 'analytics' || asked === 'overview') return null;
+  if (asked === 'aso') return 'keywords';
+  return asked;
+}
+
+/**
+ * The view an address names. An unknown or missing value is the first view. For Insights, the old values map as in
+ * `insightsViewOf`: the ASO sub-views (`?view=fit`, `?view=rank`, ...) are Keywords, which keeps them as its own sub-views.
  */
 export function viewOf(section: AppSection, hash: string): string {
   const list = sectionViews[section];
   if (!list || list.length === 0) return '';
   const asked = parseViewPath(hash).query.get('view');
-  if (section === 'insights') return asked === 'aso' || isAsoView(asked) ? 'aso' : 'analytics';
+  if (section === 'insights') return insightsViewOf(asked);
   return list.find((v) => v.id === asked)?.id ?? (list[0] as SectionView).id;
 }
 
-/** The view to draw: the one the address names when the role may open it, else the first one the role may open; '' for a page without views. */
-export function resolveView(section: AppSection, hash: string, allowed: (action: Action) => boolean): string {
-  const list = (sectionViews[section] ?? []).filter((v) => !v.requires || allowed(v.requires));
+/**
+ * The view to draw: the one the address names when the role may open it, else the first one the role may open; '' for a page without views.
+ * Search terms in an address for an app with no Google Play record falls back to Keywords.
+ */
+export function resolveView(section: AppSection, hash: string, allowed: (action: Action) => boolean, context: ViewContext = {}): string {
+  const list = openViews(section, allowed, context);
   if (list.length === 0) return '';
   const asked = viewOf(section, hash);
-  return list.find((v) => v.id === asked)?.id ?? (list[0] as SectionView).id;
+  return list.find((v) => v.id === asked)?.id ?? (asked === 'terms' ? list.find((v) => v.id === 'keywords') : undefined)?.id ?? (list[0] as SectionView).id;
 }
 
 const setQuery = (hash: string, change: (params: URLSearchParams) => void): string => {
@@ -143,8 +170,8 @@ export function withView(hash: string, section: AppSection, view: string): strin
   });
 }
 
-/** An ASO sub-view inside Insights: keywords, the default of the ASO page, is written `aso`, so the address still says ASO. */
-export const withInsightsAsoView = (hash: string, view: string): string => setQuery(hash, (params) => params.set('view', view === 'keywords' ? 'aso' : view));
+/** A keyword sub-view inside Insights (`?view=rank`, `?view=fit`, ...). Keywords itself is written `keywords`: the default of Insights is Overview. */
+export const withInsightsAsoView = (hash: string, view: string): string => setQuery(hash, (params) => params.set('view', view));
 
 // ---------------------------------------------------------------------------------------------
 // The old addresses
@@ -156,8 +183,8 @@ const REDIRECTS: Readonly<Partial<Record<AppSection, Redirect>>> = {
   'test-builds': { section: 'builds', view: () => 'tests' },
   assets: { section: 'listing', view: () => 'graphics' },
   analytics: { section: 'insights', view: () => null },
-  // An ASO address that names a sub-view keeps it (`/aso?view=fit` is Insights, ASO, Fit).
-  aso: { section: 'insights', view: (current) => (isAsoView(current) ? current : 'aso') },
+  // An ASO address that names a sub-view keeps it (`/aso?view=fit` is Insights, Keywords, Fit).
+  aso: { section: 'insights', view: (current) => (isAsoView(current) ? current : 'keywords') },
 };
 
 /**
@@ -167,9 +194,22 @@ const REDIRECTS: Readonly<Partial<Record<AppSection, Redirect>>> = {
 export function canonicalAppHash(hash: string): string | null {
   const open = parseAppAddress(hash);
   if (!open || open.release !== null) return null;
-  const rule = REDIRECTS[open.section];
-  if (!rule) return null;
   const { query } = parseViewPath(hash);
+  const rule = REDIRECTS[open.section];
+  if (!rule) {
+    // The values Insights used before the views were Overview, Keywords and Search terms: `aso` and `analytics`.
+    if (open.section !== 'insights') return null;
+    const asked = query.get('view');
+    const next = canonicalInsightsView(asked);
+    if (next === asked) return null;
+    const params = new URLSearchParams(query);
+    params.delete('section');
+    if (next === null) params.delete('view');
+    else params.set('view', next);
+    const search = params.toString();
+    const base = appAddress(open.id, 'insights');
+    return search === '' ? base : `${base}?${search}`;
+  }
   const params = new URLSearchParams(query);
   params.delete('section');
   const view = rule.view(query.get('view'));

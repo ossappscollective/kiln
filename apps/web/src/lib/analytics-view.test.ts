@@ -17,6 +17,7 @@ import {
   pageNotes,
   platformNotes,
   scheduleText,
+  splitHeadline,
   sourceRows,
   syncLines,
   tableFor,
@@ -332,4 +333,16 @@ test('the dashboard strip has downloads, conversion and crash rate with their sp
   assert.equal(buildStrip(null), null);
   const android = buildStrip(androidOverview());
   assert.deepEqual(android?.items.map((i) => i.label), ['Installs', 'Conversion', 'Crash rate']);
+});
+
+test('the Insights overview draws one chart open: downloads or installs, the rest behind "More charts"', () => {
+  const apple = splitHeadline(buildCards(appleOverview()));
+  assert.equal(apple.headline?.id, 'downloads');
+  assert.deepEqual(apple.rest.map((c) => c.id), ['reach', 'conversion', 'crashes', 'proceeds']);
+  const google = splitHeadline(buildCards(androidOverview()));
+  assert.equal(google.headline?.id, 'installs');
+  assert.equal(google.rest.length, buildCards(androidOverview()).length - 1);
+  assert.deepEqual(splitHeadline([]), { headline: null, rest: [] });
+  const odd = [{ id: 'x', title: 'X', panels: [], versions: [] }, { id: 'y', title: 'Y', panels: [], versions: [] }];
+  assert.equal(splitHeadline(odd).headline?.id, 'x', 'without a downloads or installs card, the first one');
 });

@@ -1,15 +1,16 @@
 <!--
   AppsOverview: the apps of the workspace, one merged row per app (the iOS, macOS and Android records of one
-  product together): icon, stores, latest version per platform, status, rating, new reviews and the
-  last sync.
+  product together): icon, the bundle id (a wrapping mono chip), the latest version of each platform in ONE column, ONE status pill
+  with an "N pending" badge and one count for releases left unfinished (rowStatus), the rating with the new reviews, and the last
+  sync. Five columns, so the table stays readable at 800 px.
   Props: rows (from buildOverviewRows), now (epoch ms), canSync (shows Sync), syncing (app ids being
   synced), locked (true while "Sync all" owns the sync buttons), onsync (called with a row's group).
 -->
 <script lang="ts">
+  import type { Platform } from '@mrm/core';
   import type { AppGroup } from '../../lib/app-groups.ts';
-  import { type OverviewRow, type PlatformCell } from '../../lib/app-overview.ts';
+  import { type OverviewRow, type PlatformCell, rowStatus } from '../../lib/app-overview.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { unfinishedItem } from '../../lib/release-pipeline.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import PendingChip from '../publish/PendingChip.svelte';
@@ -44,23 +45,23 @@
     row.group.members.find((m) => (m.lastSyncError ?? '').trim() !== '') ??
     ([...row.group.members].sort((a, b) => (a.lastSyncedAt ?? -1) - (b.lastSyncedAt ?? -1))[0] as AppSummary);
 
-  /** The macOS column only exists when some app has a Mac record (quiet by default). */
-  const hasMac = $derived(rows.some((r) => r.macos !== null));
-
   const isSyncing = (group: AppGroup) => group.members.some((m) => syncing[m.id] === true);
 </script>
 
-{#snippet version(c: PlatformCell | null, platform: string)}
-  {#if c === null}
-    <span class="muted">Not on {platform}</span>
-  {:else if c.state === 'loading'}
-    <Skeleton width="56px" height="14px" />
-  {:else if c.state === 'error'}
-    <span class="muted">Could not load</span>
-  {:else if c.latest}
-    <strong>{c.latest.version}</strong>
-  {:else}
-    <span class="muted">None</span>
+{#snippet version(c: PlatformCell | null, platform: Platform)}
+  {#if c !== null}
+    <li class="ver">
+      <PlatformBadge {platform} showLabel={false} />
+      {#if c.state === 'loading'}
+        <Skeleton width="56px" height="14px" />
+      {:else if c.state === 'error'}
+        <span class="muted">Could not load</span>
+      {:else if c.latest}
+        <strong>{c.latest.version}</strong>
+      {:else}
+        <span class="muted">None</span>
+      {/if}
+    </li>
   {/if}
 {/snippet}
 
@@ -70,12 +71,9 @@
     <thead>
       <tr>
         <th scope="col">App</th>
-        <th scope="col">iOS</th>
-        {#if hasMac}<th scope="col">macOS</th>{/if}
-        <th scope="col">Android</th>
+        <th scope="col">Latest version</th>
         <th scope="col">Status</th>
-        <th scope="col">Rating</th>
-        <th scope="col">New reviews</th>
+        <th scope="col">Reviews</th>
         <th scope="col">Last synced</th>
         {#if canSync}<th scope="col"><span class="visually-hidden">Actions</span></th>{/if}
       </tr>
@@ -84,6 +82,7 @@
       {#each rows as row (row.group.key)}
         {@const g = row.group}
         {@const loading = [row.ios, row.macos, row.android].some((c) => c !== null && c.state === 'loading')}
+        {@const status = rowStatus(row, loading)}
         <tr>
           <td>
             <div class="app">
@@ -103,46 +102,44 @@
               </div>
             </div>
           </td>
-          <td>{@render version(row.ios, 'iOS')}</td>
-          {#if hasMac}<td>{@render version(row.macos, 'macOS')}</td>{/if}
-          <td>{@render version(row.android, 'Android')}</td>
+          <td>
+            <ul class="versions" aria-label="Latest version per platform">
+              {@render version(row.ios, 'ios')}
+              {@render version(row.macos, 'macos')}
+              {@render version(row.android, 'android')}
+            </ul>
+          </td>
           <td>
             <div class="status">
-              {#if row.attention}
-                {#if g.members.length > 1}<PlatformBadge platform={row.attention.platform} showLabel={false} />{/if}
-                <ReleaseStatus status={row.attention.status} rawState={row.attention.rawState} rolloutFraction={row.attention.rolloutFraction} />
-              {:else if loading}
+              {#if status.primary.kind === 'release'}
+                {#if g.members.length > 1}<PlatformBadge platform={status.primary.release.platform} showLabel={false} />{/if}
+                <ReleaseStatus status={status.primary.release.status} rawState={status.primary.release.rawState} rolloutFraction={status.primary.release.rolloutFraction} />
+              {:else if status.primary.kind === 'sync-failed'}
+                <Badge tone="bad" icon="alert">Sync failed</Badge>
+              {:else if status.primary.kind === 'loading'}
                 <Skeleton width="80px" height="20px" />
               {:else}
-                <span class="muted">{g.members.every((m) => m.lastSyncedAt === null) ? 'Not synced yet' : 'No releases'}</span>
+                <span class="muted">{status.primary.text}</span>
               {/if}
-              {#if row.syncFailed}<Badge tone="bad" icon="alert">Sync failed</Badge>{/if}
-              <PendingChip line={row.pending} href={appAddress(g.key, 'pending')} />
-              {#each row.unfinished as left (left.app.id)}
-                {@const item = unfinishedItem({ appId: left.app.id, platform: left.app.platform, scope: left.app.platform, several: false, stalled: left.stalled })}
-                {#if item}
-                  <a class="unfinished" href={item.href ?? undefined} title={item.detail ?? undefined}>
-                    <Badge tone="warn" icon="clock">Release left unfinished{g.members.length > 1 ? `: ${left.app.platform === 'android' ? 'Android' : left.app.platform === 'macos' ? 'macOS' : 'iOS'}` : ''}</Badge>
-                  </a>
-                {/if}
-              {/each}
+              <PendingChip line={status.pending} href={appAddress(g.key, 'pending')} />
+              {#if status.unfinished}
+                <a class="unfinished" href={status.unfinished.href ?? undefined} title={status.unfinished.title}>
+                  <Badge tone="warn" icon="clock">{status.unfinished.text}</Badge>
+                </a>
+              {/if}
             </div>
           </td>
           <td>
-            {#if row.rating !== null}
-              <span class="rating" title="{row.ratingCount} stored {row.ratingCount === 1 ? 'review' : 'reviews'}"><Icon name="star-filled" size={14} /> {row.rating.toFixed(1)}</span>
-            {:else}
-              <span class="muted" aria-label="No rating">–</span>
-            {/if}
-          </td>
-          <td>
-            {#if row.newReviews === null}
-              <span class="muted" aria-label="Not available">–</span>
-            {:else if row.newReviews > 0}
-              <a href="{appAddress(g.key, 'reviews')}"><Badge tone="accent">{row.newReviews}</Badge><span class="visually-hidden"> new reviews of {g.name}</span></a>
-            {:else}
-              <span class="muted">0</span>
-            {/if}
+            <div class="reviews">
+              {#if row.rating !== null}
+                <span class="rating" title="{row.ratingCount} stored {row.ratingCount === 1 ? 'review' : 'reviews'}"><Icon name="star-filled" size={14} /> {row.rating.toFixed(1)}</span>
+              {:else}
+                <span class="muted" aria-label="No rating">–</span>
+              {/if}
+              {#if row.newReviews !== null && row.newReviews > 0}
+                <a href={appAddress(g.key, 'reviews')}><Badge tone="accent">{row.newReviews} new</Badge><span class="visually-hidden"> reviews of {g.name}</span></a>
+              {/if}
+            </div>
           </td>
           <td>
             <SyncStatus app={syncMember(row)} {now} />
@@ -170,7 +167,7 @@
     display: flex;
     gap: var(--space-3);
     align-items: center;
-    min-width: 200px;
+    min-width: 0;
   }
 
   .names {
@@ -193,10 +190,40 @@
     align-items: center;
   }
 
+  /* The bundle id is a mono chip that wraps instead of widening the table. */
   .identifier {
     width: fit-content;
     max-width: 100%;
     overflow-wrap: anywhere;
+    word-break: break-all;
+    white-space: normal;
+  }
+
+  .versions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .ver {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .reviews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+  }
+
+  .unfinished {
+    text-decoration: none;
   }
 
   .rating {

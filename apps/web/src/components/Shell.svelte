@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
+  import { floating } from '../lib/floating.ts';
   import { can } from '@mrm/core';
   import { address, appContext } from '../lib/address.svelte.ts';
   import { carryHeaderParams } from '../lib/app-header.ts';
@@ -409,7 +410,7 @@
         </button>
 
         {#if menuOpen}
-          <div id="user-menu" class="menu" role="group" aria-label="Account">
+          <div id="user-menu" class="menu" role="group" aria-label="Account" use:floating={{ anchor: userButton ?? null, align: 'end', gap: 8 }}>
             <div class="menu-head">
               <span class="avatar large" aria-hidden="true">{initials(me.user.displayName)}</span>
               <div class="menu-who">
@@ -816,9 +817,6 @@
   }
 
   .menu {
-    position: absolute;
-    top: calc(100% + var(--space-2));
-    right: 0;
     z-index: var(--z-dropdown);
     width: 280px;
     max-width: calc(100vw - var(--space-8));

@@ -85,11 +85,10 @@
     min-width: 0;
   }
 
+  /* The name and the bundle ids wrap: nothing in a row is cut off. */
   .name,
   .ids {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   .ids {
@@ -107,54 +106,19 @@
 
   .plats {
     display: inline-flex;
+    flex: none;
     gap: var(--space-1);
   }
 
   .num {
+    flex: none;
     min-width: 20px;
     text-align: center;
     color: var(--muted);
   }
 
+  /* The open app: the accent colour reads on the highlight in both themes (the "ink" colour is for text ON an accent fill). */
   .list li.open .name {
-    color: var(--accent-ink);
-  }
-
-  .names {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .name,
-  .ids {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .ids {
-    padding: 0;
-    font-size: var(--text-xs);
-    color: var(--muted);
-    background: none;
-    border: 0;
-  }
-
-  .chiprow {
-    display: flex;
-    margin-top: var(--space-1);
-  }
-
-  .plats {
-    display: inline-flex;
-    gap: var(--space-1);
-  }
-
-  .num {
-    min-width: 20px;
-    text-align: center;
-    color: var(--muted);
+    color: var(--accent);
   }
 </style>

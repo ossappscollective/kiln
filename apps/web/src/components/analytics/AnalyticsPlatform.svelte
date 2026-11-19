@@ -13,11 +13,11 @@
 -->
 <script lang="ts">
   import { type Platform, type Role, can, dateToDay } from '@mrm/core';
-  import { untrack } from 'svelte';
+  import { type Snippet, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { type AnalyticsStatus, type ResolvedRange, analyticsErrorText, stateInfo } from '../../lib/analytics.ts';
   import { type Loaded, loadOverviews } from '../../lib/analytics-load.ts';
-  import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes } from '../../lib/analytics-view.ts';
+  import { buildCards, buildChips, hasStoredData, lastReadAt, noRatingHistory, overallState, pageNotes, platformNotes, splitHeadline } from '../../lib/analytics-view.ts';
   import { asoViewHref } from '../../lib/aso.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
@@ -27,7 +27,6 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
-  import RankVsDownloads from '../aso/RankVsDownloads.svelte';
   import AnalyticsOff from './AnalyticsOff.svelte';
   import ChartCard from './ChartCard.svelte';
   import SourcesPanel from './SourcesPanel.svelte';
@@ -43,6 +42,7 @@
     showData = false,
     heading = false,
     onstored,
+    extras,
   }: {
     api: Api;
     workspaceId: string;
@@ -54,6 +54,8 @@
     heading?: boolean;
     /** Told whether something is stored for this app, so the section can leave out the date range and the table switch when nothing could use them. */
     onstored?: (appId: string, stored: boolean) => void;
+    /** Drawn under the figures and the chart (or under the first-run content when nothing is stored): the next steps of the app. */
+    extras?: Snippet;
   } = $props();
 
   let status = $state<AnalyticsStatus | null>(null);
@@ -71,6 +73,7 @@
     untrack(() => onstored?.(app.id, isStored));
   });
   const cards = $derived(buildCards(loaded?.current ?? null));
+  const split = $derived(splitHeadline(cards));
   const chips = $derived(buildChips(app.platform, loaded?.current ?? null, loaded?.previous ?? null, range.days));
   const notes = $derived([...pageNotes(loaded?.current ?? null), ...platformNotes(loaded?.current ?? null)].filter((n, i, all) => all.indexOf(n) === i));
   const overall = $derived(status ? overallState(status) : 'ready');
@@ -149,10 +152,12 @@
     {#if !stored}
       {#if !status.enabled}
         <AnalyticsOff {api} {workspaceId} {app} {role} onchanged={reload} />
+        {@render extras?.()}
       {:else}
         <div class="stack">
           <p class="quiet">No analytics data has been read for this app yet. Here is what is set up and what is next.</p>
           <div class="card pad"><SourcesPanel {api} {workspaceId} {app} {status} {role} {now} onchanged={reload} /></div>
+          {@render extras?.()}
         </div>
       {/if}
     {:else}
@@ -180,23 +185,28 @@
         {#if loaded && cards.length === 0}
           <p class="quiet">No numbers in this date range. Try a longer range.</p>
         {/if}
-        {#if cards.length > 0}
-          <div class="grid">
-            {#each cards as card (card.id)}
-              <ChartCard {card} {today} {showData} />
-            {/each}
-          </div>
+        {#if split.headline}
+          <ChartCard card={split.headline} {today} {showData} />
+        {/if}
+        {#if split.rest.length > 0}
+          <Disclosure summary="More charts ({split.rest.length})" stateKey="analytics.charts.{app.id}">
+            {#snippet meta()}{split.rest.map((c) => c.title).join(', ')}{/snippet}
+            <div class="grid">
+              {#each split.rest as card (card.id)}
+                <ChartCard {card} {today} {showData} />
+              {/each}
+            </div>
+          </Disclosure>
         {/if}
 
         {#if noRatingHistory(app.platform) && loaded}
           <p class="quiet">Ratings over time: Apple does not provide rating history.</p>
         {/if}
 
+        {@render extras?.()}
+
         {#if can(role, 'aso.read')}
-          <Disclosure summary="Rank versus downloads" stateKey="analytics.rank.{app.id}">
-            {#snippet meta()}tracked keywords, a correlation view{/snippet}
-            <RankVsDownloads {api} {workspaceId} {app} {now} keywordsHref={asoViewHref(app.id, 'keywords')} />
-          </Disclosure>
+          <p class="quiet">Rank versus downloads, with the tracked keywords: <a href={asoViewHref(app.id, 'rank', app.platform)}>open Keywords</a>.</p>
         {/if}
 
         <Disclosure summary="Sources and sync" stateKey="analytics.sources.{app.id}">

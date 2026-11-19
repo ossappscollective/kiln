@@ -1,8 +1,8 @@
-import type { ReleaseState } from '@mrm/core';
+import { type ReleaseState, platformLabel } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
 import { type PendingLine, type PendingSummary, lineFor } from './pending.ts';
 import { type ReleaseLoad, latestRelease } from './portfolio.ts';
-import type { PipelineSummaryApp } from './release-pipeline.ts';
+import { type PipelineSummaryApp, unfinishedItem } from './release-pipeline.ts';
 import type { SummaryApp } from './reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
 
@@ -108,4 +108,64 @@ export function overviewStats(rows: readonly OverviewRow[]): OverviewStats {
     unfinished: rows.filter((r) => r.unfinished.length > 0).length,
     newReviews: known.length === 0 ? null : known.reduce((sum, r) => sum + (r.newReviews ?? 0), 0),
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The status cell of a row: one pill, a pending badge, one count for unfinished releases
+
+export type RowStatus = {
+  /** The ONE status pill: the release that needs the most attention, else a failed sync, else a quiet sentence. */
+  primary:
+    | { kind: 'release'; release: ReleaseSummary }
+    | { kind: 'sync-failed' }
+    | { kind: 'loading' }
+    | { kind: 'none'; text: string };
+  /**
+   * Releases left unfinished, collapsed to ONE badge: its text names the count, the `title` lists each platform with the server's
+   * sentence. Null when there are none.
+   */
+  unfinished: { count: number; text: string; title: string; href: string | null } | null;
+  /** What is pending for the app (the "N pending" badge). */
+  pending: PendingLine | null;
+};
+
+/**
+ * What the status column of a row says: never two pills for the same thing (the old column could show a release status, "Sync
+ * failed" and one "Release left unfinished" pill per platform side by side). A failed sync is also said by the Last synced column,
+ * so it is the pill only when there is no release status to show.
+ */
+export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
+  let primary: RowStatus['primary'];
+  if (row.attention) primary = { kind: 'release', release: row.attention };
+  else if (row.syncFailed) primary = { kind: 'sync-failed' };
+  else if (loading) primary = { kind: 'loading' };
+  else primary = { kind: 'none', text: row.group.members.every((m) => m.lastSyncedAt === null) ? 'Not synced yet' : 'No releases' };
+
+  const several = row.group.members.length > 1;
+  const items = row.unfinished
+    .map((left) => ({
+      left,
+      item: unfinishedItem({ appId: left.app.id, platform: left.app.platform, scope: left.app.platform, several: false, stalled: left.stalled }),
+    }))
+    .filter((x) => x.item !== null);
+  let unfinished: RowStatus['unfinished'] = null;
+  const first = items[0];
+  if (first) {
+    const who = (platform: Parameters<typeof platformLabel>[0]) => platformLabel(platform);
+    unfinished =
+      items.length === 1
+        ? {
+            count: 1,
+            text: `Release left unfinished${several ? `: ${who(first.left.app.platform)}` : ''}`,
+            title: first.item?.detail ?? '',
+            href: first.item?.href ?? null,
+          }
+        : {
+            count: items.length,
+            text: `${items.length} releases left unfinished`,
+            title: items.map((x) => `${who(x.left.app.platform)}: ${x.item?.detail ?? ''}`).join('\n'),
+            href: first.item?.href ?? null,
+          };
+  }
+  return { primary, unfinished, pending: row.pending ?? null };
 }

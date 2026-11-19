@@ -274,7 +274,7 @@ test('the accept payload names exactly the ticked rows, by position for keywords
 test('what accepting did points to where the result lives', () => {
   const kw = acceptedNote({ kind: 'keywords', keywordIds: ['a'], created: 2, existing: 1, rejected: 0 }, 'app 1', 'ios');
   assert.equal(kw.text, '2 keywords added to the tracked keywords, 1 already tracked.');
-  assert.equal(kw.href, '#/portfolio/app%201/aso?platform=ios');
+  assert.equal(kw.href, '#/portfolio/app%201/insights?platform=ios&view=keywords');
   const li = acceptedNote({ kind: 'listing_text', stagedFields: ['keywords', 'promotional_text'], locale: 'de-DE' }, 'a1');
   assert.match(li.text, /Staged 2 texts for de-DE \(Keyword field, Promotional text\)\. Nothing is sent to a store/);
   assert.equal(li.href, '#/portfolio/a1/pending');

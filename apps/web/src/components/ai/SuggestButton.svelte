@@ -12,6 +12,7 @@
 <script lang="ts">
   import { type AiProposalKind, type Role, can } from '@mrm/core';
   import { tick } from 'svelte';
+  import { floating } from '../../lib/floating.ts';
   import { type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai.ts';
   import { aiStore } from '../../lib/ai-store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -144,7 +145,7 @@
     <span class="visually-hidden" role="status">{running ? 'Asking the assistant. This can take a few seconds.' : ''}</span>
 
     {#if asking && info}
-      <div class="pop {align}" role="dialog" aria-labelledby="{uid}-title" aria-describedby="{uid}-who">
+      <div class="pop" use:floating={{ anchor: root ?? null, align }} role="dialog" aria-labelledby="{uid}-title" aria-describedby="{uid}-who">
         <h4 id="{uid}-title">What is sent</h4>
         <p class="who" id="{uid}-who">{providerSentence(tasks?.provider ?? null)}</p>
         {#if tasks?.provider?.privacy}<p class="hint">{tasks.provider.privacy}</p>{/if}
@@ -177,8 +178,6 @@
   }
 
   .pop {
-    position: absolute;
-    top: 100%;
     z-index: var(--z-dropdown);
     display: flex;
     flex-direction: column;
@@ -193,14 +192,6 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-  }
-
-  .pop.start {
-    left: 0;
-  }
-
-  .pop.end {
-    right: 0;
   }
 
   h4 {

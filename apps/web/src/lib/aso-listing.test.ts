@@ -32,9 +32,9 @@ const rows = () =>
 
 test('the view is a tab of its own, in the address, and the coach links to it', () => {
   assert.deepEqual(asoViews.slice(0, 2).map((v) => v.id), ['keywords', 'listing']);
-  assert.equal(asoViewHref('a1', 'listing', 'ios'), '#/portfolio/a1/aso?platform=ios&view=listing');
-  assert.equal(asoViewFromHash('#/portfolio/a1/aso?view=listing'), 'listing');
-  assert.equal(coachHref({ to: 'listing_keywords', locale: 'en-US', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/aso?platform=ios&view=listing');
+  assert.equal(asoViewHref('a1', 'listing', 'ios'), '#/portfolio/a1/insights?platform=ios&view=listing');
+  assert.equal(asoViewFromHash('#/portfolio/a1/insights?view=listing'), 'listing');
+  assert.equal(coachHref({ to: 'listing_keywords', locale: 'en-US', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/insights?platform=ios&view=listing');
 });
 
 test('freshness: where and how long ago, or that nothing was read', () => {

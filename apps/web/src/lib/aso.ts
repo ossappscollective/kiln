@@ -160,7 +160,7 @@ export type AsoListingKeywordsResponse = { readAt: number | null; error: string 
 export type AsoMarketsResponse = { terms: TermAcrossMarkets[] };
 
 // ---------------------------------------------------------------------------------------------
-// Views of the app section (address backed: `?view=`)
+// Views of Keywords and Search terms in Insights (address backed: `?view=`)
 
 export type AsoView = 'keywords' | 'listing' | 'competitors' | 'ideas' | 'fit' | 'gaps' | 'markets' | 'terms' | 'rank';
 
@@ -191,20 +191,41 @@ export function asoViewFromHash(hash: string): AsoView {
   return isAsoView(view) ? view : 'keywords';
 }
 
-/** The same address with another sub-view. Keywords, the default, is not written; other query parts stay. */
+/**
+ * The views of the Keywords page of Insights that are one click away (the segmented control); every other keyword view
+ * (`keywordMoreViews`) is behind its "More" menu. Search terms is not here: it is a view of Insights of its own (Google Play only).
+ */
+export const keywordMainViews: { id: AsoView; label: string }[] = [
+  { id: 'keywords', label: 'Keywords' },
+  { id: 'rank', label: 'Rank and downloads' },
+];
+
+/** The keyword views behind "More", with one line each for the menu. Together with `keywordMainViews` and Search terms they are every ASO view. */
+export const keywordMoreViews: { id: AsoView; label: string; hint: string }[] = [
+  { id: 'listing', label: 'In your listing', hint: 'Where each keyword appears in your listing text.' },
+  { id: 'competitors', label: 'Competitors', hint: 'Apps you follow and the keywords they rank for.' },
+  { id: 'ideas', label: 'Ideas', hint: 'Terms taken from your listing and your competitors.' },
+  { id: 'fit', label: 'Fit', hint: 'How well the live listing covers your keywords.' },
+  { id: 'gaps', label: 'Gaps', hint: 'Terms competitors use that you do not.' },
+  { id: 'markets', label: 'Markets', hint: 'One term across countries.' },
+];
+
+/** Whether a keyword view is behind the "More" menu. */
+export const isMoreKeywordView = (view: AsoView): boolean => keywordMoreViews.some((v) => v.id === view);
+
+/** The same address with another sub-view (`?view=`). Keywords is written too: the default of Insights is Overview. Other query parts stay. */
 export function withAsoView(hash: string, view: AsoView): string {
   const at = hash.indexOf('?');
   const path = at < 0 ? hash : hash.slice(0, at);
   const params = new URLSearchParams(at < 0 ? '' : hash.slice(at + 1));
-  if (view === 'keywords') params.delete('view');
-  else params.set('view', view);
+  params.set('view', view);
   const search = params.toString();
   return search === '' ? path : `${path}?${search}`;
 }
 
-/** The address of a sub-view of the ASO section of an app. */
+/** The address of a sub-view of Keywords (or of Search terms) in Insights of an app. */
 export const asoViewHref = (appId: string, view: AsoView = 'keywords', platform: PlatformScope | null = null): string =>
-  withAsoView(appAddress(appId, 'aso', platform), view);
+  withAsoView(appAddress(appId, 'insights', platform), view);
 
 /** The workspace overview of all apps. */
 export const asoOverviewHref = '#/aso';

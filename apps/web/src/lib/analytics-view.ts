@@ -173,6 +173,17 @@ function card(id: string, title: string, panels: (ChartPanel | null)[], versions
 }
 
 /**
+ * The one chart the Insights overview draws open: the downloads (Apple) or installs (Google Play) card, else the first one. The
+ * others come after it, in reading order, behind "More charts".
+ */
+export function splitHeadline(cards: readonly ChartCard[]): { headline: ChartCard | null; rest: ChartCard[] } {
+  if (cards.length === 0) return { headline: null, rest: [] };
+  const found = cards.findIndex((c) => c.id === 'downloads' || c.id === 'installs');
+  const at = found < 0 ? 0 : found;
+  return { headline: cards[at] ?? null, rest: cards.filter((_, i) => i !== at) };
+}
+
+/**
  * The chart cards of one platform, in reading order: reach, downloads, conversion, crashes, ratings, proceeds.
  * A card with no data is not drawn; the screen says in one quiet line when nothing is.
  */

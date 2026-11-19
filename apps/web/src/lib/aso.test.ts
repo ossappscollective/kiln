@@ -11,6 +11,10 @@ import {
   addSummaryText,
   asoErrorMessage,
   asoViewFromHash,
+  asoViews,
+  isMoreKeywordView,
+  keywordMainViews,
+  keywordMoreViews,
   asoViewHref,
   bestRank,
   changeInfo,
@@ -69,10 +73,10 @@ test('the sub-view lives in the address and Keywords is the default', () => {
   assert.equal(asoViewFromHash('#/portfolio/a1/aso?view=nope'), 'keywords');
   assert.equal(asoViewFromHash('#/portfolio/a1/aso?platform=ios&view=fit'), 'fit');
   assert.equal(withAsoView('#/portfolio/a1/aso?platform=ios', 'fit'), '#/portfolio/a1/aso?platform=ios&view=fit');
-  assert.equal(withAsoView('#/portfolio/a1/aso?view=fit&platform=ios', 'keywords'), '#/portfolio/a1/aso?platform=ios');
-  assert.equal(withAsoView('#/portfolio/a1/aso?view=fit', 'keywords'), '#/portfolio/a1/aso');
-  assert.equal(asoViewHref('a1', 'markets', 'android'), '#/portfolio/a1/aso?platform=android&view=markets');
-  assert.equal(asoViewHref('a1'), '#/portfolio/a1/aso');
+  // Inside Insights, Keywords is written too (the default view of Insights is Overview).
+  assert.equal(withAsoView('#/portfolio/a1/insights?view=fit&platform=ios', 'keywords'), '#/portfolio/a1/insights?view=keywords&platform=ios');
+  assert.equal(asoViewHref('a1', 'markets', 'android'), '#/portfolio/a1/insights?platform=android&view=markets');
+  assert.equal(asoViewHref('a1'), '#/portfolio/a1/insights?view=keywords');
 });
 
 test('a rank reads as a position, "50+" or a dash, and a change says its direction in words', () => {
@@ -347,9 +351,9 @@ test('Needs attention gets big drops and competitor changes from the summary, an
   assert.equal(items.length, 2);
   assert.equal(items[0]?.text, '2 keywords dropped in the store search');
   assert.equal(items[0]?.detail, '“water reminder” 8 to 21 and 1 more');
-  assert.equal(items[0]?.href, '#/portfolio/a1/aso');
+  assert.equal(items[0]?.href, '#/portfolio/a1/insights?view=keywords');
   assert.equal(items[1]?.text, '1 competitor changed recently');
-  assert.equal(items[1]?.href, '#/portfolio/a1/aso?view=competitors');
+  assert.equal(items[1]?.href, '#/portfolio/a1/insights?view=competitors');
 });
 
 import { asoViewsFor, availableAsoView } from './aso.ts';
@@ -363,4 +367,14 @@ test('Search terms is offered for Google Play apps only; the others keep their p
   assert.equal(availableAsoView('rank', false), 'rank');
   assert.equal(asoViewFromHash('#/portfolio/a1/aso?view=rank'), 'rank');
   assert.equal(asoViewFromHash('#/portfolio/a1/aso?view=terms'), 'terms');
+});
+
+test('every ASO view stays reachable: two in the switch, the rest behind More, Search terms on its own', () => {
+  const placed = [...keywordMainViews.map((v) => v.id), ...keywordMoreViews.map((v) => v.id), 'terms'].sort();
+  assert.deepEqual(placed, asoViews.map((v) => v.id).sort());
+  assert.deepEqual(keywordMainViews.map((v) => v.id), ['keywords', 'rank']);
+  assert.equal(isMoreKeywordView('fit'), true);
+  assert.equal(isMoreKeywordView('rank'), false);
+  assert.equal(isMoreKeywordView('terms'), false);
+  for (const v of keywordMoreViews) assert.ok(v.hint.length > 0, v.id);
 });

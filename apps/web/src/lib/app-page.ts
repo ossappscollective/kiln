@@ -38,3 +38,15 @@ export function statusDot(apps: readonly { lastSyncedAt: number | null; lastSync
   if (apps.length > 0 && apps.every((a) => a.lastSyncedAt !== null)) return 'ok';
   return 'neutral';
 }
+
+/** The name of the window event that opens the Status popover of the app header (the one place that holds "Sync now"). */
+export const OPEN_STATUS_EVENT = 'mrm:open-status';
+
+/**
+ * Opens the Status popover from a page, for the pages that used to carry a second Sync button ("Open Status to sync"). Returns false
+ * when there is no window (tests, server rendering) or nothing listened.
+ */
+export function openStatusPopover(target: Pick<EventTarget, 'dispatchEvent'> | null = typeof window === 'undefined' ? null : window): boolean {
+  if (target === null) return false;
+  return target.dispatchEvent(new Event(OPEN_STATUS_EVENT, { cancelable: true })) === false;
+}

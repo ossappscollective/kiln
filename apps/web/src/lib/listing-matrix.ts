@@ -326,6 +326,35 @@ export function matrixSummary(rows: readonly MatrixRow[]): string {
   return parts.join(', ');
 }
 
+export type ListingStatusLine = {
+  /** `ok` all in sync, `warn` something needs attention, `info` nothing to say yet. */
+  tone: 'ok' | 'warn' | 'info';
+  text: string;
+  /** How many locales "needs attention" covers (the button that filters by it is offered when this is above zero). */
+  attention: number;
+};
+
+/**
+ * The one status line above the grid: "3 locales need attention, 1 with missing fields". The count of locales and the platforms are
+ * the context line (`listingContext`), not repeated here.
+ */
+export function listingStatusLine(rows: readonly MatrixRow[]): ListingStatusLine {
+  if (rows.length === 0) return { tone: 'info', text: 'No listing values to compare yet', attention: 0 };
+  const counts = modeCounts(rows);
+  if (counts.differing === 0) return { tone: 'ok', text: rows.length === 1 ? 'The locale is in sync' : 'All locales are in sync', attention: 0 };
+  const parts = [`${counts.differing} ${counts.differing === 1 ? 'locale needs' : 'locales need'} attention`];
+  if (counts.missing > 0) parts.push(`${counts.missing} with missing fields`);
+  if (counts.over > 0) parts.push(`${counts.over} over a limit`);
+  return { tone: 'warn', text: parts.join(', '), attention: counts.differing };
+}
+
+/** "iOS and Android, 12 locales": the stores in scope and how many locales the grid holds. */
+export function listingContext(platforms: readonly Platform[], localeCount: number): string {
+  const stores = platforms.map(platformLabel).join(' and ');
+  const locales = `${localeCount} ${localeCount === 1 ? 'locale' : 'locales'}`;
+  return stores === '' ? locales : `${stores}, ${locales}`;
+}
+
 /** The words for one cell, for a tooltip and for assistive technology: "iOS, Name: Differs from repo". */
 export function cellText(column: Pick<MatrixColumn, 'label'>, cell: Pick<MatrixCell, 'platform' | 'status'>, withPlatform: boolean): string {
   const platform = platformLabel(cell.platform);

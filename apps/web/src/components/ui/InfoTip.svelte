@@ -5,11 +5,12 @@
   focus returns to the button.
   Props: label (the accessible name of the button, also its title), buttonText? (visible text beside
   the icon; without it the button is icon only), icon = 'info', align = 'start' | 'end' (which edge
-  of the button the panel lines up with), text? (a plain sentence) or children (rich content),
+  of the button the panel lines up with; it is placed with position: fixed in the top layer, clamped to the window), text? (a plain sentence) or children (rich content),
   open (bindable), width (CSS length, default 22rem).
 -->
 <script lang="ts">
-  import { type Snippet, tick } from 'svelte';
+  import type { Snippet } from 'svelte';
+  import { floating } from '../../lib/floating.ts';
   import type { IconName } from '../../lib/icons.ts';
   import Icon from './Icon.svelte';
 
@@ -37,25 +38,10 @@
   let root = $state<HTMLElement | null>(null);
   let button = $state<HTMLButtonElement | null>(null);
   let panel = $state<HTMLElement | null>(null);
-  /** The edge the panel lines up with: the asked one, unless that would push it out of the window. */
-  let side = $state<'start' | 'end'>('start');
-
   function close(restoreFocus: boolean) {
     open = false;
     if (restoreFocus) button?.focus();
   }
-
-  $effect(() => {
-    if (!open) return;
-    side = align;
-    void tick().then(() => {
-      if (!panel) return;
-      const box = panel.getBoundingClientRect();
-      const room = document.documentElement.clientWidth;
-      if (side === 'start' && box.right > room - 8) side = 'end';
-      else if (side === 'end' && box.left < 8) side = 'start';
-    });
-  });
 
   $effect(() => {
     if (!open) return;
@@ -96,7 +82,7 @@
     <Icon name={icon} size={14} />{#if buttonText !== undefined}<span>{buttonText}</span>{/if}
   </button>
   {#if open}
-    <div class="panel {side}" bind:this={panel} id="{uid}-panel" role="group" aria-label={label} style:width>
+    <div class="panel" bind:this={panel} id="{uid}-panel" role="group" aria-label={label} style:width use:floating={{ anchor: button, align }}>
       {#if text}<p>{text}</p>{/if}
       {#if children}{@render children()}{/if}
     </div>
@@ -135,9 +121,9 @@
     outline-offset: 1px;
   }
 
+  /* Drawn in the top layer and placed next to the button by the `floating` action (lib/floating.ts), so a container with
+     overflow or a transform around the button cannot clip it. */
   .panel {
-    position: absolute;
-    top: calc(100% + var(--space-1));
     z-index: var(--z-dropdown);
     max-width: min(90vw, 36rem);
     padding: var(--space-3) var(--space-4);
@@ -149,14 +135,6 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-  }
-
-  .panel.start {
-    left: 0;
-  }
-
-  .panel.end {
-    right: 0;
   }
 
   .panel :global(p) {

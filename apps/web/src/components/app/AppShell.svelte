@@ -83,8 +83,9 @@
   const hash = $derived(canonicalAppHash(address.hash) ?? address.hash);
   /** The page the address names (an old page as the page that replaced it), or the overview when the role may not open it. */
   const section = $derived<AppSection>(open && visibleSections(allowed).some((s) => s.id === canonicalSection(open.section)) ? canonicalSection(open.section) : 'dashboard');
-  const views = $derived(viewsFor(section, allowed));
-  const view = $derived(resolveView(section, hash, allowed));
+  const androidInScope = $derived(scoped.some((m) => m.platform === 'android'));
+  const views = $derived(viewsFor(section, allowed, { androidInScope }));
+  const view = $derived(resolveView(section, hash, allowed, { androidInScope }));
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
   /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
   const pendingLine = $derived(lineFor(pendingStore.summary(workspaceId), members.map((m) => m.id)));
@@ -281,7 +282,6 @@
         {now}
         {syncRuns}
         {syncing}
-        onsync={sync}
         lockedPlatforms={lock.locked}
         locale={params.locale}
       />

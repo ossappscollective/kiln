@@ -1,30 +1,30 @@
 <!--
-  AsoSection: the ASO view of Insights of an open app (#/portfolio/<id>/insights?view=aso, the old #/portfolio/<id>/aso redirects). Nine views as segmented tabs,
-  kept in the address (`?view=keywords|listing|competitors|ideas|fit|gaps|markets|terms|rank`): Keywords, In your listing, Competitors, Ideas,
-  Fit, Gaps, Markets, Search terms (Google Play apps only, from a Play Console file) and Rank and downloads (the rank history of tracked
-  keywords laid on downloads; a correlation view). It reads the tracked keywords of every app record in scope once and hands them to
-  the views; the config of the server (is Google Play reading on, are checks scheduled) shows as one quiet
-  pill. Above the tabs, the ranked next steps of each app in scope (AsoCoach), and under them the AI suggestions of each app
-  (AiSuggestions: drawn only when AI is on and something is open; nothing in them acts until a person accepts it). Nothing here writes to a store: the
-  reads are our own database, "Check now" and following a competitor read the public store.
+  AsoSection: the Keywords and Search terms views of Insights of an open app (`#/portfolio/<id>/insights?view=keywords`; the old
+  `?view=aso` and `#/portfolio/<id>/aso` redirect). The address keeps the keyword view (`?view=keywords|rank|listing|competitors|ideas|fit|gaps|markets`)
+  and `?view=terms` is the separate Search terms view (Google Play apps only, from a Play Console file).
+  Keywords: a small switch of two views, Keywords (the tracker: rank history per locale, add and remove keywords, "Check now") and Rank
+  and downloads (the rank history laid on downloads; a correlation view), and a "More" menu with the rest: In your listing,
+  Competitors, Ideas, Fit, Gaps and Markets. The ranked next steps and the AI suggestions are on the Overview of Insights, not here.
+  It reads the tracked keywords of every app record in scope once and hands them to the views; the config of the server (is Google
+  Play reading on, are checks scheduled) shows as one quiet pill. Nothing here writes to a store: the reads are our own database,
+  "Check now" and following a competitor read the public store.
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id), now.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
-  import { address, replaceHash } from '../../lib/address.svelte.ts';
+  import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
-  import { type AsoConfig, type AsoKeyword, type AsoView, asoErrorMessage, asoViewFromHash, asoViewHref, asoViewsFor, availableAsoView, localesOf } from '../../lib/aso.ts';
+  import { type AsoConfig, type AsoKeyword, asoErrorMessage, asoViewFromHash, asoViewHref, availableAsoView, keywordMainViews, keywordMoreViews, localesOf } from '../../lib/aso.ts';
   import { withInsightsAsoView } from '../../lib/app-nav.ts';
   import { appAddress } from '../../lib/app-scope.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import ViewSwitch from '../app/ViewSwitch.svelte';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
-  import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
-  import AiSuggestions from '../ai/AiSuggestions.svelte';
-  import AsoCoach from './AsoCoach.svelte';
   import AsoCompetitors from './AsoCompetitors.svelte';
   import AsoFit from './AsoFit.svelte';
   import AsoGaps from './AsoGaps.svelte';
@@ -52,15 +52,14 @@
     now: number;
   } = $props();
 
-  const uid = $props.id();
   const canWrite = $derived(can(role, 'aso.write'));
-  const canRead = $derived(can(role, 'aso.read'));
 
   const androidInScope = $derived(members.some((m) => m.platform === 'android'));
   const view = $derived(availableAsoView(asoViewFromHash(address.hash), androidInScope));
-  const views = $derived(asoViewsFor(androidInScope));
-  // Inside Insights: the address stays on ASO for every tab, Keywords included (`?view=aso`), so it never falls back to Analytics.
-  const setView = (next: string) => replaceHash(withInsightsAsoView(location.hash, next));
+  /** The address of a keyword view: Keywords is written too, so it never falls back to the Overview of Insights. */
+  const hrefFor = (next: string) => withInsightsAsoView(address.hash, next);
+  let moreOpen = $state(false);
+  const moreCurrent = $derived(keywordMoreViews.find((v) => v.id === view) ?? null);
 
   let config = $state<AsoConfig | null>(null);
   let keywords = $state<AsoKeyword[]>([]);
@@ -126,28 +125,38 @@
   });
 
   const shared = $derived({ api, workspaceId, role, members, config, keywords, version, now, onchanged: changed });
-  const ids = $derived(segmentIds(uid, view));
 </script>
 
-<section class="aso stack" aria-label="ASO">
-  {#if canRead}
-    {#each members as m (m.id)}
-      <AsoCoach {api} {workspaceId} app={m} {version} showPlatform={members.length > 1} visible={members.length > 1 ? 2 : 4} />
-    {/each}
-  {/if}
-
+<section class="aso stack" aria-label={view === 'terms' ? 'Search terms' : 'Keywords'}>
   <div class="row bar">
-    <SegmentTabs tabs={views} label="ASO views" idPrefix={uid} bind:value={() => view, setView} />
+    {#if view !== 'terms'}
+      <ViewSwitch views={keywordMainViews} value={view} {hrefFor} label="Keyword views" />
+      <InfoTip
+        label="More keyword views"
+        buttonText={moreCurrent ? `More: ${moreCurrent.label}` : 'More'}
+        icon="more"
+        align="start"
+        width="min(22rem, 92vw)"
+        bind:open={moreOpen}
+      >
+        <ul class="menu">
+          {#each keywordMoreViews as v (v.id)}
+            <li>
+              <a href={hrefFor(v.id)} aria-current={view === v.id ? 'page' : undefined} onclick={() => (moreOpen = false)}>
+                <strong>{v.label}</strong>
+                <span class="muted">{v.hint}</span>
+              </a>
+            </li>
+          {/each}
+        </ul>
+      </InfoTip>
+    {/if}
     <span class="spacer"></span>
     <AsoStatus {config} {androidInScope} />
   </div>
 
-  {#each members as m (m.id)}
-    <AiSuggestions {api} {workspaceId} {role} app={m} platform={address.platform} showPlatform={members.length > 1} onaccepted={changed} />
-  {/each}
-
   {#if loadError}
-    <Alert tone="error" title="Could not load ASO">{loadError}</Alert>
+    <Alert tone="error" title="Could not load keywords">{loadError}</Alert>
     <div><Button icon="refresh" onclick={load}>Try again</Button></div>
   {:else if loading && keywords.length === 0}
     <div role="status" aria-label="Loading keywords" class="stack">
@@ -155,7 +164,7 @@
       <Skeleton width="100%" height="140px" />
     </div>
   {:else}
-    <div role="tabpanel" id={ids.panel} aria-labelledby={ids.tab}>
+    <div>
       {#if view === 'keywords'}
         <AsoKeywords {...shared} {canWrite} />
       {:else if view === 'listing'}
@@ -196,5 +205,32 @@
   .bar {
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-3);
+  }
+
+  .menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .menu a {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2);
+    color: inherit;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+  }
+
+  .menu a:hover,
+  .menu a[aria-current='page'] {
+    background: var(--surface-hover);
+  }
+
+  .menu .muted {
+    font-size: var(--text-sm);
   }
 </style>

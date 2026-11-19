@@ -8,7 +8,7 @@
   Props: api, workspaceId, role, section (a page of the left panel, or pending or settings), view (the open view of a page with views,
   '' otherwise), members (records in scope), all? (every record of the app, to tell that a macOS record's reviews are the iOS record's;
   the members when not given), openId (the id in the address), version (an open release or null), releases (by app id), now, syncRuns,
-  syncing (by app id), onsync (the listing's own sync prompts), lockedPlatforms? (platforms whose selected version is locked: listing
+  syncing (by app id), lockedPlatforms? (platforms whose selected version is locked: listing
   and assets are read-only for them), locale? (the locale of the page header).
 -->
 <script lang="ts">
@@ -56,7 +56,6 @@
     now,
     syncRuns,
     syncing,
-    onsync,
     lockedPlatforms = [],
     locale = null,
   }: {
@@ -76,7 +75,6 @@
     now: number;
     syncRuns: number;
     syncing: Record<string, boolean | undefined>;
-    onsync: (app: AppSummary) => void;
     lockedPlatforms?: Platform[];
     locale?: string | null;
   } = $props();
@@ -165,7 +163,6 @@
       {members}
       {now}
       {syncing}
-      {onsync}
       refreshKey={syncRuns}
       {lockedPlatforms}
       {locale}
@@ -185,7 +182,7 @@
   {/if}
 {:else if section === 'insights'}
   {@render switcher('insights')}
-  {#if view === 'aso'}
+  {#if view === 'keywords' || view === 'terms'}
     <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
   {:else}
     <AnalyticsSection {api} {workspaceId} {role} {members} {now} />

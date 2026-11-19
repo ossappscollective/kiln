@@ -3,10 +3,12 @@ import { test } from 'node:test';
 import { isIconName } from '../components/ui/icons.ts';
 import {
   canonicalAppHash,
+  canonicalInsightsView,
   canonicalSection,
   navEntryOf,
   pageTitle,
   primaryNav,
+  insightsViewOf,
   resolveView,
   sectionViews,
   showsScope,
@@ -72,10 +74,16 @@ test('old addresses redirect to the new place and keep platform, version, locale
   assert.equal(canonicalAppHash('#/portfolio/a1/assets?platform=macos&version=2.4.0&locale=en-US'), '#/portfolio/a1/listing?platform=macos&version=2.4.0&locale=en-US&view=graphics');
   assert.equal(canonicalAppHash('#/portfolio/a1/analytics?range=28d'), '#/portfolio/a1/insights?range=28d');
   assert.equal(canonicalAppHash('#/portfolio/a1/analytics'), '#/portfolio/a1/insights');
-  assert.equal(canonicalAppHash('#/portfolio/a1/aso'), '#/portfolio/a1/insights?view=aso');
+  assert.equal(canonicalAppHash('#/portfolio/a1/aso'), '#/portfolio/a1/insights?view=keywords');
   assert.equal(canonicalAppHash('#/portfolio/a1/aso?view=fit&platform=ios'), '#/portfolio/a1/insights?view=fit&platform=ios');
   assert.equal(canonicalAppHash('#/portfolio/a1/aso?view=keywords'), '#/portfolio/a1/insights?view=keywords');
-  assert.equal(canonicalAppHash('#/portfolio/a1/aso?view=nonsense'), '#/portfolio/a1/insights?view=aso');
+  assert.equal(canonicalAppHash('#/portfolio/a1/aso?view=nonsense'), '#/portfolio/a1/insights?view=keywords');
+  assert.equal(canonicalAppHash('#/portfolio/a1/aso?view=terms'), '#/portfolio/a1/insights?view=terms');
+  // The values Insights itself used before Overview, Keywords and Search terms.
+  assert.equal(canonicalAppHash('#/portfolio/a1/insights?view=aso'), '#/portfolio/a1/insights?view=keywords');
+  assert.equal(canonicalAppHash('#/portfolio/a1/insights?view=aso&platform=ios'), '#/portfolio/a1/insights?view=keywords&platform=ios');
+  assert.equal(canonicalAppHash('#/portfolio/a1/insights?view=analytics&range=7d'), '#/portfolio/a1/insights?range=7d');
+  assert.equal(canonicalAppHash('#/portfolio/a1/insights?view=overview'), '#/portfolio/a1/insights');
   // The old ?section= form is replaced by the path.
   assert.equal(canonicalAppHash('#/portfolio/a1?section=workflows'), '#/portfolio/a1/builds?view=workflows');
   assert.equal(canonicalAppHash('#/portfolio/my%20app/assets'), '#/portfolio/my%20app/listing?view=graphics');
@@ -86,7 +94,10 @@ test('the new pages, pending, settings, a release and non-app addresses are not 
     '#/portfolio/a1',
     '#/portfolio/a1/releases',
     '#/portfolio/a1/listing?view=graphics',
-    '#/portfolio/a1/insights?view=aso',
+    '#/portfolio/a1/insights?view=keywords',
+    '#/portfolio/a1/insights?view=fit',
+    '#/portfolio/a1/insights?view=terms',
+    '#/portfolio/a1/insights?range=28d',
     '#/portfolio/a1/builds',
     '#/portfolio/a1/pending',
     '#/portfolio/a1/settings',
@@ -130,22 +141,29 @@ test('views: the first is the default; unknown values fall back to it', () => {
   assert.equal(viewOf('reviews', '#/portfolio/a1/reviews?view=text'), '');
 });
 
-test('Insights: any ASO sub-view of the address is the ASO view', () => {
-  assert.equal(viewOf('insights', '#/portfolio/a1/insights'), 'analytics');
-  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=analytics'), 'analytics');
-  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=aso'), 'aso');
-  for (const v of ['keywords', 'listing', 'competitors', 'ideas', 'fit', 'gaps', 'markets', 'terms', 'rank']) {
-    assert.equal(viewOf('insights', `#/portfolio/a1/insights?view=${v}`), 'aso', v);
+test('Insights: the old values map to Overview, Keywords and Search terms', () => {
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights'), 'overview');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=analytics'), 'overview');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=overview'), 'overview');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=aso'), 'keywords');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=terms'), 'terms');
+  for (const v of ['keywords', 'listing', 'competitors', 'ideas', 'fit', 'gaps', 'markets', 'rank']) {
+    assert.equal(viewOf('insights', `#/portfolio/a1/insights?view=${v}`), 'keywords', v);
   }
-  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=zzz'), 'analytics');
+  assert.equal(viewOf('insights', '#/portfolio/a1/insights?view=zzz'), 'overview');
+  assert.equal(insightsViewOf(null), 'overview');
+  assert.equal(canonicalInsightsView('aso'), 'keywords');
+  assert.equal(canonicalInsightsView('analytics'), null);
+  assert.equal(canonicalInsightsView('fit'), 'fit');
 });
 
 test('withView writes the view, drops the default and keeps the rest of the address', () => {
   assert.equal(withView('#/portfolio/a1/listing', 'listing', 'graphics'), '#/portfolio/a1/listing?view=graphics');
   assert.equal(withView('#/portfolio/a1/listing?platform=ios&view=graphics&locale=de', 'listing', 'text'), '#/portfolio/a1/listing?platform=ios&locale=de');
   assert.equal(withView('#/portfolio/a1/builds?platform=android', 'builds', 'tests'), '#/portfolio/a1/builds?platform=android&view=tests');
-  assert.equal(withView('#/portfolio/a1/insights', 'insights', 'aso'), '#/portfolio/a1/insights?view=aso');
-  assert.equal(withView('#/portfolio/a1/insights?view=aso', 'insights', 'analytics'), '#/portfolio/a1/insights');
+  assert.equal(withView('#/portfolio/a1/insights', 'insights', 'keywords'), '#/portfolio/a1/insights?view=keywords');
+  assert.equal(withView('#/portfolio/a1/insights?view=fit', 'insights', 'terms'), '#/portfolio/a1/insights?view=terms');
+  assert.equal(withView('#/portfolio/a1/insights?view=keywords', 'insights', 'overview'), '#/portfolio/a1/insights');
   // A view the page does not have changes nothing.
   assert.equal(withView('#/portfolio/a1/listing', 'listing', 'nope'), '#/portfolio/a1/listing');
   assert.equal(withView('#/portfolio/a1/reviews', 'reviews', 'text'), '#/portfolio/a1/reviews');
@@ -155,24 +173,28 @@ test('withView writes the view, drops the default and keeps the rest of the addr
   }
 });
 
-test('the ASO tabs inside Insights keep the address on ASO, also for Keywords', () => {
-  assert.equal(withInsightsAsoView('#/portfolio/a1/insights?view=aso', 'fit'), '#/portfolio/a1/insights?view=fit');
-  assert.equal(withInsightsAsoView('#/portfolio/a1/insights?view=fit&platform=ios', 'keywords'), '#/portfolio/a1/insights?view=aso&platform=ios');
-  assert.equal(viewOf('insights', withInsightsAsoView('#/portfolio/a1/insights', 'keywords')), 'aso');
+test('the keyword views inside Insights write their own view, Keywords included', () => {
+  assert.equal(withInsightsAsoView('#/portfolio/a1/insights?view=keywords', 'fit'), '#/portfolio/a1/insights?view=fit');
+  assert.equal(withInsightsAsoView('#/portfolio/a1/insights?view=fit&platform=ios', 'keywords'), '#/portfolio/a1/insights?view=keywords&platform=ios');
+  assert.equal(viewOf('insights', withInsightsAsoView('#/portfolio/a1/insights', 'keywords')), 'keywords');
 });
 
 test('a page offers a switch only for the views the role may open, and only when there is a choice', () => {
   assert.deepEqual(viewsFor('builds', all).map((v) => v.id), ['builds', 'workflows', 'tests']);
   assert.deepEqual(viewsFor('builds', (a) => a === 'apps.read').map((v) => v.id), ['builds', 'workflows']);
-  assert.deepEqual(viewsFor('insights', all).map((v) => v.id), ['analytics', 'aso']);
+  assert.deepEqual(viewsFor('insights', all).map((v) => v.id), ['overview', 'keywords', 'terms']);
+  assert.deepEqual(viewsFor('insights', all, { androidInScope: false }).map((v) => v.id), ['overview', 'keywords']);
   assert.deepEqual(viewsFor('insights', (a) => a === 'analytics.read'), []);
   assert.deepEqual(viewsFor('listing', all).map((v) => v.id), ['text', 'graphics']);
   assert.deepEqual(viewsFor('reviews', all), []);
 });
 
 test('resolveView falls back to a view the role may open', () => {
-  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=aso', all), 'aso');
-  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=aso', (a) => a === 'analytics.read'), 'analytics');
+  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=aso', all), 'keywords');
+  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=fit', all), 'keywords');
+  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=aso', (a) => a === 'analytics.read'), 'overview');
+  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=terms', all), 'terms');
+  assert.equal(resolveView('insights', '#/portfolio/a1/insights?view=terms', all, { androidInScope: false }), 'keywords', 'no Google Play app: Search terms falls back to Keywords');
   assert.equal(resolveView('builds', '#/portfolio/a1/builds?view=tests', (a) => a === 'apps.read'), 'builds');
   assert.equal(resolveView('builds', '#/portfolio/a1/builds', all), 'builds');
   assert.equal(resolveView('dashboard', '#/portfolio/a1', all), '');

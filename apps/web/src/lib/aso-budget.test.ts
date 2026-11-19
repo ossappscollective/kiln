@@ -80,9 +80,9 @@ test('budgetHeadline: nothing to say is an empty line', () => {
 });
 
 test('addresses: add=1 opens the add panel once, and the listing link names the locale', () => {
-  assert.equal(coachHref({ to: 'keywords_add', label: 'x' }, 'a1', null), '#/portfolio/a1/aso?add=1');
-  assert.equal(coachHref({ to: 'keywords_add', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/aso?platform=ios&add=1');
-  assert.equal(coachHref({ to: 'competitors', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/aso?platform=ios&view=competitors');
+  assert.equal(coachHref({ to: 'keywords_add', label: 'x' }, 'a1', null), '#/portfolio/a1/insights?view=keywords&add=1');
+  assert.equal(coachHref({ to: 'keywords_add', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/insights?platform=ios&view=keywords&add=1');
+  assert.equal(coachHref({ to: 'competitors', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/insights?platform=ios&view=competitors');
   assert.equal(coachHref({ to: 'listing', locale: 'de-DE', label: 'x' }, 'a1', 'ios'), '#/portfolio/a1/listing?platform=ios&locale=de-DE');
   assert.equal(coachHref({ to: 'listing', label: 'x' }, 'a1'), '#/portfolio/a1/listing');
   assert.equal(asksToAddKeywords('#/portfolio/a1/aso?platform=ios&add=1'), true);

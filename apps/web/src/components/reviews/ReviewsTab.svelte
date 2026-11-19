@@ -33,8 +33,6 @@
     sinceChoices,
     sinceFor,
     sortLabels,
-    statusLabel,
-    statusOrder,
     storeLabel,
     syncNotices,
     syncSummaryText,
@@ -43,7 +41,6 @@
     type Review,
     type ReviewFilters,
     type ReviewSort,
-    type ReviewStatus,
     type ReviewsSummary,
   } from '../../lib/reviews.ts';
   import { REPLY_OFF_TEXT, type ReplyConfig } from '../../lib/review-reply.ts';
@@ -61,6 +58,7 @@
     unansweredChip,
     unansweredFilters,
   } from '../../lib/reviews-tab.ts';
+  import { filtersButtonText, popoverFilterCount, statusChips, statusesAfterChip } from '../../lib/reviews-toolbar.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
@@ -69,10 +67,10 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import StatChip from '../ui/StatChip.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
   import RatingOverview from './RatingOverview.svelte';
   import ReviewCard from './ReviewCard.svelte';
@@ -126,14 +124,9 @@
 
   const notices = $derived(summary ? syncNotices(summary.sync, now, (at) => timeAgo(at, now)) : []);
   const active = $derived(hasActiveFilters(filters));
-  /** The filters behind "More filters" that are on (the visible ones show themselves). */
-  const moreActive = $derived(
-    (filters.response !== '' ? 1 : 0) +
-      (filters.version !== '' ? 1 : 0) +
-      (filters.territory !== '' ? 1 : 0) +
-      (filters.language !== '' ? 1 : 0) +
-      (sinceChoice !== 'all' ? 1 : 0),
-  );
+  /** The filters behind the "Filters" popover that are on (the status chips and the search show themselves). */
+  const moreActive = $derived(popoverFilterCount(filters, sinceChoice));
+  const chips = $derived(statusChips(summary?.byStatus ?? {}, filters.statuses));
   const everStored = $derived((summary?.stored.count ?? 0) > 0);
   const needsAppSync = $derived(app.platform !== 'android' && !app.storeAppId);
 
@@ -335,11 +328,6 @@
     // The counts by status moved: refresh them without touching the list.
     void loadSummary();
   }
-
-  const statusOptions = $derived<{ value: '' | ReviewStatus; label: string }[]>([
-    { value: '', label: 'Any status' },
-    ...statusOrder.map((s) => ({ value: s, label: statusLabel(s) })),
-  ]);
 </script>
 
 <section class="reviews stack" aria-busy={loading}>
@@ -411,84 +399,61 @@
         </EmptyState>
       </div>
     {:else}
-      {#if chip}
-        <p class="unanswered muted" data-testid="unanswered-chip">
-          <span>{chip.text}</span>
-          <Button size="sm" variant="ghost" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? 'Showing unanswered' : 'Show unanswered'}</Button>
-        </p>
-      {/if}
+      <div class="statsrow">
+        <RatingOverview {summary} />
+        {#if chip}
+          <p class="unanswered muted" data-testid="unanswered-chip">
+            <span>{chip.text}</span>
+            <Button size="sm" variant="ghost" aria-label={chip.label} disabled={showingUnanswered} onclick={showUnanswered}>{showingUnanswered ? 'Showing unanswered' : 'Show unanswered'}</Button>
+          </p>
+        {/if}
+      </div>
 
-      <RatingOverview {summary} activeStatus={filters.statuses.length === 1 ? (filters.statuses[0] ?? '') : ''} onstatus={(status) => change({ statuses: status === '' ? [] : [status] })} />
-
-      <form class="filters" onsubmit={search} aria-label="Filter reviews">
-        <div class="bar">
-          <fieldset class="ratings">
-            <legend>Rating</legend>
-            {#each [5, 4, 3, 2, 1] as n (n)}
-              <label class="check">
-                <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
-                {n}<Icon name="star-filled" size={12} /><span class="visually-hidden"> {n === 1 ? 'star' : 'stars'}</span>
-              </label>
-            {/each}
-            {#if summary.lowRatingThreshold > 0}
-              <Button
-                size="sm"
-                variant={lowOnly ? 'primary' : 'secondary'}
-                aria-pressed={lowOnly}
-                title="{summary.lowRatingThreshold} {summary.lowRatingThreshold === 1 ? 'star' : 'stars'} or less"
-                onclick={() => change({ ratings: ratingsWithLowOnly(!lowOnly, summary?.lowRatingThreshold ?? 0) })}
-              >
-                Low ratings only
-              </Button>
-            {/if}
-          </fieldset>
-
-          <div class="field inline">
-            <label for="{uid}-status">Status</label>
-            <select
-              id="{uid}-status"
-              value={filters.statuses[0] ?? ''}
-              onchange={(e) => change({ statuses: e.currentTarget.value === '' ? [] : [e.currentTarget.value as ReviewStatus] })}
-            >
-              {#each statusOptions as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
-            </select>
-          </div>
-          <div class="field inline">
-            <label for="{uid}-sort">Sort</label>
-            <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
-              {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
-            </select>
-          </div>
-          <div class="field inline grow">
-            <label for="{uid}-q">Search</label>
-            <input id="{uid}-q" type="search" maxlength="100" placeholder="a word or phrase" bind:value={searchText} autocomplete="off" />
-          </div>
-          <Button type="submit" icon="search" size="sm">Search</Button>
-          {#if active}<Button variant="ghost" size="sm" onclick={clear}>Clear filters</Button>{/if}
-        </div>
-
-        <Disclosure bind:open={moreOpen} stateKey="reviews.more-filters" summary={moreActive > 0 ? `More filters (${moreActive} on)` : 'More filters'}>
+      <form class="toolbar" onsubmit={search} role="search" aria-label="Filter reviews">
+        <label class="searchbox">
+          <Icon name="search" size={14} />
+          <input id="{uid}-q" type="search" aria-label="Search the review text" maxlength="100" placeholder="Search reviews" bind:value={searchText} autocomplete="off" />
+        </label>
+        <ul class="chips" aria-label="Status">
+          {#each chips as c (c.status)}
+            <li>
+              <StatChip label={c.label} value={c.count ?? ''} tone={c.status === 'new' ? 'info' : 'neutral'} pressed={c.pressed} onclick={() => change({ statuses: statusesAfterChip(filters.statuses, c.status) })} />
+            </li>
+          {/each}
+        </ul>
+        <InfoTip label="Filters" buttonText={filtersButtonText(moreActive)} icon="filter" align="end" width="min(26rem, 92vw)" bind:open={moreOpen}>
           <div class="filter-grid">
+            <fieldset class="ratings">
+              <legend>Rating</legend>
+              {#each [5, 4, 3, 2, 1] as n (n)}
+                <label class="check">
+                  <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
+                  {n}<Icon name="star-filled" size={12} /><span class="visually-hidden"> {n === 1 ? 'star' : 'stars'}</span>
+                </label>
+              {/each}
+            </fieldset>
+            {#if summary.lowRatingThreshold > 0}
+              <label class="check">
+                <input
+                  type="checkbox"
+                  checked={lowOnly}
+                  onchange={() => change({ ratings: ratingsWithLowOnly(!lowOnly, summary?.lowRatingThreshold ?? 0) })}
+                />
+                Low ratings only ({summary.lowRatingThreshold} {summary.lowRatingThreshold === 1 ? 'star' : 'stars'} or less)
+              </label>
+            {/if}
+            <div class="field">
+              <label for="{uid}-sort">Sort</label>
+              <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
+                {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
+              </select>
+            </div>
             <div class="field">
               <label for="{uid}-response">Developer response</label>
               <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as ReviewFilters['response'] })}>
                 <option value="">Either</option>
                 <option value="no">No response yet</option>
                 <option value="yes">Has a response</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="{uid}-version">Version</label>
-              <select id="{uid}-version" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })}>
-                <option value="">Any version</option>
-                {#each summary.stored.byVersion as v (v.version)}<option value={v.version}>{v.version} ({v.count})</option>{/each}
-              </select>
-            </div>
-            <div class="field">
-              <label for="{uid}-territory">Country or region</label>
-              <select id="{uid}-territory" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })}>
-                <option value="">Any</option>
-                {#each summary.stored.territories as t (t.value)}<option value={t.value}>{territoryName(t.value)} ({t.count})</option>{/each}
               </select>
             </div>
             <div class="field">
@@ -499,34 +464,42 @@
               </select>
             </div>
             <div class="field">
+              <label for="{uid}-territory">Country or region</label>
+              <select id="{uid}-territory" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })}>
+                <option value="">Any</option>
+                {#each summary.stored.territories as t (t.value)}<option value={t.value}>{territoryName(t.value)} ({t.count})</option>{/each}
+              </select>
+            </div>
+            <div class="field">
+              <label for="{uid}-version">Version</label>
+              <select id="{uid}-version" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })}>
+                <option value="">Any version</option>
+                {#each summary.stored.byVersion as v (v.version)}<option value={v.version}>{v.version} ({v.count})</option>{/each}
+              </select>
+            </div>
+            <div class="field">
               <label for="{uid}-since">Written</label>
               <select id="{uid}-since" value={sinceChoice} onchange={(e) => setSince(e.currentTarget.value)}>
                 {#each sinceChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
               </select>
             </div>
           </div>
-        </Disclosure>
+          {#if translationOn && translationConfig}
+            <div class="translate-bar">
+              <Button size="sm" icon="globe" loading={translatingAll} disabled={pendingCount === 0 || translatingAll} onclick={translateAll}>
+                {translateAllLabel(pendingCount, languageName(translationConfig.target))}
+              </Button>
+              <label class="check">
+                <input type="checkbox" bind:checked={showTranslations} disabled={!anyTranslated} />
+                Show translations
+              </label>
+              <p class="muted small">The stored text of those reviews is sent to the translation provider, 25 at a time.</p>
+            </div>
+          {/if}
+        </InfoTip>
+        {#if active}<Button variant="ghost" size="sm" onclick={clear}>Clear filters</Button>{/if}
       </form>
-
-      {#if translationOn && translationConfig}
-        <div class="translate-bar row wrap">
-          <Button
-            size="sm"
-            icon="globe"
-            loading={translatingAll}
-            disabled={pendingCount === 0 || translatingAll}
-            onclick={translateAll}
-          >
-            {translateAllLabel(pendingCount, languageName(translationConfig.target))}
-          </Button>
-          <label class="check">
-            <input type="checkbox" bind:checked={showTranslations} disabled={!anyTranslated} />
-            Show translations
-          </label>
-          <InfoTip label="About translating" align="start" text="The stored text of those reviews is sent to the translation provider, 25 at a time." />
-        </div>
-        {#if translateProblem}<Alert tone="error" title="Translation stopped">{translateProblem}</Alert>{/if}
-      {/if}
+      {#if translateProblem}<Alert tone="error" title="Translation stopped">{translateProblem}</Alert>{/if}
 
       <div class="list" aria-busy={listLoading}>
         {#if listProblem}
@@ -633,21 +606,48 @@
     font-size: var(--text-sm);
   }
 
-  .filters {
+  .statsrow {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
     padding: var(--space-2) var(--space-3);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
   }
 
-  .bar {
+  .searchbox {
+    display: flex;
+    flex: 1 1 12rem;
+    gap: var(--space-2);
+    align-items: center;
+    min-width: 10rem;
+    max-width: 22rem;
+    color: var(--muted);
+  }
+
+  .searchbox input {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--control-sm);
+  }
+
+  .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
   .ratings {
@@ -655,6 +655,7 @@
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-3);
     align-items: center;
+    grid-column: 1 / -1;
     margin: 0;
     padding: 0;
     border: 0;
@@ -672,33 +673,14 @@
     gap: var(--space-1);
   }
 
-  .field.inline {
-    display: flex;
-    gap: var(--space-2);
-    align-items: center;
-    margin: 0;
-  }
-
-  .field.inline label {
-    margin: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-medium);
-    white-space: nowrap;
-  }
-
-  .field.inline select,
-  .field.inline input {
-    min-height: var(--control-sm);
-  }
-
   .filter-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
-  .grow {
-    flex: 1 1 200px;
+  .filter-grid > .check {
+    grid-column: 1 / -1;
   }
 
   .cards {
@@ -711,7 +693,13 @@
   }
 
   .translate-bar {
-    gap: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
   }
 
   .more {

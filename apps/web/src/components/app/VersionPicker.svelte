@@ -8,6 +8,7 @@
   No versions (the app was not synced yet) is one disabled button that says so.
 -->
 <script lang="ts">
+  import { floating } from '../../lib/floating.ts';
   import { tick } from 'svelte';
   import { type VersionOption, type VersionTone } from '../../lib/app-header.ts';
   import Icon from '../ui/Icon.svelte';
@@ -107,6 +108,7 @@
       bind:this={list}
       id="{uid}-list"
       class="menu"
+      use:floating={{ anchor: trigger ?? null, align: 'start', matchAnchorWidth: true }}
       role="listbox"
       tabindex="-1"
       aria-label="Version"
@@ -206,16 +208,13 @@
     background: var(--bad);
   }
 
+  /* In the top layer, placed by `floating` (lib/floating.ts): no container can clip it. */
   .menu {
-    position: absolute;
-    top: calc(100% + var(--space-1));
-    left: 0;
     z-index: var(--z-dropdown);
-    min-width: 100%;
+    box-sizing: border-box;
     max-height: 320px;
     padding: var(--space-1);
     margin: 0;
-    overflow-y: auto;
     list-style: none;
     background: var(--surface);
     border: 1px solid var(--line);

@@ -161,8 +161,8 @@ test('addresses: the download path, the phone address, and a phone that cannot r
   assert.equal(phoneCannotReach('nonsense'), true);
   assert.equal(secondsLeft(NOW + 90_500, NOW), 91);
   assert.equal(secondsLeft(NOW - 1, NOW), 0);
-  assert.equal(testBuildsHref('app 1', 'ios', '240'), '#/portfolio/app%201/test-builds?platform=ios&build=240');
-  assert.equal(testBuildsHref('app1'), '#/portfolio/app1/test-builds');
+  assert.equal(testBuildsHref('app 1', 'ios', '240'), '#/portfolio/app%201/builds?platform=ios&view=tests&build=240');
+  assert.equal(testBuildsHref('app1'), '#/portfolio/app1/builds?view=tests');
   assert.equal(buildNumberOfTitle('Build 240'), '240');
   assert.equal(buildNumberOfTitle('Build (number unknown)'), null);
 });

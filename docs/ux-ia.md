@@ -14,11 +14,11 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   with Repositories, Credentials, Members, API tokens, Webhooks, Audit log and the other workspace pages the role may open.
   App settings (stores, credentials) is the gear in the page header and the link in the Status popover.
 - **Views inside a page** (`ViewSwitch`, `?view=` in the address, platform, version and locale stay): Store listing = Text, Graphics;
-  Insights = Analytics, ASO and keywords (the ASO tabs keep their own `?view=fit|rank|...`, Keywords is `?view=aso`); Builds = Builds,
+  Insights = Overview, Keywords, Search terms (phase 2, see 0a); Builds = Builds,
   Workflows, Test builds.
 - **Old addresses redirect** (`canonicalAppHash`, replaces the history entry): `/workflows` to `/builds?view=workflows`,
   `/test-builds` to `/builds?view=tests`, `/assets` to `/listing?view=graphics`, `/analytics` to `/insights`, `/aso[?view=x]` to
-  `/insights?view=aso|x`. `/pending`, `/settings` and `/release/<version>` stay. The `g` chords keep their letters
+  `/insights?view=keywords|x`. `/pending`, `/settings` and `/release/<version>` stay. The `g` chords keep their letters
   (`g i` is Insights; `g a`, `g o`, `g n`, `g w`, `g t` still work through the redirects).
 - **One slim header per page** (`AppShell`): page name and app name, the platform control (only for an app on several platforms, not
   on app settings), the version and locale pickers only on Releases and Store listing, and a **Status** button (`StatusPopover`) that
@@ -35,6 +35,46 @@ release, Prepare release) and the same state said four times. Phase 1 changes th
   tiles (live, in flight) and a collapsed Details (bundle ids, last sync, analytics).
 - **Demo bar**: when `GET /demo/status` answers `demo: true` (only the `pnpm demo` server has that route), a slim, permanent bar says
   "Demo workspace — simulated stores, nothing leaves your machine" above the top bar.
+
+## 0a. Page internals, phase 2 (built)
+
+Same principles as phase 1: quiet by default, the important thing first, one primary action, sentence case, no id is cut off, fine at
+800 px, no new navigation entries. Pure logic: `reviews-toolbar.ts`, `app-nav.ts` (`insightsViewOf`), `aso.ts` (`keywordMainViews`,
+`keywordMoreViews`), `analytics-view.ts` (`splitHeadline`), `listing-matrix.ts` (`listingStatusLine`, `listingContext`),
+`app-overview.ts` (`rowStatus`), `popover-place.ts`.
+
+- **Reviews** (per app and the inbox): one slim line of numbers (average, stars, stored count, trend word, a tiny weekly sparkline,
+  "About the numbers" with the distribution, versions and the basis of each figure), then one toolbar row: search, the status chips
+  New / Triaged / Replied / Ignored with counts (the inbox counts only New), and a Filters popover (rating, low ratings only, sort,
+  developer response, language, country, version, written; the inbox adds store, assignee, apps; the translation toggle lives
+  there). The list and the detail view start right under the toolbar. Triage behaviour (`reviews.ts`, `review-split.ts`) is unchanged.
+- **Insights** has three views. Overview: the figures and ONE chart (downloads, or installs on Google Play; the others behind "More
+  charts"), then the ranked ASO next steps (two per platform, "Show all") and any open AI suggestions, then the sources. Keywords:
+  a switch of Keywords and Rank and downloads, and a "More" menu with the rest. Search terms: Google Play apps only.
+  Every old address still works and redirects once (`canonicalAppHash`).
+
+  | Address (`?view=`) | Now |
+  | --- | --- |
+  | none, `analytics`, `overview` | Insights, Overview |
+  | `aso`, `keywords` | Keywords, Keywords (written `keywords`) |
+  | `rank` | Keywords, Rank and downloads |
+  | `listing`, `competitors`, `ideas`, `fit`, `gaps`, `markets` | Keywords, More menu entry of that name |
+  | `terms` | Search terms (an app with no Google Play record falls back to Keywords) |
+  | `/aso`, `/aso?view=x`, `/analytics` | redirect to `/insights?view=keywords|x`, `/insights` |
+
+- **Store listing** (Text view): the context line (stores and locale count) and ONE status line ("3 locales need attention, 1 with
+  missing fields", with "Show them"), then the toolbar: locale filters, search, "Legend and sources" (legend, where each side was
+  read) and a "More" menu (Read repository, Pull differences). The matrix header and the locale column are sticky inside the grid.
+  There is no second Sync button: the page says "Open Status to sync" and opens the Status popover (`openStatusPopover`).
+- **All apps**: five columns. Latest version of every platform in one column, the bundle id as a wrapping mono chip, ONE status pill
+  (a release status, else "Sync failed", else a quiet sentence) plus "N pending", and one badge for releases left unfinished that
+  counts them and lists the platforms in its tooltip. Rating and new reviews share a column.
+- **Overview** details are one group per platform. `PipelineStrip` is gone (the Next step card replaced it). The ASO and test build
+  addresses used by the app (`asoViewHref`, `testBuildsHref`) point at the new places, so they do not redirect.
+- **Popovers** (InfoTip, the app switcher, the version picker, menus, the account menu) are drawn by the `floating` action
+  (`lib/floating.ts`): the native top layer (`popover="manual"`) plus `position: fixed`, placed by `placePopover`: clamped to the
+  window, above the anchor when there is no room below, scrolling inside when tall. No container with `overflow` or a transform can
+  clip them.
 
 ## 1. IA tree
 

@@ -3,7 +3,7 @@
   chosen from the state (lib/next-step.ts): the release that waits for you (rejected, approved, a build to attach, unfinished), the
   release that waits for the store, or, with nothing on its way, "Start release". The five steps of the release on its way sit in the
   card; the other releases on their way are one quiet line each; with `attention` (the Overview) the rest of "Needs attention" is
-  listed under it, so nothing is said twice. It reads the release pipeline of our own database (like PipelineStrip) and writes nothing:
+  listed under it, so nothing is said twice. It reads the release pipeline of our own database and writes nothing:
   "Start release" only opens its dialog (StartRelease), whose confirmation is the one action.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), scope (platform scope
   for links), attention? (items of "Needs attention"; default none), refreshKey (changes when the screen synced), onprepare? (open

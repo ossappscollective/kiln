@@ -46,8 +46,6 @@
     reviewErrorMessage,
     shortcutFor,
     sortLabels,
-    statusLabel,
-    statusOrder,
     summaryStripText,
     unansweredNote,
     territoryName,
@@ -58,19 +56,22 @@
     type QuickView,
     type Review,
     type ReviewSort,
-    type ReviewStatus,
     type WorkspaceReviewsSummary,
   } from '../../lib/reviews.ts';
   import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/review-split.ts';
+  import { filtersButtonText, inboxPopoverFilterCount, statusChips, statusesAfterChip } from '../../lib/reviews-toolbar.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
+  import Icon from '../ui/Icon.svelte';
+  import InfoTip from '../ui/InfoTip.svelte';
   import PageHeader from '../ui/PageHeader.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import StatChip from '../ui/StatChip.svelte';
   import ReviewCard from './ReviewCard.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
 
@@ -113,10 +114,9 @@
   const oldestNote = $derived(summary ? unansweredNote(summary, now) : null);
   const noApps = $derived(!loading && summary !== null && summary.apps.length === 0);
   const nothingStored = $derived(summary !== null && summary.totals.total === 0);
-  const statusOptions = $derived<{ value: '' | ReviewStatus; label: string }[]>([
-    { value: '', label: 'Any status' },
-    ...statusOrder.map((s) => ({ value: s, label: statusLabel(s) })),
-  ]);
+  const moreActive = $derived(inboxPopoverFilterCount(filters));
+  /** The workspace summary counts only the new ones; the other chips show no number. */
+  const chips = $derived(statusChips(summary ? { new: summary.totals.new } : {}, filters.statuses));
 
   onMount(() => {
     const tick = setInterval(() => {
@@ -331,42 +331,39 @@
   {#if summaryProblem && !summary}
     <Alert tone="error" title="The summary could not be loaded">{summaryProblem}</Alert>
   {:else if summary}
-    <div class="strip card" aria-label="Summary">
+    <div class="strip" aria-label="Summary">
       <p class="visually-hidden">{summaryStripText(summary.totals)}</p>
-      <ul class="stats">
+      <ul class="quick">
         {#each quickViews as view (view.id)}
           <li>
-            <button type="button" class="stat" onclick={() => applyQuick(view.id)}>
+            <button type="button" class="bare quickview" onclick={() => applyQuick(view.id)}>
               {#if view.id === 'new'}<strong>{summary.totals.new}</strong>
               {:else if view.id === 'unanswered'}<strong>{summary.totals.unanswered}</strong>
-              {:else if view.id === 'low'}<strong>{summary.totals.lowRating}</strong>
-              {:else}<strong aria-hidden="true">·</strong>{/if}
+              {:else if view.id === 'low'}<strong>{summary.totals.lowRating}</strong>{/if}
               <span>{view.label}</span>
             </button>
           </li>
         {/each}
-        <li class="stat plain">
-          <strong>{averageText(summary.totals.average)}</strong>
-          <span>Average of stored reviews</span>
-        </li>
+        <li class="muted"><strong>{averageText(summary.totals.average)}</strong> average of stored reviews</li>
       </ul>
-      <p class="muted small">
-        {summary.label}. Low rating means {lowThreshold} stars or fewer; ignored reviews are not counted as unanswered or low.
-      </p>
-      {#if oldestNote}<p class="muted small" data-testid="unanswered-oldest">{oldestNote}</p>{/if}
-      {#if busiest.length > 0}
-        <ul class="apps" aria-label="Apps with reviews to look at">
-          {#each busiest as row (row.app.id)}
-            <li>
-              <button type="button" class="app-chip" onclick={() => focusApp(row.app.id)}>
-                <AppIcon name={row.app.name} url={iconUrls[row.app.id] ?? null} platform={row.app.platform} size="xs" labelled={true} />
-                <span class="app-name">{row.app.name}</span>
-                <span class="muted small">{row.new} new · {row.unanswered} unanswered · {row.lowRating} low</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
+      <InfoTip label="About these numbers" buttonText="About the numbers" align="end" width="min(28rem, 92vw)">
+        <p>{summary.label}. Low rating means {lowThreshold} stars or fewer; ignored reviews are not counted as unanswered or low.</p>
+        {#if oldestNote}<p class="muted" data-testid="unanswered-oldest">{oldestNote}</p>{/if}
+        {#if busiest.length > 0}
+          <p class="eyebrow">Apps with reviews to look at</p>
+          <ul class="apps" aria-label="Apps with reviews to look at">
+            {#each busiest as row (row.app.id)}
+              <li>
+                <button type="button" class="app-chip" onclick={() => focusApp(row.app.id)}>
+                  <AppIcon name={row.app.name} url={iconUrls[row.app.id] ?? null} platform={row.app.platform} size="xs" labelled={true} />
+                  <span class="app-name">{row.app.name}</span>
+                  <span class="muted small">{row.new} new, {row.unanswered} unanswered, {row.lowRating} low</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </InfoTip>
     </div>
   {/if}
 
@@ -383,72 +380,79 @@
       </EmptyState>
     </div>
   {:else}
-    <form class="filters card" onsubmit={search} aria-label="Filter reviews">
-      <div class="filter-grid">
-        <div class="field">
-          <label for="{uid}-platform">Store</label>
-          <select id="{uid}-platform" value={filters.platform} onchange={(e) => change({ platform: e.currentTarget.value as InboxFilters['platform'] })}>
-            <option value="">All stores</option>
-            <option value="ios">App Store</option>
-            <option value="android">Google Play</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="{uid}-status">Status</label>
-          <select
-            id="{uid}-status"
-            value={filters.statuses[0] ?? ''}
-            onchange={(e) => change({ statuses: e.currentTarget.value === '' ? [] : [e.currentTarget.value as ReviewStatus] })}
-          >
-            {#each statusOptions as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
-          </select>
-        </div>
-        <div class="field">
-          <label for="{uid}-response">Developer response</label>
-          <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as InboxFilters['response'] })}>
-            <option value="">Either</option>
-            <option value="no">Unanswered</option>
-            <option value="yes">Has a response</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="{uid}-assignee">Assigned to</label>
-          <select id="{uid}-assignee" value={filters.assignee} onchange={(e) => change({ assignee: e.currentTarget.value })}>
-            <option value="">Anyone</option>
-            <option value="me">Me</option>
-            <option value="unassigned">Nobody</option>
-            {#each members as member (member.userId)}<option value={member.userId}>{member.displayName}</option>{/each}
-          </select>
-        </div>
-        <div class="field">
-          <label for="{uid}-within">Written</label>
-          <select id="{uid}-within" value={filters.within} onchange={(e) => change({ within: e.currentTarget.value as InboxFilters['within'] })}>
-            {#each withinChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
-          </select>
-        </div>
-        <div class="field">
-          <label for="{uid}-sort">Sort</label>
-          <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
-            {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
-          </select>
-        </div>
-      </div>
-
-      <fieldset class="ratings">
-        <legend>Rating</legend>
-        {#each [5, 4, 3, 2, 1] as n (n)}
-          <label class="check">
-            <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
-            {n} {n === 1 ? 'star' : 'stars'}
-          </label>
+    <form class="toolbar" onsubmit={search} role="search" aria-label="Filter reviews">
+      <label class="searchbox">
+        <Icon name="search" size={14} />
+        <input id="{uid}-q" bind:this={searchEl} type="search" aria-label="Search the review text" maxlength="100" placeholder="Search reviews" bind:value={searchText} autocomplete="off" />
+      </label>
+      <ul class="chips" aria-label="Status">
+        {#each chips as c (c.status)}
+          <li>
+            <StatChip label={c.label} value={c.count ?? ''} tone={c.status === 'new' ? 'info' : 'neutral'} pressed={c.pressed} onclick={() => change({ statuses: statusesAfterChip(filters.statuses, c.status) })} />
+          </li>
         {/each}
-      </fieldset>
-
-      <details class="more">
-        <summary>
-          Apps{filters.appIds.length > 0 ? ` (${filters.appIds.length} chosen)` : ''}, version, country and language
-        </summary>
-        <div class="more-body">
+      </ul>
+      <InfoTip label="Filters" buttonText={filtersButtonText(moreActive)} icon="filter" align="end" width="min(30rem, 92vw)">
+        <div class="filter-grid">
+          <fieldset class="ratings">
+            <legend>Rating</legend>
+            {#each [5, 4, 3, 2, 1] as n (n)}
+              <label class="check">
+                <input type="checkbox" checked={filters.ratings.includes(n)} onchange={() => change({ ratings: toggleIn(filters.ratings, n) })} />
+                {n} {n === 1 ? 'star' : 'stars'}
+              </label>
+            {/each}
+          </fieldset>
+          <div class="field">
+            <label for="{uid}-platform">Store</label>
+            <select id="{uid}-platform" value={filters.platform} onchange={(e) => change({ platform: e.currentTarget.value as InboxFilters['platform'] })}>
+              <option value="">All stores</option>
+              <option value="ios">App Store</option>
+              <option value="android">Google Play</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="{uid}-sort">Sort</label>
+            <select id="{uid}-sort" value={filters.sort} onchange={(e) => change({ sort: e.currentTarget.value as ReviewSort })}>
+              {#each Object.entries(sortLabels) as [value, label] (value)}<option {value}>{label}</option>{/each}
+            </select>
+          </div>
+          <div class="field">
+            <label for="{uid}-response">Developer response</label>
+            <select id="{uid}-response" value={filters.response} onchange={(e) => change({ response: e.currentTarget.value as InboxFilters['response'] })}>
+              <option value="">Either</option>
+              <option value="no">Unanswered</option>
+              <option value="yes">Has a response</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="{uid}-assignee">Assigned to</label>
+            <select id="{uid}-assignee" value={filters.assignee} onchange={(e) => change({ assignee: e.currentTarget.value })}>
+              <option value="">Anyone</option>
+              <option value="me">Me</option>
+              <option value="unassigned">Nobody</option>
+              {#each members as member (member.userId)}<option value={member.userId}>{member.displayName}</option>{/each}
+            </select>
+          </div>
+          <div class="field">
+            <label for="{uid}-within">Written</label>
+            <select id="{uid}-within" value={filters.within} onchange={(e) => change({ within: e.currentTarget.value as InboxFilters['within'] })}>
+              {#each withinChoices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+            </select>
+          </div>
+          <div class="field">
+            <label for="{uid}-version">Version</label>
+            <input id="{uid}-version" type="text" maxlength="100" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })} autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="{uid}-territory">Country or region code</label>
+            <input id="{uid}-territory" type="text" maxlength="10" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })} placeholder="for example US" autocomplete="off" />
+            {#if filters.territory}<p class="hint">{territoryName(filters.territory)}</p>{/if}
+          </div>
+          <div class="field">
+            <label for="{uid}-language">Language code</label>
+            <input id="{uid}-language" type="text" maxlength="12" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })} placeholder="for example en" autocomplete="off" />
+          </div>
           {#if apps.length > 0}
             <fieldset class="app-list">
               <legend>Apps (none chosen means all)</legend>
@@ -460,35 +464,12 @@
               {/each}
             </fieldset>
           {/if}
-          <div class="filter-grid">
-            <div class="field">
-              <label for="{uid}-version">Version</label>
-              <input id="{uid}-version" type="text" maxlength="100" value={filters.version} onchange={(e) => change({ version: e.currentTarget.value })} autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="{uid}-territory">Country or region code</label>
-              <input id="{uid}-territory" type="text" maxlength="10" value={filters.territory} onchange={(e) => change({ territory: e.currentTarget.value })} placeholder="for example US" autocomplete="off" />
-              {#if filters.territory}<p class="hint">{territoryName(filters.territory)}</p>{/if}
-            </div>
-            <div class="field">
-              <label for="{uid}-language">Language code</label>
-              <input id="{uid}-language" type="text" maxlength="12" value={filters.language} onchange={(e) => change({ language: e.currentTarget.value })} placeholder="for example en" autocomplete="off" />
-            </div>
-          </div>
         </div>
-      </details>
-
-      <div class="search-row">
-        <div class="field grow">
-          <label for="{uid}-q">Search the text</label>
-          <input id="{uid}-q" bind:this={searchEl} type="search" maxlength="100" placeholder="a word or phrase" bind:value={searchText} autocomplete="off" />
-        </div>
-        <Button type="submit" icon="search">Search</Button>
-        {#if active}<Button variant="ghost" onclick={clear}>Clear filters</Button>{/if}
-      </div>
-      <p class="hint">
-        Keyboard: <kbd>j</kbd> and <kbd>k</kbd> move between reviews, <kbd>Enter</kbd> opens one in the detail view, <kbd>t</kbd> marks one triaged, <kbd>r</kbd> opens its reply, <kbd>/</kbd> searches.
-      </p>
+        <p class="hint">
+          Keyboard: <kbd>j</kbd> and <kbd>k</kbd> move between reviews, <kbd>Enter</kbd> opens one in the detail view, <kbd>t</kbd> marks one triaged, <kbd>r</kbd> opens its reply, <kbd>/</kbd> searches.
+        </p>
+      </InfoTip>
+      {#if active}<Button variant="ghost" size="sm" onclick={clear}>Clear filters</Button>{/if}
     </form>
 
     <div class="list" aria-busy={loading}>
@@ -569,50 +550,51 @@
 <style>
   .strip {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    align-items: center;
+    justify-content: space-between;
   }
 
-  .stats,
+  .quick,
   .apps,
   .cards {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--space-1) var(--space-4);
+    align-items: baseline;
     padding: 0;
     margin: 0;
     list-style: none;
   }
 
-  .stat {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    min-width: 7rem;
-    padding: var(--space-2) var(--space-3);
-    text-align: left;
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+  .quick {
+    font-size: var(--text-sm);
   }
 
-  button.stat {
+  .quickview {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: baseline;
+    padding: var(--space-1) 0;
+    font-size: var(--text-sm);
+    color: var(--muted);
     cursor: pointer;
   }
 
-  button.stat:hover {
-    border-color: var(--accent);
-  }
-
-  .stat strong {
-    font-size: var(--text-xl);
+  .quickview strong {
+    font-size: var(--text-md);
+    color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
 
-  .stat span {
-    font-size: var(--text-sm);
-    color: var(--muted);
+  .quickview:hover span {
+    text-decoration: underline;
+  }
+
+  .apps {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .app-chip {
@@ -636,16 +618,45 @@
     overflow-wrap: anywhere;
   }
 
-  .filters {
+  .toolbar {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .searchbox {
+    display: flex;
+    flex: 1 1 12rem;
+    gap: var(--space-2);
+    align-items: center;
+    min-width: 10rem;
+    max-width: 22rem;
+    color: var(--muted);
+  }
+
+  .searchbox input {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--control-sm);
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
   .filter-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
@@ -653,7 +664,9 @@
   .app-list {
     display: flex;
     flex-wrap: wrap;
+    grid-column: 1 / -1;
     gap: var(--space-2) var(--space-4);
+    margin: 0;
     padding: 0;
     border: 0;
   }
@@ -662,28 +675,6 @@
   .app-list legend {
     font-size: var(--text-sm);
     color: var(--muted);
-  }
-
-  .more summary {
-    cursor: pointer;
-  }
-
-  .more-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding-top: var(--space-3);
-  }
-
-  .search-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: flex-end;
-  }
-
-  .grow {
-    flex: 1 1 14rem;
   }
 
   .cards {

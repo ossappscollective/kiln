@@ -6,6 +6,7 @@
   fallbackName (shown until the list is known), mod, onopen? (called when the list opens, to read the apps), onpick (an item).
 -->
 <script lang="ts">
+  import { floating } from '../../lib/floating.ts';
   import { filterSwitcher, itemOfId, moveActive, type SwitcherItem } from '../../lib/app-switcher.ts';
   import AppIcon from '../ui/AppIcon.svelte';
   import Icon from '../ui/Icon.svelte';
@@ -29,6 +30,7 @@
 
   const uid = $props.id();
   let input = $state<HTMLInputElement | null>(null);
+  let box = $state<HTMLElement | null>(null);
   let open = $state(false);
   let query = $state('');
   let active = $state(0);
@@ -79,7 +81,7 @@
 </script>
 
 <div class="field">
-  <label class="box" class:open>
+  <label class="box" class:open bind:this={box}>
     <AppIcon {name} url={item?.iconUrl ?? null} seed={item?.key ?? appId} size="sm" labelled />
     <span class="visually-hidden">Switch app</span>
     <input
@@ -107,7 +109,7 @@
     <Icon name="chevron-down" size={14} />
   </label>
   {#if open}
-    <div class="pop">
+    <div class="pop" use:floating={{ anchor: box, align: 'start', matchAnchorWidth: true }}>
       {#if items === null}
         <p class="muted none" role="status">Loading the apps…</p>
       {:else if shown.length === 0}
@@ -120,10 +122,6 @@
 </div>
 
 <style>
-  .field {
-    position: relative;
-  }
-
   .box {
     display: flex;
     gap: var(--space-2);
@@ -163,17 +161,22 @@
     outline: none;
   }
 
+  /* In the top layer, placed by `floating`: wide enough for a whole row, never cut by the left panel. */
   .pop {
-    position: absolute;
-    top: calc(100% + var(--space-1));
-    left: 0;
     z-index: var(--z-dropdown);
-    min-width: 280px;
+    box-sizing: border-box;
+    width: min(26rem, calc(100vw - 1rem));
+    max-height: 22rem;
     padding: var(--space-1);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
+  }
+
+  .pop :global(ul) {
+    max-height: none;
+    overflow: visible;
   }
 
   .none {

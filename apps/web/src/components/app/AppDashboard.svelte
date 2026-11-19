@@ -3,7 +3,7 @@
   release that waits for you, the one in store review, or "Start release" when nothing is going on. "Needs attention" is part of that
   card (new reviews, a failed CI build, listing drift, staged changes not pushed, a pushed draft ready to be submitted, an overdue
   or blocked plan, a failed sync), so nothing is said twice. Under it, three compact platform tiles (what is live, what is in
-  flight) and a collapsed "Details" (bundle ids, last sync, analytics). The signals are reads of our own database that the other
+  flight) and a collapsed "Details" (one group per platform: bundle id, latest release, last sync; then analytics). The signals are reads of our own database that the other
   pages make too (reviews summary, builds, listing drift, staged changes, plans); a read that fails or is not allowed is left out.
   Nothing here reads a store or writes anything by itself. Sync lives in the app header's Status button, not here.
   Props: api, workspaceId, role, members (the records in scope), all? (every record, for the dispatch dialog), releases (by app id),
@@ -277,11 +277,12 @@
     <div class="stack">
       {#each members as app (app.id)}
         {@const latest = latestRelease(releases[app.id] ?? [], app.platform)}
-        <dl class="detail" aria-label="{platformLabel(app.platform)} details">
+        <section class="group" aria-label="{platformLabel(app.platform)} details">
+        <h3 class="group-head"><PlatformBadge platform={app.platform} tinted /></h3>
+        <dl class="detail">
           <div>
             <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
             <dd class="ident">
-              <PlatformBadge platform={app.platform} tinted />
               <code>{app.identifier}</code>
               <CopyButton value={app.identifier} iconOnly label="Copy the {app.platform === 'android' ? 'package name' : 'bundle ID'}" />
             </dd>
@@ -304,6 +305,7 @@
             <dd><SyncStatus {app} {now} /></dd>
           </div>
         </dl>
+        </section>
       {/each}
       <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
     </div>
@@ -354,6 +356,18 @@
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-2);
     align-items: center;
+  }
+
+  /* The details of each platform are one group with its own heading. */
+  .group {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .group-head {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-sm);
   }
 
   .detail {

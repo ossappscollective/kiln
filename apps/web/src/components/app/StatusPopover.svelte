@@ -7,7 +7,7 @@
   onsync (sync every record in scope), settingsHref (the app settings page).
 -->
 <script lang="ts">
-  import { statusDot } from '../../lib/app-page.ts';
+  import { OPEN_STATUS_EVENT, statusDot } from '../../lib/app-page.ts';
   import type { DataChip } from '../../lib/app-chips.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
@@ -37,9 +37,20 @@
   } = $props();
 
   const dot = $derived(statusDot(members));
+  let open = $state(false);
+
+  // A page that points to "Sync now" (the store listing) opens this popover instead of carrying a second Sync button.
+  $effect(() => {
+    const show = (event: Event) => {
+      event.preventDefault();
+      open = true;
+    };
+    window.addEventListener(OPEN_STATUS_EVENT, show);
+    return () => window.removeEventListener(OPEN_STATUS_EVENT, show);
+  });
 </script>
 
-<InfoTip label="Status: stores, bundle ids and sync" buttonText="Status" icon={dot === 'warn' ? 'alert-triangle' : 'activity'} align="end" width="26rem">
+<InfoTip label="Status: stores, bundle ids and sync" buttonText="Status" icon={dot === 'warn' ? 'alert-triangle' : 'activity'} align="end" width="26rem" bind:open>
   <div class="status">
     <DataChips {chips} />
     <ul class="records">

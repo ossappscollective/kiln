@@ -457,10 +457,11 @@ export function phoneCannotReach(origin: string): boolean {
   }
 }
 
-/** The address of the section for an app, optionally focused on one build (from the release stepper's build picker). */
+/** The address of the Test builds view of Builds for an app, optionally focused on one build (from the release stepper's build picker). */
 export const testBuildsHref = (appId: string, platform: Platform | 'both' | null = null, build: string | null = null): string => {
-  const base = appAddress(appId, 'test-builds', platform);
-  return build ? `${base}${base.includes('?') ? '&' : '?'}build=${encodeURIComponent(build)}` : base;
+  const base = appAddress(appId, 'builds', platform);
+  const view = `${base}${base.includes('?') ? '&' : '?'}view=tests`;
+  return build ? `${view}&build=${encodeURIComponent(build)}` : view;
 };
 
 /** Seconds left of a link, never negative. */

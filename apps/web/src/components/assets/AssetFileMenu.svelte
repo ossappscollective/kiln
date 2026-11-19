@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import { tick } from 'svelte';
+  import { floating } from '../../lib/floating.ts';
   import type { MenuItem } from '../../lib/assets-sync.ts';
   import Icon from '../ui/Icon.svelte';
 
@@ -60,7 +61,7 @@
     <Icon name="more" size={16} />
   </button>
   {#if open}
-    <ul id="menu-{uid}" class="list" bind:this={list} aria-label={label}>
+    <ul id="menu-{uid}" class="list" bind:this={list} aria-label={label} use:floating={{ anchor: button ?? null, align: 'end' }}>
       {#each items as item (item.id)}
         <li>
           <button type="button" class:danger={item.danger} disabled={item.disabled} onclick={() => pick(item)}>
@@ -96,8 +97,6 @@
     border-color: var(--line);
   }
   .list {
-    position: absolute;
-    right: 0;
     z-index: 20;
     min-width: 14rem;
     max-width: 20rem;
