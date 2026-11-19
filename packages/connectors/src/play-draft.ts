@@ -22,7 +22,19 @@ import {
   type StoreImageRecord,
   type StoreImagesRead,
 } from './store-draft-types.ts';
-import type { CodeCandidate, EditableRelease, PlayReleaseRead, ReleaseCandidates, StoreReleaseReader } from './release-types.ts';
+import { playCodeEligibility } from './release-eligibility.ts';
+import {
+  type CodeCandidate,
+  type EditableRelease,
+  MAX_NOTE_CHARS,
+  MAX_NOTES_HISTORY_VERSIONS,
+  type NotesHistoryEntry,
+  type NotesHistoryRead,
+  type PlayReleaseRead,
+  type ReleaseCandidates,
+  type StoreNotesHistoryReader,
+  type StoreReleaseReader,
+} from './release-types.ts';
 import {
   enc,
   isRecord,
@@ -96,7 +108,7 @@ const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 /** Listing languages whose images one read looks at (each costs one request per image type). */
 const MAX_READ_LANGUAGES = 60;
 
-export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader {
+export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader {
   readonly store = 'googleplay' as const;
   readonly platform = 'android' as const;
   readonly packageName: string;
@@ -419,14 +431,56 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         const uploaded = await this.#uploaded(this.#http, editId);
         const releases = (await this.#readTrack(this.#http, editId, track)).map((r) => PlayDraftConnector.#releaseRead(r));
         const codes: CodeCandidate[] = [...uploaded]
-          .map(([versionCode, u]) => ({
-            versionCode,
-            source: u.source,
-            sha256: u.sha256,
-            inTrack: releases.filter((r) => r.versionCodes.includes(versionCode)).map((r) => ({ name: r.name, status: r.status })),
-          }))
+          .map(([versionCode, u]) => {
+            const inTrack = releases.filter((r) => r.versionCodes.includes(versionCode)).map((r) => ({ name: r.name, status: r.status }));
+            return { versionCode, source: u.source, sha256: u.sha256, inTrack, eligibility: playCodeEligibility({ versionCode, inTrack }) };
+          })
           .sort((a, b) => Number(b.versionCode) - Number(a.versionCode));
         return { store: 'googleplay' as const, platform: 'android' as const, track, codes };
+      } finally {
+        await this.#deleteEdit(this.#http, editId);
+      }
+    });
+  }
+
+  /**
+   * The notes of the releases the tracks hold now (`StoreNotesHistoryReader`): `edits.tracks.list` in a throw away edit. VERIFIED
+   * on Google's page (read 2026-11-19): a `Track` holds `releases[]`, each with `name`, `versionCodes[]`, `status` and
+   * `releaseNotes[]` (`language`, `text`); the track list shows the active releases only, so releases that were replaced are NOT
+   * here and this is a short history, not the whole one. Google gives no date for a release: `at` is null and the order is the
+   * highest version code of the release, newest first. Texts are cut at MAX_NOTE_CHARS and never logged.
+   */
+  async readNotesHistory(input: { locale?: string; maxVersions?: number } = {}): Promise<NotesHistoryRead> {
+    const limit = Math.min(Math.max(Math.trunc(input.maxVersions ?? MAX_NOTES_HISTORY_VERSIONS), 1), MAX_NOTES_HISTORY_VERSIONS);
+    const wantedLocale = input.locale === undefined || input.locale === '' ? undefined : input.locale.toLowerCase().replace(/_/g, '-');
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      const editId = await this.#insertEdit(this.#http);
+      try {
+        const reply = await this.#call(this.#http, 'GET', this.#url(`/${enc(editId)}/tracks`), 'listing the tracks');
+        const releases: { track: string; read: PlayReleaseRead; top: number }[] = [];
+        for (const t of records(isRecord(reply.json) ? reply.json.tracks : undefined)) {
+          const track = text(t.track);
+          if (!track) continue;
+          for (const r of records(t.releases)) {
+            const read = PlayDraftConnector.#releaseRead(r);
+            releases.push({ track, read, top: Math.max(0, ...read.versionCodes.map(Number).filter(Number.isFinite)) });
+          }
+        }
+        releases.sort((a, b) => b.top - a.top || a.track.localeCompare(b.track));
+        const chosen = releases.slice(0, limit);
+        const entries: NotesHistoryEntry[] = [];
+        for (const { track, read } of chosen) {
+          for (const n of read.notes) {
+            if (wantedLocale !== undefined && n.locale.toLowerCase().replace(/_/g, '-') !== wantedLocale) continue;
+            if (n.text.trim() === '') continue;
+            const truncated = n.text.length > MAX_NOTE_CHARS;
+            let end = Math.min(n.text.length, MAX_NOTE_CHARS);
+            const last = n.text.charCodeAt(end - 1);
+            if (truncated && last >= 0xd800 && last <= 0xdbff) end--;
+            entries.push({ source: 'googleplay', locale: n.locale, text: n.text.slice(0, end), truncated, version: read.name, track, state: read.status, at: null });
+          }
+        }
+        return { entries, truncated: releases.length > chosen.length, versionsRead: chosen.length, failed: 0 };
       } finally {
         await this.#deleteEdit(this.#http, editId);
       }

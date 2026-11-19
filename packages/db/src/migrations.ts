@@ -1294,4 +1294,82 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 28,
+    name: 'multi-app CI runs, store builds seen, release step times and the release/review reminder logs',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // ci_run_apps: the apps a CI run builds. One workflow can build one app or several that share a repository, so a run
+      // links to a SET of apps (docs/api/ci.md). run_ref is workflow_runs.id (the row's own id, which does not change when a
+      // pending dispatch is adopted by the real run); the row goes with its run (ON DELETE CASCADE, and the scheduler also
+      // deletes rows whose run is gone). A run with NO row here counts for every app of its repository (it was not started
+      // for an app). workflow_runs.app_id is kept for compatibility and always holds the first app of the set (or NULL): it
+      // is not dropped. DATA MIGRATION: every run that named an app in workflow_runs.app_id gets its row here (apps that no
+      // longer exist are skipped).
+      // app_builds: the builds the last store sync saw, for the release pipeline ("a build appeared and nothing moved").
+      // iOS and macOS: one row per App Store Connect build of the platform (build_number = CFBundleVersion, version = the
+      // marketing version, raw_state = Apple's processingState, processing_state = processing, processed, invalid or unknown,
+      // uploaded_at = Apple's uploadedDate). Android: one row per version code seen in a track release (uploaded_at is NULL:
+      // Google does not say when it was uploaded, first_seen_at is when this server first saw it). first_seen_at is kept
+      // across syncs; a build the store no longer lists is deleted by the sync.
+      // app_releases.status_since: when this server first saw the version (or track release) in its current state, state
+      // name or build (set by the sync). DATA MIGRATION: existing rows get synced_at, which is a LOWER bound of the real
+      // time (the clock of a stalled release starts at the upgrade, never earlier, so no old release is reported stalled
+      // by an invented age).
+      // release_stall_reminders: one row per app and platform while a release is stalled: the episode (what is stuck, as
+      // step:anchor), when the reminder was first and last sent and how many were sent. A reminder is sent by the instance
+      // whose compare-and-set on (episode_key, last_sent_at) won; the row is deleted when the app stops being stalled.
+      // review_unanswered_reminders: one row per workspace, the last digest of unanswered reviews (when, how many, the
+      // oldest), so a digest is sent at most once per configured interval across instances.
+      return [
+        `CREATE TABLE IF NOT EXISTS ci_run_apps (
+           run_ref TEXT NOT NULL REFERENCES workflow_runs(id) ON DELETE CASCADE,
+           app_id TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           created_at ${t} NOT NULL,
+           PRIMARY KEY (run_ref, app_id)
+         )`,
+        'CREATE INDEX IF NOT EXISTS ci_run_apps_app_idx ON ci_run_apps (workspace_id, app_id)',
+        `INSERT INTO ci_run_apps (run_ref, app_id, workspace_id, created_at)
+         SELECT r.id, r.app_id, r.workspace_id, r.started_at FROM workflow_runs r
+          WHERE r.app_id IS NOT NULL AND r.app_id IN (SELECT a.id FROM apps a)`,
+        `CREATE TABLE IF NOT EXISTS app_builds (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           build_number TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           store_id TEXT,
+           version TEXT,
+           processing_state TEXT NOT NULL,
+           raw_state TEXT,
+           expired INTEGER,
+           uploaded_at ${t},
+           first_seen_at ${t} NOT NULL,
+           last_seen_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform, build_number)
+         )`,
+        'CREATE INDEX IF NOT EXISTS app_builds_workspace_idx ON app_builds (workspace_id, app_id)',
+        `ALTER TABLE app_releases ADD COLUMN status_since ${t}`,
+        'UPDATE app_releases SET status_since = synced_at WHERE status_since IS NULL',
+        `CREATE TABLE IF NOT EXISTS release_stall_reminders (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           episode_key TEXT NOT NULL,
+           step TEXT NOT NULL,
+           first_sent_at ${t} NOT NULL,
+           last_sent_at ${t} NOT NULL,
+           sent_count INTEGER NOT NULL DEFAULT 1,
+           PRIMARY KEY (app_id, platform)
+         )`,
+        'CREATE INDEX IF NOT EXISTS release_stall_reminders_workspace_idx ON release_stall_reminders (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS review_unanswered_reminders (
+           workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id),
+           last_sent_at ${t} NOT NULL,
+           last_count INTEGER NOT NULL,
+           last_oldest_at ${t}
+         )`,
+      ];
+    },
+  },
 ];

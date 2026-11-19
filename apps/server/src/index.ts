@@ -6,7 +6,7 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createWorker } from './jobs.ts';
 import { createEventStreamHub } from './routes/events.ts';
-import { createScheduler, reminderIntervalMs, syncIntervalMs } from './scheduler.ts';
+import { createScheduler, releaseWatchIntervalMs, reminderIntervalMs, syncIntervalMs } from './scheduler.ts';
 import { ASO_REFRESH_QUEUE, type AsoLimits, createAsoRefreshHandler } from './services/aso.ts';
 import { createAsoSources } from './services/aso-net.ts';
 import { asoIntervalMs } from './services/aso-schedule.ts';
@@ -225,6 +225,7 @@ const scheduler = createScheduler({
   db: database,
   syncIntervalMs: syncIntervalMs(config.syncIntervalMinutes),
   reminderIntervalMs: reminderIntervalMs(config.reminderIntervalMinutes),
+  releaseWatchIntervalMs: releaseWatchIntervalMs(config.releaseWatchIntervalMinutes),
   listingIntervalMs: listingIntervalMs(config.listingIntervalMinutes),
   reviewSyncIntervalMs: reviewSyncIntervalMs(config.reviewSyncIntervalMinutes),
   reviewRetentionDays: config.reviewRetentionDays,
@@ -275,6 +276,9 @@ if (config.worker === 'inline') {
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);
+  }
+  if (config.releaseWatchIntervalMinutes > 0) {
+    console.log(`Release watch every ${config.releaseWatchIntervalMinutes} minutes (stalled releases, unanswered reviews; events only)`);
   }
 }
 

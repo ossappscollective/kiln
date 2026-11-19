@@ -98,7 +98,7 @@ third party**. Show them as plain text, never as HTML, and keep them out of URLs
 
 ### `GET /reviews/summary`
 
-Optional `weeks` (1 to 52, default 12). Every figure carries its basis so a number is never shown
+Optional `weeks` (1 to 52, default 12) and `maxRating` (1 to 5, default 5; `400` otherwise). Every figure carries its basis so a number is never shown
 without saying what it is:
 
 - `stored`: `basis: "stored_reviews"` and a `label` such as "From 42 stored reviews, not store-wide". Count, average, a five entry
@@ -107,6 +107,9 @@ without saying what it is:
 - `storeWide`: `basis: "store_wide"`, source `itunes_lookup`, territory, average, rating count and the
   same for the current version, with the time it was read. Empty for Google Play and when the
   lookup is unavailable.
+- `unanswered`: `{ count, oldestAt, maxRating }`, the stored reviews with no developer response, not
+  `ignored`, rated at or below `maxRating` (default 5: every rating), and when the oldest of them was
+  written (`null` with none). Counts and a time only, never a text.
 - `byStatus`, `sync` (see below), `lowRatingThreshold` and `retentionDays`.
 
 ### `POST /reviews/sync`
@@ -190,14 +193,18 @@ Answer `{ reviews, nextCursor }`; each review is a `Review` (with `replyDraft` a
 ### `GET /api/workspaces/{ws}/reviews/summary`
 
 Counts only, no review text and no names. Needs `reviews.read`; a limited token gets only its apps.
+Optional `maxRating` (1 to 5, default 5, `400` otherwise): `unanswered` and `unansweredOldestAt` count
+only reviews rated at or below it (`2`: the one and two star reviews nobody answered). With the default the
+numbers are the ones older clients know; the other counts never change with it.
 
 ```json
 { "basis": "stored_reviews", "label": "From 42 stored reviews across 3 apps, not store-wide",
   "lowRatingThreshold": 2,
   "apps": [{ "app": { "id": "", "name": "", "platform": "ios", "store": "appstoreconnect" },
-             "total": 0, "new": 0, "unanswered": 0, "lowRating": 0, "average": null,
-             "oldestAt": null, "newestAt": null }],
-  "totals": { "total": 0, "new": 0, "unanswered": 0, "lowRating": 0, "average": null } }
+             "total": 0, "new": 0, "unanswered": 0, "unansweredOldestAt": null, "lowRating": 0,
+             "average": null, "oldestAt": null, "newestAt": null }],
+  "unansweredMaxRating": 5,
+  "totals": { "total": 0, "new": 0, "unanswered": 0, "unansweredOldestAt": null, "lowRating": 0, "average": null } }
 ```
 
 `new` is status `new`; `unanswered` is no developer response; `lowRating` is a rating at or below the
@@ -278,13 +285,16 @@ sends nothing; the result is a suggestion that goes through the same checks when
 
 ## Events
 
-`review.new_low_rating`, `review.sync_failed` and `review.reply_sent`, in the [event log](events.md), the live stream and
+`review.new_low_rating`, `review.sync_failed`, `review.reply_sent` and `review.unanswered`, in the [event log](events.md), the live stream and
 [webhooks](webhooks.md). They carry ids, the store and the rating only: **no review text and no
 display name**, because a webhook receiver is another system. A receiver reads the review with this
 API. `review.new_low_rating` is sent once per store review (also when a review is later edited down
 to the threshold, 2 or less), not for the first read of an app, and at most 50 per read.
 `review.sync_failed` is sent once per failure streak. `review.reply_sent` is sent when a reply was
-published (ids, store and the actor only, no text).
+published (ids, store and the actor only, no text). `review.unanswered` is an opt-in digest (workspace
+setting `reviews.unansweredReminderHours`, default `0` = off, and `reviews.unansweredMaxRating`): counts
+per app and the time of the oldest unanswered review, at most one per interval; no text, title or name
+([events](events.md#release-watch)).
 
 ## Data protection
 

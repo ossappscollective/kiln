@@ -56,8 +56,10 @@ sees only events about those apps; see [tokens](tokens.md). A non-member gets 40
 | `assets.pulled` | Images of a store were pulled into a draft change set ([assets](assets.md#two-way-sync)). Not sent when nothing differed or the pull failed. Nothing was written to the store or applied to the repository. | `appId`, `store`, `platform`, `changeSetId`, `written`, `deleted`, `skipped`, `unverified`, `actor`. **Never a file name, an address or bytes.** Subject has `appId` and `repositoryId`. Needs `listing.read`. |
 | `listing.submitted` | The pushed draft of an app was **handed to the store's review** from this server ([submit](submit.md)): an App Review submission or a Google Play commit that sends the held back changes. Or an unknown outcome was later confirmed by reading the store (App Store only). Nothing was released and no rollout changed. Not sent for a refused, blocked, failed or unconfirmed submit. | `appId`, `store`, `platform`, `versionString` (App Store), `submissionId` (App Store, when known), `via` (`review_submission` or `edit_commit`), `released` (always `false`), `confirmedByReread`, `actor`. **Never a text, a build or a credential.** Subject has `appId`. Visible to whoever can read listings. |
 | `release.started` | An approved App Store version was **released**, or a Google Play draft release was **started** at a share of users, from this server ([releases](releases-write.md)); or an unknown outcome was later confirmed by reading the store. Not sent for a refused, blocked, failed or unconfirmed release. | `appId`, `store`, `platform`, `versionString` (App Store), `track` and `versionCodes` (Google Play), `userFraction` (Google Play), `via` (`release_request` or `edit_commit`), `confirmedByReread`, `actor`. **Never a text, a build or a credential.** Subject has `appId`. Visible to whoever can read apps. |
-| `ci.run_started` | The run sync stored a GitHub Actions run that has not finished: a run started on GitHub or here, a pending dispatch that a run took over, or a dispatch whose run GitHub named at once. Sent once per run. | `runId`, `repositoryId`, `appId` (or `null`). **Ids only**: never a title, branch, input or person; read the run with [the CI API](ci.md#runs). Subject has `repositoryId`, and `appId` when the run was started for an app. |
-| `ci.run_finished` | A run that was active was seen finished. History read for the first time is not announced; a run first seen finished within the last 15 minutes is announced after its `ci.run_started`. Sent once per run. | `runId`, `repositoryId`, `appId`, `conclusion` (GitHub's word: `success`, `failure`, `cancelled`, ...). Subject as above. |
+| `release.stalled` | The release of an app has stood still for longer than the workspace setting `release.stalledAfterHours` (default 6; `0` is off), see [the release pipeline](release-pipeline.md). Sent once per stall episode (a step and the thing that is stuck) and again only after `release.stalledRepeatHours` (default 24; `0` never). Not sent for a stall older than 14 days. | `appId`, `appName`, `platform`, `step` (`ci_run`, `build_processing`, `build_ready`, `build_invalid`, `draft`, `rejected`, `approved`), `episode` (`step:anchor`), `since`, `hours`, `runId`, `buildNumber`, `version` (each or `null`), `evidence` (`[{ kind, id, at }]`), `repeat`, `sentCount`, `actor` (`system`, `release.watch`). **Ids, versions and times only**: the sentence for a person is in the pipeline read. Subject has `appId`. Visible to whoever can read apps. |
+| `review.unanswered` | A digest: reviews rated at or below `reviews.unansweredMaxRating` (default 5) have waited at least `reviews.unansweredReminderHours` without a developer response. Off while that setting is `0` (the default). At most one per workspace in that many hours. | `count`, `apps` (`[{ appId, appName, platform, count, oldestAt }]`, the 50 oldest-waiting apps), `appsTotal`, `oldestAt`, `waitingHours`, `maxRating`, `actor` (`system`, `release.watch`). **Never a review text, a title or a name**: read them with [the reviews API](reviews.md). No subject app, so a token limited to some apps does not receive it. Visible to whoever can read reviews. |
+| `ci.run_started` | The run sync stored a GitHub Actions run that has not finished: a run started on GitHub or here, a pending dispatch that a run took over, or a dispatch whose run GitHub named at once. Sent once per run, or once per app when the run was started for several ([CI](ci.md#one-run-several-apps)). | `runId`, `repositoryId`, `appId` (or `null`), and `appIds` only when the run has more than one app. **Ids only**: never a title, branch, input or person; read the run with [the CI API](ci.md#runs). Subject has `repositoryId`, and `appId` when the run was started for an app. |
+| `ci.run_finished` | A run that was active was seen finished. History read for the first time is not announced; a run first seen finished within the last 15 minutes is announced after its `ci.run_started`. Sent once per run, or once per app for a run of several. | `runId`, `repositoryId`, `appId`, `appIds` (more than one app only), `conclusion` (GitHub's word: `success`, `failure`, `cancelled`, ...). Subject as above. |
 
 `actor` is `{ "type": "user" | "token" | "system", "id": "..." }`. The first sync of an app is a
 quiet baseline: it emits `app.synced` but no status changes.
@@ -92,6 +94,28 @@ overdue" strip on the board and on the plan.
 - **Upgrade note.** The first run after an upgrade sends `plan.deadline_overdue` once for each open
   plan whose deadline passed in the last 30 days.
 
+
+## Release watch
+
+`release.stalled` and `review.unanswered` come from the same scheduler as the plan reminders, in a
+second pass, and are **events only** (no email, no push). Their `actor` is `{ "type": "system", "id":
+"release.watch" }`, and the audit entries are `release.reminder` and `review.reminder` with the same actor.
+
+- **When.** Every `MRM_RELEASE_WATCH_INTERVAL_MINUTES` (default 15; `0` is off; 5 to 10080), in the
+  process that runs the worker. Each run sends at most 100 events. It reads this server's own tables
+  only: no store and no GitHub call.
+- **`release.stalled`, once per episode.** The row `release_stall_reminders` (one per app and platform)
+  holds the episode, `step:anchor`, and when it was last sent. A new episode (another step, another
+  build, another version) is reminded at once; the same one again only after
+  `release.stalledRepeatHours`. The row is changed with a compare-and-swap on the time it was last
+  sent, in the transaction that writes the event, so a second tick, a restart or a second instance never
+  sends it twice. When the stall clears (or the app is deleted, or the signal is turned off) the row is
+  deleted, so the next stall is a new episode.
+- **`review.unanswered`, a digest.** The row `review_unanswered_reminders` (one per workspace) holds
+  when the last one was sent. Answering the reviews (or marking them ignored) ends it.
+- **Upgrade note.** The first run after an upgrade can send `release.stalled` for each app whose
+  release already stands still for longer than the threshold. Set `release.stalledAfterHours` to `0`,
+  or the interval to `0`, first if you do not want that.
 
 ## `GET /api/workspaces/:wid/events`
 
@@ -152,6 +176,7 @@ this page and `webhookEventChoices` in `apps/web/src/lib/webhooks.ts` (a test fa
 
 ## Not verified
 
+- The release watch (the compare-and-swap on `release_stall_reminders` and `review_unanswered_reminders`) has run only on SQLite.
 - Only SQLite has run it; the `events` table uses `AUTOINCREMENT` there and an identity column in
   the Postgres schema, which has not been run.
 - The stream was tested with in-process requests, not through a reverse proxy. A proxy must not

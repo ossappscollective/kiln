@@ -4,7 +4,7 @@ import {
   type AppStoreConnectKey,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
+import { appleError, isAppleParameterError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
 import {
   APPLE_DRAFT_VERSION_STATES,
@@ -30,7 +30,21 @@ import {
   type StoreImageRecord,
   type StoreImagesRead,
 } from './store-draft-types.ts';
-import type { BuildCandidate, EditableRelease, ReleaseCandidates, StoreReleaseReader } from './release-types.ts';
+import { appleBuildEligibility } from './release-eligibility.ts';
+import {
+  type BuildCandidate,
+  type BuildTestNotes,
+  type EditableRelease,
+  MAX_BUILDS_WITH_NOTES,
+  MAX_NOTE_CHARS,
+  MAX_NOTE_LOCALES,
+  MAX_NOTES_HISTORY_VERSIONS,
+  type NotesHistoryEntry,
+  type NotesHistoryRead,
+  type ReleaseCandidates,
+  type StoreNotesHistoryReader,
+  type StoreReleaseReader,
+} from './release-types.ts';
 import {
   enc,
   isRecord,
@@ -189,7 +203,16 @@ const screenOf = (device: string | null): string | null => {
 
 const attr = (field: string): string => APPLE_VERSION_LOCALIZATION_ATTRIBUTES[field] ?? '';
 
-export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader {
+/** At most MAX_NOTE_CHARS characters, never cutting a surrogate pair in two. */
+function capText(value: string): { text: string; truncated: boolean } {
+  if (value.length <= MAX_NOTE_CHARS) return { text: value, truncated: false };
+  let end = MAX_NOTE_CHARS;
+  const last = value.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end--;
+  return { text: value.slice(0, end), truncated: true };
+}
+
+export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader {
   readonly store = 'appstoreconnect' as const;
   readonly platform: 'ios' | 'macos';
   readonly #apple: string;
@@ -747,17 +770,21 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     }
     const attached = editable ? await this.#attachedBuild(editable.id) : null;
     const what = 'listing the builds';
-    const query = [
-      `filter[app]=${enc(this.#appId)}`,
-      `filter[preReleaseVersion.platform]=${this.#apple}`,
-      ...(input.version !== undefined && input.version !== '' ? [`filter[preReleaseVersion.version]=${enc(input.version)}`] : []),
-      'include=preReleaseVersion',
-      'sort=-uploadedDate',
-      'fields[builds]=version,uploadedDate,processingState,expired,preReleaseVersion',
-      'fields[preReleaseVersions]=version,platform',
-      'limit=200',
-    ].join('&');
-    let url: string | undefined = `${this.#base}/v1/builds?${query}`;
+    // `usesNonExemptEncryption` (export compliance) is UNVERIFIED as an attribute of a build: when Apple rejects the field list the
+    // read is repeated without it and the compliance of every build is `unknown`.
+    const queryOf = (withCompliance: boolean) =>
+      [
+        `filter[app]=${enc(this.#appId)}`,
+        `filter[preReleaseVersion.platform]=${this.#apple}`,
+        ...(input.version !== undefined && input.version !== '' ? [`filter[preReleaseVersion.version]=${enc(input.version)}`] : []),
+        'include=preReleaseVersion',
+        'sort=-uploadedDate',
+        `fields[builds]=version,uploadedDate,processingState,expired,preReleaseVersion${withCompliance ? ',usesNonExemptEncryption' : ''}`,
+        'fields[preReleaseVersions]=version,platform',
+        'limit=200',
+      ].join('&');
+    let url: string | undefined = `${this.#base}/v1/builds?${queryOf(true)}`;
+    let withCompliance = true;
     const builds: BuildCandidate[] = [];
     let truncatedAt: number | null = null;
     for (let page = 0; url !== undefined; page++) {
@@ -765,7 +792,15 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         truncatedAt = builds.length;
         break;
       }
-      const body = (await this.#get(url, what)).json;
+      let body: Json;
+      try {
+        body = (await this.#get(url, what)).json;
+      } catch (error) {
+        if (!withCompliance || page > 0 || !isAppleParameterError(error)) throw error;
+        withCompliance = false;
+        url = `${this.#base}/v1/builds?${queryOf(false)}`;
+        body = (await this.#get(url, what)).json;
+      }
       const pre = new Map<string, Json>();
       for (const item of records(body.included)) {
         const id = text(item.id);
@@ -786,22 +821,33 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const processingState = text(a.processingState) ?? null;
         const expired = typeof a.expired === 'boolean' ? a.expired : null;
         const ready = processingState === 'VALID' && expired !== true;
+        const exportCompliance: BuildCandidate['exportCompliance'] =
+          !withCompliance || !('usesNonExemptEncryption' in a) ? 'unknown' : typeof a.usesNonExemptEncryption === 'boolean' ? 'answered' : 'missing';
+        const isAttached = attached !== null && attached.id === id;
+        const buildNumber = text(a.version) ?? null;
         builds.push({
           id,
-          buildNumber: text(a.version) ?? null,
+          buildNumber,
           version,
           uploadedDate: text(a.uploadedDate) ?? null,
           processingState,
           expired,
           selectable: ready,
           reason: ready ? null : expired === true ? 'The build has expired.' : processingState === null ? 'Apple did not say whether the build is processed.' : `The build is not processed (${processingState}).`,
-          attached: attached !== null && attached.id === id,
+          attached: isAttached,
+          eligibility: appleBuildEligibility(
+            { buildNumber, version, processingState, expired, exportCompliance, attached: isAttached },
+            editable ? { versionString: editable.versionString } : null,
+          ),
+          exportCompliance,
+          testNotes: { read: false, locales: [] },
         });
       }
       const links = isRecord(body.links) ? body.links : {};
       const next = text(links.next);
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
+    await this.#attachTestNotes(builds);
     return {
       store: 'appstoreconnect',
       platform: this.platform,
@@ -809,6 +855,122 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       builds,
       attachedBuildId: attached?.id ?? null,
       truncatedAt,
+    };
+  }
+
+  /**
+   * "What to Test" of the newest processed builds, `GET /v1/builds/{id}/betaBuildLocalizations`. The resource and the endpoint are
+   * on Apple's pages (read 2026-11-19); the attributes `locale` and `whatsNew`, the `fields[betaBuildLocalizations]` filter and the
+   * limits are UNVERIFIED. At most MAX_BUILDS_WITH_NOTES builds are read, four at a time, each failing on its own: one build that
+   * cannot be read never hides the others. Every text is cut at MAX_NOTE_CHARS and every build keeps at most MAX_NOTE_LOCALES
+   * languages. A note is data for a person: it is never logged and no error carries it.
+   */
+  async #attachTestNotes(builds: BuildCandidate[]): Promise<void> {
+    const wanted = builds.filter((b) => b.processingState === 'VALID' && b.expired !== true).slice(0, MAX_BUILDS_WITH_NOTES);
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < wanted.length; i = next++) {
+        const build = wanted[i] as BuildCandidate;
+        build.testNotes = await this.#testNotesOf(build.id);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, wanted.length) }, worker));
+  }
+
+  async #testNotesOf(buildId: string): Promise<BuildTestNotes> {
+    try {
+      const url = `${this.#base}/v1/builds/${enc(buildId)}/betaBuildLocalizations?fields[betaBuildLocalizations]=locale,whatsNew&limit=${MAX_NOTE_LOCALES + 1}`;
+      const body = (await this.#get(url, 'reading the TestFlight notes of a build')).json;
+      const locales: BuildTestNotes['locales'] = [];
+      for (const item of records(body.data)) {
+        const a = isRecord(item.attributes) ? item.attributes : {};
+        const locale = text(a.locale);
+        const notes = text(a.whatsNew);
+        if (!locale || notes === undefined || notes.trim() === '') continue;
+        if (locales.length >= MAX_NOTE_LOCALES) break;
+        const capped = capText(notes);
+        locales.push({ locale, text: capped.text, truncated: capped.truncated });
+      }
+      return { read: true, locales };
+    } catch (error) {
+      const kind = error instanceof StoreError ? error.kind : undefined;
+      return {
+        read: false,
+        locales: [],
+        error: kind === 'forbidden' || kind === 'auth' ? 'forbidden' : kind === 'rate_limited' ? 'rate_limited' : kind === 'not_found' ? 'not_found' : 'unavailable',
+      };
+    }
+  }
+
+  /**
+   * What earlier versions of the app said was new, newest first (`StoreNotesHistoryReader`): the versions of this platform from
+   * `GET /v1/apps/{id}/appStoreVersions` and the localizations of the newest ones. The attribute `createdDate` of a version (used
+   * for the date and the order) is UNVERIFIED; without it the order is the version string, newest first, and `at` is null. At most
+   * MAX_NOTES_HISTORY_VERSIONS versions are read, four at a time. A version that cannot be read is skipped and counted in `failed`;
+   * when none can be read the first error is thrown. Texts are cut at MAX_NOTE_CHARS and are never logged.
+   */
+  async readNotesHistory(input: { locale?: string; maxVersions?: number } = {}): Promise<NotesHistoryRead> {
+    const what = 'listing the versions of the app';
+    const limit = Math.min(Math.max(Math.trunc(input.maxVersions ?? MAX_NOTES_HISTORY_VERSIONS), 1), MAX_NOTES_HISTORY_VERSIONS);
+    const wantedLocale = input.locale === undefined || input.locale === '' ? undefined : input.locale.toLowerCase().replace(/_/g, '-');
+    type Listed = { id: string; version: string | null; state: string | null; at: number | null };
+    const listed: Listed[] = [];
+    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
+      const body = (await this.#get(url, what)).json;
+      for (const item of records(body.data)) {
+        const a = isRecord(item.attributes) ? item.attributes : {};
+        const id = text(item.id);
+        if (!id || text(a.platform) !== this.#apple) continue;
+        const created = text(a.createdDate);
+        const at = created === undefined ? NaN : Date.parse(created);
+        listed.push({
+          id,
+          version: text(a.versionString) ?? null,
+          state: (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase() || null,
+          at: Number.isFinite(at) ? at : null,
+        });
+      }
+      const links = isRecord(body.links) ? body.links : {};
+      const nextLink = text(links.next);
+      url = nextLink === undefined ? undefined : this.#checkNext(nextLink, what);
+    }
+    listed.sort(
+      (a, b) =>
+        (b.at ?? Number.NEGATIVE_INFINITY) - (a.at ?? Number.NEGATIVE_INFINITY) ||
+        (b.version ?? '').localeCompare(a.version ?? '', 'en', { numeric: true }) ||
+        a.id.localeCompare(b.id),
+    );
+    const chosen = listed.slice(0, limit);
+    const perVersion: (NotesHistoryEntry[] | Error)[] = new Array(chosen.length);
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < chosen.length; i = next++) {
+        const v = chosen[i] as Listed;
+        try {
+          const out: NotesHistoryEntry[] = [];
+          const locs = await this.#localizations(v.id);
+          for (const [locale, ref] of locs) {
+            if (wantedLocale !== undefined && locale.toLowerCase().replace(/_/g, '-') !== wantedLocale) continue;
+            const notes = text(ref.attributes.whatsNew);
+            if (notes === undefined || notes.trim() === '') continue;
+            const capped = capText(notes);
+            out.push({ source: 'appstoreconnect', locale, text: capped.text, truncated: capped.truncated, version: v.version, track: null, state: v.state, at: v.at });
+          }
+          perVersion[i] = out;
+        } catch (error) {
+          perVersion[i] = error instanceof Error ? error : new Error('unexpected');
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, chosen.length) }, worker));
+    const failures = perVersion.filter((r): r is Error => r instanceof Error);
+    if (chosen.length > 0 && failures.length === chosen.length) throw failures[0];
+    return {
+      entries: perVersion.flatMap((r) => (r instanceof Error ? [] : r)),
+      truncated: listed.length > chosen.length,
+      versionsRead: chosen.length - failures.length,
+      failed: failures.length,
     };
   }
 

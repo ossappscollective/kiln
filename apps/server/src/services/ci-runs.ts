@@ -34,7 +34,13 @@ export type WorkflowRunView = {
   /** GitHub's run id; `pending-…` for a dispatch whose run is not known yet. */
   id: string;
   repositoryId: string;
+  /** The first app of `appIds`, or null: kept for clients that know one app per run. */
   appId: string | null;
+  /**
+   * The apps this run builds (a workflow can build one app or several that share a repository). Empty: the run was not
+   * started for an app, and it counts for every app of its repository.
+   */
+  appIds: string[];
   /** The workflow's name; the file name or id that was dispatched while still pending. */
   workflow: string;
   workflowPath: string | null;
@@ -78,10 +84,20 @@ function parseInputs(raw: unknown): Record<string, string> | null {
   }
 }
 
-export const toRunView = (r: Row): WorkflowRunView => ({
+/**
+ * The app set of a run row: the rows of `ci_run_apps` (the apps of the dispatch), else the legacy `app_id` column
+ * (rows written before migration 28 are migrated, so this only matters for a row a test inserted by hand).
+ */
+const appIdsOf = (r: Row, linked: readonly string[] | undefined): string[] =>
+  linked !== undefined && linked.length > 0 ? [...linked] : r.app_id === null || r.app_id === undefined ? [] : [String(r.app_id)];
+
+export const toRunView = (r: Row, linked?: readonly string[]): WorkflowRunView => {
+  const appIds = appIdsOf(r, linked);
+  return {
   id: String(r.run_id),
   repositoryId: String(r.repository_id),
-  appId: orNull(r.app_id, String),
+  appId: appIds[0] ?? null,
+  appIds,
   workflow: String(r.workflow),
   workflowPath: orNull(r.workflow_path, String),
   title: orNull(r.title, String),
@@ -99,7 +115,54 @@ export const toRunView = (r: Row): WorkflowRunView => ({
   startedAt: Number(r.started_at),
   updatedAt: Number(r.run_updated_at),
   syncedAt: Number(r.synced_at),
-});
+  };
+};
+
+const IN_CHUNK = 400;
+
+/** The apps of each run row (by the row's own id), from `ci_run_apps`. */
+export async function loadRunApps(sql: Sql, rowIds: readonly string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  for (let i = 0; i < rowIds.length; i += IN_CHUNK) {
+    const chunk = rowIds.slice(i, i + IN_CHUNK);
+    const rows = await sql.query(
+      `SELECT run_ref, app_id FROM ci_run_apps WHERE run_ref IN (${chunk.map(() => '?').join(', ')}) ORDER BY app_id`,
+      [...chunk],
+    );
+    for (const r of rows) {
+      const key = String(r.run_ref);
+      out.set(key, [...(out.get(key) ?? []), String(r.app_id)]);
+    }
+  }
+  return out;
+}
+
+/** Run rows (selected with RUN_COLUMNS) as views, with their apps. */
+export async function runViews(sql: Sql, rows: readonly Row[]): Promise<WorkflowRunView[]> {
+  const apps = await loadRunApps(sql, rows.map((r) => String(r.id)));
+  return rows.map((r) => toRunView(r, apps.get(String(r.id))));
+}
+
+/** Does a run count for this app? A run with no app counts for every app of its repository. */
+export const runCountsForApp = (run: Pick<WorkflowRunView, 'appIds'>, appId: string): boolean =>
+  run.appIds.length === 0 || run.appIds.indexOf(appId) !== -1;
+
+/** Replaces the apps of a run row. The first one is also kept in the legacy `workflow_runs.app_id` column. */
+export async function setRunApps(
+  sql: Sql,
+  input: { workspaceId: string; runRef: string; appIds: readonly string[]; now: number },
+): Promise<void> {
+  // Sorted, so the first app (the legacy column, `appId` of the view) is the same however the request listed them.
+  const unique = input.appIds.filter((id, i) => input.appIds.indexOf(id) === i).sort();
+  await sql.execute('DELETE FROM ci_run_apps WHERE run_ref = ? AND workspace_id = ?', [input.runRef, input.workspaceId]);
+  for (const appId of unique) {
+    await sql.execute(
+      'INSERT INTO ci_run_apps (run_ref, app_id, workspace_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+      [input.runRef, appId, input.workspaceId, input.now],
+    );
+  }
+  await sql.execute('UPDATE workflow_runs SET app_id = ? WHERE id = ? AND workspace_id = ?', [unique[0] ?? null, input.runRef, input.workspaceId]);
+}
 
 /** The first line of a commit message, at most 200 characters. */
 export const firstLine = (message: string | undefined): string | null => {
@@ -115,22 +178,28 @@ export const firstLine = (message: string | undefined): string | null => {
  */
 async function announce(
   sql: Sql,
-  run: { workspaceId: string; repositoryId: string; appId: string | null; runId: string; at: number },
+  run: { workspaceId: string; repositoryId: string; appIds: readonly string[]; runId: string; at: number },
   kind: 'started' | 'finished',
   conclusion?: string | null,
 ): Promise<void> {
-  await emitEvent(sql, {
-    workspaceId: run.workspaceId,
-    type: kind === 'started' ? 'ci.run_started' : 'ci.run_finished',
-    subject: { repositoryId: run.repositoryId, ...(run.appId ? { appId: run.appId } : {}) },
-    payload: {
-      runId: run.runId,
-      repositoryId: run.repositoryId,
-      appId: run.appId,
-      ...(kind === 'finished' ? { conclusion: conclusion ?? null } : {}),
-    },
-    at: run.at,
-  });
+  // One event per app of the run (an API token limited to some apps hears about its own apps), or one without an app.
+  const subjects: (string | null)[] = run.appIds.length > 0 ? [...run.appIds] : [null];
+  for (const appId of subjects) {
+    await emitEvent(sql, {
+      workspaceId: run.workspaceId,
+      type: kind === 'started' ? 'ci.run_started' : 'ci.run_finished',
+      subject: { repositoryId: run.repositoryId, ...(appId ? { appId } : {}) },
+      payload: {
+        runId: run.runId,
+        repositoryId: run.repositoryId,
+        appId,
+        // Only when the run builds several apps; one event is sent for each of them (its `appId`).
+        ...(run.appIds.length > 1 ? { appIds: [...run.appIds] } : {}),
+        ...(kind === 'finished' ? { conclusion: conclusion ?? null } : {}),
+      },
+      at: run.at,
+    });
+  }
 }
 
 export type RunFilter = {
@@ -161,13 +230,12 @@ export async function listRuns(
     [workspaceId, repositoryId],
   );
   const wanted = filter.workflow;
-  return rows
-    .map(toRunView)
+  return (await runViews(sql, rows))
     .filter(
       (r) =>
         (filter.activeOnly !== true || r.active) &&
         (filter.branch === undefined || r.branch === filter.branch) &&
-        (filter.appId === undefined || r.appId === filter.appId) &&
+        (filter.appId === undefined || runCountsForApp(r, filter.appId)) &&
         (wanted === undefined || matchesWorkflow(r, wanted)),
     )
     .slice(0, Math.min(Math.max(Math.trunc(filter.limit ?? 30), 1), 100));
@@ -184,7 +252,7 @@ export async function getRunView(
       WHERE workspace_id = ? AND repository_id = ? AND run_id = ?`,
     [workspaceId, repositoryId, runId],
   );
-  return row ? toRunView(row) : undefined;
+  return row ? (await runViews(sql, [row]))[0] : undefined;
 }
 
 /**
@@ -213,7 +281,8 @@ export async function listWorkspaceRuns(
       ORDER BY run_updated_at DESC, id DESC LIMIT ?`,
     [workspaceId, ...repositoryIds, options.finishedSince, options.finishedLimit ?? 200],
   );
-  return { active: active.map(toRunView), finished: finished.map(toRunView) };
+  const views = await runViews(sql, [...active, ...finished]);
+  return { active: views.slice(0, active.length), finished: views.slice(active.length) };
 }
 
 /** How many runs of the repository are not finished (pending dispatches included). */
@@ -237,7 +306,10 @@ export async function countActiveRuns(
 export type PendingDispatch = {
   workspaceId: string;
   repositoryId: string;
+  /** The first app of `appIds` (kept for callers that pass one app). */
   appId: string | null;
+  /** The apps the run builds. When absent, `appId` is the only one. */
+  appIds?: readonly string[] | undefined;
   /** The workflow file name or id that was dispatched. */
   workflow: string;
   ref: string;
@@ -253,6 +325,7 @@ export type PendingDispatch = {
 export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<WorkflowRunView> {
   const runId = d.runId ?? `pending-${randomUUID()}`;
   const inputsJson = JSON.stringify(d.inputs);
+  const appIds = d.appIds !== undefined ? [...d.appIds] : d.appId !== null ? [d.appId] : [];
   const [existing] = await sql.query(
     'SELECT id FROM workflow_runs WHERE repository_id = ? AND run_id = ?',
     [d.repositoryId, runId],
@@ -260,24 +333,26 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
   if (existing) {
     // A refresh stored the run before the dispatch answer was recorded: add what only we know.
     await sql.execute(
-      `UPDATE workflow_runs SET app_id = ?, inputs_json = ?, dispatched_by = ?
+      `UPDATE workflow_runs SET inputs_json = ?, dispatched_by = ?
         WHERE id = ? AND workspace_id = ?`,
-      [d.appId, inputsJson, d.dispatchedBy, String(existing.id), d.workspaceId],
+      [inputsJson, d.dispatchedBy, String(existing.id), d.workspaceId],
     );
+    await setRunApps(sql, { workspaceId: d.workspaceId, runRef: String(existing.id), appIds, now: d.now });
   } else {
     if (d.runId) {
-      await announce(sql, { workspaceId: d.workspaceId, repositoryId: d.repositoryId, appId: d.appId, runId, at: d.now }, 'started');
+      await announce(sql, { workspaceId: d.workspaceId, repositoryId: d.repositoryId, appIds, runId, at: d.now }, 'started');
     }
+    const rowId = randomUUID();
     await sql.execute(
       `INSERT INTO workflow_runs
          (id, workspace_id, repository_id, app_id, run_id, workflow, workflow_path, status, branch,
           event, url, inputs_json, dispatched_by, started_at, run_updated_at, synced_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workflow_dispatch', ?, ?, ?, ?, ?, ?)`,
       [
-        randomUUID(),
+        rowId,
         d.workspaceId,
         d.repositoryId,
-        d.appId,
+        appIds[0] ?? null,
         runId,
         d.workflow,
         d.workflow,
@@ -291,12 +366,13 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
         d.now,
       ],
     );
+    await setRunApps(sql, { workspaceId: d.workspaceId, runRef: rowId, appIds, now: d.now });
   }
   const view = await getRunView(sql, d.workspaceId, d.repositoryId, runId);
   return view as WorkflowRunView;
 }
 
-type PendingRow = { id: string; appId: string | null; workflow: string; branch: string | null; startedAt: number };
+type PendingRow = { id: string; appIds: string[]; workflow: string; branch: string | null; startedAt: number };
 
 /** Does this run look like the one a pending dispatch of `workflow` on `ref` started? */
 function fitsPending(run: CiRun, pending: PendingRow): boolean {
@@ -341,9 +417,10 @@ export async function storeRuns(
       ORDER BY started_at, id`,
     [workspaceId, repositoryId],
   );
+  const pendingApps = await loadRunApps(sql, pendingRows.map((p) => String(p.id)));
   const pending: PendingRow[] = pendingRows.map((p) => ({
     id: String(p.id),
-    appId: orNull(p.app_id, String),
+    appIds: appIdsOf(p, pendingApps.get(String(p.id))),
     workflow: String(p.workflow),
     branch: orNull(p.branch, String),
     startedAt: Number(p.started_at),
@@ -378,13 +455,14 @@ export async function storeRuns(
       'SELECT id, status, app_id FROM workflow_runs WHERE repository_id = ? AND run_id = ?',
       [repositoryId, run.id],
     );
-    const about = (appId: string | null) => ({ workspaceId, repositoryId, appId, runId: run.id, at: now });
+    const about = (appIds: readonly string[]) => ({ workspaceId, repositoryId, appIds, runId: run.id, at: now });
     const finishedNow = run.status === 'completed';
     if (existing) {
       await sql.execute(`UPDATE workflow_runs SET ${set} WHERE id = ?`, [...values, String(existing.id)]);
       result.updated++;
       if (finishedNow && isActiveStatus(String(existing.status))) {
-        await announce(sql, about(orNull(existing.app_id, String)), 'finished', run.conclusion ?? null);
+        const linked = (await loadRunApps(sql, [String(existing.id)])).get(String(existing.id));
+        await announce(sql, about(appIdsOf(existing, linked)), 'finished', run.conclusion ?? null);
       }
       continue;
     }
@@ -397,8 +475,8 @@ export async function storeRuns(
         taken.id,
       ]);
       result.adopted++;
-      await announce(sql, about(taken.appId), 'started');
-      if (finishedNow) await announce(sql, about(taken.appId), 'finished', run.conclusion ?? null);
+      await announce(sql, about(taken.appIds), 'started');
+      if (finishedNow) await announce(sql, about(taken.appIds), 'finished', run.conclusion ?? null);
       continue;
     }
     await sql.execute(
@@ -410,10 +488,10 @@ export async function storeRuns(
       [randomUUID(), workspaceId, repositoryId, run.id, ...values],
     );
     result.added++;
-    if (!finishedNow) await announce(sql, about(null), 'started');
+    if (!finishedNow) await announce(sql, about([]), 'started');
     else if (now - (run.updatedAt ?? startedAt) <= RECENT_FINISH_EVENT_MS) {
-      await announce(sql, about(null), 'started');
-      await announce(sql, about(null), 'finished', run.conclusion ?? null);
+      await announce(sql, about([]), 'started');
+      await announce(sql, about([]), 'finished', run.conclusion ?? null);
     }
   }
   return result;
@@ -444,5 +522,9 @@ export async function purgeOrphans(sql: Sql): Promise<number> {
   );
   const links = await sql.execute('DELETE FROM build_links WHERE app_id NOT IN (SELECT id FROM apps)');
   const conventions = await purgeConventionOrphans(sql);
-  return runs + links + conventions;
+  // The apps of a run go with the run (a cascade), and an app that was deleted leaves its links.
+  const runApps =
+    (await sql.execute('DELETE FROM ci_run_apps WHERE run_ref NOT IN (SELECT id FROM workflow_runs)')) +
+    (await sql.execute('DELETE FROM ci_run_apps WHERE app_id NOT IN (SELECT id FROM apps)'));
+  return runs + links + conventions + runApps;
 }

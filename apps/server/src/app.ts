@@ -20,6 +20,7 @@ import { listingRoutes } from './routes/listing.ts';
 import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
 import { memberRoutes } from './routes/members.ts';
 import { planRoutes } from './routes/plans.ts';
+import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
@@ -421,6 +422,8 @@ export function createApp(deps: AppDeps) {
       limiter: deps.reviews?.limiter ?? appSyncLimiter,
     }),
   );
+  // Where a release is between CI and live, and whether it is stalled: read-only, from stored data.
+  app.route('/api/workspaces', releasePipelineRoutes({ db: services.db, now: services.now }));
   // Changing a live rollout in a store: off unless MRM_STORE_ROLLOUT_ENABLED. Gated like review replies.
   app.route(
     '/api/workspaces',

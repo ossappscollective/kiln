@@ -265,6 +265,7 @@ dbTest('refreshing stores the runs, newest first, with status, branch, sha, url 
     id: '103',
     repositoryId: t.repositoryId,
     appId: null,
+    appIds: [],
     workflow: 'iOS release',
     workflowPath: '.github/workflows/ios.yml',
     title: 'Release 2.4.0 (build 241)',

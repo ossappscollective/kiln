@@ -28,6 +28,7 @@ import {
 } from '../services/review-replies.ts';
 import {
   DEFAULT_TREND_WEEKS,
+  DEFAULT_UNANSWERED_MAX_RATING,
   MAX_TREND_WEEKS,
   reviewsSummary,
   workspaceReviewsSummary,
@@ -257,6 +258,14 @@ export function reviewRoutes(ctx: ReviewRoutesContext) {
     return next();
   };
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
+  /** `maxRating` of the summaries: the highest rating `unanswered` counts, 1 to 5 (default 5, every rating); undefined when invalid. */
+  const maxRatingOf = (c: Context<AppEnv>): number | undefined => {
+    const raw = c.req.query('maxRating');
+    if (raw === undefined || raw === '') return DEFAULT_UNANSWERED_MAX_RATING;
+    return /^[1-5]$/.test(raw) ? Number(raw) : undefined;
+  };
+  const badMaxRating = (c: Context<AppEnv>) =>
+    c.json({ error: 'invalid_request', issues: [{ path: 'maxRating', message: 'A whole number from 1 to 5.' }] }, 400);
 
   routes.get('/:workspaceId/apps/:id/reviews', needs('reviews.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
@@ -286,11 +295,14 @@ export function reviewRoutes(ctx: ReviewRoutesContext) {
     if (weeks === undefined) {
       return c.json({ error: 'invalid_request', issues: [{ path: 'weeks', message: `A whole number from 1 to ${MAX_TREND_WEEKS}.` }] }, 400);
     }
+    const maxRating = maxRatingOf(c);
+    if (maxRating === undefined) return badMaxRating(c);
     const store = storeFor(app.platform);
-    const summary = await reviewsSummary(db, ws(c), app.id, ctx.now(), { weeks });
+    const summary = await reviewsSummary(db, ws(c), app.id, ctx.now(), { weeks, maxRating });
     return c.json({
       app: { id: app.id, platform: app.platform, store },
       stored: summary.stored,
+      unanswered: summary.unanswered,
       storeWide: summary.storeWide,
       byStatus: summary.byStatus,
       sync: await getSyncState(db, ws(c), app.id, store),
@@ -342,7 +354,10 @@ export function reviewRoutes(ctx: ReviewRoutesContext) {
   });
 
   routes.get('/:workspaceId/reviews/summary', needs('reviews.read'), async (c) => {
+    const maxRating = maxRatingOf(c);
+    if (maxRating === undefined) return badMaxRating(c);
     const summary = await workspaceReviewsSummary(db, ws(c), {
+      maxRating,
       lowRatingThreshold: await lowRatingThresholdFor(db, ws(c), ctx.lowRatingThreshold ?? LOW_RATING_THRESHOLD),
       ...((c.get('token')?.appIds ?? undefined) ? { appIds: c.get('token')?.appIds as string[] } : {}),
     });

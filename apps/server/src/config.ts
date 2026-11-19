@@ -238,6 +238,16 @@ const schema = z.object({
       .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
       .default(15),
   ),
+  // Minutes between runs of the release watch: `release.stalled` (a release that stands still, workspace setting
+  // `release.stalledAfterHours`) and `review.unanswered` (a digest, setting `reviews.unansweredReminderHours`, off by default).
+  // Events only, never email. 0 turns the watch off; otherwise 5 to 10080. Runs where the worker runs.
+  MRM_RELEASE_WATCH_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 5 && v <= 10_080), 'must be 0 (off) or from 5 to 10080')
+      .default(15),
+  ),
 });
 
 /** Most allowed roots, and the longest path, accepted for MRM_LOCAL_REPO_ROOTS. */
@@ -520,6 +530,8 @@ export type Config = {
   listingIntervalMinutes: number;
   /** Minutes between runs of the plan reminders; 0 is off (MRM_REMINDER_INTERVAL_MINUTES). */
   reminderIntervalMinutes: number;
+  /** Minutes between runs of the release watch (stalled releases, unanswered reviews); 0 is off (MRM_RELEASE_WATCH_INTERVAL_MINUTES). */
+  releaseWatchIntervalMinutes: number;
   /** Folders that may hold local clones (MRM_LOCAL_REPO_ROOTS). Empty: local clones are off. */
   localRepoRoots: string[];
   /** Commits on a new branch of a local clone, and their push, are allowed (MRM_LOCAL_REPO_WRITE). */
@@ -593,6 +605,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     storeReleaseEnabled: data.MRM_STORE_RELEASE_ENABLED === 'true',
     listingIntervalMinutes: data.MRM_LISTING_INTERVAL_MINUTES,
     reminderIntervalMinutes: data.MRM_REMINDER_INTERVAL_MINUTES,
+    releaseWatchIntervalMinutes: data.MRM_RELEASE_WATCH_INTERVAL_MINUTES,
     localRepoRoots,
     localRepoWrite: data.MRM_LOCAL_REPO_WRITE === 'true',
     ...(data.MRM_GIT_AUTHOR_NAME ? { gitAuthorName: data.MRM_GIT_AUTHOR_NAME } : {}),

@@ -37,6 +37,57 @@ export type BuildCandidate = {
   reason: string | null;
   /** It is the build attached to the editable version now. */
   attached: boolean;
+  /** Whether the build can be chosen for the editable version, and why not or what to know (a verdict, see release-eligibility.ts). */
+  eligibility: BuildEligibility;
+  /**
+   * Export compliance as Apple reports it for the build: `answered` (`usesNonExemptEncryption` is set), `missing` (the attribute
+   * is empty) or `unknown` (Apple did not return it). UNVERIFIED attribute.
+   */
+  exportCompliance: 'answered' | 'missing' | 'unknown';
+  /** "What to Test" per language (TestFlight), for the newest processed builds only; see `MAX_BUILDS_WITH_NOTES`. */
+  testNotes: BuildTestNotes;
+};
+
+/** Why a build or a version code can or cannot be chosen: a code for a program and a sentence for a person. */
+export type EligibilityCode =
+  | 'ok'
+  | 'processing'
+  | 'failed'
+  | 'invalid'
+  | 'state_unknown'
+  | 'expired'
+  | 'wrong_version'
+  | 'no_editable_version'
+  | 'already_attached'
+  | 'export_compliance_missing'
+  | 'already_in_draft'
+  | 'already_live';
+export type EligibilitySeverity = 'ok' | 'warning' | 'blocked';
+export type Eligibility = {
+  /** It can be chosen for the draft now. */
+  eligible: boolean;
+  /** `blocked`: cannot be chosen. `warning`: can, but read the message. `ok`: nothing to say (or nothing to do). */
+  severity: EligibilitySeverity;
+  code: EligibilityCode;
+  /** A plain sentence. Built from ids, versions and states only. */
+  message: string;
+};
+export type BuildEligibility = Eligibility;
+export type CodeEligibility = Eligibility;
+
+/** The most characters kept of one TestFlight note ("What to Test") and the most languages and builds read. */
+export const MAX_NOTE_CHARS = 4000;
+export const MAX_NOTE_LOCALES = 40;
+export const MAX_BUILDS_WITH_NOTES = 8;
+
+/** The text a build carries for testers, in one language. Never logged and never audited. */
+export type BuildTestNote = { locale: string; text: string; truncated: boolean };
+export type BuildTestNotes = {
+  /** False: not asked for this build (not processed, or beyond the newest ones) or the read failed (`error`). */
+  read: boolean;
+  locales: BuildTestNote[];
+  /** Set when the read failed: `forbidden`, `rate_limited`, `not_found`, `unavailable`. The other builds are not affected. */
+  error?: 'forbidden' | 'rate_limited' | 'not_found' | 'unavailable';
 };
 
 /** One Google Play version code that was uploaded (to the app, through an edit). */
@@ -47,6 +98,7 @@ export type CodeCandidate = {
   sha256: string | null;
   /** The releases of the asked track that hold this code. */
   inTrack: { name: string | null; status: string }[];
+  eligibility: CodeEligibility;
 };
 
 export type ReleaseCandidates =
@@ -111,6 +163,49 @@ export const isStoreReleaseReader = (value: unknown): value is StoreReleaseReade
   value !== null &&
   typeof (value as { listReleaseCandidates?: unknown }).listReleaseCandidates === 'function' &&
   typeof (value as { readEditableRelease?: unknown }).readEditableRelease === 'function';
+
+// ---------------------------------------------------------------------------------------------
+// The texts earlier releases used ("what is new")
+
+export const MAX_NOTES_HISTORY_VERSIONS = 12;
+
+/** What an earlier version of the store listing said was new, in one language. */
+export type NotesHistoryEntry = {
+  source: 'appstoreconnect' | 'googleplay';
+  locale: string;
+  /** At most MAX_NOTE_CHARS characters. */
+  text: string;
+  truncated: boolean;
+  /** The marketing version (App Store) or the release name (Google Play), or null. */
+  version: string | null;
+  /** Google Play: the track. App Store: null. */
+  track: string | null;
+  /** The store's state of the version or release (`READY_FOR_DISTRIBUTION`, `completed`, ...). */
+  state: string | null;
+  /** When the version was created in the store (epoch ms), or null when the store does not say (Google Play never does). */
+  at: number | null;
+};
+
+export type NotesHistoryRead = {
+  entries: NotesHistoryEntry[];
+  /** More versions exist than were read. */
+  truncated: boolean;
+  /** How many versions (App Store) or releases (Google Play) were read. */
+  versionsRead: number;
+  /** Versions that were listed but whose notes could not be read (App Store). */
+  failed: number;
+};
+
+/** The read side of the "what is new" history. Changes nothing in a store. */
+export interface StoreNotesHistoryReader {
+  readonly store: StoreName;
+  readonly platform: Platform;
+  /** The newest versions' notes, newest first. `locale` narrows to one language. */
+  readNotesHistory(input: { locale?: string; maxVersions?: number }): Promise<NotesHistoryRead>;
+}
+
+export const isStoreNotesHistoryReader = (value: unknown): value is StoreNotesHistoryReader =>
+  typeof value === 'object' && value !== null && typeof (value as { readNotesHistory?: unknown }).readNotesHistory === 'function';
 
 // ---------------------------------------------------------------------------------------------
 // The release itself

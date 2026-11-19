@@ -6,6 +6,7 @@ import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './services/ci.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
 import { type ListingQueueSummary, queueListingReads } from './services/listing-schedule.ts';
 import { type ReminderSummary, sendPlanReminders } from './services/plan-reminders.ts';
+import { type ReleaseWatchSummary, sendReleaseWatch } from './services/release-watch.ts';
 import {
   type ReviewQueueSummary,
   type ReviewUpkeepSummary,
@@ -38,6 +39,10 @@ export const MAX_SYNC_INTERVAL_MINUTES = 7 * 24 * 60;
 /** Syncs the scheduler queues for one workspace in one tick: the rest wait for the next. */
 export const DEFAULT_PER_WORKSPACE_PER_TICK = 5;
 export const DEFAULT_MAX_PER_TICK = 100;
+/** MRM_RELEASE_WATCH_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
+export const MIN_RELEASE_WATCH_INTERVAL_MINUTES = 5;
+export const MAX_RELEASE_WATCH_INTERVAL_MINUTES = 7 * 24 * 60;
+export const DEFAULT_RELEASE_WATCH_INTERVAL_MINUTES = 15;
 /** MRM_REMINDER_INTERVAL_MINUTES: 0 (off) or from 5 minutes to a week. */
 export const MIN_REMINDER_INTERVAL_MINUTES = 5;
 export const MAX_REMINDER_INTERVAL_MINUTES = 7 * 24 * 60;
@@ -52,6 +57,12 @@ export type SchedulerOptions = {
   syncIntervalMs?: number;
   /** Milliseconds between reminder runs. 0 (the default here) turns plan reminders off. */
   reminderIntervalMs?: number;
+  /**
+   * Milliseconds between runs of the release watch (`release.stalled`, `review.unanswered`: services/release-watch.ts). 0 (the
+   * default here) turns it off. Each signal is also off until its workspace setting turns it on (`release.stalledAfterHours`
+   * is on by default, `reviews.unansweredReminderHours` is off).
+   */
+  releaseWatchIntervalMs?: number;
   /** Hours before the end of a target day that "due soon" starts. Default 24. */
   reminderLeadHours?: number;
   /** Most reminders one run sends. Default 100. */
@@ -122,6 +133,8 @@ export type TickSummary = {
   purged: number;
   /** What the reminder run sent; null when none ran this tick (off, or not yet due). */
   reminders: ReminderSummary | null;
+  /** What the release watch sent; absent when it did not run this tick (off, or not yet due). */
+  releaseWatch?: ReleaseWatchSummary;
   /** What the scheduled listing reads queued; absent when they are off. */
   listings?: ListingQueueSummary;
   /** What the scheduled review reads queued; absent when they are off. */
@@ -165,6 +178,17 @@ export function reminderIntervalMs(minutes: number): number {
   return minutes * MINUTE;
 }
 
+/** Minutes from MRM_RELEASE_WATCH_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
+export function releaseWatchIntervalMs(minutes: number): number {
+  if (minutes === 0) return 0;
+  if (!Number.isInteger(minutes) || minutes < MIN_RELEASE_WATCH_INTERVAL_MINUTES || minutes > MAX_RELEASE_WATCH_INTERVAL_MINUTES) {
+    throw new Error(
+      `The release watch interval must be 0 (off) or from ${MIN_RELEASE_WATCH_INTERVAL_MINUTES} to ${MAX_RELEASE_WATCH_INTERVAL_MINUTES} minutes.`,
+    );
+  }
+  return minutes * MINUTE;
+}
+
 export function createScheduler(options: SchedulerOptions): Scheduler {
   const { db } = options;
   const now = options.now ?? Date.now;
@@ -177,6 +201,8 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   const pollMaxMs = options.pollMaxMs ?? DEFAULT_POLL_MAX_MS;
   const report = options.onError ?? ((message, error) => console.error(message, error));
   const reminderInterval = options.reminderIntervalMs ?? 0;
+  const releaseWatchInterval = options.releaseWatchIntervalMs ?? 0;
+  let lastReleaseWatchAt: number | undefined;
   const listingInterval = options.listingIntervalMs ?? 0;
   const reviewInterval = options.reviewSyncIntervalMs ?? 0;
   const asoInterval = options.asoIntervalMs ?? 0;
@@ -292,6 +318,17 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         });
       } catch (error) {
         report('plan reminders failed', error);
+      }
+    }
+    if (releaseWatchInterval > 0 && (lastReleaseWatchAt === undefined || at - lastReleaseWatchAt >= releaseWatchInterval)) {
+      lastReleaseWatchAt = at;
+      try {
+        summary.releaseWatch = await sendReleaseWatch(db, at, {
+          ...(options.maxRemindersPerRun !== undefined ? { maxPerRun: options.maxRemindersPerRun } : {}),
+          onError: report,
+        });
+      } catch (error) {
+        report('release watch failed', error);
       }
     }
     if (listingInterval > 0) {

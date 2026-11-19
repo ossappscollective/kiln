@@ -25,7 +25,7 @@ import {
 } from '../services/ci.ts';
 import { conventionsBody } from '../services/build-conventions.ts';
 import { listActiveRuns } from '../services/ci-active.ts';
-import { countActiveRuns, getRunView, listRuns } from '../services/ci-runs.ts';
+import { countActiveRuns, getRunView, listRuns, runCountsForApp } from '../services/ci-runs.ts';
 import { type Failure, getRepository } from '../services/repositories.ts';
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
@@ -62,6 +62,8 @@ const dispatchBody = z.object({
     .refine((v) => Object.keys(v).length <= 25, 'GitHub accepts at most 25 inputs.')
     .optional(),
   appId: z.string().min(1).max(100).optional(),
+  /** Every app this run builds (one workflow can build several apps of the repository). Joined with `appId`. */
+  appIds: z.array(z.string().min(1).max(100)).min(1).max(20).optional(),
 });
 
 const linkBody = z.object({ runId: z.string().regex(RUN_ID, 'A run id is a number.') });
@@ -120,11 +122,21 @@ export function ciRoutes(ctx: CiContext) {
         headers: { 'Retry-After': String(wait) },
       });
     }
+    const forApp = c.req.query('appId');
+    if (forApp !== undefined && (forApp.length === 0 || forApp.length > 100)) return invalid(c, 'appId', 'An app id.');
     const answer = await listActiveRuns(
       ctx,
       { workspaceId: ws(c), canScan: canScan(c), repositoryIds, appIds: c.get('token')?.appIds ?? null },
       actor(c),
     );
+    // One app's view: the runs started for it (alone or with other apps) and those not started for an app.
+    if (forApp !== undefined) {
+      return c.json({
+        ...answer,
+        runs: answer.runs.filter((r) => runCountsForApp(r, forApp)),
+        recent: answer.recent.filter((r) => runCountsForApp(r, forApp)),
+      });
+    }
     return c.json(answer);
   });
 

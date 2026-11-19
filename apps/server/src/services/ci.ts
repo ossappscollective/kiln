@@ -335,8 +335,13 @@ export type DispatchInput = {
   /** A branch or tag. Default: the repository's default branch. */
   ref?: string | undefined;
   inputs?: Record<string, string> | undefined;
-  /** The app this run builds, when it is for one. Lets the run be linked to that app's builds. */
+  /** The app this run builds, when it is for one. Lets the run be linked to that app's builds. Same as `appIds: [appId]`. */
   appId?: string | undefined;
+  /**
+   * The apps this run builds: one workflow can build one app or several that share the repository. Each must be an app of
+   * the workspace linked to the repository. With `appId` as well, the two are joined.
+   */
+  appIds?: readonly string[] | undefined;
 };
 
 /**
@@ -354,8 +359,13 @@ export async function dispatchRun(
   const { workspaceId } = input;
   const repository = await getRepository(ctx.db, workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found');
-  if (input.appId !== undefined) {
-    const app = await getApp(ctx.db, workspaceId, input.appId);
+  const appIds: string[] = [];
+  for (const id of [...(input.appId !== undefined ? [input.appId] : []), ...(input.appIds ?? [])]) {
+    if (appIds.indexOf(id) === -1) appIds.push(id);
+  }
+  appIds.sort();
+  for (const id of appIds) {
+    const app = await getApp(ctx.db, workspaceId, id);
     if (!app) return failure(422, 'app_not_found', 'That app is not in this workspace.');
     if (app.repositoryId !== repository.id) {
       return failure(422, 'app_repository_mismatch', 'That app is not linked to this repository.');
@@ -377,7 +387,8 @@ export async function dispatchRun(
       workflow: input.workflow,
       ref,
       inputs: Object.keys(inputs).sort(),
-      ...(input.appId ? { appId: input.appId } : {}),
+      ...(appIds[0] ? { appId: appIds[0] } : {}),
+      ...(appIds.length > 1 ? { appIds } : {}),
       ...detail,
     },
     at: ctx.now(),
@@ -403,7 +414,8 @@ export async function dispatchRun(
     const stored = await recordDispatch(tx, {
       workspaceId,
       repositoryId: repository.id,
-      appId: input.appId ?? null,
+      appId: appIds[0] ?? null,
+      appIds,
       workflow: input.workflow,
       ref,
       inputs,
@@ -819,7 +831,7 @@ async function viewsFor(
   const [releases, links, runs, conventions, scan] = await Promise.all([
     listAppReleases(ctx.db, workspaceId, app.id),
     listBuildLinks(ctx.db, workspaceId, app.id),
-    repository ? loadRunRefs(ctx.db, workspaceId, repository.id) : Promise.resolve([]),
+    repository ? loadRunRefs(ctx.db, workspaceId, repository.id, app.id) : Promise.resolve([]),
     repository ? listConventions(ctx.db, workspaceId, repository.id) : Promise.resolve([]),
     repository ? getScan(ctx.db, workspaceId, repository.id) : Promise.resolve(undefined),
   ]);

@@ -29,6 +29,8 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'aso.rank_changed', label: 'A tracked keyword moved a lot in the store search results (ids and places only, never the term)' },
   { type: 'aso.competitor_changed', label: 'A followed competitor changed its listing, price or rating (ids and field names only)' },
   { type: 'ci.run_started', label: 'A GitHub Actions workflow run started (ids only)' },
+  { type: 'release.stalled', label: 'A release looks unfinished: a build landed and the next step did not happen (ids and hours only)' },
+  { type: 'review.unanswered', label: 'Reviews are waiting for an answer (counts and the oldest age only)' },
   { type: 'ci.run_finished', label: 'A GitHub Actions workflow run finished (ids and the conclusion only)' },
   { type: 'assets.pulled', label: 'Store images were pulled into a change set for the repository (ids and counts only)' },
 ];

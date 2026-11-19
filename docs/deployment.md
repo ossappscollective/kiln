@@ -283,6 +283,23 @@ Postgres path was **not** run). The first run after an upgrade sends one overdue
 open plan whose target date passed in the last 30 days; set the interval to `0` first if you do not
 want that. See [events](api/events.md#plan-reminders).
 
+### Release watch
+
+The same scheduler runs the **release watch**, again as events only (never email or push):
+`release.stalled` when the release of an app has stood still for longer than the workspace setting
+`release.stalledAfterHours` (default 6; `0` turns it off for the workspace), and `review.unanswered`,
+a digest of reviews that wait for an answer (workspace setting `reviews.unansweredReminderHours`,
+default `0` = off). `MRM_RELEASE_WATCH_INTERVAL_MINUTES` sets how often it looks (default 15; `0`
+turns the watch off; otherwise 5 to 10080). It reads only this server's own tables, so it calls neither
+GitHub nor a store. A stall is reminded once per episode and again only after
+`release.stalledRepeatHours` (default 24; `0` never repeats); the episode is kept in
+`release_stall_reminders` and `review_unanswered_reminders`, changed in the same transaction as the
+event, so a restart or several instances sharing one database send it once (the Postgres path was **not**
+run). The first run after an upgrade can send a `release.stalled` event for each app whose release has
+stood still for longer than the threshold; set the interval or `release.stalledAfterHours` to `0`
+first if you do not want that. See [events](api/events.md#release-watch) and
+[the release pipeline](api/release-pipeline.md).
+
 ## Scheduled listing reads
 
 The store listing of an app (texts, categories, age rating, privacy choices URL, screenshot and

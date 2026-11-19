@@ -252,7 +252,7 @@ export type RunMatch = {
 };
 
 /** Names of workflows that ship builds; used when no release workflow is configured. */
-const RELEASE_WORKFLOW = /release|publish|deploy|ship|distribut|store|testflight|fastlane/i;
+export const RELEASE_WORKFLOW = /release|publish|deploy|ship|distribut|store|testflight|fastlane/i;
 
 const workflowMatches = (run: RunFacts, wanted: string) => {
   const w = wanted.toLowerCase();

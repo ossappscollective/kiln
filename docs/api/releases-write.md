@@ -19,8 +19,8 @@ Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404, a membe
 
 ## Reads: what a draft is made of
 
-Both reads use the credential of the app (audited as `credential.use`, purpose `store.release_read`), change
-nothing, and are rate limited per workspace (`429`, `Retry-After`).
+The reads (`candidates`, `editable` and `notes-history`) use the credential of the app (audited as `credential.use`,
+purpose `store.release_read`), change nothing, and are rate limited per workspace (`429`, `Retry-After`).
 
 ### `GET /apps/{id}/release/candidates?track=&version=`
 
@@ -30,10 +30,39 @@ Needs `listing.read`. Returns `{ candidates }`:
   `version` is the editable version a build would be attached to (or `null`). Each build: `id`, `buildNumber`, `version`
   (marketing version), `uploadedDate`, `processingState`, `expired`, `selectable` (processed and not expired), `reason`
   (why not), `attached`. A macOS app lists the macOS builds only. `?version=2.4.0` narrows the list. The `id` is what you
-  stage as the `build` field.
+  stage as the `build` field. Also, per build: `eligibility`, `exportCompliance` and `testNotes` (below).
 - **Google Play**: `track` is required (`422 track_required`). `{ store: "googleplay", platform: "android", track, codes[] }`;
   each code: `versionCode`, `source` (`bundle` or `apk`), `sha256`, `inTrack[] { name, status }` (the releases of that track
-  that already hold it).
+  that already hold it) and `eligibility`.
+
+**Is this build eligible?** Every build and every code has `eligibility: { eligible, severity, code, message }`: `eligible`
+says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (it can be chosen, read the message) or `blocked`,
+`code` is a machine reason and `message` a plain sentence built from build numbers, versions and states only. Codes:
+
+| `code` | `severity` | Meaning |
+| --- | --- | --- |
+| `ok` | `ok` | Processed, not expired, belongs to the version being prepared (Google Play: not in a release of the track yet). |
+| `processing` | `blocked` | Apple is still processing the build. |
+| `failed`, `invalid` | `blocked` | Apple could not process it / marked it invalid: upload a new build. |
+| `state_unknown` | `blocked` | Apple did not say, or said a state this server does not know. |
+| `expired` | `blocked` | The build expired. Wins over the processing state. |
+| `wrong_version` | `blocked` | The build belongs to another marketing version than the one being prepared. |
+| `no_editable_version` | `blocked` | The build is processed but no version is in "Prepare for Submission". |
+| `already_attached` | `ok` (`eligible` false) | It is the build of the version already. |
+| `export_compliance_missing` | `warning` | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later. |
+| `already_in_draft` | `ok` (`eligible` false) | Google Play: the draft release of the track holds the code already. |
+| `already_live` | `blocked` | Google Play: a release of the track that is live or rolling out holds the code. |
+
+New codes may be added: a client should fall back to `severity`. `selectable` and `reason` stay for older clients and ignore
+the version.
+
+**TestFlight notes.** Each App Store build has `testNotes: { read, locales[] { locale, text, truncated }, error? }`, the "What to
+Test" text TestFlight shows testers. It is read for the **newest eight processed, unexpired builds** only (four requests at a
+time); for the others `read` is `false` with no `error`. A build whose notes cannot be read has `read: false` and `error`
+(`forbidden`, `rate_limited`, `not_found`, `unavailable`) and never hides the other builds. Each text is cut at 4000 characters
+(`truncated`), a build keeps at most 40 languages, and empty texts are left out. **The notes are shown to the caller only: they
+are never logged, never audited and never in an event.** `exportCompliance` is `answered`, `missing` or `unknown` (Apple did not
+return the attribute; the read is repeated without the field when Apple rejects it).
 
 ### `GET /apps/{id}/release/editable?track=`
 
@@ -44,6 +73,27 @@ Needs `listing.read`. Returns `{ editable }`:
   "what's new" of each locale). `422 no_editable_version` when there is no editable version.
 - **Google Play**: `track` required. `draft { name, status, userFraction, versionCodes[], notes[] { locale, text } } | null` and
   `others[]` (the other releases of the track, read only).
+
+### `GET /apps/{id}/release/notes-history?platform=&locale=&limit=`
+
+Needs `listing.read`. The "what is new" texts earlier releases used, to reuse in the next one. `platform` (optional) must be
+the platform of the app (`422 platform_mismatch`); `locale` narrows to one language (`en-US`; `de_DE` works too); `limit` is 1 to
+100 (default 30). Returns `{ history: { app, locale, notes[], truncated, limit, store, generatedAt } }`:
+
+- `notes[]` is **deduplicated by text** (line ends and surrounding space do not count): `{ text, truncated, locales[],
+  lastUsedAt, uses[] }`, newest first by `lastUsedAt`; a text with no date follows the dated ones in the store's order. `uses[]`
+  (newest first, at most 10) says where each was used: `{ source, locale, version, track, state, at }` with `source`
+  `appstoreconnect`, `googleplay` or `plan` (a release note of a [release plan](plans.md) of this app).
+- **App Store**: the notes of the newest twelve versions of the platform (`version` is the marketing version, `state` Apple's
+  version state, `at` the creation date of the version). `store.truncated` says more versions exist; `store.failed` counts versions
+  whose notes could not be read.
+- **Google Play**: only the releases the tracks hold **now** (`edits.tracks.list`; Google lists no replaced release), so this is a
+  short history. `version` is the release name, `track` the track, `state` the release status, and `at` is `null`: Google gives no date.
+- The store read is **cached in memory for ten minutes** per app and language (`store.cached`); only a read that reaches the
+  store counts against the rate limit. When the store cannot be read the answer is still `200` with the plans' notes and
+  `store: { read: false, error }` (`error` is a code such as `store_forbidden`, `credential_unreadable`, `timeout` or
+  `rate_limited`, the last with a `Retry-After` header). Responses are `Cache-Control: no-store`.
+- Texts are cut at 4000 characters. **They are never logged, never audited and never in an event.**
 
 ## Staging and pushing release fields
 
@@ -223,6 +273,16 @@ halted"), `edits.tracks.get` / `update`, `edits.bundles.list`, `edits.apks.list`
 `changesNotSentForReview` and `changesInReviewBehavior`.
 
 **Not verified** (Apple's pages for these resources are nearly empty; nothing was run):
+
+- Eligibility, TestFlight notes and the notes history (Apple): the resource `betaBuildLocalizations` and `GET
+  /v1/builds/{id}/betaBuildLocalizations` exist on Apple's pages, but its attributes `locale` and `whatsNew`, the `fields[...]`
+  filter and any length limit are UNVERIFIED (this server cuts at 4000 characters itself); the build attribute
+  `usesNonExemptEncryption` (export compliance) and whether it can be requested in `fields[builds]`; the `createdDate` attribute of
+  a version (the date and order of the history; without it the order is the version string, newest first, and `at` is `null`);
+  that a build must belong to the marketing version it is attached to (`wrong_version`); that Apple lists `appStoreVersions` of
+  every state (the history reads the newest twelve of this platform); the processing state names.
+- Eligibility, notes history (Google Play): VERIFIED on Google's page, `Track` holds `releases[]` and `edits.tracks.list` shows the
+  active releases, so replaced releases are not in the history; Google gives no upload time and no release date, so `at` is `null`.
 
 - App Store: the body of the release request (`relationships.appStoreVersion`, modelled on Apple's other resources) and its
   success status; that the API name of "Pending Developer Release" is `PENDING_DEVELOPER_RELEASE`; the version attributes

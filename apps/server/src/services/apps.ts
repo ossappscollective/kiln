@@ -390,6 +390,10 @@ export async function deleteApp(
       input.id,
       input.workspaceId,
     ]);
+    // The release pipeline's own rows: the builds seen, the stall reminder, and the app's share of CI runs.
+    await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute('DELETE FROM release_stall_reminders WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute('DELETE FROM ci_run_apps WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
@@ -467,7 +471,49 @@ function classify(error: unknown, secret: string): Classified {
 /** Apps being synced right now, in this process. A second sync of the same app is refused. */
 const running = new Set<string>();
 
-type Read = { appStoreId: string; releases: ReleaseInput[] };
+type Read = { appStoreId: string; releases: ReleaseInput[]; builds: BuildSeen[] };
+
+/** A build the store showed (App Store Connect build, or a Google Play version code of a track release): `app_builds`. */
+export type BuildSeen = {
+  buildNumber: string;
+  storeId: string | null;
+  version: string | null;
+  state: 'processing' | 'processed' | 'invalid' | 'unknown';
+  rawState: string | null;
+  expired: boolean | null;
+  uploadedAt: number | null;
+};
+
+/** Builds kept per app: the newest. A store with more is cut (the oldest are not a release in flight). */
+export const MAX_BUILDS_SEEN = 200;
+
+function seenFromAppleBuilds(builds: readonly StoreBuild[]): BuildSeen[] {
+  return [...builds]
+    .sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber))
+    .slice(0, MAX_BUILDS_SEEN)
+    .map((b) => ({
+      buildNumber: b.buildNumber,
+      storeId: b.storeId,
+      version: b.versionString ?? null,
+      state: b.processing,
+      rawState: b.rawProcessingState ?? null,
+      expired: b.expired ?? null,
+      uploadedAt: b.uploadedAt ?? null,
+    }));
+}
+
+function seenFromPlayVersions(versions: readonly StoreVersion[]): BuildSeen[] {
+  const out = new Map<string, BuildSeen>();
+  for (const v of versions) {
+    for (const code of v.versionCodes ?? []) {
+      // The newest-looking release that holds the code names it; Google does not say when a code was uploaded.
+      if (!out.has(code)) {
+        out.set(code, { buildNumber: code, storeId: null, version: v.versionString, state: 'processed', rawState: v.rawState, expired: null, uploadedAt: null });
+      }
+    }
+  }
+  return [...out.values()].sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber)).slice(0, MAX_BUILDS_SEEN);
+}
 
 type ReleaseInput = {
   version: string;
@@ -521,6 +567,7 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
     const builds = await connector.listBuilds(appStoreId);
     return {
       appStoreId,
+      builds: seenFromAppleBuilds(builds),
       releases: versions.map((v) => {
         const build = pickBuild(v, builds);
         return {
@@ -538,6 +585,7 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
   const versions = await connector.listVersions(app.identifier);
   return {
     appStoreId: app.identifier,
+    builds: seenFromPlayVersions(versions),
     releases: versions.map((v) => {
       const codes = v.versionCodes ?? [];
       return {
@@ -554,6 +602,48 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
       };
     }),
   };
+}
+
+/** Replaces the builds of an app with what the store showed; a build seen before keeps its `first_seen_at`. */
+async function writeBuildsSeen(
+  tx: Sql,
+  input: { appId: string; workspaceId: string; platform: Platform; builds: readonly BuildSeen[]; at: number },
+): Promise<void> {
+  const keep = new Set<string>();
+  for (const b of input.builds) {
+    if (keep.has(b.buildNumber)) continue;
+    keep.add(b.buildNumber);
+    await tx.execute(
+      `INSERT INTO app_builds
+         (app_id, platform, build_number, workspace_id, store_id, version, processing_state, raw_state, expired,
+          uploaded_at, first_seen_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (app_id, platform, build_number) DO UPDATE SET
+         store_id = excluded.store_id, version = excluded.version, processing_state = excluded.processing_state,
+         raw_state = excluded.raw_state, expired = excluded.expired, uploaded_at = excluded.uploaded_at,
+         last_seen_at = excluded.last_seen_at`,
+      [
+        input.appId,
+        input.platform,
+        b.buildNumber,
+        input.workspaceId,
+        b.storeId,
+        b.version,
+        b.state,
+        b.rawState,
+        b.expired === null ? null : b.expired ? 1 : 0,
+        b.uploadedAt,
+        input.at,
+        input.at,
+      ],
+    );
+  }
+  const stored = await tx.query('SELECT build_number FROM app_builds WHERE app_id = ? AND platform = ?', [input.appId, input.platform]);
+  for (const row of stored) {
+    if (!keep.has(String(row.build_number))) {
+      await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND platform = ? AND build_number = ?', [input.appId, input.platform, String(row.build_number)]);
+    }
+  }
 }
 
 export type SyncSummary = {
@@ -732,7 +822,7 @@ async function runSync(
     for (const release of read.releases) wanted.set(`${release.track}\u0000${release.version}`, release);
     const existing = new Map<string, Row>();
     const rows = await tx.query(
-      'SELECT id, version, track, build, status, raw_state, details_json, store_updated_at FROM app_releases WHERE app_id = ?',
+      'SELECT id, version, track, build, status, raw_state, details_json, store_updated_at, status_since, synced_at FROM app_releases WHERE app_id = ?',
       [app.id],
     );
     for (const row of rows) existing.set(`${String(row.track)}\u0000${String(row.version)}`, row);
@@ -747,8 +837,8 @@ async function runSync(
         await tx.execute(
           `INSERT INTO app_releases
              (id, app_id, workspace_id, platform, version, track, build, status, raw_state,
-              details_json, store_updated_at, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              details_json, store_updated_at, synced_at, status_since)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             randomUUID(),
             app.id,
@@ -761,6 +851,7 @@ async function runSync(
             release.rawState,
             detailsJson,
             release.storeUpdatedAt,
+            at,
             at,
           ],
         );
@@ -776,9 +867,15 @@ async function runSync(
           ? null
           : Number(old.store_updated_at)) === release.storeUpdatedAt;
       if (!same) updated++;
+      // The time of the last move (state, state name or build): what the release pipeline measures "nothing moved" from.
+      const moved =
+        (old.build ?? null) !== release.build ||
+        (old.status ?? null) !== release.status ||
+        String(old.raw_state) !== release.rawState;
+      const since = moved ? at : Number(old.status_since ?? old.synced_at);
       await tx.execute(
         `UPDATE app_releases SET build = ?, status = ?, raw_state = ?, details_json = ?,
-                store_updated_at = ?, synced_at = ?
+                store_updated_at = ?, synced_at = ?, status_since = ?
           WHERE id = ? AND app_id = ?`,
         [
           release.build,
@@ -787,6 +884,7 @@ async function runSync(
           detailsJson,
           release.storeUpdatedAt,
           at,
+          since,
           String(old.id),
           app.id,
         ],
@@ -797,6 +895,7 @@ async function runSync(
       await tx.execute('DELETE FROM app_releases WHERE id = ? AND app_id = ?', [String(old.id), app.id]);
       removed++;
     }
+    await writeBuildsSeen(tx, { appId: app.id, workspaceId, platform: app.platform, builds: read.builds, at });
     await tx.execute(
       `UPDATE apps SET store_app_id = ?, last_synced_at = ?, last_sync_attempt_at = ?,
               last_sync_error = NULL

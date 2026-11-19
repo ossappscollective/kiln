@@ -40,7 +40,7 @@ const refName = (bytes: Uint8Array) => `mrm:sha256:${sha256(bytes).slice(0, 32)}
 
 export class FakeAppleDraftApi {
   readonly seen: Seen[] = [];
-  versions: { id: string; versionString: string; state: string; platform?: string; releaseType?: string; earliestReleaseDate?: string; copyright?: string }[] = [
+  versions: { id: string; versionString: string; state: string; platform?: string; releaseType?: string; earliestReleaseDate?: string; copyright?: string; createdDate?: string }[] = [
     { id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION' },
     { id: 'v-next', versionString: '2.1', state: 'PREPARE_FOR_SUBMISSION' },
   ];
@@ -54,13 +54,19 @@ export class FakeAppleDraftApi {
   /** version id -> the build attached to it (App Store Connect API: `GET /v1/appStoreVersions/{id}/build`). */
   builds = new Map<string, { id: string; version: string; processingState: string; expired: boolean }>([['v-next', { id: 'b-1', version: '57', processingState: 'VALID', expired: false }]]);
   /** `GET /v1/builds`: every build of the app (a test sets more). */
-  buildList: { id: string; version: string; processingState: string; expired: boolean; uploadedDate: string; marketing: string; platform?: string }[] = [
+  buildList: { id: string; version: string; processingState: string; expired: boolean; uploadedDate: string; marketing: string; platform?: string; usesNonExemptEncryption?: boolean | null }[] = [
     { id: 'b-1', version: '57', processingState: 'VALID', expired: false, uploadedDate: '2026-11-17T09:00:00-08:00', marketing: '2.1' },
     { id: 'b-2', version: '58', processingState: 'VALID', expired: false, uploadedDate: '2026-11-18T09:00:00-08:00', marketing: '2.1' },
     { id: 'b-3', version: '59', processingState: 'PROCESSING', expired: false, uploadedDate: '2026-11-18T12:00:00-08:00', marketing: '2.1' },
     { id: 'b-old', version: '40', processingState: 'VALID', expired: true, uploadedDate: '2026-08-01T09:00:00-07:00', marketing: '2.0' },
     { id: 'b-mac', version: '9', processingState: 'VALID', expired: false, uploadedDate: '2026-11-18T10:00:00-08:00', marketing: '2.1', platform: 'MAC_OS' },
   ];
+  /** build id -> the TestFlight notes ("What to Test") per locale: `GET /v1/builds/{id}/betaBuildLocalizations`. */
+  testNotes = new Map<string, { locale: string; whatsNew: string }[]>();
+  /** build id -> an HTTP status that its notes answer instead. */
+  testNotesFail = new Map<string, number>();
+  /** True: the fake answers a 400 PARAMETER_ERROR when `fields[builds]` names `usesNonExemptEncryption`. */
+  rejectComplianceField = false;
   /** version id -> its phased release. */
   phased = new Map<string, { id: string; state: string }>();
   /** The release requests made: version ids. */
@@ -157,7 +163,7 @@ export class FakeAppleDraftApi {
     const notFound = () => json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
     let m: RegExpMatchArray | null;
     if (method === 'GET' && /^\/v1\/apps\/\d+\/appStoreVersions$/.test(path)) {
-      return json(200, { data: this.versions.map((v) => ({ type: 'appStoreVersions', id: v.id, attributes: { platform: v.platform ?? 'IOS', versionString: v.versionString, appVersionState: v.state, ...(v.releaseType ? { releaseType: v.releaseType } : {}), ...(v.earliestReleaseDate ? { earliestReleaseDate: v.earliestReleaseDate } : {}), ...(v.copyright ? { copyright: v.copyright } : {}) } })), links: {} });
+      return json(200, { data: this.versions.map((v) => ({ type: 'appStoreVersions', id: v.id, attributes: { platform: v.platform ?? 'IOS', versionString: v.versionString, appVersionState: v.state, ...(v.createdDate ? { createdDate: v.createdDate } : {}), ...(v.releaseType ? { releaseType: v.releaseType } : {}), ...(v.earliestReleaseDate ? { earliestReleaseDate: v.earliestReleaseDate } : {}), ...(v.copyright ? { copyright: v.copyright } : {}) } })), links: {} });
     }
     // ----- release fields of a version, builds, phased release, release requests
     if (method === 'PATCH' && (m = path.match(/^\/v1\/appStoreVersions\/([^/]+)$/))) {
@@ -183,14 +189,23 @@ export class FakeAppleDraftApi {
       return json(200, { data: { type: 'appStoreVersions', id: version.id, attributes: { versionString: version.versionString } } });
     }
     if (method === 'GET' && path === '/v1/builds') {
+      const fieldsOfBuilds = url.searchParams.get('fields[builds]') ?? '';
+      if (this.rejectComplianceField && fieldsOfBuilds.includes('usesNonExemptEncryption')) {
+        return json(400, { errors: [{ status: '400', code: 'PARAMETER_ERROR.INVALID', title: 'A parameter has an invalid value', detail: 'usesNonExemptEncryption is not a valid field name', source: { parameter: 'fields[builds]' } }] });
+      }
       const want = url.searchParams.get('filter[preReleaseVersion.version]');
       const platform = url.searchParams.get('filter[preReleaseVersion.platform]');
       const list = this.buildList.filter((b) => (want === null || b.marketing === want) && (platform === null || (b.platform ?? 'IOS') === platform));
       return json(200, {
-        data: list.map((b) => ({ type: 'builds', id: b.id, attributes: { version: b.version, uploadedDate: b.uploadedDate, processingState: b.processingState, expired: b.expired }, relationships: { preReleaseVersion: { data: { type: 'preReleaseVersions', id: `pre-${b.marketing}-${b.platform ?? 'IOS'}` } } } })),
+        data: list.map((b) => ({ type: 'builds', id: b.id, attributes: { version: b.version, uploadedDate: b.uploadedDate, processingState: b.processingState, expired: b.expired, ...('usesNonExemptEncryption' in b && fieldsOfBuilds.includes('usesNonExemptEncryption') ? { usesNonExemptEncryption: b.usesNonExemptEncryption } : {}) }, relationships: { preReleaseVersion: { data: { type: 'preReleaseVersions', id: `pre-${b.marketing}-${b.platform ?? 'IOS'}` } } } })),
         included: list.map((b) => ({ type: 'preReleaseVersions', id: `pre-${b.marketing}-${b.platform ?? 'IOS'}`, attributes: { version: b.marketing, platform: b.platform ?? 'IOS' } })),
         links: {},
       });
+    }
+    if (method === 'GET' && (m = path.match(/^\/v1\/builds\/([^/]+)\/betaBuildLocalizations$/))) {
+      const failing = this.testNotesFail.get(m[1] ?? '');
+      if (failing !== undefined) return json(failing, { errors: [{ status: String(failing), code: failing === 403 ? 'FORBIDDEN_ERROR' : 'UNEXPECTED_ERROR', title: 'No' }] });
+      return json(200, { data: (this.testNotes.get(m[1] ?? '') ?? []).map((n, i) => ({ type: 'betaBuildLocalizations', id: `bbl-${m?.[1]}-${i}`, attributes: { locale: n.locale, whatsNew: n.whatsNew } })), links: {} });
     }
     if (method === 'GET' && (m = path.match(/^\/v1\/builds\/([^/]+)$/))) {
       const b = this.buildList.find((x) => x.id === m?.[1]);

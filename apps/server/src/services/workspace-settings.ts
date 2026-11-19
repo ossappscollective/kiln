@@ -1,4 +1,6 @@
 import {
+  DEFAULT_STALLED_AFTER_HOURS,
+  MAX_STALLED_AFTER_HOURS,
   type Action,
   type ActorType,
   type Role,
@@ -68,6 +70,30 @@ export const settingDefinitions = {
     default: 2,
     writeAction: 'settings.write',
     parse: integerIn(1, 4),
+  } satisfies Definition<number>,
+  'release.stalledAfterHours': {
+    doc: 'A release is stalled when a CI run succeeded or a build appeared and nothing moved to the next step (a version prepared, submitted, released) for this many hours (0 to 720). 0 turns the signal and its reminder `release.stalled` off. Changing it never re-sends a reminder already sent.',
+    default: DEFAULT_STALLED_AFTER_HOURS,
+    writeAction: 'settings.write',
+    parse: integerIn(0, MAX_STALLED_AFTER_HOURS),
+  } satisfies Definition<number>,
+  'release.stalledRepeatHours': {
+    doc: 'A stalled release raises `release.stalled` once per stall. If it is still stalled after this many hours the reminder is sent once more (0 to 720). 0 sends no repeat.',
+    default: 24,
+    writeAction: 'settings.write',
+    parse: integerIn(0, 720),
+  } satisfies Definition<number>,
+  'reviews.unansweredReminderHours': {
+    doc: 'Opt-in digest of unanswered reviews: when reviews without a developer response (not ignored) are older than this many hours, `review.unanswered` is sent with the counts, and again after the same number of hours while some remain (0 to 720). 0 turns it off.',
+    default: 0,
+    writeAction: 'settings.write',
+    parse: integerIn(0, 720),
+  } satisfies Definition<number>,
+  'reviews.unansweredMaxRating': {
+    doc: 'Only reviews with this rating or lower count for the `review.unanswered` digest (1 to 5; 5 counts every review).',
+    default: 5,
+    writeAction: 'settings.write',
+    parse: integerIn(1, 5),
   } satisfies Definition<number>,
   'aso.rankMoveThreshold': {
     doc: 'A keyword that moves this many places or more between two checks raises `aso.rank_changed` (1 to 100). Entering or leaving the results raises it only within the top 10. Changing it never re-sends events for checks already made.',

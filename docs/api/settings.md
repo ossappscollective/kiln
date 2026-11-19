@@ -32,6 +32,10 @@ a secret). A `PUT` that changes nothing writes no entry.
 | `translation.mode` | `off`, `on_demand`, `auto` | `on_demand` | `auto` translates new reviews after a sync (see [reviews](reviews.md#translation)). |
 | `translation.dailyCharBudget` | integer 0 to 100,000,000 | `50000` | Characters this workspace may send per UTC day. `0`: no limit here. |
 | `translation.libretranslate.url` | text | `""` | The LibreTranslate server, `https://host[/path]`. Empty: none. |
+| `release.stalledAfterHours` | integer 0 to 720 | `6` | A release that has stood still for longer than this many hours is **stalled** ([release pipeline](release-pipeline.md)); it raises `release.stalled`. `0` turns the signal off for the workspace (the pipeline is still shown). |
+| `release.stalledRepeatHours` | integer 0 to 720 | `24` | The same stall is reminded again after this many hours. `0`: once per stall, never again. |
+| `reviews.unansweredReminderHours` | integer 0 to 720 | `0` | `review.unanswered`: one digest at most every this many hours, when a review rated at or below `reviews.unansweredMaxRating` has waited that long without an answer. `0` (the default) is off. |
+| `reviews.unansweredMaxRating` | integer 1 to 5 | `5` | The highest rating the digest counts (`2` means only 1 and 2 stars). |
 
 The address rules for `translation.libretranslate.url` (checked on save, and again at every call,
 because DNS can change): `https` only; no user name, password, query or fragment; a private,

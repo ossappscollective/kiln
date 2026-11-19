@@ -3,7 +3,7 @@ import { type Platform, RELEASE_STATES, type ReleaseState, isGooglePlatform } fr
 import type { Sql } from '@mrm/db';
 import { type AppRelease, type ManagedApp, listAppReleases } from './apps.ts';
 import type { Confidence, LinkEvidence } from './build-tags.ts';
-import { RUN_COLUMNS, type WorkflowRunView, toRunView } from './ci-runs.ts';
+import { RUN_COLUMNS, type WorkflowRunView, runCountsForApp, runViews } from './ci-runs.ts';
 
 /**
  * Links the builds a store reports to the CI run (and so the commit) that made them, through the
@@ -411,10 +411,16 @@ export async function removeBuildLink(
   return changed > 0;
 }
 
+/**
+ * The runs of a repository a build can be linked to (stored runs, no placeholders). With `appId`, only the runs that count
+ * for that app: those dispatched for it (alone or with other apps) and those that were not started for an app at all. A run
+ * that was dispatched only for another app of the repository never links this app's builds.
+ */
 export async function loadRunRefs(
   sql: Sql,
   workspaceId: string,
   repositoryId: string,
+  appId?: string,
 ): Promise<WorkflowRunView[]> {
   const rows = await sql.query(
     `SELECT ${RUN_COLUMNS} FROM workflow_runs
@@ -422,7 +428,8 @@ export async function loadRunRefs(
       ORDER BY started_at DESC, id DESC LIMIT 1000`,
     [workspaceId, repositoryId],
   );
-  return rows.map(toRunView);
+  const views = await runViews(sql, rows);
+  return appId === undefined ? views : views.filter((r) => runCountsForApp(r, appId));
 }
 
 /**
@@ -440,7 +447,7 @@ export async function relinkApp(
   if (!workspaceId) return 0;
   const [releases, runs, links] = await Promise.all([
     listAppReleases(sql, workspaceId, app.id),
-    loadRunRefs(sql, workspaceId, app.repositoryId),
+    loadRunRefs(sql, workspaceId, app.repositoryId, app.id),
     listBuildLinks(sql, workspaceId, app.id),
   ]);
   const builds = buildsFromReleases(releases);

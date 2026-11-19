@@ -188,7 +188,7 @@ dbTest('inbox: a token limited to some apps sees only those, whatever it asks fo
 
 dbTest('summary: counts per app and totals, with the basis, and no review text', async (db) => {
   const t = await bootReviews(db);
-  const { a, b, g } = await populate(t);
+  const { a, b, g, r } = await populate(t);
   await t.addApp('ios', 'Empty');
   const res = await t.call(t.owner, 'GET', '/reviews/summary');
   assert.equal(res.status, 200, res.text);
@@ -202,9 +202,14 @@ dbTest('summary: counts per app and totals, with the basis, and no review text',
   // Beta: 3 star new, 1 star ignored: the ignored one is neither unanswered nor low.
   assert.deepEqual([by[b].total, by[b].new, by[b].unanswered, by[b].lowRating], [2, 1, 1, 0]);
   assert.deepEqual([by[g].total, by[g].new, by[g].unanswered, by[g].lowRating], [3, 3, 2, 2]);
-  assert.deepEqual(res.body.totals, { total: 8, new: 6, unanswered: 5, lowRating: 4, average: 2.38 });
+  const oldestOf = async (ids: string[]) =>
+    Number((await db.query(`SELECT MIN(created_at) AS m FROM app_reviews WHERE id IN (${ids.map(() => '?').join(', ')})`, ids))[0]?.m);
+  assert.deepEqual(res.body.totals, { total: 8, new: 6, unanswered: 5, unansweredOldestAt: await oldestOf([r.a1, r.a3, r.b4, r.g6, r.g8]), lowRating: 4, average: 2.38 });
+  assert.equal(res.body.unansweredMaxRating, 5);
+  assert.equal(by[a].unansweredOldestAt, await oldestOf([r.a1, r.a3]));
+  assert.equal(by[b].unansweredOldestAt, await oldestOf([r.b4]), 'an ignored review is not unanswered');
   const empty = res.body.apps.find((x: { app: { name: string } }) => x.app.name === 'Empty');
-  assert.deepEqual([empty.total, empty.average], [0, null]);
+  assert.deepEqual([empty.total, empty.average, empty.unansweredOldestAt], [0, null, null]);
   const text = JSON.stringify(res.body);
   for (const word of ['Crashes on launch', 'Battery drain', 'Reviewer', 'Body of review']) assert.ok(!text.includes(word), word);
   // The service agrees, and an empty app list matches nothing.
@@ -249,4 +254,31 @@ dbTest('inbox: replies show as status on the cards, with the draft (lists includ
   assert.equal(card.replyDraft?.text, 'SECRET-DRAFT-TEXT', 'lists include the draft, so a card can show it');
   const other = res.body.reviews.find((x: Item) => x.id === r.a2) as Item & { replyDraft?: unknown };
   assert.equal(other.replyDraft, null);
+});
+
+dbTest('summary: maxRating narrows the unanswered numbers only, and is checked', async (db) => {
+  const t = await bootReviews(db);
+  const { a, b, r } = await populate(t);
+  const low = await t.call(t.owner, 'GET', '/reviews/summary?maxRating=2');
+  assert.equal(low.status, 200, low.text);
+  assert.equal(low.body.unansweredMaxRating, 2);
+  const by = Object.fromEntries(low.body.apps.map((x: { app: { id: string } }) => [x.app.id, x]));
+  assert.equal(by[a].unanswered, 2, 'the 1 and 2 star reviews of Alpha');
+  assert.equal(by[b].unanswered, 0, 'Beta has only a 3 star one open');
+  assert.equal(by[b].unansweredOldestAt, null);
+  assert.equal(low.body.totals.unanswered, 4);
+  assert.equal(low.body.totals.total, 8, 'the other numbers do not change');
+  for (const bad of ['0', '6', 'x', '1.5']) assert.equal((await t.call(t.owner, 'GET', `/reviews/summary?maxRating=${bad}`)).status, 400, bad);
+
+  // The per app summary: the same figure under `unanswered`, with its oldest time and the rating it used.
+  const one = await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary`);
+  assert.equal(one.status, 200, one.text);
+  assert.deepEqual(Object.keys(one.body.unanswered).sort(), ['count', 'maxRating', 'oldestAt']);
+  assert.equal(one.body.unanswered.count, 2);
+  assert.equal(one.body.unanswered.maxRating, 5);
+  const created = Number((await db.query('SELECT created_at FROM app_reviews WHERE id = ?', [r.a1]))[0]?.created_at);
+  assert.equal(one.body.unanswered.oldestAt, created);
+  assert.equal((await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary?maxRating=1`)).body.unanswered.count, 1);
+  assert.equal((await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary?maxRating=9`)).status, 400);
+  assert.ok(!JSON.stringify(one.body).includes('Crashes on launch'), 'no review text');
 });

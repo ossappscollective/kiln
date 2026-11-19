@@ -32,7 +32,7 @@ import {
   resolveTagLink,
 } from './build-tags.ts';
 import type { WorkflowRunView } from './ci-runs.ts';
-import { firstLine } from './ci-runs.ts';
+import { firstLine, runCountsForApp } from './ci-runs.ts';
 import { timedCache } from './timed-cache.ts';
 
 /**
@@ -313,7 +313,7 @@ async function loadPlans(
       conventions: effective,
       compiled: compileConventions(effective),
       links,
-      settled: new Set(matchBuilds(builds, input.runs, input.matchers).keys()),
+      settled: new Set(matchBuilds(builds, input.runs.filter((r) => runCountsForApp(r, app.id)), input.matchers).keys()),
     });
   }
   return plans;
@@ -433,7 +433,7 @@ export async function scanBuildTags(input: {
           const link = resolveTagLink({
             candidates,
             factsOf: (sha) => known.get(sha) ?? undefined,
-            runs,
+            runs: runs.filter((r) => runCountsForApp(r, plan.app.id)),
             workflow: plan.conventions.workflow,
           });
           if (!link) {

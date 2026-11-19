@@ -56,8 +56,20 @@ export type StoreWideRating = {
   observedAt: number;
 };
 
+/** Reviews with no developer response (and not ignored), at or below a rating. */
+export type UnansweredSummary = {
+  count: number;
+  /** When the oldest of them was written; null when there is none. */
+  oldestAt: number | null;
+  /** The highest rating counted (5: every rating). */
+  maxRating: number;
+};
+
+export const DEFAULT_UNANSWERED_MAX_RATING = 5;
+
 export type ReviewsSummary = {
   stored: StoredSummary;
+  unanswered: UnansweredSummary;
   storeWide: StoreWideRating[];
   /** Reviews by triage status, over everything stored. */
   byStatus: Record<ReviewStatus, number>;
@@ -164,12 +176,42 @@ export async function latestStoreWide(sql: Sql, workspaceId: string, appId: stri
   });
 }
 
+/**
+ * The reviews nobody answered, per app: no developer response, not ignored, rating at or below `maxRating`, and written at or
+ * before `olderThan` (epoch ms) when given. Counts and times only: never a review text. `appIds` limits the apps.
+ */
+export async function unansweredByApp(
+  sql: Sql,
+  workspaceId: string,
+  options: { maxRating?: number; olderThan?: number; appIds?: readonly string[] } = {},
+): Promise<Map<string, { count: number; oldestAt: number | null }>> {
+  const maxRating = options.maxRating ?? DEFAULT_UNANSWERED_MAX_RATING;
+  const params: (string | number)[] = [workspaceId, maxRating];
+  let where = "workspace_id = ? AND developer_response IS NULL AND status <> 'ignored' AND rating <= ?";
+  if (options.olderThan !== undefined) {
+    where += ' AND created_at <= ?';
+    params.push(options.olderThan);
+  }
+  if (options.appIds !== undefined) {
+    if (options.appIds.length === 0) return new Map();
+    where += ` AND app_id IN (${options.appIds.map(() => '?').join(', ')})`;
+    params.push(...options.appIds);
+  }
+  const rows = await sql.query(
+    `SELECT app_id, COUNT(*) AS n, MIN(created_at) AS oldest FROM app_reviews WHERE ${where} GROUP BY app_id`,
+    params,
+  );
+  return new Map(
+    rows.map((r) => [String(r.app_id), { count: Number(r.n), oldestAt: r.oldest === null || r.oldest === undefined ? null : Number(r.oldest) }]),
+  );
+}
+
 export async function reviewsSummary(
   sql: Sql,
   workspaceId: string,
   appId: string,
   now: number,
-  options: { weeks?: number } = {},
+  options: { weeks?: number; maxRating?: number } = {},
 ): Promise<ReviewsSummary> {
   const rows = (await sql.query(
     `SELECT rating, created_at, app_version, territory, language FROM app_reviews
@@ -190,7 +232,14 @@ export async function reviewsSummary(
     const status = String(row.status) as ReviewStatus;
     if (status in byStatus) byStatus[status] = Number(row.n);
   }
-  return { stored, storeWide: await latestStoreWide(sql, workspaceId, appId), byStatus };
+  const maxRating = options.maxRating ?? DEFAULT_UNANSWERED_MAX_RATING;
+  const open = (await unansweredByApp(sql, workspaceId, { maxRating, appIds: [appId] })).get(appId);
+  return {
+    stored,
+    unanswered: { count: open?.count ?? 0, oldestAt: open?.oldestAt ?? null, maxRating },
+    storeWide: await latestStoreWide(sql, workspaceId, appId),
+    byStatus,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -201,8 +250,10 @@ export type WorkspaceAppCounts = {
   total: number;
   /** Triage status `new`. */
   new: number;
-  /** No developer response, and not ignored. */
+  /** No developer response, and not ignored (and at or below `unansweredMaxRating`). */
   unanswered: number;
+  /** When the oldest unanswered review was written. */
+  unansweredOldestAt: number | null;
   /** Rating at or below the threshold, and not ignored. */
   lowRating: number;
   /** Mean of the stored ratings, two decimals; null with no review. */
@@ -217,7 +268,16 @@ export type WorkspaceReviewsSummary = {
   label: string;
   lowRatingThreshold: number;
   apps: WorkspaceAppCounts[];
-  totals: { total: number; new: number; unanswered: number; lowRating: number; average: number | null };
+  /** The highest rating `unanswered` counts: the `maxRating` of the request (default 5, every rating). */
+  unansweredMaxRating: number;
+  totals: {
+    total: number;
+    new: number;
+    unanswered: number;
+    unansweredOldestAt: number | null;
+    lowRating: number;
+    average: number | null;
+  };
 };
 
 /**
@@ -228,16 +288,18 @@ export type WorkspaceReviewsSummary = {
 export async function workspaceReviewsSummary(
   sql: Sql,
   workspaceId: string,
-  options: { appIds?: readonly string[]; lowRatingThreshold: number },
+  options: { appIds?: readonly string[]; lowRatingThreshold: number; maxRating?: number },
 ): Promise<WorkspaceReviewsSummary> {
   const limited = options.appIds !== undefined;
   const ids = [...(options.appIds ?? [])];
+  const maxRating = options.maxRating ?? DEFAULT_UNANSWERED_MAX_RATING;
   const emptySummary = (): WorkspaceReviewsSummary => ({
     basis: 'stored_reviews',
     label: 'From 0 stored reviews, not store-wide',
     lowRatingThreshold: options.lowRatingThreshold,
     apps: [],
-    totals: { total: 0, new: 0, unanswered: 0, lowRating: 0, average: null },
+    unansweredMaxRating: maxRating,
+    totals: { total: 0, new: 0, unanswered: 0, unansweredOldestAt: null, lowRating: 0, average: null },
   });
   if (limited && ids.length === 0) return emptySummary();
   const scope = limited ? ` AND id IN (${ids.map(() => '?').join(', ')})` : '';
@@ -249,16 +311,17 @@ export async function workspaceReviewsSummary(
   const rows = await sql.query(
     `SELECT app_id, COUNT(*) AS total,
             SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) AS new_count,
-            SUM(CASE WHEN developer_response IS NULL AND status <> 'ignored' THEN 1 ELSE 0 END) AS unanswered,
+            SUM(CASE WHEN developer_response IS NULL AND status <> 'ignored' AND rating <= ? THEN 1 ELSE 0 END) AS unanswered,
+            MIN(CASE WHEN developer_response IS NULL AND status <> 'ignored' AND rating <= ? THEN created_at END) AS unanswered_oldest,
             SUM(CASE WHEN rating <= ? AND status <> 'ignored' THEN 1 ELSE 0 END) AS low_rating,
             SUM(rating) AS rating_sum, MIN(created_at) AS oldest, MAX(created_at) AS newest
        FROM app_reviews WHERE workspace_id = ?${reviewScope} GROUP BY app_id`,
-    [options.lowRatingThreshold, workspaceId, ...ids],
+    [maxRating, maxRating, options.lowRatingThreshold, workspaceId, ...ids],
   );
   const byApp = new Map(rows.map((r) => [String(r.app_id), r]));
   const n = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
   const out: WorkspaceAppCounts[] = [];
-  const totals = { total: 0, new: 0, unanswered: 0, lowRating: 0, average: null as number | null };
+  const totals = { total: 0, new: 0, unanswered: 0, unansweredOldestAt: null as number | null, lowRating: 0, average: null as number | null };
   let sum = 0;
   for (const a of apps) {
     const r = byApp.get(String(a.id));
@@ -269,6 +332,7 @@ export async function workspaceReviewsSummary(
       total,
       new: n(r?.new_count),
       unanswered: n(r?.unanswered),
+      unansweredOldestAt: r?.unanswered_oldest === null || r?.unanswered_oldest === undefined ? null : Number(r.unanswered_oldest),
       lowRating: n(r?.low_rating),
       average: total > 0 ? round2(n(r?.rating_sum) / total) : null,
       oldestAt: r?.oldest === null || r?.oldest === undefined ? null : Number(r.oldest),
@@ -277,6 +341,9 @@ export async function workspaceReviewsSummary(
     totals.total += total;
     totals.new += n(r?.new_count);
     totals.unanswered += n(r?.unanswered);
+    if (r?.unanswered_oldest !== null && r?.unanswered_oldest !== undefined) {
+      totals.unansweredOldestAt = Math.min(totals.unansweredOldestAt ?? Number.POSITIVE_INFINITY, Number(r.unanswered_oldest));
+    }
     totals.lowRating += n(r?.low_rating);
     sum += n(r?.rating_sum);
   }
@@ -286,6 +353,7 @@ export async function workspaceReviewsSummary(
     label: `From ${totals.total} stored review${totals.total === 1 ? '' : 's'} across ${out.length} app${out.length === 1 ? '' : 's'}, not store-wide`,
     lowRatingThreshold: options.lowRatingThreshold,
     apps: out,
+    unansweredMaxRating: maxRating,
     totals,
   };
 }

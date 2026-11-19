@@ -7,6 +7,7 @@ import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
+import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
 import { type Failure, failure } from '../services/repositories.ts';
 import {
   type DraftConnectorFactory,
@@ -125,6 +126,48 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     const done = await readReleaseCandidatesOf(reads, { workspaceId: ws(c), app, actor: actor(c), version: c.req.query('version') || undefined, track: c.req.query('track') || undefined });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ candidates: done.read }) : respond(c, done);
+  });
+
+  // The texts earlier releases used for "what is new": the store's (cached, one read per ten minutes) and this app's plans.
+  routes.get('/:workspaceId/apps/:id/release/notes-history', needs('listing.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const issues: { path: string; message: string }[] = [];
+    const platform = c.req.query('platform');
+    if (platform !== undefined && platform !== '' && platform !== 'ios' && platform !== 'macos' && platform !== 'android') {
+      issues.push({ path: 'platform', message: 'Use ios, macos or android.' });
+    }
+    const locale = c.req.query('locale');
+    if (locale !== undefined && locale !== '' && !/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8}){0,2}$/.test(locale)) {
+      issues.push({ path: 'locale', message: 'Not a language code, for example en-US.' });
+    }
+    const limitRaw = c.req.query('limit');
+    const limit = limitRaw === undefined || limitRaw === '' ? undefined : /^[0-9]{1,4}$/.test(limitRaw) ? Number(limitRaw) : Number.NaN;
+    if (limit !== undefined && !(limit >= 1 && limit <= MAX_NOTES_HISTORY_LIMIT)) {
+      issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_NOTES_HISTORY_LIMIT}.` });
+    }
+    if (issues.length > 0) return c.json({ error: 'invalid_request', issues }, 400);
+    if (platform !== undefined && platform !== '' && platform !== app.platform) {
+      return respond(c, failure(422, 'platform_mismatch', `This app is on ${app.platform}; the notes of ${platform} are not read for it.`));
+    }
+    let retryAfter: number | undefined;
+    const history = await notesHistory(reads, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      locale: locale || undefined,
+      limit,
+      // Only a read that goes to the store counts against the limit: a cached answer costs the store nothing.
+      beforeStoreRead: () => {
+        const wait = limiter.take(ws(c));
+        if (wait <= 0) return undefined;
+        retryAfter = wait;
+        return { error: 'rate_limited' };
+      },
+    });
+    if (retryAfter !== undefined) c.header('Retry-After', String(retryAfter));
+    c.header('Cache-Control', 'no-store');
+    return c.json({ history });
   });
 
   routes.get('/:workspaceId/apps/:id/release/editable', needs('listing.read'), async (c) => {

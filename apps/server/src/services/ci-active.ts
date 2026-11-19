@@ -261,7 +261,10 @@ async function compute(
   const now = ctx.now();
   const rows = await listWorkspaceRuns(ctx.db, workspaceId, ids, { finishedSince: now - RECENT_WINDOW_MS });
   const visible = (r: WorkflowRunView) =>
-    input.appIds === undefined || input.appIds === null || r.appId === null || input.appIds.includes(r.appId);
+    input.appIds === undefined ||
+    input.appIds === null ||
+    r.appIds.length === 0 ||
+    r.appIds.some((id) => (input.appIds as readonly string[]).includes(id));
   const active = rows.active.filter(visible);
   const finished = rows.finished.filter(visible).sort(recentOrder).slice(0, MAX_RECENT_RUNS);
 

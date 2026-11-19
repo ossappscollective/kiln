@@ -243,6 +243,8 @@ export const appReleases = pgTable(
     /** Version codes and rollout fraction as JSON. */
     detailsJson: text('details_json'),
     storeUpdatedAt: epochMs('store_updated_at'),
+    /** When the sync first saw the version (or track release) in its current state, state name or build (migration 28). */
+    statusSince: epochMs('status_since'),
     syncedAt: epochMs('synced_at').notNull(),
   },
   (t) => [
@@ -1299,3 +1301,87 @@ export const stagedAssetBlobs = pgTable(
     index('staged_asset_blobs_workspace_idx').on(t.workspaceId, t.appId),
   ],
 );
+
+/**
+ * The apps a CI run builds (migration 28): a run links to a SET of apps. A run with no row counts for every app of its
+ * repository. `workflow_runs.app_id` stays and holds the first app of the set.
+ */
+export const ciRunApps = pgTable(
+  'ci_run_apps',
+  {
+    /** workflow_runs.id; the row goes with its run. */
+    runRef: text('run_ref')
+      .notNull()
+      .references(() => workflowRuns.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.runRef, t.appId] }),
+    index('ci_run_apps_app_idx').on(t.workspaceId, t.appId),
+  ],
+);
+
+/** The builds the last store sync saw (iOS and macOS: App Store Connect builds; Android: version codes of track releases). Migration 28. */
+export const appBuilds = pgTable(
+  'app_builds',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    buildNumber: text('build_number').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    storeId: text('store_id'),
+    version: text('version'),
+    /** processing, processed, invalid or unknown. */
+    processingState: text('processing_state').notNull(),
+    /** The store's own processing state, verbatim. */
+    rawState: text('raw_state'),
+    /** 0 or 1; null when the store did not say. */
+    expired: integer('expired'),
+    /** The store's upload time; null on Android (Google does not say). */
+    uploadedAt: epochMs('uploaded_at'),
+    firstSeenAt: epochMs('first_seen_at').notNull(),
+    lastSeenAt: epochMs('last_seen_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform, t.buildNumber] }),
+    index('app_builds_workspace_idx').on(t.workspaceId, t.appId),
+  ],
+);
+
+/** The reminder about a stalled release that was sent, one row per app and platform while the stall lasts (migration 28). */
+export const releaseStallReminders = pgTable(
+  'release_stall_reminders',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** What is stuck, as `step:anchor` (a new one is a new episode). */
+    episodeKey: text('episode_key').notNull(),
+    step: text('step').notNull(),
+    firstSentAt: epochMs('first_sent_at').notNull(),
+    lastSentAt: epochMs('last_sent_at').notNull(),
+    sentCount: integer('sent_count').notNull().default(1),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform] }),
+    index('release_stall_reminders_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The last digest of unanswered reviews that was sent, one row per workspace (migration 28). */
+export const reviewUnansweredReminders = pgTable('review_unanswered_reminders', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspaces.id),
+  lastSentAt: epochMs('last_sent_at').notNull(),
+  lastCount: integer('last_count').notNull(),
+  lastOldestAt: epochMs('last_oldest_at'),
+});

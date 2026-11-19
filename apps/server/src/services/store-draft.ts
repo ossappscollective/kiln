@@ -15,6 +15,7 @@ import {
   type EditableRelease,
   type DraftTextWrite,
   PlayDraftConnector,
+  type NotesHistoryRead,
   type ReleaseCandidates,
   type StoreDraftConnector,
   StoreError,
@@ -22,6 +23,7 @@ import {
   StoreRateLimitError,
   draftKey,
   isStoreImageReader,
+  isStoreNotesHistoryReader,
   isStoreReleaseReader,
   redactSecrets,
   sameDraftState,
@@ -367,6 +369,31 @@ export async function readReleaseCandidatesOf(
     const read = await withConnector(ctx, connection.input, async (connector) => {
       if (!isStoreReleaseReader(connector)) throw new StoreError(storeFor(app.platform), 'unsupported', 'This store connection cannot read builds or version codes.');
       return connector.listReleaseCandidates({ ...(input.version !== undefined ? { version: input.version } : {}), ...(input.track !== undefined ? { track: input.track } : {}) });
+    });
+    return { ok: true, read };
+  } catch (error) {
+    if (error instanceof DraftTimeout) return failure(504, 'timeout', 'The store did not answer in time.');
+    return mapStoreError(error, connection.secret).failure;
+  }
+}
+
+/**
+ * The "what is new" texts of earlier versions in the store (App Store: the newest versions; Google Play: the releases the tracks
+ * hold now). Reads with the credential of the app (audited as `credential.use`, purpose `store.release_read`), changes nothing. The
+ * texts go to the caller only: they are never logged and never audited.
+ */
+export async function readNotesHistoryOf(
+  ctx: StoreConnectContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor; locale?: string | undefined },
+): Promise<{ ok: true; read: NotesHistoryRead } | Failure> {
+  const { app } = input;
+  const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  try {
+    const read = await withConnector(ctx, connection.input, async (connector) => {
+      if (!isStoreNotesHistoryReader(connector)) throw new StoreError(storeFor(app.platform), 'unsupported', 'This store connection cannot read earlier release notes.');
+      return connector.readNotesHistory(input.locale !== undefined ? { locale: input.locale } : {});
     });
     return { ok: true, read };
   } catch (error) {

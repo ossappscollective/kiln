@@ -18,6 +18,7 @@ import {
   type DraftStep,
   APPLE_RELEASABLE_STATE,
   type EditableRelease,
+  type NotesHistoryRead,
   type PlayReleaseState,
   type ReleaseApplyInput,
   ReleaseDriftError,
@@ -33,6 +34,7 @@ import {
   type StoreImageReader,
   type StoreImageRecord,
   type StoreImagesRead,
+  type StoreNotesHistoryReader,
   type StoreSubmitConnector,
   type SubmitApplyInput,
   SubmitDriftError,
@@ -187,6 +189,11 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
   editable: EditableRelease | undefined;
   releaseReads = 0;
   releaseReadError: unknown;
+  /** What `readNotesHistory` answers (a test sets it), how often it was asked, and what it throws. */
+  notesHistory: NotesHistoryRead = { entries: [], truncated: false, versionsRead: 0, failed: 0 };
+  notesHistoryReads = 0;
+  notesHistoryLocales: (string | undefined)[] = [];
+  notesHistoryError: unknown;
   /** What the store was asked to write (names and checksums, never bytes). */
   writes: { text: { locale: string; field: string }[]; sets: { locale: string; target: string; files: string[] }[]; fields?: { locale: string; field: string; value: string }[] }[] = [];
   /** The most recent `applyDraft` input, with the bytes. */
@@ -234,9 +241,16 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, St
     return structuredClone(
       this.candidates ??
         (this.platform === 'android'
-          ? { store: 'googleplay' as const, platform: 'android' as const, track: 'production', codes: [{ versionCode: '241', source: 'bundle' as const, sha256: 'a'.repeat(64), inTrack: [] }] }
-          : { store: 'appstoreconnect' as const, platform: this.platform, version: this.version ? { id: this.version.id, versionString: this.version.versionString, state: this.version.state } : null, builds: [{ id: 'b-2', buildNumber: '58', version: '2.1', uploadedDate: '2026-11-18T09:00:00-08:00', processingState: 'VALID', expired: false, selectable: true, reason: null, attached: false }], attachedBuildId: null, truncatedAt: null }),
+          ? { store: 'googleplay' as const, platform: 'android' as const, track: 'production', codes: [{ versionCode: '241', source: 'bundle' as const, sha256: 'a'.repeat(64), inTrack: [], eligibility: { eligible: true, severity: 'ok' as const, code: 'ok' as const, message: 'Version code 241 was uploaded and is not in a release of this track yet.' } }] }
+          : { store: 'appstoreconnect' as const, platform: this.platform, version: this.version ? { id: this.version.id, versionString: this.version.versionString, state: this.version.state } : null, builds: [{ id: 'b-2', buildNumber: '58', version: '2.1', uploadedDate: '2026-11-18T09:00:00-08:00', processingState: 'VALID', expired: false, selectable: true, reason: null, attached: false, eligibility: { eligible: true, severity: 'ok' as const, code: 'ok' as const, message: 'Build 58 is processed and can be attached to version 2.1.' }, exportCompliance: 'unknown' as const, testNotes: { read: true, locales: [{ locale: 'en-US', text: 'Try the new login', truncated: false }] } }], attachedBuildId: null, truncatedAt: null }),
     );
+  }
+
+  async readNotesHistory(input: { locale?: string; maxVersions?: number } = {}): Promise<NotesHistoryRead> {
+    this.notesHistoryReads++;
+    this.notesHistoryLocales.push(input.locale);
+    if (this.notesHistoryError) throw this.notesHistoryError;
+    return structuredClone(this.notesHistory);
   }
 
   async readEditableRelease(): Promise<EditableRelease> {

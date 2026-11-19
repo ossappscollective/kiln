@@ -450,6 +450,11 @@ const reviewsSummarySchema = z.object({
     currentVersionCount: z.number().int().nullable(),
     observedAt: timestamp,
   })).describe('The public store-wide rating (App Store only), when it was read. Empty for Google Play: its API has no such number.'),
+  unanswered: z.object({
+    count: z.number().int().describe('Reviews with no developer response, not ignored, rated at or below `maxRating`.'),
+    oldestAt: timestamp.nullable().describe('When the oldest of them was written.'),
+    maxRating: z.number().int().describe('The highest rating counted (the `maxRating` query, default 5: every rating).'),
+  }),
   byStatus: z.object({ new: z.number().int(), triaged: z.number().int(), replied_in_console: z.number().int(), ignored: z.number().int() }),
   sync: reviewSyncStateSchema,
   lowRatingThreshold: z.number().int().describe('A review with this rating or lower raises `review.new_low_rating`.'),
@@ -512,7 +517,7 @@ const inboxQuery = reviewListQuery.extend({
 const workspaceCounts = z.object({
   total: z.number().int(),
   new: z.number().int().describe('Triage status `new`.'),
-  unanswered: z.number().int().describe('No developer response and not ignored.'),
+  unanswered: z.number().int().describe('No developer response and not ignored, rated at or below `unansweredMaxRating`.'),
   lowRating: z.number().int().describe('Rating at or below the threshold and not ignored.'),
   average: z.number().nullable().describe('Mean of the stored ratings, two decimals.'),
 });
@@ -520,8 +525,9 @@ const workspaceSummarySchema = z.object({
   basis: z.literal('stored_reviews'),
   label: z.string().describe('Where the numbers come from, to show next to them.'),
   lowRatingThreshold: z.number().int(),
-  apps: z.array(workspaceCounts.extend({ app: z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: reviewStore }), oldestAt: timestamp.nullable(), newestAt: timestamp.nullable() })),
-  totals: workspaceCounts,
+  unansweredMaxRating: z.number().int().describe('The highest rating `unanswered` counts: the `maxRating` query, default 5 (every rating).'),
+  apps: z.array(workspaceCounts.extend({ app: z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: reviewStore }), unansweredOldestAt: timestamp.nullable().describe('When the oldest unanswered review was written.'), oldestAt: timestamp.nullable(), newestAt: timestamp.nullable() })),
+  totals: workspaceCounts.extend({ unansweredOldestAt: timestamp.nullable() }),
 });
 
 const triageReviewBody = z.object({
@@ -967,7 +973,68 @@ const submitResultSchema = z.object({
   note: z.string(),
 });
 
+// ----- the release pipeline signal (docs/api/release-pipeline.md) -------------------------------------------------
+const pipelineStateEnum = z.enum(['unknown', 'idle', 'ci_running', 'ci_failed', 'build_processing', 'build_ready', 'draft', 'in_review', 'rejected', 'approved', 'rolling_out', 'halted', 'live']);
+const pipelineEvidenceSchema = z.object({
+  kind: z.enum(['run', 'build', 'version']),
+  id: z.string().describe('The run id, the build number, or `version` / `version@track`.'),
+  at: timestamp.nullable(),
+  label: z.string(),
+  url: z.string().nullable().optional(),
+});
+const pipelineStallSchema = z.object({
+  step: z.enum(['approved', 'rejected', 'draft', 'build_ready', 'build_invalid', 'build_processing', 'ci_run']),
+  key: z.string().describe('`step:anchor`: a new one is a new episode.'),
+  anchor: z.string().describe('What is stuck: a run id, a build number or a version.'),
+  since: timestamp,
+  hours: z.number().int(),
+  stale: z.boolean().describe('Older than 14 days: shown, never reminded.'),
+  message: z.string().describe('A sentence for a person, with the evidence in words. Built from ids, versions and times only.'),
+  label: z.string(),
+  evidence: z.array(pipelineEvidenceSchema),
+});
+const pipelineSchema = z.object({
+  appId: z.string(),
+  platform: platform,
+  state: pipelineStateEnum,
+  waitingOn: z.enum(['ci', 'store', 'you']).nullable(),
+  since: timestamp.nullable(),
+  stalledAfterHours: z.number().int().describe('The workspace setting `release.stalledAfterHours` (0: detection is off).'),
+  stalled: pipelineStallSchema.nullable().describe('The most advanced stall that is not stale (else the most advanced stale one).'),
+  stalls: z.array(pipelineStallSchema),
+  steps: z.array(z.object({ id: z.enum(['ci', 'build', 'prepare', 'review', 'release']), status: z.enum(['done', 'current', 'waiting', 'failed', 'stalled', 'todo', 'unknown']), at: timestamp.nullable(), detail: z.string().nullable() })),
+  summary: z.string(),
+  latest: z.object({ run: z.record(z.unknown()).nullable(), build: z.record(z.unknown()).nullable(), version: z.record(z.unknown()).nullable() }),
+});
+const pipelineAppRef = z.object({ id: z.string(), name: z.string(), platform: platform, store: z.enum(['appstoreconnect', 'googleplay']) });
+const pipelineResponseSchema = z.object({ app: pipelineAppRef, pipeline: pipelineSchema, lastSyncedAt: timestamp.nullable(), generatedAt: timestamp });
+const pipelineSummarySchema = z.object({
+  stalledAfterHours: z.number().int(),
+  apps: z.array(z.object({
+    app: pipelineAppRef,
+    state: pipelineStateEnum,
+    waitingOn: z.enum(['ci', 'store', 'you']).nullable(),
+    since: timestamp.nullable(),
+    summary: z.string(),
+    lastSyncedAt: timestamp.nullable(),
+    stalled: z.object({ step: z.string(), label: z.string(), message: z.string(), hours: z.number().int(), since: timestamp, stale: z.boolean(), evidence: z.array(z.object({ kind: z.string(), id: z.string(), at: timestamp.nullable() })) }).nullable(),
+  })),
+  totals: z.object({ apps: z.number().int(), stalled: z.number().int().describe('Without the stale ones.'), byState: z.record(z.number().int()) }),
+  generatedAt: timestamp,
+});
+
 // ----- releasing: reads of builds and version codes, and the irreversible release step (docs/api/releases-write.md) ----
+const eligibilitySchema = z.object({
+  eligible: z.boolean().describe('It can be chosen for the draft now.'),
+  severity: z.enum(['ok', 'warning', 'blocked']).describe('`blocked`: it cannot be chosen. `warning`: it can, read the message. `ok`: nothing to say.'),
+  code: z.enum(['ok', 'processing', 'failed', 'invalid', 'state_unknown', 'expired', 'wrong_version', 'no_editable_version', 'already_attached', 'export_compliance_missing', 'already_in_draft', 'already_live']).describe('A machine reason. New codes may be added: treat an unknown one as its `severity`.'),
+  message: z.string().describe('A plain sentence for a person, built from build numbers, versions and states only.'),
+});
+const buildTestNotesSchema = z.object({
+  read: z.boolean().describe('False: not asked for this build (not processed, expired, or not among the newest eight) or the read failed (`error`).'),
+  locales: z.array(z.object({ locale: z.string(), text: z.string().describe('TestFlight "What to Test". Shown to the caller only: never logged and never audited.'), truncated: z.boolean().describe('Cut at 4000 characters.') })).describe('At most 40 languages; empty texts are left out.'),
+  error: z.enum(['forbidden', 'rate_limited', 'not_found', 'unavailable']).optional().describe('The read of this build failed; the other builds are not affected.'),
+});
 const buildCandidateSchema = z.object({
   id: z.string(),
   buildNumber: z.string().nullable().describe('The build number (`CFBundleVersion`).'),
@@ -975,9 +1042,12 @@ const buildCandidateSchema = z.object({
   uploadedDate: z.string().nullable(),
   processingState: z.string().nullable().describe('Apple’s names (UNVERIFIED): `PROCESSING`, `FAILED`, `INVALID`, `VALID`.'),
   expired: z.boolean().nullable(),
-  selectable: z.boolean().describe('Processed and not expired: it can be staged as the `build` field.'),
+  selectable: z.boolean().describe('Processed and not expired: it can be staged as the `build` field. Older than `eligibility`, which also looks at the version.'),
   reason: z.string().nullable().describe('Why it cannot be selected.'),
   attached: z.boolean().describe('It is the build attached to the editable version now.'),
+  eligibility: eligibilitySchema,
+  exportCompliance: z.enum(['answered', 'missing', 'unknown']).describe('Apple’s export compliance answer for the build (`usesNonExemptEncryption`, UNVERIFIED): `unknown` when Apple did not return it.'),
+  testNotes: buildTestNotesSchema,
 });
 const releaseCandidatesSchema = z.union([
   z.object({
@@ -992,9 +1062,38 @@ const releaseCandidatesSchema = z.union([
     store: z.literal('googleplay'),
     platform: z.literal('android'),
     track: z.string(),
-    codes: z.array(z.object({ versionCode: z.string(), source: z.enum(['bundle', 'apk']), sha256: z.string().nullable(), inTrack: z.array(z.object({ name: z.string().nullable(), status: z.string() })) })),
+    codes: z.array(z.object({ versionCode: z.string(), source: z.enum(['bundle', 'apk']), sha256: z.string().nullable(), inTrack: z.array(z.object({ name: z.string().nullable(), status: z.string() })), eligibility: eligibilitySchema })),
   }),
 ]);
+const notesHistorySchema = z.object({
+  app: z.object({ id: z.string(), platform: platform, store: z.enum(['appstoreconnect', 'googleplay']) }),
+  locale: z.string().nullable().describe('The language asked for, or null (all).'),
+  notes: z.array(z.object({
+    text: z.string().describe('One text, however many places used it. Shown to the caller only: never logged and never audited.'),
+    truncated: z.boolean().describe('The store text was cut at 4000 characters.'),
+    locales: z.array(z.string()),
+    lastUsedAt: timestamp.nullable().describe('The newest date of its uses; null when none has one (Google Play gives no dates).'),
+    uses: z.array(z.object({
+      source: z.enum(['appstoreconnect', 'googleplay', 'plan']),
+      locale: z.string(),
+      version: z.string().nullable().describe('The marketing version, the Google Play release name, or the version of the plan.'),
+      track: z.string().nullable(),
+      state: z.string().nullable().describe('The store’s state of the version or release; null for a plan.'),
+      at: timestamp.nullable(),
+    })).describe('Newest first, at most 10.'),
+  })).describe('Newest first by `lastUsedAt`; texts without a date follow, in the store’s order.'),
+  truncated: z.boolean().describe('More texts exist than `limit`.'),
+  limit: z.number().int(),
+  store: z.object({
+    read: z.boolean().describe('False: the store could not be read (see `error`); the plans’ notes are still listed.'),
+    error: z.string().nullable().describe('The error code of the failed store read (for example `rate_limited`, `forbidden`, `timeout`).'),
+    cached: z.boolean().describe('Answered from memory: the store is read at most once in ten minutes per app and language.'),
+    versionsRead: z.number().int(),
+    failed: z.number().int().describe('Versions listed whose notes could not be read.'),
+    truncated: z.boolean().describe('More versions exist than were read (the newest twelve are).'),
+  }),
+  generatedAt: timestamp,
+});
 const playReleaseReadSchema = z.object({ name: z.string().nullable(), status: z.string(), userFraction: z.number().nullable(), versionCodes: z.array(z.string()), notes: z.array(z.object({ locale: z.string(), text: z.string() })) });
 const editableReleaseSchema = z.union([
   z.object({
@@ -1245,12 +1344,12 @@ const drafts: Draft[] = [
 
   // ----- CI workflows and builds ----------------------------------------------------------------
   { id: 'listWorkflows', method: 'get', path: `${W}/repositories/{id}/workflows`, tags: ['ci'], summary: 'GitHub Actions workflows of a repository', risk: 'read', access: { action: 'repositories.scan' }, partial: true, responses: { '200': { description: 'Workflows.', schema: object } } },
-  { id: 'listWorkflowRuns', method: 'get', path: `${W}/repositories/{id}/workflows/runs`, tags: ['ci'], summary: 'Recent workflow runs', risk: 'read', access: { action: 'repositories.read' }, query: z.object({ limit: z.number().int().min(1).max(100).optional(), workflow: z.string().optional(), branch: z.string().optional(), refresh: z.enum(['true']).optional(), active: z.enum(['true']).optional(), appId: z.string().optional() }), partial: true, responses: { '200': { description: 'Runs.', schema: object } } },
+  { id: 'listWorkflowRuns', method: 'get', path: `${W}/repositories/{id}/workflows/runs`, tags: ['ci'], summary: 'Recent workflow runs', description: 'Each run has `appId` (the first app, kept for older clients) and `appIds` (every app the run builds; empty: it was not started for an app and counts for every app of the repository). With `appId` the list keeps the runs that count for that app.', risk: 'read', access: { action: 'repositories.read' }, query: z.object({ limit: z.number().int().min(1).max(100).optional(), workflow: z.string().optional(), branch: z.string().optional(), refresh: z.enum(['true']).optional(), active: z.enum(['true']).optional(), appId: z.string().optional() }), partial: true, responses: { '200': { description: 'Runs.', schema: object } } },
   { id: 'getWorkflowRun', method: 'get', path: `${W}/repositories/{id}/workflows/runs/{runId}`, tags: ['ci'], summary: 'A workflow run', risk: 'read', access: { action: 'repositories.read' }, query: z.object({ refresh: z.enum(['true']).optional() }), partial: true, responses: { '200': { description: 'The run.', schema: object } } },
-  { id: 'listActiveWorkflowRuns', method: 'get', path: `${W}/ci/runs/active`, tags: ['ci'], summary: 'Workflow runs going now across the repositories, and those finished in the last 24 hours', description: 'Stored runs for everybody who may read repositories; a member or admin also refreshes them from GitHub first (conditional reads, cached for seconds, shared with the run sync). `problems` lists repositories GitHub could not be read for, with a fixed reason, so a client can show a quiet pill instead of an error. Rate limited per workspace. A token limited to some apps sees only the runs of those apps\u2019 repositories that belong to no app or to one of them (the filtering is done here, not by the app list).', risk: 'read', access: { action: 'repositories.read' }, appScope: { kind: 'list' }, rateLimited: true, query: z.object({ repositoryId: z.string().optional().describe('Only these repositories, comma separated (at most 50).') }), responses: { '200': { description: 'Runs going, recent runs, the repositories covered and the problems.', schema: z.object({ runs: z.array(object), recent: z.array(object), repositories: z.array(z.object({ id: z.string(), owner: z.string(), repo: z.string() })), problems: z.array(z.object({ repositoryId: z.string(), reason: z.enum(['no_access', 'rate_limited', 'unavailable', 'unsupported']) })), refreshedAt: timestamp.nullable(), live: z.boolean(), cached: z.boolean() }) } } },
+  { id: 'listActiveWorkflowRuns', method: 'get', path: `${W}/ci/runs/active`, tags: ['ci'], summary: 'Workflow runs going now across the repositories, and those finished in the last 24 hours', description: 'Stored runs for everybody who may read repositories; a member or admin also refreshes them from GitHub first (conditional reads, cached for seconds, shared with the run sync). `problems` lists repositories GitHub could not be read for, with a fixed reason, so a client can show a quiet pill instead of an error. Rate limited per workspace. A token limited to some apps sees only the runs of those apps\u2019 repositories that belong to no app or to one of them (the filtering is done here, not by the app list).', risk: 'read', access: { action: 'repositories.read' }, appScope: { kind: 'list' }, rateLimited: true, query: z.object({ repositoryId: z.string().optional().describe('Only these repositories, comma separated (at most 50).'), appId: z.string().optional().describe('Only the runs that count for this app: those started for it (alone or with other apps) and those not started for an app, which count for every app of the repository.') }), responses: { '200': { description: 'Runs going, recent runs, the repositories covered and the problems.', schema: z.object({ runs: z.array(object), recent: z.array(object), repositories: z.array(z.object({ id: z.string(), owner: z.string(), repo: z.string() })), problems: z.array(z.object({ repositoryId: z.string(), reason: z.enum(['no_access', 'rate_limited', 'unavailable', 'unsupported']) })), refreshedAt: timestamp.nullable(), live: z.boolean(), cached: z.boolean() }) } } },
   { id: 'listWorkflowRunJobs', method: 'get', path: `${W}/repositories/{id}/workflows/runs/{runId}/jobs`, tags: ['ci'], summary: 'The jobs and steps of a workflow run (names, states and times; never logs)', description: 'A member or admin reads GitHub (kept 10 seconds while the run is going); a viewer sees what was read lately, possibly nothing (`live: false`).', risk: 'read', access: { action: 'repositories.read' }, responses: { '200': { description: 'The jobs with their steps.', schema: z.object({ runId: z.string(), jobs: z.array(object), truncated: z.boolean(), readAt: timestamp.nullable(), cached: z.boolean(), live: z.boolean() }) } } },
   { id: 'getWorkflowInputs', method: 'get', path: `${W}/repositories/{id}/workflows/{workflow}/inputs`, tags: ['ci'], summary: 'The inputs a workflow accepts', risk: 'read', access: { action: 'repositories.scan' }, query: z.object({ ref: z.string().optional() }), partial: true, responses: { '200': { description: 'The inputs.', schema: object } } },
-  { id: 'dispatchWorkflow', method: 'post', path: `${W}/repositories/{id}/workflows/{workflow}/dispatches`, tags: ['ci'], summary: 'Start a workflow run', description: 'Runs a workflow on GitHub. It can ship a build: assistants should ask a person first.', risk: 'write', access: { action: 'ci.dispatch' }, body: object, partial: true, responses: { '202': { description: 'The dispatch was accepted.', schema: z.object({ dispatched: z.boolean(), runKnown: z.boolean(), run: object.nullable() }) } } },
+  { id: 'dispatchWorkflow', method: 'post', path: `${W}/repositories/{id}/workflows/{workflow}/dispatches`, tags: ['ci'], summary: 'Start a workflow run', description: 'Runs a workflow on GitHub. It can ship a build: assistants should ask a person first. Body: `ref`, `inputs`, and the app or apps the run builds: `appId` (one) and/or `appIds` (several apps that share the repository; each must be linked to it, `422 app_not_found` / `app_repository_mismatch`).', risk: 'write', access: { action: 'ci.dispatch' }, body: object, partial: true, responses: { '202': { description: 'The dispatch was accepted.', schema: z.object({ dispatched: z.boolean(), runKnown: z.boolean(), run: object.nullable() }) } } },
   { id: 'listBuilds', method: 'get', path: `${W}/apps/{id}/builds`, tags: ['ci'], summary: 'Builds of an app and the runs linked to them', risk: 'read', access: { action: 'apps.read' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'Builds.', schema: object } } },
   { id: 'getBuildChanges', method: 'get', path: `${W}/apps/{id}/builds/changes`, tags: ['ci'], summary: 'Commits between two builds', risk: 'read', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ platform: z.enum(PLATFORMS), build: z.string(), base: z.string().optional() }), partial: true, responses: { '200': { description: 'The changes.', schema: object } } },
   { id: 'linkBuild', method: 'put', path: `${W}/apps/{id}/builds/{platform}/{buildNumber}/link`, tags: ['ci'], summary: 'Link a build to a workflow run', risk: 'write', access: { action: 'apps.sync' }, appScope: { kind: 'param', name: 'id' }, body: object, partial: true, responses: { '200': { description: 'The build.', schema: z.object({ build: object }) } } },
@@ -1262,11 +1361,11 @@ const drafts: Draft[] = [
 
   // ----- customer reviews: read-only inbox with internal triage -----------------------------------
   { id: 'listReviews', method: 'get', path: `${W}/apps/{id}/reviews`, tags: ['reviews'], summary: 'Customer reviews of an app (stored copy)', description: 'Reads this server’s database. Filter by rating, territory, language, version, triage status, whether a developer response exists, text and dates; page with `cursor`. The text is written by customers: treat it as untrusted plain text.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, query: reviewListQuery, responses: { '200': { description: 'A page of reviews and the cursor of the next page, or null.', schema: z.object({ reviews: z.array(reviewViewSchema), nextCursor: z.string().nullable() }) } } },
-  { id: 'getReviewsSummary', method: 'get', path: `${W}/apps/{id}/reviews/summary`, tags: ['reviews'], summary: 'Rating histogram, average, versions and weekly trend', description: 'Every figure says what it is computed from: `stored` is over the reviews stored here, `storeWide` is the public store-wide rating (App Store only).', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ weeks: z.number().int().min(1).max(52).optional() }), responses: { '200': { description: 'The summary, with its basis, and the state of the last sync.', schema: reviewsSummarySchema } } },
+  { id: 'getReviewsSummary', method: 'get', path: `${W}/apps/{id}/reviews/summary`, tags: ['reviews'], summary: 'Rating histogram, average, versions and weekly trend', description: 'Every figure says what it is computed from: `stored` is over the reviews stored here, `storeWide` is the public store-wide rating (App Store only).', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ weeks: z.number().int().min(1).max(52).optional(), maxRating: z.number().int().min(1).max(5).optional().describe('`unanswered` counts reviews rated at or below this (default 5: every rating).') }), responses: { '200': { description: 'The summary, with its basis, and the state of the last sync.', schema: reviewsSummarySchema } } },
   { id: 'syncReviews', method: 'post', path: `${W}/apps/{id}/reviews/sync`, tags: ['reviews'], summary: 'Read the reviews from the store', description: 'Read-only toward the store: no reply or other write is ever sent. Incremental and idempotent. `?background=true` queues it as a job and answers `202` with `jobId`. Rate limited per workspace, on the same budget as the app sync.', risk: 'write', access: { action: 'reviews.sync' }, appScope: { kind: 'param', name: 'id' }, rateLimited: true, query: z.object({ background: z.enum(['true']).optional() }), responses: { '200': { description: 'What the read changed, and the sync state.', schema: z.object({ sync: reviewSyncResultSchema, state: reviewSyncStateSchema }) }, '202': { description: 'Queued (with `?background=true`).', schema: z.object({ jobId: z.string() }) } } },
   // ----- customer reviews: the workspace-wide inbox -------------------------------------------------
   { id: 'listWorkspaceReviews', method: 'get', path: `${W}/reviews`, tags: ['reviews'], summary: 'The reviews of every app in one inbox (stored copy)', description: 'Reads this server\u2019s database. The filters of the per app list, plus `appIds`, `assignee` (`me` or a user id), `unassigned` and `unanswered`; keyset paging with `cursor`. Every item carries its app. A token limited to some apps sees only those apps. The text is written by customers: untrusted plain text.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'list' }, query: inboxQuery, responses: { '200': { description: 'A page of reviews and the cursor of the next page, or null.', schema: z.object({ reviews: z.array(inboxReviewSchema), nextCursor: z.string().nullable() }) } } },
-  { id: 'getWorkspaceReviewsSummary', method: 'get', path: `${W}/reviews/summary`, tags: ['reviews'], summary: 'Counts of new, unanswered and low rated reviews per app and in total', description: 'Over the stored reviews only, with its basis stated. No review text and no names. A token limited to some apps counts only those apps.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'list' }, responses: { '200': { description: 'Counts per app and the totals.', schema: workspaceSummarySchema } } },
+  { id: 'getWorkspaceReviewsSummary', method: 'get', path: `${W}/reviews/summary`, tags: ['reviews'], summary: 'Counts of new, unanswered and low rated reviews per app and in total', description: 'Over the stored reviews only, with its basis stated. No review text and no names. A token limited to some apps counts only those apps.', risk: 'read', access: { action: 'reviews.read' }, appScope: { kind: 'list' }, query: z.object({ maxRating: z.number().int().min(1).max(5).optional().describe('`unanswered` and `unansweredOldestAt` count reviews rated at or below this (default 5: every rating, the numbers older clients know).') }), responses: { '200': { description: 'Counts per app and the totals.', schema: workspaceSummarySchema } } },
 
   // ----- replying to reviews (a store write; off unless MRM_REVIEW_REPLY_ENABLED=true) --------------
   { id: 'getReviewReplyConfig', method: 'get', path: `${W}/reviews/reply-config`, tags: ['reviews'], summary: 'Whether replying is switched on, and its limits', risk: 'read', access: { action: 'reviews.read' }, responses: { '200': { description: 'The switch, the limits and what is available.', schema: replyConfigSchema } } },
@@ -1320,7 +1419,10 @@ const drafts: Draft[] = [
   { id: 'previewStagedPush', method: 'post', path: `${W}/apps/{id}/staged/push/preview`, tags: ['staged-changes'], summary: 'Preview pushing the staged changes to the store as a draft: per item before and after, and a confirmHash', description: 'READS THE STORE (the draft; Google Play opens and deletes an edit, which invalidates other open edits of the same service account) and the bytes of the staged files from the repository. Writes nothing. `422 nothing_staged`, `422 staged_invalid` (items with errors), `422 asset_changed`, `422 no_editable_version` (App Store: no version in Prepare for Submission). Needs `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED=true` (`409 store_draft_disabled` otherwise).', risk: 'read', access: { action: 'store.push_draft' }, appScope: { kind: 'param', name: 'id' }, body: stagedPushPreviewBody, bodyOptional: true, responses: { '200': { description: 'The preview.', schema: z.object({ preview: draftPreviewSchema }) } } },
   { id: 'pushStagedDraft', method: 'post', path: `${W}/apps/{id}/staged/push`, tags: ['staged-changes'], summary: 'Write the staged changes to the store as a DRAFT (never submits, sends for review or publishes)', description: 'A STORE WRITE. Needs `store.push_draft` (owner and admin; a token only when its actions name it) and `MRM_STORE_DRAFT_WRITE_ENABLED=true`. `confirmHash` must come from a preview of the same staged items. The store’s draft is READ AGAIN right before the first write: if it is not the one previewed, or the staged items changed, nothing is written (`409 state_changed`, with a new `preview`). One write per app at a time (`409 write_in_progress`). App Store: the editable version’s localizations and screenshots change one request at a time (a refusal part way is `502 draft_partial`, with `completed` and `failed`). Google Play: one edit, committed with `changesNotSentForReview=true` (`409 draft_not_allowed` when Google refuses that, `409 changes_in_review` when changes are in review: nothing is committed). Never retried: after a timeout or a 5xx the draft is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), `409 draft_partial`, or `409 outcome_unknown` (then preview again). Audited as `listing.draft_pushed` / `listing.draft_push_failed` (ids, counts and hashes, never a text or a credential) and emitted as the event `listing.draft_pushed`.', risk: 'destructive', access: { action: 'store.push_draft' }, appScope: { kind: 'param', name: 'id' }, body: stagedPushBody, responses: { '200': { description: 'What was written.', schema: z.object({ result: draftResultSchema }) } } },
   { id: 'stageReleaseField', method: 'put', path: `${W}/apps/{id}/staged/release-fields`, tags: ['staged-changes'], summary: 'Stage one release field of the draft release; nothing is written to a store', description: 'Stages ONE field, normalized and checked on its own (`422 field_not_stageable`, `422 invalid_locale`, `422 empty_value`, `422 invalid_staged` with the first error, `422 too_many_items`). The App Store "what is new" is the listing field `release_notes` (`stageListingText`). Google Play `user_fraction` is kept here only: a draft cannot hold a share, and the release step needs an explicit one. The values reach a store only through the draft push (`pushStagedDraft`), whose preview shows each field before and after with the store’s facts (`checks`). Needs `changesets.write`. Audited as `staged.release_field_set` with a hash, never the value.', risk: 'write', access: { action: 'changesets.write' }, appScope: { kind: 'param', name: 'id' }, body: stagedReleaseFieldBody, responses: { '200': { description: 'The staged changes after the change.', schema: z.object({ staged: stagedChangesSchema }) } } },
-  { id: 'listReleaseCandidates', method: 'get', path: `${W}/apps/{id}/release/candidates`, tags: ['releases'], summary: 'List the builds and version codes a draft release can use (processed builds, uploaded codes)', description: 'READS the store with the credential of the app (audited as `credential.use`, purpose `store.release_read`) and changes nothing; not behind a switch. App Store: the builds of the app for this platform, newest first, each with `selectable` (processed, not expired) and `attached`; `version` optionally narrows them to a marketing version. Google Play: `track` is required (`422 track_required`); the uploaded version codes with the releases of that track that hold them. Rate limited per workspace (`429`). Needs `listing.read`.', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ track: z.string().max(100).optional().describe('Google Play: required.'), version: z.string().max(40).optional().describe('App Store: narrow the builds to this marketing version.') }), responses: { '200': { description: 'The candidates.', schema: z.object({ candidates: releaseCandidatesSchema }) } } },
+  { id: 'getReleasePipeline', method: 'get', path: `${W}/apps/{id}/release/pipeline`, tags: ['releases'], summary: 'Where the release of the app is between a CI run and live, and whether it is stalled', description: 'Read-only, from the data stored here (the stored CI runs, the builds and versions of the last store sync); it calls neither GitHub nor a store. `stalled` says what is stuck in a sentence, with the ids and times it rests on. Detection is off when the workspace setting `release.stalledAfterHours` is 0. Times of store states are lower bounds (the last sync that saw the state) when the app was synced before they were recorded.', risk: 'read', access: { action: 'apps.read' }, appScope: { kind: 'param', name: 'id' }, responses: { '200': { description: 'The pipeline.', schema: pipelineResponseSchema } } },
+  { id: 'getReleasePipelineSummary', method: 'get', path: `${W}/release/pipeline/summary`, tags: ['releases'], summary: 'The release pipeline of every app, stalled ones first', description: 'Same facts and rules as `getReleasePipeline`, one line per app. A token limited to some apps sees only those apps.', risk: 'read', access: { action: 'apps.read' }, appScope: { kind: 'list' }, responses: { '200': { description: 'One line per app and the totals.', schema: pipelineSummarySchema } } },
+  { id: 'listReleaseCandidates', method: 'get', path: `${W}/apps/{id}/release/candidates`, tags: ['releases'], summary: 'List the builds and version codes a draft release can use (processed builds, uploaded codes)', description: 'READS the store with the credential of the app (audited as `credential.use`, purpose `store.release_read`) and changes nothing; not behind a switch. App Store: the builds of the app for this platform, newest first, each with `selectable` (processed, not expired) and `attached`; `version` optionally narrows them to a marketing version. Google Play: `track` is required (`422 track_required`); the uploaded version codes with the releases of that track that hold them. Every build and code has an `eligibility` verdict (`eligible`, `severity`, a machine `code` and a plain `message`). App Store builds also carry `exportCompliance` and `testNotes` (the TestFlight "What to Test" of the newest eight processed builds, up to 40 languages and 4000 characters each; one build that cannot be read never hides the others, and the text is never logged or audited). Rate limited per workspace (`429`). Needs `listing.read`.', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ track: z.string().max(100).optional().describe('Google Play: required.'), version: z.string().max(40).optional().describe('App Store: narrow the builds to this marketing version.') }), responses: { '200': { description: 'The candidates.', schema: z.object({ candidates: releaseCandidatesSchema }) } } },
+  { id: 'getReleaseNotesHistory', method: 'get', path: `${W}/apps/{id}/release/notes-history`, tags: ['releases'], summary: 'The "what is new" texts earlier releases used, newest first, deduplicated, to reuse in the next one', description: 'READS the store with the credential of the app (audited as `credential.use`, purpose `store.release_read`) and changes nothing; not behind a switch. The same text used by several versions is one entry with every place in `uses` (store, version or release, track, state, date). App Store: the notes of the newest twelve versions of the platform (the order and the date come from `createdDate`, UNVERIFIED). Google Play: only the releases the tracks hold now (Google lists no replaced release), with no dates. The notes of this app’s release plans are included (`source` `plan`). The store read is cached for ten minutes per app and language; only a read that goes to the store counts against the rate limit (`store.error` `rate_limited`, with `Retry-After`). A failed store read still answers `200` with the plans’ notes and `store.read` false. The texts are never logged and never audited. Needs `listing.read`.', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ platform: platform.optional().describe('Must be the platform of the app (`422 platform_mismatch`).'), locale: z.string().max(20).optional().describe('One language, for example `en-US`. Default: all.'), limit: z.number().int().min(1).max(100).optional().describe('Default 30.') }), responses: { '200': { description: 'The history.', schema: z.object({ history: notesHistorySchema }) } } },
   { id: 'getEditableRelease', method: 'get', path: `${W}/apps/{id}/release/editable`, tags: ['releases'], summary: 'The release fields the store holds: the editable App Store version, or the draft release of a Google Play track', description: 'READS the store (same rules as `listReleaseCandidates`) and changes nothing. App Store: the editable version’s release type, earliest release date, copyright, attached build, phased release and the "what is new" per locale; `422 no_editable_version` when there is none. Google Play: `track` is required; the draft release (name, version codes, notes per language) and the other releases of the track. Needs `listing.read`.', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ track: z.string().max(100).optional().describe('Google Play: required.') }), responses: { '200': { description: 'The release fields.', schema: z.object({ editable: editableReleaseSchema }) } } },
   // ----- submitting the pushed draft for store review (IRREVERSIBLE; off unless MRM_STORE_SUBMIT_ENABLED=true) ----
   { id: 'getStoreSubmitConfig', method: 'get', path: `${W}/store-submit/config`, tags: ['submit'], summary: 'Whether submitting drafts for store review is switched on', risk: 'read', access: { action: 'apps.read' }, responses: { '200': { description: 'The switch, the action and the lowest role that can submit.', schema: submitConfigSchema } } },

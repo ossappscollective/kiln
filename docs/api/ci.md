@@ -65,15 +65,18 @@ workspace that wants only admins to run CI can change the role table in `@mrm/co
 `POST /repositories/:id/workflows/:workflow/dispatches` needs `ci.dispatch`.
 
 ```json
-{ "ref": "main", "inputs": { "build_number": "241", "track": "beta" }, "appId": "…" }
+{ "ref": "main", "inputs": { "build_number": "241", "track": "beta" }, "appIds": ["…", "…"] }
 ```
 
 - `ref` (optional): a branch or tag, default the repository's default branch.
 - `inputs` (optional): at most 25. Names are letters, digits, `_` and `-`; values are sent to GitHub
   as text (numbers and booleans are converted).
-- `appId` (optional): the app this run builds. It must be an app of this workspace that is linked to
-  this repository (`422 app_not_found`, `422 app_repository_mismatch` otherwise). The run is then
-  tied to the app, and its inputs let it be matched to that app's builds.
+- `appIds` (optional, 1 to 20): the apps this run builds, for a repository that ships several apps
+  with one workflow (see [One run, several apps](#one-run-several-apps)). Every one must be an app of
+  this workspace that is linked to this repository (`422 app_not_found`, `422 app_repository_mismatch`
+  otherwise, and nothing is sent to GitHub). The list is de-duplicated and sorted.
+- `appId` (optional, older): one app. It joins `appIds`, so `appId` alone is still the way to name one
+  app. The run is then tied to the app(s), and its inputs let it be matched to their builds.
 
 `202` answers `{ dispatched: true, runKnown, run }`. GitHub's dispatch endpoint does not say which
 run it started, so the tool stores a **pending run** (`id` starts with `pending-`, `status`
@@ -101,13 +104,36 @@ the runs before trying again. Every dispatch is audited as `ci.dispatch` (workfl
 **names** of the inputs, never their values, the app, `ok`, the run id when known, or the error
 `code`) and the credential use as `credential.use` (purpose `ci.dispatch`).
 
+### One run, several apps
+
+A repository can ship several apps from one workflow (a monorepo whose release workflow builds an iOS
+and a Mac app, or two flavors). Such a run belongs to **every app** it was dispatched for:
+
+- Run JSON has `appIds` (an array, sorted, empty when the run was started for no app). `appId` stays
+  for older clients and is `appIds[0]`, or `null`.
+- The links are the table `ci_run_apps` (migration 28: `run_ref` to `workflow_runs.id`, `app_id`,
+  `workspace_id`, `created_at`; one row per run and app; deleted with the run). The migration copied
+  every existing `workflow_runs.app_id` into it, so nothing changes for runs started before it. The
+  old column is still written (the first app) for older code.
+- **A run with no app counts for every app of its repository** (a push or a schedule that nobody
+  started for an app), and a run with apps counts for those apps only. This is the one rule behind
+  every filter below: `GET /repositories/:id/workflows/runs?appId=`, `GET /ci/runs/active?appId=`,
+  the builds of an app and the linking of a build to a run, and what an API token limited to some apps
+  sees (a run is visible when it has no app, or at least one of its apps is in the token).
+- Events: `ci.run_started` and `ci.run_finished` are sent **once per app** of the run (subject
+  `appId`), so an app limited token hears about its own apps. The payload keeps `runId`,
+  `repositoryId` and `appId`, and adds `appIds` only when the run has more than one app. A run for no
+  app is one event with no app, as before.
+- The audit entry `ci.dispatch` records `appId` and `appIds` (ids), the **names** of the inputs, and
+  never their values.
+
 ## Runs
 
 Runs live in the `workflow_runs` table (migration 10). Reads of the list and of one run come from
 that table, so every member can read them and GitHub is not asked.
 
 - `GET /repositories/:id/workflows/runs` needs `repositories.read`. Query: `limit` (1 to 100,
-  default 30), `workflow` (name or file), `branch`, `appId`, `active=true` (only runs that have not
+  default 30), `workflow` (name or file), `branch`, `appId` (the runs that count for that app, see above), `active=true` (only runs that have not
   finished), `refresh=true` (read GitHub first; needs `repositories.scan`, else `403`). Answer:
   `{ runs, active, refreshed, refreshedAt }`. `active` is how many runs of the repository have not
   finished (the web panel polls while it is above zero). Newest first.
@@ -126,7 +152,7 @@ A run:
 | `active` | the run has not finished (`queued`, `in_progress`, `waiting`, `requested`, `pending`) |
 | `headSha`, `commitMessage` | the commit (first line of its message) |
 | `branch`, `event`, `runNumber`, `url` | as GitHub reports them |
-| `inputs`, `dispatchedBy`, `appId` | set when this tool started the run |
+| `inputs`, `dispatchedBy`, `appIds`, `appId` | set when this tool started the run; `appIds` lists the apps it was started for (empty otherwise), `appId` is the first one |
 | `startedAt`, `updatedAt`, `syncedAt` | run times from GitHub, and when we last read it |
 
 **How the table is kept fresh.** `refresh=true` reads the repository's 50 most recent runs as a
@@ -154,7 +180,8 @@ migration): the runs come from `workflow_runs`, the jobs are kept in memory.
 
 - `GET /ci/runs/active` (under `/api/workspaces/:workspaceId`) needs `repositories.read`. Query:
   `repositoryId` (comma separated, at most 50) narrows it to those repositories, as an app's
-  dashboard does. Answer:
+  dashboard does; `appId` (one app of the workspace) keeps the runs that count for that app (`400`
+  when empty or longer than 100 characters), in `runs` and in `recent`. Answer:
 
 ```json
 { "runs": [ { "id": "1001", "repositoryId": "…", "appId": null, "workflow": "iOS release", "title": "Release 2.4.0",
@@ -496,6 +523,10 @@ searched, whether that worked, the error, and a JSON summary with what was seen 
 did not link) and `build_links.evidence_json`. A "Tag found" link has `run_id = ''` and the tag's
 commit in `head_sha`. The scheduler deletes the rows of a repository or app that is gone. Like the
 tables below, they have no foreign keys, and the Postgres side has not been run (see below).
+
+Migration 28 adds `ci_run_apps` (see [One run, several apps](#one-run-several-apps)), copies the
+`app_id` of every stored run into it and, unlike the older tables, has a foreign key to
+`workflow_runs` (rows are deleted with the run); the scheduler also deletes links whose app is gone.
 
 Migration 10 adds `workflow_runs` (one row per run: unique on repository and run id; indexed on
 repository and start time) and `build_links` (one row per app, platform and build number). Neither
