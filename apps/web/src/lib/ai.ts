@@ -124,7 +124,7 @@ export type AiModelsBody = { provider: AiProvider; baseUrl?: string; apiKey?: st
 
 export type AiTestOutcome =
   | { ok: true; provider: AiProvider; model: string }
-  | { ok: false; provider?: AiProvider; kind?: string; message?: string; reason?: string };
+  | { ok: false; provider?: AiProvider; kind?: string; message?: string; reason?: string; sample?: string };
 
 // ---------------------------------------------------------------------------------------------
 // Where the feature stands, in words
@@ -701,6 +701,20 @@ export function invalidOutputHint(reason: unknown): string {
     default:
       return '';
   }
+}
+
+/** The most characters of the model's answer a screen shows under a failed test. */
+export const AI_SAMPLE_CHARS = 300;
+
+/**
+ * What the model answered, for the card under a failed connection test: the `sample` of an unusable answer, cut to 300 characters and
+ * without control characters. Empty when there is none. It is text the model wrote: show it as plain text only, never as markup.
+ */
+export function aiTestSample(outcome: AiTestOutcome): string {
+  if (outcome.ok || outcome.kind !== 'invalid_output' || typeof outcome.sample !== 'string') return '';
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what is removed
+  const clean = outcome.sample.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim();
+  return Array.from(clean).slice(0, AI_SAMPLE_CHARS).join('');
 }
 
 const TEST_FAILURES: Record<string, string> = {

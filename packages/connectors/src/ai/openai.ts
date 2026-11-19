@@ -1,6 +1,6 @@
 import { countOf, getJson, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
 import { parseModelJson, providerSchema, validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, renderUserMessage } from './types.ts';
+import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, userMessageOf } from './types.ts';
 
 /**
  * OpenAI Responses API, `POST /v1/responses`, one request, structured output, no tools, nothing stored.
@@ -81,7 +81,7 @@ export function createOpenAiClient(options: OpenAiOptions): AiClient {
           body: {
             model,
             instructions: request.system,
-            input: renderUserMessage(request.input),
+            input: userMessageOf(request),
             max_output_tokens: request.maxTokens,
             store: false,
             text: { format: { type: 'json_schema', name: request.schemaName ?? 'result', schema: providerSchema(request.schema), strict: true } },

@@ -1,5 +1,5 @@
 import { validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiProviderId, type AiUsage, guessTokens, normalizeModels, renderUserMessage } from './types.ts';
+import { AiError, type AiClient, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiProviderId, type AiUsage, guessTokens, normalizeModels, userMessageOf } from './types.ts';
 
 /**
  * A scripted AI client for tests: no network, no model. It plays the answers it was given and goes through the
@@ -50,7 +50,7 @@ export function createFakeAiClient(options: FakeAiOptions): FakeAiClient {
       if (options.models instanceof AiError) throw options.models;
       return normalizeModels(options.models ?? []);
     },
-    sent: () => calls.flatMap((c) => [c.system, renderUserMessage(c.input)]),
+    sent: () => calls.flatMap((c) => [c.system, userMessageOf(c)]),
     async complete(request: AiCompleteRequest): Promise<AiCompleteResult> {
       const index = calls.length;
       calls.push(request);
@@ -62,7 +62,7 @@ export function createFakeAiClient(options: FakeAiOptions): FakeAiClient {
       if (request.signal?.aborted) throw new AiError('unavailable', { detail: 'timeout' });
       if (answer.error) throw answer.error;
       const usage = answer.usage ?? {
-        inputTokens: guessTokens(request.system) + guessTokens(renderUserMessage(request.input)),
+        inputTokens: guessTokens(request.system) + guessTokens(userMessageOf(request)),
         outputTokens: guessTokens(JSON.stringify(answer.output ?? {})),
       };
       if (validateJson(request.schema, answer.output).length > 0) throw new AiError('invalid_output', { detail: 'schema', usage });

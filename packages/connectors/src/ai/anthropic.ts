@@ -1,6 +1,6 @@
 import { countOf, getJson, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
 import { parseModelJson, providerSchema, validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, renderUserMessage } from './types.ts';
+import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, userMessageOf } from './types.ts';
 
 /**
  * Anthropic Messages API, `POST /v1/messages`, one request, structured output, no tools.
@@ -84,7 +84,7 @@ export function createAnthropicClient(options: AnthropicOptions): AiClient {
             model,
             max_tokens: request.maxTokens,
             system: request.system,
-            messages: [{ role: 'user', content: renderUserMessage(request.input) }],
+            messages: [{ role: 'user', content: userMessageOf(request) }],
             output_config: { format: { type: 'json_schema', schema: providerSchema(request.schema) } },
           },
           signal: request.signal,

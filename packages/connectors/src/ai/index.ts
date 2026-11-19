@@ -5,7 +5,7 @@ import { createOpenAiCompatibleClient } from './openai-compatible.ts';
 import { AiError, type AiClient, type AiClientOptions, type AiErrorKind, type AiModelInfo, aiErrorMessage } from './types.ts';
 
 export * from './types.ts';
-export { type SchemaIssue, isStrictCompatible, parseModelJson, providerSchema, validateJson } from './schema.ts';
+export { type SchemaIssue, exampleOf, isStrictCompatible, parseModelJson, providerSchema, repairModelJson, validateJson } from './schema.ts';
 export { ANTHROPIC_API_VERSION, ANTHROPIC_FALLBACK_MODELS, ANTHROPIC_URL, createAnthropicClient } from './anthropic.ts';
 export { NOT_CHAT, OPENAI_FALLBACK_MODELS, OPENAI_URL, createOpenAiClient } from './openai.ts';
 export { createOpenAiCompatibleClient } from './openai-compatible.ts';
@@ -65,7 +65,7 @@ export const aiNeedsKey = (provider: AiProvider): boolean => aiProviderInfo[prov
 
 export type AiProbe =
   | { ok: true; provider: AiProvider; model: string }
-  | { ok: false; provider: AiProvider; kind: AiErrorKind; message: string; detail?: string; retryAfterSeconds?: number };
+  | { ok: false; provider: AiProvider; kind: AiErrorKind; message: string; detail?: string; retryAfterSeconds?: number; sample?: string };
 
 /** The fixed request of a connection test: no data of the workspace, one boolean back. */
 export const PROBE_SCHEMA = {
@@ -75,12 +75,18 @@ export const PROBE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-/** Asks the model for `{ "ok": true }`. Reports ok or a fixed sentence: never provider text, never the key. */
+/**
+ * Asks the model for `{ "ok": true }`: the system text says it and the user message is the literal example (a small model follows
+ * an example better than a rule). Reports ok or a fixed sentence plus, for an unusable answer of a compatible server, `sample`: the
+ * first 300 characters the model wrote. The prompt is fixed and holds no workspace data, which is why this is the one place a model's
+ * words are passed on. Never the key.
+ */
 export async function probeAiClient(client: AiClient, signal?: AbortSignal): Promise<AiProbe> {
   try {
     await client.complete({
-      system: 'You are a connection test. Return a JSON object with the key "ok" set to true.',
+      system: 'You are a connection test. Return the JSON object {"ok":true} and nothing else.',
       input: { test: true },
+      userMessage: 'Reply with exactly this JSON and nothing else: {"ok":true}',
       schema: PROBE_SCHEMA as unknown as Record<string, unknown>,
       schemaName: 'connection_test',
       maxTokens: 300,
@@ -97,6 +103,7 @@ export async function probeAiClient(client: AiClient, signal?: AbortSignal): Pro
       message: aiErrorMessage(kind),
       ...(known?.detail ? { detail: known.detail } : {}),
       ...(known?.retryAfterSeconds !== undefined ? { retryAfterSeconds: known.retryAfterSeconds } : {}),
+      ...(known?.kind === 'invalid_output' && known.sample ? { sample: known.sample } : {}),
     };
   }
 }

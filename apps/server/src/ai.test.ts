@@ -272,6 +272,57 @@ dbTest('provider failures are fixed codes: no provider text, and a retry hint wh
   assert.equal(ok.body.ok, true);
 });
 
+dbTest('a failed connection test shows a short sample of what the model said; a task run, audit, usage and events never hold it', async (db) => {
+  const SAMPLE = 'SAMPLE-MARKER-31 I think the answer is';
+  const t = await bootAi(db);
+  await t.ready({ monthlyTokenBudget: 0 });
+  const appId = await ios(t);
+  t.answer({ error: new AiError('invalid_output', { detail: 'truncated', sample: SAMPLE }) });
+  const test = await t.call(t.owner, 'POST', '/ai/test');
+  assert.equal(test.status, 200);
+  assert.equal(test.body.ok, false);
+  assert.equal(test.body.kind, 'invalid_output');
+  assert.equal(test.body.reason, 'truncated');
+  assert.equal(test.body.sample, SAMPLE);
+  // The same error on a run: a fixed sentence and a hint, no sample, and nothing stored.
+  const run = await t.run('keyword_ideas', { appId, locale: 'en-US' });
+  assert.equal(run.status, 502);
+  assert.equal(run.body.error, 'ai_invalid_output');
+  assert.equal(run.body.reason, 'truncated');
+  assert.ok(!run.text.includes('SAMPLE-MARKER-31'), run.text);
+  assert.ok(!('sample' in run.body));
+  assert.ok(!(await t.trail()).includes('SAMPLE-MARKER-31'), 'audit, events, jobs and usage never hold the sample');
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM ai_suggestions'))[0]?.n), 0);
+  // A failure that is not an unusable answer has no sample.
+  t.answer({ error: new AiError('auth') });
+  assert.equal('sample' in (await t.call(t.owner, 'POST', '/ai/test')).body, false);
+});
+
+dbTest('a connection test against a compatible server that rambles twice returns the sample of the second answer, through the guarded fetch', async (db) => {
+  const bodies: { max_tokens: number; temperature?: number }[] = [];
+  const t = await bootAi(db, {
+    allowPrivateUrls: true,
+    resolve: async () => ['127.0.0.1'],
+    real: {
+      exchange: (async (request: { body?: Uint8Array | string }) => {
+        const text = typeof request.body === 'string' ? request.body : new TextDecoder().decode(request.body ?? new Uint8Array());
+        bodies.push(JSON.parse(text) as { max_tokens: number; temperature?: number });
+        const content = bodies.length === 1 ? 'Sure! Let me explain' : 'Okay, the JSON is: {"ok": tru';
+        return { status: 200, headers: {}, body: bytes({ choices: [{ message: { content }, finish_reason: bodies.length === 1 ? 'length' : 'stop' }], usage: { prompt_tokens: 30, completion_tokens: 20 } }), overflow: false };
+      }) as never,
+    },
+  });
+  assert.equal((await t.configure({ provider: 'openai_compatible', baseUrl: 'http://localhost:11234/v1', model: 'LiquidAI/LFM3-1.7B-MLX-8bit' })).status, 200);
+  const test = await t.call(t.owner, 'POST', '/ai/test');
+  assert.equal(test.status, 200, test.text);
+  assert.equal(test.body.ok, false);
+  assert.equal(test.body.kind, 'invalid_output');
+  assert.equal(test.body.reason, 'not_json');
+  assert.equal(test.body.sample, 'Okay, the JSON is: {"ok": tru');
+  assert.deepEqual(bodies.map((b) => [b.max_tokens, b.temperature]), [[300, 0], [600, 0]]);
+  assert.ok(!(await t.trail()).includes('Okay, the JSON'), 'the sample is not audited');
+});
+
 // ----- keyword_ideas ----------------------------------------------------------------------------------
 
 dbTest('keyword_ideas: a proposal flags what is tracked, repeated or not a term; accepting tracks the chosen ones through the keyword service', async (db) => {

@@ -13,11 +13,14 @@ import {
   aiErrorMessage,
   createAiClient,
   createFakeAiClient,
+  exampleOf,
   isStrictCompatible,
   parseAiSecret,
   parseModelJson,
   probeAiClient,
   providerSchema,
+  repairModelJson,
+  sampleOf,
   validateJson,
   type AiClient,
   type JsonSchema,
@@ -491,4 +494,168 @@ test('openai compatible: a server that refuses strict schemas is asked again wit
 test('openai compatible: a complete answer is accepted even when the server says it stopped on the length limit', async () => {
   const out = await createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:1234/v1', options: { fetch: fakeFetch(chatOk(JSON.stringify(GOOD), {}, 'length')).fetch } }).complete(REQUEST);
   assert.deepEqual(out.output, GOOD);
+});
+
+// ---------------------------------------------------------------------------------------------
+// OpenAI compatible: help for small models (retry, drops, repair, sample)
+
+const compat = (fetch: typeof globalThis.fetch) => createAiClient({ provider: 'openai_compatible', model: 'LiquidAI/LFM3-1.7B-MLX-8bit', baseUrl: 'http://localhost:11234/v1', options: { fetch } });
+type ChatBody = { messages: { role: string; content: string }[]; max_tokens: number; temperature?: number; top_p?: number; stream?: boolean; response_format?: unknown };
+
+test('openai compatible: temperature 0 is sent and top_p is left alone; a rambling answer gets one retry with a short prompt, the schema as an example and double the room', async () => {
+  const ramble = chatOk('Sure! I would be happy to help you with keyword ideas for your app. First, let me think about what', { usage: { prompt_tokens: 100, completion_tokens: 300 } }, 'length');
+  const f = fakeFetch(ramble, chatOk(JSON.stringify(GOOD), { usage: { prompt_tokens: 40, completion_tokens: 20 } }));
+  const out = await compat(f.fetch).complete(REQUEST);
+  assert.deepEqual(out.output, GOOD);
+  assert.deepEqual(out.usage, { inputTokens: 140, outputTokens: 320 }, 'both attempts are counted');
+  assert.equal(f.requests.length, 2);
+  const [first, second] = f.requests.map((r) => r.body as ChatBody);
+  assert.equal(first?.temperature, 0);
+  assert.equal('top_p' in (first ?? {}), false);
+  assert.equal(first?.max_tokens, 500);
+  assert.ok(first?.messages[0]?.content.includes('"properties"'), 'the first try carries the whole schema');
+  assert.equal(second?.max_tokens, 1000);
+  const system = second?.messages[0]?.content ?? '';
+  assert.ok(system.startsWith('Suggest keywords.'));
+  assert.ok(system.includes('{"ideas":[{"term":"example","rank":1,"field":"title"}]}'), system);
+  assert.ok(!system.includes('"properties"') && !system.includes('\n'), 'one line, no schema');
+  assert.equal(second?.messages[1]?.content, first?.messages[1]?.content, 'the same input');
+});
+
+test('openai compatible: when both tries fail the second error is reported with the tokens of both and a sample of the second answer; no more than two calls', async () => {
+  const f = fakeFetch(
+    chatOk('first ramble', { usage: { prompt_tokens: 100, completion_tokens: 500 } }, 'length'),
+    chatOk('\u0007Here\nis\tmy  answer: <b>{"ideas": ' + 'x'.repeat(400), { usage: { prompt_tokens: 30, completion_tokens: 1000 } }),
+  );
+  const error = await kindOf(compat(f.fetch).complete(REQUEST));
+  assert.equal(f.requests.length, 2);
+  assert.equal(error.kind, 'invalid_output');
+  assert.equal(error.detail, 'not_json', 'the second attempt is the one reported');
+  assert.deepEqual(error.usage, { inputTokens: 130, outputTokens: 1500 });
+  assert.ok(error.sample?.startsWith('Here is my answer: <b>{"ideas": xxx'), error.sample);
+  assert.equal(Array.from(error.sample ?? '').length, 300);
+  assert.ok(!/[\u0000-\u001f]/.test(error.sample ?? ''), 'no control characters');
+  assert.ok(!error.message.includes('Here is'), 'the sentence of the error never holds the sample');
+  // The room doubles up to 2000 and never shrinks.
+  const caps = fakeFetch(chatOk('nope', {}, 'length'));
+  await kindOf(compat(caps.fetch).complete({ ...REQUEST, maxTokens: 1500 }));
+  assert.deepEqual(caps.requests.map((r) => (r.body as ChatBody).max_tokens), [1500, 2000]);
+  const big = fakeFetch(chatOk('nope', {}, 'length'));
+  await kindOf(compat(big.fetch).complete({ ...REQUEST, maxTokens: 4000 }));
+  assert.deepEqual(big.requests.map((r) => (r.body as ChatBody).max_tokens), [4000, 4000]);
+});
+
+test('openai compatible: a wrong shape, a refusal and a clean cut are not retried; the other providers keep no sample', async () => {
+  const wrongShape = fakeFetch(chatOk('{"ideas":"none"}'));
+  const schema = await kindOf(compat(wrongShape.fetch).complete(REQUEST));
+  assert.equal(schema.detail, 'schema');
+  assert.equal(schema.sample, '{"ideas":"none"}');
+  assert.equal(wrongShape.requests.length, 1);
+  const noText = fakeFetch({ status: 200, json: { choices: [{ message: { content: null, reasoning_content: 'thinking about it' }, finish_reason: 'stop' }] } });
+  const none = await kindOf(compat(noText.fetch).complete(REQUEST));
+  assert.equal(none.detail, 'no_text');
+  assert.equal(none.sample, 'thinking about it');
+  assert.equal(noText.requests.length, 1);
+  const hosted = await kindOf(createAiClient({ provider: 'openai', model: 'm', secret: KEY, options: { fetch: fakeFetch({ status: 200, json: { output: [{ type: 'message', content: [{ type: 'output_text', text: 'not json at all' }] }], usage: { input_tokens: 1, output_tokens: 1 } } }).fetch } }).complete(REQUEST));
+  assert.equal(hosted.sample, undefined);
+});
+
+test('openai compatible: a server that refuses temperature (or stream) is asked again without it, once, and remembers for the retry', async () => {
+  const refuse = { status: 422, json: { error: { message: "Unsupported parameter: 'temperature'" } } };
+  const f = fakeFetch(refuse, chatOk(JSON.stringify(GOOD)));
+  const out = await compat(f.fetch).complete(REQUEST);
+  assert.deepEqual(out.output, GOOD);
+  assert.equal(f.requests.length, 2);
+  assert.equal((f.requests[0]?.body as ChatBody).temperature, 0);
+  assert.equal('temperature' in (f.requests[1]?.body as object), false);
+  assert.equal((f.requests[1]?.body as ChatBody).stream, false, 'only the refused field goes');
+  assert.equal((f.requests[1]?.body as ChatBody).response_format !== undefined, true);
+
+  // Format first, then temperature, then stream, each once; what is dropped stays dropped in the retry after a ramble.
+  const formatRefusal = { status: 400, json: { error: { message: "'response_format.type' must be 'json_object' or 'text'" } } };
+  const streamRefusal = { status: 400, json: { message: 'unknown field stream' } };
+  const g = fakeFetch(formatRefusal, refuse, streamRefusal, chatOk('ramble', {}, 'length'), chatOk(JSON.stringify(GOOD)));
+  assert.deepEqual((await compat(g.fetch).complete(REQUEST)).output, GOOD);
+  const bodies = g.requests.map((r) => r.body as Record<string, unknown>);
+  assert.equal(bodies.length, 5);
+  assert.equal((bodies[1]?.response_format as { type: string }).type, 'json_object');
+  assert.equal('temperature' in (bodies[2] ?? {}), false);
+  assert.equal('stream' in (bodies[3] ?? {}), false);
+  assert.equal('temperature' in (bodies[4] ?? {}) || 'stream' in (bodies[4] ?? {}), false);
+
+  // A 400 that names none of them is a real error and is not retried; a server that keeps refusing the same field is not asked forever.
+  const other = fakeFetch({ status: 400, json: { error: { message: 'messages must not be empty' } } });
+  assert.equal((await kindOf(compat(other.fetch).complete(REQUEST))).detail, 'http_400');
+  assert.equal(other.requests.length, 1);
+  const stubborn = fakeFetch(refuse);
+  assert.equal((await kindOf(compat(stubborn.fetch).complete(REQUEST))).detail, 'http_422');
+  assert.equal(stubborn.requests.length, 2);
+});
+
+test('openai compatible: an answer that only lacks its closing characters is accepted when it then matches the schema, and never otherwise', async () => {
+  const cut = '```json\n{"ideas":[{"term":"water tracker","rank":2,"field":"keywords"}';
+  const f = fakeFetch(chatOk(cut, {}, 'length'));
+  assert.deepEqual((await compat(f.fetch).complete(REQUEST)).output, GOOD);
+  assert.equal(f.requests.length, 1, 'no retry needed');
+  // Repaired but wrong: the enum is violated, so it is rejected (and the retry fails the same way).
+  const wrong = fakeFetch(chatOk('{"ideas":[{"term":"water tracker","rank":2,"field":"nope"}', {}, 'length'));
+  assert.equal((await kindOf(compat(wrong.fetch).complete(REQUEST))).detail, 'truncated');
+  assert.equal(wrong.requests.length, 2);
+  // Cut in the middle of a number or after a key: nothing is invented, so it is rejected.
+  for (const text of ['{"ideas":[{"term":"water tracker","rank":2', '{"ideas":[{"term":"water tracker","rank":', '{"ideas":[{"term":"water tracker","rank":2,"fie']) {
+    const g = fakeFetch(chatOk(text, {}, 'length'));
+    assert.equal((await kindOf(compat(g.fetch).complete(REQUEST))).kind, 'invalid_output', text);
+  }
+});
+
+test('repairModelJson closes only what is open at the very end, never adds a value, and gives up otherwise', () => {
+  assert.deepEqual(repairModelJson('{"ok":true'), { ok: true });
+  assert.deepEqual(repairModelJson('{"a":"x","b":["y","z"'), { a: 'x', b: ['y', 'z'] });
+  assert.deepEqual(repairModelJson('{"a":"x","b":["y",'), { a: 'x', b: ['y'] }, 'one trailing comma at the cut is dropped');
+  assert.deepEqual(repairModelJson('{"a":{"b":"cut off her'), { a: { b: 'cut off her' } }, 'a cut string stays cut');
+  assert.deepEqual(repairModelJson('{"a":"ends with a slash\\'), { a: 'ends with a slash' });
+  assert.deepEqual(repairModelJson('<think>x</think>Here: {"ok":false'), { ok: false });
+  assert.equal(repairModelJson('{"a":1'), undefined, 'a number may be cut');
+  assert.equal(repairModelJson('{"a":'), undefined);
+  assert.equal(repairModelJson('{"a"'), undefined);
+  assert.equal(repairModelJson('{"a":['), undefined, 'no empty list the model never wrote');
+  assert.equal(repairModelJson('{"a":{'), undefined);
+  assert.equal(repairModelJson('{"a":tru'), undefined);
+  assert.equal(repairModelJson('{"a":"x"}'), undefined, 'a whole object is not a repair case');
+  assert.equal(repairModelJson('{"a":["x"}'), undefined, 'mismatched brackets are not guessed');
+  assert.equal(repairModelJson('{"a":["x"]} and more'), undefined);
+  assert.equal(repairModelJson('no braces'), undefined);
+  assert.equal(repairModelJson('[1,2'), undefined, 'objects only');
+  assert.equal(repairModelJson('{"te'), undefined, 'a key cut in two');
+});
+
+test('sampleOf and exampleOf: a short clean sample, and a valid example built from a schema', () => {
+  assert.equal(sampleOf('  a\u0000b\n\n c\u202e '), 'a b c');
+  assert.equal(sampleOf('\u0007\n'), undefined);
+  assert.equal(Array.from(sampleOf('é'.repeat(500)) ?? '').length, 300);
+  assert.equal(new AiError('invalid_output', { sample: 'x\u0001y' }).sample, 'x y');
+  const example = exampleOf(SCHEMA);
+  assert.deepEqual(example, { ideas: [{ term: 'example', rank: 1, field: 'title' }] });
+  assert.deepEqual(validateJson(SCHEMA, example), []);
+  assert.deepEqual(exampleOf(PROBE_SCHEMA as unknown as JsonSchema), { ok: true });
+});
+
+test('the connection test asks for the literal example, and passes a sample of an unusable answer of a compatible server, nothing else', async () => {
+  const f = fakeFetch(chatOk('{"ok":true}'));
+  assert.equal((await probeAiClient(compat(f.fetch))).ok, true);
+  const body = f.requests[0]?.body as ChatBody;
+  assert.equal(body.messages[1]?.content, 'Reply with exactly this JSON and nothing else: {"ok":true}');
+  assert.ok(body.messages[0]?.content.includes('{"ok":true}'));
+  assert.ok(!JSON.stringify(body).includes('connection test","'), 'no workspace data in the request');
+
+  const bad = await probeAiClient(compat(fakeFetch(chatOk('I am LFM, a helpful model. Sure thing', {}, 'length')).fetch));
+  assert.equal(bad.ok, false);
+  if (!bad.ok) {
+    assert.equal(bad.kind, 'invalid_output');
+    assert.equal(bad.detail, 'truncated');
+    assert.equal(bad.sample, 'I am LFM, a helpful model. Sure thing');
+    assert.equal(bad.message, aiErrorMessage('invalid_output'));
+  }
+  const down = await probeAiClient(compat(fakeFetch({ status: 401, json: { error: { message: 'bad key' } } }).fetch));
+  assert.equal('sample' in down, false);
 });

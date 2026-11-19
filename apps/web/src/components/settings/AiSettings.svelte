@@ -27,6 +27,7 @@
     aiErrorMessage,
     aiSaveMessage,
     aiStateInfo,
+    aiTestSample,
     aiTestText,
     addressAdvice,
     canAutoLoadModels,
@@ -95,6 +96,7 @@
   const notListed = $derived(form ? modelNotListed(shownModels, form.model) : false);
   const advice = $derived(data && form && choice?.needsUrl ? addressAdvice(form.baseUrl, data.server.allowPrivateUrls) : null);
   const result = $derived(testProblem !== '' ? { ok: false, text: testProblem } : outcome === null ? null : aiTestText(outcome, data?.providers ?? []));
+  const sample = $derived(testProblem === '' && outcome !== null ? aiTestSample(outcome) : '');
 
   async function load() {
     loadError = '';
@@ -400,6 +402,12 @@
         {#if result}
           <Alert tone={result.ok ? 'ok' : 'error'}>{result.text}</Alert>
         {/if}
+        {#if sample}
+          <div class="sample">
+            <p class="hint">What the model answered (first 300 characters)</p>
+            <pre>{sample}</pre>
+          </div>
+        {/if}
       {/if}
     </form>
   {/if}
@@ -497,6 +505,19 @@
 
   .tip p {
     margin: 0;
+  }
+
+  .sample pre {
+    max-height: 9rem;
+    padding: var(--space-2);
+    margin: 0;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
   }
 
   .plain {

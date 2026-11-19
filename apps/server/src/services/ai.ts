@@ -410,7 +410,7 @@ async function auditRunFailed(
 
 export type AiTestOutcome =
   | { ok: true; provider: AiProvider; model: string }
-  | { ok: false; provider: AiProvider; kind: string; message: string; reason?: string; retryAfterSeconds?: number };
+  | { ok: false; provider: AiProvider; kind: string; message: string; reason?: string; retryAfterSeconds?: number; sample?: string };
 
 /**
  * One fixed request through the configured provider (no data of the workspace in it). Needs the same switches as a run. Counts a few
@@ -450,6 +450,9 @@ export async function testAiConnection(ctx: AiServices, input: { workspaceId: st
           message: probe.message,
           ...(blockedReason ? { reason: blockedReason } : probe.detail ? { reason: probe.detail } : {}),
           ...(probe.retryAfterSeconds !== undefined ? { retryAfterSeconds: probe.retryAfterSeconds } : {}),
+          // The one place a model's words leave the server: the first 300 characters it answered to this FIXED request, which holds
+          // no workspace data. Returned to the admin who ran the test; never stored, audited or logged, and a task run never has it.
+          ...(probe.sample ? { sample: probe.sample } : {}),
         };
     await settleUsage(ctx.db, runId, { status: probe.ok ? 'ok' : 'failed', ...(probe.ok ? {} : { errorCode: `ai_${probe.kind}` }), inputTokens: 0, outputTokens: 0, at: ctx.now() });
     await recordAudit(ctx.db, {

@@ -76,7 +76,20 @@ gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the toke
   settled with the tokens the provider reported, so `used` includes runs in flight. Tokens of an answer that was rejected still count.
 
 `POST /ai/models` (`ai.manage`) is described under [Models](#models) below. `POST /ai/test` (`ai.manage`) sends one fixed request (no workspace data) through the configured provider and answers `{ "ok": true, "provider", "model" }`
-or `{ "ok": false, "provider", "kind", "message", "reason"? }` with a fixed sentence, never provider text. Needs both switches on. Rate limited.
+or `{ "ok": false, "provider", "kind", "message", "reason"?, "sample"? }`. `message` is a fixed sentence, never provider text. Needs both switches on. Rate limited.
+
+**The one exception: `sample`.** When the answer of an OpenAI compatible server cannot be used (`kind: invalid_output`, `reason` `not_json`, `truncated`, `schema` or
+`no_text`), the test also returns `sample`: the first 300 characters the model wrote, control characters removed, to be shown as **plain text** (the settings card
+shows it in a small monospace block under "What the model answered (first 300 characters)"). It exists because a small local model can fail in ways nobody can guess
+from a code, and it is safe to return because the request is fixed: it holds no workspace data, so the answer cannot echo any. It is returned **only** by this route:
+a task run (`POST /ai/tasks/{id}/run`) never returns or stores a sample (its prompts hold review and listing text), and audit, events, usage rows and logs never hold it.
+
+**Small local models (OpenAI compatible only).** The request carries `temperature: 0`. A server that answers 400 or 422 naming `response_format` (strict schema, then JSON
+mode, then none), `temperature` or `stream` is asked again without that field. If the first answer ends in `truncated` or `not_json`, the call is repeated **once** with a
+one-line system text plus the schema as a compact example object and double `max_tokens` (at most 2,000, never below the configured value); the second error is the one
+reported and the tokens of both calls are counted (a run can therefore use more than its reservation, which settling corrects). A JSON object that is only missing its
+closing `"`, `]` and `}` at the very end is closed and accepted if it then matches the schema; nothing is added but those characters, a cut in a number, after a key or
+right after an opening bracket is not repaired, and a string cut off stays cut off. The connection test sends the literal example `{"ok":true}` as its user message.
 
 ## Models
 
@@ -176,7 +189,7 @@ Errors (all JSON `{ "error", "message", ... }` with fixed sentences; never provi
 | 422 | `ai_auth`, `ai_too_large` | the provider refused the key, or says the request is too large |
 | 429 | `ai_budget_exhausted` | `budget`, `used`, `resetsAt`; nothing was sent |
 | 429 | `ai_busy`, `rate_limited`, `ai_rate_limited` | too many runs now (`Retry-After`) |
-| 502 | `ai_invalid_output` | the answer did not match the schema; no suggestion; tokens still count |
+| 502 | `ai_invalid_output` | the answer did not match the schema (`reason`: `not_json`, `truncated`, `schema`, `no_text`, `refusal`); no suggestion; tokens still count; no sample of the answer |
 | 502, 504 | `ai_unavailable` | the provider could not be reached or answered with an error; `reason` is a short hint (`timeout`, `http_404`, `http_500`, `private_address_blocked`, `plain_http_not_allowed`, `address_not_allowed`) |
 
 Audit: `ai.run` (suggestion id, app id, task, version, provider, model, token counts, `inputHash`, scope) and `ai.run_failed` (code and counts). **Never a prompt, an

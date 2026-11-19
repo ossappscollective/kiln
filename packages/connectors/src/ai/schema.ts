@@ -193,3 +193,93 @@ export function parseModelJson(text: string): unknown {
   }
   return undefined;
 }
+
+/**
+ * A small example of VALID output built from a schema, for a prompt that must be short (a model that is too small for the full
+ * schema can copy a shape): booleans `true`, strings `"example"` (the first allowed value for an `enum`, the `const` for a `const`),
+ * integers and numbers the lowest allowed value (or 1), arrays with one item, objects with all their properties. The values are
+ * placeholders, never data. Built from the keywords `validateJson` knows; anything else gives `null`.
+ */
+export function exampleOf(schema: JsonSchema): unknown {
+  if ('const' in schema) return schema.const;
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) return schema.enum[0];
+  const type = Array.isArray(schema.type) ? schema.type[0] : schema.type;
+  switch (type) {
+    case 'object': {
+      const out: Record<string, unknown> = {};
+      const properties = isRecord(schema.properties) ? (schema.properties as Record<string, JsonSchema>) : {};
+      for (const name of Object.keys(properties)) out[name] = exampleOf(properties[name] as JsonSchema);
+      return out;
+    }
+    case 'array':
+      return isRecord(schema.items) ? [exampleOf(schema.items as JsonSchema)] : [];
+    case 'string':
+      return 'example';
+    case 'boolean':
+      return true;
+    case 'integer':
+    case 'number': {
+      const low = typeof schema.minimum === 'number' ? schema.minimum : 1;
+      return typeof schema.maximum === 'number' ? Math.min(low, schema.maximum) : low;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Repairs the one cut-off that is obvious: a JSON OBJECT whose text ends early, missing only what closes it (a `"` and the `]` and
+ * `}` still open). It adds closing characters at the very end and nothing else: no key, no value, no digit. It gives up (undefined)
+ * when the text ends in a dangling key or colon, right after an opening bracket (it would become an empty container), in the middle of a number, in a half written `true`, `false` or `null`, or when the
+ * closed text is not valid JSON; one trailing comma at the cut is dropped. The caller must still validate the result against the
+ * schema, and a repaired string is a string that was cut where the model stopped. Undefined when the text needs no repair or has none.
+ */
+export function repairModelJson(text: string): unknown {
+  let body = text.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
+  // A fence that was opened and never closed (the cut happened inside it).
+  const open = /^```[A-Za-z]*\s*\n/.exec(body);
+  if (open) body = body.slice(open[0].length).trim();
+  const start = body.indexOf('{');
+  if (start < 0) return undefined;
+  body = body.slice(start);
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < body.length; i += 1) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') {
+      if (stack.pop() !== ch) return undefined;
+      // The object is whole: this is not a cut-off, it is something else.
+      if (stack.length === 0) return undefined;
+    }
+  }
+  if (stack.length === 0 && !inString) return undefined;
+  let tail = body;
+  if (inString) {
+    // A lone backslash at the cut has nothing to escape.
+    if (escaped) tail = tail.slice(0, -1);
+    // A half written \uXXXX escape is cut off too.
+    tail = tail.replace(/\\u[0-9a-fA-F]{0,3}$/, '');
+    tail += '"';
+  } else {
+    tail = tail.replace(/\s+$/, '');
+    // A number cut in the middle cannot be told from a whole one: never guess a digit.
+    if (!tail.endsWith('"') && /^-?[0-9]/.test(/[^\s,:[\]{}]+$/.exec(tail)?.[0] ?? '')) return undefined;
+    // A cut right after an opening bracket would become an empty list or object the model never wrote.
+    if (/[[{]$/.test(tail)) return undefined;
+    tail = tail.replace(/,$/, '');
+  }
+  try {
+    const value = JSON.parse(tail + stack.reverse().join('')) as unknown;
+    return isRecord(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}

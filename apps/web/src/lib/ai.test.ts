@@ -12,6 +12,7 @@ import {
   aiErrorMessage,
   aiSaveMessage,
   aiStateInfo,
+  aiTestSample,
   aiTestText,
   ADDRESS_TEXTS,
   addressAdvice,
@@ -488,4 +489,12 @@ test('an unusable answer says why, in fixed sentences', async () => {
   assert.match(invalidOutputHint('not_json'), /JSON/);
   assert.match(invalidOutputHint('truncated'), /cut off/);
   assert.equal(invalidOutputHint('whatever'), '');
+});
+
+test('the sample of an unusable answer is shown as short plain text, and only for an invalid output', () => {
+  assert.equal(aiTestSample({ ok: false, kind: 'invalid_output', sample: 'Sure!\n\n <b>here</b>\u0007 it is' }), 'Sure! <b>here</b> it is');
+  assert.equal(Array.from(aiTestSample({ ok: false, kind: 'invalid_output', sample: 'x'.repeat(900) })).length, 300);
+  assert.equal(aiTestSample({ ok: false, kind: 'auth', sample: 'not shown' }), '');
+  assert.equal(aiTestSample({ ok: false, kind: 'invalid_output' }), '');
+  assert.equal(aiTestSample({ ok: true, provider: 'openai_compatible', model: 'm' }), '');
 });

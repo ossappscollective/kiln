@@ -24,7 +24,15 @@ proposal, and a person accepts it through a mechanism that already exists.** New
    agent loop, no streaming, no conversation: one request, one answer. `store: false` is sent to OpenAI. Adapters never throw anything
    but `AiError` with a **fixed vocabulary** (`not_configured`, `auth`, `rate_limited`, `too_large`, `invalid_output`, `unavailable`,
    plus a lower case hint such as `timeout`, `http_404`, `refusal`, `truncated`, `schema`). A provider's own error text and the model's
-   own words are read to classify and then dropped: they can echo review text or a key.
+   own words are read to classify and then dropped: they can echo review text or a key. **One documented exception:** an
+   `invalid_output` of an OpenAI compatible server keeps `sample`, the first 300 characters the model wrote (control characters
+   removed), and the connection test (`POST /ai/test`, `ai.manage`) returns it to the settings card as plain text. The test's prompt is
+   fixed and holds no workspace data, so the sample cannot contain any, and a person setting up a small local model has no other way
+   to see why it fails. A task run never returns or stores a sample, and audit, events, usage and logs never hold one.
+   Also for the compatible adapter only, because small local models ramble: `temperature: 0`; a field a server refuses
+   (`response_format`, `temperature`, `stream`) is dropped and the request repeated; a `truncated` or `not_json` answer gets one retry
+   with a one-line prompt, the schema as an example object and double `max_tokens` (cap 2,000), and the tokens of both calls count;
+   and a JSON object missing only its closing characters is closed and accepted if it then matches the schema (nothing is invented).
 2. **Structured outputs only, validated again here.** Every task has a JSON schema. The adapter sends it with the provider's
    structured output feature where there is one and **validates the answer itself** (`validateJson`: unknown schema keywords are an
    error, so a schema cannot silently stop being enforced). An answer that does not match is `invalid_output`; tokens it used still
