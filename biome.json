@@ -3,6 +3,17 @@
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": { "ignoreUnknown": true, "includes": ["**", "!**/*.svelte", "!**/src-tauri/gen"] },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
-  "linter": { "enabled": true, "rules": { "recommended": true } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noControlCharactersInRegex": "off",
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn"
+      },
+      "correctness": { "noVoidTypeReturn": "warn" }
+    }
+  },
   "javascript": { "formatter": { "quoteStyle": "single" } }
 }
