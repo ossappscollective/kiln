@@ -294,6 +294,8 @@ export class GithubRepoConnector implements RepoConnector {
       body?: unknown;
       query?: Record<string, string | undefined>;
       signal?: AbortSignal;
+      /** A conditional read: GitHub answers 304 (not counted against the rate limit) when nothing changed. */
+      ifNoneMatch?: string;
     },
   ): Promise<Reply> {
     const url = new URL(`${this.#base}${path}`);
@@ -308,6 +310,7 @@ export class GithubRepoConnector implements RepoConnector {
           authorization: `Bearer ${options.bearer}`,
           'x-github-api-version': API_VERSION,
           'user-agent': this.#userAgent,
+          ...(options.ifNoneMatch ? { 'if-none-match': options.ifNoneMatch } : {}),
           ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
         },
         ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
@@ -340,6 +343,7 @@ export class GithubRepoConnector implements RepoConnector {
       query?: Record<string, string | undefined>;
       allow?: number[];
       signal?: AbortSignal;
+      ifNoneMatch?: string;
     } = {},
   ): Promise<Reply> {
     for (let attempt = 0; ; attempt++) {
@@ -350,6 +354,7 @@ export class GithubRepoConnector implements RepoConnector {
         body: options.body,
         query: options.query,
         signal: options.signal,
+        ifNoneMatch: options.ifNoneMatch,
       });
       if (reply.status < 400 || options.allow?.includes(reply.status)) return reply;
       if (reply.status === 401 && attempt === 0 && this.#auth.type === 'app') {
@@ -1146,6 +1151,17 @@ export class GithubRepoConnector implements RepoConnector {
   async listCiRuns(
     options: ListWorkflowRunsOptions & { signal?: AbortSignal } = {},
   ): Promise<CiRun[]> {
+    return (await this.listCiRunsPage(options)).runs;
+  }
+
+  /**
+   * `listCiRuns` as a conditional read. Pass the `etag` of the last answer: when nothing changed
+   * GitHub answers 304 (which does not count against the rate limit) and `notModified` is true
+   * with no runs. Without an `etag` it is a plain read, and the answer's `etag` is kept for next time.
+   */
+  async listCiRunsPage(
+    options: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined } = {},
+  ): Promise<CiRunPage> {
     const path = options.workflow
       ? this.#repoPath(`/actions/workflows/${enc(options.workflow)}/runs`)
       : this.#repoPath('/actions/runs');
@@ -1159,12 +1175,45 @@ export class GithubRepoConnector implements RepoConnector {
         head_sha: options.headSha,
       },
       signal: options.signal,
+      ...(options.etag ? { ifNoneMatch: options.etag, allow: [304] } : {}),
     });
+    const etag = reply.headers.get('etag') ?? undefined;
+    if (reply.status === 304) return { runs: [], notModified: true, ...(options.etag ? { etag: options.etag } : {}) };
     const body = isRecord(reply.json) ? reply.json : {};
-    return records(body.workflow_runs).flatMap((run) => {
+    const runs = records(body.workflow_runs).flatMap((run) => {
       const mapped = mapCiRun(run);
       return mapped ? [mapped] : [];
     });
+    return { runs, notModified: false, ...(etag ? { etag } : {}) };
+  }
+
+  /**
+   * The jobs of one run with their steps: names, states and times only (never logs). One page of
+   * up to 100 jobs; `truncated` says there are more. A conditional read like `listCiRunsPage`.
+   * `undefined` jobs with `notModified` means the caller's copy is current; a run GitHub does not
+   * know (any more) is an empty list with `missing`.
+   */
+  async listRunJobs(
+    runId: string,
+    options: { signal?: AbortSignal; etag?: string | undefined } = {},
+  ): Promise<CiJobList> {
+    if (!/^[0-9]{1,20}$/.test(runId)) {
+      throw new GithubError('invalid_input', `Not a workflow run id: ${JSON.stringify(runId)}.`);
+    }
+    const reply = await this.#api('GET', this.#repoPath(`/actions/runs/${runId}/jobs`), {
+      query: { per_page: '100', filter: 'latest' },
+      signal: options.signal,
+      allow: options.etag ? [304, 404] : [404],
+      ...(options.etag ? { ifNoneMatch: options.etag } : {}),
+    });
+    const etag = reply.headers.get('etag') ?? undefined;
+    if (reply.status === 304) return { jobs: [], notModified: true, truncated: false, ...(options.etag ? { etag: options.etag } : {}) };
+    if (reply.status === 404) return { jobs: [], notModified: false, truncated: false, missing: true };
+    const body = isRecord(reply.json) ? reply.json : {};
+    const all = records(body.jobs);
+    const jobs = all.slice(0, 100).flatMap(mapCiJob);
+    const total = num(body.total_count) ?? all.length;
+    return { jobs, notModified: false, truncated: total > jobs.length, ...(etag ? { etag } : {}) };
   }
 
   /** One workflow run, or undefined when GitHub has no such run (any more). */
@@ -1413,6 +1462,41 @@ export type CiRun = WorkflowRun & {
   commitMessage?: string;
 };
 
+/** One read of a repository's runs: the runs, or `notModified` when the caller's `etag` is still current. */
+export type CiRunPage = { runs: CiRun[]; notModified: boolean; etag?: string };
+
+export type CiJobStep = {
+  number: number;
+  name: string;
+  /** GitHub's word: `queued`, `in_progress`, `completed`, ... */
+  status: string;
+  conclusion: string | null;
+  startedAt: number | null;
+  completedAt: number | null;
+};
+
+/** A job of a run, as far as a person following the run needs it: no logs, no runner details. */
+export type CiJob = {
+  id: string;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  startedAt: number | null;
+  completedAt: number | null;
+  url: string | null;
+  steps: CiJobStep[];
+};
+
+export type CiJobList = {
+  jobs: CiJob[];
+  notModified: boolean;
+  /** There were more jobs than one page holds. */
+  truncated: boolean;
+  /** GitHub has no such run (any more). */
+  missing?: boolean;
+  etag?: string;
+};
+
 export type CommitInfo = {
   sha: string;
   /** The whole commit message. */
@@ -1494,6 +1578,43 @@ function mapCommit(entry: Json): CommitInfo[] {
   const url = text(entry.html_url);
   if (url) out.url = url;
   return [out];
+}
+
+const MAX_STEPS_PER_JOB = 100;
+
+function mapCiJob(job: Json): CiJob[] {
+  const id = job.id;
+  if (typeof id !== 'number' && typeof id !== 'string') return [];
+  const at = (v: unknown) => isoTime(v) ?? null;
+  const steps = records(job.steps)
+    .slice(0, MAX_STEPS_PER_JOB)
+    .flatMap((step): CiJobStep[] => {
+      const number = num(step.number);
+      if (number === undefined) return [];
+      return [
+        {
+          number,
+          name: (text(step.name) ?? `Step ${number}`).slice(0, 200),
+          status: text(step.status) ?? 'unknown',
+          conclusion: text(step.conclusion) ?? null,
+          startedAt: at(step.started_at),
+          completedAt: at(step.completed_at),
+        },
+      ];
+    })
+    .sort((a, b) => a.number - b.number);
+  return [
+    {
+      id: String(id),
+      name: (text(job.name) ?? `Job ${id}`).slice(0, 200),
+      status: text(job.status) ?? 'unknown',
+      conclusion: text(job.conclusion) ?? null,
+      startedAt: at(job.started_at),
+      completedAt: at(job.completed_at),
+      url: text(job.html_url) ?? null,
+      steps,
+    },
+  ];
 }
 
 function mapCiRun(run: Json): CiRun | undefined {

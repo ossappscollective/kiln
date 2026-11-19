@@ -234,3 +234,100 @@ test('compareCommits refuses bad refs locally and reports a missing commit', asy
   assert.equal(calls.length, 0);
   await assert.rejects(connector.compareCommits(SHA_A, SHA_B), (e: unknown) => e instanceof GithubError && e.kind === 'not_found');
 });
+
+// ---------------------------------------------------------------------------------------------
+// Conditional reads and jobs
+
+type Seen = { path: string; query: URLSearchParams; ifNoneMatch: string | null };
+
+function etagGithub(answer: (seen: Seen) => { status?: number; json?: unknown; etag?: string }) {
+  const seen: Seen[] = [];
+  const fetchFake: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const headers = new Headers(init?.headers);
+    const request = { path: url.pathname, query: url.searchParams, ifNoneMatch: headers.get('if-none-match') };
+    seen.push(request);
+    const reply = answer(request);
+    return new Response(reply.status === 304 || reply.json === undefined ? null : JSON.stringify(reply.json), {
+      status: reply.status ?? 200,
+      headers: { 'content-type': 'application/json', ...(reply.etag ? { etag: reply.etag } : {}) },
+    });
+  };
+  const connector = new GithubRepoConnector({
+    owner: 'acme',
+    repo: 'trail-notes',
+    auth: { type: 'token', token: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' },
+    fetch: fetchFake,
+  });
+  return { connector, seen };
+}
+
+test('listCiRunsPage sends If-None-Match and reports 304 as notModified', async () => {
+  const { connector, seen } = etagGithub((s) =>
+    s.ifNoneMatch === 'W/"abc"' ? { status: 304 } : { json: { workflow_runs: [runFixture] }, etag: 'W/"abc"' },
+  );
+  const first = await connector.listCiRunsPage({ limit: 50 });
+  assert.equal(first.notModified, false);
+  assert.equal(first.runs.length, 1);
+  assert.equal(first.etag, 'W/"abc"');
+  assert.equal(seen[0]?.ifNoneMatch, null, 'the first read is not conditional');
+  const second = await connector.listCiRunsPage({ limit: 50, etag: first.etag });
+  assert.deepEqual(second, { runs: [], notModified: true, etag: 'W/"abc"' });
+  assert.equal(seen[1]?.ifNoneMatch, 'W/"abc"');
+  // listCiRuns keeps its old shape.
+  assert.equal((await connector.listCiRuns()).length, 1);
+});
+
+const jobsFixture = {
+  total_count: 2,
+  jobs: [
+    {
+      id: 399444496,
+      name: 'build',
+      status: 'in_progress',
+      conclusion: null,
+      started_at: '2024-11-18T10:00:00Z',
+      completed_at: null,
+      html_url: 'https://github.com/acme/trail-notes/actions/runs/30433642/job/399444496',
+      runner_name: 'runner-7',
+      steps: [
+        { name: 'Run tests', status: 'in_progress', conclusion: null, number: 2, started_at: '2024-11-18T10:01:00Z', completed_at: null },
+        { name: 'Set up job', status: 'completed', conclusion: 'success', number: 1, started_at: '2024-11-18T10:00:00Z', completed_at: '2024-11-18T10:01:00Z' },
+        { name: 'no number' },
+      ],
+    },
+    { id: 399444497, name: 'upload', status: 'queued', conclusion: null, started_at: null, completed_at: null, steps: [] },
+    { name: 'no id' },
+  ],
+};
+
+test('listRunJobs keeps names, states and times only, steps in order', async () => {
+  const { connector, seen } = etagGithub(() => ({ json: jobsFixture, etag: 'W/"j1"' }));
+  const list = await connector.listRunJobs('30433642');
+  assert.equal(seen[0]?.path, `${R}/actions/runs/30433642/jobs`);
+  assert.equal(seen[0]?.query.get('filter'), 'latest');
+  assert.equal(list.etag, 'W/"j1"');
+  assert.equal(list.truncated, false);
+  assert.deepEqual(list.jobs.map((j) => j.name), ['build', 'upload']);
+  const build = list.jobs[0];
+  assert.deepEqual(build?.steps.map((s) => [s.number, s.name, s.status]), [
+    [1, 'Set up job', 'completed'],
+    [2, 'Run tests', 'in_progress'],
+  ]);
+  assert.equal(build?.startedAt, Date.parse('2024-11-18T10:00:00Z'));
+  assert.equal(build?.completedAt, null);
+  assert.equal(build?.url, 'https://github.com/acme/trail-notes/actions/runs/30433642/job/399444496');
+  assert.ok(!JSON.stringify(list).includes('runner-7'), 'no runner details');
+});
+
+test('listRunJobs: 304 is notModified, 404 is missing, a bad id is refused before any request', async () => {
+  const { connector, seen } = etagGithub((s) => {
+    if (s.path.includes('/runs/404/')) return { status: 404, json: { message: 'Not Found' } };
+    return s.ifNoneMatch ? { status: 304 } : { json: { total_count: 0, jobs: [] } };
+  });
+  assert.deepEqual(await connector.listRunJobs('1', { etag: 'W/"x"' }), { jobs: [], notModified: true, truncated: false, etag: 'W/"x"' });
+  const missing = await connector.listRunJobs('404');
+  assert.equal(missing.missing, true);
+  await assert.rejects(connector.listRunJobs('../x'), (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input');
+  assert.equal(seen.length, 2);
+});
