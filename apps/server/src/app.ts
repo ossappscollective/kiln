@@ -10,6 +10,7 @@ import { createLoginLimiter } from './limiter.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { appRoutes } from './routes/apps.ts';
 import { aiRoutes } from './routes/ai.ts';
+import { analyticsImportPath, analyticsRoutes } from './routes/analytics.ts';
 import { asoRoutes } from './routes/aso.ts';
 import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
@@ -51,6 +52,7 @@ import { type AiContext } from './services/ai-config.ts';
 import { createConcurrencyGate } from './services/ai-usage.ts';
 import { aiLimits } from '@mrm/core';
 import { defaultReplyConnectorFactory } from './services/review-replies.ts';
+import { DEFAULT_ANALYTICS_TIMEOUT_MS, type AnalyticsConnectorFactory, defaultAnalyticsConnectors } from './services/analytics-sync.ts';
 import { type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
 import { type AsoSources, createAsoSources } from './services/aso-net.ts';
 import { createAppIcons, type IconsContext } from './services/app-icons.ts';
@@ -248,6 +250,13 @@ export type AppDeps = {
    */
   aso?: { sources?: AsoSources; limits?: Partial<AsoLimits>; limiter?: TestLimiter; maxRunMs?: number };
   /**
+   * Analytics (docs/api/analytics.md): daily metrics read from the stores into a normalised store. `connectors` builds the Apple
+   * Analytics Reports / Sales and Trends and Google Play vitals / reports readers from a stored credential (fakes in tests),
+   * `timeoutMs` is the longest one source may take (default 120 seconds), `limiter` the per workspace budget of syncs, previews and
+   * imports a minute (default 10), `intervalMinutes` is MRM_ANALYTICS_INTERVAL_MINUTES, shown by the status.
+   */
+  analytics?: { connectors?: AnalyticsConnectorFactory; timeoutMs?: number; limiter?: TestLimiter; intervalMinutes?: number };
+  /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
    * address); `fetch`, `resolve`, `exchange` and `timeoutMs` replace the network in tests;
@@ -299,7 +308,9 @@ export function createApp(deps: AppDeps) {
     c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
   app.use('/api/auth/*', bodyLimit({ maxSize: PUBLIC_BODY_LIMIT, onError: tooLarge }));
   app.use('/api/invitations/*', bodyLimit({ maxSize: PUBLIC_BODY_LIMIT, onError: tooLarge }));
-  app.use('/api/*', bodyLimit({ maxSize: BODY_LIMIT, onError: tooLarge }));
+  // The analytics import takes a report file as the request body: its routes have their own limit (10 MiB), everything else keeps 1 MiB.
+  const apiLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: tooLarge });
+  app.use('/api/*', (c, next) => (analyticsImportPath.test(c.req.path) ? next() : apiLimit(c, next)));
 
   app.use('/api/*', sameOrigin(deps.trustedOrigins));
 
@@ -420,6 +431,20 @@ export function createApp(deps: AppDeps) {
       limits: asoLimits,
       ...(deps.aso?.maxRunMs !== undefined ? { maxRunMs: deps.aso.maxRunMs } : {}),
       limiter: deps.aso?.limiter ?? createTestLimiter({ now: services.now }),
+    }),
+  );
+  // Analytics: daily metrics from the stores. Reading what is stored is open to every role; syncing, importing and enabling Apple
+  // analytics need analytics.manage. A workspace must turn on analytics.enabled before anything is requested from a store.
+  app.route(
+    '/api/workspaces',
+    analyticsRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      connectors: deps.analytics?.connectors ?? defaultAnalyticsConnectors,
+      timeoutMs: deps.analytics?.timeoutMs ?? DEFAULT_ANALYTICS_TIMEOUT_MS,
+      limiter: deps.analytics?.limiter ?? createTestLimiter({ now: services.now }),
+      intervalMinutes: deps.analytics?.intervalMinutes ?? 0,
     }),
   );
   // Customer reviews: an inbox with internal triage. Replying (a store write) is off unless MRM_REVIEW_REPLY_ENABLED.

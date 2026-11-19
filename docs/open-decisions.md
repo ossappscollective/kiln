@@ -307,6 +307,12 @@ the raw state). A phased release currently shows as `live` because it is not rea
   `MRM_AI_ALLOW_PRIVATE_URLS` may ever be on for a shared server; the 90 day suggestion retention; whether viewers should see AI suggestions (they cannot today).
 - **Check with a real account:** [ADR 0016](adr/0016-ai-foundation.md#not-verified-unverified) (every provider request shape, structured output support per model, token counts).
 
+### Analytics ([ADR 0017](adr/0017-analytics-foundation.md))
+
+- **Today:** a foundation, off by default (workspace setting `analytics.enabled`). Daily facts from Apple (analytics reports through an explicit, role gated, two step "enable" or an imported file; Sales and Trends with the vendor number) and Google Play (Reporting API vitals; monthly CSVs from a bucket), one table, every series with its source, delay and coverage. Scheduled sync every 6 hours (`MRM_ANALYTICS_INTERVAL_MINUTES`). Server only: no screens yet. Nothing was run against a real store.
+- **Decide:** whether `analytics.manage` (sync, enable, import) stays admin and owner only; whether the 6 hour default is right; keeping daily facts for ever or adding a retention setting; whether the web offers the Apple one-time history snapshot (`backfill`) by default (one per 30 days, a second one after a month is not supported yet); a bucket id per app (stored, no route yet) or per workspace only; whether the import should also need `analytics.enabled` (it does not today).
+- **Check with a real account:** [api/analytics](api/analytics.md#not-verified-unverified) and [the study](research/analytics-apis.md): the Apple report segment format and the Sales key's role, the Google Reporting API fields and units, Play Console permissions and the bucket, and what Google still exports after the 2026 store listing change.
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

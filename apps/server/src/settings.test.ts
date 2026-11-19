@@ -28,11 +28,14 @@ dbTest('settings: defaults, who may read and write, 404 for outsiders', async (d
     'release.stalledRepeatHours': 24,
     'reviews.unansweredReminderHours': 0,
     'reviews.unansweredMaxRating': 5,
+    'analytics.enabled': false,
+    'analytics.appleVendorNumber': '',
+    'analytics.playBucketId': '',
   });
   assert.deepEqual(read.body.defaults, read.body.values);
   assert.deepEqual(read.body.overridden, []);
   assert.deepEqual(read.body.writable, []);
-  assert.equal((await t.call(admin, 'GET', '/settings')).body.writable.length, 12);
+  assert.equal((await t.call(admin, 'GET', '/settings')).body.writable.length, 15);
   assert.equal(read.body.translation.credentialConfigured, false);
   assert.equal(read.body.translation.credential, undefined, 'a member does not see which credential');
 

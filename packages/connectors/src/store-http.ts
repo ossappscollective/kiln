@@ -44,6 +44,29 @@ export type StoreRequest = {
   raw?: { body: Uint8Array; contentType: string };
 };
 
+/**
+ * A request whose answer is read as BYTES (a gzip file, a CSV export), with a hard size cap. Used for pre-signed download links
+ * (Apple analytics segments) and Cloud Storage objects. `headers` are sent as given: for a pre-signed link send none, so no
+ * bearer token goes to the storage host.
+ */
+export type BytesRequest = {
+  headers?: Record<string, string>;
+  /** The most bytes read from a success answer. More is `StoreError` kind `too_large`; nothing beyond the cap is kept. */
+  maxBytes: number;
+  /** The `accept` header. Default: any type. */
+  accept?: string;
+};
+
+export type BytesReply = {
+  status: number;
+  headers: Headers;
+  /** The body. For a status outside 2xx at most 64 KiB, enough to read an error document. */
+  bytes: Uint8Array;
+};
+
+/** The most of an error answer that is read in bytes mode. */
+export const MAX_ERROR_BYTES = 64 * 1024;
+
 export type Json = Record<string, unknown>;
 export const isRecord = (v: unknown): v is Json =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -118,6 +141,99 @@ export class StoreHttp {
         throw new StoreRateLimitError(this.store, wait);
       }
       await this.#sleep(wait * 1000);
+    }
+  }
+
+  /**
+   * Like `send`, but the body is returned as bytes and never parsed. A 429 is waited out like in `send`. The URL (and its query,
+   * which is the secret of a pre-signed link) is added to `known` so no message can carry it. A body over `maxBytes`, by
+   * `Content-Length` or by counting while reading, is a `StoreError` of kind `too_large`; the rest is never read into memory.
+   */
+  async sendBytes(method: string, url: string, request: BytesRequest): Promise<BytesReply> {
+    this.known.add(url);
+    try {
+      const search = new URL(url).search;
+      if (search.length >= 8) this.known.add(search);
+    } catch {
+      // Not a URL: fetch fails below with a plain message.
+    }
+    for (let attempt = 0; ; attempt++) {
+      const reply = await this.#bytesOnce(method, url, request);
+      if (reply.status !== 429) return reply;
+      const wait = parseRetryAfter(reply.headers.get('retry-after'), this.now()) ?? 60;
+      if (attempt >= this.#retries || wait > this.#maxWait) {
+        throw new StoreRateLimitError(this.store, wait);
+      }
+      await this.#sleep(wait * 1000);
+    }
+  }
+
+  async #bytesOnce(method: string, url: string, request: BytesRequest): Promise<BytesReply> {
+    const response = await this.#fetchOnce(method, url, {
+      accept: request.accept ?? '*/*',
+      'user-agent': this.#userAgent,
+      ...request.headers,
+    });
+    const ok = response.status >= 200 && response.status < 300;
+    const cap = ok ? request.maxBytes : MAX_ERROR_BYTES;
+    const declared = Number(response.headers.get('content-length'));
+    if (ok && Number.isFinite(declared) && declared > cap) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new StoreError(this.store, 'too_large', `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`, response.status);
+    }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      const reader = response.body?.getReader();
+      if (reader) {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.byteLength;
+          if (total > cap) {
+            await reader.cancel().catch(() => undefined);
+            if (ok) {
+              throw new StoreError(this.store, 'too_large', `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`, response.status);
+            }
+            // An error document longer than the cap: keep what fits.
+            chunks.push(value.subarray(0, value.byteLength - (total - cap)));
+            break;
+          }
+          chunks.push(value);
+        }
+      }
+    } catch (error) {
+      if (error instanceof StoreError) throw error;
+      throw new StoreError(
+        this.store,
+        'network',
+        `The connection to ${hostOf(url)} was cut off while reading the response.`,
+        response.status,
+      );
+    }
+    const bytes = new Uint8Array(Math.min(total, cap));
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { status: response.status, headers: response.headers, bytes };
+  }
+
+  /** One `fetch` with the timeout and the same plain error messages as `send`. */
+  async #fetchOnce(method: string, url: string, headers: Record<string, string>): Promise<Response> {
+    try {
+      return await this.#fetch(url, { method, headers, signal: AbortSignal.timeout(this.#timeoutMs) });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      const timedOut = name === 'TimeoutError' || name === 'AbortError';
+      throw new StoreError(
+        this.store,
+        'network',
+        timedOut
+          ? `The request to ${hostOf(url)} timed out after ${Math.round(this.#timeoutMs / 1000)} seconds.`
+          : `Could not reach ${hostOf(url)}. Check the network connection of the server.`,
+      );
     }
   }
 

@@ -39,3 +39,8 @@ export * from './release-types.ts';
 export * from './release-eligibility.ts';
 export * from './play-release.ts';
 export * from './appstore-release.ts';
+export * from './analytics-types.ts';
+export * from './delimited.ts';
+export * from './apple-analytics-parse.ts';
+export * from './apple-analytics.ts';
+export * from './play-analytics.ts';

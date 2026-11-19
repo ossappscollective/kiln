@@ -7,6 +7,8 @@ import { loadConfig } from './config.ts';
 import { createWorker } from './jobs.ts';
 import { createEventStreamHub } from './routes/events.ts';
 import { createScheduler, releaseWatchIntervalMs, reminderIntervalMs, syncIntervalMs } from './scheduler.ts';
+import { analyticsIntervalMs } from './services/analytics-schedule.ts';
+import { ANALYTICS_SYNC_QUEUE, DEFAULT_ANALYTICS_TIMEOUT_MS, createAnalyticsSyncHandler, defaultAnalyticsConnectors } from './services/analytics-sync.ts';
 import { ASO_REFRESH_QUEUE, type AsoLimits, createAsoRefreshHandler } from './services/aso.ts';
 import { createAsoSources } from './services/aso-net.ts';
 import { asoIntervalMs } from './services/aso-schedule.ts';
@@ -146,6 +148,7 @@ const app = createApp({
   listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
   reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays, reply: { enabled: config.reviewReplyEnabled } },
   aso: { sources: asoSources, limits: asoLimits },
+  analytics: { intervalMinutes: config.analyticsIntervalMinutes },
   rollout: { enabled: config.storeRolloutEnabled },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
@@ -202,6 +205,14 @@ const worker = createWorker({
     }),
     // Scheduled and background ASO refreshes (public store data only; docs/api/aso.md).
     [ASO_REFRESH_QUEUE]: createAsoRefreshHandler({ db: database, now: Date.now, sources: asoSources, limits: asoLimits }),
+    // Scheduled and background analytics syncs (read-only toward the stores; docs/api/analytics.md).
+    [ANALYTICS_SYNC_QUEUE]: createAnalyticsSyncHandler({
+      db: database,
+      masterKey: config.masterKey,
+      now: Date.now,
+      connectors: defaultAnalyticsConnectors,
+      timeoutMs: DEFAULT_ANALYTICS_TIMEOUT_MS,
+    }),
     [WEBHOOK_QUEUE]: createWebhookHandler({
       db: database,
       masterKey: config.masterKey,
@@ -231,6 +242,7 @@ const scheduler = createScheduler({
   listingIntervalMs: listingIntervalMs(config.listingIntervalMinutes),
   reviewSyncIntervalMs: reviewSyncIntervalMs(config.reviewSyncIntervalMinutes),
   reviewRetentionDays: config.reviewRetentionDays,
+  analyticsIntervalMs: analyticsIntervalMs(config.analyticsIntervalMinutes),
   asoIntervalMs: asoLimits.intervalMs,
   asoPlayEnabled: config.asoPlayUnofficialEnabled,
   asoRetentionDays: config.asoRetentionDays,
@@ -254,6 +266,9 @@ if (config.worker === 'inline') {
   }
   if (config.reviewSyncIntervalMinutes > 0) {
     console.log(`Scheduled review reads every ${config.reviewSyncIntervalMinutes} minutes (read-only; reviews kept ${config.reviewRetentionDays === 0 ? 'forever' : `${config.reviewRetentionDays} days`})`);
+  }
+  if (config.analyticsIntervalMinutes > 0) {
+    console.log(`Scheduled analytics syncs every ${config.analyticsIntervalMinutes} minutes (read-only; only for workspaces that turn on the setting analytics.enabled)`);
   }
   if (config.asoIntervalMinutes > 0) {
     console.log(`Scheduled ASO refreshes every ${config.asoIntervalMinutes} minutes (public store data, read-only; kept ${config.asoRetentionDays === 0 ? 'forever' : `${config.asoRetentionDays} days`})`);

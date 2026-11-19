@@ -9,7 +9,9 @@ import {
   can,
   isTranslationMode,
   isTranslationProvider,
+  normalizeBucketId,
   normalizeLanguageTag,
+  normalizeVendorNumber,
   translationModes,
   translationProviders,
 } from '@mrm/core';
@@ -156,6 +158,34 @@ export const settingDefinitions = {
         ...(ctx.resolve ? { resolve: ctx.resolve } : {}),
       });
       return resolved.ok ? undefined : resolved.message;
+    },
+  } satisfies Definition<string>,
+  'analytics.enabled': {
+    doc: 'Turns analytics on (docs/api/analytics.md): scheduled and manual syncs of store analytics (Apple Analytics Reports, Sales and Trends, Google Play vitals and reports) and the explicit "enable analytics" action. While off, nothing is requested from a store; reading what is stored and importing a report file still work.',
+    default: false,
+    writeAction: 'analytics.manage',
+    parse: (raw: unknown): Parsed<boolean> => (typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.')),
+  } satisfies Definition<boolean>,
+  'analytics.appleVendorNumber': {
+    doc: 'Your Apple vendor number (digits, shown in App Store Connect under Payments and Financial Reports). Optional: with it the daily Sales and Trends summary (units and proceeds per currency) is read. Empty means no Sales and Trends.',
+    default: '',
+    writeAction: 'analytics.manage',
+    parse: (raw: unknown): Parsed<string> => {
+      if (typeof raw !== 'string') return bad('Use the vendor number as text.');
+      if (raw.trim() === '') return ok('');
+      const value = normalizeVendorNumber(raw);
+      return value ? ok(value) : bad('A vendor number is 5 to 12 digits.');
+    },
+  } satisfies Definition<string>,
+  'analytics.playBucketId': {
+    doc: 'The Cloud Storage bucket of your Google Play reports (shown in Play Console under Download reports, like pubsite_prod_rev_01234567890123456789). Optional: with it the monthly installs, ratings and store performance files are read. Empty means none. The service account needs the Cloud Storage read-only scope and access to the bucket.',
+    default: '',
+    writeAction: 'analytics.manage',
+    parse: (raw: unknown): Parsed<string> => {
+      if (typeof raw !== 'string') return bad('Use the bucket id as text.');
+      if (raw.trim() === '') return ok('');
+      const value = normalizeBucketId(raw);
+      return value ? ok(value) : bad('Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).');
     },
   } satisfies Definition<string>,
 };

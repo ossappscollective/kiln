@@ -537,6 +537,17 @@ otherwise 60 to 10080). The scheduler only queues `aso.refresh` jobs, a few per 
   lookup (https, a fixed host list, public addresses only, size cap, timeout).
 - **Nothing here was run against the real services** (see the UNVERIFIED lists in [ADR 0011](adr/0011-aso-keywords-competitors.md#unverified)): start with a few keywords and a long interval.
 
+## Analytics (off by default)
+
+Analytics ([api/analytics](api/analytics.md), [ADR 0017](adr/0017-analytics-foundation.md)) reads daily numbers of your apps from App Store Connect (analytics reports, sales) and Google Play (vitals, monthly reports) into the database. A workspace admin turns it on with the setting `analytics.enabled` (default `false`); until then nothing is requested from a store. Reading stored numbers and importing an Apple report file always work.
+
+- `MRM_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` turns the scheduled job off; otherwise 15 to 10080): how often the scheduler queues one sync per app that has something to read. Syncs are spaced out and bounded; a manual sync is `POST .../analytics/sync`.
+- **Upgrade:** migration 31 adds six tables (`analytics_*`). Nothing changes until the setting is on.
+- **What is stored:** daily facts per app (counts, rates, proceeds per currency, an optional territory, source type, app version or currency). No user, device or review data. Daily facts are **kept for ever** (Apple deletes its report instances after 35 days, so this copy is the history) and are deleted with the app. Run records are pruned after 90 days and instance bookkeeping after 120.
+- **Download links:** Apple's report links last about five minutes. They are fetched at once without the API token, and never logged, stored or returned.
+- **Import size:** an uploaded Apple report may be 10 MiB (64 MiB unpacked); the usual 1 MiB request limit is lifted for the two import routes only.
+- **Not verified:** nothing was run against Apple or Google. See [the study](research/analytics-apis.md) and [api/analytics](api/analytics.md#not-verified-unverified).
+
 ## Tokens, event streams and webhooks
 
 - **API tokens** work with a `Authorization: Bearer` header and are rate limited per token (300 a

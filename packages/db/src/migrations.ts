@@ -1462,4 +1462,113 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 31,
+    name: 'Analytics: daily metrics, sync runs, Apple report requests and instances, per-app config, per-source state',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // docs/adr/0017-analytics-foundation.md. analytics_daily is the ONE normalised store the query API reads: a fact is
+      // (app, platform, source, metric, day, dimension) -> value_micro (the value times 1,000,000 as an integer, so a sum is
+      // exact and a ratio keeps six decimals). A total has dim_type = '' and dim_value = '' (a primary key cannot hold NULL on
+      // every engine). `processing_date` is the day the store produced the number: a later processing date replaces an earlier one
+      // for the same key (Apple restates days), an older one never does. `origin` is sync or import. Only numbers live here:
+      // no report row, no URL, no store text.
+      // analytics_sync_runs: one row per sync of one app and source (manual, scheduled, enable or import); counts and a fixed
+      // error code only. analytics_report_requests: the Apple report request an explicit "enable analytics" created (or found).
+      // analytics_instances: the Apple report instances already read, so a sync reads each processed instance once.
+      // analytics_app_config: per-app switches (the Apple mode and an optional bucket override). analytics_source_state: the
+      // last result per app, platform and source, which the status endpoint reads and the setup code is derived from.
+      return [
+        `CREATE TABLE IF NOT EXISTS analytics_daily (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           source TEXT NOT NULL,
+           metric TEXT NOT NULL,
+           day TEXT NOT NULL,
+           dim_type TEXT NOT NULL DEFAULT '',
+           dim_value TEXT NOT NULL DEFAULT '',
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           value_micro ${t} NOT NULL,
+           processing_date TEXT NOT NULL DEFAULT '',
+           origin TEXT NOT NULL DEFAULT 'sync',
+           updated_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform, source, metric, day, dim_type, dim_value)
+         )`,
+        'CREATE INDEX IF NOT EXISTS analytics_daily_workspace_idx ON analytics_daily (workspace_id, app_id, day)',
+        'CREATE INDEX IF NOT EXISTS analytics_daily_day_idx ON analytics_daily (day)',
+        `CREATE TABLE IF NOT EXISTS analytics_sync_runs (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           source TEXT NOT NULL,
+           trigger_kind TEXT NOT NULL,
+           status TEXT NOT NULL,
+           error_code TEXT,
+           points_written INTEGER NOT NULL DEFAULT 0,
+           reports_read INTEGER NOT NULL DEFAULT 0,
+           day_from TEXT,
+           day_to TEXT,
+           started_by TEXT,
+           started_at ${t} NOT NULL,
+           finished_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS analytics_sync_runs_app_idx ON analytics_sync_runs (workspace_id, app_id, started_at)',
+        'CREATE INDEX IF NOT EXISTS analytics_sync_runs_started_idx ON analytics_sync_runs (started_at)',
+        `CREATE TABLE IF NOT EXISTS analytics_report_requests (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           apple_request_id TEXT NOT NULL,
+           access_type TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'active',
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           last_checked_at ${t},
+           last_error_code TEXT
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS analytics_report_requests_app_idx ON analytics_report_requests (app_id, access_type)',
+        'CREATE INDEX IF NOT EXISTS analytics_report_requests_workspace_idx ON analytics_report_requests (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS analytics_instances (
+           app_id TEXT NOT NULL,
+           apple_instance_id TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           apple_report_id TEXT NOT NULL,
+           report_kind TEXT NOT NULL,
+           processing_date TEXT NOT NULL DEFAULT '',
+           status TEXT NOT NULL,
+           error_code TEXT,
+           segments INTEGER NOT NULL DEFAULT 0,
+           points INTEGER NOT NULL DEFAULT 0,
+           read_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, apple_instance_id)
+         )`,
+        'CREATE INDEX IF NOT EXISTS analytics_instances_workspace_idx ON analytics_instances (workspace_id, app_id, read_at)',
+        `CREATE TABLE IF NOT EXISTS analytics_app_config (
+           app_id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           apple_mode TEXT NOT NULL DEFAULT 'off',
+           play_bucket_id TEXT,
+           updated_by TEXT NOT NULL,
+           updated_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS analytics_app_config_workspace_idx ON analytics_app_config (workspace_id)',
+        `CREATE TABLE IF NOT EXISTS analytics_source_state (
+           app_id TEXT NOT NULL,
+           platform TEXT NOT NULL,
+           source TEXT NOT NULL,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           setup_code TEXT,
+           last_attempt_at ${t},
+           last_ok_at ${t},
+           last_error_code TEXT,
+           oldest_day TEXT,
+           newest_day TEXT,
+           updated_at ${t} NOT NULL,
+           PRIMARY KEY (app_id, platform, source)
+         )`,
+        'CREATE INDEX IF NOT EXISTS analytics_source_state_workspace_idx ON analytics_source_state (workspace_id)',
+      ];
+    },
+  },
 ];

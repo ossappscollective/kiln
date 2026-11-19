@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../routes/aso.ts';
 import { aiOperations } from './api-operations-ai.ts';
+import { analyticsOperations } from './api-operations-analytics.ts';
 import { eventTypes } from './event-types.ts';
 import type { Operation } from './openapi.ts';
 import { createTokenBody } from './tokens.ts';
@@ -1553,6 +1554,7 @@ const drafts: Draft[] = [
   { id: 'publishStoreBatch', method: 'post', path: `${W}/apps/{id}/publish`, tags: ['pending'], summary: 'PUBLISH several steps at once with one confirmation (can be irreversible)', description: 'A STORE WRITE, possibly several that cannot be taken back. Needs `store.publish` AND, for every step in `steps`, that step’s right (`store.push_draft`, `store.submit`, `store.release`, `releases.rollout`): an owner or admin, or a token whose actions name the batch and every step (`403 forbidden`, listing the missing steps). Needs `MRM_STORE_PUBLISH_BATCH_ENABLED=true` (`409 publish_batch_disabled`) and each step’s own switch (`409 step_disabled`). `phrase` must be the `confirmation.phrase` of the plan when a step is irreversible (`422 confirmation_mismatch`, nothing read or written). The plan is rebuilt and must have the `planHash` previewed (`409 plan_changed`, with the new `plan`; `409 plan_blocked` when a step is no longer available). The steps then run IN ORDER through their own services, each with its own claim, its own re-read of the store and its own refusal on drift (`state_changed` is a failed step, not a retry). The batch STOPS at the first step that is not applied: the rest are `skipped` (`previous_step_not_applied`). Nothing is ever retried; an unknown outcome is read back by the step and reported (`outcome: unknown`: look at the store). A deferred step that no longer matches its promise is skipped as `plan_drifted`. One publish per app at a time (`409 publish_in_progress`). The answer is `200` with the result of every step even when a step failed: look at `completed`, `stoppedAt` and `steps`. Audited as `pending.published` (ids, hashes, per step outcomes; never a text or a credential) and emitted as the event `pending.published` when something was applied.', risk: 'destructive', access: { action: 'store.publish' }, appScope: { kind: 'param', name: 'id' }, body: publishApplyBody, responses: { '200': { description: 'What happened to every step.', schema: z.object({ result: publishResultSchema }) } } },
   // ----- AI assistance: suggestions only; accepting goes through existing services (own file) ----
   ...aiOperations,
+  ...analyticsOperations,
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

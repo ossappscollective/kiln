@@ -177,7 +177,9 @@ export type StoreErrorKind =
   /** Play: the commit with `changesNotSentForReview` was refused, so a draft cannot be kept apart from a review. */
   | 'draft_not_allowed'
   /** The store has no API for this. */
-  | 'unsupported';
+  | 'unsupported'
+  /** A download is larger than the cap the caller set (analytics files). */
+  | 'too_large';
 
 /**
  * One entry of a store's own error body, kept so a failure names what the store objected to. For

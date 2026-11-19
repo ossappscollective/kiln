@@ -24,6 +24,10 @@ export type ServiceAccount = {
 
 export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 export const ANDROID_PUBLISHER_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
+/** Play Developer Reporting API (Android vitals). Confirmed on the `query` and `anomalies.list` reference pages. */
+export const PLAY_DEVELOPER_REPORTING_SCOPE = 'https://www.googleapis.com/auth/playdeveloperreporting';
+/** Cloud Storage, read only: the monthly Play Console CSV reports. Google names it for programmatic access to those reports. */
+export const DEVSTORAGE_READ_ONLY_SCOPE = 'https://www.googleapis.com/auth/devstorage.read_only';
 const REFRESH_MARGIN_MS = 60_000;
 
 /** Reads the service account JSON key file. Throws a `StoreError` of kind `invalid_input`. */
@@ -94,6 +98,7 @@ export function googleTokenError(
   json: unknown,
   headers: Headers,
   nowMs: number,
+  scope: string = ANDROID_PUBLISHER_SCOPE,
 ): StoreError {
   const body = isRecord(json) ? json : {};
   const code = text(body.error) ?? '';
@@ -142,7 +147,7 @@ export function googleTokenError(
     return new StoreError(
       'googleplay',
       'auth',
-      `Google refused the androidpublisher scope for this service account (${code}).`,
+      `Google refused the ${scope.slice(scope.lastIndexOf('/') + 1)} scope for this service account (${code}).`,
       status,
     );
   }
@@ -164,16 +169,22 @@ export function googleTokenError(
   );
 }
 
-/** Mints and caches access tokens for one service account, renewed a minute before expiry. */
+/**
+ * Mints and caches access tokens for one service account and ONE scope, renewed a minute before expiry. The scope defaults to
+ * `androidpublisher`, so every existing caller is unchanged; analytics builds one provider per scope from the same key
+ * (`PLAY_DEVELOPER_REPORTING_SCOPE`, `DEVSTORAGE_READ_ONLY_SCOPE`), so a token for one API is never sent to another.
+ */
 export class GoogleTokenProvider {
   readonly account: ServiceAccount;
+  readonly scope: string;
   readonly #key: KeyObject;
   readonly #http: StoreHttp;
   #cached?: { token: string; expiresAt: number };
   #pending?: Promise<string>;
 
-  constructor(account: ServiceAccount, http: StoreHttp) {
+  constructor(account: ServiceAccount, http: StoreHttp, scope: string = ANDROID_PUBLISHER_SCOPE) {
     this.account = account;
+    this.scope = scope;
     this.#http = http;
     this.#key = loadGoogleSigningKey(account.privateKey);
     http.known.add(account.privateKey);
@@ -199,7 +210,7 @@ export class GoogleTokenProvider {
   }
 
   async #mint(): Promise<string> {
-    const assertion = signGoogleAssertion(this.#key, this.account, this.#http.now());
+    const assertion = signGoogleAssertion(this.#key, this.account, this.#http.now(), this.scope);
     this.#http.known.add(assertion);
     const reply = await this.#http.send('POST', GOOGLE_TOKEN_ENDPOINT, {
       form: {
@@ -208,7 +219,7 @@ export class GoogleTokenProvider {
       },
     });
     if (reply.status !== 200) {
-      throw googleTokenError(reply.status, reply.json, reply.headers, this.#http.now());
+      throw googleTokenError(reply.status, reply.json, reply.headers, this.#http.now(), this.scope);
     }
     const body = isRecord(reply.json) ? reply.json : {};
     const token = text(body.access_token);

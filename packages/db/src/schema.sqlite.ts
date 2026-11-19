@@ -1467,3 +1467,155 @@ export const aiSuggestions = sqliteTable(
     index('ai_suggestions_created_idx').on(t.createdAt),
   ],
 );
+
+/** The normalised daily metrics every analytics source writes (docs/adr/0017-analytics-foundation.md). Migration 31. */
+export const analyticsDaily = sqliteTable(
+  'analytics_daily',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    source: text('source').notNull(),
+    metric: text('metric').notNull(),
+    /** YYYY-MM-DD. */
+    day: text('day').notNull(),
+    /** Empty for a total. */
+    dimType: text('dim_type').notNull().default(''),
+    dimValue: text('dim_value').notNull().default(''),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** The value times 1,000,000 as an integer. */
+    valueMicro: integer('value_micro').notNull(),
+    /** The day the store produced the number; a later one replaces an earlier one. */
+    processingDate: text('processing_date').notNull().default(''),
+    /** sync or import. */
+    origin: text('origin').notNull().default('sync'),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform, t.source, t.metric, t.day, t.dimType, t.dimValue] }),
+    index('analytics_daily_workspace_idx').on(t.workspaceId, t.appId, t.day),
+    index('analytics_daily_day_idx').on(t.day),
+  ],
+);
+
+/** One row per sync of one app and source: counts and a fixed error code, nothing else. Migration 31. */
+export const analyticsSyncRuns = sqliteTable(
+  'analytics_sync_runs',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    source: text('source').notNull(),
+    /** schedule, manual, enable or import. */
+    triggerKind: text('trigger_kind').notNull(),
+    /** running, ok, partial or failed. */
+    status: text('status').notNull(),
+    errorCode: text('error_code'),
+    pointsWritten: integer('points_written').notNull().default(0),
+    reportsRead: integer('reports_read').notNull().default(0),
+    dayFrom: text('day_from'),
+    dayTo: text('day_to'),
+    startedBy: text('started_by'),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+  },
+  (t) => [
+    index('analytics_sync_runs_app_idx').on(t.workspaceId, t.appId, t.startedAt),
+    index('analytics_sync_runs_started_idx').on(t.startedAt),
+  ],
+);
+
+/** The Apple analytics report request an explicit "enable analytics" created or found. Migration 31. */
+export const analyticsReportRequests = sqliteTable(
+  'analytics_report_requests',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    appleRequestId: text('apple_request_id').notNull(),
+    accessType: text('access_type').notNull(),
+    /** active or stopped. */
+    status: text('status').notNull().default('active'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    lastCheckedAt: integer('last_checked_at'),
+    lastErrorCode: text('last_error_code'),
+  },
+  (t) => [
+    uniqueIndex('analytics_report_requests_app_idx').on(t.appId, t.accessType),
+    index('analytics_report_requests_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** The Apple report instances already read, so a sync reads each processed instance once. Migration 31. */
+export const analyticsInstances = sqliteTable(
+  'analytics_instances',
+  {
+    appId: text('app_id').notNull(),
+    appleInstanceId: text('apple_instance_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appleReportId: text('apple_report_id').notNull(),
+    reportKind: text('report_kind').notNull(),
+    processingDate: text('processing_date').notNull().default(''),
+    /** read or failed. */
+    status: text('status').notNull(),
+    errorCode: text('error_code'),
+    segments: integer('segments').notNull().default(0),
+    points: integer('points').notNull().default(0),
+    readAt: integer('read_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.appleInstanceId] }),
+    index('analytics_instances_workspace_idx').on(t.workspaceId, t.appId, t.readAt),
+  ],
+);
+
+/** Per-app analytics switches. Migration 31. */
+export const analyticsAppConfig = sqliteTable(
+  'analytics_app_config',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** off, ongoing or import. */
+    appleMode: text('apple_mode').notNull().default('off'),
+    /** An optional bucket id that overrides the workspace setting. */
+    playBucketId: text('play_bucket_id'),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('analytics_app_config_workspace_idx').on(t.workspaceId)],
+);
+
+/** The last result per app, platform and source; the status endpoint reads it. Migration 31. */
+export const analyticsSourceState = sqliteTable(
+  'analytics_source_state',
+  {
+    appId: text('app_id').notNull(),
+    platform: text('platform').notNull(),
+    source: text('source').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    setupCode: text('setup_code'),
+    lastAttemptAt: integer('last_attempt_at'),
+    lastOkAt: integer('last_ok_at'),
+    lastErrorCode: text('last_error_code'),
+    oldestDay: text('oldest_day'),
+    newestDay: text('newest_day'),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.appId, t.platform, t.source] }),
+    index('analytics_source_state_workspace_idx').on(t.workspaceId),
+  ],
+);

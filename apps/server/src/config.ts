@@ -171,6 +171,17 @@ const schema = z.object({
       .refine((v) => v === 0 || (v >= 60 && v <= 10_080), 'must be 0 (off) or from 60 to 10080')
       .default(0),
   ),
+  // Analytics (docs/adr/0017-analytics-foundation.md, docs/api/analytics.md): minutes between scheduled reads of the daily metrics
+  // of every app from its stores (Apple Analytics Reports and Sales and Trends, Google Play vitals and reports). 0 turns them off,
+  // otherwise 15 to 10080; the default is 360 (six hours). A workspace must ALSO turn on its setting analytics.enabled (default
+  // false), so this value alone never contacts a store. A person with the right can always sync an app by hand.
+  MRM_ANALYTICS_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 15 && v <= 10_080), 'must be 0 (off) or from 15 to 10080')
+      .default(360),
+  ),
   // Days a stored rank check and competitor snapshot is kept; 0 keeps them for ever.
   MRM_ASO_RETENTION_DAYS: blankIsUnset(
     z.coerce
@@ -517,6 +528,8 @@ export type Config = {
   reviewSyncIntervalMinutes: number;
   /** Days a stored review is kept; 0 keeps them (MRM_REVIEW_RETENTION_DAYS). */
   reviewRetentionDays: number;
+  /** Minutes between scheduled analytics syncs of every app; 0 is off (MRM_ANALYTICS_INTERVAL_MINUTES, default 360). */
+  analyticsIntervalMinutes: number;
   /** Minutes between scheduled ASO refreshes of every app; 0 is off (MRM_ASO_INTERVAL_MINUTES). */
   asoIntervalMinutes: number;
   /** Days a stored rank check or competitor snapshot is kept; 0 keeps them (MRM_ASO_RETENTION_DAYS). */
@@ -608,6 +621,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
     reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
     reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
+    analyticsIntervalMinutes: data.MRM_ANALYTICS_INTERVAL_MINUTES,
     asoIntervalMinutes: data.MRM_ASO_INTERVAL_MINUTES,
     asoRetentionDays: data.MRM_ASO_RETENTION_DAYS,
     asoPlayUnofficialEnabled: data.MRM_ASO_PLAY_UNOFFICIAL_ENABLED === 'true',

@@ -32,6 +32,7 @@ export const eventTypes = [
   'ci.run_finished',
   'assets.pulled',
   'ai.suggestion_created',
+  'analytics.synced',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -70,4 +71,6 @@ export const eventReadAction: Record<EventType, Action> = {
   'assets.pulled': 'listing.read',
   // Who may run AI tasks may see that a suggestion exists (ids only; the suggestion itself needs the same right).
   'ai.suggestion_created': 'ai.use',
+  // New analytics numbers were stored for an app (ids and counts only).
+  'analytics.synced': 'analytics.read',
 };

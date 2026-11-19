@@ -1,6 +1,8 @@
 import type { Database } from '@mrm/db';
 import { enqueue } from './jobs.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';
+import { type AnalyticsQueueSummary, queueAnalyticsSyncs } from './services/analytics-schedule.ts';
+import { type AnalyticsUpkeepSummary, analyticsUpkeep } from './services/analytics-store.ts';
 import { type AsoQueueSummary, type AsoUpkeepSummary, asoUpkeep, queueAsoRefreshes } from './services/aso-schedule.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './services/ci.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
@@ -112,6 +114,13 @@ export type SchedulerOptions = {
   asoIntervalMs?: number;
   asoPlayEnabled?: boolean;
   aso?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  /**
+   * Milliseconds between scheduled analytics syncs of one app (MRM_ANALYTICS_INTERVAL_MINUTES, default 360). 0 or absent turns them
+   * off. They queue `analytics.sync` jobs (services/analytics-schedule.ts), bounded and spaced by `analytics`, sharing `limiter`. A
+   * workspace must also have turned on its setting `analytics.enabled`. The daily facts are never pruned; old run rows are, hourly.
+   */
+  analyticsIntervalMs?: number;
+  analytics?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
   /** MRM_ASO_RETENTION_DAYS: rank checks and competitor snapshots older than this are deleted (at most once an hour). 0 keeps them. Absent: no pruning. */
   asoRetentionDays?: number;
   /** Runs started longer ago than this are no longer polled. Default 3 hours. */
@@ -145,6 +154,10 @@ export type TickSummary = {
   aso?: AsoQueueSummary;
   /** What the ASO upkeep deleted; set only in a tick where it ran. */
   asoUpkeep?: AsoUpkeepSummary;
+  /** What the scheduled analytics syncs queued; absent when they are off. */
+  analytics?: AnalyticsQueueSummary;
+  /** What the analytics upkeep deleted; set only in a tick where it ran. */
+  analyticsUpkeep?: AnalyticsUpkeepSummary;
   /** What a clone sweep returned; set only in a tick where one ran. */
   cloneSweep?: unknown;
 };
@@ -208,6 +221,8 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   const asoInterval = options.asoIntervalMs ?? 0;
   let lastReviewUpkeepAt: number | undefined;
   let lastAsoUpkeepAt: number | undefined;
+  let lastAnalyticsUpkeepAt: number | undefined;
+  const analyticsInterval = options.analyticsIntervalMs ?? 0;
   /** When the reminders last ran in this process. Other instances have their own; the unique key keeps them apart. */
   let lastReminderAt: number | undefined;
 
@@ -388,6 +403,28 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         summary.asoUpkeep = await asoUpkeep(db, { now: at, retentionDays: options.asoRetentionDays });
       } catch (error) {
         report('ASO upkeep failed', error);
+      }
+    }
+    if (analyticsInterval > 0) {
+      // Analytics reads are optional work: a failure here must not stop syncs or polls.
+      try {
+        summary.analytics = await queueAnalyticsSyncs(db, {
+          now: at,
+          intervalMs: analyticsInterval,
+          ...(options.analytics ?? {}),
+          ...(options.jitter ? { jitter: options.jitter } : {}),
+          ...(options.limiter ? { limiter: options.limiter } : {}),
+        });
+      } catch (error) {
+        report('scheduled analytics syncs failed', error);
+      }
+      if (lastAnalyticsUpkeepAt === undefined || at - lastAnalyticsUpkeepAt >= 60 * MINUTE) {
+        lastAnalyticsUpkeepAt = at;
+        try {
+          summary.analyticsUpkeep = await analyticsUpkeep(db, { now: at });
+        } catch (error) {
+          report('analytics upkeep failed', error);
+        }
       }
     }
     const sweep = options.cloneSweep;

@@ -161,6 +161,19 @@ for the length of one request and never returned. Set a **spending limit with th
 The first credential of the provider's kind in the workspace is the one used. A key may be saved before AI is turned on; nothing is sent until the server switch
 (`MRM_AI_ENABLED`) and the workspace setting are both on. The connection test is `POST /ai/test` (AI settings), not the generic credential test.
 
+## Analytics (what the same credentials need)
+
+Analytics ([api/analytics](api/analytics.md)) reads numbers only. **None of this was tried against a real store; check each item with your account** ([research](research/analytics-apis.md)).
+
+- **App Store Connect, report requests:** the team API key needs a role that may create an analytics report request. Apple lists the **Admin** role for this. With a lower role the enable
+  action answers `analytics_role_required`; ask an Admin to create the request once, or export a report file in App Store Connect and import it ([api/analytics](api/analytics.md#import)).
+  Reading the reports after that may work with a lower role (not verified).
+- **App Store Connect, Sales and Trends:** the key needs a role that may read sales reports (Sales and Reports, Finance, Admin or App Manager are listed) and the **vendor number** (App Store Connect, Payments and Financial Reports), saved as the workspace setting `analytics.appleVendorNumber`.
+- **Google Play, vitals:** enable the **Google Play Developer Reporting API** in the Google Cloud project of the service account, and give the account the Play Console permission to view app quality and vitals data. The server asks for the extra scope `playdeveloperreporting` only for this.
+- **Google Play, monthly CSV reports:** the account also needs read access to the Cloud Storage bucket of your developer account's reports (Play Console, Download reports; the id looks like `pubsite_prod_rev_` and digits, saved as `analytics.playBucketId`). The server asks for the scope `devstorage.read_only`.
+
+Nothing is read until the workspace setting `analytics.enabled` is on.
+
 ## GitHub App (recommended for teams)
 
 1. In Settings, Developer settings, GitHub Apps, click New GitHub App. Give it a name and homepage

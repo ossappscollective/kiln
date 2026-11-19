@@ -1,0 +1,345 @@
+/**
+ * Analytics vocabulary shared by the server, the connectors and the web UI (docs/adr/0017-analytics-foundation.md,
+ * docs/api/analytics.md, docs/research/analytics-apis.md). Pure: no I/O. Kept to ES2017 library calls because the web imports it.
+ *
+ * Daily facts are stored per app, source, metric, date and an optional ONE dimension (`territory`, `source_type`,
+ * `app_version`, `currency`). A value is stored in micro units (an integer), so counts, rates and money share one column.
+ * Nothing here is a claim about a store that the research doc marks UNVERIFIED: those notes keep their mark in the text.
+ */
+
+export const analyticsSources = ['apple_analytics', 'apple_sales', 'play_vitals', 'play_reports'] as const;
+export type AnalyticsSource = (typeof analyticsSources)[number];
+export const isAnalyticsSource = (v: unknown): v is AnalyticsSource =>
+  typeof v === 'string' && (analyticsSources as readonly string[]).includes(v);
+
+export const analyticsDimensions = ['territory', 'source_type', 'app_version', 'currency'] as const;
+export type AnalyticsDimension = (typeof analyticsDimensions)[number];
+
+export const analyticsMetrics = [
+  // Apple, Analytics Reports API
+  'impressions',
+  'product_page_views',
+  'downloads_first_time',
+  'downloads_redownload',
+  'sessions',
+  'crashes',
+  // Apple, Sales and Trends
+  'sales_units',
+  'sales_proceeds',
+  // Google, Play Developer Reporting API
+  'crash_rate',
+  'anr_rate',
+  // Google, Cloud Storage reports
+  'installs_user',
+  'installs_device',
+  'uninstalls_device',
+  'active_installs_device',
+  'rating_average_daily',
+  'rating_average_total',
+  'store_listing_visitors',
+  'store_listing_acquisitions',
+] as const;
+export type AnalyticsMetric = (typeof analyticsMetrics)[number];
+export const isAnalyticsMetric = (v: unknown): v is AnalyticsMetric =>
+  typeof v === 'string' && (analyticsMetrics as readonly string[]).includes(v);
+
+export type MetricUnit = 'count' | 'ratio' | 'rating' | 'money';
+export type MetricAggregation = 'sum' | 'mean';
+
+export type MetricInfo = {
+  source: AnalyticsSource;
+  unit: MetricUnit;
+  /** How days combine into a week or a month. Counts add up, rates and ratings are averaged. */
+  aggregation: MetricAggregation;
+  /** Days after a date a store may still change that date's value (the study's "complete within", an upper bound). */
+  delayDays: number;
+  label: string;
+};
+
+export const metricInfo: Record<AnalyticsMetric, MetricInfo> = {
+  impressions: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 3, label: 'Impressions' },
+  product_page_views: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 3, label: 'Product page views' },
+  downloads_first_time: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 2, label: 'First-time downloads' },
+  downloads_redownload: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 2, label: 'Redownloads' },
+  sessions: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 5, label: 'Sessions' },
+  crashes: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 5, label: 'Crashes' },
+  sales_units: { source: 'apple_sales', unit: 'count', aggregation: 'sum', delayDays: 1, label: 'Units' },
+  sales_proceeds: { source: 'apple_sales', unit: 'money', aggregation: 'sum', delayDays: 1, label: 'Proceeds' },
+  crash_rate: { source: 'play_vitals', unit: 'ratio', aggregation: 'mean', delayDays: 2, label: 'Crash rate' },
+  anr_rate: { source: 'play_vitals', unit: 'ratio', aggregation: 'mean', delayDays: 2, label: 'ANR rate' },
+  installs_user: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'User installs' },
+  installs_device: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Device installs' },
+  uninstalls_device: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Device uninstalls' },
+  active_installs_device: { source: 'play_reports', unit: 'count', aggregation: 'mean', delayDays: 7, label: 'Active device installs' },
+  rating_average_daily: { source: 'play_reports', unit: 'rating', aggregation: 'mean', delayDays: 7, label: 'Average rating of the day' },
+  rating_average_total: { source: 'play_reports', unit: 'rating', aggregation: 'mean', delayDays: 7, label: 'Average rating, all time' },
+  store_listing_visitors: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Store listing visitors' },
+  store_listing_acquisitions: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Store listing acquisitions' },
+};
+
+/** Which source reads which metrics, in a stable order. */
+export const metricsOfSource = (source: AnalyticsSource): AnalyticsMetric[] =>
+  analyticsMetrics.filter((m) => metricInfo[m].source === source);
+
+/** Which sources can ever apply to an app of this platform. */
+export const sourcesForPlatform = (platform: 'ios' | 'macos' | 'android'): AnalyticsSource[] =>
+  platform === 'android' ? ['play_vitals', 'play_reports'] : ['apple_analytics', 'apple_sales'];
+
+// ---------------------------------------------------------------------------------------------
+// Fixed vocabularies: error codes, setup needs, next steps. A client switches on these, never on a message.
+
+/**
+ * Why a read or an import of analytics failed. A fixed vocabulary: the message next to it is for people.
+ * New codes may be added; a client treats an unknown one as a plain failure.
+ */
+export const analyticsErrorCodes = [
+  // Apple
+  'analytics_role_required', // the API key's role may not create (or read) analytics report requests: import a file instead
+  'analytics_request_missing', // no report request exists for the app yet
+  'analytics_request_stopped', // Apple stopped the ongoing request (inactivity): create it again
+  'report_not_ready', // the request exists but Apple has produced no instance yet
+  'segment_expired', // a download link ran out before it was used (they last about 5 minutes)
+  'segment_too_large', // a segment is over the size cap
+  'file_too_large', // an uploaded or downloaded file is over the size cap
+  'bad_gzip', // a .gz file could not be decompressed
+  'bad_format', // the table could not be read (encoding, quoting, no header)
+  'unknown_report', // the report is not one this server maps
+  'missing_columns', // a column the mapping needs is not in the header
+  'no_rows', // the file is readable but holds no row this app can use
+  'vendor_number_missing',
+  'vendor_number_invalid',
+  'sales_forbidden', // the key may not read Sales and Trends reports
+  // Google
+  'play_reporting_not_enabled', // the Play Developer Reporting API is not enabled in the Cloud project
+  'play_permission_missing', // the service account may not read vitals or reports
+  'play_app_not_found',
+  'bucket_missing', // no Cloud Storage bucket id is set for the app
+  'bucket_invalid',
+  'bucket_forbidden', // the service account may not read the bucket
+  'bucket_not_found',
+  'reports_not_found', // the bucket holds no file for the month
+  // Both
+  'store_auth', // the credential is unusable
+  'store_forbidden',
+  'store_not_found',
+  'rate_limited',
+  'store_unavailable',
+  'timeout',
+  'credential_unreadable',
+  'credential_not_found',
+  'app_not_synced', // Apple: the app's store id is not known yet
+  'sync_failed',
+] as const;
+export type AnalyticsErrorCode = (typeof analyticsErrorCodes)[number];
+export const isAnalyticsErrorCode = (v: unknown): v is AnalyticsErrorCode =>
+  typeof v === 'string' && (analyticsErrorCodes as readonly string[]).includes(v);
+
+/** What an app still needs before a source can deliver, in plain words. */
+export const analyticsSetupCodes = [
+  'turn_on_analytics', // the workspace setting analytics.enabled is off
+  'create_report_request', // Apple: no report request yet
+  'role_required', // Apple: the key's role may not create one (import a file, or use an Admin key once)
+  'waiting_first_data', // Apple: the request was made; the first reports take one to two days
+  'request_stopped', // Apple: stopped for inactivity
+  'vendor_number_missing', // Apple Sales and Trends needs the vendor number
+  'sales_forbidden',
+  'bucket_id_missing', // Google Cloud Storage reports need the bucket id
+  'bucket_forbidden',
+  'reporting_api_not_enabled',
+  'play_permission_missing',
+  'credential_problem',
+  'first_sync_pending', // everything is set up and no read has happened yet
+] as const;
+export type AnalyticsSetupCode = (typeof analyticsSetupCodes)[number];
+
+/** The next step for a setup need. */
+export const analyticsNextSteps = [
+  'turn_on_analytics',
+  'enable_apple_analytics', // GET then POST /apps/:id/analytics/apple/enable (preview, then confirm)
+  'import_apple_report', // POST /apps/:id/analytics/import/preview, then /import
+  'ask_apple_admin',
+  'set_vendor_number', // the workspace setting analytics.appleVendorNumber (PUT /settings)
+  'set_bucket_id', // the workspace setting analytics.playBucketId (PUT /settings)
+  'grant_play_permission',
+  'enable_reporting_api',
+  'fix_credential',
+  'sync_now',
+  'wait',
+] as const;
+export type AnalyticsNextStep = (typeof analyticsNextSteps)[number];
+
+/** The plain sentence for each error code (no secret, no store text). */
+export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
+  analytics_role_required:
+    'The App Store Connect API key may not create analytics report requests (Apple lists the Admin role for it). Use an Admin key once, or import a report file you downloaded from App Store Connect.',
+  analytics_request_missing: 'No analytics report request exists for this app yet. Enable Apple analytics first.',
+  analytics_request_stopped: 'Apple stopped the ongoing analytics report request because nothing was read for a long time. Enable Apple analytics again.',
+  report_not_ready: 'Apple has not produced any report for the request yet. The first reports take one to two days.',
+  segment_expired: 'The download link for an Apple report expired before it was used (they last about 5 minutes). The next sync tries again.',
+  segment_too_large: 'A report file from Apple is larger than the limit this server reads.',
+  file_too_large: 'The file is larger than the limit this server reads.',
+  bad_gzip: 'The file could not be decompressed. Check that it is a complete .gz file.',
+  bad_format: 'The file could not be read as a table of values separated by tabs or commas.',
+  unknown_report: 'This server does not know how to read that report. Supported: App Store Discovery and Engagement, App Store Downloads, App Sessions, App Crashes.',
+  missing_columns: 'The file does not have the columns this report needs.',
+  no_rows: 'The file holds no rows for this app and platform.',
+  vendor_number_missing: 'Sales and Trends needs the vendor number of the team. Set it in the analytics settings of the app.',
+  vendor_number_invalid: 'The vendor number is not valid. It is a number from App Store Connect, Payments and Financial Reports.',
+  sales_forbidden: 'The App Store Connect API key may not read Sales and Trends reports (it needs the Sales and Reports role or higher).',
+  play_reporting_not_enabled: 'The Google Play Developer Reporting API is not enabled in the Google Cloud project of the service account.',
+  play_permission_missing: 'The service account may not read Android vitals or reports for this app. Grant it the Play Console permission to view app information.',
+  play_app_not_found: 'The Play Developer Reporting API has no app with this package name that the service account can see.',
+  bucket_missing: 'No Cloud Storage bucket id is set for this app. Copy it from the Reports page of Play Console.',
+  bucket_invalid: 'The bucket id is not valid. It looks like pubsite_prod_rev_<number>.',
+  bucket_forbidden: 'The service account may not read the Cloud Storage bucket of the Play Console reports.',
+  bucket_not_found: 'Google Cloud Storage has no bucket with this id.',
+  reports_not_found: 'The bucket holds no report file for this app and month yet.',
+  store_auth: 'The credential was refused by the store. Check the key and enter it again.',
+  store_forbidden: 'The credential is not allowed to read this from the store.',
+  store_not_found: 'The store has no such app for this credential.',
+  rate_limited: 'The store asked to slow down. The next sync tries again.',
+  store_unavailable: 'The store did not answer or failed. The next sync tries again.',
+  timeout: 'The store did not answer in time.',
+  credential_unreadable: 'The credential could not be decrypted. Enter its secret again.',
+  credential_not_found: 'The credential of this app no longer exists.',
+  app_not_synced: 'The App Store id of this app is not known yet. Sync the app first.',
+  sync_failed: 'The analytics sync could not be completed.',
+};
+
+/** Why a series has no data, or what limits it. A fixed vocabulary shown with every series. */
+export const coverageNoteCodes = [
+  'apple_usage_opt_in_only', // sessions and crashes cover only users who share data with developers
+  'apple_privacy_thresholds', // small counts are dropped and noised by Apple
+  'apple_counts_not_unique', // counts add up rows; unique users cannot be added
+  'apple_usage_sample_not_total',
+  'apple_estimates', // sales are next-day estimates
+  'apple_pacific_time', // Apple sales days run on Pacific Time
+  'apple_proceeds_per_currency', // money in the payout currency of each row, never converted
+  'apple_in_app_not_included',
+  'apple_rating_history_not_available', // no API gives a rating history
+  'apple_impressions_only_via_reports',
+  'google_unit_unverified', // crash and ANR rate unit is not confirmed
+  'google_legacy_store_listing', // store listing metrics in the legacy export; Google changed them in 2026
+  'google_no_impressions', // Google offers no impressions in any API or export
+  'google_rating_average_only', // the average only, no count or histogram
+  'google_monthly_files', // reports are monthly files posted 3 to 7 days late
+  'derived', // computed from other series, not a store number
+  'imported', // some days came from an uploaded file, not from the API
+  'recent_days_incomplete', // the newest days are still being completed by the store
+  'gaps', // some days in the range have no data
+  'source_not_connected',
+  'no_data_yet',
+  'only_since_connected', // history starts when this server first read the source
+] as const;
+export type CoverageNoteCode = (typeof coverageNoteCodes)[number];
+
+export const coverageNoteMessages: Record<CoverageNoteCode, string> = {
+  apple_usage_opt_in_only: 'Apple usage data (sessions, crashes) covers only users who chose to share data with developers.',
+  apple_privacy_thresholds: 'Apple drops rows with very few users and adds small random noise to detailed reports.',
+  apple_counts_not_unique: 'These are counts of events. Unique users cannot be added up across rows.',
+  apple_usage_sample_not_total: 'This is a sample of your users, not a total.',
+  apple_estimates: 'Sales and Trends figures are next-day estimates.',
+  apple_pacific_time: 'Apple sales days run on Pacific Time.',
+  apple_proceeds_per_currency: 'Proceeds are in the payout currency of each row. They are shown per currency and never converted.',
+  apple_in_app_not_included: 'Only the app itself is counted here, not in-app purchases (UNVERIFIED mapping of product types).',
+  apple_rating_history_not_available: 'Apple offers no rating history through its API, so there is no rating chart for the App Store.',
+  apple_impressions_only_via_reports: 'Impressions and product page views exist only in the Analytics Reports, which need a report request or an imported file.',
+  google_unit_unverified: 'Whether Google reports this rate as a fraction or a percentage is not confirmed (UNVERIFIED); the value is shown as the API sent it.',
+  google_legacy_store_listing:
+    'These come from the legacy Play Console export. Google changed its store listing metrics in 2026 and may no longer fill them (UNVERIFIED).',
+  google_no_impressions: 'Google Play offers no impressions in any API or export.',
+  google_rating_average_only: 'Only the average rating is available, not the number of ratings.',
+  google_monthly_files: 'Google posts these reports as monthly files, usually 3 to 7 days late.',
+  derived: 'Derived from other series; it may not match the number the store console shows.',
+  imported: 'Some days come from a file that was imported, not from the store API.',
+  recent_days_incomplete: 'The newest days can still change while the store completes them.',
+  gaps: 'Some days in this range have no data.',
+  source_not_connected: 'This source is not connected yet.',
+  no_data_yet: 'No data has been read yet.',
+  only_since_connected: 'History starts when this server first read the source.',
+};
+
+// ---------------------------------------------------------------------------------------------
+// Values and dates
+
+export const MICRO = 1_000_000;
+/** The stored integer for a value. */
+export const toMicro = (value: number): number => Math.round(value * MICRO);
+export const fromMicro = (micro: number): number => micro / MICRO;
+
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True for a real calendar date written YYYY-MM-DD. */
+export function isIsoDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
+  const t = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === value;
+}
+
+export const dateToDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+export const dayToMs = (day: string): number => Date.parse(`${day}T00:00:00Z`);
+export const addDays = (day: string, n: number): string => dateToDay(dayToMs(day) + n * 86_400_000);
+/** Whole days from `a` to `b` (negative when `b` is earlier). */
+export const daysBetween = (a: string, b: string): number => Math.round((dayToMs(b) - dayToMs(a)) / 86_400_000);
+
+export const granularities = ['day', 'week', 'month'] as const;
+export type Granularity = (typeof granularities)[number];
+export const isGranularity = (v: unknown): v is Granularity =>
+  typeof v === 'string' && (granularities as readonly string[]).includes(v);
+
+/** The first day of the bucket a day belongs to: itself, its Monday, or the first of its month. */
+export function bucketStart(day: string, granularity: Granularity): string {
+  if (granularity === 'day') return day;
+  if (granularity === 'month') return `${day.slice(0, 8)}01`;
+  const weekday = new Date(dayToMs(day)).getUTCDay(); // 0 = Sunday
+  return addDays(day, -((weekday + 6) % 7));
+}
+
+/** Every bucket start from the bucket of `from` through the bucket of `to`, in order. */
+export function bucketStarts(from: string, to: string, granularity: Granularity): string[] {
+  const out: string[] = [];
+  let current = bucketStart(from, granularity);
+  const last = bucketStart(to, granularity);
+  while (current <= last && out.length < 2000) {
+    out.push(current);
+    if (granularity === 'day') current = addDays(current, 1);
+    else if (granularity === 'week') current = addDays(current, 7);
+    else {
+      const y = Number(current.slice(0, 4));
+      const m = Number(current.slice(5, 7));
+      current = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    }
+  }
+  return out;
+}
+
+/** A ratio, or null when the denominator is missing or zero. Never a division by zero, never NaN. */
+export function safeRatio(numerator: number | null, denominator: number | null): number | null {
+  if (numerator === null || denominator === null || denominator <= 0) return null;
+  const r = numerator / denominator;
+  return Number.isFinite(r) ? r : null;
+}
+
+/** A Google Play Cloud Storage bucket id as Play Console shows it (`pubsite_prod_rev_<digits>`), optionally `gs://` prefixed. */
+export function normalizeBucketId(raw: string): string | undefined {
+  const trimmed = raw.trim().replace(/^gs:\/\//i, '').replace(/\/+$/, '');
+  return /^pubsite_prod_rev_[0-9]{6,30}$/.test(trimmed) ? trimmed : undefined;
+}
+
+/** An Apple vendor number (Payments and Financial Reports): digits only. */
+export function normalizeVendorNumber(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  return /^[0-9]{5,12}$/.test(trimmed) ? trimmed : undefined;
+}
+
+/** The reports and file limits shared by every reader of a table. */
+export const analyticsLimits = {
+  /** Largest uploaded file or downloaded segment, as received. */
+  maxFileBytes: 10 * 1024 * 1024,
+  /** Largest text after decompression. */
+  maxTextBytes: 64 * 1024 * 1024,
+  maxRows: 400_000,
+  maxColumns: 80,
+  /** Largest stored dimension value (a version, a territory). */
+  maxDimensionLength: 100,
+} as const;

@@ -20,6 +20,7 @@ import {
   type StoreVersion,
 } from '@mrm/connectors';
 import type { Database, Sql } from '@mrm/db';
+import { deleteAnalyticsData } from './analytics-store.ts';
 import { deleteAsoData } from './aso-data.ts';
 import { deleteAiData } from './ai-suggestions.ts';
 import { recordAudit } from './audit.ts';
@@ -363,6 +364,7 @@ export async function deleteApp(
     await deleteReviewData(tx, input.workspaceId, input.id);
     await deleteAsoData(tx, input.workspaceId, input.id);
     await deleteAiData(tx, input.workspaceId, input.id);
+    await deleteAnalyticsData(tx, input.workspaceId, input.id);
     await deleteAppIcon(tx, input.workspaceId, input.id);
     await tx.execute('DELETE FROM store_rollout_claims WHERE app_id = ? AND workspace_id = ?', [
       input.id,

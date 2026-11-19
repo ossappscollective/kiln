@@ -36,6 +36,7 @@ test('viewers only read the workspace, repositories, apps, listings, plans, revi
     'reviews.read',
     'events.read',
     'aso.read',
+    'analytics.read',
   ];
   for (const action of reads) assert.equal(can('viewer', action as never), true, action);
   for (const action of actions.filter((a) => !reads.includes(a))) {
@@ -282,4 +283,18 @@ test('store.publish: owners and admins only; explicit-only on tokens and never a
   }
   assert.equal(canToken('admin', ['store.publish'], 'store.publish'), true);
   assert.equal(canToken('member', ['store.publish'], 'store.publish'), false, 'the ceiling still applies');
+});
+
+test('analytics.read: every role; analytics.manage: owners and admins only, explicit-only on tokens', () => {
+  for (const role of roles) assert.equal(can(role, 'analytics.read'), true, role);
+  assert.equal(can('owner', 'analytics.manage'), true);
+  assert.equal(can('admin', 'analytics.manage'), true);
+  assert.equal(can('member', 'analytics.manage'), false);
+  assert.equal(can('viewer', 'analytics.manage'), false);
+  assert.ok(tokenExplicitOnlyActions.includes('analytics.manage'));
+  assert.ok(!tokenExplicitOnlyActions.includes('analytics.read'), 'reading is a default token right');
+  assert.equal(canToken('admin', null, 'analytics.manage'), false);
+  assert.equal(canToken('admin', ['analytics.manage'], 'analytics.manage'), true);
+  assert.equal(canToken('member', ['analytics.manage'], 'analytics.manage'), false, 'a token never exceeds its role');
+  assert.equal(canToken('viewer', null, 'analytics.read'), true);
 });

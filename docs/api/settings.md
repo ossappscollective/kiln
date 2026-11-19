@@ -36,6 +36,9 @@ a secret). A `PUT` that changes nothing writes no entry.
 | `release.stalledRepeatHours` | integer 0 to 720 | `24` | The same stall is reminded again after this many hours. `0`: once per stall, never again. |
 | `reviews.unansweredReminderHours` | integer 0 to 720 | `0` | `review.unanswered`: one digest at most every this many hours, when a review rated at or below `reviews.unansweredMaxRating` has waited that long without an answer. `0` (the default) is off. |
 | `reviews.unansweredMaxRating` | integer 1 to 5 | `5` | The highest rating the digest counts (`2` means only 1 and 2 stars). |
+| `analytics.enabled` | boolean | `false` | While `false`, no analytics sync, scheduled job or Apple enable action reaches a store. Reading stored numbers and importing a file still work ([analytics](analytics.md)). Written with `analytics.manage` (admins and owners). |
+| `analytics.appleVendorNumber` | text | `""` | The vendor number of App Store Connect Sales and Trends (5 to 12 digits). Empty: Apple sales are not read. |
+| `analytics.playBucketId` | text | `""` | The Cloud Storage bucket of the Google Play monthly reports (`pubsite_prod_rev_` and digits, as shown in Play Console; a leading `gs://` is dropped). Empty: those reports are not read. |
 
 The address rules for `translation.libretranslate.url` (checked on save, and again at every call,
 because DNS can change): `https` only; no user name, password, query or fragment; a private,
