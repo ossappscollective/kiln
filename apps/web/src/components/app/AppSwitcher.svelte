@@ -12,6 +12,7 @@
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
+  import PendingChip from '../publish/PendingChip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
   let {
@@ -113,6 +114,7 @@
             <span class="names">
               <strong class="name">{item.name}</strong>
               <code class="ids">{item.identifiers.join(' · ')}</code>
+              {#if item.pending}<span class="chiprow"><PendingChip line={item.pending} /></span>{/if}
             </span>
             <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}</span>
             {#if item.number !== null}<kbd class="num" title="{mod} + {item.number}">{item.number}</kbd>{/if}
@@ -202,6 +204,11 @@
     color: var(--muted);
     background: none;
     border: 0;
+  }
+
+  .chiprow {
+    display: flex;
+    margin-top: var(--space-1);
   }
 
   .plats {

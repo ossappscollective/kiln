@@ -1,5 +1,6 @@
 import type { ReleaseState } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
+import { type PendingLine, type PendingSummary, lineFor } from './pending.ts';
 import { type ReleaseLoad, latestRelease } from './portfolio.ts';
 import type { PipelineSummaryApp } from './release-pipeline.ts';
 import type { SummaryApp } from './reviews.ts';
@@ -30,6 +31,8 @@ export type OverviewRow = {
   newReviews: number | null;
   /** Records whose release is left unfinished (not stale), from the pipeline summary; empty when it is not loaded. */
   unfinished: PipelineSummaryApp[];
+  /** What is pending for the app (all its records), from the pending summary; null when it is not known or nothing is pending. */
+  pending?: PendingLine | null;
 };
 
 /** Most urgent first. */
@@ -52,6 +55,7 @@ export function buildOverviewRows(
   releases: Record<string, ReleaseLoad | undefined>,
   reviewApps: readonly SummaryApp[] | null,
   pipelineApps: readonly PipelineSummaryApp[] | null = null,
+  pendingSummary: PendingSummary | null = null,
 ): OverviewRow[] {
   return groups.map((group) => {
     const ios = cell(group.ios, releases);
@@ -76,6 +80,7 @@ export function buildOverviewRows(
       ratingCount,
       newReviews: mine ? mine.reduce((sum, r) => sum + r.new, 0) : null,
       unfinished: (pipelineApps ?? []).filter((p) => p.stalled !== null && !p.stalled.stale && group.members.some((m) => m.id === p.app.id)),
+      pending: lineFor(pendingSummary, group.members.map((m) => m.id)),
     };
   });
 }

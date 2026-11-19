@@ -12,6 +12,7 @@
   import { unfinishedItem } from '../../lib/release-pipeline.ts';
   import { storeForPlatform } from '../../lib/stores.ts';
   import type { AppSummary } from '../../lib/types.ts';
+  import PendingChip from '../publish/PendingChip.svelte';
   import SyncStatus from './SyncStatus.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
   import AppIcon from '../ui/AppIcon.svelte';
@@ -116,6 +117,7 @@
                 <span class="muted">{g.members.every((m) => m.lastSyncedAt === null) ? 'Not synced yet' : 'No releases'}</span>
               {/if}
               {#if row.syncFailed}<Badge tone="bad" icon="alert">Sync failed</Badge>{/if}
+              <PendingChip line={row.pending} href={appAddress(g.key, 'pending')} />
               {#each row.unfinished as left (left.app.id)}
                 {@const item = unfinishedItem({ appId: left.app.id, platform: left.app.platform, scope: left.app.platform, several: false, stalled: left.stalled })}
                 {#if item}

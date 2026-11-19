@@ -29,6 +29,8 @@
   import { asoViewFromHash } from '../../lib/aso.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { dataChips } from '../../lib/app-chips.ts';
+  import { lineFor } from '../../lib/pending.ts';
+  import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { type AppGroup, groupApps, groupOf } from '../../lib/app-groups.ts';
   import { type AppSection, appAddress, resolveScope, visibleSections } from '../../lib/app-scope.ts';
   import { appLabel, describeError, portfolioHref, syncApp, syncSummaryText } from '../../lib/portfolio.ts';
@@ -44,6 +46,7 @@
   import AppHeaderRow from './AppHeaderRow.svelte';
   import AppSectionView from './AppSection.svelte';
   import DataChips from './DataChips.svelte';
+  import PendingChip from '../publish/PendingChip.svelte';
   import LockedBanner from './LockedBanner.svelte';
   import ScopeControl from './ScopeControl.svelte';
 
@@ -79,6 +82,8 @@
     open && visibleSections((a) => can(role, a)).some((s) => s.id === open.section) ? open.section : 'dashboard',
   );
   const anySyncing = $derived(scoped.some((m) => syncing[m.id] === true));
+  /** What is pending for the app, from the workspace summary (all its records, not only those in scope); null draws no chip. */
+  const pendingLine = $derived(lineFor(pendingStore.summary(workspaceId), members.map((m) => m.id)));
 
   // The header row of a versioned page: its pickers, from data already loaded here and by the pages.
   const picker = $derived(pickersFor(section, { asoView: asoViewFromHash(address.hash), releaseOpen: open?.release != null }));
@@ -216,6 +221,7 @@
         <div class="titleline">
           <h1 class="page-title">{group.name}</h1>
           <DataChips {chips} />
+          <PendingChip line={pendingLine} href={open?.section === 'pending' ? undefined : appAddress(id, 'pending', address.platform)} />
         </div>
         <p class="sub">
           {#each members as m (m.id)}

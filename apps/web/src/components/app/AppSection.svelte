@@ -24,6 +24,7 @@
   import AssetsTab from '../assets/AssetsTab.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
+  import PendingChanges from '../publish/PendingChanges.svelte';
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
@@ -125,6 +126,8 @@
   <ReleaseDetail {api} {workspaceId} {role} appId={openId} {version} />
 {:else if section === 'releases'}
   <AppReleases {api} {workspaceId} {role} {members} {all} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
+{:else if section === 'pending'}
+  <PendingChanges {api} {workspaceId} {role} {members} />
 {:else if section === 'listing'}
   <ListingMatrix
     {api}

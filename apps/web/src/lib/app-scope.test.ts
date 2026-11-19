@@ -76,7 +76,7 @@ test('resolveScope disables the missing store and Both for a one-store app', () 
 });
 
 test('visibleSections follows the actions a role has', () => {
-  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings']);
+  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings']);
   assert.deepEqual(visibleSections((a) => a === 'apps.read').map((s) => s.id), ['dashboard', 'releases', 'workflows', 'builds', 'settings']);
   assert.ok(appSectionDefs.every((s) => isIconName(s.icon)));
 });
@@ -122,4 +122,17 @@ test('the workflows section has its own address and keeps the scope', () => {
   assert.equal(appWorkflowsHref('a1'), '#/portfolio/a1/workflows');
   assert.equal(appWorkflowsHref('a1', 'ios'), '#/portfolio/a1/workflows?platform=ios');
   assert.equal(parseAppAddress('#/portfolio/a1/workflows?platform=android')?.section, 'workflows');
+});
+
+test('the pending changes section is an app section with its own address, also as ?section=pending', () => {
+  assert.equal(appAddress('a1', 'pending'), '#/portfolio/a1/pending');
+  assert.equal(appAddress('a1', 'pending', 'ios'), '#/portfolio/a1/pending?platform=ios');
+  assert.deepEqual(parseAppAddress('#/portfolio/a1/pending?platform=android'), { id: 'a1', section: 'pending', release: null, platform: 'android' });
+  assert.equal(parseAppAddress('#/portfolio/a1?section=pending')?.section, 'pending');
+  // The path wins, and an unknown section falls back to the dashboard.
+  assert.equal(parseAppAddress('#/portfolio/a1/listing?section=pending')?.section, 'listing');
+  assert.equal(parseAppAddress('#/portfolio/a1?section=nope')?.section, 'dashboard');
+  // Everybody who can read the listing sees it (every role).
+  assert.ok(visibleSections((a) => a === 'listing.read').some((s) => s.id === 'pending'));
+  assert.ok(!visibleSections((a) => a === 'apps.read').some((s) => s.id === 'pending'));
 });

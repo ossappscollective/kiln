@@ -37,15 +37,16 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'builds' | 'settings';
+export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'builds' | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings'];
+export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings'];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
 /** The left panel of an app, in order. Listing and assets have their own right; the rest need the app. */
 export const appSectionDefs: readonly SectionDef[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'grid', requires: 'apps.read' },
+  { id: 'pending', label: 'Pending changes', icon: 'upload', requires: 'listing.read' },
   { id: 'listing', label: 'Listing', icon: 'file-text', requires: 'listing.read' },
   { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
   { id: 'workflows', label: 'Workflows', icon: 'play', requires: 'apps.read' },
@@ -87,7 +88,10 @@ export function parseAppAddress(hash: string): AppAddress | null {
   const platform = query.get('platform');
   const scope = isPlatformScope(platform) ? platform : null;
   if (part === 'release' && version) return { id, section: 'releases', release: version, platform: scope };
-  return { id, section: isAppSection(part) ? part : 'dashboard', release: null, platform: scope };
+  // `#/portfolio/<id>?section=pending` names a section too (the path wins when it names one).
+  const asked = query.get('section') ?? undefined;
+  const section: AppSection = isAppSection(part) ? part : !part && isAppSection(asked) ? asked : 'dashboard';
+  return { id, section, release: null, platform: scope };
 }
 
 const enc = encodeURIComponent;

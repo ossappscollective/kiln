@@ -24,6 +24,7 @@ export type SectionChord = { key: string; target: string; label: string };
 /** Inside an app: the target is an app section id (lib/app-scope.ts). */
 export const appChords: readonly SectionChord[] = [
   { key: 'd', target: 'dashboard', label: 'Dashboard' },
+  { key: 'p', target: 'pending', label: 'Pending changes' },
   { key: 'l', target: 'listing', label: 'Listing' },
   { key: 'r', target: 'releases', label: 'Releases' },
   { key: 'w', target: 'workflows', label: 'Workflows' },

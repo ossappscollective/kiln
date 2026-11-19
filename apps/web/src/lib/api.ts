@@ -23,6 +23,7 @@ import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './
 import type { InspectedFile, PullReport, PullSelection, ToRepoResult, UploadQuery } from './assets-sync.ts';
 import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
 import type { StoreSubmitConfig, SubmitPreview, SubmitResult, SubmitState } from './store-submit.ts';
+import type { PendingSummary, PendingView, PublishConfig, PublishPlan, PublishResult, StepRequest } from './pending.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
@@ -907,6 +908,17 @@ export function createApi(options: ApiOptions = {}) {
       request<{ preview: ReleasePreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release/preview`, body),
     storeRelease: (workspaceId: string, appId: string, body: ReleaseBody & { confirmHash: string; confirmation: string }) =>
       request<{ result: ReleaseResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`, body),
+    // Everything pending, and publishing it in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md). The two
+    // pending reads and the config read our own database only. `previewPublish` reads the stores (a plan, no write).
+    // `publishPending` is the only call that writes: sent once with the plan's hash and the typed phrase, never retried by this app.
+    appPending: (workspaceId: string, appId: string) =>
+      request<{ pending: PendingView }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending`),
+    pendingSummary: (workspaceId: string) => request<PendingSummary>('GET', `${workspace(workspaceId)}/pending/summary`),
+    storePublishConfig: (workspaceId: string) => request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),
+    previewPublish: (workspaceId: string, appId: string, body: { steps?: StepRequest[] } = {}) =>
+      request<{ plan: PublishPlan }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/preview`, body),
+    publishPending: (workspaceId: string, appId: string, body: { planHash: string; steps: StepRequest[]; phrase?: string }) =>
+      request<{ result: PublishResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish`, body),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>

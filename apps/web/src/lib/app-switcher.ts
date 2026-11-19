@@ -1,5 +1,6 @@
 import type { Platform } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
+import type { PendingLine } from './pending.ts';
 
 /**
  * The searchable app switcher (Cmd or Ctrl + K) as pure functions. One item per app (the iOS, macOS and
@@ -16,6 +17,8 @@ export type SwitcherItem = {
   platforms: Platform[];
   /** 1 to 9 for the first nine apps, else null. */
   number: number | null;
+  /** What is pending for the app (the chip in the list); absent or null draws nothing. Set by the shell from the pending summary. */
+  pending?: PendingLine | null;
 };
 
 export const SWITCHER_NUMBERS = 9;

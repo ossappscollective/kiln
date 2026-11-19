@@ -6,7 +6,8 @@
   apps that need attention, when the overview has loaded it.
   Props: address (the open app: id, section, platform), allowed (does the role have this action), attention?
   (the number of apps that need attention, or null), counts? (the badges of this app: `reviews` the unanswered reviews, `releases`
-  the releases left unfinished; null draws nothing).
+  the releases left unfinished, `pending` the changes that wait to be published and `pendingBlocking` whether an error blocks one of
+  them (warning tone); null draws nothing).
 -->
 <script lang="ts">
   import type { Action } from '@mrm/core';
@@ -23,20 +24,22 @@
     address,
     allowed,
     attention = null,
-    counts = { reviews: null, releases: null },
+    counts = { reviews: null, releases: null, pending: null, pendingBlocking: false },
   }: {
     address: AppAddress;
     allowed: (action: Action) => boolean;
     attention?: number | null;
-    counts?: { reviews: number | null; releases: number | null };
+    counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean };
   } = $props();
 
-  const badgeFor = (id: string): { count: number | null; one: string; many: string } | null =>
+  const badgeFor = (id: string): { count: number | null; one: string; many: string; tone: 'warn' | 'accent' } | null =>
     id === 'reviews'
-      ? { count: counts.reviews, one: 'unanswered review', many: 'unanswered reviews' }
+      ? { count: counts.reviews, one: 'unanswered review', many: 'unanswered reviews', tone: 'warn' }
       : id === 'releases'
-        ? { count: counts.releases, one: 'release left unfinished', many: 'releases left unfinished' }
-        : null;
+        ? { count: counts.releases, one: 'release left unfinished', many: 'releases left unfinished', tone: 'warn' }
+        : id === 'pending'
+          ? { count: counts.pending ?? null, one: 'pending change', many: 'pending changes', tone: counts.pendingBlocking === true ? 'warn' : 'accent' }
+          : null;
 
   const sections = $derived(visibleSections(allowed));
 </script>
@@ -60,7 +63,7 @@
             <span>{s.label}</span>
             {#if hint}<kbd class="nav-hint" aria-hidden="true">{hint}</kbd>{/if}
             {#if badge && badgeText(badge.count)}
-              <span class="badge warn nav-count">{badgeText(badge.count)}<span class="visually-hidden"> {badgeLabel(badge.count, badge.one, badge.many)}</span></span>
+              <span class="badge {badge.tone} nav-count">{badgeText(badge.count)}<span class="visually-hidden"> {badgeLabel(badge.count, badge.one, badge.many)}</span></span>
             {/if}
           </a>
         </li>

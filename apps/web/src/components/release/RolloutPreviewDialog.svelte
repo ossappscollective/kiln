@@ -14,11 +14,11 @@
     actionLabel,
     canConfirm,
     confirmPhrase,
-    describeState,
   } from '../../lib/store-rollout.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import RolloutPreviewBody from '../publish/RolloutPreviewBody.svelte';
 
   let {
     open = $bindable(false),
@@ -62,24 +62,7 @@
       This sends the change to {storeName} for {preview.app.name}. It is recorded in the audit log.
     </Alert>
 
-    <p class="summary" data-testid="rollout-summary">{preview.summary}</p>
-
-    <div class="compare" aria-label="Before and after">
-      <div>
-        <p class="label">Now, in the store</p>
-        <p class="state">{describeState(preview.current)}</p>
-      </div>
-      <div>
-        <p class="label">After this change</p>
-        <p class="state">{describeState(preview.proposed)}</p>
-      </div>
-    </div>
-
-    {#if preview.warnings.length > 0}
-      <ul class="warnings">
-        {#each preview.warnings as warning (warning)}<li>{warning}</li>{/each}
-      </ul>
-    {/if}
+    <RolloutPreviewBody {preview} />
 
     {#if preview.irreversible}
       <Alert tone="error" title="This cannot be undone">{IRREVERSIBLE_WARNING}</Alert>
@@ -104,40 +87,3 @@
     </Button>
   {/snippet}
 </Modal>
-
-<style>
-  .summary {
-    margin: 0;
-    font-weight: var(--weight-medium);
-  }
-
-  .compare {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--space-3);
-  }
-
-  .compare > div {
-    padding: var(--space-3);
-    background: var(--surface-sunken);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-  }
-
-  .label {
-    margin: 0 0 var(--space-1);
-    font-size: var(--text-sm);
-    color: var(--muted);
-  }
-
-  .state {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .warnings {
-    margin: 0;
-    padding-left: var(--space-5);
-    font-size: var(--text-sm);
-  }
-</style>

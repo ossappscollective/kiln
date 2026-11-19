@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import type { Api } from '../lib/api.ts';
   import { can } from '@mrm/core';
   import { address, appContext } from '../lib/address.svelte.ts';
@@ -8,6 +8,8 @@
   import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
   import { jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
+  import { lineFor } from '../lib/pending.ts';
+  import { pendingStore } from '../lib/pending-store.svelte.ts';
   import { pipelineStore } from '../lib/pipeline-store.svelte.ts';
   import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
@@ -66,19 +68,35 @@
   const unanswered = $derived(workspace && can(workspace.role, 'reviews.read') ? navSignals.unansweredOf(workspaceId) : null);
   /** The badges of the open app's sidebar: unanswered reviews, and a release left unfinished. Nothing is read for this. */
   const appCounts = $derived.by(() => {
-    if (!appAddr || !canApps) return { reviews: null, releases: null };
+    if (!appAddr || !canApps) return { reviews: null, releases: null, pending: null, pendingBlocking: false };
     const apps = navSignals.appsOf(workspaceId);
     const group = apps ? groupApps(apps).filter((g) => g.members.some((m) => m.id === appAddr.id))[0] : undefined;
     const ids = group ? group.members.map((m) => m.id) : [appAddr.id];
-    return appNavCounts({
-      memberIds: ids,
-      unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
-      stalled: pipelineStore.summary(workspaceId)?.apps ?? [],
-    });
+    const line = lineFor(pendingStore.summary(workspaceId), ids);
+    return {
+      ...appNavCounts({
+        memberIds: ids,
+        unanswered: can(workspace?.role ?? 'viewer', 'reviews.read') ? navSignals.unansweredByAppOf(workspaceId) : {},
+        stalled: pipelineStore.summary(workspaceId)?.apps ?? [],
+      }),
+      pending: line && line.count > 0 ? line.count : null,
+      pendingBlocking: (line?.blocking ?? 0) > 0,
+    };
   });
   const switcherList = $derived.by(() => {
     const apps = canApps ? navSignals.appsOf(workspaceId) : null;
-    return apps ? switcherItems(groupApps(apps)) : null;
+    if (!apps) return null;
+    const groups = groupApps(apps);
+    const summary = pendingStore.summary(workspaceId);
+    // The pending chip of each app (null when the summary is not known: no chip).
+    return switcherItems(groups).map((item, i) => ({ ...item, pending: lineFor(summary, (groups[i]?.members ?? []).map((m) => m.id)) }));
+  });
+
+  // The pending summary behind the chips: read when the workspace changes and when an app is opened or left (so the numbers are fresh).
+  $effect(() => {
+    const space = workspaceId;
+    void appAddr?.id;
+    if (space !== '' && workspace && can(workspace.role, 'listing.read')) untrack(() => void pendingStore.loadSummary(api, space));
   });
   const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform ?? '');
   const modKey = isMac ? 'Cmd' : 'Ctrl';
