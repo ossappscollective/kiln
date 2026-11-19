@@ -307,6 +307,28 @@ export function replaceReview(current: readonly Review[], updated: Review): Revi
   return current.map((r) => (r.id === updated.id ? updated : r));
 }
 
+/** Whether the review has an answer: a response in the store, or a reply sent from here. */
+export const isAnswered = (r: Pick<Review, 'developerResponse' | 'reply' | 'replyDraft'>): boolean =>
+  r.developerResponse != null || r.reply?.status === 'sent' || r.replyDraft?.status === 'sent';
+
+/**
+ * Whether a review that just changed (triaged, answered) no longer belongs in a list filtered by status or
+ * answer. It leaves the list then, so "New" shows only what is still new.
+ */
+export function leavesFilters(updated: Review, f: Pick<ReviewFilters, 'statuses' | 'response'>): boolean {
+  if (f.statuses.length > 0 && !f.statuses.includes(updated.status)) return true;
+  if (f.response === 'yes' && !isAnswered(updated)) return true;
+  if (f.response === 'no' && isAnswered(updated)) return true;
+  return false;
+}
+
+/** The review to select once `id` leaves the list: the one after it, else the one before, else null. */
+export function neighborAfterRemoval(ids: readonly string[], id: string): string | null {
+  const at = ids.indexOf(id);
+  if (at < 0) return null;
+  return ids[at + 1] ?? ids[at - 1] ?? null;
+}
+
 /** What to send for a triage edit: only the fields that differ from the stored review. Empty when nothing changed. */
 export function triageDiff(
   review: Pick<Review, 'status' | 'assigneeUserId' | 'internalNote'>,

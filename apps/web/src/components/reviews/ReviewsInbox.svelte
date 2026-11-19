@@ -40,6 +40,8 @@
     parseInboxHash,
     quickViewFilters,
     quickViews,
+    leavesFilters,
+    neighborAfterRemoval,
     replaceInboxReview,
     reviewErrorMessage,
     shortcutFor,
@@ -58,7 +60,7 @@
     type ReviewStatus,
     type WorkspaceReviewsSummary,
   } from '../../lib/reviews.ts';
-  import { reviewFromHash, withReview } from '../../lib/review-split.ts';
+  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/review-split.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
   import type { AppSummary, Member } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -237,7 +239,17 @@
   }
 
   function updated(next: Review) {
-    reviews = replaceInboxReview(reviews, next);
+    if (leavesFilters(next, filters)) {
+      // It no longer fits the filter (triaged under "New"): it leaves the list and the next one is selected.
+      const neighbor = neighborAfterRemoval(reviews.map((r) => r.id), next.id);
+      if (reviewFromHash(location.hash) === next.id && isReviewsAddress(location.hash)) {
+        history.replaceState(history.state, '', withReview(location.hash, neighbor));
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }
+      reviews = reviews.filter((r) => r.id !== next.id);
+    } else {
+      reviews = replaceInboxReview(reviews, next);
+    }
     void loadSummary();
   }
 

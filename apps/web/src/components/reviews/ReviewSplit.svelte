@@ -37,7 +37,7 @@
     rowTitle,
     shouldFindMore,
     shouldWriteAddress,
-    statusTone,
+    rowDotTone,
     withReview,
   } from '../../lib/review-split.ts';
   import {
@@ -297,7 +297,7 @@
               <time class="when" datetime={new Date(review.createdAt).toISOString()} title={fullTime(review.createdAt)}>{rowDate(review.createdAt, now)}</time>
             </span>
             <span class="line sub">
-              <span class="dot {statusTone(review.status)}" aria-hidden="true"></span>
+              <span class="dot {rowDotTone(review)}" aria-hidden="true"></span>
               <span class="status">{statusLabel(review.status)}</span>
               {#if reply}<span class="reply">{reply}</span>{/if}
               <span class="by" title={review.authorName ?? ''}>{byline}</span>
@@ -486,8 +486,8 @@
     background: var(--ok);
   }
 
-  .dot.accent {
-    background: var(--accent);
+  .dot.none {
+    background: transparent;
   }
 
   .status,

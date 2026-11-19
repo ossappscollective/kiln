@@ -13,6 +13,7 @@ import {
   rowTitle,
   shouldFindMore,
   shouldWriteAddress,
+  rowDotTone,
   statusTone,
   withReview,
 } from './review-split.ts';
@@ -109,7 +110,7 @@ test('status tones follow the badge of the card', () => {
   assert.equal(statusTone('new'), 'info');
   assert.equal(statusTone('ignored'), 'neutral');
   assert.equal(statusTone('replied_in_console'), 'ok');
-  assert.equal(statusTone('triaged'), 'accent');
+  assert.equal(statusTone('triaged'), 'none');
 });
 
 test('a row date is short', () => {
@@ -130,4 +131,12 @@ test('only the reviews screens carry a selected review', () => {
   assert.equal(isReviewsAddress('#/portfolio/a1'), false);
   assert.equal(isReviewsAddress('#/portfolio/a1/releases?review=a'), false);
   assert.equal(isReviewsAddress('#/reviewsx'), false);
+});
+
+test('the dot: blue when new, green once answered, none when triaged', () => {
+  const base = { developerResponse: null, reply: undefined, replyDraft: null };
+  assert.equal(rowDotTone({ ...base, status: 'new' }), 'info');
+  assert.equal(rowDotTone({ ...base, status: 'triaged' }), 'none');
+  assert.equal(rowDotTone({ ...base, status: 'ignored' }), 'neutral');
+  assert.equal(rowDotTone({ ...base, status: 'new', reply: { status: 'sent', sentAt: 1 } }), 'ok');
 });

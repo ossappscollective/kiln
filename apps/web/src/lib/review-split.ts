@@ -1,6 +1,6 @@
 import { isPlatform } from '@mrm/core';
 import { type ReplyState, replyStatusLabel } from './review-reply.ts';
-import { type InboxShortcut, type Review, type ReviewStatus, moveIndex } from './reviews.ts';
+import { type InboxShortcut, type Review, type ReviewStatus, isAnswered, moveIndex } from './reviews.ts';
 
 /**
  * Pure helpers of the list and detail view of reviews (the per-app Reviews tab and the workspace inbox) on wide
@@ -122,11 +122,15 @@ export function rowReplyText(review: Pick<Review, 'developerResponse' | 'reply' 
   return '';
 }
 
-export type DotTone = 'info' | 'neutral' | 'ok' | 'accent';
+export type DotTone = 'info' | 'neutral' | 'ok' | 'none';
 
 /** The color of the status dot. The row also says the status in words. */
 export const statusTone = (status: ReviewStatus): DotTone =>
-  status === 'new' ? 'info' : status === 'ignored' ? 'neutral' : status === 'replied_in_console' ? 'ok' : 'accent';
+  status === 'new' ? 'info' : status === 'ignored' ? 'neutral' : status === 'replied_in_console' ? 'ok' : 'none';
+
+/** The dot of a row: blue while new, green once answered (in the store or from here), grey when ignored, none when triaged. */
+export const rowDotTone = (review: Pick<Review, 'status' | 'developerResponse' | 'reply' | 'replyDraft'>): DotTone =>
+  isAnswered(review) ? 'ok' : statusTone(review.status);
 
 const DAY = 24 * 60 * 60 * 1000;
 

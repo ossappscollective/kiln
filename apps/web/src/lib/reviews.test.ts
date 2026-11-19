@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
   appendInboxPage,
+  leavesFilters,
+  neighborAfterRemoval,
   reviewsOwner,
   appendPage,
   busiestApps,
@@ -461,4 +463,21 @@ test('reviewsOwner: a macOS record that shares its App Store id with an iOS reco
   assert.equal(reviewsOwner(macOnly, [ios, macOnly]), null);
   assert.equal(reviewsOwner({ platform: 'macos', storeAppId: null }, [ios]), null);
   assert.equal(reviewsOwner(ios, [ios, mac]), null);
+});
+
+test('a triaged review leaves a "New" list, and an answered one leaves "unanswered"', () => {
+  const r = { status: 'triaged', developerResponse: null } as unknown as Review;
+  assert.equal(leavesFilters(r, { statuses: ['new'], response: '' }), true);
+  assert.equal(leavesFilters(r, { statuses: ['triaged', 'new'], response: '' }), false);
+  assert.equal(leavesFilters(r, { statuses: [], response: '' }), false);
+  const answered = { status: 'new', developerResponse: null, reply: { status: 'sent', sentAt: 1 } } as unknown as Review;
+  assert.equal(leavesFilters(answered, { statuses: [], response: 'no' }), true);
+  assert.equal(leavesFilters(answered, { statuses: [], response: 'yes' }), false);
+});
+
+test('after a review leaves the list the next one is selected, else the previous', () => {
+  assert.equal(neighborAfterRemoval(['a', 'b', 'c'], 'b'), 'c');
+  assert.equal(neighborAfterRemoval(['a', 'b', 'c'], 'c'), 'b');
+  assert.equal(neighborAfterRemoval(['a'], 'a'), null);
+  assert.equal(neighborAfterRemoval(['a'], 'x'), null);
 });

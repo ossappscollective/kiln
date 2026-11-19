@@ -26,6 +26,8 @@
     filtersToQuery,
     hasActiveFilters,
     lastReadText,
+    leavesFilters,
+    neighborAfterRemoval,
     replaceReview,
     reviewErrorMessage,
     sinceChoices,
@@ -66,6 +68,7 @@
   import RatingOverview from './RatingOverview.svelte';
   import ReviewCard from './ReviewCard.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
+  import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/review-split.ts';
 
   let {
     api,
@@ -296,7 +299,17 @@
   }
 
   function updated(next: Review) {
-    reviews = replaceReview(reviews, next);
+    if (leavesFilters(next, filters)) {
+      // It no longer fits the filter (triaged under "New"): it leaves the list and the next one is selected.
+      const neighbor = neighborAfterRemoval(reviews.map((r) => r.id), next.id);
+      if (isReviewsAddress(location.hash) && reviewFromHash(location.hash) === next.id) {
+        history.replaceState(history.state, '', withReview(location.hash, neighbor));
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }
+      reviews = reviews.filter((r) => r.id !== next.id);
+    } else {
+      reviews = replaceReview(reviews, next);
+    }
     // The counts by status moved: refresh them without touching the list.
     void loadSummary();
   }
