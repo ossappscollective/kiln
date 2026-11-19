@@ -1,4 +1,4 @@
-import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES } from '@mrm/core';
+import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES, classifyAppleScreenshot } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -23,6 +23,9 @@ import {
   type DraftTextState,
   setMatches,
   type StoreDraftConnector,
+  type StoreImageReader,
+  type StoreImageRecord,
+  type StoreImagesRead,
 } from './store-draft-types.ts';
 import {
   enc,
@@ -170,7 +173,7 @@ const screenOf = (device: string | null): string | null => {
 
 const attr = (field: string): string => APPLE_VERSION_LOCALIZATION_ATTRIBUTES[field] ?? '';
 
-export class AppleDraftConnector implements StoreDraftConnector {
+export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader {
   readonly store = 'appstoreconnect' as const;
   readonly platform = 'ios' as const;
   readonly #http: StoreHttp;
@@ -249,6 +252,87 @@ export class AppleDraftConnector implements StoreDraftConnector {
       out.push({ locale, text: text_, groups: [...groups].map(([group, images]) => ({ group, images })) });
     }
     return out;
+  }
+
+  /**
+   * READ ONLY: every screenshot of every localization of the editable version (else the live one) with the facts of its library
+   * image: `imageAsset.templateUrl`, width and height, `fileSize`, and the checksum this server wrote into `referenceName`
+   * (none for an image somebody else uploaded). Apple's `ImageAsset` has `templateUrl`, `width` and `height`
+   * (VERIFIED, "Uploading and managing image assets" and "Read an app asset library image", read 2026-11-18); that the
+   * template, filled with the image's own width, height and `png`, serves the ORIGINAL bytes is UNVERIFIED (Apple's page
+   * says "to render a thumbnail"), so a pulled file is compared by size and never taken as byte for byte the uploaded file.
+   * The device of an image is worked out from its pixel size; an image of an unknown size is counted in `unplaced`.
+   */
+  async readStoreImages(): Promise<StoreImagesRead> {
+    const notes: string[] = [];
+    const version = await this.#readableVersion(notes);
+    const locs = await this.#localizations(version.id);
+    const images: StoreImageRecord[] = [];
+    let unplaced = 0;
+    for (const [locale, ref] of locs) {
+      const counters = new Map<string, number>();
+      for (const p of await this.#placements(ref.id)) {
+        const a = isRecord(p.image.attributes) ? p.image.attributes : {};
+        const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
+        const width = num(asset.width) ?? null;
+        const height = num(asset.height) ?? null;
+        const device = width !== null && height !== null ? classifyAppleScreenshot(width, height) : null;
+        if (device === null) {
+          unplaced++;
+          continue;
+        }
+        const position = (counters.get(device) ?? 0) + 1;
+        counters.set(device, position);
+        const hash = hashOfReference(text(a.referenceName));
+        const url = text(asset.templateUrl) ?? null;
+        images.push({
+          locale,
+          kind: 'screenshot',
+          device,
+          target: p.group,
+          position,
+          id: p.id,
+          name: text(a.fileName) ?? null,
+          width,
+          height,
+          bytes: num(a.fileSize) ?? null,
+          checksum: hash,
+          checksumKind: hash === null ? null : 'sha256',
+          state: text(a.state) ?? null,
+          url,
+          urlKind: url === null ? null : 'apple_template',
+        });
+      }
+    }
+    return { version, images, unplaced, notes };
+  }
+
+  /** The editable iOS version, else the one that is live (`READY_FOR_SALE`, UNVERIFIED name), else a refusal. */
+  async #readableVersion(notes: string[]): Promise<{ id: string; versionString: string | null; state: string; editable: boolean }> {
+    try {
+      const v = await this.#editableVersion();
+      return { ...v, editable: true };
+    } catch (error) {
+      if (!(error instanceof StoreError) || error.kind !== 'no_editable_version') throw error;
+    }
+    const what = 'looking for the live App Store version';
+    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
+      const body = (await this.#get(url, what)).json;
+      for (const item of records(body.data)) {
+        const a = isRecord(item.attributes) ? item.attributes : {};
+        const id = text(item.id);
+        const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
+        if (id && text(a.platform) === 'IOS' && state === 'READY_FOR_SALE') {
+          notes.push('There is no editable version, so the images of the live version were read.');
+          return { id, versionString: text(a.versionString) ?? null, state, editable: false };
+        }
+      }
+      const links = isRecord(body.links) ? body.links : {};
+      const next = text(links.next);
+      url = next === undefined ? undefined : this.#checkNext(next, what);
+    }
+    throw new StoreError('appstoreconnect', 'no_editable_version', 'App Store Connect has no editable and no live iOS version to read the screenshots of.', 404);
   }
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {

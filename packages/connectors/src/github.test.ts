@@ -693,6 +693,40 @@ test('propose keeps the mode of an executable file and honours body and draft', 
   assert.equal(pr.draft, true);
 });
 
+test('propose writes an image as a base64 blob, and holds the old bytes to the blob id in the tree', async () => {
+  const oldBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01]);
+  const newBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0x02, 0xff]);
+  const IMG = 'fastlane/metadata/android/en-US/images/icon.png';
+  const blobOf = (b: Buffer) => createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
+  const tree = () => fx.tree(fx.SHA_TREE, [{ path: IMG, sha: blobOf(oldBytes) }]);
+  const routes = (fake: Fake) =>
+    withDefaultBranch(fake)
+      .on({ method: 'GET', path: `${R}/git/ref/heads/${BRANCH}`, status: 404, json: { message: 'Not Found' } })
+      .on({ method: 'GET', path: `${R}/git/trees/${fx.SHA_TREE}`, query: { recursive: '1' }, json: tree() })
+      .on({ method: 'POST', path: `${R}/git/blobs`, status: 201, json: { sha: 'newblob' } })
+      .on({ method: 'POST', path: `${R}/git/trees`, status: 201, json: fx.tree(fx.SHA_NEW_TREE, []) })
+      .on({ method: 'POST', path: `${R}/git/commits`, status: 201, json: fx.commit(fx.SHA_NEW_COMMIT, fx.SHA_NEW_TREE) })
+      .on({ method: 'POST', path: `${R}/git/refs`, status: 201, json: fx.ref(`heads/${BRANCH}`, fx.SHA_NEW_COMMIT) })
+      .on({ method: 'POST', path: `${R}/pulls`, status: 201, json: fx.pullRequest(18, BRANCH) });
+  const fake = new Fake();
+  routes(fake);
+  await make(fake).propose(
+    changeSet([{ path: IMG, before: oldBytes.toString('base64'), after: newBytes.toString('base64'), encoding: 'base64' }]),
+    { branch: BRANCH, title: 'T' },
+  );
+  const blob = fake.to('POST', '/git/blobs')[0]?.body;
+  assert.equal(blob.encoding, 'base64');
+  assert.equal(blob.content, newBytes.toString('base64'));
+  // Another file than the one that was read: a conflict, and nothing is written.
+  const stale = new Fake();
+  routes(stale);
+  await rejects(
+    make(stale).propose(changeSet([{ path: IMG, before: Buffer.from('other').toString('base64'), after: newBytes.toString('base64'), encoding: 'base64' }]), { branch: BRANCH, title: 'T' }),
+    (e) => assert.ok(e instanceof ChangeConflictError),
+  );
+  assert.equal(stale.to('POST', '/git/blobs').length, 0);
+});
+
 test('propose refuses the default branch before writing anything, whatever its case', async () => {
   for (const branch of ['main', 'Main']) {
     const fake = new Fake();

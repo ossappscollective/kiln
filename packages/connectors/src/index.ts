@@ -31,3 +31,6 @@ export * from './appstore-draft.ts';
 export * from './store-submit-types.ts';
 export * from './play-submit.ts';
 export * from './appstore-submit.ts';
+export * from './aso-common.ts';
+export * from './apple-search.ts';
+export * from './play-public.ts';

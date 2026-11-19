@@ -262,3 +262,49 @@ export const APPLE_DRAFT_VERSION_STATES: readonly string[] = [
 
 export const MAX_DRAFT_TEXTS = 600;
 export const MAX_DRAFT_SLOTS = 100;
+
+// ---------------------------------------------------------------------------------------------
+// Reading the store's images (docs/adr/0012-assets-two-way-sync.md). Read only: nothing here writes to a store.
+
+/** One image a store holds, in one set, with where its bytes can be fetched (never the credential). */
+export type StoreImageRecord = {
+  locale: string;
+  kind: AssetKind;
+  device: string | null;
+  /** The store's own name of the set: an Apple placement group, a Google Play image type. */
+  target: string;
+  /** 1-based, the store's display order within (locale, kind, device). */
+  position: number;
+  /** App Store: the library image id. Google Play: the image id. */
+  id: string;
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+  /** Lower case hex of the whole file, or of its first characters (`mrm:sha256:` of this server's own uploads), or null. */
+  checksum: string | null;
+  checksumKind: 'sha256' | 'md5' | null;
+  state: string | null;
+  /**
+   * Where the bytes are: Apple's `imageAsset.templateUrl` (a template with `{w}`, `{h}` and `{f}`) or Google Play's image
+   * `url`. Null when the store gave none. The server downloads only from an allowlist of the stores' CDN hosts.
+   */
+  url: string | null;
+  urlKind: 'apple_template' | 'play_url' | null;
+};
+
+export type StoreImagesRead = {
+  version: { id: string; versionString: string | null; state: string; editable: boolean } | null;
+  images: StoreImageRecord[];
+  /** Images in a slot this server has no name for (an unknown display size). */
+  unplaced: number;
+  notes: string[];
+};
+
+/** The read side that both draft connectors have besides `StoreDraftConnector`. Changes nothing in the store. */
+export interface StoreImageReader {
+  readStoreImages(): Promise<StoreImagesRead>;
+}
+
+export const isStoreImageReader = (value: unknown): value is StoreImageReader =>
+  typeof value === 'object' && value !== null && typeof (value as { readStoreImages?: unknown }).readStoreImages === 'function';

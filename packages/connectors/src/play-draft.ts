@@ -1,4 +1,4 @@
-import { PLAY_LISTING_MEMBERS } from '@mrm/core';
+import { type AssetKind, PLAY_DEVICES, PLAY_LISTING_MEMBERS } from '@mrm/core';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
@@ -15,6 +15,9 @@ import {
   type DraftTextState,
   setMatches,
   type StoreDraftConnector,
+  type StoreImageReader,
+  type StoreImageRecord,
+  type StoreImagesRead,
 } from './store-draft-types.ts';
 import {
   enc,
@@ -86,8 +89,10 @@ export type PlayDraftConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 };
 
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
+/** Listing languages whose images one read looks at (each costs one request per image type). */
+const MAX_READ_LANGUAGES = 60;
 
-export class PlayDraftConnector implements StoreDraftConnector {
+export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader {
   readonly store = 'googleplay' as const;
   readonly platform = 'android' as const;
   readonly packageName: string;
@@ -125,6 +130,57 @@ export class PlayDraftConnector implements StoreDraftConnector {
         }
       }
     });
+  }
+
+  /**
+   * READ ONLY: the images of every listing language in a throw away edit (`edits.insert`, `edits.listings.list`,
+   * `edits.images.list` per language and image type, `edits.delete`; nothing is committed). VERIFIED on Google's pages (read
+   * 2026-11-18): `Image` has `id`, `url` ("A URL that will serve a preview of the image"), `sha1` and `sha256`. That the
+   * `url` serves the full size file, and which host it is on, is UNVERIFIED: the server downloads from an allowlist
+   * of Google's image hosts and checks the SHA-256 of what came against the one listed; a file that does not match is
+   * reported, never silently taken as the store's file. The pixel size is not in the answer (null until the file is read).
+   */
+  async readStoreImages(): Promise<StoreImagesRead> {
+    const kinds: { target: string; kind: AssetKind; device: string | null }[] = [
+      { target: 'icon', kind: 'icon', device: null },
+      { target: 'featureGraphic', kind: 'feature_graphic', device: null },
+      { target: 'tvBanner', kind: 'tv_banner', device: null },
+      ...PLAY_DEVICES.map((d) => ({ target: d.dir, kind: 'screenshot' as AssetKind, device: d.id as string | null })),
+    ];
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      const editId = await this.#insertEdit(this.#http);
+      try {
+        const out: StoreImageRecord[] = [];
+        const notes: string[] = [];
+        const languages = [...(await this.#listings(this.#http, editId)).keys()].sort();
+        if (languages.length > MAX_READ_LANGUAGES) notes.push(`Only the first ${MAX_READ_LANGUAGES} of ${languages.length} listing languages were read.`);
+        for (const locale of languages.slice(0, MAX_READ_LANGUAGES)) {
+          for (const k of kinds) {
+            const reply = await this.#imagesRaw(this.#http, editId, locale, k.target);
+            reply.forEach((image, i) => {
+              const id = text(image.id);
+              if (!id) return;
+              const url = text(image.url) ?? null;
+              const checksum = text(image.sha256)?.toLowerCase() ?? null;
+              out.push({ locale, kind: k.kind, device: k.device, target: k.target, position: i + 1, id, name: null, width: null, height: null, bytes: null, checksum, checksumKind: checksum === null ? null : 'sha256', state: null, url, urlKind: url === null ? null : 'play_url' });
+            });
+          }
+        }
+        return { version: null, images: out, unplaced: 0, notes };
+      } finally {
+        await this.#deleteEdit(this.#http, editId);
+      }
+    });
+  }
+
+  async #imagesRaw(http: StoreHttp, editId: string, language: string, type: string): Promise<Json[]> {
+    try {
+      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`), `reading the ${type} of ${language}`);
+      return records(isRecord(reply.json) ? reply.json.images : undefined);
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'not_found') return [];
+      throw error;
+    }
   }
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {

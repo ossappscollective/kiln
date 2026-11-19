@@ -99,8 +99,8 @@ const records = (v: unknown): Json[] => (Array.isArray(v) ? v.filter(isRecord) :
 const enc = (segment: string) => encodeURIComponent(segment);
 const encPath = (path: string) => path.split('/').map(enc).join('/');
 
-function gitBlobSha(content: string): string {
-  const bytes = Buffer.from(content, 'utf8');
+function gitBlobSha(content: string, encoding?: 'base64'): string {
+  const bytes = Buffer.from(content, encoding === 'base64' ? 'base64' : 'utf8');
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 }
 
@@ -744,7 +744,7 @@ export class GithubRepoConnector implements RepoConnector {
           continue;
         }
         const blob = await this.#api('POST', this.#repoPath('/git/blobs'), {
-          body: { content: change.content, encoding: 'utf-8' },
+          body: { content: change.content, encoding: change.encoding === 'base64' ? 'base64' : 'utf-8' },
           signal,
         });
         const sha = text(isRecord(blob.json) ? blob.json.sha : undefined);
@@ -993,7 +993,7 @@ export class GithubRepoConnector implements RepoConnector {
 
   /** Compares each change with the tree it will be applied to. */
   #plan(files: FileChange[], existing: Map<string, Json>) {
-    type Planned = { path: string; mode: string; content?: string };
+    type Planned = { path: string; mode: string; content?: string; encoding?: 'base64' };
     const changes: Planned[] = [];
     const conflicts: string[] = [];
     for (const file of files) {
@@ -1008,25 +1008,32 @@ export class GithubRepoConnector implements RepoConnector {
       }
       if (file.after === undefined) {
         if (!entry) continue; // already gone
-        if (file.before !== undefined && currentSha !== gitBlobSha(file.before))
+        if (file.before !== undefined && currentSha !== gitBlobSha(file.before, file.encoding))
           conflicts.push(file.path);
         else changes.push({ path: file.path, mode });
         continue;
       }
-      const afterSha = gitBlobSha(file.after);
+      const afterSha = gitBlobSha(file.after, file.encoding);
       if (currentSha === afterSha) continue; // already applied
       if (
-        file.before === undefined ? entry !== undefined : currentSha !== gitBlobSha(file.before)
+        file.before === undefined
+          ? entry !== undefined
+          : currentSha !== gitBlobSha(file.before, file.encoding)
       ) {
         conflicts.push(file.path);
         continue;
       }
-      changes.push({ path: file.path, mode, content: file.after });
+      changes.push({
+        path: file.path,
+        mode,
+        content: file.after,
+        ...(file.encoding === 'base64' ? { encoding: 'base64' as const } : {}),
+      });
     }
     return { changes, conflicts };
   }
 
-  #pullRequestBody(changeSet: ChangeSet, changes: { path: string; content?: string }[]): string {
+  #pullRequestBody(changeSet: ChangeSet, changes: { path: string; content?: string; encoding?: 'base64' }[]): string {
     const shown = changes.slice(0, 50).map((c) => `- \`${c.path}\``);
     const more = changes.length > 50 ? [`- and ${changes.length - 50} more`] : [];
     return [

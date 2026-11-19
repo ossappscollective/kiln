@@ -31,6 +31,8 @@ type AppleImage = {
   bytes: Uint8Array[];
   specId: string | null;
   category: string;
+  /** Pixel size of a processed image (its `imageAsset`). */
+  size?: { width: number; height: number };
 };
 type ApplePlacement = { id: string; locId: string; group: string; imageId: string };
 
@@ -71,7 +73,7 @@ export class FakeAppleDraftApi {
   }
 
   /** Puts files into a placement group of a localization (a test's starting point). `reference: false`: an image someone else uploaded. */
-  addPlacements(locId: string, group: string, files: { name: string; bytes: Uint8Array; state?: string; reference?: boolean }[]): string[] {
+  addPlacements(locId: string, group: string, files: { name: string; bytes: Uint8Array; state?: string; reference?: boolean; size?: { width: number; height: number } }[]): string[] {
     const ids: string[] = [];
     for (const f of files) {
       const imageId = this.#id('img');
@@ -85,6 +87,7 @@ export class FakeAppleDraftApi {
         bytes: [f.bytes],
         specId: this.defaultSpec,
         category: 'APP_SCREENSHOTS_AND_PREVIEWS',
+        ...(f.size ? { size: f.size } : {}),
       });
       const id = this.#id('pl');
       this.placements.set(id, { id, locId, group, imageId });
@@ -123,7 +126,7 @@ export class FakeAppleDraftApi {
     return {
       type: 'appAssetLibraryImages',
       id: i.id,
-      attributes: { fileName: i.fileName, fileSize: i.fileSize, referenceName: i.referenceName, state: i.state, stateDetails: i.state === 'FAILED' ? { description: 'The image is not acceptable.' } : null, specId: i.specId, category: i.category },
+      attributes: { fileName: i.fileName, fileSize: i.fileSize, referenceName: i.referenceName, state: i.state, stateDetails: i.state === 'FAILED' ? { description: 'The image is not acceptable.' } : null, specId: i.specId, category: i.category, ...(i.size ? { imageAsset: { templateUrl: `https://is1.mzstatic.com/image/thumb/${i.id}/{w}x{h}bb.{f}`, width: i.size.width, height: i.size.height } } : {}) },
     };
   }
 
@@ -364,7 +367,7 @@ export function defaultRefData() {
 // Google Play
 
 export type PlayListing = { language: string; title?: string; shortDescription?: string; fullDescription?: string; video?: string };
-type PlayImage = { id: string; sha256: string; sha1: string };
+type PlayImage = { id: string; sha256: string; sha1: string; url?: string };
 
 export class FakePlayDraftApi {
   readonly seen: Seen[] = [];
@@ -385,7 +388,10 @@ export class FakePlayDraftApi {
   #n = 0;
 
   setImages(language: string, type: string, files: Uint8Array[]): void {
-    this.images.set(`${language}/${type}`, files.map((b) => ({ id: `img-${++this.#n}`, sha256: sha256(b), sha1: 'x' })));
+    this.images.set(`${language}/${type}`, files.map((b) => {
+      const id = `img-${++this.#n}`;
+      return { id, sha256: sha256(b), sha1: 'x', url: `https://play-lh.googleusercontent.com/${id}` };
+    }));
   }
 
   writes(): string[] {
