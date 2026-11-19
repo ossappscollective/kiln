@@ -46,6 +46,8 @@ if have biome || [ -x node_modules/.bin/biome ]; then
   step "lint (biome)" pnpm lint
   # Which rules fire how often (summary), so a formatting-only problem can be told from real findings.
   node_modules/.bin/biome check . --reporter=summary --max-diagnostics=none > "$OUT/lint-summary.txt" 2>&1
+  node_modules/.bin/biome check . --diagnostic-level=error --reporter=github --max-diagnostics=none > "$OUT/lint-errors.txt" 2>&1
+  { echo; echo "### lint errors (file:line, errors only)"; echo '```'; grep -E "^::error" "$OUT/lint-errors.txt" | head -80 | cut -c1-220; echo '```'; } >> "$REPORT"
   { echo; echo "### lint summary (rules by count)"; echo '```'; head -n 60 "$OUT/lint-summary.txt"; echo '```'; echo; } >> "$REPORT"
 else skip "lint (biome)" "biome not installed"; fi
 step "web build" pnpm build

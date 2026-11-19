@@ -23,10 +23,10 @@ for (const theme of themeNames) {
   });
 }
 
-const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8').replace(
-  /\/\*[\s\S]*?\*\//g,
-  '',
-);
+// The formatter writes CSS strings with double quotes: compare with one quote style.
+const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replaceAll('"', "'");
 
 /** The body of the first rule whose selector is exactly `selector`, searched from `from`. */
 function ruleBody(selector: string, from = 0): string {

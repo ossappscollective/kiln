@@ -1,8 +1,23 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "ignoreUnknown": true, "includes": ["**", "!**/*.svelte", "!**/src-tauri/gen"] },
-  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/*.svelte",
+      "!**/src-tauri/gen"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -12,8 +27,37 @@
         "noAssignInExpressions": "warn",
         "useIterableCallbackReturn": "warn"
       },
-      "correctness": { "noVoidTypeReturn": "warn" }
+      "correctness": {
+        "noVoidTypeReturn": "warn"
+      }
     }
   },
-  "javascript": { "formatter": { "quoteStyle": "single" } }
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "**/*.test.ts",
+        "**/*-test-helpers.ts",
+        "**/testing.ts"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnsafeOptionalChaining": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noAssignInExpressions": "off"
+          },
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    }
+  ]
 }
