@@ -129,7 +129,7 @@ export class ApiError extends Error {
 }
 
 /** "30 seconds", "1 minute", "10 minutes": how long to wait, rounded up. */
-function waitPhrase(seconds: number): string {
+export function waitPhrase(seconds: number): string {
   if (seconds < 60) {
     const n = Math.max(1, Math.ceil(seconds));
     return `${n} second${n === 1 ? '' : 's'}`;

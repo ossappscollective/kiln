@@ -18,17 +18,28 @@
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { portfolioHref } from '../../lib/portfolio.ts';
   import { chordHint } from '../../lib/shortcuts.ts';
+  import type { SwitcherItem } from '../../lib/app-switcher.ts';
   import Icon from '../ui/Icon.svelte';
+  import AppSwitcherField from './AppSwitcherField.svelte';
 
   let {
     address,
     allowed,
     attention = null,
     counts = { reviews: null, releases: null, pending: null, pendingBlocking: false },
+    switcher = null,
+    mod = 'Ctrl',
+    onopenswitcher,
+    onpickapp,
   }: {
     address: AppAddress;
     allowed: (action: Action) => boolean;
     attention?: number | null;
+    /** The apps for the switcher field (null while being read); with `onpickapp` the app name is a switcher. */
+    switcher?: SwitcherItem[] | null;
+    mod?: string;
+    onopenswitcher?: () => void;
+    onpickapp?: (item: SwitcherItem) => void;
     counts?: { reviews: number | null; releases: number | null; pending?: number | null; pendingBlocking?: boolean };
   } = $props();
 
@@ -45,13 +56,15 @@
 </script>
 
 <div class="app-nav" class:chord={navSignals.chordPending}>
+  {#if onpickapp}
+    <AppSwitcherField items={switcher} appId={address.id} fallbackName={appContext.name} {mod} onopen={onopenswitcher} onpick={onpickapp} />
+  {:else if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
   <a class="back" href={portfolioHref}>
-    <Icon name="chevron-left" size={16} /> All apps
+    <Icon name="chevron-left" size={14} /> All apps
     {#if badgeText(attention)}
       <span class="badge warn nav-count">{badgeText(attention)}<span class="visually-hidden"> {badgeLabel(attention, 'app needs attention', 'apps need attention')}</span></span>
     {/if}
   </a>
-  {#if appContext.name}<p class="name" title={appContext.name}>{appContext.name}</p>{/if}
   <nav aria-label="This app">
     <ul>
       {#each sections as s (s.id)}
@@ -76,16 +89,17 @@
   .app-nav {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
   }
 
   .back {
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
-    min-height: var(--control-md);
+    min-height: var(--control-sm);
     padding: 0 var(--space-2);
-    font-weight: var(--weight-medium);
+    font-size: var(--text-sm);
+    color: var(--muted);
   }
 
   .name {

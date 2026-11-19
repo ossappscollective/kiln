@@ -12,13 +12,14 @@
   import { POLL_MAX_MS, POLL_MS, canDispatchWorkflow, hasActiveRun } from '../../lib/ci.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { createPoller } from '../../lib/poll.ts';
-  import type { AppSummary, CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
+  import type { CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import { dispatchTarget } from '../../lib/dispatch-target.ts';
   import DispatchDialog from './DispatchDialog.svelte';
   import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';
@@ -43,8 +44,7 @@
   let refreshedAt = $state<number | null>(null);
   let refreshing = $state(false);
   let now = $state(Date.now());
-  let apps = $state<AppSummary[]>([]);
-  let dispatchTarget = $state<CiWorkflow | null>(null);
+  let dispatchWorkflow = $state<CiWorkflow | null>(null);
   let announcement = $state('');
   /** The run whose panel is open (its id; the row is looked up in the list so the panel follows the list). */
   let followedId = $state<string | null>(null);
@@ -96,17 +96,6 @@
     }
   }
 
-  async function readApps() {
-    const mine = generation;
-    try {
-      const read = await api.apps(workspaceId);
-      if (mine === generation) apps = read.apps;
-    } catch {
-      // Without the list the dialog just offers no app to tie the run to.
-      if (mine === generation) apps = [];
-    }
-  }
-
   async function refresh() {
     if (refreshing) return;
     refreshing = true;
@@ -125,12 +114,11 @@
       runsProblem = '';
       runsWarning = '';
       refreshedAt = null;
-      dispatchTarget = null;
+      dispatchWorkflow = null;
       followedId = null;
       drawerOpen = false;
       void readRuns(canScan);
       if (canScan) void readWorkflows();
-      if (canDispatch) void readApps();
     });
   });
 
@@ -222,7 +210,7 @@
                         icon="play"
                         disabled={!canDispatchWorkflow(workflow)}
                         label="Run {workflow.name}"
-                        onclick={() => (dispatchTarget = workflow)}>Run</Button
+                        onclick={() => (dispatchWorkflow = workflow)}>Run</Button
                       >
                     </td>
                   {/if}
@@ -283,14 +271,12 @@
   <RunDrawer bind:open={drawerOpen} {api} {workspaceId} run={followed} {repository} {now} />
 {/if}
 
-{#if dispatchTarget}
+{#if dispatchWorkflow}
   <DispatchDialog
     {api}
     {workspaceId}
-    {repository}
-    workflow={dispatchTarget}
-    {apps}
-    onclose={() => (dispatchTarget = null)}
+    target={dispatchTarget({ repository, workflow: dispatchWorkflow })}
+    onclose={() => (dispatchWorkflow = null)}
     ondispatched={dispatched}
   />
 {/if}

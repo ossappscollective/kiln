@@ -11,6 +11,10 @@ import type { PendingLine } from './pending.ts';
 export type SwitcherItem = {
   /** The id of the app's first record: what the address uses. */
   key: string;
+  /** The ids of every record of the app (iOS, macOS, Android): the address may name any of them. */
+  ids: string[];
+  /** The icon route of the first record that has one, or null (the tile shows initials). */
+  iconUrl: string | null;
   name: string;
   /** The bundle ids and package names, shown under the name, so apps with one name can be told apart. */
   identifiers: string[];
@@ -26,6 +30,8 @@ export const SWITCHER_NUMBERS = 9;
 export function switcherItems(groups: readonly AppGroup[]): SwitcherItem[] {
   return groups.map((g, i) => ({
     key: g.key,
+    ids: g.members.map((m) => m.id),
+    iconUrl: g.members.map((m) => m.iconUrl ?? null).find((u) => u) ?? null,
     name: g.name,
     identifiers: [...new Set(g.members.map((m) => m.identifier))],
     platforms: g.platforms,
@@ -70,4 +76,21 @@ export function filterSwitcher(items: readonly SwitcherItem[], query: string): S
     ranked.push({ item, total, at });
   });
   return ranked.sort((a, b) => a.total - b.total || a.at - b.at).map((r) => r.item);
+}
+
+/** The item an address names (its id may be any record of the app), or null. */
+export const itemOfId = (items: readonly SwitcherItem[] | null, id: string): SwitcherItem | null =>
+  items?.find((i) => i.ids.indexOf(id) >= 0) ?? null;
+
+/**
+ * The highlighted row after a key, for the list of the Cmd or Ctrl + K dialog and the field in the left panel
+ * (one rule for both). Home and End jump; other keys leave the row as it is.
+ */
+export function moveActive(key: string, current: number, count: number): number {
+  if (count <= 0) return 0;
+  if (key === 'ArrowDown') return Math.min(count - 1, current + 1);
+  if (key === 'ArrowUp') return Math.max(0, current - 1);
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  return Math.min(Math.max(0, current), count - 1);
 }

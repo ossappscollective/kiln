@@ -9,6 +9,7 @@
   import type { Api } from '../../../lib/api.ts';
   import { appAddress, type PlatformScope } from '../../../lib/app-scope.ts';
   import { stagingError } from '../../../lib/staged.ts';
+  import { readCache } from '../../../lib/read-cache.ts';
   import { assetsLine, stagedSetsLine } from '../../../lib/release-assets.ts';
   import type { AppSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
@@ -35,12 +36,12 @@
   let problem = $state('');
   let seq = 0;
 
-  async function read() {
+  async function read(force = false) {
     const mine = ++seq;
     loading = true;
     problem = '';
     try {
-      const out = await api.appAssetDiff(workspaceId, app.id);
+      const out = await readCache.read({ workspaceId, group: 'repo', key: `assetdiff/${app.id}`, force, load: () => api.appAssetDiff(workspaceId, app.id) });
       if (mine === seq) diff = out.diff;
     } catch (e) {
       if (mine === seq) problem = stagingError(e);
@@ -73,7 +74,7 @@
   {:else if problem}
     <Alert tone="error" title="Could not compare the screenshots">
       {problem}
-      <div class="retry"><Button size="sm" icon="refresh" onclick={read}>Try again</Button></div>
+      <div class="retry"><Button size="sm" icon="refresh" onclick={() => read(true)}>Try again</Button></div>
     </Alert>
   {:else}
     <p class="status">
@@ -92,7 +93,7 @@
 
   <div class="row">
     <Button href={appAddress(app.id, 'assets', scope)} icon="grid">Open the Assets tab</Button>
-    <Button size="sm" icon="refresh" disabled={loading} onclick={read}>Compare again</Button>
+    <Button size="sm" icon="refresh" disabled={loading} onclick={() => read(true)}>Compare again</Button>
   </div>
 </div>
 

@@ -116,7 +116,6 @@
         {workspaceId}
         {repository}
         {role}
-        apps={records}
         appIds={members.map((m) => m.id)}
         {appPlatforms}
         {platforms}

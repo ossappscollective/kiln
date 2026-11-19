@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Platform } from '@mrm/core';
 import { groupApps } from './app-groups.ts';
-import { filterSwitcher, jumpTarget, switcherItems } from './app-switcher.ts';
+import { filterSwitcher, itemOfId, jumpTarget, moveActive, switcherItems } from './app-switcher.ts';
 import type { AppSummary } from './types.ts';
 
 const app = (id: string, name: string, platform: Platform, identifier: string): AppSummary => ({
@@ -67,4 +67,29 @@ test('matches by name first, then by bundle id, and names the best match first',
 test('letters in order still find an app, for two letters or more', () => {
   assert.deepEqual(filterSwitcher(items, 'wthr').map((i) => i.name), ['Weather']);
   assert.deepEqual(filterSwitcher(items, 'q'), []);
+});
+
+test('an address naming any record finds its app, and the icon of the first record with one is used', () => {
+  assert.equal(itemOfId(items, '2')?.name, 'Weather');
+  assert.equal(itemOfId(items, 'nope'), null);
+  assert.equal(itemOfId(null, '1'), null);
+  const withIcon = switcherItems(groupApps([app('1', 'Weather', 'ios', 'a'), { ...app('2', 'Weather', 'android', 'a'), iconUrl: '/icons/2' }]));
+  assert.equal(withIcon[0]?.iconUrl, '/icons/2');
+  assert.equal(items[0]?.iconUrl, null);
+});
+
+test('arrow keys move the highlight and stay inside the list', () => {
+  assert.equal(moveActive('ArrowDown', 0, 3), 1);
+  assert.equal(moveActive('ArrowDown', 2, 3), 2);
+  assert.equal(moveActive('ArrowUp', 0, 3), 0);
+  assert.equal(moveActive('End', 0, 3), 2);
+  assert.equal(moveActive('Home', 2, 3), 0);
+  assert.equal(moveActive('x', 5, 3), 2);
+  assert.equal(moveActive('ArrowDown', 0, 0), 0);
+});
+
+test('filtering narrows by name and by identifier', () => {
+  assert.deepEqual(filterSwitcher(items, 'zoo').map((i) => i.name), ['Zebra']);
+  assert.deepEqual(filterSwitcher(items, 'notes').map((i) => i.name), ['Notes', 'Notes Pro']);
+  assert.deepEqual(filterSwitcher(items, 'qqq'), []);
 });

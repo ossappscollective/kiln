@@ -14,6 +14,7 @@
   import { type Role, isApplePlatform } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../../lib/api.ts';
+  import { readCache } from '../../../lib/read-cache.ts';
   import type { PlatformScope } from '../../../lib/app-scope.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import { type EditableRelease, type ReleaseCandidates, type PlayCandidates, type BuildCandidate } from '../../../lib/release-candidates.ts';
@@ -146,11 +147,17 @@
   const stagedShare = $derived(stagedField(view, 'user_fraction'));
   const releaseVersion = $derived(editable && editable.store === 'appstoreconnect' ? editable.version.versionString : null);
 
-  async function loadEditable() {
+  async function loadEditable(force = false) {
     const mine = seq;
     editableState = { state: 'loading' };
     try {
-      const out = await api.releaseEditable(workspaceId, app.id, apple ? undefined : track.trim());
+      const out = await readCache.read({
+        workspaceId,
+        group: 'store',
+        key: `editable/${app.id}/${apple ? '' : track.trim()}`,
+        force,
+        load: () => api.releaseEditable(workspaceId, app.id, apple ? undefined : track.trim()),
+      });
       if (mine !== seq) return;
       editable = out.editable;
       editableState = { state: 'ready' };
@@ -161,11 +168,17 @@
     }
   }
 
-  async function loadCandidates() {
+  async function loadCandidates(force = false) {
     const mine = seq;
     candidatesState = { state: 'loading' };
     try {
-      const out = await api.releaseCandidates(workspaceId, app.id, apple ? {} : { track: track.trim() });
+      const out = await readCache.read({
+        workspaceId,
+        group: 'store',
+        key: `candidates/${app.id}/${apple ? '' : track.trim()}`,
+        force,
+        load: () => api.releaseCandidates(workspaceId, app.id, apple ? {} : { track: track.trim() }),
+      });
       if (mine !== seq) return;
       candidates = out.candidates;
       candidatesState = { state: 'ready' };
@@ -176,14 +189,20 @@
     }
   }
 
-  async function loadSource() {
+  async function loadSource(force = false) {
     const mine = seq;
     if (apple || source.trim() === '') {
       sourceCandidates = null;
       return;
     }
     try {
-      const out = await api.releaseCandidates(workspaceId, app.id, { track: source.trim() });
+      const out = await readCache.read({
+        workspaceId,
+        group: 'store',
+        key: `candidates/${app.id}/${source.trim()}`,
+        force,
+        load: () => api.releaseCandidates(workspaceId, app.id, { track: source.trim() }),
+      });
       if (mine === seq && out.candidates.store === 'googleplay') sourceCandidates = out.candidates;
     } catch {
       if (mine === seq) sourceCandidates = null;
@@ -193,7 +212,7 @@
   async function loadPipeline() {
     const mine = seq;
     try {
-      const out = await api.releasePipeline(workspaceId, app.id);
+      const out = await readCache.read({ workspaceId, group: 'pipeline', key: `pipeline/${app.id}`, load: () => api.releasePipeline(workspaceId, app.id) });
       if (mine === seq) pipeline = out;
     } catch {
       if (mine === seq) pipeline = null;
@@ -203,7 +222,7 @@
   async function loadLocales() {
     const mine = seq;
     try {
-      const out = await api.appListingLive(workspaceId, app.id);
+      const out = await readCache.read({ workspaceId, group: 'listing', key: `live/${app.id}`, load: () => api.appListingLive(workspaceId, app.id) });
       if (mine !== seq) return;
       const channel = out.channels.filter((c) => c.channel === 'editable')[0] ?? out.channels[0];
       listingLocales = channel ? Object.keys(channel.locales) : [];
@@ -212,15 +231,16 @@
     }
   }
 
+  // The buttons "Read again" and "Try again" skip what was kept; the first read when a step opens does not.
   function readBuilds() {
-    void loadEditable();
-    void loadCandidates();
+    void loadEditable(true);
+    void loadCandidates(true);
   }
 
   function readTracks() {
-    void loadEditable();
-    void loadCandidates();
-    void loadSource();
+    void loadEditable(true);
+    void loadCandidates(true);
+    void loadSource(true);
   }
 
   let shownFor = '';
@@ -270,9 +290,9 @@
       <li>
         <button type="button" class="step" class:current={current === s.id} aria-current={current === s.id ? 'step' : undefined} onclick={() => onstep(s.id)}>
           <span class="dot {tone}" aria-hidden="true"></span>
-          <span class="label"><span class="num">{i + 1}</span> {s.label}</span>
+          <span class="label" title={s.label}><span class="num">{i + 1}</span> {s.label}</span>
           <span class="word">{LEVEL_WORD[s.level]}</span>
-          <span class="text">{s.text}</span>
+          <span class="text" title={s.text}>{s.text}</span>
         </button>
       </li>
     {/each}
@@ -368,7 +388,8 @@
 
   .steps {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    /* Five equal columns that may shrink (minmax 0), so nothing leaks out of a card; on a narrow page 2 or 1 per row. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: var(--space-2);
     padding: 0;
     margin: 0;
@@ -377,9 +398,14 @@
 
   .step {
     display: grid;
+    grid-template-rows: auto auto minmax(2.5em, auto);
     gap: var(--space-1);
+    align-content: start;
     width: 100%;
+    min-width: 0;
     height: 100%;
+    overflow: hidden;
+    white-space: normal;
     padding: var(--space-2) var(--space-3);
     text-align: left;
     cursor: pointer;
@@ -394,7 +420,11 @@
   }
 
   .label {
+    min-width: 0;
+    overflow: hidden;
     font-weight: var(--weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .num {
@@ -407,10 +437,23 @@
     color: var(--muted);
   }
 
+  /* The card says it in a few words (two lines at most, the full text on hover); the details are in the panel below. */
   .text {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
     font-size: var(--text-sm);
     color: var(--muted);
     overflow-wrap: anywhere;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  @media (max-width: 1099px) {
+    .steps {
+      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    }
   }
 
   .dot {

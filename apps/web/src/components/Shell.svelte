@@ -7,6 +7,7 @@
   import { groupApps } from '../lib/app-groups.ts';
   import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
   import { jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
+  import { breadcrumbItems } from '../lib/breadcrumb.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';
   import { pendingStore } from '../lib/pending-store.svelte.ts';
@@ -195,6 +196,15 @@
     return () => query.removeEventListener('change', onchange);
   });
 
+  const crumbs = $derived(
+    breadcrumbItems({
+      workspace: workspace?.name,
+      section: current ? { label: current.label, href: `#/${current.id}` } : null,
+      appName: appContext.name,
+      appOpen: Boolean(appAddr && current),
+    }),
+  );
+
   $effect(() => {
     const parts = [appAddr ? appContext.name : '', current?.label, workspace?.name, productName].filter(Boolean);
     document.title = parts.join(' · ');
@@ -304,7 +314,7 @@
 
     <div bind:this={navEl} class="nav-wrap" class:chord={navSignals.chordPending}>
       {#if appAddr && workspace}
-        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} counts={appCounts} />
+        <AppNav address={appAddr} allowed={(a) => can(workspace.role, a)} {attention} counts={appCounts} switcher={switcherList} mod={modKey} onopenswitcher={() => void navSignals.ensureApps(api, workspaceId)} onpickapp={pickApp} />
       {:else}
         <nav aria-label="Sections">
           <ul>
@@ -350,13 +360,11 @@
 
       <nav class="crumbs" aria-label="Breadcrumb">
         <ol>
-          {#if workspace}<li class="crumb-ws">{workspace.name}</li>{/if}
-          {#if appAddr && current}
-            <li><a href="#/{current.id}">{current.label}</a></li>
-            <li aria-current="page">{appContext.name || 'App'}</li>
-          {:else if current}
-            <li aria-current="page">{current.label}</li>
-          {/if}
+          {#each crumbs as c (c.kind)}
+            <li class:crumb-ws={c.kind === 'workspace'} aria-current={c.current ? 'page' : undefined} title={c.label}>
+              {#if c.href}<a href={c.href}>{c.label}</a>{:else}{c.label}{/if}
+            </li>
+          {/each}
         </ol>
       </nav>
 
@@ -569,7 +577,8 @@
     padding: 0 var(--space-3);
   }
 
-  nav ul {
+  /* Scoped to the sidebar: the breadcrumb is a <nav> too and must not inherit the menu-link look. */
+  .sidebar nav ul {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -578,7 +587,7 @@
     list-style: none;
   }
 
-  nav a {
+  .sidebar nav a {
     display: flex;
     gap: var(--space-3);
     align-items: center;
@@ -593,17 +602,17 @@
       color var(--duration-fast) var(--ease);
   }
 
-  nav a:hover {
+  .sidebar nav a:hover {
     color: var(--ink);
     background: var(--surface-hover);
   }
 
-  nav a[aria-current='page'] {
+  .sidebar nav a[aria-current='page'] {
     color: var(--ink);
     background: var(--accent-bg);
   }
 
-  nav a[aria-current='page'] :global(.icon) {
+  .sidebar nav a[aria-current='page'] :global(.icon) {
     color: var(--accent);
   }
 
@@ -680,20 +689,38 @@
   }
 
   .crumbs {
+    flex: 0 1 auto;
     min-width: 0;
   }
 
+  /* One line, one baseline: every item is a shrinkable inline box that truncates with an ellipsis. */
   .crumbs ol {
     display: flex;
+    flex-wrap: nowrap;
     gap: var(--space-2);
-    align-items: center;
+    align-items: baseline;
+    min-width: 0;
     padding: 0;
     margin: 0;
-    overflow: hidden;
     font-weight: var(--weight-medium);
     color: var(--muted);
     white-space: nowrap;
     list-style: none;
+  }
+
+  .crumbs li {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 24ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .crumbs li[aria-current='page'] {
+    flex-shrink: 1;
+    max-width: 40ch;
+    color: var(--ink);
   }
 
   .crumbs li + li::before {
@@ -702,10 +729,14 @@
     content: '/';
   }
 
-  .crumbs li[aria-current='page'] {
-    overflow: hidden;
+  .crumbs a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .crumbs a:hover {
     color: var(--ink);
-    text-overflow: ellipsis;
+    text-decoration: underline;
   }
 
   /* ---- User menu ---- */
@@ -893,7 +924,7 @@
       display: none;
     }
 
-    .crumbs li:nth-child(2)::before {
+    .crumb-ws + li::before {
       display: none;
     }
 

@@ -4,10 +4,12 @@
   says what is about to run (workflow, branch or tag, repository, app and every input with its value).
   The inputs are read from the workflow file at the chosen branch or tag, so a change of branch reads
   them again before anything can be started. This tool never builds anything: it asks the team's own CI to.
-  Props: api, workspaceId, repository, workflow, apps (the workspace's apps, to tie a run to some of them: "For apps", none is
-  allowed and means the run is shown on every app of the repository),
-  initialAppId? (the app the run is tied to at first; the person can change it), hint? (the platforms in scope and a
-  version, from the app page: a platform or version input of the workflow that is still at its default is filled in
+  The one dispatch dialog of the product: the repository page, the Workflows page, the app's Workflows page and the release
+  start all open it with the same props (lib/dispatch-target.ts builds `target`), so they show the same fields. The apps of the
+  workspace are read here (lib/nav-signals, cached and single-flight), to tie a run to some of them: "For apps", none is
+  allowed and means the run is shown on every app of the repository.
+  Props: api, workspaceId, target (dispatchTarget(): repository, workflow, platforms and appId to preselect an app, and hint? with
+  the platforms in scope and a version: a platform or version input of the workflow that is still at its default is filled in
   on the first read, once; the person sees it in the form and can change it), onclose (called after the dialog closes), ondispatched (called with the run that was stored).
   Mount it when a workflow is chosen; unmount it on close, so every open starts clean.
 -->
@@ -24,9 +26,11 @@
     workflowKey,
     type InputValues,
   } from '../../lib/ci.ts';
-  import { APPS_HINT, APPS_INFO, appsLine, dispatchAppsBody, initialSelection, toggleApp } from '../../lib/dispatch-apps.ts';
+  import { APPS_HINT, APPS_INFO, appsLine, dispatchAppsBody, toggleApp } from '../../lib/dispatch-apps.ts';
+  import { type DispatchTarget, dispatchLinkableApps, dispatchPreselection } from '../../lib/dispatch-target.ts';
+  import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { repositoryName } from '../../lib/repositories.ts';
-  import { type DispatchHint, dispatchHints } from '../../lib/start-release.ts';
+  import { dispatchHints } from '../../lib/start-release.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary, CiWorkflow, RepositorySummary, WorkflowInputs, WorkflowRun } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
@@ -39,26 +43,21 @@
   let {
     api,
     workspaceId,
-    repository,
-    workflow,
-    apps,
-    initialAppId = '',
-    hint,
+    target,
     onclose,
     ondispatched,
   }: {
     api: Api;
     workspaceId: string;
-    repository: RepositorySummary;
-    workflow: CiWorkflow;
-    apps: AppSummary[];
-    initialAppId?: string;
-    hint?: DispatchHint;
+    target: DispatchTarget;
     onclose: () => void;
     ondispatched: (run: WorkflowRun) => void;
   } = $props();
 
   const uid = $props.id();
+  const repository = untrack(() => target.repository);
+  const workflow = untrack(() => target.workflow);
+  const hint = untrack(() => target.hint);
   const key = untrack(() => workflowKey(workflow));
 
   let open = $state(true);
@@ -77,7 +76,10 @@
   let hinted = false;
   let values = $state<InputValues>({});
   let freeText = $state('');
-  let appIds = $state<string[]>(untrack(() => initialSelection(apps.filter((a) => a.repositoryId === repository.id), initialAppId)));
+  /** The apps of the workspace, as read for the shell (the cache is used when fresh); none when this role may not read them. */
+  let apps = $state<AppSummary[]>(untrack(() => navSignals.appsOf(workspaceId) ?? []));
+  let appIds = $state<string[]>(untrack(() => dispatchPreselection(apps, target)));
+  let appsTouched = false;
   let submitting = $state(false);
   let problem = $state('');
   /** Problems are shown after the first try to continue, not while the person is still typing. */
@@ -112,6 +114,16 @@
     untrack(() => void loadInputs());
   });
 
+  $effect(() => {
+    untrack(() => {
+      void navSignals.ensureApps(api, workspaceId).then((read) => {
+        if (!read) return;
+        apps = read;
+        if (!appsTouched && appIds.length === 0) appIds = dispatchPreselection(read, target);
+      });
+    });
+  });
+
   const specs = $derived(info?.parsed ? info.inputs : []);
   /** The file could not be read: the person types name=value lines instead. */
   const freeForm = $derived(!info || !info.parsed);
@@ -120,7 +132,7 @@
   const refProblem = $derived(ref.trim() === '' ? 'Enter a branch or tag.' : '');
   const valid = $derived(refProblem === '' && (freeForm ? free.problems.length === 0 : Object.keys(problems).length === 0));
   const payload = $derived(freeForm ? free.inputs : dispatchInputs(specs, values));
-  const linkable = $derived(apps.filter((a) => a.repositoryId === repository.id));
+  const linkable = $derived(dispatchLinkableApps(apps, repository.id));
   const notDispatchable = $derived(info?.dispatchable === false);
   const appsText = $derived(appsLine(linkable, appIds));
 
@@ -290,7 +302,7 @@
             </legend>
             {#each linkable as app (app.id)}
               <label class="check">
-                <input type="checkbox" checked={appIds.indexOf(app.id) >= 0} onchange={(e) => (appIds = toggleApp(linkable, appIds, app.id, e.currentTarget.checked))} />
+                <input type="checkbox" checked={appIds.indexOf(app.id) >= 0} onchange={(e) => ((appsTouched = true), (appIds = toggleApp(linkable, appIds, app.id, e.currentTarget.checked)))} />
                 <span>{app.name} ({platformLabel(app.platform)})</span>
               </label>
             {/each}

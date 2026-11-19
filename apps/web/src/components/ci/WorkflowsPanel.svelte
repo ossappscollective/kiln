@@ -8,7 +8,7 @@
   live follow ask GitHub, which needs the right of a scan. While a run is going and the page is on
   screen the list updates every few seconds; with no active run, or in a hidden tab, nothing polls.
   A role that cannot ask GitHub sees the workflows its runs came from, and no Run button.
-  Props: api, workspaceId, repository, role, apps (the records of the app, to tie a run to one),
+  Props: api, workspaceId, repository, role,
   appIds (the records in scope), appPlatforms (every platform of the app), platforms (those in scope),
   scopeLabel ("iOS"), configured (release workflows of the build conventions), showTitle (name the
   repository above, when an app has more than one).
@@ -21,7 +21,7 @@
   import { timeAgo } from '../../lib/format.ts';
   import { createPoller } from '../../lib/poll.ts';
   import { repositoryName } from '../../lib/repositories.ts';
-  import type { AppSummary, CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
+  import type { CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
   import {
     type WorkflowRow,
     filterByPlatform,
@@ -31,7 +31,6 @@
     runHints,
     scopeNote,
     splitRelevant,
-    suggestAppId,
     workflowsFromRuns,
   } from '../../lib/workflows.ts';
   import Button from '../ui/Button.svelte';
@@ -39,6 +38,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
+  import { dispatchTarget } from '../../lib/dispatch-target.ts';
   import DispatchDialog from './DispatchDialog.svelte';
   import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';
@@ -49,7 +49,6 @@
     workspaceId,
     repository,
     role,
-    apps,
     appIds,
     appPlatforms,
     platforms,
@@ -61,7 +60,6 @@
     workspaceId: string;
     repository: RepositorySummary;
     role: Role;
-    apps: AppSummary[];
     appIds: string[];
     appPlatforms: Platform[];
     platforms: Platform[];
@@ -345,10 +343,7 @@
   <DispatchDialog
     {api}
     {workspaceId}
-    {repository}
-    workflow={dispatchRow.entry.workflow}
-    {apps}
-    initialAppId={suggestAppId(apps, repository.id, dispatchRow.entry.platforms)}
+    target={dispatchTarget({ repository, workflow: dispatchRow.entry.workflow, platforms: dispatchRow.entry.platforms })}
     onclose={() => (dispatchRow = null)}
     ondispatched={dispatched}
   />

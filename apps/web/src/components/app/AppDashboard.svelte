@@ -285,7 +285,7 @@
           </div>
         </dl>
         {#if can(role, 'apps.read')}
-          <PipelineStrip {api} {workspaceId} {app} scope={address.platform} refreshKey={syncRuns} showPlatform={members.length > 1} />
+          <PipelineStrip {api} {workspaceId} apps={[app]} scope={address.platform} refreshKey={syncRuns} />
         {/if}
       </section>
     {/each}

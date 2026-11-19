@@ -11,7 +11,7 @@
   syncing (by app id), onsync, syncRuns (changes when a sync finished, so plans and builds reload).
   "Prepare release" opens the stepper (components/release/stepper) in place of the list; the step is kept in the address
   (`&step=`), so the "Release left unfinished" item and a reload land on it. Under "Start release", a five-step strip
-  (PipelineStrip) shows a release on its way.
+  (PipelineStrip, one per release train) shows a release on its way.
   The platform scope for links comes from the address. "Start release" (StartRelease) sits above the table: it opens the
   dispatch dialog on the app's release workflow, follows the run it started and offers "Prepare release" when its build
   appears.
@@ -164,9 +164,7 @@
   <StartRelease {api} {workspaceId} {role} {members} {all} scopeIsBoth={members.length > 1} />
 
   {#if can(role, 'apps.read')}
-    {#each members as app (app.id)}
-      <PipelineStrip {api} {workspaceId} {app} {scope} refreshKey={syncRuns} showPlatform={members.length > 1} />
-    {/each}
+    <PipelineStrip {api} {workspaceId} apps={members} {scope} refreshKey={syncRuns} />
   {/if}
 
   {#if step !== null}

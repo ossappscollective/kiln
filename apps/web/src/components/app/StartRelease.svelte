@@ -31,9 +31,10 @@
     prepareReleaseHref,
     startedLine,
   } from '../../lib/start-release.ts';
-  import { rankWorkflows, suggestAppId } from '../../lib/workflows.ts';
+  import { rankWorkflows } from '../../lib/workflows.ts';
   import type { ActiveRuns, AppBuild, AppSummary, CiWorkflow, RepositorySummary, WorkflowRun } from '../../lib/types.ts';
   import RunningNow from '../ci/RunningNow.svelte';
+  import { dispatchTarget } from '../../lib/dispatch-target.ts';
   import DispatchDialog from '../ci/DispatchDialog.svelte';
   import Button from '../ui/Button.svelte';
 
@@ -66,7 +67,7 @@
 
   let preparing = $state(false);
   let problem = $state('');
-  let dialog = $state<{ repository: RepositorySummary; workflow: CiWorkflow; appId: string; chosen: ChosenWorkflow } | null>(null);
+  let dialog = $state<{ repository: RepositorySummary; workflow: CiWorkflow; platforms: Platform[]; chosen: ChosenWorkflow } | null>(null);
   let note = $state('');
   let started = $state<StartedRun | null>(null);
   let running = $state(true);
@@ -138,7 +139,7 @@
         dialog = {
           repository,
           workflow: chosen.workflow,
-          appId: suggestAppId(all ?? members, repositoryId, entry?.platforms ?? []),
+          platforms: entry?.platforms ?? [],
           chosen,
         };
         note = prefillNote(chosen, { platforms: own.map((m) => m.platform) });
@@ -247,11 +248,7 @@
   <DispatchDialog
     {api}
     {workspaceId}
-    repository={dialog.repository}
-    workflow={dialog.workflow}
-    apps={all ?? members}
-    initialAppId={dialog.appId}
-    hint={{ platforms }}
+    target={dispatchTarget({ repository: dialog.repository, workflow: dialog.workflow, platforms: dialog.platforms, hint: { platforms } })}
     onclose={() => (dialog = null)}
     ondispatched={dispatched}
   />

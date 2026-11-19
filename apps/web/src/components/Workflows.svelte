@@ -25,10 +25,10 @@
     rowsOf,
     sortRows,
     statusFilters,
-    suggestAppId,
     workflowsFromRuns,
   } from '../lib/workflows.ts';
   import type { WorkflowRow } from '../lib/workflows.ts';
+  import { dispatchTarget } from '../lib/dispatch-target.ts';
   import DispatchDialog from './ci/DispatchDialog.svelte';
   import RunDrawer from './ci/RunDrawer.svelte';
   import RunningNow from './ci/RunningNow.svelte';
@@ -395,10 +395,7 @@
   <DispatchDialog
     {api}
     {workspaceId}
-    repository={dispatchRepository}
-    workflow={dispatchRow.entry.workflow}
-    {apps}
-    initialAppId={suggestAppId(apps, dispatchRepository.id, dispatchRow.entry.platforms)}
+    target={dispatchTarget({ repository: dispatchRepository, workflow: dispatchRow.entry.workflow, platforms: dispatchRow.entry.platforms })}
     onclose={() => (dispatchRow = null)}
     ondispatched={dispatched}
   />

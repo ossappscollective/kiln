@@ -4,15 +4,14 @@
   Enter opens the app, Escape closes. The first nine apps carry a number; Cmd or Ctrl + that digit opens the
   app from anywhere, also from this list. A native <dialog> through Modal, so the focus trap, Escape and the
   focus return come from the browser.
+  The rows are AppSwitcherList, shared with the switcher field of the left panel (AppSwitcherField).
   Props: open (bindable), items (from switcherItems; null while the apps are being read), onpick (an item).
 -->
 <script lang="ts">
-  import { type SwitcherItem, filterSwitcher, jumpTarget } from '../../lib/app-switcher.ts';
-  import AppIcon from '../ui/AppIcon.svelte';
+  import { type SwitcherItem, filterSwitcher, jumpTarget, moveActive } from '../../lib/app-switcher.ts';
   import Icon from '../ui/Icon.svelte';
   import Modal from '../ui/Modal.svelte';
-  import PlatformBadge from '../ui/PlatformBadge.svelte';
-  import PendingChip from '../publish/PendingChip.svelte';
+  import AppSwitcherList from './AppSwitcherList.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
   let {
@@ -57,12 +56,9 @@
         return;
       }
     }
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      active = Math.min(shown.length - 1, current + 1);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      active = Math.max(0, current - 1);
+      active = moveActive(event.key, current, shown.length);
     } else if (event.key === 'Enter') {
       event.preventDefault();
       choose(shown[current]);
@@ -99,28 +95,7 @@
     {:else if shown.length === 0}
       <p class="muted none" role="status">{items.length === 0 ? 'This workspace has no apps yet.' : 'No app matches.'}</p>
     {:else}
-      <ul id="{uid}-list" class="list" role="listbox" aria-label="Apps">
-        {#each shown as item, i (item.key)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <li
-            id="{uid}-o{i}"
-            role="option"
-            aria-selected={i === current}
-            class:active={i === current}
-            onpointerenter={() => (active = i)}
-            onclick={() => choose(item)}
-          >
-            <AppIcon name={item.name} url={null} seed={item.key} size="sm" labelled />
-            <span class="names">
-              <strong class="name">{item.name}</strong>
-              <code class="ids">{item.identifiers.join(' · ')}</code>
-              {#if item.pending}<span class="chiprow"><PendingChip line={item.pending} /></span>{/if}
-            </span>
-            <span class="plats">{#each item.platforms as p (p)}<PlatformBadge platform={p} showLabel={false} />{/each}</span>
-            {#if item.number !== null}<kbd class="num" title="{mod} + {item.number}">{item.number}</kbd>{/if}
-          </li>
-        {/each}
-      </ul>
+      <AppSwitcherList id="{uid}-list" items={shown} {current} {mod} onhover={(i) => (active = i)} onpick={choose} />
     {/if}
     <p class="foot muted">Enter opens the app. {mod} + 1 to 9 opens one of the first nine from anywhere.</p>
   </div>
@@ -160,66 +135,6 @@
 
   .search input:focus-visible {
     outline: none;
-  }
-
-  .list {
-    max-height: 340px;
-    padding: 0;
-    margin: 0;
-    overflow-y: auto;
-    list-style: none;
-  }
-
-  .list li {
-    display: flex;
-    gap: var(--space-3);
-    align-items: center;
-    min-height: var(--control-lg);
-    padding: var(--space-1) var(--space-2);
-    cursor: pointer;
-    border-radius: var(--radius-md);
-  }
-
-  .list li.active {
-    background: var(--accent-bg);
-  }
-
-  .names {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .name,
-  .ids {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .ids {
-    padding: 0;
-    font-size: var(--text-xs);
-    color: var(--muted);
-    background: none;
-    border: 0;
-  }
-
-  .chiprow {
-    display: flex;
-    margin-top: var(--space-1);
-  }
-
-  .plats {
-    display: inline-flex;
-    gap: var(--space-1);
-  }
-
-  .num {
-    min-width: 20px;
-    text-align: center;
-    color: var(--muted);
   }
 
   .none,

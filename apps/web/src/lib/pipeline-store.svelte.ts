@@ -1,4 +1,5 @@
 import type { Api } from './api.ts';
+import { readCache } from './read-cache.ts';
 import { stagingError } from './staged.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 
@@ -40,10 +41,11 @@ export const pipelineStore = {
     return apps[appId] ?? null;
   },
   /** Reads one app's pipeline. Returns '' when it worked, else a sentence. */
-  async loadApp(api: Api, workspaceId: string, appId: string): Promise<string> {
+  async loadApp(api: Api, workspaceId: string, appId: string, force = false): Promise<string> {
     const mine = (appGeneration[appId] = (appGeneration[appId] ?? 0) + 1);
     try {
-      const out = await api.releasePipeline(workspaceId, appId);
+      // The same key as the release stepper's read, so a page that shows both asks once.
+      const out = await readCache.read({ workspaceId, group: 'pipeline', key: `pipeline/${appId}`, force, load: () => api.releasePipeline(workspaceId, appId) });
       if (mine === appGeneration[appId]) apps[appId] = out;
       return '';
     } catch (e) {

@@ -203,7 +203,7 @@ export function buildStatus(f: StepperFacts): StepStatus {
   const base = { id: 'build' as const, label: STEP_LABELS.build };
   if (f.chosen !== null) return { ...base, level: 'ready', text: `${f.chosen.label}${f.chosen.where === 'staged' ? ', staged' : ', in the store draft'}` };
   if (f.editable.state === 'loading') return { ...base, level: 'unknown', text: 'Reading the store' };
-  if (f.editable.state === 'error') return { ...base, level: 'unknown', text: f.editable.message ?? 'The store could not be read' };
+  if (f.editable.state === 'error') return { ...base, level: 'unknown', text: 'Could not read the store. See below' };
   if (f.editable.state === 'none') {
     return { ...base, level: 'blocked', text: isApplePlatform(f.platform) ? 'No version is in Prepare for Submission' : 'No draft release on that track yet' };
   }
@@ -221,7 +221,7 @@ export function notesStatus(f: StepperFacts): StepStatus {
 
 export function assetsStatus(f: StepperFacts): StepStatus {
   const base = { id: 'assets' as const, label: STEP_LABELS.assets };
-  if (f.staged.assets === 0) return { ...base, level: 'optional', text: 'Nothing staged. Screenshots stay as they are' };
+  if (f.staged.assets === 0) return { ...base, level: 'optional', text: 'Nothing staged' };
   return { ...base, level: 'ready', text: `${plural(f.staged.assets, 'graphic set', 'graphic sets')} staged` };
 }
 

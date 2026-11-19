@@ -15,7 +15,7 @@ import {
   slotKey,
   slotMaxFiles,
 } from '@mrm/core';
-import { ApiError } from './api.ts';
+import { ApiError, waitPhrase } from './api.ts';
 import type { AssetItem, DriftField } from './types.ts';
 
 /**
@@ -389,6 +389,11 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const bodyMessage = (error: ApiError): string => (typeof error.body.message === 'string' && error.body.message !== '' ? error.body.message : error.message);
 
 /** A sentence for an error of staging, unstaging or clearing (the server's messages are written to be shown). */
+/** Plain words for a 429 on a read of the repository or the store: what happened, how long to wait. Never the server's wording. */
+export function rateLimitedMessage(retryAfter: number | undefined): string {
+  return `The repository is being read too often. Try again in ${waitPhrase(retryAfter && retryAfter > 0 ? retryAfter : 60)}.`;
+}
+
 export function stagingError(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
   switch (error.code) {
@@ -405,7 +410,7 @@ export function stagingError(error: unknown): string {
     case 'source_not_supported':
       return REVERSE_IMAGE_SYNC_NOTE;
     case 'rate_limited':
-      return `Too many repository reads. Try again in ${error.retryAfter ?? 60} seconds.`;
+      return rateLimitedMessage(error.retryAfter);
     case 'field_not_stageable':
     case 'empty_value':
     case 'invalid_locale':
