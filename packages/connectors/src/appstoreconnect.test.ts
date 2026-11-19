@@ -97,13 +97,11 @@ test('verifyCredentials reads one app only (GET /v1/apps?limit=1) and reports th
 
 test('listApps follows links.next across pages', async () => {
   const { fake, connector } = setup();
-  fake
-    .on({ method: 'GET', match: '/v1/apps?limit=200', json: fx.appleAppsPage1 })
-    .on({
-      method: 'GET',
-      match: '/v1/apps?cursor=AoJ4g7mg6o4DKzEwNzQ2ODIxOTc2.ANrJC88&limit=2',
-      json: fx.appleAppsPage2,
-    });
+  fake.on({ method: 'GET', match: '/v1/apps?limit=200', json: fx.appleAppsPage1 }).on({
+    method: 'GET',
+    match: '/v1/apps?cursor=AoJ4g7mg6o4DKzEwNzQ2ODIxOTc2.ANrJC88&limit=2',
+    json: fx.appleAppsPage2,
+  });
   const apps = await connector.listApps();
   assert.deepEqual(
     apps.map((a) => [a.storeId, a.name, a.bundleId, a.platform]),
@@ -244,14 +242,12 @@ test('listBuilds: when Apple rejects sort, the message names the parameter and a
 
 test('listBuilds: the rejected parameter is in the error message and in details when nothing works', async () => {
   const { fake, connector } = setup();
-  fake
-    .on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort })
-    .on({
-      method: 'GET',
-      match: BUILDS_MINIMAL,
-      status: 400,
-      json: fx.appleParameterError('limit'),
-    });
+  fake.on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort }).on({
+    method: 'GET',
+    match: BUILDS_MINIMAL,
+    status: 400,
+    json: fx.appleParameterError('limit'),
+  });
   let caught: unknown;
   try {
     await connector.listBuilds('10746822401');

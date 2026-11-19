@@ -232,13 +232,11 @@ const phased = {
 
 test('rollout: a macOS version is found by its version string among the macOS versions and its phased release is read', async () => {
   const fake = new fx.FakeFetch();
-  fake
-    .on({ method: 'GET', match: VERSIONS, json: versionsDoc })
-    .on({
-      method: 'GET',
-      match: '/v1/appStoreVersions/v-mac-a/appStoreVersionPhasedRelease',
-      json: phased,
-    });
+  fake.on({ method: 'GET', match: VERSIONS, json: versionsDoc }).on({
+    method: 'GET',
+    match: '/v1/appStoreVersions/v-mac-a/appStoreVersionPhasedRelease',
+    json: phased,
+  });
   const rollout = new AppleRolloutConnector({
     credential,
     appStoreId: APP,

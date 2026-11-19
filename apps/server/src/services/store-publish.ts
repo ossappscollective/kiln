@@ -262,26 +262,22 @@ const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest
 type Check = { code: string; message: string; item?: string | undefined };
 
 const problemsFromChecks = (checks: { blocking: Check[]; warnings: Check[] }): PlanProblem[] => [
-  ...checks.blocking
-    .slice(0, 30)
-    .map(
-      (c): PlanProblem => ({
-        code: c.code,
-        severity: 'error',
-        message: c.message,
-        ...(c.item !== undefined ? { item: c.item } : {}),
-      }),
-    ),
-  ...checks.warnings
-    .slice(0, 30)
-    .map(
-      (c): PlanProblem => ({
-        code: c.code,
-        severity: 'warning',
-        message: c.message,
-        ...(c.item !== undefined ? { item: c.item } : {}),
-      }),
-    ),
+  ...checks.blocking.slice(0, 30).map(
+    (c): PlanProblem => ({
+      code: c.code,
+      severity: 'error',
+      message: c.message,
+      ...(c.item !== undefined ? { item: c.item } : {}),
+    }),
+  ),
+  ...checks.warnings.slice(0, 30).map(
+    (c): PlanProblem => ({
+      code: c.code,
+      severity: 'warning',
+      message: c.message,
+      ...(c.item !== undefined ? { item: c.item } : {}),
+    }),
+  ),
 ];
 
 const messageOf = (f: Failure): string =>
@@ -292,14 +288,12 @@ const problemOfFailure = (f: Failure): PlanProblem[] => {
     ? (f.body.problems as { code?: unknown; message?: unknown; item?: unknown }[])
     : [];
   if (listed.length > 0) {
-    return listed
-      .slice(0, 30)
-      .map((p) => ({
-        code: String(p.code ?? f.body.error),
-        severity: 'error' as const,
-        message: String(p.message ?? ''),
-        ...(p.item !== undefined ? { item: String(p.item) } : {}),
-      }));
+    return listed.slice(0, 30).map((p) => ({
+      code: String(p.code ?? f.body.error),
+      severity: 'error' as const,
+      message: String(p.message ?? ''),
+      ...(p.item !== undefined ? { item: String(p.item) } : {}),
+    }));
   }
   return [{ code: f.body.error, severity: 'error', message: messageOf(f) }];
 };

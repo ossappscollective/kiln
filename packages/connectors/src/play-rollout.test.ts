@@ -108,14 +108,12 @@ test('readState matches the version codes as a set, and says not_found for anoth
     (e: unknown) => e instanceof StoreError && e.kind === 'not_found',
   );
   const missing = setup();
-  missing.fake
-    .clear('GET', TRACK)
-    .on({
-      method: 'GET',
-      match: TRACK,
-      status: 404,
-      json: { error: { code: 404, message: 'Track not found' } },
-    });
+  missing.fake.clear('GET', TRACK).on({
+    method: 'GET',
+    match: TRACK,
+    status: 404,
+    json: { error: { code: 404, message: 'Track not found' } },
+  });
   await assert.rejects(
     missing.connector.readState(target),
     (e: unknown) =>

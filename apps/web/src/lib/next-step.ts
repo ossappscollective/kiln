@@ -92,14 +92,12 @@ export function chooseNextStep(input: NextStepInput): NextStep {
       waiting: lead.waiting ? { who: lead.waiting.who, text: lead.waiting.text } : null,
       primary: { label: lead.button.label, href: trainHref(lead, input.scope) },
       train: lead,
-      otherTrains: trains
-        .slice(1)
-        .map((t) => ({
-          title: t.title,
-          text: t.lines[0] ?? '',
-          href: trainHref(t, input.scope),
-          label: t.button.label,
-        })),
+      otherTrains: trains.slice(1).map((t) => ({
+        title: t.title,
+        text: t.lines[0] ?? '',
+        href: trainHref(t, input.scope),
+        label: t.button.label,
+      })),
       items,
       offerStart: input.canStart && r >= 2,
     };

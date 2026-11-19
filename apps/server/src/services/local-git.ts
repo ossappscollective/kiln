@@ -867,9 +867,7 @@ export function classifySigningFailure(result: RawGitResult): {
               text,
             )
           ? 'locked'
-          : /Couldn't load|Load key|invalid format|No secret key|not a valid/i.test(
-                text,
-              )
+          : /Couldn't load|Load key|invalid format|No secret key|not a valid/i.test(text)
             ? 'key'
             : 'failed';
   return { reason, message: SIGNING_MESSAGES[reason] };

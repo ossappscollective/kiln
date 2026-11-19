@@ -429,15 +429,13 @@ test('429 is waited out by Retry-After, then a rate limit error', async () => {
     .on({ method: 'POST', match: EDITS, json: fx.googleEdit });
   await connector.probeEdit(PKG);
   assert.deepEqual(waits, [4000]);
-  fake
-    .clear('POST', EDITS)
-    .on({
-      method: 'POST',
-      match: EDITS,
-      status: 429,
-      json: fx.google429Quota,
-      headers: { 'retry-after': '90' },
-    });
+  fake.clear('POST', EDITS).on({
+    method: 'POST',
+    match: EDITS,
+    status: 429,
+    json: fx.google429Quota,
+    headers: { 'retry-after': '90' },
+  });
   await assert.rejects(
     connector.probeEdit(PKG),
     (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 90,

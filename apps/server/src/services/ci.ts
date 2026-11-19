@@ -1389,14 +1389,12 @@ export async function listRepositoryTags(
   const data: ReadTagData = read.value;
   const value: RepositoryTags = {
     tags: data.tags.slice(0, PREVIEW_TAGS).map((t) => ({ name: t.name, sha: t.sha })),
-    releases: data.releases
-      .slice(0, PREVIEW_RELEASES)
-      .map((r) => ({
-        name: r.name,
-        tagName: r.tagName,
-        draft: r.draft,
-        publishedAt: r.publishedAt ?? r.createdAt,
-      })),
+    releases: data.releases.slice(0, PREVIEW_RELEASES).map((r) => ({
+      name: r.name,
+      tagName: r.tagName,
+      draft: r.draft,
+      publishedAt: r.publishedAt ?? r.createdAt,
+    })),
     tagsTruncated: data.tagsTruncated || data.tags.length > PREVIEW_TAGS,
     releasesTruncated: data.releasesTruncated || data.releases.length > PREVIEW_RELEASES,
     releasesError: data.releasesError,

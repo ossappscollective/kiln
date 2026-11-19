@@ -41,11 +41,7 @@ export type AiBootOptions = {
   /** Build the REAL connectors (no client factory): the network is then the `fetch` (Anthropic, OpenAI) or the `exchange` (a compatible server) given here. */
   real?: {
     fetch?: typeof fetch;
-    exchange?: (request: {
-      url: URL;
-      method: string;
-      headers: Record<string, string>;
-    }) => Promise<{
+    exchange?: (request: { url: URL; method: string; headers: Record<string, string> }) => Promise<{
       status: number;
       headers: Record<string, string | undefined>;
       body: Uint8Array;

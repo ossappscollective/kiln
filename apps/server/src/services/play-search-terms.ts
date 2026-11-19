@@ -389,9 +389,7 @@ export type SearchTermsView = {
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
-export function checkSearchTermsQuery(
-  query: SearchTermsQuery,
-):
+export function checkSearchTermsQuery(query: SearchTermsQuery):
   | {
       ok: true;
       from?: string;

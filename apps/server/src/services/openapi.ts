@@ -350,12 +350,10 @@ export function buildOpenApiDocument(
       license: { name: 'Apache-2.0', identifier: 'Apache-2.0' },
     },
     servers: [{ url: '/', description: 'This server' }],
-    tags: [...tags]
-      .sort()
-      .map((name) => ({
-        name,
-        ...(TAG_DESCRIPTIONS[name] ? { description: TAG_DESCRIPTIONS[name] } : {}),
-      })),
+    tags: [...tags].sort().map((name) => ({
+      name,
+      ...(TAG_DESCRIPTIONS[name] ? { description: TAG_DESCRIPTIONS[name] } : {}),
+    })),
     paths,
     components: {
       securitySchemes: {

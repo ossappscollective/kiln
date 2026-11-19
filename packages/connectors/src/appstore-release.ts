@@ -188,9 +188,7 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
     };
   }
 
-  async #build(
-    versionId: string,
-  ): Promise<{
+  async #build(versionId: string): Promise<{
     id: string;
     buildNumber: string | null;
     processingState: string | null;
