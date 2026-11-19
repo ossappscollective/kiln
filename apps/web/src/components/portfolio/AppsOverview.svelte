@@ -179,7 +179,12 @@
 
   .app-name {
     font-weight: var(--weight-medium);
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+  }
+
+  /* The table sizes columns from their content: without a floor the App column collapses to one character wide. */
+  .app {
+    min-width: 13rem;
   }
 
   .meta,
@@ -194,8 +199,7 @@
   .identifier {
     width: fit-content;
     max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-all;
+    overflow-wrap: break-word;
     white-space: normal;
   }
 
