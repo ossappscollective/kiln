@@ -27,6 +27,7 @@ the App Store", "Get it on Google Play") are not used anywhere.
 | `store-android` | Google Play, Google Play Console | A rounded square with a play triangle |
 | `platform-ios` | iOS | A phone outline with a top pill and a home bar |
 | `platform-android` | Android | A phone outline with a camera dot and a bottom bar |
+| `platform-macos` | macOS | A desktop display outline with a stand and a bezel line |
 | `send` | TestFlight | A paper plane |
 | `repo` | GitHub | A repository (book) outline |
 | `code` | Expo | Code brackets and a slash |
