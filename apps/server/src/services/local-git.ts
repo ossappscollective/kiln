@@ -1,5 +1,6 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
-import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { access, chmod, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { redactSecrets, secretStrings } from '@mrm/connectors';
@@ -912,6 +913,15 @@ async function signedCommitTree(args: {
     // see of the system; gpg gets its keyring through GNUPGHOME.
     if (/['\u0000-\u001f]/.test(signing.program)) {
       return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
+    }
+    // A pinned absolute path that is missing or not executable is a "program" failure on every
+    // platform: git's own wording for it differs (macOS git words it another way), so ask the file system.
+    if (isAbsolute(signing.program)) {
+      try {
+        await access(signing.program, fsConstants.X_OK);
+      } catch {
+        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
+      }
     }
     const home = join(scratch, 'home');
     const temp = join(scratch, 'tmp');
