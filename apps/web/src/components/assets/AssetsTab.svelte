@@ -2,12 +2,14 @@
   AssetsTab: the store media found in the app's repository, in three groups (icon, Google Play graphics,
   screenshots), by locale and device, checked against the sizes and counts the stores document. Each
   file shows its status next to the store (in repo, in repo and store, differs) and its spec problems.
-  Nothing is uploaded or changed in a store from here, and nothing is fetched from a store. "Stage for store"
-  collects the files of a set (a locale, a kind, a device) of the repository in the staged-changes tray (our own
-  database; the files are kept by reference and read at push time); the tray pushes them to the store's DRAFT.
-  A set with a spec error, a file the stores' push cannot take, or a kind the stores' APIs cannot write is not
-  stageable, with the reason. "Pull from store" stays disabled: pulling store images into the repository is a
-  documented gap. The images are served from the repository by the app's own file route.
+  Nothing is written to a store from here, and reading a store happens only when asked ("Compare with the store",
+  "Pull from store"). "Stage for store" collects the files of a set (a locale, a kind, a device) of the repository in
+  the staged-changes tray (our own database; the files are kept by reference and read at push time); the tray pushes
+  them to the store's DRAFT. "Edit files" replaces, removes, fixes and adds the files of a set; those changes are staged
+  the same way, and "Put into the repository" makes a draft change set of them. "Pull from store" downloads the store's
+  current images into a draft change set. A set with a spec error, a file the stores' push cannot take, or a kind the
+  stores' APIs cannot write is not stageable, with the reason. The images are served from the repository by the app's own
+  file route, and the store's by a proxy of the server.
   Props: api, workspaceId, role, app, now (ms), refreshKey (changes when a sync finished, so this
   tab reads again), storeSide? (the seam for the store side: the counts the store has per locale,
   kind and device. Left out, the tab uses the one in the index, which is null today, so each set
@@ -16,7 +18,7 @@
   were searched), partial (a limit was reached: it says what was left out), ready.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type AssetDiffView, type AssetKind, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {
@@ -27,6 +29,7 @@
     filterOptions,
     groupAssets,
     isFiltered,
+    kindLabel,
     previewNote,
     previewState,
     problemCountsText,
@@ -44,6 +47,7 @@
     groupSummaries,
     sliceIndex,
   } from '../../lib/assets-groups.ts';
+  import { SYNC_ROLE_REASON, type EditorSet, canChangeAssets, setIdOf, storeKeyOf } from '../../lib/assets-sync.ts';
   import { describeError } from '../../lib/portfolio.ts';
   import { REVERSE_IMAGE_SYNC_NOTE, STAGE_ROLE_REASON, canStage, setStaging, stageAssetsBody, stagingError } from '../../lib/staged.ts';
   import { stagedStore } from '../../lib/staged-store.svelte.ts';
@@ -57,9 +61,12 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Tabs from '../ui/Tabs.svelte';
+  import AssetCompareDialog from './AssetCompareDialog.svelte';
   import AssetGallery from './AssetGallery.svelte';
   import AssetLightbox from './AssetLightbox.svelte';
   import AssetProblems from './AssetProblems.svelte';
+  import AssetPullDialog from './AssetPullDialog.svelte';
+  import AssetSetEditor from './AssetSetEditor.svelte';
   import AssetSource from './AssetSource.svelte';
   import StagedTray from '../listing/StagedTray.svelte';
 
@@ -257,6 +264,93 @@
     if (problem === '') toast.success(`Staged ${done} ${done === 1 ? 'set' : 'sets'} for the store. Nothing is in the store yet: push from the staged changes above.`);
     else toast.error(`Staged ${done} of ${stageableShown.length} sets, then stopped: ${problem}`);
   }
+
+  // ---- Two way sync: pull, compare, edit the files of a set, bulk actions ------------------------------
+  type Picked = { id: string; locale: string; kind: AssetKind; device: string | null };
+  let pullOpen = $state(false);
+  let pullSets = $state<string[] | null>(null);
+  let compareOpen = $state(false);
+  let compareFocus = $state<{ locale: string; kind: AssetKind; device: string | null } | null>(null);
+  let editorOpen = $state(false);
+  let editorKey = $state<{ locale: string; kind: AssetKind; device: string | null } | null>(null);
+  let diff = $state<AssetDiffView | null>(null);
+  let selection = $state<Picked[]>([]);
+  let bulkBusy = $state(false);
+
+  const mayChange = $derived(canChangeAssets(role));
+  const selectedIds = $derived(selection.map((p) => p.id));
+  const allGroups = $derived(index ? groupAssets(index, NO_FILTER) : []);
+  const editorSet = $derived<EditorSet | null>(
+    editorKey && index
+      ? (() => {
+          const key = editorKey;
+          const files = index.assets
+            .filter((a) => a.locale === key.locale && a.kind === key.kind && a.device === key.device)
+            .sort((a, b) => a.order - b.order || a.path.localeCompare(b.path));
+          const device = files.length > 0 ? (files[0]?.deviceLabel ?? '') : '';
+          return { ...key, title: `${kindLabel(key.kind)}${key.device !== null && device ? ` ${device}` : ''} (${key.locale})`, files, commit: index.commit };
+        })()
+      : null,
+  );
+
+  function toggleSelected(locale: string, set: DeviceGroup) {
+    const id = setIdOf(locale, set.kind, set.device);
+    selection = selectedIds.indexOf(id) !== -1 ? selection.filter((p) => p.id !== id) : [...selection, { id, locale, kind: set.kind, device: set.device }];
+  }
+
+  function openEditor(locale: string, set: DeviceGroup) {
+    editorKey = { locale, kind: set.kind, device: set.device };
+    editorOpen = true;
+  }
+
+  function openCompare(locale: string, set: DeviceGroup | null) {
+    compareFocus = set ? { locale, kind: set.kind, device: set.device } : null;
+    compareOpen = true;
+  }
+
+  function compareFromEditor() {
+    if (!editorKey) return;
+    compareFocus = { ...editorKey };
+    editorOpen = false;
+    compareOpen = true;
+  }
+
+  function pullFromStore(sets: string[] | null) {
+    pullSets = sets;
+    pullOpen = true;
+  }
+
+  async function stageSelected() {
+    if (bulkBusy || stagingId !== '' || stagingAll || selection.length === 0) return;
+    bulkBusy = true;
+    let done = 0;
+    const left: string[] = [];
+    let problem = '';
+    for (const pick of selection) {
+      let found: DeviceGroup | null = null;
+      for (const l of allGroups) {
+        if (l.locale !== pick.locale) continue;
+        for (const g of l.groups) if (g.kind === pick.kind && g.device === pick.device) found = g;
+      }
+      if (!found) {
+        left.push(pick.id);
+        continue;
+      }
+      const st = stageFor(pick.locale, found);
+      if (!st.canStage) {
+        left.push(pick.id);
+        continue;
+      }
+      problem = await stageOne(pick.locale, found);
+      if (problem !== '') break;
+      done += 1;
+    }
+    bulkBusy = false;
+    selection = selection.filter((p) => left.indexOf(p.id) !== -1);
+    if (problem !== '') toast.error(`Staged ${done} ${done === 1 ? 'set' : 'sets'}, then stopped: ${problem}`);
+    else if (left.length > 0) toast.warning(`Staged ${done} ${done === 1 ? 'set' : 'sets'}. ${left.length} could not be staged (a set says why next to it); they stay selected.`);
+    else toast.success(`Staged ${done} ${done === 1 ? 'set' : 'sets'} for the store. Nothing is in the store yet: push from the staged changes above.`);
+  }
   const searched = $derived(index ? [...index.folders.screenshots, ...index.folders.previews, ...(index.folders.androidImages ? [index.folders.androidImages] : [])] : []);
 </script>
 
@@ -345,9 +439,19 @@
               title={!canStage(role) ? STAGE_ROLE_REASON : stageableShown.length === 0 ? 'No set shown here can be staged, or all of them are staged already. A set says why next to it.' : undefined}
               onclick={stageAll}
             >Stage for store{stageableShown.length > 0 ? ` (${stageableShown.length} ${stageableShown.length === 1 ? 'set' : 'sets'} shown)` : ''}</Button>
-            <Button size="sm" icon="download" disabled title={REVERSE_IMAGE_SYNC_NOTE}>Pull from store</Button>
+            <Button size="sm" icon="eye" onclick={() => openCompare('', null)} title="Reads what the store holds now (a read, nothing is written there) and shows how it differs from the repository.">Compare with the store</Button>
+            <Button size="sm" icon="download" disabled={!mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Downloads the store\'s images into a draft change set.'} onclick={() => pullFromStore(null)}>Pull from store</Button>
           </div>
         </section>
+
+        {#if selection.length > 0}
+          <section class="bulk" aria-label="Selected sets">
+            <span><strong>{selection.length}</strong> {selection.length === 1 ? 'set' : 'sets'} selected</span>
+            <Button size="sm" icon="layers" loading={bulkBusy} disabled={bulkBusy || stagingAll || stagingId !== '' || !canStage(role)} title={!canStage(role) ? STAGE_ROLE_REASON : undefined} onclick={stageSelected}>Stage selected</Button>
+            <Button size="sm" icon="download" disabled={bulkBusy || !mayChange} title={!mayChange ? SYNC_ROLE_REASON : 'Pulls the store\'s images of the selected sets into a draft change set.'} onclick={() => pullFromStore(selection.map((p) => storeKeyOf(app.platform, p.locale, p.kind, p.device)))}>Pull selected</Button>
+            <Button size="sm" variant="ghost" disabled={bulkBusy} onclick={() => (selection = [])}>Clear selection</Button>
+          </section>
+        {/if}
 
         {#if index.problems.length > 0}
           <Disclosure
@@ -429,6 +533,11 @@
                     onstage={stageSet}
                     onunstage={(id) => unstageSet(id)}
                     {stagingId}
+                    {diff}
+                    selected={selectedIds}
+                    ontoggle={toggleSelected}
+                    onedit={openEditor}
+                    oncompare={(locale, set) => openCompare(locale, set)}
                   />
                 {/if}
               {/if}
@@ -455,6 +564,10 @@
           {/if}
         </div>
       </details>
+
+      <AssetPullDialog bind:open={pullOpen} {api} {workspaceId} {role} {app} initialSets={pullSets} />
+      <AssetCompareDialog bind:open={compareOpen} {api} {workspaceId} {role} {app} focus={compareFocus} ondiff={(d) => (diff = d)} />
+      <AssetSetEditor bind:open={editorOpen} {api} {workspaceId} {role} {app} set={editorSet} oncompare={compareFromEditor} />
 
       <AssetLightbox
         bind:open={lightboxOpen}
@@ -492,6 +605,16 @@
   }
   .staging {
     gap: var(--space-3);
+  }
+  .bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
   }
   .group-panel {
     padding-top: var(--space-4);

@@ -303,7 +303,7 @@ test('the request of "Stage for store" names the exact paths and the commit; the
 
 test('staging errors name what to do', () => {
   assert.match(stagingError(apiError('field_not_pushable', 422, { allowed: ['description', 'keywords'] })), /description, keywords/);
-  assert.match(stagingError(apiError('source_not_supported', 422)), /documented gap/);
+  assert.match(stagingError(apiError('source_not_supported', 422)), /Pull from store/);
   assert.match(stagingError(apiError('forbidden', 403)), /role/);
   assert.match(stagingError(apiError('rate_limited', 429, {}, 12)), /12 seconds/);
   assert.equal(stagingError(apiError('no_assets', 422)), 'msg no_assets');

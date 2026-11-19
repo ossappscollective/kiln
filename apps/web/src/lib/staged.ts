@@ -38,7 +38,7 @@ export const SUBMIT_NEXT_STEP =
   'After a push, "Submit for review…" (admin and up, when the server allows it) hands the draft to the store\'s review. This tool never releases or publishes: do that in App Store Connect or Play Console.';
 
 export const REVERSE_IMAGE_SYNC_NOTE =
-  'Pulling store images into the repository is a documented gap: this server does not download store images yet. Download them from the store console, commit them to the repository, and stage them from there.';
+  'The store\'s images cannot be staged directly. "Pull from store" puts them into the repository as a draft change set to review and apply; after that they can be staged from there. Files you upload here are staged as they are.';
 
 // ---------------------------------------------------------------------------------------------
 // API shapes (the staged view itself comes from @mrm/core)
@@ -184,7 +184,7 @@ export const problemsOf = (item: { problems: StagedProblem[] }, severity: 'error
 
 export const SOURCE_LABELS: Readonly<Record<string, string>> = {
   repo: 'From the repository',
-  local: 'Typed here',
+  local: 'Typed or uploaded here',
   store: 'From the store',
 };
 

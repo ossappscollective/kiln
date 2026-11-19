@@ -1,4 +1,4 @@
-import type { Listing, ListingProblem, StagedChangesView } from '@mrm/core';
+import type { AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
 import type {
   AsoAddResult,
   AsoCompetitor,
@@ -20,6 +20,7 @@ import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
+import type { InspectedFile, PullReport, PullSelection, ToRepoResult, UploadQuery } from './assets-sync.ts';
 import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
 import type { StoreSubmitConfig, SubmitPreview, SubmitResult, SubmitState } from './store-submit.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
@@ -285,16 +286,31 @@ export type ApiOptions = {
   onUnauthenticated?: () => void;
 };
 
+/** The query of an upload, an inspection, a fix or a removal of one file of a staged set. */
+function uploadQueryText(q: UploadQuery): string {
+  const out = new URLSearchParams();
+  out.set('locale', q.locale);
+  out.set('kind', q.kind);
+  if (q.device !== null) out.set('device', q.device);
+  if (q.mode !== undefined) out.set('mode', q.mode);
+  if (q.position !== undefined) out.set('position', String(q.position));
+  if (q.name !== undefined) out.set('name', q.name);
+  if (q.fix !== undefined) out.set('fix', q.fix);
+  if (q.background !== undefined) out.set('background', q.background);
+  return out.toString();
+}
+
 export function createApi(options: ApiOptions = {}) {
   const send = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  /** `raw`: the body is the bytes of a file (an image upload), sent as they are; otherwise `body` is sent as JSON. */
+  async function request<T>(method: string, path: string, body?: unknown, raw?: Blob): Promise<T> {
     let response: Response;
     try {
       response = await send(path, {
         method,
-        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        headers: raw ? { 'content-type': raw.type || 'application/octet-stream' } : body === undefined ? undefined : { 'content-type': 'application/json' },
+        body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
       });
     } catch {
       throw new ApiError(0, 'network', 'Cannot reach the server. Check that it is running.');
@@ -807,6 +823,29 @@ export function createApi(options: ApiOptions = {}) {
       body: { locale: string; kind: string; device?: string | null; from?: 'repo'; paths?: string[]; commit?: string },
     ) =>
       request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets`, body),
+    // Two way sync of the graphics (docs/api/assets.md, docs/api/staged-changes.md). Reading a store and the comparison
+    // change nothing in it. A pull and "to repository" make a DRAFT change set; uploads, removals and fixes change only
+    // the staged set in our own database. Nothing here writes to a store: that is `pushStagedDraft`.
+    appStoreImages: (workspaceId: string, appId: string, fresh = false) =>
+      request<{ store: StoreImagesView; cached: boolean }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${fresh ? '?fresh=1' : ''}`),
+    appAssetDiff: (workspaceId: string, appId: string, fresh = false) =>
+      request<{ diff: AssetDiffView; cachedStore: boolean }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/diff${fresh ? '?fresh=1' : ''}`),
+    pullStoreImages: (workspaceId: string, appId: string, selection: PullSelection) =>
+      request<{ pull: PullReport }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/pull`, selection),
+    inspectAssetFile: (workspaceId: string, appId: string, query: UploadQuery, file: Blob) =>
+      request<{ inspected: InspectedFile }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/inspect?${uploadQueryText(query)}`, undefined, file),
+    uploadStagedAsset: (workspaceId: string, appId: string, query: UploadQuery, file: Blob) =>
+      request<{ staged: StagedChangesView; position: number }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/upload?${uploadQueryText(query)}`, undefined, file),
+    removeStagedAssetFile: (workspaceId: string, appId: string, query: UploadQuery & { position: number }) =>
+      request<{ staged: StagedChangesView }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/file?${uploadQueryText(query)}`),
+    fixStagedAssetFile: (
+      workspaceId: string,
+      appId: string,
+      body: { locale: string; kind: string; device: string | null; position: number; fix: string; background?: string },
+    ) =>
+      request<{ staged: StagedChangesView; summary: string }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/fix`, body),
+    stagedAssetsToRepo: (workspaceId: string, appId: string, sets?: string[]) =>
+      request<{ result: ToRepoResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/to-repo`, sets ? { sets } : {}),
     unstageItem: (workspaceId: string, appId: string, id: string) =>
       request<{ staged: StagedChangesView }>(
         'DELETE',

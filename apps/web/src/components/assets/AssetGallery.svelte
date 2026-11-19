@@ -11,7 +11,7 @@
   staged or unstaged, or ''). Staging changes our own database only; the push is in the staged-changes tray.
 -->
 <script lang="ts">
-  import type { AssetProblem } from '@mrm/core';
+  import type { AssetDiffView, AssetProblem } from '@mrm/core';
   import {
     type DeviceGroup,
     type LocaleGroup,
@@ -22,6 +22,7 @@
     previewState,
   } from '../../lib/assets.ts';
   import { storeOnlyCount, storeStatusOf } from '../../lib/assets-groups.ts';
+  import { diffBadge, diffSetOf, setIdOf } from '../../lib/assets-sync.ts';
   import { STAGE_ROLE_REASON, type SetStaging } from '../../lib/staged.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
@@ -43,6 +44,11 @@
     onstage,
     onunstage,
     stagingId = '',
+    diff = null,
+    selected = [],
+    ontoggle,
+    onedit,
+    oncompare,
   }: {
     groups: LocaleGroup[];
     workspaceId: string;
@@ -56,6 +62,11 @@
     onstage?: (locale: string, set: DeviceGroup) => void;
     onunstage?: (id: string, locale: string, set: DeviceGroup) => void;
     stagingId?: string;
+    diff?: AssetDiffView | null;
+    selected?: string[];
+    ontoggle?: (locale: string, set: DeviceGroup) => void;
+    onedit?: (locale: string, set: DeviceGroup) => void;
+    oncompare?: (locale: string, set: DeviceGroup) => void;
   } = $props();
 </script>
 
@@ -78,6 +89,16 @@
               <Badge tone={over ? 'bad' : 'neutral'} icon={over ? toneIcon('bad') : undefined}>{countText(group)}</Badge>
             </span>
             <span class="store muted" class:differs={compare.state === 'differs'}>{compare.text}{storeOnly > 0 ? ` (${storeOnly} only in the store)` : ''}</span>
+            {#if diff}
+              {@const badge = diffBadge(diffSetOf(diff, locale.locale, group.kind, group.device))}
+              {#if badge}<Badge tone={badge.tone}>{badge.text}</Badge>{/if}
+            {/if}
+            {#if ontoggle}
+              <label class="pick">
+                <input type="checkbox" checked={selected.indexOf(setIdOf(locale.locale, group.kind, group.device)) !== -1} onchange={() => ontoggle?.(locale.locale, group)} />
+                <span>Select<span class="visually-hidden"> {group.kindLabel} {group.deviceLabel}, {locale.label}</span></span>
+              </label>
+            {/if}
           </div>
           {#if stageFor}
             {@const st = stageFor(locale.locale, group)}
@@ -97,9 +118,17 @@
               {#if st.staged}
                 <Button size="sm" variant="ghost" icon="x" disabled={stagingId !== ''} onclick={() => st.staged && onunstage?.(st.staged.id, locale.locale, group)}>Unstage<span class="visually-hidden"> {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>
               {/if}
+              {#if onedit}<Button size="sm" variant="ghost" icon="image" onclick={() => onedit?.(locale.locale, group)}>Edit files<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
+              {#if oncompare}<Button size="sm" variant="ghost" icon="eye" onclick={() => oncompare?.(locale.locale, group)}>Compare with the store<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
               {#if !st.canStage && st.reason && st.reason !== STAGE_ROLE_REASON}
                 <span class="muted why">{st.reason}</span>
               {/if}
+            </div>
+          {/if}
+          {#if !stageFor && (onedit || oncompare)}
+            <div class="stage-row">
+              {#if onedit}<Button size="sm" variant="ghost" icon="image" onclick={() => onedit?.(locale.locale, group)}>Edit files<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
+              {#if oncompare}<Button size="sm" variant="ghost" icon="eye" onclick={() => oncompare?.(locale.locale, group)}>Compare with the store<span class="visually-hidden">: {group.kindLabel} {group.deviceLabel}, {locale.label}</span></Button>{/if}
             </div>
           {/if}
           {#if group.setProblems.length > 0}
@@ -170,6 +199,13 @@
     gap: var(--space-2);
   }
   .why {
+    font-size: var(--text-sm);
+  }
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
     font-size: var(--text-sm);
   }
   .store.differs {
