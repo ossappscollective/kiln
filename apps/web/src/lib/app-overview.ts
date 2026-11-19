@@ -14,6 +14,7 @@ export type PlatformCell =
 export type OverviewRow = {
   group: AppGroup;
   ios: PlatformCell | null;
+  macos: PlatformCell | null;
   android: PlatformCell | null;
   /** The release whose state needs the most attention across the platforms, or null. */
   attention: ReleaseSummary | null;
@@ -50,9 +51,10 @@ export function buildOverviewRows(
 ): OverviewRow[] {
   return groups.map((group) => {
     const ios = cell(group.ios, releases);
+    const macos = cell(group.macos, releases);
     const android = cell(group.android, releases);
     const latests: ReleaseSummary[] = [];
-    for (const c of [ios, android]) if (c && c.state === 'ready' && c.latest) latests.push(c.latest);
+    for (const c of [ios, macos, android]) if (c && c.state === 'ready' && c.latest) latests.push(c.latest);
     const attention = [...latests].sort((a, b) => rank(a) - rank(b))[0] ?? null;
     const synced = group.members.map((m) => m.lastSyncedAt);
     const mine = reviewApps ? reviewApps.filter((r) => group.members.some((m) => m.id === r.app.id)) : null;
@@ -61,6 +63,7 @@ export function buildOverviewRows(
     return {
       group,
       ios,
+      macos,
       android,
       attention,
       syncFailed: group.members.some((m) => (m.lastSyncError ?? '').trim() !== ''),

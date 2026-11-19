@@ -14,7 +14,7 @@
   const uid = $props.id();
   const view = $derived(rolloutView(release));
   const percent = $derived(view.fraction === null ? null : formatRollout(view.fraction));
-  const source = $derived(release.platform === 'ios' ? 'App Store Connect' : 'Google Play');
+  const source = $derived(release.platform === 'android' ? 'Google Play' : 'App Store Connect');
 </script>
 
 <div class="rollout">

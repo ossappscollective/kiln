@@ -13,7 +13,7 @@
   the browser. A pull or history dialog opened from here stacks above it.
 -->
 <script lang="ts">
-  import type { Platform, Role } from '@mrm/core';
+  import { type Platform, type Role, platformLabel } from '@mrm/core';
   import { localeSummary } from '../../lib/listing-drift.ts';
   import { cellInfo, cellStatus } from '../../lib/listing-matrix.ts';
   import type { MatrixRow } from '../../lib/listing-matrix.ts';
@@ -134,7 +134,7 @@
           {@const pullable = pullableInLocale({ locale: row.locale, fields })}
           {@const reason = pullReasons[platform] ?? null}
           {@const selection = pickedIn(platform, fields)}
-          <section class="platform card flush" aria-label="{platform === 'ios' ? 'iOS' : 'Android'} listing, locale {row.locale}">
+          <section class="platform card flush" aria-label="{platformLabel(platform)} listing, locale {row.locale}">
             <div class="phead">
               <h3><PlatformBadge {platform} tinted /></h3>
               <span class="muted">{storeName(platform)} · {localeSummary({ locale: row.locale, fields })}</span>

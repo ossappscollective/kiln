@@ -1,8 +1,9 @@
 <!--
   AppSection: the screen of the open section, for the platforms in scope. The existing screens
   (listing, assets, reviews, builds, release) are mounted as they are, once per platform record;
-  with both platforms in scope they sit under an iOS | Android tab list, one visible at a time.
-  Props: api, workspaceId, role, section, members (records in scope), openId (the id in the
+  with several platforms in scope they sit under an iOS | macOS | Android tab list, one visible at a time.
+  Props: api, workspaceId, role, section, members (records in scope), all? (every record of the app, to
+  tell that a macOS record's reviews are the iOS record's; the members when not given), openId (the id in the
   address), version (an open release or null), releases (by app id), now, syncRuns, syncing (by app
   id), onsync.
 -->
@@ -10,9 +11,14 @@
   import { type Role, can } from '@mrm/core';
   import type { Snippet } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { address } from '../../lib/address.svelte.ts';
   import type { AppSection } from '../../lib/app-scope.ts';
+  import { appAddress, appWorkflowsHref } from '../../lib/app-scope.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { reviewsOwner } from '../../lib/reviews.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import Alert from '../ui/Alert.svelte';
+  import Button from '../ui/Button.svelte';
   import AssetsTab from '../assets/AssetsTab.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
@@ -22,6 +28,7 @@
   import AsoSection from '../aso/AsoSection.svelte';
   import AppDashboard from './AppDashboard.svelte';
   import AppReleases from './AppReleases.svelte';
+  import AppWorkflows from './AppWorkflows.svelte';
   import AppSettings from './AppSettings.svelte';
 
   let {
@@ -30,6 +37,7 @@
     role,
     section,
     members,
+    all,
     openId,
     version,
     releases,
@@ -43,6 +51,7 @@
     role: Role;
     section: AppSection;
     members: AppSummary[];
+    all?: AppSummary[];
     openId: string;
     version: string | null;
     releases: Record<string, ReleaseSummary[]>;
@@ -64,7 +73,15 @@
   <AssetsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
 {/snippet}
 {#snippet reviews(app: AppSummary)}
-  <ReviewsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
+  {@const owner = reviewsOwner(app, all ?? members)}
+  {#if owner}
+    <Alert tone="info" title="These reviews are read once, for iOS">
+      The customer reviews of an App Store Connect app are shared by its iOS and macOS entries, so they are kept and triaged under iOS.
+      <a href={appAddress(openId, 'reviews', 'ios')}>Open the iOS reviews</a>.
+    </Alert>
+  {:else}
+    <ReviewsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
+  {/if}
 {/snippet}
 {#snippet builds(app: AppSummary)}
   <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
@@ -108,12 +125,18 @@
   {@render perPlatform(assets)}
 {:else if section === 'reviews'}
   {@render perPlatform(reviews)}
+{:else if section === 'workflows'}
+  <AppWorkflows {api} {workspaceId} {role} {members} {all} />
 {:else if section === 'builds'}
+  <div class="row workflows-link">
+    <Button href={appWorkflowsHref(openId, address.platform)} icon="play" size="sm">Workflows</Button>
+    <span class="muted text-sm">Run the GitHub workflows that make these builds, and follow them.</span>
+  </div>
   {@render perPlatform(builds)}
 {:else if section === 'aso'}
   <AsoSection {api} {workspaceId} {role} {members} {releases} {now} />
 {:else if section === 'settings'}
-  <AppSettings {api} {workspaceId} {role} {members} {now} />
+  <AppSettings {api} {workspaceId} {role} {members} {all} {now} />
 {:else}
   <AppDashboard {api} {workspaceId} {role} {members} {releases} {now} {canSync} {syncing} {onsync} {syncRuns} />
 {/if}
@@ -121,5 +144,9 @@
 <style>
   .platform-tabs {
     justify-content: flex-start;
+  }
+
+  .workflows-link {
+    margin: 0 0 var(--space-3);
   }
 </style>

@@ -14,7 +14,7 @@ const EXPECTED_NAMES = [
   'git-commit', 'git-merge', 'git-pull-request', 'globe', 'grid', 'hash', 'help', 'history', 'image',
   'images', 'inbox', 'info', 'key', 'language', 'laptop', 'layers', 'link', 'list', 'lock', 'log-out',
   'mail', 'menu', 'message', 'minus', 'monitor', 'moon', 'more', 'network', 'pause', 'percent',
-  'pipeline', 'platform-android', 'platform-ios', 'play', 'plus', 'qr', 'refresh', 'repo', 'rocket',
+  'pipeline', 'platform-android', 'platform-ios', 'platform-macos', 'play', 'plus', 'qr', 'refresh', 'repo', 'rocket',
   'search', 'send', 'server', 'settings', 'shield', 'smartphone', 'sort', 'star', 'star-filled', 'stop',
   'store', 'store-android', 'store-ios', 'sun', 'tablet', 'tag', 'terminal', 'trash', 'trending-up',
   'unlock', 'upload', 'user', 'users', 'x', 'x-circle', 'zap',

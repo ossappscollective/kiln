@@ -10,6 +10,7 @@ import AsoOverview from '../components/aso/AsoOverview.svelte';
 import ReviewsInbox from '../components/reviews/ReviewsInbox.svelte';
 import Tokens from '../components/Tokens.svelte';
 import Webhooks from '../components/Webhooks.svelte';
+import Workflows from '../components/Workflows.svelte';
 import type { Api } from './api.ts';
 
 /** What the shell hands to every section. */
@@ -37,6 +38,7 @@ export const views: ViewDef[] = [
   { id: 'reviews', icon: 'message', label: 'Reviews inbox', component: ReviewsInbox, requires: 'reviews.read' },
   { id: 'aso', icon: 'trending-up', label: 'ASO', component: AsoOverview, requires: 'aso.read' },
   { id: 'repositories', icon: 'git-branch', label: 'Repositories', component: Repositories, requires: 'repositories.read' },
+  { id: 'workflows', icon: 'play', label: 'Workflows', component: Workflows, requires: 'repositories.read' },
   { id: 'credentials', group: 'workspace', icon: 'key', label: 'Credentials', component: Credentials, requires: 'credentials.read' },
   { id: 'members', group: 'workspace', icon: 'users', label: 'Members', component: Members, requires: 'members.read' },
   { id: 'tokens', group: 'workspace', icon: 'shield', label: 'API tokens', component: Tokens, requires: 'tokens.read' },

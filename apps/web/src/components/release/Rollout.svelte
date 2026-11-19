@@ -81,7 +81,7 @@
   const steps = $derived(view?.steps ?? []);
   const comparison = $derived(view?.comparison ?? null);
   const store = $derived(view?.store ?? null);
-  const storeSource = $derived(store?.platform === 'ios' ? 'App Store Connect' : 'Google Play');
+  const storeSource = $derived(store?.platform === 'android' ? 'Google Play' : 'App Store Connect');
   const hasDone = $derived(steps.some((s) => s.status === 'done'));
 
   let generation = 0;
@@ -218,7 +218,7 @@
     <div>
       <h2 id="{uid}-title">Staged rollout</h2>
       <p>
-        Planning only. This does not start, change or stop a rollout in {plan.appPlatform === 'ios' ? 'App Store Connect' : 'Google Play Console'}: do that in the store console. Marking a step done only records it here.
+        Planning only. This does not start, change or stop a rollout in {plan.appPlatform === 'android' ? 'Google Play Console' : 'App Store Connect'}: do that in the store console. Marking a step done only records it here.
       </p>
     </div>
     {#if view && view.kind !== null && canWrite && !editing}

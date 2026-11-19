@@ -364,7 +364,7 @@
         <div class="field">
           <label for="{uid}-platform">Store</label>
           <select id="{uid}-platform" value={filters.platform} onchange={(e) => change({ platform: e.currentTarget.value as InboxFilters['platform'] })}>
-            <option value="">Both stores</option>
+            <option value="">All stores</option>
             <option value="ios">App Store</option>
             <option value="android">Google Play</option>
           </select>

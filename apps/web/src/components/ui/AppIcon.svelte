@@ -2,7 +2,7 @@
   AppIcon: the icon of an app, in a square of a fixed size. The size is set on the box, so an icon
   that arrives late never moves anything.
   Props: name (the app's name: initials and alt text), url? (`iconUrl` of the app JSON: only the
-  icon route of this server is loaded, see lib/app-icon.ts), platform? ('ios' | 'android': the
+  icon route of this server is loaded, see lib/app-icon.ts), platform? ('ios' | 'macos' | 'android': the
   glyph of the fallback tile), seed? (what the tile color follows; the name when not given),
   size = 'md' ('xs' 20, 'sm' 24, 'md' 32, 'lg' 48, 'xl' 64, or a pixel number),
   labelled = true (the name is written beside the icon, so the icon is decorative; false gives the

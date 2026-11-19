@@ -234,7 +234,7 @@
             <dd><PlatformBadge platform={app.platform} /></dd>
           </div>
           <div>
-            <dt>{app.platform === 'ios' ? 'Bundle ID' : 'Package name'}</dt>
+            <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
             <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
           </div>
           <div>

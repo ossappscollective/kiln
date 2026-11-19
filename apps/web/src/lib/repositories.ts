@@ -13,6 +13,7 @@ import {
   can,
   countBytes,
   countCharacters,
+  platformMeta,
 } from '@mrm/core';
 import type { ApiError } from './api.ts';
 import type {
@@ -145,7 +146,7 @@ export function projectKindSummary(kind: ProjectKind): string {
   }
 }
 
-export const platformLabel = (platform: Platform) => (platform === 'ios' ? 'iOS' : 'Android');
+export const platformLabel = (platform: Platform) => platformMeta(platform).label;
 
 export const storeLabel: Record<ListingStore, string> = {
   app_store: 'App Store',

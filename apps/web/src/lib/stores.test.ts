@@ -47,6 +47,10 @@ test('platforms map to a store and a platform glyph', () => {
   assert.equal(storeForPlatform('ios').store, 'app_store');
   assert.equal(storeForPlatform('android').store, 'google_play');
   assert.equal(storeForPlatform('IOS').store, 'app_store');
+  assert.equal(storeForPlatform('macos').store, 'mac_app_store');
+  assert.equal(storeForPlatform('macos').label, 'Mac App Store');
+  assert.deepEqual([platformById('macos').label, platformById('macos').icon], ['macOS', 'platform-macos']);
+  assert.equal(platformById('MacOS').platform, 'macos');
   assert.equal(storeForPlatform('windows').store, 'generic');
   assert.equal(storeForPlatform(null).store, 'generic');
   assert.deepEqual([platformById('ios').label, platformById('ios').icon], ['iOS', 'platform-ios']);
@@ -95,5 +99,5 @@ test('platform badge text: the label is hidden visually but kept as the name', (
 
 test('only the App Store and Google Play use a tint; the rest stay neutral', () => {
   const tinted = storeIds.filter((id) => storeInfo[id].tint !== 'neutral').sort();
-  assert.deepEqual(tinted, ['app_store', 'google_play', 'testflight']);
+  assert.deepEqual(tinted, ['app_store', 'google_play', 'mac_app_store', 'testflight']);
 });

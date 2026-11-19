@@ -9,7 +9,8 @@
   slower after a failure, not at all in a hidden tab. The elapsed time ticks in the browser.
   Props: api, workspaceId, repositoryIds? (only these repositories; default all), scope? (narrows the
   runs to an app, see scopeRunsToApps), apps? (to name the app a run was started for), heading,
-  stateKey (keeps the collapsed line open or closed while moving between screens).
+  stateKey (keeps the collapsed line open or closed while moving between screens), ondata? (called with
+  every answer, so a page that lists workflows can show the actor and notice when a run starts or ends).
 -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
@@ -45,6 +46,7 @@
     apps = [],
     heading = 'Running now',
     stateKey = 'ci.running.recent',
+    ondata,
   }: {
     api: Api;
     workspaceId: string;
@@ -53,6 +55,7 @@
     apps?: readonly AppSummary[];
     heading?: string;
     stateKey?: string;
+    ondata?: (data: ActiveRuns) => void;
   } = $props();
 
   let data = $state<ActiveRuns | null>(null);
@@ -83,6 +86,7 @@
         problem = '';
         now = Date.now();
         readAt = now;
+        ondata?.(d);
       },
       onError: (e) => {
         if (!alive) return;

@@ -2,13 +2,17 @@
   StoresSection: the store and the credential each record of the app is linked to, and the last sync.
   Reads the credential list (members and above; others see "not shown"). A member or admin can test the
   saved credential: that only asks the provider whether it works (it changes nothing in a store).
-  Props: api, workspaceId, role, members (the records in scope), now.
+  An iOS record with no macOS record offers "Add the macOS version": one more record of the same app entry
+  (the same credential, and the bundle ID prefilled; a Mac app with its own bundle ID can change it).
+  Props: api, workspaceId, role, members (the records in scope), all? (every record of the app; the members
+  when not given), now.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
   import { credentialFacts, links, notAvailable } from '../../../lib/app-settings.ts';
+  import { appAddress } from '../../../lib/app-scope.ts';
   import { testErrorMessage } from '../../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../../lib/format.ts';
   import { platformLabel, storeName, syncInfo } from '../../../lib/portfolio.ts';
@@ -18,9 +22,17 @@
   import Button from '../../ui/Button.svelte';
   import CopyButton from '../../ui/CopyButton.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
+  import AddAppModal from '../../portfolio/AddAppModal.svelte';
   import SettingsCard from './SettingsCard.svelte';
 
-  let { api, workspaceId, role, members, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; now: number } = $props();
+  let { api, workspaceId, role, members, all, now }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[]; now: number } = $props();
+
+  const records = $derived(all ?? members);
+  const iosRecord = $derived(records.find((r) => r.platform === 'ios') ?? null);
+  const canAdd = $derived(can(role, 'apps.write'));
+  /** Quiet by default: the offer only exists for an iOS app that has no macOS record yet. */
+  const offerMac = $derived(canAdd && iosRecord !== null && !records.some((r) => r.platform === 'macos'));
+  let adding = $state(false);
 
   const canRead = $derived(can(role, 'credentials.read'));
   const canTest = $derived(can(role, 'credentials.write'));
@@ -86,7 +98,7 @@
         </div>
         <dl class="facts">
           <div>
-            <dt>{app.platform === 'ios' ? 'Bundle ID' : 'Package name'}</dt>
+            <dt>{app.platform === 'android' ? 'Package name' : 'Bundle ID'}</dt>
             <dd class="row"><code>{app.identifier}</code><CopyButton value={app.identifier} iconOnly label="Copy the identifier" /></dd>
           </div>
           {#if app.storeAppId}
@@ -131,7 +143,25 @@
       </div>
     {/each}
   </div>
+  {#if offerMac && iosRecord}
+    <div class="row wrap">
+      <Button size="sm" icon="platform-macos" onclick={() => (adding = true)}>Add the macOS version</Button>
+      <span class="muted note">The same app entry, with a Mac App Store record. The reviews stay under iOS.</span>
+    </div>
+  {/if}
 </SettingsCard>
+
+{#if offerMac && iosRecord}
+  <AddAppModal
+    {api}
+    {workspaceId}
+    bind:open={adding}
+    prefill={{ platform: 'macos', identifier: iosRecord.identifier, name: iosRecord.name, credentialId: iosRecord.credentialId, repositoryId: iosRecord.repositoryId ?? '' }}
+    onadded={(app) => {
+      window.location.hash = appAddress(app.id, 'dashboard', 'macos');
+    }}
+  />
+{/if}
 
 <style>
   .record {

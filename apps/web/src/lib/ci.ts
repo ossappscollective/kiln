@@ -8,6 +8,8 @@ import {
   prefixProblem,
   previewPatterns,
   proposePattern,
+  type Platform,
+  platformLabel,
 } from '@mrm/core';
 import type { Tone } from './repositories.ts';
 import type {
@@ -275,9 +277,9 @@ export function tagFoundText(link: {
 
 export const shortSha = (sha: string): string => sha.slice(0, 7);
 
-/** The platform's word for the number: iOS has builds, Android has version codes. */
-export const buildNumberLabel = (platform: 'ios' | 'android'): string =>
-  platform === 'ios' ? 'Build' : 'Version code';
+/** The platform's word for the number: Apple platforms have builds, Android has version codes. */
+export const buildNumberLabel = (platform: Platform): string =>
+  platform === 'android' ? 'Version code' : 'Build';
 
 /** "2.4.0 (240)" */
 export const buildName = (build: Pick<AppBuild, 'version' | 'buildNumber'>): string =>
@@ -450,7 +452,7 @@ export const releaseName = (r: { name: string | null; tagName: string }): string
 export function previewConventions(
   names: Pick<RepositoryTags, 'tags' | 'releases'>,
   draft: ConventionDraft,
-  platform: 'ios' | 'android',
+  platform: Platform,
 ): ConventionPreview {
   const values = draftValues(draft);
   const prefix = prefixProblem(values.prefix) ? '' : values.prefix;
@@ -482,7 +484,7 @@ export function previewReading(row: PreviewRow): string {
   const f = row.fields;
   const parts = [`build ${f.buildNumber}`];
   if (f.version) parts.push(`version ${f.version}`);
-  if (f.platform) parts.push(f.platform === 'other' ? `platform ${f.platformWord ?? '?'} (not used)` : f.platform === 'ios' ? 'iOS' : 'Android');
+  if (f.platform) parts.push(f.platform === 'other' ? `platform ${f.platformWord ?? '?'} (not used)` : platformLabel(f.platform));
   if (f.flavor) parts.push(f.flavor);
   if (row.platformOk === false) parts.push('other platform: not used for this app');
   return parts.join(' · ');

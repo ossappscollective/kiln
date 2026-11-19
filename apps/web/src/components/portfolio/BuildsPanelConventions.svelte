@@ -13,7 +13,7 @@
 -->
 <script lang="ts">
   import { PLACEHOLDER_HELP, type PatternKind } from '@mrm/core';
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can, platformLabel } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {
@@ -343,7 +343,7 @@
             {names.tags.length} tag{names.tags.length === 1 ? '' : 's'}{names.tagsTruncated ? ' (more exist)' : ''} and
             {names.releases.length} release{names.releases.length === 1 ? '' : 's'}{names.releasesTruncated ? ' (more exist)' : ''}, read
             <time datetime={new Date(names.readAt).toISOString()}>{timeAgo(names.readAt, now)}</time>.
-            {preview.tagFits} tag{preview.tagFits === 1 ? '' : 's'} and {preview.releaseFits} release{preview.releaseFits === 1 ? '' : 's'} fit a pattern for {app.platform === 'ios' ? 'iOS' : 'Android'}.
+            {preview.tagFits} tag{preview.tagFits === 1 ? '' : 's'} and {preview.releaseFits} release{preview.releaseFits === 1 ? '' : 's'} fit a pattern for {platformLabel(app.platform)}.
           </p>
           {#if names.releasesError}<Alert tone="warn" title="Releases could not be read">{names.releasesError}</Alert>{/if}
           {#if build && forBuild}

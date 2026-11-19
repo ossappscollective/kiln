@@ -3,7 +3,7 @@
   store reports (read only, including Android's staged rollout beside Apple's phased release), and
   the plan we keep for it: checklist, release notes per locale, target date, blocked flag.
   It lives at `#/portfolio/<appId>/release/<version>`, a screen of the portfolio next to the app
-  page, because it can show two apps (iOS and Android) of one product, which the app page cannot.
+  page, because it can show the apps (iOS, macOS, Android) of one product, which the app page cannot.
   Props: api, workspaceId, role, appId, version.
 -->
 <script lang="ts">
@@ -11,9 +11,9 @@
   import { ApiError, type Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { appAddress } from '../../lib/app-scope.ts';
-  import { appLabel, describeError, portfolioHref } from '../../lib/portfolio.ts';
+  import { appLabel, describeError, platformLabel, platformRank, portfolioHref } from '../../lib/portfolio.ts';
   import { attentionOf } from '../../lib/dashboard.ts';
-  import { dueText, findSibling, planPlatformLabel, releaseHref, releasesOfVersion, rolloutBadge } from '../../lib/release.ts';
+  import { dueText, findSiblings, planPlatformLabel, releaseHref, releasesOfVersion, rolloutBadge } from '../../lib/release.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
   import type { AppSummary, PlanDetail, PlanSummary, ReleaseSummary } from '../../lib/types.ts';
   import AttentionStrip from '../dashboard/AttentionStrip.svelte';
@@ -42,10 +42,10 @@
 
   let app = $state<AppSummary | null>(null);
   let releases = $state<ReleaseSummary[]>([]);
-  let sibling = $state<AppSummary | null>(null);
-  let siblingReleases = $state<ReleaseSummary[]>([]);
-  /** A plan for this version on the other platform's app, when this app has none. */
-  let siblingPlan = $state<PlanSummary | null>(null);
+  /** The apps of the other platforms that are the same product, each with its releases. */
+  let siblings = $state<{ app: AppSummary; releases: ReleaseSummary[] }[]>([]);
+  /** A plan for this version on another platform's app, when this app has none. */
+  let siblingPlan = $state<{ plan: PlanSummary; app: AppSummary } | null>(null);
   let plan = $state<PlanDetail | null>(null);
   let hasPlans = $state(false);
   let plansProblem = $state('');
@@ -86,26 +86,27 @@
   async function loadSibling(current: AppSummary, mine: number) {
     try {
       const list = (await api.apps(workspaceId)).apps;
-      const other = findSibling(list, current);
-      if (!other) {
-        if (mine === generation) {
-          sibling = null;
-          siblingReleases = [];
-        }
+      const others = findSiblings(list, current);
+      if (others.length === 0) {
+        if (mine === generation) siblings = [];
         return;
       }
-      const detail = await api.app(workspaceId, other.id);
+      const details = await Promise.all(others.map((o) => api.app(workspaceId, o.id)));
       if (mine !== generation) return;
-      sibling = detail.app;
-      siblingReleases = detail.releases;
+      siblings = details.map((d) => ({ app: d.app, releases: d.releases }));
       if (canReadPlans) {
-        const theirs = (await api.appPlans(workspaceId, other.id)).plans.find((p) => p.version === version) ?? null;
-        if (mine === generation) siblingPlan = theirs;
+        for (const other of siblings) {
+          const theirs = (await api.appPlans(workspaceId, other.app.id)).plans.find((p) => p.version === version) ?? null;
+          if (mine !== generation) return;
+          if (theirs) {
+            siblingPlan = { plan: theirs, app: other.app };
+            break;
+          }
+        }
       }
     } catch {
       if (mine === generation) {
-        sibling = null;
-        siblingReleases = [];
+        siblings = [];
         siblingPlan = null;
       }
     }
@@ -141,9 +142,8 @@
     void version;
     app = null;
     plan = null;
-    sibling = null;
+    siblings = [];
     siblingPlan = null;
-    siblingReleases = [];
     releases = [];
     void load();
   });
@@ -156,13 +156,12 @@
   });
 
   const mine = $derived(releasesOfVersion(releases, version));
-  const theirs = $derived(releasesOfVersion(siblingReleases, version));
-  const ordered = $derived(app && sibling ? (app.platform === 'ios' ? [app, sibling] : [sibling, app]) : app ? [app] : []);
+  const ordered = $derived(app ? [app, ...siblings.map((s) => s.app)].sort((a, b) => platformRank(a.platform) - platformRank(b.platform)) : []);
   const due = $derived(plan?.targetDate ? dueText(plan.due, plan.released) : null);
   const rollout = $derived(plan ? rolloutBadge(plan.rollout) : null);
   const attention = $derived(plan ? attentionOf(plan) : null);
 
-  const releasesFor = (a: AppSummary) => (a.id === appId ? mine : theirs);
+  const releasesFor = (a: AppSummary) => (a.id === appId ? mine : releasesOfVersion(siblings.find((s) => s.app.id === a.id)?.releases ?? [], version));
   const planFor = (a: AppSummary) => (a.id === appId ? plan : null);
 
   function setPlan(next: PlanDetail) {
@@ -234,9 +233,9 @@
           <PlatformPanel app={a} version={version} releases={releasesFor(a)} {now} plan={planFor(a)} primary={a.id === appId} />
         {/each}
       </div>
-      {#if !sibling}
+      {#if siblings.length === 0}
         <p class="muted note">
-          Only {app.platform === 'ios' ? 'iOS' : 'Android'} is shown. If this product is also in the other store, add that app with the same identifier or name and it appears beside this one.
+          Only {platformLabel(app.platform)} is shown. If this product is also on another platform, add that app with the same identifier or name and it appears beside this one.
         </p>
       {/if}
 
@@ -251,10 +250,10 @@
         <Rollout {api} {workspaceId} {plan} {canWrite} onsummary={(summary) => { if (plan) plan = { ...plan, rollout: summary }; }} />
         <ReleaseNotes {api} {workspaceId} {plan} {canWrite} onplan={setPlan} />
       {:else if canWrite}
-        {#if siblingPlan && sibling}
+        {#if siblingPlan}
           <Alert tone="info">
-            The {planPlatformLabel(sibling.platform)} app has a plan for {version}{siblingPlan.platform === null ? ' that covers both platforms' : ''}.
-            <a href={releaseHref(sibling.id, version)}>Open it there</a>.
+            The {planPlatformLabel(siblingPlan.app.platform)} app has a plan for {version}{siblingPlan.plan.platform === null ? ' that covers every platform' : ''}.
+            <a href={releaseHref(siblingPlan.app.id, version)}>Open it there</a>.
           </Alert>
         {/if}
         <NewPlan {api} {workspaceId} {app} {version} {hasPlans} oncreated={setPlan} />

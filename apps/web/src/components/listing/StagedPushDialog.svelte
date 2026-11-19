@@ -55,7 +55,7 @@
 <Modal
   bind:open
   size="lg"
-  title="Push to the {preview.app.platform === 'ios' ? 'App Store' : 'Google Play'} draft: confirm"
+  title="Push to the {preview.app.platform === 'android' ? 'Google Play' : preview.app.platform === 'macos' ? 'Mac App Store' : 'App Store'} draft: confirm"
   description="{preview.app.name}{version ? ` · ${version}` : ''}"
   dismissible={!busy}
   onclose={oncancel}

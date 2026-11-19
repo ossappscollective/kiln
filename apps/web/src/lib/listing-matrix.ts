@@ -1,4 +1,4 @@
-import type { Platform } from '@mrm/core';
+import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@mrm/core';
 import type { IconName } from './icons.ts';
 import { localeName, usage } from './listing-drift.ts';
 import type { BadgeTone } from './portfolio.ts';
@@ -119,7 +119,7 @@ export type Matrix = {
 
 export type MatrixSource = { platform: Platform; drift: ListingDrift | null };
 
-const platformOrder: Platform[] = ['ios', 'android'];
+const platformOrder: Platform[] = [...PLATFORMS];
 
 const emptyCounts = (): Record<CellStatus, number> => ({
   sync: 0,
@@ -227,10 +227,10 @@ export function buildMatrix(sources: readonly MatrixSource[]): Matrix {
   return { platforms, columns: sortedColumns, rows };
 }
 
-/** "iOS only" or "Android only" for a column in a view of both platforms; null otherwise. */
+/** "iOS only", "macOS only" or "iOS and macOS only" for a column that fewer than the shown platforms have; null otherwise. */
 export function columnScopeNote(column: Pick<MatrixColumn, 'platforms'>, shown: readonly Platform[]): string | null {
-  if (shown.length < 2 || column.platforms.length !== 1) return null;
-  return column.platforms[0] === 'ios' ? 'iOS only' : 'Android only';
+  if (shown.length < 2 || column.platforms.length === 0 || column.platforms.length >= shown.length) return null;
+  return `${sortPlatforms(column.platforms).map(platformLabel).join(' and ')} only`;
 }
 
 /** "30 characters" or "iOS 4000 / Android 500 characters" for the limit line of a column header. */
@@ -243,7 +243,7 @@ export function limitText(column: Pick<MatrixColumn, 'limits' | 'platforms'>): s
   if (parts.length === 0) return '';
   const first = parts[0] as { limit: number };
   if (parts.every((p) => p.limit === first.limit)) return `max ${first.limit}`;
-  return parts.map((p) => `${p.platform === 'ios' ? 'iOS' : 'Android'} ${p.limit}`).join(' / ');
+  return parts.map((p) => `${platformLabel(p.platform)} ${p.limit}`).join(' / ');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -328,7 +328,7 @@ export function matrixSummary(rows: readonly MatrixRow[]): string {
 
 /** The words for one cell, for a tooltip and for assistive technology: "iOS, Name: Differs from repo". */
 export function cellText(column: Pick<MatrixColumn, 'label'>, cell: Pick<MatrixCell, 'platform' | 'status'>, withPlatform: boolean): string {
-  const platform = cell.platform === 'ios' ? 'iOS' : 'Android';
+  const platform = platformLabel(cell.platform);
   const text = `${column.label}: ${INFO[cell.status].label}`;
   return withPlatform ? `${platform}, ${text}` : text;
 }
@@ -337,5 +337,5 @@ export function cellText(column: Pick<MatrixColumn, 'label'>, cell: Pick<MatrixC
 export function cellsSummary(cells: readonly Pick<MatrixCell, 'platform' | 'status'>[], withPlatform: boolean): string {
   const live = cells.filter((c) => c.status !== 'na');
   if (live.length === 0) return INFO.na.label;
-  return live.map((c) => (withPlatform ? `${c.platform === 'ios' ? 'iOS' : 'Android'}: ${INFO[c.status].label}` : INFO[c.status].label)).join('; ');
+  return live.map((c) => (withPlatform ? `${platformLabel(c.platform)}: ${INFO[c.status].label}` : INFO[c.status].label)).join('; ');
 }

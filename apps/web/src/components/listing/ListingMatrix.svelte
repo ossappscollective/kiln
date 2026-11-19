@@ -3,8 +3,8 @@
   fields, and each cell is a status dot per platform in scope: in sync, differs from the repository,
   differs from the store, diverged, missing, or over the limit. One click on a chip filters the
   locales (needs attention, missing only, over limit); a click on a locale opens its drawer with the
-  full comparison of each field. The platform scope (iOS, Android or both) comes from the shell; with
-  both, one grid merges the two stores and the header shows a platform badge per column.
+  full comparison of each field. The platform scope (iOS, macOS, Android or all) comes from the shell; with
+  several, one grid merges the stores and the header shows a platform badge per column.
   Read-only toward the store: "Refresh from store" runs the app's sync, which only reads. The one
   thing it can write toward the repository is a draft change set ("Pull into repository", the existing
   PullDialog), which a person reviews in the repository. "Stage from repo" (in the locale drawer) collects a

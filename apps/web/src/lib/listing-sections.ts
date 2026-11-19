@@ -12,6 +12,7 @@ import {
   type MediaSet,
   type Platform,
   type SectionStatus,
+  isApplePlatform,
 } from '@mrm/core';
 import { type BadgeTone } from './portfolio.ts';
 import { timeAgo } from './format.ts';
@@ -139,6 +140,7 @@ export function deviceLabel(type: string): string {
     promoGraphic: 'Promo graphic',
     all: 'All device types',
   };
+  if (type === 'APP_DESKTOP') return 'Mac';
   if (play[type]) return play[type] as string;
   return humanize(type.replace(/^APP_/, ''));
 }
@@ -300,10 +302,10 @@ export function mediaRows(
   // difference: a count is only marked as different when both sides have some media.
   const everything = (m: ListingMedia | undefined) =>
     Object.values(m?.screenshots ?? {}).reduce((n, sets) => n + total(sets), 0) +
-    (platform === 'android' ? Object.values(m?.graphics ?? {}).reduce((n, sets) => n + total(sets), 0) : 0);
+    (!isApplePlatform(platform) ? Object.values(m?.graphics ?? {}).reduce((n, sets) => n + total(sets), 0) : 0);
   const bothHave = everything(store) > 0 && everything(repo) > 0;
   for (const locale of locales) {
-    if (platform === 'ios') {
+    if (isApplePlatform(platform)) {
       for (const set of setsOf(store?.screenshots, locale)) {
         rows.push({ locale, kind: 'Screenshots', device: deviceLabel(set.type), type: set.type, store: set.count, repo: null, compared: false, differs: false });
       }

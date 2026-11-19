@@ -1,5 +1,5 @@
 <!--
-  AppsOverview: the apps of the workspace, one merged row per app (the iOS and Android records of one
+  AppsOverview: the apps of the workspace, one merged row per app (the iOS, macOS and Android records of one
   product together): icon, stores, latest version per platform, status, rating, new reviews and the
   last sync.
   Props: rows (from buildOverviewRows), now (epoch ms), canSync (shows Sync), syncing (app ids being
@@ -42,6 +42,9 @@
     row.group.members.find((m) => (m.lastSyncError ?? '').trim() !== '') ??
     ([...row.group.members].sort((a, b) => (a.lastSyncedAt ?? -1) - (b.lastSyncedAt ?? -1))[0] as AppSummary);
 
+  /** The macOS column only exists when some app has a Mac record (quiet by default). */
+  const hasMac = $derived(rows.some((r) => r.macos !== null));
+
   const isSyncing = (group: AppGroup) => group.members.some((m) => syncing[m.id] === true);
 </script>
 
@@ -66,6 +69,7 @@
       <tr>
         <th scope="col">App</th>
         <th scope="col">iOS</th>
+        {#if hasMac}<th scope="col">macOS</th>{/if}
         <th scope="col">Android</th>
         <th scope="col">Status</th>
         <th scope="col">Rating</th>
@@ -77,7 +81,7 @@
     <tbody>
       {#each rows as row (row.group.key)}
         {@const g = row.group}
-        {@const loading = [row.ios, row.android].some((c) => c !== null && c.state === 'loading')}
+        {@const loading = [row.ios, row.macos, row.android].some((c) => c !== null && c.state === 'loading')}
         <tr>
           <td>
             <div class="app">
@@ -98,6 +102,7 @@
             </div>
           </td>
           <td>{@render version(row.ios, 'iOS')}</td>
+          {#if hasMac}<td>{@render version(row.macos, 'macOS')}</td>{/if}
           <td>{@render version(row.android, 'Android')}</td>
           <td>
             <div class="status">

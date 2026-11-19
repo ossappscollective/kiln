@@ -1,8 +1,8 @@
 <!--
-  PlatformBadge: the platform of an app as a small icon tile and its name (iOS or Android).
-  Props: platform ('ios' | 'android'; anything else draws a neutral phone), showLabel = true (false
+  PlatformBadge: the platform of an app as a small icon tile and its name (iOS, macOS or Android).
+  Props: platform ('ios' | 'macos' | 'android'; anything else draws a neutral phone), showLabel = true (false
   keeps the name for assistive technology only), tinted = false (true uses the store's accent tint,
-  info for iOS and ok for Android; the glyph and the name still say which).
+  info for iOS and macOS, ok for Android; the glyph and the name still say which).
   The tile is a fixed square, so it never shifts the layout.
 -->
 <script lang="ts">

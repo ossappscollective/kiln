@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
   appendInboxPage,
+  reviewsOwner,
   appendPage,
   busiestApps,
   defaultInboxFilters,
@@ -450,4 +451,14 @@ test('the announcement for a changed list', () => {
   assert.equal(inboxAnnouncement(0, false), 'No reviews match.');
   assert.equal(inboxAnnouncement(1, false), '1 review shown.');
   assert.equal(inboxAnnouncement(25, true), '25 or more reviews shown.');
+});
+
+test('reviewsOwner: a macOS record that shares its App Store id with an iOS record owns no reviews', () => {
+  const ios = { id: 'i', platform: 'ios' as const, storeAppId: '555' };
+  const mac = { id: 'm', platform: 'macos' as const, storeAppId: '555' };
+  const macOnly = { id: 'm2', platform: 'macos' as const, storeAppId: '777' };
+  assert.equal(reviewsOwner(mac, [ios, mac])?.id, 'i');
+  assert.equal(reviewsOwner(macOnly, [ios, macOnly]), null);
+  assert.equal(reviewsOwner({ platform: 'macos', storeAppId: null }, [ios]), null);
+  assert.equal(reviewsOwner(ios, [ios, mac]), null);
 });

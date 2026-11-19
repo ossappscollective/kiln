@@ -150,7 +150,7 @@ export function pushAvailability(role: Role, config: StoreDraftConfig | null, lo
   return { state: 'ready' };
 }
 
-export const storeName = (platform: Platform): string => (platform === 'ios' ? 'the App Store' : 'Google Play');
+export const storeName = (platform: Platform): string => (platform === 'android' ? 'Google Play' : platform === 'macos' ? 'the Mac App Store' : 'the App Store');
 
 // ---------------------------------------------------------------------------------------------
 // The tray
@@ -236,8 +236,12 @@ export type FieldStage = {
   upToDate: boolean;
 };
 
+const APPLE_NOT_PUSHABLE =
+  'A draft push cannot write this field: the App Store keeps the name, subtitle and privacy policy URL on the app information, not on the version.';
+
 const NOT_PUSHABLE: Record<Platform, string> = {
-  ios: 'A draft push cannot write this field: the App Store keeps the name, subtitle and privacy policy URL on the app information, not on the version.',
+  ios: APPLE_NOT_PUSHABLE,
+  macos: APPLE_NOT_PUSHABLE,
   android: 'A draft push cannot write this field.',
 };
 

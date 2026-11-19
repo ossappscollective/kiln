@@ -1,3 +1,4 @@
+import { type Platform, isPlatform } from '@mrm/core';
 import { ApiError } from './api.ts';
 import type { ReplyDraft, ReplyState } from './review-reply.ts';
 
@@ -8,6 +9,19 @@ import type { ReplyDraft, ReplyState } from './review-reply.ts';
  */
 
 export type ReviewStore = 'appstoreconnect' | 'googleplay';
+
+/**
+ * The customer reviews of an App Store Connect app are one list for the app, whatever platforms it has. They
+ * are read for the iOS record; a macOS record that shares its App Store id with an iOS record owns none
+ * (the server answers `reviews_shared`). The iOS record that owns them, or null when the app's reviews are its own.
+ */
+export function reviewsOwner<T extends { id: string; platform: Platform; storeAppId: string | null }>(
+  app: { platform: Platform; storeAppId: string | null },
+  records: readonly T[],
+): T | null {
+  if (app.platform !== 'macos' || !app.storeAppId) return null;
+  return records.find((r) => r.platform === 'ios' && r.storeAppId === app.storeAppId) ?? null;
+}
 export type ReviewStatus = 'new' | 'triaged' | 'replied_in_console' | 'ignored';
 export type ReviewSort = 'newest' | 'rating' | 'updated';
 
@@ -17,7 +31,7 @@ export type Review = {
   id: string;
   appId: string;
   store: ReviewStore;
-  platform: 'ios' | 'android';
+  platform: Platform;
   storeReviewId: string;
   rating: number;
   title: string | null;
@@ -104,7 +118,7 @@ export type StoreWideRating = {
 };
 
 export type ReviewsSummary = {
-  app: { id: string; platform: 'ios' | 'android'; store: ReviewStore };
+  app: { id: string; platform: Platform; store: ReviewStore };
   stored: StoredSummary;
   storeWide: StoreWideRating[];
   byStatus: Record<ReviewStatus, number>;
@@ -494,12 +508,12 @@ export const isLowRating = (rating: number, threshold: number): boolean => ratin
 // ---------------------------------------------------------------------------------------------
 // The workspace-wide inbox (GET /reviews): every app in one list
 
-export type InboxApp = { id: string; name: string; platform: 'ios' | 'android' };
+export type InboxApp = { id: string; name: string; platform: Platform };
 export type InboxReview = Review & { app: InboxApp };
 export type InboxPage = { reviews: InboxReview[]; nextCursor: string | null };
 
 export type SummaryApp = {
-  app: { id: string; name: string; platform: 'ios' | 'android'; store: ReviewStore };
+  app: { id: string; name: string; platform: Platform; store: ReviewStore };
   total: number;
   new: number;
   unanswered: number;
@@ -521,7 +535,7 @@ export type WorkspaceReviewsSummary = {
 export type InboxFilters = ReviewFilters & {
   /** Only these apps; empty is every app. */
   appIds: string[];
-  platform: '' | 'ios' | 'android';
+  platform: '' | Platform;
   /** '' anyone, 'me', 'unassigned' or a member's user id. */
   assignee: string;
   /** '' any time, or '7', '30', '90' days. The `since` of the request is worked out when it is sent. */
@@ -616,7 +630,7 @@ export function inboxFiltersFromSearch(search: string): InboxFilters {
   const apps = list('apps');
   if (apps.length > 0 && apps.length <= 50 && apps.every((id) => ID_PATTERN.test(id))) f.appIds = [...new Set(apps)];
   const platform = params.get('platform');
-  if (platform === 'ios' || platform === 'android') f.platform = platform;
+  if (isPlatform(platform)) f.platform = platform;
   const ratings = list('rating');
   if (ratings.length > 0 && ratings.every((r) => /^[1-5]$/.test(r))) f.ratings = [...new Set(ratings.map(Number))].sort((a, b) => a - b);
   const statuses = list('status');

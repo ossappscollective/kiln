@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appAddress, appReviewsHref, appSectionDefs, parseAppAddress, parseViewPath, resolveScope, visibleSections, withScope } from './app-scope.ts';
+import { allScopeLabel, appAddress, appReviewsHref, appWorkflowsHref, appSectionDefs, parseAppAddress, parseViewPath, resolveScope, visibleSections, withScope } from './app-scope.ts';
 import { isIconName } from './icons.ts';
 
 test('parseViewPath splits segments and ignores the query for the section', () => {
@@ -76,7 +76,50 @@ test('resolveScope disables the missing store and Both for a one-store app', () 
 });
 
 test('visibleSections follows the actions a role has', () => {
-  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'listing', 'releases', 'assets', 'reviews', 'aso', 'builds', 'settings']);
-  assert.deepEqual(visibleSections((a) => a === 'apps.read').map((s) => s.id), ['dashboard', 'releases', 'builds', 'settings']);
+  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings']);
+  assert.deepEqual(visibleSections((a) => a === 'apps.read').map((s) => s.id), ['dashboard', 'releases', 'workflows', 'builds', 'settings']);
   assert.ok(appSectionDefs.every((s) => isIconName(s.icon)));
+});
+
+test('resolveScope with a macOS record: three platforms show All, and only the platforms the app has are shown', () => {
+  const all = resolveScope(null, ['android', 'macos', 'ios']);
+  assert.equal(all.scope, 'both');
+  assert.deepEqual(all.platforms, ['ios', 'macos', 'android']);
+  assert.deepEqual(all.options.map((o) => [o.id, o.label, o.disabled]), [
+    ['ios', 'iOS', false],
+    ['macos', 'macOS', false],
+    ['android', 'Android', false],
+    ['both', 'All', false],
+  ]);
+  assert.equal(resolveScope('macos', ['ios', 'macos', 'android']).scope, 'macos');
+  assert.deepEqual(resolveScope('macos', ['ios', 'macos', 'android']).platforms, ['macos']);
+
+  // iOS and macOS only: two platforms, so "Both", and no Android option at all.
+  const apple = resolveScope(null, ['ios', 'macos']);
+  assert.deepEqual(apple.options.map((o) => [o.id, o.label]), [['ios', 'iOS'], ['macos', 'macOS'], ['both', 'Both']]);
+  assert.deepEqual(apple.platforms, ['ios', 'macos']);
+
+  // macOS alone: one option, no "Both".
+  const mac = resolveScope('both', ['macos']);
+  assert.equal(mac.scope, 'macos');
+  assert.deepEqual(mac.options.map((o) => o.id), ['macos']);
+
+  // An app without macOS never shows the macOS option, and a macOS request falls back.
+  const classic = resolveScope('macos', ['ios', 'android']);
+  assert.equal(classic.scope, 'both');
+  assert.deepEqual(classic.options.map((o) => o.id), ['ios', 'android', 'both']);
+  assert.equal(allScopeLabel(2), 'Both');
+  assert.equal(allScopeLabel(3), 'All');
+});
+
+test('an address with ?platform=macos is a scope', () => {
+  assert.equal(parseAppAddress('#/portfolio/a1/listing?platform=macos')?.platform, 'macos');
+  assert.equal(parseAppAddress('#/portfolio/a1?platform=windows')?.platform, null);
+  assert.equal(appAddress('a1', 'assets', 'macos'), '#/portfolio/a1/assets?platform=macos');
+});
+
+test('the workflows section has its own address and keeps the scope', () => {
+  assert.equal(appWorkflowsHref('a1'), '#/portfolio/a1/workflows');
+  assert.equal(appWorkflowsHref('a1', 'ios'), '#/portfolio/a1/workflows?platform=ios');
+  assert.equal(parseAppAddress('#/portfolio/a1/workflows?platform=android')?.section, 'workflows');
 });

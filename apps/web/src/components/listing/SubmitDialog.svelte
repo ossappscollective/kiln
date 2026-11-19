@@ -51,7 +51,7 @@
 
   const ready = $derived(canConfirmSubmit(preview, typed));
   const blocking = $derived(preview.checks.blocking);
-  const ios = $derived(preview.app.platform === 'ios');
+  const ios = $derived(preview.app.platform !== 'android');
   const build = $derived(buildLine(preview.build));
 </script>
 

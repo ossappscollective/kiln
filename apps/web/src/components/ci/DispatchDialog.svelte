@@ -5,10 +5,11 @@
   The inputs are read from the workflow file at the chosen branch or tag, so a change of branch reads
   them again before anything can be started. This tool never builds anything: it asks the team's own CI to.
   Props: api, workspaceId, repository, workflow, apps (the workspace's apps, to tie a run to one),
-  onclose (called after the dialog closes), ondispatched (called with the run that was stored).
+  initialAppId? (the app the run is tied to at first; the person can change it), onclose (called after the dialog closes), ondispatched (called with the run that was stored).
   Mount it when a workflow is chosen; unmount it on close, so every open starts clean.
 -->
 <script lang="ts">
+  import { platformLabel } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
   import {
@@ -35,6 +36,7 @@
     repository,
     workflow,
     apps,
+    initialAppId = '',
     onclose,
     ondispatched,
   }: {
@@ -43,6 +45,7 @@
     repository: RepositorySummary;
     workflow: CiWorkflow;
     apps: AppSummary[];
+    initialAppId?: string;
     onclose: () => void;
     ondispatched: (run: WorkflowRun) => void;
   } = $props();
@@ -64,7 +67,7 @@
   let maybeStarted = $state(false);
   let values = $state<InputValues>({});
   let freeText = $state('');
-  let appId = $state('');
+  let appId = $state(untrack(() => (apps.some((a) => a.id === initialAppId && a.repositoryId === repository.id) ? initialAppId : '')));
   let submitting = $state(false);
   let problem = $state('');
   /** Problems are shown after the first try to continue, not while the person is still typing. */
@@ -270,7 +273,7 @@
             <select id="{uid}-app" bind:value={appId}>
               <option value="">No app</option>
               {#each linkable as app (app.id)}
-                <option value={app.id}>{app.name} ({app.platform === 'ios' ? 'iOS' : 'Android'})</option>
+                <option value={app.id}>{app.name} ({platformLabel(app.platform)})</option>
               {/each}
             </select>
             <p class="hint">Tied to an app, the run can be matched to that app's builds by the build number in its inputs.</p>
@@ -281,7 +284,7 @@
   {:else}
     <div class="stack">
       <p>{dispatchSummary({ workflow: key, ref: ref.trim(), repository: repositoryName(repository), inputs: payload })}</p>
-      {#if chosenApp}<p class="muted">For the app {chosenApp.name} ({chosenApp.platform === 'ios' ? 'iOS' : 'Android'}).</p>{/if}
+      {#if chosenApp}<p class="muted">For the app {chosenApp.name} ({platformLabel(chosenApp.platform)}).</p>{/if}
       {#if Object.keys(payload).length > 0}
         <dl class="inputs">
           {#each Object.entries(payload) as [name, value] (name)}

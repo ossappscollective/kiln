@@ -1,4 +1,4 @@
-import { type Role, can } from '@mrm/core';
+import { type Platform, type Role, can } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { formatRollout, trackLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
@@ -43,7 +43,7 @@ export type PlayRolloutState = {
 
 export type AppleRolloutState = {
   store: 'appstoreconnect';
-  platform: 'ios';
+  platform: 'ios' | 'macos';
   version: string;
   storeVersionId: string;
   versionState: string | null;
@@ -56,7 +56,7 @@ export type AppleRolloutState = {
 
 export type RolloutState = PlayRolloutState | AppleRolloutState;
 
-export type RolloutAppRef = { id: string; name: string; platform: 'ios' | 'android'; store: string };
+export type RolloutAppRef = { id: string; name: string; platform: Platform; store: string };
 
 export type AllowedAction = { action: string; allowed: boolean; reason?: string; irreversible: boolean };
 
@@ -194,13 +194,14 @@ const ACTION_LABELS: Record<string, string> = {
   release_to_all: 'Release to all users',
 };
 
-export const actionLabel = (action: string, platform: 'ios' | 'android'): string => {
-  if (action === 'resume' && platform === 'ios') return 'Resume phased release';
+export const actionLabel = (action: string, platform: Platform): string => {
+  if (action === 'resume' && platform !== 'android') return 'Resume phased release';
   return ACTION_LABELS[action] ?? action;
 };
 
 /** What the actions of an app are, in the order of the buttons; the server's `config.actions` decides which exist. */
-export function actionsFor(config: Pick<RolloutConfig, 'actions'>, platform: 'ios' | 'android'): string[] {
+/** Apple's actions (`ios` in the config) apply to iOS and macOS alike. */
+export function actionsFor(config: Pick<RolloutConfig, 'actions'>, platform: Platform): string[] {
   const list = platform === 'android' ? config.actions.android : config.actions.ios;
   return [...list];
 }
@@ -210,7 +211,7 @@ export type ActionButton = { action: string; label: string; disabled: boolean; r
 /** The buttons for the state that was read: an action the store state does not allow is disabled with the server's reason. */
 export function actionButtons(
   config: Pick<RolloutConfig, 'actions' | 'irreversible'>,
-  platform: 'ios' | 'android',
+  platform: Platform,
   state: Pick<RolloutStateView, 'allowedActions'> | null,
   blocked: string | null,
 ): ActionButton[] {
@@ -277,7 +278,7 @@ export function describeState(state: RolloutState): string {
   else if (phase === 'PAUSED') line = `phased release paused${state.totalPauseDays !== null ? ` (${state.totalPauseDays} of 30 pause days used)` : ''}`;
   else if (phase === 'COMPLETE') line = 'phased release complete (released to all users)';
   else line = `phased release ${phase.toLowerCase()}`;
-  return `${state.version} on the App Store: ${line}`;
+  return `${state.version} on the ${state.platform === 'macos' ? 'Mac App Store' : 'App Store'}: ${line}`;
 }
 
 const STATUS_WORDS: Record<string, string> = {

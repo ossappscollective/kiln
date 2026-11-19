@@ -58,6 +58,26 @@ export function findSibling(apps: readonly AppSummary[], app: Pick<AppSummary, '
   return byName.length === 1 ? (byName[0] as AppSummary) : null;
 }
 
+/**
+ * The records of the other platforms that are the same product, at most one per platform: on each
+ * platform the same identifier, else the same name, and only when that match is unique. An iOS and a
+ * macOS record can share a bundle id (universal purchase), so the match is made platform by platform.
+ */
+export function findSiblings(apps: readonly AppSummary[], app: Pick<AppSummary, 'id' | 'platform' | 'identifier' | 'name'>): AppSummary[] {
+  const found: AppSummary[] = [];
+  for (const platform of [...new Set(apps.map((a) => a.platform))]) {
+    if (platform === app.platform) continue;
+    const others = apps.filter((a) => a.platform === platform && a.id !== app.id);
+    const byIdentifier = others.filter((a) => sameText(a.identifier, app.identifier));
+    if (byIdentifier.length === 1) found.push(byIdentifier[0] as AppSummary);
+    else if (byIdentifier.length === 0) {
+      const byName = others.filter((a) => sameText(a.name, app.name));
+      if (byName.length === 1) found.push(byName[0] as AppSummary);
+    }
+  }
+  return found;
+}
+
 /** The releases of one version, most public track first. */
 export function releasesOfVersion(releases: readonly ReleaseSummary[], version: string): ReleaseSummary[] {
   return releases
@@ -87,7 +107,7 @@ export type RolloutView = {
  * docs/phase-2.md), so an iOS release that is rolling out has no share to show and says so.
  */
 export function rolloutView(release: Pick<ReleaseSummary, 'platform' | 'status' | 'rolloutFraction'>): RolloutView {
-  const ios = release.platform === 'ios';
+  const ios = release.platform !== 'android';
   const title = ios ? 'Phased release' : 'Staged rollout';
   const fraction =
     release.rolloutFraction === null || !Number.isFinite(release.rolloutFraction)
@@ -169,8 +189,9 @@ export function noteCounter(text: string, platform: PlanPlatform): NoteCounter {
 export function limitNote(platform: PlanPlatform): string {
   const limit = releaseNotesLimit(platform);
   if (platform === 'ios') return `The App Store allows ${limit} characters of “What’s new”.`;
+  if (platform === 'macos') return `The Mac App Store allows ${limit} characters of “What’s new”.`;
   if (platform === 'android') return `Google Play allows ${limit} characters of release notes.`;
-  return `This plan covers both platforms, so the stricter limit applies: ${limit} characters (Google Play). The App Store allows ${releaseNotesLimit('ios')}.`;
+  return `This plan covers every platform, so the stricter limit applies: ${limit} characters (Google Play). The App Store allows ${releaseNotesLimit('ios')}.`;
 }
 
 /** Locales worth offering before a person types one. */

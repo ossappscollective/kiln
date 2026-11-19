@@ -151,6 +151,7 @@ export const icons = {
   'store-android': stroke('<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M10 8v8l6-4-6-4Z"/>'),
   'platform-ios': stroke('<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10 5.5h4M10.5 18.5h3"/>'),
   'platform-android': stroke('<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M12 5.5h.01M9 18.5h6"/>'),
+  'platform-macos': stroke('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M3 12.5h18M9 20h6M12 16v4"/>'),
   repo: stroke('<path d="M5 19.5V5a2 2 0 0 1 2-2h12v14H7a2 2 0 0 0-2 2ZM5 19.5A2 2 0 0 0 7 21.5h12V17M9 7h6"/>'),
   pipeline: stroke('<path d="M3 12h6l4-6h8M9 12h12M9 12l4 6h8"/>'),
 } as const satisfies Record<string, IconDef>;
@@ -195,6 +196,7 @@ export const genericBrandIcons: Record<string, string> = {
   'store-android': 'Google Play and Google Play Console',
   'platform-ios': 'iOS',
   'platform-android': 'Android',
+  'platform-macos': 'macOS',
   send: 'TestFlight',
   repo: 'GitHub',
   code: 'Expo',

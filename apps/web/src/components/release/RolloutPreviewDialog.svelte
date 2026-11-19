@@ -44,7 +44,7 @@
 
   const phrase = $derived(confirmPhrase(preview));
   const ready = $derived(canConfirm(preview, typed, ack));
-  const storeName = $derived(preview.app.platform === 'ios' ? 'the App Store' : 'Google Play');
+  const storeName = $derived(preview.app.platform === 'android' ? 'Google Play' : preview.app.platform === 'macos' ? 'the Mac App Store' : 'the App Store');
 </script>
 
 <Modal

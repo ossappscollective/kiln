@@ -202,6 +202,7 @@
         {role}
         {section}
         members={scoped}
+        all={members}
         openId={id}
         version={open?.release ?? null}
         releases={releaseLists}

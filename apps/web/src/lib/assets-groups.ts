@@ -45,7 +45,8 @@ export function groupOfKind(kind: AssetKind): AssetGroupId {
 export function groupAvailability(id: AssetGroupId, platform: Platform): { available: boolean; reason: string | null } {
   const def = groupDef(id);
   if (def.platform !== null && def.platform !== platform) {
-    return { available: false, reason: `${def.label} exist on ${def.platform === 'android' ? 'Google Play' : 'the App Store'} only. This record is on ${platform === 'android' ? 'Google Play' : 'the App Store'}.` };
+    const where = (p: Platform) => (p === 'android' ? 'Google Play' : p === 'macos' ? 'the Mac App Store' : 'the App Store');
+    return { available: false, reason: `${def.label} exist on ${where(def.platform)} only. This record is on ${where(platform)}.` };
   }
   return { available: true, reason: null };
 }

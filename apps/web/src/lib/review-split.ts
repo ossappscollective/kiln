@@ -1,3 +1,4 @@
+import { isPlatform } from '@mrm/core';
 import { type ReplyState, replyStatusLabel } from './review-reply.ts';
 import { type InboxShortcut, type Review, type ReviewStatus, moveIndex } from './reviews.ts';
 
@@ -50,7 +51,7 @@ export function withReview(hash: string, id: string | null): string {
 /** The reviews of one app, with a review selected: the link from the inbox. The platform opens the tab the review is in. */
 export function appReviewHref(appId: string, reviewId: string, platform: string | null = null): string {
   const params = new URLSearchParams();
-  if (platform === 'ios' || platform === 'android') params.set('platform', platform);
+  if (isPlatform(platform)) params.set('platform', platform);
   if (ID_PATTERN.test(reviewId)) params.set('review', reviewId);
   const search = params.toString();
   const base = `#/portfolio/${encodeURIComponent(appId)}/reviews`;

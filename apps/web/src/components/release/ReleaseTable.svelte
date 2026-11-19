@@ -58,7 +58,7 @@
 <div class="card flush table-scroll">
   <table class="releases compact">
     <caption class="visually-hidden">
-      Releases by version{showPlatform ? ', iOS and Android' : ''}. Open a row for the store and plan detail.
+      Releases by version{showPlatform ? ', by platform' : ''}. Open a row for the store and plan detail.
     </caption>
     <thead>
       <tr>
@@ -110,7 +110,7 @@
             <td class="tabular">{row.buildText}</td>
             <td><ReleaseStatus status={row.status} rawState={row.release.rawState} /></td>
             <td class="num tabular">
-              {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={row.platform === 'ios' ? 'Apple’s phased release share is not read yet.' : 'The store reports no rollout share.'}>—</span>{/if}
+              {#if row.rolloutText}{row.rolloutText}{:else}<span class="muted" title={row.platform !== 'android' ? 'Apple’s phased release share is not read yet.' : 'The store reports no rollout share.'}>—</span>{/if}
             </td>
             <td class="muted">
               {#if row.at !== null}

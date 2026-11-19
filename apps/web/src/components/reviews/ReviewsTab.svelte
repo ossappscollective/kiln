@@ -123,7 +123,7 @@
       (sinceChoice !== 'all' ? 1 : 0),
   );
   const everStored = $derived((summary?.stored.count ?? 0) > 0);
-  const needsAppSync = $derived(app.platform === 'ios' && !app.storeAppId);
+  const needsAppSync = $derived(app.platform !== 'android' && !app.storeAppId);
 
   async function loadList(reset: boolean) {
     const mine = reset ? ++listGeneration : listGeneration;
@@ -319,7 +319,7 @@
     </p>
     <InfoTip label="About the reviews of this app" buttonText="About reviews" align="start" width="26rem">
       <p>
-        What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'ios' ? 'appstoreconnect' : 'googleplay'))},
+        What customers wrote in {storeLabel(summary?.app.store ?? (app.platform === 'android' ? 'googleplay' : 'appstoreconnect'))},
         read from the store and kept here for your team. This is a copy for triage: reading and triage change nothing in the store. A reply does, and goes through its own confirmation.
       </p>
       {#if summary?.retentionDays}<p class="muted">Reviews older than {summary.retentionDays} days are deleted automatically.</p>{/if}

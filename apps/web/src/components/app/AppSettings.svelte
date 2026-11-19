@@ -2,7 +2,7 @@
   AppSettings: facts about each record of the app and, for admins, removing one from the workspace.
   Nothing in a store is changed. Stores, credentials, release defaults and notifications settings
   of an app are not built yet; this page says so instead of showing empty controls.
-  Props: api, workspaceId, role, members (the records in scope), now.
+  Props: api, workspaceId, role, members (the records in scope), all? (every record of the app), now.
 -->
 <script lang="ts">
   import { type Role, can } from '@mrm/core';
@@ -26,8 +26,9 @@
     workspaceId,
     role,
     members,
+    all,
     now,
-  }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; now: number } = $props();
+  }: { api: Api; workspaceId: string; role: Role; members: AppSummary[]; all?: AppSummary[]; now: number } = $props();
 
   const canWrite = $derived(can(role, 'apps.write'));
 
@@ -55,7 +56,7 @@
 </script>
 
 <div class="stack loose">
-  <StoresSection {api} {workspaceId} {role} {members} {now} />
+  <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
   <RepositorySection {api} {workspaceId} {role} {members} />
   <DefaultsSection {api} {workspaceId} {role} {members} />
   <NotificationsSection {api} {workspaceId} {role} />

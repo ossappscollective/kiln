@@ -1,6 +1,6 @@
 import type { Platform, ReleaseState } from '@mrm/core';
 import { runBadge } from './ci.ts';
-import { type BadgeTone, compareReleases, compareVersions, formatRollout, trackLabel } from './portfolio.ts';
+import { type BadgeTone, compareReleases, compareVersions, formatRollout, platformRank, trackLabel } from './portfolio.ts';
 import type { AppBuild, PlanSummary, ReleaseSummary } from './types.ts';
 
 /**
@@ -139,7 +139,7 @@ export type ReleaseRow = {
 
 export type VersionGroup = {
   version: string;
-  /** iOS before Android, more public tracks first. */
+  /** iOS, macOS, Android, more public tracks first. */
   rows: ReleaseRow[];
   /** The platforms in the group, iOS first. */
   platforms: Platform[];
@@ -177,7 +177,7 @@ export function buildReleaseTable(input: TableInput): VersionGroup[] {
       platform: release.platform,
       appId: release.appId,
       track: release.track,
-      trackText: trackLabel(release.track),
+      trackText: release.track === null && release.platform === 'macos' ? 'Mac App Store' : trackLabel(release.track),
       release,
       buildText: buildText(release),
       status: release.status,
@@ -197,8 +197,8 @@ export function buildReleaseTable(input: TableInput): VersionGroup[] {
   }
   const out = [...groups.values()];
   for (const group of out) {
-    group.rows.sort((a, b) => (a.platform === b.platform ? 0 : a.platform === 'ios' ? -1 : 1));
-    group.platforms.sort((a, b) => (a === b ? 0 : a === 'ios' ? -1 : 1));
+    group.rows.sort((a, b) => platformRank(a.platform) - platformRank(b.platform));
+    group.platforms.sort((a, b) => platformRank(a) - platformRank(b));
   }
   return out;
 }

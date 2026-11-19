@@ -119,7 +119,7 @@ export function selectionText(fields: readonly Pick<DriftField, 'locale'>[]): st
 
 /** The suggested summary of the change set, which the person may edit. */
 export function defaultPullSummary(appName: string, platform: Platform): string {
-  return `Pull the ${platform === 'ios' ? 'App Store' : 'Google Play'} listing of ${appName} into the repository`.slice(0, 200);
+  return `Pull the ${platform === 'android' ? 'Google Play' : platform === 'macos' ? 'Mac App Store' : 'App Store'} listing of ${appName} into the repository`.slice(0, 200);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -137,7 +137,7 @@ export function detectedPullSource(
   platform: Platform,
 ): { source: ListingSourceKind; path: string } | null {
   if (!detection) return null;
-  if (platform === 'ios') {
+  if (platform !== 'android') {
     const config = detection.expo?.storeConfigs.find((c) => !c.dynamic);
     if (config) return { source: 'expo-store-config', path: config.path };
     return detection.paths.iosMetadata ? { source: 'fastlane', path: detection.paths.iosMetadata } : null;

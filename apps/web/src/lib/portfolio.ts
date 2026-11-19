@@ -1,4 +1,12 @@
-import { type Platform, type ReleaseEvent, type ReleaseState, transition } from '@mrm/core';
+import {
+  PLATFORMS,
+  type Platform,
+  type ReleaseEvent,
+  type ReleaseState,
+  isApplePlatform,
+  platformMeta,
+  transition,
+} from '@mrm/core';
 import { type Api, ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
 import type {
@@ -41,9 +49,12 @@ export function parseRoute(hash: string): Route {
 // ---------------------------------------------------------------------------------------------
 // Labels
 
-export const platformLabel = (platform: Platform) => (platform === 'ios' ? 'iOS' : 'Android');
+export const platformLabel = (platform: Platform) => platformMeta(platform).label;
 
-export const storeName = (platform: Platform) => (platform === 'ios' ? 'App Store' : 'Google Play');
+export const storeName = (platform: Platform) => platformMeta(platform).storeName;
+
+/** Platforms in display order: iOS, macOS, Android. */
+export const platformRank = (platform: Platform): number => platformMeta(platform).order;
 
 /**
  * A name that tells two apps apart when they share it (and often their identifier): the same
@@ -176,7 +187,7 @@ export function latestRelease(releases: readonly ReleaseSummary[], platform?: Pl
 /** The newest release of each platform that has one. */
 export function latestByPlatform(releases: readonly ReleaseSummary[]): Partial<Record<Platform, ReleaseSummary>> {
   const result: Partial<Record<Platform, ReleaseSummary>> = {};
-  for (const platform of ['ios', 'android'] as const) {
+  for (const platform of PLATFORMS) {
     const release = latestRelease(releases, platform);
     if (release) result[platform] = release;
   }
@@ -221,7 +232,7 @@ export function groupReleases(releases: readonly ReleaseSummary[]): ReleaseGroup
     });
   }
   return result.sort(
-    (a, b) => (a.platform === b.platform ? 0 : a.platform === 'ios' ? -1 : 1) || compareTracks(a.track, b.track),
+    (a, b) => platformRank(a.platform) - platformRank(b.platform) || compareTracks(a.track, b.track),
   );
 }
 
@@ -280,7 +291,7 @@ export function sortApps(apps: readonly AppSummary[]): AppSummary[] {
   return [...apps].sort((a, b) => {
     const byName = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     if (byName !== 0) return byName;
-    if (a.platform !== b.platform) return a.platform === 'ios' ? -1 : 1;
+    if (a.platform !== b.platform) return platformRank(a.platform) - platformRank(b.platform);
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 }
@@ -376,7 +387,7 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
         ? 'That credential no longer exists. Pick another one.'
         : 'The credential this app uses was deleted. Add a new credential, then add the app again.';
     case 'credential_kind':
-      return asText(error.body?.message) || 'iOS needs an App Store Connect credential and Android a Google Play one.';
+      return asText(error.body?.message) || 'iOS and macOS need an App Store Connect credential and Android a Google Play one.';
     case 'repository_not_found':
       return 'That repository is not connected to this workspace. Pick another one or leave it empty.';
     case 'sync_in_progress':
@@ -464,7 +475,7 @@ export async function syncApp(api: Pick<Api, 'syncApp'>, workspaceId: string, id
 export type CredentialKind = 'app_store_connect' | 'google_play';
 
 export const credentialKindFor = (platform: Platform): CredentialKind =>
-  platform === 'ios' ? 'app_store_connect' : 'google_play';
+  platformMeta(platform).credentialKind;
 
 /** The credentials that can read this platform's store. */
 export function credentialsFor<T extends { kind: string }>(platform: Platform, credentials: readonly T[]): T[] {
@@ -472,10 +483,12 @@ export function credentialsFor<T extends { kind: string }>(platform: Platform, c
   return credentials.filter((c) => c.kind === kind);
 }
 
-export const identifierLabel = (platform: Platform) => (platform === 'ios' ? 'Bundle ID' : 'Package name');
+export const identifierLabel = (platform: Platform) => (isApplePlatform(platform) ? 'Bundle ID' : 'Package name');
 
 export const identifierHint = (platform: Platform) =>
-  platform === 'ios'
+  platform === 'macos'
+    ? 'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.'
+    : platform === 'ios'
     ? 'The bundle ID from App Store Connect, such as com.acme.app.'
     : 'The package name from the Play Console, such as com.acme.app.';
 
@@ -505,7 +518,7 @@ export function validateDraft(draft: AppDraft): { ok: true; input: NewApp } | { 
     problems.identifier = `Enter the ${identifierLabel(draft.platform).toLowerCase()}.`;
   } else if (identifier.length > MAX_IDENTIFIER) {
     problems.identifier = `Use at most ${MAX_IDENTIFIER} characters.`;
-  } else if (draft.platform === 'ios' && !BUNDLE_ID.test(identifier)) {
+  } else if (isApplePlatform(draft.platform) && !BUNDLE_ID.test(identifier)) {
     problems.identifier = 'A bundle ID has only letters, digits, dots and hyphens, such as com.acme.app.';
   } else if (draft.platform === 'android' && !PACKAGE_NAME.test(identifier)) {
     problems.identifier = 'A package name has at least two parts separated by dots, such as com.acme.app. Each part starts with a letter.';
@@ -659,7 +672,7 @@ export function packageListProblem(list: PackageList): string {
  * sensitive, package names are.
  */
 export const candidateKey = (c: Pick<DiscoverCandidate, 'platform' | 'identifier'>): string =>
-  `${c.platform}:${c.platform === 'ios' ? c.identifier.toLowerCase() : c.identifier}`;
+  `${c.platform}:${isApplePlatform(c.platform) ? c.identifier.toLowerCase() : c.identifier}`;
 
 /** "1 iOS app", "2 Android apps". */
 export const platformCount = (platform: Platform, count: number): string =>
@@ -667,9 +680,10 @@ export const platformCount = (platform: Platform, count: number): string =>
 
 /** What a credential adds: one platform. Shown before importing, so nobody expects both. */
 export function importScopeNote(platform: Platform): string {
-  const other: Platform = platform === 'ios' ? 'android' : 'ios';
-  const otherCredential = other === 'ios' ? 'an App Store Connect' : 'a Google Play';
-  return `This credential adds ${platformLabel(platform)} apps only. An ${platformLabel(other)} app with the same identifier is a separate app: import it with ${otherCredential} credential.`;
+  if (isApplePlatform(platform)) {
+    return 'This credential adds iOS and macOS apps only. An Android app with the same identifier is a separate app: import it with a Google Play credential.';
+  }
+  return `This credential adds ${platformLabel(platform)} apps only. An iOS or macOS app with the same identifier is a separate app: import it with an App Store Connect credential.`;
 }
 
 /** The candidates that can still be added. */

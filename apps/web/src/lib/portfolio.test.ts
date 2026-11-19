@@ -812,8 +812,9 @@ test('labels and notes tell the platforms apart', () => {
   assert.equal(appLabel({ name: 'Same', platform: 'android' }), 'Same (Android)');
   assert.equal(platformCount('ios', 1), '1 iOS app');
   assert.equal(platformCount('android', 2), '2 Android apps');
-  assert.match(importScopeNote('ios'), /iOS apps only.*Android app with the same identifier.*Google Play credential/);
-  assert.match(importScopeNote('android'), /Android apps only.*iOS app with the same identifier.*App Store Connect credential/);
+  assert.match(importScopeNote('ios'), /iOS and macOS apps only.*Android app with the same identifier.*Google Play credential/);
+  assert.equal(importScopeNote('macos'), importScopeNote('ios'));
+  assert.match(importScopeNote('android'), /Android apps only.*iOS or macOS app with the same identifier.*App Store Connect credential/);
 });
 
 test('sync results name the platform, so two apps with one name are not confused', async () => {

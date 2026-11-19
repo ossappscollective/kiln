@@ -132,7 +132,7 @@
             </div>
             <p class="muted fine">
               Counts only: no image is read or kept.
-              {#if platform === 'ios'}
+              {#if platform !== 'android'}
                 The repository's screenshot folders do not say which device a file is for, so only the total of each locale is compared.
               {/if}
             </p>

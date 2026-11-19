@@ -1,5 +1,5 @@
 <!--
-  ScopeControl: the platform scope of an app, iOS | Android | Both, top right of every app page.
+  ScopeControl: the platform scope of an app, iOS | macOS | Android | Both (All from three platforms), top right of every app page.
   A side the app does not have is disabled with a reason. The choice goes into the address
   (`?platform=`), so every tab of the app shares it.
   Props: options (from resolveScope), scope (the active one), onchange.
@@ -10,7 +10,7 @@
 
   let { options, scope, onchange }: { options: ScopeOption[]; scope: PlatformScope; onchange: (scope: PlatformScope) => void } = $props();
 
-  const icons = { ios: 'platform-ios', android: 'platform-android', both: 'layers' } as const;
+  const icons = { ios: 'platform-ios', macos: 'platform-macos', android: 'platform-android', both: 'layers' } as const;
 </script>
 
 <div class="scope" role="group" aria-label="Platform">

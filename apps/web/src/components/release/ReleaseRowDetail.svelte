@@ -94,7 +94,7 @@
       <h4>In the store <span class="muted">· {storeName(row.platform)}, read only</span></h4>
       <dl>
         <div><dt>State</dt><dd><code>{row.release.rawState}</code></dd></div>
-        <div><dt>{row.platform === 'ios' ? 'Build' : 'Version codes'}</dt><dd>{row.buildText}</dd></div>
+        <div><dt>{row.platform === 'android' ? 'Version codes' : 'Build'}</dt><dd>{row.buildText}</dd></div>
         {#if row.release.track !== null}<div><dt>Track</dt><dd>{row.trackText}</dd></div>{/if}
         <div>
           <dt>Changed in the store</dt>
@@ -153,7 +153,7 @@
     {#if builds === null}
       <p class="muted">Build data is not available.</p>
     {:else if matching.length === 0}
-      <p class="muted">No build with {row.platform === 'ios' ? 'this build number' : 'these version codes'} was found. A sync reads builds from the store.</p>
+      <p class="muted">No build with {row.platform === 'android' ? 'these version codes' : 'this build number'} was found. A sync reads builds from the store.</p>
     {:else}
       <div class="table-scroll">
         <table class="compact">

@@ -11,7 +11,7 @@ import {
   dashboardBucket,
   formatPercent,
 } from '@mrm/core';
-import { appHref, compareVersions, latestRelease, type ReleaseLoad } from './portfolio.ts';
+import { appHref, compareVersions, latestRelease, platformRank, type ReleaseLoad } from './portfolio.ts';
 import { dueText, releaseHref } from './release.ts';
 import type { AppSummary, PlanSummary } from './types.ts';
 
@@ -136,7 +136,7 @@ export function nextAction(input: NextActionInput): NextAction {
     return { kind: 'blocked', text: `Resolve the block: ${blocked.reason}` };
   }
   if (input.planned) {
-    const where = input.platform === 'ios' ? 'App Store Connect' : 'Google Play Console';
+    const where = input.platform === 'android' ? 'Google Play Console' : 'App Store Connect';
     const prepare = prepareText(readiness);
     return prepare ?? { kind: 'act', text: `Add the version in ${where} and choose a build` };
   }
@@ -149,7 +149,8 @@ export function nextAction(input: NextActionInput): NextAction {
     if (prepare) return prepare;
   }
   const step = STEPS[input.status];
-  return { kind: step.kind, text: step[input.platform] };
+  // macOS is Apple's: the App Store Connect steps apply to it as they do to iOS.
+  return { kind: step.kind, text: step[input.platform === 'android' ? 'android' : 'ios'] };
 }
 
 function prepareText(readiness: NextActionInput['readiness']): NextAction | null {
@@ -224,14 +225,14 @@ function blockOf(plan: PlanSummary | undefined, status: ReleaseState | null): Bl
   return status === 'rejected' ? REJECTED_BLOCK : null;
 }
 
-/** Blocked first, then overdue, then due soon, then by name (iOS before Android), then id. */
+/** Blocked first, then overdue, then due soon, then by name (iOS, macOS, Android), then id. */
 export function compareCards(a: BoardCard, b: BoardCard): number {
   const rank = (c: BoardCard) => (c.blocked ? 0 : c.due?.overdue ? 1 : c.due?.dueSoon ? 2 : 3);
   const byRank = rank(a) - rank(b);
   if (byRank !== 0) return byRank;
   const byName = a.appName.localeCompare(b.appName, undefined, { sensitivity: 'base' });
   if (byName !== 0) return byName;
-  if (a.platform !== b.platform) return a.platform === 'ios' ? -1 : 1;
+  if (a.platform !== b.platform) return platformRank(a.platform) - platformRank(b.platform);
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 }
 
@@ -420,7 +421,7 @@ export function attentionItems(plans: readonly AttentionPlan[]): Attention[] {
         ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind] ||
         (a.daysLeft ?? 0) - (b.daysLeft ?? 0) ||
         a.appName.localeCompare(b.appName, undefined, { sensitivity: 'base' }) ||
-        (a.platform === b.platform ? 0 : a.platform === 'ios' ? -1 : 1) ||
+        (platformRank(a.platform) - platformRank(b.platform)) ||
         (a.version < b.version ? -1 : a.version > b.version ? 1 : 0),
     );
 }

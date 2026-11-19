@@ -26,7 +26,7 @@
 
   const uid = $props.id();
   const playOff = $derived(config !== null && !config.play.enabled);
-  const choices = $derived(members.filter((m) => m.platform === 'ios' || !playOff));
+  const choices = $derived(members.filter((m) => m.platform !== 'android' || !playOff));
 
   let appId = $state('');
   let externalId = $state('');

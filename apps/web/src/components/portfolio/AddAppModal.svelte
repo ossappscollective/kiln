@@ -5,13 +5,15 @@
   "Add manually" is the form for edge cases: pick the platform, a stored credential of the kind
   that platform's store needs, and the identifier; the name and a repository are optional.
   Adding does not contact the store: the first sync does.
+  The platform is iOS, macOS or Android: an App Store Connect app can have an iOS and a macOS record
+  (one app entry in the list), so adding the macOS version of an iOS app is one more record.
   Props: api, workspaceId, open (bindable), onadded (called with the app saved by the manual form),
   canSync (the role may sync; the import path then offers "Sync imported apps"), onchanged
-  (called after an import or its sync changed the apps, so the list can reload).
+  (called after an import or its sync changed the apps, so the list can reload), prefill? (opens on
+  the manual form with these values: platform, identifier, name, credentialId, repositoryId).
 -->
 <script lang="ts">
-  import type { Platform } from '@mrm/core';
-  import { credentialKindInfo, isCredentialKind } from '@mrm/core';
+  import { PLATFORMS, type Platform, credentialKindInfo, isCredentialKind, platformMeta } from '@mrm/core';
   import { ApiError, type Api } from '../../lib/api.ts';
   import { repositoryName } from '../../lib/repositories.ts';
   import {
@@ -40,6 +42,7 @@
     onadded,
     canSync = false,
     onchanged,
+    prefill,
   }: {
     api: Api;
     workspaceId: string;
@@ -47,6 +50,7 @@
     onadded: (app: AppSummary) => void;
     canSync?: boolean;
     onchanged?: () => void;
+    prefill?: Partial<{ platform: Platform; identifier: string; name: string; credentialId: string; repositoryId: string }>;
   } = $props();
 
   const formId = $props.id();
@@ -67,7 +71,7 @@
   let formProblem = $state('');
 
   const matching = $derived(credentials ? credentialsFor(platform, credentials) : []);
-  const kindName = $derived(credentialKindInfo[platform === 'ios' ? 'app_store_connect' : 'google_play'].label);
+  const kindName = $derived(credentialKindInfo[platformMeta(platform).credentialKind].label);
   const kindLabel = (kind: string) => (isCredentialKind(kind) ? credentialKindInfo[kind].label : kind);
 
   async function load() {
@@ -90,12 +94,12 @@
 
   $effect(() => {
     if (!open) return;
-    tab = 'import';
-    platform = 'ios';
-    credentialId = '';
-    identifier = '';
-    name = '';
-    repositoryId = '';
+    tab = prefill ? 'manual' : 'import';
+    platform = prefill?.platform ?? 'ios';
+    credentialId = prefill?.credentialId ?? '';
+    identifier = prefill?.identifier ?? '';
+    name = prefill?.name ?? '';
+    repositoryId = prefill?.repositoryId ?? '';
     problems = {};
     formProblem = '';
     void load();
@@ -203,14 +207,12 @@
     <fieldset class="platform">
       <legend>Platform</legend>
       <div class="choices">
-        <label class="check">
-          <input type="radio" name="{formId}-platform" value="ios" checked={platform === 'ios'} onchange={() => choosePlatform('ios')} />
-          <Icon name="platform-ios" /> iOS (App Store)
-        </label>
-        <label class="check">
-          <input type="radio" name="{formId}-platform" value="android" checked={platform === 'android'} onchange={() => choosePlatform('android')} />
-          <Icon name="platform-android" /> Android (Google Play)
-        </label>
+        {#each PLATFORMS as p (p)}
+          <label class="check">
+            <input type="radio" name="{formId}-platform" value={p} checked={platform === p} onchange={() => choosePlatform(p)} />
+            <Icon name={platformMeta(p).glyph} /> {platformMeta(p).label} ({platformMeta(p).storeName})
+          </label>
+        {/each}
       </div>
     </fieldset>
 

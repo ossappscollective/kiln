@@ -121,7 +121,7 @@
   });
 
   /** Google Play is left out while its reading is off: the server would answer 409 and nothing is requested. */
-  const targets = $derived(members.filter((m) => m.platform === 'ios' || !playOff));
+  const targets = $derived(members.filter((m) => m.platform !== 'android' || !playOff));
   const nothingToCheck = $derived(keywords.length === 0 || targets.length === 0);
 
   async function check() {

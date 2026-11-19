@@ -1,4 +1,4 @@
-import type { Action, Platform } from '@mrm/core';
+import { type Action, PLATFORMS, type Platform, isPlatform, platformLabel, sortPlatforms } from '@mrm/core';
 import type { IconName } from './icons.ts';
 
 /**
@@ -37,9 +37,9 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'listing' | 'releases' | 'assets' | 'reviews' | 'aso' | 'builds' | 'settings';
+export type AppSection = 'dashboard' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'aso' | 'builds' | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'listing', 'releases', 'assets', 'reviews', 'aso', 'builds', 'settings'];
+export const appSections: readonly AppSection[] = ['dashboard', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'aso', 'builds', 'settings'];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
@@ -48,6 +48,7 @@ export const appSectionDefs: readonly SectionDef[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'grid', requires: 'apps.read' },
   { id: 'listing', label: 'Listing', icon: 'file-text', requires: 'listing.read' },
   { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
+  { id: 'workflows', label: 'Workflows', icon: 'play', requires: 'apps.read' },
   { id: 'assets', label: 'Assets', icon: 'images', requires: 'listing.read' },
   { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
   { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },
@@ -62,10 +63,11 @@ export const visibleSections = (allowed: (action: Action) => boolean): SectionDe
 export const isAppSection = (value: string | undefined): value is AppSection =>
   value !== undefined && (appSections as readonly string[]).includes(value);
 
-export type PlatformScope = 'ios' | 'android' | 'both';
+/** One platform of the app, or `both` for every platform it has (labelled "All" from three platforms; the id stays for old links). */
+export type PlatformScope = Platform | 'both';
 
 export const isPlatformScope = (value: string | null | undefined): value is PlatformScope =>
-  value === 'ios' || value === 'android' || value === 'both';
+  value === 'both' || isPlatform(value);
 
 export type AppAddress = {
   /** The id of one of the app's platform records. Any of them opens the whole app. */
@@ -102,6 +104,9 @@ export function appAddress(
   return platform ? `${path}?platform=${platform}` : path;
 }
 
+/** The workflows of one app (the link from Builds and CI). */
+export const appWorkflowsHref = (id: string, platform: PlatformScope | null = null): string => appAddress(id, 'workflows', platform);
+
 /** The reviews of one app (the link from the inbox). */
 export const appReviewsHref = (id: string, platform: PlatformScope | null = null): string => appAddress(id, 'reviews', platform);
 
@@ -122,21 +127,26 @@ export function withScope(hash: string, platform: PlatformScope | null): string 
 export type ScopeOption = { id: PlatformScope; label: string; disabled: boolean; reason: string };
 export type ResolvedScope = {
   scope: PlatformScope;
-  /** The platforms the screens show, in the order iOS, Android. */
+  /** The platforms the screens show, in the order iOS, macOS, Android. */
   platforms: Platform[];
   options: ScopeOption[];
 };
 
-const order: Platform[] = ['ios', 'android'];
+/** The label of the all-platforms choice: "Both" for two platforms, "All" for more. */
+export const allScopeLabel = (count: number): string => (count > 2 ? 'All' : 'Both');
 
 /**
- * The scope to use: what the address asked for when the app can show it, else `Both` for an app on
- * two stores and the one store otherwise. An app on one store has the other options disabled.
+ * The scope to use: what the address asked for when the app can show it, else the all-platforms
+ * scope for an app on several platforms and the one platform otherwise.
+ *
+ * Options: an app with iOS and/or Android records only keeps the two familiar options, the missing
+ * one disabled with a reason, so that layout does not move. An app with a macOS record shows only the
+ * platforms it has (nothing disabled), and the macOS option never appears for an app without it.
  */
 export function resolveScope(requested: PlatformScope | null, available: readonly Platform[]): ResolvedScope {
-  const have = order.filter((p) => available.includes(p));
-  const fallback: PlatformScope = have.length === 2 || have.length === 0 ? 'both' : (have[0] as Platform);
-  const allowed = (scope: PlatformScope) => (scope === 'both' ? have.length === 2 : have.includes(scope));
+  const have = sortPlatforms(available);
+  const fallback: PlatformScope = have.length >= 2 || have.length === 0 ? 'both' : (have[0] as Platform);
+  const allowed = (scope: PlatformScope) => (scope === 'both' ? have.length >= 2 : have.includes(scope));
   const scope = requested !== null && allowed(requested) ? requested : fallback;
   const option = (id: PlatformScope, label: string): ScopeOption => ({
     id,
@@ -144,9 +154,9 @@ export function resolveScope(requested: PlatformScope | null, available: readonl
     disabled: !allowed(id),
     reason: allowed(id) ? '' : id === 'both' ? 'This app is on one store only' : 'This app is not on that store',
   });
-  return {
-    scope,
-    platforms: scope === 'both' ? have : [scope],
-    options: [option('ios', 'iOS'), option('android', 'Android'), option('both', 'Both')],
-  };
+  const hasMac = have.includes('macos');
+  const shown: Platform[] = hasMac ? have : PLATFORMS.filter((p) => p !== 'macos');
+  const options = shown.map((p) => option(p, platformLabel(p)));
+  if (!hasMac || have.length >= 2) options.push(option('both', allScopeLabel(have.length)));
+  return { scope, platforms: scope === 'both' ? have : [scope], options };
 }

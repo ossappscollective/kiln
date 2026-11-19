@@ -6,7 +6,7 @@ import type { IconName } from './icons.ts';
  * (see icons.ts); the labels are the services' own names, used only to identify them.
  */
 
-export type StoreId = 'app_store' | 'google_play' | 'testflight' | 'github' | 'expo' | 'fastlane' | 'git' | 'generic';
+export type StoreId = 'app_store' | 'mac_app_store' | 'google_play' | 'testflight' | 'github' | 'expo' | 'fastlane' | 'git' | 'generic';
 
 export type StoreTint = 'info' | 'ok' | 'neutral';
 
@@ -26,6 +26,7 @@ export type StoreInfo = {
 
 export const storeInfo: Record<StoreId, StoreInfo> = {
   app_store: { store: 'app_store', label: 'App Store', fullLabel: 'App Store Connect', icon: 'store-ios', tint: 'info' },
+  mac_app_store: { store: 'mac_app_store', label: 'Mac App Store', fullLabel: 'App Store Connect', icon: 'store-ios', tint: 'info' },
   google_play: { store: 'google_play', label: 'Google Play', fullLabel: 'Google Play Console', icon: 'store-android', tint: 'ok' },
   testflight: { store: 'testflight', label: 'TestFlight', fullLabel: 'TestFlight', icon: 'send', tint: 'info' },
   github: { store: 'github', label: 'GitHub', fullLabel: 'GitHub', icon: 'repo', tint: 'neutral' },
@@ -64,6 +65,7 @@ export function storeForCredentialKind(kind: string | null | undefined): StoreIn
 export function storeForPlatform(platform: string | null | undefined): StoreInfo {
   const p = (platform ?? '').toLowerCase();
   if (p === 'ios') return storeInfo.app_store;
+  if (p === 'macos') return storeInfo.mac_app_store;
   if (p === 'android') return storeInfo.google_play;
   return storeInfo.generic;
 }
@@ -85,12 +87,13 @@ export function storeForProjectKind(kind: string | null | undefined): StoreInfo 
 // ---------------------------------------------------------------------------------------------
 // Platforms
 
-export type PlatformId = 'ios' | 'android' | 'unknown';
+export type PlatformId = 'ios' | 'macos' | 'android' | 'unknown';
 
 export type PlatformInfo = { platform: PlatformId; label: string; icon: IconName };
 
 export const platformInfo: Record<PlatformId, PlatformInfo> = {
   ios: { platform: 'ios', label: 'iOS', icon: 'platform-ios' },
+  macos: { platform: 'macos', label: 'macOS', icon: 'platform-macos' },
   android: { platform: 'android', label: 'Android', icon: 'platform-android' },
   unknown: { platform: 'unknown', label: 'Unknown platform', icon: 'smartphone' },
 };
@@ -98,7 +101,7 @@ export const platformInfo: Record<PlatformId, PlatformInfo> = {
 /** A platform string (`ios`, `android`, any case). Anything else is the neutral smartphone. */
 export function platformById(platform: string | null | undefined): PlatformInfo {
   const p = (platform ?? '').toLowerCase();
-  return p === 'ios' ? platformInfo.ios : p === 'android' ? platformInfo.android : platformInfo.unknown;
+  return p === 'ios' ? platformInfo.ios : p === 'macos' ? platformInfo.macos : p === 'android' ? platformInfo.android : platformInfo.unknown;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -24,7 +24,7 @@
     api: Api;
     workspaceId: string;
     appId: string;
-    build: { platform: 'ios' | 'android'; buildNumber: string };
+    build: { platform: string; buildNumber: string };
   } = $props();
 
   let changes = $state<BuildChanges | null>(null);

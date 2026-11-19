@@ -1,4 +1,4 @@
-import { type RankChange, type RankChangeKind, checkTerm, defaultLocaleFor, normalizeCountry, normalizeLocale } from '@mrm/core';
+import { type Platform, type RankChange, type RankChangeKind, checkTerm, defaultLocaleFor, normalizeCountry, normalizeLocale } from '@mrm/core';
 import type { CoverageGap, FitStatus, Idea, ListingFit, SuggestedCompetitor, TermAcrossMarkets } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { type PlatformScope, appAddress, parseViewPath } from './app-scope.ts';
@@ -16,7 +16,7 @@ import { retrySeconds } from './portfolio.ts';
 // ---------------------------------------------------------------------------------------------
 // API shapes
 
-export type AsoPlatform = 'ios' | 'android';
+export type AsoPlatform = Platform;
 export type AsoStore = 'app_store' | 'google_play';
 
 export type AsoConfig = {
@@ -562,6 +562,7 @@ export const fitFieldLabels: Record<string, string> = {
 /** The listing fields to show a column for, per platform. */
 export const fitColumns: Record<AsoPlatform, string[]> = {
   ios: ['title', 'subtitle', 'keywords', 'description'],
+  macos: ['title', 'subtitle', 'keywords', 'description'],
   android: ['title', 'shortDescription', 'description'],
 };
 

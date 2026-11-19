@@ -293,7 +293,7 @@
         <h1 class="page-title">All apps</h1>
         <InfoTip
           label="About this list"
-          text="The apps of this workspace as the stores report them, one row per app with its iOS and Android versions side by side. Everything here is read from the stores; nothing is written to them."
+          text="The apps of this workspace as the stores report them, one row per app with the versions of each platform (iOS, macOS, Android) side by side. Everything here is read from the stores; nothing is written to them."
         />
       </div>
       {#if canRead && apps !== null && apps.length > 0}
@@ -354,7 +354,7 @@
             icon="smartphone"
             title="No apps yet"
             description={canWrite
-              ? 'Add an iOS or Android app with a stored App Store Connect or Google Play credential. Adding it does not contact the store; the first sync does.'
+              ? 'Add an iOS, macOS or Android app with a stored App Store Connect or Google Play credential. Adding it does not contact the store; the first sync does.'
               : 'An admin or owner adds apps. Once one is added it appears here, with its latest release.'}
           >
             {#snippet actions()}

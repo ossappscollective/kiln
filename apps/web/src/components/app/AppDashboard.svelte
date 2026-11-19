@@ -14,7 +14,7 @@
   (it draws nothing when none is); see components/ci/RunningNow.svelte.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type Role, can, platformLabel } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { address } from '../../lib/address.svelte.ts';
@@ -220,12 +220,12 @@
       {@const list = releases[app.id] ?? []}
       {@const latest = latestRelease(list, app.platform)}
       {@const live = liveRelease(list, app.platform)}
-      <section class="card" aria-label="{app.platform === 'ios' ? 'iOS' : 'Android'} summary">
+      <section class="card" aria-label="{platformLabel(app.platform)} summary">
         <div class="row between">
           <div class="row ident">
             <PlatformBadge platform={app.platform} tinted />
             <code>{app.identifier}</code>
-            <CopyButton value={app.identifier} iconOnly label="Copy the {app.platform === 'ios' ? 'bundle ID' : 'package name'}" />
+            <CopyButton value={app.identifier} iconOnly label="Copy the {app.platform === 'android' ? 'package name' : 'bundle ID'}" />
           </div>
           {#if canSync}
             <Button size="sm" icon="refresh" loading={syncing[app.id] === true} onclick={() => onsync(app)}>Sync</Button>
