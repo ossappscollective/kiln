@@ -534,11 +534,18 @@ posixTest('an aborted signal cancels a git process and kills its group', async (
   const controller = new AbortController();
   const started = Date.now();
   const running = r.refresh(undefined, { signal: controller.signal });
-  setTimeout(() => controller.abort(), 300);
+  // Abort once the slow fetch has really started (its wrapper writes the pid file); a fixed delay was a race on a busy machine.
+  const waitFor = Date.now();
+  const poll = setInterval(() => {
+    if (existsSync(`${pids}.sleep`) || Date.now() - waitFor > 10_000) {
+      clearInterval(poll);
+      controller.abort();
+    }
+  }, 25);
   const error = await rejection(running);
   assert.ok(error instanceof GitCloneError);
   assert.equal(error.reason, 'aborted');
-  assert.ok(Date.now() - started < 5_000, 'did not wait for the 30 second sleep');
+  assert.ok(Date.now() - started < 15_000, 'did not wait for the 30 second sleep');
 
   // The shell and the sleep it started are gone: the process group was killed.
   await new Promise((done) => setTimeout(done, 300));

@@ -34,9 +34,20 @@ skip() { printf '%-34s%s\n' "$1 ..." "SKIP ($2)"; echo "- SKIP · $1 · $2" >> "
 have() { command -v "$1" > /dev/null 2>&1; }
 
 if ! have pnpm; then echo "pnpm is required"; exit 2; fi
-step "install" pnpm install --frozen-lockfile
+if pnpm install --frozen-lockfile > "$OUT/install-frozen.log" 2>&1; then
+  step "install" pnpm install --frozen-lockfile
+else
+  # The lockfile is out of date: refresh it (network needed) and say so, so it can be committed.
+  step "install (lockfile refreshed)" pnpm install --no-frozen-lockfile
+  { echo "  pnpm-lock.yaml changed: $(git diff --shortstat -- pnpm-lock.yaml)"; } >> "$REPORT"
+fi
 step "typecheck" pnpm typecheck
-if have biome || [ -x node_modules/.bin/biome ]; then step "lint (biome)" pnpm lint; else skip "lint (biome)" "biome not installed"; fi
+if have biome || [ -x node_modules/.bin/biome ]; then
+  step "lint (biome)" pnpm lint
+  # Which rules fire how often (summary), so a formatting-only problem can be told from real findings.
+  node_modules/.bin/biome check . --reporter=summary --max-diagnostics=none > "$OUT/lint-summary.txt" 2>&1
+  { echo; echo "### lint summary (rules by count)"; echo '```'; head -n 60 "$OUT/lint-summary.txt"; echo '```'; echo; } >> "$REPORT"
+else skip "lint (biome)" "biome not installed"; fi
 step "web build" pnpm build
 step "tests (sqlite)" pnpm test
 
@@ -55,7 +66,9 @@ fi
 
 if [ "$MODE" != quick ]; then
   if have cargo && [ -d apps/desktop/src-tauri ]; then
-    step "tauri cargo check" bash -c 'cd apps/desktop/src-tauri && cargo check --locked 2>&1 || cargo check'
+    # cargo check needs the staged sidecar (externalBin); this only copies files that are already on the machine.
+    step "tauri sidecar stage" node apps/desktop/scripts/prepare-sidecar.mjs --allow-missing-web
+    step "tauri cargo check" bash -c 'cd apps/desktop/src-tauri && cargo check'
   else
     skip "tauri cargo check" "cargo not installed"
   fi
