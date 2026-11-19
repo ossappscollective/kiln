@@ -30,6 +30,7 @@ export const MAX_NOTES_CHARACTERS = 500;
 // punctuation and symbols, CJK and full-width punctuation, variation selectors and surrogates
 // (emoji outside the BMP). Digits and letters of every script are not in it. An apostrophe is
 // removed first, so `don't` is one word. UNVERIFIED how the stores treat these characters.
+// biome-ignore lint/suspicious/noMisleadingCharacterClass: the variation selectors are a range of separators on purpose
 const SEPARATORS = /[\s\u0000-/:-@[-`{-¿×÷ -⁯←-⯿　-〿＀-／：-＠［-｀｛-･︀-️\ud800-\udfff]+/;
 const APOSTROPHES = /['’‘ʼ`]/g;
 const MARKS = /[̀-ͯ]/g;

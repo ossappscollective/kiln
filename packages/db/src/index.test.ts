@@ -227,7 +227,7 @@ dbTest(
     try {
       const [a, b] = await Promise.all([migrate(db), migrate(other)]);
       assert.deepEqual(
-        [...a, ...b].sort(),
+        [...a, ...b].sort((x, y) => x - y),
         migrations.map((m) => m.id),
       );
     } finally {

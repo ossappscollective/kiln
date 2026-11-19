@@ -14,7 +14,7 @@ export async function runDemo(
   if (!demoRequested(env) && env.MRM_DEMO_ENTRY !== '1')
     throw new Error('Demo mode is off. Set MRM_DEMO=true.');
   const webDist = fileURLToPath(new URL('../../../web/dist', import.meta.url));
-  let config;
+  let config: ReturnType<typeof loadDemoConfig>;
   try {
     config = loadDemoConfig(env, webDist);
   } catch (error) {

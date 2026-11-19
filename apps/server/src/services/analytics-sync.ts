@@ -506,7 +506,7 @@ async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
   let from: string | null = null;
   let to: string | null = null;
   for (const month of months) {
-    let result;
+    let result: Awaited<ReturnType<typeof port.readMonth>>;
     try {
       result = await port.readMonth(month);
     } catch (error) {

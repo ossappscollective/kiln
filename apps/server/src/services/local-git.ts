@@ -867,7 +867,7 @@ export function classifySigningFailure(result: RawGitResult): {
               text,
             )
           ? 'locked'
-          : /Couldn't load|Load key|No such file|invalid format|No secret key|not a valid/i.test(
+          : /Couldn't load|Load key|invalid format|No secret key|not a valid/i.test(
                 text,
               )
             ? 'key'
@@ -1060,6 +1060,15 @@ async function signedCommitTree(args: {
           message: SIGNING_MESSAGES.program,
           reason: 'program',
         };
+      }
+    }
+    // The same for an ssh key file that is gone or unreadable: "No such file" is also what git says
+    // when a program wrote no signature, so the wording of git cannot tell the two apart.
+    if (signing.format === 'ssh' && isAbsolute(signing.key)) {
+      try {
+        await access(signing.key, fsConstants.R_OK);
+      } catch {
+        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.key, reason: 'key' };
       }
     }
     const home = join(scratch, 'home');

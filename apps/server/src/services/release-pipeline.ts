@@ -239,10 +239,9 @@ function parseDetails(raw: unknown): {
   if (typeof raw !== 'string') return { versionCodes: null, rolloutFraction: null };
   try {
     const v = JSON.parse(raw) as { versionCodes?: unknown; rolloutFraction?: unknown } | null;
+    const codes = v?.versionCodes;
     return {
-      versionCodes: Array.isArray(v?.versionCodes)
-        ? (v?.versionCodes as unknown[]).map(String)
-        : null,
+      versionCodes: Array.isArray(codes) ? codes.map(String) : null,
       rolloutFraction: typeof v?.rolloutFraction === 'number' ? v.rolloutFraction : null,
     };
   } catch {
