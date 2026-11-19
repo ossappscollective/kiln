@@ -43,6 +43,7 @@ import {
 import { getDrift } from './listing-live.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
+import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
 
 /**
  * Staged changes (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md): the listing
@@ -339,6 +340,7 @@ export async function buildStagedView(ctx: Pick<StagedContext, 'db'>, workspaceI
       height: r.assetHeight,
       format: r.assetFormat,
       hasAlpha: r.assetAlpha,
+      ...(r.source === 'local' ? { upload: true } : {}),
     }));
     const pushedAt = set.rows.every((r) => r.pushedHash !== null && r.pushedHash === r.valueHash) ? Math.max(...set.rows.map((r) => r.pushedAt ?? 0)) : null;
     return {
@@ -348,7 +350,7 @@ export async function buildStagedView(ctx: Pick<StagedContext, 'db'>, workspaceI
       slot: set.slot,
       slotKey: slotKey(set.slot),
       label: setLabel(app.platform, set.locale, set.slot),
-      source: set.rows[0]?.source ?? 'repo',
+      source: set.rows.some((r) => r.source === 'local') ? 'local' : (set.rows[0]?.source ?? 'repo'),
       files,
       status: hasError(mine) ? 'invalid' : 'changed',
       problems: mine,
@@ -515,8 +517,8 @@ export async function stageAssets(
     return invalid(
       'source_not_supported',
       input.from === 'store'
-        ? 'Graphics cannot be staged from the store: this server does not download store graphics (see docs/api/staged-changes.md, "Reverse sync").'
-        : 'Graphics cannot be uploaded to this server: stage files of the linked repository (from: repo).',
+        ? 'Graphics are not staged straight from the store: pull them into a change set for the repository (POST .../assets/pull), then stage the files from there (see docs/api/staged-changes.md, "Reverse sync").'
+        : 'Uploaded images are staged with PUT .../staged/assets/upload; this route stages files of the linked repository (from: repo).',
       { field: 'from' },
     );
   }
@@ -591,6 +593,7 @@ export async function stageAssets(
         ],
       );
     }
+    await deleteUnreferencedBlobs(tx, input.workspaceId, app.id);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -637,6 +640,7 @@ export async function unstage(
       detail = { appId: app.id, itemId: input.id, rows: count };
     }
     if (count === 0) return false;
+    await deleteUnreferencedBlobs(tx, input.workspaceId, app.id);
     await recordAudit(tx, { workspaceId: input.workspaceId, actor: input.actor, action: 'staged.item_removed', target: { type: 'app', id: app.id }, detail, at });
     return true;
   });
@@ -655,6 +659,7 @@ export async function clearStaged(
   await db.transaction(async (tx) => {
     const rows = await tx.execute('DELETE FROM staged_changes WHERE workspace_id = ? AND app_id = ?', [input.workspaceId, app.id]);
     if (rows > 0) {
+      await deleteUnreferencedBlobs(tx, input.workspaceId, app.id);
       await recordAudit(tx, { workspaceId: input.workspaceId, actor: input.actor, action: 'staged.cleared', target: { type: 'app', id: app.id }, detail: { appId: app.id, rows }, at });
     }
   });

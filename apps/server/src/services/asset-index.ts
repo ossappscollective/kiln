@@ -266,7 +266,7 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
   for (const a of assets) a.order = rest.get(a.path) ?? a.order;
 
   const facts2 = assets.map((a) => a as AssetFacts);
-  const problems = validateAssets(store, facts2);
+  const problems = validateAssets(store, validatedFacts(facts2));
   return {
     assets,
     problems,
@@ -276,6 +276,21 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
     partial: { partial: reasons.length > 0, reasons, skipped },
     transferredBytes: transferred,
   };
+}
+
+/**
+ * The facts that are held against the specs. An Xcode `AppIcon.appiconset` holds many icon sizes
+ * (20 to 1024 px) and only the one the App Store shows (1024 x 1024) has a size rule: holding every
+ * slot to it would report an error for each. So of the project icons of one folder only the 1024 px
+ * one is checked, or, when there is none, the largest. Every other file is checked as before.
+ */
+export function validatedFacts(facts: readonly AssetFacts[]): AssetFacts[] {
+  const icons = facts.filter((f) => f.kind === 'app_icon' && f.store === 'app_store');
+  if (icons.length < 2) return facts.slice();
+  const area = (f: AssetFacts) => (f.width ?? 0) * (f.height ?? 0);
+  const full = icons.filter((f) => f.width === 1024 && f.height === 1024);
+  const keep = new Set(full.length > 0 ? full : [icons.slice().sort((a, b) => area(b) - area(a))[0] as AssetFacts]);
+  return facts.filter((f) => !icons.includes(f) || keep.has(f));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -328,8 +343,12 @@ export type AssetIndexView = {
     sources: Record<string, string>;
     unverified: { id: string; text: string }[];
   };
-  /** Reserved: the store side (counts per display type and locale), added by the listing reads. Always null here. */
-  storeSide: null;
+  /**
+   * The store's own counts per locale, kind and device, from the last store read that is still cached
+   * (`GET .../assets/store`), or null. The index itself never reads a store, so it is null in the cached index and is added
+   * by the route (docs/api/assets.md).
+   */
+  storeSide: { observedAt: number; counts: { locale: string; kind: AssetKind; device: string | null; count: number }[] } | null;
 };
 
 export const SPECS_BASIS =

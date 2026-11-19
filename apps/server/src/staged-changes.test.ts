@@ -204,7 +204,7 @@ dbTest('what cannot be pushed is refused when staging a set, with the reason', a
     [droid, { locale: 'en-US', kind: 'promo_graphic' }, 'slot_not_pushable', /promo/i],
     [ios, { locale: 'en-US', kind: 'screenshot' }, 'invalid_staged', /device is required/],
     [droid, { locale: 'en-US', kind: 'icon', device: 'phone' }, 'invalid_staged'],
-    [ios, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 'store' }, 'source_not_supported', /does not download/],
+    [ios, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 'store' }, 'source_not_supported', /assets\/pull/],
     [ios, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 'local' }, 'source_not_supported'],
     [ios, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', commit: 'main' }, 'invalid_staged', /full commit hash/],
     [ios, { locale: 'fr-FR', kind: 'screenshot', device: 'iphone_6_5' }, 'no_assets'],

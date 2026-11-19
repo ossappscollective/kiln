@@ -1,0 +1,558 @@
+import assert from 'node:assert/strict';
+import type { StoreImageRecord } from '@mrm/connectors';
+import { dbTest } from '@mrm/db/testing';
+import { ASSET_SYNC_LIMITS, readImageHeader } from '@mrm/core';
+import { rgbPng, rgbaPng } from './png-test-helpers.ts';
+import { decodePng } from './services/png-codec.ts';
+import type { Exchange, ExchangeRequest } from './services/safe-fetch.ts';
+import { clearStoreImageCaches } from './services/store-images.ts';
+import { type StagedBootOptions, type StagedBoot, bootStaged, sha256 } from './staged-test-helpers.ts';
+
+/**
+ * Two way sync of graphics (docs/api/assets.md, docs/adr/0012-assets-two-way-sync.md): reading the store, the comparison, the
+ * thumbnail proxy, pulling into a change set, uploads, replace, remove and fix, and staged sets into the repository. Everything
+ * runs against fakes: no store, CDN or GitHub is contacted.
+ */
+
+export const SHOTS = 'fastlane/metadata/ios/screenshots/en-US';
+export const PLAY_SHOTS = 'fastlane/metadata/android/en-US/images/phoneScreenshots';
+const resolve = async () => [{ address: '93.184.216.34', family: 4 as const }];
+
+/** A fake CDN: answers by URL path (or `*`), remembers every request. */
+export function cdn(bodies: Record<string, Uint8Array> = {}) {
+  const seen: ExchangeRequest[] = [];
+  const exchange: Exchange = async (request) => {
+    seen.push(request);
+    const body = bodies[request.url.pathname] ?? bodies['*'];
+    if (!body) return { status: 404, headers: {}, body: new Uint8Array(0), overflow: false };
+    return { status: 200, headers: { 'content-type': 'text/html' }, body, overflow: false };
+  };
+  return { seen, exchange };
+}
+
+export const boot = async (db: Parameters<typeof bootStaged>[0], net: ReturnType<typeof cdn>, options: StagedBootOptions = {}) => {
+  clearStoreImageCaches();
+  return bootStaged(db, { ...options, extra: { assetSync: { net: { resolve, exchange: net.exchange } } } });
+};
+
+export const apple = (position: number, over: Partial<StoreImageRecord> = {}): StoreImageRecord => ({
+  locale: 'en-US',
+  kind: 'screenshot',
+  device: 'iphone_6_5',
+  target: 'APP_IPHONE_65',
+  position,
+  id: `a${position}`,
+  name: `s${position}.png`,
+  width: 1242,
+  height: 2688,
+  bytes: null,
+  checksum: null,
+  checksumKind: null,
+  state: 'COMPLETE',
+  url: `https://is1.mzstatic.com/image/thumb/Pic${position}/{w}x{h}bb.{f}`,
+  urlKind: 'apple_template',
+  ...over,
+});
+export const play = (position: number, over: Partial<StoreImageRecord> = {}): StoreImageRecord => ({
+  locale: 'en-US',
+  kind: 'screenshot',
+  device: 'phone',
+  target: 'phoneScreenshots',
+  position,
+  id: `p${position}`,
+  name: null,
+  width: null,
+  height: null,
+  bytes: null,
+  checksum: null,
+  checksumKind: null,
+  state: null,
+  url: `https://play-lh.googleusercontent.com/img${position}`,
+  urlKind: 'play_url',
+  ...over,
+});
+
+export const API = (t: StagedBoot, path: string) => `/api/workspaces/${t.workspaceId}${path}`;
+/** A request with a raw body (the upload routes). */
+export async function raw(t: StagedBoot, method: string, path: string, body?: Uint8Array, cookie = t.owner) {
+  const res = await t.app.request(API(t, path), { method, headers: { cookie, 'content-type': 'application/octet-stream' }, ...(body ? { body } : {}) });
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const text = res.headers.get('content-type')?.includes('json') ? new TextDecoder().decode(bytes) : '';
+  return { status: res.status, headers: res.headers, bytes, text, body: text ? JSON.parse(text) : null };
+}
+export const slot = 'locale=en-US&kind=screenshot&device=iphone_6_5';
+export const SHOT = rgbPng(1242, 2688, () => [10, 20, 30]);
+
+// ----- the store, the comparison and the thumbnail proxy ------------------------------------------
+
+dbTest('the store view has opaque refs and no address, is cached, and is audited without a secret', async (db) => {
+  const t = await boot(db, cdn());
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1), apple(2), apple(1, { locale: 'de-DE' })];
+  const a = await t.call(t.owner, 'GET', `/apps/${app}/assets/store`);
+  assert.equal(a.status, 200, a.text);
+  assert.equal(a.body.cached, false);
+  const set = a.body.store.sets.find((s: { locale: string }) => s.locale === 'en-US');
+  assert.equal(set.files.length, 2);
+  assert.match(set.files[0].ref, /^[0-9a-f]{32}$/);
+  assert.equal(set.files[0].downloadable, true);
+  assert.equal(a.body.store.version.editable, true);
+  assert.ok(!/mzstatic|https?:\/\//.test(a.text), 'a client never receives a store address');
+  const b = await t.call(t.owner, 'GET', `/apps/${app}/assets/store`);
+  assert.equal(b.body.cached, true);
+  assert.equal(t.stores.ios.imageReads, 1, 'the second read came from the cache');
+  const c = await t.call(t.owner, 'GET', `/apps/${app}/assets/store?fresh=1`);
+  assert.equal(c.body.cached, false);
+  assert.equal(t.stores.ios.imageReads, 2);
+  const uses = await t.audit('credential.use');
+  assert.ok(uses.some((u) => u.detail.purpose === 'store.images_read'));
+  assert.equal(t.stores.ios.applyCalls, 0, 'reading never writes');
+});
+
+dbTest('the store is read with the viewer role, a failure is a clear message, and an unknown app is 404', async (db) => {
+  const t = await boot(db, cdn());
+  const app = await t.addApp('ios');
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'GET', `/apps/${app}/assets/store`)).status, 200);
+  t.stores.ios.imageReadError = new Error('the store is down');
+  const failed = await t.call(t.owner, 'GET', `/apps/${app}/assets/store?fresh=1`);
+  assert.equal(failed.status, 502);
+  assert.equal((await t.call(t.owner, 'GET', '/apps/00000000-0000-0000-0000-000000000000/assets/store')).status, 404);
+});
+
+dbTest('the diff says identical, probably the same, only in the store, and fills the counts of the Assets tab', async (db) => {
+  const t = await boot(db, cdn());
+  const app = await t.addApp('ios');
+  const first = t.files[`${SHOTS}/1_iphone65.png`] as Buffer;
+  t.stores.ios.imageRecords = [apple(1, { checksum: sha256(first).slice(0, 32), checksumKind: 'sha256' }), apple(2), apple(3), apple(1, { locale: 'de-DE' })];
+  const before = await t.call(t.owner, 'GET', `/apps/${app}/assets`);
+  assert.equal(before.body.storeSide, null, 'before any store read the index says "not compared"');
+  const res = await t.call(t.owner, 'GET', `/apps/${app}/assets/diff`);
+  assert.equal(res.status, 200, res.text);
+  const set = res.body.diff.sets.find((s: { locale: string; device: string }) => s.locale === 'en-US' && s.device === 'iphone_6_5');
+  assert.deepEqual(set.rows.map((r: { status: string }) => r.status), ['identical', 'likely_same', 'only_store']);
+  assert.equal(set.inSync, false);
+  assert.equal(set.rows[0].repo.path, `${SHOTS}/1_iphone65.png`);
+  assert.ok(set.rows[0].store.ref);
+  const de = res.body.diff.sets.find((s: { locale: string }) => s.locale === 'de-DE');
+  assert.deepEqual(de.rows.map((r: { status: string }) => r.status), ['only_store']);
+  assert.deepEqual(res.body.diff.totals, { identical: 1, likely_same: 1, differs: 0, only_repo: 0, only_store: 2 });
+  const after = await t.call(t.owner, 'GET', `/apps/${app}/assets`);
+  assert.equal(after.body.storeSide.counts.find((c: { locale: string; device: string }) => c.locale === 'en-US' && c.device === 'iphone_6_5').count, 3);
+  assert.equal(typeof after.body.storeSide.observedAt, 'number');
+});
+
+dbTest('a different checksum is "differs", and a file only in the repository is shown', async (db) => {
+  const t = await boot(db, cdn());
+  const app = await t.addApp('android');
+  const one = t.files[`${PLAY_SHOTS}/1.png`] as Buffer;
+  t.stores.android.imageRecords = [play(1, { checksum: sha256(one), checksumKind: 'sha256' }), play(2, { checksum: 'f'.repeat(64), checksumKind: 'sha256' })];
+  const res = await t.call(t.owner, 'GET', `/apps/${app}/assets/diff`);
+  const phone = (body: { diff: { sets: { locale: string; device: string }[] } }) => body.diff.sets.find((s) => s.locale === 'en-US' && s.device === 'phone') as unknown as { rows: { status: string }[] };
+  assert.deepEqual(phone(res.body).rows.map((r) => r.status), ['identical', 'differs']);
+  t.stores.android.imageRecords = [play(1, { checksum: sha256(one), checksumKind: 'sha256' })];
+  const again = await t.call(t.owner, 'GET', `/apps/${app}/assets/diff?fresh=1`);
+  assert.deepEqual(phone(again.body).rows.map((r) => r.status), ['identical', 'only_repo']);
+});
+
+dbTest('the thumbnail proxy fetches from the allowed host only, sniffs the bytes, sets safe headers and answers 304', async (db) => {
+  const body = rgbPng(3, 2, () => [1, 2, 3]);
+  const net = cdn({ '*': body });
+  const t = await boot(db, net);
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1), apple(2, { url: 'https://evil.test/{w}x{h}bb.{f}' })];
+  const view = await t.call(t.owner, 'GET', `/apps/${app}/assets/store`);
+  const [good, bad] = view.body.store.sets[0].files as { ref: string }[];
+  const res = await raw(t, 'GET', `/apps/${app}/assets/store/thumb?ref=${good?.ref}&size=160`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png', 'the type is the sniffed one, not the answer header');
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(res.headers.get('content-security-policy') ?? '', /sandbox/);
+  assert.equal(net.seen.length, 1);
+  assert.equal(net.seen[0]?.url.hostname, 'is1.mzstatic.com');
+  assert.match(net.seen[0]?.url.pathname ?? '', /74x160bb\.jpg$/, 'a thumbnail of the asked size is requested from Apple');
+  assert.equal(net.seen[0]?.headers.cookie, undefined);
+  const etag = res.headers.get('etag') ?? '';
+  const second = await t.app.request(API(t, `/apps/${app}/assets/store/thumb?ref=${good?.ref}&size=160`), { headers: { cookie: t.owner, 'if-none-match': etag } });
+  assert.equal(second.status, 304);
+  assert.equal(net.seen.length, 1, 'a 304 costs no fetch');
+  const blocked = await raw(t, 'GET', `/apps/${app}/assets/store/thumb?ref=${bad?.ref}`);
+  assert.equal(blocked.status, 422);
+  assert.equal(blocked.body.error, 'image_blocked');
+  assert.equal(net.seen.length, 1, 'an address off the list is never fetched');
+  assert.equal((await raw(t, 'GET', `/apps/${app}/assets/store/thumb?ref=../../etc/passwd`)).status, 400);
+  const unknown = await raw(t, 'GET', `/apps/${app}/assets/store/thumb?ref=${'0'.repeat(32)}`);
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.body.error, 'ref_expired');
+  const other = await t.addApp('ios');
+  assert.equal((await raw(t, 'GET', `/apps/${other}/assets/store/thumb?ref=${good?.ref}`)).status, 404, 'another app cannot use the ref');
+});
+
+dbTest('a redirect off the allowlist is refused', async (db) => {
+  let calls = 0;
+  const net = {
+    seen: [],
+    exchange: (async () => {
+      calls++;
+      return { status: 302, headers: { location: 'https://evil.test/x' }, body: new Uint8Array(0), overflow: false };
+    }) as Exchange,
+  };
+  const t = await boot(db, net);
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1)];
+  const view = await t.call(t.owner, 'GET', `/apps/${app}/assets/store`);
+  const ref = view.body.store.sets[0].files[0].ref as string;
+  const res = await raw(t, 'GET', `/apps/${app}/assets/store/thumb?ref=${ref}`);
+  assert.equal(res.status, 422);
+  assert.equal(res.body.error, 'image_blocked');
+  assert.equal(calls, 1, 'the redirect target was never contacted');
+});
+
+// ----- pull --------------------------------------------------------------------------------------
+
+dbTest('pull (Google Play): files are checked against the store checksum, a change set is drafted, nothing is written anywhere', async (db) => {
+  const good = rgbPng(1080, 1920, () => [9, 9, 9]);
+  const other = rgbPng(1080, 1920, () => [8, 8, 8]);
+  const net = cdn({ '/img1': good, '/img2': other, '/img3': good });
+  const t = await boot(db, net);
+  const app = await t.addApp('android');
+  t.stores.android.imageRecords = [1, 2, 3].map((i) => play(i, { checksum: sha256(good), checksumKind: 'sha256' }));
+  const res = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, {});
+  assert.equal(res.status, 200, res.text);
+  const pull = res.body.pull;
+  assert.equal(pull.skipped.length, 1);
+  assert.equal(pull.skipped[0].reason, 'checksum_mismatch');
+  assert.match(pull.skipped[0].key, /android\/en-US\/screenshot:phone#2/);
+  assert.equal(pull.unverified.length, 0);
+  assert.equal(pull.written, 2, 'position 1 replaces a file, position 3 is new');
+  const cs = pull.changeSet;
+  assert.equal(cs.status, 'draft');
+  assert.equal(cs.origin.source, 'store_assets_pull');
+  assert.deepEqual(cs.files.map((f: { path: string }) => f.path).sort(), [`${PLAY_SHOTS}/1.png`, `${PLAY_SHOTS}/phone-03.png`]);
+  assert.ok(cs.files.every((f: { binary?: boolean; after?: string }) => f.binary === true && f.after === undefined), 'bytes are never put in a view');
+  assert.ok(!res.text.includes(good.toString('base64').slice(0, 60)), 'no base64 in the answer');
+  assert.ok(!res.text.includes('googleusercontent'), 'no store address in the answer');
+  const row = (await db.query('SELECT files_json FROM change_sets WHERE id = ?', [cs.id]))[0];
+  const stored = JSON.parse(String(row?.files_json)) as { path: string; before?: string; after: string; encoding: string }[];
+  assert.ok(stored.every((f) => f.encoding === 'base64'));
+  const replaced = stored.find((f) => f.path.endsWith('/1.png'));
+  assert.equal(replaced?.before, (t.files[`${PLAY_SHOTS}/1.png`] as Buffer).toString('base64'), 'the old bytes are the precondition');
+  assert.equal(replaced?.after, good.toString('base64'));
+  assert.equal(t.repo.proposals.length, 0, 'nothing was proposed or written to the repository');
+  assert.equal(t.stores.android.applyCalls, 0);
+  const events = await t.events('assets.pulled');
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.payload.changeSetId, cs.id);
+  assert.ok(!JSON.stringify(events).includes('googleusercontent'));
+  const audit = await t.audit('assets.pulled');
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0]?.detail.written, 2);
+  assert.ok(!JSON.stringify(audit).includes('.png'), 'no file name in the audit');
+  const got = await t.call(t.owner, 'GET', `/change-sets/${cs.id}`);
+  assert.ok(got.body.changeSet.files.every((f: { bytes?: number }) => typeof f.bytes === 'number'));
+});
+
+dbTest('pull (App Store): files are taken but reported unverified; identical bytes are not touched; prune removes extras', async (db) => {
+  const same = rgbPng(1242, 2688, () => [1, 1, 1]);
+  const files = {
+    [`${SHOTS}/1_iphone65.png`]: same,
+    [`${SHOTS}/2_iphone65.png`]: rgbPng(1242, 2688, () => [2, 2, 2]),
+    [`${SHOTS}/3_iphone65.png`]: rgbPng(1242, 2688, () => [3, 3, 3]),
+    'fastlane/metadata/ios/en-US/description.txt': 'Hello',
+  };
+  const fresh = rgbPng(1242, 2688, () => [200, 1, 1]);
+  const net = cdn({ '/image/thumb/Pic1/1242x2688bb.png': same, '/image/thumb/Pic2/1242x2688bb.png': fresh });
+  const t = await boot(db, net, { files });
+  const app = await t.addApp('ios');
+  t.stores.ios.imageRecords = [apple(1), apple(2)];
+  const res = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, { prune: true });
+  assert.equal(res.status, 200, res.text);
+  const pull = res.body.pull;
+  assert.equal(pull.unverified.length, 2, 'the App Store gives no checksum');
+  assert.equal(pull.unchanged, 1, 'position 1 is the same file');
+  assert.equal(pull.written, 1);
+  assert.equal(pull.deleted, 1, 'the third file is not in the store');
+  const paths = pull.changeSet.files.map((f: { path: string; change: string }) => `${f.change}:${f.path}`).sort();
+  assert.deepEqual(paths, [`deleted:${SHOTS}/3_iphone65.png`, `modified:${SHOTS}/2_iphone65.png`]);
+  const keep = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, { files: ['ios/en-US/screenshot:iphone_6_5#2'] });
+  assert.equal(keep.status, 200, keep.text);
+  assert.equal(keep.body.pull.deleted, 0);
+  assert.equal(keep.body.pull.changeSet.files.length, 1);
+});
+
+dbTest('pull: a selection that is not in the store is refused, and a store with nothing new drafts nothing', async (db) => {
+  const same = rgbPng(1080, 1920, () => [5, 5, 5]);
+  const t = await boot(db, cdn({ '*': same }), { files: { [`${PLAY_SHOTS}/1.png`]: same, 'fastlane/metadata/android/en-US/title.txt': 'T' } });
+  const app = await t.addApp('android');
+  t.stores.android.imageRecords = [play(1, { checksum: sha256(same), checksumKind: 'sha256' })];
+  const bad = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, { sets: ['android/en-US/screenshot:tablet_7'] });
+  assert.equal(bad.status, 422);
+  assert.equal(bad.body.error, 'unknown_selection');
+  const nothing = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, {});
+  assert.equal(nothing.status, 200, nothing.text);
+  assert.equal(nothing.body.pull.changeSet, null);
+  assert.equal(nothing.body.pull.unchanged, 1);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM change_sets'))[0]?.n), 0);
+});
+
+dbTest('pull needs changesets.write; a viewer may read the comparison but not draft a change set', async (db) => {
+  const t = await boot(db, cdn());
+  const app = await t.addApp('android');
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'POST', `/apps/${app}/assets/pull`, {})).status, 403);
+  assert.equal((await t.call(viewer, 'GET', `/apps/${app}/assets/diff`)).status, 200);
+});
+
+dbTest('a change set of images is never refreshed in place, and its staleness is not an error', async (db) => {
+  const good = rgbPng(1080, 1920, () => [9, 9, 9]);
+  const t = await boot(db, cdn({ '*': good }));
+  const app = await t.addApp('android');
+  t.stores.android.imageRecords = [play(1, { checksum: sha256(good), checksumKind: 'sha256' })];
+  const pulled = await t.call(t.owner, 'POST', `/apps/${app}/assets/pull`, {});
+  const id = pulled.body.pull.changeSet.id as string;
+  const refresh = await t.call(t.owner, 'POST', `/change-sets/${id}/refresh`, {});
+  assert.equal(refresh.status, 422);
+  assert.equal(refresh.body.error, 'binary_change_set');
+  const stale = await t.call(t.owner, 'GET', `/change-sets/${id}/staleness`);
+  assert.equal(stale.status, 200, stale.text);
+  assert.equal(stale.body.stale, false);
+});
+
+// ----- uploads, replace, remove ------------------------------------------------------------------
+
+dbTest('an upload is checked by its bytes, kept here, staged as the whole set, pushed from the kept bytes, and audited without names', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const up = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&name=../../etc/My%20Shot.png`, SHOT);
+  assert.equal(up.status, 200, up.text);
+  const set = up.body.staged.assets[0];
+  assert.equal(set.files.length, 3, 'the repository set (2 files) plus the upload');
+  assert.equal(set.source, 'local');
+  assert.deepEqual(set.files.map((f: { upload?: boolean }) => f.upload === true), [false, false, true]);
+  assert.match(set.files[2].path, /^uploads\/[0-9a-f]{8}\/My Shot\.png$/, 'the name is a base name: no traversal');
+  assert.equal(set.files[2].commit, '');
+  assert.equal(up.body.position, 3);
+  assert.equal(up.body.staged.valid, true);
+  const blobs = await db.query('SELECT oid, size FROM staged_asset_blobs WHERE app_id = ?', [app]);
+  assert.equal(blobs.length, 1);
+  assert.equal(Number(blobs[0]?.size), SHOT.length);
+  const audit = await t.audit('staged.asset_added');
+  assert.equal(audit.length, 1);
+  assert.ok(!JSON.stringify(audit).includes('Shot'), 'ids and hashes only');
+  assert.equal((audit[0]?.detail.oids as string[]).length, 3);
+  const blob = await raw(t, 'GET', `/apps/${app}/staged/assets/blob?oid=${set.files[2].oid}`);
+  assert.equal(blob.status, 200);
+  assert.equal(blob.headers.get('content-type'), 'image/png');
+  assert.equal(blob.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(Buffer.from(blob.bytes), SHOT);
+  assert.equal((await raw(t, 'GET', `/apps/${app}/staged/assets/blob?oid=${'a'.repeat(40)}`)).status, 404);
+  assert.equal((await raw(t, 'GET', `/apps/${app}/staged/assets/blob?oid=../x`)).status, 400);
+  const pushed = await t.previewAndPush(app);
+  assert.equal(pushed.preview.status, 200, pushed.preview.text);
+  assert.equal(pushed.push.status, 200, pushed.push.text);
+  const files = t.stores.ios.lastInput?.assets[0]?.files ?? [];
+  assert.equal(files.length, 3);
+  assert.deepEqual(Buffer.from(files[2]?.bytes as Uint8Array), SHOT);
+  assert.deepEqual(Buffer.from(files[0]?.bytes as Uint8Array), t.files[`${SHOTS}/1_iphone65.png`]);
+});
+
+dbTest('an upload that the stores would refuse is not staged: the problems and the fixes come back', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const small = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}`, rgbPng(100, 100, () => [1, 1, 1]));
+  assert.equal(small.status, 422);
+  assert.equal(small.body.error, 'spec_errors');
+  assert.ok(small.body.problems.some((p: { rule: string }) => p.rule === 'apple.screenshot.size'));
+  assert.ok(small.body.fix.options.some((o: { kind: string }) => o.kind === 'resize'), 'a PNG of the wrong size can be resized');
+  const withAlpha = rgbaPng(1242, 2688, () => [1, 2, 3, 100]);
+  const alpha = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}`, withAlpha);
+  assert.equal(alpha.status, 422);
+  assert.ok(alpha.body.fix.options.some((o: { kind: string }) => o.kind === 'remove_alpha'), 'the alpha channel can be removed in the app');
+  assert.equal((await t.rows(app)).length, 0);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 0);
+  const inspected = await raw(t, 'POST', `/apps/${app}/assets/inspect?${slot}&name=a.png`, withAlpha);
+  assert.equal(inspected.status, 200, inspected.text);
+  assert.equal(inspected.body.inspected.hasAlpha, true);
+  assert.ok(inspected.body.inspected.problems.some((p: { rule: string }) => p.rule === 'apple.screenshot.alpha'));
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 0, 'an inspection stores nothing');
+});
+
+dbTest('uploads are held to magic bytes, the size cap, the type and the slot', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const up = (query: string, body?: Uint8Array, cookie?: string) => raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${query}`, body, cookie);
+  const html = await up(`${slot}&name=x.png`, Buffer.from('<html><script>alert(1)</script></html>'));
+  assert.equal(html.status, 422);
+  assert.equal(html.body.error, 'unsupported_media');
+  const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 '), Buffer.alloc(20)]);
+  assert.equal((await up(slot, webp)).status, 422);
+  const huge = Buffer.concat([SHOT.subarray(0, 40), Buffer.alloc(ASSET_SYNC_LIMITS.maxUploadBytes)]);
+  assert.equal((await up(slot, huge)).status, 413);
+  assert.equal((await up(slot)).status, 400, 'no body');
+  assert.equal((await up('locale=en-US&kind=screenshot', SHOT)).status, 422, 'a screenshot needs a device');
+  assert.equal((await up('locale=en-US&kind=nope', SHOT)).status, 400);
+  assert.equal((await up(`${slot}&mode=x`, SHOT)).status, 400);
+  assert.equal((await up('locale=en-US&kind=app_icon', SHOT)).status, 422, 'the App Store icon cannot be pushed');
+  const viewer = await t.addMember('viewer');
+  assert.equal((await up(slot, SHOT, viewer)).status, 403);
+  assert.equal((await t.rows(app)).length, 0);
+});
+
+dbTest('replace a file, take one out, the last one cannot be removed, and unstaging drops the kept bytes', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const rep = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&mode=replace&position=1&name=new.png`, SHOT);
+  assert.equal(rep.status, 200, rep.text);
+  const files = rep.body.staged.assets[0].files;
+  assert.equal(files.length, 2);
+  assert.equal(files[0].upload, true);
+  assert.equal(files[1].upload, undefined);
+  assert.equal((await t.audit('staged.asset_replaced')).length, 1);
+  const bad = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&mode=replace&position=9`, SHOT);
+  assert.equal(bad.status, 422);
+  assert.equal(bad.body.error, 'invalid_position');
+  const rm = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=2`);
+  assert.equal(rm.status, 200, rm.text);
+  assert.equal(rm.body.staged.assets[0].files.length, 1);
+  const last = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=1`);
+  assert.equal(last.status, 422);
+  assert.equal(last.body.error, 'empty_set');
+  assert.equal((await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=0`)).status, 400);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 1);
+  assert.equal((await t.unstage(app, 'en-US/screenshot:iphone_6_5')).status, 200);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 0, 'bytes nothing refers to are dropped');
+});
+
+dbTest('removing a file of a set that is not staged yet stages the rest of the repository set', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const rm = await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=1`);
+  assert.equal(rm.status, 200, rm.text);
+  const set = rm.body.staged.assets[0];
+  assert.deepEqual(set.files.map((f: { path: string }) => f.path), [`${SHOTS}/2_iphone65.png`]);
+  assert.equal(set.source, 'repo');
+  assert.equal((await t.rows(app)).length, 1);
+});
+
+dbTest('replacing does not pile up kept bytes', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  for (let i = 0; i < 4; i++) {
+    const r = await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&mode=replace&position=1`, rgbPng(1242, 2688, () => [i, i, i]));
+    assert.equal(r.status, 200, r.text);
+  }
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 1);
+});
+
+// ----- fix ------------------------------------------------------------------------------------------
+
+dbTest('Fix: remove the alpha channel of a repository file on white, staged as an upload, and pushed from the fixed bytes', async (db) => {
+  const alphaShot = rgbaPng(1242, 2688, () => [200, 100, 50, 128]);
+  const files = { [`${SHOTS}/1_iphone65.png`]: alphaShot, [`${SHOTS}/2_iphone65.png`]: SHOT, 'fastlane/metadata/ios/en-US/description.txt': 'Hello' };
+  const t = await bootStaged(db, { files });
+  const app = await t.addApp('ios');
+  const index = await t.call(t.owner, 'GET', `/apps/${app}/assets`);
+  assert.ok(index.body.problems.some((p: { rule: string }) => p.rule === 'apple.screenshot.alpha'));
+  const res = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/fix`, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', position: 1, fix: 'remove_alpha', background: '#ffffff' });
+  assert.equal(res.status, 200, res.text);
+  assert.match(res.body.summary, /alpha/i);
+  const set = res.body.staged.assets[0];
+  assert.equal(res.body.staged.valid, true);
+  assert.equal(set.files[0].hasAlpha, false);
+  assert.equal(set.files[0].upload, true);
+  assert.equal(set.files[1].upload, undefined, 'the other file is still the repository one');
+  const blob = await raw(t, 'GET', `/apps/${app}/staged/assets/blob?oid=${set.files[0].oid}`);
+  const header = readImageHeader(blob.bytes);
+  assert.ok(header.ok && header.hasAlpha === false);
+  const decoded = decodePng(blob.bytes);
+  assert.ok(decoded.ok, 'the fixed file decodes');
+  assert.equal((await t.audit('staged.asset_fixed'))[0]?.detail.fix, 'remove_alpha');
+  assert.equal(t.files[`${SHOTS}/1_iphone65.png`], alphaShot, 'the repository file is untouched');
+  const pushed = await t.previewAndPush(app);
+  assert.equal(pushed.push.status, 200, pushed.push.text);
+  assert.deepEqual(Buffer.from(t.stores.ios.lastInput?.assets[0]?.files[0]?.bytes as Uint8Array), Buffer.from(blob.bytes));
+});
+
+dbTest('Fix says why it cannot, and a refused fix stages nothing', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const body = { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', position: 1 };
+  const fix = (extra: Record<string, unknown>) => t.call(t.owner, 'POST', `/apps/${app}/staged/assets/fix`, { ...body, ...extra });
+  // The repository fixtures here only have PNG headers: the codec refuses them with a reason.
+  const header = await fix({ fix: 'remove_alpha' });
+  assert.equal(header.status, 422);
+  assert.match(header.body.error, /^fix_/);
+  assert.ok(header.body.message.length > 10);
+  assert.equal((await fix({ position: 9, fix: 'remove_alpha' })).status, 422);
+  assert.equal((await fix({ fix: 'sharpen' })).status, 400);
+  assert.equal((await fix({ fix: 'remove_alpha', background: 'red' })).status, 400);
+  assert.equal((await t.rows(app)).length, 0);
+});
+
+// ----- staged sets into the repository --------------------------------------------------------------
+
+dbTest('a staged set becomes a change set for the repository: the file takes its place, the old bytes are the precondition, nothing is applied', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&name=third.png`, SHOT);
+  await raw(t, 'DELETE', `/apps/${app}/staged/assets/file?${slot}&position=2`);
+  const res = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/to-repo`, {});
+  assert.equal(res.status, 200, res.text);
+  const result = res.body.result;
+  assert.equal(result.changeSet.status, 'draft');
+  assert.equal(result.changeSet.origin.source, 'staged_assets');
+  const changes = result.changeSet.files.map((f: { change: string; path: string }) => `${f.change}:${f.path}`).sort();
+  // The uploaded file takes over the place of the file it follows, so the names keep their order: a change, not an add and a delete.
+  assert.deepEqual(changes, [`modified:${SHOTS}/2_iphone65.png`]);
+  assert.ok(!res.text.includes(SHOT.toString('base64').slice(0, 60)));
+  assert.equal(t.repo.proposals.length, 0, 'drafted only: nothing is applied');
+  assert.equal((await t.audit('staged.assets_to_repo')).length, 1);
+  await t.clear(app);
+  await t.stageAssets(app, { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5' });
+  const same = await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/to-repo`, {});
+  assert.equal(same.status, 200, same.text);
+  assert.equal(same.body.result.changeSet, null);
+  assert.equal(same.body.result.unchanged, 2);
+  await t.clear(app);
+  assert.equal((await t.call(t.owner, 'POST', `/apps/${app}/staged/assets/to-repo`, {})).status, 422, 'nothing staged');
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'POST', `/apps/${app}/staged/assets/to-repo`, {})).status, 403);
+});
+
+dbTest('deleting an app deletes the bytes it kept', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  await raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}`, SHOT);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 1);
+  const del = await t.call(t.owner, 'DELETE', `/apps/${app}`);
+  assert.ok(del.status === 200 || del.status === 204, del.text);
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 0);
+});
+
+dbTest('a refused file is sent again with the fix the answer offered: the corrected copy is staged, the original is not kept', async (db) => {
+  const t = await bootStaged(db);
+  const app = await t.addApp('ios');
+  const withAlpha = rgbaPng(1242, 2688, () => [255, 0, 0, 0]);
+  const up = (query: string, bytes: Uint8Array) => raw(t, 'PUT', `/apps/${app}/staged/assets/upload?${slot}&${query}`, bytes);
+  assert.equal((await up('name=a.png', withAlpha)).status, 422);
+  const fixed = await up('name=a.png&fix=remove_alpha&background=%2300ff00', withAlpha);
+  assert.equal(fixed.status, 200, fixed.text);
+  const file = fixed.body.staged.assets[0].files[2];
+  assert.equal(file.hasAlpha, false);
+  const blob = await raw(t, 'GET', `/apps/${app}/staged/assets/blob?oid=${file.oid}`);
+  const decoded = decodePng(blob.bytes);
+  assert.ok(decoded.ok);
+  if (decoded.ok) assert.deepEqual(Array.from(decoded.raster.data.slice(0, 3)), [0, 255, 0], 'fully transparent red on green is green');
+  assert.equal(Number((await db.query('SELECT COUNT(*) AS n FROM staged_asset_blobs'))[0]?.n), 1, 'only the corrected copy is kept');
+  assert.equal((await t.audit('staged.asset_added'))[0]?.detail.fix, 'remove_alpha');
+  // A size that is wrong is resized to the nearest size the display takes.
+  const small = await up('mode=replace&position=1&name=b.png&fix=resize', rgbPng(621, 1344, () => [5, 5, 5]));
+  assert.equal(small.status, 200, small.text);
+  assert.deepEqual([small.body.staged.assets[0].files[0].width, small.body.staged.assets[0].files[0].height], [1242, 2688]);
+  assert.equal((await up('fix=sharpen', withAlpha)).status, 400);
+  assert.equal((await up('fix=remove_alpha&background=red', withAlpha)).status, 400);
+  // A fix that cannot be made says why and stages nothing more.
+  const jpegLike = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
+  const refused = await up('fix=remove_alpha', jpegLike);
+  assert.equal(refused.status, 422);
+});
