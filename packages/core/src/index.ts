@@ -1,3 +1,4 @@
+export * from './platform.ts';
 export * from './lifecycle.ts';
 export * from './changeset.ts';
 export * from './roles.ts';

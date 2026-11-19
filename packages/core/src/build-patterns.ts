@@ -1,4 +1,4 @@
-import type { Platform } from './lifecycle.ts';
+import type { Platform } from './platform.ts';
 
 /**
  * How a build number is found in the name of a git tag or of a GitHub release.
@@ -16,8 +16,8 @@ import type { Platform } from './lifecycle.ts';
  * - `{buildNumber}`: the build number or version code, digits only (1 to 10). Required, once.
  * - `{version}`: a version such as `1.4.0` or `2.0.0-beta.1` (at most four numbers, an optional
  *   suffix of 20 characters). Optional, once.
- * - `{platform}`: a word such as `ios` or `android`. Optional, once. `ios` (also `iphone`,
- *   `ipados`) and `android` name a platform; any other word is "other".
+ * - `{platform}`: a word such as `ios`, `macos` or `android`. Optional, once. `ios` (also `iphone`,
+ *   `ipados`), `macos` (also `mac`, `osx`) and `android` name a platform; any other word is "other".
  * - `{flavor}`: free text up to 40 characters (letters, digits, `.`, `_`, `-`), for example
  *   `appstore` or `playstore`. Optional, once. It names nothing the tool checks.
  * - `{prefix}`: the team's literal prefix for this app (the `TAG_PREFIX` of a monorepo lane), taken
@@ -42,7 +42,7 @@ export type Placeholder = (typeof PLACEHOLDERS)[number];
 export const PLACEHOLDER_HELP: Record<Placeholder, string> = {
   buildNumber: 'The build number or version code (digits). Required.',
   version: 'The version, for example 1.4.0.',
-  platform: 'ios or android. Any other word is read as another platform and is not matched.',
+  platform: 'ios, macos (or mac, osx) or android. Any other word is read as another platform and is not matched.',
   flavor: 'Free text such as appstore or playstore. Not checked.',
   prefix: 'The prefix you set for this app (for a monorepo). Empty when none is set.',
 };
@@ -87,7 +87,7 @@ export type PatternKind = 'tag' | 'release';
 export type NameFields = {
   /** What `{platform}` matched, as written. */
   platformWord?: string;
-  /** `ios` or `android` when the word says so, `other` for any other word (catalyst, macos, ...). */
+  /** `ios`, `macos` or `android` when the word says so, `other` for any other word (catalyst, tvos, ...). */
   platform?: Platform | 'other';
   flavor?: string;
   version?: string;
@@ -102,10 +102,11 @@ export type CompiledPattern = {
 
 export type Compiled = { ok: true; compiled: CompiledPattern } | { ok: false; error: string };
 
-/** `ios`, `iphone` and `ipados` are iOS, `android` is Android, any other word is `other`. */
+/** `ios`, `iphone` and `ipados` are iOS, `macos`, `mac` and `osx` are macOS, `android` is Android, any other word is `other`. */
 export function platformFromWord(word: string): Platform | 'other' {
   const w = word.toLowerCase();
   if (w === 'ios' || w === 'iphone' || w === 'ipados') return 'ios';
+  if (w === 'macos' || w === 'mac' || w === 'osx') return 'macos';
   if (w === 'android') return 'android';
   return 'other';
 }

@@ -13,6 +13,8 @@
  * phone numbers. Media is metadata only: display types, counts, file names, asset states and ids.
  */
 
+import { isGooglePlatform, type Platform } from './platform.ts';
+
 export const LISTING_SECTIONS = [
   'categories',
   'ageRating',
@@ -476,13 +478,13 @@ const countsByLocale = (map: Record<string, MediaSet[]> | undefined, perType: bo
 export function compareMedia(
   store: ListingMedia | undefined,
   repo: ListingMedia | undefined,
-  platform: 'ios' | 'android',
+  platform: Platform,
 ): SectionCompare {
   if (store === undefined) return done('not-read');
   if (repo === undefined) {
     return done('not-comparable', ['The repository has not been read, or its source cannot hold screenshots.']);
   }
-  const perType = platform === 'android';
+  const perType = isGooglePlatform(platform);
   const merge = (m: ListingMedia) => {
     const all = new Map(countsByLocale(m.screenshots, perType));
     if (perType) for (const [k, v] of countsByLocale(m.graphics, true)) all.set(k, v);

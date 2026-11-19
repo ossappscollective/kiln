@@ -3,7 +3,7 @@
  * checklist, release notes per locale, a target date, a blocked flag); nothing here reads or
  * writes a store. Pure functions only, so both sides compute the same readiness and due flags.
  */
-import type { Platform } from './lifecycle.ts';
+import { isApplePlatform, isGooglePlatform, type Platform } from './platform.ts';
 import { APP_STORE_FIELD_SPECS, PLAY_CHANGELOG_SPEC, countCharacters } from './listing.ts';
 
 /** `null` means the plan covers both platforms. */
@@ -32,8 +32,8 @@ export const PLAY_RELEASE_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength ??
  * stricter store, so it gets the smaller limit. Taken from the listing rules in `listing.ts`.
  */
 export function releaseNotesLimit(platform: PlanPlatform): number {
-  if (platform === 'ios') return APP_STORE_RELEASE_NOTES_LIMIT;
-  if (platform === 'android') return PLAY_RELEASE_NOTES_LIMIT;
+  if (platform !== null && isApplePlatform(platform)) return APP_STORE_RELEASE_NOTES_LIMIT;
+  if (platform !== null && isGooglePlatform(platform)) return PLAY_RELEASE_NOTES_LIMIT;
   return Math.min(APP_STORE_RELEASE_NOTES_LIMIT, PLAY_RELEASE_NOTES_LIMIT);
 }
 

@@ -1,6 +1,6 @@
 import { type AssetKind, type AssetStore, APPLE_DISPLAYS, PLAY_DEVICES, deviceLabel } from './store-asset-specs.ts';
 import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
-import type { Platform } from './lifecycle.ts';
+import { isApplePlatform, isGooglePlatform, PLATFORMS, type Platform } from './platform.ts';
 
 /**
  * Two way sync of store images (docs/adr/0012-assets-two-way-sync.md, docs/api/assets.md): the shapes the
@@ -10,15 +10,15 @@ import type { Platform } from './lifecycle.ts';
  * ES2017 only: the web app imports this file.
  *
  * PLATFORM KEY. Every image the store holds is addressed by a platform generic key
- * (`platform / locale / slotKey / position`). Today the platforms are `ios` and `android`; macOS is a
- * third App Store platform that Apple files under the same App Store Connect app and whose
- * displays (`mac`) already exist in `APPLE_DISPLAYS`. To add it later: add the value to `ASSET_PLATFORMS`, give
- * it a connector reader, and nothing else here changes (a platform only decides the store and which slot is
- * writable, see `assetStoreOf` in staged-changes.ts).
+ * (`platform / locale / slotKey / position`). The platforms are `ios`, `macos` and `android`; macOS is a
+ * third App Store platform that Apple files under the same App Store Connect app, with its own version and
+ * its own display (`mac`, `APP_DESKTOP`) in `APPLE_DISPLAYS`. A platform decides the store, which slot is
+ * writable (see `assetStoreOf` and `assetSlotSupport` in staged-changes.ts) and which Apple version the
+ * connector reads.
  */
 
-export const ASSET_PLATFORMS = ['ios', 'android'] as const;
-export type AssetPlatform = (typeof ASSET_PLATFORMS)[number];
+export const ASSET_PLATFORMS = PLATFORMS;
+export type AssetPlatform = Platform;
 
 export const assetPlatformOf = (platform: Platform): AssetPlatform => platform;
 
@@ -232,7 +232,7 @@ export type Size = { width: number; height: number };
 
 /** The exact pixel sizes a store takes for a slot, or [] when it states ranges only. */
 export function requiredSizes(platform: Platform, slot: AssetSlot): Size[] {
-  if (platform === 'ios') {
+  if (isApplePlatform(platform)) {
     if (slot.kind !== 'screenshot' || slot.device === null) return [];
     const base = slot.device.startsWith('imessage:') ? slot.device.slice('imessage:'.length) : slot.device;
     const display = APPLE_DISPLAYS.find((d) => d.id === base);
@@ -250,7 +250,7 @@ export const sizeText = (s: Size): string => `${s.width} x ${s.height}`;
 export function requiredSizesText(platform: Platform, slot: AssetSlot): string {
   const sizes = requiredSizes(platform, slot);
   if (sizes.length === 0) {
-    if (platform === 'android' && slot.kind === 'screenshot') return 'Google Play takes 320 to 3840 px on each side, the longer side at most twice the shorter';
+    if (isGooglePlatform(platform) && slot.kind === 'screenshot') return 'Google Play takes 320 to 3840 px on each side, the longer side at most twice the shorter';
     return 'The store states no exact size for this graphic';
   }
   return sizes.map(sizeText).join(', ');
@@ -328,7 +328,7 @@ export function fixAdvice(platform: Platform, facts: FixFacts, rules: readonly s
       options.push({ kind: 'rename_extension', label: `Rename to .${right}`, detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.` });
     }
   }
-  const sizeRule = REQUIRED_SIZE_RULES.some((r) => has(r)) || (platform === 'ios' && facts.kind === 'screenshot' && facts.device === null);
+  const sizeRule = REQUIRED_SIZE_RULES.some((r) => has(r)) || (isApplePlatform(platform) && facts.kind === 'screenshot' && facts.device === null);
   if (sizeRule) {
     const need = requiredSizesText(platform, slot);
     if (facts.format === 'png' && facts.width !== null && facts.height !== null && nearestRequiredSize(platform, slot, facts.width, facts.height) !== null) {
@@ -337,7 +337,7 @@ export function fixAdvice(platform: Platform, facts: FixFacts, rules: readonly s
       manual.push(`The size is wrong${facts.width !== null && facts.height !== null ? ` (${facts.width} x ${facts.height})` : ''}. Required: ${need}.${facts.format === 'png' ? '' : ' Only PNG files can be resized here.'}`);
     }
   }
-  if (platform === 'ios' && facts.format !== null && facts.format !== 'png' && facts.format !== 'jpeg') {
+  if (isApplePlatform(platform) && facts.format !== null && facts.format !== 'png' && facts.format !== 'jpeg') {
     manual.push(`${facts.format.toUpperCase()} is not accepted by the App Store. Export a PNG or JPEG.`);
   }
   return { options, manual };

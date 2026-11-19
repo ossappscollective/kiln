@@ -7,7 +7,8 @@
  * step marked done does not change a rollout, and a store that moved on does not mark a step done
  * (a person confirms it, see `compareRollout`).
  */
-import type { Platform, ReleaseState } from './lifecycle.ts';
+import type { ReleaseState } from './lifecycle.ts';
+import { isApplePlatform, isGooglePlatform, type Platform, storeFamilyOf } from './platform.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Limits and shapes
@@ -78,7 +79,7 @@ export type RolloutTemplate = {
   id: string;
   name: string;
   description: string;
-  /** The platform of the app it fits; `null` fits either. */
+  /** A platform of the store family it fits (iOS and macOS share Apple's phased release); `null` fits any. */
   platform: Platform | null;
   kind: RolloutKind;
   /** The steps of a `steps` template. Empty for `apple_phased`. */
@@ -118,7 +119,7 @@ export const rolloutTemplate = (id: string): RolloutTemplate | undefined => ROLL
 
 /** The templates that make sense for an app of this platform. */
 export const rolloutTemplatesFor = (platform: Platform): RolloutTemplate[] =>
-  ROLLOUT_TEMPLATES.filter((t) => t.platform === null || t.platform === platform);
+  ROLLOUT_TEMPLATES.filter((t) => t.platform === null || storeFamilyOf(t.platform) === storeFamilyOf(platform));
 
 // ---------------------------------------------------------------------------------------------
 // Validation
@@ -312,14 +313,14 @@ export type StoreRollout = StoreRolloutObservation & {
 /**
  * The share of users the store says has the release. Only Google Play reports one. A Play release
  * in state `live` (its `completed` status) with no share is at 100% (marked `inferred`). Apple's
- * phased release is not read, so an iOS release never has a percent.
+ * phased release is not read, so an iOS or macOS release never has a percent.
  */
 export function storeRollout(observation: StoreRolloutObservation): StoreRollout {
   const { fraction } = observation;
   if (fraction !== null && Number.isFinite(fraction) && fraction > 0 && fraction <= 1) {
     return { ...observation, percent: Math.round(fraction * 1000) / 10, inferred: false };
   }
-  if (observation.platform === 'android' && observation.status === 'live') {
+  if (isGooglePlatform(observation.platform) && observation.status === 'live') {
     return { ...observation, percent: 100, inferred: true };
   }
   return { ...observation, percent: null, inferred: false };
@@ -370,7 +371,7 @@ export function compareRollout(steps: readonly RolloutStepState[], store: StoreR
   };
   const halted = base.halted ? ' The store has the rollout halted.' : '';
   if (!store || store.percent === null) {
-    const apple = store?.platform === 'ios';
+    const apple = store !== null && isApplePlatform(store.platform);
     return {
       ...base,
       verdict: 'unknown',

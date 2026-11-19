@@ -1,5 +1,5 @@
-import { type AssetKind, type AssetStore, PLAY_DEVICES } from './store-asset-specs.ts';
-import type { Platform } from './lifecycle.ts';
+import { isApplePlatform, type Platform } from './platform.ts';
+import { type AssetKind, type AssetStore, deviceFitsPlatform, PLAY_DEVICES } from './store-asset-specs.ts';
 
 /**
  * Staged store changes (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md): the
@@ -52,7 +52,7 @@ export const PUSHABLE_IMAGE_FORMATS: readonly string[] = ['png', 'jpeg'];
 /**
  * The listing fields a push can write, per platform.
  *
- * - App Store: the fields of the version localization (`appStoreVersionLocalizations`): description,
+ * - App Store and Mac App Store: the fields of the version localization (`appStoreVersionLocalizations`): description,
  *   keywords, promotional text, what's new, marketing and support URL. Name, subtitle and the
  *   privacy policy URL live on the app INFO localization and are not written by this feature (they
  *   cannot be staged: refused with `field_not_pushable`). The app-wide copyright is not per locale
@@ -61,6 +61,8 @@ export const PUSHABLE_IMAGE_FORMATS: readonly string[] = ['png', 'jpeg'];
  */
 export const STAGEABLE_TEXT_FIELDS: Readonly<Record<Platform, readonly string[]>> = {
   ios: ['description', 'keywords', 'promotional_text', 'release_notes', 'marketing_url', 'support_url'],
+  // The same version localization fields; a macOS version has its own, written to the macOS version only.
+  macos: ['description', 'keywords', 'promotional_text', 'release_notes', 'marketing_url', 'support_url'],
   android: ['title', 'short_description', 'full_description', 'video'],
 };
 
@@ -164,7 +166,7 @@ export type SlotSupport = { ok: true } | { ok: false; reason: string };
 
 /** Whether a push can write this slot at all (before looking at a file). */
 export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSupport {
-  if (platform === 'ios') {
+  if (isApplePlatform(platform)) {
     if (slot.kind !== 'screenshot') {
       return {
         ok: false,
@@ -179,6 +181,12 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
     if (slot.device === null || (APPLE_DISPLAY_TYPES[slot.device] === undefined && slot.device !== 'iphone_6_9')) {
       return { ok: false, reason: 'This display size has no known App Store Connect screenshot display type.' };
     }
+    if (!deviceFitsPlatform(platform, slot.device)) {
+      return {
+        ok: false,
+        reason: platform === 'macos' ? 'A macOS version takes Mac screenshots only (the Mac display).' : 'The Mac display belongs to the macOS version of the app, not the iOS one.',
+      };
+    }
     return { ok: true };
   }
   if (slot.kind === 'promo_graphic') {
@@ -192,11 +200,11 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
 
 /** The most files one set can hold (a push replaces the whole set), from the stores' documented limits. */
 export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
-  if (slot.kind === 'screenshot') return platform === 'ios' ? 10 : 8;
+  if (slot.kind === 'screenshot') return isApplePlatform(platform) ? 10 : 8;
   return 1;
 }
 
-export const assetStoreOf = (platform: Platform): AssetStore => (platform === 'ios' ? 'app_store' : 'google_play');
+export const assetStoreOf = (platform: Platform): AssetStore => (isApplePlatform(platform) ? 'app_store' : 'google_play');
 
 // ---------------------------------------------------------------------------------------------
 // What the API shows

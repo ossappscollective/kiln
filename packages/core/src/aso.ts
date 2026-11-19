@@ -14,10 +14,12 @@
  * UNVERIFIED in comments and in the ADR; the fit result carries them as `assumptions`.
  */
 
+import { isApplePlatform, type Platform } from './platform.ts';
+
 // ---------------------------------------------------------------------------------------------
 // Terms
 
-export type AsoPlatform = 'ios' | 'android';
+export type AsoPlatform = Platform;
 
 export const MAX_TERM_CHARACTERS = 80;
 export const MAX_TERM_WORDS = 8;
@@ -216,17 +218,20 @@ export type FitFields = {
  */
 export const INDEXED_FIELDS: Record<AsoPlatform, readonly FitField[]> = {
   ios: ['title', 'subtitle', 'keywords'],
+  macos: ['title', 'subtitle', 'keywords'],
   android: ['title', 'shortDescription', 'description'],
 };
 
 /** The fields where a phrase counts as "strong" (a high weight in the store's ranking: UNVERIFIED). */
 const STRONG_FIELDS: Record<AsoPlatform, readonly FitField[]> = {
   ios: ['title', 'subtitle'],
+  macos: ['title', 'subtitle'],
   android: ['title', 'shortDescription'],
 };
 
 const FIELD_ORDER: Record<AsoPlatform, readonly FitField[]> = {
   ios: ['title', 'subtitle', 'keywords', 'description'],
+  macos: ['title', 'subtitle', 'keywords', 'description'],
   android: ['title', 'shortDescription', 'description'],
 };
 
@@ -464,7 +469,7 @@ export function listingFit(input: {
     keywords,
     counts,
     gaps,
-    ...(platform === 'ios' && fields.keywords !== undefined
+    ...(isApplePlatform(platform) && fields.keywords !== undefined
       ? {
           keywordField: analyzeKeywordField(fields.keywords, {
             ...(fields.title !== undefined ? { title: fields.title } : {}),

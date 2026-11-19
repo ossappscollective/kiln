@@ -1,10 +1,10 @@
 /**
- * The normalized release lifecycle shared by iOS and Android.
+ * The normalized release lifecycle shared by iOS, macOS and Android.
  * Platform differences stay inside the store connectors; this module only knows
  * the states, the events that move between them, and how states group on the dashboard.
  */
 
-export type Platform = 'ios' | 'android';
+import { type Platform, type StoreFamily, storeFamilyOf } from './platform.ts';
 
 export const RELEASE_STATES = [
   'draft',
@@ -42,8 +42,8 @@ type Rule = {
   from: ReleaseState;
   event: ReleaseEvent;
   to: ReleaseState;
-  /** Limit a rule to one platform. */
-  only?: Platform;
+  /** Limit a rule to one store family (Apple: iOS and macOS; Google: Android). */
+  only?: StoreFamily;
 };
 
 const RULES: readonly Rule[] = [
@@ -54,9 +54,9 @@ const RULES: readonly Rule[] = [
   { from: 'in_review', event: 'approve', to: 'approved' },
   { from: 'rejected', event: 'fix', to: 'draft' },
   // Releasing on Android commits an edit first, so it passes through `propagating`.
-  { from: 'approved', event: 'release', to: 'propagating', only: 'android' },
-  { from: 'approved', event: 'release', to: 'rolling_out', only: 'ios' },
-  { from: 'propagating', event: 'propagated', to: 'rolling_out', only: 'android' },
+  { from: 'approved', event: 'release', to: 'propagating', only: 'google' },
+  { from: 'approved', event: 'release', to: 'rolling_out', only: 'apple' },
+  { from: 'propagating', event: 'propagated', to: 'rolling_out', only: 'google' },
   { from: 'rolling_out', event: 'complete', to: 'live' },
   { from: 'rolling_out', event: 'halt', to: 'halted' },
   { from: 'halted', event: 'resume', to: 'rolling_out' },
@@ -72,7 +72,7 @@ export function transition(
   event: ReleaseEvent,
 ): TransitionResult {
   const rule = RULES.find(
-    (r) => r.from === state && r.event === event && (r.only === undefined || r.only === platform),
+    (r) => r.from === state && r.event === event && (r.only === undefined || r.only === storeFamilyOf(platform)),
   );
   if (!rule) {
     return { ok: false, reason: `Cannot apply "${event}" to a ${platform} release that is ${state}` };
@@ -81,7 +81,7 @@ export function transition(
 }
 
 export function allowedEvents(platform: Platform, state: ReleaseState): ReleaseEvent[] {
-  return RULES.filter((r) => r.from === state && (r.only === undefined || r.only === platform)).map(
+  return RULES.filter((r) => r.from === state && (r.only === undefined || r.only === storeFamilyOf(platform))).map(
     (r) => r.event,
   );
 }

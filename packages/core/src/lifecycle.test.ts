@@ -6,10 +6,10 @@ import {
   allowedEvents,
   dashboardBucket,
   transition,
-  type Platform,
   type ReleaseEvent,
   type ReleaseState,
 } from './lifecycle.ts';
+import type { Platform } from './platform.ts';
 
 function run(platform: Platform, events: ReleaseEvent[]): ReleaseState {
   let state: ReleaseState = 'draft';

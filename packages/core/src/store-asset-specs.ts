@@ -139,6 +139,21 @@ export const APPLE_DISPLAYS: readonly AppleDisplay[] = [
 const DISPLAY_BY_ID = new Map(APPLE_DISPLAYS.map((d) => [d.id, d]));
 export const IMESSAGE_PREFIX = 'imessage:';
 
+/**
+ * Whether a screenshot display belongs to an app record of this platform. On the Apple side an iOS
+ * version takes the iPhone and iPad (and Watch, TV, Vision) displays and a macOS version takes only the Mac
+ * display (`APP_DESKTOP`); an iMessage set is iOS only. Google Play takes every Play device. A `null`
+ * device (not classified) fits no Apple platform here: the caller reports it separately.
+ */
+export function deviceFitsPlatform(platform: 'ios' | 'macos' | 'android', device: string | null): boolean {
+  if (platform === 'android') return true;
+  if (device === null) return false;
+  const imessage = device.startsWith(IMESSAGE_PREFIX);
+  const base = DISPLAY_BY_ID.get(imessage ? device.slice(IMESSAGE_PREFIX.length) : device);
+  if (base === undefined) return platform === 'ios';
+  return platform === 'macos' ? base.family === 'mac' && !imessage : base.family !== 'mac';
+}
+
 /** The label of a device class id of either store, or the id itself when it is not known. */
 export function deviceLabel(store: AssetStore, id: string | null): string {
   if (id === null) return 'Unclassified';

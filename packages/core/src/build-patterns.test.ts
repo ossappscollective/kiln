@@ -217,3 +217,32 @@ test('proposePattern for a release name keeps the free text', () => {
   assert.equal(p.pattern, 'Trail Notes({platform}): v{version} Build {buildNumber}');
   assert.equal(p.fields.platform, 'ios');
 });
+
+test('macos, mac and osx name the macOS platform; other words stay other', () => {
+  assert.equal(platformFromWord('macos'), 'macos');
+  assert.equal(platformFromWord('MacOS'), 'macos');
+  assert.equal(platformFromWord('mac'), 'macos');
+  assert.equal(platformFromWord('osx'), 'macos');
+  assert.equal(platformFromWord('catalyst'), 'other');
+  assert.equal(platformFromWord('tvos'), 'other');
+  assert.equal(platformFromWord('iphone'), 'ios');
+});
+
+test('a tag or release name with the platform word macos is read and matched for a macOS app', () => {
+  const tag = read('{prefix}{platform}/{version}/{buildNumber}', 'macos/2.1.0/45');
+  assert.equal(tag?.platform, 'macos');
+  assert.equal(tag?.version, '2.1.0');
+  assert.equal(tag?.buildNumber, '45');
+  const osx = read('{prefix}{platform}-{version}-{buildNumber}', 'osx-2.1.0-45');
+  assert.equal(osx?.platform, 'macos');
+  const done = compilePattern('*({platform}): v{version} Build {buildNumber}', { kind: 'release' });
+  assert.ok(done.ok);
+  assert.equal(done.ok ? done.compiled.test('Trail Notes(mac): v2.1.0 Build 45')?.platform : undefined, 'macos');
+  const rows = previewPatterns(['macos/2.1.0/45', 'ios/2.1.0/312'], ['{prefix}{platform}/{version}/{buildNumber}'], { platform: 'macos' });
+  assert.deepEqual(rows.map((r) => r.platformOk), [true, false]);
+});
+
+test('a repository tag is proposed with {platform} when it says macos', () => {
+  const proposed = proposePattern('macos/2.1.0/45', { version: '2.1.0', buildNumber: '45' });
+  assert.ok(proposed?.pattern.includes('{platform}'), proposed?.pattern);
+});
