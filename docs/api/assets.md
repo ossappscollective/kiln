@@ -38,6 +38,12 @@ folders it searched (`folders`).
 - App Store: `fastlane/metadata/<locale>/` is the metadata folder; screenshots are searched in
   `fastlane/metadata/screenshots/<locale>`, `fastlane/screenshots/<locale>` (only when the folder is
   named `metadata`), and `<metadata folder>/screenshots/<locale>`; previews likewise.
+- macOS: a Mac App Store version takes only the `mac` display (`APP_DESKTOP`: 1280x800, 1440x900, 2560x1600,
+  2880x1800; PNG or JPEG, no alpha, at most 10 per locale); an iPhone, iPad, TV, Watch or Vision screenshot belongs
+  to the iOS record and a Mac screenshot to the macOS record, so a file is shown, compared and pushed only on the
+  platform record whose display it fits. A file whose device is not known fits iOS only (as before). The folders
+  are the App Store ones above. UNVERIFIED: the `mac` size list and the 10 per locale limit were taken from the
+  spec table of the code (`store-asset-specs.ts`); Apple's `ScreenshotDisplayType` page lists no values.
 - Google Play: `<metadata folder>/android/<locale>/images/` with `icon.png`, `featureGraphic.*`,
   `promoGraphic.*`, `tvBanner.*`, and the screenshot folders `phoneScreenshots`, `sevenInchScreenshots`,
   `tenInchScreenshots`, `tvScreenshots`, `wearScreenshots`.

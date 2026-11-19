@@ -68,3 +68,5 @@ Nothing was run against a store or a repository host.
   (`googleusercontent.com`, `ggpht.com`).
 - That list order equals display order on both stores.
 - iMessage sets, Apple app previews and the app icon are not pulled or pushed.
+- macOS: the screenshot set names of a Mac version (`APP_DESKTOP`) and that the `mac` sizes accept the four
+  listed sizes are UNVERIFIED (see [ADR 0013](0013-macos-platform.md)).

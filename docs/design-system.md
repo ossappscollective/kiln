@@ -151,6 +151,7 @@ marks drawn for this project, not company logos:
 | `store-ios` | shopping bag | App Store, App Store Connect |
 | `store-android` | rounded square with a play triangle | Google Play, Google Play Console |
 | `platform-ios`, `platform-android` | phone outlines (top pill, camera dot) | iOS, Android |
+| `platform-macos` | desktop display with a stand and a bezel line | macOS |
 | `send` | paper plane | TestFlight |
 | `repo` | repository outline | GitHub |
 | `code` | code brackets | Expo |

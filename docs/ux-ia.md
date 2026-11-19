@@ -31,18 +31,24 @@ App (entering an app replaces the whole left panel)
                                      notifications, danger zone
 ```
 
-Top right of every app page: the platform control `iOS | Android | Both` (generic glyphs, no
+Top right of every app page: the platform control `iOS | macOS | Android | Both` (`All` from three platforms; generic glyphs, no
 brand logos) and, on listing, assets, dashboard and releases, a "Staged changes" button.
 
 ## 2. Platform scope rules
 
-- An app is one entity with up to two platforms. Today each platform is a separate app row; the
-  mockups merge them (data model decision: an app group with one record per platform).
-- `Both` is the default when the app has both platforms. Lists show merged rows; every row that
+- An app is one entity with up to three platforms (iOS, macOS, Android). Each platform is a separate app
+  row; the web layer merges them (data model decision: an app group with one record per platform). An iOS
+  and a macOS record are the same App Store Connect app when they share the App Store id (universal
+  purchase) and may or may not share the bundle id; they merge by identifier, then by name.
+- `Both` (`All` with three platforms) is the default when the app has several platforms. Lists show merged rows; every row that
   belongs to one platform carries a platform chip (glyph plus the word iOS or Android).
 - `iOS` or `Android` shows only that store: columns, rows, counts and the staged tray follow it.
 - An app with one platform shows the control with the missing options disabled and a reason
-  ("This app is not on that store"); `Both` is disabled. Adding the platform is in Settings.
+  ("This app is not on that store"); `Both` is disabled. The macOS option is quiet by default: it
+  exists only for an app with a macOS record, and an app with a macOS record shows only the platforms
+  it has. Adding the platform is in Settings ("Add the macOS version" on an iOS app).
+- Customer reviews belong to the App Store Connect app, so they are read and triaged under iOS; the
+  macOS tab says so and links there (the server answers `reviews_shared` for the macOS record).
 - Fields that exist on one store only are labelled "iOS only" or "Android only" (subtitle,
   keywords, promotional text: iOS; short description, feature graphic, promo graphic, TV banner:
   Android). Shared fields with different limits show one counter per store (what is new: 4000 vs 500).
