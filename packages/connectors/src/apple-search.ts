@@ -32,6 +32,14 @@ import { ITUNES_LOOKUP_URL } from './itunes-rating.ts';
  */
 
 export const ITUNES_SEARCH_URL = 'https://itunes.apple.com/search';
+/**
+ * The Mac App Store entities. The search page lists `desktopSoftware` among the software entities (documented), the
+ * lookup practice and the `kind` of its answers (`mac-software`) say `macSoftware`: UNVERIFIED which one each endpoint
+ * takes. A search for macOS apps asks `desktopSoftware` (the documented one), a lookup of a Mac app's rating `macSoftware`;
+ * both are one constant here, so a correction is one line.
+ */
+export const APPLE_MAC_SEARCH_ENTITY = 'desktopSoftware';
+export const APPLE_MAC_LOOKUP_ENTITY = 'macSoftware';
 export const APPLE_SEARCH_MAX_LIMIT = 200;
 export const APPLE_SEARCH_DEFAULT_LIMIT = 50;
 /** Apple's own figure, "approximately 20 calls per minute (subject to change)". */
@@ -131,6 +139,8 @@ export type AppleSearchOptions = {
   limit?: number;
   /** `en_us` (default) or `ja_jp`. */
   lang?: 'en_us' | 'ja_jp';
+  /** Search the Mac App Store (`entity=desktopSoftware`) instead of the iOS App Store. */
+  macos?: boolean;
   fetch?: typeof fetch;
   timeoutMs?: number;
 };
@@ -145,13 +155,13 @@ export type AppleSearchResult = {
 };
 
 /** The URL of a search. Pure, so tests and docs can show it. */
-export function appleSearchUrl(options: Pick<AppleSearchOptions, 'term' | 'country' | 'limit' | 'lang'>): string {
+export function appleSearchUrl(options: Pick<AppleSearchOptions, 'term' | 'country' | 'limit' | 'lang' | 'macos'>): string {
   const limit = options.limit ?? APPLE_SEARCH_DEFAULT_LIMIT;
   const params = [
     `term=${encodeURIComponent(options.term)}`,
     `country=${options.country.toLowerCase()}`,
     'media=software',
-    'entity=software',
+    `entity=${options.macos === true ? APPLE_MAC_SEARCH_ENTITY : 'software'}`,
     `limit=${limit}`,
   ];
   if (options.lang) params.push(`lang=${options.lang}`);
@@ -169,7 +179,7 @@ export async function searchApple(options: AppleSearchOptions): Promise<AppleSea
   }
   const got = await getCapped({
     source: 'apple_search',
-    url: appleSearchUrl({ term, country: options.country, limit, ...(options.lang ? { lang: options.lang } : {}) }),
+    url: appleSearchUrl({ term, country: options.country, limit, ...(options.lang ? { lang: options.lang } : {}), ...(options.macos === true ? { macos: true } : {}) }),
     accept: 'application/json',
     maxBytes: MAX_BYTES,
     ...(options.fetch ? { fetch: options.fetch } : {}),
@@ -186,7 +196,7 @@ export function rankIn(ids: readonly string[], id: string): number | null {
   return index === -1 ? null : index + 1;
 }
 
-export type AppleLookupOptions = { id: string; country: string; fetch?: typeof fetch; timeoutMs?: number };
+export type AppleLookupOptions = { id: string; country: string; /** The Mac listing of the app (`entity=macSoftware`, UNVERIFIED). */ macos?: boolean; fetch?: typeof fetch; timeoutMs?: number };
 
 /** The public data of one app in one storefront, or undefined when Apple has no such app there. Throws `AsoError`. */
 export async function lookupApple(options: AppleLookupOptions): Promise<AppleApp | undefined> {
@@ -194,7 +204,7 @@ export async function lookupApple(options: AppleLookupOptions): Promise<AppleApp
   if (!/^[A-Za-z]{2}$/.test(options.country)) throw new AsoError('apple_search', 'invalid_input', 'The storefront must be a two letter country code.');
   const got = await getCapped({
     source: 'apple_search',
-    url: `${ITUNES_LOOKUP_URL}?id=${options.id}&country=${options.country.toLowerCase()}`,
+    url: `${ITUNES_LOOKUP_URL}?id=${options.id}&country=${options.country.toLowerCase()}${options.macos === true ? `&entity=${APPLE_MAC_LOOKUP_ENTITY}` : ''}`,
     accept: 'application/json',
     maxBytes: MAX_BYTES,
     ...(options.fetch ? { fetch: options.fetch } : {}),

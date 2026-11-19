@@ -1,4 +1,4 @@
-import type { AssetKind } from '@mrm/core';
+import type { AssetKind, Platform } from '@mrm/core';
 import { StoreError, type StoreName } from './errors.ts';
 
 /**
@@ -104,7 +104,7 @@ export type DraftAssetState = {
 /** The draft as the store holds it now, for what was asked. */
 export type DraftState = {
   store: StoreName;
-  platform: 'ios' | 'android';
+  platform: Platform;
   /** App Store: the editable version. Google Play: null (a draft is an edit). */
   version: { id: string; versionString: string | null; state: string } | null;
   text: DraftTextState[];
@@ -198,7 +198,7 @@ export class DraftPartialError extends StoreError {
  */
 export interface StoreDraftConnector {
   readonly store: StoreName;
-  readonly platform: 'ios' | 'android';
+  readonly platform: Platform;
   /** The draft as the store holds it now. Changes nothing. */
   readDraft(request: DraftReadRequest): Promise<DraftState>;
   applyDraft(input: DraftApplyInput): Promise<DraftApplyResult>;

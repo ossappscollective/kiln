@@ -1,3 +1,4 @@
+import { PLATFORM_META } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -78,6 +79,8 @@ import {
 
 export type AppleRolloutConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
   credential: AppStoreConnectKey;
+  /** The Apple platform of the version: `ios` (default) or `macos` (`MAC_OS`; phased release exists on macOS too, per Apple's help page). */
+  platform?: 'ios' | 'macos';
   /** Apple's numeric app id (`apps.storeAppId`). */
   appStoreId: string;
   /** Defaults to https://api.appstoreconnect.apple.com. */
@@ -119,7 +122,9 @@ export function parseApplePhasedRelease(data: unknown): {
 
 export class AppleRolloutConnector implements StoreRolloutConnector {
   readonly store = 'appstoreconnect' as const;
-  readonly platform = 'ios' as const;
+  readonly platform: 'ios' | 'macos';
+  readonly #apple: string;
+  readonly #label: string;
   readonly #http: StoreHttp;
   /** For writes: the same settings, but a 429 is never waited out and retried. */
   readonly #writeHttp: StoreHttp;
@@ -138,6 +143,9 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
       );
     }
     this.#appId = options.appStoreId;
+    this.platform = options.platform ?? 'ios';
+    this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
+    this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
     this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
@@ -218,7 +226,7 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
   ): AppleRolloutState {
     return {
       store: 'appstoreconnect',
-      platform: 'ios',
+      platform: this.platform,
       version,
       storeVersionId: found.id,
       versionState: found.state,
@@ -240,7 +248,7 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
       for (const item of records(body.data)) {
         const a = isRecord(item.attributes) ? item.attributes : {};
         const id = text(item.id);
-        if (!id || text(a.versionString) !== version || text(a.platform) !== 'IOS') continue;
+        if (!id || text(a.versionString) !== version || text(a.platform) !== this.#apple) continue;
         matches.push({ id, state: text(a.appVersionState) ?? text(a.appStoreState) ?? null });
       }
       const links = isRecord(body.links) ? body.links : {};
@@ -248,10 +256,10 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
     if (matches.length === 0) {
-      throw new StoreError('appstoreconnect', 'not_found', `App Store Connect has no iOS version ${version} for this app.`, 404);
+      throw new StoreError('appstoreconnect', 'not_found', `App Store Connect has no ${this.#label} version ${version} for this app.`, 404);
     }
     if (matches.length > 1) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect lists more than one iOS version ${version}; this server will not guess which one to change.`);
+      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect lists more than one ${this.#label} version ${version}; this server will not guess which one to change.`);
     }
     return matches[0] as { id: string; state: string | null };
   }

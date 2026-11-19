@@ -14,7 +14,7 @@ import {
   type SubmitResult,
   type SubmitState,
 } from './store-submit-types.ts';
-import { classifyAppleScreenshot } from '@mrm/core';
+import { classifyAppleScreenshot, PLATFORM_META } from '@mrm/core';
 import { enc, isRecord, type Json, records, type StoreHttpOptions, StoreHttp, type StoreReply, text } from './store-http.ts';
 
 /**
@@ -52,6 +52,8 @@ import { enc, isRecord, type Json, records, type StoreHttpOptions, StoreHttp, ty
 
 export type AppleSubmitConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
   credential: AppStoreConnectKey;
+  /** The Apple platform of the version to submit: `ios` (default) or `macos` (`MAC_OS`). */
+  platform?: 'ios' | 'macos';
   /** Apple's numeric app id (`apps.storeAppId`). */
   appStoreId: string;
   apiBase?: string;
@@ -66,7 +68,9 @@ type VersionRow = { id: string; versionString: string | null; state: string; rel
 
 export class AppleSubmitConnector implements StoreSubmitConnector {
   readonly store = 'appstoreconnect' as const;
-  readonly platform = 'ios' as const;
+  readonly platform: 'ios' | 'macos';
+  readonly #apple: string;
+  readonly #label: string;
   readonly #http: StoreHttp;
   readonly #writeHttp: StoreHttp;
   readonly #tokens: AppStoreConnectTokenProvider;
@@ -81,6 +85,9 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       throw new StoreError('appstoreconnect', 'invalid_input', 'The App Store id of the app is missing or not a number. Sync the app first.');
     }
     this.#appId = options.appStoreId;
+    this.platform = options.platform ?? 'ios';
+    this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
+    this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
     this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
@@ -127,7 +134,7 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
     const draft = alreadySubmitted ? null : await this.#draft.readDraft(request);
     return {
       store: 'appstoreconnect',
-      platform: 'ios',
+      platform: this.platform,
       version,
       build,
       alreadySubmitted,
@@ -150,7 +157,7 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
         const a = isRecord(item.attributes) ? item.attributes : {};
         const id = text(item.id);
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
-        if (!id || text(a.platform) !== 'IOS') continue;
+        if (!id || text(a.platform) !== this.#apple) continue;
         const row = { id, versionString: text(a.versionString) ?? null, state, releaseType: text(a.releaseType) ?? null };
         if (APPLE_DRAFT_VERSION_STATES.includes(state)) editable.push(row);
         else if (['READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'IN_REVIEW', 'PENDING_APPLE_RELEASE', 'PENDING_DEVELOPER_RELEASE', 'PROCESSING_FOR_APP_STORE', 'WAITING_FOR_EXPORT_COMPLIANCE'].includes(state)) submitted.push(row);
@@ -159,13 +166,13 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
       const next = text(links.next);
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
-    if (editable.length > 1) throw new StoreError('appstoreconnect', 'invalid_input', 'App Store Connect has more than one editable iOS version; this server will not guess which one to submit.');
+    if (editable.length > 1) throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect has more than one editable ${this.#label} version; this server will not guess which one to submit.`);
     if (editable.length === 1) return editable[0] as VersionRow;
     if (submitted.length > 0) return submitted[0] as VersionRow;
     throw new StoreError(
       'appstoreconnect',
       'no_editable_version',
-      'App Store Connect has no iOS version that can be submitted (one in "Prepare for Submission"). This server does not create versions.',
+      `App Store Connect has no ${this.#label} version that can be submitted (one in "Prepare for Submission"). This server does not create versions.`,
       404,
     );
   }
@@ -184,7 +191,7 @@ export class AppleSubmitConnector implements StoreSubmitConnector {
   async #openSubmissions(): Promise<number | null> {
     try {
       const body = (
-        await this.#get(`${this.#base}/v1/apps/${enc(this.#appId)}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=IOS&limit=20`, 'looking for unsubmitted review submissions')
+        await this.#get(`${this.#base}/v1/apps/${enc(this.#appId)}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&filter[platform]=${this.#apple}&limit=20`, 'looking for unsubmitted review submissions')
       ).json;
       return records(body.data).length;
     } catch {

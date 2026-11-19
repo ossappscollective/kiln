@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { AssetKind } from '@mrm/core';
+import type { AssetKind, Platform } from '@mrm/core';
 import { StoreError, type StoreName } from './errors.ts';
 import { type DraftReadRequest, type DraftState, draftKey } from './store-draft-types.ts';
 
@@ -54,7 +54,7 @@ export type SubmitTrack = { track: string; releases: SubmitTrackRelease[] };
 /** Everything a submit is decided on, read from the store at one moment. */
 export type SubmitState = {
   store: StoreName;
-  platform: 'ios' | 'android';
+  platform: Platform;
   /** App Store: the version that would go to review. Google Play: null. */
   version: { id: string; versionString: string | null; state: string; releaseType: string | null } | null;
   /** App Store: the build attached to the version (null: none). Google Play: null. */
@@ -118,7 +118,7 @@ export class SubmitOutcomeUnknownError extends StoreError {
  */
 export interface StoreSubmitConnector {
   readonly store: StoreName;
-  readonly platform: 'ios' | 'android';
+  readonly platform: Platform;
   /** Changes nothing. */
   readSubmitState(request: DraftReadRequest): Promise<SubmitState>;
   submit(input: SubmitApplyInput): Promise<SubmitResult>;

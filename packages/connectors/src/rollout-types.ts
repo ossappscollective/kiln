@@ -1,3 +1,4 @@
+import type { Platform } from '@mrm/core';
 import { StoreError, type StoreName } from './errors.ts';
 
 /**
@@ -51,7 +52,8 @@ export type PlayRolloutState = {
 
 export type AppleRolloutState = {
   store: 'appstoreconnect';
-  platform: 'ios';
+  /** `ios` or `macos`: Apple's phased release is read and written on the version of that platform. */
+  platform: 'ios' | 'macos';
   version: string;
   /** Apple's id of the App Store version. */
   storeVersionId: string;
@@ -301,7 +303,7 @@ export type RolloutApplyResult = {
  */
 export interface StoreRolloutConnector {
   readonly store: StoreName;
-  readonly platform: 'ios' | 'android';
+  readonly platform: Platform;
   /** The current state of the release or version, read from the store. `StoreError` `not_found` when there is none. */
   readState(target: RolloutTarget): Promise<RolloutState>;
   applyChange(input: RolloutApplyInput): Promise<RolloutApplyResult>;

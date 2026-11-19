@@ -31,6 +31,8 @@ export type RatingSummary = {
   appStoreId: string;
   /** Two letter storefront, upper case. */
   country: string;
+  /** `macos` when the rating is the Mac App Store listing's (`entity=macSoftware`). Absent: the iOS listing. */
+  platform?: 'macos';
   /** Average of all ratings, 0 to 5. */
   averageRating?: number;
   ratingCount?: number;
@@ -44,6 +46,12 @@ export type FetchRatingSummaryOptions = {
   appStoreId: string;
   /** A two letter storefront code, such as `us`. */
   country: string;
+  /**
+   * `macos`: look up the Mac App Store listing of the app (`&entity=macSoftware`). UNVERIFIED: Apple's pages document
+   * the lookup by `id` only, and its search page lists `desktopSoftware` as the Mac software entity. A lookup that
+   * answers with nothing is "no summary", never an error.
+   */
+  platform?: 'ios' | 'macos';
   fetch?: typeof fetch;
   timeoutMs?: number;
   maxBytes?: number;
@@ -59,10 +67,12 @@ const count = (value: unknown): number | undefined => {
 };
 
 /** The rating fields of a lookup reply, or undefined when the reply has no result or no rating at all. */
-export function parseRatingSummary(json: unknown, appStoreId: string, country: string): RatingSummary | undefined {
+export function parseRatingSummary(json: unknown, appStoreId: string, country: string, platform: 'ios' | 'macos' = 'ios'): RatingSummary | undefined {
   const results = isRecord(json) ? records(json.results) : [];
-  // Only the entry for this app: a lookup by id answers with that id, nothing else is trusted.
-  const entry = results.find((r) => String(r.trackId ?? '') === appStoreId) ?? results[0];
+  // Only the entry for this app: a lookup by id answers with that id, nothing else is trusted. For macOS, the
+  // entry that says it is Mac software is the one (a universal purchase app has the same id on both stores).
+  const mine = results.filter((r) => String(r.trackId ?? '') === appStoreId);
+  const entry = (platform === 'macos' ? (mine.find((r) => r.kind === 'mac-software') ?? mine[0]) : mine[0]) ?? (platform === 'macos' ? undefined : results[0]);
   if (!entry) return undefined;
   const averageRating = average(entry.averageUserRating);
   const ratingCount = count(entry.userRatingCount);
@@ -72,6 +82,7 @@ export function parseRatingSummary(json: unknown, appStoreId: string, country: s
   return {
     appStoreId,
     country: country.toUpperCase(),
+    ...(platform === 'macos' ? { platform } : {}),
     ...(averageRating !== undefined ? { averageRating } : {}),
     ...(ratingCount !== undefined ? { ratingCount } : {}),
     ...(currentVersionAverage !== undefined ? { currentVersionAverage } : {}),
@@ -108,7 +119,8 @@ export async function fetchRatingSummary(options: FetchRatingSummaryOptions): Pr
   if (!/^[A-Za-z]{2}$/.test(options.country)) {
     throw new StoreError('appstoreconnect', 'invalid_input', 'The storefront must be a two letter country code.');
   }
-  const url = `${ITUNES_LOOKUP_URL}?id=${options.appStoreId}&country=${options.country.toLowerCase()}`;
+  const macos = options.platform === 'macos';
+  const url = `${ITUNES_LOOKUP_URL}?id=${options.appStoreId}&country=${options.country.toLowerCase()}${macos ? '&entity=macSoftware' : ''}`;
   const doFetch = options.fetch ?? globalThis.fetch;
   let response: Response;
   try {
@@ -148,5 +160,5 @@ export async function fetchRatingSummary(options: FetchRatingSummaryOptions): Pr
     if (error instanceof StoreError) throw error;
     throw new StoreError('appstoreconnect', 'unexpected', 'The iTunes lookup answered with a response that could not be read.');
   }
-  return parseRatingSummary(json, options.appStoreId, options.country);
+  return parseRatingSummary(json, options.appStoreId, options.country, options.platform ?? 'ios');
 }

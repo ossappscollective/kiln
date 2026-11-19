@@ -1,4 +1,4 @@
-import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES, classifyAppleScreenshot } from '@mrm/core';
+import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES, classifyAppleScreenshot, PLATFORM_META } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -121,6 +121,8 @@ export type AppleDraftConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
   apiBase?: string;
   pageSize?: number;
   maxPages?: number;
+  /** The Apple platform whose version is read and written: `ios` (default) or `macos` (`MAC_OS`). */
+  platform?: 'ios' | 'macos';
   /** Time between two looks at an uploaded file's processing state. Default 2000. */
   pollIntervalMs?: number;
   /** Looks at the processing state before giving up. Default 20. */
@@ -175,7 +177,9 @@ const attr = (field: string): string => APPLE_VERSION_LOCALIZATION_ATTRIBUTES[fi
 
 export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader {
   readonly store = 'appstoreconnect' as const;
-  readonly platform = 'ios' as const;
+  readonly platform: 'ios' | 'macos';
+  readonly #apple: string;
+  readonly #label: string;
   readonly #http: StoreHttp;
   readonly #writeHttp: StoreHttp;
   readonly #tokens: AppStoreConnectTokenProvider;
@@ -194,6 +198,9 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       throw new StoreError('appstoreconnect', 'invalid_input', 'The App Store id of the app is missing or not a number. Sync the app first.');
     }
     this.#appId = options.appStoreId;
+    this.platform = options.platform ?? 'ios';
+    this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
+    this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
     this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
@@ -323,7 +330,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const a = isRecord(item.attributes) ? item.attributes : {};
         const id = text(item.id);
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
-        if (id && text(a.platform) === 'IOS' && state === 'READY_FOR_SALE') {
+        if (id && text(a.platform) === this.#apple && state === 'READY_FOR_SALE') {
           notes.push('There is no editable version, so the images of the live version were read.');
           return { id, versionString: text(a.versionString) ?? null, state, editable: false };
         }
@@ -332,7 +339,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       const next = text(links.next);
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
-    throw new StoreError('appstoreconnect', 'no_editable_version', 'App Store Connect has no editable and no live iOS version to read the screenshots of.', 404);
+    throw new StoreError('appstoreconnect', 'no_editable_version', `App Store Connect has no editable and no live ${this.#label} version to read the screenshots of.`, 404);
   }
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
@@ -446,7 +453,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const a = isRecord(item.attributes) ? item.attributes : {};
         const id = text(item.id);
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
-        if (!id || text(a.platform) !== 'IOS' || !APPLE_DRAFT_VERSION_STATES.includes(state)) continue;
+        if (!id || text(a.platform) !== this.#apple || !APPLE_DRAFT_VERSION_STATES.includes(state)) continue;
         found.push({ id, versionString: text(a.versionString) ?? null, state });
       }
       const links = isRecord(body.links) ? body.links : {};
@@ -457,12 +464,12 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       throw new StoreError(
         'appstoreconnect',
         'no_editable_version',
-        'App Store Connect has no iOS version whose listing can still be edited (a version in "Prepare for Submission"). Create the next version in App Store Connect first: this server does not create versions.',
+        `App Store Connect has no ${this.#label} version whose listing can still be edited (a version in "Prepare for Submission"). Create the next version in App Store Connect first: this server does not create versions.`,
         404,
       );
     }
     if (found.length > 1) {
-      throw new StoreError('appstoreconnect', 'invalid_input', 'App Store Connect has more than one editable iOS version; this server will not guess which one to write to.');
+      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect has more than one editable ${this.#label} version; this server will not guess which one to write to.`);
     }
     return found[0] as { id: string; versionString: string | null; state: string };
   }
@@ -521,7 +528,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         }),
       });
     }
-    return { state: { store: 'appstoreconnect', platform: 'ios', version, text: textState, assets }, placements };
+    return { state: { store: 'appstoreconnect', platform: this.platform, version, text: textState, assets }, placements };
   }
 
   /** The screenshot placements of a localization, in display order, each with its library image. */

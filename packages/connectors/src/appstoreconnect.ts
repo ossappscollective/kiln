@@ -1,4 +1,4 @@
-import type { AppStoreField, ListingSections, LocaleText, MediaSet, Platform } from '@mrm/core';
+import { type AppStoreField, type ListingSections, type LocaleText, type MediaSet, PLATFORM_META, type Platform } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -26,6 +26,7 @@ import {
   sectionWarning,
 } from './store-sections.ts';
 import type {
+  ListAppsOptions,
   ReadStoreListingOptions,
   StoreApp,
   StoreBuild,
@@ -63,6 +64,12 @@ export type AppStoreConnectConnectorOptions = Omit<StoreHttpOptions, 'store'> & 
   pageSize?: number;
   /** A safety stop for runaway paging. Default 10 pages. Lists are newest first where sortable. */
   maxPages?: number;
+  /**
+   * Which Apple platform this connector reads: `ios` (default) or `macos` (Apple's `MAC_OS`). One App
+   * Store Connect app can have both (universal purchase); versions, builds and the listing of the
+   * other platform are left out, never mixed in.
+   */
+  platform?: 'ios' | 'macos';
 };
 
 /** What the cheapest authenticated read learned. Safe to show. */
@@ -77,6 +84,8 @@ const SKEW_TOLERANCE_SECONDS = 30;
 const MAX_PAGE_SIZE = 200;
 /** The documented maximum of `limit[builds]` (included builds per pre-release version). */
 const MAX_INCLUDED_BUILDS = 50;
+/** `limit[appStoreVersions]` of the apps read that asks which platforms each app has (UNVERIFIED maximum; 50 is the builds one). */
+const MAX_INCLUDED_VERSIONS = 50;
 const MAX_ERROR_DETAILS = 5;
 /**
  * Most locales whose screenshot and preview sets are read per channel (two requests each). Apple
@@ -217,8 +226,9 @@ function preReleaseById(included: Json[]): Map<string, PreRelease> {
   return found;
 }
 
-const asPlatform = (apple: string | undefined): Platform | undefined =>
-  apple === 'IOS' ? 'ios' : undefined;
+/** Apple's `platform` attribute of the platforms this tool manages. tvOS, visionOS and others are left out. */
+const asPlatform = (apple: string | undefined): 'ios' | 'macos' | undefined =>
+  apple === 'IOS' ? 'ios' : apple === 'MAC_OS' ? 'macos' : undefined;
 
 const clip = (value: string | undefined, max: number): string | undefined =>
   value === undefined ? undefined : value.length > max ? `${value.slice(0, max)}…` : value;
@@ -367,7 +377,7 @@ export function appleError(reply: StoreReply, nowMs: number, what: string): Stor
 }
 
 export class AppStoreConnectConnector implements StoreConnector {
-  readonly platform = 'ios' as const;
+  readonly platform: 'ios' | 'macos';
   readonly #http: StoreHttp;
   readonly #tokens: AppStoreConnectTokenProvider;
   readonly #base: string;
@@ -375,6 +385,7 @@ export class AppStoreConnectConnector implements StoreConnector {
   readonly #maxPages: number;
 
   constructor(options: AppStoreConnectConnectorOptions) {
+    this.platform = options.platform ?? 'ios';
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? MAX_PAGE_SIZE;
@@ -419,23 +430,89 @@ export class AppStoreConnectConnector implements StoreConnector {
     await this.checkAccess();
   }
 
-  async listApps(): Promise<StoreApp[]> {
+  async listApps(options: ListAppsOptions = {}): Promise<StoreApp[]> {
     const apps: StoreApp[] = [];
+    if (options.withPlatforms === true) {
+      // UNVERIFIED: that `include=appStoreVersions` with sparse `fields[appStoreVersions]=platform` and
+      // `limit[appStoreVersions]` is accepted on this endpoint (Apple's page for it, as fetched, did not list
+      // the query parameters). A 400 that names a parameter repeats the read without it: platforms unknown.
+      try {
+        return await this.#listAppsWithPlatforms();
+      } catch (error) {
+        if (!isAppleParameterError(error)) throw error;
+      }
+    }
     for await (const item of this.#pages(`/v1/apps?limit=${this.#pageSize}`, 'listing apps')) {
       const attributes = isRecord(item.attributes) ? item.attributes : {};
       const id = text(item.id);
       const bundleId = text(attributes.bundleId);
       if (!id || !bundleId) continue;
       // The App resource has no platform: an app can have iOS, macOS, tvOS and visionOS versions.
-      // This connector is the iOS one, so every app is reported as iOS.
+      // Without `withPlatforms` every app is reported as this connector's platform (iOS by default).
       apps.push({
         storeId: id,
-        platform: 'ios',
+        platform: this.platform,
         name: text(attributes.name) ?? bundleId,
         bundleId,
       });
     }
     return apps;
+  }
+
+  async #listAppsWithPlatforms(): Promise<StoreApp[]> {
+    const apps: StoreApp[] = [];
+    const versionPlatforms = new Map<string, 'ios' | 'macos' | undefined>();
+    const path = `/v1/apps?limit=${this.#pageSize}&include=appStoreVersions&fields[appStoreVersions]=platform&limit[appStoreVersions]=${MAX_INCLUDED_VERSIONS}`;
+    const items: Json[] = [];
+    for await (const item of this.#pages(path, 'listing apps', (more) => {
+      for (const entry of more) {
+        if (text(entry.type) !== 'appStoreVersions') continue;
+        const id = text(entry.id);
+        const attributes = isRecord(entry.attributes) ? entry.attributes : {};
+        if (id) versionPlatforms.set(id, asPlatform(text(attributes.platform)));
+      }
+    })) {
+      items.push(item);
+    }
+    for (const item of items) {
+      const attributes = isRecord(item.attributes) ? item.attributes : {};
+      const id = text(item.id);
+      const bundleId = text(attributes.bundleId);
+      if (!id || !bundleId) continue;
+      const relationships = isRecord(item.relationships) ? item.relationships : {};
+      const link = isRecord(relationships.appStoreVersions) ? relationships.appStoreVersions : {};
+      const refs = Array.isArray(link.data) ? link.data.filter(isRecord) : undefined;
+      const found = new Set<Platform>();
+      for (const ref of refs ?? []) {
+        const platform = versionPlatforms.get(text(ref.id) ?? '');
+        if (platform) found.add(platform);
+      }
+      apps.push({
+        storeId: id,
+        platform: this.platform,
+        name: text(attributes.name) ?? bundleId,
+        bundleId,
+        // Only when Apple sent the relationship data: an app with no versions yet has `[]` and is not "known".
+        ...(refs !== undefined && found.size > 0 ? { platforms: (['ios', 'macos'] as const).filter((p) => found.has(p)) } : {}),
+      });
+    }
+    return apps;
+  }
+
+  /**
+   * The Apple platforms (iOS, macOS) an app has at least one version for, from the version list that
+   * `listVersions` already reads (documented attribute `platform`). Used to check that a macOS record
+   * points at an app that has a macOS version.
+   */
+  async listPlatforms(appStoreId: string): Promise<Platform[]> {
+    const found = new Set<Platform>();
+    const path = `/v1/apps/${enc(appStoreId)}/appStoreVersions?limit=${this.#pageSize}`;
+    for await (const item of this.#pages(path, `listing the platforms of app ${appStoreId}`)) {
+      const attributes = isRecord(item.attributes) ? item.attributes : {};
+      const platform = asPlatform(text(attributes.platform));
+      if (platform) found.add(platform);
+    }
+    return (['ios', 'macos'] as const).filter((p) => found.has(p));
   }
 
   async listVersions(appStoreId: string): Promise<StoreVersion[]> {
@@ -446,8 +523,8 @@ export class AppStoreConnectConnector implements StoreConnector {
       const id = text(item.id);
       const versionString = text(attributes.versionString);
       const platform = asPlatform(text(attributes.platform));
-      // Versions for macOS, tvOS and visionOS do not fit `Platform` and are left out.
-      if (!id || !versionString || !platform) continue;
+      // Versions of the other platform (and tvOS, visionOS) are left out: this connector reads one.
+      if (!id || !versionString || platform !== this.platform) continue;
       // `appStoreState` is deprecated in favour of `appVersionState` (API 3.3 and later). Read the
       // new one first and fall back, so both old and new API behaviour work.
       const newer = text(attributes.appVersionState);
@@ -507,14 +584,15 @@ export class AppStoreConnectConnector implements StoreConnector {
       const link = isRecord(relationships.preReleaseVersion) ? relationships.preReleaseVersion : {};
       const data = isRecord(link.data) ? link.data : undefined;
       const pre = (data ? preRelease.get(text(data.id) ?? '') : undefined) ?? byBuild.get(buildId);
-      // Builds of other platforms (macOS, tvOS, ...) are not iOS builds.
-      if (pre?.platform !== undefined && pre.platform !== 'IOS') continue;
+      // Builds of other platforms are not this platform's builds. A build whose platform is not known is
+      // taken for iOS only (the behavior before macOS), never for macOS.
+      if (pre?.platform !== undefined ? pre.platform !== PLATFORM_META[this.platform].applePlatform : this.platform !== 'ios') continue;
       const raw = text(attributes.processingState);
       const uploaded = Date.parse(text(attributes.uploadedDate) ?? '');
       builds.push({
         storeId: buildId,
         appStoreId,
-        platform: 'ios',
+        platform: this.platform,
         buildNumber,
         ...(pre?.version ? { versionString: pre.version } : {}),
         processing: processing(raw),
@@ -578,7 +656,7 @@ export class AppStoreConnectConnector implements StoreConnector {
       const versionId = text(item.id);
       // Same rule as `listVersions`: the new state field first, the deprecated one as fallback.
       const rawState = text(attributes.appVersionState) ?? text(attributes.appStoreState);
-      if (!versionId || rawState === undefined || asPlatform(text(attributes.platform)) === undefined) continue;
+      if (!versionId || rawState === undefined || asPlatform(text(attributes.platform)) !== this.platform) continue;
       const versionString = text(attributes.versionString);
       const created = Date.parse(text(attributes.createdDate) ?? '');
       const copyright = text(attributes.copyright);
@@ -761,7 +839,7 @@ export class AppStoreConnectConnector implements StoreConnector {
     if (!liveInfo && !editableInfo) {
       warnings.push('No app info was found, so name, subtitle and privacy policy were not read.');
     }
-    return { platform: 'ios', appStoreId, channels, warnings };
+    return { platform: this.platform, appStoreId, channels, warnings };
   }
 
   /**

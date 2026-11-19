@@ -11,6 +11,16 @@ export type StoreApp = {
   platform: Platform;
   name: string;
   bundleId: string;
+  /**
+   * App Store Connect only, and only when `listApps({ withPlatforms: true })` was asked and Apple
+   * answered it: the platforms (iOS, macOS) the app has a version for. Absent: not known.
+   */
+  platforms?: Platform[];
+};
+
+export type ListAppsOptions = {
+  /** Also read which platforms each app has versions for (App Store Connect; one request with an `include`). */
+  withPlatforms?: boolean;
 };
 
 export type StoreVersion = {
@@ -99,7 +109,7 @@ export type StoreListing = {
 export interface StoreConnector {
   readonly platform: Platform;
   verifyCredentials(): Promise<void>;
-  listApps(): Promise<StoreApp[]>;
+  listApps(options?: ListAppsOptions): Promise<StoreApp[]>;
   listVersions(appStoreId: string): Promise<StoreVersion[]>;
   listBuilds(appStoreId: string): Promise<StoreBuild[]>;
   /**
