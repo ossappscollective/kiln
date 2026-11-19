@@ -1,28 +1,28 @@
 import {
-  AiError,
   type AiClient,
+  AiError,
   type AiModelInfo,
-  type CreateAiClientInput,
-  LIST_ONLY_MODEL,
   aiFallbackModels,
+  type CreateAiClientInput,
   createAiClient,
+  LIST_ONLY_MODEL,
 } from '@mrm/connectors';
 import { type AiProvider, aiProviderInfo } from '@mrm/core';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
 import {
   type AiActor,
   type AiContext,
   type AiFailure,
+  addressHint,
   aiCredentialId,
   aiFail,
   aiNotConfigured,
-  addressHint,
+  aiNotEnabled,
   failureForAiError,
   guardReason,
   readAiConfig,
-  aiNotEnabled,
 } from './ai-config.ts';
+import { recordAudit } from './audit.ts';
+import { useCredentialSecret } from './credentials.ts';
 import { checkTranslateUrl, createGuardedFetch } from './translate-net.ts';
 
 /**
@@ -63,18 +63,24 @@ export type ListModelsInput = {
 export async function listAiModels(
   ctx: AiContext,
   input: ListModelsInput,
-): Promise<({ ok: true; result: ModelsResult } | AiFailure)> {
+): Promise<{ ok: true; result: ModelsResult } | AiFailure> {
   if (!ctx.enabled) return aiNotEnabled('server');
   const { provider } = input;
   const info = aiProviderInfo[provider];
   const config = (await readAiConfig(ctx.db, input.workspaceId)).values;
   const typedKey = (input.apiKey ?? '').trim();
-  if (typedKey.length > MAX_KEY_CHARS) return aiFail(400, 'invalid_request', 'The key is too long.');
+  if (typedKey.length > MAX_KEY_CHARS)
+    return aiFail(400, 'invalid_request', 'The key is too long.');
 
   // The address: only an OpenAI compatible server has one. The typed address wins over the saved one.
   let baseUrl = '';
   if (info.needsUrl) {
-    const raw = (input.baseUrl ?? '').trim() !== '' ? (input.baseUrl ?? '').trim() : config.provider === provider ? config.baseUrl : '';
+    const raw =
+      (input.baseUrl ?? '').trim() !== ''
+        ? (input.baseUrl ?? '').trim()
+        : config.provider === provider
+          ? config.baseUrl
+          : '';
     if (raw === '') return aiNotConfigured('no_url', provider);
     const check = checkTranslateUrl(raw, ctx.allowPrivateUrls ? { allowPrivate: true } : {});
     if (!check.ok) {
@@ -91,7 +97,13 @@ export async function listAiModels(
     const credentialId = await aiCredentialId(ctx.db, input.workspaceId, provider);
     if (credentialId) {
       try {
-        secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId: input.workspaceId, id: credentialId, purpose: 'ai' }, input.actor, ctx.now());
+        secret = await useCredentialSecret(
+          ctx.db,
+          ctx.masterKey,
+          { workspaceId: input.workspaceId, id: credentialId, purpose: 'ai' },
+          input.actor,
+          ctx.now(),
+        );
       } catch {
         return aiNotConfigured('credential_unreadable', provider);
       }
@@ -108,7 +120,9 @@ export async function listAiModels(
       detail: { provider, keySource, outcome, ...extra },
       at: ctx.now(),
     });
-  const fallback = async (reason: NonNullable<ModelsResult['reason']>): Promise<{ ok: true; result: ModelsResult }> => {
+  const fallback = async (
+    reason: NonNullable<ModelsResult['reason']>,
+  ): Promise<{ ok: true; result: ModelsResult }> => {
     const models = aiFallbackModels(provider);
     await audit('fallback', { reason, count: models.length });
     return { ok: true, result: { models, source: 'fallback', reason } };
@@ -130,27 +144,50 @@ export async function listAiModels(
         timeoutMs,
         maxBytes: 4 * 1024 * 1024,
       });
-      built = { provider, model: LIST_ONLY_MODEL, secret, baseUrl, options: { fetch: guard.fetch, timeoutMs } };
+      built = {
+        provider,
+        model: LIST_ONLY_MODEL,
+        secret,
+        baseUrl,
+        options: { fetch: guard.fetch, timeoutMs },
+      };
     } else {
-      built = { provider, model: LIST_ONLY_MODEL, secret, options: { ...(ctx.fetch ? { fetch: ctx.fetch } : {}), timeoutMs } };
+      built = {
+        provider,
+        model: LIST_ONLY_MODEL,
+        secret,
+        options: { ...(ctx.fetch ? { fetch: ctx.fetch } : {}), timeoutMs },
+      };
     }
     client = make(built);
   } catch (error) {
-    return failureForAiError(error instanceof AiError ? error : new AiError('unavailable'), provider);
+    return failureForAiError(
+      error instanceof AiError ? error : new AiError('unavailable'),
+      provider,
+    );
   }
 
   try {
     const models = await client.listModels({ signal: AbortSignal.timeout(timeoutMs + 5_000) });
-    if (models.length === 0 && aiFallbackModels(provider).length > 0) return fallback('list_unavailable');
+    if (models.length === 0 && aiFallbackModels(provider).length > 0)
+      return fallback('list_unavailable');
     await audit('provider', { count: models.length });
     return { ok: true, result: { models, source: 'provider' } };
   } catch (error) {
     const known = error instanceof AiError ? error : new AiError('unavailable');
-    if (known.kind === 'unavailable' && known.detail !== undefined && NO_LIST_DETAILS.has(known.detail)) return fallback('list_unavailable');
+    if (
+      known.kind === 'unavailable' &&
+      known.detail !== undefined &&
+      NO_LIST_DETAILS.has(known.detail)
+    )
+      return fallback('list_unavailable');
     let failure = failureForAiError(known, provider);
     const blocked = await guardReason(ctx, baseUrl, guard);
     if (blocked) failure = { ...failure, body: { ...failure.body, reason: blocked } };
-    await audit('failed', { kind: known.kind, ...(blocked ? { reason: blocked } : known.detail ? { reason: known.detail } : {}) });
+    await audit('failed', {
+      kind: known.kind,
+      ...(blocked ? { reason: blocked } : known.detail ? { reason: known.detail } : {}),
+    });
     return failure;
   }
 }

@@ -1,6 +1,16 @@
 import { countOf, getJson, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
 import { parseModelJson, providerSchema, validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, userMessageOf } from './types.ts';
+import {
+  type AiClient,
+  type AiClientOptions,
+  type AiCompleteRequest,
+  type AiCompleteResult,
+  AiError,
+  type AiModelInfo,
+  type AiUsage,
+  normalizeModels,
+  userMessageOf,
+} from './types.ts';
 
 /**
  * OpenAI Responses API, `POST /v1/responses`, one request, structured output, no tools, nothing stored.
@@ -35,7 +45,8 @@ export const OPENAI_FALLBACK_MODELS: readonly AiModelInfo[] = [
 ];
 
 /** Ids that obviously are not chat models (embeddings, speech, images, moderation, realtime, transcription). A hint, not a rule. */
-export const NOT_CHAT = /(embedding|whisper|tts|dall-e|moderation|image|audio|transcribe|realtime|sora|davinci|babbage)/i;
+export const NOT_CHAT =
+  /(embedding|whisper|tts|dall-e|moderation|image|audio|transcribe|realtime|sora|davinci|babbage)/i;
 
 export type OpenAiOptions = AiClientOptions & { apiKey: string; model: string };
 
@@ -44,17 +55,28 @@ function classify(status: number, json: unknown, retryAfter: string | null): AiE
   const message = textAt(json, 'error', 'message').toLowerCase();
   if (status === 429) {
     // A spent quota is a 429 too, with a code of its own: waiting a minute will not help.
-    return new AiError('rate_limited', { retryAfterSeconds: retryAfterSeconds(retryAfter, 30), ...(/quota/.test(code) ? { detail: 'quota' } : {}) });
+    return new AiError('rate_limited', {
+      retryAfterSeconds: retryAfterSeconds(retryAfter, 30),
+      ...(/quota/.test(code) ? { detail: 'quota' } : {}),
+    });
   }
   if (status === 401 || status === 403) return new AiError('auth');
-  if (status === 413 || code === 'context_length_exceeded' || (status === 400 && /context length|too long|maximum context/.test(message))) return new AiError('too_large');
+  if (
+    status === 413 ||
+    code === 'context_length_exceeded' ||
+    (status === 400 && /context length|too long|maximum context/.test(message))
+  )
+    return new AiError('too_large');
   if (status === 404) return new AiError('unavailable', { detail: 'http_404' });
   return new AiError('unavailable', { detail: `http_${status}`.slice(0, 24) });
 }
 
 function usageOf(json: Record<string, unknown>): AiUsage {
   const usage = isRecord(json.usage) ? json.usage : {};
-  return { inputTokens: countOf(usage.input_tokens) ?? 0, outputTokens: countOf(usage.output_tokens) ?? 0 };
+  return {
+    inputTokens: countOf(usage.input_tokens) ?? 0,
+    outputTokens: countOf(usage.output_tokens) ?? 0,
+  };
 }
 
 export function createOpenAiClient(options: OpenAiOptions): AiClient {
@@ -66,10 +88,21 @@ export function createOpenAiClient(options: OpenAiOptions): AiClient {
     provider: 'openai',
     model,
     async listModels(request = {}): Promise<AiModelInfo[]> {
-      const reply = await getJson({ url: `${options.baseUrl ?? OPENAI_URL}/v1/models`, headers: { authorization: `Bearer ${key}` }, signal: request.signal }, options);
-      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
-      if (!isRecord(reply.json) || !Array.isArray(reply.json.data)) throw new AiError('unavailable', { detail: 'bad_reply' });
-      const all = normalizeModels(reply.json.data.map((m) => ({ id: isRecord(m) ? m.id : undefined })));
+      const reply = await getJson(
+        {
+          url: `${options.baseUrl ?? OPENAI_URL}/v1/models`,
+          headers: { authorization: `Bearer ${key}` },
+          signal: request.signal,
+        },
+        options,
+      );
+      if (reply.status < 200 || reply.status > 299)
+        throw classify(reply.status, reply.json, reply.retryAfter);
+      if (!isRecord(reply.json) || !Array.isArray(reply.json.data))
+        throw new AiError('unavailable', { detail: 'bad_reply' });
+      const all = normalizeModels(
+        reply.json.data.map((m) => ({ id: isRecord(m) ? m.id : undefined })),
+      );
       const chat = all.filter((m) => !NOT_CHAT.test(m.id));
       return chat.length > 0 ? chat : all;
     },
@@ -84,33 +117,49 @@ export function createOpenAiClient(options: OpenAiOptions): AiClient {
             input: userMessageOf(request),
             max_output_tokens: request.maxTokens,
             store: false,
-            text: { format: { type: 'json_schema', name: request.schemaName ?? 'result', schema: providerSchema(request.schema), strict: true } },
+            text: {
+              format: {
+                type: 'json_schema',
+                name: request.schemaName ?? 'result',
+                schema: providerSchema(request.schema),
+                strict: true,
+              },
+            },
           },
           signal: request.signal,
         },
         options,
       );
-      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+      if (reply.status < 200 || reply.status > 299)
+        throw classify(reply.status, reply.json, reply.retryAfter);
       const json = reply.json;
       if (!isRecord(json)) throw new AiError('unavailable', { detail: 'bad_reply' });
       const usage = usageOf(json);
       if (json.status === 'failed') throw new AiError('unavailable', { detail: 'failed' });
-      if (json.status === 'incomplete') throw new AiError('invalid_output', { detail: 'truncated', usage });
+      if (json.status === 'incomplete')
+        throw new AiError('invalid_output', { detail: 'truncated', usage });
       const items = Array.isArray(json.output) ? json.output : [];
       let text: string | undefined;
       for (const item of items) {
         if (!isRecord(item) || item.type !== 'message' || !Array.isArray(item.content)) continue;
         for (const part of item.content) {
           if (!isRecord(part)) continue;
-          if (part.type === 'refusal') throw new AiError('invalid_output', { detail: 'refusal', usage });
-          if (part.type === 'output_text' && typeof part.text === 'string' && text === undefined) text = part.text;
+          if (part.type === 'refusal')
+            throw new AiError('invalid_output', { detail: 'refusal', usage });
+          if (part.type === 'output_text' && typeof part.text === 'string' && text === undefined)
+            text = part.text;
         }
       }
       if (text === undefined) throw new AiError('invalid_output', { detail: 'no_text', usage });
       const output = parseModelJson(text);
       if (output === undefined) throw new AiError('invalid_output', { detail: 'not_json', usage });
-      if (validateJson(request.schema, output).length > 0) throw new AiError('invalid_output', { detail: 'schema', usage });
-      return { output, usage, model: typeof json.model === 'string' && json.model ? json.model : model };
+      if (validateJson(request.schema, output).length > 0)
+        throw new AiError('invalid_output', { detail: 'schema', usage });
+      return {
+        output,
+        usage,
+        model: typeof json.model === 'string' && json.model ? json.model : model,
+      };
     },
   };
 }

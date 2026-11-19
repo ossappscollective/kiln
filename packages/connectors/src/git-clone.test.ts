@@ -19,7 +19,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { GithubError, GithubRateLimitError } from './errors.ts';
-import { GithubRepoConnector } from './github.ts';
 import {
   cloneSize,
   defaultWarmPaths,
@@ -31,6 +30,7 @@ import {
   removeClone,
   removeWorkspaceClones,
 } from './git-clone.ts';
+import { GithubRepoConnector } from './github.ts';
 
 // No network: every repository here is a throwaway one built with the git CLI in a temp folder,
 // and the "GitHub" is a stub HTTP server on 127.0.0.1.
@@ -859,8 +859,10 @@ test('the options are validated', () => {
     ['http without the flag', () => new GitCloneReader(gh({ baseUrl: 'http://ghe.example' }))],
     ['userinfo', () => new GitCloneReader(gh({ baseUrl: 'https://u:p@ghe.example' }))],
     ['filter with a space', () => new GitCloneReader({ ...gh({}), filter: 'blob:none --x' })],
-    ['empty local path', () =>
-        new GitCloneReader({ ...base, source: { type: 'local', path: ' ' } }),],
+    [
+      'empty local path',
+      () => new GitCloneReader({ ...base, source: { type: 'local', path: ' ' } }),
+    ],
   ];
   for (const [name, make] of bad) {
     const invalid = (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input';
@@ -919,7 +921,13 @@ posixTest('removeClone deletes only a real folder with our marker, in the base',
   const invalid = (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input';
   const notManaged = (e: unknown) => e instanceof GitCloneError && e.reason === 'not_managed';
 
-  const badIds = [['..', 'x'], ['ws1', '..'], ['ws1', 'a/b'], ['', 'x'], ['ws1', '.']] as const;
+  const badIds = [
+    ['..', 'x'],
+    ['ws1', '..'],
+    ['ws1', 'a/b'],
+    ['', 'x'],
+    ['ws1', '.'],
+  ] as const;
   for (const [ws, id] of badIds) {
     await assert.rejects(removeClone(base, ws, id), invalid, `${ws}/${id}`);
   }
@@ -1005,7 +1013,11 @@ test('cloneSize adds up the files, does not follow links and stops at its cap', 
   assert.ok(size.bytes >= 175 && size.bytes < 5_000, `link not followed: ${size.bytes}`);
   const capped = await cloneSize(dir, 2);
   assert.equal(capped.truncated, true);
-  assert.deepEqual(await cloneSize(join(dir, 'missing')), { bytes: 0, entries: 0, truncated: false });
+  assert.deepEqual(await cloneSize(join(dir, 'missing')), {
+    bytes: 0,
+    entries: 0,
+    truncated: false,
+  });
 });
 
 test('listClones lists managed clones with size and last use, and refuses links and strangers', async () => {
@@ -1019,7 +1031,11 @@ test('listClones lists managed clones with size and last use, and refuses links 
       source: { type: 'local', path: source },
       defaultBranch: 'main',
     });
-  await Promise.all([make('w1', 'a').refresh(), make('w1', 'b-local').refresh(), make('w2', 'c').refresh()]);
+  await Promise.all([
+    make('w1', 'a').refresh(),
+    make('w1', 'b-local').refresh(),
+    make('w2', 'c').refresh(),
+  ]);
 
   // Things that are not clones: a folder without our marker, a link to a real clone, a link to a folder outside.
   mkdirSync(join(base, 'w1', 'stranger'));
@@ -1033,7 +1049,11 @@ test('listClones lists managed clones with size and last use, and refuses links 
   }
 
   const all = await listClones(base);
-  assert.deepEqual(all.clones.map((c) => `${c.workspaceId}/${c.cloneId}`).sort(), ['w1/a', 'w1/b-local', 'w2/c']);
+  assert.deepEqual(all.clones.map((c) => `${c.workspaceId}/${c.cloneId}`).sort(), [
+    'w1/a',
+    'w1/b-local',
+    'w2/c',
+  ]);
   assert.equal(all.refused, posix ? 4 : 1);
   for (const clone of all.clones) {
     assert.ok(clone.bytes > 0);
@@ -1041,7 +1061,10 @@ test('listClones lists managed clones with size and last use, and refuses links 
     assert.ok(clone.createdAt > 0);
     assert.ok(Math.abs(clone.lastUsedAt - Date.now()) < 60_000);
   }
-  assert.deepEqual((await listClones(base, { workspaceId: 'w2' })).clones.map((c) => c.cloneId), ['c']);
+  assert.deepEqual(
+    (await listClones(base, { workspaceId: 'w2' })).clones.map((c) => c.cloneId),
+    ['c'],
+  );
   assert.deepEqual((await listClones(join(base, 'nope'))).clones, []);
   await assert.rejects(() => listClones(base, { workspaceId: '../etc' }), GithubError);
   // The stranger and the outside folder are untouched.
@@ -1096,33 +1119,42 @@ posixTest('simultaneous refreshes of one ref share one fetch', async () => {
   assert.notEqual(later.commit, results[0]?.commit);
 });
 
-posixTest('a caller that gives up does not cancel the fetch the others wait for; the last one does', async () => {
-  const slow = wrapper(`case "$*" in *" fetch "*) sleep 1;; esac`);
-  const r = reader(makeSource({ 'a.txt': 'x' }), { gitPath: slow.path, warmPaths: null });
-  const first = new AbortController();
-  const second = new AbortController();
-  const a = r.refresh('main', { signal: first.signal });
-  const b = r.refresh('main', { signal: second.signal });
-  const c = r.refresh('main');
-  const lost = a.then(() => 'done', (e: unknown) => (e as GitCloneError).reason);
-  await new Promise((done) => setTimeout(done, 200));
-  first.abort();
-  assert.equal(await lost, 'aborted');
-  assert.equal((await b).ref, 'main');
-  assert.equal((await c).ref, 'main');
-  assert.equal(fetches(slow.invocations()).length, 1);
+posixTest(
+  'a caller that gives up does not cancel the fetch the others wait for; the last one does',
+  async () => {
+    const slow = wrapper(`case "$*" in *" fetch "*) sleep 1;; esac`);
+    const r = reader(makeSource({ 'a.txt': 'x' }), { gitPath: slow.path, warmPaths: null });
+    const first = new AbortController();
+    const second = new AbortController();
+    const a = r.refresh('main', { signal: first.signal });
+    const b = r.refresh('main', { signal: second.signal });
+    const c = r.refresh('main');
+    const lost = a.then(
+      () => 'done',
+      (e: unknown) => (e as GitCloneError).reason,
+    );
+    await new Promise((done) => setTimeout(done, 200));
+    first.abort();
+    assert.equal(await lost, 'aborted');
+    assert.equal((await b).ref, 'main');
+    assert.equal((await c).ref, 'main');
+    assert.equal(fetches(slow.invocations()).length, 1);
 
-  // Alone, an abort stops the git process, as it did before.
-  const stuck = wrapper(`case "$*" in *" fetch "*) sleep 30;; esac`);
-  const lone = reader(makeSource({ 'a.txt': 'x' }), { gitPath: stuck.path, warmPaths: null });
-  const stop = new AbortController();
-  const outcome = lone.refresh('main', { signal: stop.signal }).then(() => undefined, (e: unknown) => e);
-  await new Promise((done) => setTimeout(done, 300));
-  const started = Date.now();
-  stop.abort();
-  const error = await outcome;
-  assert.ok(error instanceof GitCloneError && error.reason === 'aborted');
-  // The process was killed: the lock is free again quickly.
-  await Promise.race([lone.remove(), new Promise((done) => setTimeout(done, 5000))]);
-  assert.ok(Date.now() - started < 6_000);
-});
+    // Alone, an abort stops the git process, as it did before.
+    const stuck = wrapper(`case "$*" in *" fetch "*) sleep 30;; esac`);
+    const lone = reader(makeSource({ 'a.txt': 'x' }), { gitPath: stuck.path, warmPaths: null });
+    const stop = new AbortController();
+    const outcome = lone.refresh('main', { signal: stop.signal }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    await new Promise((done) => setTimeout(done, 300));
+    const started = Date.now();
+    stop.abort();
+    const error = await outcome;
+    assert.ok(error instanceof GitCloneError && error.reason === 'aborted');
+    // The process was killed: the lock is free again quickly.
+    await Promise.race([lone.remove(), new Promise((done) => setTimeout(done, 5000))]);
+    assert.ok(Date.now() - started < 6_000);
+  },
+);

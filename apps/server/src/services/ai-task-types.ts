@@ -1,8 +1,8 @@
 import type { JsonSchema } from '@mrm/connectors';
 import type { AiAppContext, AiProposal, AiProposalKind, AiTaskId } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import type { ManagedApp } from './apps.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
+import type { ManagedApp } from './apps.ts';
 
 /**
  * What an AI task is (docs/adr/0016-ai-foundation.md). A task is DATA plus three pure-ish functions:
@@ -28,7 +28,13 @@ export type TaskContext = {
 };
 
 /** What a task's `persist` step knows about the run it belongs to. */
-export type PersistInfo = { workspaceId: string; appId: string; provider: string; model: string; at: number };
+export type PersistInfo = {
+  workspaceId: string;
+  appId: string;
+  provider: string;
+  model: string;
+  at: number;
+};
 
 export type PreparedRun = {
   /** The structured data sent: only what the disclosure lists. */
@@ -93,32 +99,51 @@ export type AiTask = ReadyTask | PlannedTask;
 // Helpers shared by the tasks
 
 /** Refuses a scope with a field the task does not have, or a required one missing. */
-export function checkScope(task: Pick<TaskBase, 'scope'>, scope: Record<string, unknown>): AiFailure | undefined {
+export function checkScope(
+  task: Pick<TaskBase, 'scope'>,
+  scope: Record<string, unknown>,
+): AiFailure | undefined {
   const names = new Set(task.scope.map((f) => f.name));
   const issues: { path: string; message: string }[] = [];
-  for (const key of Object.keys(scope)) if (!names.has(key)) issues.push({ path: key, message: 'Not an option of this task.' });
+  for (const key of Object.keys(scope))
+    if (!names.has(key)) issues.push({ path: key, message: 'Not an option of this task.' });
   for (const field of task.scope) {
-    if (field.required && (scope[field.name] === undefined || scope[field.name] === null || scope[field.name] === '')) {
+    if (
+      field.required &&
+      (scope[field.name] === undefined || scope[field.name] === null || scope[field.name] === '')
+    ) {
       issues.push({ path: field.name, message: 'Required.' });
     }
-    if (field.values && scope[field.name] !== undefined && !field.values.includes(String(scope[field.name]))) {
+    if (
+      field.values &&
+      scope[field.name] !== undefined &&
+      !field.values.includes(String(scope[field.name]))
+    ) {
       issues.push({ path: field.name, message: `Use one of ${field.values.join(', ')}.` });
     }
   }
-  return issues.length > 0 ? aiFail(400, 'invalid_request', 'The options of this task are not valid.', { issues }) : undefined;
+  return issues.length > 0
+    ? aiFail(400, 'invalid_request', 'The options of this task are not valid.', { issues })
+    : undefined;
 }
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is removed
-const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g;
+const CONTROL =
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 /**
  * Text from a model (or from a person) made safe to store and show: control characters and bidi overrides are
  * removed (`changed` says so), line breaks are `\n`, and a single line has its white space collapsed.
  */
-export function cleanText(value: string, options: { multiline?: boolean } = {}): { text: string; changed: boolean } {
+export function cleanText(
+  value: string,
+  options: { multiline?: boolean } = {},
+): { text: string; changed: boolean } {
   const withoutControl = value.replace(/\r\n?/g, '\n').replace(CONTROL, '');
   const changed = withoutControl !== value.replace(/\r\n?/g, '\n');
-  const text = options.multiline ? withoutControl.replace(/[ \t]+\n/g, '\n').trim() : withoutControl.replace(/\s+/g, ' ').trim();
+  const text = options.multiline
+    ? withoutControl.replace(/[ \t]+\n/g, '\n').trim()
+    : withoutControl.replace(/\s+/g, ' ').trim();
   return { text, changed };
 }
 
@@ -136,4 +161,5 @@ export function cleanGoal(value: unknown, max: number): string | undefined {
 }
 
 /** A short plain reason from the model: one line, cut, never markup that matters (it is shown as text). */
-export const cleanReason = (value: unknown): string => clip(cleanText(typeof value === 'string' ? value : '').text, 300);
+export const cleanReason = (value: unknown): string =>
+  clip(cleanText(typeof value === 'string' ? value : '').text, 300);

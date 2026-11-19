@@ -1,4 +1,11 @@
-import { type AsoPlatform, type ListingRow, type ListingRowTerm, type TermSource, isApplePlatform, normalizeLocale } from '@mrm/core';
+import {
+  type AsoPlatform,
+  isApplePlatform,
+  type ListingRow,
+  type ListingRowTerm,
+  normalizeLocale,
+  type TermSource,
+} from '@mrm/core';
 import type { AsoKeywordInput } from './aso.ts';
 import { timeAgo } from './format.ts';
 
@@ -11,16 +18,20 @@ import { timeAgo } from './format.ts';
 /** The tag the keywords added from this view carry. */
 export const LISTING_TAG = 'from listing';
 
-export const storeName = (platform: AsoPlatform): string => (isApplePlatform(platform) ? 'App Store' : 'Google Play');
+export const storeName = (platform: AsoPlatform): string =>
+  isApplePlatform(platform) ? 'App Store' : 'Google Play';
 
 /** "Read from the App Store 3 hours ago", or that nothing was read yet. */
 export function freshnessText(platform: AsoPlatform, readAt: number | null, now: number): string {
   const store = isApplePlatform(platform) ? 'the App Store' : 'Google Play';
-  return readAt === null ? `Not read from ${store} yet` : `Read from ${store} ${timeAgo(readAt, now)}`;
+  return readAt === null
+    ? `Not read from ${store} yet`
+    : `Read from ${store} ${timeAgo(readAt, now)}`;
 }
 
 /** The one line about Google Play: there is no hidden keyword field. */
-export const PLAY_NO_KEYWORD_FIELD = 'Google Play has no hidden keyword field. These terms are extracted from the text of the listing; Play does not keep them as keywords.';
+export const PLAY_NO_KEYWORD_FIELD =
+  'Google Play has no hidden keyword field. These terms are extracted from the text of the listing; Play does not keep them as keywords.';
 
 /** The field in words: "keyword field", "name" (App Store) or "title" (Google Play). */
 export function sourceLabel(platform: AsoPlatform, source: TermSource): string {
@@ -40,57 +51,103 @@ export function sourceLabel(platform: AsoPlatform, source: TermSource): string {
 
 /** A short mark of the field, for a chip: the full word is in the title and for screen readers. */
 export const sourceMark = (source: TermSource): string =>
-  source === 'keywords' ? 'kw' : source === 'title' ? 'name' : source === 'subtitle' ? 'sub' : source === 'shortDescription' ? 'short' : 'desc';
+  source === 'keywords'
+    ? 'kw'
+    : source === 'title'
+      ? 'name'
+      : source === 'subtitle'
+        ? 'sub'
+        : source === 'shortDescription'
+          ? 'short'
+          : 'desc';
 
 /** "In the keyword field and the name". */
 export function sourcesText(platform: AsoPlatform, sources: readonly TermSource[]): string {
   const names = sources.map((s) => sourceLabel(platform, s));
-  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return names.length <= 1
+    ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 export type TermMarkInfo = { text: string; title: string; tone: 'warn' | 'info' };
 
 /** The waste or repeat mark of a term, or null. The words say it; the tone is only a tint. */
-export function termMark(t: Pick<ListingRowTerm, 'waste' | 'duplicate' | 'entries'>): TermMarkInfo | null {
+export function termMark(
+  t: Pick<ListingRowTerm, 'waste' | 'duplicate' | 'entries'>,
+): TermMarkInfo | null {
   if (t.waste === 'in_title_or_subtitle') {
-    return { text: 'wasted', tone: 'warn', title: 'Already in the name or subtitle, which the store searches anyway (unverified), so the keyword field spends room on it.' };
+    return {
+      text: 'wasted',
+      tone: 'warn',
+      title:
+        'Already in the name or subtitle, which the store searches anyway (unverified), so the keyword field spends room on it.',
+    };
   }
   if (t.waste === 'repeated_entry' || t.waste === 'plural_variant') {
-    return { text: 'repeated', tone: 'warn', title: `${t.entries} entries of the keyword field have these words (a repeat or a plural), so room is spent twice.` };
+    return {
+      text: 'repeated',
+      tone: 'warn',
+      title: `${t.entries} entries of the keyword field have these words (a repeat or a plural), so room is spent twice.`,
+    };
   }
-  if (t.duplicate) return { text: 'twice', tone: 'info', title: 'The word is in more than one searched field.' };
+  if (t.duplicate)
+    return { text: 'twice', tone: 'info', title: 'The word is in more than one searched field.' };
   return null;
 }
 
 /** The rank today of a tracked term as a small number: "12", "50+" (not within the results read), a dash (not checked yet). */
-export function rankMark(t: Pick<ListingRowTerm, 'tracked' | 'state' | 'rank'>, depth = 50): { text: string; title: string } | null {
+export function rankMark(
+  t: Pick<ListingRowTerm, 'tracked' | 'state' | 'rank'>,
+  depth = 50,
+): { text: string; title: string } | null {
   if (!t.tracked) return null;
-  if (t.state === 'ranked' && t.rank !== null) return { text: String(t.rank), title: `Tracked, rank ${t.rank} today` };
-  if (t.state === 'not_ranked') return { text: `${depth}+`, title: `Tracked, not within the first ${depth} results` };
+  if (t.state === 'ranked' && t.rank !== null)
+    return { text: String(t.rank), title: `Tracked, rank ${t.rank} today` };
+  if (t.state === 'not_ranked')
+    return { text: `${depth}+`, title: `Tracked, not within the first ${depth} results` };
   return { text: '–', title: 'Tracked, not checked yet' };
 }
 
 /** "42 of 100 bytes, 58 left" or "12 over the limit of 100 bytes". */
-export function keywordFieldText(f: { bytes: number; limit: number; remaining: number; over: boolean }): string {
-  return f.over ? `${-f.remaining} bytes over the limit of ${f.limit}` : `${f.bytes} of ${f.limit} bytes, ${f.remaining} left`;
+export function keywordFieldText(f: {
+  bytes: number;
+  limit: number;
+  remaining: number;
+  over: boolean;
+}): string {
+  return f.over
+    ? `${-f.remaining} bytes over the limit of ${f.limit}`
+    : `${f.bytes} of ${f.limit} bytes, ${f.remaining} left`;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Tracking what is not tracked
 
 export type PlanItem = { key: string; term: string; sources: TermSource[] };
-export type PlanGroup = { id: string; appId: string; platform: AsoPlatform; locale: string; country: string; items: PlanItem[] };
+export type PlanGroup = {
+  id: string;
+  appId: string;
+  platform: AsoPlatform;
+  locale: string;
+  country: string;
+  items: PlanItem[];
+};
 export type TrackPlan = { groups: PlanGroup[]; total: number };
 
 /** The one id of a plan group, and the key of a selected item. */
-export const planGroupId = (appId: string, locale: string, country: string): string => `${appId}|${locale}|${country}`;
-export const planItemId = (group: Pick<PlanGroup, 'id'>, key: string): string => `${group.id}|${key}`;
+export const planGroupId = (appId: string, locale: string, country: string): string =>
+  `${appId}|${locale}|${country}`;
+export const planItemId = (group: Pick<PlanGroup, 'id'>, key: string): string =>
+  `${group.id}|${key}`;
 
 /**
  * What "track all untracked" would add: per app and locale, the terms that are not tracked in the locale's storefront and
  * that the keywords API accepts. A locale whose code the API does not accept is left out. `scope` limits it to one locale.
  */
-export function buildPlan(sections: readonly { appId: string; platform: AsoPlatform; rows: readonly ListingRow[] }[], scope?: { appId: string; locale: string }): TrackPlan {
+export function buildPlan(
+  sections: readonly { appId: string; platform: AsoPlatform; rows: readonly ListingRow[] }[],
+  scope?: { appId: string; locale: string },
+): TrackPlan {
   const groups: PlanGroup[] = [];
   for (const s of sections) {
     for (const row of s.rows) {
@@ -110,13 +167,21 @@ export function buildPlan(sections: readonly { appId: string; platform: AsoPlatf
 }
 
 /** The items for `POST /aso/keywords`: the chosen terms of one group, in the group's storefront and locale, tagged "from listing". */
-export function planKeywordItems(group: PlanGroup, chosen: (item: PlanItem) => boolean): AsoKeywordInput[] {
+export function planKeywordItems(
+  group: PlanGroup,
+  chosen: (item: PlanItem) => boolean,
+): AsoKeywordInput[] {
   const locale = normalizeLocale(group.locale) ?? group.locale;
-  return group.items.filter(chosen).map((i) => ({ term: i.term, country: group.country, locale, tag: LISTING_TAG }));
+  return group.items
+    .filter(chosen)
+    .map((i) => ({ term: i.term, country: group.country, locale, tag: LISTING_TAG }));
 }
 
 /** One term of one row, as the "+" on its chip adds it. */
-export const termKeywordItem = (row: Pick<ListingRow, 'locale' | 'country'>, term: Pick<ListingRowTerm, 'term'>): AsoKeywordInput => ({
+export const termKeywordItem = (
+  row: Pick<ListingRow, 'locale' | 'country'>,
+  term: Pick<ListingRowTerm, 'term'>,
+): AsoKeywordInput => ({
   term: term.term,
   country: row.country,
   locale: normalizeLocale(row.locale) ?? row.locale,
@@ -127,5 +192,7 @@ export const termKeywordItem = (row: Pick<ListingRow, 'locale' | 'country'>, ter
 export function roomText(limit: number | undefined, tracked: number, adding: number): string {
   if (!limit) return '';
   const room = Math.max(0, limit - tracked);
-  return adding > room ? `Only ${room} more fit in the limit of ${limit} keywords an app tracks, so the rest will not be added.` : `Room for ${room} more of ${limit}.`;
+  return adding > room
+    ? `Only ${room} more fit in the limit of ${limit} keywords an app tracks, so the rest will not be added.`
+    : `Room for ${room} more of ${limit}.`;
 }

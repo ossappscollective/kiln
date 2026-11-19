@@ -3,52 +3,52 @@ import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
   appendInboxPage,
-  leavesFilters,
-  neighborAfterRemoval,
-  reviewsOwner,
   appendPage,
+  appPageHref,
+  averageText,
   busiestApps,
+  collapseText,
+  defaultFilters,
   defaultInboxFilters,
+  filtersToQuery,
+  hasActiveFilters,
   hasActiveInboxFilters,
+  histogramBars,
+  type InboxReview,
   inboxAnnouncement,
   inboxFiltersFromSearch,
   inboxFiltersToQuery,
   inboxFiltersToSearch,
   inboxForApp,
   inboxHref,
+  lastReadText,
+  leavesFilters,
   moveIndex,
+  neighborAfterRemoval,
   parseInboxHash,
   quickViewFilters,
-  replaceInboxReview,
-  shortcutFor,
-  summaryStripText,
-  unansweredNote,
-  appPageHref,
-  averageText,
-  collapseText,
-  defaultFilters,
-  filtersToQuery,
-  hasActiveFilters,
-  histogramBars,
-  lastReadText,
+  type Review,
+  type ReviewSyncResult,
+  type ReviewSyncState,
   ratingText,
+  replaceInboxReview,
   replaceReview,
   reviewErrorMessage,
   reviewFacts,
+  reviewsOwner,
+  type SummaryApp,
+  shortcutFor,
   sinceFor,
   starFill,
   statusLabel,
+  summaryStripText,
   syncNotices,
   syncSummaryText,
   toggleIn,
   trendDescription,
   trendGeometry,
   triageDiff,
-  type InboxReview,
-  type Review,
-  type SummaryApp,
-  type ReviewSyncResult,
-  type ReviewSyncState,
+  unansweredNote,
   type WeekBucket,
 } from './reviews.ts';
 
@@ -141,10 +141,33 @@ test('markup in a review stays text: nothing here escapes or rewrites it', () =>
 });
 
 test('facts skip what is missing', () => {
-  assert.deepEqual(reviewFacts({ device: null, appVersion: null, buildNumber: null, territory: null, language: null }), []);
-  const facts = reviewFacts({ device: 'Pixel 8', appVersion: '1.0', buildNumber: '7', territory: null, language: 'de' });
+  assert.deepEqual(
+    reviewFacts({
+      device: null,
+      appVersion: null,
+      buildNumber: null,
+      territory: null,
+      language: null,
+    }),
+    [],
+  );
+  const facts = reviewFacts({
+    device: 'Pixel 8',
+    appVersion: '1.0',
+    buildNumber: '7',
+    territory: null,
+    language: 'de',
+  });
   assert.deepEqual(facts, ['Pixel 8', 'Version 1.0 (7)', 'de']);
-  assert.ok(reviewFacts({ device: null, appVersion: null, buildNumber: null, territory: 'US', language: null })[0]?.includes('US'));
+  assert.ok(
+    reviewFacts({
+      device: null,
+      appVersion: null,
+      buildNumber: null,
+      territory: 'US',
+      language: null,
+    })[0]?.includes('US'),
+  );
 });
 
 test('filters become a query string without review text', () => {
@@ -190,30 +213,47 @@ test('pages are appended without duplicates and one review can be replaced in pl
   const a = review({ id: 'a' });
   const b = review({ id: 'b' });
   const c = review({ id: 'c' });
-  assert.deepEqual(appendPage([a, b], [b, c]).map((r) => r.id), ['a', 'b', 'c']);
+  assert.deepEqual(
+    appendPage([a, b], [b, c]).map((r) => r.id),
+    ['a', 'b', 'c'],
+  );
   const changed = review({ id: 'b', status: 'ignored' });
-  assert.deepEqual(replaceReview([a, b, c], changed).map((r) => r.status), ['new', 'ignored', 'new']);
+  assert.deepEqual(
+    replaceReview([a, b, c], changed).map((r) => r.status),
+    ['new', 'ignored', 'new'],
+  );
 });
 
 test('a triage edit sends only what changed', () => {
   const r = review({ status: 'new', assigneeUserId: null, internalNote: null });
   assert.deepEqual(triageDiff(r, { status: 'new', assigneeUserId: null, internalNote: '  ' }), {});
-  assert.deepEqual(triageDiff(r, { status: 'triaged', assigneeUserId: null, internalNote: '' }), { status: 'triaged' });
-  assert.deepEqual(triageDiff(r, { status: 'new', assigneeUserId: 'u1', internalNote: 'call them' }), {
-    assigneeUserId: 'u1',
-    internalNote: 'call them',
+  assert.deepEqual(triageDiff(r, { status: 'triaged', assigneeUserId: null, internalNote: '' }), {
+    status: 'triaged',
   });
+  assert.deepEqual(
+    triageDiff(r, { status: 'new', assigneeUserId: 'u1', internalNote: 'call them' }),
+    {
+      assigneeUserId: 'u1',
+      internalNote: 'call them',
+    },
+  );
   const noted = review({ internalNote: 'old', assigneeUserId: 'u1' });
   assert.deepEqual(triageDiff(noted, { status: 'new', assigneeUserId: null, internalNote: '' }), {
     assigneeUserId: null,
     internalNote: null,
   });
-  assert.deepEqual(triageDiff(noted, { status: 'new', assigneeUserId: 'u1', internalNote: 'old' }), {});
+  assert.deepEqual(
+    triageDiff(noted, { status: 'new', assigneeUserId: 'u1', internalNote: 'old' }),
+    {},
+  );
 });
 
 test('histogram bars run from five stars down, full width for the largest', () => {
   const bars = histogramBars([1, 0, 2, 3, 4]);
-  assert.deepEqual(bars.map((b) => b.stars), [5, 4, 3, 2, 1]);
+  assert.deepEqual(
+    bars.map((b) => b.stars),
+    [5, 4, 3, 2, 1],
+  );
   assert.equal(bars[0]?.share, 1);
   assert.equal(bars[0]?.percent, 40);
   assert.equal(bars[4]?.count, 1);
@@ -277,7 +317,11 @@ test('sync notices put a failure first, then a gap, then the backlog', () => {
   assert.ok(notices.some((n) => n.text === 'Something small.'));
   assert.ok(notices.some((n) => n.text.includes('waits until')));
   // A past backoff is not mentioned.
-  assert.ok(!syncNotices(state({ lastError: 'x', backoffUntil: 100 }), 9000, ago).some((n) => n.text.includes('waits until')));
+  assert.ok(
+    !syncNotices(state({ lastError: 'x', backoffUntil: 100 }), 9000, ago).some((n) =>
+      n.text.includes('waits until'),
+    ),
+  );
   // An old gap is remembered even when the last read had none.
   const old = syncNotices(state({ lastGapAt: 3000 }), 9000, ago);
   assert.equal(old[0]?.tone, 'warn');
@@ -287,7 +331,10 @@ test('texts for the last read and the result of one', () => {
   assert.equal(lastReadText(state({ lastSuccessAt: null }), ago), 'Not read yet.');
   assert.equal(lastReadText(state(), ago), 'Last read at 5000.');
   assert.equal(syncSummaryText(result()), 'Read 12 reviews: 3 new, 2 changed.');
-  assert.equal(syncSummaryText(result({ fetched: 1, responses: 2 })), 'Read 1 review: 3 new, 2 changed, 2 with a changed developer response.');
+  assert.equal(
+    syncSummaryText(result({ fetched: 1, responses: 2 })),
+    'Read 1 review: 3 new, 2 changed, 2 with a changed developer response.',
+  );
   assert.ok(syncSummaryText(result({ complete: false })).endsWith('read again to continue.'));
 });
 
@@ -299,9 +346,18 @@ test('error messages are plain and keep what the store said', () => {
   assert.ok(reviewErrorMessage(error(403, 'forbidden'), 'triage').includes('triage'));
   assert.ok(reviewErrorMessage(error(409, 'sync_in_progress')).includes('already being read'));
   assert.ok(reviewErrorMessage(error(422, 'app_not_synced')).includes('Sync the app'));
-  assert.ok(reviewErrorMessage(error(422, 'store_forbidden', 'Not allowed.'), 'sync').includes('Not allowed.'));
-  assert.ok(reviewErrorMessage(error(422, 'assignee_not_member'), 'triage').includes('not a member'));
-  assert.equal(reviewErrorMessage(error(500, 'weird'), 'load'), 'Reviews could not be loaded. Try again.');
+  assert.ok(
+    reviewErrorMessage(error(422, 'store_forbidden', 'Not allowed.'), 'sync').includes(
+      'Not allowed.',
+    ),
+  );
+  assert.ok(
+    reviewErrorMessage(error(422, 'assignee_not_member'), 'triage').includes('not a member'),
+  );
+  assert.equal(
+    reviewErrorMessage(error(500, 'weird'), 'load'),
+    'Reviews could not be loaded. Try again.',
+  );
 });
 
 test('status labels', () => {
@@ -341,7 +397,9 @@ test('inbox filters: the defaults send nothing; every filter becomes its query p
   assert.equal(query.get('q'), 'crash');
   assert.equal(query.get('limit'), '25');
   assert.equal(query.get('cursor'), 'abc');
-  const unassigned = new URLSearchParams(inboxFiltersToQuery({ ...defaultInboxFilters(), assignee: 'unassigned' }, NOW));
+  const unassigned = new URLSearchParams(
+    inboxFiltersToQuery({ ...defaultInboxFilters(), assignee: 'unassigned' }, NOW),
+  );
   assert.equal(unassigned.get('unassigned'), 'true');
   assert.equal(unassigned.get('assignee'), null);
   assert.equal(hasActiveInboxFilters({ ...defaultInboxFilters(), within: '7' }), true);
@@ -373,7 +431,9 @@ test('inbox filters round trip through the page address', () => {
 });
 
 test('the address is not trusted: invalid values are dropped', () => {
-  const f = inboxFiltersFromSearch('rating=9&status=bogus&sort=oldest&within=1&platform=windows&apps=a%20b&assignee=a/b&response=maybe&territory=x%20y&language=1');
+  const f = inboxFiltersFromSearch(
+    'rating=9&status=bogus&sort=oldest&within=1&platform=windows&apps=a%20b&assignee=a/b&response=maybe&territory=x%20y&language=1',
+  );
   assert.deepEqual(f, defaultInboxFilters());
   assert.equal(inboxFiltersFromSearch(`q=${'x'.repeat(300)}`).q.length, 100);
   assert.deepEqual(inboxFiltersFromSearch('rating=1,1,2').ratings, [1, 2]);
@@ -404,22 +464,49 @@ const summaryApp = (name: string, n: number, u: number, l: number): SummaryApp =
 });
 
 test('the summary strip text and the busiest apps', () => {
-  assert.equal(summaryStripText({ total: 8, new: 3, unanswered: 5, lowRating: 2, average: 3 }), '3 new, 5 unanswered, 2 low rated, in 8 stored reviews.');
-  assert.equal(summaryStripText({ total: 1, new: 0, unanswered: 0, lowRating: 0, average: null }), '0 new, 0 unanswered, 0 low rated, in 1 stored review.');
-  const apps = [summaryApp('Quiet', 0, 0, 0), summaryApp('B', 2, 1, 0), summaryApp('A', 2, 1, 0), summaryApp('C', 5, 0, 0), summaryApp('D', 0, 4, 1)];
-  assert.deepEqual(busiestApps(apps).map((a) => a.app.name), ['C', 'A', 'B', 'D']);
-  assert.deepEqual(busiestApps(apps, 2).map((a) => a.app.name), ['C', 'A']);
+  assert.equal(
+    summaryStripText({ total: 8, new: 3, unanswered: 5, lowRating: 2, average: 3 }),
+    '3 new, 5 unanswered, 2 low rated, in 8 stored reviews.',
+  );
+  assert.equal(
+    summaryStripText({ total: 1, new: 0, unanswered: 0, lowRating: 0, average: null }),
+    '0 new, 0 unanswered, 0 low rated, in 1 stored review.',
+  );
+  const apps = [
+    summaryApp('Quiet', 0, 0, 0),
+    summaryApp('B', 2, 1, 0),
+    summaryApp('A', 2, 1, 0),
+    summaryApp('C', 5, 0, 0),
+    summaryApp('D', 0, 4, 1),
+  ];
+  assert.deepEqual(
+    busiestApps(apps).map((a) => a.app.name),
+    ['C', 'A', 'B', 'D'],
+  );
+  assert.deepEqual(
+    busiestApps(apps, 2).map((a) => a.app.name),
+    ['C', 'A'],
+  );
   assert.deepEqual(busiestApps(apps, 0), []);
 });
 
 test('inbox lists: replacing keeps the app, appending skips what is there', () => {
   const app = { id: 'a1', name: 'Alpha', platform: 'ios' as const };
-  const list: InboxReview[] = [{ ...review({ id: 'r1' }), app }, { ...review({ id: 'r2' }), app }];
+  const list: InboxReview[] = [
+    { ...review({ id: 'r1' }), app },
+    { ...review({ id: 'r2' }), app },
+  ];
   const next = replaceInboxReview(list, review({ id: 'r2', status: 'triaged' }));
   assert.equal(next[1]?.status, 'triaged');
   assert.deepEqual(next[1]?.app, app);
   assert.equal(next[0], list[0]);
-  assert.deepEqual(appendInboxPage(list, [{ ...review({ id: 'r2' }), app }, { ...review({ id: 'r3' }), app }]).map((r) => r.id), ['r1', 'r2', 'r3']);
+  assert.deepEqual(
+    appendInboxPage(list, [
+      { ...review({ id: 'r2' }), app },
+      { ...review({ id: 'r3' }), app },
+    ]).map((r) => r.id),
+    ['r1', 'r2', 'r3'],
+  );
 });
 
 test('keyboard: shortcuts never fire while typing or with a modifier', () => {
@@ -471,7 +558,11 @@ test('a triaged review leaves a "New" list, and an answered one leaves "unanswer
   assert.equal(leavesFilters(r, { statuses: ['new'], response: '' }), true);
   assert.equal(leavesFilters(r, { statuses: ['triaged', 'new'], response: '' }), false);
   assert.equal(leavesFilters(r, { statuses: [], response: '' }), false);
-  const answered = { status: 'new', developerResponse: null, reply: { status: 'sent', sentAt: 1 } } as unknown as Review;
+  const answered = {
+    status: 'new',
+    developerResponse: null,
+    reply: { status: 'sent', sentAt: 1 },
+  } as unknown as Review;
   assert.equal(leavesFilters(answered, { statuses: [], response: 'no' }), true);
   assert.equal(leavesFilters(answered, { statuses: [], response: 'yes' }), false);
 });
@@ -486,12 +577,30 @@ test('after a review leaves the list the next one is selected, else the previous
 test('the workspace summary says how old the oldest unanswered review is', () => {
   const now = Date.UTC(2026, 10, 19, 12);
   const base = { total: 8, new: 3, unanswered: 5, lowRating: 2, average: 3 };
-  assert.equal(unansweredNote({ totals: { ...base, unansweredOldestAt: now - 72 * 3_600_000 }, unansweredMaxRating: 5 }, now), 'The oldest unanswered review is 3 days old.');
   assert.equal(
-    unansweredNote({ totals: { ...base, unansweredOldestAt: now - 5 * 3_600_000 }, unansweredMaxRating: 2 }, now),
+    unansweredNote(
+      { totals: { ...base, unansweredOldestAt: now - 72 * 3_600_000 }, unansweredMaxRating: 5 },
+      now,
+    ),
+    'The oldest unanswered review is 3 days old.',
+  );
+  assert.equal(
+    unansweredNote(
+      { totals: { ...base, unansweredOldestAt: now - 5 * 3_600_000 }, unansweredMaxRating: 2 },
+      now,
+    ),
     'The oldest unanswered review is 5 hours old, counting reviews of 2 stars or fewer.',
   );
-  assert.equal(unansweredNote({ totals: { ...base, unansweredOldestAt: null }, unansweredMaxRating: 5 }, now), null);
+  assert.equal(
+    unansweredNote({ totals: { ...base, unansweredOldestAt: null }, unansweredMaxRating: 5 }, now),
+    null,
+  );
   assert.equal(unansweredNote({ totals: base, unansweredMaxRating: undefined }, now), null);
-  assert.equal(unansweredNote({ totals: { ...base, unanswered: 0, unansweredOldestAt: now }, unansweredMaxRating: 5 }, now), null);
+  assert.equal(
+    unansweredNote(
+      { totals: { ...base, unanswered: 0, unansweredOldestAt: now }, unansweredMaxRating: 5 },
+      now,
+    ),
+    null,
+  );
 });

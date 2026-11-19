@@ -38,14 +38,16 @@ export const aiProviderInfo: Record<AiProvider, AiProviderInfo> = {
     credentialKind: 'ai_anthropic',
     credentialRequired: true,
     needsUrl: false,
-    privacy: 'The data listed for a task is sent to Anthropic. Check Anthropic’s terms for your account before you turn this on.',
+    privacy:
+      'The data listed for a task is sent to Anthropic. Check Anthropic’s terms for your account before you turn this on.',
   },
   openai: {
     label: 'OpenAI',
     credentialKind: 'ai_openai',
     credentialRequired: true,
     needsUrl: false,
-    privacy: 'The data listed for a task is sent to OpenAI. Check OpenAI’s terms for your account before you turn this on.',
+    privacy:
+      'The data listed for a task is sent to OpenAI. Check OpenAI’s terms for your account before you turn this on.',
   },
   openai_compatible: {
     label: 'OpenAI compatible server (Ollama, LM Studio, vLLM, ...)',
@@ -84,7 +86,13 @@ export const aiSuggestionStatuses = ['proposed', 'accepted', 'dismissed'] as con
 export type AiSuggestionStatus = (typeof aiSuggestionStatuses)[number];
 
 /** What a proposal turns into when a person accepts it. Each kind goes through an EXISTING mechanism. */
-export const aiProposalKinds = ['keywords', 'listing_text', 'reply_draft', 'insight', 'listing_variants'] as const;
+export const aiProposalKinds = [
+  'keywords',
+  'listing_text',
+  'reply_draft',
+  'insight',
+  'listing_variants',
+] as const;
 export type AiProposalKind = (typeof aiProposalKinds)[number];
 
 /** The right a person needs to ACCEPT a proposal of each kind (the right of the mechanism it goes through). */
@@ -134,7 +142,14 @@ export function estimateTokens(text: string): number {
 // Failures
 
 /** What can go wrong with a provider call. A fixed vocabulary: provider text is never passed on. */
-export const aiErrorKinds = ['not_configured', 'auth', 'rate_limited', 'too_large', 'invalid_output', 'unavailable'] as const;
+export const aiErrorKinds = [
+  'not_configured',
+  'auth',
+  'rate_limited',
+  'too_large',
+  'invalid_output',
+  'unavailable',
+] as const;
 export type AiErrorKind = (typeof aiErrorKinds)[number];
 
 // ---------------------------------------------------------------------------------------------
@@ -233,7 +248,12 @@ export type AiReplyProposal = {
   flags: AiFlag[];
 };
 
-export type AiProposal = AiKeywordProposal | AiListingProposal | AiReplyProposal | AiInsightProposal | AiVariantsProposal;
+export type AiProposal =
+  | AiKeywordProposal
+  | AiListingProposal
+  | AiReplyProposal
+  | AiInsightProposal
+  | AiVariantsProposal;
 
 /** What accepting created, as ids (never text). */
 export type AiAcceptedRef =

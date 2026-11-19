@@ -1,5 +1,5 @@
 import type { Api } from './api.ts';
-import { type StoreSubmitConfig, type SubmitState, classifySubmitFailure } from './store-submit.ts';
+import { classifySubmitFailure, type StoreSubmitConfig, type SubmitState } from './store-submit.ts';
 
 /**
  * What the screens know about submitting a pushed draft: the server's switch (once per workspace) and, per app,
@@ -40,12 +40,19 @@ export const submitStore = {
   markSubmitted(appId: string): void {
     generations[appId] = (generations[appId] ?? 0) + 1;
     const current = states[appId];
-    if (current) states[appId] = { ...current, pushed: false, push: null, unknownOutcome: { ...current.unknownOutcome, submit: false } };
+    if (current)
+      states[appId] = {
+        ...current,
+        pushed: false,
+        push: null,
+        unknownOutcome: { ...current.unknownOutcome, submit: false },
+      };
   },
   /** A submit answered with an unknown outcome: the line asks for a new preview until a read says otherwise. */
   markUnknown(appId: string): void {
     const current = states[appId];
-    if (current) states[appId] = { ...current, unknownOutcome: { ...current.unknownOutcome, submit: true } };
+    if (current)
+      states[appId] = { ...current, unknownOutcome: { ...current.unknownOutcome, submit: true } };
   },
   config(workspaceId: string): StoreSubmitConfig | null {
     return configs[workspaceId] ?? null;
@@ -54,7 +61,8 @@ export const submitStore = {
     return configFailed[workspaceId] === true;
   },
   async loadConfig(api: Api, workspaceId: string, force = false): Promise<void> {
-    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined)) return;
+    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined))
+      return;
     configLoading[workspaceId] = true;
     try {
       configs[workspaceId] = await api.storeSubmitConfig(workspaceId);

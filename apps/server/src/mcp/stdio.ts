@@ -39,19 +39,26 @@ export function endpointFor(raw: string): URL {
   } catch {
     throw new Error('MRM_URL is not a valid address.');
   }
-  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]' || url.hostname === '::1';
+  const local =
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname === '[::1]' ||
+    url.hostname === '::1';
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
     throw new Error('MRM_URL must be https (plain http is accepted for localhost only).');
   }
-  if (url.username || url.password) throw new Error('MRM_URL must not contain a user name or password.');
+  if (url.username || url.password)
+    throw new Error('MRM_URL must not contain a user name or password.');
   url.search = '';
   url.hash = '';
-  if (!url.pathname.replace(/\/+$/, '').endsWith('/mcp')) url.pathname = `${url.pathname.replace(/\/+$/, '')}/mcp`;
+  if (!url.pathname.replace(/\/+$/, '').endsWith('/mcp'))
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/mcp`;
   return url;
 }
 
 type Id = string | number | null;
-const errorLine = (id: Id, code: number, message: string) => JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } });
+const errorLine = (id: Id, code: number, message: string) =>
+  JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } });
 
 export async function runBridge(options: BridgeOptions): Promise<void> {
   const endpoint = endpointFor(options.url);
@@ -61,7 +68,8 @@ export async function runBridge(options: BridgeOptions): Promise<void> {
 
   const post = async (message: unknown): Promise<void> => {
     const isObject = typeof message === 'object' && message !== null && !Array.isArray(message);
-    const id: Id | undefined = isObject && 'id' in message ? ((message as { id: Id }).id ?? null) : undefined;
+    const id: Id | undefined =
+      isObject && 'id' in message ? ((message as { id: Id }).id ?? null) : undefined;
     const isInitialize = isObject && (message as { method?: unknown }).method === 'initialize';
     let response: Response;
     try {
@@ -79,7 +87,8 @@ export async function runBridge(options: BridgeOptions): Promise<void> {
       });
     } catch {
       log('The MCP server could not be reached.');
-      if (id !== undefined) options.write(errorLine(id, -32603, 'The MCP server could not be reached.'));
+      if (id !== undefined)
+        options.write(errorLine(id, -32603, 'The MCP server could not be reached.'));
       return;
     }
     if (response.status === 202) {
@@ -89,19 +98,29 @@ export async function runBridge(options: BridgeOptions): Promise<void> {
     const text = await response.text();
     if (!response.ok) {
       log(`The MCP server answered ${response.status}.`);
-      if (id !== undefined) options.write(errorLine(id, -32603, STATUS_TEXT[response.status] ?? 'The MCP server could not do that.'));
+      if (id !== undefined)
+        options.write(
+          errorLine(
+            id,
+            -32603,
+            STATUS_TEXT[response.status] ?? 'The MCP server could not do that.',
+          ),
+        );
       return;
     }
     let body: unknown;
     try {
       body = JSON.parse(text);
     } catch {
-      if (id !== undefined) options.write(errorLine(id, -32603, 'The MCP server sent an answer that is not JSON.'));
+      if (id !== undefined)
+        options.write(errorLine(id, -32603, 'The MCP server sent an answer that is not JSON.'));
       return;
     }
     if (isInitialize) {
-      const negotiated = (body as { result?: { protocolVersion?: unknown } } | null)?.result?.protocolVersion;
-      if (typeof negotiated === 'string' && PROTOCOL_VERSIONS.includes(negotiated)) version = negotiated;
+      const negotiated = (body as { result?: { protocolVersion?: unknown } } | null)?.result
+        ?.protocolVersion;
+      if (typeof negotiated === 'string' && PROTOCOL_VERSIONS.includes(negotiated))
+        version = negotiated;
     }
     options.write(JSON.stringify(body));
   };
@@ -133,17 +152,21 @@ export async function runBridge(options: BridgeOptions): Promise<void> {
     await post(message);
   };
 
-  for await (const chunk of options.input) await lines(typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true }));
+  for await (const chunk of options.input)
+    await lines(typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true }));
   const rest = buffer.trim();
   if (rest) await handle(rest);
 }
 
-const isMain = typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain =
+  typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const url = process.env.MRM_URL ?? '';
   const token = process.env.MRM_TOKEN ?? '';
   if (!url || !token) {
-    process.stderr.write('Set MRM_URL (the address of Mobile Release Manager) and MRM_TOKEN (an API token).\n');
+    process.stderr.write(
+      'Set MRM_URL (the address of Mobile Release Manager) and MRM_TOKEN (an API token).\n',
+    );
     process.exit(2);
   }
   runBridge({
@@ -153,7 +176,9 @@ if (isMain) {
     write: (line) => process.stdout.write(`${line}\n`),
     log: (line) => process.stderr.write(`${line}\n`),
   }).catch((error: unknown) => {
-    process.stderr.write(`${error instanceof Error && /^MRM_URL/.test(error.message) ? error.message : 'The bridge stopped.'}\n`);
+    process.stderr.write(
+      `${error instanceof Error && /^MRM_URL/.test(error.message) ? error.message : 'The bridge stopped.'}\n`,
+    );
     process.exit(1);
   });
 }

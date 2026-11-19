@@ -5,7 +5,10 @@ import { dbTest } from './testing.ts';
 const REVIEWS = 19;
 
 dbTest('migration 19 adds the reviews tables and keeps existing data', async (db) => {
-  assert.ok(migrations.some((m) => m.id === REVIEWS), 'the migration exists');
+  assert.ok(
+    migrations.some((m) => m.id === REVIEWS),
+    'the migration exists',
+  );
   const t = db.dialect === 'postgres' ? 'BIGINT' : 'INTEGER';
   await db.execute(
     `CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at ${t} NOT NULL)`,
@@ -13,7 +16,11 @@ dbTest('migration 19 adds the reviews tables and keeps existing data', async (db
   for (const migration of migrations.filter((m) => m.id < REVIEWS)) {
     await db.transaction(async (tx) => {
       for (const statement of migration.statements(tx.dialect)) await tx.execute(statement);
-      await tx.execute('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)', [migration.id, migration.name, 1]);
+      await tx.execute('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)', [
+        migration.id,
+        migration.name,
+        1,
+      ]);
     });
   }
   await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'Acme', 1)");
@@ -24,7 +31,11 @@ dbTest('migration 19 adds the reviews tables and keeps existing data', async (db
 
   const applied = await migrate(db);
   assert.ok(applied.includes(REVIEWS));
-  assert.equal((await db.query('SELECT id FROM apps WHERE id = ?', ['a1'])).length, 1, 'existing data is untouched');
+  assert.equal(
+    (await db.query('SELECT id FROM apps WHERE id = ?', ['a1'])).length,
+    1,
+    'existing data is untouched',
+  );
 
   const insert = (id: string, storeReviewId: string) =>
     db.execute(
@@ -58,10 +69,15 @@ dbTest('migration 19 adds the reviews tables and keeps existing data', async (db
 
   // The sync state is one row per app and store.
   const state = () =>
-    db.execute("INSERT INTO review_sync_state (app_id, store, workspace_id) VALUES ('a1', 'appstoreconnect', 'w1')");
+    db.execute(
+      "INSERT INTO review_sync_state (app_id, store, workspace_id) VALUES ('a1', 'appstoreconnect', 'w1')",
+    );
   await state();
   await assert.rejects(state());
-  const [sync] = await db.query('SELECT consecutive_failures, cursor, last_success_at FROM review_sync_state WHERE app_id = ?', ['a1']);
+  const [sync] = await db.query(
+    'SELECT consecutive_failures, cursor, last_success_at FROM review_sync_state WHERE app_id = ?',
+    ['a1'],
+  );
   assert.equal(Number(sync?.consecutive_failures), 0);
   assert.equal(sync?.cursor, null);
   assert.equal(sync?.last_success_at, null);
@@ -70,7 +86,10 @@ dbTest('migration 19 adds the reviews tables and keeps existing data', async (db
     `INSERT INTO app_rating_summaries (id, workspace_id, app_id, store, territory, average_milli, rating_count, observed_at)
      VALUES ('s1', 'w1', 'a1', 'appstoreconnect', 'US', 4523, 12873, 30)`,
   );
-  const [summary] = await db.query('SELECT average_milli, current_count FROM app_rating_summaries WHERE id = ?', ['s1']);
+  const [summary] = await db.query(
+    'SELECT average_milli, current_count FROM app_rating_summaries WHERE id = ?',
+    ['s1'],
+  );
   assert.equal(Number(summary?.average_milli), 4523);
   assert.equal(summary?.current_count, null);
 });

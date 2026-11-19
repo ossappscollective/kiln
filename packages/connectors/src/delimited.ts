@@ -8,18 +8,25 @@ import { AnalyticsError } from './analytics-types.ts';
  * `analyticsLimits` allows, and a failure is an `AnalyticsError` with a fixed code, never the content of the file.
  */
 
-export const isGzip = (bytes: Uint8Array): boolean => bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+export const isGzip = (bytes: Uint8Array): boolean =>
+  bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 
 /**
  * Decompresses a gzip file. The output is capped DURING decompression (`maxOutputLength`), so a small file that expands to
  * gigabytes stops at the cap. A file that is not a complete gzip stream is `bad_gzip`; one over the cap is `too_large`.
  */
-export function gunzipCapped(bytes: Uint8Array, maxBytes: number, tooLarge: 'file_too_large' | 'segment_too_large' = 'file_too_large'): Promise<Uint8Array> {
+export function gunzipCapped(
+  bytes: Uint8Array,
+  maxBytes: number,
+  tooLarge: 'file_too_large' | 'segment_too_large' = 'file_too_large',
+): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     gunzip(bytes, { maxOutputLength: maxBytes }, (error, result) => {
-      if (!error) return resolve(new Uint8Array(result.buffer, result.byteOffset, result.byteLength));
+      if (!error)
+        return resolve(new Uint8Array(result.buffer, result.byteOffset, result.byteLength));
       const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'ERR_BUFFER_TOO_LARGE' || error instanceof RangeError) return reject(new AnalyticsError(tooLarge));
+      if (code === 'ERR_BUFFER_TOO_LARGE' || error instanceof RangeError)
+        return reject(new AnalyticsError(tooLarge));
       reject(new AnalyticsError('bad_gzip'));
     });
   });
@@ -28,7 +35,11 @@ export function gunzipCapped(bytes: Uint8Array, maxBytes: number, tooLarge: 'fil
 /** A file as received: gzip when it starts with the gzip magic bytes (whatever its name), else as is. */
 export async function openFileBytes(
   bytes: Uint8Array,
-  limits: { maxFileBytes?: number; maxTextBytes?: number; tooLarge?: 'file_too_large' | 'segment_too_large' } = {},
+  limits: {
+    maxFileBytes?: number;
+    maxTextBytes?: number;
+    tooLarge?: 'file_too_large' | 'segment_too_large';
+  } = {},
 ): Promise<Uint8Array> {
   const maxFile = limits.maxFileBytes ?? analyticsLimits.maxFileBytes;
   const maxText = limits.maxTextBytes ?? analyticsLimits.maxTextBytes;
@@ -61,8 +72,10 @@ export function decodeTableText(bytes: Uint8Array): string {
     }
   }
   const pairs = Math.floor(probe.length / 2);
-  if (pairs > 8 && oddNul > pairs * 0.6 && evenNul === 0) return new TextDecoder('utf-16le').decode(bytes);
-  if (pairs > 8 && evenNul > pairs * 0.6 && oddNul === 0) return new TextDecoder('utf-16be').decode(bytes);
+  if (pairs > 8 && oddNul > pairs * 0.6 && evenNul === 0)
+    return new TextDecoder('utf-16le').decode(bytes);
+  if (pairs > 8 && evenNul > pairs * 0.6 && oddNul === 0)
+    return new TextDecoder('utf-16be').decode(bytes);
   return new TextDecoder('utf-8').decode(bytes);
 }
 
@@ -95,7 +108,10 @@ export function sniffDelimiter(text: string): Delimiter {
  * Parses a delimited table. Quotes (`"a, b"`, `""` for a quote), CRLF and LF, blank lines skipped. The header is the first line.
  * More than `maxRows` data rows is `file_too_large`; a header with more than `maxColumns` columns, or none, is `bad_format`.
  */
-export function parseTable(text: string, limits: { maxRows?: number; maxColumns?: number } = {}): Table {
+export function parseTable(
+  text: string,
+  limits: { maxRows?: number; maxColumns?: number } = {},
+): Table {
   const maxRows = limits.maxRows ?? analyticsLimits.maxRows;
   const maxColumns = limits.maxColumns ?? analyticsLimits.maxColumns;
   const delimiter = sniffDelimiter(text);
@@ -145,7 +161,8 @@ export function parseTable(text: string, limits: { maxRows?: number; maxColumns?
   if (quoted) throw new AnalyticsError('bad_format');
   if (field !== '' || row.length > 0) endRow();
   const header = records.shift();
-  if (!header || header.every((h) => h.trim() === '') || header.length > maxColumns) throw new AnalyticsError('bad_format');
+  if (!header || header.every((h) => h.trim() === '') || header.length > maxColumns)
+    throw new AnalyticsError('bad_format');
   return { delimiter, header: header.map((h) => h.trim()), rows: records };
 }
 
@@ -169,7 +186,12 @@ export function columnIndex(header: string[]): Map<string, number> {
 /** Bytes to a table in one step: gzip, encoding and parse, with the caps. */
 export async function readTable(
   bytes: Uint8Array,
-  limits: { maxFileBytes?: number; maxTextBytes?: number; maxRows?: number; tooLarge?: 'file_too_large' | 'segment_too_large' } = {},
+  limits: {
+    maxFileBytes?: number;
+    maxTextBytes?: number;
+    maxRows?: number;
+    tooLarge?: 'file_too_large' | 'segment_too_large';
+  } = {},
 ): Promise<Table> {
   const opened = await openFileBytes(bytes, limits);
   return parseTable(decodeTableText(opened), limits);
@@ -195,7 +217,8 @@ export function parseDay(raw: string | undefined): string | undefined {
   } else return undefined;
   const t = Date.UTC(y, m - 1, d);
   const date = new Date(t);
-  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return undefined;
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d)
+    return undefined;
   return date.toISOString().slice(0, 10);
 }
 

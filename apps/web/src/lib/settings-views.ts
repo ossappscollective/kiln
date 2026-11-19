@@ -30,7 +30,8 @@ export const settingsViews: readonly SettingsViewDef[] = [
 /** The views of the form that share one state and one "Save settings" bar. */
 export const settingsFormViews: readonly SettingsView[] = ['general', 'analytics'];
 
-export const isSettingsView = (value: string | null | undefined): value is SettingsView => settingsViews.some((v) => v.id === value);
+export const isSettingsView = (value: string | null | undefined): value is SettingsView =>
+  settingsViews.some((v) => v.id === value);
 
 /** The view an address names; nothing or an unknown value is General. */
 export function settingsViewOf(hash: string): SettingsView {
@@ -38,7 +39,8 @@ export function settingsViewOf(hash: string): SettingsView {
   return isSettingsView(asked) ? asked : 'general';
 }
 
-const openViews = (allowed: (action: Action) => boolean): SettingsViewDef[] => settingsViews.filter((v) => !v.requires || allowed(v.requires));
+const openViews = (allowed: (action: Action) => boolean): SettingsViewDef[] =>
+  settingsViews.filter((v) => !v.requires || allowed(v.requires));
 
 /** The views a role may open, in order; empty when there is nothing to switch between (fewer than two). */
 export function settingsViewsFor(allowed: (action: Action) => boolean): SettingsViewDef[] {
@@ -47,7 +49,10 @@ export function settingsViewsFor(allowed: (action: Action) => boolean): Settings
 }
 
 /** The view to draw: the one the address names when the role may open it, else the first the role may open. */
-export function resolveSettingsView(hash: string, allowed: (action: Action) => boolean): SettingsView {
+export function resolveSettingsView(
+  hash: string,
+  allowed: (action: Action) => boolean,
+): SettingsView {
   const list = openViews(allowed);
   const asked = settingsViewOf(hash);
   return list.find((v) => v.id === asked)?.id ?? list[0]?.id ?? 'general';
@@ -70,4 +75,6 @@ export const isFormView = (view: SettingsView): boolean => settingsFormViews.inc
 
 /** The views of the form with their label, for the note on another view that unsaved changes wait on. */
 export const unsavedViewsNote = (view: SettingsView): string =>
-  isFormView(view) ? '' : 'You have unsaved changes in General or Analytics. They stay until you save or discard them there.';
+  isFormView(view)
+    ? ''
+    : 'You have unsaved changes in General or Analytics. They stay until you save or discard them there.';

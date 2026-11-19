@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { THEME_KEY, applyThemePref, parseThemePref, readThemePref, saveThemePref } from './theme.ts';
+import {
+  applyThemePref,
+  parseThemePref,
+  readThemePref,
+  saveThemePref,
+  THEME_KEY,
+} from './theme.ts';
 
 function memory(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -49,7 +55,10 @@ test('storage that throws or is missing never breaks the theme', () => {
 
 test('applyThemePref sets data-theme for a choice and removes it for auto', () => {
   const attrs = new Map<string, string>();
-  const root = { setAttribute: (n: string, v: string) => void attrs.set(n, v), removeAttribute: (n: string) => void attrs.delete(n) };
+  const root = {
+    setAttribute: (n: string, v: string) => void attrs.set(n, v),
+    removeAttribute: (n: string) => void attrs.delete(n),
+  };
   applyThemePref('dark', root);
   assert.equal(attrs.get('data-theme'), 'dark');
   applyThemePref('auto', root);

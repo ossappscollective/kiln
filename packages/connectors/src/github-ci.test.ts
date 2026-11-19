@@ -7,13 +7,21 @@ import { GithubRepoConnector } from './github.ts';
 
 type Call = { method: string; path: string; query: URLSearchParams; signal?: AbortSignal | null };
 
-function fakeGithub(routes: Record<string, (query: URLSearchParams) => { status?: number; json?: unknown }>) {
+function fakeGithub(
+  routes: Record<string, (query: URLSearchParams) => { status?: number; json?: unknown }>,
+) {
   const calls: Call[] = [];
   const fetchFake: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
-    calls.push({ method: init?.method ?? 'GET', path: url.pathname, query: url.searchParams, signal: init?.signal });
+    calls.push({
+      method: init?.method ?? 'GET',
+      path: url.pathname,
+      query: url.searchParams,
+      signal: init?.signal,
+    });
     const route = routes[url.pathname];
-    if (!route) return new Response(JSON.stringify({ message: `no route ${url.pathname}` }), { status: 599 });
+    if (!route)
+      return new Response(JSON.stringify({ message: `no route ${url.pathname}` }), { status: 599 });
     const answer = route(url.searchParams);
     return new Response(answer.json === undefined ? null : JSON.stringify(answer.json), {
       status: answer.status ?? 200,
@@ -43,7 +51,12 @@ const workflowsFixture = {
       state: 'active',
       html_url: 'https://github.com/acme/trail-notes/blob/main/.github/workflows/ios.yml',
     },
-    { id: 161336, name: 'Android release', path: '.github/workflows/android.yml', state: 'disabled_manually' },
+    {
+      id: 161336,
+      name: 'Android release',
+      path: '.github/workflows/android.yml',
+      state: 'disabled_manually',
+    },
     { id: 'x', path: '' },
   ],
 };
@@ -70,9 +83,16 @@ const runFixture = {
 };
 
 test('listWorkflows maps names, paths and states, skips malformed entries and sorts by path', async () => {
-  const { connector, calls } = fakeGithub({ [`${R}/actions/workflows`]: () => ({ json: workflowsFixture }) });
+  const { connector, calls } = fakeGithub({
+    [`${R}/actions/workflows`]: () => ({ json: workflowsFixture }),
+  });
   assert.deepEqual(await connector.listWorkflows(), [
-    { id: '161336', name: 'Android release', path: '.github/workflows/android.yml', state: 'disabled_manually' },
+    {
+      id: '161336',
+      name: 'Android release',
+      path: '.github/workflows/android.yml',
+      state: 'disabled_manually',
+    },
     {
       id: '161335',
       name: 'iOS release',
@@ -138,7 +158,10 @@ test('getCiRun returns the run, undefined for 404, and refuses a bad id before a
   assert.equal((await connector.getCiRun('30433642'))?.displayTitle, 'Release 2.4.0 (build 240)');
   assert.equal(await connector.getCiRun('1'), undefined);
   const before = calls.length;
-  await assert.rejects(connector.getCiRun('../x'), (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input');
+  await assert.rejects(
+    connector.getCiRun('../x'),
+    (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input',
+  );
   assert.equal(calls.length, before);
 });
 
@@ -211,7 +234,13 @@ test('compareCommits does not read more pages than needed', async () => {
   const { connector, calls } = fakeGithub({
     [`${R}/compare/${SHA_A}...${SHA_B}`]: (query) => {
       const page = Number(query.get('page'));
-      return { json: { status: 'ahead', total_commits: 130, commits: all.slice((page - 1) * 100, page * 100) } };
+      return {
+        json: {
+          status: 'ahead',
+          total_commits: 130,
+          commits: all.slice((page - 1) * 100, page * 100),
+        },
+      };
     },
   });
   const result = await connector.compareCommits(SHA_A, SHA_B, { limit: 20 });
@@ -229,10 +258,19 @@ test('compareCommits refuses bad refs locally and reports a missing commit', asy
   const { connector, calls } = fakeGithub({
     [`${R}/compare/${SHA_A}...${SHA_B}`]: () => ({ status: 404, json: { message: 'Not Found' } }),
   });
-  await assert.rejects(connector.compareCommits('a..b', SHA_B), (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input');
-  await assert.rejects(connector.compareCommits('', SHA_B), (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input');
+  await assert.rejects(
+    connector.compareCommits('a..b', SHA_B),
+    (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input',
+  );
+  await assert.rejects(
+    connector.compareCommits('', SHA_B),
+    (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input',
+  );
   assert.equal(calls.length, 0);
-  await assert.rejects(connector.compareCommits(SHA_A, SHA_B), (e: unknown) => e instanceof GithubError && e.kind === 'not_found');
+  await assert.rejects(
+    connector.compareCommits(SHA_A, SHA_B),
+    (e: unknown) => e instanceof GithubError && e.kind === 'not_found',
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -245,13 +283,23 @@ function etagGithub(answer: (seen: Seen) => { status?: number; json?: unknown; e
   const fetchFake: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
     const headers = new Headers(init?.headers);
-    const request = { path: url.pathname, query: url.searchParams, ifNoneMatch: headers.get('if-none-match') };
+    const request = {
+      path: url.pathname,
+      query: url.searchParams,
+      ifNoneMatch: headers.get('if-none-match'),
+    };
     seen.push(request);
     const reply = answer(request);
-    return new Response(reply.status === 304 || reply.json === undefined ? null : JSON.stringify(reply.json), {
-      status: reply.status ?? 200,
-      headers: { 'content-type': 'application/json', ...(reply.etag ? { etag: reply.etag } : {}) },
-    });
+    return new Response(
+      reply.status === 304 || reply.json === undefined ? null : JSON.stringify(reply.json),
+      {
+        status: reply.status ?? 200,
+        headers: {
+          'content-type': 'application/json',
+          ...(reply.etag ? { etag: reply.etag } : {}),
+        },
+      },
+    );
   };
   const connector = new GithubRepoConnector({
     owner: 'acme',
@@ -264,7 +312,9 @@ function etagGithub(answer: (seen: Seen) => { status?: number; json?: unknown; e
 
 test('listCiRunsPage sends If-None-Match and reports 304 as notModified', async () => {
   const { connector, seen } = etagGithub((s) =>
-    s.ifNoneMatch === 'W/"abc"' ? { status: 304 } : { json: { workflow_runs: [runFixture] }, etag: 'W/"abc"' },
+    s.ifNoneMatch === 'W/"abc"'
+      ? { status: 304 }
+      : { json: { workflow_runs: [runFixture] }, etag: 'W/"abc"' },
   );
   const first = await connector.listCiRunsPage({ limit: 50 });
   assert.equal(first.notModified, false);
@@ -291,12 +341,34 @@ const jobsFixture = {
       html_url: 'https://github.com/acme/trail-notes/actions/runs/30433642/job/399444496',
       runner_name: 'runner-7',
       steps: [
-        { name: 'Run tests', status: 'in_progress', conclusion: null, number: 2, started_at: '2024-11-18T10:01:00Z', completed_at: null },
-        { name: 'Set up job', status: 'completed', conclusion: 'success', number: 1, started_at: '2024-11-18T10:00:00Z', completed_at: '2024-11-18T10:01:00Z' },
+        {
+          name: 'Run tests',
+          status: 'in_progress',
+          conclusion: null,
+          number: 2,
+          started_at: '2024-11-18T10:01:00Z',
+          completed_at: null,
+        },
+        {
+          name: 'Set up job',
+          status: 'completed',
+          conclusion: 'success',
+          number: 1,
+          started_at: '2024-11-18T10:00:00Z',
+          completed_at: '2024-11-18T10:01:00Z',
+        },
         { name: 'no number' },
       ],
     },
-    { id: 399444497, name: 'upload', status: 'queued', conclusion: null, started_at: null, completed_at: null, steps: [] },
+    {
+      id: 399444497,
+      name: 'upload',
+      status: 'queued',
+      conclusion: null,
+      started_at: null,
+      completed_at: null,
+      steps: [],
+    },
     { name: 'no id' },
   ],
 };
@@ -308,15 +380,24 @@ test('listRunJobs keeps names, states and times only, steps in order', async () 
   assert.equal(seen[0]?.query.get('filter'), 'latest');
   assert.equal(list.etag, 'W/"j1"');
   assert.equal(list.truncated, false);
-  assert.deepEqual(list.jobs.map((j) => j.name), ['build', 'upload']);
+  assert.deepEqual(
+    list.jobs.map((j) => j.name),
+    ['build', 'upload'],
+  );
   const build = list.jobs[0];
-  assert.deepEqual(build?.steps.map((s) => [s.number, s.name, s.status]), [
-    [1, 'Set up job', 'completed'],
-    [2, 'Run tests', 'in_progress'],
-  ]);
+  assert.deepEqual(
+    build?.steps.map((s) => [s.number, s.name, s.status]),
+    [
+      [1, 'Set up job', 'completed'],
+      [2, 'Run tests', 'in_progress'],
+    ],
+  );
   assert.equal(build?.startedAt, Date.parse('2024-11-18T10:00:00Z'));
   assert.equal(build?.completedAt, null);
-  assert.equal(build?.url, 'https://github.com/acme/trail-notes/actions/runs/30433642/job/399444496');
+  assert.equal(
+    build?.url,
+    'https://github.com/acme/trail-notes/actions/runs/30433642/job/399444496',
+  );
   assert.ok(!JSON.stringify(list).includes('runner-7'), 'no runner details');
 });
 
@@ -325,9 +406,17 @@ test('listRunJobs: 304 is notModified, 404 is missing, a bad id is refused befor
     if (s.path.includes('/runs/404/')) return { status: 404, json: { message: 'Not Found' } };
     return s.ifNoneMatch ? { status: 304 } : { json: { total_count: 0, jobs: [] } };
   });
-  assert.deepEqual(await connector.listRunJobs('1', { etag: 'W/"x"' }), { jobs: [], notModified: true, truncated: false, etag: 'W/"x"' });
+  assert.deepEqual(await connector.listRunJobs('1', { etag: 'W/"x"' }), {
+    jobs: [],
+    notModified: true,
+    truncated: false,
+    etag: 'W/"x"',
+  });
   const missing = await connector.listRunJobs('404');
   assert.equal(missing.missing, true);
-  await assert.rejects(connector.listRunJobs('../x'), (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input');
+  await assert.rejects(
+    connector.listRunJobs('../x'),
+    (e: unknown) => e instanceof GithubError && e.kind === 'invalid_input',
+  );
   assert.equal(seen.length, 2);
 });

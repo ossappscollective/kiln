@@ -1,12 +1,12 @@
 import {
-  AsoError,
+  APPLE_SEARCH_MAX_LIMIT,
   type AppleApp,
+  AsoError,
+  lookupApple,
+  PLAY_MAX_SEARCH_LIMIT,
   type PlayApp,
   PlayPublicConnector,
-  lookupApple,
   searchApple,
-  APPLE_SEARCH_MAX_LIMIT,
-  PLAY_MAX_SEARCH_LIMIT,
 } from '@mrm/connectors';
 import { type AsoPlatform, isApplePlatform, isGooglePlatform } from '@mrm/core';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
@@ -36,11 +36,17 @@ export const ASO_HOSTS: ReadonlySet<string> = new Set(['itunes.apple.com', 'play
 /** The largest body the fetch accepts (the connectors cap at 4 MiB and 3 MiB). */
 export const ASO_FETCH_MAX_BYTES = 4 * 1024 * 1024;
 
-export type AsoNet = { resolve?: Resolver; exchange?: Exchange; allowPrivate?: boolean; timeoutMs?: number };
+export type AsoNet = {
+  resolve?: Resolver;
+  exchange?: Exchange;
+  allowPrivate?: boolean;
+  timeoutMs?: number;
+};
 
 export function createAsoFetch(net: AsoNet = {}): typeof fetch {
   return async (input, init) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    const url =
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const headers = new Headers(init?.headers);
     const userAgent = headers.get('user-agent');
     const result = await safeGet(url, {
@@ -55,12 +61,16 @@ export function createAsoFetch(net: AsoNet = {}): typeof fetch {
       ...(init?.signal ? { signal: init.signal } : {}),
     });
     if (result.ok) {
-      return new Response(result.body, { status: 200, headers: result.contentType ? { 'content-type': result.contentType } : {} });
+      return new Response(result.body, {
+        status: 200,
+        headers: result.contentType ? { 'content-type': result.contentType } : {},
+      });
     }
     switch (result.kind) {
       case 'status':
         return new Response(null, {
-          status: result.status && result.status >= 200 && result.status <= 599 ? result.status : 502,
+          status:
+            result.status && result.status >= 200 && result.status <= 599 ? result.status : 502,
           ...(result.retryAfter ? { headers: { 'retry-after': result.retryAfter } } : {}),
         });
       case 'redirect':
@@ -96,7 +106,13 @@ export type PublicApp = {
 export type SearchHit = { id: string; name?: string };
 export type SearchOutcome = { hits: SearchHit[]; total: number; cached: boolean };
 
-export type SearchInput = { platform: AsoPlatform; term: string; country: string; locale: string; limit: number };
+export type SearchInput = {
+  platform: AsoPlatform;
+  term: string;
+  country: string;
+  locale: string;
+  limit: number;
+};
 export type LookupInput = { platform: AsoPlatform; id: string; country: string; locale: string };
 
 export type AsoSources = {
@@ -162,15 +178,25 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
   async function outbound<T>(source: 'apple' | 'play', call: () => Promise<T>): Promise<T> {
     const now = options.now();
     if (now < cooldown[source]) {
-      throw new AsoError(source === 'apple' ? 'apple_search' : 'play_public', 'rate_limited', 'Paused after the store asked to slow down.', {
-        retryAfterSeconds: Math.max(1, Math.ceil((cooldown[source] - now) / 1000)),
-      });
+      throw new AsoError(
+        source === 'apple' ? 'apple_search' : 'play_public',
+        'rate_limited',
+        'Paused after the store asked to slow down.',
+        {
+          retryAfterSeconds: Math.max(1, Math.ceil((cooldown[source] - now) / 1000)),
+        },
+      );
     }
     const wait = limiters[source].take('process');
     if (wait > 0) {
-      throw new AsoError(source === 'apple' ? 'apple_search' : 'play_public', 'rate_limited', 'The local rate limit for this source is used up.', {
-        retryAfterSeconds: wait,
-      });
+      throw new AsoError(
+        source === 'apple' ? 'apple_search' : 'play_public',
+        'rate_limited',
+        'The local rate limit for this source is used up.',
+        {
+          retryAfterSeconds: wait,
+        },
+      );
     }
     try {
       return await call();
@@ -183,7 +209,11 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
   }
 
   /** The cache, and one call in flight per key. Failures are not cached. */
-  async function shared<T>(key: string, cache: ReturnType<typeof timedCache<T>>, load: () => Promise<T>): Promise<{ value: T; cached: boolean }> {
+  async function shared<T>(
+    key: string,
+    cache: ReturnType<typeof timedCache<T>>,
+    load: () => Promise<T>,
+  ): Promise<{ value: T; cached: boolean }> {
     const hit = options.cacheMs > 0 ? cache.get(key, options.now()) : undefined;
     if (hit !== undefined) return { value: hit, cached: true };
     const running = inflight.get(key) as Promise<T> | undefined;
@@ -203,17 +233,39 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
   return {
     playEnabled: options.playEnabled,
     async search(input) {
-      const limit = Math.min(input.limit, isApplePlatform(input.platform) ? APPLE_SEARCH_MAX_LIMIT : PLAY_MAX_SEARCH_LIMIT);
+      const limit = Math.min(
+        input.limit,
+        isApplePlatform(input.platform) ? APPLE_SEARCH_MAX_LIMIT : PLAY_MAX_SEARCH_LIMIT,
+      );
       const key = `s|${input.platform}|${input.country}|${isGooglePlatform(input.platform) ? input.locale : ''}|${input.term.toLowerCase()}|${limit}`;
       const { value, cached } = await shared(key, searches, async () => {
         if (isApplePlatform(input.platform)) {
-          const r = await outbound('apple', () => searchApple({ term: input.term, country: input.country, limit, ...(input.platform === 'macos' ? { macos: true } : {}), fetch: doFetch }));
-          return { hits: r.apps.map((a) => ({ id: a.trackId, name: a.name })), total: r.total, cached: false };
+          const r = await outbound('apple', () =>
+            searchApple({
+              term: input.term,
+              country: input.country,
+              limit,
+              ...(input.platform === 'macos' ? { macos: true } : {}),
+              fetch: doFetch,
+            }),
+          );
+          return {
+            hits: r.apps.map((a) => ({ id: a.trackId, name: a.name })),
+            total: r.total,
+            cached: false,
+          };
         }
         if (!options.playEnabled) {
-          throw new AsoError('play_public', 'unavailable', 'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).', { reason: 'disabled' });
+          throw new AsoError(
+            'play_public',
+            'unavailable',
+            'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).',
+            { reason: 'disabled' },
+          );
         }
-        const r = await outbound('play', () => play.search({ term: input.term, country: input.country, language: input.locale, limit }));
+        const r = await outbound('play', () =>
+          play.search({ term: input.term, country: input.country, language: input.locale, limit }),
+        );
         return { hits: r.ids.map((id) => ({ id })), total: r.total, cached: false };
       });
       return { ...value, cached };
@@ -222,13 +274,27 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
       const key = `l|${input.platform}|${input.country}|${isGooglePlatform(input.platform) ? input.locale : ''}|${input.id}`;
       const { value } = await shared(key, lookups, async () => {
         if (isApplePlatform(input.platform)) {
-          const app = await outbound('apple', () => lookupApple({ id: input.id, country: input.country, ...(input.platform === 'macos' ? { macos: true } : {}), fetch: doFetch }));
+          const app = await outbound('apple', () =>
+            lookupApple({
+              id: input.id,
+              country: input.country,
+              ...(input.platform === 'macos' ? { macos: true } : {}),
+              fetch: doFetch,
+            }),
+          );
           return app ? fromApple(app) : null;
         }
         if (!options.playEnabled) {
-          throw new AsoError('play_public', 'unavailable', 'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).', { reason: 'disabled' });
+          throw new AsoError(
+            'play_public',
+            'unavailable',
+            'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).',
+            { reason: 'disabled' },
+          );
         }
-        const app = await outbound('play', () => play.getApp({ packageName: input.id, country: input.country, language: input.locale }));
+        const app = await outbound('play', () =>
+          play.getApp({ packageName: input.id, country: input.country, language: input.locale }),
+        );
         return app ? fromPlay(app) : null;
       });
       return value ?? undefined;

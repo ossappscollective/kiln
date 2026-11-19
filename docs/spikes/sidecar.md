@@ -9,12 +9,12 @@ first real bundle (see "Still open").
 
 ## Options
 
-| Option | Idea | Watch for |
-| --- | --- | --- |
-| A. Node single-executable application | Bundle the server to one file, inject it into a Node binary | Bundling workspace packages. SQLite is built into Node (`node:sqlite`), so there is no native module |
-| B. Bun compile | `bun build --compile` produces one executable | Native module support; behaviour differences from Node |
-| C. Ship Node plus sources | Bundle a Node runtime and the TypeScript sources as Tauri resources | Larger download; simplest to get working |
-| D. Thin client | The desktop app talks to a local or remote server the user already runs | Not a standalone app |
+| Option                                | Idea                                                                    | Watch for                                                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| A. Node single-executable application | Bundle the server to one file, inject it into a Node binary             | Bundling workspace packages. SQLite is built into Node (`node:sqlite`), so there is no native module |
+| B. Bun compile                        | `bun build --compile` produces one executable                           | Native module support; behaviour differences from Node                                               |
+| C. Ship Node plus sources             | Bundle a Node runtime and the TypeScript sources as Tauri resources     | Larger download; simplest to get working                                                             |
+| D. Thin client                        | The desktop app talks to a local or remote server the user already runs | Not a standalone app                                                                                 |
 
 ## How to decide
 

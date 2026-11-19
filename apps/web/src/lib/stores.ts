@@ -6,7 +6,16 @@ import type { IconName } from './icons.ts';
  * (see icons.ts); the labels are the services' own names, used only to identify them.
  */
 
-export type StoreId = 'app_store' | 'mac_app_store' | 'google_play' | 'testflight' | 'github' | 'expo' | 'fastlane' | 'git' | 'generic';
+export type StoreId =
+  | 'app_store'
+  | 'mac_app_store'
+  | 'google_play'
+  | 'testflight'
+  | 'github'
+  | 'expo'
+  | 'fastlane'
+  | 'git'
+  | 'generic';
 
 export type StoreTint = 'info' | 'ok' | 'neutral';
 
@@ -25,21 +34,57 @@ export type StoreInfo = {
 };
 
 export const storeInfo: Record<StoreId, StoreInfo> = {
-  app_store: { store: 'app_store', label: 'App Store', fullLabel: 'App Store Connect', icon: 'store-ios', tint: 'info' },
-  mac_app_store: { store: 'mac_app_store', label: 'Mac App Store', fullLabel: 'App Store Connect', icon: 'store-ios', tint: 'info' },
-  google_play: { store: 'google_play', label: 'Google Play', fullLabel: 'Google Play Console', icon: 'store-android', tint: 'ok' },
-  testflight: { store: 'testflight', label: 'TestFlight', fullLabel: 'TestFlight', icon: 'send', tint: 'info' },
+  app_store: {
+    store: 'app_store',
+    label: 'App Store',
+    fullLabel: 'App Store Connect',
+    icon: 'store-ios',
+    tint: 'info',
+  },
+  mac_app_store: {
+    store: 'mac_app_store',
+    label: 'Mac App Store',
+    fullLabel: 'App Store Connect',
+    icon: 'store-ios',
+    tint: 'info',
+  },
+  google_play: {
+    store: 'google_play',
+    label: 'Google Play',
+    fullLabel: 'Google Play Console',
+    icon: 'store-android',
+    tint: 'ok',
+  },
+  testflight: {
+    store: 'testflight',
+    label: 'TestFlight',
+    fullLabel: 'TestFlight',
+    icon: 'send',
+    tint: 'info',
+  },
   github: { store: 'github', label: 'GitHub', fullLabel: 'GitHub', icon: 'repo', tint: 'neutral' },
   expo: { store: 'expo', label: 'Expo', fullLabel: 'Expo', icon: 'code', tint: 'neutral' },
-  fastlane: { store: 'fastlane', label: 'Fastlane', fullLabel: 'Fastlane', icon: 'pipeline', tint: 'neutral' },
-  git: { store: 'git', label: 'Git host', fullLabel: 'Git host', icon: 'git-branch', tint: 'neutral' },
+  fastlane: {
+    store: 'fastlane',
+    label: 'Fastlane',
+    fullLabel: 'Fastlane',
+    icon: 'pipeline',
+    tint: 'neutral',
+  },
+  git: {
+    store: 'git',
+    label: 'Git host',
+    fullLabel: 'Git host',
+    icon: 'git-branch',
+    tint: 'neutral',
+  },
   generic: { store: 'generic', label: 'Store', fullLabel: 'Store', icon: 'store', tint: 'neutral' },
 };
 
 export const storeIds = Object.keys(storeInfo) as StoreId[];
 
 export const isStoreId = (value: unknown): value is StoreId =>
-  typeof value === 'string' && Object.prototype.hasOwnProperty.call(storeInfo, value);
+  typeof value === 'string' && Object.hasOwn(storeInfo, value);
 
 /** A store by id. An unknown id is the neutral generic store, never an error. */
 export function storeById(id: string | null | undefined): StoreInfo {
@@ -72,7 +117,10 @@ export function storeForPlatform(platform: string | null | undefined): StoreInfo
 
 /** A repository host such as `github.com`. Any other host is the neutral Git host. */
 export function storeForRepositoryHost(host: string | null | undefined): StoreInfo {
-  const h = (host ?? '').trim().toLowerCase().replace(/^www\./, '');
+  const h = (host ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '');
   if (h === '') return storeInfo.git;
   return h === 'github.com' || h.endsWith('.github.com') ? storeInfo.github : storeInfo.git;
 }
@@ -101,7 +149,13 @@ export const platformInfo: Record<PlatformId, PlatformInfo> = {
 /** A platform string (`ios`, `android`, any case). Anything else is the neutral smartphone. */
 export function platformById(platform: string | null | undefined): PlatformInfo {
   const p = (platform ?? '').toLowerCase();
-  return p === 'ios' ? platformInfo.ios : p === 'macos' ? platformInfo.macos : p === 'android' ? platformInfo.android : platformInfo.unknown;
+  return p === 'ios'
+    ? platformInfo.ios
+    : p === 'macos'
+      ? platformInfo.macos
+      : p === 'android'
+        ? platformInfo.android
+        : platformInfo.unknown;
 }
 
 // ---------------------------------------------------------------------------------------------

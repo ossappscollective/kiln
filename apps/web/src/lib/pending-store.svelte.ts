@@ -29,7 +29,8 @@ export const pendingStore = {
     const mine = (summaryGeneration[workspaceId] = (summaryGeneration[workspaceId] ?? 0) + 1);
     try {
       const out = await api.pendingSummary(workspaceId);
-      if (mine === summaryGeneration[workspaceId] && out && Array.isArray(out.apps)) summaries[workspaceId] = out;
+      if (mine === summaryGeneration[workspaceId] && out && Array.isArray(out.apps))
+        summaries[workspaceId] = out;
     } catch {
       // No chip: the screens work without it.
     }
@@ -58,7 +59,8 @@ export const pendingStore = {
   },
   /** Reads the server's switch once per workspace (a failure can be tried again by calling it again). */
   async loadConfig(api: Api, workspaceId: string, force = false): Promise<void> {
-    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined)) return;
+    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined))
+      return;
     configLoading[workspaceId] = true;
     try {
       configs[workspaceId] = await api.storePublishConfig(workspaceId);
@@ -79,8 +81,16 @@ export const pendingStore = {
    * After something changed (a publish, a discard): read again what other screens show about these apps, so no dashboard keeps
    * a stale line. Everything is a read of our own database; nothing here touches a store.
    */
-  async refresh(api: Api, workspaceId: string, appIds: readonly string[], options: { submit: boolean }): Promise<void> {
-    const jobs: Promise<unknown>[] = [pendingStore.loadSummary(api, workspaceId), pipelineStore.loadSummary(api, workspaceId)];
+  async refresh(
+    api: Api,
+    workspaceId: string,
+    appIds: readonly string[],
+    options: { submit: boolean },
+  ): Promise<void> {
+    const jobs: Promise<unknown>[] = [
+      pendingStore.loadSummary(api, workspaceId),
+      pipelineStore.loadSummary(api, workspaceId),
+    ];
     for (const id of appIds) {
       jobs.push(pendingStore.loadView(api, workspaceId, id));
       jobs.push(stagedStore.load(api, workspaceId, id));

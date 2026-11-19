@@ -51,7 +51,10 @@ export type LocalConfigView = {
   signing: { enabled: boolean; format?: 'ssh' | 'gpg' };
 };
 
-export function localConfigView(ctx: Pick<RepoContext, 'reads' | 'localWrite'>, includeRoots: boolean): LocalConfigView {
+export function localConfigView(
+  ctx: Pick<RepoContext, 'reads' | 'localWrite'>,
+  includeRoots: boolean,
+): LocalConfigView {
   const available: LocalAvailability = localAvailability(ctx.reads);
   const writable = localWriteAvailability(ctx.localWrite);
   const write = writable.enabled
@@ -60,8 +63,21 @@ export function localConfigView(ctx: Pick<RepoContext, 'reads' | 'localWrite'>, 
   const format = ctx.localWrite?.signing?.format;
   const signing = format ? { enabled: true, format } : { enabled: false };
   return available.enabled
-    ? { enabled: true, envName: ENV_NAME, ...(includeRoots ? { roots: available.roots } : {}), write, signing }
-    : { enabled: false, envName: ENV_NAME, reason: available.reason, message: available.message, write, signing };
+    ? {
+        enabled: true,
+        envName: ENV_NAME,
+        ...(includeRoots ? { roots: available.roots } : {}),
+        write,
+        signing,
+      }
+    : {
+        enabled: false,
+        envName: ENV_NAME,
+        reason: available.reason,
+        message: available.message,
+        write,
+        signing,
+      };
 }
 
 const refusal = (available: LocalAvailability): Failure | undefined =>
@@ -101,7 +117,8 @@ async function examine(
 ): Promise<Outcome<Validated>> {
   const available = localAvailability(ctx.reads);
   const off = refusal(available);
-  if (off || !ctx.reads) return off ?? failure(409, 'local_not_enabled', 'Local clones are not enabled.');
+  if (off || !ctx.reads)
+    return off ?? failure(409, 'local_not_enabled', 'Local clones are not enabled.');
   const check = await validateLocalPath(input.path, ctx.reads.local ?? { roots: [], excluded: [] });
   if (!check.ok) return pathProblem(check);
   const inspected = await inspectLocalRepo({
@@ -112,9 +129,18 @@ async function examine(
     ...(input.skipStatus ? { skipStatus: true } : {}),
   });
   if (!inspected.ok) {
-    return failure(GIT_PROBLEM_STATUS[inspected.code], `local_${inspected.code}`, inspected.message);
+    return failure(
+      GIT_PROBLEM_STATUS[inspected.code],
+      `local_${inspected.code}`,
+      inspected.message,
+    );
   }
-  return { ok: true, realPath: check.realPath, worktree: check.worktree, inspection: inspected.inspection };
+  return {
+    ok: true,
+    realPath: check.realPath,
+    worktree: check.worktree,
+    inspection: inspected.inspection,
+  };
 }
 
 export type ConnectedMatch = {
@@ -135,7 +161,11 @@ export type LocalCheck = LocalInspection & {
   warnings: string[];
 };
 
-async function findMatch(ctx: RepoContext, workspaceId: string, inspection: LocalInspection): Promise<ConnectedMatch | null> {
+async function findMatch(
+  ctx: RepoContext,
+  workspaceId: string,
+  inspection: LocalInspection,
+): Promise<ConnectedMatch | null> {
   const remote = inspection.remote;
   if (!remote?.github) return null;
   const [row] = await ctx.db.query(
@@ -150,7 +180,8 @@ async function findMatch(ctx: RepoContext, workspaceId: string, inspection: Loca
     name: `${String(row.owner)}/${String(row.repo)}`,
     owner: String(row.owner),
     repo: String(row.repo),
-    localPath: row.local_path === null || row.local_path === undefined ? null : String(row.local_path),
+    localPath:
+      row.local_path === null || row.local_path === undefined ? null : String(row.local_path),
   };
 }
 
@@ -161,7 +192,9 @@ async function findByPath(ctx: RepoContext, workspaceId: string, realPath: strin
   );
   if (!row) return undefined;
   const repository = await getRepository(ctx.db, workspaceId, String(row.repository_id));
-  return repository ? { id: repository.id, name: repository.name, localOnly: repository.localOnly } : undefined;
+  return repository
+    ? { id: repository.id, name: repository.name, localOnly: repository.localOnly }
+    : undefined;
 }
 
 /**
@@ -179,16 +212,23 @@ export async function checkLocalPath(
     actor,
     action: 'repository.local_check',
     target: { type: 'local_path', id: done.ok ? done.realPath : input.path.slice(0, 200) },
-    detail: { path: done.ok ? done.realPath : input.path.slice(0, 200), ok: done.ok, ...(done.ok ? {} : { code: done.body.error }) },
+    detail: {
+      path: done.ok ? done.realPath : input.path.slice(0, 200),
+      ok: done.ok,
+      ...(done.ok ? {} : { code: done.body.error }),
+    },
     at: ctx.now(),
   });
   if (!done.ok) return done;
   const { inspection } = done;
   const warnings: string[] = [];
-  if (inspection.checkedOutBranch === null) warnings.push('HEAD is detached: choose the branch to read.');
+  if (inspection.checkedOutBranch === null)
+    warnings.push('HEAD is detached: choose the branch to read.');
   if (inspection.dirtyCount === null) warnings.push('Uncommitted changes could not be counted.');
   if (!inspection.remote) {
-    warnings.push('The repository has no GitHub `origin` remote, so it cannot be matched to a connected repository.');
+    warnings.push(
+      'The repository has no GitHub `origin` remote, so it cannot be matched to a connected repository.',
+    );
   }
   return {
     ok: true,
@@ -216,18 +256,29 @@ function chosenBranch(inspection: LocalInspection): string | undefined {
 /** A repository that is only a folder on this machine: no credential, owner or repo. */
 export async function connectLocalRepository(
   ctx: RepoContext,
-  input: { workspaceId: string; path: string; branch?: string | undefined; name?: string | undefined },
+  input: {
+    workspaceId: string;
+    path: string;
+    branch?: string | undefined;
+    name?: string | undefined;
+  },
   actor: Actor,
 ): Promise<Outcome<{ repository: Repository }>> {
   const done = await examine(ctx, { path: input.path, branch: input.branch, skipStatus: true });
   if (!done.ok) return done;
   const branch = chosenBranch(done.inspection);
   if (!branch) {
-    return failure(422, 'local_detached_head', 'HEAD is detached in that repository. Choose the branch to read.');
+    return failure(
+      422,
+      'local_detached_head',
+      'HEAD is detached in that repository. Choose the branch to read.',
+    );
   }
   const taken = await findByPath(ctx, input.workspaceId, done.realPath);
   if (taken) {
-    return failure(409, 'already_connected', `That folder is already connected as ${taken.name}.`, { repositoryId: taken.id });
+    return failure(409, 'already_connected', `That folder is already connected as ${taken.name}.`, {
+      repositoryId: taken.id,
+    });
   }
   const id = randomUUID();
   const now = ctx.now();
@@ -257,11 +308,20 @@ export async function connectLocalRepository(
   } catch (error) {
     if (isUniqueViolation(error)) {
       const again = await findByPath(ctx, input.workspaceId, done.realPath);
-      if (again) return failure(409, 'already_connected', `That folder is already connected as ${again.name}.`, { repositoryId: again.id });
+      if (again)
+        return failure(
+          409,
+          'already_connected',
+          `That folder is already connected as ${again.name}.`,
+          { repositoryId: again.id },
+        );
     }
     throw error;
   }
-  return { ok: true, repository: (await getRepository(ctx.db, input.workspaceId, id)) as Repository };
+  return {
+    ok: true,
+    repository: (await getRepository(ctx.db, input.workspaceId, id)) as Repository,
+  };
 }
 
 /**
@@ -294,7 +354,11 @@ export async function attachLocalCheckout(
   if (!done.ok) return done;
   const branch = chosenBranch(done.inspection);
   if (!branch) {
-    return failure(422, 'local_detached_head', 'HEAD is detached in that repository. Choose the branch to read.');
+    return failure(
+      422,
+      'local_detached_head',
+      'HEAD is detached in that repository. Choose the branch to read.',
+    );
   }
   const remote = done.inspection.remote;
   if (
@@ -308,12 +372,17 @@ export async function attachLocalCheckout(
       409,
       'remote_mismatch',
       `That clone's origin is ${remote.owner}/${remote.repo}, but this repository is ${repository.owner}/${repository.repo}. If it is a fork or a mirror of it, confirm and try again.`,
-      { origin: `${remote.owner}/${remote.repo}`, repository: `${repository.owner}/${repository.repo}` },
+      {
+        origin: `${remote.owner}/${remote.repo}`,
+        repository: `${repository.owner}/${repository.repo}`,
+      },
     );
   }
   const taken = await findByPath(ctx, input.workspaceId, done.realPath);
   if (taken && taken.id !== repository.id) {
-    return failure(409, 'path_in_use', `That folder is already used by ${taken.name}.`, { repositoryId: taken.id });
+    return failure(409, 'path_in_use', `That folder is already used by ${taken.name}.`, {
+      repositoryId: taken.id,
+    });
   }
 
   const now = ctx.now();
@@ -332,16 +401,24 @@ export async function attachLocalCheckout(
           `INSERT INTO repository_local_checkouts
              (repository_id, workspace_id, path, branch, name, created_by, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [repository.id, input.workspaceId, done.realPath, branch, done.inspection.folderName, actor.id, now, now],
+          [
+            repository.id,
+            input.workspaceId,
+            done.realPath,
+            branch,
+            done.inspection.folderName,
+            actor.id,
+            now,
+            now,
+          ],
         );
       }
       // A local-only repository reads this branch as its default.
       if (repository.localOnly) {
-        await tx.execute('UPDATE repositories SET default_branch = ? WHERE id = ? AND workspace_id = ?', [
-          branch,
-          repository.id,
-          input.workspaceId,
-        ]);
+        await tx.execute(
+          'UPDATE repositories SET default_branch = ? WHERE id = ? AND workspace_id = ?',
+          [branch, repository.id, input.workspaceId],
+        );
       }
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
@@ -352,7 +429,9 @@ export async function attachLocalCheckout(
           path: done.realPath,
           branch,
           ...(stored ? { previousPath: stored.path, previousBranch: stored.branch } : {}),
-          ...(input.allowRemoteMismatch && remote ? { originConfirmed: `${remote.owner}/${remote.repo}` } : {}),
+          ...(input.allowRemoteMismatch && remote
+            ? { originConfirmed: `${remote.owner}/${remote.repo}` }
+            : {}),
         },
         at: now,
       });
@@ -362,10 +441,14 @@ export async function attachLocalCheckout(
       return failure(409, 'path_in_use', 'That folder is already used by another repository.');
     }
     // The repository was disconnected while the folder was being checked.
-    if (error instanceof Error && /foreign key/i.test(error.message)) return failure(404, 'not_found');
+    if (error instanceof Error && /foreign key/i.test(error.message))
+      return failure(404, 'not_found');
     throw error;
   }
-  return { ok: true, repository: (await getRepository(ctx.db, input.workspaceId, repository.id)) as Repository };
+  return {
+    ok: true,
+    repository: (await getRepository(ctx.db, input.workspaceId, repository.id)) as Repository,
+  };
 }
 
 /** Takes the local folder off a GitHub repository: reads go back to GitHub. A local-only repository is disconnected instead. */
@@ -383,13 +466,14 @@ export async function detachLocalCheckout(
       'A local-only repository is only its folder. Disconnect the repository instead of detaching the folder.',
     );
   }
-  if (!repository.local) return failure(404, 'no_local_checkout', 'This repository has no local clone attached.');
+  if (!repository.local)
+    return failure(404, 'no_local_checkout', 'This repository has no local clone attached.');
   const now = ctx.now();
   await ctx.db.transaction(async (tx) => {
-    await tx.execute('DELETE FROM repository_local_checkouts WHERE repository_id = ? AND workspace_id = ?', [
-      repository.id,
-      input.workspaceId,
-    ]);
+    await tx.execute(
+      'DELETE FROM repository_local_checkouts WHERE repository_id = ? AND workspace_id = ?',
+      [repository.id, input.workspaceId],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
@@ -401,7 +485,10 @@ export async function detachLocalCheckout(
   });
   // The managed copy of the folder is a cache: gone with the attachment (errors are logged, not thrown).
   await ctx.reads?.remove(input.workspaceId, localCloneId(repository.id));
-  return { ok: true, repository: (await getRepository(ctx.db, input.workspaceId, repository.id)) as Repository };
+  return {
+    ok: true,
+    repository: (await getRepository(ctx.db, input.workspaceId, repository.id)) as Repository,
+  };
 }
 
 /**

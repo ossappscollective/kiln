@@ -11,10 +11,10 @@ plain JSON in `workspace_settings` and is shown to every member who may read set
 
 ## Rights
 
-| Action | Who | Used for |
-| --- | --- | --- |
-| `settings.read` | members, admins, owners | `GET /settings`. Viewers get `403`. |
-| `settings.write` | admins and owners | `PUT /settings`, `POST /translate/test`. |
+| Action           | Who                     | Used for                                 |
+| ---------------- | ----------------------- | ---------------------------------------- |
+| `settings.read`  | members, admins, owners | `GET /settings`. Viewers get `403`.      |
+| `settings.write` | admins and owners       | `PUT /settings`, `POST /translate/test`. |
 
 Non-members, and members of another workspace, get `404 { "error": "not_found" }`. An API token may
 hold either action (an app-limited token cannot call these workspace-wide routes). Every change is
@@ -23,22 +23,22 @@ a secret). A `PUT` that changes nothing writes no entry.
 
 ## The keys
 
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `reviews.lowRatingThreshold` | integer 1 to 4 | `2` | Reviews rated at or below this raise `review.new_low_rating` and show as "Low rating". See [what a change does](#what-changing-the-low-rating-threshold-does). |
-| `translation.enabled` | boolean | `false` | While `false`, no review text is sent to any provider. |
-| `translation.provider` | `google`, `deepl`, `azure`, `libretranslate` | `google` | Which service translates. Each needs a credential of its own kind. |
-| `translation.targetLanguage` | BCP-47 tag | `en` | The language reviews are translated into. `pt_BR` is stored as `pt-BR`. |
-| `translation.mode` | `off`, `on_demand`, `auto` | `on_demand` | `auto` translates new reviews after a sync (see [reviews](reviews.md#translation)). |
-| `translation.dailyCharBudget` | integer 0 to 100,000,000 | `50000` | Characters this workspace may send per UTC day. `0`: no limit here. |
-| `translation.libretranslate.url` | text | `""` | The LibreTranslate server, `https://host[/path]`. Empty: none. |
-| `release.stalledAfterHours` | integer 0 to 720 | `6` | A release that has stood still for longer than this many hours is **stalled** ([release pipeline](release-pipeline.md)); it raises `release.stalled`. `0` turns the signal off for the workspace (the pipeline is still shown). |
-| `release.stalledRepeatHours` | integer 0 to 720 | `24` | The same stall is reminded again after this many hours. `0`: once per stall, never again. |
-| `reviews.unansweredReminderHours` | integer 0 to 720 | `0` | `review.unanswered`: one digest at most every this many hours, when a review rated at or below `reviews.unansweredMaxRating` has waited that long without an answer. `0` (the default) is off. |
-| `reviews.unansweredMaxRating` | integer 1 to 5 | `5` | The highest rating the digest counts (`2` means only 1 and 2 stars). |
-| `analytics.enabled` | boolean | `false` | While `false`, no analytics sync, scheduled job or Apple enable action reaches a store. Reading stored numbers and importing a file still work ([analytics](analytics.md)). Written with `analytics.manage` (admins and owners). |
-| `analytics.appleVendorNumber` | text | `""` | The vendor number of App Store Connect Sales and Trends (5 to 12 digits). Empty: Apple sales are not read. |
-| `analytics.playBucketId` | text | `""` | The Cloud Storage bucket of the Google Play monthly reports (`pubsite_prod_rev_` and digits, as shown in Play Console; a leading `gs://` is dropped). Empty: those reports are not read. |
+| Key                               | Type                                         | Default     | Meaning                                                                                                                                                                                                                          |
+| --------------------------------- | -------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reviews.lowRatingThreshold`      | integer 1 to 4                               | `2`         | Reviews rated at or below this raise `review.new_low_rating` and show as "Low rating". See [what a change does](#what-changing-the-low-rating-threshold-does).                                                                   |
+| `translation.enabled`             | boolean                                      | `false`     | While `false`, no review text is sent to any provider.                                                                                                                                                                           |
+| `translation.provider`            | `google`, `deepl`, `azure`, `libretranslate` | `google`    | Which service translates. Each needs a credential of its own kind.                                                                                                                                                               |
+| `translation.targetLanguage`      | BCP-47 tag                                   | `en`        | The language reviews are translated into. `pt_BR` is stored as `pt-BR`.                                                                                                                                                          |
+| `translation.mode`                | `off`, `on_demand`, `auto`                   | `on_demand` | `auto` translates new reviews after a sync (see [reviews](reviews.md#translation)).                                                                                                                                              |
+| `translation.dailyCharBudget`     | integer 0 to 100,000,000                     | `50000`     | Characters this workspace may send per UTC day. `0`: no limit here.                                                                                                                                                              |
+| `translation.libretranslate.url`  | text                                         | `""`        | The LibreTranslate server, `https://host[/path]`. Empty: none.                                                                                                                                                                   |
+| `release.stalledAfterHours`       | integer 0 to 720                             | `6`         | A release that has stood still for longer than this many hours is **stalled** ([release pipeline](release-pipeline.md)); it raises `release.stalled`. `0` turns the signal off for the workspace (the pipeline is still shown).  |
+| `release.stalledRepeatHours`      | integer 0 to 720                             | `24`        | The same stall is reminded again after this many hours. `0`: once per stall, never again.                                                                                                                                        |
+| `reviews.unansweredReminderHours` | integer 0 to 720                             | `0`         | `review.unanswered`: one digest at most every this many hours, when a review rated at or below `reviews.unansweredMaxRating` has waited that long without an answer. `0` (the default) is off.                                   |
+| `reviews.unansweredMaxRating`     | integer 1 to 5                               | `5`         | The highest rating the digest counts (`2` means only 1 and 2 stars).                                                                                                                                                             |
+| `analytics.enabled`               | boolean                                      | `false`     | While `false`, no analytics sync, scheduled job or Apple enable action reaches a store. Reading stored numbers and importing a file still work ([analytics](analytics.md)). Written with `analytics.manage` (admins and owners). |
+| `analytics.appleVendorNumber`     | text                                         | `""`        | The vendor number of App Store Connect Sales and Trends (5 to 12 digits). Empty: Apple sales are not read.                                                                                                                       |
+| `analytics.playBucketId`          | text                                         | `""`        | The Cloud Storage bucket of the Google Play monthly reports (`pubsite_prod_rev_` and digits, as shown in Play Console; a leading `gs://` is dropped). Empty: those reports are not read.                                         |
 
 The address rules for `translation.libretranslate.url` (checked on save, and again at every call,
 because DNS can change): `https` only; no user name, password, query or fragment; a private,

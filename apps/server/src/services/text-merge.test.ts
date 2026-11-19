@@ -228,7 +228,11 @@ test('merge: random disjoint edits always merge to the union of both', () => {
         expected[i] = '';
       }
     }
-    const text = (l: string[]) => l.filter((x) => x !== '').map((x) => `${x}\n`).join('');
+    const text = (l: string[]) =>
+      l
+        .filter((x) => x !== '')
+        .map((x) => `${x}\n`)
+        .join('');
     const result = mergeText(text(base), text(ours), text(theirs));
     assert.equal(result.ok, true, `round ${round}`);
     if (result.ok) assert.equal(result.text, text(expected), `round ${round}`);

@@ -6,7 +6,7 @@ import {
   ReplyOutcomeUnknownError,
   type ReplyToReviewInput,
   type ReplyToReviewResult,
-  StoreError,
+  type StoreError,
   type StoreReview,
   type StoreReviewReplyConnector,
 } from '@mrm/connectors';
@@ -20,8 +20,15 @@ import type { ReviewConnectorFactory, ReviewConnectorInput } from './services/re
 
 const KEY_LINE = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTOPSECRETKEYBODY';
 const PEM = `-----BEGIN PRIVATE KEY-----\n${KEY_LINE}\n-----END PRIVATE KEY-----`;
-export const ASC_SECRET = JSON.stringify({ keyId: 'ABC123DEFG', issuerId: 'issuer-1', privateKey: PEM });
-export const PLAY_SECRET = JSON.stringify({ client_email: 'bot@proj.iam.gserviceaccount.com', private_key: PEM });
+export const ASC_SECRET = JSON.stringify({
+  keyId: 'ABC123DEFG',
+  issuerId: 'issuer-1',
+  privateKey: PEM,
+});
+export const PLAY_SECRET = JSON.stringify({
+  client_email: 'bot@proj.iam.gserviceaccount.com',
+  private_key: PEM,
+});
 
 export type ReplyBehavior =
   | { kind: 'ok'; state?: string }
@@ -55,7 +62,8 @@ export class FakeReplyStore implements StoreReviewReplyConnector {
   }
   #apply(input: ReplyToReviewInput, state?: string) {
     const found = this.reviews.find((r) => r.storeReviewId === input.reviewId);
-    if (found) found.developerResponse = { body: input.text, at: Date.now(), ...(state ? { state } : {}) };
+    if (found)
+      found.developerResponse = { body: input.text, at: Date.now(), ...(state ? { state } : {}) };
   }
   async replyToReview(input: ReplyToReviewInput): Promise<ReplyToReviewResult> {
     this.replies.push(input);
@@ -67,11 +75,19 @@ export class FakeReplyStore implements StoreReviewReplyConnector {
       throw new ReplyOutcomeUnknownError(this.store, 'timed out');
     }
     this.#apply(input, b.state);
-    return { repliedAt: Date.now(), ...(b.state ? { state: b.state } : {}), ...(this.platform === 'ios' ? { storeResponseId: 'resp-1' } : {}) };
+    return {
+      repliedAt: Date.now(),
+      ...(b.state ? { state: b.state } : {}),
+      ...(this.platform === 'ios' ? { storeResponseId: 'resp-1' } : {}),
+    };
   }
 }
 
-export const storeReview = (n: number, over: Partial<StoreReview> = {}, platform: Platform = 'ios'): StoreReview => ({
+export const storeReview = (
+  n: number,
+  over: Partial<StoreReview> = {},
+  platform: Platform = 'ios',
+): StoreReview => ({
   store: platform === 'ios' ? 'appstoreconnect' : 'googleplay',
   platform,
   storeReviewId: `rev-${n}`,
@@ -103,7 +119,11 @@ export async function bootReviews(db: Database, reviews: Deps = {}) {
       connectorFactory: factory as ReviewConnectorFactory,
       ratingFetcher: null,
       ...reviews,
-      reply: { enabled: true, connectorFactory: factory as ReviewReplyConnectorFactory, ...reviews.reply },
+      reply: {
+        enabled: true,
+        connectorFactory: factory as ReviewReplyConnectorFactory,
+        ...reviews.reply,
+      },
     },
   });
   const iosCredential = await t.addCredential('app_store_connect', ASC_SECRET);
@@ -118,11 +138,21 @@ export async function bootReviews(db: Database, reviews: Deps = {}) {
       name: name ?? `App ${appCount}`,
     });
     const id = res.body.app.id as string;
-    if (platform === 'ios') await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', ['1234567890', id]);
+    if (platform === 'ios')
+      await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', ['1234567890', id]);
     return id;
   };
   /** Inserts reviews directly (and, for the reply tests, into the fake store too). */
-  const seed = async (appId: string, platform: Platform, n: number, over: Partial<StoreReview> & { status?: string; assignee?: string | null; response?: string | null } = {}) => {
+  const seed = async (
+    appId: string,
+    platform: Platform,
+    n: number,
+    over: Partial<StoreReview> & {
+      status?: string;
+      assignee?: string | null;
+      response?: string | null;
+    } = {},
+  ) => {
     const { status, assignee, response, ...store } = over;
     const r = storeReview(n, store, platform);
     const id = randomUUID();
@@ -132,10 +162,27 @@ export async function bootReviews(db: Database, reviews: Deps = {}) {
           app_version, created_at, updated_at, first_seen_at, fetched_at, developer_response, status, assignee_user_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id, t.workspaceId, appId, r.store, `${appId.slice(0, 4)}-${r.storeReviewId}`, r.rating, r.title ?? null, r.body, r.authorName ?? null,
-        r.territory ?? null, r.language ?? null, r.appVersion ?? null, r.createdAt, r.updatedAt, 1, 1,
-        response === undefined || response === null ? null : JSON.stringify({ body: response, at: 5, state: null }),
-        status ?? 'new', assignee ?? null,
+        id,
+        t.workspaceId,
+        appId,
+        r.store,
+        `${appId.slice(0, 4)}-${r.storeReviewId}`,
+        r.rating,
+        r.title ?? null,
+        r.body,
+        r.authorName ?? null,
+        r.territory ?? null,
+        r.language ?? null,
+        r.appVersion ?? null,
+        r.createdAt,
+        r.updatedAt,
+        1,
+        1,
+        response === undefined || response === null
+          ? null
+          : JSON.stringify({ body: response, at: 5, state: null }),
+        status ?? 'new',
+        assignee ?? null,
       ],
     );
     (platform === 'ios' ? stores.ios : stores.android).reviews.push({
@@ -145,9 +192,11 @@ export async function bootReviews(db: Database, reviews: Deps = {}) {
     });
     return id;
   };
-  const userId = async (email = 'ada@example.com') => String((await db.query('SELECT id FROM users WHERE email = ?', [email]))[0]?.id);
+  const userId = async (email = 'ada@example.com') =>
+    String((await db.query('SELECT id FROM users WHERE email = ?', [email]))[0]?.id);
   const events = async (type?: string) =>
-    (await t.call(t.owner, 'GET', `/events?since=0&limit=200${type ? `&type=${type}` : ''}`)).body.events as {
+    (await t.call(t.owner, 'GET', `/events?since=0&limit=200${type ? `&type=${type}` : ''}`)).body
+      .events as {
       type: string;
       payload: Record<string, unknown>;
     }[];

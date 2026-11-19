@@ -17,9 +17,19 @@ export type TestStatus = {
 };
 
 /** What the status column shows for the last recorded test of a saved credential. */
-export function testStatus(lastTest: LastTest | null | undefined, now: number = Date.now(), locale?: string): TestStatus {
+export function testStatus(
+  lastTest: LastTest | null | undefined,
+  now: number = Date.now(),
+  locale?: string,
+): TestStatus {
   if (!lastTest) {
-    return { state: 'untested', label: 'Never tested', tone: 'none', when: '', title: 'This credential has not been tested yet.' };
+    return {
+      state: 'untested',
+      label: 'Never tested',
+      tone: 'none',
+      when: '',
+      title: 'This credential has not been tested yet.',
+    };
   }
   const state = lastTest.ok ? 'working' : 'failed';
   const label = lastTest.ok ? 'Working' : 'Failed';
@@ -44,7 +54,8 @@ export type TestSummary = { ok: boolean; tone: 'ok' | 'bad'; message: string; de
  * list, and supplies a message if the provider sent none.
  */
 export function summarizeTest(result: TestResult): TestSummary {
-  const clip = (text: string) => (text.length > MAX_LINE ? `${text.slice(0, MAX_LINE - 1)}…` : text);
+  const clip = (text: string) =>
+    text.length > MAX_LINE ? `${text.slice(0, MAX_LINE - 1)}…` : text;
   const seen = new Set<string>();
   const details: string[] = [];
   for (const raw of Array.isArray(result.details) ? result.details : []) {
@@ -65,7 +76,10 @@ export function summarizeTest(result: TestResult): TestSummary {
 }
 
 /** The sentence to show when the test could not run at all: no network, rate limit, or a refusal. */
-export function testErrorMessage(error: unknown, fallback = 'Could not run the test. Try again.'): string {
+export function testErrorMessage(
+  error: unknown,
+  fallback = 'Could not run the test. Try again.',
+): string {
   return error instanceof ApiError ? error.message : fallback;
 }
 
@@ -92,8 +106,18 @@ export function formatCheckedOn(iso: string, locale?: string): string {
   if (!match) return '';
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return '';
-  return date.toLocaleDateString(locale, { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' });
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  )
+    return '';
+  return date.toLocaleDateString(locale, {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 }
 
 /** Only web links are rendered as links, so content can never smuggle in a script URL. */

@@ -89,9 +89,23 @@ Body (16 KB at most):
 201:
 
 ```json
-{ "token": "mrm_...", "summary": { "id": "...", "name": "Release CI", "prefix": "mrm_ab12cd", "role": "member",
-  "appIds": ["..."], "actions": ["apps.read", "apps.sync"], "expiresAt": 1798761600000, "lastUsedAt": null,
-  "revokedAt": null, "createdAt": 1766000000000, "createdBy": { "id": "...", "name": "Ada" }, "status": "active" } }
+{
+  "token": "mrm_...",
+  "summary": {
+    "id": "...",
+    "name": "Release CI",
+    "prefix": "mrm_ab12cd",
+    "role": "member",
+    "appIds": ["..."],
+    "actions": ["apps.read", "apps.sync"],
+    "expiresAt": 1798761600000,
+    "lastUsedAt": null,
+    "revokedAt": null,
+    "createdAt": 1766000000000,
+    "createdBy": { "id": "...", "name": "Ada" },
+    "status": "active"
+  }
+}
 ```
 
 The `token` is in this response and nowhere else, ever (`Cache-Control: no-store`). It is `mrm_`

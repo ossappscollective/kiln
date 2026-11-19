@@ -5,7 +5,12 @@
 
 export type TotpState = 'none' | 'pending' | 'active';
 export type TotpStatus = { state: TotpState; confirmedAt: number | null };
-export type EmailFactor = { address: string; verified: boolean; verifiedAt: number | null; usable: boolean };
+export type EmailFactor = {
+  address: string;
+  verified: boolean;
+  verifiedAt: number | null;
+  usable: boolean;
+};
 export type LoginMode = 'off' | 'optional' | 'admins' | 'all';
 
 export type TwoFactorStatus = {
@@ -35,22 +40,57 @@ export type SmtpSettings = {
   passwordSet: boolean;
   allowPrivateHosts: boolean;
 };
-export type SmtpInput = { host: string; port?: number; secure: SmtpSecure; user?: string; password?: string; from: string };
-export type MailTestResult = { ok: true; to: string } | { ok: false; code: string; hint?: string; message?: string };
+export type SmtpInput = {
+  host: string;
+  port?: number;
+  secure: SmtpSecure;
+  user?: string;
+  password?: string;
+  from: string;
+};
+export type MailTestResult =
+  | { ok: true; to: string }
+  | { ok: false; code: string; hint?: string; message?: string };
 
 /** What `POST /api/auth/login` answers when a second factor is asked for. */
-export type LoginChallenge = { twoFactorRequired: true; enrollmentRequired: boolean; challenge: string; methods: LoginMethod[] };
+export type LoginChallenge = {
+  twoFactorRequired: true;
+  enrollmentRequired: boolean;
+  challenge: string;
+  methods: LoginMethod[];
+};
 export type LoginMethod = 'totp' | 'email' | 'recovery';
-export type LoginResult = { user: { id: string; email: string; displayName: string } } | LoginChallenge;
+export type LoginResult =
+  | { user: { id: string; email: string; displayName: string } }
+  | LoginChallenge;
 
 export const isLoginChallenge = (r: unknown): r is LoginChallenge =>
-  !!r && typeof r === 'object' && (r as { twoFactorRequired?: unknown }).twoFactorRequired === true && typeof (r as { challenge?: unknown }).challenge === 'string';
+  !!r &&
+  typeof r === 'object' &&
+  (r as { twoFactorRequired?: unknown }).twoFactorRequired === true &&
+  typeof (r as { challenge?: unknown }).challenge === 'string';
 
 export const LOGIN_MODES: { value: LoginMode; label: string; hint: string }[] = [
-  { value: 'off', label: 'Off', hint: 'Signing in needs the password only. An authenticator app or email can still confirm hard actions.' },
-  { value: 'optional', label: 'Optional', hint: 'People who set up an authenticator app or email must use it after their password.' },
-  { value: 'admins', label: 'Required for owners and admins', hint: 'Owners and admins must have a second factor. If they have none, they set one up at their next sign-in.' },
-  { value: 'all', label: 'Required for everyone', hint: 'Every member must have a second factor. Anyone without one sets it up at their next sign-in.' },
+  {
+    value: 'off',
+    label: 'Off',
+    hint: 'Signing in needs the password only. An authenticator app or email can still confirm hard actions.',
+  },
+  {
+    value: 'optional',
+    label: 'Optional',
+    hint: 'People who set up an authenticator app or email must use it after their password.',
+  },
+  {
+    value: 'admins',
+    label: 'Required for owners and admins',
+    hint: 'Owners and admins must have a second factor. If they have none, they set one up at their next sign-in.',
+  },
+  {
+    value: 'all',
+    label: 'Required for everyone',
+    hint: 'Every member must have a second factor. Anyone without one sets it up at their next sign-in.',
+  },
 ];
 
 /** Keeps only the digits, at most six: what a code field holds while typing (a pasted `123 456` works). */
@@ -80,37 +120,49 @@ export function twoFactorSummary(status: Pick<TwoFactorStatus, 'totp' | 'email'>
   return parts.length === 0 ? 'Not set up' : `On: ${parts.join(' and ')}`;
 }
 
-export const loginModeSummary = (mode: LoginMode): string => LOGIN_MODES.filter((m) => m.value === mode)[0]?.label ?? 'Off';
+export const loginModeSummary = (mode: LoginMode): string =>
+  LOGIN_MODES.filter((m) => m.value === mode)[0]?.label ?? 'Off';
 
 /** Seconds left until a resend is allowed, counted from when the code was sent. */
-export const resendIn = (sentAt: number, resendAfterSeconds: number, now: number): number => Math.max(0, Math.ceil((sentAt + resendAfterSeconds * 1000 - now) / 1000));
+export const resendIn = (sentAt: number, resendAfterSeconds: number, now: number): number =>
+  Math.max(0, Math.ceil((sentAt + resendAfterSeconds * 1000 - now) / 1000));
 
-const WAIT = (seconds: number) => (seconds < 60 ? `${Math.max(1, Math.ceil(seconds))} seconds` : `${Math.ceil(seconds / 60)} minute${Math.ceil(seconds / 60) === 1 ? '' : 's'}`);
+const WAIT = (seconds: number) =>
+  seconds < 60
+    ? `${Math.max(1, Math.ceil(seconds))} seconds`
+    : `${Math.ceil(seconds / 60)} minute${Math.ceil(seconds / 60) === 1 ? '' : 's'}`;
 
 const MAIL_FAILURES: Record<string, string> = {
   smtp_not_configured: 'No mail server is set up. An admin can add one in Settings, Mail.',
   smtp_connection_failed: 'The mail server could not be reached. Check the host name and the port.',
   smtp_auth_failed: 'The mail server refused the user name or password.',
-  smtp_tls_failed: 'A secure connection to the mail server could not be made. Check the security setting and the server certificate.',
+  smtp_tls_failed:
+    'A secure connection to the mail server could not be made. Check the security setting and the server certificate.',
   smtp_rejected: 'The mail server did not accept the message.',
   smtp_timeout: 'The mail server did not answer in time.',
 };
 
-export const mailFailureMessage = (code: string): string => MAIL_FAILURES[code] ?? 'The message could not be sent.';
+export const mailFailureMessage = (code: string): string =>
+  MAIL_FAILURES[code] ?? 'The message could not be sent.';
 
 const HINTS: Record<string, string> = {
-  private_address_blocked: 'This server only sends mail to public addresses. For a mail server on this machine or your network, the person who runs this server sets MRM_SMTP_ALLOW_PRIVATE_HOSTS=true and restarts it.',
+  private_address_blocked:
+    'This server only sends mail to public addresses. For a mail server on this machine or your network, the person who runs this server sets MRM_SMTP_ALLOW_PRIVATE_HOSTS=true and restarts it.',
   host_not_allowed: 'That address cannot be used for mail.',
   host_not_found: 'The host name could not be found.',
-  login_needs_tls: 'A password is only sent over an encrypted connection. Choose STARTTLS or TLS, or a mail server on this machine.',
-  starttls_not_offered: 'The server does not offer STARTTLS. Choose TLS (usually port 465), or a server that supports STARTTLS.',
-  certificate_rejected: 'The server certificate was not accepted (not trusted, expired or for another name).',
+  login_needs_tls:
+    'A password is only sent over an encrypted connection. Choose STARTTLS or TLS, or a mail server on this machine.',
+  starttls_not_offered:
+    'The server does not offer STARTTLS. Choose TLS (usually port 465), or a server that supports STARTTLS.',
+  certificate_rejected:
+    'The server certificate was not accepted (not trusted, expired or for another name).',
   no_auth_mechanism: 'The server offers no login method this app supports (PLAIN or LOGIN).',
   invalid_address: 'One of the addresses is not valid.',
   message_too_large: 'The message is too large.',
 };
 
-export const mailHintMessage = (hint: string | undefined): string | undefined => (hint ? HINTS[hint] : undefined);
+export const mailHintMessage = (hint: string | undefined): string | undefined =>
+  hint ? HINTS[hint] : undefined;
 
 /** Plain words for the fixed codes of the two-factor and mail routes. Unknown codes get no sentence here (undefined). */
 export function twoFactorMessage(code: string, retryAfter?: number): string | undefined {
@@ -164,15 +216,25 @@ type ErrorLike = { code?: unknown; message?: unknown; body?: unknown };
 export function twoFactorProblem(error: unknown): string {
   const e = error as ErrorLike | null;
   if (!e || typeof e !== 'object') return 'Something went wrong. Try again.';
-  const body = (e.body && typeof e.body === 'object' ? e.body : {}) as { code?: unknown; hint?: unknown; message?: unknown };
+  const body = (e.body && typeof e.body === 'object' ? e.body : {}) as {
+    code?: unknown;
+    hint?: unknown;
+    message?: unknown;
+  };
   if (e.code === 'mail_failed' && typeof body.code === 'string') {
     const hint = typeof body.hint === 'string' ? mailHintMessage(body.hint) : undefined;
     return hint ? `${mailFailureMessage(body.code)} ${hint}` : mailFailureMessage(body.code);
   }
-  if (e.code === 'address_not_allowed') return mailHintMessage(typeof body.hint === 'string' ? body.hint : undefined) ?? 'That mail server address cannot be used.';
+  if (e.code === 'address_not_allowed')
+    return (
+      mailHintMessage(typeof body.hint === 'string' ? body.hint : undefined) ??
+      'That mail server address cannot be used.'
+    );
   // On these routes `too_many_attempts` means "ask for a new code" (the server's own sentence says so).
   if (e.code === 'too_many_attempts' && typeof body.message === 'string') return body.message;
-  return typeof e.message === 'string' && e.message ? e.message : 'Something went wrong. Try again.';
+  return typeof e.message === 'string' && e.message
+    ? e.message
+    : 'Something went wrong. Try again.';
 }
 
 export function mailTestSummary(result: MailTestResult): string {
@@ -182,7 +244,11 @@ export function mailTestSummary(result: MailTestResult): string {
 }
 
 export function smtpSourceLabel(source: SmtpSource): string {
-  return source === 'env' ? 'Set by the server environment (read only)' : source === 'settings' ? 'Saved here' : 'Not set up';
+  return source === 'env'
+    ? 'Set by the server environment (read only)'
+    : source === 'settings'
+      ? 'Saved here'
+      : 'Not set up';
 }
 
 export const SMTP_SECURE_OPTIONS: { value: SmtpSecure; label: string; port: number }[] = [
@@ -190,15 +256,19 @@ export const SMTP_SECURE_OPTIONS: { value: SmtpSecure; label: string; port: numb
   { value: 'tls', label: 'TLS from the start (usually port 465)', port: 465 },
   { value: 'none', label: 'None (usually port 25; only for a server on this machine)', port: 25 },
 ];
-export const defaultSmtpPort = (secure: SmtpSecure): number => SMTP_SECURE_OPTIONS.filter((o) => o.value === secure)[0]?.port ?? 587;
+export const defaultSmtpPort = (secure: SmtpSecure): number =>
+  SMTP_SECURE_OPTIONS.filter((o) => o.value === secure)[0]?.port ?? 587;
 
 /** A first look at a form before it is sent (the server decides for real). A sentence, or '' when it looks fine. */
 export function smtpProblem(input: { host: string; port: string; from: string }): string {
   const host = input.host.trim();
   if (!host) return 'Enter the mail server host name.';
-  if (/[\s/@:]/.test(host) && !/^[0-9a-fA-F:.]+$/.test(host)) return 'The host is a name such as smtp.example.com, without smtp:// or a port.';
+  if (/[\s/@:]/.test(host) && !/^[0-9a-fA-F:.]+$/.test(host))
+    return 'The host is a name such as smtp.example.com, without smtp:// or a port.';
   const port = input.port.trim();
-  if (port !== '' && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535)) return 'The port is a number from 1 to 65535.';
-  if (!/^[^\s@<>]+@[^\s@<>]+$|<[^\s@<>]+@[^\s@<>]+>\s*$/.test(input.from.trim())) return 'Enter the sender address, such as mrm@example.com.';
+  if (port !== '' && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535))
+    return 'The port is a number from 1 to 65535.';
+  if (!/^[^\s@<>]+@[^\s@<>]+$|<[^\s@<>]+@[^\s@<>]+>\s*$/.test(input.from.trim()))
+    return 'Enter the sender address, such as mrm@example.com.';
   return '';
 }

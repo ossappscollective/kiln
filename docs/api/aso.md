@@ -16,11 +16,11 @@ the texts the server holds.
 
 ## Rights
 
-| Action | Who | Routes |
-| --- | --- | --- |
-| `aso.read` | viewers, members, admins, owners | every `GET` (including search terms and rank versus downloads) |
-| `aso.write` | members, admins, owners | add, change, delete keywords and competitors; refresh one app |
-| `aso.manage` | admins, owners | `POST /aso/refresh` (every app); the setting `aso.rankMoveThreshold` |
+| Action       | Who                              | Routes                                                               |
+| ------------ | -------------------------------- | -------------------------------------------------------------------- |
+| `aso.read`   | viewers, members, admins, owners | every `GET` (including search terms and rank versus downloads)       |
+| `aso.write`  | members, admins, owners          | add, change, delete keywords and competitors; refresh one app        |
+| `aso.manage` | admins, owners                   | `POST /aso/refresh` (every app); the setting `aso.rankMoveThreshold` |
 
 Non-members and members of another workspace get `404 { "error": "not_found" }`; a member without the right gets `403 { "error": "forbidden" }`.
 An API token may hold any of the three. An app-limited token reaches only the routes with `/apps/{id}` of its apps (`GET /aso/config` and `POST /aso/refresh` are workspace wide and are closed to it).
@@ -43,10 +43,21 @@ While it is off, an Android app's keywords can be kept, but refresh and competit
 ```json
 {
   "apple": { "enabled": true, "source": "iTunes Search API", "documentedCallsPerMinute": 20 },
-  "play": { "enabled": false, "unofficial": true, "notice": "Google Play has no official ...", "howToEnable": "The operator sets MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server." },
+  "play": {
+    "enabled": false,
+    "unofficial": true,
+    "notice": "Google Play has no official ...",
+    "howToEnable": "The operator sets MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true on the server."
+  },
   "schedule": { "intervalMinutes": 0 },
   "retentionDays": 365,
-  "limits": { "maxKeywordsPerApp": 50, "maxCompetitorsPerApp": 10, "maxChecksPerRun": 25, "rankDepth": 50, "maxKeywordsPerRequest": 50 },
+  "limits": {
+    "maxKeywordsPerApp": 50,
+    "maxCompetitorsPerApp": 10,
+    "maxChecksPerRun": 25,
+    "rankDepth": 50,
+    "maxKeywordsPerRequest": 50
+  },
   "rankMoveThreshold": 5
 }
 ```
@@ -60,11 +71,23 @@ the same folded words (`Water  Reminder`, `water-reminder`) are one keyword.
 
 ```json
 {
-  "id": "…", "appId": "…", "platform": "ios", "country": "us", "locale": "en-US",
-  "term": "water reminder", "key": "water reminder", "tag": "core", "notes": null, "priority": 2,
-  "createdBy": "…", "createdAt": 1760000000000, "updatedAt": 1760000000000,
+  "id": "…",
+  "appId": "…",
+  "platform": "ios",
+  "country": "us",
+  "locale": "en-US",
+  "term": "water reminder",
+  "key": "water reminder",
+  "tag": "core",
+  "notes": null,
+  "priority": 2,
+  "createdBy": "…",
+  "createdAt": 1760000000000,
+  "updatedAt": 1760000000000,
   "lastCheckedAt": 1760003600000,
-  "state": "ranked", "rank": 12, "total": 50,
+  "state": "ranked",
+  "rank": 12,
+  "total": 50,
   "previous": { "state": "ranked", "rank": 15 },
   "change": { "kind": "up", "delta": 3, "from": 15, "to": 12 },
   "error": null
@@ -74,24 +97,31 @@ the same folded words (`Water  Reminder`, `water-reminder`) are one keyword.
 `state` is `null` until the first successful check. `change.kind` is `first`, `same`, `up`, `down`, `entered`, `dropped` or `still_unranked`. `error` is a short code of the latest failed
 attempt (`rate_limited`, `unavailable_layout_changed`, `server`, ...) and is cleared by the next success; `rank` and `state` keep the last known value meanwhile.
 
-| Route | Needs | Does |
-| --- | --- | --- |
-| `GET /apps/{id}/aso/keywords?country=&locale=&tag=` | `aso.read` | `{ keywords, limits: { maxKeywordsPerApp } }`, ordered by term. |
-| `POST /apps/{id}/aso/keywords` | `aso.write` | Add up to 50. |
-| `PATCH /apps/{id}/aso/keywords/{keywordId}` | `aso.write` | Change `tag`, `notes`, `priority` (the term, country and locale cannot change). |
-| `DELETE /apps/{id}/aso/keywords/{keywordId}` | `aso.write` | `204`; deletes its checks. |
-| `GET /apps/{id}/aso/keywords/{keywordId}/history?limit=&since=` | `aso.read` | `{ keyword, checks, trend }`; `limit` 1 to 1000 (default 100), `since` epoch ms. |
+| Route                                                           | Needs       | Does                                                                             |
+| --------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| `GET /apps/{id}/aso/keywords?country=&locale=&tag=`             | `aso.read`  | `{ keywords, limits: { maxKeywordsPerApp } }`, ordered by term.                  |
+| `POST /apps/{id}/aso/keywords`                                  | `aso.write` | Add up to 50.                                                                    |
+| `PATCH /apps/{id}/aso/keywords/{keywordId}`                     | `aso.write` | Change `tag`, `notes`, `priority` (the term, country and locale cannot change).  |
+| `DELETE /apps/{id}/aso/keywords/{keywordId}`                    | `aso.write` | `204`; deletes its checks.                                                       |
+| `GET /apps/{id}/aso/keywords/{keywordId}/history?limit=&since=` | `aso.read`  | `{ keyword, checks, trend }`; `limit` 1 to 1000 (default 100), `since` epoch ms. |
 
 **Add.** Body (strict): `{ "keywords": [ { "term": "water reminder", "country": "us", "locale": "en-US", "tag": "core", "notes": "…", "priority": 3 } ] }`, 1 to 50 items; only `term` is required
 (`country` defaults to `us`, `locale` to the storefront's main language, `priority` to 2; 1 low, 2 normal, 3 high; tag at most 40 characters, notes at most 500). Each item is judged on its own:
 
 ```json
-{ "results": [
-    { "index": 0, "status": "created", "keyword": { } },
-    { "index": 1, "status": "exists",  "keyword": { } },
+{
+  "results": [
+    { "index": 0, "status": "created", "keyword": {} },
+    { "index": 1, "status": "exists", "keyword": {} },
     { "index": 2, "status": "invalid", "message": "A keyword is not empty." },
-    { "index": 3, "status": "limit",   "message": "An app tracks at most 50 keywords (MRM_ASO_MAX_KEYWORDS_PER_APP)." } ],
-  "summary": { "created": 1, "exists": 1, "invalid": 1, "limit": 1 } }
+    {
+      "index": 3,
+      "status": "limit",
+      "message": "An app tracks at most 50 keywords (MRM_ASO_MAX_KEYWORDS_PER_APP)."
+    }
+  ],
+  "summary": { "created": 1, "exists": 1, "invalid": 1, "limit": 1 }
+}
 ```
 
 `201` when at least one was created, else `200`. A keyword is **not checked** when it is added (no store is contacted); the next refresh does it.
@@ -103,14 +133,31 @@ attempt (`rate_limited`, `unavailable_layout_changed`, `server`, ...) and is cle
 
 ```json
 {
-  "id": "…", "appId": "…", "store": "app_store", "externalId": "1500000002", "country": "us", "name": "Habit App 2",
-  "addedBy": "…", "addedAt": 1760000000000, "lastCheckedAt": 1760003600000,
-  "state": "ok", "error": null,
+  "id": "…",
+  "appId": "…",
+  "store": "app_store",
+  "externalId": "1500000002",
+  "country": "us",
+  "name": "Habit App 2",
+  "addedBy": "…",
+  "addedAt": 1760000000000,
+  "lastCheckedAt": 1760003600000,
+  "state": "ok",
+  "error": null,
   "latest": {
-    "id": "…", "checkedAt": 1760003600000, "kind": "change", "version": "2.1", "rating": 4.6, "ratingCount": 1200,
-    "price": "Free", "currency": "USD", "title": "Habit App 2", "subtitle": null,
-    "descriptionExcerpt": "…first 1000 characters…", "screenshotCount": 5,
-    "changes": [ { "field": "version", "from": "2.0", "to": "2.1" } ]
+    "id": "…",
+    "checkedAt": 1760003600000,
+    "kind": "change",
+    "version": "2.1",
+    "rating": 4.6,
+    "ratingCount": 1200,
+    "price": "Free",
+    "currency": "USD",
+    "title": "Habit App 2",
+    "subtitle": null,
+    "descriptionExcerpt": "…first 1000 characters…",
+    "screenshotCount": 5,
+    "changes": [{ "field": "version", "from": "2.0", "to": "2.1" }]
   }
 }
 ```
@@ -118,12 +165,12 @@ attempt (`rate_limited`, `unavailable_layout_changed`, `server`, ...) and is cle
 `state` is `ok`, `not_found` (the store no longer has it) or `unavailable` (the last look failed; `error` is the code). `descriptionExcerpt` and every text are written by the competitor: **untrusted plain text**, never HTML.
 `changes[].field` is one of `version`, `title`, `subtitle`, `price`, `description`, `media`, `screenshots`, `rating`, `ratingCount`; `from` and `to` are present for short public values and absent for the description and the media (they are compared by hash).
 
-| Route | Needs | Does |
-| --- | --- | --- |
-| `GET /apps/{id}/aso/competitors` | `aso.read` | `{ competitors, limits: { maxCompetitorsPerApp } }`. |
-| `POST /apps/{id}/aso/competitors` | `aso.write` | Follow. Body `{ "externalId": "id1500000002", "country": "us" }`. **Reads the store once**; rate limited per workspace. `201 { competitor }`. |
-| `DELETE /apps/{id}/aso/competitors/{competitorId}` | `aso.write` | `204`; deletes its snapshots. |
-| `GET /apps/{id}/aso/competitors/{competitorId}/history?limit=` | `aso.read` | `{ competitor, snapshots, diff }`, snapshots newest first (`limit` 1 to 500, default 50); `diff` is the newest snapshot that recorded changes: `{ from, to, at, changes }`, or `null`. |
+| Route                                                          | Needs       | Does                                                                                                                                                                                   |
+| -------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /apps/{id}/aso/competitors`                               | `aso.read`  | `{ competitors, limits: { maxCompetitorsPerApp } }`.                                                                                                                                   |
+| `POST /apps/{id}/aso/competitors`                              | `aso.write` | Follow. Body `{ "externalId": "id1500000002", "country": "us" }`. **Reads the store once**; rate limited per workspace. `201 { competitor }`.                                          |
+| `DELETE /apps/{id}/aso/competitors/{competitorId}`             | `aso.write` | `204`; deletes its snapshots.                                                                                                                                                          |
+| `GET /apps/{id}/aso/competitors/{competitorId}/history?limit=` | `aso.read`  | `{ competitor, snapshots, diff }`, snapshots newest first (`limit` 1 to 500, default 50); `diff` is the newest snapshot that recorded changes: `{ from, to, at, changes }`, or `null`. |
 
 `externalId`: iOS accepts the numeric App Store id, `id123` or an `apps.apple.com` address; Android accepts a package name or a `play.google.com` address with `?id=`. A snapshot is stored on the first look, when something changed, and every `MRM_ASO_HEARTBEAT_DAYS` (7) as a heartbeat (`kind` is `first`, `change` or `heartbeat`).
 Errors: `422 invalid_external_id`, `invalid_country`, `own_app`, `not_found` (the store has no such app); `409 already_followed`, `limit_reached`, `play_unofficial_disabled`.
@@ -141,13 +188,33 @@ Errors: `422 invalid_external_id`, `invalid_country`, `own_app`, `not_found` (th
 Answer (`200`; `202 { "jobId" }` with `?background=true`):
 
 ```json
-{ "result": {
+{
+  "result": {
     "at": 1760003600000,
-    "keywords": { "due": 40, "checked": 25, "ranked": 12, "notRanked": 13, "failed": 0, "cached": 3, "moved": 2 },
+    "keywords": {
+      "due": 40,
+      "checked": 25,
+      "ranked": 12,
+      "notRanked": 13,
+      "failed": 0,
+      "cached": 3,
+      "moved": 2
+    },
     "competitors": { "due": 3, "checked": 3, "changed": 1, "notFound": 0, "failed": 0 },
-    "deferred": true, "stoppedBecause": "cap", "errors": [], "warnings": [] },
-  "state": { "lastAttemptAt": 1760003600000, "lastSuccessAt": 1760003600000, "lastError": null,
-             "consecutiveFailures": 0, "backoffUntil": null, "lastResult": { } } }
+    "deferred": true,
+    "stoppedBecause": "cap",
+    "errors": [],
+    "warnings": []
+  },
+  "state": {
+    "lastAttemptAt": 1760003600000,
+    "lastSuccessAt": 1760003600000,
+    "lastError": null,
+    "consecutiveFailures": 0,
+    "backoffUntil": null,
+    "lastResult": {}
+  }
+}
 ```
 
 `stoppedBecause`: `cap`, `time`, `rate_limit`, `unavailable`, `errors`. `retryAfterSeconds` is set for `rate_limit`. A run that **only hit our own local limit** is a normal `200` with `deferred: true`.
@@ -167,16 +234,16 @@ when the last run left work over), not while a backoff or a claim holds, not twi
 None of these contacts a store (a test checks that), so they are cheap and do not need the Play switch. They are **suggestions**: nothing here changes a listing, a keyword or a competitor.
 `locale` (a language tag) defaults to the locale most tracked keywords use.
 
-| Route | Answer |
-| --- | --- |
-| `GET /apps/{id}/aso/summary` | `{ app, keywords: { total, ranked, notRanked, unchecked, failing, top3, top10 }, movers (the five biggest moves), competitors: { total, notFound, changedRecently }, state }`. |
-| `GET /apps/{id}/aso/fit?locale=` | Per locale of the tracked keywords: how well the **stored live listing** covers them. `{ readAt, error, locales: [ { locale, listingLocale, channel, keywords, fit } ], indexedFields, assumptions }`. `fit` is `null` when no listing text is stored for that language (sync the app). |
-| `GET /apps/{id}/aso/ideas?locale=&limit=` | Phrases that occur at least twice in the own listing and the followed competitors' stored texts and are not tracked: `{ locale, basedOn: { ownListing, competitors }, ideas: [ { term, words, occurrences, sources, localScore } ], notes }`. |
-| `GET /apps/{id}/aso/gaps?locale=&limit=` | **Coverage gap**: terms competitors use in their names, subtitles or descriptions that the own listing lacks: `{ locale, competitors, gaps: [ { term, origin: tracked|idea, inTitle: [competitorId], inDescription: [competitorId], ourStatus } ], notes }`. |
-| `GET /apps/{id}/aso/suggestions?minKeywords=&limit=` | **Competitor discovery**: apps in the stored top results of at least `minKeywords` (default 2) tracked keywords, per country, without the own app and the ones already followed: `{ suggestions: [ { externalId, country, name, keywordCount, bestRank, averageRank, keywordIds } ], basedOnKeywords, notes }`. `name` is `null` for Google Play (its results carry none). A person confirms with `POST /competitors`. |
-| `GET /apps/{id}/aso/coach` | **Next steps**: up to 8 ranked actions worked out from stored data (core `buildCoach`): `{ actions: [ { id, kind, position, title, detail, items, more, link: { to, locale?, label } } ], basedOn: { keywords, competitors, listingLocales, lastCheckAt, listingReadAt } }`. `kind` is `track_keywords`, `check_ranks`, `rank_dropped`, `not_in_listing`, `untracked_set_keywords` (App Store keyword field entries no tracked keyword covers; Google Play has none), `competitor_above`, `keyword_field_waste`, `unused_characters`, `untapped_locale` or `follow_competitors`, always in that order. Every number is a count from the data; no volume, no predicted gain. `link.to` is an ASO view (`keywords`, `keywords_add`, `listing_keywords`, `competitors`) or `listing` (with `locale`). |
-| `GET /apps/{id}/aso/listing-keywords` | **Terms the listing sets**: the stored text of every locale (the live copy when there is one) under `locales: [ { locale, fields } ]` (`title`, `subtitle`, `keywords`, `shortDescription`, `description`; the App Store description is left out because the store does not search it), `readAt`, `error`, `indexedFields`. Nothing is contacted. The web works the terms out with core `listingRows` (`aso-listing-terms.ts`): App Store keyword field entries split on commas (with bytes) plus the significant words of name and subtitle; Google Play has no keyword field, so its terms are **extracted** from title and short description (and, on request, frequent words of the full description). Tracked or not is matched per locale and storefront (the one with most tracked keywords for the locale, else the usual one of the language) on folded words. |
-| `GET /apps/{id}/aso/markets` | **One term across markets**: `{ terms: [ { key, term, bestRank, markets: [ { country, locale, id, rank, state, checkedAt } ] } ] }`. |
+| Route                                                | Answer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /apps/{id}/aso/summary`                         | `{ app, keywords: { total, ranked, notRanked, unchecked, failing, top3, top10 }, movers (the five biggest moves), competitors: { total, notFound, changedRecently }, state }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /apps/{id}/aso/fit?locale=`                     | Per locale of the tracked keywords: how well the **stored live listing** covers them. `{ readAt, error, locales: [ { locale, listingLocale, channel, keywords, fit } ], indexedFields, assumptions }`. `fit` is `null` when no listing text is stored for that language (sync the app).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `GET /apps/{id}/aso/ideas?locale=&limit=`            | Phrases that occur at least twice in the own listing and the followed competitors' stored texts and are not tracked: `{ locale, basedOn: { ownListing, competitors }, ideas: [ { term, words, occurrences, sources, localScore } ], notes }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `GET /apps/{id}/aso/gaps?locale=&limit=`             | **Coverage gap**: terms competitors use in their names, subtitles or descriptions that the own listing lacks: `{ locale, competitors, gaps: [ { term, origin: tracked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | idea, inTitle: [competitorId], inDescription: [competitorId], ourStatus } ], notes }`. |
+| `GET /apps/{id}/aso/suggestions?minKeywords=&limit=` | **Competitor discovery**: apps in the stored top results of at least `minKeywords` (default 2) tracked keywords, per country, without the own app and the ones already followed: `{ suggestions: [ { externalId, country, name, keywordCount, bestRank, averageRank, keywordIds } ], basedOnKeywords, notes }`. `name` is `null` for Google Play (its results carry none). A person confirms with `POST /competitors`.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `GET /apps/{id}/aso/coach`                           | **Next steps**: up to 8 ranked actions worked out from stored data (core `buildCoach`): `{ actions: [ { id, kind, position, title, detail, items, more, link: { to, locale?, label } } ], basedOn: { keywords, competitors, listingLocales, lastCheckAt, listingReadAt } }`. `kind` is `track_keywords`, `check_ranks`, `rank_dropped`, `not_in_listing`, `untracked_set_keywords` (App Store keyword field entries no tracked keyword covers; Google Play has none), `competitor_above`, `keyword_field_waste`, `unused_characters`, `untapped_locale` or `follow_competitors`, always in that order. Every number is a count from the data; no volume, no predicted gain. `link.to` is an ASO view (`keywords`, `keywords_add`, `listing_keywords`, `competitors`) or `listing` (with `locale`).                                                                      |
+| `GET /apps/{id}/aso/listing-keywords`                | **Terms the listing sets**: the stored text of every locale (the live copy when there is one) under `locales: [ { locale, fields } ]` (`title`, `subtitle`, `keywords`, `shortDescription`, `description`; the App Store description is left out because the store does not search it), `readAt`, `error`, `indexedFields`. Nothing is contacted. The web works the terms out with core `listingRows` (`aso-listing-terms.ts`): App Store keyword field entries split on commas (with bytes) plus the significant words of name and subtitle; Google Play has no keyword field, so its terms are **extracted** from title and short description (and, on request, frequent words of the full description). Tracked or not is matched per locale and storefront (the one with most tracked keywords for the locale, else the usual one of the language) on folded words. |
+| `GET /apps/{id}/aso/markets`                         | **One term across markets**: `{ terms: [ { key, term, bestRank, markets: [ { country, locale, id, rank, state, checkedAt } ] } ] }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Fit.** `fit.keywords[].status`: `strong` (the phrase is in the name or subtitle; Android: title or short description), `covered` (every word is in the searched fields, not as a phrase in a high weight field), `partial`, `description_only` (iOS: only
 in the description, which the store may not search; UNVERIFIED), `missing`. `fit.counts` counts them, `fit.gaps` lists the ones not strong or covered, worst first (priority, then status, then the rank). For iOS `fit.keywordField` measures the hidden keyword field against its 100 byte budget:
@@ -195,13 +262,44 @@ They are **not** search volume: terms nobody opened the listing from are absent,
 Without `from` and `to` the whole stored period is used (at most 400 days). `country` limits to a storefront (rows with no country are left out of a country view).
 
 ```json
-{ "appId": "...", "platform": "android", "from": "2026-10-01", "to": "2026-10-31", "country": null, "sort": "installs",
-  "locale": "en-US", "listingLocale": "en-US", "listingReadAt": 1763500000000,
-  "imported": { "at": 1763500000000, "periodFrom": "2026-10-01", "periodTo": "2026-10-31", "imports": 1 },
+{
+  "appId": "...",
+  "platform": "android",
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "country": null,
+  "sort": "installs",
+  "locale": "en-US",
+  "listingLocale": "en-US",
+  "listingReadAt": 1763500000000,
+  "imported": {
+    "at": 1763500000000,
+    "periodFrom": "2026-10-01",
+    "periodTo": "2026-10-31",
+    "imports": 1
+  },
   "stored": { "from": "2026-10-01", "to": "2026-10-31", "countries": [], "rows": 120 },
-  "terms": [ { "key": "coffee timer", "term": "coffee timer", "visitors": 84, "installs": 11, "conversion": 0.131, "countries": [], "rows": 2,
-               "trackedKeywordId": "...", "trackedCountries": ["us"], "listing": "in_listing", "inFields": ["title"], "hint": null } ],
-  "termCount": 3, "other": { "visitors": 90, "installs": 3 }, "totals": { "visitors": 216, "installs": 16 }, "notes": [ { "code": "not_search_volume", "message": "..." } ] }
+  "terms": [
+    {
+      "key": "coffee timer",
+      "term": "coffee timer",
+      "visitors": 84,
+      "installs": 11,
+      "conversion": 0.131,
+      "countries": [],
+      "rows": 2,
+      "trackedKeywordId": "...",
+      "trackedCountries": ["us"],
+      "listing": "in_listing",
+      "inFields": ["title"],
+      "hint": null
+    }
+  ],
+  "termCount": 3,
+  "other": { "visitors": 90, "installs": 3 },
+  "totals": { "visitors": 216, "installs": 16 },
+  "notes": [{ "code": "not_search_volume", "message": "..." }]
+}
 ```
 
 `imported` and `stored` are `null` when nothing was imported (the web then shows how to export a file). `conversion` is installs divided by visitors when both are known, else the file's own rate. `listing` is
@@ -231,27 +329,27 @@ coverage: { rankDays, downloadDays, minDays }, enough, missing: turn_on_analytic
 
 ## Events and webhooks
 
-| Type | When | Payload |
-| --- | --- | --- |
-| `aso.rank_changed` | A keyword moved by at least `aso.rankMoveThreshold` places between two checks, or the app entered or left the results **within the top 10**. Never on the first check. | `appId, keywordId, platform, country, locale, from, to, delta?, change (up, down, entered, dropped), threshold` |
-| `aso.competitor_changed` | A notable change of a followed competitor: version, name, subtitle, price, description, media, screenshots, or a rating moved by 0.2 stars or more. Never on the first look; a drifting rating count alone raises nothing. | `appId, competitorId, store, country, fields` |
+| Type                     | When                                                                                                                                                                                                                       | Payload                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `aso.rank_changed`       | A keyword moved by at least `aso.rankMoveThreshold` places between two checks, or the app entered or left the results **within the top 10**. Never on the first check.                                                     | `appId, keywordId, platform, country, locale, from, to, delta?, change (up, down, entered, dropped), threshold` |
+| `aso.competitor_changed` | A notable change of a followed competitor: version, name, subtitle, price, description, media, screenshots, or a rating moved by 0.2 stars or more. Never on the first look; a drifting rating count alone raises nothing. | `appId, competitorId, store, country, fields`                                                                   |
 
 The subject is the app (`subject.appId`). **Neither carries the term, a competitor's name or a text**: read them with the ids. Both are visible to whoever holds `aso.read`.
 
 ## Errors
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 400 | `invalid_request` | The body or a query parameter is wrong (`issues` lists them). |
-| 404 | `not_found` | No such app, keyword or competitor in this workspace. |
-| 409 | `play_unofficial_disabled` | Google Play reading is off (`MRM_ASO_PLAY_UNOFFICIAL_ENABLED`). No request was made. |
-| 409 | `refresh_in_progress` | Another refresh of the app holds the claim. |
-| 409 | `already_followed`, `limit_reached` | Competitors. |
-| 422 | `invalid_keyword` (PATCH), `invalid_external_id`, `invalid_country`, `own_app`, `not_found`, `invalid_input` | The value is not accepted. |
-| 422 | `not_google_play_app` | Search terms are for Google Play apps only. |
-| 429 | `rate_limited` | Our per workspace limit, or a store's. `Retry-After` and `retryAfterSeconds` say when. |
-| 502 | `refresh_failed`, `source_unavailable`, `source_failed` | The store could not be read; `reason` is `layout_changed`, `redirect` or `blocked` for an unavailable Google Play page. **Nothing is recorded as "not ranked".** |
-| 504 | `source_timeout` | The store did not answer in time. |
+| Status | `error`                                                                                                      | Meaning                                                                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `invalid_request`                                                                                            | The body or a query parameter is wrong (`issues` lists them).                                                                                                    |
+| 404    | `not_found`                                                                                                  | No such app, keyword or competitor in this workspace.                                                                                                            |
+| 409    | `play_unofficial_disabled`                                                                                   | Google Play reading is off (`MRM_ASO_PLAY_UNOFFICIAL_ENABLED`). No request was made.                                                                             |
+| 409    | `refresh_in_progress`                                                                                        | Another refresh of the app holds the claim.                                                                                                                      |
+| 409    | `already_followed`, `limit_reached`                                                                          | Competitors.                                                                                                                                                     |
+| 422    | `invalid_keyword` (PATCH), `invalid_external_id`, `invalid_country`, `own_app`, `not_found`, `invalid_input` | The value is not accepted.                                                                                                                                       |
+| 422    | `not_google_play_app`                                                                                        | Search terms are for Google Play apps only.                                                                                                                      |
+| 429    | `rate_limited`                                                                                               | Our per workspace limit, or a store's. `Retry-After` and `retryAfterSeconds` say when.                                                                           |
+| 502    | `refresh_failed`, `source_unavailable`, `source_failed`                                                      | The store could not be read; `reason` is `layout_changed`, `redirect` or `blocked` for an unavailable Google Play page. **Nothing is recorded as "not ranked".** |
+| 504    | `source_timeout`                                                                                             | The store did not answer in time.                                                                                                                                |
 
 Error messages never contain a search term or a store address.
 

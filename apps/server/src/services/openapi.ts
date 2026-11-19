@@ -105,8 +105,10 @@ function convert(schema: ZodTypeAny): JsonSchema {
       const out: JsonSchema = { type: 'number' };
       for (const check of (def.checks as Check[]) ?? []) {
         if (check.kind === 'int') out.type = 'integer';
-        else if (check.kind === 'min') out[check.inclusive === false ? 'exclusiveMinimum' : 'minimum'] = check.value;
-        else if (check.kind === 'max') out[check.inclusive === false ? 'exclusiveMaximum' : 'maximum'] = check.value;
+        else if (check.kind === 'min')
+          out[check.inclusive === false ? 'exclusiveMinimum' : 'minimum'] = check.value;
+        else if (check.kind === 'max')
+          out[check.inclusive === false ? 'exclusiveMaximum' : 'maximum'] = check.value;
       }
       return out;
     }
@@ -151,7 +153,10 @@ function convert(schema: ZodTypeAny): JsonSchema {
     case 'ZodNullable':
       return { anyOf: [zodToJsonSchema(def.innerType as ZodTypeAny), { type: 'null' }] };
     case 'ZodDefault':
-      return { ...zodToJsonSchema(def.innerType as ZodTypeAny), default: (def.defaultValue as () => unknown)() };
+      return {
+        ...zodToJsonSchema(def.innerType as ZodTypeAny),
+        default: (def.defaultValue as () => unknown)(),
+      };
     case 'ZodEffects':
       // refine, superRefine and transform: the checks are not representable, the shape is the inner one.
       return zodToJsonSchema(def.schema as ZodTypeAny);
@@ -198,7 +203,10 @@ const standardResponses: Record<string, Record<string, unknown>> = {
     description: 'The request is not valid. `issues` lists the fields.',
     content: { 'application/json': { schema: { $ref: '#/components/schemas/ValidationError' } } },
   },
-  Unauthenticated: { description: 'No valid session cookie or bearer token.', content: errorContent },
+  Unauthenticated: {
+    description: 'No valid session cookie or bearer token.',
+    content: errorContent,
+  },
   Forbidden: { description: 'The role (or the token) does not allow this.', content: errorContent },
   NotFound: {
     description: 'Not found. A workspace that does not exist and one you are not in look the same.',
@@ -212,7 +220,8 @@ const standardResponses: Record<string, Record<string, unknown>> = {
   },
 };
 
-export const pathParams = (path: string) => [...path.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((m) => m[1] as string);
+export const pathParams = (path: string) =>
+  [...path.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((m) => m[1] as string);
 
 export const TAG_DESCRIPTIONS: Record<string, string> = {
   auth: 'Sign-in and the first-run setup.',
@@ -229,7 +238,8 @@ export const TAG_DESCRIPTIONS: Record<string, string> = {
   plans: 'Release plans, their checklists and release notes.',
   listing: 'The store listing as it is live, how it drifts from the repository, and its history.',
   ci: 'GitHub Actions workflows, runs and builds.',
-  submit: 'Handing the pushed store draft to the store’s review: preview, typed confirmation, submit. Irreversible, off by default, never releases.',
+  submit:
+    'Handing the pushed store draft to the store’s review: preview, typed confirmation, submit. Irreversible, off by default, never releases.',
   system: 'Health.',
 };
 
@@ -247,7 +257,10 @@ function operationObject(op: Operation): Record<string, unknown> {
     schema: { type: 'string' },
   }));
   if (op.query) {
-    const schema = zodToJsonSchema(op.query) as { properties?: Record<string, JsonSchema>; required?: string[] };
+    const schema = zodToJsonSchema(op.query) as {
+      properties?: Record<string, JsonSchema>;
+      required?: string[];
+    };
     for (const [name, value] of Object.entries(schema.properties ?? {})) {
       const { description, ...rest } = value as JsonSchema & { description?: string };
       parameters.push({
@@ -265,7 +278,13 @@ function operationObject(op: Operation): Record<string, unknown> {
     responses[status] = {
       description: spec.description,
       ...(spec.schema || spec.contentType
-        ? { content: { [spec.contentType ?? 'application/json']: spec.schema ? { schema: zodToJsonSchema(spec.schema) } : {} } }
+        ? {
+            content: {
+              [spec.contentType ?? 'application/json']: spec.schema
+                ? { schema: zodToJsonSchema(spec.schema) }
+                : {},
+            },
+          }
         : {}),
     };
   }
@@ -280,7 +299,11 @@ function operationObject(op: Operation): Record<string, unknown> {
   if (op.rateLimited || viaToken) responses['429'] = { $ref: '#/components/responses/RateLimited' };
 
   const security =
-    op.access === 'public' ? [] : viaToken ? [{ cookieAuth: [] }, { bearerAuth: [] }] : [{ cookieAuth: [] }];
+    op.access === 'public'
+      ? []
+      : viaToken
+        ? [{ cookieAuth: [] }, { bearerAuth: [] }]
+        : [{ cookieAuth: [] }];
 
   return {
     operationId: op.id,
@@ -289,7 +312,12 @@ function operationObject(op: Operation): Record<string, unknown> {
     tags: op.tags,
     ...(parameters.length > 0 ? { parameters } : {}),
     ...(op.body
-      ? { requestBody: { required: op.bodyOptional !== true, content: { 'application/json': { schema: zodToJsonSchema(op.body) } } } }
+      ? {
+          requestBody: {
+            required: op.bodyOptional !== true,
+            content: { 'application/json': { schema: zodToJsonSchema(op.body) } },
+          },
+        }
       : {}),
     responses,
     security,
@@ -302,7 +330,10 @@ function operationObject(op: Operation): Record<string, unknown> {
   };
 }
 
-export function buildOpenApiDocument(operations: readonly Operation[], info: { version: string }): OpenApiDocument {
+export function buildOpenApiDocument(
+  operations: readonly Operation[],
+  info: { version: string },
+): OpenApiDocument {
   const paths: OpenApiDocument['paths'] = {};
   const tags = new Set<string>();
   for (const op of operations) {
@@ -321,7 +352,10 @@ export function buildOpenApiDocument(operations: readonly Operation[], info: { v
     servers: [{ url: '/', description: 'This server' }],
     tags: [...tags]
       .sort()
-      .map((name) => ({ name, ...(TAG_DESCRIPTIONS[name] ? { description: TAG_DESCRIPTIONS[name] } : {}) })),
+      .map((name) => ({
+        name,
+        ...(TAG_DESCRIPTIONS[name] ? { description: TAG_DESCRIPTIONS[name] } : {}),
+      })),
     paths,
     components: {
       securitySchemes: {
@@ -329,7 +363,8 @@ export function buildOpenApiDocument(operations: readonly Operation[], info: { v
           type: 'apiKey',
           in: 'cookie',
           name: 'mrm_session',
-          description: 'The session cookie set by sign-in. State-changing requests must come from this server’s own origin.',
+          description:
+            'The session cookie set by sign-in. State-changing requests must come from this server’s own origin.',
         },
         bearerAuth: {
           type: 'http',
@@ -342,7 +377,10 @@ export function buildOpenApiDocument(operations: readonly Operation[], info: { v
       schemas: {
         Error: {
           type: 'object',
-          properties: { error: { type: 'string', description: 'A stable code.' }, message: { type: 'string' } },
+          properties: {
+            error: { type: 'string', description: 'A stable code.' },
+            message: { type: 'string' },
+          },
           required: ['error'],
         },
         ValidationError: {
@@ -373,13 +411,41 @@ export function buildOpenApiDocument(operations: readonly Operation[], info: { v
 const SCHEMA_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'null', 'object', 'array']);
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'options']);
 const KNOWN_SCHEMA_KEYS = new Set([
-  '$ref', 'type', 'properties', 'required', 'items', 'enum', 'const', 'anyOf', 'oneOf', 'allOf', 'not',
-  'format', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum',
-  'minItems', 'maxItems', 'additionalProperties', 'description', 'default', 'title', 'example', 'examples',
-  'uniqueItems', 'readOnly', 'writeOnly', 'deprecated',
+  '$ref',
+  'type',
+  'properties',
+  'required',
+  'items',
+  'enum',
+  'const',
+  'anyOf',
+  'oneOf',
+  'allOf',
+  'not',
+  'format',
+  'pattern',
+  'minLength',
+  'maxLength',
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'minItems',
+  'maxItems',
+  'additionalProperties',
+  'description',
+  'default',
+  'title',
+  'example',
+  'examples',
+  'uniqueItems',
+  'readOnly',
+  'writeOnly',
+  'deprecated',
 ]);
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export function validateOpenApiDocument(doc: unknown): string[] {
   const errors: string[] = [];
@@ -388,9 +454,16 @@ export function validateOpenApiDocument(doc: unknown): string[] {
   };
   if (!isObject(doc)) return ['document: not an object'];
 
-  if (typeof doc.openapi !== 'string' || !/^3\.1\.\d+$/.test(doc.openapi)) bad('openapi', 'must be a 3.1.x version string');
+  if (typeof doc.openapi !== 'string' || !/^3\.1\.\d+$/.test(doc.openapi))
+    bad('openapi', 'must be a 3.1.x version string');
   const info = doc.info;
-  if (!isObject(info) || typeof info.title !== 'string' || !info.title || typeof info.version !== 'string' || !info.version) {
+  if (
+    !isObject(info) ||
+    typeof info.title !== 'string' ||
+    !info.title ||
+    typeof info.version !== 'string' ||
+    !info.version
+  ) {
     bad('info', 'title and version are required strings');
   }
   const components = isObject(doc.components) ? doc.components : {};
@@ -398,13 +471,17 @@ export function validateOpenApiDocument(doc: unknown): string[] {
   const schemas = isObject(components.schemas) ? components.schemas : {};
   const responseComponents = isObject(components.responses) ? components.responses : {};
   const declaredTags = new Set(
-    Array.isArray(doc.tags) ? doc.tags.flatMap((t) => (isObject(t) && typeof t.name === 'string' ? [t.name] : [])) : [],
+    Array.isArray(doc.tags)
+      ? doc.tags.flatMap((t) => (isObject(t) && typeof t.name === 'string' ? [t.name] : []))
+      : [],
   );
 
   const checkRef = (where: string, ref: unknown) => {
-    if (typeof ref !== 'string' || !ref.startsWith('#/components/')) return bad(where, `bad $ref ${String(ref)}`);
+    if (typeof ref !== 'string' || !ref.startsWith('#/components/'))
+      return bad(where, `bad $ref ${String(ref)}`);
     const [, , kind, name] = ref.split('/');
-    const pool = kind === 'schemas' ? schemas : kind === 'responses' ? responseComponents : undefined;
+    const pool =
+      kind === 'schemas' ? schemas : kind === 'responses' ? responseComponents : undefined;
     if (!pool || !name || !(name in pool)) bad(where, `$ref ${ref} does not resolve`);
   };
 
@@ -412,20 +489,27 @@ export function validateOpenApiDocument(doc: unknown): string[] {
     if (!isObject(schema)) return bad(where, 'a schema must be an object');
     if (depth > 20) return bad(where, 'schema nests too deeply');
     for (const key of Object.keys(schema)) {
-      if (!KNOWN_SCHEMA_KEYS.has(key) && !key.startsWith('x-')) bad(where, `unknown schema keyword "${key}"`);
+      if (!KNOWN_SCHEMA_KEYS.has(key) && !key.startsWith('x-'))
+        bad(where, `unknown schema keyword "${key}"`);
     }
     if ('$ref' in schema) checkRef(where, schema.$ref);
     if ('type' in schema) {
       const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-      for (const t of types) if (typeof t !== 'string' || !SCHEMA_TYPES.has(t)) bad(where, `bad type ${String(t)}`);
+      for (const t of types)
+        if (typeof t !== 'string' || !SCHEMA_TYPES.has(t)) bad(where, `bad type ${String(t)}`);
     }
     if ('properties' in schema) {
       if (!isObject(schema.properties)) bad(where, 'properties must be an object');
-      else for (const [k, v] of Object.entries(schema.properties)) checkSchema(`${where}.properties.${k}`, v, depth + 1);
+      else
+        for (const [k, v] of Object.entries(schema.properties))
+          checkSchema(`${where}.properties.${k}`, v, depth + 1);
     }
     if ('required' in schema) {
       const props = isObject(schema.properties) ? schema.properties : {};
-      if (!Array.isArray(schema.required) || schema.required.some((r) => typeof r !== 'string' || !(r in props))) {
+      if (
+        !Array.isArray(schema.required) ||
+        schema.required.some((r) => typeof r !== 'string' || !(r in props))
+      ) {
         bad(where, 'required must list declared properties');
       }
     }
@@ -433,20 +517,24 @@ export function validateOpenApiDocument(doc: unknown): string[] {
       if ('items' in schema) checkSchema(`${where}.items`, schema.items, depth + 1);
       else bad(where, 'an array schema needs items');
     }
-    if ('enum' in schema && (!Array.isArray(schema.enum) || schema.enum.length === 0)) bad(where, 'enum must be a non-empty array');
+    if ('enum' in schema && (!Array.isArray(schema.enum) || schema.enum.length === 0))
+      bad(where, 'enum must be a non-empty array');
     for (const key of ['anyOf', 'oneOf', 'allOf']) {
       if (!(key in schema)) continue;
       const list = schema[key];
       if (!Array.isArray(list) || list.length === 0) bad(where, `${key} must be a non-empty array`);
       else list.forEach((s, i) => checkSchema(`${where}.${key}[${i}]`, s, depth + 1));
     }
-    if (isObject(schema.additionalProperties)) checkSchema(`${where}.additionalProperties`, schema.additionalProperties, depth + 1);
+    if (isObject(schema.additionalProperties))
+      checkSchema(`${where}.additionalProperties`, schema.additionalProperties, depth + 1);
   };
 
-  for (const [name, schema] of Object.entries(schemas)) checkSchema(`components.schemas.${name}`, schema);
+  for (const [name, schema] of Object.entries(schemas))
+    checkSchema(`components.schemas.${name}`, schema);
 
   const operationIds = new Set<string>();
-  if (!isObject(doc.paths) || Object.keys(doc.paths).length === 0) bad('paths', 'must be a non-empty object');
+  if (!isObject(doc.paths) || Object.keys(doc.paths).length === 0)
+    bad('paths', 'must be a non-empty object');
   for (const [path, item] of Object.entries(isObject(doc.paths) ? doc.paths : {})) {
     if (!path.startsWith('/')) bad(`paths.${path}`, 'a path starts with /');
     if (!isObject(item)) {
@@ -467,7 +555,8 @@ export function validateOpenApiDocument(doc: unknown): string[] {
       if (typeof id !== 'string' || !id) bad(where, 'operationId is required');
       else if (operationIds.has(id)) bad(where, `duplicate operationId ${id}`);
       else operationIds.add(id);
-      if (typeof operation.summary !== 'string' || !operation.summary) bad(where, 'summary is required');
+      if (typeof operation.summary !== 'string' || !operation.summary)
+        bad(where, 'summary is required');
       for (const tag of Array.isArray(operation.tags) ? operation.tags : []) {
         if (!declaredTags.has(String(tag))) bad(where, `tag ${String(tag)} is not declared`);
       }
@@ -478,21 +567,31 @@ export function validateOpenApiDocument(doc: unknown): string[] {
 
       // Every {name} in the path is declared once as a required path parameter, and nothing else is.
       const declared = new Set<string>();
-      for (const [i, p] of (Array.isArray(operation.parameters) ? operation.parameters : []).entries()) {
-        if (!isObject(p) || typeof p.name !== 'string' || (p.in !== 'path' && p.in !== 'query' && p.in !== 'header')) {
+      for (const [i, p] of (Array.isArray(operation.parameters)
+        ? operation.parameters
+        : []
+      ).entries()) {
+        if (
+          !isObject(p) ||
+          typeof p.name !== 'string' ||
+          (p.in !== 'path' && p.in !== 'query' && p.in !== 'header')
+        ) {
           bad(`${where} parameters[${i}]`, 'needs name and in');
           continue;
         }
         const key = `${p.in}:${p.name}`;
         if (declared.has(key)) bad(where, `duplicate parameter ${key}`);
         declared.add(key);
-        if (p.in === 'path' && p.required !== true) bad(where, `path parameter ${p.name} must be required`);
+        if (p.in === 'path' && p.required !== true)
+          bad(where, `path parameter ${p.name} must be required`);
         checkSchema(`${where} parameter ${p.name}`, p.schema);
       }
       const inPath = pathParams(path);
-      for (const name of inPath) if (!declared.has(`path:${name}`)) bad(where, `path parameter ${name} is not declared`);
+      for (const name of inPath)
+        if (!declared.has(`path:${name}`)) bad(where, `path parameter ${name} is not declared`);
       for (const key of declared) {
-        if (key.startsWith('path:') && !inPath.includes(key.slice(5))) bad(where, `parameter ${key.slice(5)} is not in the path`);
+        if (key.startsWith('path:') && !inPath.includes(key.slice(5)))
+          bad(where, `parameter ${key.slice(5)} is not in the path`);
       }
 
       if ('requestBody' in operation) {
@@ -501,7 +600,8 @@ export function validateOpenApiDocument(doc: unknown): string[] {
         if (!content || Object.keys(content).length === 0) bad(where, 'requestBody needs content');
         else {
           for (const [type, media] of Object.entries(content)) {
-            if (isObject(media) && media.schema) checkSchema(`${where} requestBody ${type}`, media.schema);
+            if (isObject(media) && media.schema)
+              checkSchema(`${where} requestBody ${type}`, media.schema);
           }
         }
       }
@@ -511,7 +611,8 @@ export function validateOpenApiDocument(doc: unknown): string[] {
         bad(where, 'responses are required');
       } else {
         for (const [status, response] of Object.entries(responses)) {
-          if (!/^[1-5][0-9]{2}$|^default$/.test(status)) bad(where, `bad response status ${status}`);
+          if (!/^[1-5][0-9]{2}$|^default$/.test(status))
+            bad(where, `bad response status ${status}`);
           if (!isObject(response)) {
             bad(where, `response ${status} is not an object`);
           } else if ('$ref' in response) {
@@ -522,23 +623,28 @@ export function validateOpenApiDocument(doc: unknown): string[] {
             }
             if (isObject(response.content)) {
               for (const [type, media] of Object.entries(response.content)) {
-                if (isObject(media) && media.schema) checkSchema(`${where} response ${status} ${type}`, media.schema);
+                if (isObject(media) && media.schema)
+                  checkSchema(`${where} response ${status} ${type}`, media.schema);
               }
             }
           }
         }
-        if (!Object.keys(responses).some((s) => s.startsWith('2'))) bad(where, 'needs a 2xx response');
+        if (!Object.keys(responses).some((s) => s.startsWith('2')))
+          bad(where, 'needs a 2xx response');
       }
 
       for (const requirement of Array.isArray(operation.security) ? operation.security : []) {
         if (!isObject(requirement)) bad(where, 'security entry is not an object');
-        else for (const name of Object.keys(requirement)) if (!(name in schemes)) bad(where, `security scheme ${name} is not defined`);
+        else
+          for (const name of Object.keys(requirement))
+            if (!(name in schemes)) bad(where, `security scheme ${name} is not defined`);
       }
     }
   }
   for (const requirement of Array.isArray(doc.security) ? doc.security : []) {
     if (isObject(requirement)) {
-      for (const name of Object.keys(requirement)) if (!(name in schemes)) bad('security', `scheme ${name} is not defined`);
+      for (const name of Object.keys(requirement))
+        if (!(name in schemes)) bad('security', `scheme ${name} is not defined`);
     }
   }
   return errors;
@@ -563,7 +669,9 @@ export function compilePath(path: string): (url: string) => Record<string, strin
     const match = regex.exec(url);
     if (!match) return undefined;
     try {
-      return Object.fromEntries(names.map((name, i) => [name, decodeURIComponent(match[i + 1] as string)]));
+      return Object.fromEntries(
+        names.map((name, i) => [name, decodeURIComponent(match[i + 1] as string)]),
+      );
     } catch {
       return undefined;
     }

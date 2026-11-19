@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { allScopeLabel, appAddress, appReviewsHref, appWorkflowsHref, appSectionDefs, parseAppAddress, parseViewPath, resolveScope, visibleSections, withScope } from './app-scope.ts';
+import {
+  allScopeLabel,
+  appAddress,
+  appReviewsHref,
+  appSectionDefs,
+  appWorkflowsHref,
+  parseAppAddress,
+  parseViewPath,
+  resolveScope,
+  visibleSections,
+  withScope,
+} from './app-scope.ts';
 import { isIconName } from './icons.ts';
 
 test('parseViewPath splits segments and ignores the query for the section', () => {
@@ -16,7 +27,12 @@ test('parseViewPath splits segments and ignores the query for the section', () =
 test('parseAppAddress reads id, section, release and platform', () => {
   assert.equal(parseAppAddress('#/portfolio'), null);
   assert.equal(parseAppAddress('#/reviews/a1'), null);
-  assert.deepEqual(parseAppAddress('#/portfolio/a1'), { id: 'a1', section: 'dashboard', release: null, platform: null });
+  assert.deepEqual(parseAppAddress('#/portfolio/a1'), {
+    id: 'a1',
+    section: 'dashboard',
+    release: null,
+    platform: null,
+  });
   assert.deepEqual(parseAppAddress('#/portfolio/a1/reviews?platform=android'), {
     id: 'a1',
     section: 'reviews',
@@ -30,7 +46,12 @@ test('parseAppAddress reads id, section, release and platform', () => {
     platform: 'both',
   });
   // Unknown sections and platforms fall back; they are never trusted.
-  assert.deepEqual(parseAppAddress('#/portfolio/a1/nope?platform=windows'), { id: 'a1', section: 'dashboard', release: null, platform: null });
+  assert.deepEqual(parseAppAddress('#/portfolio/a1/nope?platform=windows'), {
+    id: 'a1',
+    section: 'dashboard',
+    release: null,
+    platform: null,
+  });
 });
 
 test('appAddress and parseAppAddress round trip', () => {
@@ -39,7 +60,10 @@ test('appAddress and parseAppAddress round trip', () => {
   assert.equal(appAddress('a1', 'dashboard', 'both'), '#/portfolio/a1?platform=both');
   assert.equal(appAddress('a1', 'releases', null, '1.0 beta'), '#/portfolio/a1/release/1.0%20beta');
   assert.equal(appReviewsHref('a1'), '#/portfolio/a1/reviews');
-  for (const hash of [appAddress('x/y', 'assets', 'android'), appAddress('x', 'releases', 'ios', '2.0')]) {
+  for (const hash of [
+    appAddress('x/y', 'assets', 'android'),
+    appAddress('x', 'releases', 'ios', '2.0'),
+  ]) {
     const parsed = parseAppAddress(hash);
     assert.ok(parsed);
     assert.equal(appAddress(parsed.id, parsed.section, parsed.platform, parsed.release), hash);
@@ -48,7 +72,10 @@ test('appAddress and parseAppAddress round trip', () => {
 
 test('withScope sets, replaces and removes the platform and keeps other parts', () => {
   assert.equal(withScope('#/portfolio/a1/listing', 'ios'), '#/portfolio/a1/listing?platform=ios');
-  assert.equal(withScope('#/portfolio/a1/listing?platform=ios', 'android'), '#/portfolio/a1/listing?platform=android');
+  assert.equal(
+    withScope('#/portfolio/a1/listing?platform=ios', 'android'),
+    '#/portfolio/a1/listing?platform=android',
+  );
   assert.equal(withScope('#/portfolio/a1?x=1&platform=ios', null), '#/portfolio/a1?x=1');
   assert.equal(withScope('#/portfolio/a1?platform=ios', null), '#/portfolio/a1');
 });
@@ -76,8 +103,28 @@ test('resolveScope disables the missing store and Both for a one-store app', () 
 });
 
 test('visibleSections follows the actions a role has', () => {
-  assert.deepEqual(visibleSections(() => true).map((s) => s.id), ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'insights', 'aso', 'analytics', 'builds', 'test-builds', 'settings']);
-  assert.deepEqual(visibleSections((a) => a === 'apps.read').map((s) => s.id), ['dashboard', 'releases', 'workflows', 'builds', 'settings']);
+  assert.deepEqual(
+    visibleSections(() => true).map((s) => s.id),
+    [
+      'dashboard',
+      'pending',
+      'listing',
+      'releases',
+      'workflows',
+      'assets',
+      'reviews',
+      'insights',
+      'aso',
+      'analytics',
+      'builds',
+      'test-builds',
+      'settings',
+    ],
+  );
+  assert.deepEqual(
+    visibleSections((a) => a === 'apps.read').map((s) => s.id),
+    ['dashboard', 'releases', 'workflows', 'builds', 'settings'],
+  );
   assert.ok(appSectionDefs.every((s) => isIconName(s.icon)));
 });
 
@@ -85,29 +132,45 @@ test('resolveScope with a macOS record: three platforms show All, and only the p
   const all = resolveScope(null, ['android', 'macos', 'ios']);
   assert.equal(all.scope, 'both');
   assert.deepEqual(all.platforms, ['ios', 'macos', 'android']);
-  assert.deepEqual(all.options.map((o) => [o.id, o.label, o.disabled]), [
-    ['ios', 'iOS', false],
-    ['macos', 'macOS', false],
-    ['android', 'Android', false],
-    ['both', 'All', false],
-  ]);
+  assert.deepEqual(
+    all.options.map((o) => [o.id, o.label, o.disabled]),
+    [
+      ['ios', 'iOS', false],
+      ['macos', 'macOS', false],
+      ['android', 'Android', false],
+      ['both', 'All', false],
+    ],
+  );
   assert.equal(resolveScope('macos', ['ios', 'macos', 'android']).scope, 'macos');
   assert.deepEqual(resolveScope('macos', ['ios', 'macos', 'android']).platforms, ['macos']);
 
   // iOS and macOS only: two platforms, so "Both", and no Android option at all.
   const apple = resolveScope(null, ['ios', 'macos']);
-  assert.deepEqual(apple.options.map((o) => [o.id, o.label]), [['ios', 'iOS'], ['macos', 'macOS'], ['both', 'Both']]);
+  assert.deepEqual(
+    apple.options.map((o) => [o.id, o.label]),
+    [
+      ['ios', 'iOS'],
+      ['macos', 'macOS'],
+      ['both', 'Both'],
+    ],
+  );
   assert.deepEqual(apple.platforms, ['ios', 'macos']);
 
   // macOS alone: one option, no "Both".
   const mac = resolveScope('both', ['macos']);
   assert.equal(mac.scope, 'macos');
-  assert.deepEqual(mac.options.map((o) => o.id), ['macos']);
+  assert.deepEqual(
+    mac.options.map((o) => o.id),
+    ['macos'],
+  );
 
   // An app without macOS never shows the macOS option, and a macOS request falls back.
   const classic = resolveScope('macos', ['ios', 'android']);
   assert.equal(classic.scope, 'both');
-  assert.deepEqual(classic.options.map((o) => o.id), ['ios', 'android', 'both']);
+  assert.deepEqual(
+    classic.options.map((o) => o.id),
+    ['ios', 'android', 'both'],
+  );
   assert.equal(allScopeLabel(2), 'Both');
   assert.equal(allScopeLabel(3), 'All');
 });
@@ -127,7 +190,12 @@ test('the workflows section has its own address and keeps the scope', () => {
 test('the pending changes section is an app section with its own address, also as ?section=pending', () => {
   assert.equal(appAddress('a1', 'pending'), '#/portfolio/a1/pending');
   assert.equal(appAddress('a1', 'pending', 'ios'), '#/portfolio/a1/pending?platform=ios');
-  assert.deepEqual(parseAppAddress('#/portfolio/a1/pending?platform=android'), { id: 'a1', section: 'pending', release: null, platform: 'android' });
+  assert.deepEqual(parseAppAddress('#/portfolio/a1/pending?platform=android'), {
+    id: 'a1',
+    section: 'pending',
+    release: null,
+    platform: 'android',
+  });
   assert.equal(parseAppAddress('#/portfolio/a1?section=pending')?.section, 'pending');
   // The path wins, and an unknown section falls back to the dashboard.
   assert.equal(parseAppAddress('#/portfolio/a1/listing?section=pending')?.section, 'listing');

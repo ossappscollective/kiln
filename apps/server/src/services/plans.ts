@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import {
   type ActorType,
   type ChecklistTemplateItem,
+  computeReadiness,
+  DEFAULT_CHECKLIST_TEMPLATES,
   type DueFlags,
+  defaultTemplate,
+  dueFlags,
+  isBuiltinTemplateId,
   MAX_CHECKLIST_ITEMS,
   MAX_NOTE_LOCALES,
   MAX_TEMPLATES,
@@ -11,19 +16,19 @@ import {
   type Readiness,
   type RolloutStepState,
   type RolloutSummary,
-  DEFAULT_CHECKLIST_TEMPLATES,
-  computeReadiness,
-  defaultTemplate,
-  dueFlags,
-  isBuiltinTemplateId,
   releaseNotesLength,
   releaseNotesLimit,
 } from '@mrm/core';
 import type { Database, Param, Sql } from '@mrm/db';
-import { recordAudit } from './audit.ts';
 import { getApp } from './apps.ts';
-import { loadRolloutSteps, loadRolloutStepsByPlan, purgeRolloutOfPlan, rolloutSummaryOf } from './plan-rollout.ts';
-import { type Failure, type Outcome, failure } from './repositories.ts';
+import { recordAudit } from './audit.ts';
+import {
+  loadRolloutSteps,
+  loadRolloutStepsByPlan,
+  purgeRolloutOfPlan,
+  rolloutSummaryOf,
+} from './plan-rollout.ts';
+import { type Failure, failure, type Outcome } from './repositories.ts';
 
 /**
  * Release planning: checklists, release notes per locale, a target date and a blocked flag for
@@ -137,7 +142,12 @@ const toItem = (r: Row): PlanItem => ({
 
 const toNote = (r: Row): PlanNote => {
   const text = String(r.text);
-  return { locale: String(r.locale), text, length: releaseNotesLength(text), updatedAt: Number(r.updated_at) };
+  return {
+    locale: String(r.locale),
+    text,
+    length: releaseNotesLength(text),
+    updatedAt: Number(r.updated_at),
+  };
 };
 
 function summarize(
@@ -212,7 +222,10 @@ export async function listPlans(
   filter: { appId?: string } = {},
 ): Promise<PlanSummary[]> {
   const rows = filter.appId
-    ? await ctx.db.query(`${SELECT} WHERE p.workspace_id = ? AND p.app_id = ?`, [workspaceId, filter.appId])
+    ? await ctx.db.query(`${SELECT} WHERE p.workspace_id = ? AND p.app_id = ?`, [
+        workspaceId,
+        filter.appId,
+      ])
     : await ctx.db.query(`${SELECT} WHERE p.workspace_id = ?`, [workspaceId]);
   const ids = rows.map((r) => String(r.id));
   const now = ctx.now();
@@ -222,7 +235,9 @@ export async function listPlans(
     loadRolloutStepsByPlan(ctx.db, workspaceId, now),
   ]);
   return rows
-    .map((r, i) => summarize(r, items[i] ?? [], notes[i] ?? [], now, steps.get(ids[i] as string) ?? []))
+    .map((r, i) =>
+      summarize(r, items[i] ?? [], notes[i] ?? [], now, steps.get(ids[i] as string) ?? []),
+    )
     .sort((a, b) => {
       if (a.targetDate !== b.targetDate) {
         if (a.targetDate === null) return 1;
@@ -240,11 +255,10 @@ export async function getPlan(
   appId: string,
   planId: string,
 ): Promise<PlanDetail | undefined> {
-  const [row] = await sql.query(`${SELECT} WHERE p.id = ? AND p.workspace_id = ? AND p.app_id = ?`, [
-    planId,
-    workspaceId,
-    appId,
-  ]);
+  const [row] = await sql.query(
+    `${SELECT} WHERE p.id = ? AND p.workspace_id = ? AND p.app_id = ?`,
+    [planId, workspaceId, appId],
+  );
   if (!row) return undefined;
   const items = (
     await sql.query(
@@ -262,7 +276,8 @@ export async function getPlan(
       [planId, workspaceId],
     )
   ).map(toNote);
-  const steps = row.rollout_kind === 'steps' ? await loadRolloutSteps(sql, workspaceId, planId, now) : [];
+  const steps =
+    row.rollout_kind === 'steps' ? await loadRolloutSteps(sql, workspaceId, planId, now) : [];
   return { ...summarize(row, items, notes, now, steps), items, releaseNotes: notes };
 }
 
@@ -334,16 +349,17 @@ export async function createTemplate(
   actor: Actor,
 ): Promise<Outcome<{ template: TemplateView }>> {
   return ctx.db.transaction(async (tx) => {
-    const [count] = await tx.query('SELECT COUNT(*) AS n FROM checklist_templates WHERE workspace_id = ?', [
-      input.workspaceId,
-    ]);
+    const [count] = await tx.query(
+      'SELECT COUNT(*) AS n FROM checklist_templates WHERE workspace_id = ?',
+      [input.workspaceId],
+    );
     if (Number(count?.n) >= MAX_TEMPLATES) {
       return failure(422, 'too_many_templates', `A workspace can have ${MAX_TEMPLATES} templates.`);
     }
-    const [same] = await tx.query('SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?', [
-      input.workspaceId,
-      input.name,
-    ]);
+    const [same] = await tx.query(
+      'SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?',
+      [input.workspaceId, input.name],
+    );
     if (same) return failure(409, 'already_exists', 'A template with that name already exists.');
     const id = randomUUID();
     const at = ctx.now();
@@ -375,11 +391,20 @@ export async function createTemplate(
 
 export async function updateTemplate(
   ctx: PlansContext,
-  input: { workspaceId: string; id: string; name?: string | undefined; items?: ChecklistTemplateItem[] | undefined },
+  input: {
+    workspaceId: string;
+    id: string;
+    name?: string | undefined;
+    items?: ChecklistTemplateItem[] | undefined;
+  },
   actor: Actor,
 ): Promise<Outcome<{ template: TemplateView }>> {
   if (isBuiltinTemplateId(input.id)) {
-    return failure(409, 'builtin_template', 'This template ships with the product. Save a copy with your own wording instead.');
+    return failure(
+      409,
+      'builtin_template',
+      'This template ships with the product. Save a copy with your own wording instead.',
+    );
   }
   return ctx.db.transaction(async (tx) => {
     const [row] = await tx.query(
@@ -390,10 +415,10 @@ export async function updateTemplate(
     const current = toTemplate(row);
     const name = input.name ?? current.name;
     if (name !== current.name) {
-      const [same] = await tx.query('SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?', [
-        input.workspaceId,
-        name,
-      ]);
+      const [same] = await tx.query(
+        'SELECT id FROM checklist_templates WHERE workspace_id = ? AND name = ?',
+        [input.workspaceId, name],
+      );
       if (same) return failure(409, 'already_exists', 'A template with that name already exists.');
     }
     const items = input.items ?? current.items;
@@ -420,15 +445,22 @@ export async function deleteTemplate(
   actor: Actor,
 ): Promise<Outcome<Record<never, never>>> {
   if (isBuiltinTemplateId(input.id)) {
-    return failure(409, 'builtin_template', 'This template ships with the product and cannot be deleted.');
+    return failure(
+      409,
+      'builtin_template',
+      'This template ships with the product and cannot be deleted.',
+    );
   }
   return ctx.db.transaction(async (tx) => {
-    const [row] = await tx.query('SELECT name FROM checklist_templates WHERE id = ? AND workspace_id = ?', [
+    const [row] = await tx.query(
+      'SELECT name FROM checklist_templates WHERE id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
+    if (!row) return notFound();
+    await tx.execute('DELETE FROM checklist_templates WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
     ]);
-    if (!row) return notFound();
-    await tx.execute('DELETE FROM checklist_templates WHERE id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
@@ -475,11 +507,15 @@ export async function createPlan(
       'SELECT id FROM release_plans WHERE app_id = ? AND version = ? AND workspace_id = ?',
       [app.id, input.version, input.workspaceId],
     );
-    if (same) return failure(409, 'already_exists', 'This app already has a plan for that version.', { planId: String(same.id) });
+    if (same)
+      return failure(409, 'already_exists', 'This app already has a plan for that version.', {
+        planId: String(same.id),
+      });
     let template: { name: string; items: ChecklistTemplateItem[] } | undefined;
     if (input.templateId !== undefined) {
       template = await findTemplate(tx, input.workspaceId, input.templateId);
-      if (!template) return failure(404, 'template_not_found', 'That checklist template does not exist.');
+      if (!template)
+        return failure(404, 'template_not_found', 'That checklist template does not exist.');
     }
     const id = randomUUID();
     const at = ctx.now();
@@ -488,7 +524,18 @@ export async function createPlan(
          (id, workspace_id, app_id, version, platform, target_date, blocked, blocked_reason, notes,
           created_by, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?)`,
-      [id, input.workspaceId, app.id, input.version, platform, input.targetDate ?? null, input.notes ?? '', actor.id, at, at],
+      [
+        id,
+        input.workspaceId,
+        app.id,
+        input.version,
+        platform,
+        input.targetDate ?? null,
+        input.notes ?? '',
+        actor.id,
+        at,
+        at,
+      ],
     );
     const items = template?.items ?? [];
     let position = 0;
@@ -533,7 +580,8 @@ export async function updatePlan(
     const { patch } = input;
     const targetDate = patch.targetDate === undefined ? current.targetDate : patch.targetDate;
     const blocked = patch.blocked ?? current.blocked;
-    let blockedReason = patch.blockedReason === undefined ? current.blockedReason : patch.blockedReason;
+    let blockedReason =
+      patch.blockedReason === undefined ? current.blockedReason : patch.blockedReason;
     if (blocked && (blockedReason ?? '').trim() === '') {
       return failure(422, 'reason_required', 'Say why the release is blocked.');
     }
@@ -568,7 +616,13 @@ export async function updatePlan(
         at,
       });
     }
-    const plan = (await getPlan(tx, ctx.now(), input.workspaceId, input.appId, input.planId)) as PlanDetail;
+    const plan = (await getPlan(
+      tx,
+      ctx.now(),
+      input.workspaceId,
+      input.appId,
+      input.planId,
+    )) as PlanDetail;
     return { ok: true as const, plan };
   });
 }
@@ -582,16 +636,27 @@ export async function deletePlan(
     const plan = await getPlan(tx, ctx.now(), input.workspaceId, input.appId, input.planId);
     if (!plan) return false;
     for (const table of ['checklist_items', 'release_notes']) {
-      await tx.execute(`DELETE FROM ${table} WHERE plan_id = ? AND workspace_id = ?`, [input.planId, input.workspaceId]);
+      await tx.execute(`DELETE FROM ${table} WHERE plan_id = ? AND workspace_id = ?`, [
+        input.planId,
+        input.workspaceId,
+      ]);
     }
     await purgeRolloutOfPlan(tx, input.workspaceId, input.planId);
-    await tx.execute('DELETE FROM release_plans WHERE id = ? AND workspace_id = ?', [input.planId, input.workspaceId]);
+    await tx.execute('DELETE FROM release_plans WHERE id = ? AND workspace_id = ?', [
+      input.planId,
+      input.workspaceId,
+    ]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
       action: 'plan.delete',
       target: { type: 'release_plan', id: input.planId },
-      detail: { appId: input.appId, version: plan.version, items: plan.items.length, locales: plan.releaseNotes.length },
+      detail: {
+        appId: input.appId,
+        version: plan.version,
+        items: plan.items.length,
+        locales: plan.releaseNotes.length,
+      },
       at: ctx.now(),
     });
     return true;
@@ -618,7 +683,11 @@ async function insertItem(
 }
 
 const touch = (tx: Sql, workspaceId: string, planId: string, at: number) =>
-  tx.execute('UPDATE release_plans SET updated_at = ? WHERE id = ? AND workspace_id = ?', [at, planId, workspaceId]);
+  tx.execute('UPDATE release_plans SET updated_at = ? WHERE id = ? AND workspace_id = ?', [
+    at,
+    planId,
+    workspaceId,
+  ]);
 
 type PlanRef = { workspaceId: string; appId: string; planId: string };
 
@@ -631,8 +700,15 @@ async function planRow(tx: Sql, ref: PlanRef): Promise<{ version: string } | und
   return row ? { version: String(row.version) } : undefined;
 }
 
-async function currentPlan(tx: Sql, ctx: PlansContext, ref: PlanRef): Promise<{ ok: true; plan: PlanDetail }> {
-  return { ok: true, plan: (await getPlan(tx, ctx.now(), ref.workspaceId, ref.appId, ref.planId)) as PlanDetail };
+async function currentPlan(
+  tx: Sql,
+  ctx: PlansContext,
+  ref: PlanRef,
+): Promise<{ ok: true; plan: PlanDetail }> {
+  return {
+    ok: true,
+    plan: (await getPlan(tx, ctx.now(), ref.workspaceId, ref.appId, ref.planId)) as PlanDetail,
+  };
 }
 
 export async function addItem(
@@ -650,7 +726,13 @@ export async function addItem(
     if (Number(stats?.n) >= MAX_CHECKLIST_ITEMS) {
       return failure(422, 'too_many_items', `A checklist can have ${MAX_CHECKLIST_ITEMS} items.`);
     }
-    const itemId = await insertItem(tx, input.workspaceId, input.planId, Number(stats?.last) + 1, input);
+    const itemId = await insertItem(
+      tx,
+      input.workspaceId,
+      input.planId,
+      Number(stats?.last) + 1,
+      input,
+    );
     const at = ctx.now();
     await touch(tx, input.workspaceId, input.planId, at);
     await recordAudit(tx, {
@@ -665,7 +747,11 @@ export async function addItem(
   });
 }
 
-export type ItemPatch = { text?: string | undefined; required?: boolean | undefined; done?: boolean | undefined };
+export type ItemPatch = {
+  text?: string | undefined;
+  required?: boolean | undefined;
+  done?: boolean | undefined;
+};
 
 export async function updateItem(
   ctx: PlansContext,
@@ -702,11 +788,10 @@ export async function updateItem(
       changed.push(patch.done ? 'done' : 'undone');
     }
     if (changed.length > 0) {
-      await tx.execute(`UPDATE checklist_items SET ${sets.join(', ')} WHERE id = ? AND workspace_id = ?`, [
-        ...params,
-        input.itemId,
-        input.workspaceId,
-      ]);
+      await tx.execute(
+        `UPDATE checklist_items SET ${sets.join(', ')} WHERE id = ? AND workspace_id = ?`,
+        [...params, input.itemId, input.workspaceId],
+      );
       await touch(tx, input.workspaceId, input.planId, at);
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
@@ -729,11 +814,10 @@ export async function deleteItem(
   return ctx.db.transaction(async (tx) => {
     const plan = await planRow(tx, input);
     if (!plan) return notFound();
-    const removed = await tx.execute('DELETE FROM checklist_items WHERE id = ? AND plan_id = ? AND workspace_id = ?', [
-      input.itemId,
-      input.planId,
-      input.workspaceId,
-    ]);
+    const removed = await tx.execute(
+      'DELETE FROM checklist_items WHERE id = ? AND plan_id = ? AND workspace_id = ?',
+      [input.itemId, input.planId, input.workspaceId],
+    );
     if (removed === 0) return notFound();
     const at = ctx.now();
     await touch(tx, input.workspaceId, input.planId, at);
@@ -758,24 +842,27 @@ export async function reorderItems(
   return ctx.db.transaction(async (tx) => {
     const plan = await planRow(tx, input);
     if (!plan) return notFound();
-    const rows = await tx.query('SELECT id FROM checklist_items WHERE plan_id = ? AND workspace_id = ?', [
-      input.planId,
-      input.workspaceId,
-    ]);
+    const rows = await tx.query(
+      'SELECT id FROM checklist_items WHERE plan_id = ? AND workspace_id = ?',
+      [input.planId, input.workspaceId],
+    );
     const known = new Set(rows.map((r) => String(r.id)));
     const same =
       input.order.length === known.size &&
       new Set(input.order).size === input.order.length &&
       input.order.every((id) => known.has(id));
     if (!same) {
-      return failure(422, 'order_mismatch', 'The order must list every item of the checklist exactly once. Reload and try again.');
+      return failure(
+        422,
+        'order_mismatch',
+        'The order must list every item of the checklist exactly once. Reload and try again.',
+      );
     }
     for (const [position, id] of input.order.entries()) {
-      await tx.execute('UPDATE checklist_items SET position = ? WHERE id = ? AND workspace_id = ?', [
-        position,
-        id,
-        input.workspaceId,
-      ]);
+      await tx.execute(
+        'UPDATE checklist_items SET position = ? WHERE id = ? AND workspace_id = ?',
+        [position, id, input.workspaceId],
+      );
     }
     const at = ctx.now();
     await touch(tx, input.workspaceId, input.planId, at);
@@ -801,7 +888,8 @@ export async function applyTemplate(
     const plan = await planRow(tx, input);
     if (!plan) return notFound();
     const template = await findTemplate(tx, input.workspaceId, input.templateId);
-    if (!template) return failure(404, 'template_not_found', 'That checklist template does not exist.');
+    if (!template)
+      return failure(404, 'template_not_found', 'That checklist template does not exist.');
     const existing = await tx.query(
       'SELECT text, position FROM checklist_items WHERE plan_id = ? AND workspace_id = ?',
       [input.planId, input.workspaceId],
@@ -812,7 +900,8 @@ export async function applyTemplate(
       return failure(422, 'too_many_items', `A checklist can have ${MAX_CHECKLIST_ITEMS} items.`);
     }
     let position = existing.reduce((max, r) => Math.max(max, Number(r.position)), -1) + 1;
-    for (const item of fresh) await insertItem(tx, input.workspaceId, input.planId, position++, item);
+    for (const item of fresh)
+      await insertItem(tx, input.workspaceId, input.planId, position++, item);
     const at = ctx.now();
     if (fresh.length > 0) await touch(tx, input.workspaceId, input.planId, at);
     await recordAudit(tx, {
@@ -820,7 +909,12 @@ export async function applyTemplate(
       actor,
       action: 'plan.apply_template',
       target: { type: 'release_plan', id: input.planId },
-      detail: { version: plan.version, template: template.name, added: fresh.length, skipped: template.items.length - fresh.length },
+      detail: {
+        version: plan.version,
+        template: template.name,
+        added: fresh.length,
+        skipped: template.items.length - fresh.length,
+      },
       at,
     });
     return {
@@ -851,12 +945,23 @@ export async function setReleaseNotes(
     const length = releaseNotesLength(input.text);
     if (length > limit) {
       const store =
-        platform === 'ios' ? 'the App Store' : platform === 'macos' ? 'the Mac App Store' : platform === 'android' ? 'Google Play' : 'Google Play (a plan for both platforms must fit the stricter store)';
-      return failure(422, 'notes_too_long', `Release notes for ${input.locale} are ${length} characters. ${store} allows ${limit}.`, {
-        locale: input.locale,
-        limit,
-        actual: length,
-      });
+        platform === 'ios'
+          ? 'the App Store'
+          : platform === 'macos'
+            ? 'the Mac App Store'
+            : platform === 'android'
+              ? 'Google Play'
+              : 'Google Play (a plan for both platforms must fit the stricter store)';
+      return failure(
+        422,
+        'notes_too_long',
+        `Release notes for ${input.locale} are ${length} characters. ${store} allows ${limit}.`,
+        {
+          locale: input.locale,
+          limit,
+          actual: length,
+        },
+      );
     }
     const [existing] = await tx.query(
       'SELECT locale FROM release_notes WHERE plan_id = ? AND workspace_id = ? AND locale = ?',
@@ -869,12 +974,16 @@ export async function setReleaseNotes(
         [input.text, at, input.planId, input.workspaceId, input.locale],
       );
     } else {
-      const [count] = await tx.query('SELECT COUNT(*) AS n FROM release_notes WHERE plan_id = ? AND workspace_id = ?', [
-        input.planId,
-        input.workspaceId,
-      ]);
+      const [count] = await tx.query(
+        'SELECT COUNT(*) AS n FROM release_notes WHERE plan_id = ? AND workspace_id = ?',
+        [input.planId, input.workspaceId],
+      );
       if (Number(count?.n) >= MAX_NOTE_LOCALES) {
-        return failure(422, 'too_many_locales', `A plan can have release notes for ${MAX_NOTE_LOCALES} locales.`);
+        return failure(
+          422,
+          'too_many_locales',
+          `A plan can have release notes for ${MAX_NOTE_LOCALES} locales.`,
+        );
       }
       await tx.execute(
         'INSERT INTO release_notes (id, workspace_id, plan_id, locale, text, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -932,12 +1041,24 @@ export async function deleteReleaseNotes(
  */
 export async function purgePlansOfApp(tx: Sql, workspaceId: string, appId: string): Promise<void> {
   const ids = (
-    await tx.query('SELECT id FROM release_plans WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId])
+    await tx.query('SELECT id FROM release_plans WHERE app_id = ? AND workspace_id = ?', [
+      appId,
+      workspaceId,
+    ])
   ).map((r) => String(r.id));
   for (const id of ids) {
-    await tx.execute('DELETE FROM checklist_items WHERE plan_id = ? AND workspace_id = ?', [id, workspaceId]);
-    await tx.execute('DELETE FROM release_notes WHERE plan_id = ? AND workspace_id = ?', [id, workspaceId]);
+    await tx.execute('DELETE FROM checklist_items WHERE plan_id = ? AND workspace_id = ?', [
+      id,
+      workspaceId,
+    ]);
+    await tx.execute('DELETE FROM release_notes WHERE plan_id = ? AND workspace_id = ?', [
+      id,
+      workspaceId,
+    ]);
     await purgeRolloutOfPlan(tx, workspaceId, id);
   }
-  await tx.execute('DELETE FROM release_plans WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
+  await tx.execute('DELETE FROM release_plans WHERE app_id = ? AND workspace_id = ?', [
+    appId,
+    workspaceId,
+  ]);
 }

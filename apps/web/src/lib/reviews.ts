@@ -1,4 +1,4 @@
-import { type Platform, isPlatform } from '@mrm/core';
+import { isPlatform, type Platform } from '@mrm/core';
 import { ApiError } from './api.ts';
 import type { ReplyDraft, ReplyState } from './review-reply.ts';
 
@@ -15,10 +15,9 @@ export type ReviewStore = 'appstoreconnect' | 'googleplay';
  * are read for the iOS record; a macOS record that shares its App Store id with an iOS record owns none
  * (the server answers `reviews_shared`). The iOS record that owns them, or null when the app's reviews are its own.
  */
-export function reviewsOwner<T extends { id: string; platform: Platform; storeAppId: string | null }>(
-  app: { platform: Platform; storeAppId: string | null },
-  records: readonly T[],
-): T | null {
+export function reviewsOwner<
+  T extends { id: string; platform: Platform; storeAppId: string | null },
+>(app: { platform: Platform; storeAppId: string | null }, records: readonly T[]): T | null {
   if (app.platform !== 'macos' || !app.storeAppId) return null;
   return records.find((r) => r.platform === 'ios' && r.storeAppId === app.storeAppId) ?? null;
 }
@@ -151,7 +150,8 @@ export const statusLabels: Record<ReviewStatus, string> = {
 
 export const statusOrder: ReviewStatus[] = ['new', 'triaged', 'replied_in_console', 'ignored'];
 
-export const statusLabel = (status: string): string => statusLabels[status as ReviewStatus] ?? status;
+export const statusLabel = (status: string): string =>
+  statusLabels[status as ReviewStatus] ?? status;
 
 export const sortLabels: Record<ReviewSort, string> = {
   newest: 'Newest first',
@@ -199,10 +199,15 @@ export function collapseText(text: string, limit = COLLAPSE_AT): { text: string;
 }
 
 /** "iPhone, version 3.2.0 (412), US, en", skipping what is missing. */
-export function reviewFacts(review: Pick<Review, 'device' | 'appVersion' | 'buildNumber' | 'territory' | 'language'>): string[] {
+export function reviewFacts(
+  review: Pick<Review, 'device' | 'appVersion' | 'buildNumber' | 'territory' | 'language'>,
+): string[] {
   const facts: string[] = [];
   if (review.device) facts.push(review.device);
-  if (review.appVersion) facts.push(`Version ${review.appVersion}${review.buildNumber ? ` (${review.buildNumber})` : ''}`);
+  if (review.appVersion)
+    facts.push(
+      `Version ${review.appVersion}${review.buildNumber ? ` (${review.buildNumber})` : ''}`,
+    );
   if (review.territory) facts.push(territoryName(review.territory));
   if (review.language) facts.push(review.language);
   return facts;
@@ -212,10 +217,18 @@ export function reviewFacts(review: Pick<Review, 'device' | 'appVersion' | 'buil
 export function territoryName(code: string, locale = 'en'): string {
   try {
     // Intl.DisplayNames is newer than the lib the web build's type settings assume.
-    const Names = (Intl as unknown as { DisplayNames?: new (l: string[], o: { type: string }) => { of(c: string): string | undefined } })
-      .DisplayNames;
+    const Names = (
+      Intl as unknown as {
+        DisplayNames?: new (
+          l: string[],
+          o: { type: string },
+        ) => { of(c: string): string | undefined };
+      }
+    ).DisplayNames;
     const name = Names ? new Names([locale], { type: 'region' }).of(code.toUpperCase()) : undefined;
-    return name && name !== code.toUpperCase() ? `${name} (${code.toUpperCase()})` : code.toUpperCase();
+    return name && name !== code.toUpperCase()
+      ? `${name} (${code.toUpperCase()})`
+      : code.toUpperCase();
   } catch {
     return code.toUpperCase();
   }
@@ -271,7 +284,10 @@ export function toggleIn<T>(list: readonly T[], value: T): T[] {
  * The query string for `GET /reviews`. A search term the person typed is sent (the server needs it
  * to search); nothing from a review is ever put here.
  */
-export function filtersToQuery(f: ReviewFilters, options: { cursor?: string | null; limit?: number } = {}): string {
+export function filtersToQuery(
+  f: ReviewFilters,
+  options: { cursor?: string | null; limit?: number } = {},
+): string {
   const params = new URLSearchParams();
   if (f.ratings.length > 0) params.set('rating', [...f.ratings].sort((a, b) => a - b).join(','));
   if (f.statuses.length > 0) params.set('status', f.statuses.join(','));
@@ -312,14 +328,19 @@ export function replaceReview(current: readonly Review[], updated: Review): Revi
 }
 
 /** Whether the review has an answer: a response in the store, or a reply sent from here. */
-export const isAnswered = (r: Pick<Review, 'developerResponse' | 'reply' | 'replyDraft'>): boolean =>
+export const isAnswered = (
+  r: Pick<Review, 'developerResponse' | 'reply' | 'replyDraft'>,
+): boolean =>
   r.developerResponse != null || r.reply?.status === 'sent' || r.replyDraft?.status === 'sent';
 
 /**
  * Whether a review that just changed (triaged, answered) no longer belongs in a list filtered by status or
  * answer. It leaves the list then, so "New" shows only what is still new.
  */
-export function leavesFilters(updated: Review, f: Pick<ReviewFilters, 'statuses' | 'response'>): boolean {
+export function leavesFilters(
+  updated: Review,
+  f: Pick<ReviewFilters, 'statuses' | 'response'>,
+): boolean {
   if (f.statuses.length > 0 && !f.statuses.includes(updated.status)) return true;
   if (f.response === 'yes' && !isAnswered(updated)) return true;
   if (f.response === 'no' && isAnswered(updated)) return true;
@@ -352,8 +373,12 @@ export const MAX_NOTE_LENGTH = 2000;
 // Summary shapes for drawing
 
 /** Five bars, five stars first. `share` is 0 to 1 of the largest bar, so the biggest bar is full width. */
-export function histogramBars(histogram: readonly number[]): { stars: number; count: number; share: number; percent: number }[] {
-  const counts = Array.from({ length: MAX_RATING }, (_, i) => Math.max(0, Math.trunc(histogram[i] ?? 0)));
+export function histogramBars(
+  histogram: readonly number[],
+): { stars: number; count: number; share: number; percent: number }[] {
+  const counts = Array.from({ length: MAX_RATING }, (_, i) =>
+    Math.max(0, Math.trunc(histogram[i] ?? 0)),
+  );
   const total = counts.reduce((a, b) => a + b, 0);
   const max = Math.max(0, ...counts);
   return counts
@@ -370,7 +395,15 @@ export type TrendGeometry = {
   width: number;
   height: number;
   /** One column per week: a bar for the number of reviews. */
-  bars: { x: number; y: number; w: number; h: number; weekStart: number; count: number; average: number | null }[];
+  bars: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    weekStart: number;
+    count: number;
+    average: number | null;
+  }[];
   /** The average rating line, in segments: a week without reviews breaks the line. */
   segments: { x: number; y: number }[][];
   /** Where the 1 to 5 scale puts the line, so a caption can say what it is. */
@@ -381,7 +414,12 @@ export type TrendGeometry = {
  * A small combined trend for an inline SVG, with no chart library: bars are reviews per week, the
  * line is the average rating (scale 1 to 5) of the weeks that have reviews.
  */
-export function trendGeometry(weeks: readonly WeekBucket[], width = 320, height = 72, pad = 4): TrendGeometry {
+export function trendGeometry(
+  weeks: readonly WeekBucket[],
+  width = 320,
+  height = 72,
+  pad = 4,
+): TrendGeometry {
   const n = weeks.length;
   const max = Math.max(1, ...weeks.map((w) => w.count));
   const slot = n === 0 ? 0 : (width - pad * 2) / n;
@@ -408,7 +446,10 @@ export function trendGeometry(weeks: readonly WeekBucket[], width = 320, height 
       return;
     }
     const clamped = Math.min(5, Math.max(1, w.average));
-    run.push({ x: round(pad + i * slot + slot / 2), y: round(height - pad - ((clamped - 1) / 4) * plotH) });
+    run.push({
+      x: round(pad + i * slot + slot / 2),
+      y: round(height - pad - ((clamped - 1) / 4) * plotH),
+    });
   });
   if (run.length > 0) segments.push(run);
   return { width, height, bars, segments, max };
@@ -428,7 +469,11 @@ export function trendDescription(weeks: readonly WeekBucket[]): string {
 }
 
 export const weekLabel = (weekStart: number, locale?: string): string =>
-  new Date(weekStart).toLocaleDateString(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  new Date(weekStart).toLocaleDateString(locale, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
 
 // ---------------------------------------------------------------------------------------------
 // Sync state
@@ -436,7 +481,10 @@ export const weekLabel = (weekStart: number, locale?: string): string =>
 export type SyncNotice = { tone: 'info' | 'warn' | 'error'; text: string };
 
 /** The one line about when reviews were last read ("Last read 5 minutes ago", or "Not read yet"). */
-export function lastReadText(state: Pick<ReviewSyncState, 'lastSuccessAt'>, ago: (at: number) => string): string {
+export function lastReadText(
+  state: Pick<ReviewSyncState, 'lastSuccessAt'>,
+  ago: (at: number) => string,
+): string {
   return state.lastSuccessAt === null ? 'Not read yet.' : `Last read ${ago(state.lastSuccessAt)}.`;
 }
 
@@ -444,7 +492,11 @@ export function lastReadText(state: Pick<ReviewSyncState, 'lastSuccessAt'>, ago:
  * What to tell the person about the state of the sync, most important first: a failure, a gap
  * (Google Play only keeps seven days), a backlog still being read.
  */
-export function syncNotices(state: ReviewSyncState, now: number, ago: (at: number) => string): SyncNotice[] {
+export function syncNotices(
+  state: ReviewSyncState,
+  now: number,
+  ago: (at: number) => string,
+): SyncNotice[] {
   const notices: SyncNotice[] = [];
   if (state.lastError) {
     const failures = state.consecutiveFailures;
@@ -467,17 +519,29 @@ export function syncNotices(state: ReviewSyncState, now: number, ago: (at: numbe
     });
   }
   if (state.moreToRead) {
-    notices.push({ tone: 'info', text: 'Older reviews are still being read. Read again to continue.' });
+    notices.push({
+      tone: 'info',
+      text: 'Older reviews are still being read. Read again to continue.',
+    });
   }
-  for (const warning of state.lastResult?.warnings ?? []) notices.push({ tone: 'info', text: warning });
+  for (const warning of state.lastResult?.warnings ?? [])
+    notices.push({ tone: 'info', text: warning });
   if (state.backoffUntil !== null && state.backoffUntil > now && state.lastError) {
-    notices.push({ tone: 'info', text: `The scheduled read waits until ${shortDate(state.backoffUntil)} before trying again. Reading by hand ignores that.` });
+    notices.push({
+      tone: 'info',
+      text: `The scheduled read waits until ${shortDate(state.backoffUntil)} before trying again. Reading by hand ignores that.`,
+    });
   }
   return notices;
 }
 
 const shortDate = (at: number) =>
-  new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  new Date(at).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
 /** "Read 12 reviews: 3 new, 2 changed." */
 export function syncSummaryText(result: ReviewSyncResult): string {
@@ -491,7 +555,10 @@ export function syncSummaryText(result: ReviewSyncResult): string {
 // Errors
 
 /** A message for a failed request of this tab. The server's own message for a store failure is kept: it names what the store said. */
-export function reviewErrorMessage(error: unknown, action: 'load' | 'sync' | 'triage' = 'load'): string {
+export function reviewErrorMessage(
+  error: unknown,
+  action: 'load' | 'sync' | 'triage' = 'load',
+): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
   const server = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
@@ -557,7 +624,14 @@ export type WorkspaceReviewsSummary = {
   lowRatingThreshold: number;
   apps: SummaryApp[];
   unansweredMaxRating?: number;
-  totals: { total: number; new: number; unanswered: number; unansweredOldestAt?: number | null; lowRating: number; average: number | null };
+  totals: {
+    total: number;
+    new: number;
+    unanswered: number;
+    unansweredOldestAt?: number | null;
+    lowRating: number;
+    average: number | null;
+  };
 };
 
 export type InboxFilters = ReviewFilters & {
@@ -656,17 +730,25 @@ export function inboxFiltersFromSearch(search: string): InboxFilters {
       .map((v) => v.trim())
       .filter((v) => v !== '');
   const apps = list('apps');
-  if (apps.length > 0 && apps.length <= 50 && apps.every((id) => ID_PATTERN.test(id))) f.appIds = [...new Set(apps)];
+  if (apps.length > 0 && apps.length <= 50 && apps.every((id) => ID_PATTERN.test(id)))
+    f.appIds = [...new Set(apps)];
   const platform = params.get('platform');
   if (isPlatform(platform)) f.platform = platform;
   const ratings = list('rating');
-  if (ratings.length > 0 && ratings.every((r) => /^[1-5]$/.test(r))) f.ratings = [...new Set(ratings.map(Number))].sort((a, b) => a - b);
+  if (ratings.length > 0 && ratings.every((r) => /^[1-5]$/.test(r)))
+    f.ratings = [...new Set(ratings.map(Number))].sort((a, b) => a - b);
   const statuses = list('status');
-  if (statuses.length > 0 && statuses.every((s) => reviewStatuses.includes(s))) f.statuses = [...new Set(statuses)] as ReviewStatus[];
+  if (statuses.length > 0 && statuses.every((s) => reviewStatuses.includes(s)))
+    f.statuses = [...new Set(statuses)] as ReviewStatus[];
   const response = params.get('response');
   if (response === 'yes' || response === 'no') f.response = response;
   const assignee = params.get('assignee');
-  if (assignee === 'me' || assignee === 'unassigned' || (assignee !== null && ID_PATTERN.test(assignee))) f.assignee = assignee;
+  if (
+    assignee === 'me' ||
+    assignee === 'unassigned' ||
+    (assignee !== null && ID_PATTERN.test(assignee))
+  )
+    f.assignee = assignee;
   const version = params.get('version');
   if (version && version.length <= 100) f.version = version;
   const territory = params.get('territory');
@@ -695,7 +777,8 @@ export function parseInboxHash(hash: string): InboxFilters {
 }
 
 /** The inbox with one app already chosen, for a link from elsewhere. */
-export const inboxForApp = (appId: string): string => inboxHref({ ...defaultInboxFilters(), appIds: [appId] });
+export const inboxForApp = (appId: string): string =>
+  inboxHref({ ...defaultInboxFilters(), appIds: [appId] });
 
 /** Where the app is. The app's own page has a Reviews tab (the tab is one click away: the page does not read a tab from the address). */
 export const appPageHref = (appId: string): string => `#/portfolio/${encodeURIComponent(appId)}`;
@@ -717,7 +800,10 @@ export function quickViewFilters(id: QuickView['id'], lowThreshold: number): Inb
     f.response = 'no';
     f.statuses = ['new', 'triaged', 'replied_in_console'];
   } else if (id === 'low') {
-    f.ratings = Array.from({ length: Math.max(0, Math.min(MAX_RATING, Math.trunc(lowThreshold))) }, (_, i) => i + 1);
+    f.ratings = Array.from(
+      { length: Math.max(0, Math.min(MAX_RATING, Math.trunc(lowThreshold))) },
+      (_, i) => i + 1,
+    );
     f.statuses = ['new', 'triaged', 'replied_in_console'];
   } else f.assignee = 'me';
   return f;
@@ -733,13 +819,22 @@ export function summaryStripText(totals: WorkspaceReviewsSummary['totals']): str
  * (`totals.unansweredOldestAt`, `unansweredMaxRating`) as one sentence. Null when there is nothing unanswered or the server
  * does not send the fields.
  */
-export function unansweredNote(summary: Pick<WorkspaceReviewsSummary, 'totals' | 'unansweredMaxRating'>, now: number): string | null {
+export function unansweredNote(
+  summary: Pick<WorkspaceReviewsSummary, 'totals' | 'unansweredMaxRating'>,
+  now: number,
+): string | null {
   const oldest = summary.totals.unansweredOldestAt;
   if (summary.totals.unanswered <= 0 || oldest === undefined || oldest === null) return null;
   const hours = Math.max(0, Math.floor((now - oldest) / 3_600_000));
-  const age = hours < 1 ? 'under 1 hour' : hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`;
+  const age =
+    hours < 1 ? 'under 1 hour' : hours < 48 ? `${hours} hours` : `${Math.floor(hours / 24)} days`;
   const max = summary.unansweredMaxRating;
-  const ratings = max === undefined || max >= MAX_RATING ? '' : max === 1 ? ', counting 1 star reviews only' : `, counting reviews of ${max} stars or fewer`;
+  const ratings =
+    max === undefined || max >= MAX_RATING
+      ? ''
+      : max === 1
+        ? ', counting 1 star reviews only'
+        : `, counting reviews of ${max} stars or fewer`;
   return `The oldest unanswered review is ${age} old${ratings}.`;
 }
 
@@ -747,16 +842,28 @@ export function unansweredNote(summary: Pick<WorkspaceReviewsSummary, 'totals' |
 export function busiestApps(apps: readonly SummaryApp[], limit = 5): SummaryApp[] {
   return apps
     .filter((a) => a.new > 0 || a.unanswered > 0 || a.lowRating > 0)
-    .sort((a, b) => b.new - a.new || b.unanswered - a.unanswered || b.lowRating - a.lowRating || a.app.name.localeCompare(b.app.name))
+    .sort(
+      (a, b) =>
+        b.new - a.new ||
+        b.unanswered - a.unanswered ||
+        b.lowRating - a.lowRating ||
+        a.app.name.localeCompare(b.app.name),
+    )
     .slice(0, Math.max(0, limit));
 }
 
 /** Replaces one review in an inbox list (after a triage change or a send); the app stays as listed. */
-export function replaceInboxReview(current: readonly InboxReview[], updated: Review): InboxReview[] {
+export function replaceInboxReview(
+  current: readonly InboxReview[],
+  updated: Review,
+): InboxReview[] {
   return current.map((r) => (r.id === updated.id ? { ...r, ...updated, app: r.app } : r));
 }
 
-export function appendInboxPage(current: readonly InboxReview[], page: readonly InboxReview[]): InboxReview[] {
+export function appendInboxPage(
+  current: readonly InboxReview[],
+  page: readonly InboxReview[],
+): InboxReview[] {
   const seen = new Set(current.map((r) => r.id));
   return [...current, ...page.filter((r) => !seen.has(r.id))];
 }
@@ -771,7 +878,13 @@ export type InboxShortcut = 'next' | 'previous' | 'first' | 'last' | 'triage' | 
  * with a modifier held, so typing a reply never triages a review. j and k or the arrow keys move,
  * t marks the focused review triaged, r opens its reply, / jumps to the search box.
  */
-export function shortcutFor(event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; typing: boolean }): InboxShortcut | null {
+export function shortcutFor(event: {
+  key: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  typing: boolean;
+}): InboxShortcut | null {
   if (event.typing || event.ctrlKey || event.metaKey || event.altKey) return null;
   switch (event.key) {
     case 'j':
@@ -807,4 +920,6 @@ export function moveIndex(current: number, count: number, move: InboxShortcut): 
 
 /** The text a screen reader hears when the list changes. */
 export const inboxAnnouncement = (shown: number, more: boolean): string =>
-  shown === 0 ? 'No reviews match.' : `${shown}${more ? ' or more' : ''} ${shown === 1 && !more ? 'review' : 'reviews'} shown.`;
+  shown === 0
+    ? 'No reviews match.'
+    : `${shown}${more ? ' or more' : ''} ${shown === 1 && !more ? 'review' : 'reviews'} shown.`;

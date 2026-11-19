@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  type SectionScope,
-  type StorageLike,
   countOf,
   parseSectionState,
   readSectionOpen,
+  type SectionScope,
+  type StorageLike,
   sectionPageOf,
   sectionStorageKey,
   showsToggleAll,
@@ -78,8 +78,14 @@ test('the toggle for all sections appears from three sections', () => {
 });
 
 test('summary lines join only the parts that say something', () => {
-  assert.equal(summaryLine([countOf(12, 'locale'), '3 need attention']), '12 locales · 3 need attention');
-  assert.equal(summaryLine([countOf(1, 'locale'), 0 === 1 && 'x', null, undefined, '']), '1 locale');
+  assert.equal(
+    summaryLine([countOf(12, 'locale'), '3 need attention']),
+    '12 locales · 3 need attention',
+  );
+  assert.equal(
+    summaryLine([countOf(1, 'locale'), 0 === 1 && 'x', null, undefined, '']),
+    '1 locale',
+  );
   assert.equal(summaryLine([]), '');
   assert.equal(countOf(2, 'child', 'children'), '2 children');
 });

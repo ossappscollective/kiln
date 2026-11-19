@@ -23,7 +23,11 @@ export function isTranslationMode(value: unknown): value is TranslationMode {
 export type TranslationProviderInfo = {
   label: string;
   /** The vault credential kind that holds this provider's secret. */
-  credentialKind: 'translate_google' | 'translate_deepl' | 'translate_azure' | 'translate_libretranslate';
+  credentialKind:
+    | 'translate_google'
+    | 'translate_deepl'
+    | 'translate_azure'
+    | 'translate_libretranslate';
   /** False when the provider can run without a secret (a LibreTranslate instance with no API keys). */
   credentialRequired: boolean;
   /** The workspace needs to give the address of the service (LibreTranslate). */
@@ -46,14 +50,16 @@ export const translationProviderInfo: Record<TranslationProvider, TranslationPro
     credentialKind: 'translate_deepl',
     credentialRequired: true,
     needsUrl: false,
-    privacy: 'Review text is sent to DeepL. Check DeepL’s terms for your plan (Free or Pro) before you turn this on.',
+    privacy:
+      'Review text is sent to DeepL. Check DeepL’s terms for your plan (Free or Pro) before you turn this on.',
   },
   azure: {
     label: 'Microsoft Translator (Azure)',
     credentialKind: 'translate_azure',
     credentialRequired: true,
     needsUrl: false,
-    privacy: 'Review text is sent to Microsoft Azure. Check Microsoft’s terms for your resource before you turn this on.',
+    privacy:
+      'Review text is sent to Microsoft Azure. Check Microsoft’s terms for your resource before you turn this on.',
   },
   libretranslate: {
     label: 'LibreTranslate (your own server or a hosted one)',
@@ -107,7 +113,9 @@ export function normalizeLanguageTag(raw: string): string | undefined {
       return undefined;
     }
   }
-  return [language.toLowerCase(), script, region].filter((p): p is string => p !== undefined).join('-');
+  return [language.toLowerCase(), script, region]
+    .filter((p): p is string => p !== undefined)
+    .join('-');
 }
 
 /** The language without script or region: `pt-BR` gives `pt`. Empty for something that is not a tag. */

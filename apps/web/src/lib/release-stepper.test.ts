@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { StagedChangesView } from '@mrm/core';
 import {
-  type StepperFacts,
   assetsStatus,
   buildStatus,
   chosenOf,
@@ -15,6 +14,7 @@ import {
   releaseStepHref,
   resolveStep,
   reviewStatus,
+  type StepperFacts,
   stagedFacts,
   stagedNotes,
   stepFromHash,
@@ -52,13 +52,22 @@ test('the step lives in the address and keeps the rest of it', () => {
   assert.equal(stepFromHash('#/portfolio/a1/releases?platform=ios&step=notes'), 'notes');
   assert.equal(stepFromHash('#/portfolio/a1/releases?step=nope'), null);
   assert.equal(stepFromHash('#/portfolio/a1/releases'), null);
-  assert.equal(withStep('#/portfolio/a1/releases?platform=ios&version=2.4.0', 'review'), '#/portfolio/a1/releases?platform=ios&version=2.4.0&step=review');
-  assert.equal(withStep('#/portfolio/a1/releases?platform=ios&step=notes', null), '#/portfolio/a1/releases?platform=ios');
+  assert.equal(
+    withStep('#/portfolio/a1/releases?platform=ios&version=2.4.0', 'review'),
+    '#/portfolio/a1/releases?platform=ios&version=2.4.0&step=review',
+  );
+  assert.equal(
+    withStep('#/portfolio/a1/releases?platform=ios&step=notes', null),
+    '#/portfolio/a1/releases?platform=ios',
+  );
   assert.equal(withStep('#/portfolio/a1/releases', 'build'), '#/portfolio/a1/releases?step=build');
 });
 
 test('a link to a step names the tab, the platform, the version and the step', () => {
-  assert.equal(releaseStepHref('a1', 'ios', 'confirm', '2.4.0'), '#/portfolio/a1/releases?platform=ios&version=2.4.0&step=confirm');
+  assert.equal(
+    releaseStepHref('a1', 'ios', 'confirm', '2.4.0'),
+    '#/portfolio/a1/releases?platform=ios&version=2.4.0&step=confirm',
+  );
   assert.equal(releaseStepHref('a1', null, 'build'), '#/portfolio/a1/releases?step=build');
 });
 
@@ -90,25 +99,78 @@ test('staged facts count items, errors and what a push would write', () => {
   const problem = (severity: 'error' | 'warning') => ({ severity, code: 'x', message: 'm' });
   const v = view({
     text: [
-      { id: 't1', pushed: false, status: 'changed', problems: [problem('warning')], field: 'release_notes', locale: 'en-US', value: 'Hi' },
-      { id: 't2', pushed: false, status: 'unchanged', problems: [], field: 'description', locale: 'en-US', value: 'x' },
+      {
+        id: 't1',
+        pushed: false,
+        status: 'changed',
+        problems: [problem('warning')],
+        field: 'release_notes',
+        locale: 'en-US',
+        value: 'Hi',
+      },
+      {
+        id: 't2',
+        pushed: false,
+        status: 'unchanged',
+        problems: [],
+        field: 'description',
+        locale: 'en-US',
+        value: 'x',
+      },
     ] as never,
     assets: [{ id: 'a1', pushed: true, problems: [problem('error')] }] as never,
     release: [
-      { id: 'r1', field: 'build', locale: '', value: 'b1', pushed: false, localOnly: false, problems: [] },
-      { id: 'r2', field: 'user_fraction', locale: '', value: '0.1', pushed: false, localOnly: true, problems: [] },
+      {
+        id: 'r1',
+        field: 'build',
+        locale: '',
+        value: 'b1',
+        pushed: false,
+        localOnly: false,
+        problems: [],
+      },
+      {
+        id: 'r2',
+        field: 'user_fraction',
+        locale: '',
+        value: '0.1',
+        pushed: false,
+        localOnly: true,
+        problems: [],
+      },
     ] as never,
   });
-  assert.deepEqual(stagedFacts(v), { release: 2, texts: 2, assets: 1, total: 5, errors: 1, warnings: 1, unpushed: 2 });
+  assert.deepEqual(stagedFacts(v), {
+    release: 2,
+    texts: 2,
+    assets: 1,
+    total: 5,
+    errors: 1,
+    warnings: 1,
+    unpushed: 2,
+  });
   assert.deepEqual(stagedFacts(null).total, 0);
   assert.deepEqual(stagedNotes(v, 'ios'), { 'en-US': 'Hi' });
-  assert.deepEqual(stagedNotes(view({ release: [{ field: 'release_notes', locale: 'de-DE', value: 'Hallo' }] as never }), 'android'), { 'de-DE': 'Hallo' });
+  assert.deepEqual(
+    stagedNotes(
+      view({ release: [{ field: 'release_notes', locale: 'de-DE', value: 'Hallo' }] as never }),
+      'android',
+    ),
+    { 'de-DE': 'Hallo' },
+  );
 });
 
 test('the chosen build is the staged one, else the one the store draft has', () => {
   const builds = [{ id: 'b1', buildNumber: '412' }] as never;
-  const staged = view({ release: [{ field: 'build', locale: '', value: 'b1', localOnly: false, pushed: false, problems: [] }] as never });
-  assert.deepEqual(chosenOf({ platform: 'ios', view: staged, editable: null, builds }), { label: 'Build 412', where: 'staged' });
+  const staged = view({
+    release: [
+      { field: 'build', locale: '', value: 'b1', localOnly: false, pushed: false, problems: [] },
+    ] as never,
+  });
+  assert.deepEqual(chosenOf({ platform: 'ios', view: staged, editable: null, builds }), {
+    label: 'Build 412',
+    where: 'staged',
+  });
   const editable = {
     store: 'appstoreconnect',
     platform: 'ios',
@@ -120,30 +182,65 @@ test('the chosen build is the staged one, else the one the store draft has', () 
     phasedRelease: null,
     releaseNotes: [{ locale: 'en-US', text: 'Old' }],
   } as never;
-  assert.deepEqual(chosenOf({ platform: 'ios', view: view(), editable, builds }), { label: 'Build 410', where: 'store' });
+  assert.deepEqual(chosenOf({ platform: 'ios', view: view(), editable, builds }), {
+    label: 'Build 410',
+    where: 'store',
+  });
   assert.equal(chosenOf({ platform: 'ios', view: view(), editable: null, builds }), null);
   assert.deepEqual(storeNotes(editable), { 'en-US': 'Old' });
   const play = view({
     release: [
-      { field: 'track', locale: '', value: 'production', localOnly: false, pushed: false, problems: [] },
-      { field: 'version_codes', locale: '', value: '240,241', localOnly: false, pushed: false, problems: [] },
+      {
+        field: 'track',
+        locale: '',
+        value: 'production',
+        localOnly: false,
+        pushed: false,
+        problems: [],
+      },
+      {
+        field: 'version_codes',
+        locale: '',
+        value: '240,241',
+        localOnly: false,
+        pushed: false,
+        problems: [],
+      },
     ] as never,
   });
-  assert.deepEqual(chosenOf({ platform: 'android', view: play, editable: null, builds: [] }), { label: 'Version codes 240, 241 on production', where: 'staged' });
+  assert.deepEqual(chosenOf({ platform: 'android', view: play, editable: null, builds: [] }), {
+    label: 'Version codes 240, 241 on production',
+    where: 'staged',
+  });
   const draft = {
     store: 'googleplay',
     platform: 'android',
     track: 'beta',
-    draft: { name: null, status: 'draft', userFraction: null, versionCodes: ['9'], notes: [{ locale: 'en-US', text: 'N' }] },
+    draft: {
+      name: null,
+      status: 'draft',
+      userFraction: null,
+      versionCodes: ['9'],
+      notes: [{ locale: 'en-US', text: 'N' }],
+    },
     others: [],
   } as never;
-  assert.deepEqual(chosenOf({ platform: 'android', view: view(), editable: draft, builds: [] }), { label: 'Version codes 9 on beta', where: 'store' });
+  assert.deepEqual(chosenOf({ platform: 'android', view: view(), editable: draft, builds: [] }), {
+    label: 'Version codes 9 on beta',
+    where: 'store',
+  });
   assert.deepEqual(storeNotes(draft), { 'en-US': 'N' });
 });
 
 test('the Build dot: chosen, blocked, none to choose, to do', () => {
-  assert.equal(buildStatus(facts({ chosen: { label: 'Build 412', where: 'staged' } })).level, 'ready');
-  assert.equal(buildStatus(facts({ chosen: { label: 'Build 412', where: 'staged' } })).text, 'Build 412, staged');
+  assert.equal(
+    buildStatus(facts({ chosen: { label: 'Build 412', where: 'staged' } })).level,
+    'ready',
+  );
+  assert.equal(
+    buildStatus(facts({ chosen: { label: 'Build 412', where: 'staged' } })).text,
+    'Build 412, staged',
+  );
   assert.equal(buildStatus(facts({ editable: { state: 'none' } })).level, 'blocked');
   assert.match(buildStatus(facts({ editable: { state: 'none' } })).text, /Prepare for Submission/);
   assert.equal(buildStatus(facts({ choices: 0 })).level, 'attention');
@@ -153,38 +250,87 @@ test('the Build dot: chosen, blocked, none to choose, to do', () => {
 });
 
 test('the Notes dot: unsaved first, then limit, then empty, then ready', () => {
-  assert.equal(notesStatus(facts({ notes: { withText: 2, unsaved: 1, over: 0 } })).text, '1 language is not staged yet');
-  assert.equal(notesStatus(facts({ notes: { withText: 2, unsaved: 0, over: 2 } })).text, '2 texts are over the store limit');
+  assert.equal(
+    notesStatus(facts({ notes: { withText: 2, unsaved: 1, over: 0 } })).text,
+    '1 language is not staged yet',
+  );
+  assert.equal(
+    notesStatus(facts({ notes: { withText: 2, unsaved: 0, over: 2 } })).text,
+    '2 texts are over the store limit',
+  );
   assert.equal(notesStatus(facts()).level, 'todo');
-  assert.equal(notesStatus(facts({ notes: { withText: 3, unsaved: 0, over: 0 } })).text, '3 languages have notes');
+  assert.equal(
+    notesStatus(facts({ notes: { withText: 3, unsaved: 0, over: 0 } })).text,
+    '3 languages have notes',
+  );
 });
 
 test('the Assets and Review dots', () => {
   assert.equal(assetsStatus(facts()).level, 'optional');
-  assert.equal(assetsStatus(facts({ staged: { release: 0, texts: 0, assets: 2, total: 2, errors: 0, warnings: 0, unpushed: 2 } })).text, '2 graphic sets staged');
+  assert.equal(
+    assetsStatus(
+      facts({
+        staged: { release: 0, texts: 0, assets: 2, total: 2, errors: 0, warnings: 0, unpushed: 2 },
+      }),
+    ).text,
+    '2 graphic sets staged',
+  );
   assert.equal(reviewStatus(facts()).level, 'optional');
-  assert.equal(reviewStatus(facts({ staged: { release: 1, texts: 1, assets: 0, total: 2, errors: 0, warnings: 1, unpushed: 2 } })).text, '2 staged changes, 1 warning');
-  assert.equal(reviewStatus(facts({ staged: { release: 1, texts: 0, assets: 0, total: 1, errors: 2, warnings: 0, unpushed: 1 } })).level, 'blocked');
+  assert.equal(
+    reviewStatus(
+      facts({
+        staged: { release: 1, texts: 1, assets: 0, total: 2, errors: 0, warnings: 1, unpushed: 2 },
+      }),
+    ).text,
+    '2 staged changes, 1 warning',
+  );
+  assert.equal(
+    reviewStatus(
+      facts({
+        staged: { release: 1, texts: 0, assets: 0, total: 1, errors: 2, warnings: 0, unpushed: 1 },
+      }),
+    ).level,
+    'blocked',
+  );
 });
 
 test('the Confirm dot follows the staged changes, then the state of the release', () => {
   const staged = { release: 1, texts: 0, assets: 0, total: 1, errors: 0, warnings: 0, unpushed: 1 };
   assert.equal(confirmStatus(facts({ staged })).text, 'Push 1 staged change to the store draft');
-  assert.equal(confirmStatus(facts({ pipeline: { state: 'draft', waitingOn: 'you' } })).text, 'The draft is pushed: submit it for review');
-  assert.equal(confirmStatus(facts({ platform: 'android', pipeline: { state: 'draft', waitingOn: 'you' } })).text, 'The draft is pushed: release it at a share of users');
-  assert.equal(confirmStatus(facts({ pipeline: { state: 'in_review', waitingOn: 'store' } })).level, 'optional');
-  assert.equal(confirmStatus(facts({ pipeline: { state: 'approved', waitingOn: 'you' } })).level, 'todo');
+  assert.equal(
+    confirmStatus(facts({ pipeline: { state: 'draft', waitingOn: 'you' } })).text,
+    'The draft is pushed: submit it for review',
+  );
+  assert.equal(
+    confirmStatus(facts({ platform: 'android', pipeline: { state: 'draft', waitingOn: 'you' } }))
+      .text,
+    'The draft is pushed: release it at a share of users',
+  );
+  assert.equal(
+    confirmStatus(facts({ pipeline: { state: 'in_review', waitingOn: 'store' } })).level,
+    'optional',
+  );
+  assert.equal(
+    confirmStatus(facts({ pipeline: { state: 'approved', waitingOn: 'you' } })).level,
+    'todo',
+  );
   assert.equal(confirmStatus(facts({ pipeline: null })).level, 'unknown');
   assert.equal(confirmStatus(facts({ staged: { ...staged, errors: 1 } })).level, 'blocked');
 });
 
 test('stepStatuses lists only the visible steps, in order', () => {
   const list = stepStatuses(facts(), ['build', 'review']);
-  assert.deepEqual(list.map((s) => s.id), ['build', 'review']);
+  assert.deepEqual(
+    list.map((s) => s.id),
+    ['build', 'review'],
+  );
 });
 
 test('the version is the one asked for, else the editable one, else the newest', () => {
-  const options = [{ version: '2.5.0', editable: false }, { version: '2.4.0', editable: true }];
+  const options = [
+    { version: '2.5.0', editable: false },
+    { version: '2.4.0', editable: true },
+  ];
   assert.equal(pickVersion('2.5.0', options), '2.5.0');
   assert.equal(pickVersion(null, options), '2.4.0');
   assert.equal(pickVersion('9', [{ version: '2.5.0', editable: false }]), '2.5.0');

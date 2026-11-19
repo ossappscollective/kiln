@@ -1,6 +1,6 @@
-import { type Platform, type Role, can } from '@mrm/core';
+import { can, type Platform, type Role } from '@mrm/core';
 import { ApiError } from './api.ts';
-import { appAddress, type AppSection, type PlatformScope } from './app-scope.ts';
+import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { DraftPreview } from './staged.ts';
 import type { ReleasePreview } from './store-release.ts';
@@ -21,11 +21,28 @@ export const PUBLISH_ENV = 'MRM_STORE_PUBLISH_BATCH_ENABLED';
 // ---------------------------------------------------------------------------------------------
 // API shapes
 
-export type PendingKind = 'listing_text' | 'asset_set' | 'release_field' | 'pushed_draft' | 'in_review' | 'approved' | 'rollout_step';
+export type PendingKind =
+  | 'listing_text'
+  | 'asset_set'
+  | 'release_field'
+  | 'pushed_draft'
+  | 'in_review'
+  | 'approved'
+  | 'rollout_step';
 export type PublishStepType = 'push_draft' | 'submit' | 'release' | 'rollout';
-export const PUBLISH_STEPS: readonly PublishStepType[] = ['push_draft', 'submit', 'release', 'rollout'];
+export const PUBLISH_STEPS: readonly PublishStepType[] = [
+  'push_draft',
+  'submit',
+  'release',
+  'rollout',
+];
 
-export type PendingProblem = { code: string; severity: 'error' | 'warning'; message: string; item?: string };
+export type PendingProblem = {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  item?: string;
+};
 export type PendingState = 'staged' | 'invalid' | 'pushed' | 'in_review' | 'approved' | 'due';
 
 export type PendingItem = {
@@ -44,7 +61,12 @@ export type PendingItem = {
 
 export type PendingTotals = { items: number; actionable: number; blocking: number };
 export type PendingStore = 'appstoreconnect' | 'googleplay';
-export type PendingPlatform = { platform: Platform; store: PendingStore; items: PendingItem[]; totals: PendingTotals };
+export type PendingPlatform = {
+  platform: Platform;
+  store: PendingStore;
+  items: PendingItem[];
+  totals: PendingTotals;
+};
 
 export type PendingView = {
   app: { id: string; name: string; platform: Platform; store: PendingStore };
@@ -65,14 +87,21 @@ export type PendingSummaryApp = {
   nextSteps: PublishStepType[];
 };
 
-export type PendingSummary = { apps: PendingSummaryApp[]; totals: { apps: number; count: number; blocking: number }; generatedAt: number };
+export type PendingSummary = {
+  apps: PendingSummaryApp[];
+  totals: { apps: number; count: number; blocking: number };
+  generatedAt: number;
+};
 
 export type PublishConfig = {
   enabled: boolean;
   envName: string;
   action: string;
   minimumRole: string;
-  steps: Record<PublishStepType, { action: string; envName: string; enabled: boolean; irreversible: boolean }>;
+  steps: Record<
+    PublishStepType,
+    { action: string; envName: string; enabled: boolean; irreversible: boolean }
+  >;
   phrase: string;
   note: string;
 };
@@ -86,9 +115,21 @@ export type StepRequest = {
   userFraction?: number;
 };
 
-export type Availability = 'available' | 'feature_disabled' | 'forbidden' | 'nothing_to_do' | 'blocked' | 'needs_input' | 'not_requested';
+export type Availability =
+  | 'available'
+  | 'feature_disabled'
+  | 'forbidden'
+  | 'nothing_to_do'
+  | 'blocked'
+  | 'needs_input'
+  | 'not_requested';
 
-export type PlanProblem = { code: string; severity: 'error' | 'warning'; message: string; item?: string };
+export type PlanProblem = {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  item?: string;
+};
 
 export type PlanStep = {
   type: PublishStepType;
@@ -127,7 +168,14 @@ export type PublishPlan = {
 
 export type StepResult =
   | { type: PublishStepType; status: 'applied'; confirmedByReread: boolean; result?: unknown }
-  | { type: PublishStepType; status: 'skipped'; reason: 'previous_step_not_applied' | 'plan_drifted' | 'blocked' | 'preview_failed'; code?: string; message?: string; checks?: string[] }
+  | {
+      type: PublishStepType;
+      status: 'skipped';
+      reason: 'previous_step_not_applied' | 'plan_drifted' | 'blocked' | 'preview_failed';
+      code?: string;
+      message?: string;
+      checks?: string[];
+    }
   | {
       type: PublishStepType;
       status: 'failed';
@@ -155,7 +203,15 @@ export type PublishResult = {
 // The pending view: groups, words, links
 
 /** The order the kinds are listed in: what a person edits first, what only waits for the store last. */
-export const KIND_ORDER: readonly PendingKind[] = ['listing_text', 'asset_set', 'release_field', 'pushed_draft', 'approved', 'rollout_step', 'in_review'];
+export const KIND_ORDER: readonly PendingKind[] = [
+  'listing_text',
+  'asset_set',
+  'release_field',
+  'pushed_draft',
+  'approved',
+  'rollout_step',
+  'in_review',
+];
 
 export const KIND_LABEL: Readonly<Record<PendingKind, string>> = {
   listing_text: 'Listing text',
@@ -221,18 +277,25 @@ export function groupItems(items: readonly PendingItem[]): KindGroup[] {
   return out;
 }
 
-export const errorsOf = (item: Pick<PendingItem, 'problems'>): PendingProblem[] => item.problems.filter((p) => p.severity === 'error');
-export const warningsOf = (item: Pick<PendingItem, 'problems'>): PendingProblem[] => item.problems.filter((p) => p.severity === 'warning');
+export const errorsOf = (item: Pick<PendingItem, 'problems'>): PendingProblem[] =>
+  item.problems.filter((p) => p.severity === 'error');
+export const warningsOf = (item: Pick<PendingItem, 'problems'>): PendingProblem[] =>
+  item.problems.filter((p) => p.severity === 'warning');
 
 /** Staged items can be removed here (this only changes our own database); the rest is changed in the store. */
 export const isDiscardable = (item: Pick<PendingItem, 'kind' | 'refs'>): boolean =>
-  (item.kind === 'listing_text' || item.kind === 'asset_set' || item.kind === 'release_field') && item.refs.length > 0;
+  (item.kind === 'listing_text' || item.kind === 'asset_set' || item.kind === 'release_field') &&
+  item.refs.length > 0;
 
 /** The ids to unstage for an item (a text item holds every staged text change of the app). */
 export const discardIds = (item: Pick<PendingItem, 'refs'>): string[] => item.refs.map((r) => r.id);
 
 /** Where to change an item: the screen that stages it, or the releases tab for what is already in the store. */
-export function editHref(item: Pick<PendingItem, 'kind' | 'platform'>, appId: string, scope: PlatformScope | null): { href: string; label: string } {
+export function editHref(
+  item: Pick<PendingItem, 'kind' | 'platform'>,
+  appId: string,
+  scope: PlatformScope | null,
+): { href: string; label: string } {
   const platform: PlatformScope = scope ?? item.platform;
   const at = (section: AppSection) => appAddress(appId, section, platform);
   switch (item.kind) {
@@ -249,7 +312,11 @@ export function editHref(item: Pick<PendingItem, 'kind' | 'platform'>, appId: st
 
 export function platformTotals(p: Pick<PendingPlatform, 'items'>): PendingTotals {
   const actionable = p.items.filter((i) => i.nextStep !== null).length;
-  return { items: p.items.length, actionable, blocking: p.items.filter((i) => errorsOf(i).length > 0).length };
+  return {
+    items: p.items.length,
+    actionable,
+    blocking: p.items.filter((i) => errorsOf(i).length > 0).length,
+  };
 }
 
 /** The one line at the top of the view: what waits, what is blocked, what only waits for the store. */
@@ -267,20 +334,31 @@ export function totalsLine(t: PendingTotals): string {
 export type PlatformGroup = { appId: string; platform: PendingPlatform };
 
 /** The platform groups of several platform records (a platform with nothing pending is left out). */
-export function platformGroups(views: readonly (PendingView | null | undefined)[]): PlatformGroup[] {
+export function platformGroups(
+  views: readonly (PendingView | null | undefined)[],
+): PlatformGroup[] {
   const out: PlatformGroup[] = [];
   for (const view of views) {
     if (!view) continue;
-    for (const p of view.platforms) if (p.items.length > 0) out.push({ appId: view.app.id, platform: p });
+    for (const p of view.platforms)
+      if (p.items.length > 0) out.push({ appId: view.app.id, platform: p });
   }
   return out;
 }
 
 /** An item that has an error: what blocks publishing everything (the server plans per step, so a blocked item cannot be left out). */
-export type BlockingItem = { appId: string; platform: Platform; itemId: string; label: string; messages: string[]; anchor: string };
+export type BlockingItem = {
+  appId: string;
+  platform: Platform;
+  itemId: string;
+  label: string;
+  messages: string[];
+  anchor: string;
+};
 
 /** The DOM id of an item row, so "Show it" can scroll to it and focus it. */
-export const itemAnchor = (appId: string, itemId: string): string => `pending-item-${appId}-${itemId}`.replace(/[^A-Za-z0-9_-]/g, '-');
+export const itemAnchor = (appId: string, itemId: string): string =>
+  `pending-item-${appId}-${itemId}`.replace(/[^A-Za-z0-9_-]/g, '-');
 
 /** The items with an error, in page order. */
 export function blockingItems(groups: readonly PlatformGroup[]): BlockingItem[] {
@@ -288,7 +366,15 @@ export function blockingItems(groups: readonly PlatformGroup[]): BlockingItem[] 
   for (const g of groups) {
     for (const i of g.platform.items) {
       const errors = errorsOf(i);
-      if (errors.length > 0) out.push({ appId: g.appId, platform: g.platform.platform, itemId: i.id, label: i.label, messages: errors.map((e) => e.message), anchor: itemAnchor(g.appId, i.id) });
+      if (errors.length > 0)
+        out.push({
+          appId: g.appId,
+          platform: g.platform.platform,
+          itemId: i.id,
+          label: i.label,
+          messages: errors.map((e) => e.message),
+          anchor: itemAnchor(g.appId, i.id),
+        });
     }
   }
   return out;
@@ -297,7 +383,11 @@ export function blockingItems(groups: readonly PlatformGroup[]): BlockingItem[] 
 /** The totals of several platform groups added up. */
 export function combineTotals(groups: readonly { totals: PendingTotals }[]): PendingTotals {
   return groups.reduce<PendingTotals>(
-    (sum, g) => ({ items: sum.items + g.totals.items, actionable: sum.actionable + g.totals.actionable, blocking: sum.blocking + g.totals.blocking }),
+    (sum, g) => ({
+      items: sum.items + g.totals.items,
+      actionable: sum.actionable + g.totals.actionable,
+      blocking: sum.blocking + g.totals.blocking,
+    }),
     { items: 0, actionable: 0, blocking: 0 },
   );
 }
@@ -308,7 +398,10 @@ export function combineTotals(groups: readonly { totals: PendingTotals }[]): Pen
 export type PendingLine = { count: number; blocking: number; waiting: number };
 
 /** The summary line of an app made of these records (several platforms add up); null when it is not known or nothing is pending. */
-export function lineFor(summary: PendingSummary | null | undefined, appIds: readonly string[]): PendingLine | null {
+export function lineFor(
+  summary: PendingSummary | null | undefined,
+  appIds: readonly string[],
+): PendingLine | null {
   if (!summary || !Array.isArray(summary.apps)) return null;
   let count = 0;
   let blocking = 0;
@@ -329,7 +422,12 @@ export function chipFor(line: PendingLine | null | undefined): Chip | null {
   if (!line || (line.count <= 0 && line.blocking <= 0)) return null;
   const n = line.count > 0 ? line.count : line.blocking;
   const text = n > 99 ? '99+ pending' : `${n} pending`;
-  if (line.blocking > 0) return { text, tone: 'warn', label: `${text}, ${line.blocking} with ${line.blocking === 1 ? 'an error' : 'errors'}` };
+  if (line.blocking > 0)
+    return {
+      text,
+      tone: 'warn',
+      label: `${text}, ${line.blocking} with ${line.blocking === 1 ? 'an error' : 'errors'}`,
+    };
   return { text, tone: 'accent', label: text };
 }
 
@@ -346,7 +444,8 @@ export type PublishAvailability =
   | { state: 'nothing'; message: string }
   | { state: 'blocked'; message: string };
 
-export const PUBLISH_ROLE_REASON = 'Publishing everything at once needs the admin or owner role. You can still look at what is pending.';
+export const PUBLISH_ROLE_REASON =
+  'Publishing everything at once needs the admin or owner role. You can still look at what is pending.';
 
 export const canPublishBatch = (role: Role): boolean => can(role, 'store.publish');
 
@@ -363,9 +462,15 @@ export function publishAvailability(input: {
   nextSteps: readonly PublishStepType[];
 }): PublishAvailability {
   if (!canPublishBatch(input.role)) return { state: 'role', message: PUBLISH_ROLE_REASON };
-  if (input.configFailed) return { state: 'unknown', message: 'Could not find out whether publishing in one go is switched on. Reload the page to try again.' };
+  if (input.configFailed)
+    return {
+      state: 'unknown',
+      message:
+        'Could not find out whether publishing in one go is switched on. Reload the page to try again.',
+    };
   const config = input.config;
-  if (!config) return { state: 'loading', message: 'Checking whether publishing in one go is switched on.' };
+  if (!config)
+    return { state: 'loading', message: 'Checking whether publishing in one go is switched on.' };
   if (!config.enabled) {
     return {
       state: 'off',
@@ -373,8 +478,11 @@ export function publishAvailability(input: {
     };
   }
   if (input.totals === null) return { state: 'loading', message: 'Reading what is pending.' };
-  if (input.totals.actionable === 0) return { state: 'nothing', message: 'Nothing is waiting to be published.' };
-  const off = input.nextSteps.filter((s) => config.steps && config.steps[s] && config.steps[s].enabled === false);
+  if (input.totals.actionable === 0)
+    return { state: 'nothing', message: 'Nothing is waiting to be published.' };
+  const off = input.nextSteps.filter(
+    (s) => config.steps && config.steps[s] && config.steps[s].enabled === false,
+  );
   if (input.nextSteps.length > 0 && off.length === input.nextSteps.length) {
     return {
       state: 'steps_off',
@@ -383,7 +491,10 @@ export function publishAvailability(input: {
   }
   if (input.totals.blocking > 0) {
     const n = input.totals.blocking;
-    return { state: 'blocked', message: `${n} ${n === 1 ? 'item has an error' : 'items have errors'}. Fix or remove ${n === 1 ? 'it' : 'them'} first.` };
+    return {
+      state: 'blocked',
+      message: `${n} ${n === 1 ? 'item has an error' : 'items have errors'}. Fix or remove ${n === 1 ? 'it' : 'them'} first.`,
+    };
   }
   return { state: 'ready' };
 }
@@ -437,12 +548,14 @@ export const SINGLE_STEP_HINT = 'Use the single step under "Advanced: do one ste
 
 /** The row of one step of the plan, from the plan alone. The rollout always names a change, so it stays a single step. */
 export function stepRow(step: PlanStep, platform: Platform): StepRow {
-  const needsInput = step.type === 'release' && platform === 'android' && step.availability === 'needs_input';
+  const needsInput =
+    step.type === 'release' && platform === 'android' && step.availability === 'needs_input';
   let toggleable = step.availability === 'available' || step.availability === 'not_requested';
   let reason = step.reason;
   if (step.type === 'rollout') {
     toggleable = false;
-    if (step.availability !== 'nothing_to_do') reason = `A rollout change names the release and the share. ${SINGLE_STEP_HINT}`;
+    if (step.availability !== 'nothing_to_do')
+      reason = `A rollout change names the release and the share. ${SINGLE_STEP_HINT}`;
   } else if (step.availability === 'needs_input') {
     // A Google Play release is ticked after the dialog asked for the track and the share; any other step that needs details stays single.
     toggleable = needsInput;
@@ -471,13 +584,18 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
   };
 }
 
-export const stepRows = (plan: PublishPlan): StepRow[] => [...plan.steps].sort((a, b) => a.order - b.order).map((s) => stepRow(s, plan.app.platform));
+export const stepRows = (plan: PublishPlan): StepRow[] =>
+  [...plan.steps].sort((a, b) => a.order - b.order).map((s) => stepRow(s, plan.app.platform));
 
 /**
  * The requests to preview after the person ticked or unticked a step: the steps that are ticked, in the plan's own form (a step
  * that is part of the plan keeps its fields), and `{ type }` for one that is newly ticked, with the details the dialog asked for.
  */
-export function requestsFor(plan: PublishPlan, wanted: readonly PublishStepType[], extra: Partial<Record<PublishStepType, StepRequest>> = {}): StepRequest[] {
+export function requestsFor(
+  plan: PublishPlan,
+  wanted: readonly PublishStepType[],
+  extra: Partial<Record<PublishStepType, StepRequest>> = {},
+): StepRequest[] {
   const out: StepRequest[] = [];
   for (const type of PUBLISH_STEPS) {
     if (wanted.indexOf(type) < 0) continue;
@@ -489,14 +607,19 @@ export function requestsFor(plan: PublishPlan, wanted: readonly PublishStepType[
 }
 
 /** The types that are part of the plan. */
-export const includedTypes = (plan: PublishPlan): PublishStepType[] => plan.steps.filter((s) => s.included).map((s) => s.type);
+export const includedTypes = (plan: PublishPlan): PublishStepType[] =>
+  plan.steps.filter((s) => s.included).map((s) => s.type);
 
-export const toggled = (current: readonly PublishStepType[], type: PublishStepType, on: boolean): PublishStepType[] =>
-  PUBLISH_STEPS.filter((t) => (t === type ? on : current.indexOf(t) >= 0));
+export const toggled = (
+  current: readonly PublishStepType[],
+  type: PublishStepType,
+  on: boolean,
+): PublishStepType[] => PUBLISH_STEPS.filter((t) => (t === type ? on : current.indexOf(t) >= 0));
 
 /** The plan can be published as it is: confirmable, with its hash, and the ticks are exactly the plan's own steps. */
 export function planReady(plan: PublishPlan | null, wanted: readonly PublishStepType[]): boolean {
-  if (plan === null || !plan.confirmable || plan.planHash === null || wanted.length === 0) return false;
+  if (plan === null || !plan.confirmable || plan.planHash === null || wanted.length === 0)
+    return false;
   const own = includedTypes(plan);
   return wanted.length === own.length && wanted.every((t) => own.indexOf(t) >= 0);
 }
@@ -505,27 +628,41 @@ export function planReady(plan: PublishPlan | null, wanted: readonly PublishStep
 // The typed phrase
 
 /** Equal ignoring surrounding spaces, never ignoring case (the server compares the same way). */
-export const phraseMatches = (typed: string, phrase: string): boolean => typed.trim() !== '' && typed.trim() === phrase.trim();
+export const phraseMatches = (typed: string, phrase: string): boolean =>
+  typed.trim() !== '' && typed.trim() === phrase.trim();
 
 /**
  * May the button publish: the plan is ready, and when the plan has a confirmation the typed text equals its phrase exactly as the
  * server gave it. A plan with no confirmation (a push alone) is published after the person ticked "I have read this plan".
  */
-export function canPublish(plan: PublishPlan | null, wanted: readonly PublishStepType[], typed: string, acknowledged: boolean): boolean {
+export function canPublish(
+  plan: PublishPlan | null,
+  wanted: readonly PublishStepType[],
+  typed: string,
+  acknowledged: boolean,
+): boolean {
   if (plan === null || !planReady(plan, wanted)) return false;
-  if (plan.confirmationRequired) return plan.confirmation !== null && phraseMatches(typed, plan.confirmation.phrase);
+  if (plan.confirmationRequired)
+    return plan.confirmation !== null && phraseMatches(typed, plan.confirmation.phrase);
   return acknowledged;
 }
 
 /** The body of `POST .../publish`. The phrase is sent only when the plan asks for one. */
-export function publishBody(plan: PublishPlan, typed: string): { planHash: string; steps: StepRequest[]; phrase?: string } {
-  const body: { planHash: string; steps: StepRequest[]; phrase?: string } = { planHash: plan.planHash ?? '', steps: plan.publishSteps };
+export function publishBody(
+  plan: PublishPlan,
+  typed: string,
+): { planHash: string; steps: StepRequest[]; phrase?: string } {
+  const body: { planHash: string; steps: StepRequest[]; phrase?: string } = {
+    planHash: plan.planHash ?? '',
+    steps: plan.publishSteps,
+  };
   if (plan.confirmationRequired) body.phrase = typed.trim();
   return body;
 }
 
 /** The body of `POST .../publish/preview`: the steps when the person chose them, else nothing (the server includes what has work). */
-export const previewBody = (steps: readonly StepRequest[] | null): { steps?: StepRequest[] } => (steps === null ? {} : { steps: [...steps] });
+export const previewBody = (steps: readonly StepRequest[] | null): { steps?: StepRequest[] } =>
+  steps === null ? {} : { steps: [...steps] };
 
 // ---------------------------------------------------------------------------------------------
 // What a step's preview holds (the plan carries each step's own preview)
@@ -533,22 +670,48 @@ export const previewBody = (steps: readonly StepRequest[] | null): { steps?: Ste
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
 export const asPushPreview = (v: unknown): DraftPreview | null =>
-  isObject(v) && Array.isArray(v.text) && Array.isArray(v.assets) && isObject(v.summary) && isObject(v.app) ? (v as unknown as DraftPreview) : null;
+  isObject(v) &&
+  Array.isArray(v.text) &&
+  Array.isArray(v.assets) &&
+  isObject(v.summary) &&
+  isObject(v.app)
+    ? (v as unknown as DraftPreview)
+    : null;
 
 export const asSubmitPreview = (v: unknown): SubmitPreview | null =>
-  isObject(v) && isObject(v.contents) && isObject(v.checks) && Array.isArray(v.irreversible) && isObject(v.app) ? (v as unknown as SubmitPreview) : null;
+  isObject(v) &&
+  isObject(v.contents) &&
+  isObject(v.checks) &&
+  Array.isArray(v.irreversible) &&
+  isObject(v.app)
+    ? (v as unknown as SubmitPreview)
+    : null;
 
 export const asReleasePreview = (v: unknown): ReleasePreview | null =>
-  isObject(v) && isObject(v.audience) && isObject(v.checks) && Array.isArray(v.irreversible) && isObject(v.app) ? (v as unknown as ReleasePreview) : null;
+  isObject(v) &&
+  isObject(v.audience) &&
+  isObject(v.checks) &&
+  Array.isArray(v.irreversible) &&
+  isObject(v.app)
+    ? (v as unknown as ReleasePreview)
+    : null;
 
 export const asRolloutPreview = (v: unknown): RolloutPreview | null =>
-  isObject(v) && isObject(v.current) && isObject(v.proposed) && typeof v.summary === 'string' && isObject(v.app) ? (v as unknown as RolloutPreview) : null;
+  isObject(v) &&
+  isObject(v.current) &&
+  isObject(v.proposed) &&
+  typeof v.summary === 'string' &&
+  isObject(v.app)
+    ? (v as unknown as RolloutPreview)
+    : null;
 
 /** The promise of a step that is checked again after the earlier ones ran, in words. Numbers and names only. */
 export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
   const s = step.summary ?? {};
-  const num = (key: string): number | null => (typeof s[key] === 'number' ? (s[key] as number) : null);
-  const str = (key: string): string | null => (typeof s[key] === 'string' && s[key] !== '' ? (s[key] as string) : null);
+  const num = (key: string): number | null =>
+    typeof s[key] === 'number' ? (s[key] as number) : null;
+  const str = (key: string): string | null =>
+    typeof s[key] === 'string' && s[key] !== '' ? (s[key] as string) : null;
   const parts: string[] = [];
   if (step.type === 'push_draft') {
     const t = num('textChanged');
@@ -572,31 +735,47 @@ export function promiseText(step: Pick<PlanStep, 'type' | 'summary'>): string {
     if (v) parts.push(`version ${v}`);
     if (track) parts.push(`track ${track}`);
     if (share !== null) parts.push(`${Math.round(share * 10000) / 100}% of users`);
-    if (audience) parts.push(audience === 'all' ? 'all users' : audience === 'phased' ? 'a phased release' : 'a share of users');
+    if (audience)
+      parts.push(
+        audience === 'all'
+          ? 'all users'
+          : audience === 'phased'
+            ? 'a phased release'
+            : 'a share of users',
+      );
   }
-  return parts.length === 0 ? 'The details are checked again when this step runs.' : `Promised: ${parts.join(', ')}.`;
+  return parts.length === 0
+    ? 'The details are checked again when this step runs.'
+    : `Promised: ${parts.join(', ')}.`;
 }
 
 // ---------------------------------------------------------------------------------------------
 // The result of a publish, in fixed words
 
-export const STOP_NOTE = 'The steps run in order and stop at the first one that is not done. The steps after it were not run, and nothing is retried automatically.';
+export const STOP_NOTE =
+  'The steps run in order and stop at the first one that is not done. The steps after it were not run, and nothing is retried automatically.';
 
 const FAILED_TEXT: Readonly<Record<string, string>> = {
-  state_changed: 'Nothing was written: the store or the staged changes changed after the preview. Review again.',
+  state_changed:
+    'Nothing was written: the store or the staged changes changed after the preview. Review again.',
   blocked: 'Nothing was written: a check blocks this step now. Review again.',
-  outcome_unknown: 'It is not known whether this reached the store. Look at the app in the store console, then review again.',
-  write_in_progress: 'Another write for this app was running, so nothing was written. Wait for it, then review again.',
-  draft_partial: 'Only part of it reached the draft. What was written stays there. Review again to finish: items that already match are skipped.',
+  outcome_unknown:
+    'It is not known whether this reached the store. Look at the app in the store console, then review again.',
+  write_in_progress:
+    'Another write for this app was running, so nothing was written. Wait for it, then review again.',
+  draft_partial:
+    'Only part of it reached the draft. What was written stays there. Review again to finish: items that already match are skipped.',
   changes_in_review: 'The store refuses this while changes are in review. Nothing was sent.',
   confirmation_mismatch: 'The confirmation did not match. Nothing was written.',
-  rate_limited: 'The store asked for a pause. Nothing was retried. Wait a moment, then review again.',
+  rate_limited:
+    'The store asked for a pause. Nothing was retried. Wait a moment, then review again.',
   store_unavailable: 'The store could not be reached. Review again to check where things stand.',
   timeout: 'The store did not answer in time. Review again to check where things stand.',
   write_failed: 'The store did not accept the write.',
   store_auth: 'The store did not accept the credential. Check it in Credentials.',
   store_forbidden: 'The store credential is not allowed to do this. Check its role in the store.',
-  store_not_found: 'The store could not find what this step acts on. Sync the app and review again.',
+  store_not_found:
+    'The store could not find what this step acts on. Sync the app and review again.',
   store_rejected: 'The store rejected this step.',
   step_error: 'The step stopped unexpectedly. Look at the app in the store, then review again.',
   asset_changed: 'A staged file changed. Stage it again, then review.',
@@ -604,7 +783,8 @@ const FAILED_TEXT: Readonly<Record<string, string>> = {
   staged_invalid: 'A staged item has an error. Fix it, then review.',
   nothing_staged: 'Nothing is staged any more.',
   nothing_pushed: 'No pushed draft is waiting to be submitted.',
-  no_editable_version: 'The store has no version that can be edited. Create one in the store console.',
+  no_editable_version:
+    'The store has no version that can be edited. Create one in the store console.',
 };
 
 const OUTCOME_TEXT: Readonly<Record<string, string>> = {
@@ -638,14 +818,39 @@ const safeCode = (code: string): string => code.replace(/[^a-z0-9_]/g, '').slice
 export function resultRow(step: StepResult): ResultRow {
   const label = STEP_NAME[step.type];
   if (step.status === 'applied') {
-    return { type: step.type, label, status: 'applied', word: 'Done', tone: 'ok', text: step.confirmedByReread ? 'Done, confirmed by reading the store back.' : 'Done.', review: false };
+    return {
+      type: step.type,
+      label,
+      status: 'applied',
+      word: 'Done',
+      tone: 'ok',
+      text: step.confirmedByReread ? 'Done, confirmed by reading the store back.' : 'Done.',
+      review: false,
+    };
   }
   if (step.status === 'skipped') {
-    return { type: step.type, label, status: 'skipped', word: 'Not run', tone: 'neutral', text: SKIPPED_TEXT[step.reason] ?? 'Not run.', review: step.reason !== 'previous_step_not_applied' };
+    return {
+      type: step.type,
+      label,
+      status: 'skipped',
+      word: 'Not run',
+      tone: 'neutral',
+      text: SKIPPED_TEXT[step.reason] ?? 'Not run.',
+      review: step.reason !== 'previous_step_not_applied',
+    };
   }
   const known = FAILED_TEXT[step.error];
-  const text = `${known ?? `The step did not finish (${safeCode(step.error)}).`} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim();
-  return { type: step.type, label, status: 'failed', word: 'Failed', tone: 'bad', text, review: true };
+  const text =
+    `${known ?? `The step did not finish (${safeCode(step.error)}).`} ${OUTCOME_TEXT[step.outcome] ?? ''}`.trim();
+  return {
+    type: step.type,
+    label,
+    status: 'failed',
+    word: 'Failed',
+    tone: 'bad',
+    text,
+    review: true,
+  };
 }
 
 export type ResultSummary = {
@@ -662,7 +867,14 @@ export function resultSummary(result: PublishResult): ResultSummary {
   const rows = result.steps.map(resultRow);
   const stoppedAt = result.stoppedAt === null ? null : STEP_NAME[result.stoppedAt];
   if (result.completed) {
-    return { tone: 'ok', title: 'Everything in the plan was done', text: `${result.applied} ${result.applied === 1 ? 'step' : 'steps'} done.`, rows, review: false, stoppedAt: null };
+    return {
+      tone: 'ok',
+      title: 'Everything in the plan was done',
+      text: `${result.applied} ${result.applied === 1 ? 'step' : 'steps'} done.`,
+      rows,
+      review: false,
+      stoppedAt: null,
+    };
   }
   return {
     tone: result.failed > 0 ? 'error' : 'warn',
@@ -690,22 +902,51 @@ export type PublishFailure =
   | { kind: 'other'; message: string };
 
 /** Sorts an error of preview or publish into fixed words. Nothing here retries; the server's own text is not shown. */
-export function classifyPublishFailure(error: unknown, config: PublishConfig | null = null): PublishFailure {
-  if (!(error instanceof ApiError)) return { kind: 'other', message: 'The request failed. Check your connection, then review again.' };
+export function classifyPublishFailure(
+  error: unknown,
+  config: PublishConfig | null = null,
+): PublishFailure {
+  if (!(error instanceof ApiError))
+    return {
+      kind: 'other',
+      message: 'The request failed. Check your connection, then review again.',
+    };
   switch (error.code) {
     case 'publish_batch_disabled':
-      return { kind: 'disabled', message: `Publishing several steps at once is switched off on this server. Someone who runs it sets ${config?.envName || PUBLISH_ENV}=true and restarts it. Nothing was done.` };
+      return {
+        kind: 'disabled',
+        message: `Publishing several steps at once is switched off on this server. Someone who runs it sets ${config?.envName || PUBLISH_ENV}=true and restarts it. Nothing was done.`,
+      };
     case 'step_disabled':
-      return { kind: 'step_disabled', message: 'A step in this plan is switched off on this server. Each step needs its own switch. Nothing was done. Review again.' };
+      return {
+        kind: 'step_disabled',
+        message:
+          'A step in this plan is switched off on this server. Each step needs its own switch. Nothing was done. Review again.',
+      };
     case 'forbidden':
-      return { kind: 'forbidden', message: 'Your role, or this token, does not allow every step in this plan. Nothing was done.' };
+      return {
+        kind: 'forbidden',
+        message:
+          'Your role, or this token, does not allow every step in this plan. Nothing was done.',
+      };
     case 'confirmation_mismatch':
-      return { kind: 'mismatch', message: 'The text you typed does not match. Nothing was published.' };
+      return {
+        kind: 'mismatch',
+        message: 'The text you typed does not match. Nothing was published.',
+      };
     case 'publish_in_progress':
-      return { kind: 'in_progress', message: 'Another publish for this app is running. Nothing was started. Wait for it to finish, then review again.' };
+      return {
+        kind: 'in_progress',
+        message:
+          'Another publish for this app is running. Nothing was started. Wait for it to finish, then review again.',
+      };
     case 'plan_changed':
     case 'plan_blocked':
-      return { kind: 'plan_changed', message: 'The staged changes or the store changed since you reviewed the plan, so nothing was published. Review the new plan.' };
+      return {
+        kind: 'plan_changed',
+        message:
+          'The staged changes or the store changed since you reviewed the plan, so nothing was published. Review the new plan.',
+      };
     case 'invalid_steps':
     case 'invalid_request':
       return { kind: 'invalid', message: 'Those steps cannot be combined. Nothing was done.' };
@@ -725,4 +966,7 @@ export function classifyPublishFailure(error: unknown, config: PublishConfig | n
 }
 
 /** A failure after which the person's only way forward is to review the plan again. */
-export const needsReview = (failure: PublishFailure): boolean => failure.kind === 'plan_changed' || failure.kind === 'step_disabled' || failure.kind === 'in_progress';
+export const needsReview = (failure: PublishFailure): boolean =>
+  failure.kind === 'plan_changed' ||
+  failure.kind === 'step_disabled' ||
+  failure.kind === 'in_progress';

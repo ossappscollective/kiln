@@ -57,7 +57,8 @@ export function readSearchTerm(raw: string): { term: string; key: string } | und
 }
 
 export type SearchTermSort = 'installs' | 'visitors';
-export const isSearchTermSort = (v: unknown): v is SearchTermSort => v === 'installs' || v === 'visitors';
+export const isSearchTermSort = (v: unknown): v is SearchTermSort =>
+  v === 'installs' || v === 'visitors';
 
 export type SearchTermLine = {
   key: string;
@@ -88,7 +89,8 @@ export type SearchTermsSummary = {
   overlappingPeriods: boolean;
 };
 
-const add = (a: number | null, b: number | null): number | null => (a === null ? b : b === null ? a : a + b);
+const add = (a: number | null, b: number | null): number | null =>
+  a === null ? b : b === null ? a : a + b;
 
 type Acc = {
   key: string;
@@ -113,8 +115,16 @@ export function summariseSearchTerms(
   options: { from: string; to: string; country?: string; sort?: SearchTermSort; limit?: number },
 ): SearchTermsSummary {
   const sort = options.sort ?? 'installs';
-  const limit = Math.min(Math.max(options.limit ?? searchTermLimits.defaultLimit, 1), searchTermLimits.maxLimit);
-  const inside = rows.filter((r) => r.from >= options.from && r.to <= options.to && (options.country === undefined || r.country === options.country));
+  const limit = Math.min(
+    Math.max(options.limit ?? searchTermLimits.defaultLimit, 1),
+    searchTermLimits.maxLimit,
+  );
+  const inside = rows.filter(
+    (r) =>
+      r.from >= options.from &&
+      r.to <= options.to &&
+      (options.country === undefined || r.country === options.country),
+  );
 
   const withDays: Record<string, true> = {};
   for (const r of inside) if (r.from === r.to) withDays[r.country] = true;
@@ -132,8 +142,14 @@ export function summariseSearchTerms(
   const periods = used.filter((r) => r.from !== r.to);
   const seen: SearchTermPoint[] = [];
   for (const r of periods) {
-    if (seen.some((s) => s.country === r.country && (s.from !== r.from || s.to !== r.to) && overlap(s, r))) overlappingPeriods = true;
-    if (!seen.some((s) => s.country === r.country && s.from === r.from && s.to === r.to)) seen.push(r);
+    if (
+      seen.some(
+        (s) => s.country === r.country && (s.from !== r.from || s.to !== r.to) && overlap(s, r),
+      )
+    )
+      overlappingPeriods = true;
+    if (!seen.some((s) => s.country === r.country && s.from === r.from && s.to === r.to))
+      seen.push(r);
   }
 
   const byKey: Record<string, Acc> = {};
@@ -142,7 +158,17 @@ export function summariseSearchTerms(
     const id = `k:${r.key}`;
     let a = byKey[id];
     if (!a) {
-      a = { key: r.key, term: r.term, best: -1, visitors: null, installs: null, both: true, conversion: null, countries: {}, rows: 0 };
+      a = {
+        key: r.key,
+        term: r.term,
+        best: -1,
+        visitors: null,
+        installs: null,
+        both: true,
+        conversion: null,
+        countries: {},
+        rows: 0,
+      };
       byKey[id] = a;
       order.push(id);
     }
@@ -172,7 +198,10 @@ export function summariseSearchTerms(
       other = { visitors: a.visitors, installs: a.installs };
       continue;
     }
-    const derived = a.both && a.visitors !== null && a.installs !== null && a.visitors > 0 ? a.installs / a.visitors : null;
+    const derived =
+      a.both && a.visitors !== null && a.installs !== null && a.visitors > 0
+        ? a.installs / a.visitors
+        : null;
     lines.push({
       key: a.key,
       term: a.term,
@@ -230,26 +259,51 @@ export type SearchTermInsight = SearchTermLine & {
 };
 
 const listingOf = (status: FitStatus): TermListing =>
-  status === 'strong' || status === 'covered' ? 'in_listing' : status === 'missing' ? 'not_in_listing' : 'partly';
+  status === 'strong' || status === 'covered'
+    ? 'in_listing'
+    : status === 'missing'
+      ? 'not_in_listing'
+      : 'partly';
 
 /** Marks each term tracked or not and in the stored Google Play listing text or not. `fields` null: no listing text is stored (`unknown`, no hint). */
 export function searchTermInsights(
   lines: readonly SearchTermLine[],
-  input: { locale: string; fields: FitFields | null; tracked: readonly SearchTermTrackedRef[]; country?: string },
+  input: {
+    locale: string;
+    fields: FitFields | null;
+    tracked: readonly SearchTermTrackedRef[];
+    country?: string;
+  },
 ): SearchTermInsight[] {
   return lines.map((line) => {
     const mine = input.tracked.filter((t) => t.key === line.key);
-    const chosen = input.country !== undefined && input.country !== '' ? mine.find((t) => t.country === input.country) : mine[0];
+    const chosen =
+      input.country !== undefined && input.country !== ''
+        ? mine.find((t) => t.country === input.country)
+        : mine[0];
     let listing: TermListing = 'unknown';
     let inFields: string[] = [];
     if (input.fields !== null) {
-      const fit = fitKeyword('android', input.locale, input.fields, { id: line.key, term: line.term });
+      const fit = fitKeyword('android', input.locale, input.fields, {
+        id: line.key,
+        term: line.term,
+      });
       listing = listingOf(fit.status);
       inFields = fit.where.map((w) => w.field);
     }
-    const hint = (line.installs ?? 0) > 0 && (listing === 'not_in_listing' || listing === 'partly') ? ('add_to_listing' as const) : null;
+    const hint =
+      (line.installs ?? 0) > 0 && (listing === 'not_in_listing' || listing === 'partly')
+        ? ('add_to_listing' as const)
+        : null;
     const countries: Record<string, true> = {};
     for (const t of mine) countries[t.country] = true;
-    return { ...line, trackedKeywordId: chosen ? chosen.id : null, trackedCountries: Object.keys(countries).sort(), listing, inFields, hint };
+    return {
+      ...line,
+      trackedKeywordId: chosen ? chosen.id : null,
+      trackedCountries: Object.keys(countries).sort(),
+      listing,
+      inFields,
+      hint,
+    };
   });
 }

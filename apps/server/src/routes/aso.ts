@@ -1,7 +1,14 @@
 import { APPLE_DOCUMENTED_CALLS_PER_MINUTE, PLAY_UNOFFICIAL_NOTICE } from '@mrm/connectors';
-import { type Action, FIT_ASSUMPTIONS, INDEXED_FIELDS, can, isGooglePlatform, normalizeCountry } from '@mrm/core';
-import { Hono } from 'hono';
+import {
+  type Action,
+  can,
+  FIT_ASSUMPTIONS,
+  INDEXED_FIELDS,
+  isGooglePlatform,
+  normalizeCountry,
+} from '@mrm/core';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
@@ -9,7 +16,6 @@ import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
 import {
   type AsoContext,
-  MAX_HISTORY_LIMIT,
   addCompetitor,
   addKeywords,
   competitorHistory,
@@ -20,17 +26,29 @@ import {
   keywordHistory,
   listCompetitors,
   listKeywords,
+  MAX_HISTORY_LIMIT,
   playDisabledFailure,
   refreshApp,
   removeCompetitor,
   updateKeyword,
 } from '../services/aso.ts';
-import { checkLocale, coachFor, gapsFor, ideasFor, listingFitFor, listingKeywordsFor, listingLocalesFor, marketsFor, suggestionsFor, summaryFor } from '../services/aso-insights.ts';
+import {
+  checkLocale,
+  coachFor,
+  gapsFor,
+  ideasFor,
+  listingFitFor,
+  listingKeywordsFor,
+  listingLocalesFor,
+  marketsFor,
+  suggestionsFor,
+  summaryFor,
+} from '../services/aso-insights.ts';
 import { checkRankDownloadsQuery, rankVsDownloadsFor } from '../services/aso-rank-downloads.ts';
 import { queueAsoRefreshAll } from '../services/aso-schedule.ts';
 import { recordAudit } from '../services/audit.ts';
-import { checkSearchTermsQuery, searchTermsFor } from '../services/play-search-terms.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
+import { checkSearchTermsQuery, searchTermsFor } from '../services/play-search-terms.ts';
 import type { Failure } from '../services/repositories.ts';
 import { rankMoveThresholdFor } from '../services/workspace-settings.ts';
 
@@ -61,7 +79,9 @@ const keywordItem = z
     priority: z.number().int().min(1).max(3).optional(),
   })
   .strict();
-export const addKeywordsBody = z.object({ keywords: z.array(keywordItem).min(1).max(MAX_KEYWORDS_PER_REQUEST) }).strict();
+export const addKeywordsBody = z
+  .object({ keywords: z.array(keywordItem).min(1).max(MAX_KEYWORDS_PER_REQUEST) })
+  .strict();
 export const updateKeywordBody = z
   .object({
     tag: z.string().max(200).nullable().optional(),
@@ -75,7 +95,8 @@ export const addCompetitorBody = z
   .strict();
 
 type Issue = { path: string; message: string };
-const bad = (c: Context<AppEnv>, issues: Issue[]) => c.json({ error: 'invalid_request', issues }, 400);
+const bad = (c: Context<AppEnv>, issues: Issue[]) =>
+  c.json({ error: 'invalid_request', issues }, 400);
 
 /** ASO: keyword ranks and competitors from public store data (docs/api/aso.md). Mounted under /api/workspaces. */
 export function asoRoutes(ctx: AsoRoutesContext) {
@@ -91,27 +112,44 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     return next();
   };
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
-  const tooLarge = (c: Context) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
+  const tooLarge = (c: Context) =>
+    c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
   const limited = (c: Context<AppEnv>) => {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
     c.header('Retry-After', String(wait));
-    return c.json({ error: 'rate_limited', message: `Too many store lookups. Try again in ${wait} seconds.`, retryAfterSeconds: wait }, 429);
+    return c.json(
+      {
+        error: 'rate_limited',
+        message: `Too many store lookups. Try again in ${wait} seconds.`,
+        retryAfterSeconds: wait,
+      },
+      429,
+    );
   };
 
   /** The `locale` query parameter, or the issue to answer 400 with. */
-  const localeQuery = (c: Context<AppEnv>): { ok: true; locale?: string } | { ok: false; issue: Issue } => {
+  const localeQuery = (
+    c: Context<AppEnv>,
+  ): { ok: true; locale?: string } | { ok: false; issue: Issue } => {
     const raw = c.req.query('locale');
     if (raw === undefined || raw === '') return { ok: true };
     const locale = checkLocale(raw);
-    return locale ? { ok: true, locale } : { ok: false, issue: { path: 'locale', message: 'A language tag such as en-US or pt-BR.' } };
+    return locale
+      ? { ok: true, locale }
+      : { ok: false, issue: { path: 'locale', message: 'A language tag such as en-US or pt-BR.' } };
   };
-  const limitQuery = (c: Context<AppEnv>, fallback: number, max: number) => queryInt(c.req.query('limit'), { fallback, max });
+  const limitQuery = (c: Context<AppEnv>, fallback: number, max: number) =>
+    queryInt(c.req.query('limit'), { fallback, max });
 
   // ----- configuration (what is switched on, the limits, the warning) ---------------------------------
   routes.get('/:workspaceId/aso/config', needs('aso.read'), async (c) =>
     c.json({
-      apple: { enabled: true, source: 'iTunes Search API', documentedCallsPerMinute: APPLE_DOCUMENTED_CALLS_PER_MINUTE },
+      apple: {
+        enabled: true,
+        source: 'iTunes Search API',
+        documentedCallsPerMinute: APPLE_DOCUMENTED_CALLS_PER_MINUTE,
+      },
       play: {
         enabled: ctx.sources.playEnabled,
         unofficial: true,
@@ -151,7 +189,13 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     if (!isGooglePlatform(app.platform)) {
-      return c.json({ error: 'not_google_play_app', message: 'Search terms are a Google Play report. This app is an iOS or macOS app.' }, 422);
+      return c.json(
+        {
+          error: 'not_google_play_app',
+          message: 'Search terms are a Google Play report. This app is an iOS or macOS app.',
+        },
+        422,
+      );
     }
     const limit = queryInt(c.req.query('limit'), { fallback: 50, max: 200 });
     const locale = localeQuery(c);
@@ -165,7 +209,8 @@ export function asoRoutes(ctx: AsoRoutesContext) {
       ...(limit !== undefined ? { limit } : {}),
     });
     const issues: Issue[] = checked.ok ? [] : checked.issues;
-    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 200.' });
+    if (limit === undefined)
+      issues.push({ path: 'limit', message: 'A whole number from 1 to 200.' });
     if (!locale.ok) issues.push(locale.issue);
     if (!checked.ok || issues.length > 0) return bad(c, issues);
     return c.json(await searchTermsFor(db, ws(c), app, checked));
@@ -220,24 +265,29 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     });
   });
 
-  routes.post('/:workspaceId/apps/:id/aso/keywords', needs('aso.write'), bodyLimit({ maxSize: BODY_LIMIT, onError: tooLarge }), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const body = await parseBody(c, addKeywordsBody);
-    if (!body.ok) return body.response;
-    const items = body.data.keywords.map((k) => ({
-      term: k.term,
-      ...(k.country !== undefined ? { country: k.country } : {}),
-      ...(k.locale !== undefined ? { locale: k.locale } : {}),
-      ...(k.tag !== undefined ? { tag: k.tag } : {}),
-      ...(k.notes !== undefined ? { notes: k.notes } : {}),
-      ...(k.priority !== undefined ? { priority: k.priority } : {}),
-    }));
-    const results = await addKeywords(ctx, { workspaceId: ws(c), app, actor: actor(c), items });
-    const summary = { created: 0, exists: 0, invalid: 0, limit: 0 };
-    for (const r of results) summary[r.status] += 1;
-    return c.json({ results, summary }, summary.created > 0 ? 201 : 200);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/aso/keywords',
+    needs('aso.write'),
+    bodyLimit({ maxSize: BODY_LIMIT, onError: tooLarge }),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const body = await parseBody(c, addKeywordsBody);
+      if (!body.ok) return body.response;
+      const items = body.data.keywords.map((k) => ({
+        term: k.term,
+        ...(k.country !== undefined ? { country: k.country } : {}),
+        ...(k.locale !== undefined ? { locale: k.locale } : {}),
+        ...(k.tag !== undefined ? { tag: k.tag } : {}),
+        ...(k.notes !== undefined ? { notes: k.notes } : {}),
+        ...(k.priority !== undefined ? { priority: k.priority } : {}),
+      }));
+      const results = await addKeywords(ctx, { workspaceId: ws(c), app, actor: actor(c), items });
+      const summary = { created: 0, exists: 0, invalid: 0, limit: 0 };
+      for (const r of results) summary[r.status] += 1;
+      return c.json({ results, summary }, summary.created > 0 ? 201 : 200);
+    },
+  );
 
   routes.patch('/:workspaceId/apps/:id/aso/keywords/:keywordId', needs('aso.write'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
@@ -259,30 +309,41 @@ export function asoRoutes(ctx: AsoRoutesContext) {
   routes.delete('/:workspaceId/apps/:id/aso/keywords/:keywordId', needs('aso.write'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    const done = await deleteKeyword(ctx, { workspaceId: ws(c), appId: app.id, id: param(c, 'keywordId'), actor: actor(c) });
+    const done = await deleteKeyword(ctx, {
+      workspaceId: ws(c),
+      appId: app.id,
+      id: param(c, 'keywordId'),
+      actor: actor(c),
+    });
     return done ? c.body(null, 204) : notFound(c);
   });
 
-  routes.get('/:workspaceId/apps/:id/aso/keywords/:keywordId/history', needs('aso.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const keyword = await getKeyword(db, ws(c), app.id, param(c, 'keywordId'));
-    if (!keyword) return notFound(c);
-    const limit = limitQuery(c, 100, MAX_HISTORY_LIMIT);
-    const sinceRaw = c.req.query('since');
-    const issues: Issue[] = [];
-    if (limit === undefined) issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_HISTORY_LIMIT}.` });
-    if (sinceRaw !== undefined && sinceRaw !== '' && !/^[0-9]{1,15}$/.test(sinceRaw)) issues.push({ path: 'since', message: 'Epoch milliseconds, a whole number.' });
-    if (issues.length > 0 || limit === undefined) return bad(c, issues);
-    const history = await keywordHistory(db, {
-      workspaceId: ws(c),
-      appId: app.id,
-      keywordId: keyword.id,
-      limit,
-      ...(sinceRaw ? { since: Number(sinceRaw) } : {}),
-    });
-    return c.json({ keyword, ...history });
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/keywords/:keywordId/history',
+    needs('aso.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const keyword = await getKeyword(db, ws(c), app.id, param(c, 'keywordId'));
+      if (!keyword) return notFound(c);
+      const limit = limitQuery(c, 100, MAX_HISTORY_LIMIT);
+      const sinceRaw = c.req.query('since');
+      const issues: Issue[] = [];
+      if (limit === undefined)
+        issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_HISTORY_LIMIT}.` });
+      if (sinceRaw !== undefined && sinceRaw !== '' && !/^[0-9]{1,15}$/.test(sinceRaw))
+        issues.push({ path: 'since', message: 'Epoch milliseconds, a whole number.' });
+      if (issues.length > 0 || limit === undefined) return bad(c, issues);
+      const history = await keywordHistory(db, {
+        workspaceId: ws(c),
+        appId: app.id,
+        keywordId: keyword.id,
+        limit,
+        ...(sinceRaw ? { since: Number(sinceRaw) } : {}),
+      });
+      return c.json({ keyword, ...history });
+    },
+  );
 
   // ----- competitors ----------------------------------------------------------------------------------
   routes.get('/:workspaceId/apps/:id/aso/competitors', needs('aso.read'), async (c) => {
@@ -300,7 +361,8 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const body = await parseBody(c, addCompetitorBody);
     if (!body.ok) return body.response;
     // Not for an app that cannot be looked up at all: no slot is spent on it.
-    if (app.platform === 'android' && !ctx.sources.playEnabled) return respond(c, playDisabledFailure());
+    if (app.platform === 'android' && !ctx.sources.playEnabled)
+      return respond(c, playDisabledFailure());
     const stop = limited(c);
     if (stop) return stop;
     const done = await addCompetitor(ctx, {
@@ -313,23 +375,42 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     return done.ok ? c.json({ competitor: done.competitor }, 201) : respond(c, done);
   });
 
-  routes.delete('/:workspaceId/apps/:id/aso/competitors/:competitorId', needs('aso.write'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const done = await removeCompetitor(ctx, { workspaceId: ws(c), appId: app.id, id: param(c, 'competitorId'), actor: actor(c) });
-    return done ? c.body(null, 204) : notFound(c);
-  });
+  routes.delete(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId',
+    needs('aso.write'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const done = await removeCompetitor(ctx, {
+        workspaceId: ws(c),
+        appId: app.id,
+        id: param(c, 'competitorId'),
+        actor: actor(c),
+      });
+      return done ? c.body(null, 204) : notFound(c);
+    },
+  );
 
-  routes.get('/:workspaceId/apps/:id/aso/competitors/:competitorId/history', needs('aso.read'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
-    if (!competitor) return notFound(c);
-    const limit = limitQuery(c, 50, 500);
-    if (limit === undefined) return bad(c, [{ path: 'limit', message: 'A whole number from 1 to 500.' }]);
-    const history = await competitorHistory(db, { workspaceId: ws(c), appId: app.id, competitorId: competitor.id, limit });
-    return c.json({ competitor, ...history });
-  });
+  routes.get(
+    '/:workspaceId/apps/:id/aso/competitors/:competitorId/history',
+    needs('aso.read'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      const competitor = await getCompetitor(db, ws(c), app.id, param(c, 'competitorId'));
+      if (!competitor) return notFound(c);
+      const limit = limitQuery(c, 50, 500);
+      if (limit === undefined)
+        return bad(c, [{ path: 'limit', message: 'A whole number from 1 to 500.' }]);
+      const history = await competitorHistory(db, {
+        workspaceId: ws(c),
+        appId: app.id,
+        competitorId: competitor.id,
+        limit,
+      });
+      return c.json({ competitor, ...history });
+    },
+  );
 
   // ----- what can be worked out from what is stored (no store is read) --------------------------------
   routes.get('/:workspaceId/apps/:id/aso/fit', needs('aso.read'), async (c) => {
@@ -339,14 +420,22 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (!locale.ok) return bad(c, [locale.issue]);
     const fit = await listingFitFor(db, ws(c), app, locale.locale ? { locale: locale.locale } : {});
     const stored = await listingLocalesFor(db, ws(c), app);
-    return c.json({ ...fit, listingLocales: stored.locales.map((l) => l.locale), indexedFields: INDEXED_FIELDS[app.platform], assumptions: FIT_ASSUMPTIONS });
+    return c.json({
+      ...fit,
+      listingLocales: stored.locales.map((l) => l.locale),
+      indexedFields: INDEXED_FIELDS[app.platform],
+      assumptions: FIT_ASSUMPTIONS,
+    });
   });
 
   // The terms the listing sets, per locale: the stored text of every locale of the listing (the web works the terms out).
   routes.get('/:workspaceId/apps/:id/aso/listing-keywords', needs('aso.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    return c.json({ ...(await listingKeywordsFor(db, ws(c), app)), indexedFields: INDEXED_FIELDS[app.platform] });
+    return c.json({
+      ...(await listingKeywordsFor(db, ws(c), app)),
+      indexedFields: INDEXED_FIELDS[app.platform],
+    });
   });
 
   routes.get('/:workspaceId/apps/:id/aso/ideas', needs('aso.read'), async (c) => {
@@ -356,9 +445,15 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const limit = limitQuery(c, 30, 100);
     const issues: Issue[] = [];
     if (!locale.ok) issues.push(locale.issue);
-    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
+    if (limit === undefined)
+      issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
     if (issues.length > 0 || !locale.ok || limit === undefined) return bad(c, issues);
-    return c.json(await ideasFor(db, ws(c), app, { ...(locale.locale ? { locale: locale.locale } : {}), limit }));
+    return c.json(
+      await ideasFor(db, ws(c), app, {
+        ...(locale.locale ? { locale: locale.locale } : {}),
+        limit,
+      }),
+    );
   });
 
   routes.get('/:workspaceId/apps/:id/aso/gaps', needs('aso.read'), async (c) => {
@@ -368,9 +463,12 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const limit = limitQuery(c, 30, 100);
     const issues: Issue[] = [];
     if (!locale.ok) issues.push(locale.issue);
-    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
+    if (limit === undefined)
+      issues.push({ path: 'limit', message: 'A whole number from 1 to 100.' });
     if (issues.length > 0 || !locale.ok || limit === undefined) return bad(c, issues);
-    return c.json(await gapsFor(db, ws(c), app, { ...(locale.locale ? { locale: locale.locale } : {}), limit }));
+    return c.json(
+      await gapsFor(db, ws(c), app, { ...(locale.locale ? { locale: locale.locale } : {}), limit }),
+    );
   });
 
   routes.get('/:workspaceId/apps/:id/aso/suggestions', needs('aso.read'), async (c) => {
@@ -379,9 +477,12 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const minKeywords = queryInt(c.req.query('minKeywords'), { fallback: 2, max: 50 });
     const limit = limitQuery(c, 20, 50);
     const issues: Issue[] = [];
-    if (minKeywords === undefined) issues.push({ path: 'minKeywords', message: 'A whole number from 1 to 50.' });
-    if (limit === undefined) issues.push({ path: 'limit', message: 'A whole number from 1 to 50.' });
-    if (issues.length > 0 || minKeywords === undefined || limit === undefined) return bad(c, issues);
+    if (minKeywords === undefined)
+      issues.push({ path: 'minKeywords', message: 'A whole number from 1 to 50.' });
+    if (limit === undefined)
+      issues.push({ path: 'limit', message: 'A whole number from 1 to 50.' });
+    if (issues.length > 0 || minKeywords === undefined || limit === undefined)
+      return bad(c, issues);
     return c.json(await suggestionsFor(db, ws(c), app, { minKeywords, limit }));
   });
 
@@ -400,14 +501,27 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (scope !== 'all' && scope !== 'keywords' && scope !== 'competitors') {
       return bad(c, [{ path: 'scope', message: 'Use all, keywords or competitors.' }]);
     }
-    if (app.platform === 'android' && !ctx.sources.playEnabled) return respond(c, playDisabledFailure());
+    if (app.platform === 'android' && !ctx.sources.playEnabled)
+      return respond(c, playDisabledFailure());
     const stop = limited(c);
     if (stop) return stop;
     if (c.req.query('background') === 'true') {
-      const jobId = await enqueueAsoRefresh(ctx, { workspaceId: ws(c), appId: id, requestedBy: c.get('user').id, force: true, scope });
+      const jobId = await enqueueAsoRefresh(ctx, {
+        workspaceId: ws(c),
+        appId: id,
+        requestedBy: c.get('user').id,
+        force: true,
+        scope,
+      });
       return c.json({ jobId }, 202);
     }
-    const done = await refreshApp(ctx, { workspaceId: ws(c), id }, actor(c), { trigger: 'request' }, { force: true, scope });
+    const done = await refreshApp(
+      ctx,
+      { workspaceId: ws(c), id },
+      actor(c),
+      { trigger: 'request' },
+      { force: true, scope },
+    );
     if (!done.ok) return respond(c, done);
     return c.json({ result: done.result, state: done.state });
   });

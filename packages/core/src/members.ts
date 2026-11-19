@@ -1,4 +1,4 @@
-import { type Role, can, roles } from './roles.ts';
+import { can, type Role, roles } from './roles.ts';
 
 /**
  * Who may give which role to whom. Pure rules, so the API and the UI ask the same questions.
@@ -32,9 +32,7 @@ export function assignableBy(actor: Role): Role[] {
   return actor === 'owner' ? [...roles] : ['member', 'viewer'];
 }
 
-export type MemberDecision =
-  | { ok: true }
-  | { ok: false; reason: 'forbidden' | 'last_owner' };
+export type MemberDecision = { ok: true } | { ok: false; reason: 'forbidden' | 'last_owner' };
 
 export type RoleChange = {
   actorRole: Role;

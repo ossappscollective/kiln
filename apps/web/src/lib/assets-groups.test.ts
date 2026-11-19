@@ -72,7 +72,10 @@ test('Google Play graphics only exist on an Android record, with a reason otherw
 
 test('a slice keeps the files, the problems of its files and its own set problems', () => {
   const shots = sliceIndex(index, 'screenshots');
-  assert.deepEqual(shots.assets.map((a) => a.path), ['a/1.png', 'a/2.png']);
+  assert.deepEqual(
+    shots.assets.map((a) => a.path),
+    ['a/1.png', 'a/2.png'],
+  );
   assert.equal(shots.problems.length, 2);
   assert.equal(sliceIndex(index, 'play_graphics').problems.length, 1);
   assert.equal(sliceIndex(index, 'icon').problems.length, 0);
@@ -80,14 +83,25 @@ test('a slice keeps the files, the problems of its files and its own set problem
 
 test('summaries count files, errors and warnings per group', () => {
   const s = groupSummaries(index, 'ios');
-  assert.deepEqual(s.map((g) => [g.id, g.files, g.errors, g.warnings, g.available]), [
-    ['icon', 1, 0, 0, true],
-    ['play_graphics', 1, 0, 1, false],
-    ['screenshots', 2, 1, 1, true],
-  ]);
+  assert.deepEqual(
+    s.map((g) => [g.id, g.files, g.errors, g.warnings, g.available]),
+    [
+      ['icon', 1, 0, 0, true],
+      ['play_graphics', 1, 0, 1, false],
+      ['screenshots', 2, 1, 1, true],
+    ],
+  );
   assert.equal(defaultGroup(s), 'screenshots');
-  assert.equal(defaultGroup(groupSummaries({ assets: [], sets: [], problems: [] }, 'ios')), 'screenshots');
-  assert.equal(defaultGroup(groupSummaries({ assets: [index.assets[3] as AssetItem], sets: [], problems: [] }, 'ios')), 'icon');
+  assert.equal(
+    defaultGroup(groupSummaries({ assets: [], sets: [], problems: [] }, 'ios')),
+    'screenshots',
+  );
+  assert.equal(
+    defaultGroup(
+      groupSummaries({ assets: [index.assets[3] as AssetItem], sets: [], problems: [] }, 'ios'),
+    ),
+    'icon',
+  );
 });
 
 test('store status: not compared says so, same and differs follow the counts', () => {

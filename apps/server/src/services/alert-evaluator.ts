@@ -1,6 +1,6 @@
 import type { Database, Row, Sql } from '@mrm/db';
 import { type AlertData, type AlertTypeId, alertDef, redactAlertData } from './alert-catalog.ts';
-import { type RuleView, listRuleViews } from './alert-prefs.ts';
+import { listRuleViews, type RuleView } from './alert-prefs.ts';
 import { raiseAlert } from './alerts.ts';
 
 /**
@@ -24,7 +24,11 @@ type Check = {
 };
 
 const apps = async (sql: Sql, workspaceId: string): Promise<Map<string, Row>> =>
-  new Map((await sql.query('SELECT id, name, platform FROM apps WHERE workspace_id = ?', [workspaceId])).map((r) => [String(r.id), r]));
+  new Map(
+    (
+      await sql.query('SELECT id, name, platform FROM apps WHERE workspace_id = ?', [workspaceId])
+    ).map((r) => [String(r.id), r]),
+  );
 
 const checks: Check[] = [
   {
@@ -37,23 +41,33 @@ const checks: Check[] = [
       // A blip is not news: the app must have been without a good sync for half an hour.
       return rows
         .filter((r) => at - Number(r.last_synced_at ?? r.created_at) >= 30 * MINUTE)
-        .map((r) => ({ appId: String(r.id), since: new Date(Number(r.last_sync_attempt_at ?? at)).toISOString().slice(0, 16) }));
+        .map((r) => ({
+          appId: String(r.id),
+          since: new Date(Number(r.last_sync_attempt_at ?? at)).toISOString().slice(0, 16),
+        }));
     },
   },
   {
     type: 'credential.invalid',
     run: async (sql, ws) => {
-      const rows = await sql.query('SELECT id, kind, label FROM credentials WHERE workspace_id = ? AND last_test_ok = 0', [ws]);
-      return rows.map((r) => ({ credentialId: String(r.id), kind: String(r.kind), label: String(r.label) }));
+      const rows = await sql.query(
+        'SELECT id, kind, label FROM credentials WHERE workspace_id = ? AND last_test_ok = 0',
+        [ws],
+      );
+      return rows.map((r) => ({
+        credentialId: String(r.id),
+        kind: String(r.kind),
+        label: String(r.label),
+      }));
     },
   },
   {
     type: 'listing.read_failing',
     run: async (sql, ws, _at, rule) => {
-      const rows = await sql.query('SELECT app_id, listing_failures FROM app_listing_status WHERE workspace_id = ? AND listing_failures >= ?', [
-        ws,
-        rule.params.failures ?? 3,
-      ]);
+      const rows = await sql.query(
+        'SELECT app_id, listing_failures FROM app_listing_status WHERE workspace_id = ? AND listing_failures >= ?',
+        [ws, rule.params.failures ?? 3],
+      );
       return rows.map((r) => ({ appId: String(r.app_id), failures: Number(r.listing_failures) }));
     },
   },
@@ -66,7 +80,12 @@ const checks: Check[] = [
           WHERE workspace_id = ? AND pushed_at IS NULL AND created_at < ? GROUP BY app_id`,
         [ws, at - days * DAY],
       );
-      return rows.map((r) => ({ appId: String(r.app_id), days, count: Number(r.n), oldest: new Date(Number(r.oldest)).toISOString().slice(0, 10) }));
+      return rows.map((r) => ({
+        appId: String(r.app_id),
+        days,
+        count: Number(r.n),
+        oldest: new Date(Number(r.oldest)).toISOString().slice(0, 10),
+      }));
     },
   },
   {
@@ -79,12 +98,17 @@ const checks: Check[] = [
         [ws, at - 30 * DAY],
       );
       const byApp = new Map<string, Row[]>();
-      for (const r of rows) byApp.set(String(r.app_id), [...(byApp.get(String(r.app_id)) ?? []), r]);
+      for (const r of rows)
+        byApp.set(String(r.app_id), [...(byApp.get(String(r.app_id)) ?? []), r]);
       const out: Found[] = [];
       for (const [appId, runs] of byApp) {
         const last = runs.slice(0, n);
         if (last.length === n && last.every((r) => String(r.status) === 'failed')) {
-          out.push({ appId, failures: n, code: last[0]?.error_code ? String(last[0].error_code) : 'unknown' });
+          out.push({
+            appId,
+            failures: n,
+            code: last[0]?.error_code ? String(last[0].error_code) : 'unknown',
+          });
         }
       }
       return out;
@@ -110,7 +134,11 @@ const checks: Check[] = [
         const latest = list[0];
         if (!latest || latest.milli === null || at - Number(latest.observed_at) > 2 * DAY) continue;
         // The reference: the newest reading at least `windowDays` older than the latest one.
-        const ref = list.find((r) => Number(r.observed_at) <= Number(latest.observed_at) - windowDays * DAY && r.milli !== null);
+        const ref = list.find(
+          (r) =>
+            Number(r.observed_at) <= Number(latest.observed_at) - windowDays * DAY &&
+            r.milli !== null,
+        );
         if (!ref) continue;
         const drop = Number(ref.milli) - Number(latest.milli);
         if (drop < limit) continue;
@@ -125,7 +153,8 @@ const checks: Check[] = [
           // A bucket of a week: a rating that stays low is one alert a week, not one a day.
           day: `w${Math.floor(Number(latest.observed_at) / (7 * DAY))}`,
         };
-        if (!worst.has(appId) || (worst.get(appId)?.drop ?? 0) < drop) worst.set(appId, { drop, found });
+        if (!worst.has(appId) || (worst.get(appId)?.drop ?? 0) < drop)
+          worst.set(appId, { drop, found });
       }
       return [...worst.values()].map((w) => w.found);
     },
@@ -148,9 +177,18 @@ const checks: Check[] = [
       );
       const perApp = new Map<string, { fields: number; from: number; to: number }>();
       for (const r of rows) {
-        if (r.prev_hash === null || r.prev_hash === undefined || String(r.prev_hash) === String(r.value_hash)) continue;
+        if (
+          r.prev_hash === null ||
+          r.prev_hash === undefined ||
+          String(r.prev_hash) === String(r.value_hash)
+        )
+          continue;
         const id = String(r.app_id);
-        const cur = perApp.get(id) ?? { fields: 0, from: Number(r.prev_at), to: Number(r.observed_at) };
+        const cur = perApp.get(id) ?? {
+          fields: 0,
+          from: Number(r.prev_at),
+          to: Number(r.observed_at),
+        };
         cur.fields++;
         cur.from = Math.min(cur.from, Number(r.prev_at));
         cur.to = Math.max(cur.to, Number(r.observed_at));
@@ -165,7 +203,8 @@ const checks: Check[] = [
               AND type IN ('listing.draft_pushed', 'listing.submitted', 'pending.published', 'release.started', 'release.rollout_changed', 'app.release.status_changed')`,
           [ws, appId, c.from, c.to],
         );
-        if (Number(explained?.n ?? 0) === 0) out.push({ appId, fields: c.fields, observedAt: c.to });
+        if (Number(explained?.n ?? 0) === 0)
+          out.push({ appId, fields: c.fields, observedAt: c.to });
       }
       return out;
     },
@@ -179,7 +218,11 @@ const checks: Check[] = [
           WHERE workspace_id = ? AND channel = 'email' AND status IN ('sent', 'failed') ORDER BY updated_at DESC, id LIMIT ?`,
         [ws, n],
       );
-      if (rows.length < n || !rows.every((r) => String(r.status) === 'failed' && String(r.outcome).startsWith('smtp_'))) return [];
+      if (
+        rows.length < n ||
+        !rows.every((r) => String(r.status) === 'failed' && String(r.outcome).startsWith('smtp_'))
+      )
+        return [];
       return [{ failures: n, code: String(rows[0]?.outcome ?? 'unknown') }];
     },
   },
@@ -199,10 +242,10 @@ async function reconcile(
   if (!def) return;
   const active = new Map(
     (
-      await db.query('SELECT dedupe_key, raised_at, alert_id FROM alert_conditions WHERE workspace_id = ? AND type = ? AND active = 1', [
-        workspaceId,
-        type,
-      ])
+      await db.query(
+        'SELECT dedupe_key, raised_at, alert_id FROM alert_conditions WHERE workspace_id = ? AND type = ? AND active = 1',
+        [workspaceId, type],
+      )
     ).map((r) => [String(r.dedupe_key), r]),
   );
   const seen = new Set<string>();
@@ -215,7 +258,10 @@ async function reconcile(
     const existing = active.get(key);
     const due = !existing || at - Number(existing.raised_at) >= def.dedupeWindowMs;
     if (!due) {
-      await db.execute('UPDATE alert_conditions SET last_seen_at = ? WHERE workspace_id = ? AND dedupe_key = ?', [at, workspaceId, key]);
+      await db.execute(
+        'UPDATE alert_conditions SET last_seen_at = ? WHERE workspace_id = ? AND dedupe_key = ?',
+        [at, workspaceId, key],
+      );
       continue;
     }
     await db.transaction(async (tx) => {
@@ -234,8 +280,15 @@ async function reconcile(
   }
   for (const [key, row] of active) {
     if (seen.has(key)) continue;
-    await db.execute('UPDATE alert_conditions SET active = 0, last_seen_at = ? WHERE workspace_id = ? AND dedupe_key = ?', [at, workspaceId, key]);
-    if (row.alert_id) await db.execute('UPDATE alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL', [at, String(row.alert_id)]);
+    await db.execute(
+      'UPDATE alert_conditions SET active = 0, last_seen_at = ? WHERE workspace_id = ? AND dedupe_key = ?',
+      [at, workspaceId, key],
+    );
+    if (row.alert_id)
+      await db.execute('UPDATE alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL', [
+        at,
+        String(row.alert_id),
+      ]);
     summary.resolved++;
   }
 }

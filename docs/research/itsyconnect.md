@@ -22,29 +22,29 @@ saved, submitted, replied to or changed in the app or in App Store Connect.
 
 Navigation is one left sidebar with three labelled groups, plus a header bar on each page.
 
-| Area | Where | What it does |
-| --- | --- | --- |
-| App switcher | top of sidebar | Searchable list of apps with the numeric id under each name; shortcuts Cmd+1..n jump to an app. |
-| Team switcher | bottom of sidebar | Several App Store Connect teams (API key per team); "Add team", Settings, Report an issue. |
-| Overview | Release > Overview (Cmd+0) | One card per platform and live version: state pill (Prepare for submission, Ready for distribution), build and date, big version number. Cards for total downloads, proceeds, crash-free rate, two small charts. "New version" button (version and platform only). "Markers" dialog for dated annotations on charts. |
-| Store listing | Release (Cmd+L) | Per version and locale: What's new (4000), Promotional text (170), Description, Keywords chips with counters, URLs, Copyright, Build picker, release method (automatic, manual, scheduled), 7-day phased rollout toggle. Small sparkle icons next to fields open AI actions. |
-| Screenshots | Release | Tabs per device family (iPhone, iPad, Watch); a card per size with pixel dimensions and count; "Add variant" chips for the other sizes. |
-| App details | Release | App-level (no version switcher): ids, base language, name and subtitle with counters, privacy URLs, categories, age rating, content rights, server notification URLs. |
-| App review | Release | Per version: notes for the reviewer, demo account toggle, contact details. |
-| Reviews | Insights (Cmd+R) | Rating summary (average, histogram), filters (sort, time, rating, territory, hide responded), review cards with Reply, Mark as seen, an inline developer response that can be edited or deleted, "Translate" for foreign text. Reply dialog: public-visibility warning, character counter, optional AI guidance, "Help me write". |
-| Analytics | Insights (Cmd+I) | Tabs Overview, Acquisition, Usage, Crashes, Performance; date range menu; KPI tiles, downloads, proceeds, top territories, conversion funnel, sessions by app version, crashes by version and device. Empty charts say why (for example performance needs diagnostics sharing). |
-| Keywords | Insights | Tab "My locales": one budget bar for all locales (76 of 100), warnings such as a keyword that duplicates the app name or subtitle, a per-locale accordion with chips. Tab "Storefronts": pick a country, see how many locales that storefront indexes, total budget (76 of 1000), "untapped locales" with "+100 chars, indexed in N storefronts" and a link to add that locale. "Fix all issues" action. |
-| TestFlight Builds | TestFlight (Cmd+B) | Platform and version switchers; summary strip (total, first, latest); table with build, version, state and expiry, groups, installs, sessions, crashes, invites, feedback, uploaded; bulk select. |
-| Build detail | row click | Header stats, **"What's new" text of the build (the TestFlight "what to test")**, groups with add/remove, individual testers, Expire build, Notify testers. |
-| Groups | TestFlight | Internal and external groups with tester and build counts, public link, New group. |
-| Beta app info | TestFlight | Per locale beta description, feedback email, review contact, license agreement. |
-| Feedback | TestFlight | Counters (feedback, screenshots, crashes), filters (type, time, build, platform), "Hide completed"; empty state is one dashed box. |
-| Portfolio | Cmd+P | All apps: totals, proceeds chart, a card per app with downloads, proceeds and a status line such as "iOS 1.4.2 Rejected" in red. |
-| Review center | below Portfolio | Reviews of all apps in one stream with an app filter, "Mark all as seen", and a red count badge on the sidebar item. |
-| Settings | app menu or team menu | General (updates, **Diff mode**, local MCP server with copy-ready setup for Claude Code, Codex, Cursor, OpenCode), Appearance (theme, UI language), Teams (issuer and key ids, Test connection), AI (provider list: Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek; own API key; separate Gemini key for screenshot translation). |
-| Also in README | n/a | AI translation of fields and whole locales, AI keyword ideas, review translation and reply drafts, appeal text for unfair ratings, screenshot translation, App Store nominations, Docker self-hosting, local SQLite with keychain-held master key. |
-| Header bar | every version page | Breadcrumb, then three pickers in a fixed order: platform, version (with state dot), locale (searchable, "Primary" tag). Save (Cmd+S) at the right, refresh icon. |
-| Footer bar | store listing | A readiness checklist (Build, Screenshots, Name, Description, What's new, Keywords, Support, Privacy, Copyright, Contact) with a dot per item and a "Submit for review" button that stays disabled until the list is complete. |
+| Area              | Where                      | What it does                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App switcher      | top of sidebar             | Searchable list of apps with the numeric id under each name; shortcuts Cmd+1..n jump to an app.                                                                                                                                                                                                                                                                                                          |
+| Team switcher     | bottom of sidebar          | Several App Store Connect teams (API key per team); "Add team", Settings, Report an issue.                                                                                                                                                                                                                                                                                                               |
+| Overview          | Release > Overview (Cmd+0) | One card per platform and live version: state pill (Prepare for submission, Ready for distribution), build and date, big version number. Cards for total downloads, proceeds, crash-free rate, two small charts. "New version" button (version and platform only). "Markers" dialog for dated annotations on charts.                                                                                     |
+| Store listing     | Release (Cmd+L)            | Per version and locale: What's new (4000), Promotional text (170), Description, Keywords chips with counters, URLs, Copyright, Build picker, release method (automatic, manual, scheduled), 7-day phased rollout toggle. Small sparkle icons next to fields open AI actions.                                                                                                                             |
+| Screenshots       | Release                    | Tabs per device family (iPhone, iPad, Watch); a card per size with pixel dimensions and count; "Add variant" chips for the other sizes.                                                                                                                                                                                                                                                                  |
+| App details       | Release                    | App-level (no version switcher): ids, base language, name and subtitle with counters, privacy URLs, categories, age rating, content rights, server notification URLs.                                                                                                                                                                                                                                    |
+| App review        | Release                    | Per version: notes for the reviewer, demo account toggle, contact details.                                                                                                                                                                                                                                                                                                                               |
+| Reviews           | Insights (Cmd+R)           | Rating summary (average, histogram), filters (sort, time, rating, territory, hide responded), review cards with Reply, Mark as seen, an inline developer response that can be edited or deleted, "Translate" for foreign text. Reply dialog: public-visibility warning, character counter, optional AI guidance, "Help me write".                                                                        |
+| Analytics         | Insights (Cmd+I)           | Tabs Overview, Acquisition, Usage, Crashes, Performance; date range menu; KPI tiles, downloads, proceeds, top territories, conversion funnel, sessions by app version, crashes by version and device. Empty charts say why (for example performance needs diagnostics sharing).                                                                                                                          |
+| Keywords          | Insights                   | Tab "My locales": one budget bar for all locales (76 of 100), warnings such as a keyword that duplicates the app name or subtitle, a per-locale accordion with chips. Tab "Storefronts": pick a country, see how many locales that storefront indexes, total budget (76 of 1000), "untapped locales" with "+100 chars, indexed in N storefronts" and a link to add that locale. "Fix all issues" action. |
+| TestFlight Builds | TestFlight (Cmd+B)         | Platform and version switchers; summary strip (total, first, latest); table with build, version, state and expiry, groups, installs, sessions, crashes, invites, feedback, uploaded; bulk select.                                                                                                                                                                                                        |
+| Build detail      | row click                  | Header stats, **"What's new" text of the build (the TestFlight "what to test")**, groups with add/remove, individual testers, Expire build, Notify testers.                                                                                                                                                                                                                                              |
+| Groups            | TestFlight                 | Internal and external groups with tester and build counts, public link, New group.                                                                                                                                                                                                                                                                                                                       |
+| Beta app info     | TestFlight                 | Per locale beta description, feedback email, review contact, license agreement.                                                                                                                                                                                                                                                                                                                          |
+| Feedback          | TestFlight                 | Counters (feedback, screenshots, crashes), filters (type, time, build, platform), "Hide completed"; empty state is one dashed box.                                                                                                                                                                                                                                                                       |
+| Portfolio         | Cmd+P                      | All apps: totals, proceeds chart, a card per app with downloads, proceeds and a status line such as "iOS 1.4.2 Rejected" in red.                                                                                                                                                                                                                                                                         |
+| Review center     | below Portfolio            | Reviews of all apps in one stream with an app filter, "Mark all as seen", and a red count badge on the sidebar item.                                                                                                                                                                                                                                                                                     |
+| Settings          | app menu or team menu      | General (updates, **Diff mode**, local MCP server with copy-ready setup for Claude Code, Codex, Cursor, OpenCode), Appearance (theme, UI language), Teams (issuer and key ids, Test connection), AI (provider list: Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek; own API key; separate Gemini key for screenshot translation).                                                                     |
+| Also in README    | n/a                        | AI translation of fields and whole locales, AI keyword ideas, review translation and reply drafts, appeal text for unfair ratings, screenshot translation, App Store nominations, Docker self-hosting, local SQLite with keychain-held master key.                                                                                                                                                       |
+| Header bar        | every version page         | Breadcrumb, then three pickers in a fixed order: platform, version (with state dot), locale (searchable, "Primary" tag). Save (Cmd+S) at the right, refresh icon.                                                                                                                                                                                                                                        |
+| Footer bar        | store listing              | A readiness checklist (Build, Screenshots, Name, Description, What's new, Keywords, Support, Privacy, Copyright, Contact) with a dot per item and a "Submit for review" button that stays disabled until the list is complete.                                                                                                                                                                           |
 
 Keyboard shortcuts seen in the sidebar: Cmd+0 overview, Cmd+L listing, Cmd+R reviews, Cmd+I analytics,
 Cmd+B builds, Cmd+P portfolio, Cmd+S save, Cmd+1..n apps. The menu bar is minimal (no View items). The
@@ -99,6 +99,7 @@ Repo state checked: `docs/ux-ia.md` (proposal; some of its "gaps" list is alread
 `docs/api/ci.md`. Analytics: no screen and no mention in docs or `packages/core`.
 
 ### UC1. Trigger a release through GitHub Actions
+
 - Itsyconnect: nothing; it starts after the build exists.
 - We have: workflow list, declared `workflow_dispatch` inputs, dispatch dialog, runs table, "running now",
   run-to-build linking (`components/ci`, `docs/api/ci.md`). Server tested against a fake GitHub only.
@@ -108,8 +109,10 @@ Repo state checked: `docs/ux-ia.md` (proposal; some of its "gaps" list is alread
   prefilled (version, platform), then shows the run inline and offers "Prepare" when the build appears.
 
 ### UC2. Prepare, draft, check, confirm, push
+
 Steps: select build (iOS) or promote (Android), changelog, screenshots if needed, draft release, check and
 confirm (Android rollout value), push.
+
 - Itsyconnect: iOS only; Select build button, what's new field, screenshots tab, footer checklist,
   release method, phased toggle, Save then Submit. Diff mode for review before push.
 - We have: staged tray, push as draft, submit dialog with checks, rollout preview dialog, release
@@ -122,6 +125,7 @@ confirm (Android rollout value), push.
   version, expired, wrong platform).
 
 ### UC3. See that a release triggered from GitHub was never finished
+
 - Itsyconnect: only per-app states in Portfolio ("Prepare for submission", "Rejected"); a version stuck in
   Prepare is visible but there is no time or build signal.
 - We have: `AttentionList` and `app-attention.ts` with items for drift, staged-not-pushed, "draft pushed,
@@ -133,6 +137,7 @@ confirm (Android rollout value), push.
   an optional webhook/notification. Use the same state vocabulary as the Itsyconnect version picker.
 
 ### UC4. View analytics
+
 - Itsyconnect: the most complete part: overview, acquisition, usage, crashes, performance, funnel,
   territories, date range, markers, portfolio roll-up.
 - We have: nothing built or documented.
@@ -143,6 +148,7 @@ confirm (Android rollout value), push.
   its hand-made markers); defer funnel and territories.
 
 ### UC5. Follow and answer reviews so none is forgotten
+
 - Itsyconnect: Review center across apps, red badge, "Mark all as seen", Hide responded, filters, inline
   developer response with edit and delete, reply dialog with AI help, translate.
 - We have: reviews inbox with j/k/t/r keys and search, triage status, assignee, notes, rating overview,
@@ -154,6 +160,7 @@ confirm (Android rollout value), push.
   confirmation sentence from `ux-ia.md`.
 
 ### UC6. ASO coaching for a beginner
+
 - Itsyconnect: budget meters, overlap warnings, storefront view with untapped locales, AI keyword ideas.
 - We have: keyword tracking with rank, competitors, coverage gaps, ideas, fit checks, markets (`components/aso`).
 - Gap: we track; we do not coach. A beginner needs "what to do next" in order.
@@ -163,6 +170,7 @@ confirm (Android rollout value), push.
   plain words; link each step to the field.
 
 ### Changelog features
+
 - Pick TestFlight "what to test" as the changelog: Itsyconnect shows the text on the build detail but
   the version's What's new is a separate empty field and the build picker does not offer it. We have the
   TestFlight store id (`lib/stores.ts`) but no build-notes field. Recommend: when a build is picked, offer
@@ -175,6 +183,7 @@ confirm (Android rollout value), push.
   `ReleaseNotes.svelte`); on reuse, warn when the old text exceeds the target limit.
 
 ### Common UX across iOS, macOS, Android
+
 - Itsyconnect uses a platform picker that lists only platforms the app has plus "New platform". Our
   `ScopeControl` (iOS, macOS, Android, Both) is richer; keep it, but adopt the fixed header order
   platform, version, locale, and make the version list carry the state word for every platform.
@@ -184,18 +193,18 @@ confirm (Android rollout value), push.
 
 ## 5. Prioritised improvements
 
-| P | Item | Why | Effort |
-| --- | --- | --- | --- |
-| P0 | "Release left unfinished" attention item joining run, build and release state (UC3), plus badge | the user's stated pain; no competitor has it | 3 to 5 days |
-| P0 | Release wizard/stepper with readiness dots and a footer-style checklist (UC2) | one place for the main job; reuses submit and rollout work | 5 to 8 days |
-| P0 | Build picker with eligibility reasons, and "use build test notes" as changelog (UC2) | closes the exact gap seen in the app | 3 days (needs a TestFlight read) |
-| P1 | Notes history menu ("reuse notes", with release and date) | speeds every release; Play-like | 2 to 3 days |
-| P1 | Unanswered-reviews badge, default view and digest (UC5) | removes forgetting | 2 days |
-| P1 | Header with platform, version (with state), locale pickers across pages | common UX, fewer clicks | 2 to 3 days |
-| P1 | Start-release button wired to the dispatch dialog (UC1) | shortens the first step | 1 to 2 days |
-| P1 | Keyword budget meters at field, locale and storefront level, overlap warnings, untapped locales | best ASO idea; beginner friendly | 3 to 4 days |
-| P2 | ASO checklist coach (UC6) | turns tracking into guidance | 3 days |
-| P2 | Analytics MVP: downloads, proceeds, crash-free, adoption, automatic release markers (UC4) | large and data limited; verify store APIs first | 2 to 3 weeks |
-| P2 | Locked-version banner and read-only states for live versions | clarity; small | 1 day |
-| P2 | Searchable app switcher with Cmd+1..n, and global shortcuts for sections | power use | 1 to 2 days |
-| P2 | Copy-ready MCP/automation snippets in Settings | developer friendly | 1 day |
+| P   | Item                                                                                            | Why                                                        | Effort                           |
+| --- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------- |
+| P0  | "Release left unfinished" attention item joining run, build and release state (UC3), plus badge | the user's stated pain; no competitor has it               | 3 to 5 days                      |
+| P0  | Release wizard/stepper with readiness dots and a footer-style checklist (UC2)                   | one place for the main job; reuses submit and rollout work | 5 to 8 days                      |
+| P0  | Build picker with eligibility reasons, and "use build test notes" as changelog (UC2)            | closes the exact gap seen in the app                       | 3 days (needs a TestFlight read) |
+| P1  | Notes history menu ("reuse notes", with release and date)                                       | speeds every release; Play-like                            | 2 to 3 days                      |
+| P1  | Unanswered-reviews badge, default view and digest (UC5)                                         | removes forgetting                                         | 2 days                           |
+| P1  | Header with platform, version (with state), locale pickers across pages                         | common UX, fewer clicks                                    | 2 to 3 days                      |
+| P1  | Start-release button wired to the dispatch dialog (UC1)                                         | shortens the first step                                    | 1 to 2 days                      |
+| P1  | Keyword budget meters at field, locale and storefront level, overlap warnings, untapped locales | best ASO idea; beginner friendly                           | 3 to 4 days                      |
+| P2  | ASO checklist coach (UC6)                                                                       | turns tracking into guidance                               | 3 days                           |
+| P2  | Analytics MVP: downloads, proceeds, crash-free, adoption, automatic release markers (UC4)       | large and data limited; verify store APIs first            | 2 to 3 weeks                     |
+| P2  | Locked-version banner and read-only states for live versions                                    | clarity; small                                             | 1 day                            |
+| P2  | Searchable app switcher with Cmd+1..n, and global shortcuts for sections                        | power use                                                  | 1 to 2 days                      |
+| P2  | Copy-ready MCP/automation snippets in Settings                                                  | developer friendly                                         | 1 day                            |

@@ -26,30 +26,63 @@ export type EditableFacts = { versionString: string | null } | null;
 
 const label = (b: BuildFacts) => (b.buildNumber !== null ? `Build ${b.buildNumber}` : 'This build');
 
-export function appleBuildEligibility(build: BuildFacts, editable: EditableFacts): BuildEligibility {
+export function appleBuildEligibility(
+  build: BuildFacts,
+  editable: EditableFacts,
+): BuildEligibility {
   const name = label(build);
-  const blocked = (code: BuildEligibility['code'], message: string): BuildEligibility => ({ eligible: false, severity: 'blocked', code, message });
-  if (build.expired === true) return blocked('expired', `${name} has expired in App Store Connect and cannot be attached to a version.`);
+  const blocked = (code: BuildEligibility['code'], message: string): BuildEligibility => ({
+    eligible: false,
+    severity: 'blocked',
+    code,
+    message,
+  });
+  if (build.expired === true)
+    return blocked(
+      'expired',
+      `${name} has expired in App Store Connect and cannot be attached to a version.`,
+    );
   switch (build.processingState) {
     case 'VALID':
       break;
     case 'PROCESSING':
-      return blocked('processing', `${name} is still being processed by Apple. It can be chosen when processing has finished.`);
+      return blocked(
+        'processing',
+        `${name} is still being processed by Apple. It can be chosen when processing has finished.`,
+      );
     case 'FAILED':
       return blocked('failed', `Apple could not process ${name}. Upload a new build.`);
     case 'INVALID':
       return blocked('invalid', `Apple marked ${name} as invalid. Upload a new build.`);
     default:
-      return blocked('state_unknown', `Apple did not say whether ${name} is processed, so it is not offered.`);
+      return blocked(
+        'state_unknown',
+        `Apple did not say whether ${name} is processed, so it is not offered.`,
+      );
   }
   if (editable === null) {
-    return blocked('no_editable_version', `${name} is processed, but there is no version in "Prepare for Submission" to attach it to. Create the next version in App Store Connect first.`);
+    return blocked(
+      'no_editable_version',
+      `${name} is processed, but there is no version in "Prepare for Submission" to attach it to. Create the next version in App Store Connect first.`,
+    );
   }
-  if (build.version !== null && editable.versionString !== null && build.version !== editable.versionString) {
-    return blocked('wrong_version', `${name} belongs to version ${build.version}, but the version being prepared is ${editable.versionString}.`);
+  if (
+    build.version !== null &&
+    editable.versionString !== null &&
+    build.version !== editable.versionString
+  ) {
+    return blocked(
+      'wrong_version',
+      `${name} belongs to version ${build.version}, but the version being prepared is ${editable.versionString}.`,
+    );
   }
   if (build.attached) {
-    return { eligible: false, severity: 'ok', code: 'already_attached', message: `${name} is already attached to version ${editable.versionString ?? 'being prepared'}.` };
+    return {
+      eligible: false,
+      severity: 'ok',
+      code: 'already_attached',
+      message: `${name} is already attached to version ${editable.versionString ?? 'being prepared'}.`,
+    };
   }
   if (build.exportCompliance === 'missing') {
     return {
@@ -59,7 +92,12 @@ export function appleBuildEligibility(build: BuildFacts, editable: EditableFacts
       message: `${name} can be chosen, but Apple holds no export compliance answer for it yet; App Store Connect may ask for one before the version can be submitted.`,
     };
   }
-  return { eligible: true, severity: 'ok', code: 'ok', message: `${name} is processed and can be attached to version ${editable.versionString ?? 'being prepared'}.` };
+  return {
+    eligible: true,
+    severity: 'ok',
+    code: 'ok',
+    message: `${name} is processed and can be attached to version ${editable.versionString ?? 'being prepared'}.`,
+  };
 }
 
 export type CodeFacts = {
@@ -71,11 +109,26 @@ export type CodeFacts = {
 export function playCodeEligibility(code: CodeFacts): CodeEligibility {
   const live = code.inTrack.find((r) => r.status === 'completed' || r.status === 'inProgress');
   if (live) {
-    return { eligible: false, severity: 'blocked', code: 'already_live', message: `Version code ${code.versionCode} is already in a release of this track that is ${live.status === 'completed' ? 'live' : 'rolling out'}.` };
+    return {
+      eligible: false,
+      severity: 'blocked',
+      code: 'already_live',
+      message: `Version code ${code.versionCode} is already in a release of this track that is ${live.status === 'completed' ? 'live' : 'rolling out'}.`,
+    };
   }
   const draft = code.inTrack.find((r) => r.status === 'draft');
   if (draft) {
-    return { eligible: false, severity: 'ok', code: 'already_in_draft', message: `Version code ${code.versionCode} is already in the draft release of this track.` };
+    return {
+      eligible: false,
+      severity: 'ok',
+      code: 'already_in_draft',
+      message: `Version code ${code.versionCode} is already in the draft release of this track.`,
+    };
   }
-  return { eligible: true, severity: 'ok', code: 'ok', message: `Version code ${code.versionCode} was uploaded and is not in a release of this track yet.` };
+  return {
+    eligible: true,
+    severity: 'ok',
+    code: 'ok',
+    message: `Version code ${code.versionCode} was uploaded and is not in a release of this track yet.`,
+  };
 }

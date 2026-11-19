@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
-import { BranchExistsError, GithubError, GithubRateLimitError, PullRequestFailedError } from '@mrm/connectors';
+import {
+  BranchExistsError,
+  GithubError,
+  GithubRateLimitError,
+  PullRequestFailedError,
+} from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { FakeRepo, TOKEN, bootRepoApp } from './repo-test-helpers.ts';
+import { bootRepoApp, FakeRepo, TOKEN } from './repo-test-helpers.ts';
 
 const SUBTITLE = 'fastlane/metadata/en-US/subtitle.txt';
 
@@ -28,8 +33,15 @@ dbTest('draft, approve, apply: the change lands as a pull request on a new branc
   const listed = await t.call(t.owner, 'GET', '/change-sets');
   assert.equal(listed.body.changeSets.length, 1);
   assert.deepEqual(listed.body.changeSets[0].files, [{ path: SUBTITLE, change: 'modified' }]);
-  assert.equal((await t.call(t.owner, 'GET', `/change-sets?status=applied`)).body.changeSets.length, 0);
-  assert.equal((await t.call(t.owner, 'GET', `/change-sets?repositoryId=${repositoryId}`)).body.changeSets.length, 1);
+  assert.equal(
+    (await t.call(t.owner, 'GET', `/change-sets?status=applied`)).body.changeSets.length,
+    0,
+  );
+  assert.equal(
+    (await t.call(t.owner, 'GET', `/change-sets?repositoryId=${repositoryId}`)).body.changeSets
+      .length,
+    1,
+  );
 
   // Not approved yet: apply is refused and nothing is written.
   const early = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
@@ -103,11 +115,21 @@ dbTest('a draft with nothing different is refused, and bad listings are 400', as
   assert.equal((await post({ summary: '', listing: {} })).status, 400);
   assert.equal((await post({ summary: 'two\nlines', listing: {} })).status, 400);
   assert.equal(
-    (await post({ summary: 'x', listing: { appStore: { locales: { '../../.github': { name: 'x' } } } } })).status,
+    (
+      await post({
+        summary: 'x',
+        listing: { appStore: { locales: { '../../.github': { name: 'x' } } } },
+      })
+    ).status,
     400,
   );
   assert.equal(
-    (await post({ summary: 'x', listing: { googlePlay: { locales: {}, changelogs: { en: { 'a/b': 'x' } } } } })).status,
+    (
+      await post({
+        summary: 'x',
+        listing: { googlePlay: { locales: {}, changelogs: { en: { 'a/b': 'x' } } } },
+      })
+    ).status,
     400,
   );
 });
@@ -160,62 +182,83 @@ dbTest('a double click applies once: one pull request, the second click is told'
   assert.equal((await t.auditActions()).filter((a) => a.action === 'changeset.apply').length, 1);
 });
 
-dbTest('a repository that changed since the draft: 409 with a hint, set failed, never applied', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const { id } = await t.draft(repositoryId);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  repo.files.set(SUBTITLE, 'Someone else edited this\n');
+dbTest(
+  'a repository that changed since the draft: 409 with a hint, set failed, never applied',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const { id } = await t.draft(repositoryId);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+    repo.files.set(SUBTITLE, 'Someone else edited this\n');
 
-  const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(res.status, 409);
-  assert.equal(res.body.error, 'change_conflict');
-  assert.deepEqual(res.body.paths, [SUBTITLE]);
-  assert.match(res.body.hint, /read the listing again/);
-  assert.equal(res.body.changeSet.status, 'failed');
+    const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error, 'change_conflict');
+    assert.deepEqual(res.body.paths, [SUBTITLE]);
+    assert.match(res.body.hint, /read the listing again/);
+    assert.equal(res.body.changeSet.status, 'failed');
 
-  const after = (await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet;
-  assert.equal(after.status, 'failed');
-  assert.match(after.error, /changed since/);
-  assert.equal(after.prUrl, null);
-  assert.equal(repo.branches.size, 0);
-  const retry = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(retry.status, 409);
-  assert.equal(retry.body.error, 'invalid_state');
-  assert.ok((await t.auditActions()).some((a) => a.action === 'changeset.apply_failed'));
+    const after = (await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet;
+    assert.equal(after.status, 'failed');
+    assert.match(after.error, /changed since/);
+    assert.equal(after.prUrl, null);
+    assert.equal(repo.branches.size, 0);
+    const retry = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(retry.status, 409);
+    assert.equal(retry.body.error, 'invalid_state');
+    assert.ok((await t.auditActions()).some((a) => a.action === 'changeset.apply_failed'));
 
-  // A failed set can be discarded, and a new draft from the current state works.
-  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/discard`)).status, 200);
-  assert.equal((await t.draft(repositoryId, 'Fresh subtitle')).res.status, 201);
-});
+    // A failed set can be discarded, and a new draft from the current state works.
+    assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/discard`)).status, 200);
+    assert.equal((await t.draft(repositoryId, 'Fresh subtitle')).res.status, 201);
+  },
+);
 
-dbTest('a rate limit is a 429 with retry info and leaves the set approved for a retry', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const { id } = await t.draft(repositoryId);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  repo.proposeErrors.push(new GithubRateLimitError(403, 'secondary', 90));
+dbTest(
+  'a rate limit is a 429 with retry info and leaves the set approved for a retry',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const { id } = await t.draft(repositoryId);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+    repo.proposeErrors.push(new GithubRateLimitError(403, 'secondary', 90));
 
-  const limited = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(limited.status, 429);
-  assert.equal(limited.headers.get('retry-after'), '90');
-  assert.equal(limited.body.retryAfterSeconds, 90);
-  const waiting = (await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet;
-  assert.equal(waiting.status, 'approved');
-  assert.match(waiting.error, /rate limit/);
+    const limited = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers.get('retry-after'), '90');
+    assert.equal(limited.body.retryAfterSeconds, 90);
+    const waiting = (await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet;
+    assert.equal(waiting.status, 'approved');
+    assert.match(waiting.error, /rate limit/);
 
-  const retry = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(retry.status, 200);
-  assert.equal(retry.body.changeSet.status, 'applied');
-  assert.equal(retry.body.changeSet.error, null);
-});
+    const retry = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(retry.status, 200);
+    assert.equal(retry.body.changeSet.status, 'applied');
+    assert.equal(retry.body.changeSet.error, null);
+  },
+);
 
 const failureCases: [string, () => unknown, number, string][] = [
-  ['no write access', () => new GithubError('forbidden', 'No write access.', 403), 422, 'github_forbidden'],
-  ['blocked path', () => new GithubError('blocked_path', 'Refusing to change .github/x.'), 422, 'github_invalid'],
-  ['GitHub down', () => new GithubError('server', 'GitHub is down.', 503), 502, 'github_unavailable'],
+  [
+    'no write access',
+    () => new GithubError('forbidden', 'No write access.', 403),
+    422,
+    'github_forbidden',
+  ],
+  [
+    'blocked path',
+    () => new GithubError('blocked_path', 'Refusing to change .github/x.'),
+    422,
+    'github_invalid',
+  ],
+  [
+    'GitHub down',
+    () => new GithubError('server', 'GitHub is down.', 503),
+    502,
+    'github_unavailable',
+  ],
   ['default branch', () => new GithubError('default_branch', 'No.'), 409, 'default_branch'],
   ['branch exists', () => new BranchExistsError('mrm/x'), 409, 'branch_exists'],
   ['already matches', () => new GithubError('no_changes', 'Already matches.'), 409, 'no_changes'],
@@ -238,38 +281,48 @@ for (const [name, error, status, code] of failureCases) {
   });
 }
 
-dbTest('a branch without a pull request is failed, with the branch kept, never applied', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const { id } = await t.draft(repositoryId);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  repo.proposeErrors.push(
-    new PullRequestFailedError('mrm/x', 'b'.repeat(40), new GithubError('validation', 'No PR.', 422)),
-  );
-  const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(res.status, 502);
-  assert.equal(res.body.error, 'pull_request_failed');
-  const set = res.body.changeSet;
-  assert.equal(set.status, 'failed');
-  assert.equal(set.branch, 'mrm/x');
-  assert.equal(set.commitSha, 'b'.repeat(40));
-  assert.equal(set.prUrl, null);
-});
+dbTest(
+  'a branch without a pull request is failed, with the branch kept, never applied',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const { id } = await t.draft(repositoryId);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+    repo.proposeErrors.push(
+      new PullRequestFailedError(
+        'mrm/x',
+        'b'.repeat(40),
+        new GithubError('validation', 'No PR.', 422),
+      ),
+    );
+    const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(res.status, 502);
+    assert.equal(res.body.error, 'pull_request_failed');
+    const set = res.body.changeSet;
+    assert.equal(set.status, 'failed');
+    assert.equal(set.branch, 'mrm/x');
+    assert.equal(set.commitSha, 'b'.repeat(40));
+    assert.equal(set.prUrl, null);
+  },
+);
 
-dbTest('a connector that returns neither a pull request nor a commit does not count as applied', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const { id } = await t.draft(repositoryId);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  repo.proposeResult = { url: undefined, commitSha: undefined };
-  const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(res.status, 502);
-  assert.equal(res.body.changeSet.status, 'failed');
-  const rows = await db.query("SELECT id FROM change_sets WHERE status = 'applied'");
-  assert.equal(rows.length, 0);
-});
+dbTest(
+  'a connector that returns neither a pull request nor a commit does not count as applied',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const { id } = await t.draft(repositoryId);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+    repo.proposeResult = { url: undefined, commitSha: undefined };
+    const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(res.status, 502);
+    assert.equal(res.body.changeSet.status, 'failed');
+    const rows = await db.query("SELECT id FROM change_sets WHERE status = 'applied'");
+    assert.equal(rows.length, 0);
+  },
+);
 
 dbTest('a deleted credential is reported and leaves the set approved', async (db) => {
   const repo = new FakeRepo();
@@ -291,9 +344,18 @@ dbTest('a stale applying claim can be taken over, a fresh one cannot', async (db
   const { repositoryId } = await t.connect();
   const { id } = await t.draft(repositoryId);
   await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  await db.execute("UPDATE change_sets SET status = 'applying', updated_at = ? WHERE id = ?", [Date.now(), id]);
-  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).body.error, 'apply_in_progress');
-  await db.execute('UPDATE change_sets SET updated_at = ? WHERE id = ?', [Date.now() - 11 * 60_000, id]);
+  await db.execute("UPDATE change_sets SET status = 'applying', updated_at = ? WHERE id = ?", [
+    Date.now(),
+    id,
+  ]);
+  assert.equal(
+    (await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).body.error,
+    'apply_in_progress',
+  );
+  await db.execute('UPDATE change_sets SET updated_at = ? WHERE id = ?', [
+    Date.now() - 11 * 60_000,
+    id,
+  ]);
   const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
   assert.equal(res.status, 200);
   assert.equal(res.body.changeSet.status, 'applied');
@@ -371,83 +433,111 @@ dbTest('permission matrix for change sets', async (db) => {
   assert.equal(approve?.actorId, `user-admin-${t.workspaceId}`);
 });
 
-dbTest('a change set is applied with the credential of its repository, nothing else', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const { id } = await t.draft(repositoryId);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.ok(t.built.every((b) => b.kind === 'github_token' && b.owner === 'acme' && b.repo === 'app'));
-  const uses = (await t.auditActions()).filter((a) => a.action === 'credential.use');
-  assert.ok(uses.some((u) => u.detail.includes('changeset.apply')));
-});
+dbTest(
+  'a change set is applied with the credential of its repository, nothing else',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const { id } = await t.draft(repositoryId);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.ok(
+      t.built.every((b) => b.kind === 'github_token' && b.owner === 'acme' && b.repo === 'app'),
+    );
+    const uses = (await t.auditActions()).filter((a) => a.action === 'credential.use');
+    assert.ok(uses.some((u) => u.detail.includes('changeset.apply')));
+  },
+);
 
-dbTest('a connector that outlives the timeout is cancelled and the set is not recorded as failed', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo, { repositoryTimeoutMs: 40 });
-  const { repositoryId } = await t.connect();
-  const { id } = await t.draft(repositoryId);
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+dbTest(
+  'a connector that outlives the timeout is cancelled and the set is not recorded as failed',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo, { repositoryTimeoutMs: 40 });
+    const { repositoryId } = await t.connect();
+    const { id } = await t.draft(repositoryId);
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
 
-  repo.proposeDelayMs = 200; // ignores the signal and still writes its branch afterwards
-  const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(res.status, 504);
-  assert.equal(res.body.error, 'timeout');
-  assert.match(res.body.message, /may already exist/);
-  assert.equal(repo.proposeSignals[0]?.aborted, true, 'the connector was told to stop');
+    repo.proposeDelayMs = 200; // ignores the signal and still writes its branch afterwards
+    const res = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(res.status, 504);
+    assert.equal(res.body.error, 'timeout');
+    assert.match(res.body.message, /may already exist/);
+    assert.equal(repo.proposeSignals[0]?.aborted, true, 'the connector was told to stop');
 
-  // Not "failed": a branch or pull request may exist. Still applying, with the reason on it.
-  assert.equal(res.body.changeSet.status, 'applying');
-  assert.match(res.body.changeSet.error, /stays "applying"/);
-  const actions = (await t.auditActions()).map((a) => a.action);
-  assert.ok(actions.includes('changeset.apply_timeout'));
-  assert.ok(!actions.includes('changeset.apply_failed'));
-  assert.ok(!actions.includes('changeset.apply'));
+    // Not "failed": a branch or pull request may exist. Still applying, with the reason on it.
+    assert.equal(res.body.changeSet.status, 'applying');
+    assert.match(res.body.changeSet.error, /stays "applying"/);
+    const actions = (await t.auditActions()).map((a) => a.action);
+    assert.ok(actions.includes('changeset.apply_timeout'));
+    assert.ok(!actions.includes('changeset.apply_failed'));
+    assert.ok(!actions.includes('changeset.apply'));
 
-  // Let the late connector finish: it must not change the set behind our back.
-  await new Promise((r) => setTimeout(r, 250));
-  assert.equal((await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet.status, 'applying');
+    // Let the late connector finish: it must not change the set behind our back.
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(
+      (await t.call(t.owner, 'GET', `/change-sets/${id}`)).body.changeSet.status,
+      'applying',
+    );
 
-  // Meanwhile it cannot be applied again or discarded...
-  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).body.error, 'apply_in_progress');
-  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/discard`)).status, 409);
+    // Meanwhile it cannot be applied again or discarded...
+    assert.equal(
+      (await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).body.error,
+      'apply_in_progress',
+    );
+    assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/discard`)).status, 409);
 
-  // ...until the claim is stale, as for a crash.
-  repo.proposeDelayMs = 0;
-  await db.execute('UPDATE change_sets SET updated_at = ? WHERE id = ?', [Date.now() - 11 * 60_000, id]);
-  const again = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
-  assert.equal(again.status, 200);
-  assert.equal(again.body.changeSet.status, 'applied');
-});
+    // ...until the claim is stale, as for a crash.
+    repo.proposeDelayMs = 0;
+    await db.execute('UPDATE change_sets SET updated_at = ? WHERE id = ?', [
+      Date.now() - 11 * 60_000,
+      id,
+    ]);
+    const again = await t.call(t.owner, 'POST', `/change-sets/${id}/apply`);
+    assert.equal(again.status, 200);
+    assert.equal(again.body.changeSet.status, 'applied');
+  },
+);
 
-dbTest('what a person typed in the summary cannot mention, link or close anything on GitHub', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const summary = 'Fixes #12, closes acme/app#3, resolved https://github.com/acme/app/issues/4 cc @octocat @acme/team';
-  const read = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
-  const listing = read.body.listing;
-  listing.appStore.locales['en-US'].subtitle = 'Newer subtitle';
-  const made = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, { summary, listing });
-  assert.equal(made.status, 201);
-  const id = made.body.changeSet.id as string;
-  assert.equal(made.body.changeSet.summary, summary, 'the set keeps what was typed');
-  await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
-  assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).status, 200);
+dbTest(
+  'what a person typed in the summary cannot mention, link or close anything on GitHub',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const summary =
+      'Fixes #12, closes acme/app#3, resolved https://github.com/acme/app/issues/4 cc @octocat @acme/team';
+    const read = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
+    const listing = read.body.listing;
+    listing.appStore.locales['en-US'].subtitle = 'Newer subtitle';
+    const made = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, {
+      summary,
+      listing,
+    });
+    assert.equal(made.status, 201);
+    const id = made.body.changeSet.id as string;
+    assert.equal(made.body.changeSet.summary, summary, 'the set keeps what was typed');
+    await t.call(t.owner, 'POST', `/change-sets/${id}/approve`);
+    assert.equal((await t.call(t.owner, 'POST', `/change-sets/${id}/apply`)).status, 200);
 
-  const sent = repo.proposals[0];
-  const outgoing = [sent?.options.title ?? '', sent?.options.body ?? '', sent?.changeSet.summary ?? ''];
-  for (const text of outgoing) {
-    assert.doesNotMatch(text, /@(?=\w)/, text);
-    assert.doesNotMatch(text, /#(?=\d)/, text);
-    assert.doesNotMatch(text, /:\/\//, text);
-    assert.doesNotMatch(text, /\b(fix(es|ed)?|close[sd]?|resolve[sd]?)\b/i, text);
-  }
-  // Still readable: with the invisible characters removed it is the original text.
-  assert.equal(outgoing[0]?.replaceAll('​', ''), summary);
-  assert.equal(outgoing[2]?.replaceAll('​', ''), summary);
-  // In the body it is a one-line quote, so it cannot open a heading, list or code block.
-  assert.match(sent?.options.body ?? '', /^> /);
-  assert.equal((sent?.options.body ?? '').split('\n')[0]?.replaceAll('​', ''), `> ${summary}`);
-});
+    const sent = repo.proposals[0];
+    const outgoing = [
+      sent?.options.title ?? '',
+      sent?.options.body ?? '',
+      sent?.changeSet.summary ?? '',
+    ];
+    for (const text of outgoing) {
+      assert.doesNotMatch(text, /@(?=\w)/, text);
+      assert.doesNotMatch(text, /#(?=\d)/, text);
+      assert.doesNotMatch(text, /:\/\//, text);
+      assert.doesNotMatch(text, /\b(fix(es|ed)?|close[sd]?|resolve[sd]?)\b/i, text);
+    }
+    // Still readable: with the invisible characters removed it is the original text.
+    assert.equal(outgoing[0]?.replaceAll('​', ''), summary);
+    assert.equal(outgoing[2]?.replaceAll('​', ''), summary);
+    // In the body it is a one-line quote, so it cannot open a heading, list or code block.
+    assert.match(sent?.options.body ?? '', /^> /);
+    assert.equal((sent?.options.body ?? '').split('\n')[0]?.replaceAll('​', ''), `> ${summary}`);
+  },
+);

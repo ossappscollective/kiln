@@ -21,7 +21,13 @@ export type DispatchTarget = {
 };
 
 /** The props of the dialog, in one place. A test makes sure every entry point passes exactly these. */
-export const DISPATCH_DIALOG_PROPS: readonly string[] = ['api', 'workspaceId', 'target', 'onclose', 'ondispatched'];
+export const DISPATCH_DIALOG_PROPS: readonly string[] = [
+  'api',
+  'workspaceId',
+  'target',
+  'onclose',
+  'ondispatched',
+];
 
 export function dispatchTarget(input: {
   repository: RepositorySummary;
@@ -40,10 +46,19 @@ export function dispatchTarget(input: {
 }
 
 /** The apps ticked when the dialog opens: the named app, else the one the platforms point to, else none. */
-export function dispatchPreselection(apps: readonly AppSummary[], target: DispatchTarget): string[] {
+export function dispatchPreselection(
+  apps: readonly AppSummary[],
+  target: DispatchTarget,
+): string[] {
   const own = apps.filter((a) => a.repositoryId === target.repository.id);
-  return initialSelection(own, target.appId !== '' ? target.appId : suggestAppId(apps, target.repository.id, target.platforms));
+  return initialSelection(
+    own,
+    target.appId !== '' ? target.appId : suggestAppId(apps, target.repository.id, target.platforms),
+  );
 }
 
 /** The apps a run of this repository can be tied to. */
-export const dispatchLinkableApps = (apps: readonly AppSummary[], repositoryId: string): AppSummary[] => apps.filter((a) => a.repositoryId === repositoryId);
+export const dispatchLinkableApps = (
+  apps: readonly AppSummary[],
+  repositoryId: string,
+): AppSummary[] => apps.filter((a) => a.repositoryId === repositoryId);

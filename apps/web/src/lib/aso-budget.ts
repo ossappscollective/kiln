@@ -5,13 +5,13 @@ import {
   type FitField,
   type FitFields,
   type FitKeyword,
+  isApplePlatform,
   type ListingBudget,
   type StagedChangesView,
   type WasteReason,
-  isApplePlatform,
 } from '@mrm/core';
 import { withHeaderParams } from './app-header.ts';
-import { type PlatformScope, appAddress, parseViewPath } from './app-scope.ts';
+import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import { type AsoKeyword, asoViewHref } from './aso.ts';
 import type { DriftField } from './types.ts';
 
@@ -25,8 +25,17 @@ import type { DriftField } from './types.ts';
 // ---------------------------------------------------------------------------------------------
 // The text of a locale
 
-const APPLE_FIELDS: Record<string, FitField> = { name: 'title', subtitle: 'subtitle', keywords: 'keywords', description: 'description' };
-const PLAY_FIELDS: Record<string, FitField> = { title: 'title', short_description: 'shortDescription', full_description: 'description' };
+const APPLE_FIELDS: Record<string, FitField> = {
+  name: 'title',
+  subtitle: 'subtitle',
+  keywords: 'keywords',
+  description: 'description',
+};
+const PLAY_FIELDS: Record<string, FitField> = {
+  title: 'title',
+  short_description: 'shortDescription',
+  full_description: 'description',
+};
 
 /** The fit field a store field id is, or null for a field the budgets do not look at. */
 export function fitFieldOf(platform: AsoPlatform, fieldId: string): FitField | null {
@@ -41,7 +50,12 @@ export type LocaleText = {
 };
 
 /** The staged text of a locale laid over a base. A staged text is what the store will have after the next push. */
-export function overlayStaged(platform: AsoPlatform, locale: string, base: FitFields, view: StagedChangesView | null): LocaleText {
+export function overlayStaged(
+  platform: AsoPlatform,
+  locale: string,
+  base: FitFields,
+  view: StagedChangesView | null,
+): LocaleText {
   const fields: FitFields = { ...base };
   const staged: FitField[] = [];
   if (view !== null) {
@@ -80,14 +94,23 @@ export function fieldsFromDrift(
 const tag = (locale: string): string => locale.replace(/_/g, '-').toLowerCase();
 
 /** The tracked keywords of exactly this locale, for the budget. Another locale of the same language is not guessed. */
-export function keywordsForLocale(keywords: readonly Pick<AsoKeyword, 'id' | 'term' | 'priority' | 'locale'>[], locale: string): FitKeyword[] {
-  return keywords.filter((k) => tag(k.locale) === tag(locale)).map((k) => ({ id: k.id, term: k.term, priority: k.priority }));
+export function keywordsForLocale(
+  keywords: readonly Pick<AsoKeyword, 'id' | 'term' | 'priority' | 'locale'>[],
+  locale: string,
+): FitKeyword[] {
+  return keywords
+    .filter((k) => tag(k.locale) === tag(locale))
+    .map((k) => ({ id: k.id, term: k.term, priority: k.priority }));
 }
 
 /** The storefronts (two letters) where keywords are tracked in this locale, sorted. */
-export function countriesForLocale(keywords: readonly Pick<AsoKeyword, 'country' | 'locale'>[], locale: string): string[] {
+export function countriesForLocale(
+  keywords: readonly Pick<AsoKeyword, 'country' | 'locale'>[],
+  locale: string,
+): string[] {
   const out: string[] = [];
-  for (const k of keywords) if (tag(k.locale) === tag(locale) && out.indexOf(k.country) < 0) out.push(k.country);
+  for (const k of keywords)
+    if (tag(k.locale) === tag(locale) && out.indexOf(k.country) < 0) out.push(k.country);
   return out.sort();
 }
 
@@ -103,11 +126,16 @@ export function meterTone(f: Pick<FieldBudget, 'used' | 'limit' | 'over'>): Mete
 }
 
 /** "18/30". */
-export const meterNumber = (f: Pick<FieldBudget, 'used' | 'limit'>): string => `${f.used}/${f.limit}`;
+export const meterNumber = (f: Pick<FieldBudget, 'used' | 'limit'>): string =>
+  `${f.used}/${f.limit}`;
 
 /** "18 of 30 characters, 12 left" or "3 over the limit of 30 characters". */
-export function meterTitle(f: Pick<FieldBudget, 'used' | 'limit' | 'unit' | 'remaining' | 'over'>): string {
-  return f.over ? `${-f.remaining} over the limit of ${f.limit} ${f.unit}` : `${f.used} of ${f.limit} ${f.unit}, ${f.remaining} left`;
+export function meterTitle(
+  f: Pick<FieldBudget, 'used' | 'limit' | 'unit' | 'remaining' | 'over'>,
+): string {
+  return f.over
+    ? `${-f.remaining} over the limit of ${f.limit} ${f.unit}`
+    : `${f.used} of ${f.limit} ${f.unit}, ${f.remaining} left`;
 }
 
 export const wasteReasonText: Record<WasteReason, string> = {
@@ -119,7 +147,16 @@ export const wasteReasonText: Record<WasteReason, string> = {
 };
 
 /** "name", "keyword field": the label of a field in a sentence. */
-export const fieldWord = (f: FitField): string => (f === 'title' ? 'name' : f === 'shortDescription' ? 'short description' : f === 'keywords' ? 'keyword field' : f === 'description' ? 'description' : 'subtitle');
+export const fieldWord = (f: FitField): string =>
+  f === 'title'
+    ? 'name'
+    : f === 'shortDescription'
+      ? 'short description'
+      : f === 'keywords'
+        ? 'keyword field'
+        : f === 'description'
+          ? 'description'
+          : 'subtitle';
 
 /** The one muted line under the bars: what is worth a look, or '' when there is nothing. */
 export function budgetHeadline(b: ListingBudget): string {
@@ -127,8 +164,14 @@ export function budgetHeadline(b: ListingBudget): string {
   const over = b.fields.filter((f) => f.over).length;
   if (over > 0) parts.push(`${over} over the limit`);
   if (b.wastedTotal > 0) parts.push(`${b.wastedTotal} characters could be freed`);
-  if (b.missing.length > 0) parts.push(`${b.missing.length} tracked ${b.missing.length === 1 ? 'keyword' : 'keywords'} not in the listing`);
-  if (b.platform === 'android' && b.repeated.length > 0) parts.push(`${b.repeated.length} ${b.repeated.length === 1 ? 'term' : 'terms'} in several fields`);
+  if (b.missing.length > 0)
+    parts.push(
+      `${b.missing.length} tracked ${b.missing.length === 1 ? 'keyword' : 'keywords'} not in the listing`,
+    );
+  if (b.platform === 'android' && b.repeated.length > 0)
+    parts.push(
+      `${b.repeated.length} ${b.repeated.length === 1 ? 'term' : 'terms'} in several fields`,
+    );
   return parts.join(', ');
 }
 
@@ -146,10 +189,15 @@ export function withoutParam(hash: string, name: string): string {
 }
 
 /** Whether an address asks for the "add keywords" panel (`?add=1`). */
-export const asksToAddKeywords = (hash: string): boolean => parseViewPath(hash).query.get('add') === '1';
+export const asksToAddKeywords = (hash: string): boolean =>
+  parseViewPath(hash).query.get('add') === '1';
 
 /** Where a coach action goes. The platform scope of the open app is kept. */
-export function coachHref(link: CoachLink, appId: string, platform: PlatformScope | null = null): string {
+export function coachHref(
+  link: CoachLink,
+  appId: string,
+  platform: PlatformScope | null = null,
+): string {
   switch (link.to) {
     case 'keywords_add': {
       const base = asoViewHref(appId, 'keywords', platform);
@@ -163,6 +211,8 @@ export function coachHref(link: CoachLink, appId: string, platform: PlatformScop
     case 'ideas':
       return asoViewHref(appId, link.to, platform);
     default:
-      return withHeaderParams(appAddress(appId, 'listing', platform), { locale: link.locale ?? null });
+      return withHeaderParams(appAddress(appId, 'listing', platform), {
+        locale: link.locale ?? null,
+      });
   }
 }

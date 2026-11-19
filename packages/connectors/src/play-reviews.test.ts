@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from './errors.ts';
-import { PLAY_REVIEW_WINDOW_MS, parsePlayReview, parsePlayReviews, parsePlayTimestamp, PlayReviewsConnector } from './play-reviews.ts';
+import {
+  PLAY_REVIEW_WINDOW_MS,
+  PlayReviewsConnector,
+  parsePlayReview,
+  parsePlayReviews,
+  parsePlayTimestamp,
+} from './play-reviews.ts';
 import * as rx from './reviews.fixtures.ts';
 import * as fx from './store.fixtures.ts';
 
@@ -36,7 +42,10 @@ test('listReviews pages by token and normalizes reviews', async () => {
   const result = await connector.listReviews();
   assert.deepEqual(fake.unexpected, []);
   assert.equal(result.complete, true);
-  assert.deepEqual(result.reviews.map((r) => r.rating), [1, 5, 3]);
+  assert.deepEqual(
+    result.reviews.map((r) => r.rating),
+    [1, 5, 3],
+  );
   const first = result.reviews[0];
   assert.equal(first?.store, 'googleplay');
   assert.equal(first?.platform, 'android');
@@ -50,12 +59,21 @@ test('listReviews pages by token and normalizes reviews', async () => {
   assert.equal(first?.device, 'klte');
   assert.equal(first?.territory, undefined, 'Google Play has no territory');
   assert.equal(first?.createdAt, Date.parse('2026-11-17T10:00:00Z'));
-  assert.equal(first?.updatedAt, first?.createdAt, 'no creation time exists: the modification time is both');
-  assert.deepEqual(first?.developerResponse, { body: 'Thanks, a fix is coming.', at: Date.parse('2026-11-17T12:00:00Z') });
+  assert.equal(
+    first?.updatedAt,
+    first?.createdAt,
+    'no creation time exists: the modification time is both',
+  );
+  assert.deepEqual(first?.developerResponse, {
+    body: 'Thanks, a fix is coming.',
+    at: Date.parse('2026-11-17T12:00:00Z'),
+  });
   assert.equal(result.reviews[1]?.title, undefined);
   assert.equal(result.reviews[1]?.buildNumber, '239');
   assert.equal(result.reviews[2]?.body, rx.XSS, 'kept as text');
-  assert.ok(fake.calls.filter((c) => c.url.pathname.endsWith('/reviews')).every((c) => c.method === 'GET'));
+  assert.ok(
+    fake.calls.filter((c) => c.url.pathname.endsWith('/reviews')).every((c) => c.method === 'GET'),
+  );
 });
 
 test('maxResults never exceeds 100 and since drops older reviews', async () => {
@@ -71,9 +89,19 @@ test('maxResults never exceeds 100 and since drops older reviews', async () => {
     });
     return { fake, connector };
   })();
-  fake.on({ method: 'GET', match: `${LIST}?maxResults=100`, json: { reviews: [...rx.playPage1.reviews, ...rx.playPage2.reviews] } });
-  const result = await connector.listReviews({ limit: 1000, since: Date.parse('2026-11-16T12:00:00Z') });
-  assert.deepEqual(result.reviews.map((r) => r.storeReviewId), ['gp:AOqpTOE1']);
+  fake.on({
+    method: 'GET',
+    match: `${LIST}?maxResults=100`,
+    json: { reviews: [...rx.playPage1.reviews, ...rx.playPage2.reviews] },
+  });
+  const result = await connector.listReviews({
+    limit: 1000,
+    since: Date.parse('2026-11-16T12:00:00Z'),
+  });
+  assert.deepEqual(
+    result.reviews.map((r) => r.storeReviewId),
+    ['gp:AOqpTOE1'],
+  );
 });
 
 test('the page cap and the limit stop the read and say so, with no cursor offered', async () => {
@@ -88,7 +116,11 @@ test('the page cap and the limit stop the read and say so, with no cursor offere
 
 test('translationLanguage is passed on, the translation is kept apart from the original', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: `${LIST}?maxResults=2&translationLanguage=en`, json: { reviews: [rx.playTranslated] } });
+  fake.on({
+    method: 'GET',
+    match: `${LIST}?maxResults=2&translationLanguage=en`,
+    json: { reviews: [rx.playTranslated] },
+  });
   const result = await connector.listReviews({ translationLanguage: 'en' });
   const [review] = result.reviews;
   assert.equal(review?.title, 'Lent');
@@ -111,13 +143,25 @@ test('an empty answer is an empty list', async () => {
 
 test('partial, odd and unknown content never throws; unusable entries are counted', () => {
   const parsed = parsePlayReviews(rx.playPartial);
-  assert.deepEqual(parsed.reviews.map((r) => r.storeReviewId), ['ok']);
+  assert.deepEqual(
+    parsed.reviews.map((r) => r.storeReviewId),
+    ['ok'],
+  );
   assert.equal(parsed.skipped, 6);
   assert.equal(parsed.reviews[0]?.rating, 4);
   assert.equal(parsed.reviews[0]?.createdAt, 1731900000 * 1000);
   assert.equal(parsed.reviews[0]?.authorName, undefined);
   assert.equal(parsed.reviews[0]?.appVersion, undefined);
-  for (const junk of [undefined, null, 7, 'x', [], {}, { reviews: 'nope' }, { reviews: [null, 1, 'x', {}] }]) {
+  for (const junk of [
+    undefined,
+    null,
+    7,
+    'x',
+    [],
+    {},
+    { reviews: 'nope' },
+    { reviews: [null, 1, 'x', {}] },
+  ]) {
     assert.doesNotThrow(() => parsePlayReviews(junk));
   }
   assert.equal(parsePlayReview(null), undefined);
@@ -153,7 +197,17 @@ test('with several comments the newest user comment and the newest developer com
 test('a review id and a version code that look odd are kept or dropped safely', () => {
   const parsed = parsePlayReview({
     reviewId: 'r',
-    comments: [{ userComment: { text: 'x', starRating: '5', lastModified: { seconds: '1' }, appVersionCode: 'abc', device: '' } }],
+    comments: [
+      {
+        userComment: {
+          text: 'x',
+          starRating: '5',
+          lastModified: { seconds: '1' },
+          appVersionCode: 'abc',
+          device: '',
+        },
+      },
+    ],
   });
   assert.equal(parsed?.rating, 5);
   assert.equal(parsed?.buildNumber, undefined);
@@ -204,12 +258,18 @@ test('reading reviews only ever sends GET requests to the reviews API (replies: 
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: `${LIST}?maxResults=2`, json: rx.playPage2 });
   await connector.listReviews();
-  assert.ok(fake.calls.filter((c) => c.url.pathname.includes('/reviews')).every((c) => c.method === 'GET'));
+  assert.ok(
+    fake.calls.filter((c) => c.url.pathname.includes('/reviews')).every((c) => c.method === 'GET'),
+  );
 });
 
 test('the package name is checked before it goes into a URL', () => {
   assert.throws(
-    () => new PlayReviewsConnector({ serviceAccount: fx.serviceAccountJson(key.privateKey), packageName: 'com/../x' }),
+    () =>
+      new PlayReviewsConnector({
+        serviceAccount: fx.serviceAccountJson(key.privateKey),
+        packageName: 'com/../x',
+      }),
     StoreError,
   );
 });

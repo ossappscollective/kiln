@@ -1,18 +1,31 @@
 import { PLATFORM_META } from '@mrm/core';
-import { AppStoreConnectTokenProvider, type AppStoreConnectKey, parseAppStoreConnectSecret } from './apple-auth.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
 import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
 import {
   APPLE_RELEASABLE_STATE,
+  type ReleaseApplyInput,
   ReleaseDriftError,
   ReleaseOutcomeUnknownError,
-  type ReleaseApplyInput,
   type ReleaseRequest,
   type ReleaseResult,
   type ReleaseState,
   type StoreReleaseConnector,
 } from './release-types.ts';
-import { enc, isRecord, type Json, records, type StoreHttpOptions, StoreHttp, type StoreReply, text } from './store-http.ts';
+import {
+  enc,
+  isRecord,
+  type Json,
+  records,
+  StoreHttp,
+  type StoreHttpOptions,
+  type StoreReply,
+  text,
+} from './store-http.ts';
 
 /**
  * App Store Connect: RELEASE an approved App Store version. A STORE WRITE that cannot be taken back (Apple: "Send this request
@@ -52,7 +65,12 @@ export type AppleReleaseConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
 const MAX_ERROR_DETAILS = 5;
 
-type VersionRow = { id: string; versionString: string | null; state: string; releaseType: string | null };
+type VersionRow = {
+  id: string;
+  versionString: string | null;
+  state: string;
+  releaseType: string | null;
+};
 
 export class AppleReleaseConnector implements StoreReleaseConnector {
   readonly store = 'appstoreconnect' as const;
@@ -69,14 +87,22 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
 
   constructor(options: AppleReleaseConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
-      throw new StoreError('appstoreconnect', 'invalid_input', 'The App Store id of the app is missing or not a number. Sync the app first.');
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        'The App Store id of the app is missing or not a number. Sync the app first.',
+      );
     }
     this.#appId = options.appStoreId;
     this.platform = options.platform ?? 'ios';
     this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
     this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
-    this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
+    this.#writeHttp = new StoreHttp({
+      ...options,
+      store: 'appstoreconnect',
+      maxRateLimitRetries: 0,
+    });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? 200;
     this.#pageSize = Number.isFinite(wanted) ? Math.min(200, Math.max(1, Math.trunc(wanted))) : 200;
@@ -92,8 +118,14 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
     this.#tokens = new AppStoreConnectTokenProvider(options.credential, this.#http.now);
   }
 
-  static fromSecret(secret: string, options: Omit<AppleReleaseConnectorOptions, 'credential'>): AppleReleaseConnector {
-    return new AppleReleaseConnector({ ...options, credential: parseAppStoreConnectSecret(secret) });
+  static fromSecret(
+    secret: string,
+    options: Omit<AppleReleaseConnectorOptions, 'credential'>,
+  ): AppleReleaseConnector {
+    return new AppleReleaseConnector({
+      ...options,
+      credential: parseAppStoreConnectSecret(secret),
+    });
   }
 
   // -------------------------------------------------------------------------------------------
@@ -105,7 +137,8 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
 
   async #versions(): Promise<VersionRow[]> {
     const what = 'listing the App Store versions';
-    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    let url: string | undefined =
+      `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
     const out: VersionRow[] = [];
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
@@ -114,7 +147,12 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
         const id = text(item.id);
         if (!id || text(a.platform) !== this.#apple) continue;
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
-        out.push({ id, versionString: text(a.versionString) ?? null, state, releaseType: text(a.releaseType) ?? null });
+        out.push({
+          id,
+          versionString: text(a.versionString) ?? null,
+          state,
+          releaseType: text(a.releaseType) ?? null,
+        });
       }
       const links = isRecord(body.links) ? body.links : {};
       const next = text(links.next);
@@ -124,8 +162,12 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
   }
 
   async #state(request: ReleaseRequest, versions: VersionRow[]): Promise<ReleaseState> {
-    const named = request.version !== undefined && request.version !== '' ? request.version : undefined;
-    const pool = named === undefined ? versions.filter((v) => v.state === APPLE_RELEASABLE_STATE) : versions.filter((v) => v.versionString === named);
+    const named =
+      request.version !== undefined && request.version !== '' ? request.version : undefined;
+    const pool =
+      named === undefined
+        ? versions.filter((v) => v.state === APPLE_RELEASABLE_STATE)
+        : versions.filter((v) => v.versionString === named);
     const waiting = pool.filter((v) => v.state === APPLE_RELEASABLE_STATE);
     let chosen: VersionRow | null = null;
     let ambiguous = false;
@@ -146,21 +188,43 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
     };
   }
 
-  async #build(versionId: string): Promise<{ id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null> {
-    const reply = await this.#http.send('GET', `${this.#base}/v1/appStoreVersions/${enc(versionId)}/build`, { headers: { authorization: `Bearer ${this.#bearer()}` } });
+  async #build(
+    versionId: string,
+  ): Promise<{
+    id: string;
+    buildNumber: string | null;
+    processingState: string | null;
+    expired: boolean | null;
+  } | null> {
+    const reply = await this.#http.send(
+      'GET',
+      `${this.#base}/v1/appStoreVersions/${enc(versionId)}/build`,
+      { headers: { authorization: `Bearer ${this.#bearer()}` } },
+    );
     if (reply.status === 404) return null;
-    if (reply.status < 200 || reply.status >= 300) throw this.#fail(reply, 'reading the build of the version');
+    if (reply.status < 200 || reply.status >= 300)
+      throw this.#fail(reply, 'reading the build of the version');
     const data = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : undefined;
     const id = data ? text(data.id) : undefined;
     if (!data || !id) return null;
     const a = isRecord(data.attributes) ? data.attributes : {};
-    return { id, buildNumber: text(a.version) ?? null, processingState: text(a.processingState) ?? null, expired: typeof a.expired === 'boolean' ? a.expired : null };
+    return {
+      id,
+      buildNumber: text(a.version) ?? null,
+      processingState: text(a.processingState) ?? null,
+      expired: typeof a.expired === 'boolean' ? a.expired : null,
+    };
   }
 
   async #phased(versionId: string): Promise<{ id: string; state: string | null } | null> {
-    const reply = await this.#http.send('GET', `${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionPhasedRelease`, { headers: { authorization: `Bearer ${this.#bearer()}` } });
+    const reply = await this.#http.send(
+      'GET',
+      `${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionPhasedRelease`,
+      { headers: { authorization: `Bearer ${this.#bearer()}` } },
+    );
     if (reply.status === 404) return null;
-    if (reply.status < 200 || reply.status >= 300) throw this.#fail(reply, 'reading the phased release');
+    if (reply.status < 200 || reply.status >= 300)
+      throw this.#fail(reply, 'reading the phased release');
     const data = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : undefined;
     const id = data ? text(data.id) : undefined;
     if (!data || !id) return null;
@@ -175,14 +239,25 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
     const before = await this.#state(input.request, await this.#versions());
     if (!input.guard(before)) throw new ReleaseDriftError(before);
     if (before.store !== 'appstoreconnect' || before.version === null || !before.releasable) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `No ${this.#label} version is waiting for release (Pending Developer Release), so nothing was released.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `No ${this.#label} version is waiting for release (Pending Developer Release), so nothing was released.`,
+      );
     }
-    const reply = await this.#write('POST', '/v1/appStoreVersionReleaseRequests', 'releasing the version', {
-      data: {
-        type: 'appStoreVersionReleaseRequests',
-        relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: before.version.id } } },
+    const reply = await this.#write(
+      'POST',
+      '/v1/appStoreVersionReleaseRequests',
+      'releasing the version',
+      {
+        data: {
+          type: 'appStoreVersionReleaseRequests',
+          relationships: {
+            appStoreVersion: { data: { type: 'appStoreVersions', id: before.version.id } },
+          },
+        },
       },
-    });
+    );
     const data = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : {};
     return { before, releaseRequestId: text(data.id) ?? null, via: 'release_request' };
   }
@@ -200,19 +275,41 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
   #fail(reply: StoreReply, what: string): StoreError {
     if (reply.status === 401) this.#tokens.invalidate();
     const error = appleError(reply, this.#http.now(), what);
-    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
     const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
-      const fields = { code: redact(d.code), title: redact(d.title), detail: redact(d.detail), parameter: redact(d.parameter), pointer: redact(d.pointer) };
-      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+      const fields = {
+        code: redact(d.code),
+        title: redact(d.title),
+        detail: redact(d.detail),
+        parameter: redact(d.parameter),
+        pointer: redact(d.pointer),
+      };
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
     });
-    return new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
+    return new StoreError(
+      'appstoreconnect',
+      error.kind,
+      this.#http.redact(error.message),
+      error.status,
+      details,
+    );
   }
 
   async #get(url: string, what: string): Promise<{ json: Json }> {
-    const reply = await this.#http.send('GET', url, { headers: { authorization: `Bearer ${this.#bearer()}` } });
+    const reply = await this.#http.send('GET', url, {
+      headers: { authorization: `Bearer ${this.#bearer()}` },
+    });
     if (reply.status >= 200 && reply.status < 300) {
       if (reply.malformed || !isRecord(reply.json)) {
-        throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect answered ${what} with a response that could not be read.`, reply.status);
+        throw new StoreError(
+          'appstoreconnect',
+          'unexpected',
+          `App Store Connect answered ${what} with a response that could not be read.`,
+          reply.status,
+        );
       }
       return { json: reply.json };
     }
@@ -223,16 +320,27 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
   async #write(method: string, path: string, what: string, json: unknown): Promise<StoreReply> {
     let reply: StoreReply;
     try {
-      reply = await this.#writeHttp.send(method, `${this.#base}${path}`, { headers: { authorization: `Bearer ${this.#bearer()}` }, json });
+      reply = await this.#writeHttp.send(method, `${this.#base}${path}`, {
+        headers: { authorization: `Bearer ${this.#bearer()}` },
+        json,
+      });
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'network') {
-        throw new ReleaseOutcomeUnknownError('appstoreconnect', `The connection to App Store Connect failed while ${what}, so it is not known whether Apple applied it. ${error.message}`, error.status);
+        throw new ReleaseOutcomeUnknownError(
+          'appstoreconnect',
+          `The connection to App Store Connect failed while ${what}, so it is not known whether Apple applied it. ${error.message}`,
+          error.status,
+        );
       }
       throw error;
     }
     if (reply.status >= 200 && reply.status < 300) return reply;
     if (reply.status >= 500) {
-      throw new ReleaseOutcomeUnknownError('appstoreconnect', `App Store Connect answered HTTP ${reply.status} while ${what}, so it is not known whether Apple applied it.`, reply.status);
+      throw new ReleaseOutcomeUnknownError(
+        'appstoreconnect',
+        `App Store Connect answered HTTP ${reply.status} while ${what}, so it is not known whether Apple applied it.`,
+        reply.status,
+      );
     }
     const error = this.#fail(reply, what);
     if (reply.status === 403 && error.kind === 'forbidden') {
@@ -252,10 +360,18 @@ export class AppleReleaseConnector implements StoreReleaseConnector {
     try {
       target = new URL(next, this.#base);
     } catch {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link that could not be read while ${what}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link that could not be read while ${what}.`,
+      );
     }
     if (target.origin !== new URL(this.#base).origin) {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link to another host while ${what}. It was not followed.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link to another host while ${what}. It was not followed.`,
+      );
     }
     return target.toString();
   }

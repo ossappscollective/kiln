@@ -108,10 +108,30 @@ const both = (...portrait: Size[]): Size[] => {
  * one entry; 3840x2160 is Apple TV and Apple Vision Pro, decided by `classifyAppleScreenshot`.
  */
 export const APPLE_DISPLAYS: readonly AppleDisplay[] = [
-  { id: 'iphone_6_9', label: 'iPhone 6.9" / 6.7"', family: 'iphone', sizes: both([1260, 2736], [1290, 2796], [1320, 2868]) },
-  { id: 'iphone_6_5', label: 'iPhone 6.5"', family: 'iphone', sizes: both([1284, 2778], [1242, 2688]) },
-  { id: 'iphone_6_1', label: 'iPhone 6.1"', family: 'iphone', sizes: both([1179, 2556], [1206, 2622]) },
-  { id: 'iphone_5_8', label: 'iPhone 5.8"', family: 'iphone', sizes: both([1170, 2532], [1125, 2436], [1080, 2340]) },
+  {
+    id: 'iphone_6_9',
+    label: 'iPhone 6.9" / 6.7"',
+    family: 'iphone',
+    sizes: both([1260, 2736], [1290, 2796], [1320, 2868]),
+  },
+  {
+    id: 'iphone_6_5',
+    label: 'iPhone 6.5"',
+    family: 'iphone',
+    sizes: both([1284, 2778], [1242, 2688]),
+  },
+  {
+    id: 'iphone_6_1',
+    label: 'iPhone 6.1"',
+    family: 'iphone',
+    sizes: both([1179, 2556], [1206, 2622]),
+  },
+  {
+    id: 'iphone_5_8',
+    label: 'iPhone 5.8"',
+    family: 'iphone',
+    sizes: both([1170, 2532], [1125, 2436], [1080, 2340]),
+  },
   { id: 'iphone_5_5', label: 'iPhone 5.5"', family: 'iphone', sizes: both([1242, 2208]) },
   { id: 'iphone_4_7', label: 'iPhone 4.7"', family: 'iphone', sizes: both([750, 1334]) },
   // Portrait 640x1096 and 640x1136, landscape 1136x600 and 1136x640 (with or without the status bar).
@@ -119,20 +139,65 @@ export const APPLE_DISPLAYS: readonly AppleDisplay[] = [
   { id: 'iphone_3_5', label: 'iPhone 3.5"', family: 'iphone', sizes: both([640, 920], [640, 960]) },
   // Outer display 1398x2034, inner display 2007x2853 (the page notes screenshots become required
   // for apps built with the iOS 27.1 SDK or later from April 2027).
-  { id: 'iphone_duo', label: 'iPhone Duo', family: 'iphone', sizes: both([1398, 2034], [2007, 2853]) },
-  { id: 'ipad_13', label: 'iPad 13" / 12.9"', family: 'ipad', sizes: both([2064, 2752], [2048, 2732]) },
-  { id: 'ipad_11', label: 'iPad 11"', family: 'ipad', sizes: both([1488, 2266], [1512, 2316], [1668, 2420], [1668, 2388], [1640, 2360]) },
+  {
+    id: 'iphone_duo',
+    label: 'iPhone Duo',
+    family: 'iphone',
+    sizes: both([1398, 2034], [2007, 2853]),
+  },
+  {
+    id: 'ipad_13',
+    label: 'iPad 13" / 12.9"',
+    family: 'ipad',
+    sizes: both([2064, 2752], [2048, 2732]),
+  },
+  {
+    id: 'ipad_11',
+    label: 'iPad 11"',
+    family: 'ipad',
+    sizes: both([1488, 2266], [1512, 2316], [1668, 2420], [1668, 2388], [1640, 2360]),
+  },
   { id: 'ipad_10_5', label: 'iPad 10.5"', family: 'ipad', sizes: both([1668, 2224]) },
-  { id: 'ipad_9_7', label: 'iPad 9.7"', family: 'ipad', sizes: both([1536, 2008], [768, 1004], [1536, 2048], [768, 1024]) },
-  { id: 'mac', label: 'Mac', family: 'mac', sizes: [[1280, 800], [1440, 900], [2560, 1600], [2880, 1800]] },
-  { id: 'apple_tv', label: 'Apple TV', family: 'tv', sizes: [[1920, 1080], [3840, 2160]] },
+  {
+    id: 'ipad_9_7',
+    label: 'iPad 9.7"',
+    family: 'ipad',
+    sizes: both([1536, 2008], [768, 1004], [1536, 2048], [768, 1024]),
+  },
+  {
+    id: 'mac',
+    label: 'Mac',
+    family: 'mac',
+    sizes: [
+      [1280, 800],
+      [1440, 900],
+      [2560, 1600],
+      [2880, 1800],
+    ],
+  },
+  {
+    id: 'apple_tv',
+    label: 'Apple TV',
+    family: 'tv',
+    sizes: [
+      [1920, 1080],
+      [3840, 2160],
+    ],
+  },
   { id: 'vision_pro', label: 'Apple Vision Pro', family: 'vision', sizes: [[3840, 2160]] },
   {
     id: 'watch',
     label: 'Apple Watch',
     family: 'watch',
     // Ultra 4 and 3, Ultra 2 and Ultra, Series 12 to 10, 9 to 7, 6 to 4 and SE, 3 to 1.
-    sizes: [[422, 514], [410, 502], [416, 496], [396, 484], [368, 448], [312, 390]],
+    sizes: [
+      [422, 514],
+      [410, 502],
+      [416, 496],
+      [396, 484],
+      [368, 448],
+      [312, 390],
+    ],
   },
 ];
 
@@ -145,7 +210,10 @@ export const IMESSAGE_PREFIX = 'imessage:';
  * display (`APP_DESKTOP`); an iMessage set is iOS only. Google Play takes every Play device. A `null`
  * device (not classified) fits no Apple platform here: the caller reports it separately.
  */
-export function deviceFitsPlatform(platform: 'ios' | 'macos' | 'android', device: string | null): boolean {
+export function deviceFitsPlatform(
+  platform: 'ios' | 'macos' | 'android',
+  device: string | null,
+): boolean {
   if (platform === 'android') return true;
   if (device === null) return false;
   const imessage = device.startsWith(IMESSAGE_PREFIX);
@@ -247,40 +315,204 @@ function rulesById(rules: AssetRule[]): Record<string, AssetRule> {
 const A = SPEC_SOURCES.appleScreenshots;
 const G = SPEC_SOURCES.googlePlay;
 
-export const ASSET_RULES: Readonly<Record<string, AssetRule>> = rulesById(
-  (
-    [
-      { id: 'apple.screenshot.format', store: 'app_store', text: 'Screenshots are .jpeg, .jpg or .png files.', source: A, verified: true },
-      { id: 'apple.screenshot.alpha', store: 'app_store', text: 'Screenshots can\'t include alpha channels or transparencies.', source: A, verified: true },
-      { id: 'apple.screenshot.size', store: 'app_store', text: 'A screenshot must have one of the resolutions listed for a display size.', source: A, verified: true },
-      { id: 'apple.screenshot.count', store: 'app_store', text: 'At most 10 screenshots per device size.', source: A, verified: true },
-      { id: 'apple.icon.size', store: 'app_store', text: 'The App Store icon is 1024x1024 px (the layout size of an iOS, iPadOS and macOS icon).', source: SPEC_SOURCES.appleIcon, verified: true },
-      { id: 'apple.icon.alpha', store: 'app_store', text: 'The App Store icon should have no alpha channel. UNVERIFIED: the Apple pages that were read do not state it.', source: SPEC_SOURCES.appleIcon, verified: false },
-      { id: 'apple.preview.format', store: 'app_store', text: 'App previews are .mov, .m4v or .mp4 files (H.264).', source: SPEC_SOURCES.applePreviews, verified: true },
-      { id: 'apple.preview.count', store: 'app_store', text: 'Up to 3 app previews per supported device size and language.', source: SPEC_SOURCES.applePreviews, verified: true },
-      { id: 'apple.preview.bytes', store: 'app_store', text: 'An app preview is at most 500 MB.', source: SPEC_SOURCES.applePreviews, verified: true },
-      { id: 'play.icon.format', store: 'google_play', text: 'The icon is a 32-bit PNG (with alpha).', source: G, verified: true },
-      { id: 'play.icon.size', store: 'google_play', text: 'The icon is 512 x 512 px.', source: G, verified: true },
-      { id: 'play.icon.bytes', store: 'google_play', text: 'The icon is at most 1024 KB.', source: G, verified: true },
-      { id: 'play.feature_graphic.format', store: 'google_play', text: 'The feature graphic is a JPEG or 24-bit PNG (no alpha).', source: G, verified: true },
-      { id: 'play.feature_graphic.size', store: 'google_play', text: 'The feature graphic is 1024 px by 500 px.', source: G, verified: true },
-      { id: 'play.tv_banner.format', store: 'google_play', text: 'The TV banner is a JPEG or 24-bit PNG (no alpha).', source: G, verified: true },
-      { id: 'play.tv_banner.size', store: 'google_play', text: 'The TV banner is 1280 px by 720 px.', source: G, verified: true },
-      { id: 'play.tv.pair', store: 'google_play', text: 'An app for Android TV needs at least one Android TV screenshot, and an Android TV banner.', source: G, verified: true },
-      { id: 'play.screenshot.format', store: 'google_play', text: 'Screenshots are JPEG or 24-bit PNG (no alpha).', source: G, verified: true },
-      { id: 'play.screenshot.dimension', store: 'google_play', text: 'Screenshots are 320 px at least and 3840 px at most on each side.', source: G, verified: true },
-      { id: 'play.screenshot.ratio', store: 'google_play', text: 'The longer side of a screenshot can\'t be more than twice as long as the shorter side.', source: G, verified: true },
-      { id: 'play.screenshot.count', store: 'google_play', text: 'You can add up to 8 screenshots for each supported device type.', source: G, verified: true },
-      { id: 'play.screenshot.minimum', store: 'google_play', text: 'You must provide a minimum of two screenshots across different device types to publish your store listing.', source: G, verified: true },
-      { id: 'play.screenshot.phone_promo', store: 'google_play', text: 'Highly recommended: for apps, at least four screenshots with minimum 1080px resolution.', source: G, verified: true },
-      { id: 'play.screenshot.large_screen', store: 'google_play', text: 'Large screens (Chromebook and tablets): a minimum of 4 screenshots between 1,080 and 7,680 px, 16:9 for landscape or 9:16 for portrait.', source: G, verified: true },
-      { id: 'play.screenshot.wear', store: 'google_play', text: 'Wear OS screenshots have a 1:1 aspect ratio and a minimum size of 384 x 384 pixels.', source: G, verified: true },
-      { id: 'play.promo_graphic.spec', store: 'google_play', text: 'The promo graphic is listed only. UNVERIFIED: the Play Console page that was read has no requirement for it (fastlane supply still uploads it).', source: SPEC_SOURCES.fastlaneSupply, verified: false },
-      { id: 'inspect.extension', store: 'google_play', text: 'The file content is not the format its name says.', source: SPEC_SOURCES.fastlaneSupply, verified: true },
-      { id: 'inspect.unread', store: 'google_play', text: 'The file was not opened (too large, over the read budget or unreadable), so its format and size could not be checked.', source: SPEC_SOURCES.fastlaneSupply, verified: true },
-    ] satisfies AssetRule[]
-  ),
-);
+export const ASSET_RULES: Readonly<Record<string, AssetRule>> = rulesById([
+  {
+    id: 'apple.screenshot.format',
+    store: 'app_store',
+    text: 'Screenshots are .jpeg, .jpg or .png files.',
+    source: A,
+    verified: true,
+  },
+  {
+    id: 'apple.screenshot.alpha',
+    store: 'app_store',
+    text: "Screenshots can't include alpha channels or transparencies.",
+    source: A,
+    verified: true,
+  },
+  {
+    id: 'apple.screenshot.size',
+    store: 'app_store',
+    text: 'A screenshot must have one of the resolutions listed for a display size.',
+    source: A,
+    verified: true,
+  },
+  {
+    id: 'apple.screenshot.count',
+    store: 'app_store',
+    text: 'At most 10 screenshots per device size.',
+    source: A,
+    verified: true,
+  },
+  {
+    id: 'apple.icon.size',
+    store: 'app_store',
+    text: 'The App Store icon is 1024x1024 px (the layout size of an iOS, iPadOS and macOS icon).',
+    source: SPEC_SOURCES.appleIcon,
+    verified: true,
+  },
+  {
+    id: 'apple.icon.alpha',
+    store: 'app_store',
+    text: 'The App Store icon should have no alpha channel. UNVERIFIED: the Apple pages that were read do not state it.',
+    source: SPEC_SOURCES.appleIcon,
+    verified: false,
+  },
+  {
+    id: 'apple.preview.format',
+    store: 'app_store',
+    text: 'App previews are .mov, .m4v or .mp4 files (H.264).',
+    source: SPEC_SOURCES.applePreviews,
+    verified: true,
+  },
+  {
+    id: 'apple.preview.count',
+    store: 'app_store',
+    text: 'Up to 3 app previews per supported device size and language.',
+    source: SPEC_SOURCES.applePreviews,
+    verified: true,
+  },
+  {
+    id: 'apple.preview.bytes',
+    store: 'app_store',
+    text: 'An app preview is at most 500 MB.',
+    source: SPEC_SOURCES.applePreviews,
+    verified: true,
+  },
+  {
+    id: 'play.icon.format',
+    store: 'google_play',
+    text: 'The icon is a 32-bit PNG (with alpha).',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.icon.size',
+    store: 'google_play',
+    text: 'The icon is 512 x 512 px.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.icon.bytes',
+    store: 'google_play',
+    text: 'The icon is at most 1024 KB.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.feature_graphic.format',
+    store: 'google_play',
+    text: 'The feature graphic is a JPEG or 24-bit PNG (no alpha).',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.feature_graphic.size',
+    store: 'google_play',
+    text: 'The feature graphic is 1024 px by 500 px.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.tv_banner.format',
+    store: 'google_play',
+    text: 'The TV banner is a JPEG or 24-bit PNG (no alpha).',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.tv_banner.size',
+    store: 'google_play',
+    text: 'The TV banner is 1280 px by 720 px.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.tv.pair',
+    store: 'google_play',
+    text: 'An app for Android TV needs at least one Android TV screenshot, and an Android TV banner.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.format',
+    store: 'google_play',
+    text: 'Screenshots are JPEG or 24-bit PNG (no alpha).',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.dimension',
+    store: 'google_play',
+    text: 'Screenshots are 320 px at least and 3840 px at most on each side.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.ratio',
+    store: 'google_play',
+    text: "The longer side of a screenshot can't be more than twice as long as the shorter side.",
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.count',
+    store: 'google_play',
+    text: 'You can add up to 8 screenshots for each supported device type.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.minimum',
+    store: 'google_play',
+    text: 'You must provide a minimum of two screenshots across different device types to publish your store listing.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.phone_promo',
+    store: 'google_play',
+    text: 'Highly recommended: for apps, at least four screenshots with minimum 1080px resolution.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.large_screen',
+    store: 'google_play',
+    text: 'Large screens (Chromebook and tablets): a minimum of 4 screenshots between 1,080 and 7,680 px, 16:9 for landscape or 9:16 for portrait.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.screenshot.wear',
+    store: 'google_play',
+    text: 'Wear OS screenshots have a 1:1 aspect ratio and a minimum size of 384 x 384 pixels.',
+    source: G,
+    verified: true,
+  },
+  {
+    id: 'play.promo_graphic.spec',
+    store: 'google_play',
+    text: 'The promo graphic is listed only. UNVERIFIED: the Play Console page that was read has no requirement for it (fastlane supply still uploads it).',
+    source: SPEC_SOURCES.fastlaneSupply,
+    verified: false,
+  },
+  {
+    id: 'inspect.extension',
+    store: 'google_play',
+    text: 'The file content is not the format its name says.',
+    source: SPEC_SOURCES.fastlaneSupply,
+    verified: true,
+  },
+  {
+    id: 'inspect.unread',
+    store: 'google_play',
+    text: 'The file was not opened (too large, over the read budget or unreadable), so its format and size could not be checked.',
+    source: SPEC_SOURCES.fastlaneSupply,
+    verified: true,
+  },
+] satisfies AssetRule[]);
 
 export type AssetProblem = {
   /** Stable code of the rule, for example `apple.screenshot.size`. */
@@ -344,7 +576,8 @@ export const APPLE_PREVIEW_MAX_BYTES = 500 * MB;
 
 const rule = (id: string): AssetRule => ASSET_RULES[id] as AssetRule;
 
-const countKey = (a: Pick<AssetFacts, 'locale' | 'kind' | 'device'>) => `${a.locale}\u0000${a.kind}\u0000${a.device ?? ''}`;
+const countKey = (a: Pick<AssetFacts, 'locale' | 'kind' | 'device'>) =>
+  `${a.locale}\u0000${a.kind}\u0000${a.device ?? ''}`;
 
 const maxFor = (store: AssetStore, kind: AssetKind): { max: number; rule: string } | null => {
   if (store === 'app_store') {
@@ -386,7 +619,8 @@ export function summarizeAssets(store: AssetStore, assets: readonly AssetFacts[]
   );
 }
 
-const sizeText = (a: AssetFacts) => (a.width !== null && a.height !== null ? `${a.width}x${a.height}` : 'unknown size');
+const sizeText = (a: AssetFacts) =>
+  a.width !== null && a.height !== null ? `${a.width}x${a.height}` : 'unknown size';
 
 function problem(
   ruleId: string,
@@ -408,7 +642,12 @@ function problem(
 
 const imageExtension = (e: string) => e === 'png' || e === 'jpg' || e === 'jpeg';
 
-const whereOf = (a: AssetFacts) => ({ path: a.path, locale: a.locale, kind: a.kind, device: a.device });
+const whereOf = (a: AssetFacts) => ({
+  path: a.path,
+  locale: a.locale,
+  kind: a.kind,
+  device: a.device,
+});
 
 function checkFile(a: AssetFacts, out: AssetProblem[]): void {
   const w = whereOf(a);
@@ -420,7 +659,15 @@ function checkFile(a: AssetFacts, out: AssetProblem[]): void {
   // The name says one format and the content is another.
   if (a.format !== null && a.format !== 'video') {
     const named = a.extension === 'jpg' ? 'jpeg' : a.extension;
-    if (named !== a.format) out.push(problem('inspect.extension', 'warning', `${a.path.split('/').pop()} is a ${a.format.toUpperCase()}.`, w));
+    if (named !== a.format)
+      out.push(
+        problem(
+          'inspect.extension',
+          'warning',
+          `${a.path.split('/').pop()} is a ${a.format.toUpperCase()}.`,
+          w,
+        ),
+      );
   }
   if (a.store === 'app_store') checkApple(a, out, w);
   else checkPlay(a, out, w);
@@ -429,7 +676,14 @@ function checkFile(a: AssetFacts, out: AssetProblem[]): void {
 function checkApple(a: AssetFacts, out: AssetProblem[], w: ReturnType<typeof whereOf>): void {
   if (a.kind === 'preview') {
     if (!['mov', 'm4v', 'mp4'].includes(a.extension)) {
-      out.push(problem('apple.preview.format', 'error', `${a.path.split('/').pop()} is .${a.extension}.`, w));
+      out.push(
+        problem(
+          'apple.preview.format',
+          'error',
+          `${a.path.split('/').pop()} is .${a.extension}.`,
+          w,
+        ),
+      );
     }
     if (a.bytes !== null && a.bytes > APPLE_PREVIEW_MAX_BYTES) {
       out.push(problem('apple.preview.bytes', 'error', `It is ${Math.round(a.bytes / MB)} MB.`, w));
@@ -437,20 +691,45 @@ function checkApple(a: AssetFacts, out: AssetProblem[], w: ReturnType<typeof whe
     return;
   }
   if (a.kind === 'screenshot') {
-    if (!imageExtension(a.extension) || (a.format !== null && a.format !== 'png' && a.format !== 'jpeg')) {
-      out.push(problem('apple.screenshot.format', 'error', `It is ${a.format ? a.format.toUpperCase() : `.${a.extension}`}.`, w));
+    if (
+      !imageExtension(a.extension) ||
+      (a.format !== null && a.format !== 'png' && a.format !== 'jpeg')
+    ) {
+      out.push(
+        problem(
+          'apple.screenshot.format',
+          'error',
+          `It is ${a.format ? a.format.toUpperCase() : `.${a.extension}`}.`,
+          w,
+        ),
+      );
     }
-    if (a.hasAlpha === true) out.push(problem('apple.screenshot.alpha', 'error', 'It has an alpha channel or transparency.', w));
+    if (a.hasAlpha === true)
+      out.push(
+        problem('apple.screenshot.alpha', 'error', 'It has an alpha channel or transparency.', w),
+      );
     if (a.width !== null && a.height !== null && a.device === null) {
       out.push(problem('apple.screenshot.size', 'error', `${sizeText(a)} is not one of them.`, w));
     }
     // A file put in a display's set (staged by hand, uploaded) must have one of that display's sizes. A file of the
     // repository is classified by its size, so it always does.
     if (a.width !== null && a.height !== null && a.device !== null) {
-      const id = a.device.startsWith(IMESSAGE_PREFIX) ? a.device.slice(IMESSAGE_PREFIX.length) : a.device;
+      const id = a.device.startsWith(IMESSAGE_PREFIX)
+        ? a.device.slice(IMESSAGE_PREFIX.length)
+        : a.device;
       const display = APPLE_DISPLAYS.find((d) => d.id === id);
-      if (display && !display.sizes.some(([width, height]) => width === a.width && height === a.height)) {
-        out.push(problem('apple.screenshot.size', 'error', `${sizeText(a)} is not a size of the ${display.label} display.`, w));
+      if (
+        display &&
+        !display.sizes.some(([width, height]) => width === a.width && height === a.height)
+      ) {
+        out.push(
+          problem(
+            'apple.screenshot.size',
+            'error',
+            `${sizeText(a)} is not a size of the ${display.label} display.`,
+            w,
+          ),
+        );
       }
     }
     return;
@@ -459,7 +738,8 @@ function checkApple(a: AssetFacts, out: AssetProblem[], w: ReturnType<typeof whe
     if (a.width !== null && a.height !== null && (a.width !== 1024 || a.height !== 1024)) {
       out.push(problem('apple.icon.size', 'error', `It is ${sizeText(a)}.`, w));
     }
-    if (a.hasAlpha === true) out.push(problem('apple.icon.alpha', 'warning', 'It has an alpha channel.', w));
+    if (a.hasAlpha === true)
+      out.push(problem('apple.icon.alpha', 'warning', 'It has an alpha channel.', w));
   }
 }
 
@@ -470,33 +750,59 @@ function checkPlay(a: AssetFacts, out: AssetProblem[], w: ReturnType<typeof wher
   const jpegOrPng = a.format === null || a.format === 'png' || a.format === 'jpeg';
   switch (a.kind) {
     case 'icon':
-      if (a.format !== null && a.format !== 'png') out.push(problem('play.icon.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w));
-      if (known && (a.width !== 512 || a.height !== 512)) out.push(problem('play.icon.size', 'error', `It is ${sizeText(a)}.`, w));
-      if (a.bytes !== null && a.bytes > PLAY_ICON_MAX_BYTES) out.push(problem('play.icon.bytes', 'error', `It is ${Math.round(a.bytes / KB)} KB.`, w));
+      if (a.format !== null && a.format !== 'png')
+        out.push(
+          problem('play.icon.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w),
+        );
+      if (known && (a.width !== 512 || a.height !== 512))
+        out.push(problem('play.icon.size', 'error', `It is ${sizeText(a)}.`, w));
+      if (a.bytes !== null && a.bytes > PLAY_ICON_MAX_BYTES)
+        out.push(problem('play.icon.bytes', 'error', `It is ${Math.round(a.bytes / KB)} KB.`, w));
       return;
     case 'feature_graphic':
-      if (!jpegOrPng) out.push(problem('play.feature_graphic.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w));
-      if (a.hasAlpha === true) out.push(problem('play.feature_graphic.format', 'error', 'It has an alpha channel.', w));
-      if (known && (a.width !== 1024 || a.height !== 500)) out.push(problem('play.feature_graphic.size', 'error', `It is ${sizeText(a)}.`, w));
+      if (!jpegOrPng)
+        out.push(
+          problem(
+            'play.feature_graphic.format',
+            'error',
+            `It is ${String(a.format).toUpperCase()}.`,
+            w,
+          ),
+        );
+      if (a.hasAlpha === true)
+        out.push(problem('play.feature_graphic.format', 'error', 'It has an alpha channel.', w));
+      if (known && (a.width !== 1024 || a.height !== 500))
+        out.push(problem('play.feature_graphic.size', 'error', `It is ${sizeText(a)}.`, w));
       return;
     case 'tv_banner':
-      if (!jpegOrPng) out.push(problem('play.tv_banner.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w));
-      if (a.hasAlpha === true) out.push(problem('play.tv_banner.format', 'error', 'It has an alpha channel.', w));
-      if (known && (a.width !== 1280 || a.height !== 720)) out.push(problem('play.tv_banner.size', 'error', `It is ${sizeText(a)}.`, w));
+      if (!jpegOrPng)
+        out.push(
+          problem('play.tv_banner.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w),
+        );
+      if (a.hasAlpha === true)
+        out.push(problem('play.tv_banner.format', 'error', 'It has an alpha channel.', w));
+      if (known && (a.width !== 1280 || a.height !== 720))
+        out.push(problem('play.tv_banner.size', 'error', `It is ${sizeText(a)}.`, w));
       return;
     case 'promo_graphic':
       out.push(problem('play.promo_graphic.spec', 'info', 'It is not checked.', w));
       return;
     case 'screenshot': {
-      if (!jpegOrPng) out.push(problem('play.screenshot.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w));
-      if (a.hasAlpha === true) out.push(problem('play.screenshot.format', 'error', 'It has an alpha channel.', w));
+      if (!jpegOrPng)
+        out.push(
+          problem('play.screenshot.format', 'error', `It is ${String(a.format).toUpperCase()}.`, w),
+        );
+      if (a.hasAlpha === true)
+        out.push(problem('play.screenshot.format', 'error', 'It has an alpha channel.', w));
       if (!known) return;
       const width = a.width as number;
       const height = a.height as number;
       const short = Math.min(width, height);
       const long = Math.max(width, height);
-      if (short < 320 || long > 3840) out.push(problem('play.screenshot.dimension', 'error', `It is ${sizeText(a)}.`, w));
-      else if (long > short * 2) out.push(problem('play.screenshot.ratio', 'error', `It is ${sizeText(a)}.`, w));
+      if (short < 320 || long > 3840)
+        out.push(problem('play.screenshot.dimension', 'error', `It is ${sizeText(a)}.`, w));
+      else if (long > short * 2)
+        out.push(problem('play.screenshot.ratio', 'error', `It is ${sizeText(a)}.`, w));
       if (a.device === 'wear' && (width !== height || short < 384)) {
         out.push(problem('play.screenshot.wear', 'warning', `It is ${sizeText(a)}.`, w));
       }
@@ -507,7 +813,8 @@ function checkPlay(a: AssetFacts, out: AssetProblem[], w: ReturnType<typeof wher
 }
 
 /** True when the sides are 16:9 or 9:16 (within one percent). */
-const isSixteenNine = (w: number, h: number) => Math.abs(Math.max(w, h) / Math.min(w, h) - 16 / 9) < 0.016 * (16 / 9);
+const isSixteenNine = (w: number, h: number) =>
+  Math.abs(Math.max(w, h) / Math.min(w, h) - 16 / 9) < 0.016 * (16 / 9);
 
 function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetProblem[]): void {
   for (const set of summarizeAssets(store, assets)) {
@@ -527,13 +834,27 @@ function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetP
     const mine = assets.filter((a) => a.store === store && a.locale === locale);
     const shots = mine.filter((a) => a.kind === 'screenshot');
     if (shots.length > 0 && shots.length < 2) {
-      out.push(problem('play.screenshot.minimum', 'warning', `${locale} has ${shots.length}.`, { locale, kind: 'screenshot' }));
+      out.push(
+        problem('play.screenshot.minimum', 'warning', `${locale} has ${shots.length}.`, {
+          locale,
+          kind: 'screenshot',
+        }),
+      );
     }
     const phone = shots.filter((a) => a.device === 'phone');
     if (phone.length > 0) {
-      const small = phone.some((a) => a.width !== null && a.height !== null && Math.min(a.width, a.height) < 1080);
+      const small = phone.some(
+        (a) => a.width !== null && a.height !== null && Math.min(a.width, a.height) < 1080,
+      );
       if (phone.length < 4 || small) {
-        out.push(problem('play.screenshot.phone_promo', 'info', `${locale} has ${phone.length} phone screenshots${small ? ', some under 1080 px' : ''}.`, { locale, kind: 'screenshot', device: 'phone' }));
+        out.push(
+          problem(
+            'play.screenshot.phone_promo',
+            'info',
+            `${locale} has ${phone.length} phone screenshots${small ? ', some under 1080 px' : ''}.`,
+            { locale, kind: 'screenshot', device: 'phone' },
+          ),
+        );
       }
     }
     for (const device of ['tablet_7', 'tablet_10']) {
@@ -543,16 +864,32 @@ function checkSets(store: AssetStore, assets: readonly AssetFacts[], out: AssetP
         (a) =>
           a.width !== null &&
           a.height !== null &&
-          (!within(a.width, 1080, 7680) || !within(a.height, 1080, 7680) || !isSixteenNine(a.width, a.height)),
+          (!within(a.width, 1080, 7680) ||
+            !within(a.height, 1080, 7680) ||
+            !isSixteenNine(a.width, a.height)),
       );
       if (tablet.length < 4 || off) {
-        out.push(problem('play.screenshot.large_screen', 'info', `${locale} ${deviceLabel(store, device)}: ${tablet.length} found${off ? ', some outside the sizes' : ''}.`, { locale, kind: 'screenshot', device }));
+        out.push(
+          problem(
+            'play.screenshot.large_screen',
+            'info',
+            `${locale} ${deviceLabel(store, device)}: ${tablet.length} found${off ? ', some outside the sizes' : ''}.`,
+            { locale, kind: 'screenshot', device },
+          ),
+        );
       }
     }
     const tvShots = shots.filter((a) => a.device === 'tv').length;
     const banner = mine.filter((a) => a.kind === 'tv_banner').length;
-    if ((tvShots > 0) !== (banner > 0)) {
-      out.push(problem('play.tv.pair', 'warning', `${locale} has ${tvShots} TV screenshots and ${banner} banners.`, { locale }));
+    if (tvShots > 0 !== banner > 0) {
+      out.push(
+        problem(
+          'play.tv.pair',
+          'warning',
+          `${locale} has ${tvShots} TV screenshots and ${banner} banners.`,
+          { locale },
+        ),
+      );
     }
   }
 }

@@ -4,17 +4,24 @@ import {
   ASSET_SYNC_LIMITS,
   type AssetPlatform,
   type AssetStore,
-  type StoreImageSet,
-  type StoreImagesView,
   assetStoreOf,
   deviceLabel,
+  type StoreImageSet,
+  type StoreImagesView,
   storeImageKey,
 } from '@mrm/core';
 import type { ManagedApp } from './apps.ts';
 import type { TestLimiter } from './credential-tests.ts';
 import { type Failure, failure } from './repositories.ts';
 import { type DraftContext, readStoreImagesOf } from './store-draft.ts';
-import { type Downloaded, type DownloadFailure, type ImageSource, type StoreImageNet, downloadStoreImage, imageUrlOf } from './store-image-net.ts';
+import {
+  type Downloaded,
+  type DownloadFailure,
+  downloadStoreImage,
+  type ImageSource,
+  imageUrlOf,
+  type StoreImageNet,
+} from './store-image-net.ts';
 
 /**
  * The images a store holds for an app, as this server shows them (docs/adr/0012-assets-two-way-sync.md): read through the
@@ -78,35 +85,93 @@ const rememberRef = (ref: string, entry: RefEntry) => {
   }
 };
 
-export const refOf = (workspaceId: string, appId: string, key: string, id: string, checksum: string | null): string =>
-  createHash('sha256').update(`${workspaceId}\0${appId}\0${key}\0${id}\0${checksum ?? ''}`).digest('hex').slice(0, 32);
+export const refOf = (
+  workspaceId: string,
+  appId: string,
+  key: string,
+  id: string,
+  checksum: string | null,
+): string =>
+  createHash('sha256')
+    .update(`${workspaceId}\0${appId}\0${key}\0${id}\0${checksum ?? ''}`)
+    .digest('hex')
+    .slice(0, 32);
 
 /** The address data behind a ref, when it is known, belongs to this workspace and app, and is not too old. */
-export function resolveRef(ref: string, workspaceId: string, appId: string, now: number): RefEntry | undefined {
+export function resolveRef(
+  ref: string,
+  workspaceId: string,
+  appId: string,
+  now: number,
+): RefEntry | undefined {
   const entry = refs.get(ref);
-  if (!entry || entry.workspaceId !== workspaceId || entry.appId !== appId || now - entry.at > REF_TTL_MS) return undefined;
+  if (
+    !entry ||
+    entry.workspaceId !== workspaceId ||
+    entry.appId !== appId ||
+    now - entry.at > REF_TTL_MS
+  )
+    return undefined;
   return entry;
 }
 
 const platformOf = (app: ManagedApp): AssetPlatform => app.platform;
 
 /** The view of a read, and the refs of its images. */
-function build(ctx: StoreImagesContext, workspaceId: string, app: ManagedApp, read: StoreImagesRead, now: number): StoreImagesView {
+function build(
+  ctx: StoreImagesContext,
+  workspaceId: string,
+  app: ManagedApp,
+  read: StoreImagesRead,
+  now: number,
+): StoreImagesView {
   const platform = platformOf(app);
   const store: AssetStore = assetStoreOf(app.platform);
   const sets = new Map<string, StoreImageSet>();
-  const ordered = read.images.slice().sort((a, b) => a.locale.localeCompare(b.locale) || a.kind.localeCompare(b.kind) || (a.device ?? '').localeCompare(b.device ?? '') || a.position - b.position);
+  const ordered = read.images
+    .slice()
+    .sort(
+      (a, b) =>
+        a.locale.localeCompare(b.locale) ||
+        a.kind.localeCompare(b.kind) ||
+        (a.device ?? '').localeCompare(b.device ?? '') ||
+        a.position - b.position,
+    );
   for (const image of ordered) {
     const setId = `${image.locale}\0${image.kind}\0${image.device ?? ''}\0${image.target}`;
     let set = sets.get(setId);
     if (!set) {
-      set = { platform, locale: image.locale, kind: image.kind, device: image.device, deviceLabel: deviceLabel(store, image.device), target: image.target, files: [] };
+      set = {
+        platform,
+        locale: image.locale,
+        kind: image.kind,
+        device: image.device,
+        deviceLabel: deviceLabel(store, image.device),
+        target: image.target,
+        files: [],
+      };
       sets.set(setId, set);
     }
-    const key = storeImageKey(platform, image.locale, { kind: image.kind, device: image.device }, image.position);
+    const key = storeImageKey(
+      platform,
+      image.locale,
+      { kind: image.kind, device: image.device },
+      image.position,
+    );
     const ref = refOf(workspaceId, app.id, key, image.id, image.checksum);
     const src = sourceOf(image);
-    rememberRef(ref, { workspaceId, appId: app.id, src, checksum: image.checksum, checksumKind: image.checksumKind, bytes: image.bytes, width: image.width, height: image.height, key, at: now });
+    rememberRef(ref, {
+      workspaceId,
+      appId: app.id,
+      src,
+      checksum: image.checksum,
+      checksumKind: image.checksumKind,
+      bytes: image.bytes,
+      width: image.width,
+      height: image.height,
+      key,
+      at: now,
+    });
     set.files.push({
       ref,
       position: image.position,
@@ -134,20 +199,31 @@ function build(ctx: StoreImagesContext, workspaceId: string, app: ManagedApp, re
 }
 
 const sourceOf = (image: StoreImageRecord): ImageSource | null =>
-  image.url === null || image.urlKind === null ? null : { url: image.url, urlKind: image.urlKind, width: image.width, height: image.height };
+  image.url === null || image.urlKind === null
+    ? null
+    : { url: image.url, urlKind: image.urlKind, width: image.width, height: image.height };
 
 /** The cached view, if there is a fresh one. Never reads a store. */
-export function peekStoreImages(workspaceId: string, appId: string, now: number): StoreImagesView | undefined {
+export function peekStoreImages(
+  workspaceId: string,
+  appId: string,
+  now: number,
+): StoreImagesView | undefined {
   const hit = views.get(viewKey(workspaceId, appId));
   return hit && now - hit.at < ASSET_SYNC_LIMITS.storeCacheSeconds * 1000 ? hit.view : undefined;
 }
 
-export type StoreSide = { observedAt: number; counts: { locale: string; kind: StoreImageSet['kind']; device: string | null; count: number }[] };
+export type StoreSide = {
+  observedAt: number;
+  counts: { locale: string; kind: StoreImageSet['kind']; device: string | null; count: number }[];
+};
 
 /** The counts per locale, kind and device that the Assets tab shows next to the repository's. */
 export const storeSideOf = (view: StoreImagesView): StoreSide => ({
   observedAt: view.readAt,
-  counts: view.sets.filter((s) => !(s.device ?? '').startsWith('imessage:')).map((s) => ({ locale: s.locale, kind: s.kind, device: s.device, count: s.files.length })),
+  counts: view.sets
+    .filter((s) => !(s.device ?? '').startsWith('imessage:'))
+    .map((s) => ({ locale: s.locale, kind: s.kind, device: s.device, count: s.files.length })),
 });
 
 /**
@@ -164,8 +240,16 @@ export async function getStoreImages(
     if (hit) return { ok: true, view: hit, cached: true };
   }
   const wait = ctx.limiter.take(input.workspaceId);
-  if (wait > 0) return { ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
-  const done = await readStoreImagesOf(ctx.draft, { workspaceId: input.workspaceId, app: input.app, actor: input.actor });
+  if (wait > 0)
+    return {
+      ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`),
+      headers: { 'Retry-After': String(wait) },
+    };
+  const done = await readStoreImagesOf(ctx.draft, {
+    workspaceId: input.workspaceId,
+    app: input.app,
+    actor: input.actor,
+  });
   if (!done.ok) return done;
   const view = build(ctx, input.workspaceId, input.app, done.read, now);
   views.set(viewKey(input.workspaceId, input.app.id), { at: now, view });
@@ -181,9 +265,20 @@ export async function getStoreImages(
 // Bytes from the CDN
 
 const downloadFailure = (f: DownloadFailure): Failure => {
-  const status = f.code === 'blocked' ? 422 : f.code === 'too_large' || f.code === 'not_an_image' ? 422 : f.code === 'rate_limited' ? 429 : 502;
-  return { ...failure(status, `image_${f.code}`, f.message), ...(f.retryAfter ? { headers: { 'Retry-After': String(f.retryAfter) } } : {}) };
+  const status =
+    f.code === 'blocked'
+      ? 422
+      : f.code === 'too_large' || f.code === 'not_an_image'
+        ? 422
+        : f.code === 'rate_limited'
+          ? 429
+          : 502;
+  return {
+    ...failure(status, `image_${f.code}`, f.message),
+    ...(f.retryAfter ? { headers: { 'Retry-After': String(f.retryAfter) } } : {}),
+  };
 };
+
 export { downloadFailure };
 
 export const THUMB_SIZES = [160, 320, 640] as const;
@@ -198,8 +293,14 @@ export async function storeThumbnail(
   input: { workspaceId: string; appId: string; ref: string; size: number },
 ): Promise<{ ok: true; bytes: Uint8Array; format: Downloaded['format'] } | Failure> {
   const entry = resolveRef(input.ref, input.workspaceId, input.appId, ctx.draft.now());
-  if (!entry) return failure(404, 'ref_expired', 'This image reference is not known any more. Read the comparison again.');
-  if (entry.src === null) return failure(404, 'no_image', 'The store gave no image address for this file.');
+  if (!entry)
+    return failure(
+      404,
+      'ref_expired',
+      'This image reference is not known any more. Read the comparison again.',
+    );
+  if (entry.src === null)
+    return failure(404, 'no_image', 'The store gave no image address for this file.');
   const cacheKey = `${input.ref}|${input.size}`;
   const hit = thumbs.get(cacheKey);
   if (hit) {
@@ -208,9 +309,18 @@ export async function storeThumbnail(
     return { ok: true, ...hit };
   }
   const url = imageUrlOf(entry.src, { maxSide: input.size, format: 'jpg' });
-  if (url === null) return failure(422, 'image_blocked', 'The store gave an image address this server does not download from. Nothing was fetched.');
+  if (url === null)
+    return failure(
+      422,
+      'image_blocked',
+      'The store gave an image address this server does not download from. Nothing was fetched.',
+    );
   const wait = ctx.fetchLimiter.take(input.workspaceId);
-  if (wait > 0) return { ...failure(429, 'rate_limited', `Too many image requests. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
+  if (wait > 0)
+    return {
+      ...failure(429, 'rate_limited', `Too many image requests. Try again in ${wait} seconds.`),
+      headers: { 'Retry-After': String(wait) },
+    };
   const got = await downloadStoreImage(ctx.net, url);
   if (!got.ok) return downloadFailure(got);
   thumbs.set(cacheKey, { bytes: got.bytes, format: got.format });
@@ -230,12 +340,27 @@ export async function storeImageBytes(
   input: { workspaceId: string; appId: string; ref: string; maxBytes: number },
 ): Promise<{ ok: true; image: Downloaded; entry: RefEntry } | Failure> {
   const entry = resolveRef(input.ref, input.workspaceId, input.appId, ctx.draft.now());
-  if (!entry) return failure(404, 'ref_expired', 'This image reference is not known any more. Read the comparison again.');
-  if (entry.src === null) return failure(404, 'no_image', 'The store gave no image address for this file.');
+  if (!entry)
+    return failure(
+      404,
+      'ref_expired',
+      'This image reference is not known any more. Read the comparison again.',
+    );
+  if (entry.src === null)
+    return failure(404, 'no_image', 'The store gave no image address for this file.');
   const url = imageUrlOf(entry.src, { format: 'png' });
-  if (url === null) return failure(422, 'image_blocked', 'The store gave an image address this server does not download from. Nothing was fetched.');
+  if (url === null)
+    return failure(
+      422,
+      'image_blocked',
+      'The store gave an image address this server does not download from. Nothing was fetched.',
+    );
   const wait = ctx.fetchLimiter.take(input.workspaceId);
-  if (wait > 0) return { ...failure(429, 'rate_limited', `Too many image requests. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
+  if (wait > 0)
+    return {
+      ...failure(429, 'rate_limited', `Too many image requests. Try again in ${wait} seconds.`),
+      headers: { 'Retry-After': String(wait) },
+    };
   const got = await downloadStoreImage(ctx.net, url, { maxBytes: input.maxBytes });
   if (!got.ok) return downloadFailure(got);
   return { ok: true, image: got, entry };

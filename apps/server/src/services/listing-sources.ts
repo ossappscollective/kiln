@@ -1,11 +1,4 @@
 import {
-  type FileChange,
-  type Listing,
-  type ListingSections,
-  type Platform,
-  isApplePlatform,
-} from '@mrm/core';
-import {
   detectProject,
   type ExpoStoreSnapshot,
   expoSections,
@@ -22,6 +15,13 @@ import {
   readFastlaneSections,
   staticStoreConfigs,
 } from '@mrm/connectors';
+import {
+  type FileChange,
+  isApplePlatform,
+  type Listing,
+  type ListingSections,
+  type Platform,
+} from '@mrm/core';
 
 /**
  * Where each store's listing comes from. The rule (a product decision):
@@ -155,7 +155,9 @@ export async function readListings(
     }
   };
   const expo =
-    options.ignoreExpoConfig === true ? undefined : await loadExpoStoreConfig(detection, readStoreConfig);
+    options.ignoreExpoConfig === true
+      ? undefined
+      : await loadExpoStoreConfig(detection, readStoreConfig);
   if (expo && unreadable !== undefined) expo.error = unreadable;
 
   const fastlane = await loadListing(files, cached, {
@@ -198,7 +200,9 @@ export function repositorySections(
   const found = isApplePlatform(platform) ? merged.appStore : merged.googlePlay;
   if (!found) return {};
   const sections: ListingSections = {
-    ...(isApplePlatform(platform) ? (listings.sections?.appStore ?? {}) : (listings.sections?.googlePlay ?? {})),
+    ...(isApplePlatform(platform)
+      ? (listings.sections?.appStore ?? {})
+      : (listings.sections?.googlePlay ?? {})),
   };
   if (isApplePlatform(platform)) {
     const copyright = merged.appStore?.copyright;
@@ -295,10 +299,14 @@ export function listingChanges(listings: RepositoryListings, desired: Listing): 
     }
   }
   if (toFastlane.appStore && fastlane.roots.appStore === '') {
-    warnings.push('The App Store listing was not changed: the selected target has no App Store folder.');
+    warnings.push(
+      'The App Store listing was not changed: the selected target has no App Store folder.',
+    );
   }
   if (toFastlane.googlePlay && fastlane.roots.googlePlay === '') {
-    warnings.push('The Google Play listing was not changed: the selected target has no Google Play folder.');
+    warnings.push(
+      'The Google Play listing was not changed: the selected target has no Google Play folder.',
+    );
   }
   files.push(...listingChangeSet(fastlane, toFastlane));
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
@@ -325,7 +333,10 @@ export function listingChanges(listings: RepositoryListings, desired: Listing): 
 // From a stored scan
 
 export type DetectedSource = { source: ListingSourceKind; path: string };
-export type DetectedSources = { appStore: DetectedSource | null; googlePlay: DetectedSource | null };
+export type DetectedSources = {
+  appStore: DetectedSource | null;
+  googlePlay: DetectedSource | null;
+};
 
 /**
  * Which source each store's listing would come from, judged from a scan alone (no reading of

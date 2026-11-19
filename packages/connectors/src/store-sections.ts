@@ -74,12 +74,16 @@ export function appleCategories(info: Json): ListingCategories | undefined {
  * shows up), and the resulting label is the app info's `appStoreAgeRating`. Undefined when the
  * linkage is missing, or points at a resource that was not included.
  */
-export function appleAgeRating(info: Json, included: readonly Json[]): ListingAgeRating | undefined {
+export function appleAgeRating(
+  info: Json,
+  included: readonly Json[],
+): ListingAgeRating | undefined {
   const attributes = isRecord(info.attributes) ? info.attributes : {};
   const rating = text(attributes.appStoreAgeRating);
   const found = linkage(info, 'ageRatingDeclaration');
   if (!found.present) return undefined;
-  if (found.id === undefined) return rating !== undefined ? { rating, answers: {} } : { answers: {} };
+  if (found.id === undefined)
+    return rating !== undefined ? { rating, answers: {} } : { answers: {} };
   const declaration = included.find(
     (item) => text(item.type) === 'ageRatingDeclarations' && text(item.id) === found.id,
   );
@@ -126,7 +130,9 @@ export function appleMediaSets(body: Json, kind: 'screenshots' | 'previews'): Me
       const assetAttributes = isRecord(asset?.attributes) ? asset.attributes : {};
       const name = text(assetAttributes.fileName);
       if (name !== undefined) names.push(name);
-      const delivery = isRecord(assetAttributes.assetDeliveryState) ? assetAttributes.assetDeliveryState : {};
+      const delivery = isRecord(assetAttributes.assetDeliveryState)
+        ? assetAttributes.assetDeliveryState
+        : {};
       const state = text(delivery.state);
       if (state !== undefined) states[state] = (states[state] ?? 0) + 1;
     }
@@ -170,7 +176,8 @@ export function playDetails(body: Json | undefined): ListingDetails {
   const defaultLanguage = text(body?.defaultLanguage);
   const contactEmail = text(body?.contactEmail);
   const contactWebsite = text(body?.contactWebsite);
-  if (defaultLanguage !== undefined && defaultLanguage !== '') out.defaultLanguage = defaultLanguage;
+  if (defaultLanguage !== undefined && defaultLanguage !== '')
+    out.defaultLanguage = defaultLanguage;
   if (contactEmail !== undefined && contactEmail !== '') out.contactEmail = contactEmail;
   if (contactWebsite !== undefined && contactWebsite !== '') out.contactWebsite = contactWebsite;
   return out;
@@ -190,8 +197,11 @@ export function playReleaseNotes(tracks: readonly Json[]): ListingReleaseNotes {
     if (!name) continue;
     const releases = records(track.releases);
     const codes = (r: Json) =>
-      Array.isArray(r.versionCodes) ? r.versionCodes.map((v) => Number(v)).filter(Number.isFinite) : [];
-    const rank = (r: Json) => (text(r.status) === 'inProgress' ? 2 : text(r.status) === 'completed' ? 1 : 0);
+      Array.isArray(r.versionCodes)
+        ? r.versionCodes.map((v) => Number(v)).filter(Number.isFinite)
+        : [];
+    const rank = (r: Json) =>
+      text(r.status) === 'inProgress' ? 2 : text(r.status) === 'completed' ? 1 : 0;
     const current = [...releases].sort(
       (a, b) => rank(b) - rank(a) || Math.max(0, ...codes(b)) - Math.max(0, ...codes(a)),
     )[0];
@@ -207,7 +217,9 @@ export function playReleaseNotes(tracks: readonly Json[]): ListingReleaseNotes {
     out[name] = {
       ...(releaseName !== undefined ? { name: releaseName } : {}),
       ...(status !== undefined ? { status } : {}),
-      versionCodes: Array.isArray(current.versionCodes) ? current.versionCodes.map((v) => String(v)) : [],
+      versionCodes: Array.isArray(current.versionCodes)
+        ? current.versionCodes.map((v) => String(v))
+        : [],
       notes,
     };
   }
@@ -218,7 +230,13 @@ export function playReleaseNotes(tracks: readonly Json[]): ListingReleaseNotes {
 // Optional sections that fail
 
 /** The kinds of `StoreError` that end a listing read even when only an optional section was being read. */
-const FATAL_KINDS: ReadonlySet<string> = new Set(['rate_limited', 'auth', 'clock_skew', 'network', 'edit_invalid']);
+const FATAL_KINDS: ReadonlySet<string> = new Set([
+  'rate_limited',
+  'auth',
+  'clock_skew',
+  'network',
+  'edit_invalid',
+]);
 
 /**
  * What to do with the failure of an optional section (categories, media, details, ...): a rate
@@ -231,7 +249,10 @@ export function sectionWarning(error: unknown, what: string): string {
   if (error instanceof StoreRateLimitError) throw error;
   if (error instanceof StoreError && !FATAL_KINDS.has(error.kind)) {
     const status = error.status === undefined ? '' : ` HTTP ${error.status}`;
-    return `${what} could not be read (${error.kind}${status}); it is shown as not read. ${error.message}`.slice(0, 400);
+    return `${what} could not be read (${error.kind}${status}); it is shown as not read. ${error.message}`.slice(
+      0,
+      400,
+    );
   }
   throw error;
 }

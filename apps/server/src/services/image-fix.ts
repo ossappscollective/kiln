@@ -1,12 +1,12 @@
 import {
   type AssetSlot,
-  type FixKind,
-  type Platform,
-  type Size,
   extensionForFormat,
+  type FixKind,
   nearestRequiredSize,
+  type Platform,
   readImageHeader,
   requiredSizesText,
+  type Size,
   sniffImageFormat,
 } from '@mrm/core';
 import { decodePng, encodePng, flatten, hasTransparentPixels, resizeCover } from './png-codec.ts';
@@ -45,7 +45,18 @@ export type FixOutput = {
   summary: string;
 };
 
-export type FixFailure = { ok: false; code: 'not_png' | 'unsupported' | 'corrupt' | 'too_large' | 'nothing_to_fix' | 'no_target_size' | 'bad_input'; message: string };
+export type FixFailure = {
+  ok: false;
+  code:
+    | 'not_png'
+    | 'unsupported'
+    | 'corrupt'
+    | 'too_large'
+    | 'nothing_to_fix'
+    | 'no_target_size'
+    | 'bad_input';
+  message: string;
+};
 
 const swapExtension = (name: string, ext: string): string => {
   const dot = name.lastIndexOf('.');
@@ -63,13 +74,34 @@ export function fixImage(input: FixInput): FixOutput | FixFailure {
   const sniffed = sniffImageFormat(input.bytes);
   if (input.kind === 'rename_extension') {
     const right = sniffed === null ? undefined : extensionForFormat(sniffed);
-    if (sniffed === null || right === undefined) return { ok: false, code: 'unsupported', message: 'The file is not a PNG, JPEG, WebP or GIF, so there is no right extension for it.' };
+    if (sniffed === null || right === undefined)
+      return {
+        ok: false,
+        code: 'unsupported',
+        message: 'The file is not a PNG, JPEG, WebP or GIF, so there is no right extension for it.',
+      };
     const dot = input.name.lastIndexOf('.');
     const have = dot > 0 ? input.name.slice(dot + 1).toLowerCase() : '';
-    if (have === right) return { ok: false, code: 'nothing_to_fix', message: `The name already ends in .${right}.` };
+    if (have === right)
+      return { ok: false, code: 'nothing_to_fix', message: `The name already ends in .${right}.` };
     const header = readImageHeader(input.bytes);
-    if (!header.ok || (sniffed !== 'png' && sniffed !== 'jpeg')) return { ok: false, code: 'unsupported', message: 'Only PNG and JPEG files are uploaded to the stores, so renaming a file of another format does not help.' };
-    return { ok: true, bytes: input.bytes, name: swapExtension(input.name, right), format: sniffed, width: header.width, height: header.height, hasAlpha: header.hasAlpha === true, summary: `Renamed to .${right}: the content is ${sniffed.toUpperCase()}.` };
+    if (!header.ok || (sniffed !== 'png' && sniffed !== 'jpeg'))
+      return {
+        ok: false,
+        code: 'unsupported',
+        message:
+          'Only PNG and JPEG files are uploaded to the stores, so renaming a file of another format does not help.',
+      };
+    return {
+      ok: true,
+      bytes: input.bytes,
+      name: swapExtension(input.name, right),
+      format: sniffed,
+      width: header.width,
+      height: header.height,
+      hasAlpha: header.hasAlpha === true,
+      summary: `Renamed to .${right}: the content is ${sniffed.toUpperCase()}.`,
+    };
   }
   if (sniffed !== 'png') {
     return {
@@ -82,7 +114,12 @@ export function fixImage(input: FixInput): FixOutput | FixFailure {
   if (!decoded.ok) return { ok: false, code: decoded.code, message: decoded.message };
   const { raster, meta } = decoded;
   if (input.kind === 'remove_alpha') {
-    if (!meta.hadAlpha) return { ok: false, code: 'nothing_to_fix', message: 'This PNG has no alpha channel or transparency.' };
+    if (!meta.hadAlpha)
+      return {
+        ok: false,
+        code: 'nothing_to_fix',
+        message: 'This PNG has no alpha channel or transparency.',
+      };
     const bg = input.background ?? [255, 255, 255];
     const flat = flatten(raster, bg);
     return {
@@ -99,13 +136,19 @@ export function fixImage(input: FixInput): FixOutput | FixFailure {
   // resize
   const target = nearestRequiredSize(input.platform, input.slot, raster.width, raster.height);
   if (target === null) {
-    return { ok: false, code: 'no_target_size', message: `There is no exact size to resize to. ${requiredSizesText(input.platform, input.slot)}.` };
+    return {
+      ok: false,
+      code: 'no_target_size',
+      message: `There is no exact size to resize to. ${requiredSizesText(input.platform, input.slot)}.`,
+    };
   }
-  if (target.width === raster.width && target.height === raster.height) return { ok: false, code: 'nothing_to_fix', message: 'The image already has a required size.' };
+  if (target.width === raster.width && target.height === raster.height)
+    return { ok: false, code: 'nothing_to_fix', message: 'The image already has a required size.' };
   // The decoder always gives four channels: an image with no transparent pixel stays an RGB PNG, so a resize never adds an alpha channel.
   const base = hasTransparentPixels(raster) ? raster : flatten(raster, [255, 255, 255]);
   const resized = resizeCover(base, target.width, target.height);
-  const aspectChanged = Math.abs(raster.width / raster.height - target.width / target.height) > 0.002;
+  const aspectChanged =
+    Math.abs(raster.width / raster.height - target.width / target.height) > 0.002;
   return {
     ok: true,
     bytes: encodePng(resized, meta.keep),

@@ -1,15 +1,26 @@
 import { type Action, aiLimits, aiProviders, aiSuggestionStatuses, can, canToken } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { type AiServices, acceptSuggestion, dismissSuggestion, getAiConfigView, getSuggestion, listAiTasks, listAppSuggestions, previewAiTask, runAiTask, testAiConnection } from '../services/ai.ts';
+import {
+  type AiServices,
+  acceptSuggestion,
+  dismissSuggestion,
+  getAiConfigView,
+  getSuggestion,
+  listAiTasks,
+  listAppSuggestions,
+  previewAiTask,
+  runAiTask,
+  testAiConnection,
+} from '../services/ai.ts';
 import { getAppContext, setAppContext } from '../services/ai-app-context.ts';
-import { getReviewTags } from '../services/ai-review-classes.ts';
 import { type AiFailure, updateAiConfig } from '../services/ai-config.ts';
 import { listAiModels } from '../services/ai-models.ts';
+import { getReviewTags } from '../services/ai-review-classes.ts';
 import { getApp } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 
@@ -79,9 +90,27 @@ export const updateConfigBody = z
     provider: z.enum(aiProviders).nullable().optional(),
     model: z.string().max(aiLimits.maxModelChars).nullable().optional(),
     baseUrl: z.string().max(500).nullable().optional(),
-    monthlyTokenBudget: z.number().int().min(0).max(aiLimits.maxMonthlyTokenBudget).nullable().optional(),
-    maxOutputTokens: z.number().int().min(aiLimits.minMaxOutputTokens).max(aiLimits.maxMaxOutputTokens).nullable().optional(),
-    maxInputTokens: z.number().int().min(aiLimits.minMaxInputTokens).max(aiLimits.maxMaxInputTokens).nullable().optional(),
+    monthlyTokenBudget: z
+      .number()
+      .int()
+      .min(0)
+      .max(aiLimits.maxMonthlyTokenBudget)
+      .nullable()
+      .optional(),
+    maxOutputTokens: z
+      .number()
+      .int()
+      .min(aiLimits.minMaxOutputTokens)
+      .max(aiLimits.maxMaxOutputTokens)
+      .nullable()
+      .optional(),
+    maxInputTokens: z
+      .number()
+      .int()
+      .min(aiLimits.minMaxInputTokens)
+      .max(aiLimits.maxMaxInputTokens)
+      .nullable()
+      .optional(),
     softWarnPercent: z.number().int().min(0).max(100).nullable().optional(),
     priceInputCentsPerMTok: z.number().int().min(0).max(1_000_000).nullable().optional(),
     priceOutputCentsPerMTok: z.number().int().min(0).max(1_000_000).nullable().optional(),
@@ -104,7 +133,15 @@ export const acceptBody = z
     items: z.array(z.number().int().min(0).max(1000)).min(1).max(100).optional(),
     fields: z.array(z.string().min(1).max(40)).min(1).max(10).optional(),
     /** `listing_variants`: the variant (its position in the field's list) chosen for each field. */
-    choices: z.array(z.object({ field: z.string().min(1).max(40), variant: z.number().int().min(0).max(10) }).strict()).min(1).max(10).optional(),
+    choices: z
+      .array(
+        z
+          .object({ field: z.string().min(1).max(40), variant: z.number().int().min(0).max(10) })
+          .strict(),
+      )
+      .min(1)
+      .max(10)
+      .optional(),
     replace: z.boolean().optional(),
   })
   .strict()
@@ -125,15 +162,26 @@ export function aiRoutes(ctx: AiRoutesContext) {
   /** What the caller may do: the role (already lowered to the token's ceiling) AND, for a token, its own list. */
   const allowedFor = (c: Context<AppEnv>) => (action: Action) => {
     const token = c.get('token');
-    return can(c.get('role'), action) && (token === undefined || canToken(token.ceiling, token.actions as Action[] | null, action));
+    return (
+      can(c.get('role'), action) &&
+      (token === undefined || canToken(token.ceiling, token.actions as Action[] | null, action))
+    );
   };
   const limited = (c: Context<AppEnv>) => {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
     c.header('Retry-After', String(wait));
-    return c.json({ error: 'rate_limited', message: `Too many AI requests. Try again in ${wait} seconds.`, retryAfterSeconds: wait }, 429);
+    return c.json(
+      {
+        error: 'rate_limited',
+        message: `Too many AI requests. Try again in ${wait} seconds.`,
+        retryAfterSeconds: wait,
+      },
+      429,
+    );
   };
-  const tooLarge = (c: Context) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
+  const tooLarge = (c: Context) =>
+    c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413);
   const small = bodyLimit({ maxSize: 16 * 1024, onError: tooLarge });
 
   // ----- configuration -----------------------------------------------------------------------------
@@ -150,7 +198,10 @@ export function aiRoutes(ctx: AiRoutesContext) {
       { workspaceId: ws(c), role: c.get('role'), changes: body.data as Record<string, unknown> },
       actor(c),
       ctx.now(),
-      { ...(ctx.allowPrivateUrls ? { allowPrivateUrls: true } : {}), ...(ctx.resolve ? { resolve: ctx.resolve } : {}) },
+      {
+        ...(ctx.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
+        ...(ctx.resolve ? { resolve: ctx.resolve } : {}),
+      },
     );
     if (!done.ok) return c.json(done.body, done.status);
     return c.json(await getAiConfigView(ctx, ws(c), c.get('role')));
@@ -186,7 +237,9 @@ export function aiRoutes(ctx: AiRoutesContext) {
     return c.json({
       tasks: listAiTasks(),
       state: view.state,
-      provider: provider ? { id: provider.id, label: provider.label, privacy: provider.privacy } : null,
+      provider: provider
+        ? { id: provider.id, label: provider.label, privacy: provider.privacy }
+        : null,
     });
   });
 
@@ -215,7 +268,13 @@ export function aiRoutes(ctx: AiRoutesContext) {
     const wait = limited(c);
     if (wait) return wait;
     const { appId, ...scope } = body.data;
-    const done = await previewAiTask(ctx, { workspaceId: ws(c), actor: actor(c), taskId: param(c, 'taskId'), appId, scope: scope as Record<string, unknown> });
+    const done = await previewAiTask(ctx, {
+      workspaceId: ws(c),
+      actor: actor(c),
+      taskId: param(c, 'taskId'),
+      appId,
+      scope: scope as Record<string, unknown>,
+    });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json({ preview: done.preview });
@@ -235,7 +294,13 @@ export function aiRoutes(ctx: AiRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const body = await parseBody(c, appContextBody);
     if (!body.ok) return body.response;
-    const done = await setAppContext(db, { workspaceId: ws(c), appId: app.id, actor: actor(c), context: body.data, at: ctx.now() });
+    const done = await setAppContext(db, {
+      workspaceId: ws(c),
+      appId: app.id,
+      actor: actor(c),
+      context: body.data,
+      at: ctx.now(),
+    });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json({ ...done.stored, canEdit: true });
@@ -245,14 +310,25 @@ export function aiRoutes(ctx: AiRoutesContext) {
   routes.get('/:workspaceId/apps/:id/ai/review-tags', needs('reviews.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return c.json({ error: 'not_found' }, 404);
-    const ids = (c.req.query('ids') ?? '').split(',').map((i) => i.trim()).filter((i) => i !== '');
+    const ids = (c.req.query('ids') ?? '')
+      .split(',')
+      .map((i) => i.trim())
+      .filter((i) => i !== '');
     if (ids.length === 0 || ids.length > 100) {
-      return c.json({ error: 'invalid_request', issues: [{ path: 'ids', message: 'One to 100 review ids, separated by commas.' }] }, 400);
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'ids', message: 'One to 100 review ids, separated by commas.' }],
+        },
+        400,
+      );
     }
     const found = await getReviewTags(db, ws(c), app.id, ids);
     c.header('Cache-Control', 'no-store');
     return c.json({
-      tags: [...found.values()].map(({ taskVersion: _v, textHash: _h, createdAt: _c, ...tags }) => tags),
+      tags: [...found.values()].map(
+        ({ taskVersion: _v, textHash: _h, createdAt: _c, ...tags }) => tags,
+      ),
     });
   });
 
@@ -261,11 +337,28 @@ export function aiRoutes(ctx: AiRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return c.json({ error: 'not_found' }, 404);
     const status = c.req.query('status');
-    if (status !== undefined && status !== '' && !(aiSuggestionStatuses as readonly string[]).includes(status)) {
-      return c.json({ error: 'invalid_request', issues: [{ path: 'status', message: `Use one of ${aiSuggestionStatuses.join(', ')}.` }] }, 400);
+    if (
+      status !== undefined &&
+      status !== '' &&
+      !(aiSuggestionStatuses as readonly string[]).includes(status)
+    ) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'status', message: `Use one of ${aiSuggestionStatuses.join(', ')}.` }],
+        },
+        400,
+      );
     }
     const limit = queryInt(c.req.query('limit'), { fallback: 20, max: 100 });
-    if (limit === undefined) return c.json({ error: 'invalid_request', issues: [{ path: 'limit', message: 'A whole number from 1 to 100.' }] }, 400);
+    if (limit === undefined)
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'limit', message: 'A whole number from 1 to 100.' }],
+        },
+        400,
+      );
     const task = c.req.query('task');
     const suggestions = await listAppSuggestions(db, ws(c), app.id, {
       ...(status ? { status: status as (typeof aiSuggestionStatuses)[number] } : {}),
@@ -276,21 +369,32 @@ export function aiRoutes(ctx: AiRoutesContext) {
     return c.json({ suggestions });
   });
 
-  routes.post('/:workspaceId/ai/suggestions/:suggestionId/accept', needs('ai.use'), small, async (c) => {
-    // An empty body is allowed: everything acceptable is accepted.
-    const body = await parseBody(c, acceptBody);
-    if (!body.ok) return body.response;
-    const done = await acceptSuggestion(
+  routes.post(
+    '/:workspaceId/ai/suggestions/:suggestionId/accept',
+    needs('ai.use'),
+    small,
+    async (c) => {
+      // An empty body is allowed: everything acceptable is accepted.
+      const body = await parseBody(c, acceptBody);
+      if (!body.ok) return body.response;
+      const done = await acceptSuggestion(
+        ctx,
+        { workspaceId: ws(c), actor: actor(c), role: c.get('role'), allowed: allowedFor(c) },
+        param(c, 'suggestionId'),
+        body.data ?? {},
+      );
+      return done.ok
+        ? c.json({ suggestion: done.suggestion, result: done.result })
+        : respond(c, done);
+    },
+  );
+
+  routes.post('/:workspaceId/ai/suggestions/:suggestionId/dismiss', needs('ai.use'), async (c) => {
+    const done = await dismissSuggestion(
       ctx,
       { workspaceId: ws(c), actor: actor(c), role: c.get('role'), allowed: allowedFor(c) },
       param(c, 'suggestionId'),
-      body.data ?? {},
     );
-    return done.ok ? c.json({ suggestion: done.suggestion, result: done.result }) : respond(c, done);
-  });
-
-  routes.post('/:workspaceId/ai/suggestions/:suggestionId/dismiss', needs('ai.use'), async (c) => {
-    const done = await dismissSuggestion(ctx, { workspaceId: ws(c), actor: actor(c), role: c.get('role'), allowed: allowedFor(c) }, param(c, 'suggestionId'));
     return done.ok ? c.json({ suggestion: done.suggestion }) : respond(c, done);
   });
 

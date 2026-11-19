@@ -60,9 +60,17 @@ export async function unreadCount(sql: Sql, workspaceId: string, userId: string)
 
 export async function listInbox(
   sql: Sql,
-  input: { workspaceId: string; userId: string; unreadOnly?: boolean; limit?: number; before?: number },
+  input: {
+    workspaceId: string;
+    userId: string;
+    unreadOnly?: boolean;
+    limit?: number;
+    before?: number;
+  },
 ): Promise<{ alerts: InboxAlert[]; unreadCount: number; hasMore: boolean }> {
-  const limit = Math.trunc(Math.min(Math.max(input.limit ?? DEFAULT_INBOX_LIMIT, 1), MAX_INBOX_LIMIT));
+  const limit = Math.trunc(
+    Math.min(Math.max(input.limit ?? DEFAULT_INBOX_LIMIT, 1), MAX_INBOX_LIMIT),
+  );
   const where = ['i.workspace_id = ?', 'i.user_id = ?'];
   const params: (string | number)[] = [input.workspaceId, input.userId];
   if (input.unreadOnly) where.push('i.read_at IS NULL');
@@ -86,7 +94,13 @@ export async function listInbox(
 /** Marks alerts read for one person: the given ids, or all of them. Returns how many changed. */
 export async function markRead(
   sql: Sql,
-  input: { workspaceId: string; userId: string; ids?: readonly string[]; all?: boolean; at: number },
+  input: {
+    workspaceId: string;
+    userId: string;
+    ids?: readonly string[];
+    all?: boolean;
+    at: number;
+  },
 ): Promise<number> {
   const where = ['workspace_id = ?', 'user_id = ?', 'read_at IS NULL'];
   const params: (string | number)[] = [input.at, input.workspaceId, input.userId];
@@ -130,7 +144,8 @@ const toDelivery = (r: Row): DeliveryView => ({
   outcome: String(r.outcome),
   attempts: Number(r.attempts),
   createdAt: Number(r.created_at),
-  deliveredAt: r.delivered_at === null || r.delivered_at === undefined ? null : Number(r.delivered_at),
+  deliveredAt:
+    r.delivered_at === null || r.delivered_at === undefined ? null : Number(r.delivered_at),
 });
 
 /** The log. `userId` limits it to one person's rows (what a member sees); without it: the whole workspace, webhook rows included. */
@@ -174,7 +189,12 @@ export async function sendTestAlert(
   input: { workspaceId: string; userId: string; role: Role; channel: AlertChannel },
 ): Promise<TestAlertResult> {
   if (input.channel === 'webhook' && !can(input.role, 'alerts.manage')) {
-    return { ok: false, status: 403, error: 'forbidden', message: 'Only an admin can send a test to the workspace webhooks.' };
+    return {
+      ok: false,
+      status: 403,
+      error: 'forbidden',
+      message: 'Only an admin can send a test to the workspace webhooks.',
+    };
   }
   const def = alertDef('test.alert');
   if (!def) return { ok: false, status: 400, error: 'invalid_request' };
@@ -187,7 +207,8 @@ export async function sendTestAlert(
       at,
       test: { userId: input.userId, channel: input.channel },
     });
-    if (result.status !== 'raised') return { ok: false as const, status: 400 as const, error: 'invalid_request' };
+    if (result.status !== 'raised')
+      return { ok: false as const, status: 400 as const, error: 'invalid_request' };
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: { type: 'user', id: input.userId },
@@ -196,7 +217,14 @@ export async function sendTestAlert(
       detail: { channel: input.channel },
       at,
     });
-    return { ok: true as const, alertId: result.alertId, deliveries: await listDeliveries(tx, { workspaceId: input.workspaceId, alertId: result.alertId }) };
+    return {
+      ok: true as const,
+      alertId: result.alertId,
+      deliveries: await listDeliveries(tx, {
+        workspaceId: input.workspaceId,
+        alertId: result.alertId,
+      }),
+    };
   });
 }
 
@@ -243,10 +271,19 @@ export const catalogEntries = (): CatalogEntry[] =>
 // ----- upkeep ------------------------------------------------------------------------------------------------
 
 /** Deletes alerts, inbox rows and log rows older than `keepMs` (default 90 days), and conditions that ended. */
-export async function pruneAlerts(sql: Sql, now: number, keepMs = 90 * 24 * 3_600_000): Promise<{ alerts: number; deliveries: number }> {
+export async function pruneAlerts(
+  sql: Sql,
+  now: number,
+  keepMs = 90 * 24 * 3_600_000,
+): Promise<{ alerts: number; deliveries: number }> {
   const cutoff = now - keepMs;
-  await sql.execute('DELETE FROM alert_inbox WHERE alert_id IN (SELECT id FROM alerts WHERE last_at < ?)', [cutoff]);
-  const deliveries = await sql.execute('DELETE FROM alert_deliveries WHERE created_at < ?', [cutoff]);
+  await sql.execute(
+    'DELETE FROM alert_inbox WHERE alert_id IN (SELECT id FROM alerts WHERE last_at < ?)',
+    [cutoff],
+  );
+  const deliveries = await sql.execute('DELETE FROM alert_deliveries WHERE created_at < ?', [
+    cutoff,
+  ]);
   await sql.execute('DELETE FROM alert_conditions WHERE active = 0 AND last_seen_at < ?', [cutoff]);
   const alerts = await sql.execute('DELETE FROM alerts WHERE last_at < ?', [cutoff]);
   return { alerts, deliveries };

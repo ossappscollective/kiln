@@ -23,15 +23,28 @@ const MINUTE = 60_000;
 /** Minutes from MRM_ANALYTICS_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function analyticsIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
-  if (!Number.isInteger(minutes) || minutes < MIN_ANALYTICS_INTERVAL_MINUTES || minutes > MAX_ANALYTICS_INTERVAL_MINUTES) {
-    throw new Error(`The analytics interval must be 0 (off) or from ${MIN_ANALYTICS_INTERVAL_MINUTES} to ${MAX_ANALYTICS_INTERVAL_MINUTES} minutes.`);
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_ANALYTICS_INTERVAL_MINUTES ||
+    minutes > MAX_ANALYTICS_INTERVAL_MINUTES
+  ) {
+    throw new Error(
+      `The analytics interval must be 0 (off) or from ${MIN_ANALYTICS_INTERVAL_MINUTES} to ${MAX_ANALYTICS_INTERVAL_MINUTES} minutes.`,
+    );
   }
   return minutes * MINUTE;
 }
 
 export type AnalyticsQueueSummary = {
   queued: number;
-  skipped: { recent: number; alreadyQueued: number; rateLimited: number; capped: number; notReady: number; off: number };
+  skipped: {
+    recent: number;
+    alreadyQueued: number;
+    rateLimited: number;
+    capped: number;
+    notReady: number;
+    off: number;
+  };
 };
 
 export type AnalyticsQueueOptions = {
@@ -46,22 +59,36 @@ export type AnalyticsQueueOptions = {
 };
 
 /** Queues `analytics.sync` jobs for the apps that are due. Never reads a store itself. */
-export async function queueAnalyticsSyncs(db: Database, options: AnalyticsQueueOptions): Promise<AnalyticsQueueSummary> {
+export async function queueAnalyticsSyncs(
+  db: Database,
+  options: AnalyticsQueueOptions,
+): Promise<AnalyticsQueueSummary> {
   const { now, intervalMs } = options;
   const perTick = options.perTick ?? DEFAULT_ANALYTICS_PER_TICK;
   const perWorkspace = options.perWorkspace ?? DEFAULT_ANALYTICS_PER_WORKSPACE;
   const spacing = options.spacingMs ?? DEFAULT_ANALYTICS_SPACING_MS;
   const maxJitter = options.maxJitterMs ?? Math.min(5 * MINUTE, Math.floor(intervalMs / 10));
-  const jitter = options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
-  const summary: AnalyticsQueueSummary = { queued: 0, skipped: { recent: 0, alreadyQueued: 0, rateLimited: 0, capped: 0, notReady: 0, off: 0 } };
+  const jitter =
+    options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
+  const summary: AnalyticsQueueSummary = {
+    queued: 0,
+    skipped: { recent: 0, alreadyQueued: 0, rateLimited: 0, capped: 0, notReady: 0, off: 0 },
+  };
 
-  const settings = await db.query("SELECT workspace_id, key, value_json FROM workspace_settings WHERE key IN ('analytics.enabled', 'analytics.appleVendorNumber')");
+  const settings = await db.query(
+    "SELECT workspace_id, key, value_json FROM workspace_settings WHERE key IN ('analytics.enabled', 'analytics.appleVendorNumber')",
+  );
   const enabled = new Set<string>();
   const vendor = new Set<string>();
   for (const row of settings) {
     const workspaceId = String(row.workspace_id);
-    if (String(row.key) === 'analytics.enabled' && String(row.value_json) === 'true') enabled.add(workspaceId);
-    if (String(row.key) === 'analytics.appleVendorNumber' && /^"[0-9]{5,12}"$/.test(String(row.value_json))) vendor.add(workspaceId);
+    if (String(row.key) === 'analytics.enabled' && String(row.value_json) === 'true')
+      enabled.add(workspaceId);
+    if (
+      String(row.key) === 'analytics.appleVendorNumber' &&
+      /^"[0-9]{5,12}"$/.test(String(row.value_json))
+    )
+      vendor.add(workspaceId);
   }
   if (enabled.size === 0) {
     const [count] = await db.query('SELECT COUNT(*) AS n FROM apps');
@@ -69,13 +96,27 @@ export async function queueAnalyticsSyncs(db: Database, options: AnalyticsQueueO
     return summary;
   }
 
-  const apps = await db.query('SELECT id, workspace_id, platform, credential_id FROM apps ORDER BY created_at, id');
-  const withRequest = new Set((await db.query("SELECT DISTINCT app_id FROM analytics_report_requests WHERE status = 'active'")).map((r) => String(r.app_id)));
+  const apps = await db.query(
+    'SELECT id, workspace_id, platform, credential_id FROM apps ORDER BY created_at, id',
+  );
+  const withRequest = new Set(
+    (
+      await db.query(
+        "SELECT DISTINCT app_id FROM analytics_report_requests WHERE status = 'active'",
+      )
+    ).map((r) => String(r.app_id)),
+  );
   const attempts = new Map<string, number>();
-  for (const row of await db.query('SELECT app_id, MAX(last_attempt_at) AS last_attempt FROM analytics_source_state GROUP BY app_id')) {
-    if (row.last_attempt !== null && row.last_attempt !== undefined) attempts.set(String(row.app_id), Number(row.last_attempt));
+  for (const row of await db.query(
+    'SELECT app_id, MAX(last_attempt_at) AS last_attempt FROM analytics_source_state GROUP BY app_id',
+  )) {
+    if (row.last_attempt !== null && row.last_attempt !== undefined)
+      attempts.set(String(row.app_id), Number(row.last_attempt));
   }
-  const jobs = await db.query("SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')", [ANALYTICS_SYNC_QUEUE]);
+  const jobs = await db.query(
+    "SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')",
+    [ANALYTICS_SYNC_QUEUE],
+  );
   const queuedApps = new Set<string>();
   for (const job of jobs) {
     try {
@@ -86,7 +127,9 @@ export async function queueAnalyticsSyncs(db: Database, options: AnalyticsQueueO
     }
   }
   // Due apps first: the ones read longest ago.
-  const ordered = [...apps].sort((a, b) => (attempts.get(String(a.id)) ?? 0) - (attempts.get(String(b.id)) ?? 0));
+  const ordered = [...apps].sort(
+    (a, b) => (attempts.get(String(a.id)) ?? 0) - (attempts.get(String(b.id)) ?? 0),
+  );
 
   const perWorkspaceCount = new Map<string, number>();
   const limited = new Set<string>();
@@ -122,7 +165,10 @@ export async function queueAnalyticsSyncs(db: Database, options: AnalyticsQueueO
     }
     const delay = Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
     const payload: AnalyticsSyncPayload = { workspaceId, appId: id, requestedBy: 'scheduler' };
-    await enqueue(db, ANALYTICS_SYNC_QUEUE, payload, { now, runAt: now + summary.queued * spacing + delay });
+    await enqueue(db, ANALYTICS_SYNC_QUEUE, payload, {
+      now,
+      runAt: now + summary.queued * spacing + delay,
+    });
     queuedApps.add(id);
     perWorkspaceCount.set(workspaceId, (perWorkspaceCount.get(workspaceId) ?? 0) + 1);
     summary.queued++;

@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { migrate } from '@mrm/db';
 import { dbTest } from '@mrm/db/testing';
-import { backoffMs, claimNext, completeJob, createWorker, enqueue, failJob, recoverStale } from './jobs.ts';
+import {
+  backoffMs,
+  claimNext,
+  completeJob,
+  createWorker,
+  enqueue,
+  failJob,
+  recoverStale,
+} from './jobs.ts';
 
 // Every test runs once per database (SQLite, and Postgres when MRM_TEST_POSTGRES_URL is set).
 
@@ -9,7 +17,11 @@ dbTest('a queued job runs once and ends as done', async (db) => {
   await migrate(db);
   const seen: unknown[] = [];
   const id = await enqueue(db, 'greet', { name: 'Ada' }, { now: 1 });
-  const worker = createWorker({ sql: db, handlers: { greet: async (p) => void seen.push(p) }, now: () => 10 });
+  const worker = createWorker({
+    sql: db,
+    handlers: { greet: async (p) => void seen.push(p) },
+    now: () => 10,
+  });
   assert.equal(await worker.tick(), true);
   assert.equal(await worker.tick(), false);
   assert.deepEqual(seen, [{ name: 'Ada' }]);
@@ -39,7 +51,11 @@ dbTest('a failing job retries with backoff, then fails for good', async (db) => 
   const id = await enqueue(db, 'flaky', {}, { now: 0 });
   const worker = createWorker({
     sql: db,
-    handlers: { flaky: async () => { throw new Error('nope'); } },
+    handlers: {
+      flaky: async () => {
+        throw new Error('nope');
+      },
+    },
     maxAttempts: 2,
     now: () => time,
   });
@@ -86,7 +102,12 @@ dbTest('start polls and stop waits for the job in flight', async (db) => {
   const worker = createWorker({
     sql: db,
     pollMs: 5,
-    handlers: { slow: async () => { await new Promise((r) => setTimeout(r, 30)); finished = true; } },
+    handlers: {
+      slow: async () => {
+        await new Promise((r) => setTimeout(r, 30));
+        finished = true;
+      },
+    },
   });
   worker.start();
   await new Promise((r) => setTimeout(r, 15));
@@ -108,35 +129,46 @@ dbTest('many workers claiming at once run every job exactly once', async (db) =>
     }
   };
   await Promise.all([drain(), drain(), drain(), drain()]);
-  assert.deepEqual(seen.sort((a, b) => a - b), Array.from({ length: total }, (_, i) => i));
-  const [row] = await db.query("SELECT COUNT(*) AS n, MAX(attempts) AS most FROM jobs WHERE status = 'done'");
+  assert.deepEqual(
+    seen.sort((a, b) => a - b),
+    Array.from({ length: total }, (_, i) => i),
+  );
+  const [row] = await db.query(
+    "SELECT COUNT(*) AS n, MAX(attempts) AS most FROM jobs WHERE status = 'done'",
+  );
   assert.deepEqual(row, { n: total, most: 1 });
 });
 
-dbTest('a late finish from a worker that lost its job does not overwrite the new run', async (db) => {
-  await migrate(db);
-  const id = await enqueue(db, 'q', {}, { now: 0 });
-  const first = await claimNext(db, 1);
-  assert.ok(first);
-  // The first worker stalls; the job is recovered and a second worker claims it.
-  await recoverStale(db, 1_000_000, 1_000);
-  const second = await claimNext(db, 1_000_001);
-  assert.equal(second?.attempts, 2);
-  // The first worker wakes up and reports: both its success and its failure are ignored.
-  assert.equal(await completeJob(db, first), false);
-  assert.equal(await failJob(db, first, new Error('late'), { maxAttempts: 5, now: 2_000_000 }), 'lost');
-  let [row] = await db.query('SELECT status, last_error FROM jobs WHERE id = ?', [id]);
-  assert.deepEqual(row, { status: 'running', last_error: null });
-  // The current worker still can.
-  assert.equal(await completeJob(db, second), true);
-  [row] = await db.query('SELECT status, last_error FROM jobs WHERE id = ?', [id]);
-  assert.equal(row?.status, 'done');
-  // And a done job cannot be completed or failed again.
-  assert.equal(await completeJob(db, second), false);
-  assert.equal(await failJob(db, second, new Error('x'), { maxAttempts: 5, now: 3 }), 'lost');
-  [row] = await db.query('SELECT status FROM jobs WHERE id = ?', [id]);
-  assert.equal(row?.status, 'done');
-});
+dbTest(
+  'a late finish from a worker that lost its job does not overwrite the new run',
+  async (db) => {
+    await migrate(db);
+    const id = await enqueue(db, 'q', {}, { now: 0 });
+    const first = await claimNext(db, 1);
+    assert.ok(first);
+    // The first worker stalls; the job is recovered and a second worker claims it.
+    await recoverStale(db, 1_000_000, 1_000);
+    const second = await claimNext(db, 1_000_001);
+    assert.equal(second?.attempts, 2);
+    // The first worker wakes up and reports: both its success and its failure are ignored.
+    assert.equal(await completeJob(db, first), false);
+    assert.equal(
+      await failJob(db, first, new Error('late'), { maxAttempts: 5, now: 2_000_000 }),
+      'lost',
+    );
+    let [row] = await db.query('SELECT status, last_error FROM jobs WHERE id = ?', [id]);
+    assert.deepEqual(row, { status: 'running', last_error: null });
+    // The current worker still can.
+    assert.equal(await completeJob(db, second), true);
+    [row] = await db.query('SELECT status, last_error FROM jobs WHERE id = ?', [id]);
+    assert.equal(row?.status, 'done');
+    // And a done job cannot be completed or failed again.
+    assert.equal(await completeJob(db, second), false);
+    assert.equal(await failJob(db, second, new Error('x'), { maxAttempts: 5, now: 3 }), 'lost');
+    [row] = await db.query('SELECT status FROM jobs WHERE id = ?', [id]);
+    assert.equal(row?.status, 'done');
+  },
+);
 
 dbTest('a job that was never claimed cannot be completed or failed', async (db) => {
   await migrate(db);
@@ -148,20 +180,26 @@ dbTest('a job that was never claimed cannot be completed or failed', async (db) 
   assert.equal(row?.status, 'queued');
 });
 
-dbTest('recoverStale fails a stale job that has used all its attempts, and requeues the rest', async (db) => {
-  await migrate(db);
-  const spent = await enqueue(db, 'q', 'spent', { now: 0 });
-  const fresh = await enqueue(db, 'q', 'fresh', { now: 1 });
-  await claimNext(db, 10); // spent: attempt 1
-  await db.execute("UPDATE jobs SET status = 'running', attempts = 3, locked_at = 10 WHERE id = ?", [spent]);
-  await claimNext(db, 10); // fresh: attempt 1
-  assert.equal(await recoverStale(db, 100_000, 1_000, 3), 2);
-  const [a] = await db.query('SELECT status, last_error FROM jobs WHERE id = ?', [spent]);
-  assert.equal(a?.status, 'failed');
-  assert.match(String(a?.last_error), /no attempts left/);
-  const [b] = await db.query('SELECT status FROM jobs WHERE id = ?', [fresh]);
-  assert.equal(b?.status, 'queued');
-});
+dbTest(
+  'recoverStale fails a stale job that has used all its attempts, and requeues the rest',
+  async (db) => {
+    await migrate(db);
+    const spent = await enqueue(db, 'q', 'spent', { now: 0 });
+    const fresh = await enqueue(db, 'q', 'fresh', { now: 1 });
+    await claimNext(db, 10); // spent: attempt 1
+    await db.execute(
+      "UPDATE jobs SET status = 'running', attempts = 3, locked_at = 10 WHERE id = ?",
+      [spent],
+    );
+    await claimNext(db, 10); // fresh: attempt 1
+    assert.equal(await recoverStale(db, 100_000, 1_000, 3), 2);
+    const [a] = await db.query('SELECT status, last_error FROM jobs WHERE id = ?', [spent]);
+    assert.equal(a?.status, 'failed');
+    assert.match(String(a?.last_error), /no attempts left/);
+    const [b] = await db.query('SELECT status FROM jobs WHERE id = ?', [fresh]);
+    assert.equal(b?.status, 'queued');
+  },
+);
 
 dbTest('the worker passes its own attempt limit to recovery', async (db) => {
   await migrate(db);

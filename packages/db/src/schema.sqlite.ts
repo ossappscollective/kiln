@@ -868,7 +868,13 @@ export const reviewTranslations = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('review_translations_key_idx').on(t.reviewId, t.field, t.targetLang, t.provider, t.sourceHash),
+    uniqueIndex('review_translations_key_idx').on(
+      t.reviewId,
+      t.field,
+      t.targetLang,
+      t.provider,
+      t.sourceHash,
+    ),
     index('review_translations_app_idx').on(t.appId),
     index('review_translations_workspace_idx').on(t.workspaceId),
   ],
@@ -1493,7 +1499,9 @@ export const analyticsDaily = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.appId, t.platform, t.source, t.metric, t.day, t.dimType, t.dimValue] }),
+    primaryKey({
+      columns: [t.appId, t.platform, t.source, t.metric, t.day, t.dimType, t.dimValue],
+    }),
     index('analytics_daily_workspace_idx').on(t.workspaceId, t.appId, t.day),
     index('analytics_daily_day_idx').on(t.day),
   ],
@@ -1884,7 +1892,10 @@ export const mailCodes = sqliteTable(
     expiresAt: integer('expires_at').notNull(),
     usedAt: integer('used_at'),
   },
-  (t) => [index('mail_codes_user_idx').on(t.userId, t.createdAt), index('mail_codes_workspace_idx').on(t.workspaceId, t.createdAt)],
+  (t) => [
+    index('mail_codes_user_idx').on(t.userId, t.createdAt),
+    index('mail_codes_workspace_idx').on(t.workspaceId, t.createdAt),
+  ],
 );
 
 /** The TOTP secret of a person, encrypted. Migration 36. */

@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
-import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import {
-  KEPT_RESPONSE_CHARS,
-  MAX_RESPONSE_BYTES,
-  type Resolver,
   checkWebhookUrl,
   classifyAddress,
   cleanResponseBody,
   expandIpv6,
+  KEPT_RESPONSE_CHARS,
+  MAX_RESPONSE_BYTES,
+  type Resolver,
   resolveAllowed,
   sendPinned,
 } from './services/webhook-transport.ts';
@@ -80,7 +80,17 @@ test('classifyAddress: IPv6, including the IPv4 forms that hide a private addres
 });
 
 test('classifyAddress: anything that is not an address is blocked', () => {
-  for (const text of ['', 'example.com', '999.1.1.1', '1.2.3', '1.2.3.4.5', '0x7f.0.0.1', '2130706433', '::g', '[::1]']) {
+  for (const text of [
+    '',
+    'example.com',
+    '999.1.1.1',
+    '1.2.3',
+    '1.2.3.4.5',
+    '0x7f.0.0.1',
+    '2130706433',
+    '::g',
+    '[::1]',
+  ]) {
     assert.equal(classifyAddress(text), 'blocked', text);
   }
 });
@@ -88,7 +98,10 @@ test('classifyAddress: anything that is not an address is blocked', () => {
 test('expandIpv6 reads the compressed and the mixed forms, and rejects the broken ones', () => {
   assert.deepEqual(expandIpv6('::1'), [0, 0, 0, 0, 0, 0, 0, 1]);
   assert.deepEqual(expandIpv6('::'), [0, 0, 0, 0, 0, 0, 0, 0]);
-  assert.deepEqual(expandIpv6('2001:db8::ff00:42:8329'), [0x2001, 0xdb8, 0, 0, 0, 0xff00, 0x42, 0x8329]);
+  assert.deepEqual(
+    expandIpv6('2001:db8::ff00:42:8329'),
+    [0x2001, 0xdb8, 0, 0, 0, 0xff00, 0x42, 0x8329],
+  );
   assert.deepEqual(expandIpv6('::ffff:1.2.3.4'), [0, 0, 0, 0, 0, 0xffff, 0x0102, 0x0304]);
   assert.equal(expandIpv6('1::2::3'), undefined);
   assert.equal(expandIpv6('1:2:3:4:5:6:7:8:9'), undefined);
@@ -139,7 +152,11 @@ test('checkWebhookUrl with allowPrivate: private hosts and http only for loopbac
   assert.equal(checkWebhookUrl('http://[::1]:9000/hook', allow).ok, true);
   assert.equal(checkWebhookUrl('https://10.0.0.5/hook', allow).ok, true);
   assert.equal(checkWebhookUrl('https://intranet/hook', allow).ok, true);
-  assert.equal(checkWebhookUrl('http://10.0.0.5/hook', allow).ok, false, 'plain http is for localhost only');
+  assert.equal(
+    checkWebhookUrl('http://10.0.0.5/hook', allow).ok,
+    false,
+    'plain http is for localhost only',
+  );
   assert.equal(checkWebhookUrl('http://example.com/hook', allow).ok, false);
   assert.equal(checkWebhookUrl('https://169.254.169.254/hook', allow).ok, false);
   assert.equal(checkWebhookUrl('http://169.254.169.254/hook', allow).ok, false);
@@ -162,7 +179,11 @@ function checked(url: string, allowPrivate = false) {
 
 test('resolveAllowed: one bad answer refuses the host, even beside good ones (DNS rebinding)', async () => {
   const url = checked('https://hooks.example.com/x');
-  assert.deepEqual(await resolveAllowed(url, { resolve: answering('93.184.216.34') }), { ok: true, address: '93.184.216.34', family: 4 });
+  assert.deepEqual(await resolveAllowed(url, { resolve: answering('93.184.216.34') }), {
+    ok: true,
+    address: '93.184.216.34',
+    family: 4,
+  });
   const mixed = await resolveAllowed(url, { resolve: answering('93.184.216.34', '10.0.0.1') });
   assert.equal(mixed.ok, false);
   assert.equal(mixed.ok === false && mixed.transient, false);
@@ -171,8 +192,19 @@ test('resolveAllowed: one bad answer refuses the host, even beside good ones (DN
   const mapped = await resolveAllowed(url, { resolve: answering('::ffff:127.0.0.1') });
   assert.equal(mapped.ok, false);
   // With allowPrivate, private answers pass but link-local never does.
-  assert.equal((await resolveAllowed(url, { allowPrivate: true, resolve: answering('10.0.0.1') })).ok, true);
-  assert.equal((await resolveAllowed(url, { allowPrivate: true, resolve: answering('10.0.0.1', '169.254.169.254') })).ok, false);
+  assert.equal(
+    (await resolveAllowed(url, { allowPrivate: true, resolve: answering('10.0.0.1') })).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await resolveAllowed(url, {
+        allowPrivate: true,
+        resolve: answering('10.0.0.1', '169.254.169.254'),
+      })
+    ).ok,
+    false,
+  );
 });
 
 test('resolveAllowed: a DNS failure or an empty answer is transient; a literal needs no lookup', async () => {
@@ -184,12 +216,20 @@ test('resolveAllowed: a DNS failure or an empty answer is transient; a literal n
   });
   assert.equal(failing.ok, false);
   assert.equal(failing.ok === false && failing.transient, true);
-  assert.equal(failing.ok === false && failing.message.includes('ENOTFOUND'), false, 'the resolver error text is not passed on');
+  assert.equal(
+    failing.ok === false && failing.message.includes('ENOTFOUND'),
+    false,
+    'the resolver error text is not passed on',
+  );
   const empty = await resolveAllowed(url, { resolve: answering() });
   assert.equal(empty.ok === false && empty.transient, true);
   const literal = checked('https://93.184.216.34/x');
   const never: Resolver = async () => assert.fail('a literal must not be resolved');
-  assert.deepEqual(await resolveAllowed(literal, { resolve: never }), { ok: true, address: '93.184.216.34', family: 4 });
+  assert.deepEqual(await resolveAllowed(literal, { resolve: never }), {
+    ok: true,
+    address: '93.184.216.34',
+    family: 4,
+  });
 });
 
 // ----- sending, against a local server --------------------------------------------------------
@@ -205,7 +245,12 @@ async function withServer(
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
     req.on('end', () => {
-      const entry = { method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(chunks).toString('utf8') };
+      const entry = {
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString('utf8'),
+      };
       seen.push(entry);
       handler(req, res, entry);
     });
@@ -271,7 +316,12 @@ test('sendPinned refuses a private answer without allowPrivate, before any conne
   await withServer(
     (_req, res) => res.end('x'),
     async (port, seen) => {
-      const viaDns = await sendPinned(`https://hooks.example.com:${port}/x`, '{}', {}, { resolve: answering('127.0.0.1') });
+      const viaDns = await sendPinned(
+        `https://hooks.example.com:${port}/x`,
+        '{}',
+        {},
+        { resolve: answering('127.0.0.1') },
+      );
       assert.equal(viaDns.ok, false);
       assert.equal(viaDns.ok === false && viaDns.kind, 'blocked');
       assert.equal(viaDns.ok === false && viaDns.transient, false);
@@ -279,7 +329,12 @@ test('sendPinned refuses a private answer without allowPrivate, before any conne
       assert.equal(literal.ok === false && literal.kind, 'blocked');
       const http = await sendPinned(`http://127.0.0.1:${port}/x`, '{}', {});
       assert.equal(http.ok === false && http.kind, 'blocked');
-      const rebinding = await sendPinned(`http://localhost:${port}/x`, '{}', {}, { allowPrivate: true, resolve: answering('127.0.0.1', '169.254.169.254') });
+      const rebinding = await sendPinned(
+        `http://localhost:${port}/x`,
+        '{}',
+        {},
+        { allowPrivate: true, resolve: answering('127.0.0.1', '169.254.169.254') },
+      );
       assert.equal(rebinding.ok === false && rebinding.kind, 'blocked');
       assert.equal(seen.length, 0, 'nothing was sent');
     },
@@ -293,7 +348,12 @@ test('sendPinned times out on a receiver that does not answer, and says so witho
     },
     async (port) => {
       const started = Date.now();
-      const out = await sendPinned(`http://localhost:${port}/x`, '{}', {}, { allowPrivate: true, resolve: answering('127.0.0.1'), timeoutMs: 150 });
+      const out = await sendPinned(
+        `http://localhost:${port}/x`,
+        '{}',
+        {},
+        { allowPrivate: true, resolve: answering('127.0.0.1'), timeoutMs: 150 },
+      );
       assert.ok(Date.now() - started < 3000);
       assert.equal(out.ok, false);
       assert.equal(out.ok === false && out.kind, 'timeout');
@@ -308,7 +368,12 @@ test('sendPinned: a refused connection is a transient network failure that leaks
   await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
   const { port } = probe.address() as AddressInfo;
   await new Promise<void>((resolve) => probe.close(() => resolve()));
-  const out = await sendPinned(`http://localhost:${port}/x`, '{}', {}, { allowPrivate: true, resolve: answering('127.0.0.1'), timeoutMs: 2000 });
+  const out = await sendPinned(
+    `http://localhost:${port}/x`,
+    '{}',
+    {},
+    { allowPrivate: true, resolve: answering('127.0.0.1'), timeoutMs: 2000 },
+  );
   assert.equal(out.ok, false);
   assert.equal(out.ok === false && out.kind, 'network');
   assert.equal(out.ok === false && out.transient, true);
@@ -334,7 +399,12 @@ test('sendPinned stops reading a huge response', async () => {
       pump();
     },
     async (port) => {
-      const out = await sendPinned(`http://localhost:${port}/x`, '{}', {}, { allowPrivate: true, resolve: answering('127.0.0.1'), timeoutMs: 5000 });
+      const out = await sendPinned(
+        `http://localhost:${port}/x`,
+        '{}',
+        {},
+        { allowPrivate: true, resolve: answering('127.0.0.1'), timeoutMs: 5000 },
+      );
       assert.equal(out.ok && out.status, 200);
       assert.ok(out.ok && out.body.length <= MAX_RESPONSE_BYTES, 'the body is capped');
     },
@@ -347,7 +417,10 @@ test('cleanResponseBody keeps printable text, shortens it and removes secrets', 
   assert.equal(cleanResponseBody('ok\u0000\u0007\u001b[31m red'), 'ok[31m red');
   assert.equal(cleanResponseBody('line one\nline two\ttab'), 'line one\nline two\ttab');
   assert.equal(cleanResponseBody('x'.repeat(5000)).length, KEPT_RESPONSE_CHARS);
-  assert.equal(cleanResponseBody('echo whsec_abcdefghijkl back', ['whsec_abcdefghijkl']), 'echo [redacted] back');
+  assert.equal(
+    cleanResponseBody('echo whsec_abcdefghijkl back', ['whsec_abcdefghijkl']),
+    'echo [redacted] back',
+  );
   // Too short to be a secret: left alone rather than shredding the text.
   assert.equal(cleanResponseBody('abc def', ['abc']), 'abc def');
 });

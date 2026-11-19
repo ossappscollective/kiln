@@ -1,9 +1,9 @@
 import type { AiTaskId } from '@mrm/core';
+import { asoHealthTask, keywordIdeasFromReviewsTask, listingAuditTask } from './ai-task-aso.ts';
 import { keywordIdeasTask } from './ai-task-keywords.ts';
 import { listingImproveTask } from './ai-task-listing.ts';
-import { reviewReplyTask } from './ai-task-reply.ts';
-import { asoHealthTask, keywordIdeasFromReviewsTask, listingAuditTask } from './ai-task-aso.ts';
 import { listingTranslateTask, listingVariantsTask } from './ai-task-listing-more.ts';
+import { reviewReplyTask } from './ai-task-reply.ts';
 import { fixNextTask, reviewClassifyTask, reviewSummaryTask } from './ai-task-reviews.ts';
 import type { AiTask, PlannedTask } from './ai-task-types.ts';
 
@@ -14,7 +14,9 @@ import type { AiTask, PlannedTask } from './ai-task-types.ts';
  * here, one id in core/src/ai.ts, and a test that its schema is strict and its post-processor flags what it must.
  */
 
-const planned = (task: Omit<PlannedTask, 'status' | 'scope'> & { scope?: PlannedTask['scope'] }): PlannedTask => ({
+const planned = (
+  task: Omit<PlannedTask, 'status' | 'scope'> & { scope?: PlannedTask['scope'] },
+): PlannedTask => ({
   status: 'planned',
   scope: [],
   ...task,
@@ -24,7 +26,8 @@ export const releaseNotesTask: PlannedTask = planned({
   id: 'release_notes',
   version: 1,
   label: 'Draft release notes',
-  description: 'Would turn the commit and change titles of a release into "What is new" text per language. Not built yet.',
+  description:
+    'Would turn the commit and change titles of a release into "What is new" text per language. Not built yet.',
   disclosure: {
     sends: ['Planned: the titles of the changes in the release you choose, and the language.'],
     neverSends: ['Planned: credentials, review text, people, code or diffs.'],
@@ -35,9 +38,12 @@ export const rankDropExplainTask: PlannedTask = planned({
   id: 'rank_drop_explain',
   version: 1,
   label: 'Explain a rank drop',
-  description: 'Would suggest likely reasons for a keyword rank drop from the rank history, listing changes and competitors. Not built yet.',
+  description:
+    'Would suggest likely reasons for a keyword rank drop from the rank history, listing changes and competitors. Not built yet.',
   disclosure: {
-    sends: ['Planned: the rank history of one keyword, the dates of listing changes, and competitor names.'],
+    sends: [
+      'Planned: the rank history of one keyword, the dates of listing changes, and competitor names.',
+    ],
     neverSends: ['Planned: credentials, review text, people.'],
   },
 });

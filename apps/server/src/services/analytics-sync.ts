@@ -1,45 +1,45 @@
 import {
   AnalyticsError,
+  type AnalyticsPoint,
   AppleAnalyticsConnector,
   type AppleAnalyticsPort,
-  type AnalyticsPoint,
+  appleReportKindFromName,
+  mapAppleSalesTable,
+  mapAppleTable,
   PlayReportsConnector,
   type PlayReportsPort,
   PlayVitalsConnector,
   type PlayVitalsPort,
+  parseTable,
   StoreError,
   StoreRateLimitError,
-  appleReportKindFromName,
-  mapAppleSalesTable,
-  mapAppleTable,
-  parseTable,
 } from '@mrm/connectors';
 import {
   type ActorType,
   type AnalyticsErrorCode,
   type AnalyticsSource,
-  analyticsLimits,
   addDays,
   analyticsErrorMessages,
+  analyticsLimits,
   dateToDay,
   sourcesForPlatform,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import {
-  type RunTrigger,
-  type SyncRun,
-  recordRun,
   getAppConfig,
-  resolvePlayBucket,
   listReportRequests,
   markReportRequest,
+  type RunTrigger,
+  recordRun,
+  resolvePlayBucket,
+  type SyncRun,
   saveInstance,
   saveSourceState,
   settledInstances,
   upsertPoints,
 } from './analytics-store.ts';
-import { type ManagedApp, getApp } from './apps.ts';
+import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
@@ -79,14 +79,29 @@ export const analyticsWindows = {
 export type AnalyticsConnectorFactory = {
   apple(input: { secret: string; fetch: typeof fetch }): AppleAnalyticsPort;
   playVitals(input: { secret: string; packageName: string; fetch: typeof fetch }): PlayVitalsPort;
-  playReports(input: { secret: string; packageName: string; bucketId: string; fetch: typeof fetch }): PlayReportsPort;
+  playReports(input: {
+    secret: string;
+    packageName: string;
+    bucketId: string;
+    fetch: typeof fetch;
+  }): PlayReportsPort;
 };
 
 export const defaultAnalyticsConnectors: AnalyticsConnectorFactory = {
   apple: (input) => AppleAnalyticsConnector.fromSecret(input.secret, { fetch: input.fetch }),
-  playVitals: (input) => new PlayVitalsConnector({ serviceAccount: input.secret, packageName: input.packageName, fetch: input.fetch }),
+  playVitals: (input) =>
+    new PlayVitalsConnector({
+      serviceAccount: input.secret,
+      packageName: input.packageName,
+      fetch: input.fetch,
+    }),
   playReports: (input) =>
-    new PlayReportsConnector({ serviceAccount: input.secret, packageName: input.packageName, bucketId: input.bucketId, fetch: input.fetch }),
+    new PlayReportsConnector({
+      serviceAccount: input.secret,
+      packageName: input.packageName,
+      bucketId: input.bucketId,
+      fetch: input.fetch,
+    }),
 };
 
 export type AnalyticsContext = {
@@ -103,7 +118,11 @@ export type AnalyticsContext = {
 
 class SyncTimeout extends Error {}
 
-export type Classified = { code: AnalyticsErrorCode; status: 409 | 422 | 429 | 502 | 504; transient: boolean };
+export type Classified = {
+  code: AnalyticsErrorCode;
+  status: 409 | 422 | 429 | 502 | 504;
+  transient: boolean;
+};
 
 /** Turns anything a connector throws into a code of the fixed vocabulary. Nothing of the original message is kept. */
 export function classifyAnalyticsError(error: unknown): Classified {
@@ -122,7 +141,8 @@ export function classifyAnalyticsError(error: unknown): Classified {
         return { code: error.code, status: 422, transient: false };
     }
   }
-  if (error instanceof StoreRateLimitError) return { code: 'rate_limited', status: 429, transient: true };
+  if (error instanceof StoreRateLimitError)
+    return { code: 'rate_limited', status: 429, transient: true };
   if (error instanceof StoreError) {
     switch (error.kind) {
       case 'auth':
@@ -148,7 +168,15 @@ export function classifyAnalyticsError(error: unknown): Classified {
 // Results
 
 export type SourceResult =
-  | { source: AnalyticsSource; status: 'ok' | 'partial'; points: number; reports: number; dayFrom: string | null; dayTo: string | null; errorCode?: AnalyticsErrorCode }
+  | {
+      source: AnalyticsSource;
+      status: 'ok' | 'partial';
+      points: number;
+      reports: number;
+      dayFrom: string | null;
+      dayTo: string | null;
+      errorCode?: AnalyticsErrorCode;
+    }
   | { source: AnalyticsSource; status: 'failed'; errorCode: AnalyticsErrorCode; transient: boolean }
   | { source: AnalyticsSource; status: 'skipped'; setup: string };
 
@@ -173,7 +201,15 @@ type Env = {
 };
 
 type Outcome =
-  | { kind: 'done'; status: 'ok' | 'partial'; points: number; reports: number; dayFrom: string | null; dayTo: string | null; errorCode?: AnalyticsErrorCode }
+  | {
+      kind: 'done';
+      status: 'ok' | 'partial';
+      points: number;
+      reports: number;
+      dayFrom: string | null;
+      dayTo: string | null;
+      errorCode?: AnalyticsErrorCode;
+    }
   | { kind: 'skip'; setup: string };
 
 const range = (points: AnalyticsPoint[]): { from: string | null; to: string | null } => {
@@ -186,16 +222,23 @@ const range = (points: AnalyticsPoint[]): { from: string | null; to: string | nu
   return { from, to };
 };
 
-const platformOf = (app: ManagedApp): 'ios' | 'macos' | undefined => (app.platform === 'macos' ? 'macos' : app.platform === 'ios' ? 'ios' : undefined);
+const platformOf = (app: ManagedApp): 'ios' | 'macos' | undefined =>
+  app.platform === 'macos' ? 'macos' : app.platform === 'ios' ? 'ios' : undefined;
 
 // ---------------------------------------------------------------------------------------------
 // Apple Analytics Reports (an ONGOING request already exists)
 
 async function readAppleAnalytics(env: Env): Promise<Outcome> {
   const { ctx, app, workspaceId } = env;
-  const requests = (await listReportRequests(ctx.db, workspaceId, app.id)).filter((r) => r.status !== 'missing');
+  const requests = (await listReportRequests(ctx.db, workspaceId, app.id)).filter(
+    (r) => r.status !== 'missing',
+  );
   const config = await getAppConfig(ctx.db, workspaceId, app.id);
-  if (requests.length === 0) return { kind: 'skip', setup: config.appleMode === 'import' ? 'import_only' : 'create_report_request' };
+  if (requests.length === 0)
+    return {
+      kind: 'skip',
+      setup: config.appleMode === 'import' ? 'import_only' : 'create_report_request',
+    };
   if (!app.storeAppId) throw new AnalyticsError('app_not_synced');
   const port = ctx.connectors.apple({ secret: env.secret, fetch: env.fetch });
 
@@ -205,15 +248,29 @@ async function readAppleAnalytics(env: Env): Promise<Outcome> {
   for (const request of requests) {
     const at = ctx.now();
     const theirs = known.find((k) => k.id === request.appleRequestId);
-    if (!theirs) await markReportRequest(ctx.db, request.id, { status: 'missing', errorCode: 'analytics_request_missing', now: at });
-    else if (theirs.stoppedDueToInactivity) await markReportRequest(ctx.db, request.id, { status: 'stopped', errorCode: 'analytics_request_stopped', now: at });
+    if (!theirs)
+      await markReportRequest(ctx.db, request.id, {
+        status: 'missing',
+        errorCode: 'analytics_request_missing',
+        now: at,
+      });
+    else if (theirs.stoppedDueToInactivity)
+      await markReportRequest(ctx.db, request.id, {
+        status: 'stopped',
+        errorCode: 'analytics_request_stopped',
+        now: at,
+      });
     else {
       await markReportRequest(ctx.db, request.id, { status: 'active', now: at });
       active.push(request);
     }
   }
   if (active.length === 0) {
-    throw new AnalyticsError(requests.some((r) => r.status === 'stopped') || known.some((k) => k.stoppedDueToInactivity) ? 'analytics_request_stopped' : 'analytics_request_missing');
+    throw new AnalyticsError(
+      requests.some((r) => r.status === 'stopped') || known.some((k) => k.stoppedDueToInactivity)
+        ? 'analytics_request_stopped'
+        : 'analytics_request_missing',
+    );
   }
 
   const settled = await settledInstances(ctx.db, workspaceId, app.id);
@@ -230,13 +287,18 @@ async function readAppleAnalytics(env: Env): Promise<Outcome> {
     for (const ref of refs) {
       const kind = appleReportKindFromName(ref.name);
       if (!kind) continue;
-      const instances = (await port.listInstances(ref.id)).filter((i) => i.granularity === '' || i.granularity.toUpperCase() === 'DAILY');
+      const instances = (await port.listInstances(ref.id)).filter(
+        (i) => i.granularity === '' || i.granularity.toUpperCase() === 'DAILY',
+      );
       for (const instance of instances) {
         if (settled.has(instance.id)) continue;
         if (budget <= 0) break;
         budget--;
         const at = ctx.now();
-        const record = (status: 'read' | 'failed', extra: { errorCode?: string; segments?: number; points?: number }) =>
+        const record = (
+          status: 'read' | 'failed',
+          extra: { errorCode?: string; segments?: number; points?: number },
+        ) =>
           saveInstance(ctx.db, {
             workspaceId,
             appId: app.id,
@@ -252,13 +314,27 @@ async function readAppleAnalytics(env: Env): Promise<Outcome> {
           const read = await port.readInstance(instance.id);
           let instancePoints: AnalyticsPoint[] = [];
           for (const text of read.texts) {
-            const table = parseTable(text, { maxRows: analyticsLimits.maxRows, maxColumns: analyticsLimits.maxColumns });
-            const parsed = mapAppleTable(table, { reportName: ref.name, ...(platform ? { platform } : {}) });
+            const table = parseTable(text, {
+              maxRows: analyticsLimits.maxRows,
+              maxColumns: analyticsLimits.maxColumns,
+            });
+            const parsed = mapAppleTable(table, {
+              reportName: ref.name,
+              ...(platform ? { platform } : {}),
+            });
             instancePoints = instancePoints.concat(parsed.points);
           }
           const result = await upsertPoints(
             ctx.db,
-            { workspaceId, appId: app.id, platform: app.platform, source: 'apple_analytics', processingDate: instance.processingDate, origin: 'sync', now: at },
+            {
+              workspaceId,
+              appId: app.id,
+              platform: app.platform,
+              source: 'apple_analytics',
+              processingDate: instance.processingDate,
+              origin: 'sync',
+              now: at,
+            },
             instancePoints,
           );
           points += result.written;
@@ -275,14 +351,28 @@ async function readAppleAnalytics(env: Env): Promise<Outcome> {
             reports++;
             continue;
           }
-          if (c.code === 'store_auth' || c.code === 'store_forbidden' || c.code === 'analytics_role_required' || c.code === 'rate_limited') throw error;
+          if (
+            c.code === 'store_auth' ||
+            c.code === 'store_forbidden' ||
+            c.code === 'analytics_role_required' ||
+            c.code === 'rate_limited'
+          )
+            throw error;
           failed = c.code;
           await record('failed', { errorCode: c.code });
         }
       }
     }
   }
-  return { kind: 'done', status: failed ? 'partial' : 'ok', points, reports, dayFrom: from, dayTo: to, ...(failed ? { errorCode: failed } : {}) };
+  return {
+    kind: 'done',
+    status: failed ? 'partial' : 'ok',
+    points,
+    reports,
+    dayFrom: from,
+    dayTo: to,
+    ...(failed ? { errorCode: failed } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -301,7 +391,12 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
     ? addDays(newestDay, -analyticsWindows.salesOverlapDays)
     : addDays(dateToDay(now), -analyticsWindows.salesFirstDays);
   const days: string[] = [];
-  for (let day = first < last ? first : last; day <= last && days.length < analyticsWindows.salesMaxDaysPerSync; day = addDays(day, 1)) days.push(day);
+  for (
+    let day = first < last ? first : last;
+    day <= last && days.length < analyticsWindows.salesMaxDaysPerSync;
+    day = addDays(day, 1)
+  )
+    days.push(day);
 
   let points = 0;
   let reports = 0;
@@ -310,12 +405,26 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
   for (const day of days) {
     const text = await port.fetchSalesReport({ vendorNumber: env.vendorNumber, date: day });
     if (text === null) continue;
-    const table = parseTable(text, { maxRows: analyticsLimits.maxRows, maxColumns: analyticsLimits.maxColumns });
-    const parsed = mapAppleSalesTable(table, { appleId: app.storeAppId, ...(platform ? { platform } : {}) });
+    const table = parseTable(text, {
+      maxRows: analyticsLimits.maxRows,
+      maxColumns: analyticsLimits.maxColumns,
+    });
+    const parsed = mapAppleSalesTable(table, {
+      appleId: app.storeAppId,
+      ...(platform ? { platform } : {}),
+    });
     reports++;
     const result = await upsertPoints(
       ctx.db,
-      { workspaceId, appId: app.id, platform: app.platform, source: 'apple_sales', processingDate: dateToDay(ctx.now()), origin: 'sync', now: ctx.now() },
+      {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: 'apple_sales',
+        processingDate: dateToDay(ctx.now()),
+        origin: 'sync',
+        now: ctx.now(),
+      },
       parsed.points,
     );
     points += result.written;
@@ -331,20 +440,41 @@ async function readAppleSales(env: Env, newestDay: string | null): Promise<Outco
 
 async function readPlayVitals(env: Env, newestDay: string | null): Promise<Outcome> {
   const { ctx, app, workspaceId } = env;
-  const port = ctx.connectors.playVitals({ secret: env.secret, packageName: app.identifier, fetch: env.fetch });
+  const port = ctx.connectors.playVitals({
+    secret: env.secret,
+    packageName: app.identifier,
+    fetch: env.fetch,
+  });
   const now = ctx.now();
   const to = addDays(dateToDay(now), -1);
-  const from = newestDay ? addDays(newestDay, -analyticsWindows.vitalsOverlapDays) : addDays(dateToDay(now), -analyticsWindows.vitalsFirstDays);
+  const from = newestDay
+    ? addDays(newestDay, -analyticsWindows.vitalsOverlapDays)
+    : addDays(dateToDay(now), -analyticsWindows.vitalsFirstDays);
   const result = await port.rates({ from: from < to ? from : to, to });
   // A first read that finds nothing says so, instead of an empty chart with no reason. Later reads may find nothing new.
   if (newestDay === null && result.rows === 0) throw new AnalyticsError('play_vitals_no_data');
   const written = await upsertPoints(
     ctx.db,
-    { workspaceId, appId: app.id, platform: app.platform, source: 'play_vitals', processingDate: dateToDay(ctx.now()), origin: 'sync', now: ctx.now() },
+    {
+      workspaceId,
+      appId: app.id,
+      platform: app.platform,
+      source: 'play_vitals',
+      processingDate: dateToDay(ctx.now()),
+      origin: 'sync',
+      now: ctx.now(),
+    },
     result.points,
   );
   const r = range(result.points);
-  return { kind: 'done', status: 'ok', points: written.written, reports: 1, dayFrom: r.from, dayTo: r.to };
+  return {
+    kind: 'done',
+    status: 'ok',
+    points: written.written,
+    reports: 1,
+    dayFrom: r.from,
+    dayTo: r.to,
+  };
 }
 
 /** `YYYYMM` of the month of a day, and of the month before. */
@@ -362,7 +492,12 @@ function monthsBack(now: number, count: number): string[] {
 async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
   const { ctx, app, workspaceId } = env;
   if (env.bucketId === null) return { kind: 'skip', setup: 'bucket_id_missing' };
-  const port = ctx.connectors.playReports({ secret: env.secret, packageName: app.identifier, bucketId: env.bucketId, fetch: env.fetch });
+  const port = ctx.connectors.playReports({
+    secret: env.secret,
+    packageName: app.identifier,
+    bucketId: env.bucketId,
+    fetch: env.fetch,
+  });
   // The current month is read again every time (the file grows); a first read also takes earlier months.
   const months = monthsBack(ctx.now(), firstRead ? analyticsWindows.playFirstMonths : 2);
   let points = 0;
@@ -383,7 +518,15 @@ async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
     reports += result.files.length;
     const written = await upsertPoints(
       ctx.db,
-      { workspaceId, appId: app.id, platform: app.platform, source: 'play_reports', processingDate: dateToDay(ctx.now()), origin: 'sync', now: ctx.now() },
+      {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: 'play_reports',
+        processingDate: dateToDay(ctx.now()),
+        origin: 'sync',
+        now: ctx.now(),
+      },
       result.points,
     );
     points += written.written;
@@ -394,7 +537,8 @@ async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
   if (found === 0) {
     // Reports are organised by package name in ONE bucket per Play account: a package that is nowhere in the bucket means the bucket
     // belongs to another account (or the app has no reports at all), which is a different next step from "no file for this month yet".
-    if (port.hasPackage && !(await port.hasPackage())) throw new AnalyticsError('package_not_in_bucket');
+    if (port.hasPackage && !(await port.hasPackage()))
+      throw new AnalyticsError('package_not_in_bucket');
     throw new AnalyticsError('reports_not_found');
   }
   return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
@@ -424,7 +568,9 @@ export type AnalyticsSyncOptions = {
   trigger: RunTrigger;
 };
 
-export type AnalyticsSyncOutcome = { ok: true; sync: AnalyticsSyncResult } | (Failure & { transient: boolean });
+export type AnalyticsSyncOutcome =
+  | { ok: true; sync: AnalyticsSyncResult }
+  | (Failure & { transient: boolean });
 
 /**
  * Syncs one app. Never throws: a failure is recorded on the source state and the run, and returned. A manual call needs the
@@ -440,10 +586,20 @@ export async function syncAnalytics(
   if (!app) return { ...failure(404, 'not_found'), transient: false };
   const settings = (await getSettings(ctx.db, input.workspaceId)).values;
   if (settings['analytics.enabled'] !== true) {
-    return { ...failure(409, 'analytics_disabled', 'Analytics is off for this workspace. An admin turns it on in the settings (analytics.enabled).'), transient: false };
+    return {
+      ...failure(
+        409,
+        'analytics_disabled',
+        'Analytics is off for this workspace. An admin turns it on in the settings (analytics.enabled).',
+      ),
+      transient: false,
+    };
   }
   if (running.has(app.id)) {
-    return { ...failure(409, 'sync_in_progress', 'The analytics of this app are already being read.'), transient: false };
+    return {
+      ...failure(409, 'sync_in_progress', 'The analytics of this app are already being read.'),
+      transient: false,
+    };
   }
   running.add(app.id);
   try {
@@ -464,33 +620,79 @@ async function run(
   options: AnalyticsSyncOptions,
   settings: Record<string, unknown>,
 ): Promise<AnalyticsSyncOutcome> {
-  const wanted = sourcesForPlatform(app.platform).filter((s) => !options.sources || options.sources.includes(s));
+  const wanted = sourcesForPlatform(app.platform).filter(
+    (s) => !options.sources || options.sources.includes(s),
+  );
   const startedBy = actor.type === 'user' || actor.type === 'token' ? actor.id : null;
 
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: ANALYTICS_SYNC_QUEUE }, actor, ctx.now());
+    secret = await useCredentialSecret(
+      ctx.db,
+      ctx.masterKey,
+      { workspaceId, id: app.credentialId, purpose: ANALYTICS_SYNC_QUEUE },
+      actor,
+      ctx.now(),
+    );
   } catch {
     secret = undefined;
-    return failAll(ctx, app, workspaceId, wanted, 'credential_unreadable', actor, options.trigger, startedBy);
+    return failAll(
+      ctx,
+      app,
+      workspaceId,
+      wanted,
+      'credential_unreadable',
+      actor,
+      options.trigger,
+      startedBy,
+    );
   }
-  if (secret === undefined) return failAll(ctx, app, workspaceId, wanted, 'credential_not_found', actor, options.trigger, startedBy);
+  if (secret === undefined)
+    return failAll(
+      ctx,
+      app,
+      workspaceId,
+      wanted,
+      'credential_not_found',
+      actor,
+      options.trigger,
+      startedBy,
+    );
 
-  const vendorNumber = typeof settings['analytics.appleVendorNumber'] === 'string' ? (settings['analytics.appleVendorNumber'] as string) : '';
+  const vendorNumber =
+    typeof settings['analytics.appleVendorNumber'] === 'string'
+      ? (settings['analytics.appleVendorNumber'] as string)
+      : '';
   // The app's own override, else its Play developer account's bucket, else the workspace setting.
   const bucketId = (await resolvePlayBucket(ctx.db, { workspaceId, app, settings })).bucketId;
 
   const results: SourceResult[] = [];
-  const states = await ctx.db.query('SELECT source, newest_day, last_ok_at FROM analytics_source_state WHERE app_id = ? AND platform = ?', [app.id, app.platform]);
+  const states = await ctx.db.query(
+    'SELECT source, newest_day, last_ok_at FROM analytics_source_state WHERE app_id = ? AND platform = ?',
+    [app.id, app.platform],
+  );
   const stateOf = (source: AnalyticsSource) => states.find((r) => String(r.source) === source);
 
   for (const source of wanted) {
     const startedAt = ctx.now();
-    const base = { workspaceId, appId: app.id, platform: app.platform, source, trigger: options.trigger, startedBy, startedAt };
+    const base = {
+      workspaceId,
+      appId: app.id,
+      platform: app.platform,
+      source,
+      trigger: options.trigger,
+      startedBy,
+      startedAt,
+    };
     const controller = new AbortController();
     const baseFetch = globalThis.fetch;
     const guarded: typeof fetch = (target, init) =>
-      baseFetch(target, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+      baseFetch(target, {
+        ...init,
+        signal: init?.signal
+          ? AbortSignal.any([init.signal, controller.signal])
+          : controller.signal,
+      });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -498,10 +700,21 @@ async function run(
         reject(new SyncTimeout('timeout'));
       }, ctx.timeoutMs);
     });
-    const env: Env = { ctx, app, workspaceId, actor, trigger: options.trigger, secret, fetch: guarded, vendorNumber, bucketId };
+    const env: Env = {
+      ctx,
+      app,
+      workspaceId,
+      actor,
+      trigger: options.trigger,
+      secret,
+      fetch: guarded,
+      vendorNumber,
+      bucketId,
+    };
     const newest = stateOf(source)?.newest_day;
     const newestDay = newest === null || newest === undefined ? null : String(newest);
-    const firstRead = stateOf(source)?.last_ok_at === null || stateOf(source)?.last_ok_at === undefined;
+    const firstRead =
+      stateOf(source)?.last_ok_at === null || stateOf(source)?.last_ok_at === undefined;
     try {
       const work = serialized(app.credentialId, () =>
         source === 'apple_analytics'
@@ -516,7 +729,15 @@ async function run(
       const outcome = await Promise.race([work, timedOut]);
       const at = ctx.now();
       if (outcome.kind === 'skip') {
-        await saveSourceState(ctx.db, { workspaceId, appId: app.id, platform: app.platform, source, now: at, ok: true, attempted: false });
+        await saveSourceState(ctx.db, {
+          workspaceId,
+          appId: app.id,
+          platform: app.platform,
+          source,
+          now: at,
+          ok: true,
+          attempted: false,
+        });
         results.push({ source, status: 'skipped', setup: outcome.setup });
         continue;
       }
@@ -541,13 +762,34 @@ async function run(
         dayFrom: outcome.dayFrom,
         dayTo: outcome.dayTo,
       });
-      results.push({ source, status: outcome.status, points: outcome.points, reports: outcome.reports, dayFrom: outcome.dayFrom, dayTo: outcome.dayTo, ...(outcome.errorCode ? { errorCode: outcome.errorCode } : {}) });
+      results.push({
+        source,
+        status: outcome.status,
+        points: outcome.points,
+        reports: outcome.reports,
+        dayFrom: outcome.dayFrom,
+        dayTo: outcome.dayTo,
+        ...(outcome.errorCode ? { errorCode: outcome.errorCode } : {}),
+      });
     } catch (error) {
       const c = classifyAnalyticsError(error);
       const at = ctx.now();
       // Only the code is kept, never the text of the error.
-      await recordRun(ctx.db, { ...base, status: 'failed', errorCode: c.code, finishedAt: at }).catch(() => undefined);
-      await saveSourceState(ctx.db, { workspaceId, appId: app.id, platform: app.platform, source, now: at, ok: false, errorCode: c.code }).catch(() => undefined);
+      await recordRun(ctx.db, {
+        ...base,
+        status: 'failed',
+        errorCode: c.code,
+        finishedAt: at,
+      }).catch(() => undefined);
+      await saveSourceState(ctx.db, {
+        workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source,
+        now: at,
+        ok: false,
+        errorCode: c.code,
+      }).catch(() => undefined);
       results.push({ source, status: 'failed', errorCode: c.code, transient: c.transient });
     } finally {
       clearTimeout(timer);
@@ -569,8 +811,27 @@ async function failAll(
   const results: SourceResult[] = [];
   for (const source of sources) {
     const at = ctx.now();
-    await recordRun(ctx.db, { workspaceId, appId: app.id, platform: app.platform, source, trigger, startedBy, status: 'failed', errorCode: code, startedAt: at, finishedAt: at });
-    await saveSourceState(ctx.db, { workspaceId, appId: app.id, platform: app.platform, source, now: at, ok: false, errorCode: code });
+    await recordRun(ctx.db, {
+      workspaceId,
+      appId: app.id,
+      platform: app.platform,
+      source,
+      trigger,
+      startedBy,
+      status: 'failed',
+      errorCode: code,
+      startedAt: at,
+      finishedAt: at,
+    });
+    await saveSourceState(ctx.db, {
+      workspaceId,
+      appId: app.id,
+      platform: app.platform,
+      source,
+      now: at,
+      ok: false,
+      errorCode: code,
+    });
     results.push({ source, status: 'failed', errorCode: code, transient: false });
   }
   return finalize(ctx, app, workspaceId, actor, trigger, results);
@@ -585,7 +846,10 @@ async function finalize(
   results: SourceResult[],
 ): Promise<AnalyticsSyncOutcome> {
   const at = ctx.now();
-  const pointsWritten = results.reduce((sum, r) => sum + (r.status === 'ok' || r.status === 'partial' ? r.points : 0), 0);
+  const pointsWritten = results.reduce(
+    (sum, r) => sum + (r.status === 'ok' || r.status === 'partial' ? r.points : 0),
+    0,
+  );
   const summary = results.map((r) => ({
     source: r.source,
     status: r.status,
@@ -595,7 +859,10 @@ async function finalize(
     ...(r.status === 'skipped' ? { setup: r.setup } : {}),
   }));
   await ctx.db.transaction(async (tx) => {
-    const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [app.id, workspaceId]);
+    const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [
+      app.id,
+      workspaceId,
+    ]);
     if (!still) return;
     // Ids, counts and fixed codes only: no report row, no URL, no store text.
     await recordAudit(tx, {
@@ -611,7 +878,13 @@ async function finalize(
         workspaceId,
         type: 'analytics.synced',
         subject: { appId: app.id },
-        payload: { appId: app.id, platform: app.platform, trigger, pointsWritten, sources: summary },
+        payload: {
+          appId: app.id,
+          platform: app.platform,
+          trigger,
+          pointsWritten,
+          sources: summary,
+        },
         at,
       });
     }
@@ -624,8 +897,15 @@ async function finalize(
 
 export type AnalyticsSyncPayload = { workspaceId: string; appId: string; requestedBy: string };
 
-export function enqueueAnalyticsSync(ctx: Pick<AnalyticsContext, 'db' | 'now'>, payload: AnalyticsSyncPayload, options: { runAt?: number } = {}): Promise<string> {
-  return enqueue(ctx.db, ANALYTICS_SYNC_QUEUE, payload, { now: ctx.now(), ...(options.runAt !== undefined ? { runAt: options.runAt } : {}) });
+export function enqueueAnalyticsSync(
+  ctx: Pick<AnalyticsContext, 'db' | 'now'>,
+  payload: AnalyticsSyncPayload,
+  options: { runAt?: number } = {},
+): Promise<string> {
+  return enqueue(ctx.db, ANALYTICS_SYNC_QUEUE, payload, {
+    now: ctx.now(),
+    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}),
+  });
 }
 
 const isPayload = (value: unknown): value is AnalyticsSyncPayload =>
@@ -639,20 +919,29 @@ const isPayload = (value: unknown): value is AnalyticsSyncPayload =>
 export function createAnalyticsSyncHandler(ctx: AnalyticsContext): JobHandler {
   return async (payload) => {
     if (!isPayload(payload)) return;
-    await syncAnalytics(ctx, { workspaceId: payload.workspaceId, appId: payload.appId }, { type: 'system', id: ANALYTICS_SYNC_QUEUE }, { trigger: 'schedule' }).catch(
-      () => undefined,
-    );
+    await syncAnalytics(
+      ctx,
+      { workspaceId: payload.workspaceId, appId: payload.appId },
+      { type: 'system', id: ANALYTICS_SYNC_QUEUE },
+      { trigger: 'schedule' },
+    ).catch(() => undefined);
   };
 }
 
 export type { SyncRun };
 
 /** Runs `job` with a `fetch` that is aborted after `ms`; a job that runs over is a `timeout`. */
-export async function withDeadline<T>(ms: number, job: (fetch: typeof globalThis.fetch) => Promise<T>): Promise<T> {
+export async function withDeadline<T>(
+  ms: number,
+  job: (fetch: typeof globalThis.fetch) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const baseFetch = globalThis.fetch;
   const guarded: typeof fetch = (target, init) =>
-    baseFetch(target, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+    baseFetch(target, {
+      ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {

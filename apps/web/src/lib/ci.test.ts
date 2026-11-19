@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   buildLinkLabel,
   buildName,
+  canDispatchWorkflow,
   changesHeadline,
   dispatchInputs,
   dispatchSummary,
@@ -20,7 +21,6 @@ import {
   shortSha,
   sortRuns,
   workflowKey,
-  canDispatchWorkflow,
 } from './ci.ts';
 import type { AppBuild, WorkflowInputSpec, WorkflowRun } from './types.ts';
 
@@ -77,7 +77,8 @@ const build = (platform: 'ios' | 'android', buildNumber: string, linked: boolean
 });
 
 test('runBadge says the state in words for every status and conclusion', () => {
-  const label = (status: string, conclusion: string | null = null) => runBadge({ status, conclusion });
+  const label = (status: string, conclusion: string | null = null) =>
+    runBadge({ status, conclusion });
   assert.deepEqual(label('pending'), { label: 'Starting', tone: 'info', dot: true });
   assert.equal(label('queued').label, 'Queued');
   assert.equal(label('waiting').label, 'Queued');
@@ -110,7 +111,11 @@ test('hasActiveRun, isPending, runTitle, sortRuns, runDuration', () => {
     run({ id: '2', startedAt: 1, active: true }),
     run({ id: '3', startedAt: 9 }),
   ]);
-  assert.deepEqual(sorted.map((r) => r.id), ['2', '3', '1'], 'running first, then the newest');
+  assert.deepEqual(
+    sorted.map((r) => r.id),
+    ['2', '3', '1'],
+    'running first, then the newest',
+  );
 
   assert.equal(runDuration(run({ startedAt: 0, updatedAt: 45_000 })), '45 s');
   assert.equal(runDuration(run({ startedAt: 0, updatedAt: 200_000 })), '3 min 20 s');
@@ -138,27 +143,57 @@ const specs: WorkflowInputSpec[] = [
 
 test('the dispatch form starts from defaults and says what is wrong', () => {
   const values = initialInputValues(specs);
-  assert.deepEqual(values, { build_number: '', track: 'internal', notes: '', dry_run: 'false', retries: '2' });
+  assert.deepEqual(values, {
+    build_number: '',
+    track: 'internal',
+    notes: '',
+    dry_run: 'false',
+    retries: '2',
+  });
   assert.deepEqual(inputProblems(specs, values), { build_number: 'build_number is required.' });
 
   assert.deepEqual(inputProblems(specs, { ...values, build_number: '241' }), {});
-  const bad = inputProblems(specs, { ...values, build_number: '241', track: 'prod', dry_run: 'maybe', retries: 'many' });
+  const bad = inputProblems(specs, {
+    ...values,
+    build_number: '241',
+    track: 'prod',
+    dry_run: 'maybe',
+    retries: 'many',
+  });
   assert.deepEqual(Object.keys(bad).sort(), ['dry_run', 'retries', 'track']);
   assert.match(bad.track ?? '', /internal, beta/);
-  assert.match(inputProblems(specs, { ...values, build_number: 'x'.repeat(5000) }).build_number ?? '', /too long/);
-  assert.deepEqual(inputProblems(specs, { ...values, build_number: '   ' }), { build_number: 'build_number is required.' });
+  assert.match(
+    inputProblems(specs, { ...values, build_number: 'x'.repeat(5000) }).build_number ?? '',
+    /too long/,
+  );
+  assert.deepEqual(inputProblems(specs, { ...values, build_number: '   ' }), {
+    build_number: 'build_number is required.',
+  });
 });
 
 test('dispatchInputs sends what has a value, trimmed, and leaves empty optional fields out', () => {
-  const sent = dispatchInputs(specs, { build_number: ' 241 ', track: 'beta', notes: '', dry_run: 'true', retries: '2' });
+  const sent = dispatchInputs(specs, {
+    build_number: ' 241 ',
+    track: 'beta',
+    notes: '',
+    dry_run: 'true',
+    retries: '2',
+  });
   assert.deepEqual(sent, { build_number: '241', track: 'beta', dry_run: 'true', retries: '2' });
   assert.deepEqual(dispatchInputs([], {}), {});
-  assert.deepEqual(dispatchInputs(specs, { stray: 'x' }), {}, 'a value that no input declares is not sent');
+  assert.deepEqual(
+    dispatchInputs(specs, { stray: 'x' }),
+    {},
+    'a value that no input declares is not sent',
+  );
 });
 
 test('free-form inputs: name=value lines with a clear message for each bad one', () => {
   const ok = parseFreeFormInputs('build_number=241\n\n# a comment\n notes = a=b, c \r\ntrack=beta');
-  assert.deepEqual(ok, { inputs: { build_number: '241', notes: 'a=b, c', track: 'beta' }, problems: [] });
+  assert.deepEqual(ok, {
+    inputs: { build_number: '241', notes: 'a=b, c', track: 'beta' },
+    problems: [],
+  });
   assert.deepEqual(parseFreeFormInputs('').inputs, {});
 
   const bad = parseFreeFormInputs('novalue\n=x\nbad name=1\nok=1\nok=2');
@@ -180,10 +215,18 @@ test('dispatchSummary names the workflow, the ref, the repository and how many i
     'Run ios.yml on main in acme/app with no inputs.',
   );
   assert.equal(
-    dispatchSummary({ workflow: 'ios.yml', ref: 'main', repository: 'acme/app', inputs: { a: '1' } }),
+    dispatchSummary({
+      workflow: 'ios.yml',
+      ref: 'main',
+      repository: 'acme/app',
+      inputs: { a: '1' },
+    }),
     'Run ios.yml on main in acme/app with 1 input.',
   );
-  assert.match(dispatchSummary({ workflow: 'w', ref: 'r', repository: 'o/r', inputs: { a: '1', b: '2' } }), /with 2 inputs\.$/);
+  assert.match(
+    dispatchSummary({ workflow: 'w', ref: 'r', repository: 'o/r', inputs: { a: '1', b: '2' } }),
+    /with 2 inputs\.$/,
+  );
 });
 
 test('build helpers', () => {
@@ -201,15 +244,29 @@ test('build helpers', () => {
 });
 
 test('previousLinkedBuild skips unlinked builds and other platforms', () => {
-  const builds = [build('android', '9', true), build('ios', '240', true), build('ios', '239', false), build('ios', '238', true), build('ios', '237', true)];
-  assert.equal(previousLinkedBuild(builds, { platform: 'ios', buildNumber: '240' })?.buildNumber, '238');
+  const builds = [
+    build('android', '9', true),
+    build('ios', '240', true),
+    build('ios', '239', false),
+    build('ios', '238', true),
+    build('ios', '237', true),
+  ];
+  assert.equal(
+    previousLinkedBuild(builds, { platform: 'ios', buildNumber: '240' })?.buildNumber,
+    '238',
+  );
   assert.equal(previousLinkedBuild(builds, { platform: 'ios', buildNumber: '237' }), undefined);
   assert.equal(previousLinkedBuild(builds, { platform: 'ios', buildNumber: '1' }), undefined);
   assert.equal(previousLinkedBuild(builds, { platform: 'android', buildNumber: '9' }), undefined);
 });
 
 test('changesHeadline reads well for each relation', () => {
-  const end = (buildNumber: string) => ({ buildNumber, version: '2.4.0', sha: 'c'.repeat(40), shortSha: 'ccccccc' });
+  const end = (buildNumber: string) => ({
+    buildNumber,
+    version: '2.4.0',
+    sha: 'c'.repeat(40),
+    shortSha: 'ccccccc',
+  });
   const h = (status: string, totalCommits: number, behindBy = 0) =>
     changesHeadline({ base: end('238'), head: end('240'), status, totalCommits, behindBy });
   assert.equal(h('ahead', 2), '2 commits in build 240 since build 238.');

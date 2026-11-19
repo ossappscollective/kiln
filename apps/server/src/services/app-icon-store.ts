@@ -31,7 +31,8 @@ export type IconRow = {
 };
 
 type Row = Record<string, unknown>;
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null => (v === null || v === undefined ? null : f(v));
+const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
+  v === null || v === undefined ? null : f(v);
 
 const toRow = (r: Row): IconRow => ({
   appId: String(r.app_id),
@@ -54,8 +55,15 @@ const toRow = (r: Row): IconRow => ({
 const COLUMNS =
   'app_id, workspace_id, source, source_id, media_type, data, size, width, height, etag, fetched_at, checked_at, failures, backoff_until, last_error';
 
-export async function getAppIcon(sql: Sql, workspaceId: string, appId: string): Promise<IconRow | undefined> {
-  const [row] = await sql.query(`SELECT ${COLUMNS} FROM app_icons WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+export async function getAppIcon(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<IconRow | undefined> {
+  const [row] = await sql.query(
+    `SELECT ${COLUMNS} FROM app_icons WHERE app_id = ? AND workspace_id = ?`,
+    [appId, workspaceId],
+  );
   return row ? toRow(row) : undefined;
 }
 
@@ -91,5 +99,8 @@ export async function putAppIcon(sql: Sql, row: IconRow): Promise<void> {
 
 /** Removes the icon row of an app. Called when the app is deleted (services/apps.ts deleteApp). */
 export async function deleteAppIcon(sql: Sql, workspaceId: string, appId: string): Promise<void> {
-  await sql.execute('DELETE FROM app_icons WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
+  await sql.execute('DELETE FROM app_icons WHERE app_id = ? AND workspace_id = ?', [
+    appId,
+    workspaceId,
+  ]);
 }

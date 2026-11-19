@@ -107,11 +107,32 @@ const version = (id: string, attributes: Record<string, unknown>) => ({
 /** Both state fields exist while Apple migrates: the new one wins, the old one is the fallback. */
 export const appleVersions = {
   data: [
-    version('v-new', { platform: 'IOS', versionString: '2.1', appVersionState: 'WAITING_FOR_REVIEW', appStoreState: 'WAITING_FOR_REVIEW' }),
-    version('v-new-only', { platform: 'IOS', versionString: '2.0', appVersionState: 'READY_FOR_DISTRIBUTION' }),
-    version('v-old-only', { platform: 'IOS', versionString: '1.9', appStoreState: 'READY_FOR_SALE' }),
-    version('v-unknown', { platform: 'IOS', versionString: '1.8', appVersionState: 'SOMETHING_NEW' }),
-    version('v-mac', { platform: 'MAC_OS', versionString: '2.1', appVersionState: 'PREPARE_FOR_SUBMISSION' }),
+    version('v-new', {
+      platform: 'IOS',
+      versionString: '2.1',
+      appVersionState: 'WAITING_FOR_REVIEW',
+      appStoreState: 'WAITING_FOR_REVIEW',
+    }),
+    version('v-new-only', {
+      platform: 'IOS',
+      versionString: '2.0',
+      appVersionState: 'READY_FOR_DISTRIBUTION',
+    }),
+    version('v-old-only', {
+      platform: 'IOS',
+      versionString: '1.9',
+      appStoreState: 'READY_FOR_SALE',
+    }),
+    version('v-unknown', {
+      platform: 'IOS',
+      versionString: '1.8',
+      appVersionState: 'SOMETHING_NEW',
+    }),
+    version('v-mac', {
+      platform: 'MAC_OS',
+      versionString: '2.1',
+      appVersionState: 'PREPARE_FOR_SUBMISSION',
+    }),
   ],
   links: { self: `${APPLE_BASE}/v1/apps/10746822401/appStoreVersions` },
   meta: { paging: { total: 5, limit: 50 } },
@@ -143,7 +164,11 @@ const build = (id: string, preId: string | null, attributes: Record<string, unkn
 export const appleBuilds = {
   data: [
     build('b-valid', 'pre-21', { version: '210' }),
-    build('b-processing', 'pre-21', { version: '211', processingState: 'PROCESSING', uploadedDate: '2022-09-08T10:00:00-07:00' }),
+    build('b-processing', 'pre-21', {
+      version: '211',
+      processingState: 'PROCESSING',
+      uploadedDate: '2022-09-08T10:00:00-07:00',
+    }),
     build('b-failed', 'pre-20', { version: '200', processingState: 'FAILED', expired: true }),
     build('b-invalid', 'pre-20', { version: '201', processingState: 'INVALID' }),
     build('b-future', 'pre-20', { version: '202', processingState: 'SOMETHING_NEW' }),
@@ -153,7 +178,11 @@ export const appleBuilds = {
   included: [
     { type: 'preReleaseVersions', id: 'pre-21', attributes: { version: '2.1', platform: 'IOS' } },
     { type: 'preReleaseVersions', id: 'pre-20', attributes: { version: '2.0', platform: 'IOS' } },
-    { type: 'preReleaseVersions', id: 'pre-mac', attributes: { version: '9.0', platform: 'MAC_OS' } },
+    {
+      type: 'preReleaseVersions',
+      id: 'pre-mac',
+      attributes: { version: '9.0', platform: 'MAC_OS' },
+    },
   ],
   links: { self: `${APPLE_BASE}/v1/builds?filter[app]=10746822401` },
   meta: { paging: { total: 7, limit: 50 } },
@@ -172,7 +201,12 @@ export const appleBuildsMinimal = {
   meta: { paging: { total: 7, limit: 50 } },
 };
 
-const preReleaseVersion = (id: string, versionString: string, platform: string, buildIds: string[]) => ({
+const preReleaseVersion = (
+  id: string,
+  versionString: string,
+  platform: string,
+  buildIds: string[],
+) => ({
   type: 'preReleaseVersions',
   id,
   attributes: { version: versionString, platform },
@@ -211,8 +245,18 @@ export const apple403 = appleError(
   'This request is forbidden for security reasons',
   'The API key in use does not allow this request',
 );
-export const apple404 = appleError('404', 'NOT_FOUND', 'The specified resource does not exist', 'There is no resource of type apps with id 1');
-export const apple429 = appleError('429', 'RATE_LIMIT_EXCEEDED', 'Rate limit exceeded', 'Too many requests.');
+export const apple404 = appleError(
+  '404',
+  'NOT_FOUND',
+  'The specified resource does not exist',
+  'There is no resource of type apps with id 1',
+);
+export const apple429 = appleError(
+  '429',
+  'RATE_LIMIT_EXCEEDED',
+  'Rate limit exceeded',
+  'Too many requests.',
+);
 
 /**
  * A 400 that names the rejected query parameter. The structure (`errors[].code`, `title`, `detail`,
@@ -234,7 +278,12 @@ export const appleParameterError = (parameter: string) => ({
 });
 export const apple400Sort = appleParameterError('sort');
 /** A 400 that is not about a parameter (a body or state problem): never retried. */
-export const apple400Entity = appleError('400', 'ENTITY_ERROR.ATTRIBUTE.INVALID', 'An attribute value is invalid', 'The value is not allowed.');
+export const apple400Entity = appleError(
+  '400',
+  'ENTITY_ERROR.ATTRIBUTE.INVALID',
+  'An attribute value is invalid',
+  'The value is not allowed.',
+);
 
 // ---------------------------------------------------------------------------------------------
 // Google
@@ -258,7 +307,10 @@ export const googleListings = {
 export const googleTracks = {
   kind: 'androidpublisher#tracksListResponse',
   tracks: [
-    { track: 'internal', releases: [{ name: '2.1.0 (211)', versionCodes: ['211'], status: 'completed' }] },
+    {
+      track: 'internal',
+      releases: [{ name: '2.1.0 (211)', versionCodes: ['211'], status: 'completed' }],
+    },
     { track: 'beta', releases: [{ name: '2.1.0 (211)', versionCodes: ['211'], status: 'draft' }] },
     {
       track: 'production',
@@ -267,7 +319,12 @@ export const googleTracks = {
         { name: '2.0.0', versionCodes: ['200', '201'], status: 'completed' },
       ],
     },
-    { track: 'alpha', releases: [{ name: 'halted one', versionCodes: ['150'], status: 'halted', userFraction: 0.5 }] },
+    {
+      track: 'alpha',
+      releases: [
+        { name: 'halted one', versionCodes: ['150'], status: 'halted', userFraction: 0.5 },
+      ],
+    },
     { track: 'wear:production', releases: [] },
     { track: 'qa', releases: [{ versionCodes: ['9'], status: 'statusUnspecified' }] },
   ],
@@ -297,23 +354,48 @@ export const google403Disabled = {
     message:
       'Google Play Android Developer API has not been used in project 400719706081 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/androidpublisher.googleapis.com/overview?project=400719706081 then retry.',
     status: 'PERMISSION_DENIED',
-    details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'SERVICE_DISABLED', domain: 'googleapis.com' }],
+    details: [
+      {
+        '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+        reason: 'SERVICE_DISABLED',
+        domain: 'googleapis.com',
+      },
+    ],
   },
 };
-export const google403Forbidden = googleErr(403, 'PERMISSION_DENIED', 'The caller does not have permission', 'forbidden');
+export const google403Forbidden = googleErr(
+  403,
+  'PERMISSION_DENIED',
+  'The caller does not have permission',
+  'forbidden',
+);
 export const google403NotLinked = googleErr(
   403,
   'PERMISSION_DENIED',
   'The project id used to call the Google Play Developer API has not been linked in the Google Play Developer Console.',
   'projectNotLinked',
 );
-export const google404Package = googleErr(404, 'NOT_FOUND', 'Package not found: com.example.coffee.', 'notFound');
+export const google404Package = googleErr(
+  404,
+  'NOT_FOUND',
+  'Package not found: com.example.coffee.',
+  'notFound',
+);
 export const google404Edit = googleErr(404, 'NOT_FOUND', 'Edit not found.', 'editNotFound');
 export const google401 = googleErr(401, 'UNAUTHENTICATED', 'Invalid Credentials', 'authError');
-export const google429Quota = googleErr(429, 'RESOURCE_EXHAUSTED', 'Quota exceeded.', 'rateLimitExceeded');
+export const google429Quota = googleErr(
+  429,
+  'RESOURCE_EXHAUSTED',
+  'Quota exceeded.',
+  'rateLimitExceeded',
+);
 
 export const googleTokenErrors = {
-  clock: { error: 'invalid_grant', error_description: 'Invalid JWT: Token must be a short-lived token (60 minutes) and in a reasonable timeframe. Check your iat and exp values in the JWT claim.' },
+  clock: {
+    error: 'invalid_grant',
+    error_description:
+      'Invalid JWT: Token must be a short-lived token (60 minutes) and in a reasonable timeframe. Check your iat and exp values in the JWT claim.',
+  },
   signature: { error: 'invalid_grant', error_description: 'Invalid JWT Signature.' },
   email: { error: 'invalid_grant', error_description: 'Invalid email or User ID' },
   generic: { error: 'invalid_grant', error_description: 'Something else.' },
@@ -397,7 +479,9 @@ export class FakeFetch {
     return this.calls.filter(
       (c) =>
         c.method === method &&
-        (typeof match === 'string' ? c.url.pathname + c.url.search === match : match.test(c.url.pathname + c.url.search)),
+        (typeof match === 'string'
+          ? c.url.pathname + c.url.search === match
+          : match.test(c.url.pathname + c.url.search)),
     );
   }
 }

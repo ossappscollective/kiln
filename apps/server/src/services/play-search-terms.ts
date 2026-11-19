@@ -1,26 +1,31 @@
 import { createHash } from 'node:crypto';
-import { AnalyticsError, type SearchTermsFile, checkPeriod, readSearchTermsFile } from '@mrm/connectors';
+import {
+  AnalyticsError,
+  checkPeriod,
+  readSearchTermsFile,
+  type SearchTermsFile,
+} from '@mrm/connectors';
 import {
   type ActorType,
-  type FitFields,
-  type SearchTermInsight,
-  type SearchTermPoint,
-  type SearchTermSort,
-  type SearchTermsSummary,
   addDays,
   analyticsErrorMessages,
   daysBetween,
+  type FitFields,
   isGooglePlatform,
   isIsoDate,
   isSearchTermSort,
   normalizeCountry,
+  type SearchTermInsight,
+  type SearchTermPoint,
+  type SearchTermSort,
+  type SearchTermsSummary,
   searchTermInsights,
   searchTermLimits,
   summariseSearchTerms,
 } from '@mrm/core';
 import type { Database, Param, Sql } from '@mrm/db';
-import { getApp } from './apps.ts';
 import type { ManagedApp } from './apps.ts';
+import { getApp } from './apps.ts';
 import { listKeywords } from './aso.ts';
 import { defaultLocale, ownFields } from './aso-insights.ts';
 import { recordAudit } from './audit.ts';
@@ -61,7 +66,12 @@ export type SearchTermsPlan = {
   totals: { visitors: number | null; installs: number | null };
   other: { visitors: number | null; installs: number | null } | null;
   /** The ten terms with most installs, so the person sees what is in the file. */
-  top: { term: string; visitors: number | null; installs: number | null; conversion: number | null }[];
+  top: {
+    term: string;
+    visitors: number | null;
+    installs: number | null;
+    conversion: number | null;
+  }[];
   /** Different stored periods of the same country that overlap the file and could count a day twice (a period file is one side of it). */
   overlapsStored: number;
   notes: string[];
@@ -69,18 +79,38 @@ export type SearchTermsPlan = {
 
 const hashOf = (appId: string, points: readonly SearchTermPoint[]): string => {
   const rows = points
-    .map((p) => [p.country, p.from, p.to, p.key, p.term, p.visitors, p.installs, p.conversion] as const)
-    .sort((a, b) => (`${a[0]}|${a[1]}|${a[2]}|${a[3]}` < `${b[0]}|${b[1]}|${b[2]}|${b[3]}` ? -1 : 1));
-  return createHash('sha256').update(JSON.stringify({ v: 1, appId, rows })).digest('hex');
+    .map(
+      (p) =>
+        [p.country, p.from, p.to, p.key, p.term, p.visitors, p.installs, p.conversion] as const,
+    )
+    .sort((a, b) =>
+      `${a[0]}|${a[1]}|${a[2]}|${a[3]}` < `${b[0]}|${b[1]}|${b[2]}|${b[3]}` ? -1 : 1,
+    );
+  return createHash('sha256')
+    .update(JSON.stringify({ v: 1, appId, rows }))
+    .digest('hex');
 };
 
 const toMicro = (r: number | null) => (r === null ? null : Math.round(r * 1_000_000));
 
-type Parsed = { ok: true; plan: SearchTermsPlan; points: SearchTermPoint[]; confirmHash: string; app: ManagedApp } | Failure;
+type Parsed =
+  | {
+      ok: true;
+      plan: SearchTermsPlan;
+      points: SearchTermPoint[];
+      confirmHash: string;
+      app: ManagedApp;
+    }
+  | Failure;
 
 type Input = { workspaceId: string; appId: string; bytes: Uint8Array; from?: string; to?: string };
 
-async function overlaps(sql: Sql, workspaceId: string, appId: string, file: SearchTermsFile): Promise<number> {
+async function overlaps(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  file: SearchTermsFile,
+): Promise<number> {
   if (file.dateFrom === null || file.dateTo === null) return 0;
   const stored = await sql.query(
     `SELECT DISTINCT country, period_from, period_to FROM play_search_terms
@@ -88,13 +118,19 @@ async function overlaps(sql: Sql, workspaceId: string, appId: string, file: Sear
     [workspaceId, appId, file.dateFrom, file.dateTo],
   );
   const mine = new Map<string, { country: string; from: string; to: string }>();
-  for (const p of file.points) mine.set(`${p.country}|${p.from}|${p.to}`, { country: p.country, from: p.from, to: p.to });
+  for (const p of file.points)
+    mine.set(`${p.country}|${p.from}|${p.to}`, { country: p.country, from: p.from, to: p.to });
   let count = 0;
   for (const r of stored) {
     const c = { country: String(r.country), from: String(r.period_from), to: String(r.period_to) };
     if (mine.has(`${c.country}|${c.from}|${c.to}`)) continue;
     for (const f of mine.values()) {
-      if (f.country === c.country && c.from <= f.to && f.from <= c.to && (c.from !== c.to || f.from !== f.to)) {
+      if (
+        f.country === c.country &&
+        c.from <= f.to &&
+        f.from <= c.to &&
+        (c.from !== c.to || f.from !== f.to)
+      ) {
         count += 1;
         break;
       }
@@ -108,13 +144,20 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (!isGooglePlatform(app.platform)) {
-    return failure(422, 'import_not_supported', 'Search terms are a Google Play report. This app is an iOS or macOS app.');
+    return failure(
+      422,
+      'import_not_supported',
+      'Search terms are a Google Play report. This app is an iOS or macOS app.',
+    );
   }
   if ((input.from !== undefined || input.to !== undefined) && !checkPeriod(input.from, input.to)) {
     return failure(422, 'period_required', analyticsErrorMessages.period_required);
   }
   try {
-    const file = await readSearchTermsFile(input.bytes, { ...(input.from ? { from: input.from } : {}), ...(input.to ? { to: input.to } : {}) });
+    const file = await readSearchTermsFile(input.bytes, {
+      ...(input.from ? { from: input.from } : {}),
+      ...(input.to ? { to: input.to } : {}),
+    });
     const period = checkPeriod(input.from, input.to) ?? null;
     const from = file.dateFrom as string;
     const to = file.dateTo as string;
@@ -122,7 +165,9 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
     const notes = [...file.notes];
     const overlapsStored = await overlaps(db, input.workspaceId, app.id, file);
     if (overlapsStored > 0) {
-      notes.push('Numbers already stored for this app overlap these dates and are not the same periods. Where a day appears in both, only the day rows are counted, so a day is not counted twice, but check that the periods are what you expect.');
+      notes.push(
+        'Numbers already stored for this app overlap these dates and are not the same periods. Where a day appears in both, only the day rows are counted, so a day is not counted twice, but check that the periods are what you expect.',
+      );
     }
     const plan: SearchTermsPlan = {
       platform: 'android',
@@ -139,7 +184,12 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
       files: file.files,
       totals: summary.totals,
       other: summary.other,
-      top: summary.terms.map((t) => ({ term: t.term, visitors: t.visitors, installs: t.installs, conversion: t.conversion })),
+      top: summary.terms.map((t) => ({
+        term: t.term,
+        visitors: t.visitors,
+        installs: t.installs,
+        conversion: t.conversion,
+      })),
       overlapsStored,
       notes,
     };
@@ -150,7 +200,10 @@ export async function parseSearchTermsImport(db: Database, input: Input): Promis
   }
 }
 
-export async function previewSearchTermsImport(db: Database, input: Input): Promise<({ ok: true; plan: SearchTermsPlan; confirmHash: string }) | Failure> {
+export async function previewSearchTermsImport(
+  db: Database,
+  input: Input,
+): Promise<{ ok: true; plan: SearchTermsPlan; confirmHash: string } | Failure> {
   const parsed = await parseSearchTermsImport(db, input);
   if (!parsed.ok) return parsed;
   return { ok: true, plan: parsed.plan, confirmHash: parsed.confirmHash };
@@ -172,13 +225,29 @@ const differs = (c: string) =>
   `(play_search_terms.${c} <> excluded.${c} OR (play_search_terms.${c} IS NULL AND excluded.${c} IS NOT NULL) OR (play_search_terms.${c} IS NOT NULL AND excluded.${c} IS NULL))`;
 
 /** Writes the rows by key. A row is changed only when a number or the spelling differs, so a repeat writes nothing. */
-export async function upsertSearchTerms(sql: Sql, input: { workspaceId: string; appId: string; now: number }, points: readonly SearchTermPoint[]): Promise<{ offered: number; written: number }> {
+export async function upsertSearchTerms(
+  sql: Sql,
+  input: { workspaceId: string; appId: string; now: number },
+  points: readonly SearchTermPoint[],
+): Promise<{ offered: number; written: number }> {
   let written = 0;
   for (let i = 0; i < points.length; i += CHUNK) {
     const chunk = points.slice(i, i + CHUNK);
     const params: Param[] = [];
     for (const p of chunk) {
-      params.push(input.appId, p.country, p.from, p.to, p.key, input.workspaceId, p.term, p.visitors, p.installs, toMicro(p.conversion), input.now);
+      params.push(
+        input.appId,
+        p.country,
+        p.from,
+        p.to,
+        p.key,
+        input.workspaceId,
+        p.term,
+        p.visitors,
+        p.installs,
+        toMicro(p.conversion),
+        input.now,
+      );
     }
     written += await sql.execute(
       `INSERT INTO play_search_terms
@@ -204,12 +273,19 @@ export async function applySearchTermsImport(
   if (!parsed.ok) return parsed;
   if (parsed.confirmHash !== input.confirmHash) {
     const message = 'The file is not the one that was previewed. Preview it again and confirm.';
-    return { ...failure(409, 'confirm_mismatch', message), body: { error: 'confirm_mismatch', message } };
+    return {
+      ...failure(409, 'confirm_mismatch', message),
+      body: { error: 'confirm_mismatch', message },
+    };
   }
   const app = parsed.app;
   const at = now();
   return db.transaction(async (tx): Promise<SearchTermsImportResult | Failure> => {
-    const result = await upsertSearchTerms(tx, { workspaceId: input.workspaceId, appId: app.id, now: at }, parsed.points);
+    const result = await upsertSearchTerms(
+      tx,
+      { workspaceId: input.workspaceId, appId: app.id, now: at },
+      parsed.points,
+    );
     await tx.execute(
       `INSERT INTO play_search_term_imports (app_id, workspace_id, last_import_at, last_period_from, last_period_to, imports, updated_by)
        VALUES (?, ?, ?, ?, ?, 1, ?)
@@ -234,29 +310,55 @@ export async function applySearchTermsImport(
       },
       at,
     });
-    return { ok: true, rows: result.offered, written: result.written, unchanged: result.offered - result.written, dateFrom: parsed.plan.dateFrom, dateTo: parsed.plan.dateTo };
+    return {
+      ok: true,
+      rows: result.offered,
+      written: result.written,
+      unchanged: result.offered - result.written,
+      dateFrom: parsed.plan.dateFrom,
+      dateTo: parsed.plan.dateTo,
+    };
   });
 }
 
 // ---------------------------------------------------------------------------------------------
 // Reading
 
-export const searchTermNoteCodes = ['not_search_volume', 'other_grouped', 'legacy_metrics_unverified', 'overlapping_periods', 'period_rows_dropped', 'rows_capped', 'no_listing_text'] as const;
+export const searchTermNoteCodes = [
+  'not_search_volume',
+  'other_grouped',
+  'legacy_metrics_unverified',
+  'overlapping_periods',
+  'period_rows_dropped',
+  'rows_capped',
+  'no_listing_text',
+] as const;
 export type SearchTermNoteCode = (typeof searchTermNoteCodes)[number];
 export const searchTermNoteMessages: Record<SearchTermNoteCode, string> = {
   not_search_volume:
     'These are the terms people searched and then opened your listing from. It is not how often a term is searched: terms nobody opened your listing from are not here.',
-  other_grouped: 'Google groups terms that were too small to report on their own into "Other"; they are counted in the totals and cannot be listed.',
+  other_grouped:
+    'Google groups terms that were too small to report on their own into "Other"; they are counted in the totals and cannot be listed.',
   legacy_metrics_unverified:
-    'Visitors and installs per term are Google Play\'s legacy store listing metrics. Google changed its store listing reports in 2026, so check them against the console (UNVERIFIED).',
-  overlapping_periods: 'Two imported files cover overlapping periods, so some days may be counted twice.',
-  period_rows_dropped: 'Rows of a file without dates were left out for a country that also has daily rows, so a day is not counted twice.',
+    "Visitors and installs per term are Google Play's legacy store listing metrics. Google changed its store listing reports in 2026, so check them against the console (UNVERIFIED).",
+  overlapping_periods:
+    'Two imported files cover overlapping periods, so some days may be counted twice.',
+  period_rows_dropped:
+    'Rows of a file without dates were left out for a country that also has daily rows, so a day is not counted twice.',
   rows_capped: 'The period holds more rows than are read at once. Choose a shorter period.',
-  no_listing_text: 'No Google Play listing text is stored for this language, so "in your listing" is unknown. Sync the app first.',
+  no_listing_text:
+    'No Google Play listing text is stored for this language, so "in your listing" is unknown. Sync the app first.',
 };
 const note = (code: SearchTermNoteCode) => ({ code, message: searchTermNoteMessages[code] });
 
-export type SearchTermsQuery = { from?: string; to?: string; country?: string; locale?: string; sort?: string; limit?: number };
+export type SearchTermsQuery = {
+  from?: string;
+  to?: string;
+  country?: string;
+  locale?: string;
+  sort?: string;
+  limit?: number;
+};
 
 export type SearchTermsView = {
   appId: string;
@@ -270,7 +372,12 @@ export type SearchTermsView = {
   listingLocale: string | null;
   listingReadAt: number | null;
   /** The latest import: null when nothing was imported. */
-  imported: { at: number; periodFrom: string | null; periodTo: string | null; imports: number } | null;
+  imported: {
+    at: number;
+    periodFrom: string | null;
+    periodTo: string | null;
+    imports: number;
+  } | null;
   /** What is stored for the app, whatever the view asks for. */
   stored: { from: string; to: string; countries: string[]; rows: number } | null;
   terms: SearchTermInsight[];
@@ -282,20 +389,37 @@ export type SearchTermsView = {
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
-export function checkSearchTermsQuery(query: SearchTermsQuery): { ok: true; from?: string; to?: string; country?: string; sort: SearchTermSort; limit: number; locale?: string } | { ok: false; issues: { path: string; message: string }[] } {
+export function checkSearchTermsQuery(
+  query: SearchTermsQuery,
+):
+  | {
+      ok: true;
+      from?: string;
+      to?: string;
+      country?: string;
+      sort: SearchTermSort;
+      limit: number;
+      locale?: string;
+    }
+  | { ok: false; issues: { path: string; message: string }[] } {
   const issues: { path: string; message: string }[] = [];
   let country: string | undefined;
-  if (query.from !== undefined && query.from !== '' && !isIsoDate(query.from)) issues.push({ path: 'from', message: 'A day, YYYY-MM-DD.' });
-  if (query.to !== undefined && query.to !== '' && !isIsoDate(query.to)) issues.push({ path: 'to', message: 'A day, YYYY-MM-DD.' });
+  if (query.from !== undefined && query.from !== '' && !isIsoDate(query.from))
+    issues.push({ path: 'from', message: 'A day, YYYY-MM-DD.' });
+  if (query.to !== undefined && query.to !== '' && !isIsoDate(query.to))
+    issues.push({ path: 'to', message: 'A day, YYYY-MM-DD.' });
   if (query.from && query.to && isIsoDate(query.from) && isIsoDate(query.to)) {
     if (query.from > query.to) issues.push({ path: 'from', message: 'from is after to.' });
-    else if (daysBetween(query.from, query.to) + 1 > searchTermLimits.maxPeriodDays) issues.push({ path: 'to', message: `At most ${searchTermLimits.maxPeriodDays} days.` });
+    else if (daysBetween(query.from, query.to) + 1 > searchTermLimits.maxPeriodDays)
+      issues.push({ path: 'to', message: `At most ${searchTermLimits.maxPeriodDays} days.` });
   }
   if (query.country !== undefined && query.country !== '') {
     country = normalizeCountry(query.country);
-    if (!country) issues.push({ path: 'country', message: 'A storefront of two letters, such as us.' });
+    if (!country)
+      issues.push({ path: 'country', message: 'A storefront of two letters, such as us.' });
   }
-  if (query.sort !== undefined && query.sort !== '' && !isSearchTermSort(query.sort)) issues.push({ path: 'sort', message: 'Use installs or visitors.' });
+  if (query.sort !== undefined && query.sort !== '' && !isSearchTermSort(query.sort))
+    issues.push({ path: 'sort', message: 'Use installs or visitors.' });
   if (issues.length > 0) return { ok: false, issues };
   return {
     ok: true,
@@ -304,7 +428,10 @@ export function checkSearchTermsQuery(query: SearchTermsQuery): { ok: true; from
     ...(country ? { country } : {}),
     ...(query.locale ? { locale: query.locale } : {}),
     sort: isSearchTermSort(query.sort) ? query.sort : 'installs',
-    limit: Math.min(Math.max(query.limit ?? searchTermLimits.defaultLimit, 1), searchTermLimits.maxLimit),
+    limit: Math.min(
+      Math.max(query.limit ?? searchTermLimits.defaultLimit, 1),
+      searchTermLimits.maxLimit,
+    ),
   };
 }
 
@@ -313,21 +440,71 @@ export async function searchTermsFor(
   sql: Sql,
   workspaceId: string,
   app: ManagedApp,
-  query: { from?: string; to?: string; country?: string; locale?: string; sort: SearchTermSort; limit: number },
+  query: {
+    from?: string;
+    to?: string;
+    country?: string;
+    locale?: string;
+    sort: SearchTermSort;
+    limit: number;
+  },
 ): Promise<SearchTermsView> {
-  const importedRow = (await sql.query('SELECT last_import_at, last_period_from, last_period_to, imports FROM play_search_term_imports WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]))[0];
+  const importedRow = (
+    await sql.query(
+      'SELECT last_import_at, last_period_from, last_period_to, imports FROM play_search_term_imports WHERE app_id = ? AND workspace_id = ?',
+      [app.id, workspaceId],
+    )
+  )[0];
   const imported = importedRow
-    ? { at: Number(importedRow.last_import_at), periodFrom: importedRow.last_period_from === null ? null : String(importedRow.last_period_from), periodTo: importedRow.last_period_to === null ? null : String(importedRow.last_period_to), imports: Number(importedRow.imports) }
+    ? {
+        at: Number(importedRow.last_import_at),
+        periodFrom:
+          importedRow.last_period_from === null ? null : String(importedRow.last_period_from),
+        periodTo: importedRow.last_period_to === null ? null : String(importedRow.last_period_to),
+        imports: Number(importedRow.imports),
+      }
     : null;
-  const cover = (await sql.query('SELECT MIN(period_from) AS first_day, MAX(period_to) AS last_day, COUNT(*) AS n FROM play_search_terms WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]))[0];
+  const cover = (
+    await sql.query(
+      'SELECT MIN(period_from) AS first_day, MAX(period_to) AS last_day, COUNT(*) AS n FROM play_search_terms WHERE app_id = ? AND workspace_id = ?',
+      [app.id, workspaceId],
+    )
+  )[0];
   const rowsStored = cover ? Number(cover.n) : 0;
   const locale = query.locale ?? (await defaultLocale(sql, workspaceId, app.id));
-  const base = { appId: app.id, platform: 'android' as const, country: query.country ?? null, sort: query.sort, locale, imported };
+  const base = {
+    appId: app.id,
+    platform: 'android' as const,
+    country: query.country ?? null,
+    sort: query.sort,
+    locale,
+    imported,
+  };
   if (rowsStored === 0 || !cover || cover.first_day === null || cover.last_day === null) {
-    return { ...base, from: query.from ?? null, to: query.to ?? null, listingLocale: null, listingReadAt: null, stored: null, terms: [], termCount: 0, other: null, totals: { visitors: null, installs: null }, notes: [note('not_search_volume')] };
+    return {
+      ...base,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      listingLocale: null,
+      listingReadAt: null,
+      stored: null,
+      terms: [],
+      termCount: 0,
+      other: null,
+      totals: { visitors: null, installs: null },
+      notes: [note('not_search_volume')],
+    };
   }
-  const countryRows = await sql.query('SELECT DISTINCT country FROM play_search_terms WHERE app_id = ? AND workspace_id = ? AND country <> ? ORDER BY country LIMIT 300', [app.id, workspaceId, '']);
-  const stored = { from: String(cover.first_day), to: String(cover.last_day), countries: countryRows.map((r) => String(r.country)), rows: rowsStored };
+  const countryRows = await sql.query(
+    'SELECT DISTINCT country FROM play_search_terms WHERE app_id = ? AND workspace_id = ? AND country <> ? ORDER BY country LIMIT 300',
+    [app.id, workspaceId, ''],
+  );
+  const stored = {
+    from: String(cover.first_day),
+    to: String(cover.last_day),
+    countries: countryRows.map((r) => String(r.country)),
+    rows: rowsStored,
+  };
   // Default: everything stored (at most the newest 400 days).
   const to = query.to ?? stored.to;
   const earliest = addDays(to, -(searchTermLimits.maxPeriodDays - 1));
@@ -354,12 +531,27 @@ export async function searchTermsFor(
     installs: num(r.installs),
     conversion: r.conversion_micro === null ? null : Number(r.conversion_micro) / 1_000_000,
   }));
-  const summary = summariseSearchTerms(points, { from, to, ...(query.country ? { country: query.country } : {}), sort: query.sort, limit: query.limit });
+  const summary = summariseSearchTerms(points, {
+    from,
+    to,
+    ...(query.country ? { country: query.country } : {}),
+    sort: query.sort,
+    limit: query.limit,
+  });
 
-  const tracked = (await listKeywords(sql, workspaceId, app.id)).map((k) => ({ id: k.id, key: k.key, country: k.country }));
+  const tracked = (await listKeywords(sql, workspaceId, app.id)).map((k) => ({
+    id: k.id,
+    key: k.key,
+    country: k.country,
+  }));
   const own = await ownFields(sql, workspaceId, app, locale);
   const fields: FitFields | null = own.found ? own.found.fields : null;
-  const terms = searchTermInsights(summary.terms, { locale, fields, tracked, ...(query.country ? { country: query.country } : {}) });
+  const terms = searchTermInsights(summary.terms, {
+    locale,
+    fields,
+    tracked,
+    ...(query.country ? { country: query.country } : {}),
+  });
 
   const notes = [note('not_search_volume'), note('legacy_metrics_unverified')];
   if (summary.other !== null) notes.push(note('other_grouped'));

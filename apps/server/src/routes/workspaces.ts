@@ -1,24 +1,32 @@
 import { type Action, can, checkSecret, credentialKinds } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, type Services, parseBody, queryInt } from '../http.ts';
+import { type AppEnv, parseBody, queryInt, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { requireStepUp } from '../services/step-up.ts';
-import { MAX_AUDIT_LIMIT, listAudit } from '../services/audit.ts';
+import { listAudit, MAX_AUDIT_LIMIT } from '../services/audit.ts';
 import {
   createCredential,
   deleteCredential,
   listCredentials,
   rotateCredential,
 } from '../services/credentials.ts';
+import { requireStepUp } from '../services/step-up.ts';
 
 const createBody = z.object({
   kind: z.enum(credentialKinds),
   label: z.string().trim().min(1).max(100),
-  secret: z.string().min(1).max(64 * 1024),
+  secret: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
 });
-const rotateBody = z.object({ secret: z.string().min(1).max(64 * 1024) });
+const rotateBody = z.object({
+  secret: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
+});
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
@@ -71,12 +79,15 @@ export function workspaceRoutes(services: Services) {
       now(),
     );
     if (done.ok) return c.body(null, 204);
-    if (done.reason === 'invalid_secret') return c.json({ error: 'invalid_secret', message: done.message }, 400);
+    if (done.reason === 'invalid_secret')
+      return c.json({ error: 'invalid_secret', message: done.message }, 400);
     return c.json({ error: 'not_found' }, 404);
   });
 
   app.delete('/:workspaceId/credentials/:id', needs('credentials.write'), async (c) => {
-    const stepUpRefusal = await requireStepUp({ db, now }, c, 'credential.delete', { id: param(c, 'id') });
+    const stepUpRefusal = await requireStepUp({ db, now }, c, 'credential.delete', {
+      id: param(c, 'id'),
+    });
     if (stepUpRefusal) return stepUpRefusal;
     const done = await deleteCredential(
       db,

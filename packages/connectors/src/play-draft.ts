@@ -1,27 +1,13 @@
-import { type AssetKind, normalizeReleaseValue, PLAY_DEVICES, PLAY_LISTING_MEMBERS, versionCodesOf } from '@mrm/core';
+import {
+  type AssetKind,
+  normalizeReleaseValue,
+  PLAY_DEVICES,
+  PLAY_LISTING_MEMBERS,
+  versionCodesOf,
+} from '@mrm/core';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
-import {
-  type DraftApplyInput,
-  type DraftApplyResult,
-  type DraftAssetState,
-  DraftDriftError,
-  type DraftFieldFacts,
-  type DraftFieldState,
-  type DraftFieldWrite,
-  type DraftImageState,
-  DraftOutcomeUnknownError,
-  type DraftReadRequest,
-  type DraftState,
-  type DraftStep,
-  type DraftTextState,
-  setMatches,
-  type StoreDraftConnector,
-  type StoreImageReader,
-  type StoreImageRecord,
-  type StoreImagesRead,
-} from './store-draft-types.ts';
 import { playCodeEligibility } from './release-eligibility.ts';
 import {
   type CodeCandidate,
@@ -36,12 +22,32 @@ import {
   type StoreReleaseReader,
 } from './release-types.ts';
 import {
+  type DraftApplyInput,
+  type DraftApplyResult,
+  type DraftAssetState,
+  DraftDriftError,
+  type DraftFieldFacts,
+  type DraftFieldState,
+  type DraftFieldWrite,
+  type DraftImageState,
+  DraftOutcomeUnknownError,
+  type DraftReadRequest,
+  type DraftState,
+  type DraftStep,
+  type DraftTextState,
+  type StoreDraftConnector,
+  type StoreImageReader,
+  type StoreImageRecord,
+  type StoreImagesRead,
+  setMatches,
+} from './store-draft-types.ts';
+import {
   enc,
   isRecord,
   type Json,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -108,7 +114,9 @@ const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 /** Listing languages whose images one read looks at (each costs one request per image type). */
 const MAX_READ_LANGUAGES = 60;
 
-export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader {
+export class PlayDraftConnector
+  implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader
+{
   readonly store = 'googleplay' as const;
   readonly platform = 'android' as const;
   readonly packageName: string;
@@ -120,9 +128,15 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
 
   constructor(options: PlayDraftConnectorOptions) {
     this.#account =
-      typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+      typeof options.serviceAccount === 'string'
+        ? parseServiceAccount(options.serviceAccount)
+        : options.serviceAccount;
     if (!isPlayPackageName(options.packageName)) {
-      throw new StoreError('googleplay', 'invalid_input', `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`);
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`,
+      );
     }
     this.packageName = options.packageName;
     this.#http = new StoreHttp({ ...options, store: 'googleplay' });
@@ -139,7 +153,8 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         try {
           return await this.#state(this.#http, editId, request);
         } catch (error) {
-          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0) continue;
+          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0)
+            continue;
           throw error;
         } finally {
           await this.#deleteEdit(this.#http, editId);
@@ -161,7 +176,11 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
       { target: 'icon', kind: 'icon', device: null },
       { target: 'featureGraphic', kind: 'feature_graphic', device: null },
       { target: 'tvBanner', kind: 'tv_banner', device: null },
-      ...PLAY_DEVICES.map((d) => ({ target: d.dir, kind: 'screenshot' as AssetKind, device: d.id as string | null })),
+      ...PLAY_DEVICES.map((d) => ({
+        target: d.dir,
+        kind: 'screenshot' as AssetKind,
+        device: d.id as string | null,
+      })),
     ];
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const editId = await this.#insertEdit(this.#http);
@@ -169,7 +188,10 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         const out: StoreImageRecord[] = [];
         const notes: string[] = [];
         const languages = [...(await this.#listings(this.#http, editId)).keys()].sort();
-        if (languages.length > MAX_READ_LANGUAGES) notes.push(`Only the first ${MAX_READ_LANGUAGES} of ${languages.length} listing languages were read.`);
+        if (languages.length > MAX_READ_LANGUAGES)
+          notes.push(
+            `Only the first ${MAX_READ_LANGUAGES} of ${languages.length} listing languages were read.`,
+          );
         for (const locale of languages.slice(0, MAX_READ_LANGUAGES)) {
           for (const k of kinds) {
             const reply = await this.#imagesRaw(this.#http, editId, locale, k.target);
@@ -178,7 +200,23 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
               if (!id) return;
               const url = text(image.url) ?? null;
               const checksum = text(image.sha256)?.toLowerCase() ?? null;
-              out.push({ locale, kind: k.kind, device: k.device, target: k.target, position: i + 1, id, name: null, width: null, height: null, bytes: null, checksum, checksumKind: checksum === null ? null : 'sha256', state: null, url, urlKind: url === null ? null : 'play_url' });
+              out.push({
+                locale,
+                kind: k.kind,
+                device: k.device,
+                target: k.target,
+                position: i + 1,
+                id,
+                name: null,
+                width: null,
+                height: null,
+                bytes: null,
+                checksum,
+                checksumKind: checksum === null ? null : 'sha256',
+                state: null,
+                url,
+                urlKind: url === null ? null : 'play_url',
+              });
             });
           }
         }
@@ -189,9 +227,19 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
     });
   }
 
-  async #imagesRaw(http: StoreHttp, editId: string, language: string, type: string): Promise<Json[]> {
+  async #imagesRaw(
+    http: StoreHttp,
+    editId: string,
+    language: string,
+    type: string,
+  ): Promise<Json[]> {
     try {
-      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`), `reading the ${type} of ${language}`);
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`),
+        `reading the ${type} of ${language}`,
+      );
       return records(isRecord(reply.json) ? reply.json.images : undefined);
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return [];
@@ -202,7 +250,12 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
-      assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target })),
+      assets: input.assets.map((a) => ({
+        locale: a.locale,
+        kind: a.kind,
+        device: a.device,
+        target: a.target,
+      })),
       ...(input.fields !== undefined && input.fields.length > 0 ? { fields: input.fields } : {}),
     };
     return serializedPlayEdits(this.#account.clientEmail, async () => {
@@ -232,9 +285,21 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
             body[member] = value;
           }
           if (changedFields.size > 0) {
-            await this.#call(http, 'PUT', this.#url(`/${enc(editId)}/listings/${enc(locale)}`), `changing the ${locale} listing`, { json: body });
+            await this.#call(
+              http,
+              'PUT',
+              this.#url(`/${enc(editId)}/listings/${enc(locale)}`),
+              `changing the ${locale} listing`,
+              { json: body },
+            );
           }
-          for (const field of fields.keys()) steps.push({ type: 'text', locale, target: field, outcome: changedFields.has(field) ? 'applied' : 'already_same' });
+          for (const field of fields.keys())
+            steps.push({
+              type: 'text',
+              locale,
+              target: field,
+              outcome: changedFields.has(field) ? 'applied' : 'already_same',
+            });
         }
 
         // The draft release of a track (name, version codes, release notes per language): one `tracks.update`.
@@ -244,17 +309,35 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
 
         // Graphics: a set is replaced as a whole (delete all, upload in order), then checked against Google's SHA-256.
         for (const write of input.assets) {
-          const state = before.assets.find((a) => a.locale === write.locale && a.target === write.target);
+          const state = before.assets.find(
+            (a) => a.locale === write.locale && a.target === write.target,
+          );
           if (state && setMatches(state.images, write.files)) {
-            steps.push({ type: 'asset', locale: write.locale, target: write.target, outcome: 'already_same' });
+            steps.push({
+              type: 'asset',
+              locale: write.locale,
+              target: write.target,
+              outcome: 'already_same',
+            });
             continue;
           }
           const path = `/${enc(editId)}/listings/${enc(write.locale)}/${enc(write.target)}`;
-          await this.#call(http, 'DELETE', this.#url(path), `removing the ${write.target} of ${write.locale}`);
+          await this.#call(
+            http,
+            'DELETE',
+            this.#url(path),
+            `removing the ${write.target} of ${write.locale}`,
+          );
           for (const file of write.files) {
-            await this.#call(http, 'POST', `${this.#base}/upload/androidpublisher/v3/applications/${enc(this.packageName)}/edits${path}?uploadType=media`, `uploading ${file.name}`, {
-              raw: { body: file.bytes, contentType: file.mime },
-            });
+            await this.#call(
+              http,
+              'POST',
+              `${this.#base}/upload/androidpublisher/v3/applications/${enc(this.packageName)}/edits${path}?uploadType=media`,
+              `uploading ${file.name}`,
+              {
+                raw: { body: file.bytes, contentType: file.mime },
+              },
+            );
           }
           const now = await this.#images(http, editId, write.locale, write.target);
           if (!setMatches(now, write.files)) {
@@ -264,7 +347,14 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
               `Google Play does not list the ${write.target} of ${write.locale} as it was uploaded (the checksums differ), so nothing was committed.`,
             );
           }
-          steps.push({ type: 'asset', locale: write.locale, target: write.target, outcome: 'applied', uploaded: write.files.length, removed: state?.images.length ?? 0 });
+          steps.push({
+            type: 'asset',
+            locale: write.locale,
+            target: write.target,
+            outcome: 'applied',
+            uploaded: write.files.length,
+            removed: state?.images.length ?? 0,
+          });
         }
 
         if (!steps.some((s) => s.outcome === 'applied')) {
@@ -287,7 +377,6 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
     });
   }
 
-
   // -------------------------------------------------------------------------------------------
   // The draft release of a track (docs/api/releases-write.md)
   //
@@ -303,7 +392,12 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
 
   async #readTrack(http: StoreHttp, editId: string, track: string): Promise<Json[]> {
     try {
-      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/tracks/${enc(track)}`), `reading the ${track} track`);
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
+        `reading the ${track} track`,
+      );
       return records(isRecord(reply.json) ? reply.json.releases : undefined);
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return [];
@@ -312,19 +406,39 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   }
 
   /** The version codes Play lists as uploaded: app bundles and APKs of the app. */
-  async #uploaded(http: StoreHttp, editId: string): Promise<Map<string, { source: 'bundle' | 'apk'; sha256: string | null }>> {
+  async #uploaded(
+    http: StoreHttp,
+    editId: string,
+  ): Promise<Map<string, { source: 'bundle' | 'apk'; sha256: string | null }>> {
     const out = new Map<string, { source: 'bundle' | 'apk'; sha256: string | null }>();
-    const bundles = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/bundles`), 'listing the app bundles');
+    const bundles = await this.#call(
+      http,
+      'GET',
+      this.#url(`/${enc(editId)}/bundles`),
+      'listing the app bundles',
+    );
     for (const b of records(isRecord(bundles.json) ? bundles.json.bundles : undefined)) {
-      const code = typeof b.versionCode === 'number' || typeof b.versionCode === 'string' ? String(b.versionCode) : undefined;
+      const code =
+        typeof b.versionCode === 'number' || typeof b.versionCode === 'string'
+          ? String(b.versionCode)
+          : undefined;
       if (code) out.set(code, { source: 'bundle', sha256: text(b.sha256)?.toLowerCase() ?? null });
     }
     try {
-      const apks = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/apks`), 'listing the APKs');
+      const apks = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/apks`),
+        'listing the APKs',
+      );
       for (const a of records(isRecord(apks.json) ? apks.json.apks : undefined)) {
-        const code = typeof a.versionCode === 'number' || typeof a.versionCode === 'string' ? String(a.versionCode) : undefined;
+        const code =
+          typeof a.versionCode === 'number' || typeof a.versionCode === 'string'
+            ? String(a.versionCode)
+            : undefined;
         const binary = isRecord(a.binary) ? a.binary : {};
-        if (code && !out.has(code)) out.set(code, { source: 'apk', sha256: text(binary.sha256)?.toLowerCase() ?? null });
+        if (code && !out.has(code))
+          out.set(code, { source: 'apk', sha256: text(binary.sha256)?.toLowerCase() ?? null });
       }
     } catch (error) {
       if (!(error instanceof StoreError) || error.kind !== 'not_found') throw error;
@@ -349,30 +463,59 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   static #draftOf(track: string, releases: Json[]): Json | undefined {
     const drafts = releases.filter((r) => text(r.status) === 'draft');
     if (drafts.length > 1) {
-      throw new StoreError('googleplay', 'invalid_input', `The ${track} track has more than one draft release; this server will not guess which one to change. Remove one in Play Console.`);
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        `The ${track} track has more than one draft release; this server will not guess which one to change. Remove one in Play Console.`,
+      );
     }
     return drafts[0];
   }
 
-  async #readFields(http: StoreHttp, editId: string, wanted: readonly DraftFieldWrite[]): Promise<DraftFieldState[]> {
+  async #readFields(
+    http: StoreHttp,
+    editId: string,
+    wanted: readonly DraftFieldWrite[],
+  ): Promise<DraftFieldState[]> {
     const track = wanted.find((w) => w.field === 'track')?.value;
     if (track === undefined) return [];
     const releases = await this.#readTrack(http, editId, track);
     const draft = PlayDraftConnector.#draftOf(track, releases);
     const read = draft ? PlayDraftConnector.#releaseRead(draft) : undefined;
-    const uploaded = wanted.some((w) => w.field === 'version_codes') ? await this.#uploaded(http, editId) : undefined;
+    const uploaded = wanted.some((w) => w.field === 'version_codes')
+      ? await this.#uploaded(http, editId)
+      : undefined;
     const out: DraftFieldState[] = [];
     for (const w of wanted) {
       if (w.field === 'track') {
-        out.push({ field: 'track', locale: '', value: track, facts: { draftCount: draft ? 1 : 0, otherInProgress: releases.filter((r) => text(r.status) === 'inProgress').length } });
+        out.push({
+          field: 'track',
+          locale: '',
+          value: track,
+          facts: {
+            draftCount: draft ? 1 : 0,
+            otherInProgress: releases.filter((r) => text(r.status) === 'inProgress').length,
+          },
+        });
       } else if (w.field === 'release_name') {
         out.push({ field: w.field, locale: '', value: read?.name ?? null });
       } else if (w.field === 'version_codes') {
-        const missing = versionCodesOf(w.value).filter((code) => !(uploaded as Map<string, unknown>).has(code));
+        const missing = versionCodesOf(w.value).filter(
+          (code) => !(uploaded as Map<string, unknown>).has(code),
+        );
         const facts: DraftFieldFacts = { missing: missing.join(',') };
-        out.push({ field: w.field, locale: '', value: read ? normalizeReleaseValue('version_codes', read.versionCodes) : null, facts });
+        out.push({
+          field: w.field,
+          locale: '',
+          value: read ? normalizeReleaseValue('version_codes', read.versionCodes) : null,
+          facts,
+        });
       } else if (w.field === 'release_notes') {
-        out.push({ field: w.field, locale: w.locale, value: read?.notes.find((n) => n.locale === w.locale)?.text ?? null });
+        out.push({
+          field: w.field,
+          locale: w.locale,
+          value: read?.notes.find((n) => n.locale === w.locale)?.text ?? null,
+        });
       } else {
         out.push({ field: w.field, locale: w.locale, value: null });
       }
@@ -381,26 +524,45 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   }
 
   /** Rewrites the draft release of the track with the wanted fields, every other release as read. One `tracks.update`, committed later. */
-  async #applyFields(http: StoreHttp, editId: string, wanted: readonly DraftFieldWrite[], current: readonly DraftFieldState[]): Promise<DraftStep[]> {
+  async #applyFields(
+    http: StoreHttp,
+    editId: string,
+    wanted: readonly DraftFieldWrite[],
+    current: readonly DraftFieldState[],
+  ): Promise<DraftStep[]> {
     const track = wanted.find((w) => w.field === 'track')?.value;
-    if (track === undefined) throw new StoreError('googleplay', 'invalid_input', 'Stage the track of the draft release.');
+    if (track === undefined)
+      throw new StoreError('googleplay', 'invalid_input', 'Stage the track of the draft release.');
     const releases = await this.#readTrack(http, editId, track);
     const draft = PlayDraftConnector.#draftOf(track, releases);
-    const now = (field: string, locale: string) => current.find((c) => c.field === field && c.locale === locale)?.value ?? null;
+    const now = (field: string, locale: string) =>
+      current.find((c) => c.field === field && c.locale === locale)?.value ?? null;
     const writes = wanted.filter((w) => w.field !== 'track' && w.field !== 'user_fraction');
     const differs = (w: DraftFieldWrite) => now(w.field, w.locale) !== w.value;
-    const steps: DraftStep[] = [{ type: 'field', locale: '', target: 'track', outcome: 'already_same' }];
+    const steps: DraftStep[] = [
+      { type: 'field', locale: '', target: 'track', outcome: 'already_same' },
+    ];
     if (writes.some(differs)) {
       const codes = writes.find((w) => w.field === 'version_codes');
       if (!draft && !codes) {
-        throw new StoreError('googleplay', 'invalid_input', `The ${track} track has no draft release and no version codes were staged, so there is nothing to build a draft release from.`);
+        throw new StoreError(
+          'googleplay',
+          'invalid_input',
+          `The ${track} track has no draft release and no version codes were staged, so there is nothing to build a draft release from.`,
+        );
       }
       const next: Json = { ...(draft ?? {}), status: 'draft' };
       for (const w of writes) {
         if (w.field === 'release_name') next.name = w.value;
         else if (w.field === 'version_codes') next.versionCodes = versionCodesOf(w.value);
       }
-      const notes = new Map<string, string>(records(next.releaseNotes).flatMap((n) => (text(n.language) !== undefined ? [[text(n.language) as string, text(n.text) ?? ''] as [string, string]] : [])));
+      const notes = new Map<string, string>(
+        records(next.releaseNotes).flatMap((n) =>
+          text(n.language) !== undefined
+            ? [[text(n.language) as string, text(n.text) ?? ''] as [string, string]]
+            : [],
+        ),
+      );
       let notesChanged = false;
       for (const w of writes) {
         if (w.field === 'release_notes') {
@@ -408,13 +570,26 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
           notesChanged = true;
         }
       }
-      if (notesChanged) next.releaseNotes = [...notes].map(([language, body]) => ({ language, text: body }));
+      if (notesChanged)
+        next.releaseNotes = [...notes].map(([language, body]) => ({ language, text: body }));
       const index = draft ? releases.indexOf(draft) : -1;
-      const all = index === -1 ? [...releases, next] : releases.map((r, i) => (i === index ? next : r));
-      await this.#call(http, 'PUT', this.#url(`/${enc(editId)}/tracks/${enc(track)}`), `changing the draft release of the ${track} track`, { json: { track, releases: all } });
+      const all =
+        index === -1 ? [...releases, next] : releases.map((r, i) => (i === index ? next : r));
+      await this.#call(
+        http,
+        'PUT',
+        this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
+        `changing the draft release of the ${track} track`,
+        { json: { track, releases: all } },
+      );
     }
     for (const w of writes) {
-      steps.push({ type: 'field', locale: w.field === 'release_notes' ? w.locale : '', target: w.field, outcome: differs(w) ? 'applied' : 'already_same' });
+      steps.push({
+        type: 'field',
+        locale: w.field === 'release_notes' ? w.locale : '',
+        target: w.field,
+        outcome: differs(w) ? 'applied' : 'already_same',
+      });
     }
     return steps;
   }
@@ -422,18 +597,36 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   // -------------------------------------------------------------------------------------------
   // Release reads (StoreReleaseReader): a throw away edit, nothing is committed
 
-  async listReleaseCandidates(input: { version?: string; track?: string }): Promise<ReleaseCandidates> {
+  async listReleaseCandidates(input: {
+    version?: string;
+    track?: string;
+  }): Promise<ReleaseCandidates> {
     const track = input.track;
-    if (track === undefined || track === '') throw new StoreError('googleplay', 'invalid_input', 'Name the track (for example production).');
+    if (track === undefined || track === '')
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Name the track (for example production).',
+      );
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const editId = await this.#insertEdit(this.#http);
       try {
         const uploaded = await this.#uploaded(this.#http, editId);
-        const releases = (await this.#readTrack(this.#http, editId, track)).map((r) => PlayDraftConnector.#releaseRead(r));
+        const releases = (await this.#readTrack(this.#http, editId, track)).map((r) =>
+          PlayDraftConnector.#releaseRead(r),
+        );
         const codes: CodeCandidate[] = [...uploaded]
           .map(([versionCode, u]) => {
-            const inTrack = releases.filter((r) => r.versionCodes.includes(versionCode)).map((r) => ({ name: r.name, status: r.status }));
-            return { versionCode, source: u.source, sha256: u.sha256, inTrack, eligibility: playCodeEligibility({ versionCode, inTrack }) };
+            const inTrack = releases
+              .filter((r) => r.versionCodes.includes(versionCode))
+              .map((r) => ({ name: r.name, status: r.status }));
+            return {
+              versionCode,
+              source: u.source,
+              sha256: u.sha256,
+              inTrack,
+              eligibility: playCodeEligibility({ versionCode, inTrack }),
+            };
           })
           .sort((a, b) => Number(b.versionCode) - Number(a.versionCode));
         return { store: 'googleplay' as const, platform: 'android' as const, track, codes };
@@ -450,20 +643,37 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
    * here and this is a short history, not the whole one. Google gives no date for a release: `at` is null and the order is the
    * highest version code of the release, newest first. Texts are cut at MAX_NOTE_CHARS and never logged.
    */
-  async readNotesHistory(input: { locale?: string; maxVersions?: number } = {}): Promise<NotesHistoryRead> {
-    const limit = Math.min(Math.max(Math.trunc(input.maxVersions ?? MAX_NOTES_HISTORY_VERSIONS), 1), MAX_NOTES_HISTORY_VERSIONS);
-    const wantedLocale = input.locale === undefined || input.locale === '' ? undefined : input.locale.toLowerCase().replace(/_/g, '-');
+  async readNotesHistory(
+    input: { locale?: string; maxVersions?: number } = {},
+  ): Promise<NotesHistoryRead> {
+    const limit = Math.min(
+      Math.max(Math.trunc(input.maxVersions ?? MAX_NOTES_HISTORY_VERSIONS), 1),
+      MAX_NOTES_HISTORY_VERSIONS,
+    );
+    const wantedLocale =
+      input.locale === undefined || input.locale === ''
+        ? undefined
+        : input.locale.toLowerCase().replace(/_/g, '-');
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const editId = await this.#insertEdit(this.#http);
       try {
-        const reply = await this.#call(this.#http, 'GET', this.#url(`/${enc(editId)}/tracks`), 'listing the tracks');
+        const reply = await this.#call(
+          this.#http,
+          'GET',
+          this.#url(`/${enc(editId)}/tracks`),
+          'listing the tracks',
+        );
         const releases: { track: string; read: PlayReleaseRead; top: number }[] = [];
         for (const t of records(isRecord(reply.json) ? reply.json.tracks : undefined)) {
           const track = text(t.track);
           if (!track) continue;
           for (const r of records(t.releases)) {
             const read = PlayDraftConnector.#releaseRead(r);
-            releases.push({ track, read, top: Math.max(0, ...read.versionCodes.map(Number).filter(Number.isFinite)) });
+            releases.push({
+              track,
+              read,
+              top: Math.max(0, ...read.versionCodes.map(Number).filter(Number.isFinite)),
+            });
           }
         }
         releases.sort((a, b) => b.top - a.top || a.track.localeCompare(b.track));
@@ -471,16 +681,34 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         const entries: NotesHistoryEntry[] = [];
         for (const { track, read } of chosen) {
           for (const n of read.notes) {
-            if (wantedLocale !== undefined && n.locale.toLowerCase().replace(/_/g, '-') !== wantedLocale) continue;
+            if (
+              wantedLocale !== undefined &&
+              n.locale.toLowerCase().replace(/_/g, '-') !== wantedLocale
+            )
+              continue;
             if (n.text.trim() === '') continue;
             const truncated = n.text.length > MAX_NOTE_CHARS;
             let end = Math.min(n.text.length, MAX_NOTE_CHARS);
             const last = n.text.charCodeAt(end - 1);
             if (truncated && last >= 0xd800 && last <= 0xdbff) end--;
-            entries.push({ source: 'googleplay', locale: n.locale, text: n.text.slice(0, end), truncated, version: read.name, track, state: read.status, at: null });
+            entries.push({
+              source: 'googleplay',
+              locale: n.locale,
+              text: n.text.slice(0, end),
+              truncated,
+              version: read.name,
+              track,
+              state: read.status,
+              at: null,
+            });
           }
         }
-        return { entries, truncated: releases.length > chosen.length, versionsRead: chosen.length, failed: 0 };
+        return {
+          entries,
+          truncated: releases.length > chosen.length,
+          versionsRead: chosen.length,
+          failed: 0,
+        };
       } finally {
         await this.#deleteEdit(this.#http, editId);
       }
@@ -489,7 +717,12 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
 
   async readEditableRelease(input: { track?: string }): Promise<EditableRelease> {
     const track = input.track;
-    if (track === undefined || track === '') throw new StoreError('googleplay', 'invalid_input', 'Name the track (for example production).');
+    if (track === undefined || track === '')
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Name the track (for example production).',
+      );
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const editId = await this.#insertEdit(this.#http);
       try {
@@ -500,7 +733,9 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
           platform: 'android' as const,
           track,
           draft: draft ? PlayDraftConnector.#releaseRead(draft) : null,
-          others: releases.filter((r) => r !== draft).map((r) => PlayDraftConnector.#releaseRead(r)),
+          others: releases
+            .filter((r) => r !== draft)
+            .map((r) => PlayDraftConnector.#releaseRead(r)),
         };
       } finally {
         await this.#deleteEdit(this.#http, editId);
@@ -511,7 +746,12 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   // -------------------------------------------------------------------------------------------
 
   async #listings(http: StoreHttp, editId: string): Promise<Map<string, Json>> {
-    const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings`), 'reading the listings');
+    const reply = await this.#call(
+      http,
+      'GET',
+      this.#url(`/${enc(editId)}/listings`),
+      'reading the listings',
+    );
     const out = new Map<string, Json>();
     for (const item of records(isRecord(reply.json) ? reply.json.listings : undefined)) {
       const language = text(item.language);
@@ -520,12 +760,32 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
     return out;
   }
 
-  async #images(http: StoreHttp, editId: string, language: string, type: string): Promise<DraftImageState[]> {
+  async #images(
+    http: StoreHttp,
+    editId: string,
+    language: string,
+    type: string,
+  ): Promise<DraftImageState[]> {
     try {
-      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`), `reading the ${type} of ${language}`);
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`),
+        `reading the ${type} of ${language}`,
+      );
       return records(isRecord(reply.json) ? reply.json.images : undefined).flatMap((image) => {
         const id = text(image.id);
-        return id ? [{ id, name: null, checksum: text(image.sha256)?.toLowerCase() ?? null, checksumKind: 'sha256' as const, state: null }] : [];
+        return id
+          ? [
+              {
+                id,
+                name: null,
+                checksum: text(image.sha256)?.toLowerCase() ?? null,
+                checksumKind: 'sha256' as const,
+                state: null,
+              },
+            ]
+          : [];
       });
     } catch (error) {
       // A language that has no listing yet has no images either.
@@ -534,12 +794,22 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
     }
   }
 
-  async #state(http: StoreHttp, editId: string, request: DraftReadRequest, known?: Map<string, Json>): Promise<DraftState> {
+  async #state(
+    http: StoreHttp,
+    editId: string,
+    request: DraftReadRequest,
+    known?: Map<string, Json>,
+  ): Promise<DraftState> {
     const listings = known ?? (await this.#listings(http, editId));
     const textState: DraftTextState[] = request.text.map((t) => {
       const listing = listings.get(t.locale);
       const value = listing ? text(listing[PLAY_LISTING_MEMBERS[t.field] ?? '']) : undefined;
-      return { locale: t.locale, field: t.field, value: value ?? null, localeExists: listing !== undefined };
+      return {
+        locale: t.locale,
+        field: t.field,
+        value: value ?? null,
+        localeExists: listing !== undefined,
+      };
     });
     const assets: DraftAssetState[] = [];
     for (const slot of request.assets) {
@@ -552,8 +822,18 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         images: await this.#images(http, editId, slot.locale, slot.target),
       });
     }
-    const fields = request.fields !== undefined && request.fields.length > 0 ? await this.#readFields(http, editId, request.fields) : undefined;
-    return { store: 'googleplay', platform: 'android', version: null, text: textState, assets, ...(fields !== undefined ? { fields } : {}) };
+    const fields =
+      request.fields !== undefined && request.fields.length > 0
+        ? await this.#readFields(http, editId, request.fields)
+        : undefined;
+    return {
+      store: 'googleplay',
+      platform: 'android',
+      version: null,
+      text: textState,
+      assets,
+      ...(fields !== undefined ? { fields } : {}),
+    };
   }
 
   #url(suffix: string): string {
@@ -563,7 +843,13 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
   async #insertEdit(http: StoreHttp): Promise<string> {
     const reply = await this.#call(http, 'POST', this.#url(''), 'opening an edit', { json: {} });
     const id = isRecord(reply.json) ? text(reply.json.id) : undefined;
-    if (!id) throw new StoreError('googleplay', 'unexpected', 'Google Play opened an edit but sent no edit id.', reply.status);
+    if (!id)
+      throw new StoreError(
+        'googleplay',
+        'unexpected',
+        'Google Play opened an edit but sent no edit id.',
+        reply.status,
+      );
     return id;
   }
 
@@ -587,7 +873,9 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
       const token = await this.#tokens.token();
       let reply: StoreReply;
       try {
-        reply = await this.#writeHttp.send('POST', url, { headers: { authorization: `Bearer ${token}` } });
+        reply = await this.#writeHttp.send('POST', url, {
+          headers: { authorization: `Bearer ${token}` },
+        });
       } catch (error) {
         if (error instanceof StoreError && error.kind === 'network') {
           throw new DraftOutcomeUnknownError(
@@ -606,7 +894,12 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
       }
       if (reply.status >= 200 && reply.status < 300) return;
       if (reply.status >= 500) {
-        throw new DraftOutcomeUnknownError('googleplay', `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`, [], reply.status);
+        throw new DraftOutcomeUnknownError(
+          'googleplay',
+          `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`,
+          [],
+          reply.status,
+        );
       }
       throw this.#refusal(reply, what);
     }
@@ -666,7 +959,12 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
       }
       if (reply.status >= 200 && reply.status < 300) {
         if (reply.malformed) {
-          throw new StoreError('googleplay', 'unexpected', `Google Play answered ${what} with a response that could not be read.`, reply.status);
+          throw new StoreError(
+            'googleplay',
+            'unexpected',
+            `Google Play answered ${what} with a response that could not be read.`,
+            reply.status,
+          );
         }
         return reply;
       }

@@ -10,7 +10,9 @@ export type AppIconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export const APP_ICON_PX: Record<AppIconSize, number> = { xs: 20, sm: 24, md: 32, lg: 48, xl: 64 };
 
 export function appIconPixels(size: AppIconSize | number): number {
-  return typeof size === 'number' ? Math.max(12, Math.round(size)) : APP_ICON_PX[size] ?? APP_ICON_PX.md;
+  return typeof size === 'number'
+    ? Math.max(12, Math.round(size))
+    : (APP_ICON_PX[size] ?? APP_ICON_PX.md);
 }
 
 /**

@@ -1,6 +1,16 @@
 import { countOf, getJson, isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
 import { parseModelJson, providerSchema, validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiClientOptions, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiUsage, normalizeModels, userMessageOf } from './types.ts';
+import {
+  type AiClient,
+  type AiClientOptions,
+  type AiCompleteRequest,
+  type AiCompleteResult,
+  AiError,
+  type AiModelInfo,
+  type AiUsage,
+  normalizeModels,
+  userMessageOf,
+} from './types.ts';
 
 /**
  * Anthropic Messages API, `POST /v1/messages`, one request, structured output, no tools.
@@ -36,19 +46,36 @@ export type AnthropicOptions = AiClientOptions & { apiKey: string; model: string
 function classify(status: number, json: unknown, retryAfter: string | null): AiError {
   const type = textAt(json, 'error', 'type');
   const message = textAt(json, 'error', 'message').toLowerCase();
-  if (status === 429) return new AiError('rate_limited', { retryAfterSeconds: retryAfterSeconds(retryAfter, 30), ...(retryAfter ? {} : { detail: 'no_retry_after' }) });
-  if (status === 401 || status === 403 || type === 'authentication_error' || type === 'permission_error') return new AiError('auth');
+  if (status === 429)
+    return new AiError('rate_limited', {
+      retryAfterSeconds: retryAfterSeconds(retryAfter, 30),
+      ...(retryAfter ? {} : { detail: 'no_retry_after' }),
+    });
+  if (
+    status === 401 ||
+    status === 403 ||
+    type === 'authentication_error' ||
+    type === 'permission_error'
+  )
+    return new AiError('auth');
   if (status === 413 || type === 'request_too_large') return new AiError('too_large');
-  if (status === 400 && /too long|too large|context window|too many tokens/.test(message)) return new AiError('too_large');
+  if (status === 400 && /too long|too large|context window|too many tokens/.test(message))
+    return new AiError('too_large');
   if (status === 404) return new AiError('unavailable', { detail: 'http_404' });
-  if (status === 529 || type === 'overloaded_error') return new AiError('unavailable', { detail: 'overloaded' });
+  if (status === 529 || type === 'overloaded_error')
+    return new AiError('unavailable', { detail: 'overloaded' });
   return new AiError('unavailable', { detail: `http_${status}`.slice(0, 24) });
 }
 
 function usageOf(json: unknown): AiUsage {
   const usage = isRecord(json) && isRecord(json.usage) ? json.usage : {};
-  const cached = (countOf(usage.cache_creation_input_tokens) ?? 0) + (countOf(usage.cache_read_input_tokens) ?? 0);
-  return { inputTokens: (countOf(usage.input_tokens) ?? 0) + cached, outputTokens: countOf(usage.output_tokens) ?? 0 };
+  const cached =
+    (countOf(usage.cache_creation_input_tokens) ?? 0) +
+    (countOf(usage.cache_read_input_tokens) ?? 0);
+  return {
+    inputTokens: (countOf(usage.input_tokens) ?? 0) + cached,
+    outputTokens: countOf(usage.output_tokens) ?? 0,
+  };
 }
 
 /** Used when the account's list cannot be read (a fixed list, ids from the official docs, checked 2026-11-19). */
@@ -68,12 +95,25 @@ export function createAnthropicClient(options: AnthropicOptions): AiClient {
     model,
     async listModels(request = {}): Promise<AiModelInfo[]> {
       const reply = await getJson(
-        { url: `${options.baseUrl ?? ANTHROPIC_URL}/v1/models?limit=1000`, headers: { 'x-api-key': key, 'anthropic-version': ANTHROPIC_API_VERSION }, signal: request.signal },
+        {
+          url: `${options.baseUrl ?? ANTHROPIC_URL}/v1/models?limit=1000`,
+          headers: { 'x-api-key': key, 'anthropic-version': ANTHROPIC_API_VERSION },
+          signal: request.signal,
+        },
         options,
       );
-      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
-      if (!isRecord(reply.json) || !Array.isArray(reply.json.data)) throw new AiError('unavailable', { detail: 'bad_reply' });
-      return normalizeModels(reply.json.data.filter((m) => isRecord(m) && m.lifecycle !== 'retired').map((m) => ({ id: (m as Record<string, unknown>).id, label: (m as Record<string, unknown>).display_name })));
+      if (reply.status < 200 || reply.status > 299)
+        throw classify(reply.status, reply.json, reply.retryAfter);
+      if (!isRecord(reply.json) || !Array.isArray(reply.json.data))
+        throw new AiError('unavailable', { detail: 'bad_reply' });
+      return normalizeModels(
+        reply.json.data
+          .filter((m) => isRecord(m) && m.lifecycle !== 'retired')
+          .map((m) => ({
+            id: (m as Record<string, unknown>).id,
+            label: (m as Record<string, unknown>).display_name,
+          })),
+      );
     },
     async complete(request: AiCompleteRequest): Promise<AiCompleteResult> {
       const reply = await postJson(
@@ -85,27 +125,39 @@ export function createAnthropicClient(options: AnthropicOptions): AiClient {
             max_tokens: request.maxTokens,
             system: request.system,
             messages: [{ role: 'user', content: userMessageOf(request) }],
-            output_config: { format: { type: 'json_schema', schema: providerSchema(request.schema) } },
+            output_config: {
+              format: { type: 'json_schema', schema: providerSchema(request.schema) },
+            },
           },
           signal: request.signal,
         },
         options,
       );
-      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+      if (reply.status < 200 || reply.status > 299)
+        throw classify(reply.status, reply.json, reply.retryAfter);
       const json = reply.json;
       if (!isRecord(json)) throw new AiError('unavailable', { detail: 'bad_reply' });
       const usage = usageOf(json);
       const stop = typeof json.stop_reason === 'string' ? json.stop_reason : '';
       if (stop === 'refusal') throw new AiError('invalid_output', { detail: 'refusal', usage });
-      if (stop === 'max_tokens') throw new AiError('invalid_output', { detail: 'truncated', usage });
+      if (stop === 'max_tokens')
+        throw new AiError('invalid_output', { detail: 'truncated', usage });
       if (stop === 'model_context_window_exceeded') throw new AiError('too_large', { usage });
       const blocks = Array.isArray(json.content) ? json.content : [];
-      const block = blocks.find((b): b is Record<string, unknown> => isRecord(b) && b.type === 'text' && typeof b.text === 'string');
+      const block = blocks.find(
+        (b): b is Record<string, unknown> =>
+          isRecord(b) && b.type === 'text' && typeof b.text === 'string',
+      );
       if (!block) throw new AiError('invalid_output', { detail: 'no_text', usage });
       const output = parseModelJson(String(block.text));
       if (output === undefined) throw new AiError('invalid_output', { detail: 'not_json', usage });
-      if (validateJson(request.schema, output).length > 0) throw new AiError('invalid_output', { detail: 'schema', usage });
-      return { output, usage, model: typeof json.model === 'string' && json.model ? json.model : model };
+      if (validateJson(request.schema, output).length > 0)
+        throw new AiError('invalid_output', { detail: 'schema', usage });
+      return {
+        output,
+        usage,
+        model: typeof json.model === 'string' && json.model ? json.model : model,
+      };
     },
   };
 }

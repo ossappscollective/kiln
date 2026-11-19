@@ -3,7 +3,12 @@ import { test } from 'node:test';
 import { groupApps, groupOf } from './app-groups.ts';
 import type { AppSummary } from './types.ts';
 
-const app = (id: string, platform: 'ios' | 'android', name: string, identifier: string): AppSummary => ({
+const app = (
+  id: string,
+  platform: 'ios' | 'android',
+  name: string,
+  identifier: string,
+): AppSummary => ({
   id,
   name,
   platform,
@@ -28,7 +33,11 @@ test('pairs iOS and Android by identifier, then by name', () => {
   ]);
   assert.deepEqual(
     groups.map((g) => g.members.map((m) => m.id)),
-    [['c-ios', 'c-and'], ['b-ios', 'b-and'], ['a-ios', 'a-and']],
+    [
+      ['c-ios', 'c-and'],
+      ['b-ios', 'b-and'],
+      ['a-ios', 'a-and'],
+    ],
   );
   assert.equal(groups[0]?.key, 'c-ios');
 });
@@ -52,7 +61,8 @@ test('groupOf finds the group of either record', () => {
 });
 
 test('joins iOS, macOS and Android into one group, in that order, with the same or another bundle id', () => {
-  const m = (id: string, platform: 'ios' | 'macos' | 'android', name: string, identifier: string) => app(id, platform as 'ios', name, identifier);
+  const m = (id: string, platform: 'ios' | 'macos' | 'android', name: string, identifier: string) =>
+    app(id, platform as 'ios', name, identifier);
   const groups = groupApps([
     m('a-and', 'android', 'Trail', 'com.trail'),
     m('a-mac', 'macos', 'Trail', 'com.trail'),
@@ -61,7 +71,13 @@ test('joins iOS, macOS and Android into one group, in that order, with the same 
     m('b-ios', 'ios', 'Notes', 'com.notes.ios'),
     m('b-mac', 'macos', 'Notes', 'com.notes.mac'),
   ]);
-  assert.deepEqual(groups.map((g) => g.members.map((x) => x.id)), [['b-ios', 'b-mac'], ['a-ios', 'a-mac', 'a-and']]);
+  assert.deepEqual(
+    groups.map((g) => g.members.map((x) => x.id)),
+    [
+      ['b-ios', 'b-mac'],
+      ['a-ios', 'a-mac', 'a-and'],
+    ],
+  );
   const trail = groups[1];
   assert.deepEqual(trail?.platforms, ['ios', 'macos', 'android']);
   assert.equal(trail?.macos?.id, 'a-mac');
@@ -71,8 +87,17 @@ test('joins iOS, macOS and Android into one group, in that order, with the same 
 });
 
 test('a macOS app alone, or with two iOS candidates, stays alone', () => {
-  const m = (id: string, platform: 'ios' | 'macos', name: string, identifier: string) => app(id, platform as 'ios', name, identifier);
-  const groups = groupApps([m('m1', 'macos', 'Solo', 'com.solo'), m('i1', 'ios', 'Twin', 'com.a'), m('i2', 'ios', 'Twin', 'com.b'), m('m2', 'macos', 'Twin', 'com.c')]);
-  assert.deepEqual(groups.map((g) => g.members.length), [1, 1, 1, 1]);
+  const m = (id: string, platform: 'ios' | 'macos', name: string, identifier: string) =>
+    app(id, platform as 'ios', name, identifier);
+  const groups = groupApps([
+    m('m1', 'macos', 'Solo', 'com.solo'),
+    m('i1', 'ios', 'Twin', 'com.a'),
+    m('i2', 'ios', 'Twin', 'com.b'),
+    m('m2', 'macos', 'Twin', 'com.c'),
+  ]);
+  assert.deepEqual(
+    groups.map((g) => g.members.length),
+    [1, 1, 1, 1],
+  );
   assert.deepEqual(groups.find((g) => g.name === 'Solo')?.platforms, ['macos']);
 });

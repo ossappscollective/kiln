@@ -23,18 +23,18 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 
 ## Endpoints
 
-| Method and path | Needs | Purpose |
-| --- | --- | --- |
-| `GET overview?platform&from&to&granularity&breakdown` | read | series for one app |
-| `GET status` | read | what is set up, what is missing, last runs |
-| `POST sync` | manage | read the stores now (body optional `{ "sources": [...] }`) |
-| `GET apple/enable[?backfill=true]` | manage | preview of the Apple report request (reads Apple, changes nothing) |
-| `POST apple/enable` | manage | create it (`{ "confirmHash", "backfill"? }`) |
-| `GET play-bucket` | read | where the Google Play reports bucket of an Android app is set |
-| `PUT play-bucket` | manage | set or clear it (`{ "bucket", "scope"? }`) |
-| `POST play-bucket/test` | manage | can the service account list this app's report files? |
-| `POST import/preview?fileName=` | manage | check a report file: Apple report, or for Android a Play Console statistics CSV (the raw file is the body) |
-| `POST import?fileName=&confirmHash=` | manage | store it (the same raw file again) |
+| Method and path                                       | Needs  | Purpose                                                                                                    |
+| ----------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| `GET overview?platform&from&to&granularity&breakdown` | read   | series for one app                                                                                         |
+| `GET status`                                          | read   | what is set up, what is missing, last runs                                                                 |
+| `POST sync`                                           | manage | read the stores now (body optional `{ "sources": [...] }`)                                                 |
+| `GET apple/enable[?backfill=true]`                    | manage | preview of the Apple report request (reads Apple, changes nothing)                                         |
+| `POST apple/enable`                                   | manage | create it (`{ "confirmHash", "backfill"? }`)                                                               |
+| `GET play-bucket`                                     | read   | where the Google Play reports bucket of an Android app is set                                              |
+| `PUT play-bucket`                                     | manage | set or clear it (`{ "bucket", "scope"? }`)                                                                 |
+| `POST play-bucket/test`                               | manage | can the service account list this app's report files?                                                      |
+| `POST import/preview?fileName=`                       | manage | check a report file: Apple report, or for Android a Play Console statistics CSV (the raw file is the body) |
+| `POST import?fileName=&confirmHash=`                  | manage | store it (the same raw file again)                                                                         |
 
 ### `GET overview`
 
@@ -42,15 +42,38 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 `granularity`: `day` (default), `week`, `month`. `breakdown`: one of `territory`, `source_type`, `app_version`, `currency`.
 
 ```json
-{ "appId": "...", "platform": "ios", "from": "2026-10-22", "to": "2026-11-18", "granularity": "day",
-  "series": [ { "id": "impressions", "metric": "impressions", "label": "Impressions", "unit": "count",
-    "aggregation": "sum", "source": "apple_analytics", "derived": false, "currency": null, "delayDays": 5,
-    "total": 1234,
-    "points": [ { "date": "2026-10-22", "value": 40 }, { "date": "2026-10-23", "value": null } ],
-    "coverage": { "state": "partial", "firstDay": "2026-10-25", "lastDay": "2026-11-16", "days": 23, "gapDays": 2,
-      "notes": [ { "code": "recent_days_incomplete", "message": "..." } ] },
-    "breakdown": { "dimension": "territory", "items": [ { "value": "US", "total": 500 } ] } } ],
-  "notes": [ { "code": "google_no_impressions", "message": "..." } ] }
+{
+  "appId": "...",
+  "platform": "ios",
+  "from": "2026-10-22",
+  "to": "2026-11-18",
+  "granularity": "day",
+  "series": [
+    {
+      "id": "impressions",
+      "metric": "impressions",
+      "label": "Impressions",
+      "unit": "count",
+      "aggregation": "sum",
+      "source": "apple_analytics",
+      "derived": false,
+      "currency": null,
+      "delayDays": 5,
+      "total": 1234,
+      "points": [{ "date": "2026-10-22", "value": 40 }, { "date": "2026-10-23", "value": null }],
+      "coverage": {
+        "state": "partial",
+        "firstDay": "2026-10-25",
+        "lastDay": "2026-11-16",
+        "days": 23,
+        "gapDays": 2,
+        "notes": [{ "code": "recent_days_incomplete", "message": "..." }]
+      },
+      "breakdown": { "dimension": "territory", "items": [{ "value": "US", "total": 500 }] }
+    }
+  ],
+  "notes": [{ "code": "google_no_impressions", "message": "..." }]
+}
 ```
 
 `value` is `null` where the store gave nothing: **null is not zero**; draw a gap. `unit`: `count`, `ratio`, `rating`, `money`.
@@ -68,14 +91,45 @@ Coverage note codes (`coverageNoteCodes`, with the sentence in `message`): `appl
 ### `GET status`
 
 ```json
-{ "appId": "...", "platform": "ios", "enabled": true, "schedule": { "intervalMinutes": 360 },
-  "apple": { "mode": "ongoing", "requests": [ { "accessType": "ONGOING", "status": "active", "createdAt": 0, "lastCheckedAt": 0 } ],
-    "vendorNumberSet": true },
+{
+  "appId": "...",
+  "platform": "ios",
+  "enabled": true,
+  "schedule": { "intervalMinutes": 360 },
+  "apple": {
+    "mode": "ongoing",
+    "requests": [
+      { "accessType": "ONGOING", "status": "active", "createdAt": 0, "lastCheckedAt": 0 }
+    ],
+    "vendorNumberSet": true
+  },
   "google": null,
-  "sources": [ { "source": "apple_analytics", "label": "...", "state": "ready", "setup": null, "lastAttemptAt": 0, "lastOkAt": 0,
-    "lastError": null, "firstDay": "2026-10-25", "lastDay": "2026-11-16" } ],
-  "runs": [ { "source": "apple_analytics", "trigger": "schedule", "status": "ok", "errorCode": null, "pointsWritten": 120,
-    "reportsRead": 4, "startedAt": 0, "finishedAt": 0 } ] }
+  "sources": [
+    {
+      "source": "apple_analytics",
+      "label": "...",
+      "state": "ready",
+      "setup": null,
+      "lastAttemptAt": 0,
+      "lastOkAt": 0,
+      "lastError": null,
+      "firstDay": "2026-10-25",
+      "lastDay": "2026-11-16"
+    }
+  ],
+  "runs": [
+    {
+      "source": "apple_analytics",
+      "trigger": "schedule",
+      "status": "ok",
+      "errorCode": null,
+      "pointsWritten": 120,
+      "reportsRead": 4,
+      "startedAt": 0,
+      "finishedAt": 0
+    }
+  ]
+}
 ```
 
 Times are epoch milliseconds. `apple` is null for Android, `google` null for iOS and macOS. `apple.mode`: `off`, `ongoing`, `import`.
@@ -95,9 +149,23 @@ Needs `analytics.enabled`. Body optional: `{ "sources": [...] }` (sources of the
 `play_vitals`, `play_reports`). A store failure is **not** an HTTP error: the answer is 200 and each source says what happened.
 
 ```json
-{ "sync": { "at": 0, "pointsWritten": 120, "sources": [ { "source": "apple_analytics", "status": "ok", "points": 120,
-    "reports": 4, "dayFrom": "2026-11-14", "dayTo": "2026-11-16" } ] },
-  "status": { "...": "as GET status" } }
+{
+  "sync": {
+    "at": 0,
+    "pointsWritten": 120,
+    "sources": [
+      {
+        "source": "apple_analytics",
+        "status": "ok",
+        "points": 120,
+        "reports": 4,
+        "dayFrom": "2026-11-14",
+        "dayTo": "2026-11-16"
+      }
+    ]
+  },
+  "status": { "...": "as GET status" }
+}
 ```
 
 Per source: `status` is `ok`, `partial`, `failed` (then `errorCode` and `transient`: a later sync will try again) or `skipped` (cannot run
@@ -147,10 +215,18 @@ be listed, but no report of this package exists in it at all), which is a differ
 `GET apple/enable` returns what exists at Apple and what would be created. It changes nothing at Apple.
 
 ```json
-{ "plan": { "appId": "...", "platform": "ios", "roleCheck": "ok",
-    "steps": [ { "accessType": "ONGOING", "action": "create" } ],
-    "willSend": [ "..." ], "notes": [ "..." ] },
-  "confirmHash": "sha256...", "canCreate": true }
+{
+  "plan": {
+    "appId": "...",
+    "platform": "ios",
+    "roleCheck": "ok",
+    "steps": [{ "accessType": "ONGOING", "action": "create" }],
+    "willSend": ["..."],
+    "notes": ["..."]
+  },
+  "confirmHash": "sha256...",
+  "canCreate": true
+}
 ```
 
 `roleCheck`: `ok` or `role_required`. `action`: `create`, `adopt` (Apple already has one; it is kept) or `exists`. `POST apple/enable`

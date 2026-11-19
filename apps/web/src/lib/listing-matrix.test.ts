@@ -4,8 +4,8 @@ import {
   buildMatrix,
   cellMatchesMode,
   cellStatus,
-  cellText,
   cellsSummary,
+  cellText,
   columnKey,
   columnScopeNote,
   defaultMatrixFilter,
@@ -17,7 +17,12 @@ import {
 } from './listing-matrix.ts';
 import type { DriftField, DriftLocale, DriftSide, DriftStatus, ListingDrift } from './types.ts';
 
-const side = (value: string | null): DriftSide => ({ value, observedAt: value === null ? null : 1, sourceRef: null, source: null });
+const side = (value: string | null): DriftSide => ({
+  value,
+  observedAt: value === null ? null : 1,
+  sourceRef: null,
+  source: null,
+});
 
 function field(status: DriftStatus, partial: Partial<DriftField> = {}): DriftField {
   return {
@@ -52,7 +57,10 @@ test('cellStatus maps the drift status to the five dots and diverged', () => {
   assert.equal(cellStatus(field('store-ahead')), 'repo-differs');
   assert.equal(cellStatus(field('repo-ahead')), 'store-differs');
   assert.equal(cellStatus(field('diverged')), 'diverged');
-  assert.equal(cellStatus(field('missing-in-one', { missingIn: 'repo', repo: side(null) })), 'missing');
+  assert.equal(
+    cellStatus(field('missing-in-one', { missingIn: 'repo', repo: side(null) })),
+    'missing',
+  );
 });
 
 test('a value over the limit wins over the drift status, by count or by problem', () => {
@@ -87,7 +95,15 @@ const ios = drift('ios', [
   },
   {
     locale: 'de-DE',
-    fields: [field('missing-in-one', { field: 'name', label: 'Name', locale: 'de-DE', live: side(null), missingIn: 'store' })],
+    fields: [
+      field('missing-in-one', {
+        field: 'name',
+        label: 'Name',
+        locale: 'de-DE',
+        live: side(null),
+        missingIn: 'store',
+      }),
+    ],
   },
 ]);
 const android = drift('android', [
@@ -99,7 +115,10 @@ const android = drift('android', [
       field('identical', { field: 'full_description', label: 'Full description', limit: 4000 }),
     ],
   },
-  { locale: 'fr-FR', fields: [field('identical', { field: 'title', label: 'Title', locale: 'fr-FR' })] },
+  {
+    locale: 'fr-FR',
+    fields: [field('identical', { field: 'title', label: 'Title', locale: 'fr-FR' })],
+  },
 ]);
 
 test('buildMatrix for one platform has that platform columns and one cell per field', () => {
@@ -181,12 +200,22 @@ test('limitText shows one limit, or one per store when they differ', () => {
   const notes = buildMatrix([
     {
       platform: 'ios',
-      drift: drift('ios', [{ locale: 'en-US', fields: [field('identical', { field: 'release_notes', label: 'Release notes', limit: 4000 })] }]),
+      drift: drift('ios', [
+        {
+          locale: 'en-US',
+          fields: [
+            field('identical', { field: 'release_notes', label: 'Release notes', limit: 4000 }),
+          ],
+        },
+      ]),
     },
   ]);
   assert.equal(limitText(notes.columns[0] as never), 'max 4000');
   const differing = { platforms: ['ios', 'android'] as const, limits: { ios: 4000, android: 500 } };
-  assert.equal(limitText({ ...differing, platforms: ['ios', 'android'] }), 'iOS 4000 / Android 500');
+  assert.equal(
+    limitText({ ...differing, platforms: ['ios', 'android'] }),
+    'iOS 4000 / Android 500',
+  );
   assert.equal(limitText({ platforms: ['ios'], limits: { ios: null } }), '');
 });
 
@@ -199,11 +228,23 @@ test('filters: needs attention, missing only, over limit and the search', () => 
   assert.equal(all.length, 3);
   const differing = filterRows(m.rows, { mode: 'differing', query: '' });
   // fr-FR has a title but no short or full description row, so it is missing fields too.
-  assert.deepEqual(differing.map((r) => r.locale), ['en-US', 'de-DE', 'fr-FR']);
-  assert.deepEqual(filterRows(m.rows, { mode: 'missing', query: '' }).map((r) => r.locale), ['de-DE', 'fr-FR']);
+  assert.deepEqual(
+    differing.map((r) => r.locale),
+    ['en-US', 'de-DE', 'fr-FR'],
+  );
+  assert.deepEqual(
+    filterRows(m.rows, { mode: 'missing', query: '' }).map((r) => r.locale),
+    ['de-DE', 'fr-FR'],
+  );
   assert.deepEqual(filterRows(m.rows, { mode: 'over', query: '' }), []);
-  assert.deepEqual(filterRows(m.rows, { mode: 'all', query: 'FR' }).map((r) => r.locale), ['fr-FR']);
-  assert.deepEqual(filterRows(m.rows, { mode: 'all', query: '  de-de ' }).map((r) => r.locale), ['de-DE']);
+  assert.deepEqual(
+    filterRows(m.rows, { mode: 'all', query: 'FR' }).map((r) => r.locale),
+    ['fr-FR'],
+  );
+  assert.deepEqual(
+    filterRows(m.rows, { mode: 'all', query: '  de-de ' }).map((r) => r.locale),
+    ['de-DE'],
+  );
   assert.deepEqual(modeCounts(m.rows), { all: 3, differing: 3, missing: 2, over: 0 });
 });
 
@@ -222,8 +263,14 @@ test('matrixSummary and cellText say it in words', () => {
   assert.equal(matrixSummary([]), 'No locales yet');
   assert.equal(matrixSummary(m.rows.slice(0, 0)), 'No locales yet');
   const cell = m.rows[0]?.cells.subtitle?.[0];
-  assert.equal(cellText(m.columns[1] as never, cell as never, true), 'iOS, Subtitle: Differs from repo: the store is ahead');
-  assert.equal(cellText(m.columns[1] as never, cell as never, false), 'Subtitle: Differs from repo: the store is ahead');
+  assert.equal(
+    cellText(m.columns[1] as never, cell as never, true),
+    'iOS, Subtitle: Differs from repo: the store is ahead',
+  );
+  assert.equal(
+    cellText(m.columns[1] as never, cell as never, false),
+    'Subtitle: Differs from repo: the store is ahead',
+  );
 });
 
 test('cellsSummary joins the stores that have the field', () => {

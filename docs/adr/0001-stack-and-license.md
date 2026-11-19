@@ -10,18 +10,18 @@ self-host with two containers, that also runs as a desktop app without Electron.
 
 ## Decisions
 
-| Area | Decision | Notes |
-| --- | --- | --- |
-| License | Apache-2.0 | Permissive, patent grant, easy for companies to adopt |
-| Language | TypeScript, pnpm workspaces | Shared types across API, UI and connectors |
-| API | Hono | Runs on Node or Bun; OpenAPI generation to be added |
-| UI | Svelte 5 single-page app, Vite | Not React, by request; Vue was the alternative |
-| Data | Drizzle, Postgres and SQLite | Portable schema; see the dual-dialect spike |
-| Jobs | Database-backed queue in the same binary | No Redis or RabbitMQ |
-| Secrets | AES-256-GCM, master key from the environment | OS keychain on desktop later |
-| Desktop | Tauri around the same UI, server as a sidecar | No Electron; see the sidecar spike |
-| Runtime | Node 22.18 or newer, TypeScript run directly | Native type stripping; revisit for the sidecar |
-| Tests | `node:test` | No extra runner to install |
+| Area     | Decision                                      | Notes                                                 |
+| -------- | --------------------------------------------- | ----------------------------------------------------- |
+| License  | Apache-2.0                                    | Permissive, patent grant, easy for companies to adopt |
+| Language | TypeScript, pnpm workspaces                   | Shared types across API, UI and connectors            |
+| API      | Hono                                          | Runs on Node or Bun; OpenAPI generation to be added   |
+| UI       | Svelte 5 single-page app, Vite                | Not React, by request; Vue was the alternative        |
+| Data     | Drizzle, Postgres and SQLite                  | Portable schema; see the dual-dialect spike           |
+| Jobs     | Database-backed queue in the same binary      | No Redis or RabbitMQ                                  |
+| Secrets  | AES-256-GCM, master key from the environment  | OS keychain on desktop later                          |
+| Desktop  | Tauri around the same UI, server as a sidecar | No Electron; see the sidecar spike                    |
+| Runtime  | Node 22.18 or newer, TypeScript run directly  | Native type stripping; revisit for the sidecar        |
+| Tests    | `node:test`                                   | No extra runner to install                            |
 
 ## Consequences
 

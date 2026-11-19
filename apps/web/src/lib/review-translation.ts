@@ -1,4 +1,11 @@
-import { type Role, type TranslationProvider, can, sameLanguage, translationLimits, translationProviderInfo } from '@mrm/core';
+import {
+  can,
+  type Role,
+  sameLanguage,
+  type TranslationProvider,
+  translationLimits,
+  translationProviderInfo,
+} from '@mrm/core';
 import { ApiError } from './api.ts';
 import { languageName } from './settings.ts';
 
@@ -29,7 +36,12 @@ export const MAX_REVIEW_IDS = translationLimits.maxReviewIds;
 export const canTranslate = (role: Role): boolean => can(role, 'reviews.translate');
 
 /** The part of a review the button needs. */
-export type Translatable = { id: string; title: string | null; body: string; language: string | null };
+export type Translatable = {
+  id: string;
+  title: string | null;
+  body: string;
+  language: string | null;
+};
 
 const hasText = (r: Translatable): boolean => r.body.trim() !== '' || (r.title ?? '').trim() !== '';
 
@@ -44,7 +56,11 @@ export function needsTranslation(review: Translatable, target: string): boolean 
 }
 
 /** The ids to translate for "Translate all visible": those that need it, at most one request's worth, in order. */
-export function translatableIds(reviews: Translatable[], target: string, limit: number = MAX_REVIEW_IDS): string[] {
+export function translatableIds(
+  reviews: Translatable[],
+  target: string,
+  limit: number = MAX_REVIEW_IDS,
+): string[] {
   const out: string[] = [];
   for (const review of reviews) {
     if (out.length >= limit) break;
@@ -69,7 +85,10 @@ export function translationCaption(t: ReviewTranslation, reviewLanguage: string 
 
 /** Said under a translation: the text left this server. */
 export function privacyNote(provider: TranslationProvider): string {
-  return translationProviderInfo[provider]?.privacy ?? 'Review text was sent to the translation provider.';
+  return (
+    translationProviderInfo[provider]?.privacy ??
+    'Review text was sent to the translation provider.'
+  );
 }
 
 export function translationErrorMessage(error: unknown): string {
@@ -108,12 +127,16 @@ export function translationErrorMessage(error: unknown): string {
 
 /** Whether a failure is worth showing a "Try again" for. */
 export const isRetryable = (error: unknown): boolean =>
-  error instanceof ApiError && (error.code === 'translation_unavailable' || error.code === 'translation_rate_limited' || error.code === 'rate_limited');
+  error instanceof ApiError &&
+  (error.code === 'translation_unavailable' ||
+    error.code === 'translation_rate_limited' ||
+    error.code === 'rate_limited');
 
 /** The fixed hints of an unsupported language, in words. Anything else is shown as it is. */
 export function unsupportedHint(reason: string): string {
   const pair = /^pair_([a-z-]+)_to_([a-z-]+)$/.exec(reason);
-  if (pair) return `the server has no ${pair[1]} to ${pair[2]} model; if the review is not ${pair[1]}, its language was detected wrongly`;
+  if (pair)
+    return `the server has no ${pair[1]} to ${pair[2]} model; if the review is not ${pair[1]}, its language was detected wrongly`;
   if (reason === 'lang_target') return 'the server does not offer the target language';
   if (reason === 'lang_source') return 'the server does not offer the source language';
   return reason;

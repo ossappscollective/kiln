@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  DASHBOARD_BUCKETS,
-  RELEASE_STATES,
   allowedEvents,
+  DASHBOARD_BUCKETS,
   dashboardBucket,
-  transition,
+  RELEASE_STATES,
   type ReleaseEvent,
   type ReleaseState,
+  transition,
 } from './lifecycle.ts';
 import type { Platform } from './platform.ts';
 
@@ -39,14 +39,7 @@ test('Android passes through propagating before rolling out', () => {
     'propagating',
   );
   assert.equal(
-    run('android', [
-      'choose_build',
-      'mark_ready',
-      'submit',
-      'approve',
-      'release',
-      'propagated',
-    ]),
+    run('android', ['choose_build', 'mark_ready', 'submit', 'approve', 'release', 'propagated']),
     'rolling_out',
   );
 });

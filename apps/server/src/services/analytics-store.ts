@@ -1,17 +1,17 @@
 import { randomUUID } from 'node:crypto';
+import type { AnalyticsPoint } from '@mrm/connectors';
 import {
   type AnalyticsDimension,
   type AnalyticsMetric,
   type AnalyticsSource,
-  type PlayBucketSource,
   addDays,
   dateToDay,
   normalizeBucketId,
+  type PlayBucketSource,
   toMicro,
 } from '@mrm/core';
-import type { AnalyticsPoint } from '@mrm/connectors';
-import type { ManagedApp } from './apps.ts';
 import type { Database, Param, Sql } from '@mrm/db';
+import type { ManagedApp } from './apps.ts';
 
 /**
  * Storage of analytics (docs/adr/0017-analytics-foundation.md): the normalised daily facts, the sync runs, the Apple report
@@ -38,14 +38,21 @@ export type UpsertResult = {
 
 const CHUNK = 100;
 
-const dimOf = (p: AnalyticsPoint) => ({ type: p.dimension?.type ?? '', value: p.dimension?.value ?? '' });
+const dimOf = (p: AnalyticsPoint) => ({
+  type: p.dimension?.type ?? '',
+  value: p.dimension?.value ?? '',
+});
 
 /**
  * Writes points by key (app, platform, source, metric, day, dimension). A row is replaced only by a point of a LATER processing
  * date (the store restated the day), or of the same date with another value (a corrected file); an older one never replaces a
  * newer one. So syncing and importing again changes nothing, and a late file cannot undo a newer number.
  */
-export async function upsertPoints(sql: Sql, input: UpsertInput, points: AnalyticsPoint[]): Promise<UpsertResult> {
+export async function upsertPoints(
+  sql: Sql,
+  input: UpsertInput,
+  points: AnalyticsPoint[],
+): Promise<UpsertResult> {
   const unique = new Map<string, AnalyticsPoint>();
   for (const point of points) {
     if (!Number.isFinite(point.value)) continue;
@@ -103,7 +110,14 @@ export type DailyRow = {
 /** The stored facts of an app in a range of days (inclusive), totals only unless `dimension` names one. */
 export async function readDaily(
   sql: Sql,
-  input: { workspaceId: string; appId: string; platform: string; from: string; to: string; dimension?: AnalyticsDimension },
+  input: {
+    workspaceId: string;
+    appId: string;
+    platform: string;
+    from: string;
+    to: string;
+    dimension?: AnalyticsDimension;
+  },
 ): Promise<DailyRow[]> {
   const rows = await sql.query(
     `SELECT metric, day, dim_type, dim_value, value_micro, processing_date, origin
@@ -134,7 +148,12 @@ export async function dayBounds(
        FROM analytics_daily WHERE workspace_id = ? AND app_id = ? AND platform = ? AND dim_type = '' GROUP BY source`,
     [input.workspaceId, input.appId, input.platform],
   );
-  return new Map(rows.map((r) => [String(r.source) as AnalyticsSource, { first: String(r.first_day), last: String(r.last_day) }]));
+  return new Map(
+    rows.map((r) => [
+      String(r.source) as AnalyticsSource,
+      { first: String(r.first_day), last: String(r.last_day) },
+    ]),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -222,7 +241,12 @@ const toRun = (r: Record<string, unknown>): SyncRun => ({
   finishedAt: r.finished_at === null || r.finished_at === undefined ? null : Number(r.finished_at),
 });
 
-export async function recentRuns(sql: Sql, workspaceId: string, appId: string, limit = 10): Promise<SyncRun[]> {
+export async function recentRuns(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  limit = 10,
+): Promise<SyncRun[]> {
   const rows = await sql.query(
     `SELECT id, app_id, platform, source, trigger_kind, status, error_code, points_written, reports_read, day_from, day_to,
             started_at, finished_at
@@ -248,7 +272,12 @@ export type SourceState = {
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const s = (v: unknown) => (v === null || v === undefined ? null : String(v));
 
-export async function getSourceStates(sql: Sql, workspaceId: string, appId: string, platform: string): Promise<Map<AnalyticsSource, SourceState>> {
+export async function getSourceStates(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  platform: string,
+): Promise<Map<AnalyticsSource, SourceState>> {
   const rows = await sql.query(
     `SELECT source, setup_code, last_attempt_at, last_ok_at, last_error_code, oldest_day, newest_day
        FROM analytics_source_state WHERE workspace_id = ? AND app_id = ? AND platform = ?`,
@@ -330,12 +359,25 @@ export async function saveSourceState(
 export type AppleMode = 'off' | 'ongoing' | 'import';
 export type AppAnalyticsConfig = { appleMode: AppleMode; playBucketId: string | null };
 
-export async function getAppConfig(sql: Sql, workspaceId: string, appId: string): Promise<AppAnalyticsConfig> {
-  const [row] = await sql.query('SELECT apple_mode, play_bucket_id FROM analytics_app_config WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
-  return { appleMode: (row ? String(row.apple_mode) : 'off') as AppleMode, playBucketId: row ? s(row.play_bucket_id) : null };
+export async function getAppConfig(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AppAnalyticsConfig> {
+  const [row] = await sql.query(
+    'SELECT apple_mode, play_bucket_id FROM analytics_app_config WHERE app_id = ? AND workspace_id = ?',
+    [appId, workspaceId],
+  );
+  return {
+    appleMode: (row ? String(row.apple_mode) : 'off') as AppleMode,
+    playBucketId: row ? s(row.play_bucket_id) : null,
+  };
 }
 
-export async function setAppleMode(sql: Sql, input: { workspaceId: string; appId: string; mode: AppleMode; by: string; now: number }): Promise<void> {
+export async function setAppleMode(
+  sql: Sql,
+  input: { workspaceId: string; appId: string; mode: AppleMode; by: string; now: number },
+): Promise<void> {
   await sql.execute(
     `INSERT INTO analytics_app_config (app_id, workspace_id, apple_mode, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (app_id) DO UPDATE SET apple_mode = excluded.apple_mode, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
@@ -351,22 +393,50 @@ const clean = (value: unknown): string | null => {
   return text === '' ? null : (normalizeBucketId(text) ?? null);
 };
 
-export async function getAccountBucket(sql: Sql, workspaceId: string, credentialId: string): Promise<string | null> {
-  const [row] = await sql.query('SELECT play_bucket_id FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?', [credentialId, workspaceId]);
+export async function getAccountBucket(
+  sql: Sql,
+  workspaceId: string,
+  credentialId: string,
+): Promise<string | null> {
+  const [row] = await sql.query(
+    'SELECT play_bucket_id FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?',
+    [credentialId, workspaceId],
+  );
   return row ? clean(row.play_bucket_id) : null;
 }
 
 /** The bucket an Android app reads: its own override, else its developer account's, else the workspace setting. */
 export async function resolvePlayBucket(
   sql: Sql,
-  input: { workspaceId: string; app: Pick<ManagedApp, 'id' | 'credentialId'>; settings: Record<string, unknown> },
-): Promise<{ bucketId: string | null; source: PlayBucketSource | null; app: string | null; account: string | null; workspace: string | null; inherited: { bucketId: string | null; source: PlayBucketSource | null } }> {
+  input: {
+    workspaceId: string;
+    app: Pick<ManagedApp, 'id' | 'credentialId'>;
+    settings: Record<string, unknown>;
+  },
+): Promise<{
+  bucketId: string | null;
+  source: PlayBucketSource | null;
+  app: string | null;
+  account: string | null;
+  workspace: string | null;
+  inherited: { bucketId: string | null; source: PlayBucketSource | null };
+}> {
   const app = clean((await getAppConfig(sql, input.workspaceId, input.app.id)).playBucketId);
   const account = await getAccountBucket(sql, input.workspaceId, input.app.credentialId);
   const workspace = clean(input.settings['analytics.playBucketId']);
-  const [bucketId, source] = app ? [app, 'app' as const] : account ? [account, 'account' as const] : workspace ? [workspace, 'workspace' as const] : [null, null];
+  const [bucketId, source] = app
+    ? [app, 'app' as const]
+    : account
+      ? [account, 'account' as const]
+      : workspace
+        ? [workspace, 'workspace' as const]
+        : [null, null];
   // What the app would read without its own override: the Play credential's bucket, else the workspace default.
-  const inherited = account ? { bucketId: account, source: 'account' as const } : workspace ? { bucketId: workspace, source: 'workspace' as const } : { bucketId: null, source: null };
+  const inherited = account
+    ? { bucketId: account, source: 'account' as const }
+    : workspace
+      ? { bucketId: workspace, source: 'workspace' as const }
+      : { bucketId: null, source: null };
   return { bucketId, source, app, account, workspace, inherited };
 }
 
@@ -393,7 +463,11 @@ const toRequest = (r: Record<string, unknown>): StoredRequest => ({
   lastErrorCode: s(r.last_error_code),
 });
 
-export async function listReportRequests(sql: Sql, workspaceId: string, appId: string): Promise<StoredRequest[]> {
+export async function listReportRequests(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<StoredRequest[]> {
   const rows = await sql.query(
     `SELECT id, apple_request_id, access_type, status, created_at, last_checked_at, last_error_code
        FROM analytics_report_requests WHERE workspace_id = ? AND app_id = ? ORDER BY created_at, id`,
@@ -404,7 +478,14 @@ export async function listReportRequests(sql: Sql, workspaceId: string, appId: s
 
 export async function saveReportRequest(
   sql: Sql,
-  input: { workspaceId: string; appId: string; appleRequestId: string; accessType: StoredRequest['accessType']; createdBy: string; now: number },
+  input: {
+    workspaceId: string;
+    appId: string;
+    appleRequestId: string;
+    accessType: StoredRequest['accessType'];
+    createdBy: string;
+    now: number;
+  },
 ): Promise<string> {
   const id = randomUUID();
   await sql.execute(
@@ -412,7 +493,15 @@ export async function saveReportRequest(
      VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
      ON CONFLICT (app_id, access_type) DO UPDATE SET
        apple_request_id = excluded.apple_request_id, status = 'active', last_error_code = NULL`,
-    [id, input.workspaceId, input.appId, input.appleRequestId, input.accessType, input.createdBy, input.now],
+    [
+      id,
+      input.workspaceId,
+      input.appId,
+      input.appleRequestId,
+      input.accessType,
+      input.createdBy,
+      input.now,
+    ],
   );
   return id;
 }
@@ -422,21 +511,31 @@ export async function markReportRequest(
   id: string,
   input: { status: StoredRequest['status']; errorCode?: string | null; now: number },
 ): Promise<void> {
-  await sql.execute('UPDATE analytics_report_requests SET status = ?, last_checked_at = ?, last_error_code = ? WHERE id = ?', [
-    input.status,
-    input.now,
-    input.errorCode ?? null,
-    id,
-  ]);
+  await sql.execute(
+    'UPDATE analytics_report_requests SET status = ?, last_checked_at = ?, last_error_code = ? WHERE id = ?',
+    [input.status, input.now, input.errorCode ?? null, id],
+  );
 }
 
 /** Instances that need no second look: read (even with no point) or failed for a reason that will not go away. */
-export async function settledInstances(sql: Sql, workspaceId: string, appId: string): Promise<Set<string>> {
+export async function settledInstances(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<Set<string>> {
   const rows = await sql.query(
     `SELECT apple_instance_id, status, error_code FROM analytics_instances WHERE workspace_id = ? AND app_id = ?`,
     [workspaceId, appId],
   );
-  const retry = new Set(['segment_expired', 'rate_limited', 'store_unavailable', 'timeout', 'store_auth', 'store_forbidden', 'sync_failed']);
+  const retry = new Set([
+    'segment_expired',
+    'rate_limited',
+    'store_unavailable',
+    'timeout',
+    'store_auth',
+    'store_forbidden',
+    'sync_failed',
+  ]);
   const settled = new Set<string>();
   for (const r of rows) {
     if (String(r.status) === 'read') settled.add(String(r.apple_instance_id));
@@ -500,9 +599,16 @@ const TABLES = [
 ] as const;
 
 /** Everything analytics holds for an app (used when the app is deleted). */
-export async function deleteAnalyticsData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
+export async function deleteAnalyticsData(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<void> {
   for (const table of TABLES) {
-    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+      appId,
+      workspaceId,
+    ]);
   }
 }
 
@@ -516,9 +622,16 @@ export type AnalyticsUpkeepSummary = { runs: number; instances: number; orphans:
  * Upkeep: old run rows (counts only) and instance bookkeeping go; rows of apps that no longer exist go too. The DAILY FACTS are
  * kept: they are small, and Apple deletes its instances after 35 days, so they are the only copy.
  */
-export async function analyticsUpkeep(db: Database, options: { now: number }): Promise<AnalyticsUpkeepSummary> {
-  const runs = await db.execute('DELETE FROM analytics_sync_runs WHERE started_at < ?', [options.now - ANALYTICS_RUN_RETENTION_DAYS * DAY_MS]);
-  const instances = await db.execute('DELETE FROM analytics_instances WHERE read_at < ?', [options.now - ANALYTICS_INSTANCE_RETENTION_DAYS * DAY_MS]);
+export async function analyticsUpkeep(
+  db: Database,
+  options: { now: number },
+): Promise<AnalyticsUpkeepSummary> {
+  const runs = await db.execute('DELETE FROM analytics_sync_runs WHERE started_at < ?', [
+    options.now - ANALYTICS_RUN_RETENTION_DAYS * DAY_MS,
+  ]);
+  const instances = await db.execute('DELETE FROM analytics_instances WHERE read_at < ?', [
+    options.now - ANALYTICS_INSTANCE_RETENTION_DAYS * DAY_MS,
+  ]);
   let orphans = 0;
   for (const table of TABLES) {
     orphans += await db.execute(`DELETE FROM ${table} WHERE app_id NOT IN (SELECT id FROM apps)`);

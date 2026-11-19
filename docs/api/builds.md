@@ -4,12 +4,12 @@ Everything is under `/api/workspaces/:workspaceId`, needs a session or an API to
 ([ci.md](ci.md)). Built and tested against fakes only (fixtures written from GitHub's "Artifacts" REST documentation); never
 run against live GitHub. See [../research/test-builds.md](../research/test-builds.md) for what is verified and what is not.
 
-| Route | Right | Notes |
-| --- | --- | --- |
-| `GET /apps/:id/builds/artifacts` | `builds.read` (member and above) | CI artifacts of the runs that count for the app, the store builds of the last sync, and (iOS and macOS) the TestFlight public links (a read-only App Store Connect call). Kept 30 s, ETag read, shared between callers; 60 a minute per workspace |
-| `GET /apps/:id/builds/artifacts/:artifactId/download` | `builds.download` | Streams the zip through the server. `409 builds_download_disabled` unless `MRM_BUILDS_DOWNLOAD_ENABLED=true` |
-| `POST /apps/:id/builds/artifacts/:artifactId/link` | `builds.download` | `{ path, expiresAt, filename }`: `/api/builds/dl/<token>` |
-| `GET /api/builds/dl/:token` | none (the token) | Public, for a phone. Single use, 10 minutes |
+| Route                                                 | Right                            | Notes                                                                                                                                                                                                                                             |
+| ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /apps/:id/builds/artifacts`                      | `builds.read` (member and above) | CI artifacts of the runs that count for the app, the store builds of the last sync, and (iOS and macOS) the TestFlight public links (a read-only App Store Connect call). Kept 30 s, ETag read, shared between callers; 60 a minute per workspace |
+| `GET /apps/:id/builds/artifacts/:artifactId/download` | `builds.download`                | Streams the zip through the server. `409 builds_download_disabled` unless `MRM_BUILDS_DOWNLOAD_ENABLED=true`                                                                                                                                      |
+| `POST /apps/:id/builds/artifacts/:artifactId/link`    | `builds.download`                | `{ path, expiresAt, filename }`: `/api/builds/dl/<token>`                                                                                                                                                                                         |
+| `GET /api/builds/dl/:token`                           | none (the token)                 | Public, for a phone. Single use, 10 minutes                                                                                                                                                                                                       |
 
 `builds.read` and `builds.download` are member rights (a viewer sees releases, not binaries). `builds.download` is explicit-only
 for API tokens: a token with no list of actions never holds it. A token limited to some apps may call all four for those apps only.

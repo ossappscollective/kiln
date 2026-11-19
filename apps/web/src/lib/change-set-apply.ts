@@ -4,7 +4,7 @@
  * (ChangeSetReview.svelte) only draw what they return. The server decides; this file only keeps the
  * screen from offering what the server will refuse, and says why in words.
  */
-import { type Role, can } from '@mrm/core';
+import { can, type Role } from '@mrm/core';
 import type { ChangeSetView, LocalOutcome, LocalSigningConfig, LocalWriteConfig } from './types.ts';
 
 export type ApplyMode = 'github_pr' | 'local_branch';
@@ -33,17 +33,25 @@ const ok: Availability = { available: true };
 /** Why a pull request cannot be opened by Apply, or ok. A local-only repository has no GitHub. */
 export function githubPrAvailability(ctx: Pick<ApplyContext, 'localOnly'>): Availability {
   return ctx.localOnly
-    ? unavailable('This repository has no GitHub connection, so there is no pull request to open. Commit to a branch of the local clone instead.')
+    ? unavailable(
+        'This repository has no GitHub connection, so there is no pull request to open. Commit to a branch of the local clone instead.',
+      )
     : ok;
 }
 
 /** Why a commit in the local clone is not possible right now, or ok. */
-export function localBranchAvailability(ctx: Pick<ApplyContext, 'hasLocalClone' | 'write'>): Availability {
+export function localBranchAvailability(
+  ctx: Pick<ApplyContext, 'hasLocalClone' | 'write'>,
+): Availability {
   if (!ctx.hasLocalClone) {
-    return unavailable('No local clone is attached to this repository. Attach a folder in the Local clone card first.');
+    return unavailable(
+      'No local clone is attached to this repository. Attach a folder in the Local clone card first.',
+    );
   }
   if (ctx.write === null) {
-    return unavailable('Could not read the server setting for writing to local clones. Reload the page and try again.');
+    return unavailable(
+      'Could not read the server setting for writing to local clones. Reload the page and try again.',
+    );
   }
   if (!ctx.write.enabled) {
     return unavailable(
@@ -58,7 +66,10 @@ export function localBranchAvailability(ctx: Pick<ApplyContext, 'hasLocalClone' 
 export function pushAvailability(ctx: ApplyContext): Availability {
   const local = localBranchAvailability(ctx);
   if (!local.available) return local;
-  if (ctx.localOnly) return unavailable('This repository has no GitHub connection, so there is nowhere to push the branch.');
+  if (ctx.localOnly)
+    return unavailable(
+      'This repository has no GitHub connection, so there is nowhere to push the branch.',
+    );
   return ok;
 }
 
@@ -66,7 +77,10 @@ export function pushAvailability(ctx: ApplyContext): Availability {
 export function openPrAvailability(ctx: ApplyContext, pushChosen: boolean): Availability {
   const push = pushAvailability(ctx);
   if (!push.available) return push;
-  if (!pushChosen) return unavailable('A pull request needs the branch on GitHub. Tick "Push the branch to GitHub" first.');
+  if (!pushChosen)
+    return unavailable(
+      'A pull request needs the branch on GitHub. Tick "Push the branch to GitHub" first.',
+    );
   return ok;
 }
 
@@ -77,7 +91,10 @@ export function defaultApplyMode(ctx: Pick<ApplyContext, 'localOnly'>): ApplyMod
 
 export type ApplyChoice = { mode: ApplyMode; branch: string; push: boolean; openPr: boolean };
 
-export const initialChoice = (ctx: Pick<ApplyContext, 'localOnly'>, branch: string): ApplyChoice => ({
+export const initialChoice = (
+  ctx: Pick<ApplyContext, 'localOnly'>,
+  branch: string,
+): ApplyChoice => ({
   mode: defaultApplyMode(ctx),
   branch,
   push: false,
@@ -93,7 +110,8 @@ export function normalizeChoice(choice: ApplyChoice, ctx: ApplyContext): ApplyCh
 
 /** Why Apply cannot go ahead with this choice, or null when it can. Shown beside the button. */
 export function applyBlocker(choice: ApplyChoice, ctx: ApplyContext): string | null {
-  const available = choice.mode === 'github_pr' ? githubPrAvailability(ctx) : localBranchAvailability(ctx);
+  const available =
+    choice.mode === 'github_pr' ? githubPrAvailability(ctx) : localBranchAvailability(ctx);
   if (!available.available) return available.reason ?? 'This cannot be applied.';
   if (choice.mode === 'local_branch') return branchNameProblem(choice.branch);
   return null;
@@ -134,7 +152,8 @@ export function branchNameProblem(name: string): string | null {
   }
   if (value.includes('..')) return 'The branch name must not contain "..".';
   if (value.includes('@{')) return 'The branch name must not contain "@{".';
-  if (value.split('/').some((part) => part.endsWith('.lock'))) return 'A part of the branch name must not end in ".lock".';
+  if (value.split('/').some((part) => part.endsWith('.lock')))
+    return 'A part of the branch name must not end in ".lock".';
   if (
     !/^[A-Za-z0-9_][A-Za-z0-9._/-]*$/.test(value) ||
     value.includes('//') ||
@@ -174,7 +193,13 @@ export function applyBody(choice: ApplyChoice, defaultBranch: string): ApplyBody
 // The result
 
 export type StepTone = 'ok' | 'bad' | 'warn' | 'neutral';
-export type OutcomeStep = { id: 'commit' | 'push' | 'pr'; label: string; status: string; tone: StepTone; detail?: string };
+export type OutcomeStep = {
+  id: 'commit' | 'push' | 'pr';
+  label: string;
+  status: string;
+  tone: StepTone;
+  detail?: string;
+};
 
 /** The three steps of a commit in the local clone, each with its own status and, when it failed, why. */
 export function outcomeSteps(outcome: LocalOutcome): OutcomeStep[] {
@@ -188,7 +213,12 @@ export function outcomeSteps(outcome: LocalOutcome): OutcomeStep[] {
     outcome.push.status === 'pushed'
       ? { id: 'push', label: 'Push', status: 'Pushed to GitHub', tone: 'ok' }
       : outcome.push.status === 'behind'
-        ? { id: 'push', label: 'Push', status: 'The latest fix up is not on GitHub yet', tone: 'warn' }
+        ? {
+            id: 'push',
+            label: 'Push',
+            status: 'The latest fix up is not on GitHub yet',
+            tone: 'warn',
+          }
         : outcome.push.status === 'failed'
           ? {
               id: 'push',
@@ -241,23 +271,42 @@ export function retryOptions(
     const failed = outcome.push.status === 'failed';
     const behind = outcome.push.status === 'behind';
     return [
-      { id: 'push', label: failed ? 'Retry the push' : behind ? 'Push the new commit' : 'Push the branch', openPr: false },
-      { id: 'push_pr', label: failed ? 'Retry the push and open a pull request' : 'Push and open a pull request', openPr: true },
+      {
+        id: 'push',
+        label: failed ? 'Retry the push' : behind ? 'Push the new commit' : 'Push the branch',
+        openPr: false,
+      },
+      {
+        id: 'push_pr',
+        label: failed ? 'Retry the push and open a pull request' : 'Push and open a pull request',
+        openPr: true,
+      },
     ];
   }
   if (!prOpen) {
-    return [{ id: 'pr', label: outcome.pr.status === 'failed' ? 'Retry the pull request' : 'Open a pull request', openPr: true }];
+    return [
+      {
+        id: 'pr',
+        label: outcome.pr.status === 'failed' ? 'Retry the pull request' : 'Open a pull request',
+        openPr: true,
+      },
+    ];
   }
   return [];
 }
 
 /** The sentence for the toast after Apply. */
-export function applyDoneMessage(changeSet: Pick<ChangeSetView, 'outcome'>, alreadyApplied: boolean | undefined): string {
+export function applyDoneMessage(
+  changeSet: Pick<ChangeSetView, 'outcome'>,
+  alreadyApplied: boolean | undefined,
+): string {
   if (alreadyApplied) return 'This change set was already applied.';
   const outcome = changeSet.outcome;
   if (!outcome) return 'Pull request opened.';
-  if (outcome.push.status === 'failed') return `Committed to ${outcome.commit.branch}, but the push failed. The commit is kept; you can retry the push.`;
-  if (outcome.pr.status === 'failed') return `Committed and pushed ${outcome.commit.branch}, but the pull request was not opened. You can retry it.`;
+  if (outcome.push.status === 'failed')
+    return `Committed to ${outcome.commit.branch}, but the push failed. The commit is kept; you can retry the push.`;
+  if (outcome.pr.status === 'failed')
+    return `Committed and pushed ${outcome.commit.branch}, but the pull request was not opened. You can retry it.`;
   if (outcome.pr.status === 'opened') return 'Committed, pushed and opened a pull request.';
   if (outcome.push.status === 'pushed') return `Committed and pushed ${outcome.commit.branch}.`;
   return `Committed to ${outcome.commit.branch} in the local clone.`;
@@ -270,10 +319,15 @@ export function applyDoneMessage(changeSet: Pick<ChangeSetView, 'outcome'>, alre
  * The line the Apply dialog shows about signing, or null when the server did not say (an older
  * server). The server decides and signs with its own key; this only tells the person which it is.
  */
-export function signingNote(signing: LocalSigningConfig | null | undefined): { signed: boolean; text: string } | null {
+export function signingNote(
+  signing: LocalSigningConfig | null | undefined,
+): { signed: boolean; text: string } | null {
   if (!signing) return null;
   if (signing.enabled) {
-    return { signed: true, text: `The commit will be signed${signing.format ? ` (${signing.format})` : ''}.` };
+    return {
+      signed: true,
+      text: `The commit will be signed${signing.format ? ` (${signing.format})` : ''}.`,
+    };
   }
   return { signed: false, text: `Commits are not signed (set ${SIGN_ENV_NAME} to enable).` };
 }
@@ -283,10 +337,15 @@ export function signingNote(signing: LocalSigningConfig | null | undefined): { s
  * "signed": nothing here has checked the signature. GitHub shows "Verified" only when the public
  * key is on the committer's account as a signing key, and the commit's email is one of theirs.
  */
-export function outcomeSignature(outcome: Pick<LocalOutcome, 'signature'> | null): { label: string; tip: string } | null {
+export function outcomeSignature(
+  outcome: Pick<LocalOutcome, 'signature'> | null,
+): { label: string; tip: string } | null {
   const signature = outcome?.signature;
   if (!signature || signature.status !== 'signed') return null;
-  const key = signature.format === 'gpg' ? 'public GPG key' : 'public SSH key (as a signing key, not only an authentication key)';
+  const key =
+    signature.format === 'gpg'
+      ? 'public GPG key'
+      : 'public SSH key (as a signing key, not only an authentication key)';
   return {
     label: `Signed (${signature.format})`,
     tip: `GitHub shows "Verified" on this commit only if the ${key} is added to your GitHub account, and the commit's email is a verified email of that account. The signature is not checked here.`,
@@ -308,7 +367,8 @@ export const APPLY_LOCAL_EXPLANATION =
 export function localOnlyNotice(write: WriteConfig): { title: string; text: string } {
   const base =
     'This repository is only a folder on the server, so there is no pull request to open. Applying an approved change set commits the files to a new branch of the folder; you merge that branch yourself.';
-  if (write?.enabled) return { title: 'Local-only: changes are committed to a new branch', text: base };
+  if (write?.enabled)
+    return { title: 'Local-only: changes are committed to a new branch', text: base };
   const env = write?.envName || WRITE_ENV_NAME;
   return {
     title: 'Local-only: committing to a branch is off',

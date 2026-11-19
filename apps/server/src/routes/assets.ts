@@ -1,14 +1,14 @@
 import { type Action, can, sniffImageFormat } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import type { AppIcons } from '../services/app-icons.ts';
 import { getApp } from '../services/apps.ts';
 import { isCommitSha, openAssets } from '../services/asset-repo.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
-import { type Failure, type RepoContext, failure } from '../services/repositories.ts';
+import { type Failure, failure, type RepoContext } from '../services/repositories.ts';
 import { peekStoreImages, storeSideOf } from '../services/store-images.ts';
 
 export type AssetRoutesContext = {
@@ -30,7 +30,12 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
   return c.json(f.body, f.status);
 };
 
-export const IMAGE_TYPES = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' } as const;
+export const IMAGE_TYPES = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+} as const;
 
 /** A path as the index lists it: relative, no traversal, no odd characters. The index is still the only authority. */
 export function isPlainRelativePath(path: string): boolean {
@@ -55,7 +60,12 @@ export function matchesEtag(header: string | undefined, etag: string): boolean {
  * not guess another one, and a sandboxed empty CSP keeps a file that is something else after all
  * from running or loading anything if it is opened in a tab.
  */
-export function safeImageHeaders(type: string, etag: string, size: number, cache: string): Record<string, string> {
+export function safeImageHeaders(
+  type: string,
+  etag: string,
+  size: number,
+  cache: string,
+): Record<string, string> {
   return {
     'Content-Type': type,
     'Content-Length': String(size),
@@ -104,12 +114,18 @@ export function assetRoutes(ctx: AssetRoutesContext) {
   routes.get('/:workspaceId/apps/:id/assets', needs('listing.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    const opened = await openAssets({ repo: ctx.repo }, { workspaceId: ws(c), app }, actor(c), { onCompute: gate(c) });
+    const opened = await openAssets({ repo: ctx.repo }, { workspaceId: ws(c), app }, actor(c), {
+      onCompute: gate(c),
+    });
     if (!opened.ok) return respond(c, opened);
     c.header('Cache-Control', 'no-store');
     // The store's counts of the last read that is still cached; no store request is made here.
     const side = peekStoreImages(ws(c), app.id, ctx.now());
-    return c.json({ ...opened.handle.view, ...(side ? { storeSide: storeSideOf(side) } : {}), cached: opened.cached });
+    return c.json({
+      ...opened.handle.view,
+      ...(side ? { storeSide: storeSideOf(side) } : {}),
+      cached: opened.cached,
+    });
   });
 
   routes.get('/:workspaceId/apps/:id/assets/file', needs('listing.read'), async (c) => {
@@ -118,8 +134,10 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     const path = c.req.query('path') ?? '';
     const commit = c.req.query('commit');
     const issues: { path: string; message: string }[] = [];
-    if (!isPlainRelativePath(path)) issues.push({ path: 'path', message: 'A path from the asset index.' });
-    if (commit !== undefined && !isCommitSha(commit)) issues.push({ path: 'commit', message: 'The commit of the asset index (a full hash).' });
+    if (!isPlainRelativePath(path))
+      issues.push({ path: 'path', message: 'A path from the asset index.' });
+    if (commit !== undefined && !isCommitSha(commit))
+      issues.push({ path: 'commit', message: 'The commit of the asset index (a full hash).' });
     if (issues.length > 0) return c.json({ error: 'invalid_request', issues }, 400);
 
     const opened = await openAssets(
@@ -131,15 +149,22 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     if (!opened.ok) return respond(c, opened);
     const { handle } = opened;
     // Only what the index lists for this app's target. Anything else is not there.
-    const listed = handle.view.status === 'ok' ? handle.view.assets.find((a) => a.path === path) : undefined;
+    const listed =
+      handle.view.status === 'ok' ? handle.view.assets.find((a) => a.path === path) : undefined;
     if (!listed || handle.view.commit === null) return notFound(c);
     if (listed.format === 'video') {
-      return c.json({ error: 'unsupported_media', message: 'App previews are listed and not served.' }, 415);
+      return c.json(
+        { error: 'unsupported_media', message: 'App previews are listed and not served.' },
+        415,
+      );
     }
     const etag = listed.oid ? `"${listed.oid}"` : undefined;
     const cache = commit ? IMMUTABLE : 'private, max-age=300';
     if (etag && matchesEtag(c.req.header('If-None-Match'), etag)) {
-      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' } });
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' },
+      });
     }
     const file = await handle.readFile(path);
     if (!file.ok) {
@@ -148,11 +173,19 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     }
     const format = sniffImageFormat(file.bytes);
     if (!format) {
-      return c.json({ error: 'unsupported_media', message: 'The file is not a png, jpeg, webp or gif image.' }, 415);
+      return c.json(
+        { error: 'unsupported_media', message: 'The file is not a png, jpeg, webp or gif image.' },
+        415,
+      );
     }
     return new Response(asBody(file.bytes), {
       status: 200,
-      headers: safeImageHeaders(IMAGE_TYPES[format as keyof typeof IMAGE_TYPES], `"${file.oid}"`, file.bytes.length, cache),
+      headers: safeImageHeaders(
+        IMAGE_TYPES[format as keyof typeof IMAGE_TYPES],
+        `"${file.oid}"`,
+        file.bytes.length,
+        cache,
+      ),
     });
   });
 
@@ -167,7 +200,10 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     const etag = `"${row.etag}"`;
     const cache = c.req.query('v') === row.etag ? IMMUTABLE : 'private, max-age=300';
     if (matchesEtag(c.req.header('If-None-Match'), etag)) {
-      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' } });
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' },
+      });
     }
     return new Response(asBody(row.data), {
       status: 200,

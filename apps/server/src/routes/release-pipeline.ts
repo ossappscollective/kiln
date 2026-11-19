@@ -1,10 +1,10 @@
 import { type Action, can } from '@mrm/core';
-import { Hono } from 'hono';
+import type { Database } from '@mrm/db';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
-import type { Database } from '@mrm/db';
 import { appPipeline, pipelineSummary } from '../services/release-pipeline.ts';
 
 export type ReleasePipelineRoutesContext = { db: Database; now: () => number };

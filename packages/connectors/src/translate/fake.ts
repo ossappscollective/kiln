@@ -1,6 +1,17 @@
 /** A fake fetch for the translation tests: records the requests and plays queued answers. Test helper only. */
-export type Recorded = { url: string; method: string; headers: Record<string, string>; body: unknown };
-export type Answer = { status?: number; json?: unknown; text?: string; headers?: Record<string, string>; throws?: Error };
+export type Recorded = {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: unknown;
+};
+export type Answer = {
+  status?: number;
+  json?: unknown;
+  text?: string;
+  headers?: Record<string, string>;
+  throws?: Error;
+};
 
 export function fakeFetch(...answers: Answer[]) {
   const requests: Recorded[] = [];

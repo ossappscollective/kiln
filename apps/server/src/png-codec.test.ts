@@ -2,10 +2,18 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deflateSync } from 'node:zlib';
 import { readImageHeader } from '@mrm/core';
-import { chunk, makePng, rgbPng, rgbaPng } from './png-test-helpers.ts';
-import { decodePng, encodePng, flatten, hasTransparentPixels, resample, resizeCover } from './services/png-codec.ts';
+import { chunk, makePng, rgbaPng, rgbPng } from './png-test-helpers.ts';
+import {
+  decodePng,
+  encodePng,
+  flatten,
+  hasTransparentPixels,
+  resample,
+  resizeCover,
+} from './services/png-codec.ts';
 
-const px = (r: { data: Uint8Array; width: number }, x: number, y: number, n = 4) => Array.from(r.data.slice((y * r.width + x) * n, (y * r.width + x) * n + n));
+const px = (r: { data: Uint8Array; width: number }, x: number, y: number, n = 4) =>
+  Array.from(r.data.slice((y * r.width + x) * n, (y * r.width + x) * n + n));
 
 test('decodes RGBA with every row filter', () => {
   for (const filter of [0, 1, 2, 3, 4]) {
@@ -26,16 +34,35 @@ test('decodes RGB, grey, grey alpha and palette with tRNS', () => {
     assert.deepEqual(px(rgb.raster, 1, 1), [100, 100, 7, 255]);
     assert.equal(rgb.meta.hadAlpha, false);
   }
-  const grey = decodePng(makePng({ width: 3, height: 1, colour: 0, rows: [Uint8Array.from([0, 128, 255])] }));
+  const grey = decodePng(
+    makePng({ width: 3, height: 1, colour: 0, rows: [Uint8Array.from([0, 128, 255])] }),
+  );
   assert.ok(grey.ok);
   if (grey.ok) assert.deepEqual(px(grey.raster, 1, 0), [128, 128, 128, 255]);
-  const ga = decodePng(makePng({ width: 2, height: 1, colour: 4, rows: [Uint8Array.from([10, 255, 200, 64])], filter: 1 }));
+  const ga = decodePng(
+    makePng({
+      width: 2,
+      height: 1,
+      colour: 4,
+      rows: [Uint8Array.from([10, 255, 200, 64])],
+      filter: 1,
+    }),
+  );
   assert.ok(ga.ok);
   if (ga.ok) {
     assert.deepEqual(px(ga.raster, 1, 0), [200, 200, 200, 64]);
     assert.equal(ga.meta.hadAlpha, true);
   }
-  const pal = decodePng(makePng({ width: 3, height: 1, colour: 3, rows: [Uint8Array.from([0, 1, 2])], plte: [255, 0, 0, 0, 255, 0, 0, 0, 255], trns: [255, 128] }));
+  const pal = decodePng(
+    makePng({
+      width: 3,
+      height: 1,
+      colour: 3,
+      rows: [Uint8Array.from([0, 1, 2])],
+      plte: [255, 0, 0, 0, 255, 0, 0, 0, 255],
+      trns: [255, 128],
+    }),
+  );
   assert.ok(pal.ok);
   if (pal.ok) {
     assert.deepEqual(px(pal.raster, 1, 0), [0, 255, 0, 128]);
@@ -46,13 +73,40 @@ test('decodes RGB, grey, grey alpha and palette with tRNS', () => {
 
 test('decodes palette and grey images of fewer than 8 bits and the tRNS colour key', () => {
   // 4 pixels of 2 bits: indexes 0 1 2 3 packed into one byte 0b00_01_10_11.
-  const pal = decodePng(makePng({ width: 4, height: 1, colour: 3, depth: 2, rows: [Uint8Array.from([0b00011011])], plte: [0, 0, 0, 10, 10, 10, 20, 20, 20, 30, 30, 30] }));
+  const pal = decodePng(
+    makePng({
+      width: 4,
+      height: 1,
+      colour: 3,
+      depth: 2,
+      rows: [Uint8Array.from([0b00011011])],
+      plte: [0, 0, 0, 10, 10, 10, 20, 20, 20, 30, 30, 30],
+    }),
+  );
   assert.ok(pal.ok);
-  if (pal.ok) assert.deepEqual([0, 1, 2, 3].map((x) => px(pal.raster, x, 0)[0]), [0, 10, 20, 30]);
-  const grey1 = decodePng(makePng({ width: 8, height: 1, colour: 0, depth: 1, rows: [Uint8Array.from([0b10100000])] }));
+  if (pal.ok)
+    assert.deepEqual(
+      [0, 1, 2, 3].map((x) => px(pal.raster, x, 0)[0]),
+      [0, 10, 20, 30],
+    );
+  const grey1 = decodePng(
+    makePng({ width: 8, height: 1, colour: 0, depth: 1, rows: [Uint8Array.from([0b10100000])] }),
+  );
   assert.ok(grey1.ok);
-  if (grey1.ok) assert.deepEqual([0, 1, 2].map((x) => px(grey1.raster, x, 0)[0]), [255, 0, 255]);
-  const key = decodePng(makePng({ width: 2, height: 1, colour: 2, rows: [Uint8Array.from([1, 2, 3, 9, 9, 9])], trns: [0, 1, 0, 2, 0, 3] }));
+  if (grey1.ok)
+    assert.deepEqual(
+      [0, 1, 2].map((x) => px(grey1.raster, x, 0)[0]),
+      [255, 0, 255],
+    );
+  const key = decodePng(
+    makePng({
+      width: 2,
+      height: 1,
+      colour: 2,
+      rows: [Uint8Array.from([1, 2, 3, 9, 9, 9])],
+      trns: [0, 1, 0, 2, 0, 3],
+    }),
+  );
   assert.ok(key.ok);
   if (key.ok) {
     assert.equal(px(key.raster, 0, 0)[3], 0);
@@ -64,7 +118,9 @@ test('refuses what it cannot decode, with a message', () => {
   const sixteen = makePng({ width: 1, height: 1, colour: 2, depth: 16, rows: [new Uint8Array(6)] });
   const a = decodePng(sixteen);
   assert.ok(!a.ok && a.code === 'unsupported' && /16 bit/.test(a.message));
-  const adam = decodePng(makePng({ width: 1, height: 1, colour: 2, rows: [new Uint8Array(3)], interlace: 1 }));
+  const adam = decodePng(
+    makePng({ width: 1, height: 1, colour: 2, rows: [new Uint8Array(3)], interlace: 1 }),
+  );
   assert.ok(!adam.ok && adam.code === 'unsupported' && /nterlaced/.test(adam.message));
   const notPng = decodePng(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0]));
   assert.ok(!notPng.ok && notPng.code === 'not_png');
@@ -96,7 +152,18 @@ test('a decompression bomb is stopped at the size the header promised', () => {
 });
 
 test('flatten composites on the background and drops the alpha channel', () => {
-  const d = decodePng(rgbaPng(3, 1, (x) => [[255, 0, 0, 255], [0, 0, 0, 0], [0, 0, 255, 128]][x] as [number, number, number, number]));
+  const d = decodePng(
+    rgbaPng(
+      3,
+      1,
+      (x) =>
+        [
+          [255, 0, 0, 255],
+          [0, 0, 0, 0],
+          [0, 0, 255, 128],
+        ][x] as [number, number, number, number],
+    ),
+  );
   assert.ok(d.ok);
   if (!d.ok) return;
   assert.equal(hasTransparentPixels(d.raster), true);
@@ -117,10 +184,20 @@ test('encode then decode gives the same pixels; the header reader sees no alpha 
   const rgb = flatten(src.raster, [255, 255, 255]);
   const bytes = encodePng(rgb);
   const header = readImageHeader(bytes);
-  assert.ok(header.ok && header.format === 'png' && header.width === 16 && header.height === 9 && header.hasAlpha === false);
+  assert.ok(
+    header.ok &&
+      header.format === 'png' &&
+      header.width === 16 &&
+      header.height === 9 &&
+      header.hasAlpha === false,
+  );
   const back = decodePng(bytes);
   assert.ok(back.ok);
-  if (back.ok) assert.deepEqual(Array.from(back.raster.data.filter((_, i) => i % 4 !== 3)), Array.from(rgb.data));
+  if (back.ok)
+    assert.deepEqual(
+      Array.from(back.raster.data.filter((_, i) => i % 4 !== 3)),
+      Array.from(rgb.data),
+    );
   // And RGBA round trips too.
   const again = decodePng(encodePng(src.raster));
   assert.ok(again.ok);
@@ -129,7 +206,15 @@ test('encode then decode gives the same pixels; the header reader sees no alpha 
 
 test('colour space chunks are kept, transparency chunks are not', () => {
   const srgb = chunk('sRGB', Uint8Array.from([0]));
-  const png = makePng({ width: 1, height: 1, colour: 3, rows: [Uint8Array.from([0])], plte: [1, 2, 3], trns: [0], extra: [srgb] });
+  const png = makePng({
+    width: 1,
+    height: 1,
+    colour: 3,
+    rows: [Uint8Array.from([0])],
+    plte: [1, 2, 3],
+    trns: [0],
+    extra: [srgb],
+  });
   const d = decodePng(png);
   assert.ok(d.ok);
   if (!d.ok) return;
@@ -146,9 +231,15 @@ test('resample: a constant image stays constant, downscale averages, upscale int
   const small = resample(flat.raster, { x: 0, y: 0, w: 8, h: 8 }, 3, 5);
   assert.equal(small.width, 3);
   assert.equal(small.height, 5);
-  assert.ok(Array.from({ length: 15 }, (_, i) => px(small, i % 3, Math.floor(i / 3), 4)).every((p) => p[0] === 10 && p[1] === 200 && p[2] === 30));
+  assert.ok(
+    Array.from({ length: 15 }, (_, i) => px(small, i % 3, Math.floor(i / 3), 4)).every(
+      (p) => p[0] === 10 && p[1] === 200 && p[2] === 30,
+    ),
+  );
   // A black and white checker of 2x2 blocks averages to mid grey when scaled by 2.
-  const checker = decodePng(rgbPng(4, 4, (x, y) => (((x >> 1) + (y >> 1)) & 1 ? [255, 255, 255] : [0, 0, 0])));
+  const checker = decodePng(
+    rgbPng(4, 4, (x, y) => (((x >> 1) + (y >> 1)) & 1 ? [255, 255, 255] : [0, 0, 0])),
+  );
   assert.ok(checker.ok);
   if (!checker.ok) return;
   const half = resample(checker.raster, { x: 0, y: 0, w: 4, h: 4 }, 2, 2);

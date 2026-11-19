@@ -8,9 +8,17 @@ import type { OverviewRow } from './app-overview.ts';
  */
 
 /** How many apps need attention: a failed sync, a release the store rejected or halted, or a release left unfinished. */
-export function attentionCount(rows: readonly (Pick<OverviewRow, 'syncFailed' | 'attention'> & { unfinished?: readonly unknown[] })[]): number {
+export function attentionCount(
+  rows: readonly (Pick<OverviewRow, 'syncFailed' | 'attention'> & {
+    unfinished?: readonly unknown[];
+  })[],
+): number {
   return rows.filter(
-    (r) => r.syncFailed || (r.attention !== null && (r.attention.status === 'rejected' || r.attention.status === 'halted')) || (r.unfinished ?? []).length > 0,
+    (r) =>
+      r.syncFailed ||
+      (r.attention !== null &&
+        (r.attention.status === 'rejected' || r.attention.status === 'halted')) ||
+      (r.unfinished ?? []).length > 0,
   ).length;
 }
 
@@ -25,8 +33,11 @@ export function appNavCounts(input: {
   stalled: readonly { app: { id: string }; stalled: { stale: boolean } | null }[];
 }): { reviews: number | null; releases: number | null } {
   const known = input.memberIds.filter((id) => typeof input.unanswered[id] === 'number');
-  const reviews = known.length === 0 ? null : known.reduce((n, id) => n + (input.unanswered[id] as number), 0);
-  const releases = input.stalled.filter((s) => input.memberIds.indexOf(s.app.id) >= 0 && s.stalled !== null && !s.stalled.stale).length;
+  const reviews =
+    known.length === 0 ? null : known.reduce((n, id) => n + (input.unanswered[id] as number), 0);
+  const releases = input.stalled.filter(
+    (s) => input.memberIds.indexOf(s.app.id) >= 0 && s.stalled !== null && !s.stalled.stale,
+  ).length;
   return { reviews, releases: releases === 0 ? null : releases };
 }
 
@@ -37,9 +48,14 @@ export function appNavCounts(input: {
 export function unansweredCount(summary: unknown): number | null {
   if (typeof summary !== 'object' || summary === null) return null;
   const record = summary as Record<string, unknown>;
-  const totals = typeof record.totals === 'object' && record.totals !== null ? (record.totals as Record<string, unknown>) : record;
+  const totals =
+    typeof record.totals === 'object' && record.totals !== null
+      ? (record.totals as Record<string, unknown>)
+      : record;
   const value = totals.unanswered;
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : null;
 }
 
 /** The text of a badge: nothing for zero or unknown, "99+" above 99. */
@@ -49,7 +65,11 @@ export function badgeText(count: number | null | undefined): string | null {
 }
 
 /** What a screen reader hears for a badge, for example "3 unanswered reviews". Null when no badge is drawn. */
-export function badgeLabel(count: number | null | undefined, one: string, many: string): string | null {
+export function badgeLabel(
+  count: number | null | undefined,
+  one: string,
+  many: string,
+): string | null {
   const text = badgeText(count);
   if (text === null) return null;
   return `${text} ${count === 1 ? one : many}`;

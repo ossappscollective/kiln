@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, timingSafeEqual, verify as cryptoVerify } from 'node:crypto';
+import { createHash, createPublicKey, verify as cryptoVerify, timingSafeEqual } from 'node:crypto';
 
 /**
  * WebAuthn (level 2) verification with node:crypto only: a minimal CBOR decoder, the authenticator
@@ -27,7 +27,8 @@ const fail = (code: string, message: string): never => {
 
 export const b64u = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64url');
 export const fromB64u = (value: string): Buffer => {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]*$/.test(value)) return fail('bad_encoding', 'Not base64url.');
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]*$/.test(value))
+    return fail('bad_encoding', 'Not base64url.');
   return Buffer.from(value, 'base64url');
 };
 
@@ -45,7 +46,8 @@ function readArgument(buf: Buffer, at: number, info: number): { value: number; n
   const size = info === 24 ? 1 : info === 25 ? 2 : info === 26 ? 4 : 0;
   if (size === 0) return fail('cbor_unsupported', 'Unsupported CBOR length.');
   if (at + size > buf.length) return fail('cbor_truncated', 'CBOR ends early.');
-  const value = size === 1 ? buf.readUInt8(at) : size === 2 ? buf.readUInt16BE(at) : buf.readUInt32BE(at);
+  const value =
+    size === 1 ? buf.readUInt8(at) : size === 2 ? buf.readUInt16BE(at) : buf.readUInt32BE(at);
   return { value, next: at + size };
 }
 
@@ -94,7 +96,8 @@ export function decodeCbor(buf: Buffer, offset = 0, depth = 0): { value: Cbor; n
       const map = new Map<number | string, Cbor>();
       for (let i = 0; i < n; i++) {
         const key = decodeCbor(buf, at, depth + 1);
-        if (typeof key.value !== 'number' && typeof key.value !== 'string') return fail('cbor_unsupported', 'Unsupported CBOR map key.');
+        if (typeof key.value !== 'number' && typeof key.value !== 'string')
+          return fail('cbor_unsupported', 'Unsupported CBOR map key.');
         if (map.has(key.value)) return fail('cbor_duplicate_key', 'Duplicate CBOR map key.');
         const val = decodeCbor(buf, key.next, depth + 1);
         map.set(key.value, val.value);
@@ -121,15 +124,21 @@ export type AuthData = {
 
 export function parseAuthData(data: Buffer): AuthData {
   if (data.length < 37) return fail('bad_auth_data', 'Authenticator data is too short.');
-  const out: AuthData = { rpIdHash: data.subarray(0, 32), flags: data.readUInt8(32), signCount: data.readUInt32BE(33) };
+  const out: AuthData = {
+    rpIdHash: data.subarray(0, 32),
+    flags: data.readUInt8(32),
+    signCount: data.readUInt32BE(33),
+  };
   if (out.flags & FLAG_AT) {
     if (data.length < 55) return fail('bad_auth_data', 'Attested credential data is too short.');
     const aaguid = data.subarray(37, 53);
     const idLength = data.readUInt16BE(53);
-    if (idLength < 16 || idLength > 1023 || 55 + idLength > data.length) return fail('bad_auth_data', 'Credential id has a bad length.');
+    if (idLength < 16 || idLength > 1023 || 55 + idLength > data.length)
+      return fail('bad_auth_data', 'Credential id has a bad length.');
     const credentialId = Buffer.from(data.subarray(55, 55 + idLength));
     const key = decodeCbor(data, 55 + idLength);
-    if (!(key.value instanceof Map)) return fail('bad_auth_data', 'The credential public key is not a COSE map.');
+    if (!(key.value instanceof Map))
+      return fail('bad_auth_data', 'The credential public key is not a COSE map.');
     out.attested = { aaguid: Buffer.from(aaguid), credentialId, cose: key.value };
   }
   return out;
@@ -147,20 +156,30 @@ export function coseToSpki(cose: Map<number | string, Cbor>): { alg: number; spk
   try {
     if (kty === 2 && alg === COSE_ES256 && crv === 1) {
       const y = cose.get(-3);
-      if (!Buffer.isBuffer(x) || !Buffer.isBuffer(y) || x.length !== 32 || y.length !== 32) return fail('bad_key', 'Bad P-256 key.');
-      const key = createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: b64u(x), y: b64u(y) }, format: 'jwk' });
+      if (!Buffer.isBuffer(x) || !Buffer.isBuffer(y) || x.length !== 32 || y.length !== 32)
+        return fail('bad_key', 'Bad P-256 key.');
+      const key = createPublicKey({
+        key: { kty: 'EC', crv: 'P-256', x: b64u(x), y: b64u(y) },
+        format: 'jwk',
+      });
       return { alg: COSE_ES256, spki: b64u(key.export({ type: 'spki', format: 'der' })) };
     }
     if (kty === 1 && alg === COSE_EDDSA && crv === 6) {
       if (!Buffer.isBuffer(x) || x.length !== 32) return fail('bad_key', 'Bad Ed25519 key.');
-      const key = createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: b64u(x) }, format: 'jwk' });
+      const key = createPublicKey({
+        key: { kty: 'OKP', crv: 'Ed25519', x: b64u(x) },
+        format: 'jwk',
+      });
       return { alg: COSE_EDDSA, spki: b64u(key.export({ type: 'spki', format: 'der' })) };
     }
   } catch (error) {
     if (error instanceof WebAuthnError) throw error;
     return fail('bad_key', 'The public key is not valid.');
   }
-  return fail('unsupported_algorithm', 'Only ES256 (P-256) and EdDSA (Ed25519) keys are supported.');
+  return fail(
+    'unsupported_algorithm',
+    'Only ES256 (P-256) and EdDSA (Ed25519) keys are supported.',
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -182,46 +201,70 @@ const sameText = (a: string, b: string) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-function checkClientData(raw: Buffer, type: 'webauthn.create' | 'webauthn.get', expected: Expected): void {
+function checkClientData(
+  raw: Buffer,
+  type: 'webauthn.create' | 'webauthn.get',
+  expected: Expected,
+): void {
   let data: unknown;
   try {
     data = JSON.parse(raw.toString('utf8'));
   } catch {
     return fail('bad_client_data', 'clientDataJSON is not JSON.');
   }
-  if (typeof data !== 'object' || data === null) return fail('bad_client_data', 'clientDataJSON is not an object.');
+  if (typeof data !== 'object' || data === null)
+    return fail('bad_client_data', 'clientDataJSON is not an object.');
   const d = data as Record<string, unknown>;
   if (d.type !== type) return fail('bad_type', 'The ceremony type is wrong.');
-  if (typeof d.challenge !== 'string' || !sameText(d.challenge, expected.challenge)) return fail('bad_challenge', 'The challenge does not match.');
-  if (typeof d.origin !== 'string' || !expected.origins.includes(d.origin)) return fail('bad_origin', 'The origin is not this server.');
+  if (typeof d.challenge !== 'string' || !sameText(d.challenge, expected.challenge))
+    return fail('bad_challenge', 'The challenge does not match.');
+  if (typeof d.origin !== 'string' || !expected.origins.includes(d.origin))
+    return fail('bad_origin', 'The origin is not this server.');
   if (d.crossOrigin === true) return fail('bad_origin', 'Cross-origin ceremonies are refused.');
 }
 
 function checkAuthFlags(auth: AuthData, expected: Expected): void {
-  if (!timingSafeEqual(auth.rpIdHash, sha256(expected.rpId))) return fail('bad_rp_id', 'The relying party id does not match.');
+  if (!timingSafeEqual(auth.rpIdHash, sha256(expected.rpId)))
+    return fail('bad_rp_id', 'The relying party id does not match.');
   if (!(auth.flags & FLAG_UP)) return fail('user_not_present', 'User presence was not confirmed.');
-  if (!(auth.flags & FLAG_UV)) return fail('user_not_verified', 'User verification (biometric or PIN) was not performed.');
+  if (!(auth.flags & FLAG_UV))
+    return fail('user_not_verified', 'User verification (biometric or PIN) was not performed.');
 }
 
 // ---------------------------------------------------------------------------------------------
 // Registration (attestation `none` only)
 
-export type Registration = { credentialId: string; publicKey: string; alg: number; signCount: number };
+export type Registration = {
+  credentialId: string;
+  publicKey: string;
+  alg: number;
+  signCount: number;
+};
 
-export function verifyRegistration(input: { clientDataJSON: string; attestationObject: string }, expected: Expected): Registration {
+export function verifyRegistration(
+  input: { clientDataJSON: string; attestationObject: string },
+  expected: Expected,
+): Registration {
   checkClientData(fromB64u(input.clientDataJSON), 'webauthn.create', expected);
   const att = decodeCbor(fromB64u(input.attestationObject)).value;
   if (!(att instanceof Map)) return fail('bad_attestation', 'The attestation object is not a map.');
-  if (att.get('fmt') !== 'none') return fail('unsupported_attestation', 'Only attestation "none" is accepted.');
+  if (att.get('fmt') !== 'none')
+    return fail('unsupported_attestation', 'Only attestation "none" is accepted.');
   const stmt = att.get('attStmt');
-  if (!(stmt instanceof Map) || stmt.size !== 0) return fail('bad_attestation', 'The attestation statement must be empty.');
+  if (!(stmt instanceof Map) || stmt.size !== 0)
+    return fail('bad_attestation', 'The attestation statement must be empty.');
   const authData = att.get('authData');
   if (!Buffer.isBuffer(authData)) return fail('bad_attestation', 'No authenticator data.');
   const auth = parseAuthData(authData);
   checkAuthFlags(auth, expected);
   if (!auth.attested) return fail('no_credential', 'No credential in the authenticator data.');
   const key = coseToSpki(auth.attested.cose);
-  return { credentialId: b64u(auth.attested.credentialId), publicKey: key.spki, alg: key.alg, signCount: auth.signCount };
+  return {
+    credentialId: b64u(auth.attested.credentialId),
+    publicKey: key.spki,
+    alg: key.alg,
+    signCount: auth.signCount,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------

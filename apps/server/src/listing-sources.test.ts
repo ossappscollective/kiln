@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ProjectDetection } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
+import { bootRepoApp, FakeRepo, fastlaneFiles } from './repo-test-helpers.ts';
 import { detectedSources } from './services/listing-sources.ts';
-import { FakeRepo, bootRepoApp, fastlaneFiles } from './repo-test-helpers.ts';
 
 /**
  * Which source a store's listing comes from: the Expo store.config.json for the App Store when
@@ -58,35 +58,38 @@ const changed = (before: string, after: string): string[] => {
   return b.filter((line, i) => line !== a[i]);
 };
 
-dbTest('Expo only: the App Store listing is read from store.config.json, with its warnings', async (db) => {
-  const repo = new FakeRepo();
-  setFiles(repo, expoProject());
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
+dbTest(
+  'Expo only: the App Store listing is read from store.config.json, with its warnings',
+  async (db) => {
+    const repo = new FakeRepo();
+    setFiles(repo, expoProject());
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
 
-  const res = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
-  assert.equal(res.status, 200);
-  const view = res.body;
-  assert.equal(view.listing.appStore.locales['en-US'].name, 'Acme Expo');
-  assert.equal(view.listing.appStore.locales['en-US'].keywords, 'acme,expo');
-  assert.equal(view.listing.appStore.copyright, '2026 Acme, Inc.');
-  assert.equal(view.listing.googlePlay, undefined);
-  assert.equal(view.sources.appStore.source, 'expo-store-config');
-  assert.equal(view.sources.appStore.path, STORE_PATH);
-  assert.equal(view.sources.appStore.found, true);
-  assert.equal(view.sources.appStore.error, undefined);
-  assert.deepEqual(view.sources.appStore.uncovered, ['apple.review']);
-  assert.deepEqual(view.sources.appStore.unknown, []);
-  assert.ok(view.sources.appStore.warnings.some((w: string) => /apple\.review/.test(w)));
-  // Play is fastlane only: nothing there, and the source says where it would be.
-  assert.equal(view.sources.googlePlay.source, 'fastlane');
-  assert.equal(view.sources.googlePlay.found, false);
-  // The existing fields keep their meaning.
-  assert.deepEqual(view.found, { appStore: true, googlePlay: false });
-  assert.equal(view.roots.appStore, 'fastlane/metadata');
-  assert.ok(Array.isArray(view.warnings));
-  assert.ok(Array.isArray(view.problems));
-});
+    const res = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
+    assert.equal(res.status, 200);
+    const view = res.body;
+    assert.equal(view.listing.appStore.locales['en-US'].name, 'Acme Expo');
+    assert.equal(view.listing.appStore.locales['en-US'].keywords, 'acme,expo');
+    assert.equal(view.listing.appStore.copyright, '2026 Acme, Inc.');
+    assert.equal(view.listing.googlePlay, undefined);
+    assert.equal(view.sources.appStore.source, 'expo-store-config');
+    assert.equal(view.sources.appStore.path, STORE_PATH);
+    assert.equal(view.sources.appStore.found, true);
+    assert.equal(view.sources.appStore.error, undefined);
+    assert.deepEqual(view.sources.appStore.uncovered, ['apple.review']);
+    assert.deepEqual(view.sources.appStore.unknown, []);
+    assert.ok(view.sources.appStore.warnings.some((w: string) => /apple\.review/.test(w)));
+    // Play is fastlane only: nothing there, and the source says where it would be.
+    assert.equal(view.sources.googlePlay.source, 'fastlane');
+    assert.equal(view.sources.googlePlay.found, false);
+    // The existing fields keep their meaning.
+    assert.deepEqual(view.found, { appStore: true, googlePlay: false });
+    assert.equal(view.roots.appStore, 'fastlane/metadata');
+    assert.ok(Array.isArray(view.warnings));
+    assert.ok(Array.isArray(view.problems));
+  },
+);
 
 dbTest('Expo only: an edit changes one line of store.config.json and nothing else', async (db) => {
   const repo = new FakeRepo();
@@ -122,7 +125,10 @@ dbTest('Expo only: an edit changes one line of store.config.json and nothing els
 
   // Reading it back from the branch's text gives the edited value.
   repo.files = new Map(branch);
-  assert.equal((await reading(t, repositoryId)).listing.appStore.locales['en-US'].subtitle, 'New expo subtitle');
+  assert.equal(
+    (await reading(t, repositoryId)).listing.appStore.locales['en-US'].subtitle,
+    'New expo subtitle',
+  );
 });
 
 dbTest('fastlane only: the source is fastlane with the metadata folder as its path', async (db) => {
@@ -217,45 +223,53 @@ dbTest('both: sending the unchanged listing back is no change', async (db) => {
   assert.equal(res.body.error, 'no_changes');
 });
 
-dbTest('an invalid store.config.json is a clear error, not a crash, and Play still works', async (db) => {
-  const repo = new FakeRepo();
-  setFiles(repo, fastlaneFiles(), playFiles(), expoProject('{\n  "apple": { "info": { "en-US": { "title": "x", } } }\n}\n'));
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
+dbTest(
+  'an invalid store.config.json is a clear error, not a crash, and Play still works',
+  async (db) => {
+    const repo = new FakeRepo();
+    setFiles(
+      repo,
+      fastlaneFiles(),
+      playFiles(),
+      expoProject('{\n  "apple": { "info": { "en-US": { "title": "x", } } }\n}\n'),
+    );
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
 
-  const res = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
-  assert.equal(res.status, 200);
-  const view = res.body;
-  assert.equal(view.sources.appStore.source, 'expo-store-config');
-  assert.equal(view.sources.appStore.path, STORE_PATH);
-  assert.equal(view.sources.appStore.found, false);
-  assert.match(view.sources.appStore.error, /store\.config\.json is not valid JSON/);
-  // It does not fall back to the fastlane App Store files.
-  assert.equal(view.listing.appStore, undefined);
-  assert.equal(view.found.appStore, false);
-  assert.equal(view.listing.googlePlay.locales['en-US'].title, 'Acme Play');
+    const res = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
+    assert.equal(res.status, 200);
+    const view = res.body;
+    assert.equal(view.sources.appStore.source, 'expo-store-config');
+    assert.equal(view.sources.appStore.path, STORE_PATH);
+    assert.equal(view.sources.appStore.found, false);
+    assert.match(view.sources.appStore.error, /store\.config\.json is not valid JSON/);
+    // It does not fall back to the fastlane App Store files.
+    assert.equal(view.listing.appStore, undefined);
+    assert.equal(view.found.appStore, false);
+    assert.equal(view.listing.googlePlay.locales['en-US'].title, 'Acme Play');
 
-  // Editing the App Store is refused with a message that names the file.
-  const refused = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, {
-    summary: 'Edit iOS',
-    listing: { appStore: { locales: { 'en-US': { subtitle: 'x' } } } },
-  });
-  assert.equal(refused.status, 422);
-  assert.equal(refused.body.error, 'store_config_invalid');
-  assert.equal(refused.body.path, STORE_PATH);
-  assert.match(refused.body.message, /not valid JSON/);
-  assert.equal((await t.call(t.owner, 'GET', '/change-sets')).body.changeSets.length, 0);
+    // Editing the App Store is refused with a message that names the file.
+    const refused = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, {
+      summary: 'Edit iOS',
+      listing: { appStore: { locales: { 'en-US': { subtitle: 'x' } } } },
+    });
+    assert.equal(refused.status, 422);
+    assert.equal(refused.body.error, 'store_config_invalid');
+    assert.equal(refused.body.path, STORE_PATH);
+    assert.match(refused.body.message, /not valid JSON/);
+    assert.equal((await t.call(t.owner, 'GET', '/change-sets')).body.changeSets.length, 0);
 
-  // Play is unaffected.
-  const googlePlay = view.listing.googlePlay;
-  googlePlay.locales['en-US'].title = 'Acme Play 3';
-  const play = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, {
-    summary: 'Edit Play',
-    listing: { googlePlay },
-  });
-  assert.equal(play.status, 201);
-  assert.equal(play.body.changeSet.files[0].path, PLAY_TITLE);
-});
+    // Play is unaffected.
+    const googlePlay = view.listing.googlePlay;
+    googlePlay.locales['en-US'].title = 'Acme Play 3';
+    const play = await t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, {
+      summary: 'Edit Play',
+      listing: { googlePlay },
+    });
+    assert.equal(play.status, 201);
+    assert.equal(play.body.changeSet.files[0].path, PLAY_TITLE);
+  },
+);
 
 dbTest('a store config that is not an object is also an error, not a crash', async (db) => {
   const repo = new FakeRepo();
@@ -267,21 +281,25 @@ dbTest('a store config that is not an object is also an error, not a crash', asy
   assert.equal(view.listing.appStore, undefined);
 });
 
-dbTest('a dynamic store.config.js is never read: fastlane is the App Store source, with a note', async (db) => {
-  const repo = new FakeRepo();
-  setFiles(repo, fastlaneFiles(), {
-    'package.json': '{ "dependencies": { "expo": "^52.0.0" } }\n',
-    'app.json': '{ "expo": { "name": "Acme", "slug": "acme" } }\n',
-    'eas.json': '{ "submit": { "production": { "ios": { "metadataPath": "./store.config.js" } } } }\n',
-    'store.config.js': 'module.exports = { configVersion: 0, apple: { info: {} } };\n',
-  });
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const view = await reading(t, repositoryId);
-  assert.equal(view.sources.appStore.source, 'fastlane');
-  assert.equal(view.listing.appStore.locales['en-US'].subtitle, 'Old subtitle');
-  assert.ok(view.warnings.some((w: string) => /store\.config\.js is a script/.test(w)));
-});
+dbTest(
+  'a dynamic store.config.js is never read: fastlane is the App Store source, with a note',
+  async (db) => {
+    const repo = new FakeRepo();
+    setFiles(repo, fastlaneFiles(), {
+      'package.json': '{ "dependencies": { "expo": "^52.0.0" } }\n',
+      'app.json': '{ "expo": { "name": "Acme", "slug": "acme" } }\n',
+      'eas.json':
+        '{ "submit": { "production": { "ios": { "metadataPath": "./store.config.js" } } } }\n',
+      'store.config.js': 'module.exports = { configVersion: 0, apple: { info: {} } };\n',
+    });
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const view = await reading(t, repositoryId);
+    assert.equal(view.sources.appStore.source, 'fastlane');
+    assert.equal(view.listing.appStore.locales['en-US'].subtitle, 'Old subtitle');
+    assert.ok(view.warnings.some((w: string) => /store\.config\.js is a script/.test(w)));
+  },
+);
 
 dbTest('a locale EAS does not support is reported, and alone it is no change', async (db) => {
   const repo = new FakeRepo();
@@ -340,7 +358,10 @@ dbTest('a viewer cannot read the listing, with either source', async (db) => {
   assert.equal(res.status, 403);
 });
 
-const detection = (over: Partial<ProjectDetection['paths']>, storeConfigs: { path: string; dynamic: boolean }[] = []) =>
+const detection = (
+  over: Partial<ProjectDetection['paths']>,
+  storeConfigs: { path: string; dynamic: boolean }[] = [],
+) =>
   ({
     kind: 'unknown',
     platforms: [],
@@ -369,7 +390,9 @@ test('detectedSources applies the same rule to a stored scan', () => {
   assert.deepEqual(both.googlePlay, { source: 'fastlane', path: 'fastlane/metadata/android' });
   // A script is not a source.
   assert.equal(
-    detectedSources(detection({ iosMetadata: 'fastlane/metadata' }, [{ path: 'store.config.js', dynamic: true }])).appStore?.source,
+    detectedSources(
+      detection({ iosMetadata: 'fastlane/metadata' }, [{ path: 'store.config.js', dynamic: true }]),
+    ).appStore?.source,
     'fastlane',
   );
 });

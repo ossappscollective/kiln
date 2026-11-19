@@ -3,7 +3,8 @@ import type { AiCompleteRequest, FakeAnswer } from '@mrm/connectors';
 export type AiAnswerLike = FakeAnswer;
 
 type Json = Record<string, unknown>;
-const obj = (v: unknown): Json => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : {});
+const obj = (v: unknown): Json =>
+  v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : {};
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 /** The enum of `properties.<a>.items.properties.<b>`, from a JSON schema. */
@@ -14,12 +15,27 @@ function enumOf(schema: unknown, a: string, b: string): string[] {
 }
 
 const KEYWORD_IDEAS: { term: string; reason: string }[] = [
-  { term: 'quick notes', reason: 'People look for a fast way to jot something down; it matches what the app does best.' },
-  { term: 'offline notes', reason: 'The app works offline, and few results say so in their listing.' },
-  { term: 'shared checklist', reason: 'Shared folders are new in this version and the phrase has little competition.' },
+  {
+    term: 'quick notes',
+    reason: 'People look for a fast way to jot something down; it matches what the app does best.',
+  },
+  {
+    term: 'offline notes',
+    reason: 'The app works offline, and few results say so in their listing.',
+  },
+  {
+    term: 'shared checklist',
+    reason: 'Shared folders are new in this version and the phrase has little competition.',
+  },
   { term: 'note sync', reason: 'Sync is the main reason people switch notes apps.' },
-  { term: 'daily journal', reason: 'A neighbouring use case that the description already supports.' },
-  { term: 'rain alert', reason: 'The headline feature of the weather app, searched by people who want a warning.' },
+  {
+    term: 'daily journal',
+    reason: 'A neighbouring use case that the description already supports.',
+  },
+  {
+    term: 'rain alert',
+    reason: 'The headline feature of the weather app, searched by people who want a warning.',
+  },
   { term: 'hourly forecast', reason: 'A common term the listing does not mention yet.' },
 ];
 
@@ -36,7 +52,16 @@ export function aiAnswer(request: AiCompleteRequest): FakeAnswer {
     const real = fields.filter((f) => f !== 'track_only');
     return {
       output: {
-        ideas: KEYWORD_IDEAS.slice(0, 5).map((idea, i) => ({ term: idea.term, reason: idea.reason, field: i === 4 ? (fields.includes('track_only') ? 'track_only' : (real[0] ?? fields[0])) : (real[i % Math.max(1, real.length)] ?? fields[0]) })),
+        ideas: KEYWORD_IDEAS.slice(0, 5).map((idea, i) => ({
+          term: idea.term,
+          reason: idea.reason,
+          field:
+            i === 4
+              ? fields.includes('track_only')
+                ? 'track_only'
+                : (real[0] ?? fields[0])
+              : (real[i % Math.max(1, real.length)] ?? fields[0]),
+        })),
       },
       usage,
       model: 'demo-model',
@@ -52,20 +77,35 @@ export function aiAnswer(request: AiCompleteRequest): FakeAnswer {
       const limit = typeof fact?.limit === 'number' ? fact.limit : 4000;
       let text: string;
       if (field === 'keywords') {
-        const entries = current.split(',').map((s) => s.trim()).filter(Boolean);
-        for (const extra of ['quick notes', 'offline', 'shared']) if (!entries.includes(extra)) entries.push(extra);
+        const entries = current
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const extra of ['quick notes', 'offline', 'shared'])
+          if (!entries.includes(extra)) entries.push(extra);
         text = entries.join(',');
         while (text.length > limit && entries.length > 1) {
           entries.pop();
           text = entries.join(',');
         }
       } else if (field === 'promotional_text' || field === 'short_description') {
-        text = current ? `${current.replace(/[.!]+$/, '')}. Try it free today.` : 'Try it free today.';
+        text = current
+          ? `${current.replace(/[.!]+$/, '')}. Try it free today.`
+          : 'Try it free today.';
       } else {
-        text = current ? `${current}\n\nNew: everything stays in sync, even when you are offline.` : 'A calm, fast app that keeps everything in sync, even when you are offline.';
+        text = current
+          ? `${current}\n\nNew: everything stays in sync, even when you are offline.`
+          : 'A calm, fast app that keeps everything in sync, even when you are offline.';
       }
       if (text.length > limit) text = text.slice(0, limit);
-      return { field, text, reason: field === 'keywords' ? 'Adds three terms people search for that the list does not have.' : 'Leads with the benefit and adds a short, true call to action.' };
+      return {
+        field,
+        text,
+        reason:
+          field === 'keywords'
+            ? 'Adds three terms people search for that the list does not have.'
+            : 'Leads with the benefit and adds a short, true call to action.',
+      };
     });
     return { output: { fields: out.slice(0, 3) }, usage, model: 'demo-model' };
   }

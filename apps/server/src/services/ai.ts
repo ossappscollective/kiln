@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { AiError, type AiClient, probeAiClient } from '@mrm/connectors';
+import { type AiClient, AiError, probeAiClient } from '@mrm/connectors';
 import {
   type Action,
   type AiAcceptedRef,
@@ -8,24 +8,25 @@ import {
   type AiProvider,
   type AiSuggestionStatus,
   type AiSuggestionView,
-  type Role,
   aiAcceptAction,
   aiLimits,
   aiProviderInfo,
   aiProviders,
   can,
   estimateTokens,
+  type Role,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
+import { applyContextRules, getAppContext, withAppContext } from './ai-app-context.ts';
 import {
   type AiActor,
   type AiConfigValues,
   type AiContext,
   type AiFailure,
   type Availability,
-  aiFail,
   aiAvailability,
   aiCredentialId,
+  aiFail,
   buildAiClient,
   defaultAiConfig,
   failureForAiError,
@@ -44,18 +45,29 @@ import {
   reopenSuggestion,
   updateProposal,
 } from './ai-suggestions.ts';
-import { aiTasks, findAiTask } from './ai-tasks.ts';
 import type { AiTask, PreparedRun } from './ai-task-types.ts';
-import { type ConcurrencyGate, type Prices, type TaskUsage, type UsageWarning, costOf, getMonthCost, getMonthUsage, pricesSet, reserveTokens, settleUsage, usageWarning } from './ai-usage.ts';
-import { applyContextRules, getAppContext, withAppContext } from './ai-app-context.ts';
+import { aiTasks, findAiTask } from './ai-tasks.ts';
+import {
+  type ConcurrencyGate,
+  costOf,
+  getMonthCost,
+  getMonthUsage,
+  type Prices,
+  pricesSet,
+  reserveTokens,
+  settleUsage,
+  type TaskUsage,
+  type UsageWarning,
+  usageWarning,
+} from './ai-usage.ts';
+import { getApp } from './apps.ts';
 import { type AsoContext, type AsoLimits, addKeywords } from './aso.ts';
 import type { AsoSources } from './aso-net.ts';
-import { getApp } from './apps.ts';
+import type { AssetsContext } from './asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
 import { normalizeListingValue } from './listing-drift.ts';
-import { type ReviewReplyContext, getReviewView, saveReplyDraft } from './review-replies.ts';
-import type { AssetsContext } from './asset-repo.ts';
+import { getReviewView, type ReviewReplyContext, saveReplyDraft } from './review-replies.ts';
 import { type StagedContext, stageText } from './staged-changes.ts';
 
 /**
@@ -157,12 +169,19 @@ export type AiConfigView = {
 };
 
 /** What the AI settings screen and a person about to run a task need to know. No secret, no prompt. */
-export async function getAiConfigView(ctx: AiContext, workspaceId: string, role: Role): Promise<AiConfigView> {
+export async function getAiConfigView(
+  ctx: AiContext,
+  workspaceId: string,
+  role: Role,
+): Promise<AiConfigView> {
   const availability = await aiAvailability(ctx, workspaceId);
   const { values, overridden } = availability.config;
   const canManage = can(role, 'ai.manage');
   const usage = await getMonthUsage(ctx.db, workspaceId, ctx.now());
-  const prices: Prices = { inputCentsPerMTok: values.priceInputCentsPerMTok, outputCentsPerMTok: values.priceOutputCentsPerMTok };
+  const prices: Prices = {
+    inputCentsPerMTok: values.priceInputCentsPerMTok,
+    outputCentsPerMTok: values.priceOutputCentsPerMTok,
+  };
   const cost = await getMonthCost(ctx.db, workspaceId, ctx.now(), prices);
   const providers: AiConfigView['providers'] = [];
   for (const id of aiProviders) {
@@ -211,7 +230,8 @@ export async function getAiConfigView(ctx: AiContext, workspaceId: string, role:
       month: usage.month,
       used: usage.used,
       budget: values.monthlyTokenBudget,
-      remaining: values.monthlyTokenBudget > 0 ? Math.max(0, values.monthlyTokenBudget - usage.used) : null,
+      remaining:
+        values.monthlyTokenBudget > 0 ? Math.max(0, values.monthlyTokenBudget - usage.used) : null,
       runs: usage.runs,
       resetsAt: usage.resetsAt,
       estimatedCostCents: cost.costCents,
@@ -256,11 +276,17 @@ export type AiTaskView = {
   disclosure: AiTask['disclosure'];
 };
 
-const CONTEXT_SENDS = 'The AI context you wrote for this app (what it is, its audience, tone, words to avoid, names to keep), only the parts you filled in.';
+const CONTEXT_SENDS =
+  'The AI context you wrote for this app (what it is, its audience, tone, words to avoid, names to keep), only the parts you filled in.';
 
 /** A task that takes the app context says so in its disclosure, once, whatever its own text says. */
 const disclosureOf = (t: AiTask): AiTask['disclosure'] => {
-  if (t.status !== 'ready' || t.useContext === false || t.disclosure.sends.some((line) => /AI context/i.test(line))) return t.disclosure;
+  if (
+    t.status !== 'ready' ||
+    t.useContext === false ||
+    t.disclosure.sends.some((line) => /AI context/i.test(line))
+  )
+    return t.disclosure;
   return { sends: [...t.disclosure.sends, CONTEXT_SENDS], neverSends: t.disclosure.neverSends };
 };
 
@@ -312,30 +338,59 @@ async function buildRun(ctx: AiServices, input: RunInput): Promise<Built | AiFai
   const availability = await aiAvailability(ctx, input.workspaceId);
   if (availability.state !== 'ready') return unavailableFailure(availability);
   const task = findAiTask(input.taskId);
-  if (!task) return aiFail(404, 'unknown_task', 'There is no such AI task.', { taskId: input.taskId.slice(0, 60) });
+  if (!task)
+    return aiFail(404, 'unknown_task', 'There is no such AI task.', {
+      taskId: input.taskId.slice(0, 60),
+    });
   if (task.status !== 'ready') {
-    return aiFail(409, 'task_not_available', 'This task is registered but not built yet.', { task: task.id });
+    return aiFail(409, 'task_not_available', 'This task is registered but not built yet.', {
+      task: task.id,
+    });
   }
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return aiFail(404, 'not_found', 'There is no such app.');
   const context = (await getAppContext(ctx.db, input.workspaceId, app.id)).context;
 
-  const prepared = await task.prepare({ db: ctx.db, now: ctx.now, workspaceId: input.workspaceId, app, context }, input.scope);
+  const prepared = await task.prepare(
+    { db: ctx.db, now: ctx.now, workspaceId: input.workspaceId, app, context },
+    input.scope,
+  );
   if ('ok' in prepared) return prepared;
 
   const { values } = availability.config;
   const schema = prepared.schema ?? task.schema;
-  const finalInput = task.useContext === false ? prepared.input : withAppContext(prepared.input, context);
+  const finalInput =
+    task.useContext === false ? prepared.input : withAppContext(prepared.input, context);
   const inputText = JSON.stringify(finalInput);
-  const estimatedInput = estimateTokens(task.system) + estimateTokens(inputText) + estimateTokens(JSON.stringify(schema));
+  const estimatedInput =
+    estimateTokens(task.system) +
+    estimateTokens(inputText) +
+    estimateTokens(JSON.stringify(schema));
   if (estimatedInput > values.maxInputTokens) {
-    return aiFail(422, 'ai_input_too_large', 'The data for this run is larger than the input limit of this workspace. Nothing was sent.', {
-      estimatedTokens: estimatedInput,
-      maxInputTokens: values.maxInputTokens,
-    });
+    return aiFail(
+      422,
+      'ai_input_too_large',
+      'The data for this run is larger than the input limit of this workspace. Nothing was sent.',
+      {
+        estimatedTokens: estimatedInput,
+        maxInputTokens: values.maxInputTokens,
+      },
+    );
   }
   const maxTokens = Math.min(task.maxOutputTokens, values.maxOutputTokens);
-  return { task, app, prepared, finalInput, inputText, schema, estimatedInput, maxTokens, values, availability, context };
+  return {
+    task,
+    app,
+    prepared,
+    finalInput,
+    inputText,
+    schema,
+    estimatedInput,
+    maxTokens,
+    values,
+    availability,
+    context,
+  };
 }
 
 export type AiPreview = {
@@ -357,7 +412,10 @@ export type AiPreview = {
  * "What will be sent": builds the input of a run exactly as a run would and returns it. No provider is called, no tokens are reserved
  * and nothing is stored. It fails the way a run would before the call (no reviews, no listing text, input too large).
  */
-export async function previewAiTask(ctx: AiServices, input: RunInput): Promise<AiOutcome<{ preview: AiPreview }>> {
+export async function previewAiTask(
+  ctx: AiServices,
+  input: RunInput,
+): Promise<AiOutcome<{ preview: AiPreview }>> {
   const built = await buildRun(ctx, input);
   if ('ok' in built) return built;
   return {
@@ -379,15 +437,39 @@ export async function previewAiTask(ctx: AiServices, input: RunInput): Promise<A
  * Runs a task once and stores its PROPOSAL. Order of the checks, each before anything is sent:
  * switches and set up -> task -> app -> input built from stored data -> input size -> concurrency -> token budget and cost cap -> the call.
  */
-export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOutcome<{ suggestion: AiSuggestionView; warning: UsageWarning | null }>> {
+export async function runAiTask(
+  ctx: AiServices,
+  input: RunInput,
+): Promise<AiOutcome<{ suggestion: AiSuggestionView; warning: UsageWarning | null }>> {
   const plan = await buildRun(ctx, input);
   if ('ok' in plan) return plan;
-  const { task, app, prepared, finalInput, inputText, schema, estimatedInput, maxTokens, values, availability, context } = plan;
-  const prices: Prices = { inputCentsPerMTok: values.priceInputCentsPerMTok, outputCentsPerMTok: values.priceOutputCentsPerMTok };
+  const {
+    task,
+    app,
+    prepared,
+    finalInput,
+    inputText,
+    schema,
+    estimatedInput,
+    maxTokens,
+    values,
+    availability,
+    context,
+  } = plan;
+  const prices: Prices = {
+    inputCentsPerMTok: values.priceInputCentsPerMTok,
+    outputCentsPerMTok: values.priceOutputCentsPerMTok,
+  };
 
   const release = ctx.gate.acquire(input.workspaceId);
   if (!release) {
-    return aiFail(429, 'ai_busy', 'This workspace already has AI runs in progress. Try again in a few seconds.', { retryAfterSeconds: 5 }, { 'Retry-After': '5' });
+    return aiFail(
+      429,
+      'ai_busy',
+      'This workspace already has AI runs in progress. Try again in a few seconds.',
+      { retryAfterSeconds: 5 },
+      { 'Retry-After': '5' },
+    );
   }
   const runId = newId();
   const at = ctx.now();
@@ -401,7 +483,11 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
           429,
           'ai_cost_cap_reached',
           'The estimated monthly cost cap of this workspace would be passed by this run. It resets at the start of next month, or an admin can raise it in the AI settings. Nothing was sent.',
-          { capCents: values.monthlyCostCapCents, estimatedCents: spent.costCents, resetsAt: month.resetsAt },
+          {
+            capCents: values.monthlyCostCapCents,
+            estimatedCents: spent.costCents,
+            resetsAt: month.resetsAt,
+          },
         );
       }
     }
@@ -433,7 +519,13 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
     const inputHash = sha(inputText);
     const built = await buildAiClient(ctx, input.workspaceId, availability, input.actor);
     if ('ok' in built) {
-      await settleUsage(ctx.db, runId, { status: 'failed', errorCode: String(built.body.error), inputTokens: 0, outputTokens: 0, at: ctx.now() });
+      await settleUsage(ctx.db, runId, {
+        status: 'failed',
+        errorCode: String(built.body.error),
+        inputTokens: 0,
+        outputTokens: 0,
+        at: ctx.now(),
+      });
       return built;
     }
 
@@ -454,9 +546,19 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
       model = answer.model;
     } catch (error) {
       const known = error instanceof AiError ? error : new AiError('unavailable');
-      const failure = await withGuardHint(failureForAiError(known, values.provider), built.guard, ctx, values.baseUrl);
+      const failure = await withGuardHint(
+        failureForAiError(known, values.provider),
+        built.guard,
+        ctx,
+        values.baseUrl,
+      );
       const spent = known.usage ?? { inputTokens: 0, outputTokens: 0 };
-      await settleUsage(ctx.db, runId, { status: 'failed', errorCode: String(failure.body.error), ...spent, at: ctx.now() });
+      await settleUsage(ctx.db, runId, {
+        status: 'failed',
+        errorCode: String(failure.body.error),
+        ...spent,
+        at: ctx.now(),
+      });
       await auditRunFailed(ctx, input, task, app.id, values.provider, values.model, failure, spent);
       return failure;
     }
@@ -466,8 +568,16 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
       proposal = applyContextRules(task.propose(output, prepared), context);
     } catch {
       // A post-processor that cannot make sense of a schema-valid answer: the answer is rejected like an invalid one. Tokens were spent.
-      const failure = failureForAiError(new AiError('invalid_output', { detail: 'schema' }), values.provider);
-      await settleUsage(ctx.db, runId, { status: 'failed', errorCode: 'ai_invalid_output', ...usage, at: ctx.now() });
+      const failure = failureForAiError(
+        new AiError('invalid_output', { detail: 'schema' }),
+        values.provider,
+      );
+      await settleUsage(ctx.db, runId, {
+        status: 'failed',
+        errorCode: 'ai_invalid_output',
+        ...usage,
+        at: ctx.now(),
+      });
       await auditRunFailed(ctx, input, task, app.id, values.provider, values.model, failure, usage);
       return failure;
     }
@@ -494,7 +604,18 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
         at: finishedAt,
       });
       // A task that also keeps its result somewhere else (the review tags cache) writes it here, in the same transaction.
-      await task.persist?.(tx, { workspaceId: input.workspaceId, appId: app.id, provider: values.provider, model, at: finishedAt }, proposal, prepared);
+      await task.persist?.(
+        tx,
+        {
+          workspaceId: input.workspaceId,
+          appId: app.id,
+          provider: values.provider,
+          model,
+          at: finishedAt,
+        },
+        proposal,
+        prepared,
+      );
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
         actor: input.actor,
@@ -520,11 +641,21 @@ export async function runAiTask(ctx: AiServices, input: RunInput): Promise<AiOut
         type: 'ai.suggestion_created',
         subject: { appId: app.id },
         // Ids only: a webhook receiver learns that a suggestion exists, not what it says.
-        payload: { suggestionId, appId: app.id, task: task.id, taskVersion: task.version, kind: task.proposalKind },
+        payload: {
+          suggestionId,
+          appId: app.id,
+          task: task.id,
+          taskVersion: task.version,
+          kind: task.proposalKind,
+        },
         at: finishedAt,
       });
     });
-    const suggestion = (await getSuggestion(ctx.db, input.workspaceId, suggestionId)) as AiSuggestionView;
+    const suggestion = (await getSuggestion(
+      ctx.db,
+      input.workspaceId,
+      suggestionId,
+    )) as AiSuggestionView;
     const month = await getMonthUsage(ctx.db, input.workspaceId, finishedAt);
     const cost = await getMonthCost(ctx.db, input.workspaceId, finishedAt, prices);
     const warning = usageWarning({
@@ -557,7 +688,16 @@ async function auditRunFailed(
     action: 'ai.run_failed',
     target: { type: 'app', id: appId },
     // A fixed code and counts: never provider text, never the data.
-    detail: { appId, task: task.id, taskVersion: task.version, provider, model, code: failure.body.error, inputTokens: spent.inputTokens, outputTokens: spent.outputTokens },
+    detail: {
+      appId,
+      task: task.id,
+      taskVersion: task.version,
+      provider,
+      model,
+      code: failure.body.error,
+      inputTokens: spent.inputTokens,
+      outputTokens: spent.outputTokens,
+    },
     at: ctx.now(),
   }).catch(() => undefined);
 }
@@ -567,37 +707,81 @@ async function auditRunFailed(
 
 export type AiTestOutcome =
   | { ok: true; provider: AiProvider; model: string }
-  | { ok: false; provider: AiProvider; kind: string; message: string; reason?: string; retryAfterSeconds?: number; sample?: string };
+  | {
+      ok: false;
+      provider: AiProvider;
+      kind: string;
+      message: string;
+      reason?: string;
+      retryAfterSeconds?: number;
+      sample?: string;
+    };
 
 /**
  * One fixed request through the configured provider (no data of the workspace in it). Needs the same switches as a run. Counts a few
  * tokens in the usage. Answers with a fixed sentence, never provider text.
  */
-export async function testAiConnection(ctx: AiServices, input: { workspaceId: string; actor: AiActor }): Promise<AiOutcome<{ result: AiTestOutcome }>> {
+export async function testAiConnection(
+  ctx: AiServices,
+  input: { workspaceId: string; actor: AiActor },
+): Promise<AiOutcome<{ result: AiTestOutcome }>> {
   const availability = await aiAvailability(ctx, input.workspaceId);
   if (availability.state !== 'ready') return unavailableFailure(availability);
   const { values } = availability.config;
   const release = ctx.gate.acquire(input.workspaceId);
-  if (!release) return aiFail(429, 'ai_busy', 'This workspace already has AI runs in progress. Try again in a few seconds.', { retryAfterSeconds: 5 }, { 'Retry-After': '5' });
+  if (!release)
+    return aiFail(
+      429,
+      'ai_busy',
+      'This workspace already has AI runs in progress. Try again in a few seconds.',
+      { retryAfterSeconds: 5 },
+      { 'Retry-After': '5' },
+    );
   const runId = newId();
   try {
     const reserved = await reserveTokens(
       ctx.db,
-      { id: runId, workspaceId: input.workspaceId, appId: null, task: 'connection_test', taskVersion: 1, provider: values.provider, model: values.model, actorId: input.actor.id, at: ctx.now() },
+      {
+        id: runId,
+        workspaceId: input.workspaceId,
+        appId: null,
+        task: 'connection_test',
+        taskVersion: 1,
+        provider: values.provider,
+        model: values.model,
+        actorId: input.actor.id,
+        at: ctx.now(),
+      },
       300,
       values.monthlyTokenBudget,
     );
     if (!reserved.ok) {
       const usage = await getMonthUsage(ctx.db, input.workspaceId, ctx.now());
-      return aiFail(429, 'ai_budget_exhausted', 'The monthly token budget of this workspace is used up.', { budget: reserved.budget, used: reserved.used, resetsAt: usage.resetsAt });
+      return aiFail(
+        429,
+        'ai_budget_exhausted',
+        'The monthly token budget of this workspace is used up.',
+        { budget: reserved.budget, used: reserved.used, resetsAt: usage.resetsAt },
+      );
     }
     const built = await buildAiClient(ctx, input.workspaceId, availability, input.actor);
     if ('ok' in built) {
-      await settleUsage(ctx.db, runId, { status: 'failed', errorCode: String(built.body.error), inputTokens: 0, outputTokens: 0, at: ctx.now() });
+      await settleUsage(ctx.db, runId, {
+        status: 'failed',
+        errorCode: String(built.body.error),
+        inputTokens: 0,
+        outputTokens: 0,
+        at: ctx.now(),
+      });
       return built;
     }
-    const probe = await probeAiClient(built.client as AiClient, AbortSignal.timeout((ctx.timeoutMs ?? 60_000) + 5_000));
-    const blockedReason = probe.ok ? undefined : await guardReason(ctx, values.baseUrl, built.guard);
+    const probe = await probeAiClient(
+      built.client as AiClient,
+      AbortSignal.timeout((ctx.timeoutMs ?? 60_000) + 5_000),
+    );
+    const blockedReason = probe.ok
+      ? undefined
+      : await guardReason(ctx, values.baseUrl, built.guard);
     const result: AiTestOutcome = probe.ok
       ? { ok: true, provider: probe.provider, model: probe.model }
       : {
@@ -605,19 +789,36 @@ export async function testAiConnection(ctx: AiServices, input: { workspaceId: st
           provider: probe.provider,
           kind: probe.kind,
           message: probe.message,
-          ...(blockedReason ? { reason: blockedReason } : probe.detail ? { reason: probe.detail } : {}),
-          ...(probe.retryAfterSeconds !== undefined ? { retryAfterSeconds: probe.retryAfterSeconds } : {}),
+          ...(blockedReason
+            ? { reason: blockedReason }
+            : probe.detail
+              ? { reason: probe.detail }
+              : {}),
+          ...(probe.retryAfterSeconds !== undefined
+            ? { retryAfterSeconds: probe.retryAfterSeconds }
+            : {}),
           // The one place a model's words leave the server: the first 300 characters it answered to this FIXED request, which holds
           // no workspace data. Returned to the admin who ran the test; never stored, audited or logged, and a task run never has it.
           ...(probe.sample ? { sample: probe.sample } : {}),
         };
-    await settleUsage(ctx.db, runId, { status: probe.ok ? 'ok' : 'failed', ...(probe.ok ? {} : { errorCode: `ai_${probe.kind}` }), inputTokens: 0, outputTokens: 0, at: ctx.now() });
+    await settleUsage(ctx.db, runId, {
+      status: probe.ok ? 'ok' : 'failed',
+      ...(probe.ok ? {} : { errorCode: `ai_${probe.kind}` }),
+      inputTokens: 0,
+      outputTokens: 0,
+      at: ctx.now(),
+    });
     await recordAudit(ctx.db, {
       workspaceId: input.workspaceId,
       actor: input.actor,
       action: 'ai.test',
       target: { type: 'workspace', id: input.workspaceId },
-      detail: { provider: values.provider, model: values.model, ok: probe.ok, ...(probe.ok ? {} : { kind: probe.kind }) },
+      detail: {
+        provider: values.provider,
+        model: values.model,
+        ok: probe.ok,
+        ...(probe.ok ? {} : { kind: probe.kind }),
+      },
       at: ctx.now(),
     });
     return { ok: true, result };
@@ -665,20 +866,35 @@ export type AcceptBody = {
   replace?: boolean | undefined;
 };
 
-export async function dismissSuggestion(ctx: AiServices, who: Decider, id: string): Promise<AiOutcome<{ suggestion: AiSuggestionView }>> {
+export async function dismissSuggestion(
+  ctx: AiServices,
+  who: Decider,
+  id: string,
+): Promise<AiOutcome<{ suggestion: AiSuggestionView }>> {
   const found = await getSuggestion(ctx.db, who.workspaceId, id);
   if (!found) return aiFail(404, 'not_found', 'There is no such suggestion.');
   if (found.status !== 'proposed') return notProposed(found);
   const at = ctx.now();
   const won = await ctx.db.transaction(async (tx) => {
-    const changed = await decideSuggestion(tx, { workspaceId: who.workspaceId, id, status: 'dismissed', actorId: who.actor.id, at });
+    const changed = await decideSuggestion(tx, {
+      workspaceId: who.workspaceId,
+      id,
+      status: 'dismissed',
+      actorId: who.actor.id,
+      at,
+    });
     if (changed) {
       await recordAudit(tx, {
         workspaceId: who.workspaceId,
         actor: who.actor,
         action: 'ai.suggestion_dismissed',
         target: { type: 'ai_suggestion', id },
-        detail: { suggestionId: id, appId: found.appId, task: found.task, taskVersion: found.taskVersion },
+        detail: {
+          suggestionId: id,
+          appId: found.appId,
+          task: found.task,
+          taskVersion: found.taskVersion,
+        },
         at,
       });
     }
@@ -689,7 +905,9 @@ export async function dismissSuggestion(ctx: AiServices, who: Decider, id: strin
 }
 
 const notProposed = (s: AiSuggestionView): AiFailure =>
-  aiFail(409, 'suggestion_not_proposed', `This suggestion was already ${s.status}.`, { status: s.status });
+  aiFail(409, 'suggestion_not_proposed', `This suggestion was already ${s.status}.`, {
+    status: s.status,
+  });
 
 /**
  * Accepts a proposal: the CALLER's right for the kind (`aso.write`, `changesets.write`, `reviews.triage`) is checked here, the
@@ -707,7 +925,12 @@ export async function acceptSuggestion(
   if (found.status !== 'proposed') return notProposed(found);
   const action = aiAcceptAction[found.kind];
   if (!who.allowed(action)) {
-    return aiFail(403, 'forbidden', `Accepting this kind of suggestion needs the right ${action}.`, { action });
+    return aiFail(
+      403,
+      'forbidden',
+      `Accepting this kind of suggestion needs the right ${action}.`,
+      { action },
+    );
   }
   const app = await getApp(ctx.db, who.workspaceId, found.appId);
   if (!app) return aiFail(404, 'not_found', 'The app of this suggestion no longer exists.');
@@ -723,7 +946,10 @@ export async function acceptSuggestion(
     const tracked: number[] = [];
     const outcome = await applyPlan(ctx, who, app, plan, body.replace === true, tracked);
     if ('ok' in outcome) return outcome;
-    const accepted = { ...(outcome as AiAcceptedRef) } as Extract<AiAcceptedRef, { kind: 'keywords' }>;
+    const accepted = { ...(outcome as AiAcceptedRef) } as Extract<
+      AiAcceptedRef,
+      { kind: 'keywords' }
+    >;
     await ctx.db.transaction(async (tx) => {
       const fresh = await getSuggestion(tx, who.workspaceId, id);
       let left = plan.remaining;
@@ -733,7 +959,16 @@ export async function acceptSuggestion(
         await updateProposal(tx, who.workspaceId, id, next);
         if (left === 0) {
           accepted.remaining = 0;
-          if (await decideSuggestion(tx, { workspaceId: who.workspaceId, id, status: 'accepted', actorId: who.actor.id, at, accepted })) {
+          if (
+            await decideSuggestion(tx, {
+              workspaceId: who.workspaceId,
+              id,
+              status: 'accepted',
+              actorId: who.actor.id,
+              at,
+              accepted,
+            })
+          ) {
             await recordAccepted(tx, who.workspaceId, id, accepted);
           }
         }
@@ -744,17 +979,37 @@ export async function acceptSuggestion(
         actor: who.actor,
         action: 'ai.suggestion_accepted',
         target: { type: 'ai_suggestion', id },
-        detail: { suggestionId: id, appId: found.appId, task: found.task, taskVersion: found.taskVersion, kind: found.kind, partial: left > 0, remaining: left, result: summarize(accepted) },
+        detail: {
+          suggestionId: id,
+          appId: found.appId,
+          task: found.task,
+          taskVersion: found.taskVersion,
+          kind: found.kind,
+          partial: left > 0,
+          remaining: left,
+          result: summarize(accepted),
+        },
         at: ctx.now(),
       });
     });
-    return { ok: true, suggestion: (await getSuggestion(ctx.db, who.workspaceId, id)) as AiSuggestionView, result: accepted };
+    return {
+      ok: true,
+      suggestion: (await getSuggestion(ctx.db, who.workspaceId, id)) as AiSuggestionView,
+      result: accepted,
+    };
   }
 
   const claimed = await ctx.db.transaction((tx) =>
-    decideSuggestion(tx, { workspaceId: who.workspaceId, id, status: 'accepted', actorId: who.actor.id, at }),
+    decideSuggestion(tx, {
+      workspaceId: who.workspaceId,
+      id,
+      status: 'accepted',
+      actorId: who.actor.id,
+      at,
+    }),
   );
-  if (!claimed) return notProposed((await getSuggestion(ctx.db, who.workspaceId, id)) as AiSuggestionView);
+  if (!claimed)
+    return notProposed((await getSuggestion(ctx.db, who.workspaceId, id)) as AiSuggestionView);
 
   const outcome = await applyPlan(ctx, who, app, plan, body.replace === true);
   if ('ok' in outcome) {
@@ -771,19 +1026,41 @@ export async function acceptSuggestion(
       action: 'ai.suggestion_accepted',
       target: { type: 'ai_suggestion', id },
       // Ids and counts only. The mechanism wrote its own audit entry (aso.keyword_add, staged.text_set, review.reply_draft).
-      detail: { suggestionId: id, appId: found.appId, task: found.task, taskVersion: found.taskVersion, kind: found.kind, result: summarize(accepted) },
+      detail: {
+        suggestionId: id,
+        appId: found.appId,
+        task: found.task,
+        taskVersion: found.taskVersion,
+        kind: found.kind,
+        result: summarize(accepted),
+      },
       at: ctx.now(),
     });
   });
-  return { ok: true, suggestion: (await getSuggestion(ctx.db, who.workspaceId, id)) as AiSuggestionView, result: accepted };
+  return {
+    ok: true,
+    suggestion: (await getSuggestion(ctx.db, who.workspaceId, id)) as AiSuggestionView,
+    result: accepted,
+  };
 }
 
 /** The items of a keyword proposal that were just tracked are now "already tracked": shown so, no longer acceptable. */
-function markTracked(proposal: Extract<AiProposal, { kind: 'keywords' }>, tracked: readonly number[]): Extract<AiProposal, { kind: 'keywords' }> {
+function markTracked(
+  proposal: Extract<AiProposal, { kind: 'keywords' }>,
+  tracked: readonly number[],
+): Extract<AiProposal, { kind: 'keywords' }> {
   return {
     ...proposal,
     items: proposal.items.map((item, i) =>
-      tracked.includes(i) ? { ...item, acceptable: false, flags: item.flags.includes('already_tracked') ? item.flags : [...item.flags, 'already_tracked' as const] } : item,
+      tracked.includes(i)
+        ? {
+            ...item,
+            acceptable: false,
+            flags: item.flags.includes('already_tracked')
+              ? item.flags
+              : [...item.flags, 'already_tracked' as const],
+          }
+        : item,
     ),
   };
 }
@@ -791,7 +1068,13 @@ function markTracked(proposal: Extract<AiProposal, { kind: 'keywords' }>, tracke
 const summarize = (ref: AiAcceptedRef): Record<string, unknown> => {
   switch (ref.kind) {
     case 'keywords':
-      return { created: ref.created, existing: ref.existing, rejected: ref.rejected, keywordIds: ref.keywordIds.slice(0, 50), ...(ref.remaining !== undefined ? { remaining: ref.remaining } : {}) };
+      return {
+        created: ref.created,
+        existing: ref.existing,
+        rejected: ref.rejected,
+        keywordIds: ref.keywordIds.slice(0, 50),
+        ...(ref.remaining !== undefined ? { remaining: ref.remaining } : {}),
+      };
     case 'listing_text':
       return { fields: ref.stagedFields, locale: ref.locale };
     case 'reply_draft':
@@ -802,12 +1085,21 @@ const summarize = (ref: AiAcceptedRef): Record<string, unknown> => {
 };
 
 type Plan =
-  | { kind: 'keywords'; store: string; country: string; locale: string; items: { term: string; reason: string }[]; chosen: number[]; remaining: number }
+  | {
+      kind: 'keywords';
+      store: string;
+      country: string;
+      locale: string;
+      items: { term: string; reason: string }[];
+      chosen: number[];
+      remaining: number;
+    }
   | { kind: 'listing_text'; locale: string; fields: { field: string; text: string }[] }
   | { kind: 'reply_draft'; reviewId: string; text: string }
   | { kind: 'insight' };
 
-const nothing = (message: string, extra: Record<string, unknown> = {}): AiFailure => aiFail(422, 'nothing_acceptable', message, extra);
+const nothing = (message: string, extra: Record<string, unknown> = {}): AiFailure =>
+  aiFail(422, 'nothing_acceptable', message, extra);
 
 /** Which parts of the proposal are accepted: the named ones, or every acceptable one. A part that cannot be accepted is never accepted. */
 function planAccept(proposal: AiProposal, body: AcceptBody): Plan | AiFailure {
@@ -815,12 +1107,20 @@ function planAccept(proposal: AiProposal, body: AcceptBody): Plan | AiFailure {
     case 'keywords': {
       const wanted = body.items ?? proposal.items.map((_, i) => i);
       const bad = wanted.filter((i) => !Number.isInteger(i) || i < 0 || i >= proposal.items.length);
-      if (bad.length > 0) return aiFail(400, 'invalid_request', 'An item number is not in this suggestion.', { issues: [{ path: 'items', message: 'Item numbers start at 0.' }] });
+      if (bad.length > 0)
+        return aiFail(400, 'invalid_request', 'An item number is not in this suggestion.', {
+          issues: [{ path: 'items', message: 'Item numbers start at 0.' }],
+        });
       const chosen = [...new Set(wanted)].filter((i) => proposal.items[i]?.acceptable === true);
-      const refused = body.items ? [...new Set(wanted)].filter((i) => proposal.items[i]?.acceptable !== true) : [];
-      if (refused.length > 0) return nothing('An item you chose cannot be accepted (see its flags).', { items: refused });
+      const refused = body.items
+        ? [...new Set(wanted)].filter((i) => proposal.items[i]?.acceptable !== true)
+        : [];
+      if (refused.length > 0)
+        return nothing('An item you chose cannot be accepted (see its flags).', { items: refused });
       if (chosen.length === 0) return nothing('Nothing in this suggestion can be accepted.');
-      const open = proposal.items.flatMap((it, i) => (it.acceptable === true && !chosen.includes(i) ? [i] : []));
+      const open = proposal.items.flatMap((it, i) =>
+        it.acceptable === true && !chosen.includes(i) ? [i] : [],
+      );
       return {
         kind: 'keywords',
         store: proposal.store,
@@ -828,22 +1128,41 @@ function planAccept(proposal: AiProposal, body: AcceptBody): Plan | AiFailure {
         locale: proposal.locale,
         chosen,
         remaining: open.length,
-        items: chosen.map((i) => ({ term: (proposal.items[i] as { term: string }).term, reason: (proposal.items[i] as { reason: string }).reason })),
+        items: chosen.map((i) => ({
+          term: (proposal.items[i] as { term: string }).term,
+          reason: (proposal.items[i] as { reason: string }).reason,
+        })),
       };
     }
     case 'listing_text': {
       const names = body.fields ?? proposal.fields.map((f) => f.field);
       const unknown = names.filter((n) => !proposal.fields.some((f) => f.field === n));
-      if (unknown.length > 0) return aiFail(400, 'invalid_request', 'A field is not in this suggestion.', { issues: unknown.map((path) => ({ path: `fields.${path}`, message: 'Not in this suggestion.' })) });
+      if (unknown.length > 0)
+        return aiFail(400, 'invalid_request', 'A field is not in this suggestion.', {
+          issues: unknown.map((path) => ({
+            path: `fields.${path}`,
+            message: 'Not in this suggestion.',
+          })),
+        });
       const picked = proposal.fields.filter((f) => names.includes(f.field));
       const refused = picked.filter((f) => !f.acceptable).map((f) => f.field);
-      if (body.fields && refused.length > 0) return nothing('A field you chose cannot be accepted (see its flags).', { fields: refused });
+      if (body.fields && refused.length > 0)
+        return nothing('A field you chose cannot be accepted (see its flags).', {
+          fields: refused,
+        });
       const ok = picked.filter((f) => f.acceptable);
       if (ok.length === 0) return nothing('Nothing in this suggestion can be accepted.');
-      return { kind: 'listing_text', locale: proposal.locale, fields: ok.map((f) => ({ field: f.field, text: f.text })) };
+      return {
+        kind: 'listing_text',
+        locale: proposal.locale,
+        fields: ok.map((f) => ({ field: f.field, text: f.text })),
+      };
     }
     case 'reply_draft':
-      if (!proposal.acceptable) return nothing('This reply cannot be accepted as a draft (see its flags). Write it by hand instead.');
+      if (!proposal.acceptable)
+        return nothing(
+          'This reply cannot be accepted as a draft (see its flags). Write it by hand instead.',
+        );
       return { kind: 'reply_draft', reviewId: proposal.reviewId, text: proposal.text };
     case 'insight':
       // A report is read, not applied: accepting it only marks it reviewed. Nothing is created and no other service is called.
@@ -852,16 +1171,21 @@ function planAccept(proposal: AiProposal, body: AcceptBody): Plan | AiFailure {
       const chosen: { field: string; text: string }[] = [];
       const seenFields = new Set<string>();
       // Without `choices`, the first variant of each field that can be accepted. With them, exactly what was named.
-      const wanted = body.choices ?? proposal.fields.flatMap((f) => {
-        const first = f.variants.findIndex((v) => v.acceptable);
-        return first === -1 ? [] : [{ field: f.field, variant: first }];
-      });
+      const wanted =
+        body.choices ??
+        proposal.fields.flatMap((f) => {
+          const first = f.variants.findIndex((v) => v.acceptable);
+          return first === -1 ? [] : [{ field: f.field, variant: first }];
+        });
       const issues: { path: string; message: string }[] = [];
       for (const c of wanted) {
         const field = proposal.fields.find((f) => f.field === c.field);
         const variant = field?.variants[c.variant];
         if (!field || !variant || !Number.isInteger(c.variant)) {
-          issues.push({ path: `choices.${c.field}`, message: 'Not a field and variant of this suggestion.' });
+          issues.push({
+            path: `choices.${c.field}`,
+            message: 'Not a field and variant of this suggestion.',
+          });
           continue;
         }
         if (seenFields.has(c.field)) {
@@ -870,12 +1194,16 @@ function planAccept(proposal: AiProposal, body: AcceptBody): Plan | AiFailure {
         }
         seenFields.add(c.field);
         if (!variant.acceptable) {
-          if (body.choices) return nothing('A variant you chose cannot be accepted (see its flags).', { fields: [c.field] });
+          if (body.choices)
+            return nothing('A variant you chose cannot be accepted (see its flags).', {
+              fields: [c.field],
+            });
           continue;
         }
         chosen.push({ field: c.field, text: variant.text });
       }
-      if (issues.length > 0) return aiFail(400, 'invalid_request', 'A choice is not valid.', { issues });
+      if (issues.length > 0)
+        return aiFail(400, 'invalid_request', 'A choice is not valid.', { issues });
       if (chosen.length === 0) return nothing('Nothing in this suggestion can be accepted.');
       return { kind: 'listing_text', locale: proposal.locale, fields: chosen };
     }
@@ -895,22 +1223,51 @@ async function applyPlan(
   const actor = who.actor;
   switch (plan.kind) {
     case 'keywords': {
-      const asoCtx: AsoContext = { db: ctx.db, now: ctx.now, sources: refusedSources, limits: ctx.asoLimits };
+      const asoCtx: AsoContext = {
+        db: ctx.db,
+        now: ctx.now,
+        sources: refusedSources,
+        limits: ctx.asoLimits,
+      };
       const results = await addKeywords(asoCtx, {
         workspaceId,
         app,
         actor,
-        items: plan.items.map((i) => ({ term: i.term, country: plan.country, locale: plan.locale, tag: 'ai', notes: i.reason })),
+        items: plan.items.map((i) => ({
+          term: i.term,
+          country: plan.country,
+          locale: plan.locale,
+          tag: 'ai',
+          notes: i.reason,
+        })),
       });
-      for (const r of results) if (r.status === 'created' || r.status === 'exists') tracked.push(plan.chosen[r.index] as number);
+      for (const r of results)
+        if (r.status === 'created' || r.status === 'exists')
+          tracked.push(plan.chosen[r.index] as number);
       const created = results.flatMap((r) => (r.status === 'created' ? [r.keyword.id] : []));
       const existing = results.filter((r) => r.status === 'exists').length;
       const rejected = results.filter((r) => r.status === 'invalid' || r.status === 'limit').length;
       if (created.length === 0 && existing === 0) {
         const limited = results.some((r) => r.status === 'limit');
-        return aiFail(422, limited ? 'keyword_limit' : 'nothing_acceptable', limited ? 'The app already tracks the most keywords it may.' : 'None of the keywords could be tracked.', { rejected });
+        return aiFail(
+          422,
+          limited ? 'keyword_limit' : 'nothing_acceptable',
+          limited
+            ? 'The app already tracks the most keywords it may.'
+            : 'None of the keywords could be tracked.',
+          { rejected },
+        );
       }
-      return { kind: 'keywords', keywordIds: created, created: created.length, existing, rejected, locale: plan.locale, country: plan.country, remaining: plan.remaining };
+      return {
+        kind: 'keywords',
+        keywordIds: created,
+        created: created.length,
+        existing,
+        rejected,
+        locale: plan.locale,
+        country: plan.country,
+        remaining: plan.remaining,
+      };
     }
     case 'listing_text': {
       const staged: StagedContext = { db: ctx.db, now: ctx.now, assets: ctx.assets };
@@ -920,17 +1277,41 @@ async function applyPlan(
           [workspaceId, app.id, plan.locale],
         );
         const clash = plan.fields
-          .filter((f) => rows.some((r) => String(r.target) === f.field && String(r.value_text ?? '') !== normalizeListingValue(f.text)))
+          .filter((f) =>
+            rows.some(
+              (r) =>
+                String(r.target) === f.field &&
+                String(r.value_text ?? '') !== normalizeListingValue(f.text),
+            ),
+          )
           .map((f) => f.field);
         if (clash.length > 0) {
-          return aiFail(409, 'staged_exists', 'A different text is already staged for a field. Send replace: true to overwrite it, or unstage it first.', { fields: clash });
+          return aiFail(
+            409,
+            'staged_exists',
+            'A different text is already staged for a field. Send replace: true to overwrite it, or unstage it first.',
+            { fields: clash },
+          );
         }
       }
       const done: string[] = [];
       for (const f of plan.fields) {
-        const staged1 = await stageText(staged, { workspaceId, appId: app.id, locale: plan.locale, field: f.field, from: 'ai', value: f.text, actor });
+        const staged1 = await stageText(staged, {
+          workspaceId,
+          appId: app.id,
+          locale: plan.locale,
+          field: f.field,
+          from: 'ai',
+          value: f.text,
+          actor,
+        });
         if (!staged1.ok) {
-          return aiFail(staged1.status, String(staged1.body.error), String(staged1.body.message ?? 'The text could not be staged.'), { field: f.field, staged: done });
+          return aiFail(
+            staged1.status,
+            String(staged1.body.error),
+            String(staged1.body.message ?? 'The text could not be staged.'),
+            { field: f.field, staged: done },
+          );
         }
         done.push(f.field);
       }
@@ -940,16 +1321,39 @@ async function applyPlan(
       return { kind: 'insight' };
     case 'reply_draft': {
       const review = await getReviewView(ctx.db, workspaceId, app.id, plan.reviewId);
-      if (!review) return aiFail(404, 'not_found', 'The review of this suggestion no longer exists.');
+      if (!review)
+        return aiFail(404, 'not_found', 'The review of this suggestion no longer exists.');
       const existing = review.replyDraft;
       if (existing && existing.status !== 'draft') {
-        return aiFail(409, 'reply_not_editable', 'This review already has a reply that was sent, or is being sent. A draft cannot replace it.', { status: existing.status });
+        return aiFail(
+          409,
+          'reply_not_editable',
+          'This review already has a reply that was sent, or is being sent. A draft cannot replace it.',
+          { status: existing.status },
+        );
       }
       if (existing && existing.text !== plan.text && !replace) {
-        return aiFail(409, 'draft_exists', 'This review already has a different draft. Send replace: true to overwrite it.', {});
+        return aiFail(
+          409,
+          'draft_exists',
+          'This review already has a different draft. Send replace: true to overwrite it.',
+          {},
+        );
       }
-      const saved = await saveReplyDraft(ctx.reply, { workspaceId, appId: app.id, reviewId: review.id, text: plan.text, actor });
-      if (!saved.ok) return aiFail(saved.status as AiFailure['status'], String(saved.body.error), String(saved.body.message ?? 'The draft could not be saved.'), {});
+      const saved = await saveReplyDraft(ctx.reply, {
+        workspaceId,
+        appId: app.id,
+        reviewId: review.id,
+        text: plan.text,
+        actor,
+      });
+      if (!saved.ok)
+        return aiFail(
+          saved.status as AiFailure['status'],
+          String(saved.body.error),
+          String(saved.body.message ?? 'The draft could not be saved.'),
+          {},
+        );
       return { kind: 'reply_draft', reviewId: review.id, draftId: saved.draft.id };
     }
   }

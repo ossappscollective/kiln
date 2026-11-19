@@ -59,7 +59,7 @@ changed after it was pushed). It is therefore a separate, gated step and not a f
    `listing.submitted` and `credential.use` with purpose `store.submit`. Never a text, a credential, a token or a
    store response body. A successful submit deletes the push record in the same transaction.
 10. **The registry and the API description list it.** Four operations (tag `submit`): config, state (database only),
-   preview, submit (`destructive`). The default-deny registry test covers the routes.
+    preview, submit (`destructive`). The default-deny registry test covers the routes.
 
 ## Consequences
 

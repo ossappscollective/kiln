@@ -1,9 +1,9 @@
 import {
-  type TranslationMode,
-  type TranslationProvider,
   normalizeBucketId,
   normalizeLanguageTag,
   normalizeVendorNumber,
+  type TranslationMode,
+  type TranslationProvider,
   translationModes,
   translationProviderInfo,
   translationProviders,
@@ -93,9 +93,15 @@ export function formFromSettings(values: Record<string, SettingValue>): Settings
   return {
     lowRatingThreshold: String(values[KEYS.lowRatingThreshold] ?? 2),
     enabled: values[KEYS.enabled] === true,
-    provider: translationProviders.indexOf(values[KEYS.provider] as TranslationProvider) >= 0 ? (values[KEYS.provider] as TranslationProvider) : 'google',
+    provider:
+      translationProviders.indexOf(values[KEYS.provider] as TranslationProvider) >= 0
+        ? (values[KEYS.provider] as TranslationProvider)
+        : 'google',
     targetLanguage: String(values[KEYS.targetLanguage] ?? 'en'),
-    mode: translationModes.indexOf(values[KEYS.mode] as TranslationMode) >= 0 ? (values[KEYS.mode] as TranslationMode) : 'on_demand',
+    mode:
+      translationModes.indexOf(values[KEYS.mode] as TranslationMode) >= 0
+        ? (values[KEYS.mode] as TranslationMode)
+        : 'on_demand',
     dailyCharBudget: String(values[KEYS.dailyCharBudget] ?? 50000),
     libreUrl: String(values[KEYS.libreUrl] ?? ''),
     stalledAfterHours: String(values[KEYS.stalledAfterHours] ?? 6),
@@ -122,10 +128,13 @@ export function checkLibreUrl(raw: string): string | undefined {
   } catch {
     return 'Enter the full address, for example https://translate.example.com.';
   }
-  if (url.username || url.password) return 'Leave the user name and password out of the address. Put the API key under Credentials.';
+  if (url.username || url.password)
+    return 'Leave the user name and password out of the address. Put the API key under Credentials.';
   if (url.search || url.hash) return 'The address must not have a query string or a fragment.';
-  const loopback = url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\./.test(url.hostname);
-  if (url.protocol === 'http:' && !loopback) return 'Use https. Plain http is only accepted for a server on the same machine.';
+  const loopback =
+    url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\./.test(url.hostname);
+  if (url.protocol === 'http:' && !loopback)
+    return 'Use https. Plain http is only accepted for a server on the same machine.';
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return 'Use an https address.';
   return undefined;
 }
@@ -143,17 +152,26 @@ export function validateForm(form: SettingsForm): FormErrors {
   if (!WHOLE.test(budget) || Number(budget) > MAX_DAILY_CHAR_BUDGET) {
     errors.dailyCharBudget = `A whole number from 0 to ${MAX_DAILY_CHAR_BUDGET.toLocaleString('en-US')} (0 means no limit here).`;
   }
-  const hours = (text: string): boolean => WHOLE.test(text.trim()) && Number(text.trim()) <= MAX_HOURS;
-  if (!hours(form.stalledAfterHours)) errors.stalledAfterHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 turns the signal off).`;
-  if (!hours(form.stalledRepeatHours)) errors.stalledRepeatHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 reminds once).`;
-  if (!hours(form.unansweredReminderHours)) errors.unansweredReminderHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 is off).`;
+  const hours = (text: string): boolean =>
+    WHOLE.test(text.trim()) && Number(text.trim()) <= MAX_HOURS;
+  if (!hours(form.stalledAfterHours))
+    errors.stalledAfterHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 turns the signal off).`;
+  if (!hours(form.stalledRepeatHours))
+    errors.stalledRepeatHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 reminds once).`;
+  if (!hours(form.unansweredReminderHours))
+    errors.unansweredReminderHours = `A whole number of hours from 0 to ${MAX_HOURS} (0 is off).`;
   const top = form.unansweredMaxRating.trim();
-  if (!WHOLE.test(top) || Number(top) < 1 || Number(top) > 5) errors.unansweredMaxRating = 'A whole number from 1 to 5.';
-  if (form.analyticsVendorNumber.trim() !== '' && !normalizeVendorNumber(form.analyticsVendorNumber)) {
+  if (!WHOLE.test(top) || Number(top) < 1 || Number(top) > 5)
+    errors.unansweredMaxRating = 'A whole number from 1 to 5.';
+  if (
+    form.analyticsVendorNumber.trim() !== '' &&
+    !normalizeVendorNumber(form.analyticsVendorNumber)
+  ) {
     errors.analyticsVendorNumber = 'A vendor number is 5 to 12 digits.';
   }
   if (form.analyticsBucketId.trim() !== '' && !normalizeBucketId(form.analyticsBucketId)) {
-    errors.analyticsBucketId = 'Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).';
+    errors.analyticsBucketId =
+      'Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).';
   }
   const url = checkLibreUrl(form.libreUrl);
   if (url) errors.libreUrl = url;
@@ -182,8 +200,10 @@ export function settingsChanges(
     [KEYS.unansweredReminderHours]: Number(form.unansweredReminderHours),
     [KEYS.unansweredMaxRating]: Number(form.unansweredMaxRating),
     [KEYS.analyticsEnabled]: form.analyticsEnabled,
-    [KEYS.analyticsVendorNumber]: normalizeVendorNumber(form.analyticsVendorNumber) ?? form.analyticsVendorNumber.trim(),
-    [KEYS.analyticsBucketId]: normalizeBucketId(form.analyticsBucketId) ?? form.analyticsBucketId.trim(),
+    [KEYS.analyticsVendorNumber]:
+      normalizeVendorNumber(form.analyticsVendorNumber) ?? form.analyticsVendorNumber.trim(),
+    [KEYS.analyticsBucketId]:
+      normalizeBucketId(form.analyticsBucketId) ?? form.analyticsBucketId.trim(),
   };
   const out: Record<string, SettingValue> = {};
   for (const key of Object.keys(next)) {
@@ -193,8 +213,11 @@ export function settingsChanges(
   return out;
 }
 
-export const isDirty = (saved: Record<string, SettingValue>, form: SettingsForm, writable: readonly string[]): boolean =>
-  Object.keys(settingsChanges(saved, form, writable)).length > 0;
+export const isDirty = (
+  saved: Record<string, SettingValue>,
+  form: SettingsForm,
+  writable: readonly string[],
+): boolean => Object.keys(settingsChanges(saved, form, writable)).length > 0;
 
 export type ProviderChoice = {
   id: TranslationProvider;
@@ -219,7 +242,10 @@ export const providerChoices: ProviderChoice[] = translationProviders.map((id) =
 
 export const modeLabels: Record<TranslationMode, { label: string; help: string }> = {
   off: { label: 'Off', help: 'Nothing is translated, even if translation is enabled.' },
-  on_demand: { label: 'On demand', help: 'Someone clicks Translate on a review. Only that review is sent.' },
+  on_demand: {
+    label: 'On demand',
+    help: 'Someone clicks Translate on a review. Only that review is sent.',
+  },
   auto: {
     label: 'Automatic',
     help: 'New reviews in another language are translated after each sync (at most 20 per sync, within the daily budget). Failures never fail the sync.',
@@ -266,7 +292,8 @@ export function languageName(tag: string | null | undefined): string {
 /** "12,300 of 50,000 characters used today (UTC)", or the unlimited form. */
 export function usageText(usage: SettingsUsage): string {
   const used = usage.used.toLocaleString('en-US');
-  if (usage.budget === 0) return `${used} characters used today (UTC). There is no daily limit here.`;
+  if (usage.budget === 0)
+    return `${used} characters used today (UTC). There is no daily limit here.`;
   const percent = Math.min(100, Math.round((usage.used / usage.budget) * 100));
   return `${used} of ${usage.budget.toLocaleString('en-US')} characters used today (UTC), ${percent}%.`;
 }
@@ -278,25 +305,37 @@ export function usageFraction(usage: SettingsUsage): number | null {
 }
 
 /** Which of the form's fields the caller may edit. A key not in `writable` is read-only. */
-export const canEdit = (writable: readonly string[], key: string): boolean => writable.indexOf(key) >= 0;
+export const canEdit = (writable: readonly string[], key: string): boolean =>
+  writable.indexOf(key) >= 0;
 
-export function settingsErrorMessage(error: unknown, action: 'load' | 'save' | 'test' = 'load'): string {
+export function settingsErrorMessage(
+  error: unknown,
+  action: 'load' | 'save' | 'test' = 'load',
+): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
-  const issues = Array.isArray(error.body.issues) ? (error.body.issues as { path?: string; message?: string }[]) : [];
+  const issues = Array.isArray(error.body.issues)
+    ? (error.body.issues as { path?: string; message?: string }[])
+    : [];
   switch (error.code) {
     case 'forbidden':
-      return action === 'load' ? 'Your role does not include workspace settings.' : 'Only an owner or an admin can change settings.';
+      return action === 'load'
+        ? 'Your role does not include workspace settings.'
+        : 'Only an owner or an admin can change settings.';
     case 'not_found':
       return 'This workspace no longer exists.';
     case 'invalid_setting':
     case 'unknown_setting': {
       const first = issues[0];
-      return first?.message ? `${first.path ? `${first.path}: ` : ''}${first.message}` : error.message;
+      return first?.message
+        ? `${first.path ? `${first.path}: ` : ''}${first.message}`
+        : error.message;
     }
     case 'rate_limited':
       return error.message;
     default:
-      return action === 'save' ? 'The settings could not be saved. Try again.' : error.message || 'Something went wrong. Try again.';
+      return action === 'save'
+        ? 'The settings could not be saved. Try again.'
+        : error.message || 'Something went wrong. Try again.';
   }
 }
 
@@ -309,7 +348,12 @@ export function testOutcomeText(outcome: TranslationTestOutcome): string {
 // ---------------------------------------------------------------------------------------------
 // The translation settings the review screens need (cached, so a page of cards asks once).
 
-export type TranslationConfig = { enabled: boolean; mode: TranslationMode; target: string; provider: TranslationProvider };
+export type TranslationConfig = {
+  enabled: boolean;
+  mode: TranslationMode;
+  target: string;
+  provider: TranslationProvider;
+};
 
 const TTL_MS = 30_000;
 const cache = new Map<string, { at: number; value: Promise<TranslationConfig | null> }>();

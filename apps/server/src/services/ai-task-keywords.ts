@@ -1,18 +1,27 @@
 import type { JsonSchema } from '@mrm/connectors';
 import {
-  APP_STORE_FIELD_SPECS,
   type AiFlag,
   type AiKeywordIdea,
   type AiKeywordProposal,
-  PLAY_FIELD_SPECS,
+  APP_STORE_FIELD_SPECS,
   aiLimits,
   checkTerm,
   isApplePlatform,
   normalizeCountry,
   normalizeLocale,
+  PLAY_FIELD_SPECS,
 } from '@mrm/core';
 import { type AiFailure, aiFail } from './ai-config.ts';
-import { type PreparedRun, type ReadyTask, type TaskContext, cleanGoal, cleanReason, checkScope, clip, cleanText } from './ai-task-types.ts';
+import {
+  checkScope,
+  cleanGoal,
+  cleanReason,
+  cleanText,
+  clip,
+  type PreparedRun,
+  type ReadyTask,
+  type TaskContext,
+} from './ai-task-types.ts';
 import { listCompetitors, listKeywords } from './aso.ts';
 import { getDrift } from './listing-live.ts';
 
@@ -57,9 +66,21 @@ const schemaFor = (store: 'app_store' | 'google_play'): JsonSchema => ({
       items: {
         type: 'object',
         properties: {
-          term: { type: 'string', maxLength: 80, description: 'The keyword or short phrase, 1 to 4 words.' },
-          reason: { type: 'string', maxLength: 400, description: 'One sentence, at most 200 characters.' },
-          field: { type: 'string', enum: [...STORE_FIELDS[store], TRACK_ONLY], description: 'The listing field it would help most, or track_only.' },
+          term: {
+            type: 'string',
+            maxLength: 80,
+            description: 'The keyword or short phrase, 1 to 4 words.',
+          },
+          reason: {
+            type: 'string',
+            maxLength: 400,
+            description: 'One sentence, at most 200 characters.',
+          },
+          field: {
+            type: 'string',
+            enum: [...STORE_FIELDS[store], TRACK_ONLY],
+            description: 'The listing field it would help most, or track_only.',
+          },
         },
         required: ['term', 'reason', 'field'],
         additionalProperties: false,
@@ -70,14 +91,23 @@ const schemaFor = (store: 'app_store' | 'google_play'): JsonSchema => ({
   additionalProperties: false,
 });
 
-type Facts = { store: 'app_store' | 'google_play'; country: string; locale: string; trackedKeys: string[] };
+type Facts = {
+  store: 'app_store' | 'google_play';
+  country: string;
+  locale: string;
+  trackedKeys: string[];
+};
 
 /** The text of one locale as the tool last knew it (the store's live text, else the stored one, else the repository's). Read from stored snapshots only. */
 export async function loadLocaleTexts(
   ctx: TaskContext,
   locale: string,
 ): Promise<{ locale: string; values: Map<string, string> } | undefined> {
-  const drift = await getDrift(ctx.db, ctx.workspaceId, { id: ctx.app.id, platform: ctx.app.platform, identifier: ctx.app.identifier });
+  const drift = await getDrift(ctx.db, ctx.workspaceId, {
+    id: ctx.app.id,
+    platform: ctx.app.platform,
+    identifier: ctx.app.identifier,
+  });
   const entry = drift.locales.find((l) => l.locale.toLowerCase() === locale.toLowerCase());
   if (!entry) return undefined;
   const values = new Map<string, string>();
@@ -93,7 +123,8 @@ export const keywordIdeasTask: ReadyTask = {
   id: 'keyword_ideas',
   version: KEYWORD_IDEAS_VERSION,
   label: 'Keyword ideas',
-  description: 'Suggests search keywords for one language and storefront, with a reason and the listing field each would help in. Accepting adds them to the keywords you track.',
+  description:
+    'Suggests search keywords for one language and storefront, with a reason and the listing field each would help in. Accepting adds them to the keywords you track.',
   proposalKind: 'keywords',
   disclosure: {
     sends: [
@@ -111,9 +142,21 @@ export const keywordIdeasTask: ReadyTask = {
     ],
   },
   scope: [
-    { name: 'locale', required: true, description: 'The language of the listing text, such as en-US.' },
-    { name: 'country', required: false, description: 'The storefront, two letters such as us. Default us.' },
-    { name: 'goal', required: false, description: `What you want from the ideas, in your own words, at most ${aiLimits.maxGoalChars} characters.` },
+    {
+      name: 'locale',
+      required: true,
+      description: 'The language of the listing text, such as en-US.',
+    },
+    {
+      name: 'country',
+      required: false,
+      description: 'The storefront, two letters such as us. Default us.',
+    },
+    {
+      name: 'goal',
+      required: false,
+      description: `What you want from the ideas, in your own words, at most ${aiLimits.maxGoalChars} characters.`,
+    },
   ],
   system: SYSTEM,
   schema: schemaFor('app_store'),
@@ -124,27 +167,50 @@ export const keywordIdeasTask: ReadyTask = {
     const bad = checkScope(keywordIdeasTask, scope);
     if (bad) return bad;
     const locale = normalizeLocale(scope.locale);
-    if (!locale) return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', { issues: [{ path: 'locale', message: 'A language tag such as en-US.' }] });
+    if (!locale)
+      return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', {
+        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }],
+      });
     const country = scope.country === undefined ? 'us' : normalizeCountry(scope.country);
-    if (!country) return aiFail(400, 'invalid_request', 'The storefront is two letters, such as us.', { issues: [{ path: 'country', message: 'Two letters such as us.' }] });
+    if (!country)
+      return aiFail(400, 'invalid_request', 'The storefront is two letters, such as us.', {
+        issues: [{ path: 'country', message: 'Two letters such as us.' }],
+      });
     const store = isApplePlatform(ctx.app.platform) ? 'app_store' : 'google_play';
 
     const texts = await loadLocaleTexts(ctx, locale);
     if (!texts) {
-      return aiFail(422, 'no_listing_text', 'No listing text is stored for this language yet. Sync the app or read the repository first.', { field: 'locale' });
+      return aiFail(
+        422,
+        'no_listing_text',
+        'No listing text is stored for this language yet. Sync the app or read the repository first.',
+        { field: 'locale' },
+      );
     }
-    const specs = (store === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as Record<string, { maxLength?: number; unit: string } | undefined>;
+    const specs = (store === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as Record<
+      string,
+      { maxLength?: number; unit: string } | undefined
+    >;
     const listing: Record<string, string> = {};
     const limits: Record<string, { limit: number; unit: string }> = {};
     for (const field of STORE_FIELDS[store]) {
       const value = texts.values.get(field);
       const spec = specs[field];
       if (spec?.maxLength !== undefined) limits[field] = { limit: spec.maxLength, unit: spec.unit };
-      if (value !== undefined) listing[field] = field === 'description' || field === 'full_description' ? clip(value, DESCRIPTION_CHARS) : clip(value, 500);
+      if (value !== undefined)
+        listing[field] =
+          field === 'description' || field === 'full_description'
+            ? clip(value, DESCRIPTION_CHARS)
+            : clip(value, 500);
     }
 
-    const tracked = (await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { country, locale: texts.locale })).slice(0, MAX_TRACKED_SENT);
-    const competitors = (await listCompetitors(ctx.db, ctx.workspaceId, ctx.app.id)).slice(0, MAX_COMPETITORS_SENT);
+    const tracked = (
+      await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { country, locale: texts.locale })
+    ).slice(0, MAX_TRACKED_SENT);
+    const competitors = (await listCompetitors(ctx.db, ctx.workspaceId, ctx.app.id)).slice(
+      0,
+      MAX_COMPETITORS_SENT,
+    );
     const goal = cleanGoal(scope.goal, aiLimits.maxGoalChars);
 
     const input = {
@@ -162,13 +228,25 @@ export const keywordIdeasTask: ReadyTask = {
       })),
       ...(goal ? { developerGoal: goal } : {}),
     };
-    const facts: Facts = { store, country, locale: texts.locale, trackedKeys: tracked.map((k) => k.key) };
-    return { input, scope: { locale: texts.locale, country, ...(goal ? { goal: true } : {}) }, schema: schemaFor(store), facts };
+    const facts: Facts = {
+      store,
+      country,
+      locale: texts.locale,
+      trackedKeys: tracked.map((k) => k.key),
+    };
+    return {
+      input,
+      scope: { locale: texts.locale, country, ...(goal ? { goal: true } : {}) },
+      schema: schemaFor(store),
+      facts,
+    };
   },
 
   propose(output, run): AiKeywordProposal {
     const facts = run.facts as Facts;
-    const ideas = (output as { ideas: { term: string; reason: string; field: string }[] }).ideas.slice(0, MAX_IDEAS + 5);
+    const ideas = (
+      output as { ideas: { term: string; reason: string; field: string }[] }
+    ).ideas.slice(0, MAX_IDEAS + 5);
     const tracked = new Set(facts.trackedKeys);
     const seen = new Set<string>();
     const items: AiKeywordIdea[] = [];
@@ -197,9 +275,20 @@ export const keywordIdeasTask: ReadyTask = {
         field = null;
         flags.push('field_not_for_store');
       }
-      items.push({ term: clip(term, 80), reason: cleanReason(idea.reason), field, acceptable, flags });
+      items.push({
+        term: clip(term, 80),
+        reason: cleanReason(idea.reason),
+        field,
+        acceptable,
+        flags,
+      });
     }
-    return { kind: 'keywords', store: facts.store, country: facts.country, locale: facts.locale, items };
+    return {
+      kind: 'keywords',
+      store: facts.store,
+      country: facts.country,
+      locale: facts.locale,
+      items,
+    };
   },
 };
-

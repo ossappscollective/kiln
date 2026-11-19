@@ -13,10 +13,12 @@ export function routePath(hash: string): string {
 }
 
 /** True only when the route path changes. A change of the query (view, platform, version, locale, filters) never resets the scroll. */
-export const shouldResetScroll = (prev: string, next: string): boolean => routePath(prev) !== routePath(next);
+export const shouldResetScroll = (prev: string, next: string): boolean =>
+  routePath(prev) !== routePath(next);
 
 /**
  * The height the page must keep while the new content of a view loads (the old content is replaced by a short placeholder, which
  * would pull the page up and clamp the scroll position): the height before the change, or 0 when nothing needs holding.
  */
-export const heightToHold = (reset: boolean, before: number): number => (reset || !(before > 0) ? 0 : Math.ceil(before));
+export const heightToHold = (reset: boolean, before: number): number =>
+  reset || !(before > 0) ? 0 : Math.ceil(before);

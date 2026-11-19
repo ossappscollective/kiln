@@ -20,14 +20,14 @@ curl -H "Authorization: Bearer mrm_..." https://mrm.example.com/api/openapi.json
 - Vendor extensions that tell a client, or an assistant deciding what needs a person's approval,
   what an operation does:
 
-| Extension | Meaning |
-| --- | --- |
-| `x-mrm-risk` | `read` (changes nothing), `write` (changes something that can be undone or is ours to keep) or `destructive` (deletes, revokes or discards). |
-| `x-mrm-action` | The permission the operation needs (`apps.sync`, `changesets.approve`, ...). The role table is in `packages/core/src/roles.ts`. Absent for public and any-member operations. |
-| `x-mrm-token-access` | Whether an API token may call it at all. `false` operations are for people with a session; see [tokens](tokens.md). |
-| `x-mrm-app-scope` | How an app-restricted token is treated: `param` (the app in the path must be allowed), `list` (the answer is filtered) or `events`. Absent: an app-restricted token cannot call it. |
-| `x-mrm-body-limit` | The largest request body in bytes where a route sets its own limit. |
-| `x-mrm-partial` | The operation is described only in part: its response (or body) is a loose object because the shape is still moving. The paths, methods, permissions and risk are exact. |
+| Extension            | Meaning                                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `x-mrm-risk`         | `read` (changes nothing), `write` (changes something that can be undone or is ours to keep) or `destructive` (deletes, revokes or discards).                                        |
+| `x-mrm-action`       | The permission the operation needs (`apps.sync`, `changesets.approve`, ...). The role table is in `packages/core/src/roles.ts`. Absent for public and any-member operations.        |
+| `x-mrm-token-access` | Whether an API token may call it at all. `false` operations are for people with a session; see [tokens](tokens.md).                                                                 |
+| `x-mrm-app-scope`    | How an app-restricted token is treated: `param` (the app in the path must be allowed), `list` (the answer is filtered) or `events`. Absent: an app-restricted token cannot call it. |
+| `x-mrm-body-limit`   | The largest request body in bytes where a route sets its own limit.                                                                                                                 |
+| `x-mrm-partial`      | The operation is described only in part: its response (or body) is a loose object because the shape is still moving. The paths, methods, permissions and risk are exact.            |
 
 ## It is the same registry that guards the API
 

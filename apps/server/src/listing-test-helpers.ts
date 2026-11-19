@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import type { Platform } from '@mrm/core';
-import {
-  type ReadStoreListingOptions,
-  type StoreApp,
-  type StoreBuild,
-  type StoreConnector,
-  type StoreListing,
-  type StoreVersion,
+import type {
+  ReadStoreListingOptions,
+  StoreApp,
+  StoreBuild,
+  StoreConnector,
+  StoreListing,
+  StoreVersion,
 } from '@mrm/connectors';
+import type { Platform } from '@mrm/core';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import type { StoreConnectorFactory } from './services/apps.ts';
 import { forgetInspectedChangeSets } from './services/listing-repo.ts';
@@ -21,14 +21,25 @@ import { forgetRunningListingReads } from './services/listing-schedule.ts';
 
 const KEY_LINE = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTOPSECRETKEYBODY';
 const PEM = `-----BEGIN PRIVATE KEY-----\n${KEY_LINE}\n-----END PRIVATE KEY-----`;
-export const ASC_SECRET = JSON.stringify({ keyId: 'ABC123DEFG', issuerId: 'issuer-1', privateKey: PEM });
-export const PLAY_SECRET = JSON.stringify({ client_email: 'bot@proj.iam.gserviceaccount.com', private_key: PEM });
+export const ASC_SECRET = JSON.stringify({
+  keyId: 'ABC123DEFG',
+  issuerId: 'issuer-1',
+  privateKey: PEM,
+});
+export const PLAY_SECRET = JSON.stringify({
+  client_email: 'bot@proj.iam.gserviceaccount.com',
+  private_key: PEM,
+});
 export const LEAKS = [KEY_LINE, 'bot@proj.iam.gserviceaccount.com'];
 
 export type Texts = Record<string, Record<string, string>>;
 export type Sections = NonNullable<StoreListing['channels'][number]['sections']>;
 
-export const iosListing = (live: Texts, sections?: Sections, extra: StoreListing['warnings'] = []): StoreListing => ({
+export const iosListing = (
+  live: Texts,
+  sections?: Sections,
+  extra: StoreListing['warnings'] = [],
+): StoreListing => ({
   platform: 'ios',
   appStoreId: '1234567890',
   warnings: extra,
@@ -42,7 +53,11 @@ export const iosListing = (live: Texts, sections?: Sections, extra: StoreListing
   ],
 });
 
-export const playListing = (locales: Texts, sections?: Sections, extra: StoreListing['warnings'] = []): StoreListing => ({
+export const playListing = (
+  locales: Texts,
+  sections?: Sections,
+  extra: StoreListing['warnings'] = [],
+): StoreListing => ({
   platform: 'android',
   appStoreId: 'com.acme.app',
   warnings: extra,
@@ -107,15 +122,23 @@ export async function bootListing(db: Parameters<typeof bootRepoApp>[0]) {
   const addIos = (extra: Record<string, unknown> = {}) =>
     addApp({ platform: 'ios', identifier: 'com.acme.app', credentialId: iosCredential, ...extra });
   const addAndroid = (extra: Record<string, unknown> = {}) =>
-    addApp({ platform: 'android', identifier: 'com.acme.app', credentialId: playCredential, ...extra });
+    addApp({
+      platform: 'android',
+      identifier: 'com.acme.app',
+      credentialId: playCredential,
+      ...extra,
+    });
   const sync = (id: string, cookie = t.owner) => t.call(cookie, 'POST', `/apps/${id}/sync`);
   const live = (id: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${id}/listing/live`);
-  const drift = (id: string, cookie = t.owner) => t.call(cookie, 'GET', `/apps/${id}/listing/drift`);
+  const drift = (id: string, cookie = t.owner) =>
+    t.call(cookie, 'GET', `/apps/${id}/listing/drift`);
   const history = (id: string, query = '', cookie = t.owner) =>
     t.call(cookie, 'GET', `/apps/${id}/listing/history${query}`);
-  const refresh = (id: string, cookie = t.owner) => t.call(cookie, 'POST', `/apps/${id}/listing/repo-refresh`);
+  const refresh = (id: string, cookie = t.owner) =>
+    t.call(cookie, 'POST', `/apps/${id}/listing/repo-refresh`);
   const noLeaks = () => {
-    for (const text of t.texts) for (const leak of LEAKS) assert.ok(!text.includes(leak), `leaked ${leak.slice(0, 10)}`);
+    for (const text of t.texts)
+      for (const leak of LEAKS) assert.ok(!text.includes(leak), `leaked ${leak.slice(0, 10)}`);
   };
   /** The snapshot rows of an app, by stream, to see what was recorded. */
   const rows = (appId: string, where = '') =>
@@ -144,12 +167,19 @@ export async function bootListing(db: Parameters<typeof bootRepoApp>[0]) {
 
 export type ListingBoot = Awaited<ReturnType<typeof bootListing>>;
 
-export const EN_US = { name: 'Acme App', subtitle: 'Old subtitle', description: 'A description that is long enough.' };
+export const EN_US = {
+  name: 'Acme App',
+  subtitle: 'Old subtitle',
+  description: 'A description that is long enough.',
+};
 
 /** A set of sections as App Store Connect would give them for a live iOS version. */
 export const iosSections = (overrides: Partial<Sections> = {}): Sections => ({
   categories: { primary: 'PRODUCTIVITY', secondary: 'BUSINESS' },
-  ageRating: { rating: 'FOUR_PLUS', answers: { violenceCartoonOrFantasy: 'NONE', gambling: false } },
+  ageRating: {
+    rating: 'FOUR_PLUS',
+    answers: { violenceCartoonOrFantasy: 'NONE', gambling: false },
+  },
   privacy: { choicesUrls: { 'en-US': 'https://acme.example/choices' } },
   details: { copyright: '2026 Acme' },
   media: {

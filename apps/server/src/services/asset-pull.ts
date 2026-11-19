@@ -2,16 +2,16 @@ import {
   ASSET_SYNC_LIMITS,
   type AssetPlatform,
   type AssetSlot,
-  IMESSAGE_PREFIX,
   type FileChange,
-  storeImageKey,
-  storeSetKey,
+  IMESSAGE_PREFIX,
   isApplePlatform,
   isGooglePlatform,
+  storeImageKey,
+  storeSetKey,
 } from '@mrm/core';
 import type { ManagedApp } from './apps.ts';
-import { openAssets } from './asset-repo.ts';
 import { type AssetSyncContext, repoSetsOf } from './asset-diff.ts';
+import { openAssets } from './asset-repo.ts';
 import { layoutFor, planSet, type Wanted } from './asset-repo-plan.ts';
 import { stepsToChanges } from './asset-repo-write.ts';
 import { recordAudit } from './audit.ts';
@@ -50,7 +50,20 @@ export type PullInput = {
   gate?: (() => Failure | undefined) | undefined;
 };
 
-export type PullSkip = { key: string; reason: 'checksum_mismatch' | 'budget' | 'format' | 'download_failed' | 'no_address' | 'repo_unreadable' | 'layout' | 'gap' | 'timeout'; message: string };
+export type PullSkip = {
+  key: string;
+  reason:
+    | 'checksum_mismatch'
+    | 'budget'
+    | 'format'
+    | 'download_failed'
+    | 'no_address'
+    | 'repo_unreadable'
+    | 'layout'
+    | 'gap'
+    | 'timeout';
+  message: string;
+};
 
 export type PullReport = {
   /** Null when nothing had to change. */
@@ -73,37 +86,85 @@ const MAX_PULL_MS = 120_000;
 const sums = (a: string, b: string): boolean => {
   const x = a.toLowerCase();
   const y = b.toLowerCase();
-  return x.length === y.length ? x === y : x.length < y.length ? x.length >= 16 && y.startsWith(x) : y.length >= 16 && x.startsWith(y);
+  return x.length === y.length
+    ? x === y
+    : x.length < y.length
+      ? x.length >= 16 && y.startsWith(x)
+      : y.length >= 16 && x.startsWith(y);
 };
 
-export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): Promise<{ ok: true; report: PullReport } | Failure> {
+export async function pullStoreImages(
+  ctx: AssetSyncContext,
+  input: PullInput,
+): Promise<{ ok: true; report: PullReport } | Failure> {
   const { app } = input;
   const repoCtx = ctx.assets.repo;
-  if (!app.repositoryId) return failure(422, 'no_repository', 'This app has no linked repository to pull the images into.');
+  if (!app.repositoryId)
+    return failure(
+      422,
+      'no_repository',
+      'This app has no linked repository to pull the images into.',
+    );
   const platform: AssetPlatform = app.platform;
-  const store = await getStoreImages(ctx.store, { workspaceId: input.workspaceId, app, actor: input.actor });
+  const store = await getStoreImages(ctx.store, {
+    workspaceId: input.workspaceId,
+    app,
+    actor: input.actor,
+  });
   if (!store.ok) return store;
-  const opened = await openAssets(ctx.assets, { workspaceId: input.workspaceId, app }, input.actor, { ...(input.gate ? { onCompute: input.gate } : {}) });
+  const opened = await openAssets(
+    ctx.assets,
+    { workspaceId: input.workspaceId, app },
+    input.actor,
+    { ...(input.gate ? { onCompute: input.gate } : {}) },
+  );
   if (!opened.ok) return opened;
   const { handle } = opened;
   const view = handle.view;
-  if (view.status === 'no_repository' || view.commit === null || view.target === null) return failure(422, 'no_repository', 'This app has no linked repository to pull the images into.');
+  if (view.status === 'no_repository' || view.commit === null || view.target === null)
+    return failure(
+      422,
+      'no_repository',
+      'This app has no linked repository to pull the images into.',
+    );
 
   // Selection.
   const setKeys = new Map<string, (typeof store.view.sets)[number]>();
-  const imageKeys = new Map<string, { set: (typeof store.view.sets)[number]; position: number; ref: string }>();
+  const imageKeys = new Map<
+    string,
+    { set: (typeof store.view.sets)[number]; position: number; ref: string }
+  >();
   for (const s of store.view.sets) {
     if ((s.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
     if (isApplePlatform(platform) && s.kind !== 'screenshot') continue;
     if (s.kind === 'preview' || s.kind === 'app_icon') continue;
     const slot: AssetSlot = { kind: s.kind, device: s.device };
     setKeys.set(storeSetKey(platform, s.locale, slot), s);
-    for (const f of s.files) imageKeys.set(storeImageKey(platform, s.locale, slot, f.position), { set: s, position: f.position, ref: f.ref });
+    for (const f of s.files)
+      imageKeys.set(storeImageKey(platform, s.locale, slot, f.position), {
+        set: s,
+        position: f.position,
+        ref: f.ref,
+      });
   }
   const wantSets = new Set(input.sets ?? []);
   const wantFiles = new Set(input.files ?? []);
-  for (const k of wantSets) if (!setKeys.has(k)) return failure(422, 'unknown_selection', 'A set is not one the store holds. Read the comparison again.', { set: k });
-  for (const k of wantFiles) if (!imageKeys.has(k)) return failure(422, 'unknown_selection', 'An image is not one the store holds. Read the comparison again.', { file: k });
+  for (const k of wantSets)
+    if (!setKeys.has(k))
+      return failure(
+        422,
+        'unknown_selection',
+        'A set is not one the store holds. Read the comparison again.',
+        { set: k },
+      );
+  for (const k of wantFiles)
+    if (!imageKeys.has(k))
+      return failure(
+        422,
+        'unknown_selection',
+        'An image is not one the store holds. Read the comparison again.',
+        { file: k },
+      );
   const everything = wantSets.size === 0 && wantFiles.size === 0;
 
   const skipped: PullSkip[] = [];
@@ -114,7 +175,9 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
   let count = 0;
   const started = repoCtx.now();
   const repoSets = repoSetsOf(view.assets);
-  const existing = view.assets.filter((a) => a.origin === 'store').map((a) => ({ path: a.path, locale: a.locale, kind: a.kind, device: a.device }));
+  const existing = view.assets
+    .filter((a) => a.origin === 'store')
+    .map((a) => ({ path: a.path, locale: a.locale, kind: a.kind, device: a.device }));
   const changes: FileChange[] = [];
   let written = 0;
   let deleted = 0;
@@ -123,27 +186,50 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
 
   for (const [setKey, set] of setKeys) {
     const slot: AssetSlot = { kind: set.kind, device: set.device };
-    const positionsWanted = set.files.filter((f) => everything || wantSets.has(setKey) || wantFiles.has(storeImageKey(platform, set.locale, slot, f.position)));
+    const positionsWanted = set.files.filter(
+      (f) =>
+        everything ||
+        wantSets.has(setKey) ||
+        wantFiles.has(storeImageKey(platform, set.locale, slot, f.position)),
+    );
     if (positionsWanted.length === 0) continue;
     const whole = everything || wantSets.has(setKey) || positionsWanted.length === set.files.length;
     const repoSet = repoSets.sets.get(`${set.locale}\0${set.kind}\0${set.device ?? ''}`);
     const current = (repoSet?.files ?? []).map((a) => ({ path: a.path, oid: a.oid }));
-    const laid = layoutFor({ platform: app.platform, locale: set.locale, slot, roots: view.target.roots, existing });
+    const laid = layoutFor({
+      platform: app.platform,
+      locale: set.locale,
+      slot,
+      roots: view.target.roots,
+      existing,
+    });
     if (!laid.ok) {
-      for (const f of positionsWanted) skipped.push({ key: storeImageKey(platform, set.locale, slot, f.position), reason: 'layout', message: laid.message });
+      for (const f of positionsWanted)
+        skipped.push({
+          key: storeImageKey(platform, set.locale, slot, f.position),
+          reason: 'layout',
+          message: laid.message,
+        });
       continue;
     }
     // The bytes of each wanted store image.
     const fetched = new Map<number, { bytes: Uint8Array; format: 'png' | 'jpeg'; oid: string }>();
     for (const f of positionsWanted) {
       const key = storeImageKey(platform, set.locale, slot, f.position);
-      const fail = (reason: PullSkip['reason'], message: string) => skipped.push({ key, reason, message });
+      const fail = (reason: PullSkip['reason'], message: string) =>
+        skipped.push({ key, reason, message });
       if (repoCtx.now() - started > MAX_PULL_MS) {
         fail('timeout', 'The pull ran out of time before this image.');
         continue;
       }
-      if (count >= ASSET_SYNC_LIMITS.maxPullFiles || downloadedBytes + readBytes >= ASSET_SYNC_LIMITS.maxPullBytes) {
-        fail('budget', `A pull takes at most ${ASSET_SYNC_LIMITS.maxPullFiles} files and ${Math.floor(ASSET_SYNC_LIMITS.maxPullBytes / (1024 * 1024))} MB. Pull the rest in another run.`);
+      if (
+        count >= ASSET_SYNC_LIMITS.maxPullFiles ||
+        downloadedBytes + readBytes >= ASSET_SYNC_LIMITS.maxPullBytes
+      ) {
+        fail(
+          'budget',
+          `A pull takes at most ${ASSET_SYNC_LIMITS.maxPullFiles} files and ${Math.floor(ASSET_SYNC_LIMITS.maxPullBytes / (1024 * 1024))} MB. Pull the rest in another run.`,
+        );
         continue;
       }
       if (!f.downloadable) {
@@ -154,7 +240,10 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
         workspaceId: input.workspaceId,
         appId: app.id,
         ref: f.ref,
-        maxBytes: Math.min(ASSET_SYNC_LIMITS.maxDownloadBytes, ASSET_SYNC_LIMITS.maxPullBytes - downloadedBytes - readBytes),
+        maxBytes: Math.min(
+          ASSET_SYNC_LIMITS.maxDownloadBytes,
+          ASSET_SYNC_LIMITS.maxPullBytes - downloadedBytes - readBytes,
+        ),
       });
       if (!got.ok) {
         // A rate limit of the host ends the pull for this run: the rest would only fail the same way.
@@ -165,7 +254,10 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
       downloadedBytes += image.bytes.length;
       count++;
       if (image.format !== 'png' && image.format !== 'jpeg') {
-        fail('format', `The store serves this image as ${image.format.toUpperCase()}; only PNG and JPEG are put in a repository from here.`);
+        fail(
+          'format',
+          `The store serves this image as ${image.format.toUpperCase()}; only PNG and JPEG are put in a repository from here.`,
+        );
         continue;
       }
       if (entry.checksum !== null) {
@@ -173,7 +265,10 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
         const ok = mine === null ? true : sums(entry.checksum, mine);
         if (!ok) {
           if (isGooglePlatform(platform)) {
-            fail('checksum_mismatch', 'The bytes did not match the SHA-256 Google Play gave, so the file was not taken.');
+            fail(
+              'checksum_mismatch',
+              'The bytes did not match the SHA-256 Google Play gave, so the file was not taken.',
+            );
             continue;
           }
           unverified.push(key);
@@ -181,7 +276,11 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
       } else if (isApplePlatform(platform)) {
         unverified.push(key);
       }
-      fetched.set(f.position, { bytes: image.bytes, format: image.format, oid: gitBlobOid(image.bytes) });
+      fetched.set(f.position, {
+        bytes: image.bytes,
+        format: image.format,
+        oid: gitBlobOid(image.bytes),
+      });
     }
 
     // The wanted set.
@@ -193,14 +292,21 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
         if (!got) {
           // Not taken (or not asked for): keep what the repository has at this position, if anything.
           const keep = current[f.position - 1];
-          if (keep && keep.oid !== null) wanted.push({ kind: 'existing', path: keep.path, oid: keep.oid });
+          if (keep && keep.oid !== null)
+            wanted.push({ kind: 'existing', path: keep.path, oid: keep.oid });
           continue;
         }
         const here = current[wanted.length];
-        wanted.push(here && here.oid === got.oid ? { kind: 'existing', path: here.path, oid: got.oid } : { kind: 'new', oid: got.oid, format: got.format });
+        wanted.push(
+          here && here.oid === got.oid
+            ? { kind: 'existing', path: here.path, oid: got.oid }
+            : { kind: 'new', oid: got.oid, format: got.format },
+        );
       }
     } else {
-      wanted = current.filter((c) => c.oid !== null).map((c) => ({ kind: 'existing' as const, path: c.path, oid: c.oid as string }));
+      wanted = current
+        .filter((c) => c.oid !== null)
+        .map((c) => ({ kind: 'existing' as const, path: c.path, oid: c.oid as string }));
       for (const f of positionsWanted) {
         const got = fetched.get(f.position);
         if (!got) continue;
@@ -212,7 +318,12 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
         } else if (index === wanted.length) {
           wanted.push({ kind: 'new', oid: got.oid, format: got.format });
         } else {
-          skipped.push({ key: storeImageKey(platform, set.locale, slot, f.position), reason: 'gap', message: 'The repository has fewer images before this one; pull the images before it too.' });
+          skipped.push({
+            key: storeImageKey(platform, set.locale, slot, f.position),
+            reason: 'gap',
+            message:
+              'The repository has fewer images before this one; pull the images before it too.',
+          });
           fetched.delete(f.position);
         }
       }
@@ -221,7 +332,10 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
     const plan = planSet({ layout: laid.layout, current, wanted, prune: input.prune === true });
     unchanged += plan.unchanged;
     left.push(...plan.left);
-    if (plan.renamed) notes.push(`${setKey}: the files were renamed (${laid.layout.stem}-01, -02, ...) so that their names sort in the store's order.`);
+    if (plan.renamed)
+      notes.push(
+        `${setKey}: the files were renamed (${laid.layout.stem}-01, -02, ...) so that their names sort in the store's order.`,
+      );
 
     // From steps to file changes. The bytes of the new files are what was fetched.
     const newBytes = (index: number): Uint8Array | undefined => {
@@ -235,13 +349,26 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
     changes.push(...done.changes);
     written += done.written;
     deleted += done.deleted;
-    for (const message of done.failures) skipped.push({ key: setKey, reason: 'repo_unreadable', message });
+    for (const message of done.failures)
+      skipped.push({ key: setKey, reason: 'repo_unreadable', message });
   }
-  if (readBytes + downloadedBytes > ASSET_SYNC_LIMITS.maxPullBytes * 2) notes.push('The pull read more of the repository than usual.');
+  if (readBytes + downloadedBytes > ASSET_SYNC_LIMITS.maxPullBytes * 2)
+    notes.push('The pull read more of the repository than usual.');
 
-  const report: PullReport = { changeSet: null, written, deleted, unchanged, bytes: downloadedBytes, skipped, unverified, left, notes };
+  const report: PullReport = {
+    changeSet: null,
+    written,
+    deleted,
+    unchanged,
+    bytes: downloadedBytes,
+    skipped,
+    unverified,
+    left,
+    notes,
+  };
   if (changes.length === 0) {
-    if (unchanged > 0 && skipped.length === 0) notes.push('Everything the store has is already in the repository.');
+    if (unchanged > 0 && skipped.length === 0)
+      notes.push('Everything the store has is already in the repository.');
     return { ok: true, report };
   }
   const summary = `Pull ${written + deleted === 1 ? '1 store image' : `${written + deleted} store image changes`} into the repository (${app.name})`;
@@ -253,7 +380,13 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
       summary,
       files: changes,
       origin: { v: 1, source: 'store_assets_pull', appId: app.id },
-      auditDetail: { appId: app.id, platform: app.platform, source: 'store_assets_pull', written, deleted },
+      auditDetail: {
+        appId: app.id,
+        platform: app.platform,
+        source: 'store_assets_pull',
+        written,
+        deleted,
+      },
     },
     input.actor,
   );
@@ -266,14 +399,34 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
     action: 'assets.pulled',
     target: { type: 'app', id: app.id },
     // Ids and counts only: never a file name, an address or bytes.
-    detail: { appId: app.id, platform: app.platform, changeSetId: made.changeSet.id, written, deleted, unchanged, skipped: skipped.length, unverified: unverified.length, bytes: downloadedBytes },
+    detail: {
+      appId: app.id,
+      platform: app.platform,
+      changeSetId: made.changeSet.id,
+      written,
+      deleted,
+      unchanged,
+      skipped: skipped.length,
+      unverified: unverified.length,
+      bytes: downloadedBytes,
+    },
     at,
   });
   await emitEvent(repoCtx.db, {
     workspaceId: input.workspaceId,
     type: 'assets.pulled',
     subject: { appId: app.id, repositoryId: app.repositoryId },
-    payload: { appId: app.id, store: store.view.store, platform: app.platform, changeSetId: made.changeSet.id, written, deleted, skipped: skipped.length, unverified: unverified.length, actor: { type: input.actor.type, id: input.actor.id } },
+    payload: {
+      appId: app.id,
+      store: store.view.store,
+      platform: app.platform,
+      changeSetId: made.changeSet.id,
+      written,
+      deleted,
+      skipped: skipped.length,
+      unverified: unverified.length,
+      actor: { type: input.actor.type, id: input.actor.id },
+    },
     at,
   });
   return { ok: true, report };

@@ -17,7 +17,13 @@ import { emitEvent } from './events.ts';
 type Row = Record<string, unknown>;
 
 /** GitHub's own run statuses that mean the run is not finished. Anything else is not polled. */
-export const ACTIVE_STATUSES = ['queued', 'in_progress', 'waiting', 'requested', 'pending'] as const;
+export const ACTIVE_STATUSES = [
+  'queued',
+  'in_progress',
+  'waiting',
+  'requested',
+  'pending',
+] as const;
 export const isActiveStatus = (status: string): boolean =>
   (ACTIVE_STATUSES as readonly string[]).includes(status);
 
@@ -89,39 +95,46 @@ function parseInputs(raw: unknown): Record<string, string> | null {
  * (rows written before migration 28 are migrated, so this only matters for a row a test inserted by hand).
  */
 const appIdsOf = (r: Row, linked: readonly string[] | undefined): string[] =>
-  linked !== undefined && linked.length > 0 ? [...linked] : r.app_id === null || r.app_id === undefined ? [] : [String(r.app_id)];
+  linked !== undefined && linked.length > 0
+    ? [...linked]
+    : r.app_id === null || r.app_id === undefined
+      ? []
+      : [String(r.app_id)];
 
 export const toRunView = (r: Row, linked?: readonly string[]): WorkflowRunView => {
   const appIds = appIdsOf(r, linked);
   return {
-  id: String(r.run_id),
-  repositoryId: String(r.repository_id),
-  appId: appIds[0] ?? null,
-  appIds,
-  workflow: String(r.workflow),
-  workflowPath: orNull(r.workflow_path, String),
-  title: orNull(r.title, String),
-  status: String(r.status),
-  conclusion: orNull(r.conclusion, String),
-  active: isActiveStatus(String(r.status)),
-  headSha: orNull(r.head_sha, String),
-  commitMessage: orNull(r.commit_message, String),
-  branch: orNull(r.branch, String),
-  event: orNull(r.event, String),
-  runNumber: orNull(r.run_number, Number),
-  url: orNull(r.url, String),
-  inputs: parseInputs(r.inputs_json),
-  dispatchedBy: orNull(r.dispatched_by, String),
-  startedAt: Number(r.started_at),
-  updatedAt: Number(r.run_updated_at),
-  syncedAt: Number(r.synced_at),
+    id: String(r.run_id),
+    repositoryId: String(r.repository_id),
+    appId: appIds[0] ?? null,
+    appIds,
+    workflow: String(r.workflow),
+    workflowPath: orNull(r.workflow_path, String),
+    title: orNull(r.title, String),
+    status: String(r.status),
+    conclusion: orNull(r.conclusion, String),
+    active: isActiveStatus(String(r.status)),
+    headSha: orNull(r.head_sha, String),
+    commitMessage: orNull(r.commit_message, String),
+    branch: orNull(r.branch, String),
+    event: orNull(r.event, String),
+    runNumber: orNull(r.run_number, Number),
+    url: orNull(r.url, String),
+    inputs: parseInputs(r.inputs_json),
+    dispatchedBy: orNull(r.dispatched_by, String),
+    startedAt: Number(r.started_at),
+    updatedAt: Number(r.run_updated_at),
+    syncedAt: Number(r.synced_at),
   };
 };
 
 const IN_CHUNK = 400;
 
 /** The apps of each run row (by the row's own id), from `ci_run_apps`. */
-export async function loadRunApps(sql: Sql, rowIds: readonly string[]): Promise<Map<string, string[]>> {
+export async function loadRunApps(
+  sql: Sql,
+  rowIds: readonly string[],
+): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   for (let i = 0; i < rowIds.length; i += IN_CHUNK) {
     const chunk = rowIds.slice(i, i + IN_CHUNK);
@@ -139,7 +152,10 @@ export async function loadRunApps(sql: Sql, rowIds: readonly string[]): Promise<
 
 /** Run rows (selected with RUN_COLUMNS) as views, with their apps. */
 export async function runViews(sql: Sql, rows: readonly Row[]): Promise<WorkflowRunView[]> {
-  const apps = await loadRunApps(sql, rows.map((r) => String(r.id)));
+  const apps = await loadRunApps(
+    sql,
+    rows.map((r) => String(r.id)),
+  );
   return rows.map((r) => toRunView(r, apps.get(String(r.id))));
 }
 
@@ -154,14 +170,21 @@ export async function setRunApps(
 ): Promise<void> {
   // Sorted, so the first app (the legacy column, `appId` of the view) is the same however the request listed them.
   const unique = input.appIds.filter((id, i) => input.appIds.indexOf(id) === i).sort();
-  await sql.execute('DELETE FROM ci_run_apps WHERE run_ref = ? AND workspace_id = ?', [input.runRef, input.workspaceId]);
+  await sql.execute('DELETE FROM ci_run_apps WHERE run_ref = ? AND workspace_id = ?', [
+    input.runRef,
+    input.workspaceId,
+  ]);
   for (const appId of unique) {
     await sql.execute(
       'INSERT INTO ci_run_apps (run_ref, app_id, workspace_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
       [input.runRef, appId, input.workspaceId, input.now],
     );
   }
-  await sql.execute('UPDATE workflow_runs SET app_id = ? WHERE id = ? AND workspace_id = ?', [unique[0] ?? null, input.runRef, input.workspaceId]);
+  await sql.execute('UPDATE workflow_runs SET app_id = ? WHERE id = ? AND workspace_id = ?', [
+    unique[0] ?? null,
+    input.runRef,
+    input.workspaceId,
+  ]);
 }
 
 /** The first line of a commit message, at most 200 characters. */
@@ -178,7 +201,13 @@ export const firstLine = (message: string | undefined): string | null => {
  */
 async function announce(
   sql: Sql,
-  run: { workspaceId: string; repositoryId: string; appIds: readonly string[]; runId: string; at: number },
+  run: {
+    workspaceId: string;
+    repositoryId: string;
+    appIds: readonly string[];
+    runId: string;
+    at: number;
+  },
   kind: 'started' | 'finished',
   conclusion?: string | null,
 ): Promise<void> {
@@ -337,10 +366,19 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
         WHERE id = ? AND workspace_id = ?`,
       [inputsJson, d.dispatchedBy, String(existing.id), d.workspaceId],
     );
-    await setRunApps(sql, { workspaceId: d.workspaceId, runRef: String(existing.id), appIds, now: d.now });
+    await setRunApps(sql, {
+      workspaceId: d.workspaceId,
+      runRef: String(existing.id),
+      appIds,
+      now: d.now,
+    });
   } else {
     if (d.runId) {
-      await announce(sql, { workspaceId: d.workspaceId, repositoryId: d.repositoryId, appIds, runId, at: d.now }, 'started');
+      await announce(
+        sql,
+        { workspaceId: d.workspaceId, repositoryId: d.repositoryId, appIds, runId, at: d.now },
+        'started',
+      );
     }
     const rowId = randomUUID();
     await sql.execute(
@@ -372,12 +410,19 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
   return view as WorkflowRunView;
 }
 
-type PendingRow = { id: string; appIds: string[]; workflow: string; branch: string | null; startedAt: number };
+type PendingRow = {
+  id: string;
+  appIds: string[];
+  workflow: string;
+  branch: string | null;
+  startedAt: number;
+};
 
 /** Does this run look like the one a pending dispatch of `workflow` on `ref` started? */
 function fitsPending(run: CiRun, pending: PendingRow): boolean {
   if (run.event !== 'workflow_dispatch') return false;
-  if (pending.branch !== null && run.branch !== undefined && run.branch !== pending.branch) return false;
+  if (pending.branch !== null && run.branch !== undefined && run.branch !== pending.branch)
+    return false;
   // Allow a minute of clock difference between GitHub and this server.
   if ((run.createdAt ?? run.startedAt ?? 0) < pending.startedAt - 60_000) return false;
   const wanted = pending.workflow;
@@ -417,7 +462,10 @@ export async function storeRuns(
       ORDER BY started_at, id`,
     [workspaceId, repositoryId],
   );
-  const pendingApps = await loadRunApps(sql, pendingRows.map((p) => String(p.id)));
+  const pendingApps = await loadRunApps(
+    sql,
+    pendingRows.map((p) => String(p.id)),
+  );
   const pending: PendingRow[] = pendingRows.map((p) => ({
     id: String(p.id),
     appIds: appIdsOf(p, pendingApps.get(String(p.id))),
@@ -455,10 +503,19 @@ export async function storeRuns(
       'SELECT id, status, app_id FROM workflow_runs WHERE repository_id = ? AND run_id = ?',
       [repositoryId, run.id],
     );
-    const about = (appIds: readonly string[]) => ({ workspaceId, repositoryId, appIds, runId: run.id, at: now });
+    const about = (appIds: readonly string[]) => ({
+      workspaceId,
+      repositoryId,
+      appIds,
+      runId: run.id,
+      at: now,
+    });
     const finishedNow = run.status === 'completed';
     if (existing) {
-      await sql.execute(`UPDATE workflow_runs SET ${set} WHERE id = ?`, [...values, String(existing.id)]);
+      await sql.execute(`UPDATE workflow_runs SET ${set} WHERE id = ?`, [
+        ...values,
+        String(existing.id),
+      ]);
       result.updated++;
       if (finishedNow && isActiveStatus(String(existing.status))) {
         const linked = (await loadRunApps(sql, [String(existing.id)])).get(String(existing.id));
@@ -520,11 +577,14 @@ export async function purgeOrphans(sql: Sql): Promise<number> {
   const runs = await sql.execute(
     'DELETE FROM workflow_runs WHERE repository_id NOT IN (SELECT id FROM repositories)',
   );
-  const links = await sql.execute('DELETE FROM build_links WHERE app_id NOT IN (SELECT id FROM apps)');
+  const links = await sql.execute(
+    'DELETE FROM build_links WHERE app_id NOT IN (SELECT id FROM apps)',
+  );
   const conventions = await purgeConventionOrphans(sql);
   // The apps of a run go with the run (a cascade), and an app that was deleted leaves its links.
   const runApps =
-    (await sql.execute('DELETE FROM ci_run_apps WHERE run_ref NOT IN (SELECT id FROM workflow_runs)')) +
-    (await sql.execute('DELETE FROM ci_run_apps WHERE app_id NOT IN (SELECT id FROM apps)'));
+    (await sql.execute(
+      'DELETE FROM ci_run_apps WHERE run_ref NOT IN (SELECT id FROM workflow_runs)',
+    )) + (await sql.execute('DELETE FROM ci_run_apps WHERE app_id NOT IN (SELECT id FROM apps)'));
   return runs + links + conventions + runApps;
 }

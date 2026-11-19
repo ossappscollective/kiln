@@ -33,7 +33,7 @@ translate it, and know what it costs, all without it ever acting by itself and w
    name are replaced by placeholders; author, device, territory and store ids are not sent; ids are aliases. A reply draft that still seems to contain personal
    data is flagged `personal_data` and cannot be accepted. This is best effort, not anonymisation, and the documents say so.
 6. **A "what will be sent" preview.** `POST /ai/tasks/{id}/preview` builds a run's data with the same code and returns it with the instruction text and an
-   estimate of tokens, and contacts nobody. The disclosure of 0016 says what *kinds* of data go out; the preview says what *this* data is. It is offered
+   estimate of tokens, and contacts nobody. The disclosure of 0016 says what _kinds_ of data go out; the preview says what _this_ data is. It is offered
    inside the disclosure popover. The "don't ask again" choice stays in the browser's localStorage (per task, version and provider) as in 0016: it is a
    convenience of one person's browser, not a workspace decision, and losing it only asks again.
 7. **Cost: a soft warning and a hard cap, both optional.** Tokens are not what a provider bills. An admin may type the prices (whole cents per million tokens),

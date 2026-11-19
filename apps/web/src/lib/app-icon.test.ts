@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APP_ICON_PX, APP_ICON_TINTS, appIconPixels, iconAlt, iconSrc, initialsOf, tintIndex } from './app-icon.ts';
+import {
+  APP_ICON_PX,
+  APP_ICON_TINTS,
+  appIconPixels,
+  iconAlt,
+  iconSrc,
+  initialsOf,
+  tintIndex,
+} from './app-icon.ts';
 
 test('iconSrc accepts only the icon route of this server', () => {
-  assert.equal(iconSrc('/api/workspaces/w1/apps/a1/icon?v=abc'), '/api/workspaces/w1/apps/a1/icon?v=abc');
+  assert.equal(
+    iconSrc('/api/workspaces/w1/apps/a1/icon?v=abc'),
+    '/api/workspaces/w1/apps/a1/icon?v=abc',
+  );
   assert.equal(iconSrc('/api/workspaces/w1/apps/a1/icon'), '/api/workspaces/w1/apps/a1/icon');
 });
 

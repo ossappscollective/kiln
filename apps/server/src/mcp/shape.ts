@@ -22,9 +22,11 @@ export const LIMITS = {
 export type Limits = { maxString: number; maxArray: number; maxDepth: number; maxChars: number };
 
 /** Keys whose value is never returned, whatever the route said. */
-const SECRET_KEY = /(secret|password|passphrase|api[_-]?key|private[_-]?key|authorization|bearer|cookie|credential[_-]?value|download[_-]?url|signing|^token$|access[_-]?token|refresh[_-]?token|client[_-]?secret)/i;
+const SECRET_KEY =
+  /(secret|password|passphrase|api[_-]?key|private[_-]?key|authorization|bearer|cookie|credential[_-]?value|download[_-]?url|signing|^token$|access[_-]?token|refresh[_-]?token|client[_-]?secret)/i;
 /** Values that look like one of our tokens, a PEM block, a JWT or an Authorization header. */
-const SECRET_VALUE = /(mrm_[A-Za-z0-9_-]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._~+/=-]{16,})/g;
+const SECRET_VALUE =
+  /(mrm_[A-Za-z0-9_-]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._~+/=-]{16,})/g;
 
 export const REDACTED = '[redacted]';
 
@@ -41,7 +43,11 @@ export function untrusted(text: string, id: string): string {
   return `<untrusted-data id="${id}">${defuse(text)}</untrusted-data>`;
 }
 
-export type Cut = { path: string; omitted: number; kind: 'items' | 'characters' | 'depth' | 'fields' };
+export type Cut = {
+  path: string;
+  omitted: number;
+  kind: 'items' | 'characters' | 'depth' | 'fields';
+};
 
 export type ShapeOptions = {
   /** Key names (at any depth) whose strings are third party text. */
@@ -52,7 +58,8 @@ export type ShapeOptions = {
   limits?: Partial<Limits>;
 };
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
  * Walks a JSON value once: drops secrets and unwanted keys, wraps untrusted text, cuts long strings, long arrays and deep nesting.
@@ -77,8 +84,11 @@ export function shapeValue(input: unknown, options: ShapeOptions): { value: unkn
       return null;
     }
     if (Array.isArray(value)) {
-      if (value.length > limits.maxArray) cuts.push({ path, omitted: value.length - limits.maxArray, kind: 'items' });
-      return value.slice(0, limits.maxArray).map((item, i) => walk(item, `${path}[${i}]`, depth + 1, wrap));
+      if (value.length > limits.maxArray)
+        cuts.push({ path, omitted: value.length - limits.maxArray, kind: 'items' });
+      return value
+        .slice(0, limits.maxArray)
+        .map((item, i) => walk(item, `${path}[${i}]`, depth + 1, wrap));
     }
     if (!isRecord(value)) return null;
     const out: Record<string, unknown> = {};
@@ -86,7 +96,12 @@ export function shapeValue(input: unknown, options: ShapeOptions): { value: unkn
       if (SECRET_KEY.test(key) || options.dropKeys?.has(key)) {
         continue;
       }
-      out[key] = walk(child, path ? `${path}.${key}` : key, depth + 1, wrap || (options.untrustedKeys?.has(key) ?? false));
+      out[key] = walk(
+        child,
+        path ? `${path}.${key}` : key,
+        depth + 1,
+        wrap || (options.untrustedKeys?.has(key) ?? false),
+      );
     }
     // A dropped secret is not reported, not even by name.
     return out;
@@ -101,12 +116,18 @@ export const sizeOf = (value: unknown): number => JSON.stringify(value)?.length 
  * Shapes a value and makes it fit `maxChars`: when the first pass is still too large, the arrays are halved (down to one
  * item) until it fits. Returns undefined when even that does not fit.
  */
-export function fit(input: unknown, options: ShapeOptions): { value: unknown; cuts: Cut[] } | undefined {
+export function fit(
+  input: unknown,
+  options: ShapeOptions,
+): { value: unknown; cuts: Cut[] } | undefined {
   const limits = { ...LIMITS, ...options.limits };
   let arrayLimit = limits.maxArray;
   let stringLimit = limits.maxString;
   for (let attempt = 0; attempt < 8; attempt++) {
-    const shaped = shapeValue(input, { ...options, limits: { ...limits, maxArray: arrayLimit, maxString: stringLimit } });
+    const shaped = shapeValue(input, {
+      ...options,
+      limits: { ...limits, maxArray: arrayLimit, maxString: stringLimit },
+    });
     if (sizeOf({ data: shaped.value, truncated: shaped.cuts }) <= limits.maxChars) return shaped;
     arrayLimit = Math.max(1, Math.floor(arrayLimit / 2));
     stringLimit = Math.max(200, Math.floor(stringLimit / 2));

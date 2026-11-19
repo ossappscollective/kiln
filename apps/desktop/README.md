@@ -13,10 +13,10 @@ Needs Rust, and (for the build) the web UI built with `pnpm build` from the repo
 `scripts/prepare-sidecar.mjs` copies files that are already on this machine into
 `src-tauri/binaries/` (git-ignored). It does not download or compile anything.
 
-| Output | Used as |
-| --- | --- |
-| `mrm-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/mrm-node`: the Node binary |
-| `server/` | Tauri `resources`, installed as `server/`: server sources, `@mrm/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
+| Output                           | Used as                                                                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mrm-node-<target-triple>[.exe]` | Tauri `externalBin` `binaries/mrm-node`: the Node binary                                                                                                  |
+| `server/`                        | Tauri `resources`, installed as `server/`: server sources, `@mrm/*` packages, `hono`, `zod`, `@hono/node-server`, the launcher, and `web/` (the built UI) |
 
 The Node binary is the one running the script, so run it with the official Node 22.18 or newer
 (nodejs.org, nvm, fnm, Volta). Homebrew and distribution packages are refused because they link

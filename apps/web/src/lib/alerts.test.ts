@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
-  type CatalogEntry,
-  type InboxAlert,
-  type Preference,
   badgeCount,
+  type CatalogEntry,
   describeOutcome,
   effectiveChannels,
   groupInbox,
+  type InboxAlert,
   matrixGroups,
   minutesToTime,
   outcomeLabels,
+  type Preference,
   quietSummary,
   timeToMinutes,
   toggleChannel,
@@ -34,7 +34,14 @@ const entry = (over: Partial<CatalogEntry> = {}): CatalogEntry => ({
   dedupeWindowHours: 24,
   params: [],
   visible: true,
-  rule: { alertType: 'release.rejected', enabled: true, channels: ['in_app', 'email', 'webhook'], maxPerHour: 10, params: {}, custom: false },
+  rule: {
+    alertType: 'release.rejected',
+    enabled: true,
+    channels: ['in_app', 'email', 'webhook'],
+    maxPerHour: 10,
+    params: {},
+    custom: false,
+  },
   ...over,
 });
 
@@ -55,10 +62,16 @@ const alert = (over: Partial<InboxAlert>): InboxAlert => ({
 });
 
 test('every outcome code the server writes has a sentence, and no sentence is for a code the server never writes', () => {
-  const source = readFileSync(new URL('../../../server/src/services/alerts.ts', import.meta.url), 'utf8');
+  const source = readFileSync(
+    new URL('../../../server/src/services/alerts.ts', import.meta.url),
+    'utf8',
+  );
   const block = /export const deliveryOutcomes = \[([^\]]*)\]/.exec(source);
   assert.ok(block, 'the outcome list is found in the server source');
-  const codes = (block[1] ?? '').split(',').map((s) => s.replace(/['\s]/g, '')).filter((s) => s !== '');
+  const codes = (block[1] ?? '')
+    .split(',')
+    .map((s) => s.replace(/['\s]/g, ''))
+    .filter((s) => s !== '');
   assert.ok(codes.length > 10);
   assert.deepEqual(Object.keys(outcomeLabels).sort(), codes.slice().sort());
   assert.equal(describeOutcome('something_new'), 'Unknown result.');
@@ -95,8 +108,14 @@ test('groupInbox puts open warnings and criticals first, drops empty groups, and
     alert({ id: 'r', resolvedAt: 5 }),
     alert({ id: 'w', severity: 'warning' }),
   ]);
-  assert.deepEqual(groups.map((g) => g.id), ['attention', 'info', 'resolved']);
-  assert.deepEqual(groups.map((g) => g.alerts.map((a) => a.id)), [['w'], ['i'], ['r']]);
+  assert.deepEqual(
+    groups.map((g) => g.id),
+    ['attention', 'info', 'resolved'],
+  );
+  assert.deepEqual(
+    groups.map((g) => g.alerts.map((a) => a.id)),
+    [['w'], ['i'], ['r']],
+  );
   assert.deepEqual(groupInbox([]), []);
 });
 
@@ -106,7 +125,10 @@ test('matrixGroups follows the catalog order and leaves out what the role cannot
     entry({ id: 'b', group: 'y', groupLabel: 'Y', visible: false }),
     entry({ id: 'c', group: 'x', groupLabel: 'X' }),
   ]);
-  assert.deepEqual(groups.map((g) => [g.id, g.entries.map((e) => e.id)]), [['x', ['a', 'c']]]);
+  assert.deepEqual(
+    groups.map((g) => [g.id, g.entries.map((e) => e.id)]),
+    [['x', ['a', 'c']]],
+  );
 });
 
 test('times: 24-hour text to minutes and back, and a bad text is not a time', () => {
@@ -116,8 +138,14 @@ test('times: 24-hour text to minutes and back, and a bad text is not a time', ()
   assert.equal(timeToMinutes('noon'), null);
   assert.equal(minutesToTime(7 * 60 + 5), '07:05');
   assert.equal(minutesToTime(null), '');
-  assert.match(quietSummary({ quietStart: 22 * 60, quietEnd: 7 * 60, timezone: 'Europe/Berlin' }), /22:00 to 07:00 \(Europe\/Berlin\)/);
-  assert.equal(quietSummary({ quietStart: null, quietEnd: null, timezone: null }), 'No quiet hours');
+  assert.match(
+    quietSummary({ quietStart: 22 * 60, quietEnd: 7 * 60, timezone: 'Europe/Berlin' }),
+    /22:00 to 07:00 \(Europe\/Berlin\)/,
+  );
+  assert.equal(
+    quietSummary({ quietStart: null, quietEnd: null, timezone: null }),
+    'No quiet hours',
+  );
 });
 
 test('badgeCount is empty for none and stops at 99+', () => {

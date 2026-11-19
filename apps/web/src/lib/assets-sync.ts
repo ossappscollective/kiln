@@ -1,20 +1,20 @@
 import {
+  ASSET_SYNC_LIMITS,
   type AssetCompareStatus,
   type AssetDiffSet,
   type AssetDiffView,
   type AssetKind,
   type AssetPlatform,
+  can,
   type FixAdvice,
   type FixKind,
   type Platform,
   type Role,
   type StagedAssetView,
   type StagedChangesView,
-  ASSET_SYNC_LIMITS,
-  UPLOAD_FORMATS,
-  can,
   slotKey,
   storeSetKey,
+  UPLOAD_FORMATS,
 } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { formatBytes } from './assets.ts';
@@ -36,7 +36,16 @@ export type PullSelection = { sets?: string[]; files?: string[]; prune?: boolean
 
 export type PullSkip = {
   key: string;
-  reason: 'checksum_mismatch' | 'budget' | 'format' | 'download_failed' | 'no_address' | 'repo_unreadable' | 'layout' | 'gap' | 'timeout';
+  reason:
+    | 'checksum_mismatch'
+    | 'budget'
+    | 'format'
+    | 'download_failed'
+    | 'no_address'
+    | 'repo_unreadable'
+    | 'layout'
+    | 'gap'
+    | 'timeout';
   message: string;
 };
 
@@ -92,12 +101,18 @@ export type UploadQuery = {
 // ---------------------------------------------------------------------------------------------
 // URLs (the browser loads the pictures itself; the server finds the address from an opaque ref)
 
-const appBase = (workspaceId: string, appId: string) => `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(appId)}`;
+const appBase = (workspaceId: string, appId: string) =>
+  `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(appId)}`;
 
 export type ThumbSize = 160 | 320 | 640;
 
 /** A thumbnail of an image the store holds, through the server's proxy (an allow list of the stores' CDN hosts). */
-export const storeThumbUrl = (workspaceId: string, appId: string, ref: string, size: ThumbSize = 320): string =>
+export const storeThumbUrl = (
+  workspaceId: string,
+  appId: string,
+  ref: string,
+  size: ThumbSize = 320,
+): string =>
   `${appBase(workspaceId, appId)}/assets/store/thumb?ref=${encodeURIComponent(ref)}&size=${size}`;
 
 /** The bytes of an uploaded or fixed file of a staged set. */
@@ -108,19 +123,32 @@ export const stagedBlobUrl = (workspaceId: string, appId: string, oid: string): 
 // Ids of sets
 
 /** `en-US/screenshot:iphone_6_9`: the id of a staged set, and of a set to put in the repository. */
-export const setIdOf = (locale: string, kind: AssetKind, device: string | null): string => `${locale}/${slotKey({ kind, device })}`;
+export const setIdOf = (locale: string, kind: AssetKind, device: string | null): string =>
+  `${locale}/${slotKey({ kind, device })}`;
 
 /** `ios/en-US/screenshot:iphone_6_9`: the key of a set of the store, for a pull. */
-export const storeKeyOf = (platform: Platform, locale: string, kind: AssetKind, device: string | null): string =>
-  storeSetKey(platform as AssetPlatform, locale, { kind, device });
+export const storeKeyOf = (
+  platform: Platform,
+  locale: string,
+  kind: AssetKind,
+  device: string | null,
+): string => storeSetKey(platform as AssetPlatform, locale, { kind, device });
 
 /** One action of the menu of a file. A disabled one says why in `reason`. */
-export type MenuItem = { id: string; label: string; icon?: IconName; disabled?: boolean; reason?: string; danger?: boolean };
+export type MenuItem = {
+  id: string;
+  label: string;
+  icon?: IconName;
+  disabled?: boolean;
+  reason?: string;
+  danger?: boolean;
+};
 
 // ---------------------------------------------------------------------------------------------
 // Who may, and why not
 
-export const SYNC_ROLE_REASON = 'Changing the graphics needs the right to change change sets (developer and up).';
+export const SYNC_ROLE_REASON =
+  'Changing the graphics needs the right to change change sets (developer and up).';
 
 export function canChangeAssets(role: Role): boolean {
   return can(role, 'changesets.write');
@@ -141,9 +169,13 @@ export type PickedFile = { name: string; size: number; type?: string };
  */
 export function checkPickedFile(file: PickedFile): string {
   if (file.size === 0) return `${file.name} is empty.`;
-  if (file.size > ASSET_SYNC_LIMITS.maxUploadBytes) return `${file.name} is ${formatBytes(file.size)}. A file can be at most ${formatBytes(ASSET_SYNC_LIMITS.maxUploadBytes)}.`;
+  if (file.size > ASSET_SYNC_LIMITS.maxUploadBytes)
+    return `${file.name} is ${formatBytes(file.size)}. A file can be at most ${formatBytes(ASSET_SYNC_LIMITS.maxUploadBytes)}.`;
   const typed = file.type === undefined || file.type === '' ? null : file.type.toLowerCase();
-  if (!EXTENSION.test(file.name) && !(typed !== null && (typed === 'image/png' || typed === 'image/jpeg'))) {
+  if (
+    !EXTENSION.test(file.name) &&
+    !(typed !== null && (typed === 'image/png' || typed === 'image/jpeg'))
+  ) {
     return `${file.name} is not a PNG or JPEG. The stores take ${UPLOAD_FORMATS.map((f) => f.toUpperCase()).join(' and ')}.`;
   }
   return '';
@@ -180,9 +212,14 @@ export const compareTone = (status: AssetCompareStatus): StatusTone => {
 };
 
 /** The first characters of a checksum, for a table cell; the whole value is in the title. */
-export const shortChecksum = (sum: string | null): string => (sum === null ? 'none' : sum.length > 12 ? `${sum.slice(0, 12)}...` : sum);
+export const shortChecksum = (sum: string | null): string =>
+  sum === null ? 'none' : sum.length > 12 ? `${sum.slice(0, 12)}...` : sum;
 
-export const sizeLine = (width: number | null, height: number | null, bytes: number | null): string => {
+export const sizeLine = (
+  width: number | null,
+  height: number | null,
+  bytes: number | null,
+): string => {
   const parts: string[] = [];
   if (width !== null && height !== null) parts.push(`${width} x ${height}`);
   if (bytes !== null) parts.push(formatBytes(bytes));
@@ -190,9 +227,15 @@ export const sizeLine = (width: number | null, height: number | null, bytes: num
 };
 
 /** The comparison of one set, found by its id. */
-export function diffSetOf(diff: AssetDiffView | null, locale: string, kind: AssetKind, device: string | null): AssetDiffSet | null {
+export function diffSetOf(
+  diff: AssetDiffView | null,
+  locale: string,
+  kind: AssetKind,
+  device: string | null,
+): AssetDiffSet | null {
   if (!diff) return null;
-  for (const s of diff.sets) if (s.locale === locale && s.kind === kind && s.device === device) return s;
+  for (const s of diff.sets)
+    if (s.locale === locale && s.kind === kind && s.device === device) return s;
   return null;
 }
 
@@ -226,22 +269,38 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function summarizePull(report: PullReport): Summary {
   const details: string[] = [];
   if (report.unverified.length > 0) {
-    details.push(`${plural(report.unverified.length, 'file was', 'files were')} taken without a checksum from the store to check it against (App Store Connect gives none). Look at them in the change set.`);
+    details.push(
+      `${plural(report.unverified.length, 'file was', 'files were')} taken without a checksum from the store to check it against (App Store Connect gives none). Look at them in the change set.`,
+    );
   }
-  if (report.skipped.length > 0) details.push(`${plural(report.skipped.length, 'image was', 'images were')} left out.`);
-  if (report.left.length > 0) details.push(`${plural(report.left.length, 'file of the repository is', 'files of the repository are')} not in the store and ${report.left.length === 1 ? 'was' : 'were'} left alone.`);
+  if (report.skipped.length > 0)
+    details.push(`${plural(report.skipped.length, 'image was', 'images were')} left out.`);
+  if (report.left.length > 0)
+    details.push(
+      `${plural(report.left.length, 'file of the repository is', 'files of the repository are')} not in the store and ${report.left.length === 1 ? 'was' : 'were'} left alone.`,
+    );
   for (const n of report.notes) details.push(n);
   if (report.changeSet === null) {
-    return { tone: report.skipped.length > 0 ? 'warn' : 'info', headline: report.unchanged > 0 ? 'The repository already has these images.' : 'Nothing was pulled.', details };
+    return {
+      tone: report.skipped.length > 0 ? 'warn' : 'info',
+      headline:
+        report.unchanged > 0 ? 'The repository already has these images.' : 'Nothing was pulled.',
+      details,
+    };
   }
   const headline = `Made a draft change set: ${plural(report.written, 'file', 'files')} written${report.deleted > 0 ? `, ${plural(report.deleted, 'file', 'files')} deleted` : ''}${report.unchanged > 0 ? `, ${report.unchanged} already the same` : ''}.`;
-  return { tone: report.skipped.length > 0 || report.unverified.length > 0 ? 'warn' : 'ok', headline, details };
+  return {
+    tone: report.skipped.length > 0 || report.unverified.length > 0 ? 'warn' : 'ok',
+    headline,
+    details,
+  };
 }
 
 export function summarizeToRepo(result: ToRepoResult): Summary {
   const details = result.skipped.slice();
   for (const n of result.notes) details.push(n);
-  if (result.changeSet === null) return { tone: 'info', headline: 'The repository already has these files.', details };
+  if (result.changeSet === null)
+    return { tone: 'info', headline: 'The repository already has these files.', details };
   return {
     tone: result.skipped.length > 0 ? 'warn' : 'ok',
     headline: `Made a draft change set: ${plural(result.written, 'file', 'files')} written${result.deleted > 0 ? `, ${plural(result.deleted, 'file', 'files')} deleted` : ''}${result.unchanged > 0 ? `, ${result.unchanged} already the same` : ''}.`,
@@ -256,11 +315,19 @@ export const skipText = (s: PullSkip): string => s.message;
 // The upload dialog
 
 /** The problems and the fixes of a refused upload (`422 spec_errors`), or null for any other error. */
-export function specErrorsOf(error: unknown): { problems: FileProblem[]; advice: FixAdvice } | null {
+export function specErrorsOf(
+  error: unknown,
+): { problems: FileProblem[]; advice: FixAdvice } | null {
   if (!(error instanceof ApiError) || error.code !== 'spec_errors') return null;
   const problems = Array.isArray(error.body.problems) ? (error.body.problems as FileProblem[]) : [];
   const fix = error.body.fix as FixAdvice | undefined;
-  return { problems, advice: fix && Array.isArray(fix.options) ? { options: fix.options, manual: Array.isArray(fix.manual) ? fix.manual : [] } : { options: [], manual: [] } };
+  return {
+    problems,
+    advice:
+      fix && Array.isArray(fix.options)
+        ? { options: fix.options, manual: Array.isArray(fix.manual) ? fix.manual : [] }
+        : { options: [], manual: [] },
+  };
 }
 
 export const FIX_NEEDS_BACKGROUND: readonly FixKind[] = ['remove_alpha'];
@@ -269,7 +336,12 @@ const HEX = /^#[0-9a-f]{6}$/i;
 export const isHexColour = (v: string): boolean => HEX.test(v);
 
 /** The fixes that make a new file, one sentence each, for a button. */
-export const fixLabel = (kind: FixKind): string => (kind === 'remove_alpha' ? 'Remove the alpha channel' : kind === 'resize' ? 'Resize to the required size' : 'Fix the file extension');
+export const fixLabel = (kind: FixKind): string =>
+  kind === 'remove_alpha'
+    ? 'Remove the alpha channel'
+    : kind === 'resize'
+      ? 'Resize to the required size'
+      : 'Fix the file extension';
 
 export type StagedFileRow = {
   position: number;
@@ -286,7 +358,12 @@ export type StagedFileRow = {
 };
 
 /** The staged set of a slot, or null. */
-export function stagedSetOf(view: StagedChangesView | null, locale: string, kind: AssetKind, device: string | null): StagedAssetView | null {
+export function stagedSetOf(
+  view: StagedChangesView | null,
+  locale: string,
+  kind: AssetKind,
+  device: string | null,
+): StagedAssetView | null {
   if (!view) return null;
   const id = setIdOf(locale, kind, device);
   for (const a of view.assets) if (a.id === id) return a;
@@ -311,7 +388,15 @@ export function stagedFileRows(set: StagedAssetView | null): StagedFileRow[] {
 }
 
 /** Why removing the last file of a set is not offered, or ''. A push cannot empty a store's set. */
-export const EMPTY_SET_REASON = 'A push cannot empty a set in the store, so the last file of a set cannot be removed here. Delete the set in the store console.';
+export const EMPTY_SET_REASON =
+  'A push cannot empty a set in the store, so the last file of a set cannot be removed here. Delete the set in the store console.';
 
 /** The set the editor shows: its place, a title, and the repository's files of it (shown until a change is staged). */
-export type EditorSet = { locale: string; kind: AssetKind; device: string | null; title: string; files: AssetItem[]; commit: string | null };
+export type EditorSet = {
+  locale: string;
+  kind: AssetKind;
+  device: string | null;
+  title: string;
+  files: AssetItem[];
+  commit: string | null;
+};

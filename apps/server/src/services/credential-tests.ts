@@ -1,6 +1,6 @@
-import { type CredentialKind, isCredentialKind } from '@mrm/core';
 import * as connectors from '@mrm/connectors';
 import { redactSecrets, secretStrings } from '@mrm/connectors';
+import { type CredentialKind, isCredentialKind } from '@mrm/core';
 
 /**
  * "Test connection": checks a credential against the service it belongs to, without changing
@@ -84,7 +84,9 @@ export function createCredentialTester(options: CredentialTesterOptions = {}): C
     const guardedFetch: typeof fetch = (input, init) =>
       baseFetch(input, {
         ...init,
-        signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+        signal: init?.signal
+          ? AbortSignal.any([init.signal, controller.signal])
+          : controller.signal,
       });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<TestOutcome>((resolve) => {

@@ -7,8 +7,15 @@ type Call = { path: string; method: string | undefined; body: unknown };
 function fake(answer: unknown = {}, status = 200) {
   const calls: Call[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ path: String(input), method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    return new Response(JSON.stringify(answer), { status, headers: { 'content-type': 'application/json' } });
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    return new Response(JSON.stringify(answer), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
   }) as typeof fetch;
   return { calls, api: createApi({ fetch: fetchImpl }) };
 }
@@ -21,7 +28,12 @@ test('the CI reads go to the documented paths', async () => {
   await api.workflowInputs('w1', 'r1', 'ios.yml');
   await api.workflowInputs('w1', 'r1', 'ios.yml', 'release/2.4');
   await api.workflowRuns('w1', 'r1');
-  await api.workflowRuns('w1', 'r1', { refresh: true, limit: 20, workflow: 'ios.yml', appId: 'a 1' });
+  await api.workflowRuns('w1', 'r1', {
+    refresh: true,
+    limit: 20,
+    workflow: 'ios.yml',
+    appId: 'a 1',
+  });
   await api.workflowRun('w1', 'r1', '123');
   assert.deepEqual(
     calls.map((c) => [c.method, c.path]),
@@ -51,7 +63,11 @@ test('dispatching posts the ref, the inputs and the app, and escapes the workflo
 
 test('dispatching for several apps posts appIds, and for none posts no app at all', async () => {
   const { calls, api } = fake({ dispatched: true, runKnown: false, run: {} }, 202);
-  await api.dispatchWorkflow('w1', 'r1', 'release.yml', { ref: 'main', inputs: {}, appIds: ['a1', 'a2'] });
+  await api.dispatchWorkflow('w1', 'r1', 'release.yml', {
+    ref: 'main',
+    inputs: {},
+    appIds: ['a1', 'a2'],
+  });
   assert.deepEqual(calls[0]?.body, { ref: 'main', inputs: {}, appIds: ['a1', 'a2'] });
   await api.dispatchWorkflow('w1', 'r1', 'release.yml', { ref: 'main', inputs: {} });
   assert.deepEqual(calls[1]?.body, { ref: 'main', inputs: {} });
@@ -96,7 +112,11 @@ test('the build calls use the app routes', async () => {
     [
       ['GET', '/api/workspaces/w1/apps/a1/builds', undefined],
       ['GET', '/api/workspaces/w1/apps/a1/builds/changes?platform=ios&build=240', undefined],
-      ['GET', '/api/workspaces/w1/apps/a1/builds/changes?platform=android&build=241&base=239', undefined],
+      [
+        'GET',
+        '/api/workspaces/w1/apps/a1/builds/changes?platform=android&build=241&base=239',
+        undefined,
+      ],
       ['PUT', '/api/workspaces/w1/apps/a1/builds/ios/240/link', { runId: '777' }],
       ['DELETE', '/api/workspaces/w1/apps/a1/builds/ios/240/link', undefined],
     ],
@@ -118,12 +138,18 @@ test('the CI error codes read as sentences, and the server message wins where it
     const text = messageFor(422, { error: code });
     assert.ok(text.length > 20 && !text.includes('request failed'), code);
   }
-  assert.equal(messageFor(422, { error: 'build_not_found', message: 'No ios build 9.' }), 'No ios build 9.');
+  assert.equal(
+    messageFor(422, { error: 'build_not_found', message: 'No ios build 9.' }),
+    'No ios build 9.',
+  );
   assert.match(messageFor(429, { error: 'rate_limited' }, 20), /20 seconds/);
 });
 
 test('a refused dispatch becomes an ApiError that keeps the body', async () => {
-  const { api } = fake({ error: 'github_invalid', message: "Workflow does not have 'workflow_dispatch' trigger" }, 422);
+  const { api } = fake(
+    { error: 'github_invalid', message: "Workflow does not have 'workflow_dispatch' trigger" },
+    422,
+  );
   await assert.rejects(
     () => api.dispatchWorkflow('w1', 'r1', 'ios.yml', {}),
     (error: unknown) =>

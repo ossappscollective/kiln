@@ -29,7 +29,12 @@ export type PngSpec = {
 };
 
 /** Applies PNG filter `type` to one row. */
-function filterRow(row: Uint8Array, prev: Uint8Array | null, bpp: number, type: number): Uint8Array {
+function filterRow(
+  row: Uint8Array,
+  prev: Uint8Array | null,
+  bpp: number,
+  type: number,
+): Uint8Array {
   const out = new Uint8Array(row.length);
   for (let x = 0; x < row.length; x++) {
     const a = x >= bpp ? (row[x - bpp] as number) : 0;
@@ -73,7 +78,12 @@ export function makePng(spec: PngSpec): Buffer {
 }
 
 /** A solid RGBA image where the pixel at (x, y) is `pixel(x, y)`. */
-export function rgbaPng(width: number, height: number, pixel: (x: number, y: number) => [number, number, number, number], filter = 0): Buffer {
+export function rgbaPng(
+  width: number,
+  height: number,
+  pixel: (x: number, y: number) => [number, number, number, number],
+  filter = 0,
+): Buffer {
   const rows: Uint8Array[] = [];
   for (let y = 0; y < height; y++) {
     const row = new Uint8Array(width * 4);
@@ -83,7 +93,12 @@ export function rgbaPng(width: number, height: number, pixel: (x: number, y: num
   return makePng({ width, height, colour: 6, rows, filter });
 }
 
-export function rgbPng(width: number, height: number, pixel: (x: number, y: number) => [number, number, number], filter = 0): Buffer {
+export function rgbPng(
+  width: number,
+  height: number,
+  pixel: (x: number, y: number) => [number, number, number],
+  filter = 0,
+): Buffer {
   const rows: Uint8Array[] = [];
   for (let y = 0; y < height; y++) {
     const row = new Uint8Array(width * 3);

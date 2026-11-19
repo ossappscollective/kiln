@@ -1,24 +1,31 @@
-import { ASSET_KINDS, type Action, type AssetKind, can } from '@mrm/core';
+import { type Action, ASSET_KINDS, type AssetKind, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { requireStepUp } from '../services/step-up.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
-import { type Failure, type RepoContext, failure } from '../services/repositories.ts';
+import { type Failure, failure, type RepoContext } from '../services/repositories.ts';
 import {
+  clearStaged,
+  getStagedChanges,
+  type StagedContext,
+  stageAssets,
+  stageText,
+  unstage,
+} from '../services/staged-changes.ts';
+import { stageReleaseField } from '../services/staged-release.ts';
+import { requireStepUp } from '../services/step-up.ts';
+import {
+  applyDraftPush,
   type DraftConnectorFactory,
   type DraftContext,
-  applyDraftPush,
   defaultDraftConnectorFactory,
   draftConfig,
   draftDisabledFailure,
   previewDraftPush,
 } from '../services/store-draft.ts';
-import { type StagedContext, clearStaged, getStagedChanges, stageAssets, stageText, unstage } from '../services/staged-changes.ts';
-import { stageReleaseField } from '../services/staged-release.ts';
 
 /**
  * Staged listing text and graphics of an app, and writing them to the store as a DRAFT
@@ -77,12 +84,23 @@ const releaseFieldBody = z
     field: z.string().min(1).max(40),
     /** The language of a per language field (Play release notes). Leave out for the others. */
     locale: z.string().min(2).max(35).optional(),
-    value: z.union([z.string().max(40_000), z.number(), z.boolean(), z.array(z.string().max(20)).max(50)]),
+    value: z.union([
+      z.string().max(40_000),
+      z.number(),
+      z.boolean(),
+      z.array(z.string().max(20)).max(50),
+    ]),
   })
   .strict();
 const hash64 = /^[0-9a-f]{64}$/;
 const previewBody = z.object({}).strict().optional();
-const pushBody = z.object({ confirmHash: z.string().regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.') }).strict();
+const pushBody = z
+  .object({
+    confirmHash: z
+      .string()
+      .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
+  })
+  .strict();
 
 export function stagedRoutes(ctx: StagedRoutesContext) {
   const { db } = ctx;
@@ -111,10 +129,15 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
   const gate = (c: Context<AppEnv>) => (): Failure | undefined => {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
-    return { ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
+    return {
+      ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`),
+      headers: { 'Retry-After': String(wait) },
+    };
   };
 
-  routes.get('/:workspaceId/store-draft/config', needs('apps.read'), (c) => c.json(draftConfig(draft)));
+  routes.get('/:workspaceId/store-draft/config', needs('apps.read'), (c) =>
+    c.json(draftConfig(draft)),
+  );
 
   routes.get('/:workspaceId/apps/:id/staged', needs('listing.read'), async (c) => {
     const done = await getStagedChanges(staged, { workspaceId: ws(c), appId: param(c, 'id') });
@@ -125,55 +148,108 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
   routes.put('/:workspaceId/apps/:id/staged/text', needs('changesets.write'), async (c) => {
     const body = await parseBody(c, textBody);
     if (!body.ok) return body.response;
-    const done = await stageText(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
+    const done = await stageText(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...body.data,
+      actor: actor(c),
+    });
     return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
   });
 
   // The release fields of a draft release (docs/api/releases-write.md): staged like a text, written by the same push.
-  routes.put('/:workspaceId/apps/:id/staged/release-fields', needs('changesets.write'), async (c) => {
-    const body = await parseBody(c, releaseFieldBody);
-    if (!body.ok) return body.response;
-    const done = await stageReleaseField(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
-    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
-  });
+  routes.put(
+    '/:workspaceId/apps/:id/staged/release-fields',
+    needs('changesets.write'),
+    async (c) => {
+      const body = await parseBody(c, releaseFieldBody);
+      if (!body.ok) return body.response;
+      const done = await stageReleaseField(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ...body.data,
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
 
   routes.put('/:workspaceId/apps/:id/staged/assets', needs('changesets.write'), async (c) => {
     const body = await parseBody(c, assetsBody);
     if (!body.ok) return body.response;
     const { device, ...rest } = body.data;
-    const done = await stageAssets(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...rest, device: device ?? null, actor: actor(c), gate: gate(c) });
+    const done = await stageAssets(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...rest,
+      device: device ?? null,
+      actor: actor(c),
+      gate: gate(c),
+    });
     return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
   });
 
   // One text (its id) or one whole set (`locale/slotKey`), by query so a slash needs no escaping.
   routes.delete('/:workspaceId/apps/:id/staged/items', needs('changesets.write'), async (c) => {
     const id = c.req.query('id') ?? '';
-    if (id.length === 0 || id.length > 200) return c.json({ error: 'invalid_request', issues: [{ path: 'id', message: 'The id of a staged text, or locale/slotKey of a set.' }] }, 400);
-    const done = await unstage(staged, { workspaceId: ws(c), appId: param(c, 'id'), id, actor: actor(c) });
+    if (id.length === 0 || id.length > 200)
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'id', message: 'The id of a staged text, or locale/slotKey of a set.' }],
+        },
+        400,
+      );
+    const done = await unstage(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      id,
+      actor: actor(c),
+    });
     return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
   });
 
   routes.delete('/:workspaceId/apps/:id/staged', needs('changesets.write'), async (c) => {
-    const done = await clearStaged(staged, { workspaceId: ws(c), appId: param(c, 'id'), actor: actor(c) });
+    const done = await clearStaged(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      actor: actor(c),
+    });
     return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
   });
 
-  routes.post('/:workspaceId/apps/:id/staged/push/preview', needs('store.push_draft'), async (c) => {
-    if (!draft.draftEnabled) return off(c);
-    const body = await parseBody(c, previewBody);
-    if (!body.ok) return body.response;
-    const done = await previewDraftPush(draft, { workspaceId: ws(c), appId: param(c, 'id'), actor: actor(c) });
-    return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/staged/push/preview',
+    needs('store.push_draft'),
+    async (c) => {
+      if (!draft.draftEnabled) return off(c);
+      const body = await parseBody(c, previewBody);
+      if (!body.ok) return body.response;
+      const done = await previewDraftPush(draft, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        actor: actor(c),
+      });
+      return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
+    },
+  );
 
   // The only route that writes to a store. One app per request: no bulk push. It never submits.
   routes.post('/:workspaceId/apps/:id/staged/push', needs('store.push_draft'), async (c) => {
     if (!draft.draftEnabled) return off(c);
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', { id: param(c, 'id'), hashField: 'confirmHash' });
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', {
+      id: param(c, 'id'),
+      hashField: 'confirmHash',
+    });
     if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, pushBody);
     if (!body.ok) return body.response;
-    const done = await applyDraftPush(draft, { workspaceId: ws(c), appId: param(c, 'id'), confirmHash: body.data.confirmHash, actor: actor(c) });
+    const done = await applyDraftPush(draft, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      confirmHash: body.data.confirmHash,
+      actor: actor(c),
+    });
     return done.ok ? c.json({ result: done.result }) : respond(c, done);
   });
 

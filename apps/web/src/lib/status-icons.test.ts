@@ -16,7 +16,8 @@ test('a missing status gets the neutral help glyph', () => {
 });
 
 test('every tone has a registered icon; an unknown tone is neutral', () => {
-  for (const tone of ['neutral', 'ok', 'bad', 'warn', 'info', 'accent']) assert.ok(isIconName(toneIcon(tone)), tone);
+  for (const tone of ['neutral', 'ok', 'bad', 'warn', 'info', 'accent'])
+    assert.ok(isIconName(toneIcon(tone)), tone);
   assert.equal(toneIcon('ok'), 'check-circle');
   assert.equal(toneIcon('bad'), 'x-circle');
   assert.equal(toneIcon('none'), 'minus');

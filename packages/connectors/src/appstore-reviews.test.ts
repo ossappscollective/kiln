@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { StoreError, StoreRateLimitError } from './errors.ts';
 import {
   AppStoreReviewsConnector,
   parseAppleRateRemaining,
   parseAppleReviews,
   parseAppleSummarizations,
 } from './appstore-reviews.ts';
+import { StoreError, StoreRateLimitError } from './errors.ts';
 import * as rx from './reviews.fixtures.ts';
 import * as fx from './store.fixtures.ts';
 
@@ -25,19 +25,26 @@ function setup(options: { pageSize?: number; maxPages?: number; rateLimitReserve
     sleep: async () => undefined,
     pageSize: options.pageSize ?? 2,
     ...(options.maxPages !== undefined ? { maxPages: options.maxPages } : {}),
-    ...(options.rateLimitReserve !== undefined ? { rateLimitReserve: options.rateLimitReserve } : {}),
+    ...(options.rateLimitReserve !== undefined
+      ? { rateLimitReserve: options.rateLimitReserve }
+      : {}),
   });
   return { fake, connector };
 }
 
 test('listReviews reads newest first with the developer response included, and follows the cursor', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: FIRST, json: rx.applePage1 }).on({ method: 'GET', match: SECOND, json: rx.applePage2 });
+  fake
+    .on({ method: 'GET', match: FIRST, json: rx.applePage1 })
+    .on({ method: 'GET', match: SECOND, json: rx.applePage2 });
   const result = await connector.listReviews();
   assert.equal(result.complete, true);
   assert.equal(result.nextCursor, undefined);
   assert.deepEqual(fake.unexpected, []);
-  assert.deepEqual(result.reviews.map((r) => r.rating), [1, 5, 3, 2]);
+  assert.deepEqual(
+    result.reviews.map((r) => r.rating),
+    [1, 5, 3, 2],
+  );
   const first = result.reviews[0];
   assert.equal(first?.store, 'appstoreconnect');
   assert.equal(first?.platform, 'ios');
@@ -62,7 +69,9 @@ test('listReviews reads newest first with the developer response included, and f
 
 test('review text is kept as text, never interpreted', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: FIRST, json: rx.applePage1 }).on({ method: 'GET', match: SECOND, json: rx.applePage2 });
+  fake
+    .on({ method: 'GET', match: FIRST, json: rx.applePage1 })
+    .on({ method: 'GET', match: SECOND, json: rx.applePage2 });
   const result = await connector.listReviews();
   const last = result.reviews[3];
   assert.equal(last?.title, rx.XSS);
@@ -72,14 +81,19 @@ test('review text is kept as text, never interpreted', async () => {
 
 test('limit cuts the read and gives a cursor; the next read continues from it', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: FIRST, json: rx.applePage1 }).on({ method: 'GET', match: SECOND, json: rx.applePage2 });
+  fake
+    .on({ method: 'GET', match: FIRST, json: rx.applePage1 })
+    .on({ method: 'GET', match: SECOND, json: rx.applePage2 });
   const part = await connector.listReviews({ limit: 2 });
   assert.equal(part.reviews.length, 2);
   assert.equal(part.complete, false);
   assert.equal(part.nextCursor, 'AQ.AMt2C-U');
   assert.equal(fake.calls.length, 1);
   const rest = await connector.listReviews({ cursor: part.nextCursor as string });
-  assert.deepEqual(rest.reviews.map((r) => r.rating), [3, 2]);
+  assert.deepEqual(
+    rest.reviews.map((r) => r.rating),
+    [3, 2],
+  );
   assert.equal(rest.complete, true);
   assert.equal(fake.calls[1]?.url.searchParams.get('cursor'), 'AQ.AMt2C-U');
   assert.equal(fake.calls[1]?.url.searchParams.get('sort'), '-createdDate');
@@ -88,7 +102,15 @@ test('limit cuts the read and gives a cursor; the next read continues from it', 
 test('the page size of a later page shrinks to what the limit still allows (no review is cut off)', async () => {
   const { fake, connector } = setup({ pageSize: 2 });
   fake.on({ method: 'GET', match: FIRST, json: rx.applePage1 });
-  fake.on({ method: 'GET', match: `${rx.REVIEWS_PATH}?limit=1&sort=-createdDate&include=response&cursor=AQ.AMt2C-U`, json: { ...rx.applePage2, data: rx.applePage2.data.slice(0, 1), links: { next: `${fx.APPLE_BASE}${rx.REVIEWS_PATH}?cursor=NEXT&limit=1` } } });
+  fake.on({
+    method: 'GET',
+    match: `${rx.REVIEWS_PATH}?limit=1&sort=-createdDate&include=response&cursor=AQ.AMt2C-U`,
+    json: {
+      ...rx.applePage2,
+      data: rx.applePage2.data.slice(0, 1),
+      links: { next: `${fx.APPLE_BASE}${rx.REVIEWS_PATH}?cursor=NEXT&limit=1` },
+    },
+  });
   const result = await connector.listReviews({ limit: 3 });
   assert.equal(result.reviews.length, 3);
   assert.equal(result.nextCursor, 'NEXT');
@@ -97,9 +119,14 @@ test('the page size of a later page shrinks to what the limit still allows (no r
 
 test('since stops at the first page with an older review and drops the old ones', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: FIRST, json: rx.applePage1 }).on({ method: 'GET', match: SECOND, json: rx.applePage2 });
+  fake
+    .on({ method: 'GET', match: FIRST, json: rx.applePage1 })
+    .on({ method: 'GET', match: SECOND, json: rx.applePage2 });
   const result = await connector.listReviews({ since: Date.parse('2026-11-16T12:00:00Z') });
-  assert.deepEqual(result.reviews.map((r) => r.rating), [1, 5]);
+  assert.deepEqual(
+    result.reviews.map((r) => r.rating),
+    [1, 5],
+  );
   assert.equal(result.complete, true, 'nothing newer can follow on the next page');
   assert.equal(fake.calls.length, 2, 'the page with an older review is read and ends the read');
 });
@@ -119,7 +146,12 @@ test('the rate limit header is read, and the read stops early when the budget is
   assert.equal(parseAppleRateRemaining('nonsense'), undefined);
   assert.equal(parseAppleRateRemaining(null), undefined);
   const { fake, connector } = setup({ rateLimitReserve: 25 });
-  fake.on({ method: 'GET', match: FIRST, json: rx.applePage1, headers: { 'x-rate-limit': 'user-hour-lim:3500;user-hour-rem:10;' } });
+  fake.on({
+    method: 'GET',
+    match: FIRST,
+    json: rx.applePage1,
+    headers: { 'x-rate-limit': 'user-hour-lim:3500;user-hour-rem:10;' },
+  });
   const result = await connector.listReviews();
   assert.equal(result.complete, false);
   assert.equal(result.rateLimitRemaining, 10);
@@ -145,13 +177,27 @@ test('partial, odd and unknown content never throws; unusable entries are counte
 test('a response without text, or one that is not linked, is ignored', () => {
   const page = {
     data: [rx.appleReview('r1', 2, '2026-11-01T00:00:00Z', { response: 'x' })],
-    included: [{ type: 'customerReviewResponses', id: 'resp-r1', attributes: { responseBody: '   ', state: 'PUBLISHED' } }, { type: 'other', id: 'resp-r1' }],
+    included: [
+      {
+        type: 'customerReviewResponses',
+        id: 'resp-r1',
+        attributes: { responseBody: '   ', state: 'PUBLISHED' },
+      },
+      { type: 'other', id: 'resp-r1' },
+    ],
   };
   assert.equal(parseAppleReviews(page).reviews[0]?.developerResponse, undefined);
 });
 
 test('control characters are removed from the text and very long text is cut', () => {
-  const page = { data: [rx.appleReview('r1', 2, '2026-11-01T00:00:00Z', { body: `a\u0000b\u0007c\n${'x'.repeat(30_000)}`, title: 'T\u0001' })] };
+  const page = {
+    data: [
+      rx.appleReview('r1', 2, '2026-11-01T00:00:00Z', {
+        body: `a\u0000b\u0007c\n${'x'.repeat(30_000)}`,
+        title: 'T\u0001',
+      }),
+    ],
+  };
   const [review] = parseAppleReviews(page).reviews;
   assert.equal(review?.title, 'T');
   assert.ok((review?.body.length ?? 0) <= 20_000);
@@ -177,7 +223,14 @@ test('errors map to StoreError kinds with a safe message; a role problem says so
 
 test('429 is waited out once, then thrown as a rate limit error with a wait time', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: FIRST, status: 429, json: rx.appleErrors.rateLimited, headers: { 'retry-after': '3' }, times: 1 });
+  fake.on({
+    method: 'GET',
+    match: FIRST,
+    status: 429,
+    json: rx.appleErrors.rateLimited,
+    headers: { 'retry-after': '3' },
+    times: 1,
+  });
   fake.on({ method: 'GET', match: FIRST, json: rx.applePage2 });
   assert.equal((await connector.listReviews({ limit: 2 })).reviews.length, 2);
   const failing = setup();
@@ -189,7 +242,11 @@ test('429 is waited out once, then thrown as a rate limit error with a wait time
 
 test('a paging link to another host is not followed (the token is never sent elsewhere)', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: FIRST, json: { ...rx.applePage1, links: { next: 'https://evil.example/v1/apps?cursor=x' } } });
+  fake.on({
+    method: 'GET',
+    match: FIRST,
+    json: { ...rx.applePage1, links: { next: 'https://evil.example/v1/apps?cursor=x' } },
+  });
   const error = await connector.listReviews().catch((e) => e);
   assert.ok(error instanceof StoreError);
   assert.match(error.message, /another host/);
@@ -224,7 +281,11 @@ test('the app id must be numeric before it goes into a URL', () => {
 
 test('summarizations: one GET with the required platform filter, tolerant parsing', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: `/v1/apps/${rx.APP_ID}/customerReviewSummarizations?filter[platform]=IOS&limit=200`, json: rx.appleSummarizations });
+  fake.on({
+    method: 'GET',
+    match: `/v1/apps/${rx.APP_ID}/customerReviewSummarizations?filter[platform]=IOS&limit=200`,
+    json: rx.appleSummarizations,
+  });
   const found = await connector.listSummarizations();
   assert.equal(found.length, 1);
   assert.equal(found[0]?.territory, 'USA');

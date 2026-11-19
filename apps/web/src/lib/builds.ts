@@ -55,7 +55,13 @@ export type StoreBuildItem = {
 };
 
 export type TestFlightProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'not_synced';
-export type TestFlightLink = { id: string; name: string; publicLink: string | null; enabled: boolean; limit: number | null };
+export type TestFlightLink = {
+  id: string;
+  name: string;
+  publicLink: string | null;
+  enabled: boolean;
+  limit: number | null;
+};
 export type TestFlightInfo = {
   groups: TestFlightLink[];
   withoutLink: number;
@@ -123,7 +129,8 @@ const runLabel = (a: ArtifactItem): string => {
 const artifactState = (a: ArtifactItem): BuildRow['state'] => {
   if (a.expired) return { label: 'Expired', tone: 'bad' };
   if (a.tooLarge) return { label: 'Too large to download', tone: 'warn' };
-  if (a.run.conclusion !== null && a.run.conclusion !== 'success') return { label: `Run ${a.run.conclusion.replace(/_/g, ' ')}`, tone: 'warn' };
+  if (a.run.conclusion !== null && a.run.conclusion !== 'success')
+    return { label: `Run ${a.run.conclusion.replace(/_/g, ' ')}`, tone: 'warn' };
   return { label: 'Available', tone: 'ok' };
 };
 
@@ -131,7 +138,8 @@ const storeState = (b: StoreBuildItem): BuildRow['state'] => {
   if (b.expired === true) return { label: 'Expired', tone: 'bad' };
   if (b.state === 'processing') return { label: 'Processing', tone: 'info' };
   if (b.state === 'invalid') return { label: 'Invalid', tone: 'bad' };
-  if (b.state === 'processed') return { label: b.channel === 'play' ? 'On a track' : 'Ready to test', tone: 'ok' };
+  if (b.state === 'processed')
+    return { label: b.channel === 'play' ? 'On a track' : 'Ready to test', tone: 'ok' };
   return { label: 'Unknown state', tone: 'neutral' };
 };
 
@@ -159,7 +167,12 @@ export function artifactRow(a: ArtifactItem): BuildRow {
 }
 
 export function storeRow(b: StoreBuildItem): BuildRow {
-  const where = b.channel === 'play' ? (b.tracks.length > 0 ? `Track ${b.tracks.join(', ')}` : 'No track') : 'TestFlight';
+  const where =
+    b.channel === 'play'
+      ? b.tracks.length > 0
+        ? `Track ${b.tracks.join(', ')}`
+        : 'No track'
+      : 'TestFlight';
   return {
     key: `store:${b.platform}:${b.buildNumber}`,
     source: 'store',
@@ -195,7 +208,12 @@ export type BuildFilters = {
   hideOther: boolean;
 };
 
-export const defaultFilters: BuildFilters = { platform: 'all', source: 'all', hideExpired: true, hideOther: true };
+export const defaultFilters: BuildFilters = {
+  platform: 'all',
+  source: 'all',
+  hideExpired: true,
+  hideOther: true,
+};
 
 export function applyFilters(rows: readonly BuildRow[], f: BuildFilters): BuildRow[] {
   return rows.filter(
@@ -231,14 +249,19 @@ export function humanSize(bytes: number | null): string {
 const DAY = 24 * 60 * 60_000;
 
 /** "expires in 12 days", "expires today", "expired 3 days ago", or "" when nothing is known. */
-export function expiryText(row: Pick<BuildRow, 'expiresAt' | 'expired' | 'store'>, now: number): string {
+export function expiryText(
+  row: Pick<BuildRow, 'expiresAt' | 'expired' | 'store'>,
+  now: number,
+): string {
   const estimated = row.store?.expiresAtEstimated === true;
   if (row.expiresAt === null) return row.expired ? 'expired' : '';
   const days = Math.floor((row.expiresAt - now) / DAY);
   const lead = estimated ? 'about ' : '';
   if (row.expired || row.expiresAt <= now) {
     const ago = Math.floor((now - row.expiresAt) / DAY);
-    return row.expired && ago <= 0 ? 'expired' : `expired ${ago <= 0 ? 'today' : `${ago} day${ago === 1 ? '' : 's'} ago`}`;
+    return row.expired && ago <= 0
+      ? 'expired'
+      : `expired ${ago <= 0 ? 'today' : `${ago} day${ago === 1 ? '' : 's'} ago`}`;
   }
   if (days <= 0) return `expires ${lead}today`;
   return `expires ${lead}in ${days} day${days === 1 ? '' : 's'}`;
@@ -246,7 +269,16 @@ export function expiryText(row: Pick<BuildRow, 'expiresAt' | 'expired' | 'store'
 
 export const kindLabel = (kind: RowKind): string =>
   ({
-    ipa: 'IPA', apk: 'APK', aab: 'AAB', app: 'macOS app', dmg: 'DMG', pkg: 'PKG', zip: 'Zip', other: 'Other', testflight: 'TestFlight', play: 'Play',
+    ipa: 'IPA',
+    apk: 'APK',
+    aab: 'AAB',
+    app: 'macOS app',
+    dmg: 'DMG',
+    pkg: 'PKG',
+    zip: 'Zip',
+    other: 'Other',
+    testflight: 'TestFlight',
+    play: 'Play',
   })[kind];
 
 // ---------------------------------------------------------------------------------------------
@@ -265,7 +297,8 @@ export type Guide = {
   link: { label: string; href: string } | null;
 };
 
-const ZIP_NOTE = 'A workflow artifact is always a zip: unzip it first. The type shown is a guess from the artifact name.';
+const ZIP_NOTE =
+  'A workflow artifact is always a zip: unzip it first. The type shown is a guess from the artifact name.';
 
 /** Plain installation guidance for a row. Never promises more than the tool can do. */
 export function installGuide(row: BuildRow): Guide {
@@ -279,7 +312,14 @@ export function installGuide(row: BuildRow): Guide {
           'Internal testers (people in App Store Connect) see a processed build there automatically.',
           'External testers need an invitation or the public link of a beta group, made in App Store Connect.',
         ],
-        caution: b.expired === true ? 'This build has expired and cannot be installed any more.' : b.state === 'processing' ? 'Apple is still processing this build; it cannot be installed yet.' : b.expiresAtEstimated ? 'A TestFlight build lasts 90 days from its upload; the date shown is that estimate.' : null,
+        caution:
+          b.expired === true
+            ? 'This build has expired and cannot be installed any more.'
+            : b.state === 'processing'
+              ? 'Apple is still processing this build; it cannot be installed yet.'
+              : b.expiresAtEstimated
+                ? 'A TestFlight build lasts 90 days from its upload; the date shown is that estimate.'
+                : null,
         downloads: false,
         qr: false,
         link: null,
@@ -289,7 +329,9 @@ export function installGuide(row: BuildRow): Guide {
       title: 'Install from Google Play',
       steps: [
         'Play builds cannot be downloaded as a file here. Testers install from the Play Store.',
-        b.optInUrl ? 'A tester who was invited to the track opens the opt-in link below on the phone, joins, and installs from Play.' : 'For the internal track, the tester joins with the opt-in link from Play Console (Testing, Internal testing, Testers), then installs from Play.',
+        b.optInUrl
+          ? 'A tester who was invited to the track opens the opt-in link below on the phone, joins, and installs from Play.'
+          : 'For the internal track, the tester joins with the opt-in link from Play Console (Testing, Internal testing, Testers), then installs from Play.',
       ],
       caution: b.tracks.length === 0 ? 'No track holds this version code at the moment.' : null,
       downloads: false,
@@ -302,7 +344,11 @@ export function installGuide(row: BuildRow): Guide {
     case 'apk':
       return {
         title: 'Install an Android APK',
-        steps: ['On the phone: scan the code, or download the zip here and unzip it.', 'Open the APK and allow "Install unknown apps" for the app you opened it from, once.', 'Or from a computer: adb install app.apk (USB debugging on).'],
+        steps: [
+          'On the phone: scan the code, or download the zip here and unzip it.',
+          'Open the APK and allow "Install unknown apps" for the app you opened it from, once.',
+          'Or from a computer: adb install app.apk (USB debugging on).',
+        ],
         caution: `${ZIP_NOTE} A debug or upload-key build cannot update a copy installed from Play (the signatures differ): remove that copy first.`,
         downloads: true,
         qr: true,
@@ -311,7 +357,11 @@ export function installGuide(row: BuildRow): Guide {
     case 'aab':
       return {
         title: 'An Android App Bundle cannot be installed directly',
-        steps: ['Turn it into installable APKs with bundletool: bundletool build-apks --connected-device --bundle=app.aab --output=app.apks', 'Then: bundletool install-apks --apks=app.apks', 'Or put the bundle on a Play internal test track and install from Play.'],
+        steps: [
+          'Turn it into installable APKs with bundletool: bundletool build-apks --connected-device --bundle=app.aab --output=app.apks',
+          'Then: bundletool install-apks --apks=app.apks',
+          'Or put the bundle on a Play internal test track and install from Play.',
+        ],
         caution: `${ZIP_NOTE} A phone cannot do this on its own, so there is no code for a phone.`,
         downloads: true,
         qr: false,
@@ -336,7 +386,11 @@ export function installGuide(row: BuildRow): Guide {
       return {
         title: 'Install a Mac build',
         steps: [
-          kind === 'dmg' ? 'Open the DMG and drag the app to Applications.' : kind === 'pkg' ? 'Open the PKG and follow the installer.' : 'Unzip it and move the app to Applications.',
+          kind === 'dmg'
+            ? 'Open the DMG and drag the app to Applications.'
+            : kind === 'pkg'
+              ? 'Open the PKG and follow the installer.'
+              : 'Unzip it and move the app to Applications.',
           'A downloaded app is checked by Gatekeeper. A notarized build opens normally; one that is not asks you to allow it in System Settings, Privacy and Security, "Open Anyway".',
         ],
         caution: ZIP_NOTE,
@@ -347,7 +401,10 @@ export function installGuide(row: BuildRow): Guide {
     case 'zip':
       return {
         title: 'A build in a zip',
-        steps: ['Download it and unzip it to see what the workflow uploaded (an IPA, an APK, an AAB or a Mac app).', 'Then install it as described for that type.'],
+        steps: [
+          'Download it and unzip it to see what the workflow uploaded (an IPA, an APK, an AAB or a Mac app).',
+          'Then install it as described for that type.',
+        ],
         caution: ZIP_NOTE,
         downloads: true,
         qr: row.platform === 'android',
@@ -356,7 +413,10 @@ export function installGuide(row: BuildRow): Guide {
     default:
       return {
         title: 'Not recognised as a build',
-        steps: ['This artifact does not look like an app build (a test report, logs or symbols, for example).', 'You can still download it as a zip.'],
+        steps: [
+          'This artifact does not look like an app build (a test report, logs or symbols, for example).',
+          'You can still download it as a zip.',
+        ],
         caution: ZIP_NOTE,
         downloads: true,
         qr: false,
@@ -371,11 +431,18 @@ export function installGuide(row: BuildRow): Guide {
 export type PageNotice = { tone: 'info' | 'warn' | 'error'; title: string; body: string };
 
 /** Why the CI part of the list is empty or partial, in words a person can act on. */
-export function problemNotice(problem: BuildsProblem | null, repo: { owner: string; repo: string } | null): PageNotice | null {
+export function problemNotice(
+  problem: BuildsProblem | null,
+  repo: { owner: string; repo: string } | null,
+): PageNotice | null {
   if (!problem) return null;
   switch (problem.reason) {
     case 'no_repository':
-      return { tone: 'info', title: 'No repository is linked to this app', body: 'CI builds appear here when the app is linked to a GitHub repository. The store builds below come from the last sync.' };
+      return {
+        tone: 'info',
+        title: 'No repository is linked to this app',
+        body: 'CI builds appear here when the app is linked to a GitHub repository. The store builds below come from the last sync.',
+      };
     case 'no_access':
       return {
         tone: 'warn',
@@ -383,11 +450,23 @@ export function problemNotice(problem: BuildsProblem | null, repo: { owner: stri
         body: `The credential of ${repo ? `${repo.owner}/${repo.repo}` : 'the repository'} needs read access to GitHub Actions: "Actions: read" for a fine-grained token or GitHub App, or the repo scope for a classic token. Add it in GitHub, then reload.`,
       };
     case 'rate_limited':
-      return { tone: 'warn', title: 'GitHub asked us to slow down', body: 'The artifact list is paused for a moment. Try again in a minute.' };
+      return {
+        tone: 'warn',
+        title: 'GitHub asked us to slow down',
+        body: 'The artifact list is paused for a moment. Try again in a minute.',
+      };
     case 'unsupported':
-      return { tone: 'info', title: 'This connection cannot list artifacts', body: 'The repository connection does not support reading workflow artifacts.' };
+      return {
+        tone: 'info',
+        title: 'This connection cannot list artifacts',
+        body: 'The repository connection does not support reading workflow artifacts.',
+      };
     default:
-      return { tone: 'warn', title: 'GitHub could not be reached', body: 'The artifact list could not be read. Try again in a moment.' };
+      return {
+        tone: 'warn',
+        title: 'GitHub could not be reached',
+        body: 'The artifact list could not be read. Try again in a moment.',
+      };
   }
 }
 
@@ -395,7 +474,10 @@ export function problemNotice(problem: BuildsProblem | null, repo: { owner: stri
 export type TestFlightView =
   | { kind: 'hidden' }
   | { kind: 'message'; tone: 'info' | 'warn'; text: string }
-  | { kind: 'links'; links: (TestFlightLink & { state: 'on' | 'off'; stateText: string; limitText: string })[] };
+  | {
+      kind: 'links';
+      links: (TestFlightLink & { state: 'on' | 'off'; stateText: string; limitText: string })[];
+    };
 
 export const TESTFLIGHT_NONE_TEXT =
   'No TestFlight group has a public link. Mobile Release Manager only reads TestFlight and never creates or turns on a group or a link: set one up in App Store Connect (TestFlight, a group, Enable Public Link).';
@@ -419,34 +501,63 @@ const flightProblemText = (reason: TestFlightProblemReason): string => {
  * public link. Null when there is nothing to say (no TestFlight build, or links to show). `short` is the line; `text` the full words.
  */
 export type TestFlightNote = { tone: 'info' | 'warn'; short: string; text: string; retry: boolean };
-export function testflightNote(list: Pick<BuildsList, 'testflight' | 'store'>): TestFlightNote | null {
+export function testflightNote(
+  list: Pick<BuildsList, 'testflight' | 'store'>,
+): TestFlightNote | null {
   const info = list.testflight;
   if (!info || !list.store.some((b) => b.channel === 'testflight')) return null;
   if (info.problem) {
     const warn = info.problem.reason !== 'not_synced';
     return {
       tone: warn ? 'warn' : 'info',
-      short: info.problem.reason === 'not_synced' ? 'TestFlight links: sync this app first.' : 'TestFlight links could not be read.',
+      short:
+        info.problem.reason === 'not_synced'
+          ? 'TestFlight links: sync this app first.'
+          : 'TestFlight links could not be read.',
       text: flightProblemText(info.problem.reason),
       retry: info.problem.reason !== 'not_synced',
     };
   }
-  if (info.groups.length === 0) return { tone: 'info', short: 'No TestFlight public link yet.', text: TESTFLIGHT_NONE_TEXT, retry: false };
+  if (info.groups.length === 0)
+    return {
+      tone: 'info',
+      short: 'No TestFlight public link yet.',
+      text: TESTFLIGHT_NONE_TEXT,
+      retry: false,
+    };
   return null;
 }
 
 /** The TestFlight links of one store build. Whole-list messages (a failed read, no public link, an expired build) are not repeated per row: see `testflightNote`. */
-export function testflightView(list: Pick<BuildsList, 'testflight'>, b: StoreBuildItem): TestFlightView {
+export function testflightView(
+  list: Pick<BuildsList, 'testflight'>,
+  b: StoreBuildItem,
+): TestFlightView {
   const info = list.testflight;
-  if (!info || b.channel !== 'testflight' || info.problem || b.expired === true || info.groups.length === 0) return { kind: 'hidden' };
+  if (
+    !info ||
+    b.channel !== 'testflight' ||
+    info.problem ||
+    b.expired === true ||
+    info.groups.length === 0
+  )
+    return { kind: 'hidden' };
   const ids = new Set(b.testflightGroupIds ?? []);
-  const links = info.groups.filter((g) => ids.has(g.id)).map((g) => ({
-    ...g,
-    state: g.enabled ? ('on' as const) : ('off' as const),
-    stateText: g.enabled ? 'Link on' : 'Link off',
-    limitText: g.limit === null ? 'No tester limit' : `Up to ${g.limit} tester${g.limit === 1 ? '' : 's'}`,
-  }));
-  if (links.length === 0) return { kind: 'message', tone: 'info', text: 'This build is not in a TestFlight group that has a public link.' };
+  const links = info.groups
+    .filter((g) => ids.has(g.id))
+    .map((g) => ({
+      ...g,
+      state: g.enabled ? ('on' as const) : ('off' as const),
+      stateText: g.enabled ? 'Link on' : 'Link off',
+      limitText:
+        g.limit === null ? 'No tester limit' : `Up to ${g.limit} tester${g.limit === 1 ? '' : 's'}`,
+    }));
+  if (links.length === 0)
+    return {
+      kind: 'message',
+      tone: 'info',
+      text: 'This build is not in a TestFlight group that has a public link.',
+    };
   return { kind: 'links', links };
 }
 
@@ -454,8 +565,14 @@ export function testflightView(list: Pick<BuildsList, 'testflight'>, b: StoreBui
  * One compact status line for the page, in place of stacked notices: downloads switched off and a problem reading the CI artifacts become
  * one sentence with their full words behind a "Details" button. Null when all is well.
  */
-export type StatusLine = { tone: 'info' | 'warn' | 'error'; text: string; details: { title: string; body: string }[] };
-export function statusLine(list: Pick<BuildsList, 'downloadEnabled' | 'problem' | 'repository'>): StatusLine | null {
+export type StatusLine = {
+  tone: 'info' | 'warn' | 'error';
+  text: string;
+  details: { title: string; body: string }[];
+};
+export function statusLine(
+  list: Pick<BuildsList, 'downloadEnabled' | 'problem' | 'repository'>,
+): StatusLine | null {
   const notice = problemNotice(list.problem, list.repository);
   const parts: string[] = [];
   const details: StatusLine['details'] = [];
@@ -479,12 +596,17 @@ export const DOWNLOADS_OFF_TEXT =
 export const NO_RIGHT_TEXT = 'Downloading builds needs the member role or above.';
 
 /** Why a row has no download button, or null when it has one. */
-export function downloadBlocker(row: BuildRow, list: Pick<BuildsList, 'downloadEnabled' | 'canDownload' | 'maxDownloadBytes'>): string | null {
+export function downloadBlocker(
+  row: BuildRow,
+  list: Pick<BuildsList, 'downloadEnabled' | 'canDownload' | 'maxDownloadBytes'>,
+): string | null {
   if (!row.artifact) return null;
   if (!list.downloadEnabled) return DOWNLOADS_OFF_TEXT;
   if (!list.canDownload) return NO_RIGHT_TEXT;
-  if (row.artifact.expired) return 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.';
-  if (row.artifact.tooLarge) return `Larger than the download limit (${humanSize(list.maxDownloadBytes)}).`;
+  if (row.artifact.expired)
+    return 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.';
+  if (row.artifact.tooLarge)
+    return `Larger than the download limit (${humanSize(list.maxDownloadBytes)}).`;
   return null;
 }
 
@@ -495,30 +617,42 @@ export const downloadPath = (workspaceId: string, appId: string, artifactId: str
   `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/download`;
 
 /** The address a phone opens: the server's path on the address this page was reached at. */
-export const phoneUrl = (origin: string, path: string): string => `${origin.replace(/\/+$/, '')}${path}`;
+export const phoneUrl = (origin: string, path: string): string =>
+  `${origin.replace(/\/+$/, '')}${path}`;
 
 /** A phone cannot reach `localhost` or a private address by name; tell the person before they scan. */
 export function phoneCannotReach(origin: string): boolean {
   try {
     const host = new URL(origin).hostname.toLowerCase();
-    return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host.endsWith('.localhost');
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '[::1]' ||
+      host.endsWith('.localhost')
+    );
   } catch {
     return true;
   }
 }
 
 /** The address of the Test builds view of Builds for an app, optionally focused on one build (from the release stepper's build picker). */
-export const testBuildsHref = (appId: string, platform: Platform | 'both' | null = null, build: string | null = null): string => {
+export const testBuildsHref = (
+  appId: string,
+  platform: Platform | 'both' | null = null,
+  build: string | null = null,
+): string => {
   const base = appAddress(appId, 'builds', platform);
   const view = `${base}${base.includes('?') ? '&' : '?'}view=tests`;
   return build ? `${view}&build=${encodeURIComponent(build)}` : view;
 };
 
 /** Seconds left of a link, never negative. */
-export const secondsLeft = (expiresAt: number, now: number): number => Math.max(0, Math.ceil((expiresAt - now) / 1000));
+export const secondsLeft = (expiresAt: number, now: number): number =>
+  Math.max(0, Math.ceil((expiresAt - now) / 1000));
 
 /** The number in a stepper row title ("Build 240"), or null for "Build (number unknown)". */
-export const buildNumberOfTitle = (title: string): string | null => /^Build ([A-Za-z0-9._-]+)$/.exec(title)?.[1] ?? null;
+export const buildNumberOfTitle = (title: string): string | null =>
+  /^Build ([A-Za-z0-9._-]+)$/.exec(title)?.[1] ?? null;
 
 // ---------------------------------------------------------------------------------------------
 // Share to device: Google Play internal app sharing (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md)
@@ -537,8 +671,26 @@ export type ShareCheck = { code: string; severity: 'blocking' | 'warning'; messa
 
 export type SharePreview = {
   app: { id: string; name: string; platform: string; identifier: string };
-  artifact: { id: string; name: string; kind: string; sizeBytes: number; zipSha256: string | null; runId: string | null; headSha: string | null; createdAt: number | null; expiresAt: number | null };
-  upload: { packageName: string; kind: 'bundle' | 'apk' | null; fileName: string | null; entry: string | null; versionCode: number | null; sha256: string | null; maxSizeBytes: number };
+  artifact: {
+    id: string;
+    name: string;
+    kind: string;
+    sizeBytes: number;
+    zipSha256: string | null;
+    runId: string | null;
+    headSha: string | null;
+    createdAt: number | null;
+    expiresAt: number | null;
+  };
+  upload: {
+    packageName: string;
+    kind: 'bundle' | 'apk' | null;
+    fileName: string | null;
+    entry: string | null;
+    versionCode: number | null;
+    sha256: string | null;
+    maxSizeBytes: number;
+  };
   effects: string[];
   linkRetentionHours: number;
   checks: { blocking: ShareCheck[]; warnings: ShareCheck[]; canShare: boolean };
@@ -548,7 +700,17 @@ export type SharePreview = {
 };
 
 export type ShareResult = {
-  share: { id: string; packageName: string; kind: 'bundle' | 'apk'; fileName: string | null; sizeBytes: number; sha256: string; createdAt: number; expiresAt: number; hasLink: boolean };
+  share: {
+    id: string;
+    packageName: string;
+    kind: 'bundle' | 'apk';
+    fileName: string | null;
+    sizeBytes: number;
+    sha256: string;
+    createdAt: number;
+    expiresAt: number;
+    hasLink: boolean;
+  };
   /** SENSITIVE: whoever holds it and is allowed by Google can install the build. Never log it, never put it in an address. */
   downloadUrl: string;
   checksumMatches: boolean | null;
@@ -559,7 +721,10 @@ export type ShareResult = {
 export const sharePhrase = (packageName: string): string => `SHARE ${packageName}`;
 
 /** The button shows only for an Android artifact that can be a build, when the server offers sharing and the role may use it. */
-export function canOfferShare(row: Pick<BuildRow, 'source' | 'platform' | 'artifact'>, config: Pick<InternalSharingConfig, 'enabled' | 'canShare'> | null): boolean {
+export function canOfferShare(
+  row: Pick<BuildRow, 'source' | 'platform' | 'artifact'>,
+  config: Pick<InternalSharingConfig, 'enabled' | 'canShare'> | null,
+): boolean {
   if (!config || !config.enabled || !config.canShare) return false;
   if (row.source !== 'ci' || row.platform !== 'android' || !row.artifact) return false;
   return !row.artifact.expired && !row.artifact.tooLarge;
@@ -573,21 +738,26 @@ export const uploadFileText = (u: Pick<SharePreview['upload'], 'fileName' | 'kin
 };
 
 /** The version code is known only when the server read the file; today it does not before the upload. */
-export const versionCodeText = (v: number | null): string => (v === null ? 'Not known before the upload' : String(v));
+export const versionCodeText = (v: number | null): string =>
+  v === null ? 'Not known before the upload' : String(v);
 
-export const shortHash = (sha: string | null): string => (sha ? `${sha.slice(0, 12)}…${sha.slice(-6)}` : 'Not known before the upload');
+export const shortHash = (sha: string | null): string =>
+  sha ? `${sha.slice(0, 12)}…${sha.slice(-6)}` : 'Not known before the upload';
 
 /** True when what was typed is the phrase (spaces at the ends do not matter; case does). */
-export const phraseMatches = (typed: string, phrase: string | null | undefined): boolean => !!phrase && typed.trim() === phrase;
+export const phraseMatches = (typed: string, phrase: string | null | undefined): boolean =>
+  !!phrase && typed.trim() === phrase;
 
 /** Words for a link's life: "24 hours" for the server's copy; Google's own expiry is not known here. */
-export const linkKeptText = (hours: number): string => `This server keeps the link for ${hours} hour${hours === 1 ? '' : 's'}, then forgets it. Share the build again to get a new one.`;
+export const linkKeptText = (hours: number): string =>
+  `This server keeps the link for ${hours} hour${hours === 1 ? '' : 's'}, then forgets it. Share the build again to get a new one.`;
 
 export const LINK_SENSITIVE_TEXT =
   'This link is sensitive. Anyone who has it and whose Google account is allowed to use internal app sharing can install this build. Send it only to the people who should test it.';
 
 /** What this does not do, said once in the preview. */
-export const SHARE_CANNOT_UNDO_TEXT = 'This cannot be taken back from here: Google offers no way to delete an uploaded build or its link.';
+export const SHARE_CANNOT_UNDO_TEXT =
+  'This cannot be taken back from here: Google offers no way to delete an uploaded build or its link.';
 
 /** The entry names a server lists when one artifact holds several builds (at most 20). */
 export function entryChoices(body: Record<string, unknown> | undefined): string[] {
@@ -653,14 +823,28 @@ export function shareErrorMessage(code: string, retryAfter?: number): string | u
 }
 
 /** The refusal the dialog shows for an error: a fixed sentence for the code, else the API client's own text. */
-export function shareFailure(error: { code?: unknown; retryAfter?: unknown; message?: unknown }): string {
+export function shareFailure(error: {
+  code?: unknown;
+  retryAfter?: unknown;
+  message?: unknown;
+}): string {
   const code = typeof error.code === 'string' ? error.code : '';
-  const fixed = shareErrorMessage(code, typeof error.retryAfter === 'number' ? error.retryAfter : undefined);
-  return fixed ?? (typeof error.message === 'string' && error.message ? error.message : 'Could not share the build. Try again.');
+  const fixed = shareErrorMessage(
+    code,
+    typeof error.retryAfter === 'number' ? error.retryAfter : undefined,
+  );
+  return (
+    fixed ??
+    (typeof error.message === 'string' && error.message
+      ? error.message
+      : 'Could not share the build. Try again.')
+  );
 }
 
 /** Blocking and warning lines of a preview as one list, blocking first. The server's messages are fixed text and safe to show. */
-export function previewNotes(preview: Pick<SharePreview, 'checks'>): { tone: 'error' | 'warn'; text: string }[] {
+export function previewNotes(
+  preview: Pick<SharePreview, 'checks'>,
+): { tone: 'error' | 'warn'; text: string }[] {
   return [
     ...preview.checks.blocking.map((c) => ({ tone: 'error' as const, text: c.message })),
     ...preview.checks.warnings.map((c) => ({ tone: 'warn' as const, text: c.message })),
@@ -668,10 +852,14 @@ export function previewNotes(preview: Pick<SharePreview, 'checks'>): { tone: 'er
 }
 
 /** A preview the apply may use: not blocked, with a hash and a phrase. */
-export const previewReady = (p: Pick<SharePreview, 'checks' | 'confirmHash' | 'confirmation'>): boolean => p.checks.canShare && !!p.confirmHash && !!p.confirmation;
+export const previewReady = (
+  p: Pick<SharePreview, 'checks' | 'confirmHash' | 'confirmation'>,
+): boolean => p.checks.canShare && !!p.confirmHash && !!p.confirmation;
 
 /** The `state_changed` answer carries a new preview; this returns it when it looks like one. */
 export function previewFromBody(body: Record<string, unknown> | undefined): SharePreview | null {
   const p = body?.preview as Partial<SharePreview> | undefined;
-  return p && typeof p === 'object' && p.artifact && p.upload && p.checks ? (p as SharePreview) : null;
+  return p && typeof p === 'object' && p.artifact && p.upload && p.checks
+    ? (p as SharePreview)
+    : null;
 }

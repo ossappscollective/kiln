@@ -1,6 +1,13 @@
-import { azureCode, detectedTag, providerSource } from './languages.ts';
 import { isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
-import { TranslateError, type TranslateInput, type TranslateOutput, type TranslatedText, type Translator, type TranslatorOptions } from './types.ts';
+import { azureCode, detectedTag, providerSource } from './languages.ts';
+import {
+  type TranslatedText,
+  TranslateError,
+  type TranslateInput,
+  type TranslateOutput,
+  type Translator,
+  type TranslatorOptions,
+} from './types.ts';
 
 /**
  * Microsoft Translator (Azure AI Translator) text translation v3.0. Verified (checked 2026-11-18):
@@ -29,7 +36,10 @@ export type AzureOptions = TranslatorOptions & { apiKey: string; region?: string
 function classify(status: number, json: unknown, retryAfter: string | null): TranslateError {
   const message = textAt(json, 'error', 'message').toLowerCase();
   const code = textAt(json, 'error', 'code');
-  if (status === 429) return new TranslateError('rate_limited', { retryAfterSeconds: retryAfterSeconds(retryAfter, 30) });
+  if (status === 429)
+    return new TranslateError('rate_limited', {
+      retryAfterSeconds: retryAfterSeconds(retryAfter, 30),
+    });
   if (status === 401) return new TranslateError('auth');
   if (status === 403) return new TranslateError('quota');
   if (status === 400) {
@@ -52,7 +62,12 @@ export function createAzureTranslator(options: AzureOptions): Translator {
       const target = azureCode(input.target);
       if (!target) throw new TranslateError('unsupported_language');
       const source = providerSource('azure', input.source);
-      if (input.source !== undefined && input.source !== '' && input.source.toLowerCase() !== 'auto' && !source) {
+      if (
+        input.source !== undefined &&
+        input.source !== '' &&
+        input.source.toLowerCase() !== 'auto' &&
+        !source
+      ) {
         throw new TranslateError('unsupported_language');
       }
       const query = new URLSearchParams({ 'api-version': '3.0', to: target, textType: 'plain' });
@@ -62,19 +77,31 @@ export function createAzureTranslator(options: AzureOptions): Translator {
           url: `${options.baseUrl ?? AZURE_TRANSLATOR_URL}/translate?${query.toString()}`,
           headers: {
             'ocp-apim-subscription-key': key,
-            ...(region && region.toLowerCase() !== 'global' ? { 'ocp-apim-subscription-region': region } : {}),
+            ...(region && region.toLowerCase() !== 'global'
+              ? { 'ocp-apim-subscription-region': region }
+              : {}),
           },
           body: input.texts.map((Text) => ({ Text })),
         },
         options,
       );
-      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
+      if (reply.status < 200 || reply.status > 299)
+        throw classify(reply.status, reply.json, reply.retryAfter);
       const list = reply.json;
-      if (!Array.isArray(list) || list.length !== input.texts.length) throw new TranslateError('unavailable');
+      if (!Array.isArray(list) || list.length !== input.texts.length)
+        throw new TranslateError('unavailable');
       const results: TranslatedText[] = list.map((item) => {
-        const first = isRecord(item) && Array.isArray(item.translations) ? item.translations[0] : undefined;
-        if (!isRecord(first) || typeof first.text !== 'string') throw new TranslateError('unavailable');
-        const detected = detectedTag(isRecord(item) && isRecord(item.detectedLanguage) && typeof item.detectedLanguage.language === 'string' ? item.detectedLanguage.language : undefined);
+        const first =
+          isRecord(item) && Array.isArray(item.translations) ? item.translations[0] : undefined;
+        if (!isRecord(first) || typeof first.text !== 'string')
+          throw new TranslateError('unavailable');
+        const detected = detectedTag(
+          isRecord(item) &&
+            isRecord(item.detectedLanguage) &&
+            typeof item.detectedLanguage.language === 'string'
+            ? item.detectedLanguage.language
+            : undefined,
+        );
         return { text: first.text, ...(detected ? { detectedSource: detected } : {}) };
       });
       return { results };

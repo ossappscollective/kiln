@@ -2,16 +2,25 @@ import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 import {
-  ReleaseDriftError,
-  ReleaseOutcomeUnknownError,
   type PlayReleaseState,
   type ReleaseApplyInput,
+  ReleaseDriftError,
+  ReleaseOutcomeUnknownError,
   type ReleaseRequest,
   type ReleaseResult,
   type ReleaseState,
   type StoreReleaseConnector,
 } from './release-types.ts';
-import { enc, isRecord, type Json, records, type StoreHttpOptions, StoreHttp, type StoreReply, text } from './store-http.ts';
+import {
+  enc,
+  isRecord,
+  type Json,
+  records,
+  StoreHttp,
+  type StoreHttpOptions,
+  type StoreReply,
+  text,
+} from './store-http.ts';
 
 /**
  * Google Play: START a draft release of a track to an explicit share of users. A STORE WRITE that cannot be taken back from
@@ -61,9 +70,16 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
   readonly #account: ServiceAccount;
 
   constructor(options: PlayReleaseConnectorOptions) {
-    this.#account = typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+    this.#account =
+      typeof options.serviceAccount === 'string'
+        ? parseServiceAccount(options.serviceAccount)
+        : options.serviceAccount;
     if (!isPlayPackageName(options.packageName)) {
-      throw new StoreError('googleplay', 'invalid_input', `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`);
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`,
+      );
     }
     this.packageName = options.packageName;
     this.#http = new StoreHttp({ ...options, store: 'googleplay' });
@@ -81,7 +97,8 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
         try {
           return (await this.#state(this.#http, editId, track, request)).state;
         } catch (error) {
-          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0) continue;
+          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0)
+            continue;
           throw error;
         } finally {
           await this.#deleteEdit(this.#http, editId);
@@ -93,25 +110,53 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
   async release(input: ReleaseApplyInput): Promise<ReleaseResult> {
     const track = PlayReleaseConnector.#trackOf(input.request);
     const fraction = input.request.userFraction;
-    if (typeof fraction !== 'number' || !Number.isFinite(fraction) || fraction <= 0 || fraction > 1) {
-      throw new StoreError('googleplay', 'invalid_input', 'Name the share of users to release to, more than 0 and at most 1 (1 is everybody).');
+    if (
+      typeof fraction !== 'number' ||
+      !Number.isFinite(fraction) ||
+      fraction <= 0 ||
+      fraction > 1
+    ) {
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Name the share of users to release to, more than 0 and at most 1 (1 is everybody).',
+      );
     }
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const http = this.#writeHttp;
       const editId = await this.#insertEdit(http);
       let settled = false;
       try {
-        const { state: before, releases, target } = await this.#state(http, editId, track, input.request);
+        const {
+          state: before,
+          releases,
+          target,
+        } = await this.#state(http, editId, track, input.request);
         if (!input.guard(before)) throw new ReleaseDriftError(before);
-        if (before.store !== 'googleplay' || before.release === null || target === undefined || before.release.status !== 'draft') {
-          throw new StoreError('googleplay', 'invalid_input', `The ${track} track has no draft release to start, so nothing was released.`);
+        if (
+          before.store !== 'googleplay' ||
+          before.release === null ||
+          target === undefined ||
+          before.release.status !== 'draft'
+        ) {
+          throw new StoreError(
+            'googleplay',
+            'invalid_input',
+            `The ${track} track has no draft release to start, so nothing was released.`,
+          );
         }
         const started: Json = { ...target, status: fraction === 1 ? 'completed' : 'inProgress' };
         if (fraction === 1) delete started.userFraction;
         else started.userFraction = fraction;
         const all = releases.map((r) => (r === target ? started : r));
         // Staging the new state of the track in the edit is not yet a release: nothing is live until the commit.
-        await this.#call(http, 'PUT', this.#url(`/${enc(editId)}/tracks/${enc(track)}`), `starting the release in the ${track} track`, { json: { track, releases: all } });
+        await this.#call(
+          http,
+          'PUT',
+          this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
+          `starting the release in the ${track} track`,
+          { json: { track, releases: all } },
+        );
         // From here on the release may be applied even if the answer is lost.
         settled = true;
         try {
@@ -133,7 +178,11 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
   static #trackOf(request: ReleaseRequest): string {
     const track = request.track;
     if (track === undefined || !/^[A-Za-z0-9_.:-]{1,64}$/.test(track)) {
-      throw new StoreError('googleplay', 'invalid_input', 'Name the track of the release (for example production).');
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Name the track of the release (for example production).',
+      );
     }
     return track;
   }
@@ -156,25 +205,45 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
   ): Promise<{ state: ReleaseState; releases: Json[]; target: Json | undefined }> {
     let releases: Json[] = [];
     try {
-      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/tracks/${enc(track)}`), `reading the ${track} track`);
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/tracks/${enc(track)}`),
+        `reading the ${track} track`,
+      );
       releases = records(isRecord(reply.json) ? reply.json.releases : undefined);
     } catch (error) {
       if (!(error instanceof StoreError) || error.kind !== 'not_found') throw error;
     }
     const wanted = request.versionCodes?.map(String);
     const drafts = releases.filter((r) => text(r.status) === 'draft');
-    const matching = wanted !== undefined && wanted.length > 0 ? drafts.filter((r) => sameCodes(PlayReleaseConnector.#read(r).versionCodes, wanted)) : drafts;
+    const matching =
+      wanted !== undefined && wanted.length > 0
+        ? drafts.filter((r) => sameCodes(PlayReleaseConnector.#read(r).versionCodes, wanted))
+        : drafts;
     const target = matching.length === 1 ? matching[0] : undefined;
     const ambiguous = matching.length > 1;
     const uploaded = new Set<string>();
-    const bundles = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/bundles`), 'listing the app bundles');
+    const bundles = await this.#call(
+      http,
+      'GET',
+      this.#url(`/${enc(editId)}/bundles`),
+      'listing the app bundles',
+    );
     for (const b of records(isRecord(bundles.json) ? bundles.json.bundles : undefined)) {
-      if (typeof b.versionCode === 'number' || typeof b.versionCode === 'string') uploaded.add(String(b.versionCode));
+      if (typeof b.versionCode === 'number' || typeof b.versionCode === 'string')
+        uploaded.add(String(b.versionCode));
     }
     try {
-      const apks = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/apks`), 'listing the APKs');
+      const apks = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/apks`),
+        'listing the APKs',
+      );
       for (const a of records(isRecord(apks.json) ? apks.json.apks : undefined)) {
-        if (typeof a.versionCode === 'number' || typeof a.versionCode === 'string') uploaded.add(String(a.versionCode));
+        if (typeof a.versionCode === 'number' || typeof a.versionCode === 'string')
+          uploaded.add(String(a.versionCode));
       }
     } catch (error) {
       if (!(error instanceof StoreError) || error.kind !== 'not_found') throw error;
@@ -199,7 +268,13 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
   async #insertEdit(http: StoreHttp): Promise<string> {
     const reply = await this.#call(http, 'POST', this.#url(''), 'opening an edit', { json: {} });
     const id = isRecord(reply.json) ? text(reply.json.id) : undefined;
-    if (!id) throw new StoreError('googleplay', 'unexpected', 'Google Play opened an edit but sent no edit id.', reply.status);
+    if (!id)
+      throw new StoreError(
+        'googleplay',
+        'unexpected',
+        'Google Play opened an edit but sent no edit id.',
+        reply.status,
+      );
     return id;
   }
 
@@ -219,10 +294,16 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
       const token = await this.#tokens.token();
       let reply: StoreReply;
       try {
-        reply = await this.#writeHttp.send('POST', url, { headers: { authorization: `Bearer ${token}` } });
+        reply = await this.#writeHttp.send('POST', url, {
+          headers: { authorization: `Bearer ${token}` },
+        });
       } catch (error) {
         if (error instanceof StoreError && error.kind === 'network') {
-          throw new ReleaseOutcomeUnknownError('googleplay', `The connection to Google Play failed while ${what}, so it is not known whether Google applied it. ${error.message}`, error.status);
+          throw new ReleaseOutcomeUnknownError(
+            'googleplay',
+            `The connection to Google Play failed while ${what}, so it is not known whether Google applied it. ${error.message}`,
+            error.status,
+          );
         }
         throw error;
       }
@@ -233,7 +314,11 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
       }
       if (reply.status >= 200 && reply.status < 300) return;
       if (reply.status >= 500) {
-        throw new ReleaseOutcomeUnknownError('googleplay', `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`, reply.status);
+        throw new ReleaseOutcomeUnknownError(
+          'googleplay',
+          `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`,
+          reply.status,
+        );
       }
       throw this.#refusal(reply, what);
     }
@@ -265,7 +350,13 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
     return new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
   }
 
-  async #call(http: StoreHttp, method: string, url: string, what: string, body: { json?: unknown } = {}): Promise<StoreReply> {
+  async #call(
+    http: StoreHttp,
+    method: string,
+    url: string,
+    what: string,
+    body: { json?: unknown } = {},
+  ): Promise<StoreReply> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       const reply = await http.send(method, url, {
@@ -278,7 +369,12 @@ export class PlayReleaseConnector implements StoreReleaseConnector {
       }
       if (reply.status >= 200 && reply.status < 300) {
         if (reply.malformed) {
-          throw new StoreError('googleplay', 'unexpected', `Google Play answered ${what} with a response that could not be read.`, reply.status);
+          throw new StoreError(
+            'googleplay',
+            'unexpected',
+            `Google Play answered ${what} with a response that could not be read.`,
+            reply.status,
+          );
         }
         return reply;
       }

@@ -245,13 +245,31 @@ export function draftKey(state: DraftState): Record<string, unknown> {
       .sort((a, b) => (a.locale + '\u0000' + a.field).localeCompare(b.locale + '\u0000' + b.field))
       .map((t) => [t.locale, t.field, t.localeExists, t.value]),
     assets: [...state.assets]
-      .sort((a, b) => (a.locale + '\u0000' + a.target).localeCompare(b.locale + '\u0000' + b.target))
-      .map((a) => [a.locale, a.target, a.setExists, a.images.map((i) => [i.id, i.checksum, i.state])]),
+      .sort((a, b) =>
+        (a.locale + '\u0000' + a.target).localeCompare(b.locale + '\u0000' + b.target),
+      )
+      .map((a) => [
+        a.locale,
+        a.target,
+        a.setExists,
+        a.images.map((i) => [i.id, i.checksum, i.state]),
+      ]),
     ...(state.fields !== undefined && state.fields.length > 0
       ? {
           fields: [...state.fields]
-            .sort((a, b) => (a.field + '\u0000' + a.locale).localeCompare(b.field + '\u0000' + b.locale))
-            .map((f) => [f.field, f.locale, f.value, f.facts === undefined ? null : Object.keys(f.facts).sort().map((k) => [k, (f.facts as DraftFieldFacts)[k]])]),
+            .sort((a, b) =>
+              (a.field + '\u0000' + a.locale).localeCompare(b.field + '\u0000' + b.locale),
+            )
+            .map((f) => [
+              f.field,
+              f.locale,
+              f.value,
+              f.facts === undefined
+                ? null
+                : Object.keys(f.facts)
+                    .sort()
+                    .map((k) => [k, (f.facts as DraftFieldFacts)[k]]),
+            ]),
         }
       : {}),
   };
@@ -276,7 +294,10 @@ export const DRAFT_IMAGE_READY_STATES: readonly string[] = [
 ];
 
 /** Whether a set holds exactly these files, in this order (by checksum). */
-export function setMatches(image: readonly DraftImageState[], files: readonly Pick<DraftFile, 'md5' | 'sha256'>[]): boolean {
+export function setMatches(
+  image: readonly DraftImageState[],
+  files: readonly Pick<DraftFile, 'md5' | 'sha256'>[],
+): boolean {
   if (image.length !== files.length) return false;
   for (let i = 0; i < files.length; i++) {
     const have = image[i] as DraftImageState;
@@ -284,7 +305,8 @@ export function setMatches(image: readonly DraftImageState[], files: readonly Pi
     const wanted = have.checksumKind === 'md5' ? want.md5 : want.sha256;
     if (have.checksum === null) return false;
     const got = have.checksum.toLowerCase();
-    if (got.length < wanted.length ? !wanted.startsWith(got) || got.length < 16 : got !== wanted) return false;
+    if (got.length < wanted.length ? !wanted.startsWith(got) || got.length < 16 : got !== wanted)
+      return false;
     if (have.state !== null && !DRAFT_IMAGE_READY_STATES.includes(have.state)) return false;
   }
   return true;
@@ -346,4 +368,6 @@ export interface StoreImageReader {
 }
 
 export const isStoreImageReader = (value: unknown): value is StoreImageReader =>
-  typeof value === 'object' && value !== null && typeof (value as { readStoreImages?: unknown }).readStoreImages === 'function';
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { readStoreImages?: unknown }).readStoreImages === 'function';

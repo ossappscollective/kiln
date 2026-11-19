@@ -1,13 +1,23 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { decryptSecret } from '@mrm/vault';
 import { dbTest } from '@mrm/db/testing';
+import { decryptSecret } from '@mrm/vault';
 import { claimNext, completeJob, failJob } from './jobs.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import { emitEvent } from './services/events.ts';
-import { type Resolver, type SendResult, type sendPinned, sendPinned as realSend } from './services/webhook-transport.ts';
-import { WEBHOOK_QUEUE, createWebhookHandler, signWebhook, webhookAad } from './services/webhooks.ts';
+import {
+  type Resolver,
+  sendPinned as realSend,
+  type SendResult,
+  type sendPinned,
+} from './services/webhook-transport.ts';
+import {
+  createWebhookHandler,
+  signWebhook,
+  WEBHOOK_QUEUE,
+  webhookAad,
+} from './services/webhooks.ts';
 import { seedWorkspace } from './testkit.ts';
 
 type Boot = Awaited<ReturnType<typeof bootRepoApp>>;
@@ -20,7 +30,10 @@ const masterKey = randomBytes(32);
 /** An app with webhooks pointed at a fake receiver, and a way to run the delivery jobs. */
 async function bootHooks(db: Parameters<typeof bootRepoApp>[0], resolve: Resolver = PUBLIC) {
   const sent: Sent[] = [];
-  const reply: { next: SendResult[]; fallback: SendResult } = { next: [], fallback: { ok: true, status: 200, body: 'ok' } };
+  const reply: { next: SendResult[]; fallback: SendResult } = {
+    next: [],
+    fallback: { ok: true, status: 200, body: 'ok' },
+  };
   const send: typeof sendPinned = async (url, body, headers) => {
     sent.push({ url, body, headers });
     return reply.next.shift() ?? reply.fallback;
@@ -65,7 +78,10 @@ const deliveries = async (t: Hooks, id: string, query = '') =>
 
 dbTest('creating a webhook returns the secret once, and stores it only encrypted', async (db) => {
   const t = await bootHooks(db);
-  const res = await t.create({ description: 'CI', eventTypes: ['app.synced', 'changeset.applied', 'app.synced'] });
+  const res = await t.create({
+    description: 'CI',
+    eventTypes: ['app.synced', 'changeset.applied', 'app.synced'],
+  });
   assert.equal(res.status, 201);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   const secret = res.body.secret as string;
@@ -111,7 +127,10 @@ dbTest('only owners and admins manage webhooks; a token never does', async (db) 
     assert.equal((await t.call(cookie, 'GET', '/webhooks')).status, 403);
     assert.equal((await t.call(cookie, 'GET', `/webhooks/${id}`)).status, 403);
     assert.equal((await t.create({}, cookie)).status, 403);
-    assert.equal((await t.call(cookie, 'PATCH', `/webhooks/${id}`, { enabled: false })).status, 403);
+    assert.equal(
+      (await t.call(cookie, 'PATCH', `/webhooks/${id}`, { enabled: false })).status,
+      403,
+    );
     assert.equal((await t.call(cookie, 'DELETE', `/webhooks/${id}`)).status, 403);
     assert.equal((await t.call(cookie, 'POST', `/webhooks/${id}/rotate-secret`)).status, 403);
     assert.equal((await t.call(cookie, 'POST', `/webhooks/${id}/test`)).status, 403);
@@ -147,7 +166,10 @@ dbTest('create refuses bad input and dangerous URLs', async (db) => {
     ['too long', { url: `https://hooks.example.com/${'a'.repeat(2100)}` }],
   ];
   for (const [name, body] of bad) assert.equal((await t.create(body)).status, 400, name);
-  assert.equal((await t.create({ url: 'https://169.254.169.254/latest' })).body.error, 'invalid_url');
+  assert.equal(
+    (await t.create({ url: 'https://169.254.169.254/latest' })).body.error,
+    'invalid_url',
+  );
   assert.equal((await t.create({ eventTypes: [] })).status, 400);
   assert.equal((await t.create({ eventTypes: ['nope'] })).status, 400);
   assert.equal((await t.create({ eventTypes: ['app.synced', 5] })).status, 400);
@@ -156,25 +178,34 @@ dbTest('create refuses bad input and dangerous URLs', async (db) => {
   assert.equal((await t.call(t.owner, 'GET', '/webhooks')).body.webhooks.length, 0);
 });
 
-dbTest('a host name that resolves inside the network is refused at creation and update', async (db) => {
-  const answers = { list: [{ address: '93.184.216.34', family: 4 }] };
-  const t = await bootHooks(db, async () => answers.list);
-  const good = await t.create();
-  assert.equal(good.status, 201);
-  answers.list = [{ address: '93.184.216.34', family: 4 }, { address: '192.168.1.9', family: 4 }];
-  const created = await t.create({ url: 'https://rebind.example.com/x' });
-  assert.equal(created.status, 400);
-  assert.equal(created.body.error, 'invalid_url');
-  const updated = await t.call(t.owner, 'PATCH', `/webhooks/${good.body.webhook.id}`, { url: 'https://rebind.example.com/x' });
-  assert.equal(updated.status, 400);
-  // A DNS hiccup does not block saving: the delivery will try again later.
-  answers.list = [];
-  assert.equal((await t.create({ url: 'https://later.example.com/x' })).status, 201);
-});
+dbTest(
+  'a host name that resolves inside the network is refused at creation and update',
+  async (db) => {
+    const answers = { list: [{ address: '93.184.216.34', family: 4 }] };
+    const t = await bootHooks(db, async () => answers.list);
+    const good = await t.create();
+    assert.equal(good.status, 201);
+    answers.list = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '192.168.1.9', family: 4 },
+    ];
+    const created = await t.create({ url: 'https://rebind.example.com/x' });
+    assert.equal(created.status, 400);
+    assert.equal(created.body.error, 'invalid_url');
+    const updated = await t.call(t.owner, 'PATCH', `/webhooks/${good.body.webhook.id}`, {
+      url: 'https://rebind.example.com/x',
+    });
+    assert.equal(updated.status, 400);
+    // A DNS hiccup does not block saving: the delivery will try again later.
+    answers.list = [];
+    assert.equal((await t.create({ url: 'https://later.example.com/x' })).status, 201);
+  },
+);
 
 dbTest('a workspace has a limited number of webhooks, and bodies are size-limited', async (db) => {
   const t = await bootHooks(db);
-  for (let i = 0; i < 20; i++) assert.equal((await t.create({ url: `https://hooks.example.com/${i}` })).status, 201);
+  for (let i = 0; i < 20; i++)
+    assert.equal((await t.create({ url: `https://hooks.example.com/${i}` })).status, 201);
   const over = await t.create();
   assert.equal(over.status, 409);
   assert.equal(over.body.error, 'too_many_webhooks');
@@ -186,28 +217,44 @@ dbTest('a workspace has a limited number of webhooks, and bodies are size-limite
   assert.equal(res.status, 413);
 });
 
-dbTest('PATCH changes the fields it is given, audits the names of them, and refuses an empty patch', async (db) => {
-  const t = await bootHooks(db);
-  const { body } = await t.create({ description: 'old', eventTypes: ['app.synced'] });
-  const id = body.webhook.id as string;
-  const res = await t.call(t.owner, 'PATCH', `/webhooks/${id}`, {
-    url: 'https://hooks.example.com/new',
-    description: null,
-    eventTypes: ['changeset.created'],
-    enabled: false,
-  });
-  assert.equal(res.status, 200);
-  assert.deepEqual(
-    { url: res.body.webhook.url, description: res.body.webhook.description, types: res.body.webhook.eventTypes, on: res.body.webhook.enabled },
-    { url: 'https://hooks.example.com/new', description: null, types: ['changeset.created'], on: false },
-  );
-  assert.equal((await t.call(t.owner, 'PATCH', `/webhooks/${id}`, {})).status, 400);
-  assert.equal((await t.call(t.owner, 'PATCH', `/webhooks/${id}`, { eventTypes: [] })).status, 400);
-  assert.equal((await t.call(t.owner, 'PATCH', '/webhooks/nope', { enabled: true })).status, 404);
-  const audit = (await t.auditActions()).find((a) => a.action === 'webhook.update');
-  assert.ok(audit);
-  assert.match(audit.detail, /eventTypes/);
-});
+dbTest(
+  'PATCH changes the fields it is given, audits the names of them, and refuses an empty patch',
+  async (db) => {
+    const t = await bootHooks(db);
+    const { body } = await t.create({ description: 'old', eventTypes: ['app.synced'] });
+    const id = body.webhook.id as string;
+    const res = await t.call(t.owner, 'PATCH', `/webhooks/${id}`, {
+      url: 'https://hooks.example.com/new',
+      description: null,
+      eventTypes: ['changeset.created'],
+      enabled: false,
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(
+      {
+        url: res.body.webhook.url,
+        description: res.body.webhook.description,
+        types: res.body.webhook.eventTypes,
+        on: res.body.webhook.enabled,
+      },
+      {
+        url: 'https://hooks.example.com/new',
+        description: null,
+        types: ['changeset.created'],
+        on: false,
+      },
+    );
+    assert.equal((await t.call(t.owner, 'PATCH', `/webhooks/${id}`, {})).status, 400);
+    assert.equal(
+      (await t.call(t.owner, 'PATCH', `/webhooks/${id}`, { eventTypes: [] })).status,
+      400,
+    );
+    assert.equal((await t.call(t.owner, 'PATCH', '/webhooks/nope', { enabled: true })).status, 404);
+    const audit = (await t.auditActions()).find((a) => a.action === 'webhook.update');
+    assert.ok(audit);
+    assert.match(audit.detail, /eventTypes/);
+  },
+);
 
 dbTest('deleting a webhook removes its deliveries; unknown ids are 404', async (db) => {
   const t = await bootHooks(db);
@@ -217,11 +264,16 @@ dbTest('deleting a webhook removes its deliveries; unknown ids are 404', async (
   assert.equal((await t.call(t.owner, 'DELETE', `/webhooks/${id}`)).status, 204);
   assert.equal((await t.call(t.owner, 'DELETE', `/webhooks/${id}`)).status, 404);
   assert.equal((await t.call(t.owner, 'GET', `/webhooks/${id}`)).status, 404);
-  assert.equal((await db.query('SELECT id FROM webhook_deliveries WHERE endpoint_id = ?', [id])).length, 0);
+  assert.equal(
+    (await db.query('SELECT id FROM webhook_deliveries WHERE endpoint_id = ?', [id])).length,
+    0,
+  );
   // The job that was waiting finds nothing and sends nothing.
   await t.run();
   assert.equal(t.sent.length, 0);
-  assert.ok((await t.auditActions()).some((a) => a.action === 'webhook.delete' && a.targetId === id));
+  assert.ok(
+    (await t.auditActions()).some((a) => a.action === 'webhook.delete' && a.targetId === id),
+  );
 });
 
 dbTest('rotating the secret returns a new one once, and later deliveries use it', async (db) => {
@@ -254,12 +306,23 @@ dbTest('an event is delivered, signed, to the endpoints that asked for its type'
   const t = await bootHooks(db);
   const wanted = await t.create({ url: 'https://a.example.com/in', eventTypes: ['app.synced'] });
   const all = await t.create({ url: 'https://b.example.com/in', eventTypes: ['*'] });
-  const other = await t.create({ url: 'https://c.example.com/in', eventTypes: ['changeset.created'] });
+  const other = await t.create({
+    url: 'https://c.example.com/in',
+    eventTypes: ['changeset.created'],
+  });
   const off = await t.create({ url: 'https://d.example.com/in', enabled: false });
-  const event = await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', subject: { appId: 'a1' }, payload: { found: 3 } });
+  const event = await emitEvent(db, {
+    workspaceId: t.workspaceId,
+    type: 'app.synced',
+    subject: { appId: 'a1' },
+    payload: { found: 3 },
+  });
   assert.equal(await t.run(), 2);
 
-  assert.deepEqual(t.sent.map((s) => s.url).sort(), ['https://a.example.com/in', 'https://b.example.com/in']);
+  assert.deepEqual(t.sent.map((s) => s.url).sort(), [
+    'https://a.example.com/in',
+    'https://b.example.com/in',
+  ]);
   const hit = t.sent.find((s) => s.url === 'https://a.example.com/in');
   assert.ok(hit);
   assert.deepEqual(JSON.parse(hit.body), {
@@ -276,10 +339,16 @@ dbTest('an event is delivered, signed, to the endpoints that asked for its type'
   assert.match(hit.headers['x-mrm-timestamp'] ?? '', /^[0-9]{10}$/);
   const signature = hit.headers['x-mrm-signature'] ?? '';
   assert.match(signature, /^v1=[0-9a-f]{64}$/);
-  assert.equal(signature, `v1=${signWebhook(wanted.body.secret, hit.headers['x-mrm-timestamp'] ?? '', hit.body)}`);
+  assert.equal(
+    signature,
+    `v1=${signWebhook(wanted.body.secret, hit.headers['x-mrm-timestamp'] ?? '', hit.body)}`,
+  );
   // Each endpoint is signed with its own secret.
   const second = t.sent.find((s) => s.url === 'https://b.example.com/in');
-  assert.equal(second?.headers['x-mrm-signature'], `v1=${signWebhook(all.body.secret, second?.headers['x-mrm-timestamp'] ?? '', second?.body ?? '')}`);
+  assert.equal(
+    second?.headers['x-mrm-signature'],
+    `v1=${signWebhook(all.body.secret, second?.headers['x-mrm-timestamp'] ?? '', second?.body ?? '')}`,
+  );
   assert.notEqual(second?.headers['x-mrm-signature'], signature);
 
   const log = await deliveries(t, wanted.body.webhook.id);
@@ -290,15 +359,25 @@ dbTest('an event is delivered, signed, to the endpoints that asked for its type'
   assert.equal(log[0]?.responseCode, 200);
   assert.equal((await deliveries(t, other.body.webhook.id)).length, 0);
   assert.equal((await deliveries(t, off.body.webhook.id)).length, 0);
-  const listed = (await t.call(t.owner, 'GET', '/webhooks')).body.webhooks as { id: string; lastDelivery: { status: string } | null }[];
-  assert.equal(listed.find((w) => w.id === wanted.body.webhook.id)?.lastDelivery?.status, 'success');
+  const listed = (await t.call(t.owner, 'GET', '/webhooks')).body.webhooks as {
+    id: string;
+    lastDelivery: { status: string } | null;
+  }[];
+  assert.equal(
+    listed.find((w) => w.id === wanted.body.webhook.id)?.lastDelivery?.status,
+    'success',
+  );
 });
 
 dbTest("events of one workspace are never delivered to another workspace's webhook", async (db) => {
   const t = await bootHooks(db);
   const mine = await t.create({ url: 'https://mine.example.com/in' });
   const other = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
-  await emitEvent(db, { workspaceId: other.workspaceId, type: 'app.synced', payload: { secretish: 'theirs' } });
+  await emitEvent(db, {
+    workspaceId: other.workspaceId,
+    type: 'app.synced',
+    payload: { secretish: 'theirs' },
+  });
   await t.run();
   assert.equal(t.sent.length, 0);
   assert.equal((await deliveries(t, mine.body.webhook.id)).length, 0);
@@ -314,18 +393,36 @@ dbTest("events of one workspace are never delivered to another workspace's webho
     ['GET', `/webhooks/${id}/deliveries`],
   ] as const) {
     const body = method === 'PATCH' ? { enabled: false } : undefined;
-    assert.equal((await t.call(other.cookie, method, path, body)).status, 404, `${method} ${path} in my workspace`);
-    assert.equal((await t.call(other.cookie, method, path, body, other.workspaceId)).status, 404, `${method} ${path} in theirs`);
+    assert.equal(
+      (await t.call(other.cookie, method, path, body)).status,
+      404,
+      `${method} ${path} in my workspace`,
+    );
+    assert.equal(
+      (await t.call(other.cookie, method, path, body, other.workspaceId)).status,
+      404,
+      `${method} ${path} in theirs`,
+    );
   }
-  assert.deepEqual((await t.call(other.cookie, 'GET', '/webhooks', undefined, other.workspaceId)).body.webhooks, []);
-  assert.equal((await t.call(t.owner, 'GET', `/webhooks/${id}`)).status, 200, 'nothing of mine was changed');
+  assert.deepEqual(
+    (await t.call(other.cookie, 'GET', '/webhooks', undefined, other.workspaceId)).body.webhooks,
+    [],
+  );
+  assert.equal(
+    (await t.call(t.owner, 'GET', `/webhooks/${id}`)).status,
+    200,
+    'nothing of mine was changed',
+  );
 });
 
 dbTest('a failing receiver is retried with backoff, then the delivery succeeds', async (db) => {
   const t = await bootHooks(db);
   const { body } = await t.create({ eventTypes: ['app.synced'] });
   const id = body.webhook.id as string;
-  t.reply.next.push({ ok: true, status: 503, body: 'try later' }, { ok: false, kind: 'timeout', message: 'No answer within 10 seconds.', transient: true });
+  t.reply.next.push(
+    { ok: true, status: 503, body: 'try later' },
+    { ok: false, kind: 'timeout', message: 'No answer within 10 seconds.', transient: true },
+  );
   await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced' });
 
   const start = Date.now();
@@ -338,7 +435,9 @@ dbTest('a failing receiver is retried with backoff, then the delivery succeeds',
   assert.match(log?.error ?? '', /503/);
   // Not due again right away: the backoff keeps it waiting.
   assert.equal(await t.run(start + 2000), 0);
-  const [job] = await db.query("SELECT run_at FROM jobs WHERE queue = ? AND status = 'queued'", [WEBHOOK_QUEUE]);
+  const [job] = await db.query("SELECT run_at FROM jobs WHERE queue = ? AND status = 'queued'", [
+    WEBHOOK_QUEUE,
+  ]);
   assert.ok(Number(job?.run_at) >= start + 5000, 'the first retry waits several seconds');
 
   assert.equal(await t.run(start + 60_000), 1);
@@ -354,7 +453,11 @@ dbTest('a failing receiver is retried with backoff, then the delivery succeeds',
   assert.equal(log?.error, null);
   assert.equal(t.sent.length, 3);
   assert.equal(new Set(t.sent.map((s) => s.body)).size, 1, 'every attempt sends the same body');
-  assert.equal(new Set(t.sent.map((s) => s.headers['x-mrm-delivery'])).size, 1, 'and carries the same delivery id');
+  assert.equal(
+    new Set(t.sent.map((s) => s.headers['x-mrm-delivery'])).size,
+    1,
+    'and carries the same delivery id',
+  );
 });
 
 dbTest('a receiver that keeps failing ends as failed after the attempts are used', async (db) => {
@@ -375,27 +478,30 @@ dbTest('a receiver that keeps failing ends as failed after the attempts are used
   assert.equal(job?.status, 'failed');
 });
 
-dbTest('an address that is not allowed fails at once with the real transport, and is not retried', async (db) => {
-  const t = await bootHooks(db);
-  const { body } = await t.create({ eventTypes: ['app.synced'] });
-  // The real transport is what refuses (the fake would send anywhere): the name now points inside.
-  const strict = createWebhookHandler({
-    db,
-    masterKey,
-    now: Date.now,
-    resolve: async () => [{ address: '169.254.169.254', family: 4 }],
-    send: realSend,
-  });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced' });
-  const job = await claimNext(db, Date.now() + 1000);
-  assert.ok(job);
-  await strict(job.payload, job); // does not throw: nothing to retry
-  await completeJob(db, job);
-  const [log] = await deliveries(t, body.webhook.id);
-  assert.equal(log?.status, 'failed');
-  assert.match(log?.error ?? '', /not allowed/);
-  assert.equal(t.sent.length, 0);
-});
+dbTest(
+  'an address that is not allowed fails at once with the real transport, and is not retried',
+  async (db) => {
+    const t = await bootHooks(db);
+    const { body } = await t.create({ eventTypes: ['app.synced'] });
+    // The real transport is what refuses (the fake would send anywhere): the name now points inside.
+    const strict = createWebhookHandler({
+      db,
+      masterKey,
+      now: Date.now,
+      resolve: async () => [{ address: '169.254.169.254', family: 4 }],
+      send: realSend,
+    });
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced' });
+    const job = await claimNext(db, Date.now() + 1000);
+    assert.ok(job);
+    await strict(job.payload, job); // does not throw: nothing to retry
+    await completeJob(db, job);
+    const [log] = await deliveries(t, body.webhook.id);
+    assert.equal(log?.status, 'failed');
+    assert.match(log?.error ?? '', /not allowed/);
+    assert.equal(t.sent.length, 0);
+  },
+);
 
 dbTest('the delivery log is paged, newest first, and shows no secret', async (db) => {
   const t = await bootHooks(db);
@@ -403,46 +509,57 @@ dbTest('the delivery log is paged, newest first, and shows no secret', async (db
   const id = body.webhook.id as string;
   // A receiver that echoes the signing secret back in its answer.
   t.reply.fallback = { ok: true, status: 200, body: `got it, secret ${body.secret}\u0000` };
-  for (let i = 0; i < 3; i++) await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { i } });
+  for (let i = 0; i < 3; i++)
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { i } });
   await t.run();
   const all = await deliveries(t, id);
   assert.equal(all.length, 3);
   const times = all.map((d) => d.createdAt);
-  assert.deepEqual(times, [...times].sort((a, b) => b - a));
+  assert.deepEqual(
+    times,
+    [...times].sort((a, b) => b - a),
+  );
   assert.equal(all[0]?.responseBody, 'got it, secret [redacted]');
   assert.equal(JSON.stringify(all).includes(body.secret), false);
   assert.equal((await deliveries(t, id, '?limit=2')).length, 2);
   for (const bad of ['?limit=0', '?limit=101', '?limit=abc', '?limit=1.5']) {
-    assert.equal((await t.call(t.owner, 'GET', `/webhooks/${id}/deliveries${bad}`)).status, 400, bad);
+    assert.equal(
+      (await t.call(t.owner, 'GET', `/webhooks/${id}/deliveries${bad}`)).status,
+      400,
+      bad,
+    );
   }
   assert.equal((await t.call(t.owner, 'GET', '/webhooks/nope/deliveries')).status, 404);
 });
 
-dbTest('a disabled webhook, or a secret that cannot be read, fails the delivery without sending', async (db) => {
-  const t = await bootHooks(db);
-  const { body } = await t.create({ eventTypes: ['app.synced'] });
-  const id = body.webhook.id as string;
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 1 } });
-  await t.call(t.owner, 'PATCH', `/webhooks/${id}`, { enabled: false });
-  await t.run();
-  let log = (await deliveries(t, id))[0];
-  assert.equal(log?.status, 'failed');
-  assert.match(log?.error ?? '', /disabled/);
+dbTest(
+  'a disabled webhook, or a secret that cannot be read, fails the delivery without sending',
+  async (db) => {
+    const t = await bootHooks(db);
+    const { body } = await t.create({ eventTypes: ['app.synced'] });
+    const id = body.webhook.id as string;
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 1 } });
+    await t.call(t.owner, 'PATCH', `/webhooks/${id}`, { enabled: false });
+    await t.run();
+    let log = (await deliveries(t, id))[0];
+    assert.equal(log?.status, 'failed');
+    assert.match(log?.error ?? '', /disabled/);
 
-  await t.call(t.owner, 'PATCH', `/webhooks/${id}`, { enabled: true });
-  await db.execute('UPDATE webhook_endpoints SET ciphertext = ? WHERE id = ?', ['garbage', id]);
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 2 } });
-  await t.run();
-  log = (await deliveries(t, id))[0];
-  assert.equal(log?.status, 'failed');
-  assert.match(log?.error ?? '', /Rotate/);
-  assert.equal(t.sent.length, 0);
-  // Rotating repairs it.
-  await t.call(t.owner, 'POST', `/webhooks/${id}/rotate-secret`);
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 3 } });
-  await t.run();
-  assert.equal(t.sent.length, 1);
-});
+    await t.call(t.owner, 'PATCH', `/webhooks/${id}`, { enabled: true });
+    await db.execute('UPDATE webhook_endpoints SET ciphertext = ? WHERE id = ?', ['garbage', id]);
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 2 } });
+    await t.run();
+    log = (await deliveries(t, id))[0];
+    assert.equal(log?.status, 'failed');
+    assert.match(log?.error ?? '', /Rotate/);
+    assert.equal(t.sent.length, 0);
+    // Rotating repairs it.
+    await t.call(t.owner, 'POST', `/webhooks/${id}/rotate-secret`);
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 3 } });
+    await t.run();
+    assert.equal(t.sent.length, 1);
+  },
+);
 
 dbTest('a test event goes through the same path, and says it is a test', async (db) => {
   const t = await bootHooks(db);
@@ -459,7 +576,10 @@ dbTest('a test event goes through the same path, and says it is a test', async (
   assert.equal(parsed.type, 'webhook.test');
   assert.equal(parsed.id, null);
   assert.equal(parsed.workspaceId, t.workspaceId);
-  assert.equal(hit?.headers['x-mrm-signature'], `v1=${signWebhook(body.secret, hit?.headers['x-mrm-timestamp'] ?? '', hit?.body ?? '')}`);
+  assert.equal(
+    hit?.headers['x-mrm-signature'],
+    `v1=${signWebhook(body.secret, hit?.headers['x-mrm-timestamp'] ?? '', hit?.body ?? '')}`,
+  );
   const [log] = await deliveries(t, id);
   assert.equal(log?.eventType, 'webhook.test');
   assert.equal(log?.eventId, null);
@@ -469,63 +589,108 @@ dbTest('a test event goes through the same path, and says it is a test', async (
   assert.deepEqual((await t.call(t.owner, 'GET', '/events?since=0')).body.events, []);
 });
 
-dbTest('redelivery sends the same body again as a new delivery that points at the first', async (db) => {
-  const t = await bootHooks(db);
-  const { body } = await t.create({ eventTypes: ['app.synced'] });
-  const id = body.webhook.id as string;
-  t.reply.next.push({ ok: true, status: 500, body: 'oops' });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 7 } });
-  await t.run(Date.now() + 1000);
-  const [first] = await deliveries(t, id);
-  assert.ok(first);
-  const res = await t.call(t.owner, 'POST', `/webhooks/${id}/deliveries/${first.id}/redeliver`);
-  assert.equal(res.status, 202);
-  await t.run(Date.now() + 2000);
-  const again = (await deliveries(t, id)).find((d) => d.id === res.body.deliveryId);
-  assert.equal(again?.redeliveryOf, first.id);
-  assert.equal(again?.status, 'success');
-  assert.equal(again?.eventId, first.eventId);
-  const bodies = t.sent.map((s) => s.body);
-  assert.equal(bodies[0], bodies.at(-1));
-  // Redelivering a redelivery still points at the original.
-  const third = await t.call(t.owner, 'POST', `/webhooks/${id}/deliveries/${res.body.deliveryId}/redeliver`);
-  assert.equal(third.status, 202);
-  await t.run(Date.now() + 3000);
-  assert.equal((await deliveries(t, id)).find((d) => d.id === third.body.deliveryId)?.redeliveryOf, first.id);
+dbTest(
+  'redelivery sends the same body again as a new delivery that points at the first',
+  async (db) => {
+    const t = await bootHooks(db);
+    const { body } = await t.create({ eventTypes: ['app.synced'] });
+    const id = body.webhook.id as string;
+    t.reply.next.push({ ok: true, status: 500, body: 'oops' });
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 7 } });
+    await t.run(Date.now() + 1000);
+    const [first] = await deliveries(t, id);
+    assert.ok(first);
+    const res = await t.call(t.owner, 'POST', `/webhooks/${id}/deliveries/${first.id}/redeliver`);
+    assert.equal(res.status, 202);
+    await t.run(Date.now() + 2000);
+    const again = (await deliveries(t, id)).find((d) => d.id === res.body.deliveryId);
+    assert.equal(again?.redeliveryOf, first.id);
+    assert.equal(again?.status, 'success');
+    assert.equal(again?.eventId, first.eventId);
+    const bodies = t.sent.map((s) => s.body);
+    assert.equal(bodies[0], bodies.at(-1));
+    // Redelivering a redelivery still points at the original.
+    const third = await t.call(
+      t.owner,
+      'POST',
+      `/webhooks/${id}/deliveries/${res.body.deliveryId}/redeliver`,
+    );
+    assert.equal(third.status, 202);
+    await t.run(Date.now() + 3000);
+    assert.equal(
+      (await deliveries(t, id)).find((d) => d.id === third.body.deliveryId)?.redeliveryOf,
+      first.id,
+    );
 
-  assert.equal((await t.call(t.owner, 'POST', `/webhooks/${id}/deliveries/nope/redeliver`)).status, 404);
-  assert.equal((await t.call(t.owner, 'POST', `/webhooks/nope/deliveries/${first.id}/redeliver`)).status, 404);
-  const other = await t.create({ url: 'https://other.example.com/x' });
-  const crossed = await t.call(t.owner, 'POST', `/webhooks/${other.body.webhook.id}/deliveries/${first.id}/redeliver`);
-  assert.equal(crossed.status, 404, 'a delivery of another endpoint');
-  const outsider = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
-  assert.equal((await t.call(outsider.cookie, 'POST', `/webhooks/${id}/deliveries/${first.id}/redeliver`)).status, 404);
-  assert.equal((await t.call(outsider.cookie, 'POST', `/webhooks/${id}/deliveries/${first.id}/redeliver`, undefined, outsider.workspaceId)).status, 404);
-});
+    assert.equal(
+      (await t.call(t.owner, 'POST', `/webhooks/${id}/deliveries/nope/redeliver`)).status,
+      404,
+    );
+    assert.equal(
+      (await t.call(t.owner, 'POST', `/webhooks/nope/deliveries/${first.id}/redeliver`)).status,
+      404,
+    );
+    const other = await t.create({ url: 'https://other.example.com/x' });
+    const crossed = await t.call(
+      t.owner,
+      'POST',
+      `/webhooks/${other.body.webhook.id}/deliveries/${first.id}/redeliver`,
+    );
+    assert.equal(crossed.status, 404, 'a delivery of another endpoint');
+    const outsider = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
+    assert.equal(
+      (await t.call(outsider.cookie, 'POST', `/webhooks/${id}/deliveries/${first.id}/redeliver`))
+        .status,
+      404,
+    );
+    assert.equal(
+      (
+        await t.call(
+          outsider.cookie,
+          'POST',
+          `/webhooks/${id}/deliveries/${first.id}/redeliver`,
+          undefined,
+          outsider.workspaceId,
+        )
+      ).status,
+      404,
+    );
+  },
+);
 
-dbTest('tests and redeliveries are rate limited per workspace, and an unknown id costs no slot', async (db) => {
-  const t = await bootHooks(db);
-  const { body } = await t.create();
-  const id = body.webhook.id as string;
-  for (let i = 0; i < 20; i++) await t.call(t.owner, 'POST', '/webhooks/nope/test');
-  let accepted = 0;
-  let limited: Awaited<ReturnType<Boot['call']>> | undefined;
-  for (let i = 0; i < 12; i++) {
-    const res = await t.call(t.owner, 'POST', `/webhooks/${id}/test`);
-    if (res.status === 202) accepted++;
-    else limited ??= res;
-  }
-  assert.equal(accepted, 10);
-  assert.equal(limited?.status, 429);
-  assert.equal(limited?.body.error, 'rate_limited');
-  assert.ok(Number(limited?.headers.get('retry-after')) > 0);
-});
+dbTest(
+  'tests and redeliveries are rate limited per workspace, and an unknown id costs no slot',
+  async (db) => {
+    const t = await bootHooks(db);
+    const { body } = await t.create();
+    const id = body.webhook.id as string;
+    for (let i = 0; i < 20; i++) await t.call(t.owner, 'POST', '/webhooks/nope/test');
+    let accepted = 0;
+    let limited: Awaited<ReturnType<Boot['call']>> | undefined;
+    for (let i = 0; i < 12; i++) {
+      const res = await t.call(t.owner, 'POST', `/webhooks/${id}/test`);
+      if (res.status === 202) accepted++;
+      else limited ??= res;
+    }
+    assert.equal(accepted, 10);
+    assert.equal(limited?.status, 429);
+    assert.equal(limited?.body.error, 'rate_limited');
+    assert.ok(Number(limited?.headers.get('retry-after')) > 0);
+  },
+);
 
 test('signWebhook is HMAC-SHA256 over "<timestamp>.<body>" as hex', () => {
-  assert.equal(signWebhook('whsec_test', 1700000000, '{"a":1}'), signWebhook('whsec_test', '1700000000', '{"a":1}'));
+  assert.equal(
+    signWebhook('whsec_test', 1700000000, '{"a":1}'),
+    signWebhook('whsec_test', '1700000000', '{"a":1}'),
+  );
   assert.match(signWebhook('whsec_test', 1, 'x'), /^[0-9a-f]{64}$/);
   assert.notEqual(signWebhook('whsec_test', 1, 'x'), signWebhook('whsec_test', 2, 'x'));
   assert.notEqual(signWebhook('whsec_test', 1, 'x'), signWebhook('whsec_other', 1, 'x'));
   assert.notEqual(signWebhook('whsec_test', 1, 'x'), signWebhook('whsec_test', 1, 'y'));
-  assert.notEqual(signWebhook('whsec_test', 11, 'x'), signWebhook('whsec_test', 1, '1x'), 'the dot separates them');
+  assert.notEqual(
+    signWebhook('whsec_test', 11, 'x'),
+    signWebhook('whsec_test', 1, '1x'),
+    'the dot separates them',
+  );
 });

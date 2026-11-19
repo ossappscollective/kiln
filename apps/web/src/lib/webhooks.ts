@@ -19,30 +19,96 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'plan.deadline_due_soon', label: 'A release plan’s deadline is close' },
   { type: 'plan.deadline_overdue', label: 'A release plan’s deadline has passed' },
   { type: 'plan.rollout_step_due', label: 'A planned rollout step’s time has passed' },
-  { type: 'review.new_low_rating', label: 'A low-rated customer review arrived (ids and rating only)' },
+  {
+    type: 'review.new_low_rating',
+    label: 'A low-rated customer review arrived (ids and rating only)',
+  },
   { type: 'review.sync_failed', label: 'Reading customer reviews failed' },
-  { type: 'review.reply_sent', label: 'A reply to a customer review was published in the store (ids only)' },
-  { type: 'release.rollout_changed', label: 'A staged rollout or phased release was changed in the store (ids and values only)' },
-  { type: 'listing.draft_pushed', label: 'Staged listing changes were written to the store as a draft (ids and counts only; never submitted)' },
-  { type: 'listing.submitted', label: 'A listing version was submitted for review in the store (ids only; never released)' },
-  { type: 'release.started', label: 'A release was started in the store: an approved version released or a Play draft rolled out (ids and values only)' },
-  { type: 'aso.rank_changed', label: 'A tracked keyword moved a lot in the store search results (ids and places only, never the term)' },
-  { type: 'aso.competitor_changed', label: 'A followed competitor changed its listing, price or rating (ids and field names only)' },
+  {
+    type: 'review.reply_sent',
+    label: 'A reply to a customer review was published in the store (ids only)',
+  },
+  {
+    type: 'release.rollout_changed',
+    label: 'A staged rollout or phased release was changed in the store (ids and values only)',
+  },
+  {
+    type: 'listing.draft_pushed',
+    label:
+      'Staged listing changes were written to the store as a draft (ids and counts only; never submitted)',
+  },
+  {
+    type: 'listing.submitted',
+    label: 'A listing version was submitted for review in the store (ids only; never released)',
+  },
+  {
+    type: 'release.started',
+    label:
+      'A release was started in the store: an approved version released or a Play draft rolled out (ids and values only)',
+  },
+  {
+    type: 'aso.rank_changed',
+    label:
+      'A tracked keyword moved a lot in the store search results (ids and places only, never the term)',
+  },
+  {
+    type: 'aso.competitor_changed',
+    label: 'A followed competitor changed its listing, price or rating (ids and field names only)',
+  },
   { type: 'ci.run_started', label: 'A GitHub Actions workflow run started (ids only)' },
-  { type: 'release.stalled', label: 'A release looks unfinished: a build landed and the next step did not happen (ids and hours only)' },
-  { type: 'review.unanswered', label: 'Reviews are waiting for an answer (counts and the oldest age only)' },
-  { type: 'pending.published', label: 'Pending changes were published in one go (ids, counts and the outcome of each step only)' },
-  { type: 'ai.suggestion_created', label: 'An AI suggestion was proposed (ids and the task only; nothing is applied)' },
+  {
+    type: 'release.stalled',
+    label:
+      'A release looks unfinished: a build landed and the next step did not happen (ids and hours only)',
+  },
+  {
+    type: 'review.unanswered',
+    label: 'Reviews are waiting for an answer (counts and the oldest age only)',
+  },
+  {
+    type: 'pending.published',
+    label:
+      'Pending changes were published in one go (ids, counts and the outcome of each step only)',
+  },
+  {
+    type: 'ai.suggestion_created',
+    label: 'An AI suggestion was proposed (ids and the task only; nothing is applied)',
+  },
   { type: 'analytics.synced', label: 'Analytics data was synced for an app (ids and counts only)' },
   { type: 'stepup.verified', label: 'Someone confirmed a hard action with a passkey or password' },
-  { type: 'stepup.failed', label: 'A confirmation of a hard action failed (wrong password or passkey)' },
-  { type: 'auth.second_factor_failed', label: 'A second factor failed at sign-in (a wrong code after a right password; ids and a fixed reason only)' },
-  { type: 'stepup.recovery_used', label: 'A step-up recovery code was used (ids and how many are left only; never the code)' },
-  { type: 'ci.run_finished', label: 'A GitHub Actions workflow run finished (ids and the conclusion only)' },
-  { type: 'assets.pulled', label: 'Store images were pulled into a change set for the repository (ids and counts only)' },
-  { type: 'alert.raised', label: 'An alert was raised (its type, severity, title and ids; see docs/alerts.md)' },
-  { type: 'token.created', label: 'An API token was created (its id, name and role; never the token)' },
-  { type: 'member.added', label: 'Someone joined the workspace by accepting an invitation (ids and role)' },
+  {
+    type: 'stepup.failed',
+    label: 'A confirmation of a hard action failed (wrong password or passkey)',
+  },
+  {
+    type: 'auth.second_factor_failed',
+    label:
+      'A second factor failed at sign-in (a wrong code after a right password; ids and a fixed reason only)',
+  },
+  {
+    type: 'stepup.recovery_used',
+    label: 'A step-up recovery code was used (ids and how many are left only; never the code)',
+  },
+  {
+    type: 'ci.run_finished',
+    label: 'A GitHub Actions workflow run finished (ids and the conclusion only)',
+  },
+  {
+    type: 'assets.pulled',
+    label: 'Store images were pulled into a change set for the repository (ids and counts only)',
+  },
+  {
+    type: 'alert.raised',
+    label: 'An alert was raised (its type, severity, title and ids; see docs/alerts.md)',
+  },
+  {
+    type: 'token.created',
+    label: 'An API token was created (its id, name and role; never the token)',
+  },
+  {
+    type: 'member.added',
+    label: 'Someone joined the workspace by accepting an invitation (ids and role)',
+  },
 ];
 
 export type WebhookForm = {
@@ -56,7 +122,13 @@ export type WebhookForm = {
 
 export type WebhookFormProblems = { url?: string; types?: string };
 
-export const emptyWebhookForm = (): WebhookForm => ({ url: '', description: '', all: true, types: [], enabled: true });
+export const emptyWebhookForm = (): WebhookForm => ({
+  url: '',
+  description: '',
+  all: true,
+  types: [],
+  enabled: true,
+});
 
 export function formFromEndpoint(endpoint: WebhookEndpoint): WebhookForm {
   const all = endpoint.eventTypes.includes('*');
@@ -85,16 +157,24 @@ export function validateWebhookForm(form: WebhookForm): WebhookFormProblems {
       problems.url = 'That does not look like a web address. Start with https://.';
     }
     if (parsed) {
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') problems.url = 'Use an https:// address.';
-      else if (parsed.username || parsed.password) problems.url = 'Leave the user name and password out of the address.';
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
+        problems.url = 'Use an https:// address.';
+      else if (parsed.username || parsed.password)
+        problems.url = 'Leave the user name and password out of the address.';
       else if (raw.length > 2048) problems.url = 'The address is too long.';
     }
   }
-  if (!form.all && form.types.length === 0) problems.types = 'Choose at least one event, or send everything.';
+  if (!form.all && form.types.length === 0)
+    problems.types = 'Choose at least one event, or send everything.';
   return problems;
 }
 
-export type WebhookInput = { url: string; description?: string; eventTypes: string[]; enabled: boolean };
+export type WebhookInput = {
+  url: string;
+  description?: string;
+  eventTypes: string[];
+  enabled: boolean;
+};
 
 export function createWebhookInput(form: WebhookForm): WebhookInput {
   const description = form.description.trim();
@@ -111,7 +191,8 @@ export function patchFor(endpoint: WebhookEndpoint, form: WebhookForm): Record<s
   const next = createWebhookInput(form);
   const patch: Record<string, unknown> = {};
   if (next.url !== endpoint.url) patch.url = next.url;
-  if ((next.description ?? null) !== endpoint.description) patch.description = next.description ?? null;
+  if ((next.description ?? null) !== endpoint.description)
+    patch.description = next.description ?? null;
   const before = [...endpoint.eventTypes].sort().join(',');
   if ([...next.eventTypes].sort().join(',') !== before) patch.eventTypes = next.eventTypes;
   if (next.enabled !== endpoint.enabled) patch.enabled = next.enabled;
@@ -155,13 +236,17 @@ export function deliveryDetail(delivery: WebhookDelivery): string {
   return parts.join(' · ');
 }
 
-export function lastDeliveryLabel(endpoint: Pick<WebhookEndpoint, 'lastDelivery'>, now: number = Date.now()): string {
+export function lastDeliveryLabel(
+  endpoint: Pick<WebhookEndpoint, 'lastDelivery'>,
+  now: number = Date.now(),
+): string {
   const last = endpoint.lastDelivery;
   if (!last) return 'No deliveries yet';
   return `${deliveryView(last.status).label}, ${timeAgo(last.at, now)}`;
 }
 
-export const deliveryTime = (delivery: Pick<WebhookDelivery, 'createdAt'>) => fullTime(delivery.createdAt);
+export const deliveryTime = (delivery: Pick<WebhookDelivery, 'createdAt'>) =>
+  fullTime(delivery.createdAt);
 
 /** Only a delivery that has finished, one way or the other, can be sent again. */
 export const canRedeliver = (delivery: Pick<WebhookDelivery, 'status'>) =>

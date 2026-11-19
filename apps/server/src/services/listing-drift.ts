@@ -3,6 +3,7 @@ import {
   APP_STORE_FIELD_SPECS,
   APP_STORE_FIELDS,
   DEFAULT_LOCALE,
+  isApplePlatform,
   type Listing,
   type ListingFieldSpec,
   type ListingProblem,
@@ -11,7 +12,6 @@ import {
   PLAY_FIELDS,
   type Platform,
   validateListing,
-  isApplePlatform,
 } from '@mrm/core';
 
 /**
@@ -31,8 +31,9 @@ export const isListingField = (platform: Platform, field: string): boolean =>
   listingFieldsFor(platform).includes(field);
 
 export function fieldSpec(platform: Platform, field: string): ListingFieldSpec | undefined {
-  const specs: Record<string, ListingFieldSpec> =
-    isApplePlatform(platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS;
+  const specs: Record<string, ListingFieldSpec> = isApplePlatform(platform)
+    ? APP_STORE_FIELD_SPECS
+    : PLAY_FIELD_SPECS;
   return specs[field];
 }
 
@@ -48,7 +49,9 @@ export const ABSENT_HASH = 'absent';
 
 /** SHA-256 of the normalized value, or `ABSENT_HASH` for null. Stored with every snapshot. */
 export const hashListingValue = (value: string | null): string =>
-  value === null ? ABSENT_HASH : createHash('sha256').update(normalizeListingValue(value)).digest('hex');
+  value === null
+    ? ABSENT_HASH
+    : createHash('sha256').update(normalizeListingValue(value)).digest('hex');
 
 export type FieldValue = { locale: string; field: string; value: string };
 
@@ -60,8 +63,9 @@ export const splitKey = (key: string): { locale: string; field: string } => {
 
 /** The listing of the app's own store as flat field values. A field that is not set is left out. */
 export function flattenListing(listing: Listing, platform: Platform): FieldValue[] {
-  const locales: Record<string, LocaleText<string>> | undefined =
-    isApplePlatform(platform) ? listing.appStore?.locales : listing.googlePlay?.locales;
+  const locales: Record<string, LocaleText<string>> | undefined = isApplePlatform(platform)
+    ? listing.appStore?.locales
+    : listing.googlePlay?.locales;
   const out: FieldValue[] = [];
   if (!locales) return out;
   for (const locale of Object.keys(locales).sort()) {
@@ -91,7 +95,12 @@ export const hasStoreListing = (listing: Listing, platform: Platform): boolean =
  *   (nothing in the history is shared).
  * - `missing-in-one`: only one of them has a value; `missingIn` says which one lacks it.
  */
-export type DriftStatus = 'identical' | 'repo-ahead' | 'store-ahead' | 'diverged' | 'missing-in-one';
+export type DriftStatus =
+  | 'identical'
+  | 'repo-ahead'
+  | 'store-ahead'
+  | 'diverged'
+  | 'missing-in-one';
 
 export const DRIFT_STATUSES: readonly DriftStatus[] = [
   'identical',
@@ -112,7 +121,10 @@ export type DriftInput = {
   liveHistory: ReadonlySet<string> | readonly string[];
 };
 
-export function classifyDrift(input: DriftInput): { status: DriftStatus; missingIn?: 'repo' | 'store' } {
+export function classifyDrift(input: DriftInput): {
+  status: DriftStatus;
+  missingIn?: 'repo' | 'store';
+} {
   const { repo, live } = input;
   if (repo === null && live === null) return { status: 'identical' };
   if (repo === null) return { status: 'missing-in-one', missingIn: 'repo' };
@@ -138,7 +150,12 @@ export type DriftSide = {
   source: ListingSource | null;
 };
 
-export const emptySide = (): DriftSide => ({ value: null, observedAt: null, sourceRef: null, source: null });
+export const emptySide = (): DriftSide => ({
+  value: null,
+  observedAt: null,
+  sourceRef: null,
+  source: null,
+});
 
 export type SideProblem = Pick<
   ListingProblem,

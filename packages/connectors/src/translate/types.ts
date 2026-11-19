@@ -54,12 +54,18 @@ export class TranslateError extends Error {
   readonly retryAfterSeconds: number | undefined;
   /** A short fixed-vocabulary hint for the person debugging a setup (`http_404`, `connection`, `blocked`); never provider text. */
   readonly detail: string | undefined;
-  constructor(kind: TranslateErrorKind, options: { retryAfterSeconds?: number; detail?: string } = {}) {
+  constructor(
+    kind: TranslateErrorKind,
+    options: { retryAfterSeconds?: number; detail?: string } = {},
+  ) {
     super(messages[kind]);
     this.name = 'TranslateError';
     this.kind = kind;
     this.retryAfterSeconds = options.retryAfterSeconds;
-    this.detail = options.detail !== undefined && /^[a-z0-9_]{1,24}$/.test(options.detail) ? options.detail : undefined;
+    this.detail =
+      options.detail !== undefined && /^[a-z0-9_]{1,24}$/.test(options.detail)
+        ? options.detail
+        : undefined;
   }
 }
 

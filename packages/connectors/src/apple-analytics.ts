@@ -1,11 +1,11 @@
 import { analyticsLimits } from '@mrm/core';
+import { AnalyticsError } from './analytics-types.ts';
 import {
-  AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { appleError } from './appstoreconnect.ts';
-import { AnalyticsError } from './analytics-types.ts';
 import { decodeTableText, openFileBytes } from './delimited.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
 import {
@@ -15,8 +15,8 @@ import {
   type Json,
   num,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -63,7 +63,11 @@ export type AppleReportRequest = {
 };
 
 export type AppleReportRef = { id: string; name: string; category: string | null };
-export type AppleInstanceRef = { id: string; granularity: string; /** YYYY-MM-DD, or '' when Apple sent none. */ processingDate: string };
+export type AppleInstanceRef = {
+  id: string;
+  granularity: string /** YYYY-MM-DD, or '' when Apple sent none. */;
+  processingDate: string;
+};
 
 /** What a test double or the real connector offers to the server's sync. */
 export interface AppleAnalyticsPort {
@@ -114,13 +118,23 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     this.#tokens = new AppStoreConnectTokenProvider(options.credential, this.#http.now);
   }
 
-  static fromSecret(secret: string, options: Omit<AppleAnalyticsOptions, 'credential'>): AppleAnalyticsConnector {
-    return new AppleAnalyticsConnector({ ...options, credential: parseAppStoreConnectSecret(secret) });
+  static fromSecret(
+    secret: string,
+    options: Omit<AppleAnalyticsOptions, 'credential'>,
+  ): AppleAnalyticsConnector {
+    return new AppleAnalyticsConnector({
+      ...options,
+      credential: parseAppStoreConnectSecret(secret),
+    });
   }
 
   #appId(value: string): string {
     if (!/^[0-9]{1,20}$/.test(value)) {
-      throw new StoreError('appstoreconnect', 'invalid_input', 'The App Store id of the app is missing or not a number. Sync the app first.');
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        'The App Store id of the app is missing or not a number. Sync the app first.',
+      );
     }
     return value;
   }
@@ -143,7 +157,13 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
       const rid = text(item.id);
       const attributes = isRecord(item.attributes) ? item.attributes : {};
       if (!rid) return [];
-      return [{ id: rid, accessType: text(attributes.accessType) ?? '', stoppedDueToInactivity: attributes.stoppedDueToInactivity === true }];
+      return [
+        {
+          id: rid,
+          accessType: text(attributes.accessType) ?? '',
+          stoppedDueToInactivity: attributes.stoppedDueToInactivity === true,
+        },
+      ];
     });
   }
 
@@ -151,7 +171,10 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
    * Creates a report request at Apple. A STORE WRITE (a request that keeps producing reports). A 403 is `analytics_role_required`
    * (Apple's table: Admin). Never retried on a 429: a second POST could create a second request.
    */
-  async createRequest(appStoreId: string, accessType: AppleAccessType): Promise<AppleReportRequest> {
+  async createRequest(
+    appStoreId: string,
+    accessType: AppleAccessType,
+  ): Promise<AppleReportRequest> {
     const id = this.#appId(appStoreId);
     const json = await this.#call(
       'POST',
@@ -169,10 +192,18 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     const data = isRecord(json.data) ? json.data : {};
     const rid = text(data.id);
     if (!rid) {
-      throw new StoreError('appstoreconnect', 'unexpected', 'Apple answered the creation of the report request with a response that could not be read.');
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        'Apple answered the creation of the report request with a response that could not be read.',
+      );
     }
     const attributes = isRecord(data.attributes) ? data.attributes : {};
-    return { id: rid, accessType: text(attributes.accessType) ?? accessType, stoppedDueToInactivity: attributes.stoppedDueToInactivity === true };
+    return {
+      id: rid,
+      accessType: text(attributes.accessType) ?? accessType,
+      stoppedDueToInactivity: attributes.stoppedDueToInactivity === true,
+    };
   }
 
   async listReports(requestId: string): Promise<AppleReportRef[]> {
@@ -203,7 +234,13 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
       const iid = text(item.id);
       const attributes = isRecord(item.attributes) ? item.attributes : {};
       if (!iid) return [];
-      return [{ id: iid, granularity: text(attributes.granularity) ?? '', processingDate: toDay(attributes.processingDate) }];
+      return [
+        {
+          id: iid,
+          granularity: text(attributes.granularity) ?? '',
+          processingDate: toDay(attributes.processingDate),
+        },
+      ];
     });
     // Only DAILY files are read (a weekly or monthly file carries the first day of a period in its Date column).
     return found
@@ -213,7 +250,9 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
   }
 
   /** The segments of an instance with their pre-signed links (valid about 5 minutes). The link is not enumerable. */
-  async #segments(instanceId: string): Promise<{ id: string; sizeInBytes: number | undefined; url: string }[]> {
+  async #segments(
+    instanceId: string,
+  ): Promise<{ id: string; sizeInBytes: number | undefined; url: string }[]> {
     const id = this.#id(instanceId);
     const items = await this.#list(
       `${this.#base}/v1/analyticsReportInstances/${enc(id)}/segments?limit=200`,
@@ -226,7 +265,11 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
       const attributes = isRecord(item.attributes) ? item.attributes : {};
       const url = text(attributes.url);
       if (!sid || !url) continue;
-      const segment = { id: sid, sizeInBytes: num(attributes.sizeInBytes) } as { id: string; sizeInBytes: number | undefined; url: string };
+      const segment = { id: sid, sizeInBytes: num(attributes.sizeInBytes) } as {
+        id: string;
+        sizeInBytes: number | undefined;
+        url: string;
+      };
       // Not enumerable: a log line, an error report or JSON.stringify of a segment shows no link.
       Object.defineProperty(segment, 'url', { value: url, enumerable: false });
       out.push(segment);
@@ -234,7 +277,9 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     return out;
   }
 
-  async readInstance(instanceId: string): Promise<{ texts: string[]; segments: number; bytes: number }> {
+  async readInstance(
+    instanceId: string,
+  ): Promise<{ texts: string[]; segments: number; bytes: number }> {
     // The links expire after about 5 minutes. They are used at once; a link that is already dead is asked for again, once.
     for (let attempt = 0; ; attempt++) {
       const segments = await this.#segments(instanceId);
@@ -242,7 +287,10 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
         const texts: string[] = [];
         let bytes = 0;
         for (const segment of segments) {
-          if (segment.sizeInBytes !== undefined && segment.sizeInBytes > analyticsLimits.maxFileBytes) {
+          if (
+            segment.sizeInBytes !== undefined &&
+            segment.sizeInBytes > analyticsLimits.maxFileBytes
+          ) {
             throw new AnalyticsError('segment_too_large');
           }
           const raw = await this.#download(segment.url);
@@ -252,7 +300,8 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
         }
         return { texts, segments: segments.length, bytes };
       } catch (error) {
-        if (error instanceof AnalyticsError && error.code === 'segment_expired' && attempt === 0) continue;
+        if (error instanceof AnalyticsError && error.code === 'segment_expired' && attempt === 0)
+          continue;
         throw error;
       }
     }
@@ -262,14 +311,22 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     let reply: BytesReply;
     try {
       // No headers: the link is pre-signed, and no token goes to the storage host.
-      reply = await this.#downloads.sendBytes('GET', url, { maxBytes: analyticsLimits.maxFileBytes });
+      reply = await this.#downloads.sendBytes('GET', url, {
+        maxBytes: analyticsLimits.maxFileBytes,
+      });
     } catch (error) {
-      if (error instanceof StoreError && error.kind === 'too_large') throw new AnalyticsError('segment_too_large');
+      if (error instanceof StoreError && error.kind === 'too_large')
+        throw new AnalyticsError('segment_too_large');
       throw error;
     }
     if (reply.status >= 200 && reply.status < 300) return reply.bytes;
     // A dead link answers 400, 403, 404 or 410, depending on the storage service (UNVERIFIED which): all mean "ask again".
-    if (reply.status === 400 || reply.status === 403 || reply.status === 404 || reply.status === 410) {
+    if (
+      reply.status === 400 ||
+      reply.status === 403 ||
+      reply.status === 404 ||
+      reply.status === 410
+    ) {
       throw new AnalyticsError('segment_expired', undefined, reply.status);
     }
     throw new StoreError(
@@ -281,8 +338,10 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
   }
 
   async fetchSalesReport(input: { vendorNumber: string; date: string }): Promise<string | null> {
-    if (!/^[0-9]{5,12}$/.test(input.vendorNumber)) throw new AnalyticsError('vendor_number_invalid');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new StoreError('appstoreconnect', 'invalid_input', 'Not a valid date.');
+    if (!/^[0-9]{5,12}$/.test(input.vendorNumber))
+      throw new AnalyticsError('vendor_number_invalid');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date))
+      throw new StoreError('appstoreconnect', 'invalid_input', 'Not a valid date.');
     const query = [
       'filter[frequency]=DAILY',
       `filter[reportDate]=${input.date}`,
@@ -327,7 +386,8 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
 
   #mapError(reply: StoreReply, what: string): StoreError {
     const error = appleError(reply, this.#http.now(), what);
-    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
     const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
       const fields = {
         code: redact(d.code),
@@ -336,9 +396,17 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
         parameter: redact(d.parameter),
         pointer: redact(d.pointer),
       };
-      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
     });
-    return new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
+    return new StoreError(
+      'appstoreconnect',
+      error.kind,
+      this.#http.redact(error.message),
+      error.status,
+      details,
+    );
   }
 
   async #call(
@@ -356,7 +424,12 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     });
     if (reply.status >= 200 && reply.status < 300) {
       if (reply.malformed || !isRecord(reply.json)) {
-        throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect answered ${what} with a response that could not be read.`, reply.status);
+        throw new StoreError(
+          'appstoreconnect',
+          'unexpected',
+          `App Store Connect answered ${what} with a response that could not be read.`,
+          reply.status,
+        );
       }
       return reply.json;
     }
@@ -367,7 +440,8 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
       if (mapped.kind === 'forbidden') throw new AnalyticsError(codes.forbidden, undefined, 403);
       throw mapped;
     }
-    if (reply.status === 404 && codes.notFound) throw new AnalyticsError(codes.notFound, undefined, 404);
+    if (reply.status === 404 && codes.notFound)
+      throw new AnalyticsError(codes.notFound, undefined, 404);
     throw this.#mapError(reply, what);
   }
 
@@ -395,10 +469,18 @@ export class AppleAnalyticsConnector implements AppleAnalyticsPort {
     try {
       target = new URL(next, this.#base);
     } catch {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link that could not be read while ${what}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link that could not be read while ${what}.`,
+      );
     }
     if (target.origin !== new URL(this.#base).origin) {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link to another host while ${what}. It was not followed.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link to another host while ${what}. It was not followed.`,
+      );
     }
     return target.toString();
   }

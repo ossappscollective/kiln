@@ -1,9 +1,20 @@
 import { type Action, can } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { applyChangeSetLocally, publishLocalCommit } from '../services/change-set-local.ts';
+import { changeSetStaleness, refreshChangeSet } from '../services/change-set-refresh.ts';
+import {
+  applyChangeSet,
+  approveChangeSet,
+  createChangeSet,
+  discardChangeSet,
+  getChangeSet,
+  listChangeSets,
+} from '../services/change-sets.ts';
+import type { CloneUpkeep } from '../services/clone-upkeep.ts';
 import { detectedSources } from '../services/listing-sources.ts';
 import {
   createListingTarget,
@@ -21,28 +32,17 @@ import {
   localOnlyApplyRefusal,
 } from '../services/local-checkouts.ts';
 import {
-  type Failure,
-  type RepoContext,
   connectRepository,
   disconnectRepository,
+  type Failure,
   getDetection,
   getRepository,
   getRepositoryListing,
   listRepositories,
+  type RepoContext,
   repositoryView,
   scanRepository,
 } from '../services/repositories.ts';
-import { applyChangeSetLocally, publishLocalCommit } from '../services/change-set-local.ts';
-import { changeSetStaleness, refreshChangeSet } from '../services/change-set-refresh.ts';
-import type { CloneUpkeep } from '../services/clone-upkeep.ts';
-import {
-  approveChangeSet,
-  applyChangeSet,
-  createChangeSet,
-  discardChangeSet,
-  getChangeSet,
-  listChangeSets,
-} from '../services/change-sets.ts';
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
 const ws = (c: Context<AppEnv>) => param(c, 'workspaceId');
@@ -101,7 +101,10 @@ const MAX_RESOLUTIONS = 500;
 const refreshBody = z.object({
   resolutions: z
     .record(z.string().min(1).max(1000), z.enum(['mine', 'theirs']))
-    .refine((value) => Object.keys(value).length <= MAX_RESOLUTIONS, `At most ${MAX_RESOLUTIONS} choices.`)
+    .refine(
+      (value) => Object.keys(value).length <= MAX_RESOLUTIONS,
+      `At most ${MAX_RESOLUTIONS} choices.`,
+    )
     .optional(),
 });
 
@@ -115,7 +118,8 @@ const text = z.string().max(100_000);
 const MAX_LOCALES = 100;
 const MAX_FIELDS_PER_LOCALE = 40;
 const MAX_VERSIONS_PER_LOCALE = 50;
-const atMost = (max: number) => (value: Record<string, unknown>) => Object.keys(value).length <= max;
+const atMost = (max: number) => (value: Record<string, unknown>) =>
+  Object.keys(value).length <= max;
 const fields = z
   .record(
     localeKey,
@@ -125,10 +129,7 @@ const fields = z
   )
   .refine(atMost(MAX_LOCALES), `At most ${MAX_LOCALES} locales.`);
 const listingBody = z.object({
-  appStore: z
-    .object({ locales: fields, copyright: text.optional() })
-    .strict()
-    .optional(),
+  appStore: z.object({ locales: fields, copyright: text.optional() }).strict().optional(),
   googlePlay: z
     .object({
       locales: fields,
@@ -213,14 +214,18 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
 
   app.get('/:workspaceId/repositories', needs('repositories.read'), async (c) => {
     const repositories = await listRepositories(db, ws(c));
-    return c.json({ repositories: await Promise.all(repositories.map((r) => repositoryView(ctx, r))) });
+    return c.json({
+      repositories: await Promise.all(repositories.map((r) => repositoryView(ctx, r))),
+    });
   });
 
   app.post('/:workspaceId/repositories', needs('repositories.write'), async (c) => {
     const body = await parseBody(c, connectBody);
     if (!body.ok) return body.response;
     const done = await connectRepository(ctx, { workspaceId: ws(c), ...body.data }, actor(c));
-    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }, 201) : respond(c, done);
+    return done.ok
+      ? c.json({ repository: await repositoryView(ctx, done.repository) }, 201)
+      : respond(c, done);
   });
 
   // ----- local clones (docs/adr/0005-local-clone-reads.md) ---------------------------------
@@ -251,7 +256,9 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
       { workspaceId: ws(c), path: body.data.path, branch: body.data.branch, name: body.data.name },
       actor(c),
     );
-    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }, 201) : respond(c, done);
+    return done.ok
+      ? c.json({ repository: await repositoryView(ctx, done.repository) }, 201)
+      : respond(c, done);
   });
 
   app.put('/:workspaceId/repositories/:id/local', needs('repositories.write'), async (c) => {
@@ -268,12 +275,20 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
       },
       actor(c),
     );
-    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }) : respond(c, done);
+    return done.ok
+      ? c.json({ repository: await repositoryView(ctx, done.repository) })
+      : respond(c, done);
   });
 
   app.delete('/:workspaceId/repositories/:id/local', needs('repositories.write'), async (c) => {
-    const done = await detachLocalCheckout(ctx, { workspaceId: ws(c), repositoryId: param(c, 'id') }, actor(c));
-    return done.ok ? c.json({ repository: await repositoryView(ctx, done.repository) }) : respond(c, done);
+    const done = await detachLocalCheckout(
+      ctx,
+      { workspaceId: ws(c), repositoryId: param(c, 'id') },
+      actor(c),
+    );
+    return done.ok
+      ? c.json({ repository: await repositoryView(ctx, done.repository) })
+      : respond(c, done);
   });
 
   // ----- the managed clones (docs/adr/0005-local-clone-reads.md, "Clone upkeep") -----------------
@@ -307,7 +322,10 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
     const done = await upkeep.purge(ws(c), repository.id, actor(c));
     if (!done.ok) {
       return c.json(
-        { error: 'clone_busy', message: 'The repository is being read right now. Try again in a moment.' },
+        {
+          error: 'clone_busy',
+          message: 'The repository is being read right now. Try again in a moment.',
+        },
         409,
       );
     }
@@ -326,7 +344,11 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
   });
 
   app.delete('/:workspaceId/repositories/:id', needs('repositories.write'), async (c) => {
-    const done = await disconnectRepository(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    const done = await disconnectRepository(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id') },
+      actor(c),
+    );
     return done.ok ? c.body(null, 204) : respond(c, done);
   });
 
@@ -345,7 +367,10 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
   app.get('/:workspaceId/repositories/:id/listing', needs('repositories.scan'), async (c) => {
     const selection = querySelection(c);
     if ('error' in selection) {
-      return c.json({ error: 'invalid_request', message: 'The target or folder is too long.' }, 400);
+      return c.json(
+        { error: 'invalid_request', message: 'The target or folder is too long.' },
+        400,
+      );
     }
     const done = await getRepositoryListing(
       ctx,
@@ -361,51 +386,78 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
 
   // The saved places a repository's listing lives (the detected ones are in the listing and scan
   // responses). Reading them is a read; changing them is a repository setting (admin and owner).
-  app.get('/:workspaceId/repositories/:id/listing-targets', needs('repositories.read'), async (c) => {
-    const repository = await getRepository(db, ws(c), param(c, 'id'));
-    if (!repository) return notFound(c);
-    return c.json({ targets: await listListingTargets(db, ws(c), repository.id) });
-  });
+  app.get(
+    '/:workspaceId/repositories/:id/listing-targets',
+    needs('repositories.read'),
+    async (c) => {
+      const repository = await getRepository(db, ws(c), param(c, 'id'));
+      if (!repository) return notFound(c);
+      return c.json({ targets: await listListingTargets(db, ws(c), repository.id) });
+    },
+  );
 
-  const targetFailure = (c: Context<AppEnv>, f: { status: 404 | 409 | 422; error: string; message: string; problems?: unknown }) =>
-    c.json({ error: f.error, message: f.message, ...(f.problems ? { problems: f.problems } : {}) }, f.status);
-
-  app.post('/:workspaceId/repositories/:id/listing-targets', needs('repositories.write'), async (c) => {
-    const body = await parseBody(c, targetBody);
-    if (!body.ok) return body.response;
-    const done = await createListingTarget(
-      db,
-      { workspaceId: ws(c), repositoryId: param(c, 'id'), target: body.data, now: ctx.now() },
-      actor(c),
+  const targetFailure = (
+    c: Context<AppEnv>,
+    f: { status: 404 | 409 | 422; error: string; message: string; problems?: unknown },
+  ) =>
+    c.json(
+      { error: f.error, message: f.message, ...(f.problems ? { problems: f.problems } : {}) },
+      f.status,
     );
-    return done.ok ? c.json({ target: done.target }, 201) : targetFailure(c, done);
-  });
 
-  app.patch('/:workspaceId/repositories/:id/listing-targets/:targetId', needs('repositories.write'), async (c) => {
-    const body = await parseBody(c, targetPatch);
-    if (!body.ok) return body.response;
-    const done = await updateListingTarget(
-      db,
-      {
-        workspaceId: ws(c),
-        repositoryId: param(c, 'id'),
-        id: param(c, 'targetId'),
-        changes: body.data,
-        now: ctx.now(),
-      },
-      actor(c),
-    );
-    return done.ok ? c.json({ target: done.target }) : targetFailure(c, done);
-  });
+  app.post(
+    '/:workspaceId/repositories/:id/listing-targets',
+    needs('repositories.write'),
+    async (c) => {
+      const body = await parseBody(c, targetBody);
+      if (!body.ok) return body.response;
+      const done = await createListingTarget(
+        db,
+        { workspaceId: ws(c), repositoryId: param(c, 'id'), target: body.data, now: ctx.now() },
+        actor(c),
+      );
+      return done.ok ? c.json({ target: done.target }, 201) : targetFailure(c, done);
+    },
+  );
 
-  app.delete('/:workspaceId/repositories/:id/listing-targets/:targetId', needs('repositories.write'), async (c) => {
-    const done = await deleteListingTarget(
-      db,
-      { workspaceId: ws(c), repositoryId: param(c, 'id'), id: param(c, 'targetId'), now: ctx.now() },
-      actor(c),
-    );
-    return done.ok ? c.body(null, 204) : targetFailure(c, done);
-  });
+  app.patch(
+    '/:workspaceId/repositories/:id/listing-targets/:targetId',
+    needs('repositories.write'),
+    async (c) => {
+      const body = await parseBody(c, targetPatch);
+      if (!body.ok) return body.response;
+      const done = await updateListingTarget(
+        db,
+        {
+          workspaceId: ws(c),
+          repositoryId: param(c, 'id'),
+          id: param(c, 'targetId'),
+          changes: body.data,
+          now: ctx.now(),
+        },
+        actor(c),
+      );
+      return done.ok ? c.json({ target: done.target }) : targetFailure(c, done);
+    },
+  );
+
+  app.delete(
+    '/:workspaceId/repositories/:id/listing-targets/:targetId',
+    needs('repositories.write'),
+    async (c) => {
+      const done = await deleteListingTarget(
+        db,
+        {
+          workspaceId: ws(c),
+          repositoryId: param(c, 'id'),
+          id: param(c, 'targetId'),
+          now: ctx.now(),
+        },
+        actor(c),
+      );
+      return done.ok ? c.body(null, 204) : targetFailure(c, done);
+    },
+  );
 
   // ----- change sets ----------------------------------------------------------------------
 
@@ -463,12 +515,21 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
       try {
         json = JSON.parse(raw);
       } catch {
-        return c.json({ error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] }, 400);
+        return c.json(
+          { error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] },
+          400,
+        );
       }
       const result = applyBody.safeParse(json);
       if (!result.success) {
         return c.json(
-          { error: 'invalid_request', issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+          {
+            error: 'invalid_request',
+            issues: result.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
           400,
         );
       }
@@ -500,12 +561,18 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
     }
     if (parsed.branch !== undefined || parsed.push !== undefined || parsed.openPr !== undefined) {
       return c.json(
-        { error: 'invalid_request', message: '"branch", "push" and "openPr" apply to mode local_branch only.' },
+        {
+          error: 'invalid_request',
+          message: '"branch", "push" and "openPr" apply to mode local_branch only.',
+        },
         400,
       );
     }
     // Before the change set is claimed: it stays approved. A local-only repository has no GitHub to open a pull request on.
-    const refused = await localOnlyApplyRefusal(ctx, { workspaceId: ws(c), changeSetId: param(c, 'id') });
+    const refused = await localOnlyApplyRefusal(ctx, {
+      workspaceId: ws(c),
+      changeSetId: param(c, 'id'),
+    });
     if (refused) return respond(c, refused);
     return answer(await applyChangeSet(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c)));
   });
@@ -526,9 +593,17 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
       if (!body.success) return c.json({ error: 'invalid_request' }, 400);
       openPr = body.data.openPr === true;
     }
-    const done = await publishLocalCommit(ctx, { workspaceId: ws(c), id: param(c, 'id'), openPr }, actor(c));
+    const done = await publishLocalCommit(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id'), openPr },
+      actor(c),
+    );
     if (!done.ok) return respond(c, done);
-    return c.json(done.alreadyDone ? { changeSet: done.changeSet, alreadyDone: true } : { changeSet: done.changeSet });
+    return c.json(
+      done.alreadyDone
+        ? { changeSet: done.changeSet, alreadyDone: true }
+        : { changeSet: done.changeSet },
+    );
   });
 
   // Re-bases a stale change set onto the repository as it is now (change-set-refresh.ts). A conflict
@@ -542,12 +617,21 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
       try {
         json = JSON.parse(raw);
       } catch {
-        return c.json({ error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] }, 400);
+        return c.json(
+          { error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] },
+          400,
+        );
       }
       const result = refreshBody.safeParse(json);
       if (!result.success) {
         return c.json(
-          { error: 'invalid_request', issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+          {
+            error: 'invalid_request',
+            issues: result.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
           400,
         );
       }
@@ -566,7 +650,11 @@ export function repositoryRoutes(ctx: RepoContext, upkeep?: CloneUpkeep) {
   // Read-only: is the change set still what the repository holds? Reads with the stored credential
   // (or the local clone), so it needs the right a scan needs, and it writes nothing.
   app.get('/:workspaceId/change-sets/:id/staleness', needs('repositories.scan'), async (c) => {
-    const done = await changeSetStaleness(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    const done = await changeSetStaleness(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id') },
+      actor(c),
+    );
     if (!done.ok) return respond(c, done);
     const { ok: _ok, ...view } = done;
     return c.json(view);

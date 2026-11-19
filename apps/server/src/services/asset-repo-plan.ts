@@ -1,10 +1,10 @@
 import {
   type AssetKind,
   type AssetSlot,
+  isApplePlatform,
   PLAY_DEVICES,
   PLAY_GRAPHIC_FILES,
   type Platform,
-  isApplePlatform,
 } from '@mrm/core';
 import { screenshotFolders } from './store-assets.ts';
 
@@ -24,7 +24,11 @@ import { screenshotFolders } from './store-assets.ts';
 
 export type RepoSetFile = { path: string; oid: string | null };
 
-export type PlanLayout = { dir: string; /** A graphic of Google Play has one fixed name. */ fixedStem: string | null; stem: string };
+export type PlanLayout = {
+  dir: string /** A graphic of Google Play has one fixed name. */;
+  fixedStem: string | null;
+  stem: string;
+};
 
 export type LayoutInput = {
   platform: Platform;
@@ -45,28 +49,55 @@ const defaultScreenshotFolder = (appStoreRoot: string): string => {
   return folders[1] ?? folders[0] ?? 'screenshots';
 };
 
-export function layoutFor(input: LayoutInput): { ok: true; layout: PlanLayout } | { ok: false; message: string } {
+export function layoutFor(
+  input: LayoutInput,
+): { ok: true; layout: PlanLayout } | { ok: false; message: string } {
   const { platform, locale, slot } = input;
   const stem = slot.device ?? slot.kind;
   if (isApplePlatform(platform)) {
-    if (slot.kind !== 'screenshot') return { ok: false, message: 'Only App Store screenshots are put in a repository from here.' };
-    const mine = input.existing.find((a) => a.locale === locale && a.kind === slot.kind && a.device === slot.device);
+    if (slot.kind !== 'screenshot')
+      return {
+        ok: false,
+        message: 'Only App Store screenshots are put in a repository from here.',
+      };
+    const mine = input.existing.find(
+      (a) => a.locale === locale && a.kind === slot.kind && a.device === slot.device,
+    );
     if (mine) return { ok: true, layout: { dir: dirname(mine.path), fixedStem: null, stem } };
     // Where does this repository keep its screenshots? `<base>/<locale>/<file>` of any other locale.
     for (const a of input.existing) {
       if (a.kind !== 'screenshot') continue;
       const folder = dirname(a.path);
-      if (basename(folder) === a.locale && a.locale !== '') return { ok: true, layout: { dir: join(dirname(folder), locale), fixedStem: null, stem } };
+      if (basename(folder) === a.locale && a.locale !== '')
+        return { ok: true, layout: { dir: join(dirname(folder), locale), fixedStem: null, stem } };
     }
-    if (input.roots.appStore === null) return { ok: false, message: 'This repository has no App Store listing folder to put screenshots in.' };
-    return { ok: true, layout: { dir: join(defaultScreenshotFolder(input.roots.appStore), locale), fixedStem: null, stem } };
+    if (input.roots.appStore === null)
+      return {
+        ok: false,
+        message: 'This repository has no App Store listing folder to put screenshots in.',
+      };
+    return {
+      ok: true,
+      layout: {
+        dir: join(defaultScreenshotFolder(input.roots.appStore), locale),
+        fixedStem: null,
+        stem,
+      },
+    };
   }
   const root = input.roots.googlePlay;
-  if (root === null) return { ok: false, message: 'This repository has no Google Play listing folder to put images in.' };
+  if (root === null)
+    return {
+      ok: false,
+      message: 'This repository has no Google Play listing folder to put images in.',
+    };
   if (slot.kind === 'screenshot') {
     const device = PLAY_DEVICES.find((d) => d.id === slot.device);
     if (!device) return { ok: false, message: 'Not a Google Play screenshot type.' };
-    return { ok: true, layout: { dir: join(root, locale, 'images', device.dir), fixedStem: null, stem } };
+    return {
+      ok: true,
+      layout: { dir: join(root, locale, 'images', device.dir), fixedStem: null, stem },
+    };
   }
   const name = Object.keys(PLAY_GRAPHIC_FILES).find((n) => PLAY_GRAPHIC_FILES[n] === slot.kind);
   if (name === undefined) return { ok: false, message: 'Not a Google Play graphic.' };
@@ -80,10 +111,22 @@ export type Wanted =
   | { kind: 'new'; oid: string; format: 'png' | 'jpeg' };
 
 export type PlanStep =
-  | { op: 'write'; path: string; oid: string; from: { kind: 'new'; index: number } | { kind: 'repo'; path: string }; replacesOid: string | null }
+  | {
+      op: 'write';
+      path: string;
+      oid: string;
+      from: { kind: 'new'; index: number } | { kind: 'repo'; path: string };
+      replacesOid: string | null;
+    }
   | { op: 'delete'; path: string; oid: string };
 
-export type SetPlan = { steps: PlanStep[]; /** The path of each wanted file in the end. */ paths: string[]; renamed: boolean; unchanged: number; left: string[] };
+export type SetPlan = {
+  steps: PlanStep[] /** The path of each wanted file in the end. */;
+  paths: string[];
+  renamed: boolean;
+  unchanged: number;
+  left: string[];
+};
 
 const extOf = (format: string): string => (format === 'jpeg' ? 'jpg' : 'png');
 const extOfPath = (path: string): string => {
@@ -92,13 +135,19 @@ const extOfPath = (path: string): string => {
 };
 
 /** `<stem>-01.png`: two digits at least, so the names sort as the numbers do. */
-export function generatedName(layout: PlanLayout, index: number, count: number, ext: string): string {
+export function generatedName(
+  layout: PlanLayout,
+  index: number,
+  count: number,
+  ext: string,
+): string {
   if (layout.fixedStem !== null) return `${layout.fixedStem}.${ext}`;
   const width = Math.max(2, String(count).length);
   return `${layout.stem}-${String(index + 1).padStart(width, '0')}.${ext}`;
 }
 
-const ascending = (paths: readonly string[]): boolean => paths.every((p, i) => i === 0 || basename(paths[i - 1] as string) < basename(p));
+const ascending = (paths: readonly string[]): boolean =>
+  paths.every((p, i) => i === 0 || basename(paths[i - 1] as string) < basename(p));
 
 /**
  * The steps that make the repository's set (`current`, in index order) the wanted one. A new file takes over the path of the
@@ -106,7 +155,12 @@ const ascending = (paths: readonly string[]): boolean => paths.every((p, i) => i
  * the wanted order, or collide, every file gets a generated name. Files of the repository that are not wanted are deleted
  * only when `prune` is set (always for a Google Play graphic, which holds one file).
  */
-export function planSet(input: { layout: PlanLayout; current: readonly RepoSetFile[]; wanted: readonly Wanted[]; prune: boolean }): SetPlan {
+export function planSet(input: {
+  layout: PlanLayout;
+  current: readonly RepoSetFile[];
+  wanted: readonly Wanted[];
+  prune: boolean;
+}): SetPlan {
   const { layout, current, wanted } = input;
   const taken = new Set(current.map((c) => c.path));
   const names = (canonical: boolean): string[] => {
@@ -115,13 +169,21 @@ export function planSet(input: { layout: PlanLayout; current: readonly RepoSetFi
     wanted.forEach((w, i) => {
       let path: string;
       if (!canonical && w.kind === 'existing') path = w.path;
-      else if (!canonical && layout.fixedStem === null && current[i] && extOfPath(current[i].path) === extOf(w.kind === 'new' ? w.format : extOfPath(w.path)) && !used.has(current[i].path)) path = current[i].path;
+      else if (
+        !canonical &&
+        layout.fixedStem === null &&
+        current[i] &&
+        extOfPath(current[i].path) === extOf(w.kind === 'new' ? w.format : extOfPath(w.path)) &&
+        !used.has(current[i].path)
+      )
+        path = current[i].path;
       else {
         const ext = w.kind === 'new' ? extOf(w.format) : extOfPath(w.path) || 'png';
         path = `${layout.dir}/${generatedName(layout, i, wanted.length, ext)}`;
         if (!canonical) {
           let n = 2;
-          while ((used.has(path) || taken.has(path)) && layout.fixedStem === null) path = `${layout.dir}/${generatedName(layout, i, wanted.length, ext).replace(/(\.[a-z]+)$/, `-${n++}$1`)}`;
+          while ((used.has(path) || taken.has(path)) && layout.fixedStem === null)
+            path = `${layout.dir}/${generatedName(layout, i, wanted.length, ext).replace(/(\.[a-z]+)$/, `-${n++}$1`)}`;
         }
       }
       used.add(path);
@@ -147,21 +209,34 @@ export function planSet(input: { layout: PlanLayout; current: readonly RepoSetFi
         unchanged++;
         return;
       }
-      steps.push({ op: 'write', path, oid: w.oid, from: { kind: 'repo', path: w.path }, replacesOid: now });
+      steps.push({
+        op: 'write',
+        path,
+        oid: w.oid,
+        from: { kind: 'repo', path: w.path },
+        replacesOid: now,
+      });
       return;
     }
     if (now !== null && now === w.oid) {
       unchanged++;
       return;
     }
-    steps.push({ op: 'write', path, oid: w.oid, from: { kind: 'new', index: i }, replacesOid: now });
+    steps.push({
+      op: 'write',
+      path,
+      oid: w.oid,
+      from: { kind: 'new', index: i },
+      replacesOid: now,
+    });
   });
   const left: string[] = [];
   for (const c of current) {
     if (finalPaths.has(c.path) || c.oid === null) continue;
     // A file that moved is deleted at its old place; the others only when asked (or when the set holds one file).
     const moved = wanted.some((w) => w.kind === 'existing' && w.path === c.path);
-    if (moved || input.prune || layout.fixedStem !== null) steps.push({ op: 'delete', path: c.path, oid: c.oid });
+    if (moved || input.prune || layout.fixedStem !== null)
+      steps.push({ op: 'delete', path: c.path, oid: c.oid });
     else left.push(c.path);
   }
   return { steps, paths, renamed, unchanged, left };

@@ -409,7 +409,8 @@ function runGit(o: RunOptions): Promise<RunResult> {
       o.signal?.removeEventListener('abort', onAbort);
       o.children.delete(child);
       if (failure) reject(failure);
-      else resolvePromise({ stdout: Buffer.concat(out), stderr, code: headOnly ? 0 : (code ?? -1) });
+      else
+        resolvePromise({ stdout: Buffer.concat(out), stderr, code: headOnly ? 0 : (code ?? -1) });
     });
     if (o.input !== undefined) child.stdin?.end(o.input);
     else child.stdin?.end();
@@ -563,7 +564,11 @@ type BlobResult =
   | { kind: 'too_large'; size: number }
   | { kind: 'missing' };
 type Waiter = { resolve: (result: BlobResult) => void; reject: (error: unknown) => void };
-type SharedRefresh = { promise: Promise<CloneRefreshResult>; controller: AbortController; waiters: number };
+type SharedRefresh = {
+  promise: Promise<CloneRefreshResult>;
+  controller: AbortController;
+  waiters: number;
+};
 
 const cancelled = () => new GitCloneError('network', 'The request was cancelled.', 'aborted');
 
@@ -669,7 +674,10 @@ export class GitCloneReader implements RepoReader {
 
     const source = options.source;
     if (source.type === 'github') {
-      for (const [label, value] of [['owner', source.owner], ['repo', source.repo]] as const) {
+      for (const [label, value] of [
+        ['owner', source.owner],
+        ['repo', source.repo],
+      ] as const) {
         if (!OWNER_REPO.test(value) || value === '.' || value === '..') {
           throw new GithubError('invalid_input', `Not a valid repository ${label}.`);
         }
@@ -796,10 +804,7 @@ export class GitCloneReader implements RepoReader {
     };
   }
 
-  async #git(
-    args: string[],
-    o: GitCall,
-  ): Promise<RunResult> {
+  async #git(args: string[], o: GitCall): Promise<RunResult> {
     const env = this.#env(o.network === true);
     if (o.network) Object.assign(env, await this.#authEnv());
     const signals = [this.#abort.signal];
@@ -1268,7 +1273,8 @@ export class GitCloneReader implements RepoReader {
     const entries: BlobEntry[] = [];
     for (const path of tree.paths) {
       const entry = tree.entries.get(path);
-      if (entry && entry.mode !== '120000') entries.push({ path, oid: entry.oid, mode: entry.mode, size: null });
+      if (entry && entry.mode !== '120000')
+        entries.push({ path, oid: entry.oid, mode: entry.mode, size: null });
     }
     return { commit, entries };
   }
@@ -1296,7 +1302,8 @@ export class GitCloneReader implements RepoReader {
     const oids = [...new Set(wanted.values())];
     const sizes = new Map<string, number | undefined>();
     for (let i = 0; i < oids.length; i += BATCH_MAX) {
-      for (const [oid, size] of await raceAbort(this.#check(oids.slice(i, i + BATCH_MAX)), signal)) sizes.set(oid, size);
+      for (const [oid, size] of await raceAbort(this.#check(oids.slice(i, i + BATCH_MAX)), signal))
+        sizes.set(oid, size);
     }
     const budget = options.maxTransferBytes;
     const sizesOnly = options.headBytes <= 0;
@@ -1342,7 +1349,8 @@ export class GitCloneReader implements RepoReader {
       if (refused.has(oid)) items.set(path, { ok: false, oid, reason: 'budget', size: null });
       else if (size === undefined) {
         items.set(path, { ok: false, oid, reason: sizesOnly ? 'unsized' : 'missing', size: null });
-      } else if (size > options.maxFileBytes) items.set(path, { ok: false, oid, reason: 'too_large', size });
+      } else if (size > options.maxFileBytes)
+        items.set(path, { ok: false, oid, reason: 'too_large', size });
       else if (sizesOnly) items.set(path, { ok: true, oid, size, head: new Uint8Array(0) });
       else if (head) items.set(path, { ok: true, oid, size, head });
       else items.set(path, { ok: false, oid, reason: 'missing', size });
@@ -1603,10 +1611,7 @@ export async function removeClone(
 }
 
 /** Deletes every clone of a workspace (when the workspace is deleted). Returns how many. */
-export async function removeWorkspaceClones(
-  baseDir: string,
-  workspaceId: string,
-): Promise<number> {
+export async function removeWorkspaceClones(baseDir: string, workspaceId: string): Promise<number> {
   checkId('workspaceId', workspaceId);
   const folder = join(resolve(baseDir), workspaceId);
   const names = await readdir(folder).catch(() => [] as string[]);
@@ -1631,7 +1636,10 @@ export type CloneSize = { bytes: number; entries: number; truncated: boolean };
  * never followed), visiting at most `maxEntries` entries: a bigger folder reports what it found so
  * far with `truncated: true`. Takes no lock: a clone being fetched into is measured as it is.
  */
-export async function cloneSize(dir: string, maxEntries = SIZE_WALK_MAX_ENTRIES): Promise<CloneSize> {
+export async function cloneSize(
+  dir: string,
+  maxEntries = SIZE_WALK_MAX_ENTRIES,
+): Promise<CloneSize> {
   let bytes = 0;
   let entries = 0;
   const pending = [dir];
@@ -1704,7 +1712,9 @@ export async function listClones(
       continue;
     }
     if (!info.isDirectory()) continue;
-    const names = (await readdir(folder).catch(() => [] as string[])).filter((name) => SAFE_ID.test(name));
+    const names = (await readdir(folder).catch(() => [] as string[])).filter((name) =>
+      SAFE_ID.test(name),
+    );
     for (const cloneId of names) {
       const dir = join(folder, cloneId);
       const own = await lstat(dir).catch(() => undefined);

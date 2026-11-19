@@ -1,8 +1,8 @@
 import { isPlayPackageName } from '@mrm/connectors';
-import { type Action, PLATFORMS, can } from '@mrm/core';
+import { type Action, can, PLATFORMS } from '@mrm/core';
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
@@ -14,13 +14,13 @@ import {
   enqueueAppSync,
   getApp,
   importApps,
-  MAX_IMPORT_ITEMS,
   listAppReleases,
   listApps,
+  MAX_IMPORT_ITEMS,
   registerApp,
   syncApp,
 } from '../services/apps.ts';
-import { type TestLimiter } from '../services/credential-tests.ts';
+import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure } from '../services/repositories.ts';
 
 export type AppRoutesContext = AppsContext & {
@@ -53,7 +53,8 @@ const registerBody = z
   })
   .superRefine((value, ctx) => {
     const problem = checkIdentifier(value.platform, value.identifier);
-    if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: problem });
+    if (problem)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: problem });
   });
 
 const discoverBody = z
@@ -90,7 +91,8 @@ const importItem = z
   })
   .superRefine((value, ctx) => {
     const problem = checkIdentifier(value.platform, value.identifier);
-    if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: problem });
+    if (problem)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: problem });
   });
 
 const importBody = z.object({
@@ -139,11 +141,8 @@ export function appRoutes(ctx: AppRoutesContext) {
     async (c) => {
       const body = await parseBody(c, discoverBody);
       if (!body.ok) return body.response;
-      const done = await discoverApps(
-        ctx,
-        { workspaceId: ws(c), ...body.data },
-        actor(c),
-        (key) => ctx.limiter.take(key),
+      const done = await discoverApps(ctx, { workspaceId: ws(c), ...body.data }, actor(c), (key) =>
+        ctx.limiter.take(key),
       );
       return done.ok ? c.json(done.discovery) : respond(c, done);
     },

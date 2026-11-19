@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  MICRO,
   addDays,
   analyticsErrorCodes,
   analyticsErrorMessages,
@@ -17,6 +16,7 @@ import {
   daysBetween,
   fromMicro,
   isIsoDate,
+  MICRO,
   metricInfo,
   metricsOfSource,
   normalizeBucketId,
@@ -53,7 +53,10 @@ test('every error, setup, next-step and coverage code has a plain sentence or a 
   assert.equal(new Set(analyticsSetupCodes).size, analyticsSetupCodes.length);
   assert.equal(new Set(analyticsNextSteps).size, analyticsNextSteps.length);
   // No message carries a URL, a token or a secret: they are fixed sentences.
-  for (const text of [...Object.values(analyticsErrorMessages), ...Object.values(coverageNoteMessages)]) {
+  for (const text of [
+    ...Object.values(analyticsErrorMessages),
+    ...Object.values(coverageNoteMessages),
+  ]) {
     assert.ok(!/https?:\/\/|Bearer|BEGIN|X-Amz/i.test(text), text);
   }
 });
@@ -68,7 +71,16 @@ test('values are stored as micro integers: six decimals survive, a sum is exact'
 
 test('dates: real calendar days only; arithmetic in UTC', () => {
   assert.equal(isIsoDate('2026-11-19'), true);
-  for (const bad of ['2026-02-30', '2026-13-01', '26-11-19', '2026-11-19T00:00:00Z', '', 5, undefined]) assert.equal(isIsoDate(bad), false, String(bad));
+  for (const bad of [
+    '2026-02-30',
+    '2026-13-01',
+    '26-11-19',
+    '2026-11-19T00:00:00Z',
+    '',
+    5,
+    undefined,
+  ])
+    assert.equal(isIsoDate(bad), false, String(bad));
   assert.equal(addDays('2026-11-19', -19), '2026-10-31');
   assert.equal(addDays('2026-12-31', 1), '2027-01-01');
   assert.equal(daysBetween('2026-11-01', '2026-11-19'), 18);
@@ -78,26 +90,57 @@ test('dates: real calendar days only; arithmetic in UTC', () => {
 test('buckets: a week starts on Monday, a month on the first; every day lands in exactly one bucket', () => {
   assert.equal(bucketStart('2026-11-19', 'day'), '2026-11-19');
   assert.equal(bucketStart('2026-11-19', 'week'), '2026-11-16', 'a Thursday');
-  assert.equal(bucketStart('2026-11-22', 'week'), '2026-11-16', 'a Sunday belongs to the week before');
+  assert.equal(
+    bucketStart('2026-11-22', 'week'),
+    '2026-11-16',
+    'a Sunday belongs to the week before',
+  );
   assert.equal(bucketStart('2026-11-23', 'week'), '2026-11-23');
   assert.equal(bucketStart('2026-11-19', 'month'), '2026-11-01');
-  assert.deepEqual(bucketStarts('2026-11-19', '2026-12-02', 'week'), ['2026-11-16', '2026-11-23', '2026-11-30']);
-  assert.deepEqual(bucketStarts('2026-11-30', '2027-01-02', 'month'), ['2026-11-01', '2026-12-01', '2027-01-01']);
+  assert.deepEqual(bucketStarts('2026-11-19', '2026-12-02', 'week'), [
+    '2026-11-16',
+    '2026-11-23',
+    '2026-11-30',
+  ]);
+  assert.deepEqual(bucketStarts('2026-11-30', '2027-01-02', 'month'), [
+    '2026-11-01',
+    '2026-12-01',
+    '2027-01-01',
+  ]);
   assert.equal(bucketStarts('2026-11-01', '2026-11-30', 'day').length, 30);
 });
 
 test('a ratio is null, never NaN or infinity, when it cannot be computed', () => {
   assert.equal(safeRatio(1, 4), 0.25);
   assert.equal(safeRatio(0, 4), 0);
-  for (const [n, d] of [[1, 0], [null, 4], [4, null], [1, -2]] as const) assert.equal(safeRatio(n, d), null);
+  for (const [n, d] of [
+    [1, 0],
+    [null, 4],
+    [4, null],
+    [1, -2],
+  ] as const)
+    assert.equal(safeRatio(n, d), null);
 });
 
 test('a vendor number is digits; a bucket id is pubsite_prod_rev_ and digits, with or without gs://', () => {
   assert.equal(normalizeVendorNumber(' 85123456 '), '85123456');
-  for (const bad of ['', 'abc', '1234', '1234567890123', '85 12 34', '85123456; DROP']) assert.equal(normalizeVendorNumber(bad), undefined, bad);
-  assert.equal(normalizeBucketId('gs://pubsite_prod_rev_01234567890123456789/'), 'pubsite_prod_rev_01234567890123456789');
-  assert.equal(normalizeBucketId('pubsite_prod_rev_01234567890123456789'), 'pubsite_prod_rev_01234567890123456789');
-  for (const bad of ['', 'my-bucket', 'pubsite_prod_rev_', 'pubsite_prod_rev_12/../x', 'https://storage.googleapis.com/pubsite_prod_rev_123456']) {
+  for (const bad of ['', 'abc', '1234', '1234567890123', '85 12 34', '85123456; DROP'])
+    assert.equal(normalizeVendorNumber(bad), undefined, bad);
+  assert.equal(
+    normalizeBucketId('gs://pubsite_prod_rev_01234567890123456789/'),
+    'pubsite_prod_rev_01234567890123456789',
+  );
+  assert.equal(
+    normalizeBucketId('pubsite_prod_rev_01234567890123456789'),
+    'pubsite_prod_rev_01234567890123456789',
+  );
+  for (const bad of [
+    '',
+    'my-bucket',
+    'pubsite_prod_rev_',
+    'pubsite_prod_rev_12/../x',
+    'https://storage.googleapis.com/pubsite_prod_rev_123456',
+  ]) {
     assert.equal(normalizeBucketId(bad), undefined, bad);
   }
 });

@@ -2,13 +2,26 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AnalyticsOverview, AnalyticsStatus } from './analytics.ts';
 import { resolveRange } from './analytics.ts';
+import { appleOverview, NOW, sourceOf, statusOf } from './analytics-fixtures.ts';
+import { type AnalyticsReads, loadOverviews, loadStrip } from './analytics-load.ts';
 import { ApiError, createApi } from './api.ts';
-import { loadOverviews, loadStrip, type AnalyticsReads } from './analytics-load.ts';
-import { NOW, appleOverview, sourceOf, statusOf } from './analytics-fixtures.ts';
 
-type Query = { platform?: string; from?: string; to?: string; granularity?: string; breakdown?: string };
+type Query = {
+  platform?: string;
+  from?: string;
+  to?: string;
+  granularity?: string;
+  breakdown?: string;
+};
 
-function reads(over: Partial<{ status: AnalyticsStatus; overview: AnalyticsOverview; statusError: boolean; overviewError: (query: Query) => boolean }> = {}) {
+function reads(
+  over: Partial<{
+    status: AnalyticsStatus;
+    overview: AnalyticsOverview;
+    statusError: boolean;
+    overviewError: (query: Query) => boolean;
+  }> = {},
+) {
   const calls: { kind: string; appId: string; query?: Query }[] = [];
   const api: AnalyticsReads = {
     analyticsStatus: async (_ws, appId) => {
@@ -35,8 +48,19 @@ test('the screen reads this period with the version breakdown and the previous p
   assert.equal(calls.length, 2);
   const current = calls.find((c) => c.query?.breakdown === 'app_version');
   const previous = calls.find((c) => c.query?.breakdown === undefined);
-  assert.deepEqual(current?.query, { platform: 'ios', from: '2026-10-22', to: '2026-11-18', granularity: 'day', breakdown: 'app_version' });
-  assert.deepEqual(previous?.query, { platform: 'ios', from: '2026-09-24', to: '2026-10-21', granularity: 'day' });
+  assert.deepEqual(current?.query, {
+    platform: 'ios',
+    from: '2026-10-22',
+    to: '2026-11-18',
+    granularity: 'day',
+    breakdown: 'app_version',
+  });
+  assert.deepEqual(previous?.query, {
+    platform: 'ios',
+    from: '2026-09-24',
+    to: '2026-10-21',
+    granularity: 'day',
+  });
 });
 
 test('a failed previous read only loses the comparison; a failed current read fails the screen', async () => {
@@ -51,18 +75,39 @@ test('a failed previous read only loses the comparison; a failed current read fa
 test('the dashboard strip makes no overview read while analytics is off or has no stored data', async () => {
   const off = reads({ status: statusOf({ enabled: false }) });
   assert.equal(await loadStrip(off.api, 'w1', app, NOW), null);
-  assert.deepEqual(off.calls.map((c) => c.kind), ['status']);
-  const empty = reads({ status: statusOf({ sources: [sourceOf({ source: 'apple_analytics', firstDay: null, lastDay: null })] }) });
+  assert.deepEqual(
+    off.calls.map((c) => c.kind),
+    ['status'],
+  );
+  const empty = reads({
+    status: statusOf({
+      sources: [sourceOf({ source: 'apple_analytics', firstDay: null, lastDay: null })],
+    }),
+  });
   assert.equal(await loadStrip(empty.api, 'w1', app, NOW), null);
-  assert.deepEqual(empty.calls.map((c) => c.kind), ['status']);
+  assert.deepEqual(
+    empty.calls.map((c) => c.kind),
+    ['status'],
+  );
 });
 
 test('the dashboard strip reads the last 28 days once when there is data', async () => {
   const { api, calls } = reads();
   const strip = await loadStrip(api, 'w1', app, NOW);
-  assert.deepEqual(strip?.items.map((i) => i.id), ['downloads', 'conversion', 'crash_rate']);
-  assert.deepEqual(calls.map((c) => c.kind), ['status', 'overview']);
-  assert.deepEqual(calls[1]?.query, { platform: 'ios', from: '2026-10-22', to: '2026-11-18', granularity: 'day' });
+  assert.deepEqual(
+    strip?.items.map((i) => i.id),
+    ['downloads', 'conversion', 'crash_rate'],
+  );
+  assert.deepEqual(
+    calls.map((c) => c.kind),
+    ['status', 'overview'],
+  );
+  assert.deepEqual(calls[1]?.query, {
+    platform: 'ios',
+    from: '2026-10-22',
+    to: '2026-11-18',
+    granularity: 'day',
+  });
 });
 
 test('any failure on the dashboard leaves no strip and no error', async () => {
@@ -72,7 +117,10 @@ test('any failure on the dashboard leaves no strip and no error', async () => {
 
 // ---- the API client: paths, methods and bodies ----
 
-function recorded(respond: () => Response = () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })) {
+function recorded(
+  respond: () => Response = () =>
+    new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+) {
   const calls: { path: string; init: RequestInit | undefined }[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ path: String(input), init });
@@ -84,11 +132,20 @@ function recorded(respond: () => Response = () => new Response('{}', { status: 2
 test('analytics reads are GETs under the app, with only the query that was asked for', async () => {
   const { calls, api } = recorded();
   await api.analyticsStatus('w/1', 'a b');
-  await api.analyticsOverview('w1', 'a1', { platform: 'ios', from: '2026-10-01', to: '2026-10-31', granularity: 'day', breakdown: 'app_version' });
+  await api.analyticsOverview('w1', 'a1', {
+    platform: 'ios',
+    from: '2026-10-01',
+    to: '2026-10-31',
+    granularity: 'day',
+    breakdown: 'app_version',
+  });
   await api.analyticsOverview('w1', 'a1');
   assert.equal(calls[0]?.path, '/api/workspaces/w%2F1/apps/a%20b/analytics/status');
   assert.equal(calls[0]?.init?.method, 'GET');
-  assert.equal(calls[1]?.path, '/api/workspaces/w1/apps/a1/analytics/overview?platform=ios&from=2026-10-01&to=2026-10-31&granularity=day&breakdown=app_version');
+  assert.equal(
+    calls[1]?.path,
+    '/api/workspaces/w1/apps/a1/analytics/overview?platform=ios&from=2026-10-01&to=2026-10-31&granularity=day&breakdown=app_version',
+  );
   assert.equal(calls[2]?.path, '/api/workspaces/w1/apps/a1/analytics/overview');
 });
 
@@ -103,15 +160,18 @@ test('sync, enable and import use the documented routes; enable sends only the c
   await api.previewAnalyticsImport('w1', 'a1', 'My report.csv', file);
   await api.importAnalytics('w1', 'a1', 'My report.csv', 'h&h', file);
   const base = '/api/workspaces/w1/apps/a1/analytics';
-  assert.deepEqual(calls.map((c) => `${c.init?.method} ${c.path}`), [
-    `POST ${base}/sync`,
-    `POST ${base}/sync`,
-    `GET ${base}/apple/enable`,
-    `GET ${base}/apple/enable?backfill=true`,
-    `POST ${base}/apple/enable`,
-    `POST ${base}/import/preview?fileName=My%20report.csv`,
-    `POST ${base}/import?fileName=My%20report.csv&confirmHash=h%26h`,
-  ]);
+  assert.deepEqual(
+    calls.map((c) => `${c.init?.method} ${c.path}`),
+    [
+      `POST ${base}/sync`,
+      `POST ${base}/sync`,
+      `GET ${base}/apple/enable`,
+      `GET ${base}/apple/enable?backfill=true`,
+      `POST ${base}/apple/enable`,
+      `POST ${base}/import/preview?fileName=My%20report.csv`,
+      `POST ${base}/import?fileName=My%20report.csv&confirmHash=h%26h`,
+    ],
+  );
   assert.equal(calls[0]?.init?.body, undefined);
   assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), { sources: ['apple_sales'] });
   assert.deepEqual(JSON.parse(String(calls[4]?.init?.body)), { confirmHash: 'abc' });

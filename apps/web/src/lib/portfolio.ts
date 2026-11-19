@@ -1,10 +1,10 @@
 import {
+  isApplePlatform,
   PLATFORMS,
   type Platform,
+  platformMeta,
   type ReleaseEvent,
   type ReleaseState,
-  isApplePlatform,
-  platformMeta,
   transition,
 } from '@mrm/core';
 import { type Api, ApiError } from './api.ts';
@@ -79,20 +79,47 @@ export function trackLabel(track: string | null): string {
 export type StatusInfo = { label: string; tone: BadgeTone; description: string };
 
 const STATUS: Record<ReleaseState, StatusInfo> = {
-  draft: { label: 'Draft', tone: 'neutral', description: 'Being prepared. No build is chosen yet.' },
-  build_chosen: { label: 'Build chosen', tone: 'neutral', description: 'A build is attached. It is not ready to submit yet.' },
+  draft: {
+    label: 'Draft',
+    tone: 'neutral',
+    description: 'Being prepared. No build is chosen yet.',
+  },
+  build_chosen: {
+    label: 'Build chosen',
+    tone: 'neutral',
+    description: 'A build is attached. It is not ready to submit yet.',
+  },
   ready: { label: 'Ready', tone: 'info', description: 'Ready to submit for review.' },
-  in_review: { label: 'In review', tone: 'info', description: 'Waiting for the store to review it.' },
-  rejected: { label: 'Rejected', tone: 'bad', description: 'The store rejected it. A fix is needed before it can go out.' },
-  approved: { label: 'Approved', tone: 'accent', description: 'Approved and waiting to be released.' },
-  propagating: { label: 'Propagating', tone: 'info', description: 'Released, but not yet visible in the store.' },
+  in_review: {
+    label: 'In review',
+    tone: 'info',
+    description: 'Waiting for the store to review it.',
+  },
+  rejected: {
+    label: 'Rejected',
+    tone: 'bad',
+    description: 'The store rejected it. A fix is needed before it can go out.',
+  },
+  approved: {
+    label: 'Approved',
+    tone: 'accent',
+    description: 'Approved and waiting to be released.',
+  },
+  propagating: {
+    label: 'Propagating',
+    tone: 'info',
+    description: 'Released, but not yet visible in the store.',
+  },
   rolling_out: { label: 'Rolling out', tone: 'info', description: 'Going out to users in stages.' },
   live: { label: 'Live', tone: 'ok', description: 'Available to users.' },
   halted: { label: 'Halted', tone: 'warn', description: 'The rollout was stopped.' },
 };
 
 /** The label, tone and a sentence for a normalized status. `null` means the store state has no mapping. */
-export function statusInfo(status: ReleaseState | null | undefined, rawState?: string | null): StatusInfo {
+export function statusInfo(
+  status: ReleaseState | null | undefined,
+  rawState?: string | null,
+): StatusInfo {
   if (status) return STATUS[status];
   return {
     label: 'Unmapped',
@@ -179,13 +206,18 @@ export const sortReleases = (releases: readonly ReleaseSummary[]): ReleaseSummar
   [...releases].sort(compareReleases);
 
 /** The newest release, optionally of one platform. `null` when there is none. */
-export function latestRelease(releases: readonly ReleaseSummary[], platform?: Platform): ReleaseSummary | null {
+export function latestRelease(
+  releases: readonly ReleaseSummary[],
+  platform?: Platform,
+): ReleaseSummary | null {
   const pool = platform ? releases.filter((r) => r.platform === platform) : releases;
   return sortReleases(pool)[0] ?? null;
 }
 
 /** The newest release of each platform that has one. */
-export function latestByPlatform(releases: readonly ReleaseSummary[]): Partial<Record<Platform, ReleaseSummary>> {
+export function latestByPlatform(
+  releases: readonly ReleaseSummary[],
+): Partial<Record<Platform, ReleaseSummary>> {
   const result: Partial<Record<Platform, ReleaseSummary>> = {};
   for (const platform of PLATFORMS) {
     const release = latestRelease(releases, platform);
@@ -195,7 +227,10 @@ export function latestByPlatform(releases: readonly ReleaseSummary[]): Partial<R
 }
 
 /** The newest release that is fully live. Used to show what users have while a newer one is in progress. */
-export function liveRelease(releases: readonly ReleaseSummary[], platform?: Platform): ReleaseSummary | null {
+export function liveRelease(
+  releases: readonly ReleaseSummary[],
+  platform?: Platform,
+): ReleaseSummary | null {
   const pool = platform ? releases.filter((r) => r.platform === platform) : releases;
   return sortReleases(pool).find((r) => r.status === 'live') ?? null;
 }
@@ -226,20 +261,32 @@ export function groupReleases(releases: readonly ReleaseSummary[]): ReleaseGroup
       key,
       platform: latest.platform,
       track: latest.track,
-      title: latest.track === null ? `${platformLabel(latest.platform)} · ${storeName(latest.platform)}` : `${platformLabel(latest.platform)} · ${trackLabel(latest.track)}`,
+      title:
+        latest.track === null
+          ? `${platformLabel(latest.platform)} · ${storeName(latest.platform)}`
+          : `${platformLabel(latest.platform)} · ${trackLabel(latest.track)}`,
       releases: list,
       latest,
     });
   }
   return result.sort(
-    (a, b) => platformRank(a.platform) - platformRank(b.platform) || compareTracks(a.track, b.track),
+    (a, b) =>
+      platformRank(a.platform) - platformRank(b.platform) || compareTracks(a.track, b.track),
   );
 }
 
 // ---------------------------------------------------------------------------------------------
 // The lifecycle timeline, walked from the state machine in @mrm/core
 
-const FORWARD: readonly ReleaseEvent[] = ['choose_build', 'mark_ready', 'submit', 'approve', 'release', 'propagated', 'complete'];
+const FORWARD: readonly ReleaseEvent[] = [
+  'choose_build',
+  'mark_ready',
+  'submit',
+  'approve',
+  'release',
+  'propagated',
+  'complete',
+];
 
 /** The happy path for a platform, from draft to live. Android passes through `propagating`. */
 export function lifecyclePath(platform: Platform): ReleaseState[] {
@@ -268,7 +315,8 @@ export type TimelineStep = {
  */
 export function timeline(platform: Platform, status: ReleaseState | null): TimelineStep[] {
   if (!status) return [];
-  const anchor: ReleaseState = status === 'rejected' ? 'in_review' : status === 'halted' ? 'rolling_out' : status;
+  const anchor: ReleaseState =
+    status === 'rejected' ? 'in_review' : status === 'halted' ? 'rolling_out' : status;
   const path = lifecyclePath(platform);
   const at = path.indexOf(anchor);
   if (at === -1) return [];
@@ -307,11 +355,19 @@ export type SyncInfo = {
 };
 
 /** What the sync column says for an app. A failed attempt keeps the time of the last good sync. */
-export function syncInfo(app: Pick<AppSummary, 'lastSyncedAt' | 'lastSyncAttemptAt' | 'lastSyncError'>, now: number = Date.now(), locale?: string): SyncInfo {
-  const label = app.lastSyncedAt === null ? 'Never synced' : `Synced ${timeAgo(app.lastSyncedAt, now, locale)}`;
+export function syncInfo(
+  app: Pick<AppSummary, 'lastSyncedAt' | 'lastSyncAttemptAt' | 'lastSyncError'>,
+  now: number = Date.now(),
+  locale?: string,
+): SyncInfo {
+  const label =
+    app.lastSyncedAt === null ? 'Never synced' : `Synced ${timeAgo(app.lastSyncedAt, now, locale)}`;
   const error = app.lastSyncError?.trim() ? app.lastSyncError.trim() : null;
   if (error) {
-    const attempt = app.lastSyncAttemptAt === null ? null : `Last attempt ${timeAgo(app.lastSyncAttemptAt, now, locale)}`;
+    const attempt =
+      app.lastSyncAttemptAt === null
+        ? null
+        : `Last attempt ${timeAgo(app.lastSyncAttemptAt, now, locale)}`;
     return { kind: 'failed', label, error, attempt };
   }
   return { kind: app.lastSyncedAt === null ? 'never' : 'ok', label, error: null, attempt: null };
@@ -326,13 +382,16 @@ export function syncDetail(sync: SyncSummary): string {
     sync.removed > 0 ? `${sync.removed} removed` : '',
   ].filter(Boolean);
   const changes = parts.length > 0 ? parts.join(', ') : 'no changes';
-  const unmapped = sync.unmapped > 0 ? ` ${sync.unmapped} with a state that has no normalized status.` : '';
+  const unmapped =
+    sync.unmapped > 0 ? ` ${sync.unmapped} with a state that has no normalized status.` : '';
   return `${sync.found} release${sync.found === 1 ? '' : 's'}, ${changes}.${unmapped}`;
 }
 
 /** A sentence for a screen reader and a toast: what a successful sync found. */
 export function syncSummaryText(name: string, sync: SyncSummary): string {
-  return sync.found === 0 ? `Synced ${name}. ${syncDetail(sync)}` : `Synced ${name}: ${syncDetail(sync)}`;
+  return sync.found === 0
+    ? `Synced ${name}. ${syncDetail(sync)}`
+    : `Synced ${name}: ${syncDetail(sync)}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -350,7 +409,8 @@ function waitPhrase(seconds: number): string {
 
 export type AppErrorContext = 'load' | 'add' | 'sync' | 'delete' | 'discover' | 'import';
 
-type ErrorLike = Pick<ApiError, 'status' | 'code' | 'message'> & Partial<Pick<ApiError, 'retryAfter' | 'body'>>;
+type ErrorLike = Pick<ApiError, 'status' | 'code' | 'message'> &
+  Partial<Pick<ApiError, 'retryAfter' | 'body'>>;
 
 const asText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
@@ -366,7 +426,9 @@ export function appFromError(error: Pick<ApiError, 'body'>): AppSummary | null {
   const app = error.body?.app;
   if (!app || typeof app !== 'object') return null;
   const candidate = app as Partial<AppSummary>;
-  return typeof candidate.id === 'string' && typeof candidate.name === 'string' && typeof candidate.platform === 'string'
+  return typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.platform === 'string'
     ? (app as AppSummary)
     : null;
 }
@@ -387,7 +449,10 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
         ? 'That credential no longer exists. Pick another one.'
         : 'The credential this app uses was deleted. Add a new credential, then add the app again.';
     case 'credential_kind':
-      return asText(error.body?.message) || 'iOS and macOS need an App Store Connect credential and Android a Google Play one.';
+      return (
+        asText(error.body?.message) ||
+        'iOS and macOS need an App Store Connect credential and Android a Google Play one.'
+      );
     case 'repository_not_found':
       return 'That repository is not connected to this workspace. Pick another one or leave it empty.';
     case 'sync_in_progress':
@@ -421,7 +486,10 @@ export function appErrorMessage(error: ErrorLike, context: AppErrorContext = 'lo
     case 'sync_failed':
       return 'The sync failed and the server has no more detail. Try again; if it keeps failing, check the server log.';
     default:
-      return error.message || (context === 'sync' ? 'Could not sync the app.' : 'Something went wrong. Try again.');
+      return (
+        error.message ||
+        (context === 'sync' ? 'Could not sync the app.' : 'Something went wrong. Try again.')
+      );
   }
 }
 
@@ -444,7 +512,12 @@ export type SyncFailure = {
 
 export function classifySyncError(error: unknown): SyncFailure {
   if (!(error instanceof ApiError)) {
-    return { kind: 'failed', code: 'error', message: 'Something went wrong. Try again.', retryAfterSeconds: null };
+    return {
+      kind: 'failed',
+      code: 'error',
+      message: 'Something went wrong. Try again.',
+      retryAfterSeconds: null,
+    };
   }
   const message = appErrorMessage(error, 'sync');
   const retryAfterSeconds = retrySeconds(error);
@@ -460,12 +533,20 @@ export type SyncOutcome =
   | { ok: false; failure: SyncFailure; app: AppSummary | null };
 
 /** Syncs one app and turns every way it can fail into a value, so a loop over apps never throws. */
-export async function syncApp(api: Pick<Api, 'syncApp'>, workspaceId: string, id: string): Promise<SyncOutcome> {
+export async function syncApp(
+  api: Pick<Api, 'syncApp'>,
+  workspaceId: string,
+  id: string,
+): Promise<SyncOutcome> {
   try {
     const result = await api.syncApp(workspaceId, id);
     return { ok: true, app: result.app, releases: result.releases, sync: result.sync };
   } catch (error) {
-    return { ok: false, failure: classifySyncError(error), app: error instanceof ApiError ? appFromError(error) : null };
+    return {
+      ok: false,
+      failure: classifySyncError(error),
+      app: error instanceof ApiError ? appFromError(error) : null,
+    };
   }
 }
 
@@ -478,19 +559,23 @@ export const credentialKindFor = (platform: Platform): CredentialKind =>
   platformMeta(platform).credentialKind;
 
 /** The credentials that can read this platform's store. */
-export function credentialsFor<T extends { kind: string }>(platform: Platform, credentials: readonly T[]): T[] {
+export function credentialsFor<T extends { kind: string }>(
+  platform: Platform,
+  credentials: readonly T[],
+): T[] {
   const kind = credentialKindFor(platform);
   return credentials.filter((c) => c.kind === kind);
 }
 
-export const identifierLabel = (platform: Platform) => (isApplePlatform(platform) ? 'Bundle ID' : 'Package name');
+export const identifierLabel = (platform: Platform) =>
+  isApplePlatform(platform) ? 'Bundle ID' : 'Package name';
 
 export const identifierHint = (platform: Platform) =>
   platform === 'macos'
     ? 'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.'
     : platform === 'ios'
-    ? 'The bundle ID from App Store Connect, such as com.acme.app.'
-    : 'The package name from the Play Console, such as com.acme.app.';
+      ? 'The bundle ID from App Store Connect, such as com.acme.app.'
+      : 'The package name from the Play Console, such as com.acme.app.';
 
 const BUNDLE_ID = /^[A-Za-z0-9.-]+$/;
 const PACKAGE_NAME = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -509,7 +594,9 @@ export type DraftField = 'identifier' | 'credentialId' | 'name' | 'repositoryId'
 export type DraftProblems = Partial<Record<DraftField, string>>;
 
 /** The same rules the server applies, so most mistakes are caught before the request. */
-export function validateDraft(draft: AppDraft): { ok: true; input: NewApp } | { ok: false; problems: DraftProblems } {
+export function validateDraft(
+  draft: AppDraft,
+): { ok: true; input: NewApp } | { ok: false; problems: DraftProblems } {
   const problems: DraftProblems = {};
   const identifier = draft.identifier.trim();
   const name = draft.name.trim();
@@ -519,11 +606,14 @@ export function validateDraft(draft: AppDraft): { ok: true; input: NewApp } | { 
   } else if (identifier.length > MAX_IDENTIFIER) {
     problems.identifier = `Use at most ${MAX_IDENTIFIER} characters.`;
   } else if (isApplePlatform(draft.platform) && !BUNDLE_ID.test(identifier)) {
-    problems.identifier = 'A bundle ID has only letters, digits, dots and hyphens, such as com.acme.app.';
+    problems.identifier =
+      'A bundle ID has only letters, digits, dots and hyphens, such as com.acme.app.';
   } else if (draft.platform === 'android' && !PACKAGE_NAME.test(identifier)) {
-    problems.identifier = 'A package name has at least two parts separated by dots, such as com.acme.app. Each part starts with a letter.';
+    problems.identifier =
+      'A package name has at least two parts separated by dots, such as com.acme.app. Each part starts with a letter.';
   }
-  if (!draft.credentialId) problems.credentialId = 'Choose the credential that can read this app in the store.';
+  if (!draft.credentialId)
+    problems.credentialId = 'Choose the credential that can read this app in the store.';
   if (name.length > MAX_NAME) problems.name = `Use at most ${MAX_NAME} characters.`;
   else if (/[\r\n]/.test(name)) problems.name = 'The name must be on one line.';
 
@@ -547,10 +637,18 @@ export function addProblem(error: ErrorLike): { field: DraftField | 'form'; mess
       return { field: 'identifier', message };
     case 'invalid_request': {
       const issues = error.body?.issues;
-      const first = Array.isArray(issues) ? (issues[0] as { path?: unknown; message?: unknown } | undefined) : undefined;
+      const first = Array.isArray(issues)
+        ? (issues[0] as { path?: unknown; message?: unknown } | undefined)
+        : undefined;
       const path = asText(first?.path);
       const text = asText(first?.message);
-      if (text && (path === 'identifier' || path === 'name' || path === 'credentialId' || path === 'repositoryId')) {
+      if (
+        text &&
+        (path === 'identifier' ||
+          path === 'name' ||
+          path === 'credentialId' ||
+          path === 'repositoryId')
+      ) {
         return { field: path, message: text };
       }
       return { field: 'form', message };
@@ -562,17 +660,26 @@ export function addProblem(error: ErrorLike): { field: DraftField | 'form'; mess
 
 /** Like `appErrorMessage`, for anything that was thrown. */
 export function describeError(error: unknown, context: AppErrorContext = 'load'): string {
-  return error instanceof ApiError ? appErrorMessage(error, context) : 'Something went wrong. Try again.';
+  return error instanceof ApiError
+    ? appErrorMessage(error, context)
+    : 'Something went wrong. Try again.';
 }
 
 // ---------------------------------------------------------------------------------------------
 // Loading and syncing many apps
 
 /** The releases of one app on the list screen, which load after the list itself. */
-export type ReleaseLoad = { state: 'loading' } | { state: 'error' } | { state: 'ready'; releases: ReleaseSummary[] };
+export type ReleaseLoad =
+  | { state: 'loading' }
+  | { state: 'error' }
+  | { state: 'ready'; releases: ReleaseSummary[] };
 
 /** Runs `task` for every item with at most `limit` running at once. `task` must not throw. */
-export async function runLimited<T>(items: readonly T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
+export async function runLimited<T>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<void>,
+): Promise<void> {
   let next = 0;
   const worker = async () => {
     while (next < items.length) {
@@ -619,10 +726,12 @@ const isPackageName = (value: string) => value.length <= 255 && PACKAGE_NAME.tes
 export const isDiscoverableKind = (kind: string): kind is CredentialKind =>
   kind === 'app_store_connect' || kind === 'google_play';
 
-export const discoverableCredentials = <T extends { kind: string }>(credentials: readonly T[]): T[] =>
-  credentials.filter((c) => isDiscoverableKind(c.kind));
+export const discoverableCredentials = <T extends { kind: string }>(
+  credentials: readonly T[],
+): T[] => credentials.filter((c) => isDiscoverableKind(c.kind));
 
-export const platformForKind = (kind: CredentialKind): Platform => (kind === 'app_store_connect' ? 'ios' : 'android');
+export const platformForKind = (kind: CredentialKind): Platform =>
+  kind === 'app_store_connect' ? 'ios' : 'android';
 
 export type PackageList = {
   /** The valid package names, in the order given, each once. */
@@ -662,7 +771,8 @@ export function packageListProblem(list: PackageList): string {
     return `Line ${first.line} is not a package name: “${shown}”${more}. A package name has at least two parts separated by dots, such as com.acme.app.`;
   }
   if (list.packages.length === 0) return 'Enter at least one package name, one per line.';
-  if (list.packages.length > MAX_PACKAGES) return `Check at most ${MAX_PACKAGES} packages at a time. You entered ${list.packages.length}.`;
+  if (list.packages.length > MAX_PACKAGES)
+    return `Check at most ${MAX_PACKAGES} packages at a time. You entered ${list.packages.length}.`;
   return '';
 }
 
@@ -687,11 +797,16 @@ export function importScopeNote(platform: Platform): string {
 }
 
 /** The candidates that can still be added. */
-export const selectableCandidates = (candidates: readonly DiscoverCandidate[]): DiscoverCandidate[] =>
-  candidates.filter((c) => !c.alreadyAdded);
+export const selectableCandidates = (
+  candidates: readonly DiscoverCandidate[],
+): DiscoverCandidate[] => candidates.filter((c) => !c.alreadyAdded);
 
 /** The selection with `key` switched on or off. A new set, so the screen sees the change. */
-export function withSelection(selected: ReadonlySet<string>, key: string, on: boolean): Set<string> {
+export function withSelection(
+  selected: ReadonlySet<string>,
+  key: string,
+  on: boolean,
+): Set<string> {
   const next = new Set(selected);
   if (on) next.add(key);
   else next.delete(key);
@@ -699,13 +814,16 @@ export function withSelection(selected: ReadonlySet<string>, key: string, on: bo
 }
 
 /** "Found 5 apps. 2 are already added." / "Checked 3 packages: 2 found, 1 could not be verified." */
-export function discoverSummaryText(result: Pick<DiscoverResult, 'kind' | 'candidates' | 'failures'>): string {
+export function discoverSummaryText(
+  result: Pick<DiscoverResult, 'kind' | 'candidates' | 'failures'>,
+): string {
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const added = result.candidates.filter((c) => c.alreadyAdded).length;
   if (result.kind === 'google_play') {
     const total = result.candidates.length + result.failures.length;
     const found = `${result.candidates.length} verified`;
-    const failed = result.failures.length > 0 ? `, ${result.failures.length} could not be verified` : '';
+    const failed =
+      result.failures.length > 0 ? `, ${result.failures.length} could not be verified` : '';
     const existing = added > 0 ? ` ${added} already added.` : '';
     return `Checked ${plural(total, 'package')}: ${found}${failed}.${existing}`;
   }
@@ -714,7 +832,9 @@ export function discoverSummaryText(result: Pick<DiscoverResult, 'kind' | 'candi
 }
 
 /** Why one Google Play package could not be verified, as a sentence a person can act on. */
-export function discoverFailureMessage(failure: Pick<DiscoverFailure, 'error' | 'message'>): string {
+export function discoverFailureMessage(
+  failure: Pick<DiscoverFailure, 'error' | 'message'>,
+): string {
   switch (failure.error) {
     case 'store_not_found':
       return 'Google Play has no app with this package name that this service account can see. Check the spelling, and that the service account is invited to the app in the Play Console.';
@@ -745,7 +865,11 @@ export function buildImportItems(
   for (const c of selectableCandidates(candidates)) {
     const key = candidateKey(c);
     if (!selected.has(key)) continue;
-    const item: ImportItem = { platform: c.platform, identifier: c.identifier, storeAppId: c.storeId };
+    const item: ImportItem = {
+      platform: c.platform,
+      identifier: c.identifier,
+      storeAppId: c.storeId,
+    };
     if (c.name.trim()) item.name = c.name.trim().slice(0, 100);
     const repositoryId = repositories[key];
     if (repositoryId) item.repositoryId = repositoryId;
@@ -765,8 +889,12 @@ export function chunk<T>(list: readonly T[], size: number): T[][] {
 export function mergeImports(parts: readonly ImportResult[]): ImportResult {
   const results: ImportItemResult[] = [];
   for (const part of parts) results.push(...part.results);
-  const count = (status: ImportItemResult['status']) => results.filter((r) => r.status === status).length;
-  return { results, summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') } };
+  const count = (status: ImportItemResult['status']) =>
+    results.filter((r) => r.status === status).length;
+  return {
+    results,
+    summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') },
+  };
 }
 
 /**
@@ -778,24 +906,38 @@ export function importSummaryText(
   results?: readonly Pick<ImportItemResult, 'platform' | 'status'>[],
 ): string {
   const rest = [
-    summary.skipped > 0 ? `${summary.skipped} ${summary.skipped === 1 ? 'was' : 'were'} already added` : '',
+    summary.skipped > 0
+      ? `${summary.skipped} ${summary.skipped === 1 ? 'was' : 'were'} already added`
+      : '',
     summary.failed > 0 ? `${summary.failed} could not be added` : '',
   ].filter(Boolean);
   const created = (results ?? []).filter((r) => r.status === 'created');
   const platforms = [...new Set(created.map((r) => r.platform))].sort();
   let what = `${summary.created} app${summary.created === 1 ? '' : 's'}`;
   if (created.length === summary.created && platforms.length > 0) {
-    what = platforms.map((p) => platformCount(p, created.filter((r) => r.platform === p).length)).join(' and ');
+    what = platforms
+      .map((p) => platformCount(p, created.filter((r) => r.platform === p).length))
+      .join(' and ');
   }
   const head = summary.created > 0 ? `Added ${what}.` : 'No app was added.';
   return rest.length > 0 ? `${head} ${rest.join(', ')}.` : head;
 }
 
 /** What to say about one item of an import that did not create an app. */
-export function importItemMessage(result: Pick<ImportItemResult, 'status' | 'error' | 'message'>): string {
+export function importItemMessage(
+  result: Pick<ImportItemResult, 'status' | 'error' | 'message'>,
+): string {
   if (result.status === 'skipped') return 'Already in this workspace.';
   if (result.status === 'failed') {
-    return appErrorMessage({ status: 422, code: result.error ?? 'error', message: result.message ?? '', body: { message: result.message } }, 'import');
+    return appErrorMessage(
+      {
+        status: 422,
+        code: result.error ?? 'error',
+        message: result.message ?? '',
+        body: { message: result.message },
+      },
+      'import',
+    );
   }
   return '';
 }
@@ -821,8 +963,17 @@ export async function syncApps(
   // With a platform, the name carries it: the same app on iOS and Android shares name and identifier.
   const labelOf = (a: { name: string; platform?: Platform | undefined }) =>
     a.platform === undefined ? a.name : appLabel({ name: a.name, platform: a.platform });
-  const results: BatchResult[] = apps.map((a) => ({ appId: a.id, name: labelOf(a), status: 'pending', message: '' }));
-  const report = (current: string) => onProgress?.(results.map((r) => ({ ...r })), current);
+  const results: BatchResult[] = apps.map((a) => ({
+    appId: a.id,
+    name: labelOf(a),
+    status: 'pending',
+    message: '',
+  }));
+  const report = (current: string) =>
+    onProgress?.(
+      results.map((r) => ({ ...r })),
+      current,
+    );
   for (let i = 0; i < apps.length; i++) {
     const app = apps[i] as Pick<AppSummary, 'id' | 'name'> & { platform?: Platform };
     const result = results[i] as BatchResult;

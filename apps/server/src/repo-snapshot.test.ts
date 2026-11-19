@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { detectProject, loadListing, type RepoConnector } from '@mrm/connectors';
 import {
-  detectProject,
-  loadListing,
-  type RepoConnector,
-} from '@mrm/connectors';
-import { mapsApp, scannerMonorepo, weatherApp } from '../../../packages/connectors/src/fastlane.fixtures.ts';
+  mapsApp,
+  scannerMonorepo,
+  weatherApp,
+} from '../../../packages/connectors/src/fastlane.fixtures.ts';
 import { readListings } from './services/listing-sources.ts';
 import {
   clearRepoSnapshots,
@@ -77,7 +77,12 @@ class CountingRepo {
 
 const asConnector = (r: CountingRepo) => r as unknown as RepoConnector;
 const opened = (repo: CountingRepo, id = 'repo-1') =>
-  openRepoSnapshot({ repositoryId: id, connector: asConnector(repo), branch: 'main', now: Date.now });
+  openRepoSnapshot({
+    repositoryId: id,
+    connector: asConnector(repo),
+    branch: 'main',
+    now: Date.now,
+  });
 
 /** The listing request: open the snapshot, then read the listings from it. */
 async function listing(repo: CountingRepo, options = {}) {
@@ -113,7 +118,12 @@ test('a) the listing of the weather app: requests before and after', async () =>
   // Only metadata text files of the chosen folders, and none twice.
   assert.equal(new Set(after.readPaths).size, after.readPaths.length);
   const listed = after.readPaths.filter((p) => p.startsWith('fastlane/metadata/'));
-  assert.ok(listed.every((p) => p.endsWith('.txt') && !p.includes('review_information') && !p.includes('/screenshots/')));
+  assert.ok(
+    listed.every(
+      (p) =>
+        p.endsWith('.txt') && !p.includes('review_information') && !p.includes('/screenshots/'),
+    ),
+  );
 });
 
 test('a repeated listing and the change set made from it do not list or read again', async () => {
@@ -138,7 +148,12 @@ test('a new commit is read afresh, and a different repository never shares a cac
   const next = await listing(repo);
   assert.equal(repo.trees, first + 1);
   assert.equal(next.fastlane.listing.googlePlay?.locales['en-US']?.title, 'New title');
-  await openRepoSnapshot({ repositoryId: 'other', connector: asConnector(repo), branch: 'main', now: Date.now });
+  await openRepoSnapshot({
+    repositoryId: 'other',
+    connector: asConnector(repo),
+    branch: 'main',
+    now: Date.now,
+  });
   assert.equal(repo.trees, first + 2);
 });
 
@@ -147,7 +162,12 @@ test('the cache is bounded and expires', async () => {
   const repo = new CountingRepo({ 'a.txt': 'x' }, 0);
   let clock = 1_000;
   const open = (id: string) =>
-    openRepoSnapshot({ repositoryId: id, connector: asConnector(repo), branch: 'main', now: () => clock });
+    openRepoSnapshot({
+      repositoryId: id,
+      connector: asConnector(repo),
+      branch: 'main',
+      now: () => clock,
+    });
   await open('r1');
   await open('r1');
   assert.equal(repo.trees, 1);
@@ -168,7 +188,11 @@ test('b) the monorepo: only the files of the default app are read, and choosing 
   const first = new CountingRepo(files);
   const view = await listing(first);
   assert.equal(view.fastlane.found.appStore, true);
-  assert.ok(first.readPaths.every((p) => !p.includes('com.example.documentscanner') || p.includes('/Fastfile')));
+  assert.ok(
+    first.readPaths.every(
+      (p) => !p.includes('com.example.documentscanner') || p.includes('/Fastfile'),
+    ),
+  );
   const metaReads = first.readPaths.filter((p) => p.startsWith('fastlane/metadata/'));
   assert.ok(metaReads.every((p) => p.startsWith('fastlane/metadata/com.example.cardwallet/')));
   assert.ok(first.reads < 40, `${first.reads} reads`);

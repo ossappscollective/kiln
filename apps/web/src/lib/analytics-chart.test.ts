@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { columnPath, domainOf, indexAt, labelsCollide, niceStep, niceTicks, plot, provisionalIndex, xTickIndexes, type Box } from './analytics-chart.ts';
+import {
+  type Box,
+  columnPath,
+  domainOf,
+  indexAt,
+  labelsCollide,
+  niceStep,
+  niceTicks,
+  plot,
+  provisionalIndex,
+  xTickIndexes,
+} from './analytics-chart.ts';
 
 const box: Box = { width: 340, height: 160, left: 40, right: 12, top: 8, bottom: 24 };
 
@@ -30,13 +41,28 @@ test('a count axis starts at zero and a rating axis follows the data inside 1 to
 });
 
 test('a line is drawn per run: a gap is a gap, never a bridge or a zero', () => {
-  const g = plot({ box, count: 7, kind: 'line', domain: 'zero', series: [{ key: 'a', color: 1, values: [10, 20, null, null, 30, 40, null] }] });
+  const g = plot({
+    box,
+    count: 7,
+    kind: 'line',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: [10, 20, null, null, 30, 40, null] }],
+  });
   const line = g.lines[0];
   assert.equal(line?.runs.length, 2);
-  assert.deepEqual(line?.runs.map((r) => r.points.length), [2, 2]);
+  assert.deepEqual(
+    line?.runs.map((r) => r.points.length),
+    [2, 2],
+  );
   assert.equal(line?.last?.i, 5);
   assert.equal(line?.last?.value, 40);
-  assert.deepEqual(g.missing.map((m) => [m.from, m.to]), [[2, 3], [6, 6]]);
+  assert.deepEqual(
+    g.missing.map((m) => [m.from, m.to]),
+    [
+      [2, 3],
+      [6, 6],
+    ],
+  );
   assert.equal(g.bars.length, 0);
   // no point sits on the zero line: missing days have no mark at all
   const ys = line?.runs.flatMap((r) => r.points.map((p) => p.y)) ?? [];
@@ -54,19 +80,37 @@ test('a day is hatched as missing only when every series of the panel lacks it',
       { key: 'b', color: 2, values: [1, 2, null, 4] },
     ],
   });
-  assert.deepEqual(g.missing.map((m) => [m.from, m.to]), [[2, 2]]);
+  assert.deepEqual(
+    g.missing.map((m) => [m.from, m.to]),
+    [[2, 2]],
+  );
 });
 
 test('an empty panel plots nothing but still has a sound axis', () => {
-  const g = plot({ box, count: 3, kind: 'line', domain: 'zero', series: [{ key: 'a', color: 1, values: [null, null, null] }] });
+  const g = plot({
+    box,
+    count: 3,
+    kind: 'line',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: [null, null, null] }],
+  });
   assert.equal(g.lines[0]?.runs.length, 0);
   assert.equal(g.lines[0]?.last, null);
-  assert.deepEqual(g.missing.map((m) => [m.from, m.to]), [[0, 2]]);
+  assert.deepEqual(
+    g.missing.map((m) => [m.from, m.to]),
+    [[0, 2]],
+  );
   assert.ok(Number.isFinite(g.min) && Number.isFinite(g.max) && g.max > g.min);
 });
 
 test('the y scale maps the axis ends to the plot edges and the baseline is zero', () => {
-  const g = plot({ box, count: 4, kind: 'columns', domain: 'zero', series: [{ key: 'a', color: 1, values: [10, 20, 30, 50] }] });
+  const g = plot({
+    box,
+    count: 4,
+    kind: 'columns',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: [10, 20, 30, 50] }],
+  });
   assert.equal(g.min, 0);
   assert.equal(g.max, 60);
   assert.equal(g.y(0), box.top + g.plotH);
@@ -77,9 +121,21 @@ test('the y scale maps the axis ends to the plot edges and the baseline is zero'
 });
 
 test('columns are at most 24px thick, start at the baseline and have a rounded data end', () => {
-  const few = plot({ box, count: 3, kind: 'columns', domain: 'zero', series: [{ key: 'a', color: 1, values: [10, 20, 30] }] });
+  const few = plot({
+    box,
+    count: 3,
+    kind: 'columns',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: [10, 20, 30] }],
+  });
   assert.ok(few.bars.every((b) => b.w <= 24));
-  const many = plot({ box, count: 90, kind: 'columns', domain: 'zero', series: [{ key: 'a', color: 1, values: Array.from({ length: 90 }, (_, i) => i + 1) }] });
+  const many = plot({
+    box,
+    count: 90,
+    kind: 'columns',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: Array.from({ length: 90 }, (_, i) => i + 1) }],
+  });
   assert.ok(many.bars.every((b) => b.w >= 1 && b.w <= 24));
   for (const b of few.bars) {
     assert.ok(Math.abs(b.y + b.h - few.baseline) < 1e-6);
@@ -109,17 +165,45 @@ test('stacked parts are separated by a 2px gap and only the top part is rounded'
 });
 
 test('a column of zero or a missing day draws no mark', () => {
-  const g = plot({ box, count: 3, kind: 'columns', domain: 'zero', series: [{ key: 'a', color: 1, values: [5, 0, null] }] });
-  assert.deepEqual(g.bars.map((b) => b.i), [0]);
-  assert.deepEqual(g.missing.map((m) => [m.from, m.to]), [[2, 2]]);
+  const g = plot({
+    box,
+    count: 3,
+    kind: 'columns',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: [5, 0, null] }],
+  });
+  assert.deepEqual(
+    g.bars.map((b) => b.i),
+    [0],
+  );
+  assert.deepEqual(
+    g.missing.map((m) => [m.from, m.to]),
+    [[2, 2]],
+  );
 });
 
 test('days the store may still change get a wash from the first such day to the end', () => {
-  const g = plot({ box, count: 10, kind: 'line', domain: 'zero', provisionalFrom: 7, series: [{ key: 'a', color: 1, values: Array.from({ length: 10 }, (_, i) => i) }] });
+  const g = plot({
+    box,
+    count: 10,
+    kind: 'line',
+    domain: 'zero',
+    provisionalFrom: 7,
+    series: [{ key: 'a', color: 1, values: Array.from({ length: 10 }, (_, i) => i) }],
+  });
   assert.equal(g.provisional?.from, 7);
   assert.equal(g.provisional?.to, 9);
-  assert.ok(Math.abs((g.provisional?.x ?? 0) + (g.provisional?.w ?? 0) - (box.width - box.right)) < 1e-6);
-  const none = plot({ box, count: 10, kind: 'line', domain: 'zero', provisionalFrom: -1, series: [{ key: 'a', color: 1, values: [1] }] });
+  assert.ok(
+    Math.abs((g.provisional?.x ?? 0) + (g.provisional?.w ?? 0) - (box.width - box.right)) < 1e-6,
+  );
+  const none = plot({
+    box,
+    count: 10,
+    kind: 'line',
+    domain: 'zero',
+    provisionalFrom: -1,
+    series: [{ key: 'a', color: 1, values: [1] }],
+  });
   assert.equal(none.provisional, null);
 });
 
@@ -133,7 +217,13 @@ test('provisionalIndex finds the first day within the delay of today', () => {
 });
 
 test('indexAt maps a pointer position to a day, and nothing outside the plot', () => {
-  const g = plot({ box, count: 10, kind: 'line', domain: 'zero', series: [{ key: 'a', color: 1, values: Array.from({ length: 10 }, (_, i) => i) }] });
+  const g = plot({
+    box,
+    count: 10,
+    kind: 'line',
+    domain: 'zero',
+    series: [{ key: 'a', color: 1, values: Array.from({ length: 10 }, (_, i) => i) }],
+  });
   assert.equal(indexAt(g, box.left - 1), null);
   assert.equal(indexAt(g, box.left), 0);
   assert.equal(indexAt(g, g.xCenter(4)), 4);
@@ -148,12 +238,18 @@ test('x labels: first and last always, evenly between, never more than asked', (
   assert.equal(ticks[0], 0);
   assert.equal(ticks[ticks.length - 1], 27);
   assert.ok(ticks.length <= 5);
-  assert.deepEqual(ticks, [...ticks].sort((a, b) => a - b));
+  assert.deepEqual(
+    ticks,
+    [...ticks].sort((a, b) => a - b),
+  );
 });
 
 test('column paths round only the data end', () => {
   assert.equal(columnPath(0, 10, 100, 50, 4, false), 'M0,100V50H10V100Z');
-  assert.match(columnPath(0, 10, 100, 50, 4, true), /^M0,100V54A4,4 0 0 1 4,50H6A4,4 0 0 1 10,54V100Z$/);
+  assert.match(
+    columnPath(0, 10, 100, 50, 4, true),
+    /^M0,100V54A4,4 0 0 1 4,50H6A4,4 0 0 1 10,54V100Z$/,
+  );
   // a short column cannot be rounder than it is tall
   assert.match(columnPath(0, 10, 100, 98, 4, true), /A2,2/);
 });

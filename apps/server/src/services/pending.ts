@@ -1,10 +1,10 @@
 import type { Platform, StagedProblem } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ManagedApp, getApp, listApps } from './apps.ts';
+import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
-import { type PushRecord, loadPush } from './store-draft-record.ts';
 import { buildStagedView } from './staged-changes.ts';
+import { loadPush, type PushRecord } from './store-draft-record.ts';
 
 /**
  * Everything of an app that is waiting for somebody, in ONE place (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md):
@@ -16,14 +16,27 @@ import { buildStagedView } from './staged-changes.ts';
  * switch off. What it says about the store is as fresh as the last sync (`lastSyncedAt`). It never carries a staged text.
  */
 
-export const PENDING_KINDS = ['listing_text', 'asset_set', 'release_field', 'pushed_draft', 'in_review', 'approved', 'rollout_step'] as const;
+export const PENDING_KINDS = [
+  'listing_text',
+  'asset_set',
+  'release_field',
+  'pushed_draft',
+  'in_review',
+  'approved',
+  'rollout_step',
+] as const;
 export type PendingKind = (typeof PENDING_KINDS)[number];
 
 /** The gated steps a person takes to publish something, in the order they happen. */
 export const PUBLISH_STEPS = ['push_draft', 'submit', 'release', 'rollout'] as const;
 export type PublishStep = (typeof PUBLISH_STEPS)[number];
 
-export type PendingProblem = { code: string; severity: 'error' | 'warning'; message: string; item?: string };
+export type PendingProblem = {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  item?: string;
+};
 
 export type PendingItem = {
   kind: PendingKind;
@@ -78,14 +91,25 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 const problemsOf = (problems: readonly StagedProblem[], item?: string): PendingProblem[] =>
   problems
     .filter((p) => p.severity === 'error' || p.severity === 'warning')
-    .map((p) => ({ code: p.code, severity: p.severity as 'error' | 'warning', message: p.message, ...(item !== undefined ? { item } : {}) }));
+    .map((p) => ({
+      code: p.code,
+      severity: p.severity as 'error' | 'warning',
+      message: p.message,
+      ...(item !== undefined ? { item } : {}),
+    }));
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // ---------------------------------------------------------------------------------------------
 // The facts: loaded for one app, or for every app of the workspace (a fixed number of queries)
 
-type ReleaseFact = { id: string; version: string; track: string; status: string; since: number | null };
+type ReleaseFact = {
+  id: string;
+  version: string;
+  track: string;
+  status: string;
+  since: number | null;
+};
 type StepFact = { id: string; planVersion: string; percent: number; plannedAt: number };
 
 export type PendingFacts = {
@@ -102,7 +126,10 @@ const append = <T>(map: Map<string, T[]>, key: string, value: T) => {
   else map.set(key, [value]);
 };
 
-export async function loadPendingFacts(sql: Sql, input: { workspaceId: string; appId?: string; now: number }): Promise<PendingFacts> {
+export async function loadPendingFacts(
+  sql: Sql,
+  input: { workspaceId: string; appId?: string; now: number },
+): Promise<PendingFacts> {
   const { workspaceId, appId } = input;
   const only = appId === undefined ? '' : ' AND app_id = ?';
   const args = (...rest: (string | number)[]) => (appId === undefined ? rest : [...rest, appId]);
@@ -116,7 +143,10 @@ export async function loadPendingFacts(sql: Sql, input: { workspaceId: string; a
   }
 
   const pushes = new Map<string, PushRecord>();
-  for (const r of await sql.query(`SELECT app_id, platform FROM store_draft_pushes WHERE workspace_id = ?${only}`, args(workspaceId))) {
+  for (const r of await sql.query(
+    `SELECT app_id, platform FROM store_draft_pushes WHERE workspace_id = ?${only}`,
+    args(workspaceId),
+  )) {
     const record = await loadPush(sql, String(r.app_id), String(r.platform) as Platform);
     if (record) pushes.set(record.appId, record);
   }
@@ -127,7 +157,13 @@ export async function loadPendingFacts(sql: Sql, input: { workspaceId: string; a
       WHERE workspace_id = ?${only} AND status IN ('in_review', 'approved') ORDER BY version, track, id`,
     args(workspaceId),
   )) {
-    append(releases, String(r.app_id), { id: String(r.id), version: String(r.version), track: String(r.track ?? ''), status: String(r.status), since: num(r.status_since) ?? num(r.synced_at) });
+    append(releases, String(r.app_id), {
+      id: String(r.id),
+      version: String(r.version),
+      track: String(r.track ?? ''),
+      status: String(r.status),
+      since: num(r.status_since) ?? num(r.synced_at),
+    });
   }
 
   // Only the next step of a plan counts, and only when its planned time has passed.
@@ -142,7 +178,12 @@ export async function loadPendingFacts(sql: Sql, input: { workspaceId: string; a
     const list = steps.get(String(r.app_id)) ?? [];
     // The earliest open step of a plan comes first: keep one per plan.
     if (list.some((x) => x.planVersion === String(r.version))) continue;
-    append(steps, String(r.app_id), { id: String(r.id), planVersion: String(r.version), percent: Number(r.percent), plannedAt: Number(r.planned_at) });
+    append(steps, String(r.app_id), {
+      id: String(r.id),
+      planVersion: String(r.version),
+      percent: Number(r.percent),
+      plannedAt: Number(r.planned_at),
+    });
   }
   return { unpushed, pushes, releases, steps };
 }
@@ -152,7 +193,11 @@ export async function loadPendingFacts(sql: Sql, input: { workspaceId: string; a
 
 type StagedView = Awaited<ReturnType<typeof buildStagedView>>;
 
-function itemsOf(app: ManagedApp, facts: PendingFacts, staged: StagedView | undefined): PendingItem[] {
+function itemsOf(
+  app: ManagedApp,
+  facts: PendingFacts,
+  staged: StagedView | undefined,
+): PendingItem[] {
   const out: PendingItem[] = [];
   const platform = app.platform;
 
@@ -168,7 +213,11 @@ function itemsOf(app: ManagedApp, facts: PendingFacts, staged: StagedView | unde
         state: texts.some((t) => t.status === 'invalid') ? 'invalid' : 'staged',
         problems: texts.flatMap((t) => problemsOf(t.problems, `${t.locale}/${t.field}`)),
         nextStep: 'push_draft',
-        counts: { changes: texts.length, locales: locales.size, invalid: texts.filter((t) => t.status === 'invalid').length },
+        counts: {
+          changes: texts.length,
+          locales: locales.size,
+          invalid: texts.filter((t) => t.status === 'invalid').length,
+        },
         refs: texts.slice(0, MAX_REFS).map((t) => ({ id: t.id, locale: t.locale, field: t.field })),
         truncated: texts.length > MAX_REFS,
         since: Math.min(...texts.map((t) => t.createdAt)),
@@ -229,9 +278,33 @@ function itemsOf(app: ManagedApp, facts: PendingFacts, staged: StagedView | unde
   for (const r of facts.releases.get(app.id) ?? []) {
     const name = r.track ? `${r.version} on ${r.track}` : r.version;
     if (r.status === 'in_review') {
-      out.push({ kind: 'in_review', platform, id: `release:${r.id}`, label: `Version ${name} is in review`, state: 'in_review', problems: [], nextStep: null, counts: {}, refs: [], truncated: false, since: r.since });
+      out.push({
+        kind: 'in_review',
+        platform,
+        id: `release:${r.id}`,
+        label: `Version ${name} is in review`,
+        state: 'in_review',
+        problems: [],
+        nextStep: null,
+        counts: {},
+        refs: [],
+        truncated: false,
+        since: r.since,
+      });
     } else {
-      out.push({ kind: 'approved', platform, id: `release:${r.id}`, label: `Version ${name} is approved and waiting for release`, state: 'approved', problems: [], nextStep: 'release', counts: {}, refs: [], truncated: false, since: r.since });
+      out.push({
+        kind: 'approved',
+        platform,
+        id: `release:${r.id}`,
+        label: `Version ${name} is approved and waiting for release`,
+        state: 'approved',
+        problems: [],
+        nextStep: 'release',
+        counts: {},
+        refs: [],
+        truncated: false,
+        since: r.since,
+      });
     }
   }
 
@@ -261,19 +334,42 @@ export function totalsOf(items: readonly PendingItem[]): PendingTotals {
   };
 }
 
-const nextStepsOf = (items: readonly PendingItem[]): PublishStep[] => PUBLISH_STEPS.filter((s) => items.some((i) => i.nextStep === s));
+const nextStepsOf = (items: readonly PendingItem[]): PublishStep[] =>
+  PUBLISH_STEPS.filter((s) => items.some((i) => i.nextStep === s));
 
-const stagedViewFor = async (db: Database, workspaceId: string, app: ManagedApp, facts: PendingFacts, now: number): Promise<StagedView | undefined> =>
-  facts.unpushed.has(app.id) ? buildStagedView({ db, now: () => now }, workspaceId, app) : undefined;
+const stagedViewFor = async (
+  db: Database,
+  workspaceId: string,
+  app: ManagedApp,
+  facts: PendingFacts,
+  now: number,
+): Promise<StagedView | undefined> =>
+  facts.unpushed.has(app.id)
+    ? buildStagedView({ db, now: () => now }, workspaceId, app)
+    : undefined;
 
 /** The pending items of an app. Stored state only. */
-export async function pendingItemsOf(db: Database, input: { workspaceId: string; app: ManagedApp; now: number }): Promise<PendingItem[]> {
-  const facts = await loadPendingFacts(db, { workspaceId: input.workspaceId, appId: input.app.id, now: input.now });
-  return itemsOf(input.app, facts, await stagedViewFor(db, input.workspaceId, input.app, facts, input.now));
+export async function pendingItemsOf(
+  db: Database,
+  input: { workspaceId: string; app: ManagedApp; now: number },
+): Promise<PendingItem[]> {
+  const facts = await loadPendingFacts(db, {
+    workspaceId: input.workspaceId,
+    appId: input.app.id,
+    now: input.now,
+  });
+  return itemsOf(
+    input.app,
+    facts,
+    await stagedViewFor(db, input.workspaceId, input.app, facts, input.now),
+  );
 }
 
 /** `GET /apps/{id}/pending`: the stored state only, no store is contacted. */
-export async function getPending(db: Database, input: { workspaceId: string; appId: string; now: number }): Promise<{ ok: true; pending: PendingView } | Failure> {
+export async function getPending(
+  db: Database,
+  input: { workspaceId: string; appId: string; now: number },
+): Promise<{ ok: true; pending: PendingView } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const items = await pendingItemsOf(db, { workspaceId: input.workspaceId, app, now: input.now });
@@ -283,7 +379,11 @@ export async function getPending(db: Database, input: { workspaceId: string; app
     pending: {
       app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
       platforms: [{ platform: app.platform, store: storeFor(app.platform), items, totals }],
-      totals: { ...totals, platforms: items.length > 0 ? [app.platform] : [], nextSteps: nextStepsOf(items) },
+      totals: {
+        ...totals,
+        platforms: items.length > 0 ? [app.platform] : [],
+        nextSteps: nextStepsOf(items),
+      },
       lastSyncedAt: app.lastSyncedAt,
       generatedAt: input.now,
     },
@@ -313,13 +413,22 @@ export type PendingSummary = {
 };
 
 /** `GET /pending/summary`: one line per app that has something, from stored state, a fixed number of queries plus one staged view per app with unpushed items. */
-export async function pendingSummary(db: Database, input: { workspaceId: string; appIds?: readonly string[] | undefined; now: number }): Promise<PendingSummary> {
+export async function pendingSummary(
+  db: Database,
+  input: { workspaceId: string; appIds?: readonly string[] | undefined; now: number },
+): Promise<PendingSummary> {
   const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
-  const apps = (await listApps(db, input.workspaceId)).filter((a) => wanted === undefined || wanted.has(a.id));
+  const apps = (await listApps(db, input.workspaceId)).filter(
+    (a) => wanted === undefined || wanted.has(a.id),
+  );
   const facts = await loadPendingFacts(db, { workspaceId: input.workspaceId, now: input.now });
   const lines: PendingSummaryApp[] = [];
   for (const app of apps) {
-    const items = itemsOf(app, facts, await stagedViewFor(db, input.workspaceId, app, facts, input.now));
+    const items = itemsOf(
+      app,
+      facts,
+      await stagedViewFor(db, input.workspaceId, app, facts, input.now),
+    );
     if (items.length === 0) continue;
     const totals = totalsOf(items);
     const actionable = items.filter((i) => i.nextStep !== null);
@@ -334,10 +443,20 @@ export async function pendingSummary(db: Database, input: { workspaceId: string;
       nextSteps: nextStepsOf(items),
     });
   }
-  lines.sort((a, b) => b.blocking - a.blocking || b.count - a.count || a.app.name.localeCompare(b.app.name) || a.appId.localeCompare(b.appId));
+  lines.sort(
+    (a, b) =>
+      b.blocking - a.blocking ||
+      b.count - a.count ||
+      a.app.name.localeCompare(b.app.name) ||
+      a.appId.localeCompare(b.appId),
+  );
   return {
     apps: lines,
-    totals: { apps: lines.filter((l) => l.count > 0).length, count: lines.reduce((n, l) => n + l.count, 0), blocking: lines.reduce((n, l) => n + l.blocking, 0) },
+    totals: {
+      apps: lines.filter((l) => l.count > 0).length,
+      count: lines.reduce((n, l) => n + l.count, 0),
+      blocking: lines.reduce((n, l) => n + l.blocking, 0),
+    },
     generatedAt: input.now,
   };
 }

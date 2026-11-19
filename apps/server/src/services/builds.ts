@@ -1,15 +1,27 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { type CiArtifact, type InternalSharingConnector, PlayInternalSharingConnector, StoreError, type TestFlightGroup, type TestFlightLinksConnector } from '@mrm/connectors';
-import { type Platform, can, isApplePlatform } from '@mrm/core';
-import { type CiContext, guarded, openCi } from './ci.ts';
-import { defaultStoreConnectorFactory, getApp, type ManagedApp, type StoreConnectorFactory } from './apps.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { recordAudit } from './audit.ts';
+import {
+  type CiArtifact,
+  type InternalSharingConnector,
+  PlayInternalSharingConnector,
+  StoreError,
+  type TestFlightGroup,
+  type TestFlightLinksConnector,
+} from '@mrm/connectors';
+import { can, isApplePlatform, type Platform } from '@mrm/core';
 import { memberRole } from './accounts.ts';
+import {
+  defaultStoreConnectorFactory,
+  getApp,
+  type ManagedApp,
+  type StoreConnectorFactory,
+} from './apps.ts';
+import { recordAudit } from './audit.ts';
 import { listConventions } from './build-conventions.ts';
+import { type CiContext, guarded, openCi } from './ci.ts';
 import { listRuns, runCountsForApp, type WorkflowRunView } from './ci-runs.ts';
-import { type Failure, getRepository, withTimeout } from './repositories.ts';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
+import { useCredentialSecret } from './credentials.ts';
+import { type Failure, getRepository, withTimeout } from './repositories.ts';
 import { timedCache } from './timed-cache.ts';
 
 /**
@@ -60,9 +72,15 @@ export type InternalSharingConnectorInput = {
   /** Aborted when the upload times out. Pass it to the connector as its `fetch`. */
   fetch: typeof fetch;
 };
-export type InternalSharingConnectorFactory = (input: InternalSharingConnectorInput) => InternalSharingConnector;
+export type InternalSharingConnectorFactory = (
+  input: InternalSharingConnectorInput,
+) => InternalSharingConnector;
 export const defaultInternalSharingConnectorFactory: InternalSharingConnectorFactory = (input) =>
-  new PlayInternalSharingConnector({ serviceAccount: input.secret, packageName: input.packageName, fetch: input.fetch });
+  new PlayInternalSharingConnector({
+    serviceAccount: input.secret,
+    packageName: input.packageName,
+    fetch: input.fetch,
+  });
 
 export type BuildsContext = CiContext & {
   builds: BuildsSettings;
@@ -75,7 +93,10 @@ export type BuildsContext = CiContext & {
 
 export function createBuildsContext(
   ci: CiContext,
-  options: Partial<BuildsSettings> & { listLimiter?: TestLimiter; downloadLimiter?: TestLimiter } = {},
+  options: Partial<BuildsSettings> & {
+    listLimiter?: TestLimiter;
+    downloadLimiter?: TestLimiter;
+  } = {},
 ): BuildsContext {
   return {
     ...ci,
@@ -87,19 +108,31 @@ export function createBuildsContext(
       allowHttpRedirects: options.allowHttpRedirects ?? false,
       storeConnectorFactory: options.storeConnectorFactory ?? defaultStoreConnectorFactory,
       internalSharingEnabled: options.internalSharingEnabled ?? false,
-      internalSharingConnectorFactory: options.internalSharingConnectorFactory ?? defaultInternalSharingConnectorFactory,
+      internalSharingConnectorFactory:
+        options.internalSharingConnectorFactory ?? defaultInternalSharingConnectorFactory,
       internalSharingTimeoutMs: options.internalSharingTimeoutMs,
       internalSharingClaimTtlMs: options.internalSharingClaimTtlMs,
     },
     listLimiter: options.listLimiter ?? createTestLimiter({ limit: LISTS_PER_MINUTE, now: ci.now }),
-    downloadLimiter: options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
+    downloadLimiter:
+      options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
     links: new Map(),
     downloading: new Map(),
   };
 }
 
-type BuildsFailure = { ok: false; status: number; body: Record<string, unknown> & { error: string }; headers?: Record<string, string> };
-export const fail = (status: number, error: string, message?: string, extra: Record<string, unknown> = {}): BuildsFailure => ({
+type BuildsFailure = {
+  ok: false;
+  status: number;
+  body: Record<string, unknown> & { error: string };
+  headers?: Record<string, string>;
+};
+export const fail = (
+  status: number,
+  error: string,
+  message?: string,
+  extra: Record<string, unknown> = {},
+): BuildsFailure => ({
   ok: false,
   status,
   body: { error, ...(message ? { message } : {}), ...extra },
@@ -111,25 +144,45 @@ export type { BuildsFailure };
 
 export type ArtifactKind = 'ipa' | 'apk' | 'aab' | 'app' | 'dmg' | 'pkg' | 'zip' | 'other';
 
-const NOT_A_BUILD = /(^|[^a-z])(tests?|reports?|coverage|logs?|junit|results?|screenshots?|symbols?|dsyms?|mapping|lint|sbom|docs?|cache)([^a-z]|$)/;
-const BUILDISH = /(^|[^a-z])(ipa|apk|aab|app|build|builds|release|bundle|binary|archive|artifact|dmg|pkg|ios|android|macos|debug|adhoc|ad-hoc|testflight|nightly)([^a-z]|$)/;
+const NOT_A_BUILD =
+  /(^|[^a-z])(tests?|reports?|coverage|logs?|junit|results?|screenshots?|symbols?|dsyms?|mapping|lint|sbom|docs?|cache)([^a-z]|$)/;
+const BUILDISH =
+  /(^|[^a-z])(ipa|apk|aab|app|build|builds|release|bundle|binary|archive|artifact|dmg|pkg|ios|android|macos|debug|adhoc|ad-hoc|testflight|nightly)([^a-z]|$)/;
 
 /**
  * A guess from the artifact's name (an artifact is always a zip; the name is the team's own, so this can be wrong).
  * `platform` falls back to the platform of the app for something that looks like a build, and is null for `other`.
  */
-export function guessArtifact(name: string, appPlatform: Platform): { kind: ArtifactKind; platform: Platform | null } {
+export function guessArtifact(
+  name: string,
+  appPlatform: Platform,
+): { kind: ArtifactKind; platform: Platform | null } {
   const n = name.toLowerCase();
-  const ext = /\.(ipa|apk|aab|dmg|pkg)(\.zip)?$/.exec(n)?.[1] as 'ipa' | 'apk' | 'aab' | 'dmg' | 'pkg' | undefined;
+  const ext = /\.(ipa|apk|aab|dmg|pkg)(\.zip)?$/.exec(n)?.[1] as
+    | 'ipa'
+    | 'apk'
+    | 'aab'
+    | 'dmg'
+    | 'pkg'
+    | undefined;
   let kind: ArtifactKind;
   if (ext) kind = ext;
   else if (/\.app(\.zip)?$/.test(n)) kind = 'app';
   else if (NOT_A_BUILD.test(n)) kind = 'other';
   else {
-    const word = /(^|[^a-z])(ipa|apk|aab|dmg|pkg)([^a-z]|$)/.exec(n)?.[2] as ArtifactKind | undefined;
+    const word = /(^|[^a-z])(ipa|apk|aab|dmg|pkg)([^a-z]|$)/.exec(n)?.[2] as
+      | ArtifactKind
+      | undefined;
     kind = word ?? (BUILDISH.test(n) ? 'zip' : 'other');
   }
-  const byKind: Partial<Record<ArtifactKind, Platform>> = { ipa: 'ios', apk: 'android', aab: 'android', app: 'macos', dmg: 'macos', pkg: 'macos' };
+  const byKind: Partial<Record<ArtifactKind, Platform>> = {
+    ipa: 'ios',
+    apk: 'android',
+    aab: 'android',
+    app: 'macos',
+    dmg: 'macos',
+    pkg: 'macos',
+  };
   const byWord = /(^|[^a-z])(ios|iphone|ipad)([^a-z]|$)/.test(n)
     ? 'ios'
     : /(^|[^a-z])(android)([^a-z]|$)/.test(n)
@@ -201,7 +254,12 @@ export type StoreBuildItem = {
   testflightGroupIds: string[] | null;
 };
 
-export type ArtifactProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'unsupported' | 'no_repository';
+export type ArtifactProblemReason =
+  | 'no_access'
+  | 'rate_limited'
+  | 'unavailable'
+  | 'unsupported'
+  | 'no_repository';
 
 /** Why the TestFlight groups could not be read, in a fixed vocabulary (never Apple's text). */
 export type TestFlightProblemReason = 'no_access' | 'rate_limited' | 'unavailable' | 'not_synced';
@@ -250,7 +308,10 @@ type RepoArtifacts = { at: number; artifacts: CiArtifact[]; truncated: boolean; 
 const repoCache = timedCache<RepoArtifacts>(LIST_CACHE_TTL_MS, 100);
 const stale = new Map<string, RepoArtifacts>();
 const troubleCache = timedCache<ArtifactProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
-const inFlight = new Map<string, Promise<{ ok: true; value: RepoArtifacts; cached: boolean } | Failure>>();
+const inFlight = new Map<
+  string,
+  Promise<{ ok: true; value: RepoArtifacts; cached: boolean } | Failure>
+>();
 /** The TestFlight groups of an app (30 seconds), and why a read failed (60 seconds, so a missing role is not asked again every click). */
 const flightCache = timedCache<{ at: number; groups: TestFlightGroup[] }>(LIST_CACHE_TTL_MS, 100);
 const flightTrouble = timedCache<TestFlightProblemReason>(PROBLEM_CACHE_TTL_MS, 100);
@@ -269,7 +330,17 @@ const reasonOf = (f: Failure): ArtifactProblemReason => {
   const code = String(f.body.error);
   if (f.status === 429) return 'rate_limited';
   if (code === 'ci_unsupported') return 'unsupported';
-  if (['github_auth', 'github_forbidden', 'github_not_found', 'credential_not_found', 'credential_kind', 'credential_unreadable'].includes(code)) return 'no_access';
+  if (
+    [
+      'github_auth',
+      'github_forbidden',
+      'github_not_found',
+      'credential_not_found',
+      'credential_kind',
+      'credential_unreadable',
+    ].includes(code)
+  )
+    return 'no_access';
   return 'unavailable';
 };
 
@@ -289,17 +360,34 @@ async function readRepoArtifacts(
     const opened = await openCi(ctx, workspaceId, repository, actor, 'builds.list');
     if (!opened.ok) return opened;
     const { client } = opened;
-    if (!client.listArtifacts) return { ok: false, status: 422, body: { error: 'ci_unsupported', message: 'This repository connection cannot list artifacts.' } } as Failure;
+    if (!client.listArtifacts)
+      return {
+        ok: false,
+        status: 422,
+        body: {
+          error: 'ci_unsupported',
+          message: 'This repository connection cannot list artifacts.',
+        },
+      } as Failure;
     const before = stale.get(key);
     const read = await guarded(ctx, opened.secret, (signal) =>
-      (client.listArtifacts as NonNullable<typeof client.listArtifacts>)({ maxPages: ARTIFACT_PAGES, signal, etag: before?.etag }),
+      (client.listArtifacts as NonNullable<typeof client.listArtifacts>)({
+        maxPages: ARTIFACT_PAGES,
+        signal,
+        etag: before?.etag,
+      }),
     );
     if (!read.ok) return read;
     const list = read.value;
     const value: RepoArtifacts =
       list.notModified && before
         ? { ...before, at: ctx.now() }
-        : { at: ctx.now(), artifacts: list.artifacts, truncated: list.truncated, ...(list.etag ? { etag: list.etag } : {}) };
+        : {
+            at: ctx.now(),
+            artifacts: list.artifacts,
+            truncated: list.truncated,
+            ...(list.etag ? { etag: list.etag } : {}),
+          };
     stale.set(key, value);
     repoCache.set(key, value, ctx.now());
     return { ok: true as const, value, cached: false };
@@ -315,7 +403,9 @@ const squash = (v: string): string => v.toLowerCase().replace(/[^a-z0-9]/g, '');
 /** What in an artifact name can point at an app: its name, its bundle id or package name (whole and last part), its own tag prefix. */
 function ownerKeys(c: OwnerCandidate): string[] {
   const last = c.identifier.split('.').pop() ?? '';
-  return [c.name, c.identifier, last, c.prefix ?? ''].map(squash).filter((k, i, all) => k.length >= 3 && all.indexOf(k) === i);
+  return [c.name, c.identifier, last, c.prefix ?? '']
+    .map(squash)
+    .filter((k, i, all) => k.length >= 3 && all.indexOf(k) === i);
 }
 
 /**
@@ -323,10 +413,19 @@ function ownerKeys(c: OwnerCandidate): string[] {
  * package name (or tag prefix) the name contains; when several match, the one with the longest match if that is unique
  * ("Notes Pro" over "Notes"). Null: the name does not say.
  */
-export function artifactOwner(artifactName: string, candidates: readonly OwnerCandidate[]): string | null {
+export function artifactOwner(
+  artifactName: string,
+  candidates: readonly OwnerCandidate[],
+): string | null {
   const n = squash(artifactName);
   const hits = candidates
-    .map((c) => ({ id: c.id, score: ownerKeys(c).reduce((best, k) => (n.indexOf(k) !== -1 && k.length > best ? k.length : best), 0) }))
+    .map((c) => ({
+      id: c.id,
+      score: ownerKeys(c).reduce(
+        (best, k) => (n.indexOf(k) !== -1 && k.length > best ? k.length : best),
+        0,
+      ),
+    }))
     .filter((h) => h.score > 0)
     .sort((a, b) => b.score - a.score);
   if (hits.length === 0) return null;
@@ -336,7 +435,12 @@ export function artifactOwner(artifactName: string, candidates: readonly OwnerCa
 
 const shortSha = (sha: string | null) => (sha ? sha.slice(0, 7) : null);
 
-function artifactItem(a: CiArtifact, run: WorkflowRunView, app: ManagedApp, maxBytes: number): ArtifactItem {
+function artifactItem(
+  a: CiArtifact,
+  run: WorkflowRunView,
+  app: ManagedApp,
+  maxBytes: number,
+): ArtifactItem {
   const guess = guessArtifact(a.name, app.platform);
   const tooLarge = a.sizeInBytes > maxBytes;
   return {
@@ -366,7 +470,11 @@ function artifactItem(a: CiArtifact, run: WorkflowRunView, app: ManagedApp, maxB
   };
 }
 
-async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: ManagedApp): Promise<StoreBuildItem[]> {
+async function storeBuilds(
+  ctx: BuildsContext,
+  workspaceId: string,
+  app: ManagedApp,
+): Promise<StoreBuildItem[]> {
   const rows = await ctx.db.query(
     `SELECT build_number, version, processing_state, raw_state, expired, uploaded_at FROM app_builds
       WHERE workspace_id = ? AND app_id = ? AND platform = ?`,
@@ -385,7 +493,11 @@ async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: Managed
     } catch {
       // not JSON: only the build column counts
     }
-    for (const code of app.platform === 'android' ? (codes.length ? codes : String(r.build ?? '').split(',')) : [String(r.build ?? '')]) {
+    for (const code of app.platform === 'android'
+      ? codes.length
+        ? codes
+        : String(r.build ?? '').split(',')
+      : [String(r.build ?? '')]) {
       const k = code.trim();
       if (!k) continue;
       const e = tracksOf.get(k) ?? { tracks: new Set<string>(), status: null };
@@ -397,7 +509,8 @@ async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: Managed
   const play = app.platform === 'android';
   const items = rows.map((r): StoreBuildItem => {
     const number = String(r.build_number);
-    const uploadedAt = r.uploaded_at === null || r.uploaded_at === undefined ? null : Number(r.uploaded_at);
+    const uploadedAt =
+      r.uploaded_at === null || r.uploaded_at === undefined ? null : Number(r.uploaded_at);
     const expired = r.expired === null || r.expired === undefined ? null : Number(r.expired) === 1;
     const state = String(r.processing_state);
     const extra = tracksOf.get(number);
@@ -407,7 +520,8 @@ async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: Managed
       platform: app.platform,
       buildNumber: number,
       version: r.version ? String(r.version) : null,
-      state: state === 'processing' || state === 'processed' || state === 'invalid' ? state : 'unknown',
+      state:
+        state === 'processing' || state === 'processed' || state === 'invalid' ? state : 'unknown',
       rawState: r.raw_state ? String(r.raw_state) : null,
       expired,
       uploadedAt,
@@ -416,12 +530,18 @@ async function storeBuilds(ctx: BuildsContext, workspaceId: string, app: Managed
       channel: play ? 'play' : 'testflight',
       tracks,
       releaseStatus: extra?.status ?? null,
-      optInUrl: play && tracks.some((t) => t !== 'internal' && t !== 'production') ? `https://play.google.com/apps/testing/${encodeURIComponent(app.identifier)}` : null,
+      optInUrl:
+        play && tracks.some((t) => t !== 'internal' && t !== 'production')
+          ? `https://play.google.com/apps/testing/${encodeURIComponent(app.identifier)}`
+          : null,
       runId: null,
       testflightGroupIds: null,
     };
   });
-  return items.sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber));
+  return items.sort(
+    (a, b) =>
+      (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber),
+  );
 }
 
 const isFlightReader = (c: unknown): c is TestFlightLinksConnector =>
@@ -430,7 +550,8 @@ const isFlightReader = (c: unknown): c is TestFlightLinksConnector =>
 /** Store errors in the fixed vocabulary. Apple's own text never leaves this function. */
 const flightReason = (error: unknown): TestFlightProblemReason => {
   if (error instanceof StoreError) {
-    if (error.kind === 'auth' || error.kind === 'forbidden' || error.status === 403) return 'no_access';
+    if (error.kind === 'auth' || error.kind === 'forbidden' || error.status === 403)
+      return 'no_access';
     if (error.kind === 'rate_limited') return 'rate_limited';
   }
   return 'unavailable';
@@ -440,7 +561,10 @@ const flightProblem = (reason: TestFlightProblemReason, cached = false): TestFli
   groups: [],
   withoutLink: 0,
   // UNVERIFIED: which App Store Connect role is the least that may read beta groups; App Manager is what the connector tells the user to use.
-  problem: { reason, needs: reason === 'no_access' ? 'App Store Connect API key with the App Manager role' : null },
+  problem: {
+    reason,
+    needs: reason === 'no_access' ? 'App Store Connect API key with the App Manager role' : null,
+  },
   readAt: null,
   cached,
 });
@@ -449,8 +573,16 @@ const flightProblem = (reason: TestFlightProblemReason, cached = false): TestFli
  * The TestFlight public links of an iOS or macOS app: a READ of its external beta groups (App Store Connect, GET only).
  * Kept 30 seconds like the artifact list; a failure is kept 60 seconds. Nothing is created, enabled or changed.
  */
-async function readTestFlight(ctx: BuildsContext, workspaceId: string, app: ManagedApp, actor: Actor): Promise<{ info: TestFlightInfo; groups: TestFlightGroup[] }> {
-  const fail_ = (reason: TestFlightProblemReason, cached = false) => ({ info: flightProblem(reason, cached), groups: [] as TestFlightGroup[] });
+async function readTestFlight(
+  ctx: BuildsContext,
+  workspaceId: string,
+  app: ManagedApp,
+  actor: Actor,
+): Promise<{ info: TestFlightInfo; groups: TestFlightGroup[] }> {
+  const fail_ = (reason: TestFlightProblemReason, cached = false) => ({
+    info: flightProblem(reason, cached),
+    groups: [] as TestFlightGroup[],
+  });
   if (!app.storeAppId) return fail_('not_synced');
   const key = `${workspaceId}|${app.id}|${app.storeAppId}|${app.credentialId}`;
   const trouble = flightTrouble.get(key, ctx.now());
@@ -461,22 +593,44 @@ async function readTestFlight(ctx: BuildsContext, workspaceId: string, app: Mana
     flightTrouble.set(key, reason, ctx.now());
     return fail_(reason);
   };
-  const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
+  const [credential] = await ctx.db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [app.credentialId, workspaceId],
+  );
   if (!credential || String(credential.kind) !== 'app_store_connect') return stop('no_access');
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: 'builds.testflight' }, actor, ctx.now());
+    secret = await useCredentialSecret(
+      ctx.db,
+      ctx.masterKey,
+      { workspaceId, id: app.credentialId, purpose: 'builds.testflight' },
+      actor,
+      ctx.now(),
+    );
   } catch {
     return stop('no_access');
   }
   if (secret === undefined) return stop('no_access');
   const controller = new AbortController();
   const guardedFetch: typeof fetch = (input, init) =>
-    globalThis.fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+    globalThis.fetch(input, {
+      ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   try {
-    const connector = ctx.builds.storeConnectorFactory({ kind: 'app_store_connect', secret, identifier: app.identifier, platform: app.platform, fetch: guardedFetch });
+    const connector = ctx.builds.storeConnectorFactory({
+      kind: 'app_store_connect',
+      secret,
+      identifier: app.identifier,
+      platform: app.platform,
+      fetch: guardedFetch,
+    });
     if (!isFlightReader(connector)) return fail_('unavailable');
-    const groups = await withTimeout(connector.listTestFlightGroups(app.storeAppId), ctx.timeoutMs, () => controller.abort());
+    const groups = await withTimeout(
+      connector.listTestFlightGroups(app.storeAppId),
+      ctx.timeoutMs,
+      () => controller.abort(),
+    );
     const at = ctx.now();
     flightCache.set(key, { at, groups }, at);
     return { info: flightInfo(groups, at, false), groups };
@@ -489,7 +643,13 @@ function flightInfo(groups: TestFlightGroup[], at: number, cached: boolean): Tes
   const withLink = groups.filter((g) => g.publicLink !== null || g.publicLinkEnabled);
   return {
     groups: withLink
-      .map((g) => ({ id: g.id, name: g.name, publicLink: g.publicLink, enabled: g.publicLinkEnabled, limit: g.publicLinkLimit }))
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        publicLink: g.publicLink,
+        enabled: g.publicLinkEnabled,
+        limit: g.publicLinkLimit,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
     withoutLink: groups.length - withLink.length,
     problem: null,
@@ -505,7 +665,9 @@ export async function listBuildArtifacts(
 ): Promise<{ ok: true; list: BuildsList } | BuildsFailure | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return fail(404, 'not_found');
-  const repository = app.repositoryId ? await getRepository(ctx.db, input.workspaceId, app.repositoryId) : undefined;
+  const repository = app.repositoryId
+    ? await getRepository(ctx.db, input.workspaceId, app.repositoryId)
+    : undefined;
   let store = await storeBuilds(ctx, input.workspaceId, app);
   // TestFlight links: only for an Apple app that has builds from a sync. A failure is a fixed reason, never an error of the list.
   let testflight: TestFlightInfo | null = null;
@@ -516,31 +678,69 @@ export async function listBuildArtifacts(
       const wanted = flight.groups.filter((g) => g.publicLink !== null || g.publicLinkEnabled);
       store = store.map((b) => ({
         ...b,
-        testflightGroupIds: wanted.filter((g) => g.allBuilds || g.buildNumbers.includes(b.buildNumber)).map((g) => g.id),
+        testflightGroupIds: wanted
+          .filter((g) => g.allBuilds || g.buildNumbers.includes(b.buildNumber))
+          .map((g) => g.id),
       }));
     }
   }
   const base = {
     testflight,
     app: { id: app.id, name: app.name, platform: app.platform, identifier: app.identifier },
-    repository: repository && !repository.localOnly ? { id: repository.id, owner: repository.owner, repo: repository.repo } : null,
+    repository:
+      repository && !repository.localOnly
+        ? { id: repository.id, owner: repository.owner, repo: repository.repo }
+        : null,
     store,
     downloadEnabled: ctx.builds.downloadEnabled,
     maxDownloadBytes: ctx.builds.maxDownloadBytes,
   };
   if (!repository || repository.localOnly) {
-    return { ok: true, list: { ...base, artifacts: [], hiddenArtifacts: 0, truncated: false, problem: { reason: 'no_repository', needs: null }, readAt: null, cached: false } };
+    return {
+      ok: true,
+      list: {
+        ...base,
+        artifacts: [],
+        hiddenArtifacts: 0,
+        truncated: false,
+        problem: { reason: 'no_repository', needs: null },
+        readAt: null,
+        cached: false,
+      },
+    };
   }
   const key = `${input.workspaceId}|${repository.id}`;
   const trouble = troubleCache.get(key, ctx.now());
   if (trouble) {
-    return { ok: true, list: { ...base, artifacts: [], hiddenArtifacts: 0, truncated: false, problem: { reason: trouble, needs: trouble === 'no_access' ? 'actions: read' : null }, readAt: null, cached: true } };
+    return {
+      ok: true,
+      list: {
+        ...base,
+        artifacts: [],
+        hiddenArtifacts: 0,
+        truncated: false,
+        problem: { reason: trouble, needs: trouble === 'no_access' ? 'actions: read' : null },
+        readAt: null,
+        cached: true,
+      },
+    };
   }
   const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
   if (!read.ok) {
     const reason = reasonOf(read);
     troubleCache.set(key, reason, ctx.now());
-    return { ok: true, list: { ...base, artifacts: [], hiddenArtifacts: 0, truncated: false, problem: { reason, needs: reason === 'no_access' ? 'actions: read' : null }, readAt: null, cached: false } };
+    return {
+      ok: true,
+      list: {
+        ...base,
+        artifacts: [],
+        hiddenArtifacts: 0,
+        truncated: false,
+        problem: { reason, needs: reason === 'no_access' ? 'actions: read' : null },
+        readAt: null,
+        cached: false,
+      },
+    };
   }
   const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
   const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
@@ -554,7 +754,17 @@ export async function listBuildArtifacts(
     for (const id of run.appIds) {
       if (!linked.has(id)) {
         const other = id === app.id ? app : await getApp(ctx.db, input.workspaceId, id);
-        linked.set(id, other ? { id, name: other.name, identifier: other.identifier, prefix: conventions.find((r) => r.appId === id)?.prefix } : null);
+        linked.set(
+          id,
+          other
+            ? {
+                id,
+                name: other.name,
+                identifier: other.identifier,
+                prefix: conventions.find((r) => r.appId === id)?.prefix,
+              }
+            : null,
+        );
       }
       const c = linked.get(id);
       if (c) out.push(c);
@@ -584,7 +794,15 @@ export async function listBuildArtifacts(
   artifacts.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || b.id.localeCompare(a.id));
   return {
     ok: true,
-    list: { ...base, artifacts, hiddenArtifacts: hidden, truncated: read.value.truncated, problem: null, readAt: read.value.at, cached: read.cached },
+    list: {
+      ...base,
+      artifacts,
+      hiddenArtifacts: hidden,
+      truncated: read.value.truncated,
+      problem: null,
+      readAt: read.value.at,
+      cached: read.cached,
+    },
   };
 }
 
@@ -676,7 +894,8 @@ export async function findArtifact(
   input: { workspaceId: string; appId: string; artifactId: string },
   actor: Actor,
 ): Promise<FoundArtifact | BuildsFailure | Failure> {
-  if (!/^[0-9]{1,20}$/.test(input.artifactId)) return fail(400, 'invalid_request', 'An artifact id is a number.');
+  if (!/^[0-9]{1,20}$/.test(input.artifactId))
+    return fail(400, 'invalid_request', 'An artifact id is a number.');
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app || !app.repositoryId) return fail(404, 'not_found');
   const repository = await getRepository(ctx.db, input.workspaceId, app.repositoryId);
@@ -684,44 +903,76 @@ export async function findArtifact(
   const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
   if (!read.ok) return read;
   const artifact = read.value.artifacts.find((a) => a.id === input.artifactId);
-  const runs = artifact?.runId ? await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 }) : [];
+  const runs = artifact?.runId
+    ? await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 })
+    : [];
   const run = runs.find((r) => r.id === artifact?.runId && runCountsForApp(r, app.id));
   if (!artifact || !run) return fail(404, 'not_found');
   if (artifact.expired || (artifact.expiresAt !== null && artifact.expiresAt <= ctx.now())) {
-    return fail(410, 'artifact_expired', 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.');
+    return fail(
+      410,
+      'artifact_expired',
+      'GitHub no longer keeps this artifact. Run the workflow again to make a new one.',
+    );
   }
   if (artifact.sizeInBytes > ctx.builds.maxDownloadBytes) {
-    return fail(413, 'artifact_too_large', `This artifact is larger than the download limit (${Math.floor(ctx.builds.maxDownloadBytes / 1024 / 1024)} MB).`, { sizeBytes: artifact.sizeInBytes, maxBytes: ctx.builds.maxDownloadBytes });
+    return fail(
+      413,
+      'artifact_too_large',
+      `This artifact is larger than the download limit (${Math.floor(ctx.builds.maxDownloadBytes / 1024 / 1024)} MB).`,
+      { sizeBytes: artifact.sizeInBytes, maxBytes: ctx.builds.maxDownloadBytes },
+    );
   }
   return { ok: true, app, repository, artifact, run };
 }
 
 export async function openArtifactDownload(
   ctx: BuildsContext,
-  input: { workspaceId: string; appId: string; artifactId: string; via: 'session' | 'link' | 'share' },
+  input: {
+    workspaceId: string;
+    appId: string;
+    artifactId: string;
+    via: 'session' | 'link' | 'share';
+  },
   actor: Actor,
 ): Promise<OpenedDownload | BuildsFailure | Failure> {
   // `share`: the internal sharing service reads the artifact to upload it to Google; it has its own switch and gates.
   if (!ctx.builds.downloadEnabled && input.via !== 'share') {
-    return fail(409, 'builds_download_disabled', 'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).');
+    return fail(
+      409,
+      'builds_download_disabled',
+      'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).',
+    );
   }
-  if (!/^[0-9]{1,20}$/.test(input.artifactId)) return fail(400, 'invalid_request', 'An artifact id is a number.');
+  if (!/^[0-9]{1,20}$/.test(input.artifactId))
+    return fail(400, 'invalid_request', 'An artifact id is a number.');
   const wait = ctx.downloadLimiter.take(input.workspaceId);
   if (wait > 0) {
-    return { ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, { retryAfterSeconds: wait }), headers: { 'Retry-After': String(wait) } };
+    return {
+      ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, {
+        retryAfterSeconds: wait,
+      }),
+      headers: { 'Retry-After': String(wait) },
+    };
   }
   const found = await findArtifact(ctx, input, actor);
   if (!found.ok) return found;
   const { app, repository, artifact, run } = found;
   const busy = ctx.downloading.get(input.workspaceId) ?? 0;
   if (busy >= MAX_PARALLEL_DOWNLOADS) {
-    return { ...fail(429, 'rate_limited', 'Other downloads are still running. Try again in a moment.', { retryAfterSeconds: 10 }), headers: { 'Retry-After': '10' } };
+    return {
+      ...fail(429, 'rate_limited', 'Other downloads are still running. Try again in a moment.', {
+        retryAfterSeconds: 10,
+      }),
+      headers: { 'Retry-After': '10' },
+    };
   }
 
   const opened = await openCi(ctx, input.workspaceId, repository, actor, 'builds.download');
   if (!opened.ok) return opened;
   const { client } = opened;
-  if (!client.openArtifactDownload) return fail(422, 'ci_unsupported', 'This repository connection cannot download artifacts.');
+  if (!client.openArtifactDownload)
+    return fail(422, 'ci_unsupported', 'This repository connection cannot download artifacts.');
   const abort = new AbortController();
   ctx.downloading.set(input.workspaceId, busy + 1);
   const release = () => {
@@ -732,18 +983,29 @@ export async function openArtifactDownload(
   let started = false;
   try {
     const got = await guarded(ctx, opened.secret, (signal) =>
-      (client.openArtifactDownload as NonNullable<typeof client.openArtifactDownload>)(artifact.id, {
-        signal: AbortSignal.any([signal, abort.signal]),
-        allowHttp: ctx.builds.allowHttpRedirects,
-      }),
+      (client.openArtifactDownload as NonNullable<typeof client.openArtifactDownload>)(
+        artifact.id,
+        {
+          signal: AbortSignal.any([signal, abort.signal]),
+          allowHttp: ctx.builds.allowHttpRedirects,
+        },
+      ),
     );
     if (!got.ok) return got;
-    if (got.value.status === 'gone') return fail(410, 'artifact_expired', 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.');
+    if (got.value.status === 'gone')
+      return fail(
+        410,
+        'artifact_expired',
+        'GitHub no longer keeps this artifact. Run the workflow again to make a new one.',
+      );
     if (got.value.status === 'missing') return fail(404, 'not_found');
     const { body, contentLength } = got.value;
     if (contentLength !== null && contentLength > ctx.builds.maxDownloadBytes) {
       await body.cancel().catch(() => undefined);
-      return fail(413, 'artifact_too_large', 'This artifact is larger than the download limit.', { sizeBytes: contentLength, maxBytes: ctx.builds.maxDownloadBytes });
+      return fail(413, 'artifact_too_large', 'This artifact is larger than the download limit.', {
+        sizeBytes: contentLength,
+        maxBytes: ctx.builds.maxDownloadBytes,
+      });
     }
     // Ids and a size only: no name, no address.
     await recordAudit(ctx.db, {
@@ -751,13 +1013,27 @@ export async function openArtifactDownload(
       actor,
       action: 'build.download',
       target: { type: 'app', id: app.id },
-      detail: { artifactId: artifact.id, runId: run.id, repositoryId: repository.id, sizeBytes: artifact.sizeInBytes, via: input.via },
+      detail: {
+        artifactId: artifact.id,
+        runId: run.id,
+        repositoryId: repository.id,
+        sizeBytes: artifact.sizeInBytes,
+        via: input.via,
+      },
       at: ctx.now(),
     });
     started = true;
     return {
       ok: true,
-      body: guardStream(body, { maxBytes: ctx.builds.maxDownloadBytes, timeoutMs: ctx.builds.downloadTimeoutMs, onDone: release }, abort),
+      body: guardStream(
+        body,
+        {
+          maxBytes: ctx.builds.maxDownloadBytes,
+          timeoutMs: ctx.builds.downloadTimeoutMs,
+          onDone: release,
+        },
+        abort,
+      ),
       contentLength,
       filename: safeFilename(artifact.name, `build-${artifact.id}`),
       artifact,
@@ -777,10 +1053,15 @@ export type LinkPayload = { w: string; a: string; i: string; u: string; e: numbe
 const MAX_LINKS = 1_000;
 
 const b64 = (b: Buffer) => b.toString('base64url');
-const signingKey = (ctx: Pick<BuildsContext, 'masterKey'>) => createHmac('sha256', ctx.masterKey).update('mrm-builds-link-v1').digest();
-const macOf = (ctx: BuildsContext, body: string) => createHmac('sha256', signingKey(ctx)).update(body).digest().subarray(0, 16);
+const signingKey = (ctx: Pick<BuildsContext, 'masterKey'>) =>
+  createHmac('sha256', ctx.masterKey).update('mrm-builds-link-v1').digest();
+const macOf = (ctx: BuildsContext, body: string) =>
+  createHmac('sha256', signingKey(ctx)).update(body).digest().subarray(0, 16);
 
-export function signDownloadLink(ctx: BuildsContext, input: { workspaceId: string; appId: string; artifactId: string; userId: string }): { token: string; expiresAt: number } {
+export function signDownloadLink(
+  ctx: BuildsContext,
+  input: { workspaceId: string; appId: string; artifactId: string; userId: string },
+): { token: string; expiresAt: number } {
   const now = ctx.now();
   const expiresAt = now + ctx.builds.linkTtlMs;
   for (const [n, c] of ctx.links) if (c.e <= now) ctx.links.delete(n);
@@ -793,21 +1074,36 @@ export function signDownloadLink(ctx: BuildsContext, input: { workspaceId: strin
   const expiry = Buffer.alloc(6);
   expiry.writeUIntBE(expiresAt, 0, 6);
   const body = b64(Buffer.concat([nonce, expiry]));
-  ctx.links.set(body, { w: input.workspaceId, a: input.appId, i: input.artifactId, u: input.userId, e: expiresAt, used: false });
+  ctx.links.set(body, {
+    w: input.workspaceId,
+    a: input.appId,
+    i: input.artifactId,
+    u: input.userId,
+    e: expiresAt,
+    used: false,
+  });
   return { token: `${body}.${b64(macOf(ctx, body))}`, expiresAt };
 }
 
-export function readDownloadLink(ctx: BuildsContext, token: string): { ok: true; payload: LinkPayload } | { ok: false; reason: 'invalid' | 'expired' | 'used' } {
+export function readDownloadLink(
+  ctx: BuildsContext,
+  token: string,
+): { ok: true; payload: LinkPayload } | { ok: false; reason: 'invalid' | 'expired' | 'used' } {
   const [body, mac, extra] = token.split('.');
-  if (!body || !mac || extra !== undefined || token.length > 200) return { ok: false, reason: 'invalid' };
+  if (!body || !mac || extra !== undefined || token.length > 200)
+    return { ok: false, reason: 'invalid' };
   const expected = macOf(ctx, body);
   const given = Buffer.from(mac, 'base64url');
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, reason: 'invalid' };
+  if (given.length !== expected.length || !timingSafeEqual(given, expected))
+    return { ok: false, reason: 'invalid' };
   const claim = ctx.links.get(body);
   if (!claim) return { ok: false, reason: 'invalid' };
   if (claim.e <= ctx.now()) return { ok: false, reason: 'expired' };
   if (claim.used) return { ok: false, reason: 'used' };
-  return { ok: true, payload: { w: claim.w, a: claim.a, i: claim.i, u: claim.u, e: claim.e, n: body } };
+  return {
+    ok: true,
+    payload: { w: claim.w, a: claim.a, i: claim.i, u: claim.u, e: claim.e, n: body },
+  };
 }
 
 /** Marks a link used (before any await, so two requests at once cannot both pass). */
@@ -834,13 +1130,24 @@ export async function createDownloadLink(
   ctx: BuildsContext,
   input: { workspaceId: string; appId: string; artifactId: string; userId: string },
   actor: Actor,
-): Promise<{ ok: true; token: string; expiresAt: number; filename: string } | BuildsFailure | Failure> {
+): Promise<
+  { ok: true; token: string; expiresAt: number; filename: string } | BuildsFailure | Failure
+> {
   if (!ctx.builds.downloadEnabled) {
-    return fail(409, 'builds_download_disabled', 'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).');
+    return fail(
+      409,
+      'builds_download_disabled',
+      'Downloading builds is switched off on this server (MRM_BUILDS_DOWNLOAD_ENABLED).',
+    );
   }
   const wait = ctx.downloadLimiter.take(input.workspaceId);
   if (wait > 0) {
-    return { ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, { retryAfterSeconds: wait }), headers: { 'Retry-After': String(wait) } };
+    return {
+      ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, {
+        retryAfterSeconds: wait,
+      }),
+      headers: { 'Retry-After': String(wait) },
+    };
   }
   const found = await findArtifact(ctx, input, actor);
   if (!found.ok) return found;
@@ -853,5 +1160,9 @@ export async function createDownloadLink(
     detail: { artifactId: found.artifact.id, runId: found.run.id, expiresAt: link.expiresAt },
     at: ctx.now(),
   });
-  return { ok: true, ...link, filename: safeFilename(found.artifact.name, `build-${found.artifact.id}`) };
+  return {
+    ok: true,
+    ...link,
+    filename: safeFilename(found.artifact.name, `build-${found.artifact.id}`),
+  };
 }

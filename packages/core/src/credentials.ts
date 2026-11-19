@@ -54,7 +54,9 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
   google_play: {
     label: 'Google Play service account',
     description: 'The JSON key of a service account that has been invited in Play Console.',
-    fields: [{ name: 'serviceAccount', label: 'Service account JSON', multiline: true, accept: '.json' }],
+    fields: [
+      { name: 'serviceAccount', label: 'Service account JSON', multiline: true, accept: '.json' },
+    ],
   },
   github_app: {
     label: 'GitHub App installation',
@@ -114,13 +116,28 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
   },
   ai_anthropic: {
     label: 'Anthropic API key',
-    description: 'An API key for the Anthropic API, used for the AI assistance of a workspace (docs/adr/0016-ai-foundation.md).',
-    fields: [{ name: 'apiKey', label: 'API key', secret: true, hint: 'Create a key in the Anthropic Console. Set a spending limit there as well as the monthly token budget here.' }],
+    description:
+      'An API key for the Anthropic API, used for the AI assistance of a workspace (docs/adr/0016-ai-foundation.md).',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        hint: 'Create a key in the Anthropic Console. Set a spending limit there as well as the monthly token budget here.',
+      },
+    ],
   },
   ai_openai: {
     label: 'OpenAI API key',
     description: 'An API key for the OpenAI API, used for the AI assistance of a workspace.',
-    fields: [{ name: 'apiKey', label: 'API key', secret: true, hint: 'Set a spending limit with OpenAI as well as the monthly token budget here.' }],
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        hint: 'Set a spending limit with OpenAI as well as the monthly token budget here.',
+      },
+    ],
   },
   ai_openai_compatible: {
     label: 'API key of an OpenAI compatible server',
@@ -218,13 +235,18 @@ export function checkSecret(kind: CredentialKind, secret: string): string | unde
   if (kind === 'google_play') {
     const absent = missing(object, ['client_email', 'private_key']);
     if (absent.length) return `The service account JSON is missing ${absent.join(' and ')}.`;
-    if (!looksLikePrivateKey(object.private_key)) return 'The private_key in the JSON is not a private key.';
+    if (!looksLikePrivateKey(object.private_key))
+      return 'The private_key in the JSON is not a private key.';
     return undefined;
   }
-  const names = kind === 'app_store_connect' ? ['keyId', 'issuerId', 'privateKey'] : ['appId', 'installationId', 'privateKey'];
+  const names =
+    kind === 'app_store_connect'
+      ? ['keyId', 'issuerId', 'privateKey']
+      : ['appId', 'installationId', 'privateKey'];
   const labels = credentialKindInfo[kind].fields;
   const absent = missing(object, names).map((n) => labels.find((f) => f.name === n)?.label ?? n);
   if (absent.length) return `Fill in: ${absent.join(', ')}.`;
-  if (!looksLikePrivateKey(object.privateKey)) return 'The private key must be the full file, starting with -----BEGIN PRIVATE KEY----- or -----BEGIN RSA PRIVATE KEY-----.';
+  if (!looksLikePrivateKey(object.privateKey))
+    return 'The private key must be the full file, starting with -----BEGIN PRIVATE KEY----- or -----BEGIN RSA PRIVATE KEY-----.';
   return undefined;
 }

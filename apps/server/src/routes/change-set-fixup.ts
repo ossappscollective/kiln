@@ -1,8 +1,8 @@
 import { type Action, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
@@ -77,39 +77,67 @@ export function changeSetFixupRoutes(ctx: ChangeSetFixupRoutesContext) {
       ok: false,
       status: 429,
       headers: { 'Retry-After': String(wait) },
-      body: { error: 'rate_limited', message: `Too many ${what}. Try again in ${wait} seconds.`, retryAfterSeconds: wait },
+      body: {
+        error: 'rate_limited',
+        message: `Too many ${what}. Try again in ${wait} seconds.`,
+        retryAfterSeconds: wait,
+      },
     };
   };
   /** The optional body: none (or an empty one) is `{}`. */
-  const readBody = async <S extends z.ZodTypeAny>(c: Context<AppEnv>, schema: S): Promise<{ ok: true; data: z.infer<S> } | { ok: false; response: Response }> => {
+  const readBody = async <S extends z.ZodTypeAny>(
+    c: Context<AppEnv>,
+    schema: S,
+  ): Promise<{ ok: true; data: z.infer<S> } | { ok: false; response: Response }> => {
     const raw = await c.req.text();
     let json: unknown = {};
     if (raw.trim() !== '') {
       try {
         json = JSON.parse(raw);
       } catch {
-        return { ok: false, response: c.json({ error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] }, 400) };
+        return {
+          ok: false,
+          response: c.json(
+            { error: 'invalid_request', issues: [{ path: '', message: 'The body is not JSON.' }] },
+            400,
+          ),
+        };
       }
     }
     const result = schema.safeParse(json);
     if (!result.success) {
       return {
         ok: false,
-        response: c.json({ error: 'invalid_request', issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }, 400),
+        response: c.json(
+          {
+            error: 'invalid_request',
+            issues: result.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+          400,
+        ),
       };
     }
     return { ok: true, data: result.data };
   };
   const tooLarge = bodyLimit({
     maxSize: BODY_LIMIT,
-    onError: (c) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
+    onError: (c) =>
+      c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
   });
 
   /** The store read of `refresh: true`: the sync of the app the change set was pulled for, under the sync budget. */
   const storeRefresh = (c: Context<AppEnv>, appId: string) => {
     const sync = ctx.sync;
     return async (): Promise<Failure | undefined> => {
-      if (!sync) return { ok: false, status: 422, body: { error: 'refresh_unavailable', message: 'This server cannot read the store.' } };
+      if (!sync)
+        return {
+          ok: false,
+          status: 422,
+          body: { error: 'refresh_unavailable', message: 'This server cannot read the store.' },
+        };
       const waited = limited(sync.limiter, c, 'store reads');
       if (waited) return waited;
       const synced = await syncApp(sync.apps, { workspaceId: ws(c), id: appId }, actor(c));
@@ -120,71 +148,103 @@ export function changeSetFixupRoutes(ctx: ChangeSetFixupRoutesContext) {
   };
 
   // Adds one commit to the branch of an applied (or failed) change set. Same right as apply.
-  routes.post('/:workspaceId/change-sets/:id/fixup', needs('changesets.approve'), tooLarge, async (c) => {
-    const body = await readBody(c, fixupBody);
-    if (!body.ok) return body.response;
-    const data = body.data;
-    if (data.refresh && !data.recompute) {
-      return c.json({ error: 'invalid_request', message: '"refresh" reads the store for a recompute: set "recompute" too.' }, 400);
-    }
-    const id = param(c, 'id');
-    if (!data.recompute) {
-      const done = await fixupChangeSet(ctx.repo, { workspaceId: ws(c), id, ...data }, actor(c));
-      if (!done.ok) return respond(c, done);
-      return c.json(done.result);
-    }
+  routes.post(
+    '/:workspaceId/change-sets/:id/fixup',
+    needs('changesets.approve'),
+    tooLarge,
+    async (c) => {
+      const body = await readBody(c, fixupBody);
+      if (!body.ok) return body.response;
+      const data = body.data;
+      if (data.refresh && !data.recompute) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            message: '"refresh" reads the store for a recompute: set "recompute" too.',
+          },
+          400,
+        );
+      }
+      const id = param(c, 'id');
+      if (!data.recompute) {
+        const done = await fixupChangeSet(ctx.repo, { workspaceId: ws(c), id, ...data }, actor(c));
+        if (!done.ok) return respond(c, done);
+        return c.json(done.result);
+      }
 
-    // The content comes from the live store listing: the same rights as the pull (and the store read for `refresh`).
-    if (!can(c.get('role'), 'listing.read')) return c.json({ error: 'forbidden' }, 403);
-    if (data.refresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
-    const row = await rowOf(db, ws(c), id);
-    if (!row) return c.json({ error: 'not_found' }, 404);
-    const origin = parseOrigin(row);
-    const waited = limited(ctx.limiter, c, 'repository reads');
-    if (waited) return respond(c, waited);
-    const planned = await planRecompute(
-      { repo: ctx.repo },
-      { workspaceId: ws(c), id, row, ...(data.refresh && origin?.appId ? { refresh: storeRefresh(c, origin.appId) } : {}) },
-      actor(c),
-    );
-    if (!planned.ok) return respond(c, planned);
-    const { plan } = planned;
-    const { recompute: _recompute, refresh: _refresh, ...options } = data;
-    const done = await fixupChangeSet(
-      ctx.repo,
-      { workspaceId: ws(c), id, ...options, desired: { files: plan.files, origin: plan.origin } },
-      actor(c),
-    );
-    if (!done.ok) return respond(c, done);
-    return c.json({ ...done.result, recompute: { ...plan.result, diffFromPrevious: plan.diffFromPrevious } });
-  });
+      // The content comes from the live store listing: the same rights as the pull (and the store read for `refresh`).
+      if (!can(c.get('role'), 'listing.read')) return c.json({ error: 'forbidden' }, 403);
+      if (data.refresh && !can(c.get('role'), 'apps.sync'))
+        return c.json({ error: 'forbidden' }, 403);
+      const row = await rowOf(db, ws(c), id);
+      if (!row) return c.json({ error: 'not_found' }, 404);
+      const origin = parseOrigin(row);
+      const waited = limited(ctx.limiter, c, 'repository reads');
+      if (waited) return respond(c, waited);
+      const planned = await planRecompute(
+        { repo: ctx.repo },
+        {
+          workspaceId: ws(c),
+          id,
+          row,
+          ...(data.refresh && origin?.appId ? { refresh: storeRefresh(c, origin.appId) } : {}),
+        },
+        actor(c),
+      );
+      if (!planned.ok) return respond(c, planned);
+      const { plan } = planned;
+      const { recompute: _recompute, refresh: _refresh, ...options } = data;
+      const done = await fixupChangeSet(
+        ctx.repo,
+        { workspaceId: ws(c), id, ...options, desired: { files: plan.files, origin: plan.origin } },
+        actor(c),
+      );
+      if (!done.ok) return respond(c, done);
+      return c.json({
+        ...done.result,
+        recompute: { ...plan.result, diffFromPrevious: plan.diffFromPrevious },
+      });
+    },
+  );
 
   // Makes a store pull again from the current store snapshot and the current repository: the files
   // of the same change set are replaced (it goes back to draft). A set with a branch is fixed up instead.
-  routes.post('/:workspaceId/change-sets/:id/recompute', needs('changesets.write'), tooLarge, async (c) => {
-    if (!can(c.get('role'), 'listing.read')) return c.json({ error: 'forbidden' }, 403);
-    const body = await readBody(c, recomputeBody);
-    if (!body.ok) return body.response;
-    const refresh = body.data.refresh === true;
-    // A store read uses the app's credential: the right to sync, as the sync route needs.
-    if (refresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
-    if (refresh && !ctx.sync) {
-      return c.json({ error: 'refresh_unavailable', message: 'This server cannot read the store.' }, 422);
-    }
-    const id = param(c, 'id');
-    const row = await rowOf(db, ws(c), id);
-    if (!row) return c.json({ error: 'not_found' }, 404);
-    const origin = parseOrigin(row);
-    const waited = limited(ctx.limiter, c, 'repository reads');
-    if (waited) return respond(c, waited);
-    const done = await recomputeStorePull(
-      { repo: ctx.repo },
-      { workspaceId: ws(c), id, ...(refresh && origin?.appId ? { refresh: storeRefresh(c, origin.appId) } : {}) },
-      actor(c),
-    );
-    if (!done.ok) return respond(c, done);
-    return c.json(done.result);
-  });
+  routes.post(
+    '/:workspaceId/change-sets/:id/recompute',
+    needs('changesets.write'),
+    tooLarge,
+    async (c) => {
+      if (!can(c.get('role'), 'listing.read')) return c.json({ error: 'forbidden' }, 403);
+      const body = await readBody(c, recomputeBody);
+      if (!body.ok) return body.response;
+      const refresh = body.data.refresh === true;
+      // A store read uses the app's credential: the right to sync, as the sync route needs.
+      if (refresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
+      if (refresh && !ctx.sync) {
+        return c.json(
+          { error: 'refresh_unavailable', message: 'This server cannot read the store.' },
+          422,
+        );
+      }
+      const id = param(c, 'id');
+      const row = await rowOf(db, ws(c), id);
+      if (!row) return c.json({ error: 'not_found' }, 404);
+      const origin = parseOrigin(row);
+      const waited = limited(ctx.limiter, c, 'repository reads');
+      if (waited) return respond(c, waited);
+      const done = await recomputeStorePull(
+        { repo: ctx.repo },
+        {
+          workspaceId: ws(c),
+          id,
+          ...(refresh && origin?.appId ? { refresh: storeRefresh(c, origin.appId) } : {}),
+        },
+        actor(c),
+      );
+      if (!done.ok) return respond(c, done);
+      return c.json(done.result);
+    },
+  );
 
   return routes;
 }

@@ -9,14 +9,14 @@ Switched **off by default**: `MRM_PLAY_INTERNAL_SHARING_ENABLED=true` turns it o
 
 ## The gates
 
-| Gate | What |
-| --- | --- |
-| Server switch | `MRM_PLAY_INTERNAL_SHARING_ENABLED` (default `false`). Off: every route but the config answers `409 internal_sharing_disabled`, no GitHub or Google call is made. It does **not** need `MRM_BUILDS_DOWNLOAD_ENABLED`; it uses the same size limit `MRM_BUILDS_DOWNLOAD_MAX_MB`. |
-| Role | `builds.share`: **owner and admin**. A member can download builds and cannot share them. **Explicit-only for API tokens**: a token that does not name `builds.share` in its actions never gets it. |
-| Preview and hash | The apply needs the `confirmHash` of a preview of the same artifact (`409 state_changed`, with a new `preview`, when the artifact changed). |
-| Typed phrase | `SHARE <package>` exactly (`422 confirmation_mismatch`). |
-| Step-up | Class `internal_sharing` ([step-up](step-up.md)): with the workspace policy on, the apply needs a fresh passkey, password or recovery code (`X-Step-Up-Grant`, target = the app id and the `confirmHash`). A token gets `403 step_up_required_human`. |
-| One in flight | One upload per app at a time (`409 write_in_progress`). |
+| Gate             | What                                                                                                                                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server switch    | `MRM_PLAY_INTERNAL_SHARING_ENABLED` (default `false`). Off: every route but the config answers `409 internal_sharing_disabled`, no GitHub or Google call is made. It does **not** need `MRM_BUILDS_DOWNLOAD_ENABLED`; it uses the same size limit `MRM_BUILDS_DOWNLOAD_MAX_MB`. |
+| Role             | `builds.share`: **owner and admin**. A member can download builds and cannot share them. **Explicit-only for API tokens**: a token that does not name `builds.share` in its actions never gets it.                                                                              |
+| Preview and hash | The apply needs the `confirmHash` of a preview of the same artifact (`409 state_changed`, with a new `preview`, when the artifact changed).                                                                                                                                     |
+| Typed phrase     | `SHARE <package>` exactly (`422 confirmation_mismatch`).                                                                                                                                                                                                                        |
+| Step-up          | Class `internal_sharing` ([step-up](step-up.md)): with the workspace policy on, the apply needs a fresh passkey, password or recovery code (`X-Step-Up-Grant`, target = the app id and the `confirmHash`). A token gets `403 step_up_required_human`.                           |
+| One in flight    | One upload per app at a time (`409 write_in_progress`).                                                                                                                                                                                                                         |
 
 Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404.
 

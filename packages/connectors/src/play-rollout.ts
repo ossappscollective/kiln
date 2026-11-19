@@ -8,10 +8,10 @@ import {
   type PlayRolloutState,
   type PlayRolloutTarget,
   planPlayRollout,
-  RolloutDriftError,
-  RolloutOutcomeUnknownError,
   type RolloutApplyInput,
   type RolloutApplyResult,
+  RolloutDriftError,
+  RolloutOutcomeUnknownError,
   type RolloutState,
   type RolloutTarget,
   type StoreRolloutConnector,
@@ -22,8 +22,8 @@ import {
   type Json,
   num,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -100,7 +100,10 @@ const codesOf = (release: Json): string[] =>
   Array.isArray(release.versionCodes) ? release.versionCodes.map((v) => String(v)) : [];
 
 /** The release of `track` whose version codes are exactly `codes`, as a state; undefined when there is none. */
-export function playRolloutState(track: unknown, target: PlayRolloutTarget): PlayRolloutState | undefined {
+export function playRolloutState(
+  track: unknown,
+  target: PlayRolloutTarget,
+): PlayRolloutState | undefined {
   const body = isRecord(track) ? track : {};
   const releases = records(body.releases);
   const found = releases.find((r) => sameCodes(codesOf(r), target.versionCodes));
@@ -132,7 +135,9 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
 
   constructor(options: PlayRolloutConnectorOptions) {
     this.#account =
-      typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+      typeof options.serviceAccount === 'string'
+        ? parseServiceAccount(options.serviceAccount)
+        : options.serviceAccount;
     if (!isPlayPackageName(options.packageName)) {
       throw new StoreError(
         'googleplay',
@@ -153,8 +158,17 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
     if (!('track' in target) || !isPlayTrackName(target.track)) {
       throw new StoreError('googleplay', 'invalid_input', 'Not a valid Google Play track.');
     }
-    if (!Array.isArray(target.versionCodes) || target.versionCodes.length === 0 || target.versionCodes.length > 50 || !target.versionCodes.every(isVersionCode)) {
-      throw new StoreError('googleplay', 'invalid_input', 'Not valid version codes (digits only, one to fifty).');
+    if (
+      !Array.isArray(target.versionCodes) ||
+      target.versionCodes.length === 0 ||
+      target.versionCodes.length > 50 ||
+      !target.versionCodes.every(isVersionCode)
+    ) {
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Not valid version codes (digits only, one to fifty).',
+      );
     }
     return { track: target.track, versionCodes: sortedCodes([...new Set(target.versionCodes)]) };
   }
@@ -171,7 +185,8 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
         try {
           return this.#stateOf(await this.#getTrack(this.#http, editId, wanted), wanted);
         } catch (error) {
-          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0) continue;
+          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0)
+            continue;
           throw error;
         } finally {
           await this.#deleteEdit(this.#http, editId);
@@ -187,8 +202,15 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
   async applyChange(input: RolloutApplyInput): Promise<RolloutApplyResult> {
     const wanted = this.#target(input.target);
     const change = input.change as PlayRolloutChange;
-    if (!('action' in change) || !['set_fraction', 'halt', 'resume', 'complete'].includes(change.action)) {
-      throw new StoreError('googleplay', 'invalid_input', 'Not a rollout change Google Play knows.');
+    if (
+      !('action' in change) ||
+      !['set_fraction', 'halt', 'resume', 'complete'].includes(change.action)
+    ) {
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'Not a rollout change Google Play knows.',
+      );
     }
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const http = this.#writeHttp;
@@ -203,7 +225,9 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
         const proposed = plan.proposed as PlayRolloutState;
 
         const releases = records(track.releases).map((release) =>
-          sameCodes(codesOf(release), wanted.versionCodes) ? this.#patched(release, proposed) : release,
+          sameCodes(codesOf(release), wanted.versionCodes)
+            ? this.#patched(release, proposed)
+            : release,
         );
         const trackId = text(track.track) ?? wanted.track;
         await this.#call(
@@ -262,7 +286,12 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
     const reply = await this.#call(http, 'POST', this.#url(''), 'opening an edit', {});
     const id = isRecord(reply.json) ? text(reply.json.id) : undefined;
     if (!id) {
-      throw new StoreError('googleplay', 'unexpected', 'Google Play opened an edit but sent no edit id.', reply.status);
+      throw new StoreError(
+        'googleplay',
+        'unexpected',
+        'Google Play opened an edit but sent no edit id.',
+        reply.status,
+      );
     }
     return id;
   }
@@ -278,11 +307,21 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
 
   async #getTrack(http: StoreHttp, editId: string, wanted: PlayRolloutTarget): Promise<Json> {
     try {
-      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/tracks/${enc(wanted.track)}`), 'reading the track');
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/tracks/${enc(wanted.track)}`),
+        'reading the track',
+      );
       return isRecord(reply.json) ? reply.json : {};
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') {
-        throw new StoreError('googleplay', 'not_found', `Google Play has no ${wanted.track} track for ${this.packageName} that this service account can see.`, 404);
+        throw new StoreError(
+          'googleplay',
+          'not_found',
+          `Google Play has no ${wanted.track} track for ${this.packageName} that this service account can see.`,
+          404,
+        );
       }
       throw error;
     }
@@ -299,7 +338,9 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
       const token = await this.#tokens.token();
       let reply: StoreReply;
       try {
-        reply = await this.#writeHttp.send('POST', url, { headers: { authorization: `Bearer ${token}` } });
+        reply = await this.#writeHttp.send('POST', url, {
+          headers: { authorization: `Bearer ${token}` },
+        });
       } catch (error) {
         if (error instanceof StoreError && error.kind === 'network') {
           throw new RolloutOutcomeUnknownError(
@@ -354,7 +395,14 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
     return new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
   }
 
-  async #call(http: StoreHttp, method: string, url: string, what: string, json?: unknown, write = false): Promise<StoreReply> {
+  async #call(
+    http: StoreHttp,
+    method: string,
+    url: string,
+    what: string,
+    json?: unknown,
+    write = false,
+  ): Promise<StoreReply> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       const reply = await http.send(method, url, {
@@ -367,7 +415,12 @@ export class PlayRolloutConnector implements StoreRolloutConnector {
       }
       if (reply.status >= 200 && reply.status < 300) {
         if (reply.malformed) {
-          throw new StoreError('googleplay', 'unexpected', `Google Play answered ${what} with a response that could not be read.`, reply.status);
+          throw new StoreError(
+            'googleplay',
+            'unexpected',
+            `Google Play answered ${what} with a response that could not be read.`,
+            reply.status,
+          );
         }
         return reply;
       }

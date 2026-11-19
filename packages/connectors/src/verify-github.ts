@@ -163,11 +163,13 @@ async function checkApp(
   privateKey: string,
 ): Promise<VerifyResult> {
   if (!/^\d+$/.test(appId)) {
-    throw new Stop('The App ID must be a number. It is shown at the top of the app\'s settings page.');
+    throw new Stop(
+      "The App ID must be a number. It is shown at the top of the app's settings page.",
+    );
   }
   if (!/^\d+$/.test(installationId)) {
     throw new Stop(
-      'The installation ID must be a number. It is the last part of the address of the app\'s installation page on GitHub.',
+      "The installation ID must be a number. It is the last part of the address of the app's installation page on GitHub.",
     );
   }
   let key: ReturnType<typeof createPrivateKey>;
@@ -176,11 +178,13 @@ async function checkApp(
   } catch {
     // Never include the node error: some versions echo parts of the input.
     throw new Stop(
-      'The private key could not be read. Paste the whole .pem file the app\'s settings page gave you, including the BEGIN and END lines.',
+      "The private key could not be read. Paste the whole .pem file the app's settings page gave you, including the BEGIN and END lines.",
     );
   }
   if (key.asymmetricKeyType !== 'rsa') {
-    throw new Stop('The private key is not an RSA key. Generate a private key on the app\'s settings page.');
+    throw new Stop(
+      "The private key is not an RSA key. Generate a private key on the app's settings page.",
+    );
   }
   const jwt = signGithubAppJwt(key, appId, client.now());
   client.known.add(jwt);
@@ -193,13 +197,15 @@ async function checkApp(
     throw new Stop(
       drift > 60_000
         ? "GitHub rejected the app's credentials, and this server's clock is off by more than a minute. Fix the clock, then try again."
-        : 'The private key does not match the app, or the App ID is wrong. Check both on the app\'s settings page, and create a new private key if unsure.',
+        : "The private key does not match the app, or the App ID is wrong. Check both on the app's settings page, and create a new private key if unsure.",
     );
   }
   if (app.status >= 400) throw new Stop(client.describe(app, 'the app lookup'));
   const appName = text(app.json.name) ?? text(app.json.slug) ?? `app ${appId}`;
   if (app.json.id !== undefined && String(app.json.id) !== appId) {
-    throw new Stop(`The App ID does not match the private key: the key belongs to app ${String(app.json.id)}.`);
+    throw new Stop(
+      `The App ID does not match the private key: the key belongs to app ${String(app.json.id)}.`,
+    );
   }
 
   // 2. The installation.
@@ -243,7 +249,8 @@ async function checkApp(
     throw new Stop(fix, [`App: ${appName}`]);
   }
   const token = text(mint.json.token);
-  if (!token) throw new Stop('GitHub returned an installation token response that could not be read.');
+  if (!token)
+    throw new Stop('GitHub returned an installation token response that could not be read.');
   client.known.add(token);
   let repositories: number | undefined;
   try {
@@ -262,11 +269,15 @@ async function checkApp(
   const details = [
     `App: ${appName}`,
     `Installed on: ${login}`,
-    ...(selection ? [`Repository access: ${selection === 'all' ? 'all repositories' : 'selected repositories'}`] : []),
+    ...(selection
+      ? [`Repository access: ${selection === 'all' ? 'all repositories' : 'selected repositories'}`]
+      : []),
     ...(repositories !== undefined ? [`Repositories it can see: ${repositories}`] : []),
   ];
   if (repositories === 0) {
-    warnings.push('The installation has no repositories. Add the repositories you want to manage on the installation page on GitHub.');
+    warnings.push(
+      'The installation has no repositories. Add the repositories you want to manage on the installation page on GitHub.',
+    );
   }
   details.push(...warnings.map((w) => `Warning: ${w}`));
   const sees =
@@ -276,7 +287,9 @@ async function checkApp(
   return {
     ok: true,
     message: `Connected to the GitHub App "${appName}" on ${login}.${sees}${
-      warnings.length ? ` ${plural(warnings.length, 'permission or setup issue needs', 'permission or setup issues need')} attention.` : ''
+      warnings.length
+        ? ` ${plural(warnings.length, 'permission or setup issue needs', 'permission or setup issues need')} attention.`
+        : ''
     }`,
     details,
   };
@@ -321,7 +334,10 @@ async function checkToken(client: Client, token: string): Promise<VerifyResult> 
       'This token does not report its permissions, as with fine-grained tokens. Give it Read and write access to Contents, Pull requests and Actions on the repositories you need.',
     );
   } else {
-    const list = scopes.split(',').map((s) => s.trim()).filter(Boolean);
+    const list = scopes
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     details.push(`Scopes: ${list.length ? list.join(', ') : 'none'}`);
     if (!list.includes('repo') && !list.includes('public_repo')) {
       warnings.push('The token has no repo scope, so it cannot read or change repositories.');

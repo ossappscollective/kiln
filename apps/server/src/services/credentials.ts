@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { type ActorType, type CredentialKind, checkSecret, credentialKinds, isCredentialKind } from '@mrm/core';
+import {
+  type ActorType,
+  type CredentialKind,
+  checkSecret,
+  credentialKinds,
+  isCredentialKind,
+} from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { decryptSecret, encryptSecret } from '@mrm/vault';
 import { recordAudit } from './audit.ts';
 
-export { credentialKinds, type CredentialKind };
+export { type CredentialKind, credentialKinds };
 
 export type CredentialSummary = {
   id: string;
@@ -22,8 +28,7 @@ type Actor = { type: ActorType; id: string };
  * The secret is bound to the workspace and credential id (as AAD), so a ciphertext copied
  * to another row or workspace refuses to decrypt.
  */
-export const credentialAad = (workspaceId: string, id: string) =>
-  `credential:${workspaceId}:${id}`;
+export const credentialAad = (workspaceId: string, id: string) => `credential:${workspaceId}:${id}`;
 
 const toSummary = (r: Record<string, unknown>): CredentialSummary => ({
   id: String(r.id),
@@ -75,10 +80,20 @@ export async function createCredential(
       at: now,
     });
   });
-  return { id, kind: input.kind, label: input.label, createdAt: now, rotatedAt: null, lastTest: null };
+  return {
+    id,
+    kind: input.kind,
+    label: input.label,
+    createdAt: now,
+    rotatedAt: null,
+    lastTest: null,
+  };
 }
 
-export type RotateResult = { ok: true } | { ok: false; reason: 'not_found' } | { ok: false; reason: 'invalid_secret'; message: string };
+export type RotateResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'invalid_secret'; message: string };
 
 export async function rotateCredential(
   db: Database,
@@ -130,7 +145,10 @@ export async function deleteCredential(
     ]);
     if (changed === 0) return false;
     // The Play reports bucket of a developer account (analytics) goes with its credential.
-    await tx.execute('DELETE FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute(
+      'DELETE FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
@@ -153,12 +171,16 @@ export async function useCredentialSecret(
   actor: Actor,
   now: number,
 ): Promise<string | undefined> {
-  const [row] = await db.query('SELECT ciphertext FROM credentials WHERE id = ? AND workspace_id = ?', [
-    input.id,
-    input.workspaceId,
-  ]);
+  const [row] = await db.query(
+    'SELECT ciphertext FROM credentials WHERE id = ? AND workspace_id = ?',
+    [input.id, input.workspaceId],
+  );
   if (!row) return undefined;
-  const secret = decryptSecret(String(row.ciphertext), key, credentialAad(input.workspaceId, input.id));
+  const secret = decryptSecret(
+    String(row.ciphertext),
+    key,
+    credentialAad(input.workspaceId, input.id),
+  );
   await recordAudit(db, {
     workspaceId: input.workspaceId,
     actor,

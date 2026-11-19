@@ -33,8 +33,14 @@ const DEFERRED_RETRY_MS = 30 * MINUTE;
 /** Minutes from MRM_ASO_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function asoIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
-  if (!Number.isInteger(minutes) || minutes < MIN_ASO_INTERVAL_MINUTES || minutes > MAX_ASO_INTERVAL_MINUTES) {
-    throw new Error(`The ASO interval must be 0 (off) or from ${MIN_ASO_INTERVAL_MINUTES} to ${MAX_ASO_INTERVAL_MINUTES} minutes.`);
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_ASO_INTERVAL_MINUTES ||
+    minutes > MAX_ASO_INTERVAL_MINUTES
+  ) {
+    throw new Error(
+      `The ASO interval must be 0 (off) or from ${MIN_ASO_INTERVAL_MINUTES} to ${MAX_ASO_INTERVAL_MINUTES} minutes.`,
+    );
   }
   return minutes * MINUTE;
 }
@@ -42,7 +48,16 @@ export function asoIntervalMs(minutes: number): number {
 export type AsoQueueSummary = {
   queued: number;
   /** Apps not queued, by reason. */
-  skipped: { recent: number; backoff: number; alreadyQueued: number; claimed: number; rateLimited: number; capped: number; notReady: number; playOff: number };
+  skipped: {
+    recent: number;
+    backoff: number;
+    alreadyQueued: number;
+    claimed: number;
+    rateLimited: number;
+    capped: number;
+    notReady: number;
+    playOff: number;
+  };
 };
 
 export type AsoQueueOptions = {
@@ -71,16 +86,29 @@ const deferredOf = (raw: unknown): boolean => {
 };
 
 /** Queues `aso.refresh` jobs for the apps that are due. Never reads a store itself. */
-export async function queueAsoRefreshes(db: Database, options: AsoQueueOptions): Promise<AsoQueueSummary> {
+export async function queueAsoRefreshes(
+  db: Database,
+  options: AsoQueueOptions,
+): Promise<AsoQueueSummary> {
   const { now, intervalMs } = options;
   const perTick = options.perTick ?? DEFAULT_ASO_PER_TICK;
   const perWorkspace = options.perWorkspace ?? DEFAULT_ASO_PER_WORKSPACE;
   const spacing = options.spacingMs ?? DEFAULT_ASO_SPACING_MS;
   const maxJitter = options.maxJitterMs ?? Math.min(10 * MINUTE, Math.floor(intervalMs / 10));
-  const jitter = options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
+  const jitter =
+    options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
   const summary: AsoQueueSummary = {
     queued: 0,
-    skipped: { recent: 0, backoff: 0, alreadyQueued: 0, claimed: 0, rateLimited: 0, capped: 0, notReady: 0, playOff: 0 },
+    skipped: {
+      recent: 0,
+      backoff: 0,
+      alreadyQueued: 0,
+      claimed: 0,
+      rateLimited: 0,
+      capped: 0,
+      notReady: 0,
+      playOff: 0,
+    },
   };
 
   const apps = await db.query(
@@ -92,7 +120,10 @@ export async function queueAsoRefreshes(db: Database, options: AsoQueueOptions):
          OR EXISTS (SELECT 1 FROM aso_competitors c WHERE c.app_id = a.id)
       ORDER BY COALESCE(s.last_attempt_at, 0), a.created_at, a.id`,
   );
-  const jobs = await db.query("SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')", [ASO_REFRESH_QUEUE]);
+  const jobs = await db.query(
+    "SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')",
+    [ASO_REFRESH_QUEUE],
+  );
   const queuedApps = new Set<string>();
   for (const job of jobs) {
     try {
@@ -123,11 +154,19 @@ export async function queueAsoRefreshes(db: Database, options: AsoQueueOptions):
       summary.skipped.recent++;
       continue;
     }
-    if (app.backoff_until !== null && app.backoff_until !== undefined && Number(app.backoff_until) > now) {
+    if (
+      app.backoff_until !== null &&
+      app.backoff_until !== undefined &&
+      Number(app.backoff_until) > now
+    ) {
       summary.skipped.backoff++;
       continue;
     }
-    if (app.claimed_at !== null && app.claimed_at !== undefined && now - Number(app.claimed_at) < ASO_CLAIM_TTL_MS) {
+    if (
+      app.claimed_at !== null &&
+      app.claimed_at !== undefined &&
+      now - Number(app.claimed_at) < ASO_CLAIM_TTL_MS
+    ) {
       summary.skipped.claimed++;
       continue;
     }
@@ -146,7 +185,10 @@ export async function queueAsoRefreshes(db: Database, options: AsoQueueOptions):
     }
     const delay = Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
     const payload: AsoRefreshPayload = { workspaceId, appId: id, requestedBy: 'scheduler' };
-    await enqueue(db, ASO_REFRESH_QUEUE, payload, { now, runAt: now + summary.queued * spacing + delay });
+    await enqueue(db, ASO_REFRESH_QUEUE, payload, {
+      now,
+      runAt: now + summary.queued * spacing + delay,
+    });
     queuedApps.add(id);
     perWorkspaceCount.set(workspaceId, (perWorkspaceCount.get(workspaceId) ?? 0) + 1);
     summary.queued++;
@@ -169,7 +211,10 @@ export type AsoUpkeepSummary = { rankChecks: number; snapshots: number; orphans:
  * bounded number per run, and the rows of apps that no longer exist. The newest snapshot of each competitor is
  * never deleted (it is what the next look is compared with, and what the list shows).
  */
-export async function asoUpkeep(db: Database, options: AsoUpkeepOptions): Promise<AsoUpkeepSummary> {
+export async function asoUpkeep(
+  db: Database,
+  options: AsoUpkeepOptions,
+): Promise<AsoUpkeepSummary> {
   const maxRows = options.maxRows ?? 2000;
   let rankChecks = 0;
   let snapshots = 0;
@@ -191,13 +236,20 @@ export async function asoUpkeep(db: Database, options: AsoUpkeepOptions): Promis
     );
   }
   let orphans = 0;
-  for (const table of ['aso_competitor_snapshots', 'aso_rank_checks', 'aso_competitors', 'aso_keywords']) {
+  for (const table of [
+    'aso_competitor_snapshots',
+    'aso_rank_checks',
+    'aso_competitors',
+    'aso_keywords',
+  ]) {
     orphans += await db.execute(
       `DELETE FROM ${table} WHERE id IN (SELECT id FROM ${table} WHERE app_id NOT IN (SELECT id FROM apps) LIMIT ?)`,
       [maxRows],
     );
   }
-  orphans += await db.execute('DELETE FROM aso_app_state WHERE app_id NOT IN (SELECT id FROM apps)');
+  orphans += await db.execute(
+    'DELETE FROM aso_app_state WHERE app_id NOT IN (SELECT id FROM apps)',
+  );
   return { rankChecks, snapshots, orphans };
 }
 
@@ -215,11 +267,21 @@ export const MAX_REFRESH_ALL_APPS = 25;
  */
 export async function queueAsoRefreshAll(
   db: Database,
-  input: { workspaceId: string; now: number; playEnabled: boolean; requestedBy: string; spacingMs?: number; max?: number },
+  input: {
+    workspaceId: string;
+    now: number;
+    playEnabled: boolean;
+    requestedBy: string;
+    spacingMs?: number;
+    max?: number;
+  },
 ): Promise<AsoRefreshAllSummary> {
   const max = input.max ?? MAX_REFRESH_ALL_APPS;
   const spacing = input.spacingMs ?? DEFAULT_ASO_SPACING_MS;
-  const summary: AsoRefreshAllSummary = { queued: 0, skipped: { alreadyQueued: 0, notReady: 0, playOff: 0, capped: 0 } };
+  const summary: AsoRefreshAllSummary = {
+    queued: 0,
+    skipped: { alreadyQueued: 0, notReady: 0, playOff: 0, capped: 0 },
+  };
   const apps = await db.query(
     `SELECT a.id, a.platform, a.store_app_id FROM apps a
       WHERE a.workspace_id = ?
@@ -228,7 +290,10 @@ export async function queueAsoRefreshAll(
       ORDER BY a.created_at, a.id`,
     [input.workspaceId],
   );
-  const jobs = await db.query("SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')", [ASO_REFRESH_QUEUE]);
+  const jobs = await db.query(
+    "SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')",
+    [ASO_REFRESH_QUEUE],
+  );
   const queuedApps = new Set<string>();
   for (const job of jobs) {
     try {
@@ -256,8 +321,16 @@ export async function queueAsoRefreshAll(
       summary.skipped.capped++;
       continue;
     }
-    const payload: AsoRefreshPayload = { workspaceId: input.workspaceId, appId: id, requestedBy: input.requestedBy, force: true };
-    await enqueue(db, ASO_REFRESH_QUEUE, payload, { now: input.now, runAt: input.now + summary.queued * spacing });
+    const payload: AsoRefreshPayload = {
+      workspaceId: input.workspaceId,
+      appId: id,
+      requestedBy: input.requestedBy,
+      force: true,
+    };
+    await enqueue(db, ASO_REFRESH_QUEUE, payload, {
+      now: input.now,
+      runAt: input.now + summary.queued * spacing,
+    });
     queuedApps.add(id);
     summary.queued++;
   }

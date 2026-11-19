@@ -1,6 +1,6 @@
 import { type Platform, platformLabel } from '@mrm/core';
-import { releaseStepHref } from './release-stepper.ts';
 import { canDispatchWorkflow } from './ci.ts';
+import { releaseStepHref } from './release-stepper.ts';
 import type { ActiveRun, AppBuild, CiWorkflow, WorkflowInputSpec } from './types.ts';
 import type { WorkflowEntry } from './workflows.ts';
 
@@ -22,17 +22,24 @@ export type ChosenWorkflow = { workflow: CiWorkflow; why: 'configured' | 'releas
  * whose name says release, publish or deploy for the platforms in scope. Never a guess between several,
  * and never one GitHub has disabled. Null means the person must pick one on the Workflows page.
  */
-export function chooseReleaseWorkflow(entries: readonly WorkflowEntry[], platforms: readonly Platform[]): ChosenWorkflow | null {
+export function chooseReleaseWorkflow(
+  entries: readonly WorkflowEntry[],
+  platforms: readonly Platform[],
+): ChosenWorkflow | null {
   const usable = entries.filter((e) => canDispatchWorkflow(e.workflow));
   const configured = usable.filter((e) => e.relevance === 'configured');
-  if (configured.length === 1) return { workflow: (configured[0] as WorkflowEntry).workflow, why: 'configured' };
+  if (configured.length === 1)
+    return { workflow: (configured[0] as WorkflowEntry).workflow, why: 'configured' };
   if (configured.length > 1) return null;
-  const forScope = (e: WorkflowEntry) => e.platforms.length === 0 || e.platforms.some((p) => platforms.includes(p));
+  const forScope = (e: WorkflowEntry) =>
+    e.platforms.length === 0 || e.platforms.some((p) => platforms.includes(p));
   const named = usable.filter((e) => e.relevance === 'release' && forScope(e));
   // Several release workflows: prefer the ones that name the platform in scope, and only when that leaves one.
   const exact = named.filter((e) => e.platforms.length > 0);
   const pool = named.length === 1 ? named : exact.length === 1 ? exact : [];
-  return pool.length === 1 ? { workflow: (pool[0] as WorkflowEntry).workflow, why: 'release' } : null;
+  return pool.length === 1
+    ? { workflow: (pool[0] as WorkflowEntry).workflow, why: 'release' }
+    : null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -54,7 +61,12 @@ const WORDS: Record<Platform, string[]> = {
   android: ['android', 'google play', 'play'],
 };
 
-const simple = (text: string) => text.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const simple = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 function platformChoice(spec: WorkflowInputSpec, platforms: readonly Platform[]): string | null {
   const options = spec.options ?? [];
@@ -75,14 +87,22 @@ function platformChoice(spec: WorkflowInputSpec, platforms: readonly Platform[])
  * inputs that exist and are still empty or at their default are touched by the caller; this returns
  * what to suggest and never an unknown name.
  */
-export function dispatchHints(specs: readonly WorkflowInputSpec[], hint: DispatchHint): Record<string, string> {
+export function dispatchHints(
+  specs: readonly WorkflowInputSpec[],
+  hint: DispatchHint,
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const spec of specs) {
     const name = spec.name.toLowerCase();
     if (PLATFORM_INPUTS.indexOf(name) >= 0 && hint.platforms.length > 0) {
       const value = platformChoice(spec, hint.platforms);
       if (value !== null) out[spec.name] = value;
-    } else if (VERSION_INPUTS.indexOf(name) >= 0 && hint.version && spec.type !== 'boolean' && spec.type !== 'choice') {
+    } else if (
+      VERSION_INPUTS.indexOf(name) >= 0 &&
+      hint.version &&
+      spec.type !== 'boolean' &&
+      spec.type !== 'choice'
+    ) {
       out[spec.name] = hint.version;
     }
   }
@@ -91,8 +111,12 @@ export function dispatchHints(specs: readonly WorkflowInputSpec[], hint: Dispatc
 
 /** The sentence under the button that says what was filled in, or '' when nothing was. */
 export function prefillNote(chosen: ChosenWorkflow, hint: DispatchHint): string {
-  const where = chosen.why === 'configured' ? 'the release workflow of this app' : 'the only release workflow found';
-  const scope = hint.platforms.length === 1 ? ` for ${platformLabel(hint.platforms[0] as Platform)}` : '';
+  const where =
+    chosen.why === 'configured'
+      ? 'the release workflow of this app'
+      : 'the only release workflow found';
+  const scope =
+    hint.platforms.length === 1 ? ` for ${platformLabel(hint.platforms[0] as Platform)}` : '';
   return `${chosen.workflow.name}: ${where}${scope}.`;
 }
 
@@ -118,7 +142,11 @@ export function isStartedRun(
 ): boolean {
   if (run.repositoryId !== started.repositoryId) return false;
   if (run.id === started.runId) return true;
-  return started.runId.indexOf('pending') === 0 && run.workflow === started.workflow && run.startedAt >= started.startedAt - 60_000;
+  return (
+    started.runId.indexOf('pending') === 0 &&
+    run.workflow === started.workflow &&
+    run.startedAt >= started.startedAt - 60_000
+  );
 }
 
 /**
@@ -132,12 +160,20 @@ export function matchingBuilds(
 ): AppBuild[] {
   return builds
     .filter((b) => started.platforms.length === 0 || started.platforms.indexOf(b.platform) >= 0)
-    .filter((b) => b.link?.run?.id === started.runId || (b.uploadedAt !== null && b.uploadedAt >= started.startedAt))
+    .filter(
+      (b) =>
+        b.link?.run?.id === started.runId ||
+        (b.uploadedAt !== null && b.uploadedAt >= started.startedAt),
+    )
     .sort((a, b) => (b.uploadedAt ?? b.syncedAt) - (a.uploadedAt ?? a.syncedAt));
 }
 
 /** Where "Prepare release" goes for a build: the Build step of the stepper on the releases tab, with its version selected. */
-export function prepareReleaseHref(appId: string, build: Pick<AppBuild, 'platform' | 'version'>, scopeIsBoth: boolean): string {
+export function prepareReleaseHref(
+  appId: string,
+  build: Pick<AppBuild, 'platform' | 'version'>,
+  scopeIsBoth: boolean,
+): string {
   return releaseStepHref(appId, scopeIsBoth ? 'both' : build.platform, 'build', build.version);
 }
 
@@ -149,6 +185,9 @@ export function startedLine(input: {
   failed?: boolean;
 }): string {
   if (input.failed) return `${input.workflow} did not succeed, so no build is expected from it.`;
-  if (input.build) return `Build ${input.build.buildNumber} (version ${input.build.version}) is ready.`;
-  return input.running ? `${input.workflow} was started. Waiting for it to produce a build.` : `${input.workflow} has finished. No new build was found yet.`;
+  if (input.build)
+    return `Build ${input.build.buildNumber} (version ${input.build.version}) is ready.`;
+  return input.running
+    ? `${input.workflow} was started. Waiting for it to produce a build.`
+    : `${input.workflow} has finished. No new build was found yet.`;
 }

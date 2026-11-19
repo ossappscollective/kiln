@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type Role, can, isRole } from '@mrm/core';
+import { can, isRole, type Role } from '@mrm/core';
 import type { Row, Sql } from '@mrm/db';
 import { enqueue } from '../jobs.ts';
 import {
@@ -15,7 +15,16 @@ import {
   resolveParams,
   severityRank,
 } from './alert-catalog.ts';
-import { type MuteView, type RuleView, type UserSettings, defaultUserSettings, isMuted, loadRules, ruleView, toUserSettings } from './alert-prefs.ts';
+import {
+  defaultUserSettings,
+  isMuted,
+  loadRules,
+  type MuteView,
+  type RuleView,
+  ruleView,
+  toUserSettings,
+  type UserSettings,
+} from './alert-prefs.ts';
 import { inQuietHours, quietEndsAt } from './alert-time.ts';
 import { type EventRecord, emitEvent } from './events.ts';
 
@@ -36,7 +45,14 @@ export const ALERT_QUEUE = 'alert.deliver';
 export const MAX_EMAILS_PER_USER_PER_HOUR = 20;
 const HOUR = 3_600_000;
 
-export const deliveryStatuses = ['queued', 'retrying', 'sent', 'failed', 'skipped', 'deferred'] as const;
+export const deliveryStatuses = [
+  'queued',
+  'retrying',
+  'sent',
+  'failed',
+  'skipped',
+  'deferred',
+] as const;
 export type DeliveryStatus = (typeof deliveryStatuses)[number];
 
 /** The fixed vocabulary of the delivery log: a screen can explain each, and nothing a provider said is ever stored. */
@@ -98,7 +114,10 @@ async function loadRecipients(sql: Sql, workspaceId: string, def: AlertDef): Pro
       userId: String(r.user_id),
       role: r.role,
       email: String(r.email),
-      settings: r.min_severity === null || r.min_severity === undefined ? defaultUserSettings() : toUserSettings(r),
+      settings:
+        r.min_severity === null || r.min_severity === undefined
+          ? defaultUserSettings()
+          : toUserSettings(r),
     });
   }
   return out;
@@ -111,13 +130,23 @@ export function effectiveChannels(
   prefs: readonly { appId: string | null; channels: readonly AlertChannel[] }[],
   appId: string | null,
 ): AlertChannel[] {
-  const own = (appId !== null ? prefs.find((p) => p.appId === appId) : undefined) ?? prefs.find((p) => p.appId === null);
-  const base = (own ? own.channels : rule.channels).filter((c) => isPersonalChannel(c) && def.allowedChannels.includes(c));
+  const own =
+    (appId !== null ? prefs.find((p) => p.appId === appId) : undefined) ??
+    prefs.find((p) => p.appId === null);
+  const base = (own ? own.channels : rule.channels).filter(
+    (c) => isPersonalChannel(c) && def.allowedChannels.includes(c),
+  );
   // The desktop notification is shown from the inbox.
   return base.includes('desktop') && !base.includes('in_app') ? ['in_app', ...base] : [...base];
 }
 
-export function renderEmail(def: AlertDef, title: string, body: string, severity: AlertSeverity, count: number): { subject: string; text: string } {
+export function renderEmail(
+  def: AlertDef,
+  title: string,
+  body: string,
+  severity: AlertSeverity,
+  count: number,
+): { subject: string; text: string } {
   const subject = `[${severity}] ${title}`.slice(0, 200);
   const text = [
     title,
@@ -175,11 +204,21 @@ async function logDelivery(
 }
 
 /** Queues the mail of a delivery row as a job; `runAt` later than `at` defers it (quiet hours). */
-export async function queueEmailJob(sql: Sql, deliveryId: string, at: number, runAt = at): Promise<void> {
+export async function queueEmailJob(
+  sql: Sql,
+  deliveryId: string,
+  at: number,
+  runAt = at,
+): Promise<void> {
   await enqueue(sql, ALERT_QUEUE, { deliveryId }, { now: at, runAt });
 }
 
-const recentEmails = async (sql: Sql, workspaceId: string, userId: string, at: number): Promise<number> => {
+const recentEmails = async (
+  sql: Sql,
+  workspaceId: string,
+  userId: string,
+  at: number,
+): Promise<number> => {
   const [row] = await sql.query(
     `SELECT COUNT(*) AS n FROM alert_deliveries
       WHERE workspace_id = ? AND user_id = ? AND channel = 'email' AND created_at > ? AND status IN ('queued', 'retrying', 'sent', 'deferred')
@@ -206,7 +245,10 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
   const appId = input.appId ?? (typeof input.data.appId === 'string' ? input.data.appId : null);
   const data = redactAlertData({ ...input.data, appId });
   if (appId && data.appName === undefined) {
-    const [a] = await sql.query('SELECT name, platform FROM apps WHERE id = ? AND workspace_id = ?', [appId, workspaceId]);
+    const [a] = await sql.query(
+      'SELECT name, platform FROM apps WHERE id = ? AND workspace_id = ?',
+      [appId, workspaceId],
+    );
     if (a) {
       data.appName = String(a.name);
       data.platform = String(a.platform);
@@ -223,7 +265,10 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
         [workspaceId, key, at - def.dedupeWindowMs],
       );
       if (same) {
-        await sql.execute('UPDATE alerts SET count = count + 1, last_at = ?, resolved_at = NULL WHERE id = ?', [at, String(same.id)]);
+        await sql.execute(
+          'UPDATE alerts SET count = count + 1, last_at = ?, resolved_at = NULL WHERE id = ?',
+          [at, String(same.id)],
+        );
         return { status: 'collapsed', alertId: String(same.id) };
       }
     }
@@ -233,9 +278,15 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
       [workspaceId, def.id, at - HOUR],
     );
     if (Number(recent?.n ?? 0) >= rule.maxPerHour) {
-      const [last] = await sql.query('SELECT id FROM alerts WHERE workspace_id = ? AND type = ? AND is_test = 0 ORDER BY first_at DESC LIMIT 1', [workspaceId, def.id]);
+      const [last] = await sql.query(
+        'SELECT id FROM alerts WHERE workspace_id = ? AND type = ? AND is_test = 0 ORDER BY first_at DESC LIMIT 1',
+        [workspaceId, def.id],
+      );
       if (last) {
-        await sql.execute('UPDATE alerts SET count = count + 1, last_at = ? WHERE id = ?', [at, String(last.id)]);
+        await sql.execute('UPDATE alerts SET count = count + 1, last_at = ? WHERE id = ?', [
+          at,
+          String(last.id),
+        ]);
         return { status: 'throttled', alertId: String(last.id) };
       }
     }
@@ -247,11 +298,26 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
   await sql.execute(
     `INSERT INTO alerts (id, workspace_id, type, severity, app_id, dedupe_key, title, body, data, count, first_at, last_at, resolved_at, is_test)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NULL, ?)`,
-    [alertId, workspaceId, def.id, def.severity, appId, key, title, body, JSON.stringify(data), at, at, test ? 1 : 0],
+    [
+      alertId,
+      workspaceId,
+      def.id,
+      def.severity,
+      appId,
+      key,
+      title,
+      body,
+      JSON.stringify(data),
+      at,
+      at,
+      test ? 1 : 0,
+    ],
   );
 
   // ----- the people --------------------------------------------------------------------------------------
-  const recipients = (await loadRecipients(sql, workspaceId, def)).filter((r) => !test || r.userId === test.userId);
+  const recipients = (await loadRecipients(sql, workspaceId, def)).filter(
+    (r) => !test || r.userId === test.userId,
+  );
   if (recipients.length > 0) {
     const ids = recipients.map((r) => r.userId);
     const marks = ids.map(() => '?').join(', ');
@@ -269,7 +335,9 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
         .map((p) => {
           let channels: AlertChannel[] = [];
           try {
-            channels = (JSON.parse(String(p.channels)) as unknown[]).filter((c): c is AlertChannel => isPersonalChannel(c));
+            channels = (JSON.parse(String(p.channels)) as unknown[]).filter(
+              (c): c is AlertChannel => isPersonalChannel(c),
+            );
           } catch {
             // A broken row counts as no choice.
           }
@@ -280,16 +348,36 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
         .map((m: Row) => ({
           id: String(m.id),
           appId: m.app_id === null || m.app_id === undefined ? null : String(m.app_id),
-          alertType: m.alert_type === null || m.alert_type === undefined ? null : (String(m.alert_type) as AlertTypeId),
+          alertType:
+            m.alert_type === null || m.alert_type === undefined
+              ? null
+              : (String(m.alert_type) as AlertTypeId),
           until: m.until === null || m.until === undefined ? null : Number(m.until),
           createdAt: Number(m.created_at),
         }));
-      await deliverToPerson(sql, { def, rule, alertId, workspaceId, appId, at, title, body, severity: def.severity, recipient: r, prefs, mutes, test });
+      await deliverToPerson(sql, {
+        def,
+        rule,
+        alertId,
+        workspaceId,
+        appId,
+        at,
+        title,
+        body,
+        severity: def.severity,
+        recipient: r,
+        prefs,
+        mutes,
+        test,
+      });
     }
   }
 
   // ----- the workspace webhook channel ------------------------------------------------------------------------
-  if ((test ? test.channel === 'webhook' : rule.channels.includes('webhook')) && def.allowedChannels.includes('webhook')) {
+  if (
+    (test ? test.channel === 'webhook' : rule.channels.includes('webhook')) &&
+    def.allowedChannels.includes('webhook')
+  ) {
     // The event is only written when a webhook listens for it, so a workspace without one keeps an event log free of alerts
     // (the inbox and the delivery log already show them).
     if (!(await webhookListens(sql, workspaceId))) {
@@ -309,10 +397,20 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
       workspaceId,
       type: 'alert.raised',
       subject: appId ? { appId } : {},
-      payload: { alertId, alertType: def.id, severity: def.severity, title, appId, count: 1, test: Boolean(test) },
+      payload: {
+        alertId,
+        alertType: def.id,
+        severity: def.severity,
+        title,
+        appId,
+        count: 1,
+        test: Boolean(test),
+      },
       at,
     });
-    const [n] = await sql.query('SELECT COUNT(*) AS n FROM webhook_deliveries WHERE event_id = ?', [event.id]);
+    const [n] = await sql.query('SELECT COUNT(*) AS n FROM webhook_deliveries WHERE event_id = ?', [
+      event.id,
+    ]);
     const queued = Number(n?.n ?? 0) > 0;
     await logDelivery(sql, {
       workspaceId,
@@ -331,7 +429,10 @@ export async function raiseAlert(sql: Sql, input: RaiseInput): Promise<RaiseResu
 
 /** Whether an enabled webhook of the workspace listens for `alert.raised` (by name or with `*`). */
 async function webhookListens(sql: Sql, workspaceId: string): Promise<boolean> {
-  const rows = await sql.query('SELECT event_types FROM webhook_endpoints WHERE workspace_id = ? AND enabled = 1', [workspaceId]);
+  const rows = await sql.query(
+    'SELECT event_types FROM webhook_endpoints WHERE workspace_id = ? AND enabled = 1',
+    [workspaceId],
+  );
   return rows.some((r) => {
     try {
       const wanted: unknown = JSON.parse(String(r.event_types));
@@ -366,10 +467,27 @@ async function deliverToPerson(
 ): Promise<void> {
   const { def, recipient: r, at } = c;
   const kind = c.test ? 'test' : 'alert';
-  const wanted = c.test ? testChannels(c.test.channel) : effectiveChannels(def, c.rule, c.prefs, c.appId);
+  const wanted = c.test
+    ? testChannels(c.test.channel)
+    : effectiveChannels(def, c.rule, c.prefs, c.appId);
   if (wanted.length === 0) return;
-  const log = (channel: AlertChannel, status: DeliveryStatus, outcome: DeliveryOutcome, extra: { subject?: string; body?: string } = {}) =>
-    logDelivery(sql, { workspaceId: c.workspaceId, alertId: c.alertId, userId: r.userId, channel, kind, status, outcome, at, ...extra });
+  const log = (
+    channel: AlertChannel,
+    status: DeliveryStatus,
+    outcome: DeliveryOutcome,
+    extra: { subject?: string; body?: string } = {},
+  ) =>
+    logDelivery(sql, {
+      workspaceId: c.workspaceId,
+      alertId: c.alertId,
+      userId: r.userId,
+      channel,
+      kind,
+      status,
+      outcome,
+      at,
+      ...extra,
+    });
 
   // Tests go through the same channel code but not through the person's filters: pressing the button must show what the channel does.
   if (!c.test) {
@@ -383,7 +501,12 @@ async function deliverToPerson(
     }
   }
   const quiet =
-    !c.test && c.severity !== 'critical' && inQuietHours({ start: r.settings.quietStart, end: r.settings.quietEnd, timezone: r.settings.timezone }, at);
+    !c.test &&
+    c.severity !== 'critical' &&
+    inQuietHours(
+      { start: r.settings.quietStart, end: r.settings.quietEnd, timezone: r.settings.timezone },
+      at,
+    );
 
   if (wanted.includes('in_app')) {
     const desktop = wanted.includes('desktop') && !quiet;
@@ -393,7 +516,9 @@ async function deliverToPerson(
     );
     await log('in_app', 'sent', 'ok');
     if (wanted.includes('desktop')) {
-      await (desktop ? log('desktop', 'queued', 'queued_for_client') : log('desktop', 'skipped', 'quiet_hours'));
+      await (desktop
+        ? log('desktop', 'queued', 'queued_for_client')
+        : log('desktop', 'skipped', 'quiet_hours'));
     }
   }
   if (wanted.includes('email')) {
@@ -403,8 +528,19 @@ async function deliverToPerson(
       await log('email', 'deferred', 'in_digest', mail);
     } else if (quiet) {
       const id = await log('email', 'deferred', 'quiet_hours', mail);
-      await queueEmailJob(sql, id, at, quietEndsAt({ start: r.settings.quietStart, end: r.settings.quietEnd, timezone: r.settings.timezone }, at));
-    } else if (!c.test && (await recentEmails(sql, c.workspaceId, r.userId, at)) >= MAX_EMAILS_PER_USER_PER_HOUR) {
+      await queueEmailJob(
+        sql,
+        id,
+        at,
+        quietEndsAt(
+          { start: r.settings.quietStart, end: r.settings.quietEnd, timezone: r.settings.timezone },
+          at,
+        ),
+      );
+    } else if (
+      !c.test &&
+      (await recentEmails(sql, c.workspaceId, r.userId, at)) >= MAX_EMAILS_PER_USER_PER_HOUR
+    ) {
       await log('email', 'skipped', 'user_rate_limited');
     } else {
       const id = await log('email', 'queued', 'ok', mail);

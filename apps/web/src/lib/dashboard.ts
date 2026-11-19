@@ -3,15 +3,21 @@ import {
   DASHBOARD_BUCKETS,
   type DashboardBucket,
   type DueFlags,
+  dashboardBucket,
+  formatPercent,
   type Platform,
   type Readiness,
   type ReleaseEvent,
   type ReleaseState,
   type RolloutSummary,
-  dashboardBucket,
-  formatPercent,
 } from '@mrm/core';
-import { appHref, compareVersions, latestRelease, platformRank, type ReleaseLoad } from './portfolio.ts';
+import {
+  appHref,
+  compareVersions,
+  latestRelease,
+  platformRank,
+  type ReleaseLoad,
+} from './portfolio.ts';
 import { dueText, releaseHref } from './release.ts';
 import type { AppSummary, PlanSummary } from './types.ts';
 
@@ -48,9 +54,18 @@ export function saveViewMode(mode: ViewMode, storage?: WritableStorage): void {
 // Columns
 
 export const BUCKET_INFO: Record<DashboardBucket, { label: string; description: string }> = {
-  preparing: { label: 'Preparing', description: 'Being prepared: no build chosen yet, or ready to submit.' },
-  in_review: { label: 'In review', description: 'Submitted and waiting, or rejected and waiting for a fix.' },
-  ready_to_release: { label: 'Ready to release', description: 'Approved and waiting to be released.' },
+  preparing: {
+    label: 'Preparing',
+    description: 'Being prepared: no build chosen yet, or ready to submit.',
+  },
+  in_review: {
+    label: 'In review',
+    description: 'Submitted and waiting, or rejected and waiting for a fix.',
+  },
+  ready_to_release: {
+    label: 'Ready to release',
+    description: 'Approved and waiting to be released.',
+  },
   live: { label: 'Live', description: 'Rolling out, live or halted.' },
 };
 
@@ -80,7 +95,11 @@ const both = (text: string) => ({ ios: text, android: text });
  */
 export const STEPS: Record<ReleaseState, Step> = {
   draft: { event: 'choose_build', kind: 'act', ...both('Choose the build to submit') },
-  build_chosen: { event: 'mark_ready', kind: 'act', ...both('Finish the checklist, then mark it ready') },
+  build_chosen: {
+    event: 'mark_ready',
+    kind: 'act',
+    ...both('Finish the checklist, then mark it ready'),
+  },
   ready: {
     event: 'submit',
     kind: 'act',
@@ -93,14 +112,22 @@ export const STEPS: Record<ReleaseState, Step> = {
     ios: 'Wait for App Review',
     android: 'Wait for the Google Play review',
   },
-  rejected: { event: 'fix', kind: 'act', ...both('Read the rejection, fix the problem and submit again') },
+  rejected: {
+    event: 'fix',
+    kind: 'act',
+    ...both('Read the rejection, fix the problem and submit again'),
+  },
   approved: {
     event: 'release',
     kind: 'act',
     ios: 'Release it in App Store Connect',
     android: 'Start the rollout in Google Play Console',
   },
-  propagating: { event: 'propagated', kind: 'wait', ...both('Wait for Google Play to show the release') },
+  propagating: {
+    event: 'propagated',
+    kind: 'wait',
+    ...both('Wait for Google Play to show the release'),
+  },
   rolling_out: {
     event: 'complete',
     kind: 'wait',
@@ -108,7 +135,11 @@ export const STEPS: Record<ReleaseState, Step> = {
     android: 'Watch the staged rollout and raise it to everyone when it looks healthy',
   },
   live: { event: null, kind: 'done', ...both('Nothing to do. Plan the next version.') },
-  halted: { event: 'resume', kind: 'act', ...both('Decide whether to resume the rollout or ship a fix') },
+  halted: {
+    event: 'resume',
+    kind: 'act',
+    ...both('Decide whether to resume the rollout or ship a fix'),
+  },
 };
 
 export type NextActionInput = {
@@ -142,7 +173,12 @@ export function nextAction(input: NextActionInput): NextAction {
   }
   if (input.status === null) {
     const raw = input.rawState?.trim();
-    return { kind: 'act', text: raw ? `Check the store: it reports “${raw}”, which has no status here` : 'Sync the app to read its state from the store' };
+    return {
+      kind: 'act',
+      text: raw
+        ? `Check the store: it reports “${raw}”, which has no status here`
+        : 'Sync the app to read its state from the store',
+    };
   }
   if (PREPARING.includes(input.status)) {
     const prepare = prepareText(readiness);
@@ -157,12 +193,17 @@ function prepareText(readiness: NextActionInput['readiness']): NextAction | null
   if (!readiness) return null;
   const open = readiness.required.open;
   if (open > 0) {
-    return { kind: 'act', text: `Finish the checklist: ${open} required ${open === 1 ? 'item' : 'items'} left` };
+    return {
+      kind: 'act',
+      text: `Finish the checklist: ${open} required ${open === 1 ? 'item' : 'items'} left`,
+    };
   }
   const { notes } = readiness;
   if (notes.locales === 0) return { kind: 'act', text: 'Write the release notes' };
-  if (notes.missing.length > 0) return { kind: 'act', text: `Write the release notes for ${notes.missing.join(', ')}` };
-  if (notes.tooLong.length > 0) return { kind: 'act', text: `Shorten the release notes for ${notes.tooLong.join(', ')}` };
+  if (notes.missing.length > 0)
+    return { kind: 'act', text: `Write the release notes for ${notes.missing.join(', ')}` };
+  if (notes.tooLong.length > 0)
+    return { kind: 'act', text: `Shorten the release notes for ${notes.tooLong.join(', ')}` };
   return null;
 }
 
@@ -221,7 +262,8 @@ export type Board = { columns: BoardColumn[]; unplaced: Unplaced[] };
 const REJECTED_BLOCK: Blocked = { kind: 'rejection', reason: 'The store rejected this version.' };
 
 function blockOf(plan: PlanSummary | undefined, status: ReleaseState | null): Blocked | null {
-  if (plan?.blocked) return { kind: 'other', reason: plan.blockedReason?.trim() || 'No reason was given.' };
+  if (plan?.blocked)
+    return { kind: 'other', reason: plan.blockedReason?.trim() || 'No reason was given.' };
   return status === 'rejected' ? REJECTED_BLOCK : null;
 }
 
@@ -247,7 +289,11 @@ export function buildBoard(input: {
   releases: Record<string, ReleaseLoad | undefined>;
   plans: readonly PlanSummary[] | null;
 }): Board {
-  const columns: BoardColumn[] = DASHBOARD_BUCKETS.map((bucket) => ({ bucket, ...BUCKET_INFO[bucket], cards: [] }));
+  const columns: BoardColumn[] = DASHBOARD_BUCKETS.map((bucket) => ({
+    bucket,
+    ...BUCKET_INFO[bucket],
+    cards: [],
+  }));
   const unplaced: Unplaced[] = [];
   const place = (card: BoardCard, bucket: DashboardBucket) => {
     columns.find((c) => c.bucket === bucket)?.cards.push(card);
@@ -269,7 +315,12 @@ export function buildBoard(input: {
     const latest = latestRelease(load.releases, app.platform);
     const known = new Set(load.releases.map((r) => r.version));
     const planned = plans
-      .filter((p) => !known.has(p.version) && !p.released && (latest === null || compareVersions(p.version, latest.version) > 0))
+      .filter(
+        (p) =>
+          !known.has(p.version) &&
+          !p.released &&
+          (latest === null || compareVersions(p.version, latest.version) > 0),
+      )
       .sort((a, b) => compareVersions(b.version, a.version))[0];
 
     const common = {
@@ -300,7 +351,13 @@ export function buildBoard(input: {
           rollout: planned.rollout,
           planId: planned.id,
           readiness: planned.readiness,
-          next: nextAction({ platform: app.platform, status: null, planned: true, blocked, readiness: planned.readiness }),
+          next: nextAction({
+            platform: app.platform,
+            status: null,
+            planned: true,
+            blocked,
+            readiness: planned.readiness,
+          }),
           href: releaseHref(app.id, planned.version),
         },
         'preparing',
@@ -334,7 +391,13 @@ export function buildBoard(input: {
         rollout: plan && !plan.released ? plan.rollout : null,
         planId: plan?.id ?? null,
         readiness: plan?.readiness ?? null,
-        next: nextAction({ platform: app.platform, status: latest.status, rawState: latest.rawState, blocked, readiness: plan?.readiness ?? null }),
+        next: nextAction({
+          platform: app.platform,
+          status: latest.status,
+          rawState: latest.rawState,
+          blocked,
+          readiness: plan?.readiness ?? null,
+        }),
         href: releaseHref(app.id, latest.version),
       },
       dashboardBucket(latest.status),
@@ -345,7 +408,8 @@ export function buildBoard(input: {
 }
 
 /** How many cards carry a block, for the summary line above the board. */
-export const blockedCount = (board: Board): number => board.columns.reduce((n, c) => n + c.cards.filter((card) => card.blocked).length, 0);
+export const blockedCount = (board: Board): number =>
+  board.columns.reduce((n, c) => n + c.cards.filter((card) => card.blocked).length, 0);
 
 // ---------------------------------------------------------------------------------------------
 // Due soon and overdue
@@ -373,7 +437,15 @@ const ATTENTION_RANK: Record<AttentionKind, number> = { overdue: 0, rollout_due:
 
 type AttentionPlan = Pick<
   PlanSummary,
-  'id' | 'appId' | 'appName' | 'appPlatform' | 'version' | 'released' | 'due' | 'rollout' | 'targetDate'
+  | 'id'
+  | 'appId'
+  | 'appName'
+  | 'appPlatform'
+  | 'version'
+  | 'released'
+  | 'due'
+  | 'rollout'
+  | 'targetDate'
 >;
 
 /**
@@ -394,7 +466,8 @@ export function attentionOf(plan: AttentionPlan): Attention | null {
       text: `${rollout.dueSteps} rollout ${rollout.dueSteps === 1 ? 'step is' : 'steps are'} past the planned time.${next}`,
     });
   }
-  if (plan.due.dueSoon && !plan.due.overdue && due) reasons.push({ kind: 'due_soon', text: due.text });
+  if (plan.due.dueSoon && !plan.due.overdue && due)
+    reasons.push({ kind: 'due_soon', text: due.text });
   const first = reasons.sort((a, b) => ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind])[0];
   if (!first) return null;
   return {
@@ -421,7 +494,7 @@ export function attentionItems(plans: readonly AttentionPlan[]): Attention[] {
         ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind] ||
         (a.daysLeft ?? 0) - (b.daysLeft ?? 0) ||
         a.appName.localeCompare(b.appName, undefined, { sensitivity: 'base' }) ||
-        (platformRank(a.platform) - platformRank(b.platform)) ||
+        platformRank(a.platform) - platformRank(b.platform) ||
         (a.version < b.version ? -1 : a.version > b.version ? 1 : 0),
     );
 }

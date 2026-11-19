@@ -169,7 +169,7 @@ const googlePlay: CredentialGuide = {
     },
     {
       title: 'Enable the Play Developer API',
-      body: 'In that project, find the Google Play Android Developer API in the API library and click Enable. Google\'s docs call it the Google Play Developer API.',
+      body: "In that project, find the Google Play Android Developer API in the API library and click Enable. Google's docs call it the Google Play Developer API.",
       link: {
         label: 'Google: Getting started with the Play Developer API',
         url: 'https://developers.google.com/android-publisher/getting_started',
@@ -503,7 +503,10 @@ const translateGoogle: CredentialGuide = {
     {
       title: 'Check billing',
       body: 'Make sure the project is linked to a billing account. Google lists the first 500,000 characters each month as free on its pricing page.',
-      link: { label: 'Cloud Translation pricing', url: 'https://cloud.google.com/translate/pricing' },
+      link: {
+        label: 'Cloud Translation pricing',
+        url: 'https://cloud.google.com/translate/pricing',
+      },
     },
     {
       title: 'Enable the Cloud Translation API',
@@ -516,7 +519,10 @@ const translateGoogle: CredentialGuide = {
     {
       title: 'Create an API key',
       body: 'Open APIs and Services, then Credentials. Select Create credentials, then API key.',
-      link: { label: 'Google: Use API keys', url: 'https://docs.cloud.google.com/docs/authentication/api-keys-use' },
+      link: {
+        label: 'Google: Use API keys',
+        url: 'https://docs.cloud.google.com/docs/authentication/api-keys-use',
+      },
     },
     {
       title: 'Set restrictions on the key',
@@ -581,7 +587,10 @@ const translateDeepl: CredentialGuide = {
     {
       title: 'Open the DeepL API page',
       body: 'Sign in to your DeepL account or create one, then open the API section of the account.',
-      link: { label: 'DeepL: Authentication', url: 'https://developers.deepl.com/docs/getting-started/auth' },
+      link: {
+        label: 'DeepL: Authentication',
+        url: 'https://developers.deepl.com/docs/getting-started/auth',
+      },
     },
     {
       title: 'Choose a plan',
@@ -590,7 +599,10 @@ const translateDeepl: CredentialGuide = {
     {
       title: 'Create or open a key',
       body: 'In the API Keys tab of your account, create a key or open the one that exists.',
-      link: { label: 'DeepL: Getting started', url: 'https://developers.deepl.com/docs/getting-started/quickstart' },
+      link: {
+        label: 'DeepL: Getting started',
+        url: 'https://developers.deepl.com/docs/getting-started/quickstart',
+      },
     },
     {
       title: 'Copy the key',
@@ -629,8 +641,14 @@ const translateDeepl: CredentialGuide = {
       label: 'DeepL: Translate text',
       url: 'https://developers.deepl.com/api-reference/translate/request-translation',
     },
-    { label: 'DeepL: Authentication', url: 'https://developers.deepl.com/docs/getting-started/auth' },
-    { label: 'DeepL: Supported languages', url: 'https://developers.deepl.com/docs/getting-started/supported-languages' },
+    {
+      label: 'DeepL: Authentication',
+      url: 'https://developers.deepl.com/docs/getting-started/auth',
+    },
+    {
+      label: 'DeepL: Supported languages',
+      url: 'https://developers.deepl.com/docs/getting-started/supported-languages',
+    },
   ],
   checkedOn: CHECKED_ON,
 };
@@ -729,7 +747,10 @@ const translateLibretranslate: CredentialGuide = {
     {
       title: 'Start the server',
       body: 'Follow the project instructions to start it and download the language models you need.',
-      link: { label: 'LibreTranslate on GitHub', url: 'https://github.com/LibreTranslate/LibreTranslate' },
+      link: {
+        label: 'LibreTranslate on GitHub',
+        url: 'https://github.com/LibreTranslate/LibreTranslate',
+      },
     },
     {
       title: 'Check whether it needs a key',
@@ -793,7 +814,10 @@ const aiAnthropic: CredentialGuide = {
     {
       title: 'Open your Anthropic account',
       body: 'Sign in to the Anthropic console and check that billing is set up for the workspace you want to use.',
-      link: { label: 'Claude API overview', url: 'https://platform.claude.com/docs/en/api/overview' },
+      link: {
+        label: 'Claude API overview',
+        url: 'https://platform.claude.com/docs/en/api/overview',
+      },
     },
     {
       title: 'Create a key',
@@ -857,7 +881,10 @@ const aiOpenai: CredentialGuide = {
     {
       title: 'Open your OpenAI account',
       body: 'Sign in to the OpenAI platform and check that billing is set up for the project you want to use.',
-      link: { label: 'OpenAI structured outputs', url: 'https://developers.openai.com/api/docs/guides/structured-outputs' },
+      link: {
+        label: 'OpenAI structured outputs',
+        url: 'https://developers.openai.com/api/docs/guides/structured-outputs',
+      },
     },
     {
       title: 'Create a key',
@@ -904,8 +931,14 @@ const aiOpenai: CredentialGuide = {
     },
   ],
   links: [
-    { label: 'OpenAI structured outputs', url: 'https://developers.openai.com/api/docs/guides/structured-outputs' },
-    { label: 'OpenAI API reference', url: 'https://developers.openai.com/api/reference/resources/responses/methods/create' },
+    {
+      label: 'OpenAI structured outputs',
+      url: 'https://developers.openai.com/api/docs/guides/structured-outputs',
+    },
+    {
+      label: 'OpenAI API reference',
+      url: 'https://developers.openai.com/api/reference/resources/responses/methods/create',
+    },
   ],
   checkedOn: CHECKED_ON,
 };
@@ -921,12 +954,18 @@ const aiOpenaiCompatible: CredentialGuide = {
     {
       title: 'Choose where it runs',
       body: 'Run a model server yourself or use a hosted one. The data of a task goes to whichever you choose.',
-      link: { label: 'Ollama OpenAI compatibility', url: 'https://docs.ollama.com/api/openai-compatibility' },
+      link: {
+        label: 'Ollama OpenAI compatibility',
+        url: 'https://docs.ollama.com/api/openai-compatibility',
+      },
     },
     {
       title: 'Start the server',
       body: 'Follow the project instructions to start it and load a model that can follow a JSON schema.',
-      link: { label: 'LM Studio structured output', url: 'https://lmstudio.ai/docs/developer/openai-compat/structured-output' },
+      link: {
+        label: 'LM Studio structured output',
+        url: 'https://lmstudio.ai/docs/developer/openai-compat/structured-output',
+      },
     },
     {
       title: 'Check whether it needs a key',
@@ -969,9 +1008,18 @@ const aiOpenaiCompatible: CredentialGuide = {
     },
   ],
   links: [
-    { label: 'Ollama OpenAI compatibility', url: 'https://docs.ollama.com/api/openai-compatibility' },
-    { label: 'LM Studio structured output', url: 'https://lmstudio.ai/docs/developer/openai-compat/structured-output' },
-    { label: 'vLLM structured outputs', url: 'https://docs.vllm.ai/en/latest/features/structured_outputs.html' },
+    {
+      label: 'Ollama OpenAI compatibility',
+      url: 'https://docs.ollama.com/api/openai-compatibility',
+    },
+    {
+      label: 'LM Studio structured output',
+      url: 'https://lmstudio.ai/docs/developer/openai-compat/structured-output',
+    },
+    {
+      label: 'vLLM structured outputs',
+      url: 'https://docs.vllm.ai/en/latest/features/structured_outputs.html',
+    },
   ],
   checkedOn: CHECKED_ON,
 };

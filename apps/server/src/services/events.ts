@@ -1,6 +1,6 @@
 import type { Row, Sql } from '@mrm/db';
-import { type EventType, eventTypes, isEventType } from './event-types.ts';
 import { observeEventForAlerts } from './alerts.ts';
+import { type EventType, eventTypes, isEventType } from './event-types.ts';
 import { queueWebhookDeliveries } from './webhooks.ts';
 
 export { type EventType, eventTypes, isEventType };
@@ -40,7 +40,8 @@ export type EventRecord = {
 
 /** Larger payloads are replaced by a short marker; an event is a pointer, not a data transfer. */
 export const MAX_PAYLOAD_BYTES = 16 * 1024;
-const SECRET_KEY = /secret|token|password|passwd|ciphertext|authorization|private_?key|api_?key|credential_?json/i;
+const SECRET_KEY =
+  /secret|token|password|passwd|ciphertext|authorization|private_?key|api_?key|credential_?json/i;
 
 /**
  * Defence in depth: callers must not put secrets in a payload, and keys that look like one are
@@ -50,7 +51,8 @@ export function redactPayload(value: unknown, depth = 0): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (depth > 6) return null;
-  if (Array.isArray(value)) return value.slice(0, 200).map((item) => redactPayload(item, depth + 1));
+  if (Array.isArray(value))
+    return value.slice(0, 200).map((item) => redactPayload(item, depth + 1));
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -179,7 +181,9 @@ export async function listEvents(
   workspaceId: string,
   filter: EventFilter = {},
 ): Promise<{ events: EventRecord[]; hasMore: boolean }> {
-  const limit = Math.trunc(Math.min(Math.max(filter.limit ?? DEFAULT_EVENTS_LIMIT, 1), MAX_EVENTS_LIMIT));
+  const limit = Math.trunc(
+    Math.min(Math.max(filter.limit ?? DEFAULT_EVENTS_LIMIT, 1), MAX_EVENTS_LIMIT),
+  );
   const where = ['workspace_id = ?'];
   const params: (string | number)[] = [workspaceId];
   if (filter.since !== undefined) {
@@ -208,12 +212,18 @@ export async function listEvents(
 
 /** The id of the newest event of the workspace, or 0. */
 export async function latestEventId(sql: Sql, workspaceId: string): Promise<number> {
-  const [row] = await sql.query('SELECT MAX(id) AS id FROM events WHERE workspace_id = ?', [workspaceId]);
+  const [row] = await sql.query('SELECT MAX(id) AS id FROM events WHERE workspace_id = ?', [
+    workspaceId,
+  ]);
   return Number(row?.id ?? 0);
 }
 
 /** Drops events older than `keepMs`. Called at start-up; the log is a feed, not an archive. */
-export async function pruneEvents(sql: Sql, now: number, keepMs = 90 * 24 * 60 * 60 * 1000): Promise<number> {
+export async function pruneEvents(
+  sql: Sql,
+  now: number,
+  keepMs = 90 * 24 * 60 * 60 * 1000,
+): Promise<number> {
   return sql.execute('DELETE FROM events WHERE created_at < ?', [now - keepMs]);
 }
 
@@ -245,7 +255,12 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
   const changeSetId = audit.target?.type === 'change_set' ? audit.target.id : undefined;
   switch (audit.action) {
     case 'changeset.create':
-      return { ...base, type: 'changeset.created', subject, payload: { changeSetId, files: detail.files, actor } };
+      return {
+        ...base,
+        type: 'changeset.created',
+        subject,
+        payload: { changeSetId, files: detail.files, actor },
+      };
     case 'changeset.approve':
       return { ...base, type: 'changeset.approved', subject, payload: { changeSetId, actor } };
     case 'changeset.apply':
@@ -271,7 +286,10 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
         subject,
         payload: {
           changeSetId,
-          reason: audit.action === 'changeset.apply_timeout' ? 'timeout' : (text(detail.reason) ?? 'unknown'),
+          reason:
+            audit.action === 'changeset.apply_timeout'
+              ? 'timeout'
+              : (text(detail.reason) ?? 'unknown'),
           actor,
         },
       };
@@ -288,15 +306,38 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
         },
       };
     case 'step_up.verified':
-      return { ...base, type: 'stepup.verified', payload: { userId: audit.actor.id, factor: text(detail.factor) ?? null, action: text(detail.action) ?? null, targetId: text(detail.targetId) ?? null } };
+      return {
+        ...base,
+        type: 'stepup.verified',
+        payload: {
+          userId: audit.actor.id,
+          factor: text(detail.factor) ?? null,
+          action: text(detail.action) ?? null,
+          targetId: text(detail.targetId) ?? null,
+        },
+      };
     case 'step_up.failed':
       return {
         ...base,
         type: 'stepup.failed',
-        payload: { userId: audit.actor.id, factor: text(detail.factor) ?? null, action: text(detail.action) ?? null, reason: text(detail.reason) ?? null, failedCount: typeof detail.failedCount === 'number' ? detail.failedCount : null },
+        payload: {
+          userId: audit.actor.id,
+          factor: text(detail.factor) ?? null,
+          action: text(detail.action) ?? null,
+          reason: text(detail.reason) ?? null,
+          failedCount: typeof detail.failedCount === 'number' ? detail.failedCount : null,
+        },
       };
     case 'step_up.recovery_used':
-      return { ...base, type: 'stepup.recovery_used', payload: { userId: audit.actor.id, action: text(detail.action) ?? null, remaining: typeof detail.remaining === 'number' ? detail.remaining : null } };
+      return {
+        ...base,
+        type: 'stepup.recovery_used',
+        payload: {
+          userId: audit.actor.id,
+          action: text(detail.action) ?? null,
+          remaining: typeof detail.remaining === 'number' ? detail.remaining : null,
+        },
+      };
     case 'token.create':
       return {
         ...base,
@@ -305,13 +346,30 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
           tokenId: audit.target?.type === 'token' ? audit.target.id : null,
           name: text(detail.name) ?? null,
           role: text(detail.role) ?? null,
-          createdBy: audit.actor.type === 'user' ? audit.actor.id : (text(detail.onBehalfOf) ?? null),
+          createdBy:
+            audit.actor.type === 'user' ? audit.actor.id : (text(detail.onBehalfOf) ?? null),
         },
       };
     case 'invitation.accept':
-      return { ...base, type: 'member.added', payload: { userId: audit.actor.id, role: text(detail.role) ?? null, newAccount: detail.newAccount === true } };
+      return {
+        ...base,
+        type: 'member.added',
+        payload: {
+          userId: audit.actor.id,
+          role: text(detail.role) ?? null,
+          newAccount: detail.newAccount === true,
+        },
+      };
     case 'auth.second_factor_failed':
-      return { ...base, type: 'auth.second_factor_failed', payload: { userId: audit.actor.id, method: text(detail.method) ?? null, reason: text(detail.reason) ?? null } };
+      return {
+        ...base,
+        type: 'auth.second_factor_failed',
+        payload: {
+          userId: audit.actor.id,
+          method: text(detail.method) ?? null,
+          reason: text(detail.reason) ?? null,
+        },
+      };
     default:
       return undefined;
   }
@@ -387,7 +445,13 @@ export async function recordSyncEvents(
       workspaceId: input.workspaceId,
       type: 'app.release.status_changed',
       subject: { appId: input.appId, ...(change.releaseId ? { releaseId: change.releaseId } : {}) },
-      payload: { version: change.version, track: change.track, build: change.build, from: change.from, to: change.to },
+      payload: {
+        version: change.version,
+        track: change.track,
+        build: change.build,
+        from: change.from,
+        to: change.to,
+      },
       at: input.at,
     });
   }

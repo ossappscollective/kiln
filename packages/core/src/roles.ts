@@ -134,7 +134,9 @@ export const tokenForbiddenActions: readonly Action[] = [
 ];
 
 /** The actions a token may be given, in the order of `actions`. */
-export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbiddenActions.includes(a));
+export const tokenActions: readonly Action[] = actions.filter(
+  (a) => !tokenForbiddenActions.includes(a),
+);
 
 /**
  * Actions that change what a store shows to customers, in the organisation's name: publish a reply
@@ -151,7 +153,20 @@ export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbi
  * ("everything the ceiling allows") never does, so widening an old token's role cannot start
  * answering customers or moving a rollout.
  */
-export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage', 'builds.download', 'builds.share', 'alerts.manage'];
+export const tokenExplicitOnlyActions: readonly Action[] = [
+  'reviews.reply',
+  'releases.rollout',
+  'store.push_draft',
+  'store.submit',
+  'store.release',
+  'store.publish',
+  'ai.use',
+  'ai.manage',
+  'analytics.manage',
+  'builds.download',
+  'builds.share',
+  'alerts.manage',
+];
 
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);
@@ -169,7 +184,11 @@ export function lowerRole(a: Role, b: Role): Role {
  * (`tokenForbiddenActions`), and when the token has a list of actions, it is on the list.
  * `allowlist` null means "everything the ceiling allows".
  */
-export function canToken(ceiling: Role, allowlist: readonly Action[] | null, action: Action): boolean {
+export function canToken(
+  ceiling: Role,
+  allowlist: readonly Action[] | null,
+  action: Action,
+): boolean {
   if (tokenForbiddenActions.includes(action)) return false;
   if (!can(ceiling, action)) return false;
   if (allowlist === null) return !tokenExplicitOnlyActions.includes(action);

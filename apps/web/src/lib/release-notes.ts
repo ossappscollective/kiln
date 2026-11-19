@@ -1,5 +1,5 @@
 import type { Platform } from '@mrm/core';
-import { type TestNotes } from './release-candidates.ts';
+import type { TestNotes } from './release-candidates.ts';
 
 /**
  * Release notes ("what is new") in the prepare-release stepper: the limits, the texts earlier releases used (and where),
@@ -11,7 +11,8 @@ import { type TestNotes } from './release-candidates.ts';
 /** The longest "what is new": App Store 4000, Google Play 500 (a limit no official page states: only a warning). */
 export const noteLimit = (platform: Platform): number => (platform === 'android' ? 500 : 4000);
 
-export const normalizeLocale = (locale: string): string => locale.trim().toLowerCase().replace(/_/g, '-');
+export const normalizeLocale = (locale: string): string =>
+  locale.trim().toLowerCase().replace(/_/g, '-');
 
 // ---------------------------------------------------------------------------------------------
 // History (`GET /apps/{id}/release/notes-history`)
@@ -25,7 +26,13 @@ export type NoteUse = {
   at: number | null;
 };
 
-export type HistoryNote = { text: string; truncated: boolean; locales: string[]; lastUsedAt: number | null; uses: NoteUse[] };
+export type HistoryNote = {
+  text: string;
+  truncated: boolean;
+  locales: string[];
+  lastUsedAt: number | null;
+  uses: NoteUse[];
+};
 
 export type NotesHistory = {
   app: { id: string; platform: string; store: 'appstoreconnect' | 'googleplay' };
@@ -33,7 +40,14 @@ export type NotesHistory = {
   notes: HistoryNote[];
   truncated: boolean;
   limit: number;
-  store: { read: boolean; error: string | null; cached: boolean; versionsRead: number; failed: number; truncated: boolean };
+  store: {
+    read: boolean;
+    error: string | null;
+    cached: boolean;
+    versionsRead: number;
+    failed: number;
+    truncated: boolean;
+  };
   generatedAt: number;
 };
 
@@ -60,9 +74,16 @@ const stateWord = (state: string | null): string | null => {
 /** Where one text was used: "App Store version 2.4.0 (live), 12 Nov 2026"; "Google Play release Winter on production (completed), no date"; "Release plan 2.3.0". */
 export function useLine(use: NoteUse, date: (at: number) => string): string {
   const state = stateWord(use.state);
-  const when = use.at !== null ? `, ${date(use.at)}` : use.source === 'googleplay' ? ', no date (Google Play does not give one)' : '';
-  if (use.source === 'plan') return `Release plan${use.version ? ` ${use.version}` : ''}${use.at !== null ? `, ${date(use.at)}` : ''}`;
-  if (use.source === 'appstoreconnect') return `App Store version ${use.version ?? '(unnamed)'}${state ? ` (${state})` : ''}${when}`;
+  const when =
+    use.at !== null
+      ? `, ${date(use.at)}`
+      : use.source === 'googleplay'
+        ? ', no date (Google Play does not give one)'
+        : '';
+  if (use.source === 'plan')
+    return `Release plan${use.version ? ` ${use.version}` : ''}${use.at !== null ? `, ${date(use.at)}` : ''}`;
+  if (use.source === 'appstoreconnect')
+    return `App Store version ${use.version ?? '(unnamed)'}${state ? ` (${state})` : ''}${when}`;
   return `Google Play release ${use.version ?? '(unnamed)'}${use.track ? ` on ${use.track}` : ''}${state ? ` (${state})` : ''}${when}`;
 }
 
@@ -92,7 +113,13 @@ export function previewOf(text: string, max = 90): string {
  * The entries of a history for one language: the texts that were used in that language, newest first. A text that
  * is used in another language only is not offered here (a translation is not a reuse). `current` is the draft text.
  */
-export function reuseOptions(history: Pick<NotesHistory, 'notes'>, locale: string, platform: Platform, current: string, date: (at: number) => string): ReuseOption[] {
+export function reuseOptions(
+  history: Pick<NotesHistory, 'notes'>,
+  locale: string,
+  platform: Platform,
+  current: string,
+  date: (at: number) => string,
+): ReuseOption[] {
   const want = normalizeLocale(locale);
   const limit = noteLimit(platform);
   const out: ReuseOption[] = [];
@@ -129,7 +156,8 @@ export function historyStoreLine(store: NotesHistory['store'] | undefined): stri
   }
   const parts: string[] = [];
   if (store.truncated) parts.push('Only the newest versions were read.');
-  if (store.failed > 0) parts.push(`${store.failed} ${store.failed === 1 ? 'version' : 'versions'} could not be read.`);
+  if (store.failed > 0)
+    parts.push(`${store.failed} ${store.failed === 1 ? 'version' : 'versions'} could not be read.`);
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
@@ -139,7 +167,11 @@ export function historyStoreLine(store: NotesHistory['store'] | undefined): stri
 export type Drafts = Record<string, string>;
 
 /** `drafts` with `text` copied from `from` to every language in `targets` (never to `from` itself). */
-export function copyToLocales(drafts: Drafts, from: string, targets: readonly string[]): { drafts: Drafts; overwritten: number; copied: number } {
+export function copyToLocales(
+  drafts: Drafts,
+  from: string,
+  targets: readonly string[],
+): { drafts: Drafts; overwritten: number; copied: number } {
   const source = drafts[from] ?? '';
   const next: Drafts = { ...drafts };
   let overwritten = 0;
@@ -235,15 +267,32 @@ export function noteRows(input: {
     else if (staged !== null) state = 'staged';
     else if (store !== null) state = 'same';
     else state = 'new';
-    return { locale, draft, store, staged, state, chars: draft.length, limit, over: draft.length > limit };
+    return {
+      locale,
+      draft,
+      store,
+      staged,
+      state,
+      chars: draft.length,
+      limit,
+      over: draft.length > limit,
+    };
   });
 }
 
 /** The languages whose editor text must still be staged. */
-export const unsavedLocales = (rows: readonly NoteRow[]): string[] => rows.filter((r) => r.state === 'edited' && clean(r.draft) !== '').map((r) => r.locale);
+export const unsavedLocales = (rows: readonly NoteRow[]): string[] =>
+  rows.filter((r) => r.state === 'edited' && clean(r.draft) !== '').map((r) => r.locale);
 
 export const stateLabel = (state: LocaleState): string =>
-  state === 'edited' ? 'Not staged yet' : state === 'staged' ? 'Staged' : state === 'same' ? 'As in the store' : 'No text yet';
+  state === 'edited'
+    ? 'Not staged yet'
+    : state === 'staged'
+      ? 'Staged'
+      : state === 'same'
+        ? 'As in the store'
+        : 'No text yet';
 
 /** A locale code the server accepts for notes (`en-US`, `de`, `pt_BR`). */
-export const isNoteLocale = (value: string): boolean => /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/.test(value.trim()) && value.trim().length <= 35;
+export const isNoteLocale = (value: string): boolean =>
+  /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,3}$/.test(value.trim()) && value.trim().length <= 35;

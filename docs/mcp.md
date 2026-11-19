@@ -33,14 +33,28 @@ claude mcp add mobile-release-manager --env MRM_URL=https://mrm.example.com --en
 Claude Desktop, `claude_desktop_config.json` (stdio):
 
 ```json
-{ "mcpServers": { "mobile-release-manager": { "command": "node", "args": ["/path/to/mobile-release-manager/apps/server/src/mcp/stdio.ts"],
-  "env": { "MRM_URL": "https://mrm.example.com", "MRM_TOKEN": "mrm_..." } } } }
+{
+  "mcpServers": {
+    "mobile-release-manager": {
+      "command": "node",
+      "args": ["/path/to/mobile-release-manager/apps/server/src/mcp/stdio.ts"],
+      "env": { "MRM_URL": "https://mrm.example.com", "MRM_TOKEN": "mrm_..." }
+    }
+  }
+}
 ```
 
 Cursor, `~/.cursor/mcp.json` (HTTP; the stdio form is the same as Claude Desktop's):
 
 ```json
-{ "mcpServers": { "mobile-release-manager": { "url": "https://mrm.example.com/mcp", "headers": { "Authorization": "Bearer mrm_..." } } } }
+{
+  "mcpServers": {
+    "mobile-release-manager": {
+      "url": "https://mrm.example.com/mcp",
+      "headers": { "Authorization": "Bearer mrm_..." }
+    }
+  }
+}
 ```
 
 The stdio command refuses a plain `http` address unless it is this machine, never prints the token, and is a transport only: every rule below is the
@@ -57,23 +71,23 @@ server's.
 
 **Write tools** (change only this workspace's own data; the token must name the action):
 
-| Tool | Action | Also needs |
-| --- | --- | --- |
-| `triage_review` | `reviews.triage` | nothing |
+| Tool               | Action           | Also needs                      |
+| ------------------ | ---------------- | ------------------------------- |
+| `triage_review`    | `reviews.triage` | nothing                         |
 | `save_reply_draft` | `reviews.triage` | `MRM_REVIEW_REPLY_ENABLED=true` |
 
 A reply is only ever saved as a **draft**; a person reviews and sends it in the web app. Nothing is sent to a store from here.
 
 **Preview tools** (show what a store action would do; never apply it). The token must name the action; the server switch must be on:
 
-| Tool | Action | Server switch | Confirm at |
-| --- | --- | --- | --- |
-| `preview_rollout` | `releases.rollout` | `MRM_STORE_ROLLOUT_ENABLED` | Releases |
-| `preview_store_release` | `store.release` | `MRM_STORE_RELEASE_ENABLED` | Releases |
-| `preview_store_submit` | `store.submit` | `MRM_STORE_SUBMIT_ENABLED` | Pending changes |
-| `preview_staged_push` | `store.push_draft` | `MRM_STORE_DRAFT_WRITE_ENABLED` | Pending changes |
-| `preview_publish_batch` | `store.publish` | `MRM_STORE_PUBLISH_BATCH_ENABLED` | Pending changes |
-| `preview_internal_share` | `builds.share` | `MRM_PLAY_INTERNAL_SHARING_ENABLED` | Builds |
+| Tool                     | Action             | Server switch                       | Confirm at      |
+| ------------------------ | ------------------ | ----------------------------------- | --------------- |
+| `preview_rollout`        | `releases.rollout` | `MRM_STORE_ROLLOUT_ENABLED`         | Releases        |
+| `preview_store_release`  | `store.release`    | `MRM_STORE_RELEASE_ENABLED`         | Releases        |
+| `preview_store_submit`   | `store.submit`     | `MRM_STORE_SUBMIT_ENABLED`          | Pending changes |
+| `preview_staged_push`    | `store.push_draft` | `MRM_STORE_DRAFT_WRITE_ENABLED`     | Pending changes |
+| `preview_publish_batch`  | `store.publish`    | `MRM_STORE_PUBLISH_BATCH_ENABLED`   | Pending changes |
+| `preview_internal_share` | `builds.share`     | `MRM_PLAY_INTERNAL_SHARING_ENABLED` | Builds          |
 
 A preview answer holds the preview, `confirmHash` (the `planHash` for a batch), `applied: false` and `confirmInApp.url`. **There is no apply tool and
 there will not be one**: confirming needs a passkey or password ([ADR 0019](adr/0019-step-up-confirmation.md)), which an API token cannot give. You open

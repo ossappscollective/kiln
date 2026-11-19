@@ -1,8 +1,8 @@
 import { type Action, can } from '@mrm/core';
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { Context, Next } from 'hono';
-import { type AppEnv, type Services, parseBody } from '../http.ts';
+import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { createToken, createTokenBody, listTokens, revokeToken } from '../services/tokens.ts';
 
@@ -38,7 +38,8 @@ export function tokenRoutes(services: Services) {
     needs('tokens.manage'),
     bodyLimit({
       maxSize: TOKEN_BODY_LIMIT,
-      onError: (c) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
+      onError: (c) =>
+        c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
     }),
     async (c) => {
       const body = await parseBody(c, createTokenBody);
@@ -57,7 +58,12 @@ export function tokenRoutes(services: Services) {
   );
 
   app.delete('/:workspaceId/tokens/:id', needs('tokens.manage'), async (c) => {
-    const done = await revokeToken(db, { workspaceId: ws(c), id: param(c, 'id') }, { type: 'user', id: c.get('user').id }, now());
+    const done = await revokeToken(
+      db,
+      { workspaceId: ws(c), id: param(c, 'id') },
+      { type: 'user', id: c.get('user').id },
+      now(),
+    );
     return done ? c.body(null, 204) : c.json({ error: 'not_found' }, 404);
   });
 

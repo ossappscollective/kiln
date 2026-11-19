@@ -1,5 +1,10 @@
+import {
+  chunkIds,
+  needsTranslation,
+  type ReviewTranslation,
+  type Translatable,
+} from './review-translation.ts';
 import { MAX_RATING, type ReviewFilters, type UnansweredSummary } from './reviews.ts';
-import { type ReviewTranslation, type Translatable, chunkIds, needsTranslation } from './review-translation.ts';
 
 /**
  * Small pure helpers of the per-app Reviews tab (docs/ux-ia.md, design R6): the low-rating quick filter and
@@ -23,7 +28,8 @@ export function isLowOnly(ratings: readonly number[], threshold: number): boolea
 }
 
 /** The rating filter after the quick filter is switched on (the low ratings) or off (no rating filter). */
-export const ratingsWithLowOnly = (on: boolean, threshold: number): number[] => (on ? lowRatings(threshold) : []);
+export const ratingsWithLowOnly = (on: boolean, threshold: number): number[] =>
+  on ? lowRatings(threshold) : [];
 
 /** The reviews of the list that still need a translation into `target`, as the ids of one or more requests. */
 export function pendingTranslationBatches(
@@ -51,7 +57,9 @@ export function mergeTranslations(
 
 /** The label of the button: how many reviews it will send. */
 export function translateAllLabel(pending: number, language: string): string {
-  return pending === 0 ? 'All visible reviews are translated' : `Translate all visible (${pending}) to ${language}`;
+  return pending === 0
+    ? 'All visible reviews are translated'
+    : `Translate all visible (${pending}) to ${language}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -71,10 +79,19 @@ export type UnansweredChip = { text: string; label: string };
  * The quiet chip of the Reviews tab: "5 unanswered, oldest 3 d". Nothing for none or for a summary without the field (an older
  * server). When the server counts only the lowest ratings (`maxRating` below 5) it says so, so the number is not misread.
  */
-export function unansweredChip(unanswered: UnansweredSummary | null | undefined, now: number): UnansweredChip | null {
+export function unansweredChip(
+  unanswered: UnansweredSummary | null | undefined,
+  now: number,
+): UnansweredChip | null {
   if (!unanswered || !(unanswered.count > 0)) return null;
-  const ratings = unanswered.maxRating >= MAX_RATING ? '' : unanswered.maxRating === 1 ? ' (1 star)' : ` (${unanswered.maxRating} stars or fewer)`;
-  const oldest = unanswered.oldestAt === null ? '' : `, oldest ${ageText(unanswered.oldestAt, now)}`;
+  const ratings =
+    unanswered.maxRating >= MAX_RATING
+      ? ''
+      : unanswered.maxRating === 1
+        ? ' (1 star)'
+        : ` (${unanswered.maxRating} stars or fewer)`;
+  const oldest =
+    unanswered.oldestAt === null ? '' : `, oldest ${ageText(unanswered.oldestAt, now)}`;
   const text = `${unanswered.count} unanswered${ratings}${oldest}`;
   return { text, label: `${text}. Show them.` };
 }

@@ -1,12 +1,12 @@
-import type { EventType } from './event-types.ts';
 import {
   type AlertData,
   type AlertDef,
-  type EventLike,
   defaultParams,
+  type EventLike,
   releaseDefs,
 } from './alert-catalog-core.ts';
 import { moreDefs } from './alert-catalog-more.ts';
+import type { EventType } from './event-types.ts';
 
 /**
  * The alert catalog (docs/alerts.md, docs/adr/0022-alerts.md): every condition somebody can be told about, as data. Pure: no
@@ -22,16 +22,20 @@ export const alertCatalog: readonly AlertDef<AlertTypeId>[] = defs;
 export const alertTypeIds: readonly AlertTypeId[] = alertCatalog.map((d) => d.id);
 const byId = new Map<string, AlertDef<AlertTypeId>>(alertCatalog.map((d) => [d.id, d]));
 export const alertDef = (id: string): AlertDef<AlertTypeId> | undefined => byId.get(id);
-export const isAlertType = (id: unknown): id is AlertTypeId => typeof id === 'string' && byId.has(id);
+export const isAlertType = (id: unknown): id is AlertTypeId =>
+  typeof id === 'string' && byId.has(id);
 /** The types a person can configure: everything but the internal test. */
-export const configurableAlertTypes: readonly AlertDef<AlertTypeId>[] = alertCatalog.filter((d) => d.source.kind !== 'internal');
+export const configurableAlertTypes: readonly AlertDef<AlertTypeId>[] = alertCatalog.filter(
+  (d) => d.source.kind !== 'internal',
+);
 
 /**
  * Events that never raise an alert, with the reason. A test checks that every event type is either named by an alert type or
  * listed here, so adding an event forces a decision.
  */
 export const notAlertable: Partial<Record<EventType, string>> = {
-  'app.synced': 'Routine: the sync result is already shown, and a failure is the state alert store.sync_failed.',
+  'app.synced':
+    'Routine: the sync result is already shown, and a failure is the state alert store.sync_failed.',
   'changeset.created': 'A person did it just now; they know.',
   'changeset.approved': 'A person did it just now; they know.',
   'changeset.applied': 'Success of an action a person started.',
@@ -47,7 +51,8 @@ export const notAlertable: Partial<Record<EventType, string>> = {
   'assets.pulled': 'Success of an action a person started.',
   'analytics.synced': 'Routine; repeated failure is the state alert analytics.sync_failing.',
   'stepup.verified': 'Routine; only failures and recovery codes are news.',
-  'auth.second_factor_failed': 'One wrong sign-in code is routine and the event has no failure count; the alert for repeated failed confirmations is security.stepup_failed.',
+  'auth.second_factor_failed':
+    'One wrong sign-in code is routine and the event has no failure count; the alert for repeated failed confirmations is security.stepup_failed.',
   'alert.raised': 'An alert about an alert would loop.',
 };
 
@@ -62,11 +67,15 @@ export const eventAlertTypes: ReadonlyMap<string, readonly AlertDef<AlertTypeId>
 })();
 
 /** Defaults for a type with the workspace's own values laid over them, each kept inside its range. */
-export function resolveParams(d: Pick<AlertDef, 'params'>, stored: Record<string, unknown> | null | undefined): Record<string, number> {
+export function resolveParams(
+  d: Pick<AlertDef, 'params'>,
+  stored: Record<string, unknown> | null | undefined,
+): Record<string, number> {
   const out = defaultParams(d);
   for (const [k, p] of Object.entries(d.params)) {
     const v = stored?.[k];
-    if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.min(p.max, Math.max(p.min, Math.trunc(v)));
+    if (typeof v === 'number' && Number.isFinite(v))
+      out[k] = Math.min(p.max, Math.max(p.min, Math.trunc(v)));
   }
   return out;
 }
@@ -84,7 +93,8 @@ export function alertsFromEvent(
   return out;
 }
 
-const SECRETY = /secret|token(?!Id)|password|passwd|ciphertext|authorization|private_?key|api_?key/i;
+const SECRETY =
+  /secret|token(?!Id)|password|passwd|ciphertext|authorization|private_?key|api_?key/i;
 const MAX_TEXT = 300;
 
 /** Defence in depth: data holds plain scalars only, secret-looking keys are dropped, long text is cut. */

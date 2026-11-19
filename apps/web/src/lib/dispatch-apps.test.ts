@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APPS_HINT, appsLine, dispatchAppsBody, initialSelection, toggleApp } from './dispatch-apps.ts';
+import {
+  APPS_HINT,
+  appsLine,
+  dispatchAppsBody,
+  initialSelection,
+  toggleApp,
+} from './dispatch-apps.ts';
 
 const apps = [
   { id: 'a', name: 'Acme', platform: 'ios' as const },

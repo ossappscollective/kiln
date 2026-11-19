@@ -21,7 +21,12 @@ import type { TranslateProviderId } from './types.ts';
  * The tables are data on purpose: a wrong entry is a one line fix with a test beside it.
  */
 
-type Parts = { language: string; script: string | undefined; region: string | undefined; tag: string };
+type Parts = {
+  language: string;
+  script: string | undefined;
+  region: string | undefined;
+  tag: string;
+};
 
 function parts(tag: string): Parts | undefined {
   const normalized = normalizeLanguageTag(tag);
@@ -34,7 +39,8 @@ function parts(tag: string): Parts | undefined {
 
 const TRADITIONAL_REGIONS = ['TW', 'HK', 'MO'];
 const isTraditionalChinese = (p: Parts) =>
-  p.script === 'Hant' || (p.script === undefined && p.region !== undefined && TRADITIONAL_REGIONS.includes(p.region));
+  p.script === 'Hant' ||
+  (p.script === undefined && p.region !== undefined && TRADITIONAL_REGIONS.includes(p.region));
 
 // ---------------------------------------------------------------------------------------------
 // Google
@@ -58,7 +64,8 @@ const DEEPL_ENGLISH_US = ['US', 'CA', 'PH'];
 export function deeplTarget(tag: string): string | undefined {
   const p = parts(tag);
   if (!p) return undefined;
-  if (p.language === 'en') return p.region === undefined || DEEPL_ENGLISH_US.includes(p.region) ? 'EN-US' : 'EN-GB';
+  if (p.language === 'en')
+    return p.region === undefined || DEEPL_ENGLISH_US.includes(p.region) ? 'EN-US' : 'EN-GB';
   if (p.language === 'pt') return p.region === undefined || p.region === 'BR' ? 'PT-BR' : 'PT-PT';
   if (p.language === 'zh') return isTraditionalChinese(p) ? 'ZH-HANT' : 'ZH-HANS';
   if (p.language === 'nb' || p.language === 'no' || p.language === 'nn') return 'NB';
@@ -139,7 +146,10 @@ export function providerTarget(provider: TranslateProviderId, tag: string): stri
  * The provider's code for a source language. `undefined` (or `auto`) means the provider detects it:
  * the result is `undefined`, and the adapter sends nothing (LibreTranslate sends `auto`).
  */
-export function providerSource(provider: TranslateProviderId, tag: string | undefined): string | undefined {
+export function providerSource(
+  provider: TranslateProviderId,
+  tag: string | undefined,
+): string | undefined {
   if (tag === undefined || tag === '' || tag.toLowerCase() === 'auto') return undefined;
   return provider === 'deepl' ? deeplSource(tag) : providerTarget(provider, tag);
 }

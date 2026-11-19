@@ -36,20 +36,20 @@ Sources: [EAS Metadata](https://docs.expo.dev/eas/metadata/),
   pt-PT ro ru sk es-MX es-ES sv th tr uk vi` (`EXPO_LOCALES`). Per locale, `additionalProperties:
   false`:
 
-  | Key | Type | Limit in the schema | Required in the schema |
-  | --- | --- | --- | --- |
-  | `title` | string | 2 to 30 | yes |
-  | `subtitle` | string | 30 | no |
-  | `description` | string | 10 to 4000 | no |
-  | `keywords` | array of strings, unique | each item at most 100 | no |
-  | `releaseNotes` | string | 4000 | no |
-  | `promoText` | string | 170 | no |
-  | `marketingUrl` | string | 255 | no |
-  | `supportUrl` | string | 255 | no |
-  | `privacyPolicyUrl` | string | 255 | yes |
-  | `privacyPolicyText` | string | none (Apple TV) | no |
-  | `privacyChoicesUrl` | string | 255 | no |
-  | `screenshots`, `previews` | objects | | no (JSON schema only) |
+  | Key                       | Type                     | Limit in the schema   | Required in the schema |
+  | ------------------------- | ------------------------ | --------------------- | ---------------------- |
+  | `title`                   | string                   | 2 to 30               | yes                    |
+  | `subtitle`                | string                   | 30                    | no                     |
+  | `description`             | string                   | 10 to 4000            | no                     |
+  | `keywords`                | array of strings, unique | each item at most 100 | no                     |
+  | `releaseNotes`            | string                   | 4000                  | no                     |
+  | `promoText`               | string                   | 170                   | no                     |
+  | `marketingUrl`            | string                   | 255                   | no                     |
+  | `supportUrl`              | string                   | 255                   | no                     |
+  | `privacyPolicyUrl`        | string                   | 255                   | yes                    |
+  | `privacyPolicyText`       | string                   | none (Apple TV)       | no                     |
+  | `privacyChoicesUrl`       | string                   | 255                   | no                     |
+  | `screenshots`, `previews` | objects                  |                       | no (JSON schema only)  |
 
 - **`apple.release`**: `automaticRelease` (boolean or RFC 3339 date-time) and `phasedRelease`
   (boolean). **`apple.review`**: `firstName`, `lastName`, `email`, `phone`, `demoUsername`,
@@ -60,15 +60,15 @@ Sources: [EAS Metadata](https://docs.expo.dev/eas/metadata/),
 
 ## Mapping
 
-| `store.config.json` | `@mrm/core` field |
-| --- | --- |
-| `apple.info.<l>.title` | `name` |
-| `subtitle`, `description` | `subtitle`, `description` |
-| `keywords` (array) | `keywords` (joined with `,`, no space) |
-| `releaseNotes`, `promoText` | `release_notes`, `promotional_text` |
+| `store.config.json`                              | `@mrm/core` field                             |
+| ------------------------------------------------ | --------------------------------------------- |
+| `apple.info.<l>.title`                           | `name`                                        |
+| `subtitle`, `description`                        | `subtitle`, `description`                     |
+| `keywords` (array)                               | `keywords` (joined with `,`, no space)        |
+| `releaseNotes`, `promoText`                      | `release_notes`, `promotional_text`           |
 | `marketingUrl`, `supportUrl`, `privacyPolicyUrl` | `marketing_url`, `support_url`, `privacy_url` |
-| `privacyPolicyText` | `apple_tv_privacy_policy` |
-| `apple.copyright` | `copyright` |
+| `privacyPolicyText`                              | `apple_tv_privacy_policy`                     |
+| `apple.copyright`                                | `copyright`                                   |
 
 Not covered, kept as found and reported in `uncovered`: `apple.version`, `advisory`, `categories`,
 `release`, `review`, `appClip`, and per locale `privacyChoicesUrl`, `screenshots`, `previews`.
@@ -114,10 +114,12 @@ must parse as JSON or nothing is returned.
 ## Using it from the server
 
 ```ts
-const detection = await detectProject(paths, readFile);             // existing
-const snapshot = await loadExpoStoreConfig(detection, readFile);    // undefined: no JSON store config
-if (snapshot?.error) { /* not valid JSON or unreadable: show snapshot.error, no edit possible */ }
-const problems = validateExpoStoreConfig(snapshot);                 // same ListingProblem[] as fastlane
+const detection = await detectProject(paths, readFile); // existing
+const snapshot = await loadExpoStoreConfig(detection, readFile); // undefined: no JSON store config
+if (snapshot?.error) {
+  /* not valid JSON or unreadable: show snapshot.error, no edit possible */
+}
+const problems = validateExpoStoreConfig(snapshot); // same ListingProblem[] as fastlane
 // edit snapshot.listing.appStore, then:
 const { changes, warnings } = expoStoreChangeSet(snapshot, edited); // changes: FileChange[] (0 or 1 file)
 ```

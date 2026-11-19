@@ -62,9 +62,7 @@ const RULES: readonly Rule[] = [
   { from: 'halted', event: 'resume', to: 'rolling_out' },
 ];
 
-export type TransitionResult =
-  | { ok: true; state: ReleaseState }
-  | { ok: false; reason: string };
+export type TransitionResult = { ok: true; state: ReleaseState } | { ok: false; reason: string };
 
 export function transition(
   platform: Platform,
@@ -72,18 +70,24 @@ export function transition(
   event: ReleaseEvent,
 ): TransitionResult {
   const rule = RULES.find(
-    (r) => r.from === state && r.event === event && (r.only === undefined || r.only === storeFamilyOf(platform)),
+    (r) =>
+      r.from === state &&
+      r.event === event &&
+      (r.only === undefined || r.only === storeFamilyOf(platform)),
   );
   if (!rule) {
-    return { ok: false, reason: `Cannot apply "${event}" to a ${platform} release that is ${state}` };
+    return {
+      ok: false,
+      reason: `Cannot apply "${event}" to a ${platform} release that is ${state}`,
+    };
   }
   return { ok: true, state: rule.to };
 }
 
 export function allowedEvents(platform: Platform, state: ReleaseState): ReleaseEvent[] {
-  return RULES.filter((r) => r.from === state && (r.only === undefined || r.only === storeFamilyOf(platform))).map(
-    (r) => r.event,
-  );
+  return RULES.filter(
+    (r) => r.from === state && (r.only === undefined || r.only === storeFamilyOf(platform)),
+  ).map((r) => r.event);
 }
 
 /** Blocked is a flag on any state, not a state of its own. */

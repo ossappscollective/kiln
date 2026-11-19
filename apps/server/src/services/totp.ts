@@ -59,7 +59,10 @@ export function hotp(secret: Uint8Array, counter: number): string {
   const mac = createHmac('sha1', secret).update(message).digest();
   const offset = (mac[mac.length - 1] as number) & 15;
   const binary =
-    (((mac[offset] as number) & 127) << 24) | (((mac[offset + 1] as number) & 255) << 16) | (((mac[offset + 2] as number) & 255) << 8) | ((mac[offset + 3] as number) & 255);
+    (((mac[offset] as number) & 127) << 24) |
+    (((mac[offset + 1] as number) & 255) << 16) |
+    (((mac[offset + 2] as number) & 255) << 8) |
+    ((mac[offset + 3] as number) & 255);
   return String(binary % 10 ** TOTP_DIGITS).padStart(TOTP_DIGITS, '0');
 }
 
@@ -75,7 +78,9 @@ export function normalizeTotpCode(input: string): string | undefined {
   return /^\d{6}$/.test(digits) ? digits : undefined;
 }
 
-export type TotpCheck = { ok: true; step: number } | { ok: false; reason: 'malformed' | 'invalid' | 'replay' };
+export type TotpCheck =
+  | { ok: true; step: number }
+  | { ok: false; reason: 'malformed' | 'invalid' | 'replay' };
 
 /**
  * Checks a typed code against the secret at `atMs`, within one step either way. Every candidate step is compared in constant time (no
@@ -83,7 +88,12 @@ export type TotpCheck = { ok: true; step: number } | { ok: false; reason: 'malfo
  * refused, so the same six digits cannot be used twice. The caller stores the returned `step` (with a conditional update, so two
  * requests with one code cannot both win).
  */
-export function checkTotp(secret: Uint8Array, typed: string, atMs: number, lastStep: number | null): TotpCheck {
+export function checkTotp(
+  secret: Uint8Array,
+  typed: string,
+  atMs: number,
+  lastStep: number | null,
+): TotpCheck {
   const code = normalizeTotpCode(typed);
   if (code === undefined) return { ok: false, reason: 'malformed' };
   const given = Buffer.from(code);

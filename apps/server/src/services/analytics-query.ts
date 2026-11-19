@@ -4,30 +4,39 @@ import {
   type AnalyticsNextStep,
   type AnalyticsSetupCode,
   type AnalyticsSource,
-  type CoverageNoteCode,
-  type Granularity,
-  type MetricAggregation,
-  type MetricUnit,
   addDays,
   analyticsDimensions,
-  analyticsMetrics,
   analyticsErrorMessages,
+  analyticsMetrics,
   bucketStart,
   bucketStarts,
+  type CoverageNoteCode,
   coverageNoteMessages,
   dateToDay,
   daysBetween,
+  type Granularity,
   isAnalyticsErrorCode,
   isGranularity,
   isIsoDate,
+  type MetricAggregation,
+  type MetricUnit,
   metricInfo,
   type PlayBucketSource,
   safeRatio,
   sourcesForPlatform,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { type DailyRow, dayBounds, getAppConfig, getSourceStates, listReportRequests, readDaily, recentRuns, resolvePlayBucket } from './analytics-store.ts';
-import { type Setup, deriveSetup, setupMessages } from './analytics-setup.ts';
+import { deriveSetup, type Setup, setupMessages } from './analytics-setup.ts';
+import {
+  type DailyRow,
+  dayBounds,
+  getAppConfig,
+  getSourceStates,
+  listReportRequests,
+  readDaily,
+  recentRuns,
+  resolvePlayBucket,
+} from './analytics-store.ts';
 import type { ManagedApp } from './apps.ts';
 import { getSettings } from './workspace-settings.ts';
 
@@ -40,9 +49,19 @@ export const MAX_OVERVIEW_DAYS = 400;
 export const DEFAULT_OVERVIEW_DAYS = 28;
 
 type Issue = { path: string; message: string };
-export type QueryFailure = { ok: false; status: 400; body: { error: string; message?: string; issues: Issue[] } };
+export type QueryFailure = {
+  ok: false;
+  status: 400;
+  body: { error: string; message?: string; issues: Issue[] };
+};
 
-export type OverviewQuery = { platform?: string; from?: string; to?: string; granularity?: string; breakdown?: string };
+export type OverviewQuery = {
+  platform?: string;
+  from?: string;
+  to?: string;
+  granularity?: string;
+  breakdown?: string;
+};
 
 export type Note = { code: CoverageNoteCode; message: string };
 const note = (code: CoverageNoteCode): Note => ({ code, message: coverageNoteMessages[code] });
@@ -112,10 +131,19 @@ const staticNotes: Record<AnalyticsMetric, CoverageNoteCode[]> = {
 };
 
 const aggregate = (values: number[], how: MetricAggregation): number | null =>
-  values.length === 0 ? null : how === 'sum' ? values.reduce((a, b) => a + b, 0) : values.reduce((a, b) => a + b, 0) / values.length;
+  values.length === 0
+    ? null
+    : how === 'sum'
+      ? values.reduce((a, b) => a + b, 0)
+      : values.reduce((a, b) => a + b, 0) / values.length;
 
 /** Day values (sorted by day) combined into buckets; a bucket with no day is null. */
-function bucketValues(days: Map<string, number>, buckets: string[], granularity: Granularity, how: MetricAggregation): Map<string, number | null> {
+function bucketValues(
+  days: Map<string, number>,
+  buckets: string[],
+  granularity: Granularity,
+  how: MetricAggregation,
+): Map<string, number | null> {
   const grouped = new Map<string, number[]>();
   for (const [day, value] of days) {
     const key = bucketStart(day, granularity);
@@ -126,12 +154,19 @@ function bucketValues(days: Map<string, number>, buckets: string[], granularity:
   return new Map(buckets.map((b) => [b, aggregate(grouped.get(b) ?? [], how)]));
 }
 
-export function checkOverviewQuery(app: Pick<ManagedApp, 'platform'>, query: OverviewQuery, now: number):
+export function checkOverviewQuery(
+  app: Pick<ManagedApp, 'platform'>,
+  query: OverviewQuery,
+  now: number,
+):
   | { ok: true; from: string; to: string; granularity: Granularity; breakdown?: AnalyticsDimension }
   | QueryFailure {
   const issues: Issue[] = [];
   if (query.platform !== undefined && query.platform !== '' && query.platform !== app.platform) {
-    issues.push({ path: 'platform', message: `This app is ${app.platform}. Leave platform out or use ${app.platform}.` });
+    issues.push({
+      path: 'platform',
+      message: `This app is ${app.platform}. Leave platform out or use ${app.platform}.`,
+    });
   }
   const today = dateToDay(now);
   let granularity: Granularity = 'day';
@@ -151,14 +186,18 @@ export function checkOverviewQuery(app: Pick<ManagedApp, 'platform'>, query: Ove
   }
   if (issues.length === 0) {
     if (from > to) issues.push({ path: 'from', message: 'from must not be after to.' });
-    else if (daysBetween(from, to) + 1 > MAX_OVERVIEW_DAYS) issues.push({ path: 'from', message: `At most ${MAX_OVERVIEW_DAYS} days at a time.` });
+    else if (daysBetween(from, to) + 1 > MAX_OVERVIEW_DAYS)
+      issues.push({ path: 'from', message: `At most ${MAX_OVERVIEW_DAYS} days at a time.` });
   }
   let breakdown: AnalyticsDimension | undefined;
   if (query.breakdown !== undefined && query.breakdown !== '') {
-    if ((analyticsDimensions as readonly string[]).includes(query.breakdown)) breakdown = query.breakdown as AnalyticsDimension;
-    else issues.push({ path: 'breakdown', message: `Use one of ${analyticsDimensions.join(', ')}.` });
+    if ((analyticsDimensions as readonly string[]).includes(query.breakdown))
+      breakdown = query.breakdown as AnalyticsDimension;
+    else
+      issues.push({ path: 'breakdown', message: `Use one of ${analyticsDimensions.join(', ')}.` });
   }
-  if (issues.length > 0) return { ok: false, status: 400, body: { error: 'invalid_request', issues } };
+  if (issues.length > 0)
+    return { ok: false, status: 400, body: { error: 'invalid_request', issues } };
   return { ok: true, from, to, granularity, ...(breakdown ? { breakdown } : {}) };
 }
 
@@ -187,27 +226,55 @@ function coverageOf(input: CoverageInput): SeriesCoverage {
     state = gapDays === 0 && fresh ? 'complete' : 'partial';
     if (gapDays > 0) notes.push('gaps');
     if (input.imported) notes.push('imported');
-    if (input.sourceOldestDay !== null && input.from < input.sourceOldestDay) notes.push('only_since_connected');
+    if (input.sourceOldestDay !== null && input.from < input.sourceOldestDay)
+      notes.push('only_since_connected');
   } else if (!input.connected && !input.hasHistory) notes.push('source_not_connected');
   else notes.push('no_data_yet');
   if (addDays(input.today, -input.delayDays) < input.to) notes.push('recent_days_incomplete');
-  return { state, firstDay, lastDay, days: sorted.length, gapDays, notes: [...new Set(notes)].map(note) };
+  return {
+    state,
+    firstDay,
+    lastDay,
+    days: sorted.length,
+    gapDays,
+    notes: [...new Set(notes)].map(note),
+  };
 }
 
 export async function overview(
   sql: Sql,
-  input: { workspaceId: string; app: ManagedApp; from: string; to: string; granularity: Granularity; breakdown?: AnalyticsDimension; now: number },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    from: string;
+    to: string;
+    granularity: Granularity;
+    breakdown?: AnalyticsDimension;
+    now: number;
+  },
 ): Promise<Overview> {
   const { app } = input;
   const today = dateToDay(input.now);
   const buckets = bucketStarts(input.from, input.to, input.granularity);
   const sources = sourcesForPlatform(app.platform);
-  const base = { workspaceId: input.workspaceId, appId: app.id, platform: app.platform, from: input.from, to: input.to };
+  const base = {
+    workspaceId: input.workspaceId,
+    appId: app.id,
+    platform: app.platform,
+    from: input.from,
+    to: input.to,
+  };
   const totals = await readDaily(sql, base);
   const currency = await readDaily(sql, { ...base, dimension: 'currency' });
-  const bounds = await dayBounds(sql, { workspaceId: input.workspaceId, appId: app.id, platform: app.platform });
+  const bounds = await dayBounds(sql, {
+    workspaceId: input.workspaceId,
+    appId: app.id,
+    platform: app.platform,
+  });
   const states = await getSourceStates(sql, input.workspaceId, app.id, app.platform);
-  const broken = input.breakdown ? await readDaily(sql, { ...base, dimension: input.breakdown }) : [];
+  const broken = input.breakdown
+    ? await readDaily(sql, { ...base, dimension: input.breakdown })
+    : [];
 
   const byMetric = (rows: DailyRow[]) => {
     const map = new Map<string, DailyRow[]>();
@@ -283,14 +350,25 @@ export async function overview(
       const rows = currencyRows.get(metric) ?? [];
       const codes = [...new Set(rows.map((r) => r.dimValue))].sort();
       if (codes.length === 0) build(metric, [], metric, null);
-      for (const code of codes) build(metric, rows.filter((r) => r.dimValue === code), `${metric}:${code}`, code);
+      for (const code of codes)
+        build(
+          metric,
+          rows.filter((r) => r.dimValue === code),
+          `${metric}:${code}`,
+          code,
+        );
       continue;
     }
     build(metric, totalRows.get(metric) ?? [], metric, null);
   }
 
   // Derived series: ratios of two stored series, null where the denominator is missing or zero.
-  const derive = (id: 'product_page_conversion' | 'impression_tap_rate', label: string, num: AnalyticsMetric, den: AnalyticsMetric) => {
+  const derive = (
+    id: 'product_page_conversion' | 'impression_tap_rate',
+    label: string,
+    num: AnalyticsMetric,
+    den: AnalyticsMetric,
+  ) => {
     const n = bucketed.get(num);
     const d = bucketed.get(den);
     if (!n || !d) return;
@@ -302,7 +380,10 @@ export async function overview(
       const r = safeRatio(value, dd.get(day) ?? null);
       if (r !== null) days.set(day, r);
     }
-    const points = buckets.map((date) => ({ date, value: safeRatio(n.get(date) ?? null, d.get(date) ?? null) }));
+    const points = buckets.map((date) => ({
+      date,
+      value: safeRatio(n.get(date) ?? null, d.get(date) ?? null),
+    }));
     const delay = Math.max(metricInfo[num].delayDays, metricInfo[den].delayDays);
     const state = states.get(numeratorSource);
     const totalNum = series.find((s) => s.id === num)?.total ?? null;
@@ -334,14 +415,35 @@ export async function overview(
     });
   };
   if (app.platform === 'android') {
-    derive('product_page_conversion', 'Store listing conversion', 'store_listing_acquisitions', 'store_listing_visitors');
+    derive(
+      'product_page_conversion',
+      'Store listing conversion',
+      'store_listing_acquisitions',
+      'store_listing_visitors',
+    );
   } else {
-    derive('product_page_conversion', 'Product page conversion', 'downloads_first_time', 'product_page_views');
+    derive(
+      'product_page_conversion',
+      'Product page conversion',
+      'downloads_first_time',
+      'product_page_views',
+    );
     derive('impression_tap_rate', 'Tap-through rate', 'product_page_views', 'impressions');
   }
 
-  const notes: Note[] = app.platform === 'android' ? [note('google_no_impressions')] : [note('apple_rating_history_not_available')];
-  return { appId: app.id, platform: app.platform, from: input.from, to: input.to, granularity: input.granularity, series, notes };
+  const notes: Note[] =
+    app.platform === 'android'
+      ? [note('google_no_impressions')]
+      : [note('apple_rating_history_not_available')];
+  return {
+    appId: app.id,
+    platform: app.platform,
+    from: input.from,
+    to: input.to,
+    granularity: input.granularity,
+    series,
+    notes,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -352,7 +454,13 @@ export type SourceStatus = {
   label: string;
   /** `off`: analytics is off in the workspace. `needs_setup`: see `setup`. `waiting`: set up, no data yet. `error`: the last read failed. `ready`: data is flowing. */
   state: 'off' | 'needs_setup' | 'waiting' | 'error' | 'ready';
-  setup: { code: AnalyticsSetupCode; nextStep: AnalyticsNextStep; alternatives: AnalyticsNextStep[]; optional: boolean; message: string } | null;
+  setup: {
+    code: AnalyticsSetupCode;
+    nextStep: AnalyticsNextStep;
+    alternatives: AnalyticsNextStep[];
+    optional: boolean;
+    message: string;
+  } | null;
   lastAttemptAt: number | null;
   lastOkAt: number | null;
   /** A code of the fixed vocabulary with its sentence, or null. */
@@ -371,12 +479,26 @@ export type AnalyticsStatus = {
   apple: {
     /** off, ongoing (a report request exists) or import (files are uploaded by hand). */
     mode: 'off' | 'ongoing' | 'import';
-    requests: { accessType: string; status: string; createdAt: number; lastCheckedAt: number | null }[];
+    requests: {
+      accessType: string;
+      status: string;
+      createdAt: number;
+      lastCheckedAt: number | null;
+    }[];
     vendorNumberSet: boolean;
   } | null;
   google: { bucketIdSet: boolean; bucketSource: PlayBucketSource | null } | null;
   sources: SourceStatus[];
-  runs: { source: AnalyticsSource; trigger: string; status: string; errorCode: string | null; pointsWritten: number; reportsRead: number; startedAt: number; finishedAt: number | null }[];
+  runs: {
+    source: AnalyticsSource;
+    trigger: string;
+    status: string;
+    errorCode: string | null;
+    pointsWritten: number;
+    reportsRead: number;
+    startedAt: number;
+    finishedAt: number | null;
+  }[];
 };
 
 const sourceLabels: Record<AnalyticsSource, string> = {
@@ -395,7 +517,11 @@ export async function status(
   const enabled = settings['analytics.enabled'] === true;
   const vendorNumber = String(settings['analytics.appleVendorNumber'] ?? '');
   const config = await getAppConfig(sql, workspaceId, app.id);
-  const { bucketId, source: bucketSource } = await resolvePlayBucket(sql, { workspaceId, app, settings });
+  const { bucketId, source: bucketSource } = await resolvePlayBucket(sql, {
+    workspaceId,
+    app,
+    settings,
+  });
   const requests = await listReportRequests(sql, workspaceId, app.id);
   const states = await getSourceStates(sql, workspaceId, app.id, app.platform);
   const bounds = await dayBounds(sql, { workspaceId, appId: app.id, platform: app.platform });
@@ -430,7 +556,15 @@ export async function status(
       setup: setup ? { ...setup, message: setupMessages[setup.code] } : null,
       lastAttemptAt: state?.lastAttemptAt ?? null,
       lastOkAt: state?.lastOkAt ?? null,
-      lastError: errorCode === null ? null : { code: errorCode, message: isAnalyticsErrorCode(errorCode) ? analyticsErrorMessages[errorCode] : analyticsErrorMessages.sync_failed },
+      lastError:
+        errorCode === null
+          ? null
+          : {
+              code: errorCode,
+              message: isAnalyticsErrorCode(errorCode)
+                ? analyticsErrorMessages[errorCode]
+                : analyticsErrorMessages.sync_failed,
+            },
       firstDay: b?.first ?? null,
       lastDay: b?.last ?? null,
     };
@@ -444,7 +578,12 @@ export async function status(
     apple: apple
       ? {
           mode: requests.some((r) => r.status === 'active') ? 'ongoing' : config.appleMode,
-          requests: requests.map((r) => ({ accessType: r.accessType, status: r.status, createdAt: r.createdAt, lastCheckedAt: r.lastCheckedAt })),
+          requests: requests.map((r) => ({
+            accessType: r.accessType,
+            status: r.status,
+            createdAt: r.createdAt,
+            lastCheckedAt: r.lastCheckedAt,
+          })),
           vendorNumberSet: vendorNumber !== '',
         }
       : null,

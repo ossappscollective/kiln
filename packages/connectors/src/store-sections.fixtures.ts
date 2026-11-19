@@ -96,12 +96,23 @@ export const appleAppInfosExtended = {
 /** An answer that has no linkage at all (the include was ignored): not read, never guessed as empty. */
 export const appleAppInfosNoLinkage = {
   data: [
-    { type: 'appInfos', id: 'info-live', attributes: { state: 'READY_FOR_DISTRIBUTION' }, relationships: { primaryCategory: { links: { self: 'x' } } } },
+    {
+      type: 'appInfos',
+      id: 'info-live',
+      attributes: { state: 'READY_FOR_DISTRIBUTION' },
+      relationships: { primaryCategory: { links: { self: 'x' } } },
+    },
   ],
   links: link('/v1/apps/100/appInfos'),
 };
 
-const set = (id: string, kind: 'screenshotDisplayType' | 'previewType', type: string, rel: 'appScreenshots' | 'appPreviews', items: string[]) => ({
+const set = (
+  id: string,
+  kind: 'screenshotDisplayType' | 'previewType',
+  type: string,
+  rel: 'appScreenshots' | 'appPreviews',
+  items: string[],
+) => ({
   type: kind === 'screenshotDisplayType' ? 'appScreenshotSets' : 'appPreviewSets',
   id,
   attributes: { [kind]: type },
@@ -115,7 +126,11 @@ const shot = (id: string, fileName: string, state: string) => ({
     fileName,
     assetDeliveryState: { state, errors: [], warnings: [] },
     // Never kept: a template URL of the image and upload instructions.
-    imageAsset: { templateUrl: 'https://is1-ssl.mzstatic.com/image/{w}x{h}bb.{f}', width: 1290, height: 2796 },
+    imageAsset: {
+      templateUrl: 'https://is1-ssl.mzstatic.com/image/{w}x{h}bb.{f}',
+      width: 1290,
+      height: 2796,
+    },
     uploadOperations: [{ method: 'PUT', url: 'https://upload.example.invalid/secret' }],
   },
 });
@@ -123,7 +138,11 @@ const shot = (id: string, fileName: string, state: string) => ({
 /** Screenshot sets of the live en-US localization: six iPhone screenshots (one still uploading), two iPad. */
 export const screenshotSetsEn = {
   data: [
-    set('ss-1', 'screenshotDisplayType', 'APP_IPHONE_67', 'appScreenshots', ['sh-1', 'sh-2', 'sh-3']),
+    set('ss-1', 'screenshotDisplayType', 'APP_IPHONE_67', 'appScreenshots', [
+      'sh-1',
+      'sh-2',
+      'sh-3',
+    ]),
     set('ss-2', 'screenshotDisplayType', 'APP_IPAD_PRO_3GEN_129', 'appScreenshots', ['sh-4']),
   ],
   included: [
@@ -135,11 +154,24 @@ export const screenshotSetsEn = {
   links: link('/v1/appStoreVersionLocalizations/vl-en/appScreenshotSets'),
 };
 
-export const screenshotSetsDe = { data: [], links: link('/v1/appStoreVersionLocalizations/vl-de/appScreenshotSets') };
+export const screenshotSetsDe = {
+  data: [],
+  links: link('/v1/appStoreVersionLocalizations/vl-de/appScreenshotSets'),
+};
 
 export const previewSetsEn = {
   data: [set('ps-1', 'previewType', 'IPHONE_67', 'appPreviews', ['pv-1'])],
-  included: [{ type: 'appPreviews', id: 'pv-1', attributes: { fileName: 'demo.mp4', assetDeliveryState: { state: 'COMPLETE' }, videoUrl: 'https://v.example.invalid/x.mp4' } }],
+  included: [
+    {
+      type: 'appPreviews',
+      id: 'pv-1',
+      attributes: {
+        fileName: 'demo.mp4',
+        assetDeliveryState: { state: 'COMPLETE' },
+        videoUrl: 'https://v.example.invalid/x.mp4',
+      },
+    },
+  ],
 };
 
 export const previewSetsEmpty = { data: [] };
@@ -159,7 +191,12 @@ export const googleTracks = {
     {
       track: 'production',
       releases: [
-        { name: '1.9', status: 'completed', versionCodes: ['190'], releaseNotes: [{ language: 'en-US', text: 'Old notes' }] },
+        {
+          name: '1.9',
+          status: 'completed',
+          versionCodes: ['190'],
+          releaseNotes: [{ language: 'en-US', text: 'Old notes' }],
+        },
         {
           name: '2.0',
           status: 'inProgress',
@@ -179,5 +216,10 @@ export const googleTracks = {
 
 /** Play: `edits.images.list` for one type: two ids with URLs and hashes that must never be kept. */
 export const googleImages = (ids: string[]) => ({
-  images: ids.map((id) => ({ id, url: `https://play-lh.example.invalid/${id}`, sha1: 'a'.repeat(40), sha256: 'b'.repeat(64) })),
+  images: ids.map((id) => ({
+    id,
+    url: `https://play-lh.example.invalid/${id}`,
+    sha1: 'a'.repeat(40),
+    sha256: 'b'.repeat(64),
+  })),
 });

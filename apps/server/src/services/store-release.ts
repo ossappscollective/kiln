@@ -3,16 +3,22 @@ import {
   APPLE_RELEASABLE_STATE,
   AppleReleaseConnector,
   PlayReleaseConnector,
-  type ReleaseRequest,
-  type ReleaseState,
   ReleaseDriftError,
   ReleaseOutcomeUnknownError,
-  type StoreReleaseConnector,
+  type ReleaseRequest,
+  type ReleaseState,
   releaseKey,
+  type StoreReleaseConnector,
 } from '@mrm/connectors';
-import { type Platform, isApplePlatform, isGooglePlatform, normalizeReleaseValue, versionCodesOf } from '@mrm/core';
+import {
+  isApplePlatform,
+  isGooglePlatform,
+  normalizeReleaseValue,
+  type Platform,
+  versionCodesOf,
+} from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
+import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
@@ -72,8 +78,16 @@ export type ReleaseConnectorFactory = (input: ReleaseConnectorInput) => StoreRel
 
 export const defaultReleaseConnectorFactory: ReleaseConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppleReleaseConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', platform: input.platform === 'macos' ? 'macos' : 'ios', fetch: input.fetch })
-    : new PlayReleaseConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
+    ? AppleReleaseConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        platform: input.platform === 'macos' ? 'macos' : 'ios',
+        fetch: input.fetch,
+      })
+    : new PlayReleaseConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      });
 
 export type ReleaseContext = {
   db: Database;
@@ -90,18 +104,30 @@ export type ReleaseContext = {
 // Failures
 
 export const releaseDisabledFailure = (): Failure =>
-  failure(409, 'store_release_disabled', `Releasing from this server is switched off. Set ${RELEASE_ENV}=true to turn it on (see docs/deployment.md).`, {
-    envName: RELEASE_ENV,
-  });
+  failure(
+    409,
+    'store_release_disabled',
+    `Releasing from this server is switched off. Set ${RELEASE_ENV}=true to turn it on (see docs/deployment.md).`,
+    {
+      envName: RELEASE_ENV,
+    },
+  );
 
 class ReleaseTimeout extends Error {}
 
 /** Runs `job` with a connector whose requests are aborted after the timeout. */
-async function withConnector<T>(ctx: ReleaseContext, input: Omit<ReleaseConnectorInput, 'fetch'>, job: (connector: StoreReleaseConnector) => Promise<T>): Promise<T> {
+async function withConnector<T>(
+  ctx: ReleaseContext,
+  input: Omit<ReleaseConnectorInput, 'fetch'>,
+  job: (connector: StoreReleaseConnector) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const baseFetch = globalThis.fetch;
   const guardedFetch: typeof fetch = (target, init) =>
-    baseFetch(target, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+    baseFetch(target, {
+      ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -123,11 +149,19 @@ async function withConnector<T>(ctx: ReleaseContext, input: Omit<ReleaseConnecto
 
 type Claim = { appId: string; platform: Platform; at: number };
 
-async function takeClaim(ctx: ReleaseContext, input: { workspaceId: string; app: ManagedApp; actor: Actor }): Promise<{ ok: true; claim: Claim } | Failure> {
+async function takeClaim(
+  ctx: ReleaseContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+): Promise<{ ok: true; claim: Claim } | Failure> {
   const { db } = ctx;
   const ttl = ctx.claimTtlMs ?? DEFAULT_RELEASE_CLAIM_TTL_MS;
   const claim: Claim = { appId: input.app.id, platform: input.app.platform, at: ctx.now() };
-  const busy = () => failure(409, 'write_in_progress', 'A release of this app is in progress. Wait for it to finish.');
+  const busy = () =>
+    failure(
+      409,
+      'write_in_progress',
+      'A release of this app is in progress. Wait for it to finish.',
+    );
   const insert = () =>
     db.execute(
       `INSERT INTO store_release_claims (app_id, platform, workspace_id, action, status, claimed_by, claim_at)
@@ -135,7 +169,10 @@ async function takeClaim(ctx: ReleaseContext, input: { workspaceId: string; app:
       [claim.appId, claim.platform, input.workspaceId, input.actor.id, claim.at],
     );
   if ((await insert()) === 1) return { ok: true, claim };
-  const [existing] = await db.query('SELECT status, claim_at FROM store_release_claims WHERE app_id = ? AND platform = ?', [claim.appId, claim.platform]);
+  const [existing] = await db.query(
+    'SELECT status, claim_at FROM store_release_claims WHERE app_id = ? AND platform = ?',
+    [claim.appId, claim.platform],
+  );
   if (!existing) return (await insert()) === 1 ? { ok: true, claim } : busy();
   if (String(existing.status) === 'unknown') {
     return failure(
@@ -157,11 +194,21 @@ async function takeClaim(ctx: ReleaseContext, input: { workspaceId: string; app:
 }
 
 const releaseClaim = (sql: Sql, claim: Claim) =>
-  sql.execute("DELETE FROM store_release_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [claim.appId, claim.platform, claim.at]);
+  sql.execute(
+    "DELETE FROM store_release_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 const markUnknown = (sql: Sql, claim: Claim) =>
-  sql.execute("UPDATE store_release_claims SET status = 'unknown' WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [claim.appId, claim.platform, claim.at]);
+  sql.execute(
+    "UPDATE store_release_claims SET status = 'unknown' WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 /** A successful read of the store settles an unknown outcome: the person sees where things stand. */
-const clearUnknown = (sql: Sql, app: ManagedApp) => sql.execute("DELETE FROM store_release_claims WHERE app_id = ? AND platform = ? AND status = 'unknown'", [app.id, app.platform]);
+const clearUnknown = (sql: Sql, app: ManagedApp) =>
+  sql.execute(
+    "DELETE FROM store_release_claims WHERE app_id = ? AND platform = ? AND status = 'unknown'",
+    [app.id, app.platform],
+  );
 
 type Flight = 'writing' | 'unknown' | null;
 type InFlight = { release: Flight; push: Flight; submit: Flight };
@@ -169,8 +216,14 @@ type InFlight = { release: Flight; push: Flight; submit: Flight };
 /** The claims that bear on a release: its own, and a push's and a submit's (either changes what a release would release). */
 async function inFlightOf(ctx: ReleaseContext, app: ManagedApp): Promise<InFlight> {
   const now = ctx.now();
-  const read = async (table: 'store_release_claims' | 'store_draft_claims' | 'store_submit_claims', limit: number): Promise<Flight> => {
-    const [row] = await ctx.db.query(`SELECT status, claim_at FROM ${table} WHERE app_id = ? AND platform = ?`, [app.id, app.platform]);
+  const read = async (
+    table: 'store_release_claims' | 'store_draft_claims' | 'store_submit_claims',
+    limit: number,
+  ): Promise<Flight> => {
+    const [row] = await ctx.db.query(
+      `SELECT status, claim_at FROM ${table} WHERE app_id = ? AND platform = ?`,
+      [app.id, app.platform],
+    );
     if (!row) return null;
     if (String(row.status) === 'unknown') return 'unknown';
     return now - Number(row.claim_at) < limit ? 'writing' : null;
@@ -187,21 +240,60 @@ async function inFlightOf(ctx: ReleaseContext, app: ManagedApp): Promise<InFligh
 
 type Connection = { input: Omit<ReleaseConnectorInput, 'fetch'>; secret: string };
 
-async function connect(ctx: ReleaseContext, workspaceId: string, app: ManagedApp, actor: Actor): Promise<{ ok: true; connection: Connection } | Failure> {
-  const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
-  if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
-  if (String(credential.kind) !== credentialKindFor[app.platform]) return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
-  if (isApplePlatform(app.platform) && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
+async function connect(
+  ctx: ReleaseContext,
+  workspaceId: string,
+  app: ManagedApp,
+  actor: Actor,
+): Promise<{ ok: true; connection: Connection } | Failure> {
+  const [credential] = await ctx.db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [app.credentialId, workspaceId],
+  );
+  if (!credential)
+    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+  if (String(credential.kind) !== credentialKindFor[app.platform])
+    return failure(
+      422,
+      'credential_kind',
+      "This app's credential is not the kind its platform needs.",
+    );
+  if (isApplePlatform(app.platform) && !app.storeAppId)
+    return failure(
+      422,
+      'app_not_synced',
+      'The App Store id of this app is not known yet. Sync the app first.',
+    );
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: RELEASE_PURPOSE }, actor, ctx.now());
+    secret = await useCredentialSecret(
+      ctx.db,
+      ctx.masterKey,
+      { workspaceId, id: app.credentialId, purpose: RELEASE_PURPOSE },
+      actor,
+      ctx.now(),
+    );
   } catch {
-    return failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.');
+    return failure(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+    );
   }
-  if (secret === undefined) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+  if (secret === undefined)
+    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   return {
     ok: true,
-    connection: { secret, input: { kind: credentialKindFor[app.platform], secret, identifier: app.identifier, storeAppId: app.storeAppId, platform: app.platform } },
+    connection: {
+      secret,
+      input: {
+        kind: credentialKindFor[app.platform],
+        secret,
+        identifier: app.identifier,
+        storeAppId: app.storeAppId,
+        platform: app.platform,
+      },
+    },
   };
 }
 
@@ -220,31 +312,80 @@ export type ReleaseInput = {
 };
 
 const TRACK = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/;
-const invalid = (code: string, message: string, extra: Record<string, unknown> = {}): Failure => failure(422, code, message, extra);
+const invalid = (code: string, message: string, extra: Record<string, unknown> = {}): Failure =>
+  failure(422, code, message, extra);
 
 /** The request the connector reads and writes by, or why it is not one. */
-export function requestOfInput(app: Pick<ManagedApp, 'platform'>, input: ReleaseInput): { ok: true; request: ReleaseRequest } | Failure {
+export function requestOfInput(
+  app: Pick<ManagedApp, 'platform'>,
+  input: ReleaseInput,
+): { ok: true; request: ReleaseRequest } | Failure {
   if (isApplePlatform(app.platform)) {
-    if (input.track !== undefined || input.versionCodes !== undefined || input.userFraction !== undefined) {
-      return invalid('not_applicable', 'track, versionCodes and userFraction are for Google Play. An App Store release has only an optional version.', { field: 'track' });
+    if (
+      input.track !== undefined ||
+      input.versionCodes !== undefined ||
+      input.userFraction !== undefined
+    ) {
+      return invalid(
+        'not_applicable',
+        'track, versionCodes and userFraction are for Google Play. An App Store release has only an optional version.',
+        { field: 'track' },
+      );
     }
     const version = input.version?.trim();
-    if (version !== undefined && (version === '' || version.length > 40)) return invalid('invalid_request', 'version is the marketing version, for example 2.4.0.', { field: 'version' });
+    if (version !== undefined && (version === '' || version.length > 40))
+      return invalid('invalid_request', 'version is the marketing version, for example 2.4.0.', {
+        field: 'version',
+      });
     return { ok: true, request: version !== undefined ? { version } : {} };
   }
-  if (input.version !== undefined) return invalid('not_applicable', 'version is for the App Store. A Google Play release is chosen by track and version codes.', { field: 'version' });
-  if (input.track === undefined || !TRACK.test(input.track)) return invalid('track_required', 'Name the track of the draft release (for example production).', { field: 'track' });
+  if (input.version !== undefined)
+    return invalid(
+      'not_applicable',
+      'version is for the App Store. A Google Play release is chosen by track and version codes.',
+      { field: 'version' },
+    );
+  if (input.track === undefined || !TRACK.test(input.track))
+    return invalid(
+      'track_required',
+      'Name the track of the draft release (for example production).',
+      { field: 'track' },
+    );
   const fraction = input.userFraction;
-  if (fraction === undefined) return invalid('user_fraction_required', 'Name the share of users to release to, more than 0 and at most 1 (1 is everybody). It is never implied.', { field: 'userFraction' });
-  if (!Number.isFinite(fraction) || fraction <= 0 || fraction > 1 || Math.round(fraction * 10000) / 10000 !== fraction) {
-    return invalid('invalid_user_fraction', 'userFraction must be more than 0 and at most 1, with at most 4 decimals (for example 0.1 for 10%).', { field: 'userFraction' });
+  if (fraction === undefined)
+    return invalid(
+      'user_fraction_required',
+      'Name the share of users to release to, more than 0 and at most 1 (1 is everybody). It is never implied.',
+      { field: 'userFraction' },
+    );
+  if (
+    !Number.isFinite(fraction) ||
+    fraction <= 0 ||
+    fraction > 1 ||
+    Math.round(fraction * 10000) / 10000 !== fraction
+  ) {
+    return invalid(
+      'invalid_user_fraction',
+      'userFraction must be more than 0 and at most 1, with at most 4 decimals (for example 0.1 for 10%).',
+      { field: 'userFraction' },
+    );
   }
   let codes: string[] | undefined;
   if (input.versionCodes !== undefined) {
     codes = versionCodesOf(normalizeReleaseValue('version_codes', input.versionCodes));
-    if (codes.length === 0 || codes.length > 20 || codes.some((c) => !/^[0-9]{1,10}$/.test(c))) return invalid('invalid_version_codes', 'versionCodes are whole numbers (at most 20).', { field: 'versionCodes' });
+    if (codes.length === 0 || codes.length > 20 || codes.some((c) => !/^[0-9]{1,10}$/.test(c)))
+      return invalid('invalid_version_codes', 'versionCodes are whole numbers (at most 20).', {
+        field: 'versionCodes',
+      });
   }
-  return { ok: true, request: { track: input.track, userFraction: fraction, ...(codes ? { versionCodes: codes } : {}) } };
+  return {
+    ok: true,
+    request: {
+      track: input.track,
+      userFraction: fraction,
+      ...(codes ? { versionCodes: codes } : {}),
+    },
+  };
 }
 
 const percentOf = (fraction: number): string => String(Math.round(fraction * 10000) / 100);
@@ -259,11 +400,19 @@ export type ReleaseCheck = {
   message: string;
   item?: string;
 };
-export type ReleaseChecks = { blocking: ReleaseCheck[]; warnings: ReleaseCheck[]; canRelease: boolean };
+export type ReleaseChecks = {
+  blocking: ReleaseCheck[];
+  warnings: ReleaseCheck[];
+  canRelease: boolean;
+};
 
 const split = (items: ReleaseCheck[]): ReleaseChecks => {
   const blocking = items.filter((i) => i.severity === 'blocking');
-  return { blocking, warnings: items.filter((i) => i.severity === 'warning'), canRelease: blocking.length === 0 };
+  return {
+    blocking,
+    warnings: items.filter((i) => i.severity === 'warning'),
+    canRelease: blocking.length === 0,
+  };
 };
 
 /** Checks against the state read from the store and the claims. Pure. */
@@ -279,10 +428,32 @@ export function evaluateReleaseChecks(input: {
   const { request, state } = input;
   const out: ReleaseCheck[] = [];
   const add = (check: ReleaseCheck) => out.push(check);
-  if (input.inFlight.push === 'writing') add({ code: 'push_in_progress', severity: 'blocking', message: 'A draft push for this app is in progress. Wait for it to finish.' });
-  if (input.inFlight.push === 'unknown') add({ code: 'push_outcome_unknown', severity: 'blocking', message: 'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.' });
-  if (input.inFlight.submit === 'writing') add({ code: 'submit_in_progress', severity: 'blocking', message: 'A submit for review of this app is in progress. Wait for it to finish.' });
-  if (input.inFlight.submit === 'unknown') add({ code: 'submit_outcome_unknown', severity: 'blocking', message: 'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.' });
+  if (input.inFlight.push === 'writing')
+    add({
+      code: 'push_in_progress',
+      severity: 'blocking',
+      message: 'A draft push for this app is in progress. Wait for it to finish.',
+    });
+  if (input.inFlight.push === 'unknown')
+    add({
+      code: 'push_outcome_unknown',
+      severity: 'blocking',
+      message:
+        'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.',
+    });
+  if (input.inFlight.submit === 'writing')
+    add({
+      code: 'submit_in_progress',
+      severity: 'blocking',
+      message: 'A submit for review of this app is in progress. Wait for it to finish.',
+    });
+  if (input.inFlight.submit === 'unknown')
+    add({
+      code: 'submit_outcome_unknown',
+      severity: 'blocking',
+      message:
+        'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.',
+    });
   if (input.unpushedFields > 0) {
     add({
       code: 'unpushed_release_fields',
@@ -293,7 +464,12 @@ export function evaluateReleaseChecks(input: {
 
   if (state.store === 'appstoreconnect') {
     if (state.ambiguous) {
-      add({ code: 'ambiguous_version', severity: 'blocking', message: 'More than one version waits for release. Name the version (its marketing version, for example 2.4.0).' });
+      add({
+        code: 'ambiguous_version',
+        severity: 'blocking',
+        message:
+          'More than one version waits for release. Name the version (its marketing version, for example 2.4.0).',
+      });
     } else if (state.version === null || !state.releasable) {
       const known = state.versions.slice(0, 6).map((v) => `${v.versionString ?? '?'} (${v.state})`);
       add({
@@ -302,10 +478,24 @@ export function evaluateReleaseChecks(input: {
         message: `No version is waiting for release (${APPLE_RELEASABLE_STATE}), so there is nothing to release.${known.length > 0 ? ` The versions of this platform: ${known.join(', ')}.` : ''}`,
       });
     } else {
-      if (state.build === null) add({ code: 'no_build_read', severity: 'warning', message: 'The build of the version could not be read.' });
-      else if (state.build.expired === true) add({ code: 'build_expired', severity: 'warning', message: `Build ${state.build.buildNumber ?? state.build.id} is marked expired.` });
+      if (state.build === null)
+        add({
+          code: 'no_build_read',
+          severity: 'warning',
+          message: 'The build of the version could not be read.',
+        });
+      else if (state.build.expired === true)
+        add({
+          code: 'build_expired',
+          severity: 'warning',
+          message: `Build ${state.build.buildNumber ?? state.build.id} is marked expired.`,
+        });
       if (state.version.releaseType !== null && state.version.releaseType !== 'MANUAL') {
-        add({ code: 'release_type_not_manual', severity: 'warning', message: `The version was set to release ${state.version.releaseType}. It waits for release, so this request releases it now.` });
+        add({
+          code: 'release_type_not_manual',
+          severity: 'warning',
+          message: `The version was set to release ${state.version.releaseType}. It waits for release, so this request releases it now.`,
+        });
       }
     }
     return out;
@@ -315,17 +505,47 @@ export function evaluateReleaseChecks(input: {
   add({
     code: 'play_review_state_unknown',
     severity: 'warning',
-    message: 'Google Play shows no review state through its API: this server cannot tell whether the release goes live at once or waits for review, and cannot confirm it afterwards beyond reading the track back.',
+    message:
+      'Google Play shows no review state through its API: this server cannot tell whether the release goes live at once or waits for review, and cannot confirm it afterwards beyond reading the track back.',
   });
-  if (state.ambiguous) add({ code: 'ambiguous_release', severity: 'blocking', message: `The ${state.track} track holds more than one draft release. Name its version codes.` });
-  else if (state.release === null) add({ code: 'no_draft_release', severity: 'blocking', message: `The ${state.track} track has no draft release${request.versionCodes ? ' with these version codes' : ''}, so there is nothing to start.` });
+  if (state.ambiguous)
+    add({
+      code: 'ambiguous_release',
+      severity: 'blocking',
+      message: `The ${state.track} track holds more than one draft release. Name its version codes.`,
+    });
+  else if (state.release === null)
+    add({
+      code: 'no_draft_release',
+      severity: 'blocking',
+      message: `The ${state.track} track has no draft release${request.versionCodes ? ' with these version codes' : ''}, so there is nothing to start.`,
+    });
   else {
-    if (state.release.status !== 'draft') add({ code: 'not_a_draft', severity: 'blocking', message: `The release is ${state.release.status}, not a draft.` });
-    if (state.release.versionCodes.length === 0) add({ code: 'no_version_codes', severity: 'blocking', message: 'The draft release has no version codes.' });
+    if (state.release.status !== 'draft')
+      add({
+        code: 'not_a_draft',
+        severity: 'blocking',
+        message: `The release is ${state.release.status}, not a draft.`,
+      });
+    if (state.release.versionCodes.length === 0)
+      add({
+        code: 'no_version_codes',
+        severity: 'blocking',
+        message: 'The draft release has no version codes.',
+      });
     if (state.missingCodes.length > 0) {
-      add({ code: 'version_codes_not_uploaded', severity: 'blocking', message: `Google Play does not list ${state.missingCodes.length === 1 ? 'this version code' : 'these version codes'} as uploaded: ${state.missingCodes.slice(0, 10).join(', ')}.` });
+      add({
+        code: 'version_codes_not_uploaded',
+        severity: 'blocking',
+        message: `Google Play does not list ${state.missingCodes.length === 1 ? 'this version code' : 'these version codes'} as uploaded: ${state.missingCodes.slice(0, 10).join(', ')}.`,
+      });
     }
-    if (state.release.notes === 0) add({ code: 'no_release_notes', severity: 'warning', message: 'The draft release has no release notes.' });
+    if (state.release.notes === 0)
+      add({
+        code: 'no_release_notes',
+        severity: 'warning',
+        message: 'The draft release has no release notes.',
+      });
   }
   const rolling = state.others.filter((r) => r.status === 'inProgress');
   if (rolling.length > 0) {
@@ -335,10 +555,28 @@ export function evaluateReleaseChecks(input: {
       message: `A release is already rolling out in the ${state.track} track (${rolling.map((r) => `${r.name ?? r.versionCodes.join(',')} at ${r.userFraction === null ? '?' : `${percentOf(r.userFraction)}%`}`).join(', ')}). Complete or halt it in Play Console first: this server does not start a second rollout beside a running one.`,
     });
   }
-  if (state.others.some((r) => r.status === 'halted')) add({ code: 'halted_release', severity: 'warning', message: `A halted release is in the ${state.track} track.` });
-  if (request.userFraction === 1) add({ code: 'full_rollout', severity: 'warning', message: 'The release goes to 100% of users at once (the release is completed).' });
-  if (input.stagedFraction !== null && request.userFraction !== undefined && input.stagedFraction !== request.userFraction) {
-    add({ code: 'fraction_differs_from_staged', severity: 'warning', message: `The staged intended share is ${percentOf(input.stagedFraction)}%, this release is asked for ${percentOf(request.userFraction)}%. The share asked here is the one used.` });
+  if (state.others.some((r) => r.status === 'halted'))
+    add({
+      code: 'halted_release',
+      severity: 'warning',
+      message: `A halted release is in the ${state.track} track.`,
+    });
+  if (request.userFraction === 1)
+    add({
+      code: 'full_rollout',
+      severity: 'warning',
+      message: 'The release goes to 100% of users at once (the release is completed).',
+    });
+  if (
+    input.stagedFraction !== null &&
+    request.userFraction !== undefined &&
+    input.stagedFraction !== request.userFraction
+  ) {
+    add({
+      code: 'fraction_differs_from_staged',
+      severity: 'warning',
+      message: `The staged intended share is ${percentOf(input.stagedFraction)}%, this release is asked for ${percentOf(request.userFraction)}%. The share asked here is the one used.`,
+    });
   }
   return out;
 }
@@ -349,7 +587,12 @@ export function evaluateReleaseChecks(input: {
 const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
 /** What the person confirms: this app, what is asked (including the share), and the store exactly as it was read. */
-export function releaseConfirmHash(input: { workspaceId: string; app: { id: string; platform: Platform }; request: ReleaseRequest; state: ReleaseState }): string {
+export function releaseConfirmHash(input: {
+  workspaceId: string;
+  app: { id: string; platform: Platform };
+  request: ReleaseRequest;
+  state: ReleaseState;
+}): string {
   const r = input.request;
   return sha(
     JSON.stringify({
@@ -357,7 +600,12 @@ export function releaseConfirmHash(input: { workspaceId: string; app: { id: stri
       workspaceId: input.workspaceId,
       appId: input.app.id,
       platform: input.app.platform,
-      request: { version: r.version ?? null, track: r.track ?? null, codes: r.versionCodes ? [...r.versionCodes].sort() : null, userFraction: r.userFraction ?? null },
+      request: {
+        version: r.version ?? null,
+        track: r.track ?? null,
+        codes: r.versionCodes ? [...r.versionCodes].sort() : null,
+        userFraction: r.userFraction ?? null,
+      },
       store: releaseKey(input.state),
     }),
   );
@@ -367,9 +615,15 @@ export function releaseConfirmHash(input: { workspaceId: string; app: { id: stri
  * The text the person types to confirm. It names the app, what is released and, for Google Play, the share, so a typed phrase
  * cannot be for another release. App Store: the version that waits (known only after a read); null while none does.
  */
-export function confirmationPhraseOf(app: Pick<ManagedApp, 'identifier'>, request: ReleaseRequest, state: ReleaseState | undefined): string | null {
-  if (request.track !== undefined && request.userFraction !== undefined) return `release ${app.identifier} ${request.track} ${percentOf(request.userFraction)}%`;
-  if (state?.store === 'appstoreconnect' && state.version !== null) return `release ${app.identifier} ${state.version.versionString ?? state.version.id}`;
+export function confirmationPhraseOf(
+  app: Pick<ManagedApp, 'identifier'>,
+  request: ReleaseRequest,
+  state: ReleaseState | undefined,
+): string | null {
+  if (request.track !== undefined && request.userFraction !== undefined)
+    return `release ${app.identifier} ${request.track} ${percentOf(request.userFraction)}%`;
+  if (state?.store === 'appstoreconnect' && state.version !== null)
+    return `release ${app.identifier} ${state.version.versionString ?? state.version.id}`;
   return null;
 }
 
@@ -404,7 +658,10 @@ export type ReleaseStateView = {
 };
 
 /** `GET .../store-release`: the database only, no store is contacted. */
-export async function getReleaseState(ctx: ReleaseContext, input: { workspaceId: string; appId: string }): Promise<{ ok: true; state: ReleaseStateView } | Failure> {
+export async function getReleaseState(
+  ctx: ReleaseContext,
+  input: { workspaceId: string; appId: string },
+): Promise<{ ok: true; state: ReleaseStateView } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const f = await inFlightOf(ctx, app);
@@ -412,8 +669,16 @@ export async function getReleaseState(ctx: ReleaseContext, input: { workspaceId:
     ok: true,
     state: {
       enabled: ctx.releaseEnabled,
-      inFlight: { release: f.release === 'writing', push: f.push === 'writing', submit: f.submit === 'writing' },
-      unknownOutcome: { release: f.release === 'unknown', push: f.push === 'unknown', submit: f.submit === 'unknown' },
+      inFlight: {
+        release: f.release === 'writing',
+        push: f.push === 'writing',
+        submit: f.submit === 'writing',
+      },
+      unknownOutcome: {
+        release: f.release === 'unknown',
+        push: f.push === 'unknown',
+        submit: f.submit === 'unknown',
+      },
     },
   };
 }
@@ -426,16 +691,35 @@ export type ReleasePreview = {
   /** What was asked (the share is always the one the person named). */
   request: ReleaseRequest;
   /** App Store: the version that would be released. Google Play: null. */
-  version: { id: string; versionString: string | null; state: string; releaseType: string | null } | null;
-  build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null;
+  version: {
+    id: string;
+    versionString: string | null;
+    state: string;
+    releaseType: string | null;
+  } | null;
+  build: {
+    id: string;
+    buildNumber: string | null;
+    processingState: string | null;
+    expired: boolean | null;
+  } | null;
   /** App Store: whether Apple would release in phases (a phased release exists) or to everybody at once. Google Play: null. */
   phasedRelease: { id: string; state: string | null } | null;
   /** Google Play: the track, the release that would start and the others, as the store shows them. */
   track: string | null;
   release: { name: string | null; status: string; versionCodes: string[]; notes: number } | null;
-  others: { name: string | null; status: string; userFraction: number | null; versionCodes: string[] }[];
+  others: {
+    name: string | null;
+    status: string;
+    userFraction: number | null;
+    versionCodes: string[];
+  }[];
   /** Who gets it: `all` (everybody, now), `phased` (Apple's seven day phased release) or `percent` (a Google Play share). */
-  audience: { kind: 'all' | 'phased' | 'percent'; userFraction: number | null; description: string };
+  audience: {
+    kind: 'all' | 'phased' | 'percent';
+    userFraction: number | null;
+    description: string;
+  };
   /** What cannot be undone from this server. */
   irreversible: string[];
   /** Always true. */
@@ -452,7 +736,9 @@ const irreversibleOf = (state: ReleaseState, request: ReleaseRequest): string[] 
   state.store === 'appstoreconnect'
     ? [
         `${state.version?.versionString ? `Version ${state.version.versionString}` : 'The version'} is released: App Store Connect makes it available to users. Apple does not allow cancelling the request.`,
-        state.phasedRelease !== null ? 'The version has a phased release: automatic updates reach users over seven days (Apple’s help page, UNVERIFIED for the API).' : 'The version has no phased release: it is available to everybody at once.',
+        state.phasedRelease !== null
+          ? 'The version has a phased release: automatic updates reach users over seven days (Apple’s help page, UNVERIFIED for the API).'
+          : 'The version has no phased release: it is available to everybody at once.',
         'This server cannot take the version back. Only a new version (or removing the app from sale in App Store Connect) changes what users get.',
       ]
     : [
@@ -465,15 +751,27 @@ const irreversibleOf = (state: ReleaseState, request: ReleaseRequest): string[] 
 const audienceOf = (state: ReleaseState, request: ReleaseRequest): ReleasePreview['audience'] => {
   if (state.store === 'appstoreconnect') {
     return state.phasedRelease !== null
-      ? { kind: 'phased', userFraction: null, description: 'Phased release: automatic updates reach users over seven days.' }
+      ? {
+          kind: 'phased',
+          userFraction: null,
+          description: 'Phased release: automatic updates reach users over seven days.',
+        }
       : { kind: 'all', userFraction: null, description: 'Everybody at once.' };
   }
   const f = request.userFraction ?? 0;
-  return f === 1 ? { kind: 'all', userFraction: 1, description: '100% of users (the release is completed).' } : { kind: 'percent', userFraction: f, description: `${percentOf(f)}% of users.` };
+  return f === 1
+    ? { kind: 'all', userFraction: 1, description: '100% of users (the release is completed).' }
+    : { kind: 'percent', userFraction: f, description: `${percentOf(f)}% of users.` };
 };
 
-async function unpushedFieldsOf(sql: Sql, app: ManagedApp): Promise<{ count: number; fraction: number | null }> {
-  const rows = await sql.query("SELECT target, value_text, value_hash, pushed_hash FROM staged_changes WHERE app_id = ? AND kind = 'release_field'", [app.id]);
+async function unpushedFieldsOf(
+  sql: Sql,
+  app: ManagedApp,
+): Promise<{ count: number; fraction: number | null }> {
+  const rows = await sql.query(
+    "SELECT target, value_text, value_hash, pushed_hash FROM staged_changes WHERE app_id = ? AND kind = 'release_field'",
+    [app.id],
+  );
   let count = 0;
   let fraction: number | null = null;
   for (const r of rows) {
@@ -482,14 +780,37 @@ async function unpushedFieldsOf(sql: Sql, app: ManagedApp): Promise<{ count: num
       fraction = Number.isFinite(n) ? n : null;
       continue;
     }
-    if (r.pushed_hash === null || r.pushed_hash === undefined || String(r.pushed_hash) !== String(r.value_hash)) count++;
+    if (
+      r.pushed_hash === null ||
+      r.pushed_hash === undefined ||
+      String(r.pushed_hash) !== String(r.value_hash)
+    )
+      count++;
   }
   return { count, fraction };
 }
 
-function previewOf(ctx: ReleaseContext, input: { workspaceId: string; app: ManagedApp; request: ReleaseRequest; state: ReleaseState; inFlight: InFlight; unpushed: { count: number; fraction: number | null } }): ReleasePreview {
+function previewOf(
+  ctx: ReleaseContext,
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    request: ReleaseRequest;
+    state: ReleaseState;
+    inFlight: InFlight;
+    unpushed: { count: number; fraction: number | null };
+  },
+): ReleasePreview {
   const { app, request, state } = input;
-  const checks = split(evaluateReleaseChecks({ request, state, inFlight: input.inFlight, unpushedFields: input.unpushed.count, stagedFraction: input.unpushed.fraction }));
+  const checks = split(
+    evaluateReleaseChecks({
+      request,
+      state,
+      inFlight: input.inFlight,
+      unpushedFields: input.unpushed.count,
+      stagedFraction: input.unpushed.fraction,
+    }),
+  );
   const phrase = checks.canRelease ? confirmationPhraseOf(app, request, state) : null;
   const apple = state.store === 'appstoreconnect';
   return {
@@ -499,20 +820,44 @@ function previewOf(ctx: ReleaseContext, input: { workspaceId: string; app: Manag
     build: apple ? state.build : null,
     phasedRelease: apple ? state.phasedRelease : null,
     track: apple ? null : state.track,
-    release: apple || state.release === null ? null : { name: state.release.name, status: state.release.status, versionCodes: state.release.versionCodes, notes: state.release.notes },
-    others: apple ? [] : state.others.map((o) => ({ name: o.name, status: o.status, userFraction: o.userFraction, versionCodes: o.versionCodes })),
+    release:
+      apple || state.release === null
+        ? null
+        : {
+            name: state.release.name,
+            status: state.release.status,
+            versionCodes: state.release.versionCodes,
+            notes: state.release.notes,
+          },
+    others: apple
+      ? []
+      : state.others.map((o) => ({
+          name: o.name,
+          status: o.status,
+          userFraction: o.userFraction,
+          versionCodes: o.versionCodes,
+        })),
     audience: audienceOf(state, request),
     irreversible: irreversibleOf(state, request),
     releases: true,
     checks,
-    confirmHash: checks.canRelease && phrase !== null ? releaseConfirmHash({ workspaceId: input.workspaceId, app, request, state }) : null,
-    confirmation: phrase !== null ? { phrase, instruction: `Type "${phrase}" to confirm. This cannot be undone from here.` } : null,
+    confirmHash:
+      checks.canRelease && phrase !== null
+        ? releaseConfirmHash({ workspaceId: input.workspaceId, app, request, state })
+        : null,
+    confirmation:
+      phrase !== null
+        ? { phrase, instruction: `Type "${phrase}" to confirm. This cannot be undone from here.` }
+        : null,
     readAt: ctx.now(),
   };
 }
 
 /** `POST .../store-release/preview`: reads the store and shows what would be released, to whom, and what stands in the way. Writes nothing. */
-export async function previewRelease(ctx: ReleaseContext, input: ReleaseInput & { workspaceId: string; appId: string; actor: Actor }): Promise<{ ok: true; preview: ReleasePreview } | Failure> {
+export async function previewRelease(
+  ctx: ReleaseContext,
+  input: ReleaseInput & { workspaceId: string; appId: string; actor: Actor },
+): Promise<{ ok: true; preview: ReleasePreview } | Failure> {
   if (!ctx.releaseEnabled) return releaseDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
@@ -523,15 +868,28 @@ export async function previewRelease(ctx: ReleaseContext, input: ReleaseInput & 
   const { connection } = connected;
   let state: ReleaseState;
   try {
-    state = await withConnector(ctx, connection.input, (connector) => connector.readReleaseState(asked.request));
+    state = await withConnector(ctx, connection.input, (connector) =>
+      connector.readReleaseState(asked.request),
+    );
   } catch (error) {
-    if (error instanceof ReleaseTimeout) return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+    if (error instanceof ReleaseTimeout)
+      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
     return mapStoreError(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
   const inFlight = await inFlightOf(ctx, app);
   const unpushed = await unpushedFieldsOf(ctx.db, app);
-  return { ok: true, preview: previewOf(ctx, { workspaceId: input.workspaceId, app, request: asked.request, state, inFlight, unpushed }) };
+  return {
+    ok: true,
+    preview: previewOf(ctx, {
+      workspaceId: input.workspaceId,
+      app,
+      request: asked.request,
+      state,
+      inFlight,
+      unpushed,
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -554,17 +912,33 @@ export type ReleaseResult = {
   note: string;
 };
 
-const NOTE_IOS = 'The version was released. Follow its availability in App Store Connect: it can take a while to show.';
-const NOTE_PLAY = 'The release was sent to Google Play. Follow it in Play Console: whether it waits for review first is not shown by the API.';
+const NOTE_IOS =
+  'The version was released. Follow its availability in App Store Connect: it can take a while to show.';
+const NOTE_PLAY =
+  'The release was sent to Google Play. Follow it in Play Console: whether it waits for review first is not shown by the API.';
 
-async function auditFailed(ctx: ReleaseContext, input: { workspaceId: string; actor: Actor; confirmHash: string }, app: ManagedApp, request: ReleaseRequest, extra: Record<string, unknown>): Promise<void> {
+async function auditFailed(
+  ctx: ReleaseContext,
+  input: { workspaceId: string; actor: Actor; confirmHash: string },
+  app: ManagedApp,
+  request: ReleaseRequest,
+  extra: Record<string, unknown>,
+): Promise<void> {
   await recordAudit(ctx.db, {
     workspaceId: input.workspaceId,
     actor: input.actor,
     action: 'store.release_failed',
     target: { type: 'app', id: app.id },
     // Ids, a share and outcomes: never a text, a credential, a token or a store response.
-    detail: { appId: app.id, store: storeFor(app.platform), platform: app.platform, ...(request.track ? { track: request.track } : {}), ...(request.userFraction !== undefined ? { userFraction: request.userFraction } : {}), hash: input.confirmHash, ...extra },
+    detail: {
+      appId: app.id,
+      store: storeFor(app.platform),
+      platform: app.platform,
+      ...(request.track ? { track: request.track } : {}),
+      ...(request.userFraction !== undefined ? { userFraction: request.userFraction } : {}),
+      hash: input.confirmHash,
+      ...extra,
+    },
     at: ctx.now(),
   });
 }
@@ -572,14 +946,27 @@ async function auditFailed(ctx: ReleaseContext, input: { workspaceId: string; ac
 async function succeed(
   ctx: ReleaseContext,
   input: { workspaceId: string; actor: Actor; confirmHash: string },
-  s: { app: ManagedApp; claim: Claim; request: ReleaseRequest; before: ReleaseState; releaseRequestId: string | null; via: ReleaseResult['via']; reread: boolean; cause?: string },
+  s: {
+    app: ManagedApp;
+    claim: Claim;
+    request: ReleaseRequest;
+    before: ReleaseState;
+    releaseRequestId: string | null;
+    via: ReleaseResult['via'];
+    reread: boolean;
+    cause?: string;
+  },
 ): Promise<{ ok: true; result: ReleaseResult }> {
   const at = ctx.now();
   const store = storeFor(s.app.platform);
   const apple = s.before.store === 'appstoreconnect';
-  const version = s.before.store === 'appstoreconnect' && s.before.version !== null ? { id: s.before.version.id, versionString: s.before.version.versionString } : null;
+  const version =
+    s.before.store === 'appstoreconnect' && s.before.version !== null
+      ? { id: s.before.version.id, versionString: s.before.version.versionString }
+      : null;
   const track = s.before.store === 'googleplay' ? s.before.track : null;
-  const codes = s.before.store === 'googleplay' && s.before.release ? s.before.release.versionCodes : [];
+  const codes =
+    s.before.store === 'googleplay' && s.before.release ? s.before.release.versionCodes : [];
   await ctx.db.transaction(async (tx) => {
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -639,8 +1026,15 @@ async function succeed(
 }
 
 /** After a lost answer: does the store show the release? */
-function showsRelease(before: ReleaseState, current: ReleaseState): 'released' | 'still_waiting' | 'unclear' {
-  if (before.store === 'appstoreconnect' && current.store === 'appstoreconnect' && before.version !== null) {
+function showsRelease(
+  before: ReleaseState,
+  current: ReleaseState,
+): 'released' | 'still_waiting' | 'unclear' {
+  if (
+    before.store === 'appstoreconnect' &&
+    current.store === 'appstoreconnect' &&
+    before.version !== null
+  ) {
     const name = before.version.versionString;
     const same = current.versions.filter((v) => v.versionString === name);
     if (same.length === 0) return 'unclear';
@@ -650,7 +1044,10 @@ function showsRelease(before: ReleaseState, current: ReleaseState): 'released' |
   if (before.store === 'googleplay' && current.store === 'googleplay' && before.release !== null) {
     const wanted = [...before.release.versionCodes].sort().join(',');
     const same = (r: { versionCodes: string[] }) => [...r.versionCodes].sort().join(',') === wanted;
-    if (current.others.some((r) => same(r) && (r.status === 'inProgress' || r.status === 'completed'))) return 'released';
+    if (
+      current.others.some((r) => same(r) && (r.status === 'inProgress' || r.status === 'completed'))
+    )
+      return 'released';
     if (current.release !== null && same(current.release)) return 'still_waiting';
   }
   return 'unclear';
@@ -662,7 +1059,13 @@ function showsRelease(before: ReleaseState, current: ReleaseState): 'released' |
  */
 export async function applyRelease(
   ctx: ReleaseContext,
-  input: ReleaseInput & { workspaceId: string; appId: string; confirmHash: string; confirmation: string; actor: Actor },
+  input: ReleaseInput & {
+    workspaceId: string;
+    appId: string;
+    confirmHash: string;
+    confirmation: string;
+    actor: Actor;
+  },
 ): Promise<{ ok: true; result: ReleaseResult } | Failure> {
   if (!ctx.releaseEnabled) return releaseDisabledFailure();
   const { db } = ctx;
@@ -674,12 +1077,32 @@ export async function applyRelease(
   // Google Play: the phrase needs no store read, so a wrong one is refused before anything else.
   const early = confirmationPhraseOf(app, request, undefined);
   if (early !== null && input.confirmation.trim() !== early) {
-    return failure(422, 'confirmation_mismatch', `The confirmation does not match. Type "${early}" exactly. Nothing was released.`, { phrase: early });
+    return failure(
+      422,
+      'confirmation_mismatch',
+      `The confirmation does not match. Type "${early}" exactly. Nothing was released.`,
+      { phrase: early },
+    );
   }
   const flights = await inFlightOf(ctx, app);
-  if (flights.push === 'writing' || flights.submit === 'writing') return failure(409, 'write_in_progress', 'A draft push or a submit for this app is in progress. Wait for it to finish.');
-  if (flights.push === 'unknown') return failure(409, 'push_outcome_unknown', 'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.');
-  if (flights.submit === 'unknown') return failure(409, 'submit_outcome_unknown', 'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.');
+  if (flights.push === 'writing' || flights.submit === 'writing')
+    return failure(
+      409,
+      'write_in_progress',
+      'A draft push or a submit for this app is in progress. Wait for it to finish.',
+    );
+  if (flights.push === 'unknown')
+    return failure(
+      409,
+      'push_outcome_unknown',
+      'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.',
+    );
+  if (flights.submit === 'unknown')
+    return failure(
+      409,
+      'submit_outcome_unknown',
+      'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.',
+    );
 
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
   if (!taken.ok) return taken;
@@ -703,7 +1126,15 @@ export async function applyRelease(
       connector.release({
         request,
         guard: (current) => {
-          const checks = split(evaluateReleaseChecks({ request, state: current, inFlight: { release: null, push: null, submit: null }, unpushedFields: unpushed.count, stagedFraction: unpushed.fraction }));
+          const checks = split(
+            evaluateReleaseChecks({
+              request,
+              state: current,
+              inFlight: { release: null, push: null, submit: null },
+              unpushedFields: unpushed.count,
+              stagedFraction: unpushed.fraction,
+            }),
+          );
           if (!checks.canRelease) {
             blocked = checks;
             return false;
@@ -713,7 +1144,9 @@ export async function applyRelease(
             wrongPhrase = phrase ?? '';
             return false;
           }
-          const same = releaseConfirmHash({ workspaceId: input.workspaceId, app, request, state: current }) === input.confirmHash;
+          const same =
+            releaseConfirmHash({ workspaceId: input.workspaceId, app, request, state: current }) ===
+            input.confirmHash;
           if (same) accepted = current;
           return same;
         },
@@ -722,20 +1155,49 @@ export async function applyRelease(
   } catch (error) {
     if (error instanceof ReleaseDriftError) {
       if (blocked) {
-        await auditFailed(ctx, input, app, request, { code: 'blocked', outcome: 'refused', blocking: blocked.blocking.map((b) => b.code).slice(0, 20) });
+        await auditFailed(ctx, input, app, request, {
+          code: 'blocked',
+          outcome: 'refused',
+          blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
+        });
         await releaseClaim(db, claim);
-        return failure(409, 'blocked', 'Something stands in the way of releasing, so nothing was released. See `checks`.', { checks: blocked });
+        return failure(
+          409,
+          'blocked',
+          'Something stands in the way of releasing, so nothing was released. See `checks`.',
+          { checks: blocked },
+        );
       }
       if (wrongPhrase !== undefined) {
-        await auditFailed(ctx, input, app, request, { code: 'confirmation_mismatch', outcome: 'refused' });
+        await auditFailed(ctx, input, app, request, {
+          code: 'confirmation_mismatch',
+          outcome: 'refused',
+        });
         await releaseClaim(db, claim);
-        return failure(422, 'confirmation_mismatch', `The confirmation does not match. Type "${wrongPhrase}" exactly. Nothing was released.`, { phrase: wrongPhrase });
+        return failure(
+          422,
+          'confirmation_mismatch',
+          `The confirmation does not match. Type "${wrongPhrase}" exactly. Nothing was released.`,
+          { phrase: wrongPhrase },
+        );
       }
       await auditFailed(ctx, input, app, request, { code: 'state_changed', outcome: 'refused' });
       await releaseClaim(db, claim);
-      return failure(409, 'state_changed', 'The store changed since this was previewed, so nothing was released. Review the new preview and confirm it.', {
-        preview: previewOf(ctx, { workspaceId: input.workspaceId, app, request, state: error.current, inFlight: { release: null, push: null, submit: null }, unpushed }),
-      });
+      return failure(
+        409,
+        'state_changed',
+        'The store changed since this was previewed, so nothing was released. Review the new preview and confirm it.',
+        {
+          preview: previewOf(ctx, {
+            workspaceId: input.workspaceId,
+            app,
+            request,
+            state: error.current,
+            inFlight: { release: null, push: null, submit: null },
+            unpushed,
+          }),
+        },
+      );
     }
     if (error instanceof ReleaseOutcomeUnknownError || error instanceof ReleaseTimeout) {
       unknown = { cause: error instanceof ReleaseTimeout ? 'timeout' : 'network' };
@@ -747,19 +1209,34 @@ export async function applyRelease(
     }
   }
 
-  if (done) return succeed(ctx, input, { app, claim, request, before: done.before, releaseRequestId: done.releaseRequestId, via: done.via, reread: false });
+  if (done)
+    return succeed(ctx, input, {
+      app,
+      claim,
+      request,
+      before: done.before,
+      releaseRequestId: done.releaseRequestId,
+      via: done.via,
+      reread: false,
+    });
 
   // ----- an unknown outcome is checked, not sent again
   const cause = unknown?.cause ?? 'unknown';
   let current: ReleaseState | undefined;
   try {
-    current = await withConnector(ctx, connection.input, (connector) => connector.readReleaseState(request));
+    current = await withConnector(ctx, connection.input, (connector) =>
+      connector.readReleaseState(request),
+    );
   } catch {
     current = undefined;
   }
   if (current === undefined || accepted === undefined) {
     await markUnknown(db, claim);
-    await auditFailed(ctx, input, app, request, { code: cause, outcome: 'unknown', readBack: 'failed' });
+    await auditFailed(ctx, input, app, request, {
+      code: cause,
+      outcome: 'unknown',
+      readBack: 'failed',
+    });
     return failure(
       409,
       'outcome_unknown',
@@ -767,15 +1244,34 @@ export async function applyRelease(
     );
   }
   const shown = showsRelease(accepted, current);
-  if (shown === 'released') return succeed(ctx, input, { app, claim, request, before: accepted, releaseRequestId: null, via: isGooglePlatform(app.platform) ? 'edit_commit' : 'release_request', reread: true, cause });
+  if (shown === 'released')
+    return succeed(ctx, input, {
+      app,
+      claim,
+      request,
+      before: accepted,
+      releaseRequestId: null,
+      via: isGooglePlatform(app.platform) ? 'edit_commit' : 'release_request',
+      reread: true,
+      cause,
+    });
   if (shown === 'still_waiting' && isApplePlatform(app.platform)) {
     await auditFailed(ctx, input, app, request, { code: 'not_applied', outcome: 'failed', cause });
     await releaseClaim(db, claim);
-    return failure(502, 'write_failed', 'The store did not answer, and reading it back shows the version is still waiting for release. Nothing was released as far as the store shows. Preview again to try again.', { outcome: 'not_applied' });
+    return failure(
+      502,
+      'write_failed',
+      'The store did not answer, and reading it back shows the version is still waiting for release. Nothing was released as far as the store shows. Preview again to try again.',
+      { outcome: 'not_applied' },
+    );
   }
   // Google Play: a committed edit can take a while to show, so the old draft is not proof. Anything else unclear stays unknown.
   await markUnknown(db, claim);
-  await auditFailed(ctx, input, app, request, { code: shown === 'still_waiting' ? 'not_visible' : 'unclear', outcome: 'unknown', cause });
+  await auditFailed(ctx, input, app, request, {
+    code: shown === 'still_waiting' ? 'not_visible' : 'unclear',
+    outcome: 'unknown',
+    cause,
+  });
   return failure(
     409,
     'outcome_unknown',

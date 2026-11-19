@@ -41,7 +41,11 @@ function verify(secret, headers, rawBody) {
   const given = (headers['x-mrm-signature'] ?? '').replace(/^v1=/, '');
   const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
   const fresh = Math.abs(Date.now() / 1000 - Number(timestamp)) < 300; // reject replays
-  return fresh && given.length === expected.length && timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+  return (
+    fresh &&
+    given.length === expected.length &&
+    timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+  );
 }
 ```
 

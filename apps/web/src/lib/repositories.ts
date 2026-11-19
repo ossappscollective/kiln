@@ -1,19 +1,19 @@
 import {
-  APP_STORE_FIELDS,
   APP_STORE_FIELD_SPECS,
+  APP_STORE_FIELDS,
   type ChangeSetStatus,
+  can,
+  countBytes,
+  countCharacters,
   DEFAULT_LOCALE,
   type Listing,
   type ListingFieldSpec,
   type ListingStore,
-  PLAY_FIELDS,
   PLAY_FIELD_SPECS,
+  PLAY_FIELDS,
   type Platform,
-  type Role,
-  can,
-  countBytes,
-  countCharacters,
   platformMeta,
+  type Role,
 } from '@mrm/core';
 import type { ApiError } from './api.ts';
 import type {
@@ -38,7 +38,9 @@ import type {
 const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const REPO = /^[A-Za-z0-9._-]+$/;
 
-export type ParsedRepository = { ok: true; owner: string; repo: string } | { ok: false; message: string };
+export type ParsedRepository =
+  | { ok: true; owner: string; repo: string }
+  | { ok: false; message: string };
 
 /**
  * Reads "owner/repo", or a GitHub address that holds one (`https://github.com/owner/repo`,
@@ -58,18 +60,26 @@ export function parseRepositoryInput(input: string): ParsedRepository {
   const owner = parts[0] ?? '';
   let repo = parts[1] ?? '';
   if (repo.toLowerCase().endsWith('.git')) repo = repo.slice(0, -4);
-  if (!OWNER.test(owner)) return { ok: false, message: `“${owner}” is not a GitHub user or organization name.` };
+  if (!OWNER.test(owner))
+    return { ok: false, message: `“${owner}” is not a GitHub user or organization name.` };
   if (!REPO.test(repo) || repo === '.' || repo === '..') {
     return { ok: false, message: `“${repo}” is not a GitHub repository name.` };
   }
   return { ok: true, owner, repo };
 }
 
-export const githubUrl = (owner: string | null, repo: string | null) => `https://github.com/${owner ?? ''}/${repo ?? ''}`;
+export const githubUrl = (owner: string | null, repo: string | null) =>
+  `https://github.com/${owner ?? ''}/${repo ?? ''}`;
 
 /** `owner/repo`, or the folder name of a local-only repository (it has no owner). */
-export const repositoryName = (repository: { owner: string | null; repo: string | null; name?: string }) =>
-  repository.owner && repository.repo ? `${repository.owner}/${repository.repo}` : (repository.name ?? 'Local repository');
+export const repositoryName = (repository: {
+  owner: string | null;
+  repo: string | null;
+  name?: string;
+}) =>
+  repository.owner && repository.repo
+    ? `${repository.owner}/${repository.repo}`
+    : (repository.name ?? 'Local repository');
 
 export type ConnectProblem = {
   /** Where to show it: under a field, or above the buttons. */
@@ -80,13 +90,22 @@ export type ConnectProblem = {
 };
 
 /** Turns a refusal from the connect call into a message and what to check, near the right field. */
-export function connectProblem(error: Pick<ApiError, 'status' | 'code' | 'message'>, target: { owner: string; repo: string }): ConnectProblem {
+export function connectProblem(
+  error: Pick<ApiError, 'status' | 'code' | 'message'>,
+  target: { owner: string; repo: string },
+): ConnectProblem {
   const name = repositoryName(target);
   switch (error.code) {
     case 'credential_not_found':
-      return { field: 'credential', message: 'That credential no longer exists. Pick another one.' };
+      return {
+        field: 'credential',
+        message: 'That credential no longer exists. Pick another one.',
+      };
     case 'credential_kind':
-      return { field: 'credential', message: 'Only a GitHub App or a GitHub token can connect a repository.' };
+      return {
+        field: 'credential',
+        message: 'Only a GitHub App or a GitHub token can connect a repository.',
+      };
     case 'already_connected':
       return { field: 'repository', message: `${name} is already connected to this workspace.` };
     case 'github_auth':
@@ -127,7 +146,10 @@ export const projectKindLabel: Record<ProjectKind, string> = {
 };
 
 /** The badge for a repository's project type. `null` means it was never scanned. */
-export function projectKindBadge(kind: ProjectKind | null | undefined): { label: string; tone: Tone } {
+export function projectKindBadge(kind: ProjectKind | null | undefined): {
+  label: string;
+  tone: Tone;
+} {
   if (!kind) return { label: 'Not scanned', tone: 'neutral' };
   return { label: projectKindLabel[kind], tone: kind === 'unknown' ? 'warn' : 'accent' };
 }
@@ -219,12 +241,43 @@ export const changeSetStatuses: readonly ChangeSetStatus[] = [
 export type StatusInfo = { label: string; tone: Tone; dot: boolean; description: string };
 
 const statusInfo: Record<ChangeSetStatus, StatusInfo> = {
-  draft: { label: 'Draft', tone: 'neutral', dot: false, description: 'Waiting for an admin or owner to approve it.' },
-  approved: { label: 'Approved', tone: 'info', dot: false, description: 'Approved. It can be applied as a pull request or as a commit on a new branch of the local clone.' },
-  applying: { label: 'Applying', tone: 'accent', dot: true, description: 'Creating the branch and the pull request.' },
-  applied: { label: 'Applied', tone: 'ok', dot: false, description: 'The pull request is open. Merge it in GitHub.' },
-  failed: { label: 'Failed', tone: 'bad', dot: false, description: 'The change did not reach the repository.' },
-  discarded: { label: 'Discarded', tone: 'neutral', dot: false, description: 'Closed without changing the repository.' },
+  draft: {
+    label: 'Draft',
+    tone: 'neutral',
+    dot: false,
+    description: 'Waiting for an admin or owner to approve it.',
+  },
+  approved: {
+    label: 'Approved',
+    tone: 'info',
+    dot: false,
+    description:
+      'Approved. It can be applied as a pull request or as a commit on a new branch of the local clone.',
+  },
+  applying: {
+    label: 'Applying',
+    tone: 'accent',
+    dot: true,
+    description: 'Creating the branch and the pull request.',
+  },
+  applied: {
+    label: 'Applied',
+    tone: 'ok',
+    dot: false,
+    description: 'The pull request is open. Merge it in GitHub.',
+  },
+  failed: {
+    label: 'Failed',
+    tone: 'bad',
+    dot: false,
+    description: 'The change did not reach the repository.',
+  },
+  discarded: {
+    label: 'Discarded',
+    tone: 'neutral',
+    dot: false,
+    description: 'Closed without changing the repository.',
+  },
 };
 
 export const changeSetStatusInfo = (status: ChangeSetStatus): StatusInfo => statusInfo[status];
@@ -251,14 +304,19 @@ export function actorLabel(
   myId: string,
   names: Readonly<Record<string, string>> = {},
 ): string {
-  if (actor.type === 'user') return actor.id === myId ? 'You' : (names[actor.id] ?? 'A team member');
+  if (actor.type === 'user')
+    return actor.id === myId ? 'You' : (names[actor.id] ?? 'A team member');
   if (actor.type === 'token') return 'An API token';
   if (actor.type === 'assistant') return 'The assistant';
   return 'The system';
 }
 
 /** The person who approved, from the user id the API stores. */
-export function approverLabel(userId: string, myId: string, names: Readonly<Record<string, string>> = {}): string {
+export function approverLabel(
+  userId: string,
+  myId: string,
+  names: Readonly<Record<string, string>> = {},
+): string {
   return actorLabel({ type: 'user', id: userId }, myId, names);
 }
 
@@ -279,17 +337,23 @@ export function changeSetActions(input: {
   const { role, status, createdBy, myId } = input;
   const admin = can(role, 'changesets.approve');
   const ownDraft =
-    status === 'draft' && can(role, 'changesets.write') && createdBy.type === 'user' && createdBy.id === myId;
+    status === 'draft' &&
+    can(role, 'changesets.write') &&
+    createdBy.type === 'user' &&
+    createdBy.id === myId;
   return {
     approve: admin && status === 'draft',
     apply: admin && status === 'approved',
-    discard: (admin && (status === 'draft' || status === 'approved' || status === 'failed')) || ownDraft,
+    discard:
+      (admin && (status === 'draft' || status === 'approved' || status === 'failed')) || ownDraft,
   };
 }
 
 /** The text of the link to a change set's pull request. */
 export const prLabel = (changeSet: Pick<ChangeSetView, 'prNumber'>) =>
-  changeSet.prNumber === null ? 'Open the pull request' : `Open pull request #${changeSet.prNumber}`;
+  changeSet.prNumber === null
+    ? 'Open the pull request'
+    : `Open pull request #${changeSet.prNumber}`;
 
 // ---------------------------------------------------------------------------------------------
 // Counting characters
@@ -306,7 +370,10 @@ export type FieldUsage = {
 };
 
 /** How much of a field's limit a value uses, counted the way the store counts. */
-export function fieldUsage(spec: Pick<ListingFieldSpec, 'maxLength' | 'minLength' | 'unit'>, value: string): FieldUsage {
+export function fieldUsage(
+  spec: Pick<ListingFieldSpec, 'maxLength' | 'minLength' | 'unit'>,
+  value: string,
+): FieldUsage {
   const count = spec.unit === 'bytes' ? countBytes(value) : countCharacters(value);
   const { maxLength: max, minLength: min, unit } = spec;
   const text = max === undefined ? `${count} ${unit}` : `${count} / ${max} ${unit}`;
@@ -335,13 +402,17 @@ export function localeFieldSpecs(store: ListingStore): ListingFieldSpec[] {
 
 /** Locale codes of one store, the fastlane `default` folder first, then alphabetical. */
 export function storeLocales(listing: Listing, store: ListingStore): string[] {
-  const keys = Object.keys((store === 'app_store' ? listing.appStore?.locales : listing.googlePlay?.locales) ?? {});
+  const keys = Object.keys(
+    (store === 'app_store' ? listing.appStore?.locales : listing.googlePlay?.locales) ?? {},
+  );
   if (store === 'google_play') {
     for (const locale of Object.keys(listing.googlePlay?.changelogs ?? {})) {
       if (!keys.includes(locale)) keys.push(locale);
     }
   }
-  return keys.sort((a, b) => (a === DEFAULT_LOCALE ? -1 : b === DEFAULT_LOCALE ? 1 : a.localeCompare(b)));
+  return keys.sort((a, b) =>
+    a === DEFAULT_LOCALE ? -1 : b === DEFAULT_LOCALE ? 1 : a.localeCompare(b),
+  );
 }
 
 /** Version codes with a release note for one Play locale, newest (highest number) first. */
@@ -366,11 +437,16 @@ export function readField(
     if (field === 'copyright') return listing.appStore?.copyright;
     return locale === undefined
       ? undefined
-      : (listing.appStore?.locales[locale] as Record<string, string | undefined> | undefined)?.[field];
+      : (listing.appStore?.locales[locale] as Record<string, string | undefined> | undefined)?.[
+          field
+        ];
   }
   if (locale === undefined) return undefined;
-  if (field.startsWith('changelog/')) return listing.googlePlay?.changelogs[locale]?.[field.slice('changelog/'.length)];
-  return (listing.googlePlay?.locales[locale] as Record<string, string | undefined> | undefined)?.[field];
+  if (field.startsWith('changelog/'))
+    return listing.googlePlay?.changelogs[locale]?.[field.slice('changelog/'.length)];
+  return (listing.googlePlay?.locales[locale] as Record<string, string | undefined> | undefined)?.[
+    field
+  ];
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -416,7 +492,9 @@ export type ListingEdit = {
 };
 
 /** Every field of a listing as [store, locale, field, value]. */
-function entries(listing: Listing): Array<{ store: ListingStore; locale?: string; field: string; value: string }> {
+function entries(
+  listing: Listing,
+): Array<{ store: ListingStore; locale?: string; field: string; value: string }> {
   const out: Array<{ store: ListingStore; locale?: string; field: string; value: string }> = [];
   if (listing.appStore) {
     for (const [locale, text] of Object.entries(listing.appStore.locales)) {
@@ -458,11 +536,23 @@ export function listingEdits(base: Listing, edited: Listing): ListingEdit[] {
     const was = before.get(key)?.value;
     if (was === e.value) continue;
     if (was === undefined && e.value === '') continue;
-    out.push({ store: e.store, ...(e.locale === undefined ? {} : { locale: e.locale }), field: e.field, before: was, after: e.value });
+    out.push({
+      store: e.store,
+      ...(e.locale === undefined ? {} : { locale: e.locale }),
+      field: e.field,
+      before: was,
+      after: e.value,
+    });
   }
   for (const [key, e] of before) {
     if (!after.has(key)) {
-      out.push({ store: e.store, ...(e.locale === undefined ? {} : { locale: e.locale }), field: e.field, before: e.value, after: undefined });
+      out.push({
+        store: e.store,
+        ...(e.locale === undefined ? {} : { locale: e.locale }),
+        field: e.field,
+        before: e.value,
+        after: undefined,
+      });
     }
   }
   return out;
@@ -490,7 +580,8 @@ export function listingForChangeSet(base: Listing, edited: Listing): Listing {
       locales[locale] = kept;
     }
     const copyright = edited.appStore.copyright;
-    const keepCopyright = copyright !== undefined && !(copyright === '' && base.appStore?.copyright === undefined);
+    const keepCopyright =
+      copyright !== undefined && !(copyright === '' && base.appStore?.copyright === undefined);
     result.appStore = { locales, ...(keepCopyright ? { copyright } : {}) };
   }
   if (touched.has('google_play') && edited.googlePlay) {
@@ -512,7 +603,9 @@ export function listingForChangeSet(base: Listing, edited: Listing): Listing {
 /** "Update 2 fields in en-US and de" style summary the person can accept or change. */
 export function suggestSummary(edits: readonly ListingEdit[]): string {
   if (edits.length === 0) return '';
-  const locales = [...new Set(edits.map((e) => e.locale).filter((l): l is string => l !== undefined))].sort();
+  const locales = [
+    ...new Set(edits.map((e) => e.locale).filter((l): l is string => l !== undefined)),
+  ].sort();
   const fields = edits.length === 1 ? '1 listing field' : `${edits.length} listing fields`;
   if (locales.length === 0) return `Update ${fields}`;
   if (locales.length <= 3) return `Update ${fields} in ${locales.join(', ')}`;
@@ -522,7 +615,12 @@ export function suggestSummary(edits: readonly ListingEdit[]): string {
 // ---------------------------------------------------------------------------------------------
 // Diff
 
-export type DiffRow = { kind: 'same' | 'add' | 'del'; text: string; oldNo?: number; newNo?: number };
+export type DiffRow = {
+  kind: 'same' | 'add' | 'del';
+  text: string;
+  oldNo?: number;
+  newNo?: number;
+};
 
 /** Lines of a file. The newline that ends the last line does not start another one. */
 export function splitLines(text: string | undefined): string[] {
@@ -620,7 +718,8 @@ export function collapseDiff(rows: readonly DiffRow[], context = 3): DiffBlock[]
   const keep = new Array<boolean>(rows.length).fill(false);
   rows.forEach((row, index) => {
     if (row.kind === 'same') return;
-    for (let k = Math.max(0, index - context); k <= Math.min(rows.length - 1, index + context); k++) keep[k] = true;
+    for (let k = Math.max(0, index - context); k <= Math.min(rows.length - 1, index + context); k++)
+      keep[k] = true;
   });
   const blocks: DiffBlock[] = [];
   let i = 0;
@@ -636,7 +735,10 @@ export function collapseDiff(rows: readonly DiffRow[], context = 3): DiffBlock[]
 }
 
 /** True when two texts differ but no line did (a trailing newline or line endings only). */
-export function differsOnlyInLineEnds(before: string | undefined, after: string | undefined): boolean {
+export function differsOnlyInLineEnds(
+  before: string | undefined,
+  after: string | undefined,
+): boolean {
   if ((before ?? '') === (after ?? '')) return false;
   const { added, removed } = diffStats(diffLines(before, after));
   return added + removed === 0;
@@ -646,7 +748,9 @@ export function differsOnlyInLineEnds(before: string | undefined, after: string 
 // Scan results
 
 /** The folders and files a scan found, with a readable name, omitting what it did not find. */
-export function detectionPaths(detection: ProjectDetection): Array<{ label: string; values: string[] }> {
+export function detectionPaths(
+  detection: ProjectDetection,
+): Array<{ label: string; values: string[] }> {
   const { paths } = detection;
   const rows: Array<{ label: string; values: string[] | string | undefined }> = [
     { label: 'Fastlane folders', values: paths.fastlaneDirs },
@@ -677,16 +781,21 @@ export function detectionPaths(detection: ProjectDetection): Array<{ label: stri
 }
 
 /** "Confirmed" for a fact a file states, "Likely" for a reading that is only a guess. */
-export const strengthLabel = (strength: 'definite' | 'inferred') => (strength === 'definite' ? 'Confirmed' : 'Likely');
+export const strengthLabel = (strength: 'definite' | 'inferred') =>
+  strength === 'definite' ? 'Confirmed' : 'Likely';
 
 /** "iOS and Android", "iOS (likely)", or "None found". */
-export function platformsSummary(detection: Pick<ProjectDetection, 'platforms' | 'platformsInferred'>): string {
+export function platformsSummary(
+  detection: Pick<ProjectDetection, 'platforms' | 'platformsInferred'>,
+): string {
   const parts = [
     ...detection.platforms.map(platformLabel),
     ...detection.platformsInferred.map((p) => `${platformLabel(p)} (likely)`),
   ];
   if (parts.length === 0) return 'None found';
-  return parts.length === 1 ? (parts[0] as string) : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return parts.length === 1
+    ? (parts[0] as string)
+    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -702,9 +811,11 @@ export function checkListingRoot(path: string): string | undefined {
   const text = normalizeRoot(path);
   if (text === '') return 'Enter a folder path inside the repository.';
   if (text.length > 300) return 'The path is too long (at most 300 characters).';
-  if (text.startsWith('/')) return 'The path must be relative to the repository, without a leading slash.';
+  if (text.startsWith('/'))
+    return 'The path must be relative to the repository, without a leading slash.';
   // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are refused on purpose
-  if (/[\\\x00-\x1f\x7f]/.test(text)) return 'The path must not contain backslashes or control characters.';
+  if (/[\\\x00-\x1f\x7f]/.test(text))
+    return 'The path must not contain backslashes or control characters.';
   for (const segment of text.split('/')) {
     if (segment === '' || segment === '.' || segment === '..') {
       return 'The path must not contain empty, "." or ".." segments.';
@@ -715,14 +826,30 @@ export function checkListingRoot(path: string): string | undefined {
 }
 
 /** A folder as the server stores it: space, a leading `./` and trailing slashes removed. */
-export const normalizeRoot = (path: string): string => path.trim().replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+export const normalizeRoot = (path: string): string =>
+  path
+    .trim()
+    .replace(/^(\.\/)+/, '')
+    .replace(/\/+$/, '');
 
-export type TargetForm = { name: string; appId: string; appStoreRoot: string; googlePlayRoot: string };
+export type TargetForm = {
+  name: string;
+  appId: string;
+  appStoreRoot: string;
+  googlePlayRoot: string;
+};
 export type TargetFormField = 'name' | 'appId' | 'appStoreRoot' | 'googlePlayRoot' | 'roots';
 
-export const emptyTargetForm = (): TargetForm => ({ name: '', appId: '', appStoreRoot: '', googlePlayRoot: '' });
+export const emptyTargetForm = (): TargetForm => ({
+  name: '',
+  appId: '',
+  appStoreRoot: '',
+  googlePlayRoot: '',
+});
 
-export function targetFormFrom(target: Pick<ListingTargetView, 'label' | 'app' | 'roots'>): TargetForm {
+export function targetFormFrom(
+  target: Pick<ListingTargetView, 'label' | 'app' | 'roots'>,
+): TargetForm {
   return {
     name: target.label,
     appId: target.app ?? '',
@@ -769,7 +896,8 @@ export function targetServerProblems(
     const out: Partial<Record<TargetFormField, string>> = {};
     for (const item of list) {
       const entry = item as { field?: TargetFormField; message?: string };
-      if (entry.field && entry.message && out[entry.field] === undefined) out[entry.field] = entry.message;
+      if (entry.field && entry.message && out[entry.field] === undefined)
+        out[entry.field] = entry.message;
     }
     if (Object.keys(out).length > 0) return out;
   }
@@ -777,7 +905,10 @@ export function targetServerProblems(
 }
 
 /** "App Store: a/ios · Google Play: a/android", leaving out a store the target has no folder for. */
-export function targetRootsSummary(roots: { appStore: string | null; googlePlay: string | null }): string {
+export function targetRootsSummary(roots: {
+  appStore: string | null;
+  googlePlay: string | null;
+}): string {
   const parts = [
     roots.appStore ? `App Store: ${roots.appStore}` : '',
     roots.googlePlay ? `Google Play: ${roots.googlePlay}` : '',
@@ -826,15 +957,22 @@ export const MAX_LOCAL_PATH_LENGTH = 4096;
  * The text rules for a folder path, checked before asking the server (which checks again and also
  * resolves links and the allowed folders): not empty, no control characters, absolute, no `..`.
  */
-export function checkLocalPathInput(input: string): { ok: true; path: string } | { ok: false; message: string } {
+export function checkLocalPathInput(
+  input: string,
+): { ok: true; path: string } | { ok: false; message: string } {
   const path = input.trim();
-  if (/[\u0000-\u001f\u007f]/.test(path)) return { ok: false, message: 'The path must not contain control characters.' };
+  if (/[\u0000-\u001f\u007f]/.test(path))
+    return { ok: false, message: 'The path must not contain control characters.' };
   if (path === '') return { ok: false, message: 'Enter the path of a folder on the server.' };
   if (path.length > MAX_LOCAL_PATH_LENGTH) return { ok: false, message: 'That path is too long.' };
   if (!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path)) {
-    return { ok: false, message: 'Use an absolute path, such as /Volumes/dev/my-app. “~” is not expanded.' };
+    return {
+      ok: false,
+      message: 'Use an absolute path, such as /Volumes/dev/my-app. “~” is not expanded.',
+    };
   }
-  if (path.split(/[\\/]+/).includes('..')) return { ok: false, message: 'The path must not contain “..”.' };
+  if (path.split(/[\\/]+/).includes('..'))
+    return { ok: false, message: 'The path must not contain “..”.' };
   return { ok: true, path };
 }
 
@@ -855,10 +993,13 @@ export function localReadSummary(input: {
   checkedOutBranch?: string | null | undefined;
   dirtyCount?: number | null | undefined;
 }): string {
-  const head = input.sha ? `Reads commit ${shortSha(input.sha)} on branch ${input.branch}` : `Reads the latest commit on branch ${input.branch}`;
+  const head = input.sha
+    ? `Reads commit ${shortSha(input.sha)} on branch ${input.branch}`
+    : `Reads the latest commit on branch ${input.branch}`;
   const { dirtyCount, checkedOutBranch } = input;
   if (dirtyCount === undefined) return `${head}. Uncommitted changes in the folder are never read.`;
-  if (dirtyCount === null) return `${head}. Uncommitted changes are never read (they could not be counted).`;
+  if (dirtyCount === null)
+    return `${head}. Uncommitted changes are never read (they could not be counted).`;
   if (checkedOutBranch !== undefined && checkedOutBranch !== input.branch) {
     return `${head}. The folder has ${checkedOutBranch ?? 'a detached HEAD'} checked out; only committed work on ${input.branch} is read.`;
   }
@@ -867,17 +1008,24 @@ export function localReadSummary(input: {
 }
 
 /** The notice for a server where local clones are off: what to set, in the words of the setting. */
-export function localDisabledNotice(config: Pick<LocalConfig, 'enabled' | 'envName' | 'reason' | 'message'>): { title: string; body: string; envName: string } {
+export function localDisabledNotice(
+  config: Pick<LocalConfig, 'enabled' | 'envName' | 'reason' | 'message'>,
+): { title: string; body: string; envName: string } {
   const reason = config.reason;
   if (reason === 'reads_api') {
     return {
       title: 'Local clones are off: MRM_READS=api',
-      body: config.message ?? 'MRM_READS=api means git is never run, so local clones cannot be read.',
+      body:
+        config.message ?? 'MRM_READS=api means git is never run, so local clones cannot be read.',
       envName: config.envName,
     };
   }
   if (reason === 'git_missing') {
-    return { title: 'git is not available on the server', body: config.message ?? 'Install git or set MRM_GIT_PATH.', envName: config.envName };
+    return {
+      title: 'git is not available on the server',
+      body: config.message ?? 'Install git or set MRM_GIT_PATH.',
+      envName: config.envName,
+    };
   }
   return {
     title: 'Local clones are not enabled',
@@ -933,8 +1081,12 @@ export type ConnectChoice =
       replaces: string | null;
     };
 
-const sameRepo = (a: { owner: string; repo: string }, b: { owner: string | null; repo: string | null }) =>
-  a.owner.toLowerCase() === (b.owner ?? '').toLowerCase() && a.repo.toLowerCase() === (b.repo ?? '').toLowerCase();
+const sameRepo = (
+  a: { owner: string; repo: string },
+  b: { owner: string | null; repo: string | null },
+) =>
+  a.owner.toLowerCase() === (b.owner ?? '').toLowerCase() &&
+  a.repo.toLowerCase() === (b.repo ?? '').toLowerCase();
 
 /**
  * What a checked folder can be used for: attached to a connected GitHub repository (the one its
@@ -960,14 +1112,30 @@ export function connectChoices(
       replaces: r.local && r.local.path !== check.realPath ? r.local.path : null,
     }),
   );
-  attach.sort((a, b) => Number(b.kind === 'attach' && b.recommended) - Number(a.kind === 'attach' && a.recommended));
+  attach.sort(
+    (a, b) =>
+      Number(b.kind === 'attach' && b.recommended) - Number(a.kind === 'attach' && a.recommended),
+  );
   if (fixed) return attach;
-  return [...attach, { kind: 'local_only', id: 'local-only', label: 'Connect as a local-only repository', recommended: false, needsConfirm: false }];
+  return [
+    ...attach,
+    {
+      kind: 'local_only',
+      id: 'local-only',
+      label: 'Connect as a local-only repository',
+      recommended: false,
+      needsConfirm: false,
+    },
+  ];
 }
 
 /** The choice to preselect: the repository the origin names, else local-only. */
 export function defaultChoice(choices: readonly ConnectChoice[]): ConnectChoice | undefined {
-  return choices.find((c) => c.kind === 'attach' && c.recommended) ?? choices.find((c) => c.kind === 'local_only') ?? choices[0];
+  return (
+    choices.find((c) => c.kind === 'attach' && c.recommended) ??
+    choices.find((c) => c.kind === 'local_only') ??
+    choices[0]
+  );
 }
 
 /** What the primary button says for a choice. */
@@ -982,7 +1150,8 @@ export function choiceNote(choice: ConnectChoice, remote: LocalCheck['remote']):
     return 'No GitHub connection: the folder is the repository. Pull requests are not available for it yet.';
   }
   const replaces = choice.replaces ? ` Replaces its current local clone (${choice.replaces}).` : '';
-  if (choice.recommended) return `The clone’s origin points at this repository. Applying still opens a pull request on GitHub.${replaces}`;
+  if (choice.recommended)
+    return `The clone’s origin points at this repository. Applying still opens a pull request on GitHub.${replaces}`;
   if (choice.needsConfirm && remote) {
     return `The clone’s origin is ${remote.owner}/${remote.repo}, a different repository. Attach only if it is a fork or mirror of this one.${replaces}`;
   }

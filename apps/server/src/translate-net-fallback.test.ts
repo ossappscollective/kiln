@@ -20,7 +20,10 @@ test('a refused first address falls back to the next checked address', async () 
         { address: '127.0.0.1', family: 4 },
       ],
     });
-    const res = await guard.fetch(`http://localhost:${port}/translate`, { method: 'POST', body: '{}' });
+    const res = await guard.fetch(`http://localhost:${port}/translate`, {
+      method: 'POST',
+      body: '{}',
+    });
     assert.equal(res.status, 200);
     assert.equal(((await res.json()) as { translatedText: string }).translatedText, 'hallo');
   } finally {
@@ -36,6 +39,8 @@ test('a blocked address in any answer still refuses the whole host', async () =>
       { address: '169.254.169.254', family: 4 },
     ],
   });
-  await assert.rejects(guard.fetch('http://localhost:5801/translate', { method: 'POST', body: '{}' }));
+  await assert.rejects(
+    guard.fetch('http://localhost:5801/translate', { method: 'POST', body: '{}' }),
+  );
   assert.ok(guard.blocked());
 });

@@ -2,17 +2,32 @@ import { createHash } from 'node:crypto';
 import {
   AnalyticsError,
   type AnalyticsPoint,
-  type ParseStats,
   appleReportLabels,
   columnIndex,
   mapAppleSalesTable,
   mapAppleTable,
   mapPlayConsoleFile,
+  type ParseStats,
   readTable,
 } from '@mrm/connectors';
-import { type ActorType, type AnalyticsSource, analyticsErrorMessages, analyticsLimits, isApplePlatform, metricInfo, toMicro } from '@mrm/core';
+import {
+  type ActorType,
+  type AnalyticsSource,
+  analyticsErrorMessages,
+  analyticsLimits,
+  isApplePlatform,
+  metricInfo,
+  toMicro,
+} from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { getAppConfig, listReportRequests, recordRun, saveSourceState, setAppleMode, upsertPoints } from './analytics-store.ts';
+import {
+  getAppConfig,
+  listReportRequests,
+  recordRun,
+  saveSourceState,
+  setAppleMode,
+  upsertPoints,
+} from './analytics-store.ts';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
@@ -48,18 +63,41 @@ export type ImportPlan = {
   points: number;
   metrics: { metric: string; label: string; days: number; total: number | null }[];
   /** A few normalised rows. Values the file held are never repeated except as the numbers they became. */
-  sample: { date: string; metric: string; value: number; dimension?: { type: string; value: string } }[];
+  sample: {
+    date: string;
+    metric: string;
+    value: number;
+    dimension?: { type: string; value: string };
+  }[];
   notes: string[];
 };
 
-const hashOf = (appId: string, platform: string, source: string, points: AnalyticsPoint[]): string => {
+const hashOf = (
+  appId: string,
+  platform: string,
+  source: string,
+  points: AnalyticsPoint[],
+): string => {
   const rows = points
-    .map((p) => [p.date, p.metric, p.dimension?.type ?? '', p.dimension?.value ?? '', toMicro(p.value)] as const)
+    .map(
+      (p) =>
+        [
+          p.date,
+          p.metric,
+          p.dimension?.type ?? '',
+          p.dimension?.value ?? '',
+          toMicro(p.value),
+        ] as const,
+    )
     .sort((a, b) => (a[0] + a[1] + a[2] + a[3] < b[0] + b[1] + b[2] + b[3] ? -1 : 1));
-  return createHash('sha256').update(JSON.stringify({ v: 1, appId, platform, source, rows })).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify({ v: 1, appId, platform, source, rows }))
+    .digest('hex');
 };
 
-type Parsed = { ok: true; plan: ImportPlan; points: AnalyticsPoint[]; confirmHash: string } | Failure;
+type Parsed =
+  | { ok: true; plan: ImportPlan; points: AnalyticsPoint[]; confirmHash: string }
+  | Failure;
 
 /** Parses a file for an app. Pure with respect to storage: nothing is written. */
 export async function parseImport(
@@ -70,7 +108,11 @@ export async function parseImport(
   if (!app) return failure(404, 'not_found');
   const android = !isApplePlatform(app.platform);
   const platform = app.platform === 'macos' ? ('macos' as const) : ('ios' as const);
-  const playLabels = { installs: 'Play Console installs', ratings: 'Play Console ratings', store_performance: 'Play Console store listing performance' } as const;
+  const playLabels = {
+    installs: 'Play Console installs',
+    ratings: 'Play Console ratings',
+    store_performance: 'Play Console store listing performance',
+  } as const;
   try {
     const table = await readTable(input.bytes, {
       maxFileBytes: analyticsLimits.maxFileBytes,
@@ -89,24 +131,41 @@ export async function parseImport(
     if (android) {
       // A Play Console statistics CSV (Download reports > Statistics): the same columns as the monthly files of the reports bucket.
       const parsed = mapPlayConsoleFile(table, app.identifier);
-      if (!parsed) return failure(422, 'unknown_report', 'This file is not a Play Console statistics report (installs, ratings or store listing). Download it from Play Console under Download reports, Statistics.');
+      if (!parsed)
+        return failure(
+          422,
+          'unknown_report',
+          'This file is not a Play Console statistics report (installs, ratings or store listing). Download it from Play Console under Download reports, Statistics.',
+        );
       source = 'play_reports';
       kind = parsed.report;
       label = playLabels[parsed.report];
       points = parsed.points;
       stats = parsed.stats;
-      dateFrom = parsed.points.reduce<string | null>((a, p) => (a === null || p.date < a ? p.date : a), null);
-      dateTo = parsed.points.reduce<string | null>((a, p) => (a === null || p.date > a ? p.date : a), null);
-      notes = ['Imported numbers never replace numbers Google Cloud Storage delivered, and the same file twice stores nothing new.'];
+      dateFrom = parsed.points.reduce<string | null>(
+        (a, p) => (a === null || p.date < a ? p.date : a),
+        null,
+      );
+      dateTo = parsed.points.reduce<string | null>(
+        (a, p) => (a === null || p.date > a ? p.date : a),
+        null,
+      );
+      notes = [
+        'Imported numbers never replace numbers Google Cloud Storage delivered, and the same file twice stores nothing new.',
+      ];
     } else if (cols.has('developer proceeds') && cols.has('apple identifier')) {
-      if (!app.storeAppId) return failure(422, 'app_not_synced', analyticsErrorMessages.app_not_synced);
+      if (!app.storeAppId)
+        return failure(422, 'app_not_synced', analyticsErrorMessages.app_not_synced);
       const parsed = mapAppleSalesTable(table, { appleId: app.storeAppId, platform });
       source = 'apple_sales';
       kind = 'sales_summary';
       label = 'Sales and Trends summary';
       ({ points, stats, dateFrom, dateTo, notes } = parsed);
     } else {
-      const parsed = mapAppleTable(table, { ...(input.fileName ? { reportName: input.fileName } : {}), platform });
+      const parsed = mapAppleTable(table, {
+        ...(input.fileName ? { reportName: input.fileName } : {}),
+        platform,
+      });
       source = 'apple_analytics';
       kind = parsed.kind;
       label = appleReportLabels[parsed.kind];
@@ -135,12 +194,20 @@ export async function parseImport(
         metric,
         label: (metricInfo as Record<string, { label: string }>)[metric]?.label ?? metric,
         days: m.days.size,
-        total: metricInfo[metric as keyof typeof metricInfo]?.aggregation === 'mean' ? null : m.total,
+        total:
+          metricInfo[metric as keyof typeof metricInfo]?.aggregation === 'mean' ? null : m.total,
       })),
       sample: [...points]
         .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.metric < b.metric ? -1 : 1))
         .slice(0, 10)
-        .map((p) => ({ date: p.date, metric: p.metric, value: p.value, ...(p.dimension ? { dimension: { type: p.dimension.type, value: p.dimension.value } } : {}) })),
+        .map((p) => ({
+          date: p.date,
+          metric: p.metric,
+          value: p.value,
+          ...(p.dimension
+            ? { dimension: { type: p.dimension.type, value: p.dimension.value } }
+            : {}),
+        })),
       notes,
     };
     return { ok: true, plan, points, confirmHash: hashOf(app.id, app.platform, source, points) };
@@ -153,7 +220,7 @@ export async function parseImport(
 export async function previewImport(
   db: Database,
   input: { workspaceId: string; appId: string; bytes: Uint8Array; fileName?: string },
-): Promise<({ ok: true; plan: ImportPlan; confirmHash: string }) | Failure> {
+): Promise<{ ok: true; plan: ImportPlan; confirmHash: string } | Failure> {
   const parsed = await parseImport(db, input);
   if (!parsed.ok) return parsed;
   return { ok: true, plan: parsed.plan, confirmHash: parsed.confirmHash };
@@ -174,15 +241,28 @@ export type ImportResult = {
 export async function applyImport(
   db: Database,
   now: () => number,
-  input: { workspaceId: string; appId: string; bytes: Uint8Array; fileName?: string; confirmHash: string },
+  input: {
+    workspaceId: string;
+    appId: string;
+    bytes: Uint8Array;
+    fileName?: string;
+    confirmHash: string;
+  },
   actor: Actor,
 ): Promise<ImportResult | Failure> {
   const parsed = await parseImport(db, input);
   if (!parsed.ok) return parsed;
   if (parsed.confirmHash !== input.confirmHash) {
     return {
-      ...failure(409, 'confirm_mismatch', 'The file is not the one that was previewed. Preview it again and confirm.'),
-      body: { error: 'confirm_mismatch', message: 'The file is not the one that was previewed. Preview it again and confirm.' },
+      ...failure(
+        409,
+        'confirm_mismatch',
+        'The file is not the one that was previewed. Preview it again and confirm.',
+      ),
+      body: {
+        error: 'confirm_mismatch',
+        message: 'The file is not the one that was previewed. Preview it again and confirm.',
+      },
     };
   }
   const app = await getApp(db, input.workspaceId, input.appId);
@@ -192,7 +272,15 @@ export async function applyImport(
   return db.transaction(async (tx): Promise<ImportResult | Failure> => {
     const written = await upsertPoints(
       tx,
-      { workspaceId: input.workspaceId, appId: app.id, platform: app.platform, source: parsed.plan.source, processingDate: '', origin: 'import', now: startedAt },
+      {
+        workspaceId: input.workspaceId,
+        appId: app.id,
+        platform: app.platform,
+        source: parsed.plan.source,
+        processingDate: '',
+        origin: 'import',
+        now: startedAt,
+      },
       parsed.points,
     );
     const at = now();
@@ -223,8 +311,18 @@ export async function applyImport(
     });
     // An app with no report request works from imported files.
     const config = await getAppConfig(tx, input.workspaceId, app.id);
-    if (parsed.plan.source === 'apple_analytics' && config.appleMode === 'off' && (await listReportRequests(tx, input.workspaceId, app.id)).length === 0) {
-      await setAppleMode(tx, { workspaceId: input.workspaceId, appId: app.id, mode: 'import', by: actor.id, now: at });
+    if (
+      parsed.plan.source === 'apple_analytics' &&
+      config.appleMode === 'off' &&
+      (await listReportRequests(tx, input.workspaceId, app.id)).length === 0
+    ) {
+      await setAppleMode(tx, {
+        workspaceId: input.workspaceId,
+        appId: app.id,
+        mode: 'import',
+        by: actor.id,
+        now: at,
+      });
     }
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -232,7 +330,14 @@ export async function applyImport(
       action: 'analytics.import',
       target: { type: 'app', id: app.id },
       // Ids, the kind of report and counts: never a row, never the file name.
-      detail: { source: parsed.plan.source, report: parsed.plan.report.kind, points: written.offered, written: written.written, dateFrom: parsed.plan.dateFrom, dateTo: parsed.plan.dateTo },
+      detail: {
+        source: parsed.plan.source,
+        report: parsed.plan.report.kind,
+        points: written.offered,
+        written: written.written,
+        dateFrom: parsed.plan.dateFrom,
+        dateTo: parsed.plan.dateTo,
+      },
       at,
     });
     if (written.written > 0) {
@@ -240,7 +345,13 @@ export async function applyImport(
         workspaceId: input.workspaceId,
         type: 'analytics.synced',
         subject: { appId: app.id },
-        payload: { appId: app.id, platform: app.platform, trigger: 'import', pointsWritten: written.written, sources: [{ source: parsed.plan.source, status: 'ok', points: written.written }] },
+        payload: {
+          appId: app.id,
+          platform: app.platform,
+          trigger: 'import',
+          pointsWritten: written.written,
+          sources: [{ source: parsed.plan.source, status: 'ok', points: written.written }],
+        },
         at,
       });
     }

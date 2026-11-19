@@ -1,4 +1,4 @@
-import { type Role, decideRemoval, decideRoleChange, isRole } from '@mrm/core';
+import { decideRemoval, decideRoleChange, isRole, type Role } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import type { Actor } from './invitations.ts';
@@ -17,7 +17,14 @@ export async function listMembers(sql: Sql, workspaceId: string): Promise<Member
   return rows
     .flatMap((r) =>
       isRole(r.role)
-        ? [{ userId: String(r.id), email: String(r.email), displayName: String(r.display_name), role: r.role }]
+        ? [
+            {
+              userId: String(r.id),
+              email: String(r.email),
+              displayName: String(r.display_name),
+              role: r.role,
+            },
+          ]
         : [],
     )
     .sort(
@@ -28,7 +35,9 @@ export async function listMembers(sql: Sql, workspaceId: string): Promise<Member
     );
 }
 
-export type MemberChange = { ok: true } | { ok: false; reason: 'not_found' | 'forbidden' | 'last_owner' };
+export type MemberChange =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'last_owner' };
 
 /**
  * Membership changes in one workspace run one at a time (a row lock on Postgres, the single
@@ -78,11 +87,10 @@ export async function changeMemberRole(
     if (!decision.ok) return decision;
     if (targetRole === input.role) return { ok: true };
 
-    await tx.execute('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?', [
-      input.role,
-      input.workspaceId,
-      input.userId,
-    ]);
+    await tx.execute(
+      'UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?',
+      [input.role, input.workspaceId, input.userId],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: { type: 'user', id: actor.id },

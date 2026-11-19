@@ -24,7 +24,12 @@ export type ToastOptions = {
 };
 
 const MAX_VISIBLE = 4;
-const DEFAULT_TIMEOUT: Record<ToastKind, number> = { info: 5000, success: 4000, warning: 8000, error: 0 };
+const DEFAULT_TIMEOUT: Record<ToastKind, number> = {
+  info: 5000,
+  success: 4000,
+  warning: 8000,
+  error: 0,
+};
 
 let items = $state<Toast[]>([]);
 let nextId = 1;
@@ -39,9 +44,22 @@ function dismiss(id: number): void {
 
 function push(kind: ToastKind, message: string, options: ToastOptions = {}): number {
   const id = nextId++;
-  items = [...items, { id, kind, message, title: options.title, ...(options.action ? { action: options.action } : {}) }].slice(-MAX_VISIBLE);
+  items = [
+    ...items,
+    {
+      id,
+      kind,
+      message,
+      title: options.title,
+      ...(options.action ? { action: options.action } : {}),
+    },
+  ].slice(-MAX_VISIBLE);
   const timeout = options.timeout ?? DEFAULT_TIMEOUT[kind];
-  if (timeout > 0) timers.set(id, setTimeout(() => dismiss(id), timeout));
+  if (timeout > 0)
+    timers.set(
+      id,
+      setTimeout(() => dismiss(id), timeout),
+    );
   return id;
 }
 

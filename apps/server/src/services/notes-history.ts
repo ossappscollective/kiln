@@ -1,7 +1,7 @@
 import type { NotesHistoryRead } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
-import { type StoreConnectContext, readNotesHistoryOf } from './store-draft.ts';
+import { readNotesHistoryOf, type StoreConnectContext } from './store-draft.ts';
 import { timedCache } from './timed-cache.ts';
 
 /**
@@ -50,7 +50,14 @@ export type NotesHistory = {
   truncated: boolean;
   limit: number;
   /** What the store read did: `read` false and an `error` code when it failed (the plans are still listed). */
-  store: { read: boolean; error: string | null; cached: boolean; versionsRead: number; failed: number; truncated: boolean };
+  store: {
+    read: boolean;
+    error: string | null;
+    cached: boolean;
+    versionsRead: number;
+    failed: number;
+    truncated: boolean;
+  };
   generatedAt: number;
 };
 
@@ -75,9 +82,13 @@ export async function notesHistory(
 ): Promise<NotesHistory> {
   const { app } = input;
   const at = ctx.now();
-  const limit = Math.min(Math.max(Math.trunc(input.limit ?? DEFAULT_NOTES_HISTORY_LIMIT), 1), MAX_NOTES_HISTORY_LIMIT);
+  const limit = Math.min(
+    Math.max(Math.trunc(input.limit ?? DEFAULT_NOTES_HISTORY_LIMIT), 1),
+    MAX_NOTES_HISTORY_LIMIT,
+  );
   const store = app.platform === 'android' ? ('googleplay' as const) : ('appstoreconnect' as const);
-  const wantedLocale = input.locale === undefined || input.locale === '' ? undefined : norm(input.locale);
+  const wantedLocale =
+    input.locale === undefined || input.locale === '' ? undefined : norm(input.locale);
 
   const cacheKey = `${input.workspaceId}\u0000${app.id}\u0000${wantedLocale ?? ''}`;
   let read = cache.get(cacheKey, at);
@@ -88,7 +99,12 @@ export async function notesHistory(
     if (refused) {
       error = refused.error;
     } else {
-      const done = await readNotesHistoryOf(ctx, { workspaceId: input.workspaceId, app, actor: input.actor, ...(input.locale ? { locale: input.locale } : {}) });
+      const done = await readNotesHistoryOf(ctx, {
+        workspaceId: input.workspaceId,
+        app,
+        actor: input.actor,
+        ...(input.locale ? { locale: input.locale } : {}),
+      });
       if (done.ok) {
         read = done.read;
         cache.set(cacheKey, read, at);
@@ -105,28 +121,53 @@ export async function notesHistory(
     const key = keyOf(text);
     const found = merged.get(key);
     if (!found) {
-      merged.set(key, { text: key === text ? text : text.trim(), truncated, locales: [use.locale], lastUsedAt: use.at, uses: [use] });
+      merged.set(key, {
+        text: key === text ? text : text.trim(),
+        truncated,
+        locales: [use.locale],
+        lastUsedAt: use.at,
+        uses: [use],
+      });
       return;
     }
     if (!found.locales.includes(use.locale)) found.locales.push(use.locale);
     found.truncated = found.truncated || truncated;
-    if (use.at !== null && (found.lastUsedAt === null || use.at > found.lastUsedAt)) found.lastUsedAt = use.at;
+    if (use.at !== null && (found.lastUsedAt === null || use.at > found.lastUsedAt))
+      found.lastUsedAt = use.at;
     found.uses.push(use);
   };
   for (const e of read?.entries ?? []) {
     // The connector narrows by language already; a store that did not is narrowed here too.
     if (wantedLocale !== undefined && norm(e.locale) !== wantedLocale) continue;
-    add(e.text, e.truncated, { source: e.source, locale: e.locale, version: e.version, track: e.track, state: e.state, at: e.at });
+    add(e.text, e.truncated, {
+      source: e.source,
+      locale: e.locale,
+      version: e.version,
+      track: e.track,
+      state: e.state,
+      at: e.at,
+    });
   }
   for (const p of await planNotes(ctx.db, input.workspaceId, app.id, wantedLocale)) {
-    add(p.text, false, { source: 'plan', locale: p.locale, version: p.version, track: null, state: null, at: p.at });
+    add(p.text, false, {
+      source: 'plan',
+      locale: p.locale,
+      version: p.version,
+      track: null,
+      state: null,
+      at: p.at,
+    });
   }
 
   const order = [...merged.values()];
   // Newest first. A text with no date at all (Google Play) follows the dated ones, in the order the store listed it.
   const sorted = order
     .map((n, i) => ({ n, i }))
-    .sort((a, b) => (b.n.lastUsedAt ?? Number.NEGATIVE_INFINITY) - (a.n.lastUsedAt ?? Number.NEGATIVE_INFINITY) || a.i - b.i)
+    .sort(
+      (a, b) =>
+        (b.n.lastUsedAt ?? Number.NEGATIVE_INFINITY) -
+          (a.n.lastUsedAt ?? Number.NEGATIVE_INFINITY) || a.i - b.i,
+    )
     .map((x) => x.n);
   for (const n of sorted) {
     n.uses.sort((a, b) => (b.at ?? Number.NEGATIVE_INFINITY) - (a.at ?? Number.NEGATIVE_INFINITY));
@@ -160,5 +201,10 @@ async function planNotes(sql: Sql, workspaceId: string, appId: string, locale: s
   );
   return rows
     .filter((r) => locale === undefined || norm(String(r.locale)) === locale)
-    .map((r) => ({ locale: String(r.locale), text: String(r.text), version: String(r.version), at: Number(r.updated_at) }));
+    .map((r) => ({
+      locale: String(r.locale),
+      text: String(r.text),
+      version: String(r.version),
+      at: Number(r.updated_at),
+    }));
 }

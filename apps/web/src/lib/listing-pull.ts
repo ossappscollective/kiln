@@ -1,4 +1,4 @@
-import { type Platform, type Role, can } from '@mrm/core';
+import { can, type Platform, type Role } from '@mrm/core';
 import type { ApiError } from './api.ts';
 import type {
   DriftField,
@@ -32,7 +32,8 @@ export function canPullField(field: Pick<DriftField, 'status' | 'live' | 'repo'>
 }
 
 /** The key a field has in a selection. */
-export const pullKey = (field: Pick<DriftField, 'locale' | 'field'>): string => `${field.locale}\u0000${field.field}`;
+export const pullKey = (field: Pick<DriftField, 'locale' | 'field'>): string =>
+  `${field.locale}\u0000${field.field}`;
 
 /** The fields of the drift view that can be pulled, in display order. */
 export function pullableFields(locales: readonly DriftLocale[]): DriftField[] {
@@ -41,15 +42,22 @@ export function pullableFields(locales: readonly DriftLocale[]): DriftField[] {
   return out;
 }
 
-export const pullableInLocale = (locale: DriftLocale): DriftField[] => locale.fields.filter(canPullField);
+export const pullableInLocale = (locale: DriftLocale): DriftField[] =>
+  locale.fields.filter(canPullField);
 
 /** The selected fields that can still be pulled (a reload may have changed a row), in display order. */
-export function selectedFields(locales: readonly DriftLocale[], selected: ReadonlySet<string>): DriftField[] {
+export function selectedFields(
+  locales: readonly DriftLocale[],
+  selected: ReadonlySet<string>,
+): DriftField[] {
   return pullableFields(locales).filter((f) => selected.has(pullKey(f)));
 }
 
 /** The "select all differences" shortcut: everything pullable, or nothing when it is all selected already. */
-export function toggleAllDifferences(locales: readonly DriftLocale[], selected: ReadonlySet<string>): Set<string> {
+export function toggleAllDifferences(
+  locales: readonly DriftLocale[],
+  selected: ReadonlySet<string>,
+): Set<string> {
   const all = pullableFields(locales).map(pullKey);
   const every = all.length > 0 && all.every((key) => selected.has(key));
   return every ? new Set<string>() : new Set(all);
@@ -99,7 +107,10 @@ export type PullRequestOptions = {
 };
 
 /** The exact fields the person selected, as the request the server takes. */
-export function buildPullRequest(fields: readonly DriftField[], options: PullRequestOptions): PullRequestBody {
+export function buildPullRequest(
+  fields: readonly DriftField[],
+  options: PullRequestOptions,
+): PullRequestBody {
   const summary = options.summary?.trim();
   return {
     items: fields.map((f) => ({ locale: f.locale, field: f.field })),
@@ -119,14 +130,19 @@ export function selectionText(fields: readonly Pick<DriftField, 'locale'>[]): st
 
 /** The suggested summary of the change set, which the person may edit. */
 export function defaultPullSummary(appName: string, platform: Platform): string {
-  return `Pull the ${platform === 'android' ? 'Google Play' : platform === 'macos' ? 'Mac App Store' : 'App Store'} listing of ${appName} into the repository`.slice(0, 200);
+  return `Pull the ${platform === 'android' ? 'Google Play' : platform === 'macos' ? 'Mac App Store' : 'App Store'} listing of ${appName} into the repository`.slice(
+    0,
+    200,
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
 // The target, in words
 
 export const sourceKindLabel = (source: ListingSourceKind): string =>
-  source === 'expo-store-config' ? 'Expo store config (store.config.json)' : 'fastlane metadata files';
+  source === 'expo-store-config'
+    ? 'Expo store config (store.config.json)'
+    : 'fastlane metadata files';
 
 /**
  * Where the listing would be written, judged from a stored scan (the real choice is made when the
@@ -140,9 +156,13 @@ export function detectedPullSource(
   if (platform !== 'android') {
     const config = detection.expo?.storeConfigs.find((c) => !c.dynamic);
     if (config) return { source: 'expo-store-config', path: config.path };
-    return detection.paths.iosMetadata ? { source: 'fastlane', path: detection.paths.iosMetadata } : null;
+    return detection.paths.iosMetadata
+      ? { source: 'fastlane', path: detection.paths.iosMetadata }
+      : null;
   }
-  return detection.paths.androidMetadata ? { source: 'fastlane', path: detection.paths.androidMetadata } : null;
+  return detection.paths.androidMetadata
+    ? { source: 'fastlane', path: detection.paths.androidMetadata }
+    : null;
 }
 
 /** "acme/app, branch main, store.config.json". */
@@ -181,8 +201,10 @@ export function groupSkipped(skipped: readonly PullSkip[]): SkipGroup[] {
 }
 
 /** What one skipped item names: "en-US, Subtitle", or just the locale for a whole locale. */
-export const skipSubject = (skip: Pick<PullSkip, 'locale' | 'field'>, labelOf: (field: string) => string): string =>
-  skip.field === undefined ? skip.locale : `${skip.locale}, ${labelOf(skip.field)}`;
+export const skipSubject = (
+  skip: Pick<PullSkip, 'locale' | 'field'>,
+  labelOf: (field: string) => string,
+): string => (skip.field === undefined ? skip.locale : `${skip.locale}, ${labelOf(skip.field)}`);
 
 export type PullSummary = {
   tone: 'ok' | 'info' | 'warn';
@@ -196,7 +218,9 @@ export function summarizePull(result: PullResult): PullSummary {
   const details: string[] = [];
   const skipped = result.skipped.length;
   if (skipped > 0) {
-    details.push(`${skipped} ${skipped === 1 ? 'field was' : 'fields were'} left out. See why below.`);
+    details.push(
+      `${skipped} ${skipped === 1 ? 'field was' : 'fields were'} left out. See why below.`,
+    );
   }
   if (result.changeSet === null) {
     return {
@@ -224,12 +248,17 @@ export function candidatesOf(error: Pick<ApiError, 'code' | 'body'>): PullCandid
   if (error.code !== 'target_required') return [];
   const list = error.body.candidates;
   return Array.isArray(list)
-    ? (list.filter((c): c is PullCandidate => typeof c === 'object' && c !== null && typeof (c as PullCandidate).id === 'string'))
+    ? list.filter(
+        (c): c is PullCandidate =>
+          typeof c === 'object' && c !== null && typeof (c as PullCandidate).id === 'string',
+      )
     : [];
 }
 
 /** A sentence a person can act on for the ways a pull can fail. */
-export function pullErrorMessage(error: Pick<ApiError, 'code' | 'status' | 'message' | 'retryAfter'>): string {
+export function pullErrorMessage(
+  error: Pick<ApiError, 'code' | 'status' | 'message' | 'retryAfter'>,
+): string {
   switch (error.code) {
     case 'no_repository':
       return 'This app is not linked to a repository, or the repository was disconnected.';

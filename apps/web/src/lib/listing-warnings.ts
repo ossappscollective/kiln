@@ -58,4 +58,5 @@ export function warningGroups(sources: readonly WarningSource[]): WarningGroup[]
 }
 
 /** How many separate problems the groups hold. */
-export const warningCountOf = (groups: readonly WarningGroup[]): number => groups.reduce((n, g) => n + g.lines.length, 0);
+export const warningCountOf = (groups: readonly WarningGroup[]): number =>
+  groups.reduce((n, g) => n + g.lines.length, 0);

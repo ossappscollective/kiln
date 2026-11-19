@@ -249,12 +249,12 @@ Apple's OpenAPI spec when someone has network access. Pages (the `.md` form of e
 [App Store Version Localizations](https://developer.apple.com/documentation/appstoreconnectapi/app-store-version-localizations),
 and the three endpoint pages below (parameters from the JSON behind each page).
 
-| Request | What it gives | Query parameters Apple documents | Sent |
-| --- | --- | --- | --- |
-| `GET /v1/apps/{id}/appStoreVersions` | version string and state, both live and editable | see above | `limit` |
-| `GET /v1/apps/{id}/appInfos` | the app info(s) of the app, with their state | `fields[appInfos]`, `limit` (max **200**), `include` (`app`, `ageRatingDeclaration`, `appInfoLocalizations`, the category relationships), `fields[apps]`, `fields[appInfoLocalizations]`, `fields[appCategories]`, `fields[ageRatingDeclarations]`, `limit[appInfoLocalizations]` (max **50**). No `sort`, no `filter` | `limit` |
-| `GET /v1/appInfos/{id}/appInfoLocalizations` | per locale: `name`, `subtitle`, `privacyPolicyUrl`, `privacyChoicesUrl`, `privacyPolicyText` | `fields[appInfoLocalizations]`, `fields[appInfos]`, `filter[locale]`, `include` (`appInfo`), `limit` (max **200**). No `sort` | `limit` |
-| `GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations` | per locale: `description`, `keywords`, `marketingUrl`, `promotionalText`, `supportUrl`, `whatsNew` | `filter[locale]`, `fields[...]` of five types, `include` (`appStoreVersion`, `appScreenshotSets`, `appPreviewSets`, `searchKeywords`), `limit` (max **200**), `limit[appScreenshotSets]`, `limit[appPreviewSets]`, `limit[searchKeywords]` (each max **50**). No `sort` | `limit` |
+| Request                                                      | What it gives                                                                                      | Query parameters Apple documents                                                                                                                                                                                                                                                                                       | Sent    |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `GET /v1/apps/{id}/appStoreVersions`                         | version string and state, both live and editable                                                   | see above                                                                                                                                                                                                                                                                                                              | `limit` |
+| `GET /v1/apps/{id}/appInfos`                                 | the app info(s) of the app, with their state                                                       | `fields[appInfos]`, `limit` (max **200**), `include` (`app`, `ageRatingDeclaration`, `appInfoLocalizations`, the category relationships), `fields[apps]`, `fields[appInfoLocalizations]`, `fields[appCategories]`, `fields[ageRatingDeclarations]`, `limit[appInfoLocalizations]` (max **50**). No `sort`, no `filter` | `limit` |
+| `GET /v1/appInfos/{id}/appInfoLocalizations`                 | per locale: `name`, `subtitle`, `privacyPolicyUrl`, `privacyChoicesUrl`, `privacyPolicyText`       | `fields[appInfoLocalizations]`, `fields[appInfos]`, `filter[locale]`, `include` (`appInfo`), `limit` (max **200**). No `sort`                                                                                                                                                                                          | `limit` |
+| `GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations` | per locale: `description`, `keywords`, `marketingUrl`, `promotionalText`, `supportUrl`, `whatsNew` | `filter[locale]`, `fields[...]` of five types, `include` (`appStoreVersion`, `appScreenshotSets`, `appPreviewSets`, `searchKeywords`), `limit` (max **200**), `limit[appScreenshotSets]`, `limit[appPreviewSets]`, `limit[searchKeywords]` (each max **50**). No `sort`                                                | `limit` |
 
 Verified on the pages:
 
@@ -336,7 +336,7 @@ one was reached:
    package cannot be a real Play app, so nothing is created or touched). If the API is enabled and the
    token is accepted, Google answers 403 or 404 for it, and the code reports "API reachable, access to
    apps **not proven**". A 403 "API not enabled", a 401 or `projectNotLinked` is a failure.
-   *This level relies on error shapes that are not on a vendor page; see below.*
+   _This level relies on error shapes that are not on a vendor page; see below._
 3. With a package name (`options.packageName`), `edits.insert` then `edits.delete` for that app. Success
    proves the key, the API and that the account may open an edit for that app (it was invited).
 
@@ -411,7 +411,7 @@ Verified:
 
 Not verified / limits of the mapping:
 
-- **`userFraction` semantics.** The page says what it is, not whether Play reports the *current* rollout
+- **`userFraction` semantics.** The page says what it is, not whether Play reports the _current_ rollout
   percentage (the number a person set in the Console) or something coarser, nor how a halted release keeps
   it. It is passed through unchanged as 0 to 1; the UI should show it as "eligible users", not "installed".
 - **Review is not visible in the edits API.** A `draft` release may be unsent, in review or approved, and

@@ -1,4 +1,10 @@
-import { type Platform, type ReleaseState, isApplePlatform, platformLabel, sortPlatforms } from '@mrm/core';
+import {
+  isApplePlatform,
+  type Platform,
+  platformLabel,
+  type ReleaseState,
+  sortPlatforms,
+} from '@mrm/core';
 import { parseViewPath } from './app-scope.ts';
 import { compareReleases, compareVersions } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
@@ -21,7 +27,8 @@ export type HeaderParams = { version: string | null; locale: string | null };
 /** The version and locale the address asks for. Empty values read as nothing. */
 export function headerParams(hash: string): HeaderParams {
   const { query } = parseViewPath(hash);
-  const clean = (value: string | null): string | null => (value === null || value.trim() === '' ? null : value.trim());
+  const clean = (value: string | null): string | null =>
+    value === null || value.trim() === '' ? null : value.trim();
   return { version: clean(query.get('version')), locale: clean(query.get('locale')) };
 }
 
@@ -63,7 +70,10 @@ export function versionState(status: ReleaseState | null, platform: Platform): V
   switch (status) {
     case 'draft':
     case 'build_chosen':
-      return { label: isApplePlatform(platform) ? 'Prepare for submission' : 'Draft', tone: 'neutral' };
+      return {
+        label: isApplePlatform(platform) ? 'Prepare for submission' : 'Draft',
+        tone: 'neutral',
+      };
     case 'ready':
       return { label: 'Ready to submit', tone: 'info' };
     case 'in_review':
@@ -86,7 +96,19 @@ export function versionState(status: ReleaseState | null, platform: Platform): V
 }
 
 /** Most urgent first: what the one dot of a version shows when its platforms differ. */
-const URGENCY: (ReleaseState | null)[] = ['rejected', 'halted', 'in_review', 'propagating', 'rolling_out', 'approved', 'ready', 'build_chosen', 'draft', 'live', null];
+const URGENCY: (ReleaseState | null)[] = [
+  'rejected',
+  'halted',
+  'in_review',
+  'propagating',
+  'rolling_out',
+  'approved',
+  'ready',
+  'build_chosen',
+  'draft',
+  'live',
+  null,
+];
 const urgency = (status: ReleaseState | null): number => URGENCY.indexOf(status);
 
 // ---------------------------------------------------------------------------------------------
@@ -105,28 +127,51 @@ export type VersionOption = {
 };
 
 /** The release that stands for a platform's version: the most public track, then the highest build. */
-function pick(list: readonly ReleaseSummary[], platform: Platform, version: string): ReleaseSummary | null {
-  return list.filter((r) => r.platform === platform && r.version === version).sort(compareReleases)[0] ?? null;
+function pick(
+  list: readonly ReleaseSummary[],
+  platform: Platform,
+  version: string,
+): ReleaseSummary | null {
+  return (
+    list.filter((r) => r.platform === platform && r.version === version).sort(compareReleases)[0] ??
+    null
+  );
 }
 
 /**
  * The versions of the platforms in scope, newest first, each with its state. A version that only one
  * platform has is listed once with that platform's state.
  */
-export function buildVersionOptions(releases: readonly ReleaseSummary[], platforms: readonly Platform[], limit = 40): VersionOption[] {
+export function buildVersionOptions(
+  releases: readonly ReleaseSummary[],
+  platforms: readonly Platform[],
+  limit = 40,
+): VersionOption[] {
   const scoped = releases.filter((r) => platforms.includes(r.platform));
-  const versions = [...new Set(scoped.map((r) => r.version))].sort((a, b) => compareVersions(b, a)).slice(0, limit);
+  const versions = [...new Set(scoped.map((r) => r.version))]
+    .sort((a, b) => compareVersions(b, a))
+    .slice(0, limit);
   return versions.map((version) => {
-    const mine = sortPlatforms(platforms.filter((p) => scoped.some((r) => r.platform === p && r.version === version)));
-    const chosen = mine.map((p) => pick(scoped, p, version)).filter((r): r is ReleaseSummary => r !== null);
-    const lead = [...chosen].sort((a, b) => urgency(a.status) - urgency(b.status))[0] as ReleaseSummary;
+    const mine = sortPlatforms(
+      platforms.filter((p) => scoped.some((r) => r.platform === p && r.version === version)),
+    );
+    const chosen = mine
+      .map((p) => pick(scoped, p, version))
+      .filter((r): r is ReleaseSummary => r !== null);
+    const lead = [...chosen].sort(
+      (a, b) => urgency(a.status) - urgency(b.status),
+    )[0] as ReleaseSummary;
     const states = chosen.map((r) => versionState(r.status, r.platform));
     // The same status on two stores is one state even when the stores name it differently.
     const differ = chosen.some((r) => r.status !== chosen[0]?.status);
     return {
       version,
       state: versionState(lead.status, lead.platform),
-      detail: differ ? chosen.map((r, i) => `${platformLabel(r.platform)} ${(states[i] as VersionState).label}`).join(' · ') : '',
+      detail: differ
+        ? chosen
+            .map((r, i) => `${platformLabel(r.platform)} ${(states[i] as VersionState).label}`)
+            .join(' · ')
+        : '',
       platforms: mine,
       releases: chosen,
     };
@@ -134,7 +179,10 @@ export function buildVersionOptions(releases: readonly ReleaseSummary[], platfor
 }
 
 /** The version to show: the one asked for when it exists, else the newest; null when there is none. */
-export function resolveVersion(requested: string | null, options: readonly VersionOption[]): string | null {
+export function resolveVersion(
+  requested: string | null,
+  options: readonly VersionOption[],
+): string | null {
   if (requested !== null && options.some((o) => o.version === requested)) return requested;
   return options[0]?.version ?? null;
 }
@@ -152,10 +200,20 @@ const RELEASED: ReleaseState[] = ['live', 'rolling_out', 'propagating', 'halted'
 const APPLE_FROZEN: ReleaseState[] = ['in_review', 'approved'];
 
 export const isLockedState = (status: ReleaseState | null, platform: Platform): boolean =>
-  status !== null && isApplePlatform(platform) && (RELEASED.includes(status) || APPLE_FROZEN.includes(status));
+  status !== null &&
+  isApplePlatform(platform) &&
+  (RELEASED.includes(status) || APPLE_FROZEN.includes(status));
 
 const lockWord = (status: ReleaseState): string =>
-  status === 'live' ? 'live' : status === 'in_review' ? 'in review' : status === 'approved' ? 'approved' : status === 'halted' ? 'halted' : 'rolling out';
+  status === 'live'
+    ? 'live'
+    : status === 'in_review'
+      ? 'in review'
+      : status === 'approved'
+        ? 'approved'
+        : status === 'halted'
+          ? 'halted'
+          : 'rolling out';
 
 export type LockInfo = {
   /** Platforms whose release of the version is locked. */
@@ -187,7 +245,9 @@ export function lockInfo(
   const rows = scope.map((platform) => {
     const release =
       pick(releases, platform, version) ??
-      (options.fallbackToNewest ? (releases.filter((r) => r.platform === platform).sort(compareReleases)[0] ?? null) : null);
+      (options.fallbackToNewest
+        ? (releases.filter((r) => r.platform === platform).sort(compareReleases)[0] ?? null)
+        : null);
     const status = release?.status ?? null;
     return { platform, status, locked: isLockedState(status, platform) };
   });
@@ -199,7 +259,9 @@ export function lockInfo(
   // "iOS and macOS are live, Android is rolling out": platforms in the same state are named together.
   const said = words
     .map((word) => {
-      const group = locked.filter((r) => lockWord(r.status as ReleaseState) === word).map((r) => r.platform);
+      const group = locked
+        .filter((r) => lockWord(r.status as ReleaseState) === word)
+        .map((r) => r.platform);
       return `${names(group)} ${group.length > 1 ? 'are' : 'is'} ${word}`;
     })
     .join(', ');
@@ -225,8 +287,10 @@ export function mergeLocales(lists: readonly (readonly string[])[]): string[] {
 }
 
 /** The locale to use: the one asked for when it is known, else null (every locale). */
-export const resolveLocale = (requested: string | null, locales: readonly string[]): string | null =>
-  requested !== null && locales.includes(requested) ? requested : null;
+export const resolveLocale = (
+  requested: string | null,
+  locales: readonly string[],
+): string | null => (requested !== null && locales.includes(requested) ? requested : null);
 
 // ---------------------------------------------------------------------------------------------
 // Which pages carry the header
@@ -238,11 +302,15 @@ export type PickerSet = { version: boolean; locale: boolean };
  * settings, and one open release). Store listing and assets: version and locale. Releases: version only (a
  * release has no locale). ASO: only its fit view, which is read per locale of the live listing.
  */
-export function pickersFor(section: string, options: { asoView?: string; releaseOpen?: boolean } = {}): PickerSet | null {
+export function pickersFor(
+  section: string,
+  options: { asoView?: string; releaseOpen?: boolean } = {},
+): PickerSet | null {
   if (options.releaseOpen) return null;
   if (section === 'listing' || section === 'assets') return { version: true, locale: true };
   if (section === 'releases') return { version: true, locale: false };
-  if ((section === 'aso' || section === 'insights') && options.asoView === 'fit') return { version: true, locale: true };
+  if ((section === 'aso' || section === 'insights') && options.asoView === 'fit')
+    return { version: true, locale: true };
   return null;
 }
 

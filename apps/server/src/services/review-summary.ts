@@ -1,6 +1,6 @@
+import { isGooglePlatform, type Platform, parsePlatform } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { type ReviewStatus, reviewStatuses } from './reviews.ts';
-import { isGooglePlatform, type Platform, parsePlatform } from '@mrm/core';
 
 /**
  * Numbers about the reviews of one app, always with their basis: `stored` is computed from the
@@ -19,7 +19,8 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const FIRST_MONDAY = 4 * 24 * 60 * 60 * 1000;
 
 /** Monday 00:00 UTC of the week of `at`. */
-export const weekStart = (at: number): number => Math.floor((at - FIRST_MONDAY) / WEEK_MS) * WEEK_MS + FIRST_MONDAY;
+export const weekStart = (at: number): number =>
+  Math.floor((at - FIRST_MONDAY) / WEEK_MS) * WEEK_MS + FIRST_MONDAY;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -79,11 +80,24 @@ export function emptyStatusCounts(): Record<ReviewStatus, number> {
   return Object.fromEntries(reviewStatuses.map((s) => [s, 0])) as Record<ReviewStatus, number>;
 }
 
-type Slim = { rating: number; created_at: number; app_version: string | null; territory: string | null; language: string | null };
+type Slim = {
+  rating: number;
+  created_at: number;
+  app_version: string | null;
+  territory: string | null;
+  language: string | null;
+};
 
 /** Pure: the stored part of the summary from rows. `now` fixes the end of the trend. */
-export function summarizeRows(rows: Slim[], now: number, options: { weeks?: number; truncated?: boolean } = {}): StoredSummary {
-  const weeksWanted = Math.min(Math.max(Math.trunc(options.weeks ?? DEFAULT_TREND_WEEKS), 1), MAX_TREND_WEEKS);
+export function summarizeRows(
+  rows: Slim[],
+  now: number,
+  options: { weeks?: number; truncated?: boolean } = {},
+): StoredSummary {
+  const weeksWanted = Math.min(
+    Math.max(Math.trunc(options.weeks ?? DEFAULT_TREND_WEEKS), 1),
+    MAX_TREND_WEEKS,
+  );
   const histogram: [number, number, number, number, number] = [0, 0, 0, 0, 0];
   let sum = 0;
   let oldest: number | null = null;
@@ -119,7 +133,11 @@ export function summarizeRows(rows: Slim[], now: number, options: { weeks?: numb
   for (let i = weeksWanted - 1; i >= 0; i--) {
     const start = last - i * WEEK_MS;
     const w = weeks.get(start);
-    trend.push({ weekStart: start, count: w?.count ?? 0, average: w ? round2(w.sum / w.count) : null });
+    trend.push({
+      weekStart: start,
+      count: w?.count ?? 0,
+      average: w ? round2(w.sum / w.count) : null,
+    });
   }
   const top = <T extends { count: number }>(list: T[], key: (t: T) => string) =>
     list.sort((a, b) => b.count - a.count || key(a).localeCompare(key(b))).slice(0, 50);
@@ -136,17 +154,31 @@ export function summarizeRows(rows: Slim[], now: number, options: { weeks?: numb
     newestAt: newest,
     truncated: options.truncated ?? false,
     byVersion: top(
-      [...versions].map(([version, v]) => ({ version, count: v.count, average: round2(v.sum / v.count) })),
+      [...versions].map(([version, v]) => ({
+        version,
+        count: v.count,
+        average: round2(v.sum / v.count),
+      })),
       (v) => v.version,
     ),
     weeks: trend,
-    territories: top([...territories].map(([value, count]) => ({ value, count })), (t) => t.value),
-    languages: top([...languages].map(([value, count]) => ({ value, count })), (t) => t.value),
+    territories: top(
+      [...territories].map(([value, count]) => ({ value, count })),
+      (t) => t.value,
+    ),
+    languages: top(
+      [...languages].map(([value, count]) => ({ value, count })),
+      (t) => t.value,
+    ),
   };
 }
 
 /** The latest stored store-wide rating per territory (one row per territory, newest observation). */
-export async function latestStoreWide(sql: Sql, workspaceId: string, appId: string): Promise<StoreWideRating[]> {
+export async function latestStoreWide(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<StoreWideRating[]> {
   const rows = await sql.query(
     `SELECT s.territory, s.average_milli, s.rating_count, s.current_average_milli, s.current_count, s.observed_at
        FROM app_rating_summaries s
@@ -159,7 +191,8 @@ export async function latestStoreWide(sql: Sql, workspaceId: string, appId: stri
   return rows.map((r) => {
     const milli = (v: unknown) => (v === null || v === undefined ? null : Number(v) / 1000);
     const average = milli(r.average_milli);
-    const count = r.rating_count === null || r.rating_count === undefined ? null : Number(r.rating_count);
+    const count =
+      r.rating_count === null || r.rating_count === undefined ? null : Number(r.rating_count);
     const territory = String(r.territory);
     return {
       basis: 'store_wide' as const,
@@ -187,7 +220,8 @@ export async function unansweredByApp(
 ): Promise<Map<string, { count: number; oldestAt: number | null }>> {
   const maxRating = options.maxRating ?? DEFAULT_UNANSWERED_MAX_RATING;
   const params: (string | number)[] = [workspaceId, maxRating];
-  let where = "workspace_id = ? AND developer_response IS NULL AND status <> 'ignored' AND rating <= ?";
+  let where =
+    "workspace_id = ? AND developer_response IS NULL AND status <> 'ignored' AND rating <= ?";
   if (options.olderThan !== undefined) {
     where += ' AND created_at <= ?';
     params.push(options.olderThan);
@@ -202,7 +236,13 @@ export async function unansweredByApp(
     params,
   );
   return new Map(
-    rows.map((r) => [String(r.app_id), { count: Number(r.n), oldestAt: r.oldest === null || r.oldest === undefined ? null : Number(r.oldest) }]),
+    rows.map((r) => [
+      String(r.app_id),
+      {
+        count: Number(r.n),
+        oldestAt: r.oldest === null || r.oldest === undefined ? null : Number(r.oldest),
+      },
+    ]),
   );
 }
 
@@ -299,7 +339,14 @@ export async function workspaceReviewsSummary(
     lowRatingThreshold: options.lowRatingThreshold,
     apps: [],
     unansweredMaxRating: maxRating,
-    totals: { total: 0, new: 0, unanswered: 0, unansweredOldestAt: null, lowRating: 0, average: null },
+    totals: {
+      total: 0,
+      new: 0,
+      unanswered: 0,
+      unansweredOldestAt: null,
+      lowRating: 0,
+      average: null,
+    },
   });
   if (limited && ids.length === 0) return emptySummary();
   const scope = limited ? ` AND id IN (${ids.map(() => '?').join(', ')})` : '';
@@ -321,18 +368,33 @@ export async function workspaceReviewsSummary(
   const byApp = new Map(rows.map((r) => [String(r.app_id), r]));
   const n = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
   const out: WorkspaceAppCounts[] = [];
-  const totals = { total: 0, new: 0, unanswered: 0, unansweredOldestAt: null as number | null, lowRating: 0, average: null as number | null };
+  const totals = {
+    total: 0,
+    new: 0,
+    unanswered: 0,
+    unansweredOldestAt: null as number | null,
+    lowRating: 0,
+    average: null as number | null,
+  };
   let sum = 0;
   for (const a of apps) {
     const r = byApp.get(String(a.id));
     const total = n(r?.total);
     const platform = (parsePlatform(String(a.platform)) ?? 'ios') as Platform;
     out.push({
-      app: { id: String(a.id), name: String(a.name), platform, store: isGooglePlatform(platform) ? 'googleplay' : 'appstoreconnect' },
+      app: {
+        id: String(a.id),
+        name: String(a.name),
+        platform,
+        store: isGooglePlatform(platform) ? 'googleplay' : 'appstoreconnect',
+      },
       total,
       new: n(r?.new_count),
       unanswered: n(r?.unanswered),
-      unansweredOldestAt: r?.unanswered_oldest === null || r?.unanswered_oldest === undefined ? null : Number(r.unanswered_oldest),
+      unansweredOldestAt:
+        r?.unanswered_oldest === null || r?.unanswered_oldest === undefined
+          ? null
+          : Number(r.unanswered_oldest),
       lowRating: n(r?.low_rating),
       average: total > 0 ? round2(n(r?.rating_sum) / total) : null,
       oldestAt: r?.oldest === null || r?.oldest === undefined ? null : Number(r.oldest),
@@ -342,7 +404,10 @@ export async function workspaceReviewsSummary(
     totals.new += n(r?.new_count);
     totals.unanswered += n(r?.unanswered);
     if (r?.unanswered_oldest !== null && r?.unanswered_oldest !== undefined) {
-      totals.unansweredOldestAt = Math.min(totals.unansweredOldestAt ?? Number.POSITIVE_INFINITY, Number(r.unanswered_oldest));
+      totals.unansweredOldestAt = Math.min(
+        totals.unansweredOldestAt ?? Number.POSITIVE_INFINITY,
+        Number(r.unanswered_oldest),
+      );
     }
     totals.lowRating += n(r?.low_rating);
     sum += n(r?.rating_sum);

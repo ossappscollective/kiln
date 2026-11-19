@@ -226,7 +226,9 @@ test('installationToken() hands out the cached token, mints once, and honours an
   assert.equal(fake.mints, 1);
   const stopped = new AbortController();
   stopped.abort();
-  await rejects(connector.installationToken(stopped.signal), (e) => assert.equal(e.kind, 'network'));
+  await rejects(connector.installationToken(stopped.signal), (e) =>
+    assert.equal(e.kind, 'network'),
+  );
   // A personal access token is returned as it is, with no request.
   const pat = new Fake();
   const withPat = make(pat, { auth: { type: 'token', token: 'ghp_personal_token_value' } });
@@ -697,21 +699,54 @@ test('propose writes an image as a base64 blob, and holds the old bytes to the b
   const oldBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01]);
   const newBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0x02, 0xff]);
   const IMG = 'fastlane/metadata/android/en-US/images/icon.png';
-  const blobOf = (b: Buffer) => createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
+  const blobOf = (b: Buffer) =>
+    createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
   const tree = () => fx.tree(fx.SHA_TREE, [{ path: IMG, sha: blobOf(oldBytes) }]);
   const routes = (fake: Fake) =>
     withDefaultBranch(fake)
-      .on({ method: 'GET', path: `${R}/git/ref/heads/${BRANCH}`, status: 404, json: { message: 'Not Found' } })
-      .on({ method: 'GET', path: `${R}/git/trees/${fx.SHA_TREE}`, query: { recursive: '1' }, json: tree() })
+      .on({
+        method: 'GET',
+        path: `${R}/git/ref/heads/${BRANCH}`,
+        status: 404,
+        json: { message: 'Not Found' },
+      })
+      .on({
+        method: 'GET',
+        path: `${R}/git/trees/${fx.SHA_TREE}`,
+        query: { recursive: '1' },
+        json: tree(),
+      })
       .on({ method: 'POST', path: `${R}/git/blobs`, status: 201, json: { sha: 'newblob' } })
-      .on({ method: 'POST', path: `${R}/git/trees`, status: 201, json: fx.tree(fx.SHA_NEW_TREE, []) })
-      .on({ method: 'POST', path: `${R}/git/commits`, status: 201, json: fx.commit(fx.SHA_NEW_COMMIT, fx.SHA_NEW_TREE) })
-      .on({ method: 'POST', path: `${R}/git/refs`, status: 201, json: fx.ref(`heads/${BRANCH}`, fx.SHA_NEW_COMMIT) })
+      .on({
+        method: 'POST',
+        path: `${R}/git/trees`,
+        status: 201,
+        json: fx.tree(fx.SHA_NEW_TREE, []),
+      })
+      .on({
+        method: 'POST',
+        path: `${R}/git/commits`,
+        status: 201,
+        json: fx.commit(fx.SHA_NEW_COMMIT, fx.SHA_NEW_TREE),
+      })
+      .on({
+        method: 'POST',
+        path: `${R}/git/refs`,
+        status: 201,
+        json: fx.ref(`heads/${BRANCH}`, fx.SHA_NEW_COMMIT),
+      })
       .on({ method: 'POST', path: `${R}/pulls`, status: 201, json: fx.pullRequest(18, BRANCH) });
   const fake = new Fake();
   routes(fake);
   await make(fake).propose(
-    changeSet([{ path: IMG, before: oldBytes.toString('base64'), after: newBytes.toString('base64'), encoding: 'base64' }]),
+    changeSet([
+      {
+        path: IMG,
+        before: oldBytes.toString('base64'),
+        after: newBytes.toString('base64'),
+        encoding: 'base64',
+      },
+    ]),
     { branch: BRANCH, title: 'T' },
   );
   const blob = fake.to('POST', '/git/blobs')[0]?.body;
@@ -721,7 +756,17 @@ test('propose writes an image as a base64 blob, and holds the old bytes to the b
   const stale = new Fake();
   routes(stale);
   await rejects(
-    make(stale).propose(changeSet([{ path: IMG, before: Buffer.from('other').toString('base64'), after: newBytes.toString('base64'), encoding: 'base64' }]), { branch: BRANCH, title: 'T' }),
+    make(stale).propose(
+      changeSet([
+        {
+          path: IMG,
+          before: Buffer.from('other').toString('base64'),
+          after: newBytes.toString('base64'),
+          encoding: 'base64',
+        },
+      ]),
+      { branch: BRANCH, title: 'T' },
+    ),
     (e) => assert.ok(e instanceof ChangeConflictError),
   );
   assert.equal(stale.to('POST', '/git/blobs').length, 0);
@@ -1219,7 +1264,10 @@ test('propose with an already aborted signal sends nothing and writes nothing', 
     (e) => assert.ok(e instanceof GithubError && e.kind === 'network', String(e)),
   );
   assert.deepEqual(fake.writes, []);
-  assert.deepEqual(fake.calls.filter((c) => !c.path.includes('access_tokens')), []);
+  assert.deepEqual(
+    fake.calls.filter((c) => !c.path.includes('access_tokens')),
+    [],
+  );
 });
 
 test('aborting during propose stops it before the next request: no tree, commit, branch or pull request', async () => {
@@ -1257,7 +1305,12 @@ test('propose without a signal behaves as before', async () => {
 
 test('openPullRequest opens a pull request for a branch that is already on GitHub', async () => {
   const fake = new Fake();
-  fake.on({ method: 'POST', path: `${R}/pulls`, status: 201, json: fx.pullRequest(5, 'mrm/local-1') });
+  fake.on({
+    method: 'POST',
+    path: `${R}/pulls`,
+    status: 201,
+    json: fx.pullRequest(5, 'mrm/local-1'),
+  });
   const result = await make(fake).openPullRequest({
     branch: 'mrm/local-1',
     base: 'main',
@@ -1276,8 +1329,9 @@ test('openPullRequest opens a pull request for a branch that is already on GitHu
 
 test('openPullRequest refuses branch names that are not valid, and reports a refusal by GitHub', async () => {
   const fake = new Fake();
-  await rejects(make(fake).openPullRequest({ branch: '--upload-pack=x', base: 'main', title: 'T' }), (e) =>
-    assert.equal(e.kind, 'invalid_input'),
+  await rejects(
+    make(fake).openPullRequest({ branch: '--upload-pack=x', base: 'main', title: 'T' }),
+    (e) => assert.equal(e.kind, 'invalid_input'),
   );
   await rejects(make(fake).openPullRequest({ branch: 'a', base: 'x..y', title: 'T' }), (e) =>
     assert.equal(e.kind, 'invalid_input'),
@@ -1286,7 +1340,12 @@ test('openPullRequest refuses branch names that are not valid, and reports a ref
     method: 'POST',
     path: `${R}/pulls`,
     status: 422,
-    json: { message: 'Validation Failed', errors: [{ resource: 'PullRequest', code: 'custom', message: 'A pull request already exists' }] },
+    json: {
+      message: 'Validation Failed',
+      errors: [
+        { resource: 'PullRequest', code: 'custom', message: 'A pull request already exists' },
+      ],
+    },
   });
   await rejects(make(fake).openPullRequest({ branch: 'a', base: 'main', title: 'T' }), (e) =>
     assert.match(e.message, /PullRequest\.custom/),
@@ -1302,7 +1361,11 @@ const FIX_TREE = 'f60718293a4b5c6d7e8f9012345678901234abcd';
 
 const fixupRoutes = (fake: Fake) =>
   withDefaultBranch(fake)
-    .on({ method: 'GET', path: `${R}/git/ref/heads/${FIX_BRANCH}`, json: fx.ref(`heads/${FIX_BRANCH}`, FIX_TIP) })
+    .on({
+      method: 'GET',
+      path: `${R}/git/ref/heads/${FIX_BRANCH}`,
+      json: fx.ref(`heads/${FIX_BRANCH}`, FIX_TIP),
+    })
     .on({ method: 'GET', path: `${R}/git/commits/${FIX_TIP}`, json: fx.commit(FIX_TIP, FIX_TREE) })
     .on({
       method: 'GET',
@@ -1317,8 +1380,17 @@ const fixupRoutes = (fake: Fake) =>
     })
     .on({ method: 'POST', path: `${R}/git/blobs`, status: 201, json: { sha: 'newblob' } })
     .on({ method: 'POST', path: `${R}/git/trees`, status: 201, json: fx.tree(fx.SHA_NEW_TREE, []) })
-    .on({ method: 'POST', path: `${R}/git/commits`, status: 201, json: fx.commit(fx.SHA_NEW_COMMIT, fx.SHA_NEW_TREE) })
-    .on({ method: 'PATCH', path: `${R}/git/refs/heads/${FIX_BRANCH}`, json: fx.ref(`heads/${FIX_BRANCH}`, fx.SHA_NEW_COMMIT) });
+    .on({
+      method: 'POST',
+      path: `${R}/git/commits`,
+      status: 201,
+      json: fx.commit(fx.SHA_NEW_COMMIT, fx.SHA_NEW_TREE),
+    })
+    .on({
+      method: 'PATCH',
+      path: `${R}/git/refs/heads/${FIX_BRANCH}`,
+      json: fx.ref(`heads/${FIX_BRANCH}`, fx.SHA_NEW_COMMIT),
+    });
 
 test('commitOnBranch adds one commit on the tip and fast-forwards the ref with force false', async () => {
   const fake = new Fake();
@@ -1333,37 +1405,61 @@ test('commitOnBranch adds one commit on the tip and fast-forwards the ref with f
       { path: 'bin/release.sh', content: '#!/bin/sh\nset -e\n' },
     ],
   });
-  assert.deepEqual(result, { commit: fx.SHA_NEW_COMMIT, parent: FIX_TIP, tree: fx.SHA_NEW_TREE, changed: 3 });
+  assert.deepEqual(result, {
+    commit: fx.SHA_NEW_COMMIT,
+    parent: FIX_TIP,
+    tree: fx.SHA_NEW_TREE,
+    changed: 3,
+  });
   fake.assertClean();
   const writes = fake.calls.filter((c) => c.method !== 'GET' && !c.path.includes('access_tokens'));
-  assert.deepEqual(writes.map((c) => `${c.method} ${c.path.replace(R, '')}`), [
-    'POST /git/blobs',
-    'POST /git/blobs',
-    'POST /git/trees',
-    'POST /git/commits',
-    `PATCH /git/refs/heads/${FIX_BRANCH}`,
-  ]);
+  assert.deepEqual(
+    writes.map((c) => `${c.method} ${c.path.replace(R, '')}`),
+    [
+      'POST /git/blobs',
+      'POST /git/blobs',
+      'POST /git/trees',
+      'POST /git/commits',
+      `PATCH /git/refs/heads/${FIX_BRANCH}`,
+    ],
+  );
   const tree = writes[2]?.body;
   assert.equal(tree.base_tree, FIX_TREE);
   assert.deepEqual(
-    tree.tree.map((e: { path: string; mode: string; sha: string | null }) => [e.path, e.mode, e.sha === null]),
+    tree.tree.map((e: { path: string; mode: string; sha: string | null }) => [
+      e.path,
+      e.mode,
+      e.sha === null,
+    ]),
     [
       [NAME, '100644', false],
       [OLD, '100644', true],
       ['bin/release.sh', '100755', false],
     ].sort((a, b) => ((a[0] as string) < (b[0] as string) ? -1 : 1)),
   );
-  assert.deepEqual(writes[3]?.body, { message: 'Fix up', tree: fx.SHA_NEW_TREE, parents: [FIX_TIP] });
+  assert.deepEqual(writes[3]?.body, {
+    message: 'Fix up',
+    tree: fx.SHA_NEW_TREE,
+    parents: [FIX_TIP],
+  });
   assert.deepEqual(writes[4]?.body, { sha: fx.SHA_NEW_COMMIT, force: false });
   // No other ref is created, moved or deleted.
-  assert.equal(fake.calls.some((c) => c.path.endsWith('/git/refs') || c.method === 'DELETE'), false);
+  assert.equal(
+    fake.calls.some((c) => c.path.endsWith('/git/refs') || c.method === 'DELETE'),
+    false,
+  );
 });
 
 test('commitOnBranch: a tip that is not the expected one, or a ref update GitHub refuses, is branch_moved', async () => {
   const fake = new Fake();
   fixupRoutes(fake);
   await rejects(
-    make(fake).commitOnBranch({ branch: FIX_BRANCH, expectedTip: SHA_OTHER, message: 'm', changes: [{ path: NAME, content: 'x\n' }] }),
+    make(fake).commitOnBranch({
+      branch: FIX_BRANCH,
+      expectedTip: SHA_OTHER,
+      message: 'm',
+      changes: [{ path: NAME, content: 'x\n' }],
+    }),
     (e) => {
       assert.ok(e instanceof BranchMovedError);
       assert.equal(e.kind, 'branch_moved');
@@ -1380,7 +1476,12 @@ test('commitOnBranch: a tip that is not the expected one, or a ref update GitHub
     json: { message: 'Update is not a fast forward' },
   });
   await rejects(
-    make(racing).commitOnBranch({ branch: FIX_BRANCH, expectedTip: FIX_TIP, message: 'm', changes: [{ path: NAME, content: 'x\n' }] }),
+    make(racing).commitOnBranch({
+      branch: FIX_BRANCH,
+      expectedTip: FIX_TIP,
+      message: 'm',
+      changes: [{ path: NAME, content: 'x\n' }],
+    }),
     (e) => assert.ok(e instanceof BranchMovedError),
   );
 });
@@ -1389,29 +1490,58 @@ const SHA_OTHER = '0123456789abcdef0123456789abcdef01234567';
 
 test('commitOnBranch refuses the default branch, a missing branch, bad paths, blocked paths and symlinks', async () => {
   const fake = new Fake();
-  fixupRoutes(fake).on({ method: 'GET', path: `${R}/git/ref/heads/gone`, status: 404, json: { message: 'Not Found' } });
+  fixupRoutes(fake).on({
+    method: 'GET',
+    path: `${R}/git/ref/heads/gone`,
+    status: 404,
+    json: { message: 'Not Found' },
+  });
   const change = [{ path: NAME, content: 'x\n' }];
   for (const branch of ['main', 'Main']) {
-    await rejects(make(fake).commitOnBranch({ branch, expectedTip: FIX_TIP, message: 'm', changes: change }), (e) =>
-      assert.ok(e instanceof DefaultBranchError),
+    await rejects(
+      make(fake).commitOnBranch({ branch, expectedTip: FIX_TIP, message: 'm', changes: change }),
+      (e) => assert.ok(e instanceof DefaultBranchError),
     );
   }
-  await rejects(make(fake).commitOnBranch({ branch: 'gone', expectedTip: FIX_TIP, message: 'm', changes: change }), (e) =>
-    assert.ok(e instanceof BranchMissingError),
+  await rejects(
+    make(fake).commitOnBranch({
+      branch: 'gone',
+      expectedTip: FIX_TIP,
+      message: 'm',
+      changes: change,
+    }),
+    (e) => assert.ok(e instanceof BranchMissingError),
   );
   for (const [changes, kind] of [
     [[{ path: '../x', content: 'x' }], 'invalid_input'],
-    [[{ path: NAME, content: 'a' }, { path: NAME, content: 'b' }], 'invalid_input'],
+    [
+      [
+        { path: NAME, content: 'a' },
+        { path: NAME, content: 'b' },
+      ],
+      'invalid_input',
+    ],
     [[{ path: '.github/workflows/x.yml', content: 'x' }], 'blocked_path'],
     [[{ path: 'docs/link', content: 'x' }], 'invalid_input'],
   ] as const) {
     await rejects(
-      make(fake).commitOnBranch({ branch: FIX_BRANCH, expectedTip: FIX_TIP, message: 'm', changes: [...changes] }),
+      make(fake).commitOnBranch({
+        branch: FIX_BRANCH,
+        expectedTip: FIX_TIP,
+        message: 'm',
+        changes: [...changes],
+      }),
       (e) => assert.equal(e.kind, kind),
     );
   }
-  await rejects(make(fake).commitOnBranch({ branch: '--bad', expectedTip: FIX_TIP, message: 'm', changes: change }), (e) =>
-    assert.equal(e.kind, 'invalid_input'),
+  await rejects(
+    make(fake).commitOnBranch({
+      branch: '--bad',
+      expectedTip: FIX_TIP,
+      message: 'm',
+      changes: change,
+    }),
+    (e) => assert.equal(e.kind, 'invalid_input'),
   );
   assert.equal(fake.writes.length, 0);
 });
@@ -1434,15 +1564,36 @@ test('commitOnBranch skips files that already have the text and says no_changes 
 test('branchTip and findPullRequest', async () => {
   const fake = new Fake();
   withDefaultBranch(fake)
-    .on({ method: 'GET', path: `${R}/git/ref/heads/${FIX_BRANCH}`, json: fx.ref(`heads/${FIX_BRANCH}`, FIX_TIP) })
-    .on({ method: 'GET', path: `${R}/git/ref/heads/gone`, status: 404, json: { message: 'Not Found' } })
-    .on({ method: 'GET', path: `${R}/pulls/17`, json: { ...fx.pullRequest(17, FIX_BRANCH), state: 'closed', merged: true, base: { ref: 'main' } } })
+    .on({
+      method: 'GET',
+      path: `${R}/git/ref/heads/${FIX_BRANCH}`,
+      json: fx.ref(`heads/${FIX_BRANCH}`, FIX_TIP),
+    })
+    .on({
+      method: 'GET',
+      path: `${R}/git/ref/heads/gone`,
+      status: 404,
+      json: { message: 'Not Found' },
+    })
+    .on({
+      method: 'GET',
+      path: `${R}/pulls/17`,
+      json: {
+        ...fx.pullRequest(17, FIX_BRANCH),
+        state: 'closed',
+        merged: true,
+        base: { ref: 'main' },
+      },
+    })
     .on({ method: 'GET', path: `${R}/pulls/18`, status: 404, json: { message: 'Not Found' } })
     .on({
       method: 'GET',
       path: `${R}/pulls`,
       query: { head: `acme:${FIX_BRANCH}` },
-      json: [{ ...fx.pullRequest(20, FIX_BRANCH), state: 'closed' }, fx.pullRequest(19, FIX_BRANCH)],
+      json: [
+        { ...fx.pullRequest(20, FIX_BRANCH), state: 'closed' },
+        fx.pullRequest(19, FIX_BRANCH),
+      ],
     });
   const connector = make(fake);
   assert.equal(await connector.branchTip(FIX_BRANCH), FIX_TIP);

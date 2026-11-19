@@ -2,7 +2,22 @@ import { type AssetKind, PLAY_DEVICES, PLAY_LISTING_MEMBERS } from '@mrm/core';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
-import type { DraftAssetState, DraftReadRequest, DraftState, DraftTextState } from './store-draft-types.ts';
+import type {
+  DraftAssetState,
+  DraftReadRequest,
+  DraftState,
+  DraftTextState,
+} from './store-draft-types.ts';
+import {
+  enc,
+  isRecord,
+  type Json,
+  records,
+  StoreHttp,
+  type StoreHttpOptions,
+  type StoreReply,
+  text,
+} from './store-http.ts';
 import {
   type StoreSubmitConnector,
   type SubmitApplyInput,
@@ -14,7 +29,6 @@ import {
   type SubmitState,
   type SubmitTrack,
 } from './store-submit-types.ts';
-import { enc, isRecord, type Json, records, type StoreHttpOptions, StoreHttp, type StoreReply, text } from './store-http.ts';
 
 /**
  * Google Play: send the changes of the app to REVIEW by committing a fresh edit WITHOUT `changesNotSentForReview`.
@@ -54,7 +68,13 @@ export type PlaySubmitConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 
 const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 /** The image types read for the checks (screenshots of phones and tablets, icon, feature graphic); more when the push touched them. */
-const CHECKED_IMAGE_TYPES = ['phoneScreenshots', 'sevenInchScreenshots', 'tenInchScreenshots', 'icon', 'featureGraphic'] as const;
+const CHECKED_IMAGE_TYPES = [
+  'phoneScreenshots',
+  'sevenInchScreenshots',
+  'tenInchScreenshots',
+  'icon',
+  'featureGraphic',
+] as const;
 
 const kindOf = (type: string): { kind: AssetKind; device: string | null } | undefined => {
   const device = PLAY_DEVICES.find((d) => d.dir === type);
@@ -76,9 +96,16 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
   readonly #account: ServiceAccount;
 
   constructor(options: PlaySubmitConnectorOptions) {
-    this.#account = typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+    this.#account =
+      typeof options.serviceAccount === 'string'
+        ? parseServiceAccount(options.serviceAccount)
+        : options.serviceAccount;
     if (!isPlayPackageName(options.packageName)) {
-      throw new StoreError('googleplay', 'invalid_input', `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`);
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`,
+      );
     }
     this.packageName = options.packageName;
     this.#http = new StoreHttp({ ...options, store: 'googleplay' });
@@ -95,7 +122,8 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
         try {
           return await this.#state(this.#http, editId, request);
         } catch (error) {
-          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0) continue;
+          if (error instanceof StoreError && error.kind === 'edit_invalid' && attempt === 0)
+            continue;
           throw error;
         } finally {
           await this.#deleteEdit(this.#http, editId);
@@ -131,18 +159,28 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
   // -------------------------------------------------------------------------------------------
 
   async #state(http: StoreHttp, editId: string, request: DraftReadRequest): Promise<SubmitState> {
-    const listingsReply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings`), 'reading the listings');
+    const listingsReply = await this.#call(
+      http,
+      'GET',
+      this.#url(`/${enc(editId)}/listings`),
+      'reading the listings',
+    );
     const listings = new Map<string, Json>();
-    for (const item of records(isRecord(listingsReply.json) ? listingsReply.json.listings : undefined)) {
+    for (const item of records(
+      isRecord(listingsReply.json) ? listingsReply.json.listings : undefined,
+    )) {
       const language = text(item.language);
       if (language) listings.set(language, item);
     }
-    const types = [...new Set<string>([...CHECKED_IMAGE_TYPES, ...request.assets.map((a) => a.target)])];
+    const types = [
+      ...new Set<string>([...CHECKED_IMAGE_TYPES, ...request.assets.map((a) => a.target)]),
+    ];
     const images = new Map<string, Json[]>();
     const locales: SubmitLocale[] = [];
     for (const [language, listing] of listings) {
       const textOf: Record<string, string | null> = {};
-      for (const [field, member] of Object.entries(PLAY_LISTING_MEMBERS)) textOf[field] = text(listing[member]) ?? null;
+      for (const [field, member] of Object.entries(PLAY_LISTING_MEMBERS))
+        textOf[field] = text(listing[member]) ?? null;
       const assets: SubmitAssetSet[] = [];
       for (const type of types) {
         const list = await this.#images(http, editId, language, type);
@@ -155,14 +193,31 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
           target: type,
           images: list.flatMap((i) => {
             const id = text(i.id);
-            return id ? [{ id, checksum: text(i.sha256)?.toLowerCase() ?? null, width: null, height: null, state: null }] : [];
+            return id
+              ? [
+                  {
+                    id,
+                    checksum: text(i.sha256)?.toLowerCase() ?? null,
+                    width: null,
+                    height: null,
+                    state: null,
+                  },
+                ]
+              : [];
           }),
         });
       }
       locales.push({ locale: language, text: textOf, assets });
     }
-    const tracksReply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/tracks`), 'reading the tracks');
-    const tracks: SubmitTrack[] = records(isRecord(tracksReply.json) ? tracksReply.json.tracks : undefined).flatMap((t) => {
+    const tracksReply = await this.#call(
+      http,
+      'GET',
+      this.#url(`/${enc(editId)}/tracks`),
+      'reading the tracks',
+    );
+    const tracks: SubmitTrack[] = records(
+      isRecord(tracksReply.json) ? tracksReply.json.tracks : undefined,
+    ).flatMap((t) => {
       const track = text(t.track);
       if (!track) return [];
       return [
@@ -181,7 +236,12 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
     const textState: DraftTextState[] = request.text.map((t) => {
       const listing = listings.get(t.locale);
       const value = listing ? text(listing[PLAY_LISTING_MEMBERS[t.field] ?? '']) : undefined;
-      return { locale: t.locale, field: t.field, value: value ?? null, localeExists: listing !== undefined };
+      return {
+        locale: t.locale,
+        field: t.field,
+        value: value ?? null,
+        localeExists: listing !== undefined,
+      };
     });
     const assetState: DraftAssetState[] = request.assets.map((slot) => ({
       locale: slot.locale,
@@ -191,16 +251,47 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
       setExists: true,
       images: (images.get(`${slot.locale}\u0000${slot.target}`) ?? []).flatMap((i) => {
         const id = text(i.id);
-        return id ? [{ id, name: null, checksum: text(i.sha256)?.toLowerCase() ?? null, checksumKind: 'sha256' as const, state: null }] : [];
+        return id
+          ? [
+              {
+                id,
+                name: null,
+                checksum: text(i.sha256)?.toLowerCase() ?? null,
+                checksumKind: 'sha256' as const,
+                state: null,
+              },
+            ]
+          : [];
       }),
     }));
-    const draft: DraftState = { store: 'googleplay', platform: 'android', version: null, text: textState, assets: assetState };
-    return { store: 'googleplay', platform: 'android', version: null, build: null, alreadySubmitted: false, openReviewSubmissions: null, tracks, locales, draft };
+    const draft: DraftState = {
+      store: 'googleplay',
+      platform: 'android',
+      version: null,
+      text: textState,
+      assets: assetState,
+    };
+    return {
+      store: 'googleplay',
+      platform: 'android',
+      version: null,
+      build: null,
+      alreadySubmitted: false,
+      openReviewSubmissions: null,
+      tracks,
+      locales,
+      draft,
+    };
   }
 
   async #images(http: StoreHttp, editId: string, language: string, type: string): Promise<Json[]> {
     try {
-      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`), `reading the ${type} of ${language}`);
+      const reply = await this.#call(
+        http,
+        'GET',
+        this.#url(`/${enc(editId)}/listings/${enc(language)}/${enc(type)}`),
+        `reading the ${type} of ${language}`,
+      );
       return records(isRecord(reply.json) ? reply.json.images : undefined);
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return [];
@@ -215,7 +306,13 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
   async #insertEdit(http: StoreHttp): Promise<string> {
     const reply = await this.#call(http, 'POST', this.#url(''), 'opening an edit', { json: {} });
     const id = isRecord(reply.json) ? text(reply.json.id) : undefined;
-    if (!id) throw new StoreError('googleplay', 'unexpected', 'Google Play opened an edit but sent no edit id.', reply.status);
+    if (!id)
+      throw new StoreError(
+        'googleplay',
+        'unexpected',
+        'Google Play opened an edit but sent no edit id.',
+        reply.status,
+      );
     return id;
   }
 
@@ -238,10 +335,16 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
       const token = await this.#tokens.token();
       let reply: StoreReply;
       try {
-        reply = await this.#writeHttp.send('POST', url, { headers: { authorization: `Bearer ${token}` } });
+        reply = await this.#writeHttp.send('POST', url, {
+          headers: { authorization: `Bearer ${token}` },
+        });
       } catch (error) {
         if (error instanceof StoreError && error.kind === 'network') {
-          throw new SubmitOutcomeUnknownError('googleplay', `The connection to Google Play failed while ${what}, so it is not known whether Google applied it. ${error.message}`, error.status);
+          throw new SubmitOutcomeUnknownError(
+            'googleplay',
+            `The connection to Google Play failed while ${what}, so it is not known whether Google applied it. ${error.message}`,
+            error.status,
+          );
         }
         throw error;
       }
@@ -252,7 +355,11 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
       }
       if (reply.status >= 200 && reply.status < 300) return;
       if (reply.status >= 500) {
-        throw new SubmitOutcomeUnknownError('googleplay', `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`, reply.status);
+        throw new SubmitOutcomeUnknownError(
+          'googleplay',
+          `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google applied it.`,
+          reply.status,
+        );
       }
       throw this.#refusal(reply, what);
     }
@@ -303,7 +410,12 @@ export class PlaySubmitConnector implements StoreSubmitConnector {
       }
       if (reply.status >= 200 && reply.status < 300) {
         if (reply.malformed) {
-          throw new StoreError('googleplay', 'unexpected', `Google Play answered ${what} with a response that could not be read.`, reply.status);
+          throw new StoreError(
+            'googleplay',
+            'unexpected',
+            `Google Play answered ${what} with a response that could not be read.`,
+            reply.status,
+          );
         }
         return reply;
       }

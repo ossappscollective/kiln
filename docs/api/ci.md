@@ -21,13 +21,13 @@ reported, not guessed. The layout was modelled on a real fastlane lane, but only
 
 ## Rights
 
-| Action | viewer | member | admin / owner |
-| --- | --- | --- | --- |
-| `repositories.read` / `apps.read`: read stored runs and builds, and the "running now" list (stored runs, plus the job progress a member read lately) | yes | yes | yes |
-| `repositories.scan`: anything that asks GitHub (list workflows, workflow inputs, refresh runs, the jobs of a run, the refresh behind "running now", what changed, read tags for the preview, re-run matching) | no | yes | yes |
-| `repositories.write`: save the build-number conventions | no | no | yes |
-| `ci.dispatch`: start a workflow | no | yes | yes |
-| `apps.sync`: link a build to a run by hand, remove such a link | no | yes | yes |
+| Action                                                                                                                                                                                                        | viewer | member | admin / owner |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ------------- |
+| `repositories.read` / `apps.read`: read stored runs and builds, and the "running now" list (stored runs, plus the job progress a member read lately)                                                          | yes    | yes    | yes           |
+| `repositories.scan`: anything that asks GitHub (list workflows, workflow inputs, refresh runs, the jobs of a run, the refresh behind "running now", what changed, read tags for the preview, re-run matching) | no     | yes    | yes           |
+| `repositories.write`: save the build-number conventions                                                                                                                                                       | no     | no     | yes           |
+| `ci.dispatch`: start a workflow                                                                                                                                                                               | no     | yes    | yes           |
+| `apps.sync`: link a build to a run by hand, remove such a link                                                                                                                                                | no     | yes    | yes           |
 
 `ci.dispatch` is a member right because a member can already create change sets and sync apps; a
 viewer only reads. It is a separate action (not folded into `repositories.scan`) so that a
@@ -44,21 +44,42 @@ workspace that wants only admins to run CI can change the role table in `@mrm/co
   return them. Needs `repositories.scan`. Cached 60 seconds per workflow and ref.
 
 ```json
-{ "workflow": { "id": "1", "name": "iOS release", "path": ".github/workflows/ios.yml", "state": "active" },
-  "ref": "main", "dispatchable": true, "parsed": true, "cached": false,
+{
+  "workflow": {
+    "id": "1",
+    "name": "iOS release",
+    "path": ".github/workflows/ios.yml",
+    "state": "active"
+  },
+  "ref": "main",
+  "dispatchable": true,
+  "parsed": true,
+  "cached": false,
   "inputs": [
-    { "name": "build_number", "required": true, "type": "string", "description": "Build number to upload" },
-    { "name": "track", "required": false, "type": "choice", "options": ["internal", "beta"], "default": "internal" },
+    {
+      "name": "build_number",
+      "required": true,
+      "type": "string",
+      "description": "Build number to upload"
+    },
+    {
+      "name": "track",
+      "required": false,
+      "type": "choice",
+      "options": ["internal", "beta"],
+      "default": "internal"
+    },
     { "name": "dry_run", "required": false, "type": "boolean", "default": "false" }
-  ] }
+  ]
+}
 ```
 
-  `type` is `string`, `boolean`, `choice`, `number` or `environment`; defaults are always text.
-  `dispatchable` is `false` when the file has no `workflow_dispatch` trigger and `null` when that is
-  unknown. The file is read by a small built-in YAML reader (there is no YAML dependency). When it
-  cannot read the file (anchors, aliases, tags, multiple documents) the answer is `"parsed": false`
-  with an empty `inputs` list, and the web dialog falls back to typed `name=value` lines. A workflow
-  that GitHub does not list is `404 workflow_not_found`.
+`type` is `string`, `boolean`, `choice`, `number` or `environment`; defaults are always text.
+`dispatchable` is `false` when the file has no `workflow_dispatch` trigger and `null` when that is
+unknown. The file is read by a small built-in YAML reader (there is no YAML dependency). When it
+cannot read the file (anchors, aliases, tags, multiple documents) the answer is `"parsed": false`
+with an empty `inputs` list, and the web dialog falls back to typed `name=value` lines. A workflow
+that GitHub does not list is `404 workflow_not_found`.
 
 ## Dispatch
 
@@ -86,13 +107,32 @@ the run keeps the inputs and the app). A pending run that GitHub never shows is
 dropped after 10 minutes. `runKnown` is `true` only when GitHub did name the run.
 
 ```json
-{ "dispatched": true, "runKnown": false,
-  "run": { "id": "pending-d09d0bef-…", "repositoryId": "…", "appId": "…", "workflow": "ios.yml",
-           "workflowPath": "ios.yml", "title": null, "status": "pending", "conclusion": null,
-           "active": true, "headSha": null, "commitMessage": null, "branch": "main",
-           "event": "workflow_dispatch", "runNumber": null, "url": null,
-           "inputs": { "build_number": "241", "track": "beta" }, "dispatchedBy": "…",
-           "startedAt": 1731900000000, "updatedAt": 1731900000000, "syncedAt": 1731900000000 } }
+{
+  "dispatched": true,
+  "runKnown": false,
+  "run": {
+    "id": "pending-d09d0bef-…",
+    "repositoryId": "…",
+    "appId": "…",
+    "workflow": "ios.yml",
+    "workflowPath": "ios.yml",
+    "title": null,
+    "status": "pending",
+    "conclusion": null,
+    "active": true,
+    "headSha": null,
+    "commitMessage": null,
+    "branch": "main",
+    "event": "workflow_dispatch",
+    "runNumber": null,
+    "url": null,
+    "inputs": { "build_number": "241", "track": "beta" },
+    "dispatchedBy": "…",
+    "startedAt": 1731900000000,
+    "updatedAt": 1731900000000,
+    "syncedAt": 1731900000000
+  }
+}
 ```
 
 Limits and failures: at most **10 dispatches per workspace per minute** (`429 rate_limited` with
@@ -143,17 +183,17 @@ that table, so every member can read them and GitHub is not asked.
 
 A run:
 
-| Field | Meaning |
-| --- | --- |
-| `id` | GitHub's run id, or `pending-…` for a dispatch GitHub has not named yet |
-| `workflow`, `workflowPath` | the workflow's name and file |
-| `title` | the run's `run-name`, else GitHub's default (the commit or pull request title) |
-| `status`, `conclusion` | GitHub's words, kept verbatim: `queued`, `in_progress`, `completed`, `waiting`, ...; `success`, `failure`, `cancelled`, ...; `pending` is ours |
-| `active` | the run has not finished (`queued`, `in_progress`, `waiting`, `requested`, `pending`) |
-| `headSha`, `commitMessage` | the commit (first line of its message) |
-| `branch`, `event`, `runNumber`, `url` | as GitHub reports them |
-| `inputs`, `dispatchedBy`, `appIds`, `appId` | set when this tool started the run; `appIds` lists the apps it was started for (empty otherwise), `appId` is the first one |
-| `startedAt`, `updatedAt`, `syncedAt` | run times from GitHub, and when we last read it |
+| Field                                       | Meaning                                                                                                                                        |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                        | GitHub's run id, or `pending-…` for a dispatch GitHub has not named yet                                                                        |
+| `workflow`, `workflowPath`                  | the workflow's name and file                                                                                                                   |
+| `title`                                     | the run's `run-name`, else GitHub's default (the commit or pull request title)                                                                 |
+| `status`, `conclusion`                      | GitHub's words, kept verbatim: `queued`, `in_progress`, `completed`, `waiting`, ...; `success`, `failure`, `cancelled`, ...; `pending` is ours |
+| `active`                                    | the run has not finished (`queued`, `in_progress`, `waiting`, `requested`, `pending`)                                                          |
+| `headSha`, `commitMessage`                  | the commit (first line of its message)                                                                                                         |
+| `branch`, `event`, `runNumber`, `url`       | as GitHub reports them                                                                                                                         |
+| `inputs`, `dispatchedBy`, `appIds`, `appId` | set when this tool started the run; `appIds` lists the apps it was started for (empty otherwise), `appId` is the first one                     |
+| `startedAt`, `updatedAt`, `syncedAt`        | run times from GitHub, and when we last read it                                                                                                |
 
 **How the table is kept fresh.** `refresh=true` reads the repository's 50 most recent runs as a
 **conditional request** when the connection supports it (the connector keeps the `ETag` of the last
@@ -184,43 +224,67 @@ migration): the runs come from `workflow_runs`, the jobs are kept in memory.
   when empty or longer than 100 characters), in `runs` and in `recent`. Answer:
 
 ```json
-{ "runs": [ { "id": "1001", "repositoryId": "…", "appId": null, "workflow": "iOS release", "title": "Release 2.4.0",
-              "status": "in_progress", "conclusion": null, "active": true, "branch": "main", "startedAt": 1731900000000,
-              "repository": { "id": "…", "owner": "acme", "repo": "app" },
-              "actor": "octocat",
-              "progress": { "jobsTotal": 3, "jobsDone": 1, "job": "test", "step": "Run tests",
-                            "stepsDone": 2, "stepsTotal": 5, "fraction": 0.4, "readAt": 1731900100000 } } ],
-  "recent": [ { "…": "runs finished in the last 24 hours: failed first, then newest; at most 20" } ],
-  "repositories": [ { "id": "…", "owner": "acme", "repo": "app" } ],
-  "problems": [ { "repositoryId": "…", "reason": "no_access" } ],
-  "refreshedAt": 1731900100000, "live": true, "cached": false }
+{
+  "runs": [
+    {
+      "id": "1001",
+      "repositoryId": "…",
+      "appId": null,
+      "workflow": "iOS release",
+      "title": "Release 2.4.0",
+      "status": "in_progress",
+      "conclusion": null,
+      "active": true,
+      "branch": "main",
+      "startedAt": 1731900000000,
+      "repository": { "id": "…", "owner": "acme", "repo": "app" },
+      "actor": "octocat",
+      "progress": {
+        "jobsTotal": 3,
+        "jobsDone": 1,
+        "job": "test",
+        "step": "Run tests",
+        "stepsDone": 2,
+        "stepsTotal": 5,
+        "fraction": 0.4,
+        "readAt": 1731900100000
+      }
+    }
+  ],
+  "recent": [{ "…": "runs finished in the last 24 hours: failed first, then newest; at most 20" }],
+  "repositories": [{ "id": "…", "owner": "acme", "repo": "app" }],
+  "problems": [{ "repositoryId": "…", "reason": "no_access" }],
+  "refreshedAt": 1731900100000,
+  "live": true,
+  "cached": false
+}
 ```
 
-  `runs` are the runs that have not finished (a dispatch GitHub has not named yet is `pending`),
-  newest first, with the fields of a run above. `actor` is the GitHub login that started the run; the
-  table has no column for it, so it is kept in memory for a day and is `null` until a read since the
-  last restart saw the run. `progress` is `null` for a run that has not started, when the jobs were not
-  read, or (for a viewer) when nobody read them lately. `problems` lists repositories GitHub could not
-  be read for, with a reason from a fixed list (`no_access`, `rate_limited`, `unavailable`,
-  `unsupported`; never GitHub's own text); the answer is still `200`, and a client shows one quiet
-  pill. A repository that cannot be read is left alone for 10 minutes (30 seconds for a temporary
-  failure, as long as GitHub asked for a rate limit), and a repository without a local-only flag is
-  the only kind covered (a local-only repository has no GitHub).
+`runs` are the runs that have not finished (a dispatch GitHub has not named yet is `pending`),
+newest first, with the fields of a run above. `actor` is the GitHub login that started the run; the
+table has no column for it, so it is kept in memory for a day and is `null` until a read since the
+last restart saw the run. `progress` is `null` for a run that has not started, when the jobs were not
+read, or (for a viewer) when nobody read them lately. `problems` lists repositories GitHub could not
+be read for, with a reason from a fixed list (`no_access`, `rate_limited`, `unavailable`,
+`unsupported`; never GitHub's own text); the answer is still `200`, and a client shows one quiet
+pill. A repository that cannot be read is left alone for 10 minutes (30 seconds for a temporary
+failure, as long as GitHub asked for a rate limit), and a repository without a local-only flag is
+the only kind covered (a local-only repository has no GitHub).
 
-  **Budget.** Whoever has `repositories.scan` makes the answer live: before reading the table the
-  repositories are refreshed through the same run sync as `?refresh=true` and `ci.poll` (conditional
-  reads, at least 8 seconds apart per repository whoever asks, one request shared by concurrent
-  callers). A repository with a run going is looked at that often; one with none at most **once a
+**Budget.** Whoever has `repositories.scan` makes the answer live: before reading the table the
+repositories are refreshed through the same run sync as `?refresh=true` and `ci.poll` (conditional
+reads, at least 8 seconds apart per repository whoever asks, one request shared by concurrent
+callers). A repository with a run going is looked at that often; one with none at most **once a
   minute** (that is how a run started on GitHub itself is noticed), at most 25 repositories per answer,
-  four at a time. For the runs in progress (12 at most) the jobs are read too (below). A viewer gets
-  `"live": false`: the stored rows and whatever progress a member read lately, never a GitHub read.
-  An answer is kept **5 seconds** per workspace, role kind and repository set, and requests that arrive
-  while it is being made share it (`cached: true`). The route is limited to **60 requests per workspace
+four at a time. For the runs in progress (12 at most) the jobs are read too (below). A viewer gets
+`"live": false`: the stored rows and whatever progress a member read lately, never a GitHub read.
+An answer is kept **5 seconds** per workspace, role kind and repository set, and requests that arrive
+while it is being made share it (`cached: true`). The route is limited to **60 requests per workspace
   per minute** (`429 rate_limited`, `Retry-After`; a cached answer counts). An API token limited to some
-  apps sees only the repositories of those apps, and of their runs only those that belong to no app or to
-  one of them (the filtering is done in the route; the operation is registered with the `list` app scope
-  so such a token may call it). Reads are audited like the other run reads (`credential.use`, purposes
-  `ci.poll` and `ci.jobs`).
+apps sees only the repositories of those apps, and of their runs only those that belong to no app or to
+one of them (the filtering is done in the route; the operation is registered with the `list` app scope
+so such a token may call it). Reads are audited like the other run reads (`credential.use`, purposes
+`ci.poll` and `ci.jobs`).
 
 - `GET /repositories/:id/workflows/runs/:runId/jobs` needs `repositories.read`. Answer
   `{ runId, jobs, truncated, readAt, cached, live }` where a job is `{ id, name, status, conclusion,
@@ -257,19 +321,44 @@ deleted, and is shown if the build comes back).
   matchers in use, in order. Builds are sorted by platform, then the highest number first.
 
 ```json
-{ "platform": "ios", "buildNumber": "240", "version": "2.4.0", "tracks": [],
-  "status": "rolling_out", "rawState": "READY_FOR_SALE", "uploadedAt": 1731900000000, "syncedAt": 1731900100000,
+{
+  "platform": "ios",
+  "buildNumber": "240",
+  "version": "2.4.0",
+  "tracks": [],
+  "status": "rolling_out",
+  "rawState": "READY_FOR_SALE",
+  "uploadedAt": 1731900000000,
+  "syncedAt": 1731900100000,
   "linkState": "linked",
   "link": {
-    "state": "linked", "source": "run_title", "manual": false,
-    "reason": "title \"Release 2.4.0 (build 240)\" (build N)", "candidates": 1,
-    "linkedAt": null, "linkedBy": null,
-    "run": { "id": "1001", "workflow": "iOS release", "title": "Release 2.4.0 (build 240)",
-             "status": "completed", "conclusion": "success", "active": false,
-             "url": "https://github.com/acme/app/actions/runs/1001", "branch": "main",
-             "startedAt": 1731900000000, "updatedAt": 1731900060000 },
-    "commit": { "sha": "3333…", "shortSha": "3333333", "message": "Second change",
-                "url": "https://github.com/acme/app/commit/3333…" } } }
+    "state": "linked",
+    "source": "run_title",
+    "manual": false,
+    "reason": "title \"Release 2.4.0 (build 240)\" (build N)",
+    "candidates": 1,
+    "linkedAt": null,
+    "linkedBy": null,
+    "run": {
+      "id": "1001",
+      "workflow": "iOS release",
+      "title": "Release 2.4.0 (build 240)",
+      "status": "completed",
+      "conclusion": "success",
+      "active": false,
+      "url": "https://github.com/acme/app/actions/runs/1001",
+      "branch": "main",
+      "startedAt": 1731900000000,
+      "updatedAt": 1731900060000
+    },
+    "commit": {
+      "sha": "3333…",
+      "shortSha": "3333333",
+      "message": "Second change",
+      "url": "https://github.com/acme/app/commit/3333…"
+    }
+  }
+}
 ```
 
 An unlinked build has `"linkState": "unlinked", "link": null`. `link.run` is `null` when the run
@@ -331,11 +420,11 @@ and every step is stored as evidence. It is tried for a build that no matcher ab
    configured release workflow are preferred; with none configured, a workflow whose name or path
    says release, publish, deploy, ship, distribute, store, testflight or fastlane.
 
-| Confidence | When |
-| --- | --- |
-| `high` | one run fits, both by parent/head and by time, in the configured or a recognised release workflow |
-| `medium` | one run fits by only one of the two (time alone is the usual case for the Android job), or several runs fit and only one fits both, or only one contains the commit in time |
-| `low` | several runs fit and none stands out, or the workflow is not recognised as a release one |
+| Confidence | When                                                                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `high`     | one run fits, both by parent/head and by time, in the configured or a recognised release workflow                                                                           |
+| `medium`   | one run fits by only one of the two (time alone is the usual case for the Android job), or several runs fit and only one fits both, or only one contains the commit in time |
+| `low`      | several runs fit and none stands out, or the workflow is not recognised as a release one                                                                                    |
 
 A low link is looked at again on the next search. If a tag is found but no run (the run has left
 the table, or the commit was made outside every run) the build is in the **"Tag found"** state:
@@ -367,16 +456,16 @@ bump), not the run's head.
 An unlinked build has `diagnostic: { code, message }` saying why, and `diagnostics` of the answer
 says what was searched:
 
-| `diagnostic.code` | Meaning |
-| --- | --- |
-| `no_tags` | the repository has no tags and no releases |
-| `no_pattern_fit` | tags exist but none fits a pattern: add a pattern |
-| `number_not_found` | names fit, but none has this build number (the newest fitting number is in `diagnostics.newestFit`) |
-| `other_platform` | only tags of the other platform carry the number |
-| `tag_without_commit` | a tag carries the number but its commit could not be read |
-| `tag_without_run` | (of "Tag found" links) the commit leads to no stored run |
-| `scan_failed` | the last search failed (`diagnostics.scanError`) |
-| `not_searched` | tags have not been searched since this build was synced |
+| `diagnostic.code`    | Meaning                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `no_tags`            | the repository has no tags and no releases                                                          |
+| `no_pattern_fit`     | tags exist but none fits a pattern: add a pattern                                                   |
+| `number_not_found`   | names fit, but none has this build number (the newest fitting number is in `diagnostics.newestFit`) |
+| `other_platform`     | only tags of the other platform carry the number                                                    |
+| `tag_without_commit` | a tag carries the number but its commit could not be read                                           |
+| `tag_without_run`    | (of "Tag found" links) the commit leads to no stored run                                            |
+| `scan_failed`        | the last search failed (`diagnostics.scanError`)                                                    |
+| `not_searched`       | tags have not been searched since this build was synced                                             |
 
 `diagnostics` is `{ scannedAt, scanOk, scanError, patterns: { tags, releases, prefix, workflow,
 usingDefaults, source }, tags: { seen, truncated, sample, targeted }, releases: { seen, truncated,
@@ -389,14 +478,14 @@ A pattern is a name with placeholders, compiled to an anchored, case-insensitive
 every part is bounded (there is no backtracking to speak of). Text outside placeholders is
 literal: `(a+)+$` in a pattern is just those characters.
 
-| Placeholder | Matches |
-| --- | --- |
-| `{buildNumber}` | 1 to 10 digits (leading zeros are ignored when comparing); **required** |
-| `{version}` | `1.2.3` (up to four dotted numbers), with an optional `-beta.1` suffix |
-| `{platform}` | letters; `ios`, `iphone`, `ipados` mean iOS, `android` Android, anything else is another platform |
-| `{flavor}` | free text, up to 40 characters (`appstore`, `playstore`) |
-| `{prefix}` | the literal prefix of the convention (a monorepo's `TAG_PREFIX`) |
-| `*` | up to 80 characters of anything but a line break (release patterns only) |
+| Placeholder     | Matches                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `{buildNumber}` | 1 to 10 digits (leading zeros are ignored when comparing); **required**                           |
+| `{version}`     | `1.2.3` (up to four dotted numbers), with an optional `-beta.1` suffix                            |
+| `{platform}`    | letters; `ios`, `iphone`, `ipados` mean iOS, `android` Android, anything else is another platform |
+| `{flavor}`      | free text, up to 40 characters (`appstore`, `playstore`)                                          |
+| `{prefix}`      | the literal prefix of the convention (a monorepo's `TAG_PREFIX`)                                  |
+| `*`             | up to 80 characters of anything but a line break (release patterns only)                          |
 
 Limits: 120 characters a pattern, 20 patterns per list, a prefix of 40 characters, at most two `*`
 and never side by side, no control characters, and tags have no whitespace. A pattern list that
@@ -468,17 +557,37 @@ GitHub's compare API). `base` is optional: by default the build before `build` o
 that is linked to a commit. Both builds need a link; the commits compared are the runs' `headSha`.
 
 ```json
-{ "platform": "ios",
+{
+  "platform": "ios",
   "base": { "buildNumber": "238", "version": "2.2.0", "sha": "1111…", "shortSha": "1111111" },
   "head": { "buildNumber": "240", "version": "2.4.0", "sha": "3333…", "shortSha": "3333333" },
-  "status": "ahead", "aheadBy": 2, "behindBy": 0, "totalCommits": 2, "truncated": false,
+  "status": "ahead",
+  "aheadBy": 2,
+  "behindBy": 0,
+  "totalCommits": 2,
+  "truncated": false,
   "url": "https://github.com/acme/app/compare/1111111...3333333",
   "commits": [
-    { "sha": "3333…", "shortSha": "3333333", "title": "Second change", "message": "Second change",
-      "author": "Grace", "date": 1731900200000, "url": "https://github.com/acme/app/commit/3333…" },
-    { "sha": "2222…", "shortSha": "2222222", "title": "First change", "message": "First change\n\nbody",
-      "author": "Ada", "date": 1731900100000, "url": "https://github.com/acme/app/commit/2222…" }
-  ] }
+    {
+      "sha": "3333…",
+      "shortSha": "3333333",
+      "title": "Second change",
+      "message": "Second change",
+      "author": "Grace",
+      "date": 1731900200000,
+      "url": "https://github.com/acme/app/commit/3333…"
+    },
+    {
+      "sha": "2222…",
+      "shortSha": "2222222",
+      "title": "First change",
+      "message": "First change\n\nbody",
+      "author": "Ada",
+      "date": 1731900100000,
+      "url": "https://github.com/acme/app/commit/2222…"
+    }
+  ]
+}
 ```
 
 `status` is GitHub's word (`ahead`, `behind`, `identical`, `diverged`); `commits` are **newest
@@ -537,16 +646,16 @@ them on Postgres when `MRM_TEST_POSTGRES_URL` is set.
 
 ## Error codes
 
-| Status | `error` | When |
-| --- | --- | --- |
-| 400 | `invalid_request` | a bad body or query (`issues` say which) |
-| 403 | `forbidden` | the role lacks the right, or `refresh=true` without `repositories.scan` |
-| 404 | `not_found` | not a member, or an unknown repository, app or run; `workflow_not_found`, `build_not_found` have their own codes |
-| 422 | `ci_unsupported` | the connection cannot read CI runs |
-| 413 | `payload_too_large` | a conventions body over 16 KiB |
-| 422 | `app_not_found`, `app_repository_mismatch` | `appId` of a dispatch or of a conventions body |
-| 422 | `no_repository`, `build_not_found`, `build_not_linked`, `no_base_build`, `run_not_found`, `run_without_commit` | builds, links, changes |
-| 422 | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid` | GitHub refused (`message` says what) |
-| 429 | `rate_limited` | too many dispatches or re-matches; `Retry-After`, `retryAfterSeconds`; or GitHub's own limit |
-| 502 | `github_unavailable` | GitHub could not be reached |
-| 504 | `timeout` | GitHub did not answer in time |
+| Status | `error`                                                                                                        | When                                                                                                             |
+| ------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 400    | `invalid_request`                                                                                              | a bad body or query (`issues` say which)                                                                         |
+| 403    | `forbidden`                                                                                                    | the role lacks the right, or `refresh=true` without `repositories.scan`                                          |
+| 404    | `not_found`                                                                                                    | not a member, or an unknown repository, app or run; `workflow_not_found`, `build_not_found` have their own codes |
+| 422    | `ci_unsupported`                                                                                               | the connection cannot read CI runs                                                                               |
+| 413    | `payload_too_large`                                                                                            | a conventions body over 16 KiB                                                                                   |
+| 422    | `app_not_found`, `app_repository_mismatch`                                                                     | `appId` of a dispatch or of a conventions body                                                                   |
+| 422    | `no_repository`, `build_not_found`, `build_not_linked`, `no_base_build`, `run_not_found`, `run_without_commit` | builds, links, changes                                                                                           |
+| 422    | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid`                                        | GitHub refused (`message` says what)                                                                             |
+| 429    | `rate_limited`                                                                                                 | too many dispatches or re-matches; `Retry-After`, `retryAfterSeconds`; or GitHub's own limit                     |
+| 502    | `github_unavailable`                                                                                           | GitHub could not be reached                                                                                      |
+| 504    | `timeout`                                                                                                      | GitHub did not answer in time                                                                                    |

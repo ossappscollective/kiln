@@ -20,18 +20,18 @@ The glyphs that stand beside those names are generic geometric marks drawn for t
 are NOT the companies' logos and do not reproduce them. The official full-colour badges ("Download on
 the App Store", "Get it on Google Play") are not used anywhere.
 
-| Icon name | Stands beside | What it is |
-| --- | --- | --- |
-| `store` | Any store, and the neutral fallback | A storefront with an awning |
-| `store-ios` | App Store, App Store Connect | A plain shopping bag |
-| `store-android` | Google Play, Google Play Console | A rounded square with a play triangle |
-| `platform-ios` | iOS | A phone outline with a top pill and a home bar |
-| `platform-android` | Android | A phone outline with a camera dot and a bottom bar |
-| `platform-macos` | macOS | A desktop display outline with a stand and a bezel line |
-| `send` | TestFlight | A paper plane |
-| `repo` | GitHub | A repository (book) outline |
-| `code` | Expo | Code brackets and a slash |
-| `pipeline` | Fastlane | Three lanes that fork |
+| Icon name          | Stands beside                       | What it is                                              |
+| ------------------ | ----------------------------------- | ------------------------------------------------------- |
+| `store`            | Any store, and the neutral fallback | A storefront with an awning                             |
+| `store-ios`        | App Store, App Store Connect        | A plain shopping bag                                    |
+| `store-android`    | Google Play, Google Play Console    | A rounded square with a play triangle                   |
+| `platform-ios`     | iOS                                 | A phone outline with a top pill and a home bar          |
+| `platform-android` | Android                             | A phone outline with a camera dot and a bottom bar      |
+| `platform-macos`   | macOS                               | A desktop display outline with a stand and a bezel line |
+| `send`             | TestFlight                          | A paper plane                                           |
+| `repo`             | GitHub                              | A repository (book) outline                             |
+| `code`             | Expo                                | Code brackets and a slash                               |
+| `pipeline`         | Fastlane                            | Three lanes that fork                                   |
 
 `apps/web/src/lib/icons.ts` lists the same names in `genericBrandIcons`, and `icons.test.ts` fails if
 an entry there is missing from this table.

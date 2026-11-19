@@ -1,6 +1,18 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
-import { access, chmod, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
+import {
+  access,
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { devNull, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { redactSecrets, secretStrings } from '@mrm/connectors';
@@ -44,7 +56,11 @@ export function isInside(child: string, parent: string): boolean {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-const bad = (code: LocalPathProblemCode, message: string): PathCheck => ({ ok: false, code, message });
+const bad = (code: LocalPathProblemCode, message: string): PathCheck => ({
+  ok: false,
+  code,
+  message,
+});
 
 /** Real paths of the roots that exist, in order. A root that does not exist is skipped. */
 async function realRoots(roots: readonly string[]): Promise<string[]> {
@@ -62,7 +78,9 @@ async function realRoots(roots: readonly string[]): Promise<string[]> {
 const errorCode = (error: unknown): string | undefined => (error as NodeJS.ErrnoException)?.code;
 
 /** The text rules of step 1. Returns the trimmed path, or a problem. No file system access. */
-export function checkPathText(input: unknown): { ok: true; path: string } | { ok: false; message: string } {
+export function checkPathText(
+  input: unknown,
+): { ok: true; path: string } | { ok: false; message: string } {
   if (typeof input !== 'string') return { ok: false, message: 'The path must be text.' };
   if (/[\u0000-\u001f\u007f]/.test(input)) {
     return { ok: false, message: 'The path must not contain control characters or NUL bytes.' };
@@ -73,7 +91,10 @@ export function checkPathText(input: unknown): { ok: true; path: string } | { ok
     return { ok: false, message: `The path is longer than ${MAX_LOCAL_PATH_LENGTH} characters.` };
   }
   if (!isAbsolute(path)) {
-    return { ok: false, message: 'Use an absolute path (starting with / on macOS and Linux). "~" is not expanded.' };
+    return {
+      ok: false,
+      message: 'Use an absolute path (starting with / on macOS and Linux). "~" is not expanded.',
+    };
   }
   if (path.split(/[\\/]+/).includes('..')) {
     return { ok: false, message: 'The path must not contain ".." segments.' };
@@ -94,14 +115,16 @@ export async function validateLocalPath(input: unknown, cfg: LocalRoots): Promis
     real = await realpath(resolve(text.path));
   } catch (error) {
     const code = errorCode(error);
-    if (code === 'ENOENT' || code === 'ENOTDIR') return bad('not_found', 'That folder does not exist on the server.');
+    if (code === 'ENOENT' || code === 'ENOTDIR')
+      return bad('not_found', 'That folder does not exist on the server.');
     if (code === 'EACCES' || code === 'EPERM') {
       return bad('not_accessible', 'The server is not allowed to open that folder.');
     }
     return bad('invalid_path', 'That path cannot be resolved.');
   }
   try {
-    if (!(await stat(real)).isDirectory()) return bad('not_directory', 'That path is not a folder.');
+    if (!(await stat(real)).isDirectory())
+      return bad('not_directory', 'That path is not a folder.');
   } catch {
     return bad('not_accessible', 'The server is not allowed to open that folder.');
   }
@@ -121,15 +144,26 @@ export async function validateLocalPath(input: unknown, cfg: LocalRoots): Promis
       return bad('data_folder', 'That folder is part of the server’s own data and cannot be used.');
     }
   }
-  if (await lstat(join(real, 'mrm-clone.json')).then(() => true, () => false)) {
+  if (
+    await lstat(join(real, 'mrm-clone.json')).then(
+      () => true,
+      () => false,
+    )
+  ) {
     return bad('data_folder', 'That folder is a clone managed by this server and cannot be used.');
   }
 
   const dotGit = await lstat(join(real, '.git')).catch(() => undefined);
   if (!dotGit) {
     const bare =
-      (await stat(join(real, 'HEAD')).then((s) => s.isFile(), () => false)) &&
-      (await stat(join(real, 'objects')).then((s) => s.isDirectory(), () => false));
+      (await stat(join(real, 'HEAD')).then(
+        (s) => s.isFile(),
+        () => false,
+      )) &&
+      (await stat(join(real, 'objects')).then(
+        (s) => s.isDirectory(),
+        () => false,
+      ));
     return bad(
       bare ? 'bare_repository' : 'not_a_repository',
       bare
@@ -138,10 +172,18 @@ export async function validateLocalPath(input: unknown, cfg: LocalRoots): Promis
     );
   }
   if (dotGit.isSymbolicLink()) {
-    return bad('not_a_repository', 'The .git entry in that folder is a symbolic link, which is not accepted.');
+    return bad(
+      'not_a_repository',
+      'The .git entry in that folder is a symbolic link, which is not accepted.',
+    );
   }
   if (dotGit.isDirectory()) {
-    if (!(await stat(join(real, '.git', 'HEAD')).then((s) => s.isFile(), () => false))) {
+    if (
+      !(await stat(join(real, '.git', 'HEAD')).then(
+        (s) => s.isFile(),
+        () => false,
+      ))
+    ) {
       return bad('not_a_repository', 'The .git folder in that folder is not a git repository.');
     }
     return { ok: true, realPath: real, root, worktree: false };
@@ -151,10 +193,17 @@ export async function validateLocalPath(input: unknown, cfg: LocalRoots): Promis
   }
   // A worktree or a submodule: `.git` is a file naming the real git folder. That must be inside a
   // root as well, or a file in an allowed folder could point git at any repository on the machine.
-  const pointer = /^gitdir:[ \t]*(.+?)[ \t]*$/m.exec(await readFile(join(real, '.git'), 'utf8').catch(() => ''));
-  if (!pointer?.[1]) return bad('not_a_repository', 'The .git file in that folder is not a git pointer.');
+  const pointer = /^gitdir:[ \t]*(.+?)[ \t]*$/m.exec(
+    await readFile(join(real, '.git'), 'utf8').catch(() => ''),
+  );
+  if (!pointer?.[1])
+    return bad('not_a_repository', 'The .git file in that folder is not a git pointer.');
   const target = await realpath(resolve(real, pointer[1])).catch(() => undefined);
-  if (!target) return bad('not_a_repository', 'The .git file in that folder points to a folder that does not exist.');
+  if (!target)
+    return bad(
+      'not_a_repository',
+      'The .git file in that folder points to a folder that does not exist.',
+    );
   const targets = [target];
   const common = await readFile(join(target, 'commondir'), 'utf8').catch(() => undefined);
   if (common !== undefined) {
@@ -202,11 +251,21 @@ const REPO = /^[A-Za-z0-9._-]{1,100}$/;
 export function parseRemoteUrl(url: string): RemoteInfo | null {
   const value = url.trim();
   const named =
-    /^(?:https?|git|ssh|git\+ssh|ssh\+git):\/\/(?:[^@/\s]+@)?([^/:@\s]+)(?::\d+)?\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(value) ??
-    /^(?:[^@/\s:]+@)?([^/:@\s]+):([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/.exec(value);
+    /^(?:https?|git|ssh|git\+ssh|ssh\+git):\/\/(?:[^@/\s]+@)?([^/:@\s]+)(?::\d+)?\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(
+      value,
+    ) ?? /^(?:[^@/\s:]+@)?([^/:@\s]+):([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/.exec(value);
   if (!named) return null;
   const [, host, owner, repo] = named;
-  if (!host || !owner || !repo || !OWNER.test(owner) || !REPO.test(repo) || repo === '.' || repo === '..') return null;
+  if (
+    !host ||
+    !owner ||
+    !repo ||
+    !OWNER.test(owner) ||
+    !REPO.test(repo) ||
+    repo === '.' ||
+    repo === '..'
+  )
+    return null;
   const lower = host.toLowerCase();
   return { host: lower, owner, repo, github: lower === 'github.com' || lower === 'www.github.com' };
 }
@@ -222,16 +281,26 @@ export function parseRemoteUrl(url: string): RemoteInfo | null {
  */
 const HARDENING = [
   '--no-pager',
-  '-c', 'core.fsmonitor=false',
-  '-c', `core.hooksPath=${devNull}`,
-  '-c', 'core.alternateRefsCommand=',
-  '-c', 'core.sshCommand=',
-  '-c', 'core.askPass=',
-  '-c', 'credential.helper=',
-  '-c', 'diff.external=',
-  '-c', 'core.untrackedCache=false',
-  '-c', 'gc.auto=0',
-  '-c', 'maintenance.auto=false',
+  '-c',
+  'core.fsmonitor=false',
+  '-c',
+  `core.hooksPath=${devNull}`,
+  '-c',
+  'core.alternateRefsCommand=',
+  '-c',
+  'core.sshCommand=',
+  '-c',
+  'core.askPass=',
+  '-c',
+  'credential.helper=',
+  '-c',
+  'diff.external=',
+  '-c',
+  'core.untrackedCache=false',
+  '-c',
+  'gc.auto=0',
+  '-c',
+  'maintenance.auto=false',
 ];
 
 const PASS_ENV = ['PATH', 'SYSTEMROOT', 'SystemRoot', 'TMPDIR', 'TEMP', 'TMP'];
@@ -328,9 +397,13 @@ export const DUBIOUS_OWNERSHIP_MESSAGE =
 /** A safe, short message for a failed git call: never git's own text beyond a classification. */
 export function gitProblem(result: GitResult): { code: GitProblemCode; message: string } {
   if (result.failed === 'missing') {
-    return { code: 'git_missing', message: 'The git program was not found on the server (MRM_GIT_PATH).' };
+    return {
+      code: 'git_missing',
+      message: 'The git program was not found on the server (MRM_GIT_PATH).',
+    };
   }
-  if (result.failed === 'timeout') return { code: 'git_timeout', message: 'git took too long to answer for that folder.' };
+  if (result.failed === 'timeout')
+    return { code: 'git_timeout', message: 'git took too long to answer for that folder.' };
   if (/dubious ownership/i.test(result.stderr)) {
     return { code: 'dubious_ownership', message: DUBIOUS_OWNERSHIP_MESSAGE };
   }
@@ -427,7 +500,11 @@ export async function inspectLocalRepo(input: {
     else if (tip.code !== 1 && tip.code !== 0) return fail(tip);
   }
   if (input.branch !== undefined && branchSha === null) {
-    return { ok: false, code: 'branch_not_found', message: `The local repository has no branch named ${input.branch}.` };
+    return {
+      ok: false,
+      code: 'branch_not_found',
+      message: `The local repository has no branch named ${input.branch}.`,
+    };
   }
 
   const origin = await run(['config', '--local', '--get', 'remote.origin.url']);
@@ -460,7 +537,13 @@ export async function inspectLocalRepo(input: {
  * Submodules are not entered. Null when it could not be counted.
  */
 export async function countUncommitted(gitPath: string, realPath: string): Promise<number | null> {
-  const names = await runLocalGit(gitPath, realPath, ['config', '--local', '--name-only', '--get-regexp', '^filter\\.']);
+  const names = await runLocalGit(gitPath, realPath, [
+    'config',
+    '--local',
+    '--name-only',
+    '--get-regexp',
+    '^filter\\.',
+  ]);
   const extraConfig: string[] = [];
   if (names.code === 0) {
     for (const line of names.stdout.split('\n')) {
@@ -478,7 +561,14 @@ export async function countUncommitted(gitPath: string, realPath: string): Promi
   const status = await runLocalGit(
     gitPath,
     realPath,
-    ['status', '--porcelain=v1', '-z', '--untracked-files=normal', '--ignore-submodules=all', '--no-renames'],
+    [
+      'status',
+      '--porcelain=v1',
+      '-z',
+      '--untracked-files=normal',
+      '--ignore-submodules=all',
+      '--no-renames',
+    ],
     { timeoutMs: 15_000, maxBytes: 8 * 1024 * 1024, extraConfig },
   );
   if (status.code !== 0) return null;
@@ -646,12 +736,16 @@ export const MAX_BRANCH_LENGTH = 200;
  * or `.lock`, no `.lock` segment, not `HEAD`, not starting with `refs/`, at most 200 characters.
  * It is always used as `refs/heads/<name>`.
  */
-export function checkNewBranchName(name: unknown): { ok: true; name: string } | { ok: false; message: string } {
+export function checkNewBranchName(
+  name: unknown,
+): { ok: true; name: string } | { ok: false; message: string } {
   const bad = (message: string) => ({ ok: false as const, message });
   if (typeof name !== 'string') return bad('The branch name must be text.');
-  if (/[\u0000-\u001f\u007f]/.test(name)) return bad('The branch name must not contain control characters.');
+  if (/[\u0000-\u001f\u007f]/.test(name))
+    return bad('The branch name must not contain control characters.');
   if (name === '') return bad('Enter a branch name.');
-  if (name.length > MAX_BRANCH_LENGTH) return bad(`The branch name is longer than ${MAX_BRANCH_LENGTH} characters.`);
+  if (name.length > MAX_BRANCH_LENGTH)
+    return bad(`The branch name is longer than ${MAX_BRANCH_LENGTH} characters.`);
   if (name.startsWith('-')) return bad('The branch name must not start with "-".');
   if (name === 'HEAD' || name === '@' || name.startsWith('refs/')) {
     return bad('That branch name is reserved. Pick a name such as mrm/update-listing.');
@@ -662,20 +756,31 @@ export function checkNewBranchName(name: unknown): { ok: true; name: string } | 
     return bad('A part of the branch name must not end in ".lock".');
   }
   if (!isSafeBranchName(name)) {
-    return bad('Use letters, digits and . _ - / only, starting with a letter or digit, without "//", "/." or a trailing "/" or ".".');
+    return bad(
+      'Use letters, digits and . _ - / only, starting with a letter or digit, without "//", "/." or a trailing "/" or ".".',
+    );
   }
   return { ok: true, name };
 }
 
 export type CommitIdentity = { name: string; email: string };
 
-const IDENTITY_FALLBACK: CommitIdentity = { name: 'Mobile Release Manager', email: 'noreply@localhost' };
+const IDENTITY_FALLBACK: CommitIdentity = {
+  name: 'Mobile Release Manager',
+  email: 'noreply@localhost',
+};
 
 /** A name and email that are safe in a commit header: one line, no `<`, `>` or control characters. */
 export function cleanIdentity(identity: Partial<CommitIdentity> | undefined): CommitIdentity {
-  const name = (identity?.name ?? '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  const name = (identity?.name ?? '')
+    .replace(/[\u0000-\u001f\u007f<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100);
   const email = (identity?.email ?? '').trim();
-  const emailOk = email.length <= 200 && /^[^\s<>@\u0000-\u001f\u007f]+@[^\s<>@\u0000-\u001f\u007f]+$/.test(email);
+  const emailOk =
+    email.length <= 200 &&
+    /^[^\s<>@\u0000-\u001f\u007f]+@[^\s<>@\u0000-\u001f\u007f]+$/.test(email);
   return {
     name: name === '' ? IDENTITY_FALLBACK.name : name,
     email: emailOk ? email : IDENTITY_FALLBACK.email,
@@ -683,7 +788,12 @@ export function cleanIdentity(identity: Partial<CommitIdentity> | undefined): Co
 }
 
 /** One file of a change set, as stored: absent `before` means the file is new, absent `after` that it is deleted. */
-export type FileEdit = { path: string; before?: string; after?: string; /** `base64`: before and after are the base64 text of bytes (an image), not UTF-8 text. */ encoding?: 'base64' };
+export type FileEdit = {
+  path: string;
+  before?: string;
+  after?: string /** `base64`: before and after are the base64 text of bytes (an image), not UTF-8 text. */;
+  encoding?: 'base64';
+};
 
 export type BranchCommitInput = {
   gitPath: string;
@@ -743,16 +853,23 @@ const SIGNING_MESSAGES: Record<SigningFailureReason, string> = {
 };
 
 /** A fixed, safe message for a failed signing run. `stderr` is read for a class only, never repeated. */
-export function classifySigningFailure(result: RawGitResult): { reason: SigningFailureReason; message: string } {
+export function classifySigningFailure(result: RawGitResult): {
+  reason: SigningFailureReason;
+  message: string;
+} {
   const text = result.stderr;
   const reason: SigningFailureReason =
     result.failed === 'timeout'
       ? 'timeout'
       : /cannot run |Permission denied.*(exec|spawn)/i.test(text)
         ? 'program'
-        : /passphrase|pinentry|agent refused|communication with agent|sign_and_send|Operation cancelled/i.test(text)
+        : /passphrase|pinentry|agent refused|communication with agent|sign_and_send|Operation cancelled/i.test(
+              text,
+            )
           ? 'locked'
-          : /Couldn't load|Load key|No such file|invalid format|No secret key|not a valid/i.test(text)
+          : /Couldn't load|Load key|No such file|invalid format|No secret key|not a valid/i.test(
+                text,
+              )
             ? 'key'
             : 'failed';
   return { reason, message: SIGNING_MESSAGES[reason] };
@@ -770,7 +887,8 @@ const gpgWrapper = (program: string): string =>
 export function hasSignatureHeader(commit: string, format: 'ssh' | 'gpg'): boolean {
   const end = commit.indexOf('\n\n');
   const headers = end < 0 ? commit : commit.slice(0, end);
-  const marker = format === 'ssh' ? '-----BEGIN SSH SIGNATURE-----' : '-----BEGIN PGP SIGNATURE-----';
+  const marker =
+    format === 'ssh' ? '-----BEGIN SSH SIGNATURE-----' : '-----BEGIN PGP SIGNATURE-----';
   return new RegExp(`^gpgsig(?:-sha256)? ${marker}$`, 'm').test(headers);
 }
 
@@ -835,7 +953,13 @@ export type BranchCommitOutcome =
       /** Set when the commit was signed: the commit object holds a signature header of this format. */
       signature?: { format: 'ssh' | 'gpg' };
     }
-  | { ok: false; code: BranchCommitProblemCode; message: string; paths?: string[]; reason?: SigningFailureReason };
+  | {
+      ok: false;
+      code: BranchCommitProblemCode;
+      message: string;
+      paths?: string[];
+      reason?: SigningFailureReason;
+    };
 
 const MIB = 1024 * 1024;
 
@@ -897,7 +1021,12 @@ async function signedCommitTree(args: {
 }): Promise<SignedCommit> {
   const { run, scratch, treeSha, author } = args;
   const baseSha = args.parentSha;
-  const input = { now: args.now, signing: args.signing, message: args.message, deadline: args.deadline };
+  const input = {
+    now: args.now,
+    signing: args.signing,
+    message: args.message,
+    deadline: args.deadline,
+  };
   const problem = (result: RawGitResult) => {
     const p = gitProblem(asText(result));
     return { ok: false as const, code: p.code, message: p.message };
@@ -912,7 +1041,12 @@ async function signedCommitTree(args: {
     // private HOME (inside the temporary folder that is removed below) is all ssh-keygen and gpg
     // see of the system; gpg gets its keyring through GNUPGHOME.
     if (/['\u0000-\u001f]/.test(signing.program)) {
-      return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
+      return {
+        ok: false,
+        code: 'signing_failed',
+        message: SIGNING_MESSAGES.program,
+        reason: 'program',
+      };
     }
     // A pinned absolute path that is missing or not executable is a "program" failure on every
     // platform: git's own wording for it differs (macOS git words it another way), so ask the file system.
@@ -920,7 +1054,12 @@ async function signedCommitTree(args: {
       try {
         await access(signing.program, fsConstants.X_OK);
       } catch {
-        return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.program, reason: 'program' };
+        return {
+          ok: false,
+          code: 'signing_failed',
+          message: SIGNING_MESSAGES.program,
+          reason: 'program',
+        };
       }
     }
     const home = join(scratch, 'home');
@@ -934,7 +1073,11 @@ async function signedCommitTree(args: {
     signingEnv.TMP = temp;
     signingEnv.TEMP = temp;
     if (signing.format === 'ssh') {
-      signingConfig = ['gpg.format=ssh', `gpg.ssh.program=${signing.program}`, `user.signingkey=${signing.key}`];
+      signingConfig = [
+        'gpg.format=ssh',
+        `gpg.ssh.program=${signing.program}`,
+        `user.signingkey=${signing.key}`,
+      ];
       if (signing.sshAuthSock) signingEnv.SSH_AUTH_SOCK = signing.sshAuthSock;
     } else {
       const wrapper = join(scratch, 'gpg-no-prompt');
@@ -949,13 +1092,25 @@ async function signedCommitTree(args: {
       if (signing.gnupgHome) signingEnv.GNUPGHOME = signing.gnupgHome;
     }
   }
-  const remaining = input.deadline === undefined ? Infinity : Math.max(1000, input.deadline - Date.now());
+  const remaining =
+    input.deadline === undefined ? Infinity : Math.max(1000, input.deadline - Date.now());
   const committed = await run(
-    ['commit-tree', treeSha, '-p', baseSha, ...(signing ? [signing.format === 'gpg' ? `-S${signing.key}` : '-S'] : []), '-F', '-'],
+    [
+      'commit-tree',
+      treeSha,
+      '-p',
+      baseSha,
+      ...(signing ? [signing.format === 'gpg' ? `-S${signing.key}` : '-S'] : []),
+      '-F',
+      '-',
+    ],
     {
       input: `${input.message.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`,
       ...(signing
-        ? { extraConfig: [...WRITE_CONFIG, ...signingConfig], timeoutMs: Math.min(signing.timeoutMs ?? DEFAULT_SIGNING_TIMEOUT_MS, remaining) }
+        ? {
+            extraConfig: [...WRITE_CONFIG, ...signingConfig],
+            timeoutMs: Math.min(signing.timeoutMs ?? DEFAULT_SIGNING_TIMEOUT_MS, remaining),
+          }
         : {}),
       env: {
         GIT_AUTHOR_NAME: author.name,
@@ -981,10 +1136,19 @@ async function signedCommitTree(args: {
     // signed and is not never becomes a branch. This says "signed", not "verified".
     const object = await run(['cat-file', 'commit', commitSha]);
     if (object.code !== 0 || !hasSignatureHeader(object.stdout.toString('utf8'), signing.format)) {
-      return { ok: false, code: 'signing_failed', message: SIGNING_MESSAGES.failed, reason: 'failed' };
+      return {
+        ok: false,
+        code: 'signing_failed',
+        message: SIGNING_MESSAGES.failed,
+        reason: 'failed',
+      };
     }
   }
-  return { ok: true, commit: commitSha, ...(signing ? { signature: { format: signing.format } } : {}) };
+  return {
+    ok: true,
+    commit: commitSha,
+    ...(signing ? { signature: { format: signing.format } } : {}),
+  };
 }
 
 /**
@@ -1007,7 +1171,11 @@ async function signedCommitTree(args: {
  * `update-ref` leaves only unreachable objects, which `git gc` removes.
  */
 export async function createBranchCommit(input: BranchCommitInput): Promise<BranchCommitOutcome> {
-  const fail = (code: BranchCommitProblemCode, message: string, paths?: string[]): BranchCommitOutcome => ({
+  const fail = (
+    code: BranchCommitProblemCode,
+    message: string,
+    paths?: string[],
+  ): BranchCommitOutcome => ({
     ok: false,
     code,
     message,
@@ -1015,16 +1183,25 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
   });
   const named = checkNewBranchName(input.branch);
   if (!named.ok) return fail('invalid_branch', named.message);
-  if (!isSafeBranchName(input.baseBranch)) return fail('invalid_branch', 'The local branch has a name that cannot be used.');
+  if (!isSafeBranchName(input.baseBranch))
+    return fail('invalid_branch', 'The local branch has a name that cannot be used.');
   for (const file of input.files) {
-    if (!isSafeRepoPath(file.path)) return fail('invalid_file_path', `Not a valid repository path: ${JSON.stringify(file.path)}.`);
+    if (!isSafeRepoPath(file.path))
+      return fail(
+        'invalid_file_path',
+        `Not a valid repository path: ${JSON.stringify(file.path)}.`,
+      );
   }
   if (new Set(input.files.map((f) => f.path)).size !== input.files.length) {
     return fail('invalid_file_path', 'A path appears twice in the change set.');
   }
   const author = cleanIdentity(input.author);
   const expired = () => input.deadline !== undefined && Date.now() > input.deadline;
-  const tooSlow = () => fail('timeout', 'Writing the commit took too long and was stopped before anything was changed.');
+  const tooSlow = () =>
+    fail(
+      'timeout',
+      'Writing the commit took too long and was stopped before anything was changed.',
+    );
 
   // 1. The folder, now.
   const check = await validateLocalPath(input.path, input.roots);
@@ -1038,21 +1215,38 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
   };
 
   // 2. The base, and a branch that does not exist. The length of the base's id says SHA-1 or SHA-256.
-  const base = await run(['rev-parse', '--verify', '-q', `refs/heads/${input.baseBranch}^{commit}`]);
+  const base = await run([
+    'rev-parse',
+    '--verify',
+    '-q',
+    `refs/heads/${input.baseBranch}^{commit}`,
+  ]);
   const baseSha = base.stdout.toString('utf8').trim();
-  if (base.code === 1) return fail('branch_not_found', `The local repository has no branch named ${input.baseBranch} any more.`);
+  if (base.code === 1)
+    return fail(
+      'branch_not_found',
+      `The local repository has no branch named ${input.baseBranch} any more.`,
+    );
   if (base.code !== 0) return problem(base);
   if (!SHA.test(baseSha)) return fail('git_failed', 'git could not read that repository.');
   const zero = '0'.repeat(baseSha.length);
   const ref = `refs/heads/${named.name}`;
   const taken = await run(['rev-parse', '--verify', '-q', ref]);
-  if (taken.code === 0) return fail('branch_exists', `A branch named ${named.name} already exists in the local clone. Pick another name.`);
+  if (taken.code === 0)
+    return fail(
+      'branch_exists',
+      `A branch named ${named.name} already exists in the local clone. Pick another name.`,
+    );
   if (taken.code !== 1) return problem(taken);
   if (expired()) return tooSlow();
 
   // 3. What the base holds at the changed paths.
-  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', baseSha], { maxBytes: 64 * MIB, timeoutMs: 60_000 });
-  if (listing.failed === 'output') return fail('too_large', 'The repository has too many files to list.');
+  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', baseSha], {
+    maxBytes: 64 * MIB,
+    timeoutMs: 60_000,
+  });
+  if (listing.failed === 'output')
+    return fail('too_large', 'The repository has too many files to list.');
   if (listing.code !== 0) return problem(listing);
   const tree = parseLsTree(listing.stdout);
   const directories = new Set<string>();
@@ -1070,32 +1264,52 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
     .filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000')
     .map(([p]) => p);
   if (unsupported.length > 0) {
-    return fail('unsupported_entry', 'Some of these files are a symbolic link or a submodule in the local clone, which cannot be edited here.', unsupported.slice(0, 50));
+    return fail(
+      'unsupported_entry',
+      'Some of these files are a symbolic link or a submodule in the local clone, which cannot be edited here.',
+      unsupported.slice(0, 50),
+    );
   }
   const conflicts: string[] = [];
   for (const file of input.files) {
     if (file.after === undefined) continue;
     const parts = file.path.split('/');
     let underFile = false;
-    for (let i = 1; i < parts.length; i += 1) if (tree.has(parts.slice(0, i).join('/'))) underFile = true;
+    for (let i = 1; i < parts.length; i += 1)
+      if (tree.has(parts.slice(0, i).join('/'))) underFile = true;
     if (underFile || directories.has(file.path)) conflicts.push(file.path);
   }
   if (conflicts.length > 0) {
-    return fail('path_conflict', 'A file of the change set would replace a folder, or sit under a file, in the local clone.', conflicts.slice(0, 50));
+    return fail(
+      'path_conflict',
+      'A file of the change set would replace a folder, or sit under a file, in the local clone.',
+      conflicts.slice(0, 50),
+    );
   }
 
   const blobIds = [...new Set([...wanted.values()].map((e) => e.oid))];
   let contents = new Map<string, Buffer>();
   if (blobIds.length > 0) {
-    const cat = await run(['cat-file', '--batch'], { input: `${blobIds.join('\n')}\n`, maxBytes: 128 * MIB, timeoutMs: 60_000 });
+    const cat = await run(['cat-file', '--batch'], {
+      input: `${blobIds.join('\n')}\n`,
+      maxBytes: 128 * MIB,
+      timeoutMs: 60_000,
+    });
     if (cat.failed === 'output') return fail('too_large', 'The files to change are too large.');
     if (cat.code !== 0) return problem(cat);
     contents = parseCatBatch(cat.stdout);
   }
-  const same = (entry: TreeEntry | undefined, text: string | undefined, encoding?: 'base64'): boolean => {
+  const same = (
+    entry: TreeEntry | undefined,
+    text: string | undefined,
+    encoding?: 'base64',
+  ): boolean => {
     if (!entry || text === undefined) return false;
     const blob = contents.get(entry.oid);
-    return blob !== undefined && blob.equals(Buffer.from(text, encoding === 'base64' ? 'base64' : 'utf8'));
+    return (
+      blob !== undefined &&
+      blob.equals(Buffer.from(text, encoding === 'base64' ? 'base64' : 'utf8'))
+    );
   };
 
   const plan: { path: string; mode: string; content?: string; encoding?: 'base64' }[] = [];
@@ -1104,14 +1318,26 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
   for (const file of input.files) {
     const entry = wanted.get(file.path);
     if (file.after === undefined) {
-      if (!entry) skipped += 1; // already gone
-      else if (file.before !== undefined && !same(entry, file.before, file.encoding)) differing.push(file.path);
+      if (!entry)
+        skipped += 1; // already gone
+      else if (file.before !== undefined && !same(entry, file.before, file.encoding))
+        differing.push(file.path);
       else plan.push({ path: file.path, mode: entry.mode });
       continue;
     }
-    if (same(entry, file.after, file.encoding)) skipped += 1; // already has this text
-    else if (file.before === undefined ? entry !== undefined : !same(entry, file.before, file.encoding)) differing.push(file.path);
-    else plan.push({ path: file.path, mode: entry?.mode ?? '100644', content: file.after, ...(file.encoding === 'base64' ? { encoding: 'base64' as const } : {}) });
+    if (same(entry, file.after, file.encoding))
+      skipped += 1; // already has this text
+    else if (
+      file.before === undefined ? entry !== undefined : !same(entry, file.before, file.encoding)
+    )
+      differing.push(file.path);
+    else
+      plan.push({
+        path: file.path,
+        mode: entry?.mode ?? '100644',
+        content: file.after,
+        ...(file.encoding === 'base64' ? { encoding: 'base64' as const } : {}),
+      });
   }
   if (differing.length > 0) {
     return fail(
@@ -1120,7 +1346,8 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
       differing.sort().slice(0, 50),
     );
   }
-  if (plan.length === 0) return fail('no_changes', 'Nothing to commit: the local branch already has these changes.');
+  if (plan.length === 0)
+    return fail('no_changes', 'Nothing to commit: the local branch already has these changes.');
   if (expired()) return tooSlow();
 
   // 4. Blobs, the tree in a private index, the commit, the branch.
@@ -1133,7 +1360,8 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
         input: Buffer.from(item.content ?? '', item.encoding === 'base64' ? 'base64' : 'utf8'),
       });
       const oid = made.stdout.toString('utf8').trim();
-      if (made.code !== 0 || oid.length !== baseSha.length || !SHA.test(oid)) failure ??= problem(made);
+      if (made.code !== 0 || oid.length !== baseSha.length || !SHA.test(oid))
+        failure ??= problem(made);
       else blobs.set(item.path, oid);
     }
   };
@@ -1151,7 +1379,10 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
         return oid === undefined ? `0 ${zero}\t${p.path}\0` : `${p.mode} ${oid}\t${p.path}\0`;
       })
       .join('');
-    const updated = await run(['update-index', '--add', '-z', '--index-info'], { env: indexEnv, input: info });
+    const updated = await run(['update-index', '--add', '-z', '--index-info'], {
+      env: indexEnv,
+      input: info,
+    });
     if (updated.code !== 0) return problem(updated);
     const written = await run(['write-tree'], { env: indexEnv });
     const treeSha = written.stdout.toString('utf8').trim();
@@ -1178,8 +1409,14 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
     const moved = await run(['update-ref', '-m', 'mrm: commit change set', ref, commitSha, zero]);
     if (moved.code !== 0) {
       const now = await run(['rev-parse', '--verify', '-q', ref]);
-      if (now.code === 0 || /cannot lock ref|already exists|exists; cannot create/i.test(moved.stderr)) {
-        return fail('branch_exists', `A branch named ${named.name} already exists in the local clone, or conflicts with one. Pick another name.`);
+      if (
+        now.code === 0 ||
+        /cannot lock ref|already exists|exists; cannot create/i.test(moved.stderr)
+      ) {
+        return fail(
+          'branch_exists',
+          `A branch named ${named.name} already exists in the local clone, or conflicts with one. Pick another name.`,
+        );
       }
       return problem(moved);
     }
@@ -1237,12 +1474,15 @@ export type PushOutcome =
   | { ok: false; code: PushProblemCode; message: string };
 
 const PUSH_MESSAGES: Record<string, string> = {
-  push_auth: 'GitHub refused the credential for this push. Check that the token or app can write to the repository (contents: write).',
-  push_rejected: 'GitHub rejected the push because the branch already exists there with other history. Choose another branch name, or delete that branch on GitHub.',
+  push_auth:
+    'GitHub refused the credential for this push. Check that the token or app can write to the repository (contents: write).',
+  push_rejected:
+    'GitHub rejected the push because the branch already exists there with other history. Choose another branch name, or delete that branch on GitHub.',
   push_declined: 'GitHub declined the push (for example a branch protection or push rule).',
   push_not_found: 'GitHub could not find the repository, or the credential cannot see it.',
   push_network: 'Could not reach GitHub to push. Try again in a moment.',
-  push_timeout: 'The push took too long and was stopped. The commit is still in the local clone; try again.',
+  push_timeout:
+    'The push took too long and was stopped. The commit is still in the local clone; try again.',
   push_failed: 'The push did not work.',
   commit_missing: 'The commit is not in the local clone any more (it may have been pruned).',
 };
@@ -1250,26 +1490,49 @@ const PUSH_MESSAGES: Record<string, string> = {
 /** Classifies what `git push` printed. The text is not returned: only a fixed message per class. */
 export function classifyPush(result: RawGitResult): { code: PushProblemCode; message: string } {
   if (result.failed === 'missing') {
-    return { code: 'git_missing', message: 'The git program was not found on the server (MRM_GIT_PATH).' };
+    return {
+      code: 'git_missing',
+      message: 'The git program was not found on the server (MRM_GIT_PATH).',
+    };
   }
-  const pick = (code: PushProblemCode) => ({ code, message: PUSH_MESSAGES[code] ?? 'The push did not work.' });
+  const pick = (code: PushProblemCode) => ({
+    code,
+    message: PUSH_MESSAGES[code] ?? 'The push did not work.',
+  });
   if (result.failed === 'timeout') return pick('push_timeout');
   const text = `${result.stderr}\n${result.stdout.toString('utf8')}`;
-  if (/Authentication failed|could not read (Username|Password)|returned error: 40[13]|Permission to .* denied|invalid credentials|Bad credentials/i.test(text)) {
+  if (
+    /Authentication failed|could not read (Username|Password)|returned error: 40[13]|Permission to .* denied|invalid credentials|Bad credentials/i.test(
+      text,
+    )
+  ) {
     return pick('push_auth');
   }
   if (/protected branch|GH00\d|declined|pre-receive hook/i.test(text)) return pick('push_declined');
-  if (/non-fast-forward|fetch first|\[rejected\]|\(stale info\)|already exists/i.test(text)) return pick('push_rejected');
-  if (/returned error: 404|Repository not found|not found/i.test(text)) return pick('push_not_found');
-  if (/Could not resolve host|unable to access|Failed to connect|timed out|Connection (refused|reset)|SSL|TLS|Couldn't connect/i.test(text)) {
+  if (/non-fast-forward|fetch first|\[rejected\]|\(stale info\)|already exists/i.test(text))
+    return pick('push_rejected');
+  if (/returned error: 404|Repository not found|not found/i.test(text))
+    return pick('push_not_found');
+  if (
+    /Could not resolve host|unable to access|Failed to connect|timed out|Connection (refused|reset)|SSL|TLS|Couldn't connect/i.test(
+      text,
+    )
+  ) {
     return pick('push_network');
   }
   return pick('push_failed');
 }
 
 /** Removes the token (and its encodings), Authorization lines, URL credentials and the folders we named. */
-export function scrubPushText(text: string, secrets: readonly string[], paths: readonly string[]): string {
-  let out = redactSecrets(text, secrets.flatMap((s) => secretStrings(s)));
+export function scrubPushText(
+  text: string,
+  secrets: readonly string[],
+  paths: readonly string[],
+): string {
+  let out = redactSecrets(
+    text,
+    secrets.flatMap((s) => secretStrings(s)),
+  );
   out = out.replace(/(Authorization:)[^\r\n]*/gi, '$1 [redacted]');
   out = out.replace(/:\/\/[^/@\s]+@/g, '://[redacted]@');
   for (const path of paths) if (path.length > 1) out = out.split(path).join('<folder>');
@@ -1294,18 +1557,32 @@ export function scrubPushText(text: string, secrets: readonly string[], paths: r
  *   No hook runs (`--no-verify`, an empty template, `core.hooksPath` off).
  */
 export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
-  const fail = (code: PushProblemCode, message: string): PushOutcome => ({ ok: false, code, message });
+  const fail = (code: PushProblemCode, message: string): PushOutcome => ({
+    ok: false,
+    code,
+    message,
+  });
   const named = checkNewBranchName(input.branch);
   if (!named.ok) return fail('git_failed', named.message);
   if (!SHA.test(input.commit)) return fail('commit_missing', PUSH_MESSAGES.commit_missing ?? '');
   const protocol = input.protocol ?? 'https';
   let url: URL | undefined;
   try {
-    url = protocol === 'file' && isAbsolute(input.url) ? new URL(`file://${input.url}`) : new URL(input.url);
+    url =
+      protocol === 'file' && isAbsolute(input.url)
+        ? new URL(`file://${input.url}`)
+        : new URL(input.url);
   } catch {
     url = undefined;
   }
-  if (!url || url.protocol !== `${protocol}:` || url.username || url.password || url.search || url.hash) {
+  if (
+    !url ||
+    url.protocol !== `${protocol}:` ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
     return fail('invalid_url', 'The push address is not valid.');
   }
   if (input.token !== undefined && !/^[\x21-\x7e]+$/.test(input.token)) {
@@ -1329,7 +1606,12 @@ export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
   }
 
   // The commit must exist in the clone, and its object folder must be inside the allowed root.
-  const exists = await runLocalGit(input.gitPath, cwd, ['rev-parse', '--verify', '-q', `${input.commit}^{commit}`]);
+  const exists = await runLocalGit(input.gitPath, cwd, [
+    'rev-parse',
+    '--verify',
+    '-q',
+    `${input.commit}^{commit}`,
+  ]);
   if (exists.code === 1) return fail('commit_missing', PUSH_MESSAGES.commit_missing ?? '');
   if (exists.code !== 0) {
     const p = gitProblem(exists);
@@ -1342,13 +1624,22 @@ export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
   }
   const objects = await realpath(resolve(cwd, where.stdout.trim())).catch(() => undefined);
   if (!objects || !isInside(objects, check.root)) {
-    return fail('outside_roots', 'The object folder of that repository is outside the allowed folders.');
+    return fail(
+      'outside_roots',
+      'The object folder of that repository is outside the allowed folders.',
+    );
   }
 
   const scratch = await mkdtemp(join(tmpdir(), 'mrm-push-'));
   try {
     const bare = join(scratch, 'repo.git');
-    const init = await runGitRaw(input.gitPath, scratch, ['init', '--bare', '-q', '--template=', bare]);
+    const init = await runGitRaw(input.gitPath, scratch, [
+      'init',
+      '--bare',
+      '-q',
+      '--template=',
+      bare,
+    ]);
     if (init.code !== 0) {
       const p = gitProblem(asText(init));
       return fail(p.code, p.message);
@@ -1357,13 +1648,25 @@ export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
     const pushed = await runGitRaw(
       input.gitPath,
       scratch,
-      ['push', '--porcelain', '--no-verify', '--no-recurse-submodules', '--', url.toString(), `${input.commit}:refs/heads/${named.name}`],
+      [
+        'push',
+        '--porcelain',
+        '--no-verify',
+        '--no-recurse-submodules',
+        '--',
+        url.toString(),
+        `${input.commit}:refs/heads/${named.name}`,
+      ],
       {
         gitDir: bare,
         network: true,
         env,
         timeoutMs: input.timeoutMs ?? 60_000,
-        extraConfig: ['http.followRedirects=false', 'push.recurseSubmodules=no', 'push.gpgSign=false'],
+        extraConfig: [
+          'http.followRedirects=false',
+          'push.recurseSubmodules=no',
+          'push.gpgSign=false',
+        ],
       },
     );
     if (pushed.code === 0 && !pushed.failed) {
@@ -1372,7 +1675,11 @@ export async function pushBranchCommit(input: PushInput): Promise<PushOutcome> {
     const clean = (value: string) => scrubPushText(value, secrets, [scratch, cwd, objects]);
     return {
       ok: false,
-      ...classifyPush({ ...pushed, stderr: clean(pushed.stderr), stdout: Buffer.from(clean(pushed.stdout.toString('utf8'))) }),
+      ...classifyPush({
+        ...pushed,
+        stderr: clean(pushed.stderr),
+        stdout: Buffer.from(clean(pushed.stdout.toString('utf8'))),
+      }),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
@@ -1396,7 +1703,13 @@ export type FixupProblemCode =
   | 'branch_checked_out'
   | 'not_text';
 
-export type FixupProblem = { ok: false; code: FixupProblemCode; message: string; paths?: string[]; reason?: SigningFailureReason };
+export type FixupProblem = {
+  ok: false;
+  code: FixupProblemCode;
+  message: string;
+  paths?: string[];
+  reason?: SigningFailureReason;
+};
 
 const fixupProblem = (code: FixupProblemCode, message: string, paths?: string[]): FixupProblem => ({
   ok: false,
@@ -1412,7 +1725,8 @@ export type BranchUse = { inUse: false } | { inUse: true; where: 'checked_out' |
 export function parseWorktreeBranches(output: string): string[] {
   const branches: string[] = [];
   for (const line of output.split('\n')) {
-    if (line.startsWith('branch refs/heads/')) branches.push(line.slice('branch refs/heads/'.length).trim());
+    if (line.startsWith('branch refs/heads/'))
+      branches.push(line.slice('branch refs/heads/'.length).trim());
   }
   return branches;
 }
@@ -1433,22 +1747,33 @@ async function smallFile(path: string): Promise<string | undefined> {
  * `rebase-merge` / `rebase-apply` markers. A question git cannot answer is "in use": refusing is
  * the safe side.
  */
-export async function branchUse(gitPath: string, cwd: string, branch: string): Promise<BranchUse | FixupProblem> {
+export async function branchUse(
+  gitPath: string,
+  cwd: string,
+  branch: string,
+): Promise<BranchUse | FixupProblem> {
   const head = await runLocalGit(gitPath, cwd, ['symbolic-ref', '-q', 'HEAD']);
   if (head.failed) {
     const p = gitProblem(head);
     return fixupProblem(p.code, p.message);
   }
-  if (head.code === 0 && head.stdout.trim() === `refs/heads/${branch}`) return { inUse: true, where: 'checked_out' };
-  const list = await runLocalGit(gitPath, cwd, ['worktree', 'list', '--porcelain'], { maxBytes: 1024 * 1024 });
+  if (head.code === 0 && head.stdout.trim() === `refs/heads/${branch}`)
+    return { inUse: true, where: 'checked_out' };
+  const list = await runLocalGit(gitPath, cwd, ['worktree', 'list', '--porcelain'], {
+    maxBytes: 1024 * 1024,
+  });
   if (list.failed === 'missing') {
     const p = gitProblem(list);
     return fixupProblem(p.code, p.message);
   }
   if (list.code !== 0) {
-    return fixupProblem('git_failed', 'git could not say whether the branch is checked out, so it was not changed.');
+    return fixupProblem(
+      'git_failed',
+      'git could not say whether the branch is checked out, so it was not changed.',
+    );
   }
-  if (parseWorktreeBranches(list.stdout).includes(branch)) return { inUse: true, where: 'checked_out' };
+  if (parseWorktreeBranches(list.stdout).includes(branch))
+    return { inUse: true, where: 'checked_out' };
   // A rebase in progress has a detached HEAD: its branch is named in head-name.
   const common = await runLocalGit(gitPath, cwd, ['rev-parse', '--git-common-dir']);
   if (common.code !== 0) return { inUse: false };
@@ -1474,7 +1799,8 @@ export async function branchUse(gitPath: string, cwd: string, branch: string): P
 const IN_USE_MESSAGES: Record<'checked_out' | 'rebasing', string> = {
   checked_out:
     'This branch is checked out in the local clone (or one of its worktrees), and moving it would leave that working folder out of date. Nothing was changed. Switch away from it (for example `git switch main`), then fix it up again.',
-  rebasing: 'A rebase of this branch is in progress in the local clone. Nothing was changed. Finish or abort the rebase, then fix it up again.',
+  rebasing:
+    'A rebase of this branch is in progress in the local clone. Nothing was changed. Finish or abort the rebase, then fix it up again.',
 };
 
 const inUseProblem = (use: Extract<BranchUse, { inUse: true }>): FixupProblem =>
@@ -1505,27 +1831,40 @@ export async function readBranchFiles(input: BranchFilesInput): Promise<BranchFi
   const named = checkNewBranchName(input.branch);
   if (!named.ok) return fixupProblem('invalid_branch', named.message);
   for (const path of input.paths) {
-    if (!isSafeRepoPath(path)) return fixupProblem('invalid_file_path', `Not a valid repository path: ${JSON.stringify(path)}.`);
+    if (!isSafeRepoPath(path))
+      return fixupProblem(
+        'invalid_file_path',
+        `Not a valid repository path: ${JSON.stringify(path)}.`,
+      );
   }
   const check = await validateLocalPath(input.path, input.roots);
   if (!check.ok) return fixupProblem(check.code, check.message);
   const cwd = check.realPath;
-  const run = (args: string[], options: RawOptions = {}) => runGitRaw(input.gitPath, cwd, args, { extraConfig: WRITE_CONFIG, ...options });
+  const run = (args: string[], options: RawOptions = {}) =>
+    runGitRaw(input.gitPath, cwd, args, { extraConfig: WRITE_CONFIG, ...options });
   const problem = (result: RawGitResult) => {
     const p = gitProblem(asText(result));
     return fixupProblem(p.code, p.message);
   };
   const tipResult = await run(['rev-parse', '--verify', '-q', `refs/heads/${named.name}^{commit}`]);
   const tip = tipResult.stdout.toString('utf8').trim();
-  if (tipResult.code === 1) return fixupProblem('branch_not_found', `The local repository has no branch named ${named.name} any more.`);
+  if (tipResult.code === 1)
+    return fixupProblem(
+      'branch_not_found',
+      `The local repository has no branch named ${named.name} any more.`,
+    );
   if (tipResult.code !== 0) return problem(tipResult);
   if (!SHA.test(tip)) return fixupProblem('git_failed', 'git could not read that repository.');
   const use = await branchUse(input.gitPath, cwd, named.name);
   if ('ok' in use) return use;
   if (use.inUse) return inUseProblem(use);
 
-  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', tip], { maxBytes: 64 * MIB, timeoutMs: 60_000 });
-  if (listing.failed === 'output') return fixupProblem('too_large', 'The repository has too many files to list.');
+  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', tip], {
+    maxBytes: 64 * MIB,
+    timeoutMs: 60_000,
+  });
+  if (listing.failed === 'output')
+    return fixupProblem('too_large', 'The repository has too many files to list.');
   if (listing.code !== 0) return problem(listing);
   const tree = parseLsTree(listing.stdout);
   const wanted = new Map<string, TreeEntry>();
@@ -1533,15 +1872,26 @@ export async function readBranchFiles(input: BranchFilesInput): Promise<BranchFi
     const entry = tree.get(path);
     if (entry) wanted.set(path, entry);
   }
-  const unsupported = [...wanted].filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000').map(([p]) => p);
+  const unsupported = [...wanted]
+    .filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000')
+    .map(([p]) => p);
   if (unsupported.length > 0) {
-    return fixupProblem('unsupported_entry', 'Some of these files are a symbolic link or a submodule on the branch, which cannot be edited here.', unsupported.slice(0, 50));
+    return fixupProblem(
+      'unsupported_entry',
+      'Some of these files are a symbolic link or a submodule on the branch, which cannot be edited here.',
+      unsupported.slice(0, 50),
+    );
   }
   const blobIds = [...new Set([...wanted.values()].map((e) => e.oid))];
   let contents = new Map<string, Buffer>();
   if (blobIds.length > 0) {
-    const cat = await run(['cat-file', '--batch'], { input: `${blobIds.join('\n')}\n`, maxBytes: 128 * MIB, timeoutMs: 60_000 });
-    if (cat.failed === 'output') return fixupProblem('too_large', 'The files to change are too large.');
+    const cat = await run(['cat-file', '--batch'], {
+      input: `${blobIds.join('\n')}\n`,
+      maxBytes: 128 * MIB,
+      timeoutMs: 60_000,
+    });
+    if (cat.failed === 'output')
+      return fixupProblem('too_large', 'The files to change are too large.');
     if (cat.code !== 0) return problem(cat);
     contents = parseCatBatch(cat.stdout);
   }
@@ -1562,7 +1912,11 @@ export async function readBranchFiles(input: BranchFilesInput): Promise<BranchFi
     }
   }
   if (notText.length > 0) {
-    return fixupProblem('not_text', 'Some of these files are not UTF-8 text on the branch, so they cannot be merged.', notText.slice(0, 50));
+    return fixupProblem(
+      'not_text',
+      'Some of these files are not UTF-8 text on the branch, so they cannot be merged.',
+      notText.slice(0, 50),
+    );
   }
   return { ok: true, tip, texts };
 }
@@ -1584,7 +1938,14 @@ export type FixupCommitInput = {
 };
 
 export type FixupCommitOutcome =
-  | { ok: true; commit: string; parent: string; tree: string; changed: number; signature?: { format: 'ssh' | 'gpg' } }
+  | {
+      ok: true;
+      commit: string;
+      parent: string;
+      tree: string;
+      changed: number;
+      signature?: { format: 'ssh' | 'gpg' };
+    }
   | FixupProblem;
 
 /**
@@ -1600,21 +1961,31 @@ export type FixupCommitOutcome =
 export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupCommitOutcome> {
   const named = checkNewBranchName(input.branch);
   if (!named.ok) return fixupProblem('invalid_branch', named.message);
-  if (!SHA.test(input.expectedTip)) return fixupProblem('git_failed', 'The branch tip is not a commit id.');
+  if (!SHA.test(input.expectedTip))
+    return fixupProblem('git_failed', 'The branch tip is not a commit id.');
   for (const change of input.changes) {
-    if (!isSafeRepoPath(change.path)) return fixupProblem('invalid_file_path', `Not a valid repository path: ${JSON.stringify(change.path)}.`);
+    if (!isSafeRepoPath(change.path))
+      return fixupProblem(
+        'invalid_file_path',
+        `Not a valid repository path: ${JSON.stringify(change.path)}.`,
+      );
   }
   if (new Set(input.changes.map((c) => c.path)).size !== input.changes.length) {
     return fixupProblem('invalid_file_path', 'A path appears twice in the change.');
   }
   const author = cleanIdentity(input.author);
   const expired = () => input.deadline !== undefined && Date.now() > input.deadline;
-  const tooSlow = () => fixupProblem('timeout', 'Writing the commit took too long and was stopped before anything was changed.');
+  const tooSlow = () =>
+    fixupProblem(
+      'timeout',
+      'Writing the commit took too long and was stopped before anything was changed.',
+    );
 
   const check = await validateLocalPath(input.path, input.roots);
   if (!check.ok) return fixupProblem(check.code, check.message);
   const cwd = check.realPath;
-  const run = (args: string[], options: RawOptions = {}) => runGitRaw(input.gitPath, cwd, args, { extraConfig: WRITE_CONFIG, ...options });
+  const run = (args: string[], options: RawOptions = {}) =>
+    runGitRaw(input.gitPath, cwd, args, { extraConfig: WRITE_CONFIG, ...options });
   const problem = (result: RawGitResult) => {
     const p = gitProblem(asText(result));
     return fixupProblem(p.code, p.message);
@@ -1624,18 +1995,29 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
   const zero = '0'.repeat(tip.length);
 
   const current = await run(['rev-parse', '--verify', '-q', `${ref}^{commit}`]);
-  if (current.code === 1) return fixupProblem('branch_not_found', `The local repository has no branch named ${named.name} any more.`);
+  if (current.code === 1)
+    return fixupProblem(
+      'branch_not_found',
+      `The local repository has no branch named ${named.name} any more.`,
+    );
   if (current.code !== 0) return problem(current);
   if (current.stdout.toString('utf8').trim() !== tip) {
-    return fixupProblem('branch_moved', `The branch ${named.name} moved while this was being prepared. Nothing was changed; look at it again and retry.`);
+    return fixupProblem(
+      'branch_moved',
+      `The branch ${named.name} moved while this was being prepared. Nothing was changed; look at it again and retry.`,
+    );
   }
   const use = await branchUse(input.gitPath, cwd, named.name);
   if ('ok' in use) return use;
   if (use.inUse) return inUseProblem(use);
   if (expired()) return tooSlow();
 
-  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', tip], { maxBytes: 64 * MIB, timeoutMs: 60_000 });
-  if (listing.failed === 'output') return fixupProblem('too_large', 'The repository has too many files to list.');
+  const listing = await run(['ls-tree', '-r', '-z', '--full-tree', tip], {
+    maxBytes: 64 * MIB,
+    timeoutMs: 60_000,
+  });
+  if (listing.failed === 'output')
+    return fixupProblem('too_large', 'The repository has too many files to list.');
   if (listing.code !== 0) return problem(listing);
   const tree = parseLsTree(listing.stdout);
   const directories = new Set<string>();
@@ -1649,26 +2031,42 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
     const entry = tree.get(change.path);
     if (entry) wanted.set(change.path, entry);
   }
-  const unsupported = [...wanted].filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000').map(([p]) => p);
+  const unsupported = [...wanted]
+    .filter(([, e]) => e.type !== 'blob' || e.mode === '120000' || e.mode === '160000')
+    .map(([p]) => p);
   if (unsupported.length > 0) {
-    return fixupProblem('unsupported_entry', 'Some of these files are a symbolic link or a submodule on the branch, which cannot be edited here.', unsupported.slice(0, 50));
+    return fixupProblem(
+      'unsupported_entry',
+      'Some of these files are a symbolic link or a submodule on the branch, which cannot be edited here.',
+      unsupported.slice(0, 50),
+    );
   }
   const conflicts: string[] = [];
   for (const change of input.changes) {
     if (change.content === undefined) continue;
     const parts = change.path.split('/');
     let underFile = false;
-    for (let i = 1; i < parts.length; i += 1) if (tree.has(parts.slice(0, i).join('/'))) underFile = true;
+    for (let i = 1; i < parts.length; i += 1)
+      if (tree.has(parts.slice(0, i).join('/'))) underFile = true;
     if (underFile || directories.has(change.path)) conflicts.push(change.path);
   }
   if (conflicts.length > 0) {
-    return fixupProblem('path_conflict', 'A file of the change would replace a folder, or sit under a file, on the branch.', conflicts.slice(0, 50));
+    return fixupProblem(
+      'path_conflict',
+      'A file of the change would replace a folder, or sit under a file, on the branch.',
+      conflicts.slice(0, 50),
+    );
   }
   const blobIds = [...new Set([...wanted.values()].map((e) => e.oid))];
   let contents = new Map<string, Buffer>();
   if (blobIds.length > 0) {
-    const cat = await run(['cat-file', '--batch'], { input: `${blobIds.join('\n')}\n`, maxBytes: 128 * MIB, timeoutMs: 60_000 });
-    if (cat.failed === 'output') return fixupProblem('too_large', 'The files to change are too large.');
+    const cat = await run(['cat-file', '--batch'], {
+      input: `${blobIds.join('\n')}\n`,
+      maxBytes: 128 * MIB,
+      timeoutMs: 60_000,
+    });
+    if (cat.failed === 'output')
+      return fixupProblem('too_large', 'The files to change are too large.');
     if (cat.code !== 0) return problem(cat);
     contents = parseCatBatch(cat.stdout);
   }
@@ -1685,14 +2083,17 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
     if (blob?.equals(Buffer.from(change.content, 'utf8'))) continue;
     plan.push({ path: change.path, mode: entry?.mode ?? '100644', content: change.content });
   }
-  if (plan.length === 0) return fixupProblem('no_changes', 'Nothing to commit: the branch already has these changes.');
+  if (plan.length === 0)
+    return fixupProblem('no_changes', 'Nothing to commit: the branch already has these changes.');
 
   const blobs = new Map<string, string>();
   const queue = plan.filter((p) => p.content !== undefined);
   let failure: FixupProblem | undefined;
   const worker = async () => {
     for (let item = queue.shift(); item && !failure; item = queue.shift()) {
-      const made = await run(['hash-object', '-w', '--no-filters', '-t', 'blob', '--stdin'], { input: Buffer.from(item.content ?? '', 'utf8') });
+      const made = await run(['hash-object', '-w', '--no-filters', '-t', 'blob', '--stdin'], {
+        input: Buffer.from(item.content ?? '', 'utf8'),
+      });
       const oid = made.stdout.toString('utf8').trim();
       if (made.code !== 0 || oid.length !== tip.length || !SHA.test(oid)) failure ??= problem(made);
       else blobs.set(item.path, oid);
@@ -1712,7 +2113,10 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
         return oid === undefined ? `0 ${zero}\t${p.path}\0` : `${p.mode} ${oid}\t${p.path}\0`;
       })
       .join('');
-    const updated = await run(['update-index', '--add', '-z', '--index-info'], { env: indexEnv, input: info });
+    const updated = await run(['update-index', '--add', '-z', '--index-info'], {
+      env: indexEnv,
+      input: info,
+    });
     if (updated.code !== 0) return problem(updated);
     const written = await run(['write-tree'], { env: indexEnv });
     const treeSha = written.stdout.toString('utf8').trim();
@@ -1748,7 +2152,10 @@ export async function fixupBranchCommit(input: FixupCommitInput): Promise<FixupC
     if (moved.code !== 0) {
       const now = await run(['rev-parse', '--verify', '-q', ref]);
       if (now.code === 1 || (now.code === 0 && now.stdout.toString('utf8').trim() !== tip)) {
-        return fixupProblem('branch_moved', `The branch ${named.name} moved while the commit was being made. Nothing was changed; look at it again and retry.`);
+        return fixupProblem(
+          'branch_moved',
+          `The branch ${named.name} moved while the commit was being made. Nothing was changed; look at it again and retry.`,
+        );
       }
       return problem(moved);
     }

@@ -1,4 +1,4 @@
-import { type Platform, type Role, can } from '@mrm/core';
+import { can, type Platform, type Role } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { formatRollout, trackLabel } from './portfolio.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
@@ -18,9 +18,16 @@ export const ROLLOUT_ENV = 'MRM_STORE_ROLLOUT_ENABLED';
 /** The sentence a confirmation must show, word for word (docs/ux-ia.md, section 5). */
 export const LIVE_STORE_WARNING = 'This changes the live store.';
 
-export const IRREVERSIBLE_WARNING = 'This cannot be undone: nothing in this tool or in the store can take it back.';
+export const IRREVERSIBLE_WARNING =
+  'This cannot be undone: nothing in this tool or in the store can take it back.';
 
-export type RolloutAction = 'set_fraction' | 'halt' | 'resume' | 'complete' | 'pause' | 'release_to_all';
+export type RolloutAction =
+  | 'set_fraction'
+  | 'halt'
+  | 'resume'
+  | 'complete'
+  | 'pause'
+  | 'release_to_all';
 
 export type RolloutConfig = {
   enabled: boolean;
@@ -58,7 +65,12 @@ export type RolloutState = PlayRolloutState | AppleRolloutState;
 
 export type RolloutAppRef = { id: string; name: string; platform: Platform; store: string };
 
-export type AllowedAction = { action: string; allowed: boolean; reason?: string; irreversible: boolean };
+export type AllowedAction = {
+  action: string;
+  allowed: boolean;
+  reason?: string;
+  irreversible: boolean;
+};
 
 export type RolloutStateView = {
   app: RolloutAppRef;
@@ -115,10 +127,18 @@ export type ControlsAvailability =
   | { state: 'ready' };
 
 /** What the section shows: nothing for a role without the right, a note while the feature is off. */
-export function controlsAvailability(role: Role, config: RolloutConfig | null, loadFailed: boolean): ControlsAvailability {
+export function controlsAvailability(
+  role: Role,
+  config: RolloutConfig | null,
+  loadFailed: boolean,
+): ControlsAvailability {
   if (!canRollout(role)) return { state: 'hidden' };
   if (loadFailed) {
-    return { state: 'unknown', message: 'Could not find out whether rollout changes are switched on. Reload the page to try again.' };
+    return {
+      state: 'unknown',
+      message:
+        'Could not find out whether rollout changes are switched on. Reload the page to try again.',
+    };
   }
   if (!config) return { state: 'loading' };
   if (!config.enabled) {
@@ -140,17 +160,22 @@ export type RolloutTarget = {
   base: { track?: string; versionCodes?: string[]; version?: string };
 };
 
-const inFlight = (r: ReleaseSummary): number => (r.status === 'rolling_out' || r.status === 'halted' ? 0 : r.status === 'live' ? 1 : 2);
+const inFlight = (r: ReleaseSummary): number =>
+  r.status === 'rolling_out' || r.status === 'halted' ? 0 : r.status === 'live' ? 1 : 2;
 
 /**
  * The releases of one app that a rollout change can name: Google Play releases with a track and version
  * codes, App Store versions. In-flight releases come first (rolling out, halted), then live ones.
  */
-export function rolloutTargets(app: Pick<AppSummary, 'platform'>, releases: readonly ReleaseSummary[]): RolloutTarget[] {
+export function rolloutTargets(
+  app: Pick<AppSummary, 'platform'>,
+  releases: readonly ReleaseSummary[],
+): RolloutTarget[] {
   const list: ReleaseSummary[] = [];
   for (const r of releases) {
     if (r.platform !== app.platform) continue;
-    if (app.platform === 'android' && (r.track === null || (r.versionCodes ?? []).length === 0)) continue;
+    if (app.platform === 'android' && (r.track === null || (r.versionCodes ?? []).length === 0))
+      continue;
     list.push(r);
   }
   const ordered = list
@@ -167,7 +192,11 @@ export function rolloutTargets(app: Pick<AppSummary, 'platform'>, releases: read
         base: { track: r.track as string, versionCodes: codes },
       };
     }
-    return { key: r.version, label: `${r.version} (${r.rawState || 'App Store'})`, base: { version: r.version } };
+    return {
+      key: r.version,
+      label: `${r.version} (${r.rawState || 'App Store'})`,
+      base: { version: r.version },
+    };
   });
 }
 
@@ -206,7 +235,13 @@ export function actionsFor(config: Pick<RolloutConfig, 'actions'>, platform: Pla
   return [...list];
 }
 
-export type ActionButton = { action: string; label: string; disabled: boolean; reason: string | null; irreversible: boolean };
+export type ActionButton = {
+  action: string;
+  label: string;
+  disabled: boolean;
+  reason: string | null;
+  irreversible: boolean;
+};
 
 /** The buttons for the state that was read: an action the store state does not allow is disabled with the server's reason. */
 export function actionButtons(
@@ -217,13 +252,22 @@ export function actionButtons(
 ): ActionButton[] {
   return actionsFor(config, platform).map((action) => {
     const allowed = state?.allowedActions.filter((a) => a.action === action)[0];
-    const irreversible = allowed ? allowed.irreversible || config.irreversible.indexOf(action) >= 0 : config.irreversible.indexOf(action) >= 0;
+    const irreversible = allowed
+      ? allowed.irreversible || config.irreversible.indexOf(action) >= 0
+      : config.irreversible.indexOf(action) >= 0;
     let reason: string | null = null;
     if (blocked !== null) reason = blocked;
     else if (!state) reason = 'Read the state from the store first.';
     else if (!allowed) reason = 'The store state does not offer this change.';
-    else if (!allowed.allowed) reason = allowed.reason ?? 'The store state does not allow this change.';
-    return { action, label: actionLabel(action, platform), disabled: reason !== null, reason, irreversible };
+    else if (!allowed.allowed)
+      reason = allowed.reason ?? 'The store state does not allow this change.';
+    return {
+      action,
+      label: actionLabel(action, platform),
+      disabled: reason !== null,
+      reason,
+      irreversible,
+    };
   });
 }
 
@@ -239,25 +283,42 @@ export type FractionCheck = { ok: true; fraction: number } | { ok: false; messag
 export function parsePercent(input: string, min: number | null): FractionCheck {
   const text = input.trim().replace(/%$/, '').trim().replace(',', '.');
   if (text === '') return { ok: false, message: 'Enter the new share in percent, for example 25.' };
-  if (!/^\d+(\.\d+)?$/.test(text)) return { ok: false, message: 'Enter a number, for example 25 or 12.5.' };
+  if (!/^\d+(\.\d+)?$/.test(text))
+    return { ok: false, message: 'Enter a number, for example 25 or 12.5.' };
   const percent = Number(text);
   const fraction = Math.round(percent * 100) / 10000;
   if (!(percent > 0) || !(percent < 100)) {
-    return { ok: false, message: 'The share must be more than 0% and less than 100%. Use "Release to 100%" to finish a rollout.' };
+    return {
+      ok: false,
+      message:
+        'The share must be more than 0% and less than 100%. Use "Release to 100%" to finish a rollout.',
+    };
   }
   if (Math.abs(fraction * 100 - percent) > 1e-9) {
-    return { ok: false, message: 'Use at most two decimals in the percentage (the store takes four decimals of the fraction).' };
+    return {
+      ok: false,
+      message:
+        'Use at most two decimals in the percentage (the store takes four decimals of the fraction).',
+    };
   }
   if (min !== null && fraction <= min) {
-    return { ok: false, message: `Google Play only raises a rollout: the new share must be above the current ${formatRollout(min)}.` };
+    return {
+      ok: false,
+      message: `Google Play only raises a rollout: the new share must be above the current ${formatRollout(min)}.`,
+    };
   }
   return { ok: true, fraction };
 }
 
 /** The body of a preview or an apply for one action. `userFraction` only where the action takes it. */
-export function buildRequest(base: RolloutTarget['base'], action: string, fraction?: number): RolloutRequest {
+export function buildRequest(
+  base: RolloutTarget['base'],
+  action: string,
+  fraction?: number,
+): RolloutRequest {
   const body: RolloutRequest = { action, ...base };
-  if (fraction !== undefined && (action === 'set_fraction' || action === 'resume')) body.userFraction = fraction;
+  if (fraction !== undefined && (action === 'set_fraction' || action === 'resume'))
+    body.userFraction = fraction;
   return body;
 }
 
@@ -274,8 +335,10 @@ export function describeState(state: RolloutState): string {
   const phase = state.phasedReleaseState;
   let line: string;
   if (phase === null) line = 'no phased release';
-  else if (phase === 'ACTIVE') line = `phased release active${state.currentDayNumber !== null ? ` (day ${state.currentDayNumber} of 7)` : ''}`;
-  else if (phase === 'PAUSED') line = `phased release paused${state.totalPauseDays !== null ? ` (${state.totalPauseDays} of 30 pause days used)` : ''}`;
+  else if (phase === 'ACTIVE')
+    line = `phased release active${state.currentDayNumber !== null ? ` (day ${state.currentDayNumber} of 7)` : ''}`;
+  else if (phase === 'PAUSED')
+    line = `phased release paused${state.totalPauseDays !== null ? ` (${state.totalPauseDays} of 30 pause days used)` : ''}`;
   else if (phase === 'COMPLETE') line = 'phased release complete (released to all users)';
   else line = `phased release ${phase.toLowerCase()}`;
   return `${state.version} on the ${state.platform === 'macos' ? 'Mac App Store' : 'App Store'}: ${line}`;
@@ -301,10 +364,15 @@ export function confirmPhrase(preview: Pick<RolloutPreview, 'app' | 'current'>):
   return c.name && c.name.trim() !== '' ? c.name : preview.app.name;
 }
 
-export const confirmationMatches = (typed: string, phrase: string): boolean => typed.trim() !== '' && typed.trim().toLowerCase() === phrase.trim().toLowerCase();
+export const confirmationMatches = (typed: string, phrase: string): boolean =>
+  typed.trim() !== '' && typed.trim().toLowerCase() === phrase.trim().toLowerCase();
 
 /** An irreversible change needs the phrase; a reversible one needs only the acknowledgement. */
-export function canConfirm(preview: Pick<RolloutPreview, 'irreversible' | 'app' | 'current'>, typed: string, acknowledged: boolean): boolean {
+export function canConfirm(
+  preview: Pick<RolloutPreview, 'irreversible' | 'app' | 'current'>,
+  typed: string,
+  acknowledged: boolean,
+): boolean {
   if (!acknowledged) return false;
   return preview.irreversible ? confirmationMatches(typed, confirmPhrase(preview)) : true;
 }
@@ -313,7 +381,12 @@ export function canConfirm(preview: Pick<RolloutPreview, 'irreversible' | 'app' 
 // Outcomes of a request
 
 export type RolloutFailure =
-  | { kind: 'state_changed'; message: string; next: RolloutPreview | null; current: RolloutState | null }
+  | {
+      kind: 'state_changed';
+      message: string;
+      next: RolloutPreview | null;
+      current: RolloutState | null;
+    }
   | { kind: 'write_in_progress'; message: string }
   | { kind: 'outcome_unknown'; message: string }
   | { kind: 'not_applied'; message: string }
@@ -328,9 +401,14 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
  * `outcome_unknown` is final for this attempt: the caller must NOT send the request again.
  */
 export function classifyFailure(error: unknown, previous: RolloutPreview | null): RolloutFailure {
-  if (!(error instanceof ApiError)) return { kind: 'other', message: 'The request failed. Check your connection and read the state again.' };
+  if (!(error instanceof ApiError))
+    return {
+      kind: 'other',
+      message: 'The request failed. Check your connection and read the state again.',
+    };
   const body = error.body;
-  const message = typeof body.message === 'string' && body.message !== '' ? body.message : error.message;
+  const message =
+    typeof body.message === 'string' && body.message !== '' ? body.message : error.message;
   switch (error.code) {
     case 'state_changed': {
       const current = isObject(body.current) ? (body.current as RolloutState) : null;
@@ -343,7 +421,8 @@ export function classifyFailure(error: unknown, previous: RolloutPreview | null)
           current,
           proposed,
           summary: typeof body.summary === 'string' ? body.summary : previous.summary,
-          irreversible: typeof body.irreversible === 'boolean' ? body.irreversible : previous.irreversible,
+          irreversible:
+            typeof body.irreversible === 'boolean' ? body.irreversible : previous.irreversible,
           confirmHash: hash,
         };
       }
@@ -359,21 +438,35 @@ export function classifyFailure(error: unknown, previous: RolloutPreview | null)
     case 'write_failed':
       return body.outcome === 'not_applied'
         ? { kind: 'not_applied', message }
-        : { kind: 'outcome_unknown', message: `${message} Read the state from the store (Refresh state) before changing anything.` };
+        : {
+            kind: 'outcome_unknown',
+            message: `${message} Read the state from the store (Refresh state) before changing anything.`,
+          };
     case 'timeout':
       return {
         kind: 'outcome_unknown',
-        message: 'The store did not answer in time. Read the state from the store (Refresh state) to see whether the change went through. Do not repeat it before that.',
+        message:
+          'The store did not answer in time. Read the state from the store (Refresh state) to see whether the change went through. Do not repeat it before that.',
       };
     case 'rollout_disabled':
-      return { kind: 'disabled', message: `Changing a rollout is switched off on this server (${ROLLOUT_ENV}).` };
+      return {
+        kind: 'disabled',
+        message: `Changing a rollout is switched off on this server (${ROLLOUT_ENV}).`,
+      };
     case 'changes_in_review':
-      return { kind: 'other', message: 'Google Play has changes in review for this app. Wait until they are decided, then try again. This tool never cancels a review.' };
+      return {
+        kind: 'other',
+        message:
+          'Google Play has changes in review for this app. Wait until they are decided, then try again. This tool never cancels a review.',
+      };
     case 'rollout_not_allowed':
     case 'invalid_rollout':
       return { kind: 'other', message };
     case 'rate_limited':
-      return { kind: 'other', message: `The store is limiting requests. ${error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : 'Try again in a minute.'}` };
+      return {
+        kind: 'other',
+        message: `The store is limiting requests. ${error.retryAfter ? `Try again in ${error.retryAfter} seconds.` : 'Try again in a minute.'}`,
+      };
     case 'forbidden':
       return { kind: 'other', message: 'Only an admin or owner can change a rollout.' };
     default:
@@ -382,4 +475,5 @@ export function classifyFailure(error: unknown, previous: RolloutPreview | null)
 }
 
 /** Whether the person may try the same change again without reading the store first. Never after an unknown outcome. */
-export const mayRetry = (failure: RolloutFailure): boolean => failure.kind === 'write_in_progress' || failure.kind === 'not_applied';
+export const mayRetry = (failure: RolloutFailure): boolean =>
+  failure.kind === 'write_in_progress' || failure.kind === 'not_applied';

@@ -16,6 +16,10 @@ test('MRM_ANALYTICS_INTERVAL_MINUTES is 0 (off) or 15 to 10080', () => {
   assert.equal(load({ MRM_ANALYTICS_INTERVAL_MINUTES: '15' }).analyticsIntervalMinutes, 15);
   assert.equal(load({ MRM_ANALYTICS_INTERVAL_MINUTES: '10080' }).analyticsIntervalMinutes, 10_080);
   for (const bad of ['1', '14', '10081', '-5', '1.5', 'often']) {
-    assert.throws(() => load({ MRM_ANALYTICS_INTERVAL_MINUTES: bad }), /MRM_ANALYTICS_INTERVAL_MINUTES/, bad);
+    assert.throws(
+      () => load({ MRM_ANALYTICS_INTERVAL_MINUTES: bad }),
+      /MRM_ANALYTICS_INTERVAL_MINUTES/,
+      bad,
+    );
   }
 });

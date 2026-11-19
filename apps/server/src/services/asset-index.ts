@@ -6,24 +6,24 @@ import {
   type AssetProblem,
   type AssetSet,
   type AssetStore,
-  IMESSAGE_PREFIX,
-  type ImageFormat,
-  type Platform,
-  SPEC_SOURCES,
   assetStoreOf,
   classifyAppleScreenshot,
   deviceFitsPlatform,
   deviceLabel,
+  IMESSAGE_PREFIX,
+  type ImageFormat,
   isApplePlatform,
+  type Platform,
   readImageHeader,
+  SPEC_SOURCES,
   sniffImageFormat,
   summarizeAssets,
   validateAssets,
 } from '@mrm/core';
 import {
   type AssetCandidate,
-  type DiscoveryFolders,
   appHints,
+  type DiscoveryFolders,
   discoverProjectIcons,
   discoverStoreAssets,
   expoIconPaths,
@@ -114,7 +114,10 @@ const storeOf = (platform: Platform): AssetStore => assetStoreOf(platform);
  * (`APP_DESKTOP`) screenshots and previews and every non screenshot kind (the icon); an iOS record drops the Mac ones,
  * which cannot be pushed to an iOS version. Google Play keeps everything.
  */
-export function fileFitsPlatform(platform: Platform, f: { kind: AssetKind; device: string | null }): boolean {
+export function fileFitsPlatform(
+  platform: Platform,
+  f: { kind: AssetKind; device: string | null },
+): boolean {
   if (!isApplePlatform(platform) || (f.kind !== 'screenshot' && f.kind !== 'preview')) return true;
   if (f.device === null) return platform === 'ios';
   return deviceFitsPlatform(platform, f.device);
@@ -123,7 +126,11 @@ export function fileFitsPlatform(platform: Platform, f: { kind: AssetKind; devic
 const bySignal = (signal: AbortSignal | undefined) => (signal ? { signal } : {});
 
 /** The facts of one image from what was read of it. */
-function factsOf(c: AssetCandidate, item: BlobHeadItem | undefined, retried = false): Omit<AssetFacts, 'order'> & { oid: string | null; needsMore: boolean } {
+function factsOf(
+  c: AssetCandidate,
+  item: BlobHeadItem | undefined,
+  retried = false,
+): Omit<AssetFacts, 'order'> & { oid: string | null; needsMore: boolean } {
   const base = {
     path: c.path,
     store: c.store,
@@ -144,17 +151,34 @@ function factsOf(c: AssetCandidate, item: BlobHeadItem | undefined, retried = fa
   base.oid = item.oid;
   if (!item.ok) {
     if (item.size !== null) base.bytes = item.size;
-    base.read = item.reason === 'too_large' ? 'too_large' : item.reason === 'missing' ? 'unreadable' : 'not_read';
+    base.read =
+      item.reason === 'too_large'
+        ? 'too_large'
+        : item.reason === 'missing'
+          ? 'unreadable'
+          : 'not_read';
     return base;
   }
   base.bytes = item.size;
   const header = readImageHeader(item.head);
   if (header.ok) {
-    return { ...base, width: header.width, height: header.height, format: header.format, hasAlpha: header.hasAlpha, read: 'read' };
+    return {
+      ...base,
+      width: header.width,
+      height: header.height,
+      format: header.format,
+      hasAlpha: header.hasAlpha,
+      read: 'read',
+    };
   }
   // A JPEG whose first frame header is further in than we looked: ask for more once.
   const sniffed = sniffImageFormat(item.head);
-  if (header.reason === 'truncated' && sniffed === 'jpeg' && item.size > item.head.length && !retried) {
+  if (
+    header.reason === 'truncated' &&
+    sniffed === 'jpeg' &&
+    item.size > item.head.length &&
+    !retried
+  ) {
     return { ...base, needsMore: true, read: 'unreadable' };
   }
   return { ...base, format: sniffed, read: 'unreadable' };
@@ -174,7 +198,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
   // The icon of the project: Expo `icon`, an Xcode icon set, an Android launcher icon.
   if (wanted('app_icon')) {
     let appJson: string | undefined;
-    if (input.files.includes('app.json')) appJson = await input.readText('app.json').catch(() => undefined);
+    if (input.files.includes('app.json'))
+      appJson = await input.readText('app.json').catch(() => undefined);
     const project = discoverProjectIcons(input.files, {
       platform: app.platform,
       store,
@@ -185,7 +210,9 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
     candidates = [...candidates, ...project.candidates];
   }
   if (candidates.length > MAX_LISTED_ASSETS) {
-    notes.push(`The target has ${candidates.length} media files; the first ${MAX_LISTED_ASSETS} are listed.`);
+    notes.push(
+      `The target has ${candidates.length} media files; the first ${MAX_LISTED_ASSETS} are listed.`,
+    );
     candidates = candidates.slice(0, MAX_LISTED_ASSETS);
   }
 
@@ -193,54 +220,79 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
   const previews = candidates.filter((c) => c.kind === 'preview');
   const toRead = images.slice(0, budget.maxFiles);
   const skipped = images.length - toRead.length;
-  if (skipped > 0) reasons.push(`Only the first ${budget.maxFiles} images were opened; ${skipped} more are listed without their size.`);
+  if (skipped > 0)
+    reasons.push(
+      `Only the first ${budget.maxFiles} images were opened; ${skipped} more are listed without their size.`,
+    );
 
   const items = new Map<string, BlobHeadItem>();
   let transferred = 0;
   if (blobs && toRead.length > 0) {
-    const read = await blobs.readBlobHeads(toRead.map((c) => c.path), {
-      ref: input.commit,
-      headBytes: HEAD_BYTES,
-      maxFileBytes: MAX_READ_FILE_BYTES,
-      maxTransferBytes: budget.maxTransferBytes,
-      ...bySignal(input.signal),
-    });
+    const read = await blobs.readBlobHeads(
+      toRead.map((c) => c.path),
+      {
+        ref: input.commit,
+        headBytes: HEAD_BYTES,
+        maxFileBytes: MAX_READ_FILE_BYTES,
+        maxTransferBytes: budget.maxTransferBytes,
+        ...bySignal(input.signal),
+      },
+    );
     for (const [path, item] of read.items) items.set(path, item);
     transferred += read.transferredBytes;
   } else if (!blobs && toRead.length > 0) {
-    notes.push('This repository connection cannot read binary files, so the files are listed without their size.');
+    notes.push(
+      'This repository connection cannot read binary files, so the files are listed without their size.',
+    );
   }
 
   let facts = toRead.map((c) => factsOf(c, items.get(c.path)));
   const retry = facts.filter((f) => f.needsMore).slice(0, JPEG_RETRY_MAX_FILES);
   if (blobs && retry.length > 0) {
     const remaining = Math.max(0, budget.maxTransferBytes - transferred);
-    const read = await blobs.readBlobHeads(retry.map((f) => f.path), {
-      ref: input.commit,
-      headBytes: JPEG_RETRY_BYTES,
-      maxFileBytes: MAX_READ_FILE_BYTES,
-      maxTransferBytes: remaining,
-      ...bySignal(input.signal),
-    });
+    const read = await blobs.readBlobHeads(
+      retry.map((f) => f.path),
+      {
+        ref: input.commit,
+        headBytes: JPEG_RETRY_BYTES,
+        maxFileBytes: MAX_READ_FILE_BYTES,
+        maxTransferBytes: remaining,
+        ...bySignal(input.signal),
+      },
+    );
     transferred += read.transferredBytes;
-    const second = new Map(retry.map((f) => [f.path, factsOf(toRead.find((c) => c.path === f.path) as AssetCandidate, read.items.get(f.path), true)]));
+    const second = new Map(
+      retry.map((f) => [
+        f.path,
+        factsOf(
+          toRead.find((c) => c.path === f.path) as AssetCandidate,
+          read.items.get(f.path),
+          true,
+        ),
+      ]),
+    );
     facts = facts.map((f) => second.get(f.path) ?? f);
   }
   if ([...items.values()].some((i) => !i.ok && i.reason === 'budget')) {
-    reasons.push(`The transfer budget of ${Math.round(budget.maxTransferBytes / (1024 * 1024))} MB was used up; the remaining images are listed without their size.`);
+    reasons.push(
+      `The transfer budget of ${Math.round(budget.maxTransferBytes / (1024 * 1024))} MB was used up; the remaining images are listed without their size.`,
+    );
   }
 
   // Previews are never opened: their size, when the source has it for free.
   const previewFacts: typeof facts = [];
   if (previews.length > 0) {
     const read = blobs
-      ? await blobs.readBlobHeads(previews.map((c) => c.path), {
-          ref: input.commit,
-          headBytes: 0,
-          maxFileBytes: Number.MAX_SAFE_INTEGER,
-          maxTransferBytes: 0,
-          ...bySignal(input.signal),
-        })
+      ? await blobs.readBlobHeads(
+          previews.map((c) => c.path),
+          {
+            ref: input.commit,
+            headBytes: 0,
+            maxFileBytes: Number.MAX_SAFE_INTEGER,
+            maxTransferBytes: 0,
+            ...bySignal(input.signal),
+          },
+        )
       : undefined;
     for (const c of previews) {
       const item = read?.items.get(c.path);
@@ -268,7 +320,13 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
   let assets: IndexedAsset[] = classified
     .filter((f) => fileFitsPlatform(app.platform, f))
     .map(({ needsMore: _needsMore, ...f }) => ({ ...f, order: order.get(f.path) ?? 1 }))
-    .sort((a, b) => a.locale.localeCompare(b.locale) || a.kind.localeCompare(b.kind) || (a.device ?? '').localeCompare(b.device ?? '') || a.order - b.order);
+    .sort(
+      (a, b) =>
+        a.locale.localeCompare(b.locale) ||
+        a.kind.localeCompare(b.kind) ||
+        (a.device ?? '').localeCompare(b.device ?? '') ||
+        a.order - b.order,
+    );
 
   // Candidates that were over the file limit: listed, never opened.
   const opened = new Set(toRead.map((c) => c.path));
@@ -305,7 +363,9 @@ export function validatedFacts(facts: readonly AssetFacts[]): AssetFacts[] {
   if (icons.length < 2) return facts.slice();
   const area = (f: AssetFacts) => (f.width ?? 0) * (f.height ?? 0);
   const full = icons.filter((f) => f.width === 1024 && f.height === 1024);
-  const keep = new Set(full.length > 0 ? full : [icons.slice().sort((a, b) => area(b) - area(a))[0] as AssetFacts]);
+  const keep = new Set(
+    full.length > 0 ? full : [icons.slice().sort((a, b) => area(b) - area(a))[0] as AssetFacts],
+  );
   return facts.filter((f) => !icons.includes(f) || keep.has(f));
 }
 
@@ -342,11 +402,29 @@ export type AssetIndexView = {
   commit: string | null;
   readAt: number | null;
   /** The listing target that was used. `roots` are the folders of the locale folders. */
-  target: { id: string | null; label: string; roots: { appStore: string | null; googlePlay: string | null } } | null;
+  target: {
+    id: string | null;
+    label: string;
+    roots: { appStore: string | null; googlePlay: string | null };
+  } | null;
   folders: DiscoveryFolders;
-  limits: { maxFiles: number; maxTransferBytes: number; headBytes: number; maxFileBytes: number; maxServedBytes: number };
+  limits: {
+    maxFiles: number;
+    maxTransferBytes: number;
+    headBytes: number;
+    maxFileBytes: number;
+    maxServedBytes: number;
+  };
   partial: IndexPartial;
-  totals: { assets: number; read: number; bytes: number; errors: number; warnings: number; infos: number; locales: number };
+  totals: {
+    assets: number;
+    read: number;
+    bytes: number;
+    errors: number;
+    warnings: number;
+    infos: number;
+    locales: number;
+  };
   locales: string[];
   devices: { id: string; label: string }[];
   sets: AssetSet[];
@@ -364,7 +442,10 @@ export type AssetIndexView = {
    * (`GET .../assets/store`), or null. The index itself never reads a store, so it is null in the cached index and is added
    * by the route (docs/api/assets.md).
    */
-  storeSide: { observedAt: number; counts: { locale: string; kind: AssetKind; device: string | null; count: number }[] } | null;
+  storeSide: {
+    observedAt: number;
+    counts: { locale: string; kind: AssetKind; device: string | null; count: number }[];
+  } | null;
 };
 
 export const SPECS_BASIS =
@@ -374,7 +455,9 @@ export function specsView(): AssetIndexView['specs'] {
   return {
     basis: SPECS_BASIS,
     sources: { ...SPEC_SOURCES },
-    unverified: Object.values(ASSET_RULES).filter((r) => !r.verified).map((r) => ({ id: r.id, text: r.text })),
+    unverified: Object.values(ASSET_RULES)
+      .filter((r) => !r.verified)
+      .map((r) => ({ id: r.id, text: r.text })),
   };
 }
 
@@ -398,7 +481,8 @@ export function viewOfAsset(a: IndexedAsset): AssetView {
 }
 
 export function totalsOf(result: IndexResult): AssetIndexView['totals'] {
-  const count = (s: AssetProblem['severity']) => result.problems.filter((p) => p.severity === s).length;
+  const count = (s: AssetProblem['severity']) =>
+    result.problems.filter((p) => p.severity === s).length;
   return {
     assets: result.assets.length,
     read: result.assets.filter((a) => a.read === 'read').length,

@@ -1,15 +1,15 @@
 import { type Action, can, translationLimits } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import {
+  auditReviewTranslation,
   type TranslationContext,
   type TranslationFailure,
-  auditReviewTranslation,
   testTranslation,
   translateReviews,
 } from '../services/translation.ts';
@@ -19,7 +19,10 @@ export type ReviewTranslationRoutesContext = TranslationContext & {
   limiter: TestLimiter;
 };
 
-const languageTag = z.string().regex(/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})*$/, 'A language tag such as en, pt-BR or zh-Hant.').max(35);
+const languageTag = z
+  .string()
+  .regex(/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})*$/, 'A language tag such as en, pt-BR or zh-Hant.')
+  .max(35);
 const translateBody = z
   .object({
     reviewIds: z.array(z.string().min(1).max(100)).min(1).max(translationLimits.maxReviewIds),
@@ -54,7 +57,11 @@ export function reviewTranslationRoutes(ctx: ReviewTranslationRoutesContext) {
     if (wait === 0) return undefined;
     c.header('Retry-After', String(wait));
     return c.json(
-      { error: 'rate_limited', message: `Too many translation requests. Try again in ${wait} seconds.`, retryAfterSeconds: wait },
+      {
+        error: 'rate_limited',
+        message: `Too many translation requests. Try again in ${wait} seconds.`,
+        retryAfterSeconds: wait,
+      },
       429,
     );
   };

@@ -1,8 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { type InvitableRole, type Role, can, invitableBy, isRole } from '@mrm/core';
+import { can, type InvitableRole, invitableBy, isRole, type Role } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ScryptCost, hashPassword } from '../passwords.ts';
-import { type User, createSession, normalizeEmail } from './accounts.ts';
+import { hashPassword, type ScryptCost } from '../passwords.ts';
+import { createSession, normalizeEmail, type User } from './accounts.ts';
 import { recordAudit } from './audit.ts';
 
 /** An invitation link works for this long. One constant, so a later setting can replace it. */
@@ -53,7 +53,16 @@ export async function createInvitation(
       `INSERT INTO invitations
          (id, workspace_id, email, role, token_hash, created_by, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.workspaceId, email, input.role, hashInvitationToken(token), actor.id, now, expiresAt],
+      [
+        id,
+        input.workspaceId,
+        email,
+        input.role,
+        hashInvitationToken(token),
+        actor.id,
+        now,
+        expiresAt,
+      ],
     );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
@@ -116,10 +125,10 @@ export async function revokeInvitation(
   now: number,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
-    const [row] = await tx.query('SELECT email, role FROM invitations WHERE id = ? AND workspace_id = ?', [
-      input.id,
-      input.workspaceId,
-    ]);
+    const [row] = await tx.query(
+      'SELECT email, role FROM invitations WHERE id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
     const changed = await tx.execute(
       `UPDATE invitations SET revoked_at = ?
         WHERE id = ? AND workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
@@ -188,16 +197,25 @@ export async function previewInvitation(
   now: number,
 ): Promise<InvitationPreview | undefined> {
   const found = await findUsable(sql, token, now);
-  return found && {
-    workspaceName: found.workspaceName,
-    email: found.email,
-    role: found.role,
-    valid: true,
-  };
+  return (
+    found && {
+      workspaceName: found.workspaceName,
+      email: found.email,
+      role: found.role,
+      valid: true,
+    }
+  );
 }
 
 export type AcceptResult =
-  | { ok: true; user: User; workspaceId: string; role: Role; sessionToken?: string; expiresAt?: number }
+  | {
+      ok: true;
+      user: User;
+      workspaceId: string;
+      role: Role;
+      sessionToken?: string;
+      expiresAt?: number;
+    }
   | { ok: false; reason: 'invalid' | 'email_mismatch' | 'account_exists' | 'already_member' };
 
 /** A failed INSERT on the unique email: someone made that account a moment ago. */
@@ -223,7 +241,9 @@ export async function acceptInvitation(
   if (!(await findUsable(db, token, now))) return { ok: false, reason: 'invalid' };
 
   const passwordHash =
-    !input.signedIn && input.password ? await hashPassword(input.password, options.cost) : undefined;
+    !input.signedIn && input.password
+      ? await hashPassword(input.password, options.cost)
+      : undefined;
 
   return db.transaction(async (tx): Promise<AcceptResult> => {
     const invitation = await findUsable(tx, token, now);
@@ -268,12 +288,14 @@ export async function acceptInvitation(
       );
     }
     // accepted_by points at users, so it is set once the user row exists.
-    await tx.execute('UPDATE invitations SET accepted_by = ? WHERE id = ?', [user.id, invitation.id]);
-    await tx.execute('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)', [
-      invitation.workspaceId,
+    await tx.execute('UPDATE invitations SET accepted_by = ? WHERE id = ?', [
       user.id,
-      invitation.role,
+      invitation.id,
     ]);
+    await tx.execute(
+      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)',
+      [invitation.workspaceId, user.id, invitation.role],
+    );
     await recordAudit(tx, {
       workspaceId: invitation.workspaceId,
       actor: { type: 'user', id: user.id },

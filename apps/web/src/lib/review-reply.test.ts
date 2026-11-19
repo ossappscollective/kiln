@@ -2,9 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
-  PUBLIC_WARNING,
-  REPLY_ENV,
-  type ReplyDraft,
   canSendDraft,
   checkReply,
   confirmFacts,
@@ -15,7 +12,10 @@ import {
   limitFor,
   needsReload,
   normalizeReplyText,
+  PUBLIC_WARNING,
   previewTemplate,
+  REPLY_ENV,
+  type ReplyDraft,
   replyAvailability,
   replyErrorMessage,
   replyStatusLabel,
@@ -23,7 +23,11 @@ import {
   statusExplanation,
 } from './review-reply.ts';
 
-const config = { enabled: true, envName: REPLY_ENV, limits: { appstoreconnect: 5000, googleplay: 350 } };
+const config = {
+  enabled: true,
+  envName: REPLY_ENV,
+  limits: { appstoreconnect: 5000, googleplay: 350 },
+};
 
 const draft = (over: Partial<ReplyDraft> = {}): ReplyDraft => ({
   id: 'd1',
@@ -47,7 +51,8 @@ const draft = (over: Partial<ReplyDraft> = {}): ReplyDraft => ({
   ...over,
 });
 
-const apiError = (code: string, message = 'm', body: Record<string, unknown> = {}) => new ApiError(409, code, message, undefined, { message, ...body });
+const apiError = (code: string, message = 'm', body: Record<string, unknown> = {}) =>
+  new ApiError(409, code, message, undefined, { message, ...body });
 
 test('the text is normalized as the server does: LF line breaks, trimmed', () => {
   assert.equal(normalizeReplyText('  a\r\nb\rc \n'), 'a\nb\nc');
@@ -70,7 +75,14 @@ test('checkReply explains the same problems the server refuses', () => {
 });
 
 test('the counter counts the normalized text and warns near the limit', () => {
-  assert.deepEqual(lengthState('hello', 350), { count: 5, limit: 350, remaining: 345, over: false, tone: 'ok', label: '5 of 350 characters' });
+  assert.deepEqual(lengthState('hello', 350), {
+    count: 5,
+    limit: 350,
+    remaining: 345,
+    over: false,
+    tone: 'ok',
+    label: '5 of 350 characters',
+  });
   assert.equal(lengthState('x'.repeat(340), 350).tone, 'warn');
   assert.equal(lengthState('x'.repeat(350), 350).tone, 'warn');
   const over = lengthState('x'.repeat(355), 350);
@@ -111,7 +123,8 @@ test('statuses: labels, tones, locking and explanations', () => {
   assert.equal(replyStatusTone('unknown'), 'warn');
   assert.equal(isLocked('sending'), true);
   assert.equal(isLocked('unknown'), true);
-  for (const status of ['none', 'draft', 'failed', 'sent'] as const) assert.equal(isLocked(status), false);
+  for (const status of ['none', 'draft', 'failed', 'sent'] as const)
+    assert.equal(isLocked(status), false);
   assert.equal(statusExplanation({ status: 'draft', errorCode: null }), null);
   assert.match(statusExplanation({ status: 'unknown', errorCode: null }) ?? '', /not sent again/);
   assert.match(statusExplanation({ status: 'failed', errorCode: 'x' }) ?? '', /draft is kept/);
@@ -132,7 +145,10 @@ test('the confirmation shows store, app, review, count and the exact text with t
     { label: 'Length', value: '22 of 350 characters' },
   ]);
   assert.equal(facts.text, 'Exact text\nsecond line');
-  assert.equal(facts.warning, 'This will be published publicly in the store and cannot be recalled by this tool.');
+  assert.equal(
+    facts.warning,
+    'This will be published publicly in the store and cannot be recalled by this tool.',
+  );
   assert.equal(PUBLIC_WARNING, facts.warning);
   const replacing = confirmFacts({
     store: 'appstoreconnect',
@@ -152,15 +168,27 @@ test('the send button needs a saved draft that fits, rights, and the acknowledge
   const ok = { draft: draft(), unsavedChanges: false, acknowledged: true, availability: admin };
   assert.equal(canSendDraft(ok), true);
   assert.equal(canSendDraft({ ...ok, acknowledged: false }), false);
-  assert.equal(canSendDraft({ ...ok, unsavedChanges: true }), false, 'the saved text is what is sent');
+  assert.equal(
+    canSendDraft({ ...ok, unsavedChanges: true }),
+    false,
+    'the saved text is what is sent',
+  );
   assert.equal(canSendDraft({ ...ok, availability: member }), false);
   assert.equal(canSendDraft({ ...ok, draft: null }), false);
   assert.equal(canSendDraft({ ...ok, draft: draft({ length: 400 }) }), false);
   assert.equal(canSendDraft({ ...ok, draft: draft({ length: 0 }) }), false);
   assert.equal(canSendDraft({ ...ok, draft: draft({ status: 'sending' }) }), false);
   assert.equal(canSendDraft({ ...ok, draft: draft({ status: 'sent' }) }), false);
-  assert.equal(canSendDraft({ ...ok, draft: draft({ status: 'failed' }) }), true, 'a failed send may be sent again');
-  assert.equal(canSendDraft({ ...ok, draft: draft({ status: 'unknown' }) }), true, 'sending again checks first');
+  assert.equal(
+    canSendDraft({ ...ok, draft: draft({ status: 'failed' }) }),
+    true,
+    'a failed send may be sent again',
+  );
+  assert.equal(
+    canSendDraft({ ...ok, draft: draft({ status: 'unknown' }) }),
+    true,
+    'sending again checks first',
+  );
 });
 
 test('error messages: each code says what happened and what is safe', () => {
@@ -171,25 +199,52 @@ test('error messages: each code says what happened and what is safe', () => {
   assert.match(replyErrorMessage(apiError('already_sent')), /Nothing was sent again/);
   assert.match(replyErrorMessage(apiError('send_in_progress')), /being sent/);
   assert.match(replyErrorMessage(apiError('outcome_unknown')), /Nothing was sent again/);
-  assert.equal(replyErrorMessage(apiError('send_failed', 'x', { message: 'Apple said no.' })), 'The reply was not published. Apple said no. The draft is kept.');
-  assert.equal(replyErrorMessage(apiError('invalid_reply', 'x', { message: 'The reply is empty.' })), 'The reply is empty.');
-  assert.equal(replyErrorMessage(apiError('store_forbidden', 'x', { message: 'Needs a role.' })), 'The credential is not allowed to reply to reviews. Needs a role.');
+  assert.equal(
+    replyErrorMessage(apiError('send_failed', 'x', { message: 'Apple said no.' })),
+    'The reply was not published. Apple said no. The draft is kept.',
+  );
+  assert.equal(
+    replyErrorMessage(apiError('invalid_reply', 'x', { message: 'The reply is empty.' })),
+    'The reply is empty.',
+  );
+  assert.equal(
+    replyErrorMessage(apiError('store_forbidden', 'x', { message: 'Needs a role.' })),
+    'The credential is not allowed to reply to reviews. Needs a role.',
+  );
   assert.equal(replyErrorMessage(apiError('something_else', 'Plain message')), 'Plain message');
   assert.match(replyErrorMessage(new Error('x')), /Reload the review/);
-  assert.equal(replyErrorMessage(apiError('rate_limited', 'Try again in 5 minutes.')), 'Try again in 5 minutes.');
+  assert.equal(
+    replyErrorMessage(apiError('rate_limited', 'Try again in 5 minutes.')),
+    'Try again in 5 minutes.',
+  );
 });
 
 test('which failures call for loading the review again', () => {
-  for (const code of ['stale_draft', 'already_sent', 'send_in_progress', 'outcome_unknown', 'send_failed', 'not_found']) assert.equal(needsReload(apiError(code)), true, code);
-  for (const code of ['forbidden', 'invalid_reply', 'reply_disabled']) assert.equal(needsReload(apiError(code)), false, code);
+  for (const code of [
+    'stale_draft',
+    'already_sent',
+    'send_in_progress',
+    'outcome_unknown',
+    'send_failed',
+    'not_found',
+  ])
+    assert.equal(needsReload(apiError(code)), true, code);
+  for (const code of ['forbidden', 'invalid_reply', 'reply_disabled'])
+    assert.equal(needsReload(apiError(code)), false, code);
   assert.equal(needsReload(new Error('x')), false);
 });
 
 test('templates: inserting and previewing as plain text', () => {
   assert.equal(insertTemplateText('', 'Hi'), 'Hi');
   assert.equal(insertTemplateText('  First  ', 'Second'), 'First\n\nSecond');
-  assert.equal(previewTemplate('Hi {{author}} from {{ app }} {{x}}', { author: 'Sam', app: 'Coffee' }), 'Hi Sam from Coffee {{x}}');
+  assert.equal(
+    previewTemplate('Hi {{author}} from {{ app }} {{x}}', { author: 'Sam', app: 'Coffee' }),
+    'Hi Sam from Coffee {{x}}',
+  );
   assert.equal(previewTemplate('Hi {{author}}', { author: null, app: 'A' }), 'Hi there');
-  assert.equal(previewTemplate('Hi {{author}}', { author: '<b>Al</b>\n\u202eBo', app: 'A' }), 'Hi b Al /b Bo');
+  assert.equal(
+    previewTemplate('Hi {{author}}', { author: '<b>Al</b>\n\u202eBo', app: 'A' }),
+    'Hi b Al /b Bo',
+  );
   assert.equal(previewTemplate('{{author}}', { author: 'x'.repeat(100), app: 'A' }).length, 60);
 });

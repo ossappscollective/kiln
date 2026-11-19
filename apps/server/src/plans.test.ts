@@ -24,7 +24,9 @@ async function setup(db: Database) {
     const res = await t.app.request(`/api/workspaces/${workspace}${path}`, {
       method,
       headers: { 'content-type': 'application/json', cookie },
-      ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
+      ...(body === undefined
+        ? {}
+        : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
     });
     const text = await res.text();
     return { status: res.status, text, body: (text ? JSON.parse(text) : null) as Json };
@@ -37,7 +39,13 @@ async function setup(db: Database) {
     await db.execute(
       `INSERT INTO apps (id, workspace_id, name, platform, identifier, credential_id, created_at)
        VALUES (?, ?, ?, ?, ?, 'cred', 0)`,
-      [id, workspaceId, input.name ?? 'Acme', input.platform ?? 'ios', input.identifier ?? 'com.acme.app'],
+      [
+        id,
+        workspaceId,
+        input.name ?? 'Acme',
+        input.platform ?? 'ios',
+        input.identifier ?? 'com.acme.app',
+      ],
     );
     return id;
   };
@@ -89,92 +97,187 @@ dbTest('rights: viewers read plans and templates, members and above write', asyn
     assert.equal(res.status, 403, `viewer ${method} ${path}`);
   }
   // The plan is untouched by the refused writes.
-  assert.equal((await t.call(t.owner.cookie, 'GET', planPath(t, planId))).body.plan.items.length, 0);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'GET', planPath(t, planId))).body.plan.items.length,
+    0,
+  );
 
-  assert.equal((await t.call(t.member.cookie, 'POST', `/apps/${t.appId}/plans`, { version: '3.1.0' })).status, 201);
-  assert.equal((await t.call(t.admin.cookie, 'POST', `/apps/${t.appId}/plans`, { version: '3.2.0' })).status, 201);
+  assert.equal(
+    (await t.call(t.member.cookie, 'POST', `/apps/${t.appId}/plans`, { version: '3.1.0' })).status,
+    201,
+  );
+  assert.equal(
+    (await t.call(t.admin.cookie, 'POST', `/apps/${t.appId}/plans`, { version: '3.2.0' })).status,
+    201,
+  );
   assert.equal((await t.call(t.member.cookie, 'DELETE', planPath(t, planId))).status, 204);
 });
 
-dbTest('a non-member and an unknown workspace get 404 on every route and see nothing', async (db) => {
-  const t = await setup(db);
-  const planId = (await t.create()).body.plan.id as string;
-  const other = await seedWorkspace(db, 'Other', 'other@example.com', NOW);
-  const calls: [string, string, unknown][] = [
-    ['GET', '/plans', undefined],
-    ['GET', `/apps/${t.appId}/plans`, undefined],
-    ['POST', `/apps/${t.appId}/plans`, { version: '9.9.9' }],
-    ['GET', planPath(t, planId), undefined],
-    ['PATCH', planPath(t, planId), { blocked: false }],
-    ['DELETE', planPath(t, planId), undefined],
-    ['POST', planPath(t, planId, '/items'), { text: 'x' }],
-    ['PUT', planPath(t, planId, '/items/order'), { order: [] }],
-    ['PATCH', planPath(t, planId, '/items/x'), { done: true }],
-    ['DELETE', planPath(t, planId, '/items/x'), undefined],
-    ['POST', planPath(t, planId, '/apply-template'), { templateId: 'builtin:routine-update' }],
-    ['PUT', planPath(t, planId, '/notes/en-US'), { text: 'x' }],
-    ['DELETE', planPath(t, planId, '/notes/en-US'), undefined],
-    ['GET', '/checklist-templates', undefined],
-    ['POST', '/checklist-templates', { name: 'T', items: [{ text: 'a' }] }],
-    ['PATCH', '/checklist-templates/x', { name: 'T' }],
-    ['DELETE', '/checklist-templates/x', undefined],
-  ];
-  for (const [method, path, body] of calls) {
-    const outsider = await t.call(other.cookie, method, path, body);
-    assert.equal(outsider.status, 404, `outsider ${method} ${path}`);
-    assert.deepEqual(outsider.body, { error: 'not_found' });
-    const unknown = await t.call(t.owner.cookie, method, path, body, 'no-such-workspace');
-    assert.equal(unknown.status, 404, `unknown ${method} ${path}`);
-  }
-  assert.equal((await t.call(t.owner.cookie, 'GET', planPath(t, planId))).status, 200);
-});
+dbTest(
+  'a non-member and an unknown workspace get 404 on every route and see nothing',
+  async (db) => {
+    const t = await setup(db);
+    const planId = (await t.create()).body.plan.id as string;
+    const other = await seedWorkspace(db, 'Other', 'other@example.com', NOW);
+    const calls: [string, string, unknown][] = [
+      ['GET', '/plans', undefined],
+      ['GET', `/apps/${t.appId}/plans`, undefined],
+      ['POST', `/apps/${t.appId}/plans`, { version: '9.9.9' }],
+      ['GET', planPath(t, planId), undefined],
+      ['PATCH', planPath(t, planId), { blocked: false }],
+      ['DELETE', planPath(t, planId), undefined],
+      ['POST', planPath(t, planId, '/items'), { text: 'x' }],
+      ['PUT', planPath(t, planId, '/items/order'), { order: [] }],
+      ['PATCH', planPath(t, planId, '/items/x'), { done: true }],
+      ['DELETE', planPath(t, planId, '/items/x'), undefined],
+      ['POST', planPath(t, planId, '/apply-template'), { templateId: 'builtin:routine-update' }],
+      ['PUT', planPath(t, planId, '/notes/en-US'), { text: 'x' }],
+      ['DELETE', planPath(t, planId, '/notes/en-US'), undefined],
+      ['GET', '/checklist-templates', undefined],
+      ['POST', '/checklist-templates', { name: 'T', items: [{ text: 'a' }] }],
+      ['PATCH', '/checklist-templates/x', { name: 'T' }],
+      ['DELETE', '/checklist-templates/x', undefined],
+    ];
+    for (const [method, path, body] of calls) {
+      const outsider = await t.call(other.cookie, method, path, body);
+      assert.equal(outsider.status, 404, `outsider ${method} ${path}`);
+      assert.deepEqual(outsider.body, { error: 'not_found' });
+      const unknown = await t.call(t.owner.cookie, method, path, body, 'no-such-workspace');
+      assert.equal(unknown.status, 404, `unknown ${method} ${path}`);
+    }
+    assert.equal((await t.call(t.owner.cookie, 'GET', planPath(t, planId))).status, 200);
+  },
+);
 
 dbTest('workspaces are isolated: plans, apps and templates never cross', async (db) => {
   const t = await setup(db);
   const other = await seedWorkspace(db, 'Other', 'other@example.com', NOW);
   const theirApp = await t.seedApp(other.workspaceId);
   const mine = (await t.create({ version: '1.0.0' })).body.plan;
-  const theirs = await t.call(other.cookie, 'POST', `/apps/${theirApp}/plans`, { version: '1.0.0' }, other.workspaceId);
+  const theirs = await t.call(
+    other.cookie,
+    'POST',
+    `/apps/${theirApp}/plans`,
+    { version: '1.0.0' },
+    other.workspaceId,
+  );
   assert.equal(theirs.status, 201);
   const theirPlan = theirs.body.plan.id as string;
 
   // Each workspace lists only its own plans.
-  assert.deepEqual((await t.call(t.owner.cookie, 'GET', '/plans')).body.plans.map((p: Json) => p.id), [mine.id]);
   assert.deepEqual(
-    (await t.call(other.cookie, 'GET', '/plans', undefined, other.workspaceId)).body.plans.map((p: Json) => p.id),
+    (await t.call(t.owner.cookie, 'GET', '/plans')).body.plans.map((p: Json) => p.id),
+    [mine.id],
+  );
+  assert.deepEqual(
+    (await t.call(other.cookie, 'GET', '/plans', undefined, other.workspaceId)).body.plans.map(
+      (p: Json) => p.id,
+    ),
     [theirPlan],
   );
   // An app of the other workspace is not found, and neither is a plan reached through the wrong app.
-  assert.equal((await t.call(t.owner.cookie, 'POST', `/apps/${theirApp}/plans`, { version: '5.0.0' })).status, 404);
-  assert.equal((await t.call(t.owner.cookie, 'GET', `/apps/${theirApp}/plans`)).status, 404);
-  assert.equal((await t.call(t.owner.cookie, 'GET', `/apps/${theirApp}/plans/${theirPlan}`)).status, 404);
-  assert.equal((await t.call(t.owner.cookie, 'GET', `/apps/${t.appId}/plans/${theirPlan}`)).status, 404);
   assert.equal(
-    (await t.call(other.cookie, 'GET', `/apps/${t.appId}/plans/${mine.id}`, undefined, other.workspaceId)).status,
+    (await t.call(t.owner.cookie, 'POST', `/apps/${theirApp}/plans`, { version: '5.0.0' })).status,
+    404,
+  );
+  assert.equal((await t.call(t.owner.cookie, 'GET', `/apps/${theirApp}/plans`)).status, 404);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'GET', `/apps/${theirApp}/plans/${theirPlan}`)).status,
+    404,
+  );
+  assert.equal(
+    (await t.call(t.owner.cookie, 'GET', `/apps/${t.appId}/plans/${theirPlan}`)).status,
+    404,
+  );
+  assert.equal(
+    (
+      await t.call(
+        other.cookie,
+        'GET',
+        `/apps/${t.appId}/plans/${mine.id}`,
+        undefined,
+        other.workspaceId,
+      )
+    ).status,
     404,
   );
   // Writes through the wrong workspace change nothing.
-  const sneaky = await t.call(t.owner.cookie, 'PATCH', `/apps/${theirApp}/plans/${theirPlan}`, { blocked: true, blockedReason: 'x' });
+  const sneaky = await t.call(t.owner.cookie, 'PATCH', `/apps/${theirApp}/plans/${theirPlan}`, {
+    blocked: true,
+    blockedReason: 'x',
+  });
   assert.equal(sneaky.status, 404);
-  const theirsAfter = await t.call(other.cookie, 'GET', `/apps/${theirApp}/plans/${theirPlan}`, undefined, other.workspaceId);
+  const theirsAfter = await t.call(
+    other.cookie,
+    'GET',
+    `/apps/${theirApp}/plans/${theirPlan}`,
+    undefined,
+    other.workspaceId,
+  );
   assert.equal(theirsAfter.body.plan.blocked, false);
-  assert.equal((await t.call(t.owner.cookie, 'DELETE', `/apps/${theirApp}/plans/${theirPlan}`)).status, 404);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'DELETE', `/apps/${theirApp}/plans/${theirPlan}`)).status,
+    404,
+  );
   // The same version on the same-named app of two workspaces is two plans.
   assert.notEqual(mine.id, theirPlan);
 
   // Templates: a template of one workspace is not found in, or usable from, the other.
-  const template = await t.call(t.owner.cookie, 'POST', '/checklist-templates', { name: 'Mine', items: [{ text: 'a', required: true }] });
+  const template = await t.call(t.owner.cookie, 'POST', '/checklist-templates', {
+    name: 'Mine',
+    items: [{ text: 'a', required: true }],
+  });
   assert.equal(template.status, 201);
   const tid = template.body.template.id as string;
-  const theirList = await t.call(other.cookie, 'GET', '/checklist-templates', undefined, other.workspaceId);
+  const theirList = await t.call(
+    other.cookie,
+    'GET',
+    '/checklist-templates',
+    undefined,
+    other.workspaceId,
+  );
   assert.ok(!theirList.body.templates.some((x: Json) => x.id === tid));
-  const apply = await t.call(other.cookie, 'POST', `/apps/${theirApp}/plans/${theirPlan}/apply-template`, { templateId: tid }, other.workspaceId);
+  const apply = await t.call(
+    other.cookie,
+    'POST',
+    `/apps/${theirApp}/plans/${theirPlan}/apply-template`,
+    { templateId: tid },
+    other.workspaceId,
+  );
   assert.equal(apply.status, 404);
   assert.equal(apply.body.error, 'template_not_found');
-  assert.equal((await t.call(other.cookie, 'DELETE', `/checklist-templates/${tid}`, undefined, other.workspaceId)).status, 404);
-  assert.equal((await t.call(other.cookie, 'PATCH', `/checklist-templates/${tid}`, { name: 'X' }, other.workspaceId)).status, 404);
+  assert.equal(
+    (
+      await t.call(
+        other.cookie,
+        'DELETE',
+        `/checklist-templates/${tid}`,
+        undefined,
+        other.workspaceId,
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await t.call(
+        other.cookie,
+        'PATCH',
+        `/checklist-templates/${tid}`,
+        { name: 'X' },
+        other.workspaceId,
+      )
+    ).status,
+    404,
+  );
   // Template names are unique per workspace, not across them.
-  const same = await t.call(other.cookie, 'POST', '/checklist-templates', { name: 'Mine', items: [{ text: 'a' }] }, other.workspaceId);
+  const same = await t.call(
+    other.cookie,
+    'POST',
+    '/checklist-templates',
+    { name: 'Mine', items: [{ text: 'a' }] },
+    other.workspaceId,
+  );
   assert.equal(same.status, 201);
 });
 
@@ -183,7 +286,12 @@ dbTest('workspaces are isolated: plans, apps and templates never cross', async (
 
 dbTest('creating a plan: shape, defaults, template items, and the checks', async (db) => {
   const t = await setup(db);
-  const res = await t.create({ version: '2.0.0', targetDate: '2027-01-12', notes: 'Holiday launch', templateId: 'builtin:first-ios' });
+  const res = await t.create({
+    version: '2.0.0',
+    targetDate: '2027-01-12',
+    notes: 'Holiday launch',
+    templateId: 'builtin:first-ios',
+  });
   assert.equal(res.status, 201);
   const plan = res.body.plan;
   assert.equal(plan.appId, t.appId);
@@ -198,8 +306,13 @@ dbTest('creating a plan: shape, defaults, template items, and the checks', async
   assert.equal(plan.createdBy, t.owner.userId);
   assert.equal(plan.createdAt, NOW);
   assert.ok(plan.items.length >= 8);
-  assert.deepEqual(plan.items.map((i: Json) => i.position), plan.items.map((_: Json, i: number) => i));
-  assert.ok(plan.items.every((i: Json) => i.done === false && i.doneBy === null && i.doneAt === null));
+  assert.deepEqual(
+    plan.items.map((i: Json) => i.position),
+    plan.items.map((_: Json, i: number) => i),
+  );
+  assert.ok(
+    plan.items.every((i: Json) => i.done === false && i.doneBy === null && i.doneAt === null),
+  );
   assert.ok(plan.items.some((i: Json) => /privacy policy/i.test(i.text) && i.required));
   assert.deepEqual(plan.releaseNotes, []);
   assert.equal(plan.readiness.ready, false);
@@ -244,19 +357,23 @@ dbTest('creating a plan: shape, defaults, template items, and the checks', async
   assert.deepEqual(list.map((p: Json) => p.version).sort(), ['2.0.0', '2.1.0', '2.2.0']);
 });
 
-dbTest('the same version on the two platforms of a product is two plans, one per app', async (db) => {
-  const t = await setup(db);
-  const android = await t.seedApp(t.owner.workspaceId, { platform: 'android', name: 'Acme' });
-  assert.equal((await t.create({ version: '2.0.0' })).status, 201);
-  assert.equal((await t.create({ version: '2.0.0' }, android)).status, 201);
-  assert.equal((await t.create({ version: '2.0.0', platform: 'android' }, android)).status, 409);
-  const all = (await t.call(t.owner.cookie, 'GET', '/plans')).body.plans;
-  assert.deepEqual(all.map((p: Json) => p.appPlatform).sort(), ['android', 'ios']);
-});
+dbTest(
+  'the same version on the two platforms of a product is two plans, one per app',
+  async (db) => {
+    const t = await setup(db);
+    const android = await t.seedApp(t.owner.workspaceId, { platform: 'android', name: 'Acme' });
+    assert.equal((await t.create({ version: '2.0.0' })).status, 201);
+    assert.equal((await t.create({ version: '2.0.0' }, android)).status, 201);
+    assert.equal((await t.create({ version: '2.0.0', platform: 'android' }, android)).status, 409);
+    const all = (await t.call(t.owner.cookie, 'GET', '/plans')).body.plans;
+    assert.deepEqual(all.map((p: Json) => p.appPlatform).sort(), ['android', 'ios']);
+  },
+);
 
 dbTest('deadline flags use the injected clock and stop once the release is live', async (db) => {
   const t = await setup(db);
-  const id = (await t.create({ version: '2.0.0', targetDate: '2027-01-15' })).body.plan.id as string;
+  const id = (await t.create({ version: '2.0.0', targetDate: '2027-01-15' })).body.plan
+    .id as string;
   const flags = async () => (await t.call(t.owner.cookie, 'GET', planPath(t, id))).body.plan.due;
 
   assert.deepEqual(await flags(), { dueSoon: false, overdue: false, daysLeft: 5 });
@@ -286,7 +403,8 @@ dbTest('deadline flags use the injected clock and stop once the release is live'
 dbTest('updating a plan: date, blocked flag with a reason, notes', async (db) => {
   const t = await setup(db);
   const id = (await t.create({ version: '2.0.0' })).body.plan.id as string;
-  const patch = (body: unknown, cookie = t.member.cookie) => t.call(cookie, 'PATCH', planPath(t, id), body);
+  const patch = (body: unknown, cookie = t.member.cookie) =>
+    t.call(cookie, 'PATCH', planPath(t, id), body);
 
   assert.equal((await patch({})).status, 400);
   assert.equal((await patch({ version: '9.9.9' })).status, 400);
@@ -307,14 +425,23 @@ dbTest('updating a plan: date, blocked flag with a reason, notes', async (db) =>
   assert.equal(blocked.body.plan.blocked, true);
   assert.equal(blocked.body.plan.blockedReason, 'Waiting for legal');
   // The reason can change while it stays blocked, and the flag keeps it without being resent.
-  assert.equal((await patch({ blockedReason: 'Waiting for the privacy review' })).body.plan.blockedReason, 'Waiting for the privacy review');
-  assert.equal((await patch({ notes: 'ping Sam' })).body.plan.blockedReason, 'Waiting for the privacy review');
+  assert.equal(
+    (await patch({ blockedReason: 'Waiting for the privacy review' })).body.plan.blockedReason,
+    'Waiting for the privacy review',
+  );
+  assert.equal(
+    (await patch({ notes: 'ping Sam' })).body.plan.blockedReason,
+    'Waiting for the privacy review',
+  );
   const cleared = await patch({ blocked: false, blockedReason: 'ignored' });
   assert.equal(cleared.body.plan.blocked, false);
   assert.equal(cleared.body.plan.blockedReason, null);
   assert.equal(cleared.body.plan.notes, 'ping Sam');
   assert.equal((await patch({ targetDate: '2027-03-01' }, t.owner.cookie)).status, 200);
-  assert.equal((await t.call(t.owner.cookie, 'PATCH', planPath(t, 'no-such'), { notes: 'x' })).status, 404);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'PATCH', planPath(t, 'no-such'), { notes: 'x' })).status,
+    404,
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -325,20 +452,40 @@ dbTest('checklist items: add, tick with who and when, edit, reorder, remove', as
   const id = (await t.create({ version: '2.0.0' })).body.plan.id as string;
   const items = (tail = '') => planPath(t, id, `/items${tail}`);
 
-  const a = await t.call(t.member.cookie, 'POST', items(), { text: '  Privacy policy URL  ', required: true });
+  const a = await t.call(t.member.cookie, 'POST', items(), {
+    text: '  Privacy policy URL  ',
+    required: true,
+  });
   assert.equal(a.status, 201);
   const aId = a.body.itemId as string;
   const b = await t.call(t.member.cookie, 'POST', items(), { text: 'Screenshots' });
-  const c = await t.call(t.member.cookie, 'POST', items(), { text: 'Test account', required: true });
+  const c = await t.call(t.member.cookie, 'POST', items(), {
+    text: 'Test account',
+    required: true,
+  });
   const bId = b.body.itemId as string;
   const cId = c.body.itemId as string;
-  assert.deepEqual(c.body.plan.items.map((i: Json) => [i.text, i.required, i.position]), [
-    ['Privacy policy URL', true, 0],
-    ['Screenshots', false, 1],
-    ['Test account', true, 2],
-  ]);
-  for (const body of [{}, { text: '' }, { text: 'two\nlines' }, { text: 'x'.repeat(301) }, { text: 'x', extra: 1 }, { text: 'x', required: 'yes' }]) {
-    assert.equal((await t.call(t.member.cookie, 'POST', items(), body)).status, 400, JSON.stringify(body));
+  assert.deepEqual(
+    c.body.plan.items.map((i: Json) => [i.text, i.required, i.position]),
+    [
+      ['Privacy policy URL', true, 0],
+      ['Screenshots', false, 1],
+      ['Test account', true, 2],
+    ],
+  );
+  for (const body of [
+    {},
+    { text: '' },
+    { text: 'two\nlines' },
+    { text: 'x'.repeat(301) },
+    { text: 'x', extra: 1 },
+    { text: 'x', required: 'yes' },
+  ]) {
+    assert.equal(
+      (await t.call(t.member.cookie, 'POST', items(), body)).status,
+      400,
+      JSON.stringify(body),
+    );
   }
 
   // Ticking records who and when, from the clock.
@@ -361,33 +508,59 @@ dbTest('checklist items: add, tick with who and when, edit, reorder, remove', as
   assert.deepEqual([open.done, open.doneBy, open.doneAt], [false, null, null]);
 
   // Edit text and the required marker; both change the readiness.
-  const edited = await t.call(t.member.cookie, 'PATCH', items(`/${bId}`), { text: 'Screenshots, all sizes', required: true });
+  const edited = await t.call(t.member.cookie, 'PATCH', items(`/${bId}`), {
+    text: 'Screenshots, all sizes',
+    required: true,
+  });
   const editedItem = edited.body.plan.items.find((i: Json) => i.id === bId);
   assert.equal(editedItem.required, true);
   assert.equal(editedItem.text, 'Screenshots, all sizes');
   assert.equal(edited.body.plan.readiness.required.total, 3);
   assert.equal((await t.call(t.member.cookie, 'PATCH', items(`/${bId}`), {})).status, 400);
-  assert.equal((await t.call(t.member.cookie, 'PATCH', items('/no-such'), { done: true })).status, 404);
+  assert.equal(
+    (await t.call(t.member.cookie, 'PATCH', items('/no-such'), { done: true })).status,
+    404,
+  );
 
   // Reorder: must name every item exactly once.
   const order = [cId, aId, bId];
   const moved = await t.call(t.member.cookie, 'PUT', items('/order'), { order });
   assert.equal(moved.status, 200);
-  assert.deepEqual(moved.body.plan.items.map((i: Json) => i.id), order);
-  assert.deepEqual(moved.body.plan.items.map((i: Json) => i.position), [0, 1, 2]);
-  for (const bad of [[aId, bId], [aId, aId, bId], [aId, bId, cId, 'x'], [aId, bId, 'x']]) {
+  assert.deepEqual(
+    moved.body.plan.items.map((i: Json) => i.id),
+    order,
+  );
+  assert.deepEqual(
+    moved.body.plan.items.map((i: Json) => i.position),
+    [0, 1, 2],
+  );
+  for (const bad of [
+    [aId, bId],
+    [aId, aId, bId],
+    [aId, bId, cId, 'x'],
+    [aId, bId, 'x'],
+  ]) {
     const r = await t.call(t.member.cookie, 'PUT', items('/order'), { order: bad });
     assert.equal(r.status, 422, JSON.stringify(bad));
     assert.equal(r.body.error, 'order_mismatch');
   }
-  assert.equal((await t.call(t.member.cookie, 'PUT', items('/order'), { order: 'abc' })).status, 400);
+  assert.equal(
+    (await t.call(t.member.cookie, 'PUT', items('/order'), { order: 'abc' })).status,
+    400,
+  );
   // The order survived the refused attempts.
   const now = (await t.call(t.owner.cookie, 'GET', planPath(t, id))).body.plan;
-  assert.deepEqual(now.items.map((i: Json) => i.id), order);
+  assert.deepEqual(
+    now.items.map((i: Json) => i.id),
+    order,
+  );
 
   // Remove: the rest keep their order, and a new item goes last.
   const removed = await t.call(t.member.cookie, 'DELETE', items(`/${aId}`));
-  assert.deepEqual(removed.body.plan.items.map((i: Json) => i.id), [cId, bId]);
+  assert.deepEqual(
+    removed.body.plan.items.map((i: Json) => i.id),
+    [cId, bId],
+  );
   assert.equal((await t.call(t.member.cookie, 'DELETE', items(`/${aId}`))).status, 404);
   const last = await t.call(t.member.cookie, 'POST', items(), { text: 'Last' });
   assert.equal(last.body.plan.items.at(-1).text, 'Last');
@@ -398,9 +571,18 @@ dbTest('an item of another plan cannot be reached through this one', async (db) 
   const t = await setup(db);
   const p1 = (await t.create({ version: '1.0.0' })).body.plan.id as string;
   const p2 = (await t.create({ version: '1.1.0' })).body.plan.id as string;
-  const item = (await t.call(t.owner.cookie, 'POST', planPath(t, p2, '/items'), { text: 'Only in p2' })).body.itemId as string;
-  assert.equal((await t.call(t.owner.cookie, 'PATCH', planPath(t, p1, `/items/${item}`), { done: true })).status, 404);
-  assert.equal((await t.call(t.owner.cookie, 'DELETE', planPath(t, p1, `/items/${item}`))).status, 404);
+  const item = (
+    await t.call(t.owner.cookie, 'POST', planPath(t, p2, '/items'), { text: 'Only in p2' })
+  ).body.itemId as string;
+  assert.equal(
+    (await t.call(t.owner.cookie, 'PATCH', planPath(t, p1, `/items/${item}`), { done: true }))
+      .status,
+    404,
+  );
+  assert.equal(
+    (await t.call(t.owner.cookie, 'DELETE', planPath(t, p1, `/items/${item}`))).status,
+    404,
+  );
   const still = (await t.call(t.owner.cookie, 'GET', planPath(t, p2))).body.plan.items[0];
   assert.equal(still.done, false);
   // Reordering p1 with p2's item is a mismatch.
@@ -420,7 +602,9 @@ dbTest('a checklist holds at most 100 items', async (db) => {
   const r = await t.call(t.owner.cookie, 'POST', planPath(t, id, '/items'), { text: 'one more' });
   assert.equal(r.status, 422);
   assert.equal(r.body.error, 'too_many_items');
-  const apply = await t.call(t.owner.cookie, 'POST', planPath(t, id, '/apply-template'), { templateId: 'builtin:first-ios' });
+  const apply = await t.call(t.owner.cookie, 'POST', planPath(t, id, '/apply-template'), {
+    templateId: 'builtin:first-ios',
+  });
   assert.equal(apply.status, 422);
 });
 
@@ -429,14 +613,36 @@ dbTest('a checklist holds at most 100 items', async (db) => {
 
 dbTest('templates: the shipped ones, saving your own, applying without repeats', async (db) => {
   const t = await setup(db);
-  const list = (await t.call(t.viewer.cookie, 'GET', '/checklist-templates')).body.templates as Json[];
-  assert.deepEqual(list.filter((x) => x.builtin).map((x) => x.id), ['builtin:first-ios', 'builtin:first-android', 'builtin:routine-update']);
+  const list = (await t.call(t.viewer.cookie, 'GET', '/checklist-templates')).body
+    .templates as Json[];
+  assert.deepEqual(
+    list.filter((x) => x.builtin).map((x) => x.id),
+    ['builtin:first-ios', 'builtin:first-android', 'builtin:routine-update'],
+  );
   assert.ok(list.every((x) => x.builtin));
   const ios = list.find((x) => x.id === 'builtin:first-ios') as Json;
   const android = list.find((x) => x.id === 'builtin:first-android') as Json;
   const lower = (x: Json) => x.items.map((i: Json) => i.text.toLowerCase()).join('|');
-  for (const needle of ['privacy policy', 'screenshots', 'export compliance', 'age rating', 'test account', 'release notes', 'what’s new']) assert.match(lower(ios), new RegExp(needle));
-  for (const needle of ['privacy policy', 'screenshots', 'content rating', 'data safety', 'test account', 'release notes', 'what’s new']) assert.match(lower(android), new RegExp(needle));
+  for (const needle of [
+    'privacy policy',
+    'screenshots',
+    'export compliance',
+    'age rating',
+    'test account',
+    'release notes',
+    'what’s new',
+  ])
+    assert.match(lower(ios), new RegExp(needle));
+  for (const needle of [
+    'privacy policy',
+    'screenshots',
+    'content rating',
+    'data safety',
+    'test account',
+    'release notes',
+    'what’s new',
+  ])
+    assert.match(lower(android), new RegExp(needle));
 
   const created = await t.call(t.member.cookie, 'POST', '/checklist-templates', {
     name: 'Hotfix',
@@ -444,9 +650,20 @@ dbTest('templates: the shipped ones, saving your own, applying without repeats',
   });
   assert.equal(created.status, 201);
   const tid = created.body.template.id as string;
-  assert.deepEqual(created.body.template.items, [{ text: 'Smoke test', required: true }, { text: 'Tell support', required: false }]);
+  assert.deepEqual(created.body.template.items, [
+    { text: 'Smoke test', required: true },
+    { text: 'Tell support', required: false },
+  ]);
   assert.equal(created.body.template.builtin, false);
-  assert.equal((await t.call(t.member.cookie, 'POST', '/checklist-templates', { name: 'Hotfix', items: [{ text: 'a' }] })).status, 409);
+  assert.equal(
+    (
+      await t.call(t.member.cookie, 'POST', '/checklist-templates', {
+        name: 'Hotfix',
+        items: [{ text: 'a' }],
+      })
+    ).status,
+    409,
+  );
   const badBodies: unknown[] = [
     {},
     { name: '', items: [{ text: 'a' }] },
@@ -457,20 +674,44 @@ dbTest('templates: the shipped ones, saving your own, applying without repeats',
     { name: 'N', items: Array.from({ length: 101 }, () => ({ text: 'a' })) },
   ];
   for (const body of badBodies) {
-    assert.equal((await t.call(t.member.cookie, 'POST', '/checklist-templates', body)).status, 400, JSON.stringify(body).slice(0, 60));
+    assert.equal(
+      (await t.call(t.member.cookie, 'POST', '/checklist-templates', body)).status,
+      400,
+      JSON.stringify(body).slice(0, 60),
+    );
   }
-  const stored = (await t.call(t.viewer.cookie, 'GET', '/checklist-templates')).body.templates as Json[];
-  assert.deepEqual(stored.filter((x) => !x.builtin).map((x) => x.name), ['Hotfix']);
+  const stored = (await t.call(t.viewer.cookie, 'GET', '/checklist-templates')).body
+    .templates as Json[];
+  assert.deepEqual(
+    stored.filter((x) => !x.builtin).map((x) => x.name),
+    ['Hotfix'],
+  );
 
-  const renamed = await t.call(t.member.cookie, 'PATCH', `/checklist-templates/${tid}`, { name: 'Hotfix v2', items: [{ text: 'Smoke test', required: true }] });
+  const renamed = await t.call(t.member.cookie, 'PATCH', `/checklist-templates/${tid}`, {
+    name: 'Hotfix v2',
+    items: [{ text: 'Smoke test', required: true }],
+  });
   assert.equal(renamed.body.template.name, 'Hotfix v2');
   assert.equal(renamed.body.template.items.length, 1);
-  assert.equal((await t.call(t.member.cookie, 'PATCH', `/checklist-templates/${tid}`, {})).status, 400);
-  await t.call(t.member.cookie, 'POST', '/checklist-templates', { name: 'Other', items: [{ text: 'a' }] });
-  assert.equal((await t.call(t.member.cookie, 'PATCH', `/checklist-templates/${tid}`, { name: 'Other' })).status, 409);
+  assert.equal(
+    (await t.call(t.member.cookie, 'PATCH', `/checklist-templates/${tid}`, {})).status,
+    400,
+  );
+  await t.call(t.member.cookie, 'POST', '/checklist-templates', {
+    name: 'Other',
+    items: [{ text: 'a' }],
+  });
+  assert.equal(
+    (await t.call(t.member.cookie, 'PATCH', `/checklist-templates/${tid}`, { name: 'Other' }))
+      .status,
+    409,
+  );
 
   // Shipped templates cannot be changed or deleted.
-  for (const [method, body] of [['PATCH', { name: 'X' }], ['DELETE', undefined]] as const) {
+  for (const [method, body] of [
+    ['PATCH', { name: 'X' }],
+    ['DELETE', undefined],
+  ] as const) {
     const r = await t.call(t.member.cookie, method, '/checklist-templates/builtin:first-ios', body);
     assert.equal(r.status, 409);
     assert.equal(r.body.error, 'builtin_template');
@@ -479,19 +720,41 @@ dbTest('templates: the shipped ones, saving your own, applying without repeats',
   // Apply: an item already there is skipped, and applying twice adds nothing the second time.
   const planId = (await t.create({ version: '2.0.0' })).body.plan.id as string;
   await t.call(t.member.cookie, 'POST', planPath(t, planId, '/items'), { text: 'Smoke test' });
-  const first = await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), { templateId: tid });
+  const first = await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), {
+    templateId: tid,
+  });
   assert.deepEqual([first.body.added, first.body.skipped], [0, 1]);
-  const routine = await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), { templateId: 'builtin:routine-update' });
+  const routine = await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), {
+    templateId: 'builtin:routine-update',
+  });
   assert.equal(routine.body.added, routine.body.plan.items.length - 1);
-  const twice = await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), { templateId: 'builtin:routine-update' });
+  const twice = await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), {
+    templateId: 'builtin:routine-update',
+  });
   assert.deepEqual([twice.body.added, twice.body.skipped], [0, routine.body.added]);
   assert.equal(twice.body.plan.items.length, routine.body.plan.items.length);
-  assert.equal((await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), { templateId: 'nope' })).status, 404);
+  assert.equal(
+    (
+      await t.call(t.member.cookie, 'POST', planPath(t, planId, '/apply-template'), {
+        templateId: 'nope',
+      })
+    ).status,
+    404,
+  );
 
   // Deleting a template leaves the plans that used it alone.
-  assert.equal((await t.call(t.member.cookie, 'DELETE', `/checklist-templates/${tid}`)).status, 204);
-  assert.equal((await t.call(t.member.cookie, 'DELETE', `/checklist-templates/${tid}`)).status, 404);
-  assert.equal((await t.call(t.owner.cookie, 'GET', planPath(t, planId))).body.plan.items.length, twice.body.plan.items.length);
+  assert.equal(
+    (await t.call(t.member.cookie, 'DELETE', `/checklist-templates/${tid}`)).status,
+    204,
+  );
+  assert.equal(
+    (await t.call(t.member.cookie, 'DELETE', `/checklist-templates/${tid}`)).status,
+    404,
+  );
+  assert.equal(
+    (await t.call(t.owner.cookie, 'GET', planPath(t, planId))).body.plan.items.length,
+    twice.body.plan.items.length,
+  );
 });
 
 dbTest('a workspace can save at most 50 templates', async (db) => {
@@ -502,7 +765,10 @@ dbTest('a workspace can save at most 50 templates', async (db) => {
       [`t${i}`, t.owner.workspaceId, `T${i}`],
     );
   }
-  const r = await t.call(t.owner.cookie, 'POST', '/checklist-templates', { name: 'One more', items: [{ text: 'a' }] });
+  const r = await t.call(t.owner.cookie, 'POST', '/checklist-templates', {
+    name: 'One more',
+    items: [{ text: 'a' }],
+  });
   assert.equal(r.status, 422);
   assert.equal(r.body.error, 'too_many_templates');
 });
@@ -515,17 +781,24 @@ dbTest('release notes: per locale, with the store limit of the plan platform', a
   const both = (await t.create({ version: '2.0.0' })).body.plan.id as string;
   const ios = (await t.create({ version: '2.1.0', platform: 'ios' })).body.plan.id as string;
   const notes = (id: string, locale: string) => planPath(t, id, `/notes/${locale}`);
-  const put = (id: string, locale: string, text: string) => t.call(t.member.cookie, 'PUT', notes(id, locale), { text });
+  const put = (id: string, locale: string, text: string) =>
+    t.call(t.member.cookie, 'PUT', notes(id, locale), { text });
 
   const first = await put(both, 'en-US', 'Bug fixes.');
   assert.equal(first.status, 200);
-  assert.deepEqual(first.body.plan.releaseNotes.map((n: Json) => [n.locale, n.text, n.length]), [['en-US', 'Bug fixes.', 10]]);
+  assert.deepEqual(
+    first.body.plan.releaseNotes.map((n: Json) => [n.locale, n.text, n.length]),
+    [['en-US', 'Bug fixes.', 10]],
+  );
   assert.equal(first.body.plan.releaseNotes[0].updatedAt, NOW);
   // Replace, add a second locale and a blank one (an expected locale, not written yet).
   await put(both, 'en-US', 'Fixes.');
   await put(both, 'de-DE', 'Fehler behoben.');
   const blank = await put(both, 'fr-FR', '');
-  assert.deepEqual(blank.body.plan.releaseNotes.map((n: Json) => n.locale), ['de-DE', 'en-US', 'fr-FR']);
+  assert.deepEqual(
+    blank.body.plan.releaseNotes.map((n: Json) => n.locale),
+    ['de-DE', 'en-US', 'fr-FR'],
+  );
   assert.equal(blank.body.plan.releaseNotes.find((n: Json) => n.locale === 'en-US').text, 'Fixes.');
   assert.deepEqual(blank.body.plan.readiness.notes.missing, ['fr-FR']);
   assert.equal(blank.body.plan.readiness.notes.complete, false);
@@ -552,7 +825,10 @@ dbTest('release notes: per locale, with the store limit of the plan platform', a
   const iosOver = await put(ios, 'en-US', 'x'.repeat(4001));
   assert.equal(iosOver.status, 422);
   assert.equal(iosOver.body.limit, 4000);
-  assert.equal((await t.call(t.owner.cookie, 'GET', planPath(t, ios))).body.plan.readiness.notes.limit, 4000);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'GET', planPath(t, ios))).body.plan.readiness.notes.limit,
+    4000,
+  );
 
   // Locale and body checks.
   for (const locale of ['english', 'e', 'en-', '%20', 'en%20US']) {
@@ -561,7 +837,10 @@ dbTest('release notes: per locale, with the store limit of the plan platform', a
   assert.equal((await put(both, 'default', 'fallback')).status, 200);
   assert.equal((await t.call(t.member.cookie, 'PUT', notes(both, 'ja'), {})).status, 400);
   assert.equal((await t.call(t.member.cookie, 'PUT', notes(both, 'ja'), { text: 5 })).status, 400);
-  assert.equal((await t.call(t.member.cookie, 'PUT', notes(both, 'ja'), { text: 'x', extra: 1 })).status, 400);
+  assert.equal(
+    (await t.call(t.member.cookie, 'PUT', notes(both, 'ja'), { text: 'x', extra: 1 })).status,
+    400,
+  );
 
   // Delete a locale.
   const gone = await t.call(t.member.cookie, 'DELETE', notes(both, 'fr-FR'));
@@ -569,7 +848,12 @@ dbTest('release notes: per locale, with the store limit of the plan platform', a
   assert.equal((await t.call(t.member.cookie, 'DELETE', notes(both, 'fr-FR'))).status, 404);
   assert.equal((await t.call(t.member.cookie, 'DELETE', notes(both, 'nope!'))).status, 400);
   // Notes of one plan are not visible on another.
-  assert.deepEqual((await t.call(t.owner.cookie, 'GET', planPath(t, ios))).body.plan.releaseNotes.map((n: Json) => n.locale), ['en-US']);
+  assert.deepEqual(
+    (await t.call(t.owner.cookie, 'GET', planPath(t, ios))).body.plan.releaseNotes.map(
+      (n: Json) => n.locale,
+    ),
+    ['en-US'],
+  );
 });
 
 dbTest('a plan holds release notes for at most 80 locales', async (db) => {
@@ -578,61 +862,97 @@ dbTest('a plan holds release notes for at most 80 locales', async (db) => {
   for (let i = 0; i < 80; i++) {
     await db.execute(
       "INSERT INTO release_notes (id, workspace_id, plan_id, locale, text, updated_at) VALUES (?, ?, ?, ?, 'x', 0)",
-      [`n${i}`, t.owner.workspaceId, id, String.fromCharCode(97 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26))],
+      [
+        `n${i}`,
+        t.owner.workspaceId,
+        id,
+        String.fromCharCode(97 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26)),
+      ],
     );
   }
   const r = await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/en-US'), { text: 'x' });
   assert.equal(r.status, 422);
   assert.equal(r.body.error, 'too_many_locales');
   // Changing one that exists is still fine.
-  assert.equal((await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/ab'), { text: 'y' })).status, 200);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/ab'), { text: 'y' })).status,
+    200,
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
 // Lists, deletes, audit, limits
 
-dbTest('the workspace list and the app list carry the summary, soonest deadline first', async (db) => {
-  const t = await setup(db);
-  const android = await t.seedApp(t.owner.workspaceId, { platform: 'android', name: 'Acme Android', identifier: 'com.acme.android' });
-  await t.create({ version: '1.0.0' });
-  await t.create({ version: '1.1.0', targetDate: '2027-02-01' });
-  await t.create({ version: '1.2.0', targetDate: '2027-01-20' });
-  await t.create({ version: '4.0.0' }, android);
-  const all = (await t.call(t.viewer.cookie, 'GET', '/plans')).body.plans as Json[];
-  assert.deepEqual(all.slice(0, 2).map((p) => p.version), ['1.2.0', '1.1.0']);
-  assert.equal(all.length, 4);
-  assert.ok(all.every((p) => 'readiness' in p && 'due' in p && 'checklist' in p && !('items' in p) && !('releaseNotes' in p)));
-  assert.equal(all.find((p) => p.version === '4.0.0')?.appName, 'Acme Android');
-  const mine = (await t.call(t.viewer.cookie, 'GET', `/apps/${t.appId}/plans`)).body.plans as Json[];
-  assert.equal(mine.length, 3);
-  assert.ok(mine.every((p) => p.appId === t.appId));
-});
+dbTest(
+  'the workspace list and the app list carry the summary, soonest deadline first',
+  async (db) => {
+    const t = await setup(db);
+    const android = await t.seedApp(t.owner.workspaceId, {
+      platform: 'android',
+      name: 'Acme Android',
+      identifier: 'com.acme.android',
+    });
+    await t.create({ version: '1.0.0' });
+    await t.create({ version: '1.1.0', targetDate: '2027-02-01' });
+    await t.create({ version: '1.2.0', targetDate: '2027-01-20' });
+    await t.create({ version: '4.0.0' }, android);
+    const all = (await t.call(t.viewer.cookie, 'GET', '/plans')).body.plans as Json[];
+    assert.deepEqual(
+      all.slice(0, 2).map((p) => p.version),
+      ['1.2.0', '1.1.0'],
+    );
+    assert.equal(all.length, 4);
+    assert.ok(
+      all.every(
+        (p) =>
+          'readiness' in p &&
+          'due' in p &&
+          'checklist' in p &&
+          !('items' in p) &&
+          !('releaseNotes' in p),
+      ),
+    );
+    assert.equal(all.find((p) => p.version === '4.0.0')?.appName, 'Acme Android');
+    const mine = (await t.call(t.viewer.cookie, 'GET', `/apps/${t.appId}/plans`)).body
+      .plans as Json[];
+    assert.equal(mine.length, 3);
+    assert.ok(mine.every((p) => p.appId === t.appId));
+  },
+);
 
-dbTest('deleting a plan removes its items and notes; a plan of a deleted app is not shown', async (db) => {
-  const t = await setup(db);
-  const id = (await t.create({ version: '2.0.0', templateId: 'builtin:routine-update' })).body.plan.id as string;
-  await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/en-US'), { text: 'x' });
-  const count = async (table: string) => Number((await db.query(`SELECT COUNT(*) AS n FROM ${table}`))[0]?.n);
-  assert.ok((await count('checklist_items')) > 0);
-  assert.equal(await count('release_notes'), 1);
-  assert.equal((await t.call(t.owner.cookie, 'DELETE', planPath(t, id))).status, 204);
-  assert.equal(await count('checklist_items'), 0);
-  assert.equal(await count('release_notes'), 0);
-  assert.equal(await count('release_plans'), 0);
-  assert.equal((await t.call(t.owner.cookie, 'DELETE', planPath(t, id))).status, 404);
+dbTest(
+  'deleting a plan removes its items and notes; a plan of a deleted app is not shown',
+  async (db) => {
+    const t = await setup(db);
+    const id = (await t.create({ version: '2.0.0', templateId: 'builtin:routine-update' })).body
+      .plan.id as string;
+    await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/en-US'), { text: 'x' });
+    const count = async (table: string) =>
+      Number((await db.query(`SELECT COUNT(*) AS n FROM ${table}`))[0]?.n);
+    assert.ok((await count('checklist_items')) > 0);
+    assert.equal(await count('release_notes'), 1);
+    assert.equal((await t.call(t.owner.cookie, 'DELETE', planPath(t, id))).status, 204);
+    assert.equal(await count('checklist_items'), 0);
+    assert.equal(await count('release_notes'), 0);
+    assert.equal(await count('release_plans'), 0);
+    assert.equal((await t.call(t.owner.cookie, 'DELETE', planPath(t, id))).status, 404);
 
-  // Deleting an app (the apps service does not know about plans) must keep working, and hides its plans.
-  const other = await t.seedApp(t.owner.workspaceId, { identifier: 'com.acme.two' });
-  const planId = (await t.create({ version: '1.0.0' }, other)).body.plan.id as string;
-  assert.equal((await t.call(t.owner.cookie, 'DELETE', `/apps/${other}`)).status, 204);
-  assert.equal((await t.call(t.owner.cookie, 'GET', `/apps/${other}/plans/${planId}`)).status, 404);
-  assert.deepEqual((await t.call(t.owner.cookie, 'GET', '/plans')).body.plans, []);
+    // Deleting an app (the apps service does not know about plans) must keep working, and hides its plans.
+    const other = await t.seedApp(t.owner.workspaceId, { identifier: 'com.acme.two' });
+    const planId = (await t.create({ version: '1.0.0' }, other)).body.plan.id as string;
+    assert.equal((await t.call(t.owner.cookie, 'DELETE', `/apps/${other}`)).status, 204);
+    assert.equal(
+      (await t.call(t.owner.cookie, 'GET', `/apps/${other}/plans/${planId}`)).status,
+      404,
+    );
+    assert.deepEqual((await t.call(t.owner.cookie, 'GET', '/plans')).body.plans, []);
 
-  // The tidy-up helper removes the rows the app deletion leaves behind.
-  assert.equal(await count('release_plans'), 1);
-  await purgePlansOfApp(db, t.owner.workspaceId, other);
-  assert.equal(await count('release_plans'), 0);
-});
+    // The tidy-up helper removes the rows the app deletion leaves behind.
+    assert.equal(await count('release_plans'), 1);
+    await purgePlansOfApp(db, t.owner.workspaceId, other);
+    assert.equal(await count('release_plans'), 0);
+  },
+);
 
 dbTest('every change is audited with who did it, and reads are not', async (db) => {
   const t = await setup(db);
@@ -650,19 +970,35 @@ dbTest('every change is audited with who did it, and reads are not', async (db) 
   const id = created.body.plan.id as string;
   const itemId = created.body.plan.items[0].id as string;
   const reverse = async () => {
-    const current = (await t.call(t.owner.cookie, 'GET', planPath(t, id))).body.plan.items as Json[];
+    const current = (await t.call(t.owner.cookie, 'GET', planPath(t, id))).body.plan
+      .items as Json[];
     return { order: current.map((i) => i.id).reverse() };
   };
   const steps: [string, string, string, unknown][] = [
-    ['plan.update', 'PATCH', planPath(t, id), { blocked: true, blockedReason: 'Waiting for legal' }],
+    [
+      'plan.update',
+      'PATCH',
+      planPath(t, id),
+      { blocked: true, blockedReason: 'Waiting for legal' },
+    ],
     ['checklist.item_add', 'POST', planPath(t, id, '/items'), { text: 'Extra item' }],
     ['checklist.item_update', 'PATCH', planPath(t, id, `/items/${itemId}`), { done: true }],
     ['checklist.reorder', 'PUT', planPath(t, id, '/items/order'), undefined],
-    ['plan.apply_template', 'POST', planPath(t, id, '/apply-template'), { templateId: 'builtin:first-ios' }],
+    [
+      'plan.apply_template',
+      'POST',
+      planPath(t, id, '/apply-template'),
+      { templateId: 'builtin:first-ios' },
+    ],
     ['plan.notes_set', 'PUT', planPath(t, id, '/notes/en-US'), { text: 'Secret roadmap text' }],
     ['plan.notes_delete', 'DELETE', planPath(t, id, '/notes/en-US'), undefined],
     ['checklist.item_delete', 'DELETE', planPath(t, id, `/items/${itemId}`), undefined],
-    ['checklist_template.create', 'POST', '/checklist-templates', { name: 'Mine', items: [{ text: 'a' }] }],
+    [
+      'checklist_template.create',
+      'POST',
+      '/checklist-templates',
+      { name: 'Mine', items: [{ text: 'a' }] },
+    ],
   ];
   for (const [action, method, path, body] of steps) {
     // A reorder must list every item at that moment.
@@ -673,7 +1009,12 @@ dbTest('every change is audited with who did it, and reads are not', async (db) 
   }
   const templateId = (await db.query('SELECT id FROM checklist_templates'))[0]?.id as string;
   const more: [string, string, string, unknown][] = [
-    ['checklist_template.update', 'PATCH', `/checklist-templates/${templateId}`, { name: 'Mine v2' }],
+    [
+      'checklist_template.update',
+      'PATCH',
+      `/checklist-templates/${templateId}`,
+      { name: 'Mine v2' },
+    ],
     ['checklist_template.delete', 'DELETE', `/checklist-templates/${templateId}`, undefined],
     ['plan.delete', 'DELETE', planPath(t, id), undefined],
   ];
@@ -682,7 +1023,10 @@ dbTest('every change is audited with who did it, and reads are not', async (db) 
     assert.ok((await t.call(t.admin.cookie, method, path, body)).status < 300, path);
   }
   const events = (await auditActions(db, t.owner.workspaceId)).slice(before);
-  assert.deepEqual(events.map((e) => e.action), ['plan.create', ...steps.map(([a]) => a), ...more.map(([a]) => a)]);
+  assert.deepEqual(
+    events.map((e) => e.action),
+    ['plan.create', ...steps.map(([a]) => a), ...more.map(([a]) => a)],
+  );
   const actor = (a: string) => events.find((e) => e.action === a)?.actorId;
   assert.equal(actor('plan.create'), t.owner.userId);
   assert.equal(actor('plan.update'), t.member.userId);
@@ -714,7 +1058,11 @@ dbTest('every change is audited with who did it, and reads are not', async (db) 
 
 dbTest('a change that changes nothing is not audited', async (db) => {
   const t = await setup(db);
-  const created = await t.create({ version: '2.0.0', targetDate: '2027-02-01', templateId: 'builtin:routine-update' });
+  const created = await t.create({
+    version: '2.0.0',
+    targetDate: '2027-02-01',
+    templateId: 'builtin:routine-update',
+  });
   const id = created.body.plan.id as string;
   const itemId = created.body.plan.items[0].id as string;
   await t.call(t.owner.cookie, 'PATCH', planPath(t, id, `/items/${itemId}`), { done: true });
@@ -734,12 +1082,22 @@ dbTest('request bodies are limited like the other routes', async (db) => {
   assert.equal((await t.call(t.owner.cookie, 'POST', planPath(t, id, '/items'), huge)).status, 413);
   assert.equal((await t.call(t.owner.cookie, 'POST', `/apps/${t.appId}/plans`, huge)).status, 413);
   const bigTemplate = JSON.stringify({ name: 'Big', items: [{ text: 'x'.repeat(70 * 1024) }] });
-  assert.equal((await t.call(t.owner.cookie, 'POST', '/checklist-templates', bigTemplate)).status, 413);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'POST', '/checklist-templates', bigTemplate)).status,
+    413,
+  );
   // The server-wide limit still applies first.
   const tooBig = JSON.stringify({ text: 'x'.repeat(1024 * 1024 + 10) });
-  assert.equal((await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/en-US'), tooBig)).status, 413);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/en-US'), tooBig)).status,
+    413,
+  );
   // A full 500 character note in a multi-byte script is still allowed.
-  assert.equal((await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/ja'), { text: 'あ'.repeat(500) })).status, 200);
+  assert.equal(
+    (await t.call(t.owner.cookie, 'PUT', planPath(t, id, '/notes/ja'), { text: 'あ'.repeat(500) }))
+      .status,
+    200,
+  );
 });
 
 dbTest('a malformed body is a 400 with the issues, never a 500', async (db) => {

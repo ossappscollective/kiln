@@ -25,16 +25,16 @@ column name and file shape below that a help page does not state is marked **UNV
 
 ## 1. Where it is in Play Console
 
-| Fact | Source | State |
-| --- | --- | --- |
-| Search term is a dimension of the store listing reports: "The term that the user searched for before navigating to your Store Listing." | Play Console Help, store listing metrics (answer 9859173) | Stated |
-| Path: Grow users, Store performance, Conversion analysis, breakdown "Search term" | third party guide (uptika.app) | UNVERIFIED (not on the help page read) |
-| The conversion analysis page filters by traffic source, store listing, country, language, UTM source, UTM campaign and acquisition state | answer 9859173 | Stated; whether "search term" can be a filter is not stated |
-| An `Other` row groups terms that are too small to report | answer 9859173 | Stated; no threshold |
-| How many terms are listed, how long they are kept, the allowed date range for terms | not on any page read | UNVERIFIED |
-| Older route: the user acquisition report had a "search" row that opened the aggregate search terms and "which terms lead to the most installs" | Android Developers Blog, 2018-08 | Stated (historic) |
-| Country means "the country or region where the user's Google account is registered" | answers 9859173, 6135870 | Stated |
-| Statistics date range: chosen at "Configure report"; hourly only for 30 days or fewer | answer 139628 | Stated for Statistics; not for terms |
+| Fact                                                                                                                                           | Source                                                    | State                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
+| Search term is a dimension of the store listing reports: "The term that the user searched for before navigating to your Store Listing."        | Play Console Help, store listing metrics (answer 9859173) | Stated                                                      |
+| Path: Grow users, Store performance, Conversion analysis, breakdown "Search term"                                                              | third party guide (uptika.app)                            | UNVERIFIED (not on the help page read)                      |
+| The conversion analysis page filters by traffic source, store listing, country, language, UTM source, UTM campaign and acquisition state       | answer 9859173                                            | Stated; whether "search term" can be a filter is not stated |
+| An `Other` row groups terms that are too small to report                                                                                       | answer 9859173                                            | Stated; no threshold                                        |
+| How many terms are listed, how long they are kept, the allowed date range for terms                                                            | not on any page read                                      | UNVERIFIED                                                  |
+| Older route: the user acquisition report had a "search" row that opened the aggregate search terms and "which terms lead to the most installs" | Android Developers Blog, 2018-08                          | Stated (historic)                                           |
+| Country means "the country or region where the user's Google account is registered"                                                            | answers 9859173, 6135870                                  | Stated                                                      |
+| Statistics date range: chosen at "Configure report"; hourly only for 30 days or fewer                                                          | answer 139628                                             | Stated for Statistics; not for terms                        |
 
 ## 2. What can be exported
 

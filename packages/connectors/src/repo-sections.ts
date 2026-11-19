@@ -1,12 +1,12 @@
-import {
-  type ListingAgeRating,
-  type ListingCategories,
-  type ListingMedia,
-  type ListingPrivacy,
-  type ListingSections,
-  type MediaSet,
+import type {
+  ListingAgeRating,
+  ListingCategories,
+  ListingMedia,
+  ListingPrivacy,
+  ListingSections,
+  MediaSet,
 } from '@mrm/core';
-import { isLocaleDir, type FileMap, type ListingRoots } from './fastlane.ts';
+import { type FileMap, isLocaleDir, type ListingRoots } from './fastlane.ts';
 import { PLAY_GRAPHIC_TYPES, PLAY_SCREENSHOT_TYPES } from './store-sections.ts';
 
 /**
@@ -155,7 +155,8 @@ function countScreenshotFolders(paths: readonly string[], dir: string): ByLocale
     if (!path.startsWith(prefix)) continue;
     const parts = path.slice(prefix.length).split('/');
     const locale = parts[0] ?? '';
-    if (parts.length < 2 || !isLocaleDir(locale) || !IMAGE.test(parts[parts.length - 1] ?? '')) continue;
+    if (parts.length < 2 || !isLocaleDir(locale) || !IMAGE.test(parts[parts.length - 1] ?? ''))
+      continue;
     counts.set(locale, (counts.get(locale) ?? 0) + 1);
   }
   return counts;
@@ -196,7 +197,11 @@ export function fastlanePlayMedia(paths: readonly string[], root: string): Listi
     const parts = path.slice(prefix.length).split('/');
     const [locale, images, third, fourth] = parts;
     if (!locale || !isLocaleDir(locale) || images !== 'images') continue;
-    if (parts.length === 4 && IMAGE.test(fourth ?? '') && (PLAY_SCREENSHOT_TYPES as readonly string[]).includes(third ?? '')) {
+    if (
+      parts.length === 4 &&
+      IMAGE.test(fourth ?? '') &&
+      (PLAY_SCREENSHOT_TYPES as readonly string[]).includes(third ?? '')
+    ) {
       bump(screenshots, locale, third as string);
     } else if (parts.length === 3 && IMAGE.test(third ?? '')) {
       const name = (third as string).replace(IMAGE, '');
@@ -216,7 +221,11 @@ export function fastlanePlayMedia(paths: readonly string[], root: string): Listi
   return media;
 }
 
-export type RepoSections = { appStore: ListingSections; googlePlay: ListingSections; warnings: string[] };
+export type RepoSections = {
+  appStore: ListingSections;
+  googlePlay: ListingSections;
+  warnings: string[];
+};
 
 /**
  * The sections the fastlane folders can express. `files` holds the text of `fastlaneSectionFiles`.
@@ -236,7 +245,10 @@ export function readFastlaneSections(
     } else {
       const rating = parseAgeRatingFile(files[ratingPath] ?? '');
       if (rating) out.appStore.ageRating = rating;
-      else out.warnings.push(`${ratingPath} is not a JSON object, so the age rating of the repository was not read.`);
+      else
+        out.warnings.push(
+          `${ratingPath} is not a JSON object, so the age rating of the repository was not read.`,
+        );
     }
     out.appStore.media = fastlaneAppStoreMedia(paths, roots.appStore);
   }

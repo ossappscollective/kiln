@@ -13,9 +13,9 @@ import {
   VALID,
 } from './expo-store.fixtures.ts';
 import {
-  expoStoreChangeSet,
   ExpoStoreConfigError,
   type ExpoStoreSnapshot,
+  expoStoreChangeSet,
   keywordsToArray,
   loadExpoStoreConfig,
   readExpoStoreConfig,
@@ -166,7 +166,7 @@ test('odd shapes are warnings, not crashes', () => {
         info: {
           'en-US': { title: 3, keywords: 'a,b', subtitle: 'ok' },
           'fr-FR': 'nope',
-          'ja': { keywords: ['a,b', 'c'] },
+          ja: { keywords: ['a,b', 'c'] },
         },
       },
     }),
@@ -270,7 +270,8 @@ test('a new locale is appended with the file indentation, other locales untouche
   };
   const { text } = apply(snapshot, after);
   assert.ok(text.startsWith(MINIMAL.slice(0, MINIMAL.indexOf('\n      }\n    }\n  }\n}'))));
-  assert.ok(text.includes(`      },
+  assert.ok(
+    text.includes(`      },
       "fr-FR": {
         "title": "Notes de sentier",
         "keywords": ["randonnée", "sentier"],
@@ -280,7 +281,8 @@ test('a new locale is appended with the file indentation, other locales untouche
     }
   }
 }
-`));
+`),
+  );
   assert.deepEqual(Object.keys(JSON.parse(text).apple.info), ['en-US', 'fr-FR']);
 });
 

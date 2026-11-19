@@ -1,16 +1,31 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type TrainInput, releaseTrains, trainInputOf } from './release-trains.ts';
+import { releaseTrains, type TrainInput, trainInputOf } from './release-trains.ts';
 
-const rows = (statuses: string[]) => ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({ id, status: statuses[i], detail: null })) as TrainInput['steps'];
+const rows = (statuses: string[]) =>
+  ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({
+    id,
+    status: statuses[i],
+    detail: null,
+  })) as TrainInput['steps'];
 
 const draftIos: TrainInput = {
-  appId: 'ios', platform: 'ios', state: 'draft', waitingOn: 'you', summary: 's', version: '3.1.1',
+  appId: 'ios',
+  platform: 'ios',
+  state: 'draft',
+  waitingOn: 'you',
+  summary: 's',
+  version: '3.1.1',
   steps: rows(['done', 'done', 'current', 'todo', 'todo']),
   build: { number: '168', version: '3.1.1', processed: true, attached: true },
 };
 const buildMac: TrainInput = {
-  appId: 'mac', platform: 'macos', state: 'build_ready', waitingOn: 'you', summary: 's', version: null,
+  appId: 'mac',
+  platform: 'macos',
+  state: 'build_ready',
+  waitingOn: 'you',
+  summary: 's',
+  version: null,
   steps: rows(['done', 'done', 'todo', 'todo', 'todo']),
   build: { number: '169', version: null, processed: true, attached: false },
 };
@@ -46,18 +61,30 @@ test('a build that names its version goes to that train; with two versions and n
   const named = { ...buildMac, build: { ...buildMac.build!, version: '3.2.0' } };
   const trains = releaseTrains([draftIos, second, named]);
   assert.equal(trains.length, 2);
-  assert.match(trains.filter((t) => t.version === '3.2.0')[0]!.lines.join(' '), /Build 169 is ready/);
+  assert.match(
+    trains.filter((t) => t.version === '3.2.0')[0]!.lines.join(' '),
+    /Build 169 is ready/,
+  );
   assert.equal(releaseTrains([draftIos, second, buildMac]).length, 3);
 });
 
 test('a build already attached to its version adds nothing; idle and live records draw nothing', () => {
   const sameBuild = { ...buildMac, build: { ...buildMac.build!, attached: true } };
   assert.equal(releaseTrains([draftIos, { ...sameBuild, state: 'idle' }]).length, 1);
-  assert.equal(releaseTrains([{ ...draftIos, state: 'live' }, { ...buildMac, state: 'unknown' }]).length, 0);
+  assert.equal(
+    releaseTrains([
+      { ...draftIos, state: 'live' },
+      { ...buildMac, state: 'unknown' },
+    ]).length,
+    0,
+  );
 });
 
 test('review, rejection and approval say who acts and offer one button', () => {
-  assert.match(releaseTrains([{ ...draftIos, state: 'in_review', waitingOn: 'store' }])[0]!.lines[0]!, /Waiting on the store/);
+  assert.match(
+    releaseTrains([{ ...draftIos, state: 'in_review', waitingOn: 'store' }])[0]!.lines[0]!,
+    /Waiting on the store/,
+  );
   const rejected = releaseTrains([{ ...draftIos, state: 'rejected' }])[0]!;
   assert.deepEqual([rejected.button.label, rejected.button.step], ['See what to fix', 'review']);
   const approved = releaseTrains([{ ...draftIos, state: 'approved' }])[0]!;
@@ -66,14 +93,25 @@ test('review, rejection and approval say who acts and offer one button', () => {
 
 test('the merged strip shows the least advanced status of each step and marks the one that matters', () => {
   const t = releaseTrains([draftIos, buildMac])[0]!;
-  assert.deepEqual(t.steps.map((s) => s.label), ['CI', 'Build', 'Prepare', 'Review', 'Release']);
+  assert.deepEqual(
+    t.steps.map((s) => s.label),
+    ['CI', 'Build', 'Prepare', 'Review', 'Release'],
+  );
   assert.equal(t.steps.filter((s) => s.current)[0]?.label, 'Prepare');
 });
 
 test('trainInputOf reads a pipeline: the attached build is told from a free one', () => {
   const pipeline = {
-    platform: 'ios', state: 'draft', waitingOn: 'you', steps: rows(['done', 'done', 'current', 'todo', 'todo']), summary: 'x',
-    latest: { run: null, build: { buildNumber: '169', version: null, state: 'processed' }, version: { version: '3.1.1', build: '168', versionCodes: null } },
+    platform: 'ios',
+    state: 'draft',
+    waitingOn: 'you',
+    steps: rows(['done', 'done', 'current', 'todo', 'todo']),
+    summary: 'x',
+    latest: {
+      run: null,
+      build: { buildNumber: '169', version: null, state: 'processed' },
+      version: { version: '3.1.1', build: '168', versionCodes: null },
+    },
   };
   const input = trainInputOf({ app: { id: 'ios' }, pipeline } as never);
   assert.equal(input.version, '3.1.1');
@@ -81,7 +119,10 @@ test('trainInputOf reads a pipeline: the attached build is told from a free one'
 });
 
 test('the newest build of the same record counts as free when the version does not have it', () => {
-  const own = { ...draftIos, build: { number: '169', version: null, processed: true, attached: false } };
+  const own = {
+    ...draftIos,
+    build: { number: '169', version: null, processed: true, attached: false },
+  };
   const t = releaseTrains([own])[0]!;
   assert.equal(t.lines.length, 2);
   assert.equal(t.button.label, 'Attach build 169');

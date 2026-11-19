@@ -61,11 +61,30 @@ test('the form needs an address that parses and at least one event', () => {
 });
 
 test('the request is trimmed, and "all events" is the single type *', () => {
-  const form = { ...emptyWebhookForm(), url: ' https://hooks.example.com/x ', description: '  CI  ' };
-  assert.deepEqual(createWebhookInput(form), { url: 'https://hooks.example.com/x', description: 'CI', eventTypes: ['*'], enabled: true });
+  const form = {
+    ...emptyWebhookForm(),
+    url: ' https://hooks.example.com/x ',
+    description: '  CI  ',
+  };
+  assert.deepEqual(createWebhookInput(form), {
+    url: 'https://hooks.example.com/x',
+    description: 'CI',
+    eventTypes: ['*'],
+    enabled: true,
+  });
   assert.deepEqual(
-    createWebhookInput({ ...form, description: '', all: false, types: ['app.synced', 'app.synced', 'changeset.failed'], enabled: false }),
-    { url: 'https://hooks.example.com/x', eventTypes: ['app.synced', 'changeset.failed'], enabled: false },
+    createWebhookInput({
+      ...form,
+      description: '',
+      all: false,
+      types: ['app.synced', 'app.synced', 'changeset.failed'],
+      enabled: false,
+    }),
+    {
+      url: 'https://hooks.example.com/x',
+      eventTypes: ['app.synced', 'changeset.failed'],
+      enabled: false,
+    },
   );
 });
 
@@ -76,22 +95,34 @@ test('editing starts from the endpoint, and the patch holds only what changed', 
   assert.deepEqual(form.types, ['changeset.applied', 'app.synced']);
   assert.deepEqual(patchFor(e, form), {}, 'nothing changed, nothing to send');
   assert.deepEqual(patchFor(e, { ...form, enabled: false }), { enabled: false });
-  assert.deepEqual(patchFor(e, { ...form, types: ['app.synced', 'changeset.applied'] }), {}, 'the order of events does not matter');
+  assert.deepEqual(
+    patchFor(e, { ...form, types: ['app.synced', 'changeset.applied'] }),
+    {},
+    'the order of events does not matter',
+  );
   assert.deepEqual(patchFor(e, { ...form, all: true }), { eventTypes: ['*'] });
   assert.deepEqual(patchFor(e, { ...form, description: '' }), { description: null });
-  assert.deepEqual(patchFor(e, { ...form, url: 'https://other.example.com/x' }), { url: 'https://other.example.com/x' });
+  assert.deepEqual(patchFor(e, { ...form, url: 'https://other.example.com/x' }), {
+    url: 'https://other.example.com/x',
+  });
   assert.equal(formFromEndpoint(endpoint()).all, true);
 });
 
 test('summaries and labels', () => {
   assert.equal(eventsSummary(endpoint()), 'All events');
   assert.equal(eventsSummary(endpoint({ eventTypes: ['app.synced'] })), 'app.synced');
-  assert.equal(eventsSummary(endpoint({ eventTypes: ['app.synced', 'changeset.failed'] })), '2 events');
+  assert.equal(
+    eventsSummary(endpoint({ eventTypes: ['app.synced', 'changeset.failed'] })),
+    '2 events',
+  );
   assert.equal(hostOf('https://hooks.example.com:8443/x?y=1'), 'hooks.example.com:8443');
   assert.equal(hostOf('nonsense'), 'nonsense');
   assert.equal(lastDeliveryLabel(endpoint(), now), 'No deliveries yet');
   assert.equal(
-    lastDeliveryLabel(endpoint({ lastDelivery: { status: 'failed', at: now - 120_000, responseCode: 500 } }), now),
+    lastDeliveryLabel(
+      endpoint({ lastDelivery: { status: 'failed', at: now - 120_000, responseCode: 500 } }),
+      now,
+    ),
     'Failed, 2 minutes ago',
   );
 });
@@ -106,9 +137,27 @@ test('every delivery status says what it is in words', () => {
 
 test('the delivery line shows the answer, the attempts and the problem', () => {
   assert.equal(deliveryDetail(delivery()), 'Answered 200');
-  assert.equal(deliveryDetail(delivery({ status: 'failed', responseCode: 500, attempts: 5, error: 'The receiver answered 500.' })), 'Answered 500 · 5 attempts · The receiver answered 500.');
-  assert.equal(deliveryDetail(delivery({ status: 'failed', responseCode: null, error: 'The connection failed.' })), 'The connection failed.');
-  assert.equal(deliveryDetail(delivery({ status: 'pending', responseCode: null, attempts: 0 })), '');
+  assert.equal(
+    deliveryDetail(
+      delivery({
+        status: 'failed',
+        responseCode: 500,
+        attempts: 5,
+        error: 'The receiver answered 500.',
+      }),
+    ),
+    'Answered 500 · 5 attempts · The receiver answered 500.',
+  );
+  assert.equal(
+    deliveryDetail(
+      delivery({ status: 'failed', responseCode: null, error: 'The connection failed.' }),
+    ),
+    'The connection failed.',
+  );
+  assert.equal(
+    deliveryDetail(delivery({ status: 'pending', responseCode: null, attempts: 0 })),
+    '',
+  );
 });
 
 test('only a finished delivery can be sent again', () => {

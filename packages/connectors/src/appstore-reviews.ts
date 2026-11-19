@@ -1,6 +1,6 @@
 import {
-  AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { appleError } from './appstoreconnect.ts';
@@ -8,11 +8,11 @@ import { StoreError, type StoreErrorDetail } from './errors.ts';
 import {
   APPLE_REPLY_LIMIT,
   checkReplyText,
+  clampLimit,
   cleanBody,
   cleanName,
   cleanShort,
   cleanTitle,
-  clampLimit,
   type ListReviewsOptions,
   type ListReviewsResult,
   parseRating,
@@ -27,8 +27,8 @@ import {
   isRecord,
   type Json,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -172,7 +172,11 @@ export function parseAppleReviews(page: unknown): { reviews: StoreReview[]; skip
     const attributes = isRecord(item.attributes) ? item.attributes : {};
     const rating = parseRating(attributes.rating);
     const createdAt = toMs(attributes.createdDate);
-    if (!id || rating === undefined || (text(item.type) !== undefined && text(item.type) !== 'customerReviews')) {
+    if (
+      !id ||
+      rating === undefined ||
+      (text(item.type) !== undefined && text(item.type) !== 'customerReviews')
+    ) {
       skipped++;
       continue;
     }
@@ -277,10 +281,16 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     }
     this.#appId = options.appStoreId;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
-    this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
+    this.#writeHttp = new StoreHttp({
+      ...options,
+      store: 'appstoreconnect',
+      maxRateLimitRetries: 0,
+    });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? MAX_PAGE_SIZE;
-    this.#pageSize = Number.isFinite(wanted) ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(wanted))) : MAX_PAGE_SIZE;
+    this.#pageSize = Number.isFinite(wanted)
+      ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(wanted)))
+      : MAX_PAGE_SIZE;
     this.#maxPages = Math.max(1, options.maxPages ?? 10);
     this.#reserve = Math.max(0, options.rateLimitReserve ?? 25);
     const pem = options.credential.privateKey;
@@ -299,7 +309,10 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     secret: string,
     options: Omit<AppStoreReviewsConnectorOptions, 'credential'>,
   ): AppStoreReviewsConnector {
-    return new AppStoreReviewsConnector({ ...options, credential: parseAppStoreConnectSecret(secret) });
+    return new AppStoreReviewsConnector({
+      ...options,
+      credential: parseAppStoreConnectSecret(secret),
+    });
   }
 
   /**
@@ -328,7 +341,8 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
       skipped += parsed.skipped;
       // Newest first: a page with a review older than `since` is the last one that matters.
       const since = options.since;
-      const kept = since === undefined ? parsed.reviews : parsed.reviews.filter((r) => r.createdAt >= since);
+      const kept =
+        since === undefined ? parsed.reviews : parsed.reviews.filter((r) => r.createdAt >= since);
       const reachedOld = kept.length < parsed.reviews.length;
       reviews.push(...kept);
       const links = isRecord(reply.json.links) ? reply.json.links : {};
@@ -361,7 +375,9 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
       url = build(cursor, Math.min(this.#pageSize, limit - reviews.length));
     }
     if (skipped > 0) {
-      warnings.push(`${skipped} review${skipped === 1 ? '' : 's'} without an id, a rating or a date were left out.`);
+      warnings.push(
+        `${skipped} review${skipped === 1 ? '' : 's'} without an id, a rating or a date were left out.`,
+      );
     }
     return {
       reviews,
@@ -381,7 +397,10 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     options: { platform?: 'IOS' | 'MAC_OS' | 'TV_OS' | 'VISION_OS'; territory?: string } = {},
   ): Promise<AppleReviewSummarization[]> {
     const what = `reading the review summaries of app ${this.#appId}`;
-    const territory = options.territory && /^[A-Z]{3}$/.test(options.territory) ? `&filter[territory]=${options.territory}` : '';
+    const territory =
+      options.territory && /^[A-Z]{3}$/.test(options.territory)
+        ? `&filter[territory]=${options.territory}`
+        : '';
     const url = `${this.#base}/v1/apps/${enc(this.#appId)}/customerReviewSummarizations?filter[platform]=${
       options.platform ?? 'IOS'
     }&limit=${MAX_PAGE_SIZE}${territory}`;
@@ -393,7 +412,10 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     const id = this.#reviewId(reviewId);
     const what = `reading review ${id}`;
     try {
-      const { json } = await this.#get(`${this.#base}/v1/customerReviews/${enc(id)}?include=response`, what);
+      const { json } = await this.#get(
+        `${this.#base}/v1/customerReviews/${enc(id)}?include=response`,
+        what,
+      );
       const one = isRecord(json.data) ? json.data : undefined;
       if (!one) return undefined;
       return parseAppleReviews({ data: [one], included: json.included }).reviews[0];
@@ -412,20 +434,29 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     const id = this.#reviewId(input.reviewId);
     const checked = checkReplyText(input.text, this.replyLimit);
     if (!checked.ok) throw new StoreError('appstoreconnect', 'invalid_input', checked.message);
-    const reply = await this.#write('POST', `${this.#base}/v1/customerReviewResponses`, `answering review ${id}`, {
-      data: {
-        type: 'customerReviewResponses',
-        attributes: { responseBody: input.text },
-        relationships: { review: { data: { type: 'customerReviews', id } } },
+    const reply = await this.#write(
+      'POST',
+      `${this.#base}/v1/customerReviewResponses`,
+      `answering review ${id}`,
+      {
+        data: {
+          type: 'customerReviewResponses',
+          attributes: { responseBody: input.text },
+          relationships: { review: { data: { type: 'customerReviews', id } } },
+        },
       },
-    });
+    );
     return parseAppleReplyResult(reply.json);
   }
 
   /** Deletes a response by its id (`DELETE /v1/customerReviewResponses/{id}`). Not exposed by any route yet. */
   async deleteReviewResponse(input: { responseId: string }): Promise<void> {
     const id = this.#reviewId(input.responseId);
-    await this.#write('DELETE', `${this.#base}/v1/customerReviewResponses/${enc(id)}`, `deleting response ${id}`);
+    await this.#write(
+      'DELETE',
+      `${this.#base}/v1/customerReviewResponses/${enc(id)}`,
+      `deleting response ${id}`,
+    );
   }
 
   #reviewId(value: string): string {
@@ -439,7 +470,12 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
    * One write request. No retries. Network failures and 5xx are `ReplyOutcomeUnknownError`: the
    * request may have been applied. A refusal (4xx) is a `StoreError` and means nothing happened.
    */
-  async #write(method: 'POST' | 'DELETE', url: string, what: string, json?: unknown): Promise<StoreReply> {
+  async #write(
+    method: 'POST' | 'DELETE',
+    url: string,
+    what: string,
+    json?: unknown,
+  ): Promise<StoreReply> {
     const token = this.#tokens.token();
     this.#http.known.add(token);
     this.#writeHttp.known.add(token);
@@ -469,7 +505,8 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     }
     if (reply.status === 401) this.#tokens.invalidate();
     const error = appleError(reply, this.#http.now(), what);
-    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
     const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
       const fields = {
         code: redact(d.code),
@@ -478,7 +515,9 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
         parameter: redact(d.parameter),
         pointer: redact(d.pointer),
       };
-      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
     });
     if (reply.status === 403 && error.kind === 'forbidden') {
       throw new StoreError(
@@ -498,13 +537,21 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
         details,
       );
     }
-    throw new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
+    throw new StoreError(
+      'appstoreconnect',
+      error.kind,
+      this.#http.redact(error.message),
+      error.status,
+      details,
+    );
   }
 
   async #get(url: string, what: string): Promise<{ json: Json; remaining?: number }> {
     const token = this.#tokens.token();
     this.#http.known.add(token);
-    const reply = await this.#http.send('GET', url, { headers: { authorization: `Bearer ${token}` } });
+    const reply = await this.#http.send('GET', url, {
+      headers: { authorization: `Bearer ${token}` },
+    });
     if (reply.status >= 200 && reply.status < 300) {
       if (reply.malformed || !isRecord(reply.json)) {
         throw new StoreError(
@@ -519,7 +566,8 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     }
     if (reply.status === 401) this.#tokens.invalidate();
     const error = appleError(reply, this.#http.now(), what);
-    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
     const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
       const fields = {
         code: redact(d.code),
@@ -528,9 +576,17 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
         parameter: redact(d.parameter),
         pointer: redact(d.pointer),
       };
-      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
     });
-    throw new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
+    throw new StoreError(
+      'appstoreconnect',
+      error.kind,
+      this.#http.redact(error.message),
+      error.status,
+      details,
+    );
   }
 
   #cursorOf(url: string): string | undefined {
@@ -547,7 +603,11 @@ export class AppStoreReviewsConnector implements StoreReviewReplyConnector {
     try {
       target = new URL(next, this.#base);
     } catch {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link that could not be read while ${what}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link that could not be read while ${what}.`,
+      );
     }
     if (target.origin !== new URL(this.#base).origin) {
       throw new StoreError(

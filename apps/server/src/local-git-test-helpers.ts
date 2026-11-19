@@ -6,8 +6,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after } from 'node:test';
 import type { FileEdit } from './services/local-git.ts';
+
 /**
  * Helpers for the tests of writing to a local clone (ADR 0005): real git repositories made with
  * the git CLI in temp folders, a logging git wrapper and a snapshot of everything a commit on a
@@ -75,11 +76,17 @@ export const FASTLANE: Files = {
 };
 
 /** A `gitPath` that logs the folder, the index file and the arguments of every call, then runs the real git. */
-export function gitWrapper(): { path: string; calls: () => { cwd: string; args: string; index: string }[] } {
+export function gitWrapper(): {
+  path: string;
+  calls: () => { cwd: string; args: string; index: string }[];
+} {
   const dir = scratch();
   const log = join(dir, 'calls.log');
   const path = join(dir, 'git');
-  writeFileSync(path, `#!/bin/sh\necho "$PWD|$GIT_INDEX_FILE|$*" >> '${log}'\nexec '${REAL_GIT}' "$@"\n`);
+  writeFileSync(
+    path,
+    `#!/bin/sh\necho "$PWD|$GIT_INDEX_FILE|$*" >> '${log}'\nexec '${REAL_GIT}' "$@"\n`,
+  );
   chmodSync(path, 0o755);
   return {
     path,
@@ -106,7 +113,8 @@ export function snapshot(dir: string) {
       if (entry.name === '.git') continue;
       const full = join(d, entry.name);
       if (entry.isDirectory()) walk(full, `${prefix}${entry.name}/`);
-      else tree[`${prefix}${entry.name}`] = `${statSync(full).mtimeMs}:${sha256(readFileSync(full))}`;
+      else
+        tree[`${prefix}${entry.name}`] = `${statSync(full).mtimeMs}:${sha256(readFileSync(full))}`;
     }
   };
   walk(dir, '');
@@ -116,7 +124,9 @@ export function snapshot(dir: string) {
     headRef: git(dir, 'symbolic-ref', 'HEAD'),
     index: sha256(readFileSync(join(dir, '.git', 'index'))),
     config: sha256(readFileSync(join(dir, '.git', 'config'))),
-    hooks: readdirSync(join(dir, '.git', 'hooks')).sort().join(','),
+    hooks: readdirSync(join(dir, '.git', 'hooks'))
+      .sort()
+      .join(','),
     workingTree: tree,
     refs: git(dir, 'for-each-ref', '--format=%(refname) %(objectname)'),
   };
@@ -142,7 +152,6 @@ export const SUBTITLE: FileEdit = {
 
 export const BRANCH = 'mrm/update-subtitle-1234abcd';
 
-
 /**
  * Runs `fn` with a private system temp folder (`TMPDIR`), so a test can ask "did it leave anything
  * behind" without seeing the temporary folders of other test files that run at the same time.
@@ -165,7 +174,9 @@ export async function withPrivateTmp<T>(fn: (dir: string) => Promise<T>): Promis
 
 const which = (name: string): string | undefined => {
   try {
-    return execFileSync('sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim() || undefined;
+    return (
+      execFileSync('sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim() || undefined
+    );
   } catch {
     return undefined;
   }
@@ -191,10 +202,23 @@ export function sshKey(passphrase = ''): SshKey {
   assert.ok(SSH_KEYGEN, 'ssh-keygen is needed');
   const dir = scratch();
   const key = join(dir, 'id_ed25519');
-  execFileSync(SSH_KEYGEN, ['-q', '-t', 'ed25519', '-N', passphrase, '-C', 'mrm-test-key', '-f', key]);
+  execFileSync(SSH_KEYGEN, [
+    '-q',
+    '-t',
+    'ed25519',
+    '-N',
+    passphrase,
+    '-C',
+    'mrm-test-key',
+    '-f',
+    key,
+  ]);
   const pub = `${key}.pub`;
   const signers = join(dir, 'allowed_signers');
-  writeFileSync(signers, `signer@example.com ${readFileSync(pub, 'utf8').trim().split(' ').slice(0, 2).join(' ')}\n`);
+  writeFileSync(
+    signers,
+    `signer@example.com ${readFileSync(pub, 'utf8').trim().split(' ').slice(0, 2).join(' ')}\n`,
+  );
   return { key, pub, signers, passphrase };
 }
 
@@ -202,11 +226,24 @@ export function sshKey(passphrase = ''): SshKey {
 export function sshVerifies(dir: string, commit: string, signers: string): boolean {
   try {
     // The format and program are given here: a repository config under test may say otherwise.
-    execFileSync(REAL_GIT, ['-c', 'gpg.format=ssh', '-c', `gpg.ssh.program=${SSH_KEYGEN}`, '-c', `gpg.ssh.allowedSignersFile=${signers}`, 'verify-commit', commit], {
-      cwd: dir,
-      env: gitEnv,
-      stdio: 'pipe',
-    });
+    execFileSync(
+      REAL_GIT,
+      [
+        '-c',
+        'gpg.format=ssh',
+        '-c',
+        `gpg.ssh.program=${SSH_KEYGEN}`,
+        '-c',
+        `gpg.ssh.allowedSignersFile=${signers}`,
+        'verify-commit',
+        commit,
+      ],
+      {
+        cwd: dir,
+        env: gitEnv,
+        stdio: 'pipe',
+      },
+    );
     return true;
   } catch {
     return false;
@@ -218,7 +255,10 @@ after(() => {
   for (const home of gpgHomes) {
     if (GPGCONF) {
       try {
-        execFileSync(GPGCONF, ['--kill', 'gpg-agent'], { env: { PATH: process.env.PATH ?? '', GNUPGHOME: home }, stdio: 'ignore' });
+        execFileSync(GPGCONF, ['--kill', 'gpg-agent'], {
+          env: { PATH: process.env.PATH ?? '', GNUPGHOME: home },
+          stdio: 'ignore',
+        });
       } catch {
         // No agent was started.
       }
@@ -251,8 +291,16 @@ export function gpgKey(passphrase?: string): GpgKey | { skip: string } {
     '',
   ].join('\n');
   try {
-    execFileSync(GPG, ['--batch', '--quiet', '--pinentry-mode', 'loopback', '--gen-key'], { env, input: params, stdio: ['pipe', 'pipe', 'pipe'], timeout: 90_000 });
-    const listing = execFileSync(GPG, ['--list-secret-keys', '--with-colons'], { env, encoding: 'utf8' });
+    execFileSync(GPG, ['--batch', '--quiet', '--pinentry-mode', 'loopback', '--gen-key'], {
+      env,
+      input: params,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 90_000,
+    });
+    const listing = execFileSync(GPG, ['--list-secret-keys', '--with-colons'], {
+      env,
+      encoding: 'utf8',
+    });
     const fingerprint = /^fpr:+([0-9A-F]{40}):/m.exec(listing)?.[1];
     if (!fingerprint) return { skip: 'gpg made no key' };
     if (GPGCONF) {
@@ -264,7 +312,9 @@ export function gpgKey(passphrase?: string): GpgKey | { skip: string } {
     }
     return { home, fingerprint };
   } catch (error) {
-    return { skip: `gpg could not generate a key here (${(error as Error).message.split('\n')[0]})` };
+    return {
+      skip: `gpg could not generate a key here (${(error as Error).message.split('\n')[0]})`,
+    };
   }
 }
 
@@ -272,7 +322,17 @@ export function gpgKey(passphrase?: string): GpgKey | { skip: string } {
 export function gpgSigner(dir: string, commit: string, home: string): string | undefined {
   const run = spawnSync(
     REAL_GIT,
-    ['-c', 'gpg.format=openpgp', '-c', `gpg.program=${GPG}`, '-c', `gpg.openpgp.program=${GPG}`, 'verify-commit', '--raw', commit],
+    [
+      '-c',
+      'gpg.format=openpgp',
+      '-c',
+      `gpg.program=${GPG}`,
+      '-c',
+      `gpg.openpgp.program=${GPG}`,
+      'verify-commit',
+      '--raw',
+      commit,
+    ],
     { cwd: dir, env: { ...gitEnv, GNUPGHOME: home }, encoding: 'utf8' },
   );
   return /VALIDSIG ([0-9A-F]{40})/.exec(`${run.stdout}${run.stderr}`)?.[1];
@@ -294,5 +354,9 @@ export function fakeProgram(name: string, real: string | undefined, body = ''): 
     `#!/bin/sh\necho "args:$*" >> '${log}'\necho "home:$HOME" >> '${log}'\necho "sock:\${SSH_AUTH_SOCK-unset}" >> '${log}'\necho "gnupg:\${GNUPGHOME-unset}" >> '${log}'\necho "secret:\${MRM_MASTER_KEY-unset}" >> '${log}'\n${body}${real ? `exec '${real}' "$@"\n` : ''}`,
   );
   chmodSync(path, 0o755);
-  return { path, log, lines: () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : []) };
+  return {
+    path,
+    log,
+    lines: () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : []),
+  };
 }

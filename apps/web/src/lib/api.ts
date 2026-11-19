@@ -1,18 +1,12 @@
-import type { McpStatus } from './mcp.ts';
-import type { BuildsList, DownloadLink, InternalSharingConfig, ShareResult, SharePreview } from './builds.ts';
-import { isDemoStatus } from './demo.ts';
-import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
 import type {
-  AnalyticsOverview,
-  AnalyticsStatus,
-  AnalyticsSyncResult,
-  EnablePreview,
-  EnableResult,
-  ImportPreview,
-  PlayBucketTestResult,
-  PlayBucketView,
-  ImportResult as AnalyticsImportResult,
-} from './analytics.ts';
+  AiSuggestionStatus,
+  AiSuggestionView,
+  AssetDiffView,
+  Listing,
+  ListingProblem,
+  StagedChangesView,
+  StoreImagesView,
+} from '@mrm/core';
 import type {
   AiAcceptBody,
   AiAcceptResult,
@@ -29,11 +23,34 @@ import type {
   AiTestOutcome,
 } from './ai.ts';
 import type {
+  AlertChannel,
+  AlertInboxPage,
+  AlertTestResult,
+  CatalogEntry,
+  Delivery,
+  Mute,
+  Preference,
+  RuleView,
+  SettingsPage,
+  UserSettings,
+} from './alerts.ts';
+import type {
+  ImportResult as AnalyticsImportResult,
+  AnalyticsOverview,
+  AnalyticsStatus,
+  AnalyticsSyncResult,
+  EnablePreview,
+  EnableResult,
+  ImportPreview,
+  PlayBucketTestResult,
+  PlayBucketView,
+} from './analytics.ts';
+import type {
   AsoAddResult,
+  AsoCoachResponse,
   AsoCompetitor,
   AsoCompetitorHistory,
   AsoConfig,
-  AsoCoachResponse,
   AsoFitResponse,
   AsoGapsResponse,
   AsoIdeasResponse,
@@ -46,47 +63,120 @@ import type {
   AsoSuggestionsResponse,
   AsoSummary,
 } from './aso.ts';
-import type { RankVsDownloadsResponse } from './rank-downloads.ts';
-import type { SearchTermsImportResult, SearchTermsPreview, SearchTermsQuery, SearchTermsResponse } from './search-terms.ts';
+import type {
+  InspectedFile,
+  PullReport,
+  PullSelection,
+  ToRepoResult,
+  UploadQuery,
+} from './assets-sync.ts';
+import type {
+  BuildsList,
+  DownloadLink,
+  InternalSharingConfig,
+  SharePreview,
+  ShareResult,
+} from './builds.ts';
 import type { ApplyBody } from './change-set-apply.ts';
 import type { FixupBody, FixupResult, RecomputeResult } from './change-set-fixup.ts';
 import type { RefreshResult, Resolution, Staleness } from './change-set-refresh.ts';
 import type { CloneReport, PurgeResult, RepositoryClone } from './clone-upkeep.ts';
-import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
-import type { InspectedFile, PullReport, PullSelection, ToRepoResult, UploadQuery } from './assets-sync.ts';
-import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
-import type { StoreSubmitConfig, SubmitPreview, SubmitResult, SubmitState } from './store-submit.ts';
-import type { PendingSummary, PendingView, PublishConfig, PublishPlan, PublishResult, StepRequest } from './pending.ts';
+import { isDemoStatus } from './demo.ts';
+import type { McpStatus } from './mcp.ts';
+import type {
+  PendingSummary,
+  PendingView,
+  PublishConfig,
+  PublishPlan,
+  PublishResult,
+  StepRequest,
+} from './pending.ts';
+import type { RankVsDownloadsResponse } from './rank-downloads.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
-import type { ReleaseBody, ReleasePreview, ReleaseResult, StoreReleaseConfig, StoreReleaseState } from './store-release.ts';
-import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
+import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
-import type { AlertChannel, CatalogEntry, Delivery, AlertInboxPage, Mute, Preference, RuleView, SettingsPage, AlertTestResult, UserSettings } from './alerts.ts';
-import { type StepUpAction, type StepUpStatus, type StepUpTarget, stepUpMessage } from './step-up.ts';
-import { type CodeSent, type LoginMethod, type LoginMode, type LoginResult, type MailTestResult, type SmtpInput, type SmtpSettings, type TotpBegin, type TotpStatus, type TwoFactorStatus, twoFactorMessage } from './two-factor.ts';
-import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
-import type { InboxPage, Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody, WorkspaceReviewsSummary } from './reviews.ts';
 import type {
-  ActiveRuns,
+  InboxPage,
+  Review,
+  ReviewSyncOutcome,
+  ReviewsPage,
+  ReviewsSummary,
+  TriageBody,
+  WorkspaceReviewsSummary,
+} from './reviews.ts';
+import type {
+  SearchTermsImportResult,
+  SearchTermsPreview,
+  SearchTermsQuery,
+  SearchTermsResponse,
+} from './search-terms.ts';
+import type {
+  SettingsResponse,
+  SettingsUpdateResponse,
+  SettingValue,
+  TranslationTestOutcome,
+} from './settings.ts';
+import type { DraftPreview, DraftPushResult, StoreDraftConfig } from './staged.ts';
+import {
+  type StepUpAction,
+  type StepUpStatus,
+  type StepUpTarget,
+  stepUpMessage,
+} from './step-up.ts';
+import type {
+  ReleaseBody,
+  ReleasePreview,
+  ReleaseResult,
+  StoreReleaseConfig,
+  StoreReleaseState,
+} from './store-release.ts';
+import type {
+  RolloutConfig,
+  RolloutPreview,
+  RolloutRequest,
+  RolloutResult,
+  RolloutStateView,
+} from './store-rollout.ts';
+import type {
+  StoreSubmitConfig,
+  SubmitPreview,
+  SubmitResult,
+  SubmitState,
+} from './store-submit.ts';
+import {
+  type CodeSent,
+  type LoginMethod,
+  type LoginMode,
+  type LoginResult,
+  type MailTestResult,
+  type SmtpInput,
+  type SmtpSettings,
+  type TotpBegin,
+  type TotpStatus,
+  type TwoFactorStatus,
+  twoFactorMessage,
+} from './two-factor.ts';
+import type {
   AcceptedInvitation,
+  ActiveRuns,
   ApiToken,
   AppBuild,
   AppBuilds,
   AppDetail,
-  AssetIndex,
   AppSummary,
+  AssetIndex,
   AuditEvent,
   AuthStatus,
   BuildChanges,
   BuildConventionsView,
   ChangeSetView,
+  ChecklistTemplate,
+  CiWorkflow,
   CreatedApiToken,
   CreatedInvitation,
   CreatedWebhook,
-  ChecklistTemplate,
-  CiWorkflow,
   CredentialSummary,
   DiscoverResult,
   DispatchResult,
@@ -109,23 +199,23 @@ import type {
   PlanChanges,
   PlanDetail,
   PlanSummary,
-  RematchedBuilds,
-  RolloutBody,
-  RolloutView,
   PullRequestBody,
   PullResult,
+  RematchedBuilds,
+  RepoRefreshResult,
   RepositoryDetail,
   RepositoryListing,
-  RepositoryTags,
-  RepoRefreshResult,
   RepositorySummary,
+  RepositoryTags,
+  RolloutBody,
+  RolloutView,
+  RunJobs,
   SavedListingTarget,
   SyncResult,
   TestResult,
   User,
   WebhookDelivery,
   WebhookEndpoint,
-  RunJobs,
   WorkflowInputs,
   WorkflowRun,
   WorkflowRuns,
@@ -140,7 +230,13 @@ export class ApiError extends Error {
   /** The JSON body of the error response, for screens that need more than the message. */
   body: Record<string, unknown>;
 
-  constructor(status: number, code: string, message: string, retryAfter?: number, body: Record<string, unknown> = {}) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    retryAfter?: number,
+    body: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -232,7 +328,9 @@ export function messageFor(
       return 'GitHub took too long to answer. Try again.';
     case 'already_connected':
       // A folder that is already connected says so in the server's words (it names the repository).
-      return body.message?.startsWith('That folder') ? body.message : 'That repository is already connected to this workspace.';
+      return body.message?.startsWith('That folder')
+        ? body.message
+        : 'That repository is already connected to this workspace.';
     case 'remote_mismatch':
     case 'path_in_use':
     case 'no_local_checkout':
@@ -244,7 +342,10 @@ export function messageFor(
     case 'no_changes':
       return 'Nothing differs from what is already in the repository.';
     case 'store_config_invalid':
-      return body.message ?? 'The Expo store.config.json cannot be read, so the App Store listing cannot be changed.';
+      return (
+        body.message ??
+        'The Expo store.config.json cannot be read, so the App Store listing cannot be changed.'
+      );
     case 'apply_in_progress':
       return 'This change set is being applied right now. Check back in a moment.';
     case 'branch_exists':
@@ -259,33 +360,62 @@ export function messageFor(
       return `The files changed in the local clone after this change set was made.${files} Nothing was written. Refresh the change set to re-base it, or discard it.`;
     }
     case 'refresh_conflicts':
-      return body.message ?? 'Some files changed in the repository in the same place. Choose for each file.';
+      return (
+        body.message ??
+        'Some files changed in the repository in the same place. Choose for each file.'
+      );
     case 'nothing_to_apply':
       return 'Nothing left to apply: the repository already has this change. Discard the change set.';
     case 'branch_created':
-      return body.message ?? 'A branch was already created for this change set, so it cannot be refreshed. Use "Fix up this branch" to add a commit to it, or discard it and create a new one.';
+      return (
+        body.message ??
+        'A branch was already created for this change set, so it cannot be refreshed. Use "Fix up this branch" to add a commit to it, or discard it and create a new one.'
+      );
     case 'branch_moved':
       return 'The branch changed while the fix up was being made, so nothing was written. Look at the branch and try again.';
     case 'branch_checked_out':
-      return body.message ?? 'The branch is checked out (or being rebased) in the local clone, so it cannot be moved. Check out another branch there and try again.';
+      return (
+        body.message ??
+        'The branch is checked out (or being rebased) in the local clone, so it cannot be moved. Check out another branch there and try again.'
+      );
     case 'branch_missing':
-      return body.message ?? 'The branch no longer exists, so there is nothing to add a commit to. Discard the change set and create a new one.';
+      return (
+        body.message ??
+        'The branch no longer exists, so there is nothing to add a commit to. Discard the change set and create a new one.'
+      );
     case 'pr_closed':
-      return body.message ?? 'The pull request is closed or merged, so the branch is not updated. Create a new change set from the current listing.';
+      return (
+        body.message ??
+        'The pull request is closed or merged, so the branch is not updated. Create a new change set from the current listing.'
+      );
     case 'remote_diverged':
-      return body.message ?? 'The branch on GitHub has other commits, so the new commit was not pushed. Nothing was forced.';
+      return (
+        body.message ??
+        'The branch on GitHub has other commits, so the new commit was not pushed. Nothing was forced.'
+      );
     case 'fixup_in_progress':
       return 'This change set is being fixed up or pushed right now. Try again in a moment.';
     case 'no_branch':
       return 'This change set has no branch to add a commit to.';
     case 'fixup_conflicts':
-      return body.message ?? 'Some files were also changed on the branch, in the same place. Choose for each file.';
+      return (
+        body.message ??
+        'Some files were also changed on the branch, in the same place. Choose for each file.'
+      );
     case 'fixup_unsupported':
-      return body.message ?? 'This repository connection cannot add a commit to an existing branch.';
+      return (
+        body.message ?? 'This repository connection cannot add a commit to an existing branch.'
+      );
     case 'not_recomputable':
-      return body.message ?? 'This change set was not made from the live store listing, so it cannot be recomputed.';
+      return (
+        body.message ??
+        'This change set was not made from the live store listing, so it cannot be recomputed.'
+      );
     case 'has_branch':
-      return body.message ?? 'A branch exists for this change set. Use "Fix up this branch" to bring the store text into it.';
+      return (
+        body.message ??
+        'A branch exists for this change set. Use "Fix up this branch" to bring the store text into it.'
+      );
     case 'app_gone':
       return 'The app this change set was pulled for is no longer in the workspace.';
     case 'app_relinked':
@@ -320,7 +450,9 @@ export function messageFor(
       return 'That run has no commit, so it cannot explain a build.';
     case 'invalid_request': {
       const first = body.issues?.[0];
-      return first ? `${first.path ? `${first.path}: ` : ''}${first.message}` : 'Check the form and try again.';
+      return first
+        ? `${first.path ? `${first.path}: ` : ''}${first.message}`
+        : 'Check the form and try again.';
     }
   }
   if (status === 429) return `Too many requests. Try again in ${waitPhrase(retryAfter ?? 60)}.`;
@@ -348,9 +480,14 @@ function uploadQueryText(q: UploadQuery): string {
 }
 
 export function createApi(options: ApiOptions = {}) {
-  const send = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
+  const send =
+    options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
 
-  const requestHeaders = (raw: Blob | undefined, body: unknown, extra: Record<string, string> | undefined): Record<string, string> | undefined => {
+  const requestHeaders = (
+    raw: Blob | undefined,
+    body: unknown,
+    extra: Record<string, string> | undefined,
+  ): Record<string, string> | undefined => {
     const headers: Record<string, string> = { ...(extra || {}) };
     if (raw) headers['content-type'] = raw.type || 'application/octet-stream';
     else if (body !== undefined) headers['content-type'] = 'application/json';
@@ -358,10 +495,17 @@ export function createApi(options: ApiOptions = {}) {
   };
 
   /** The header a confirmed hard action carries (docs/api/step-up.md). Never in a URL. */
-  const grantHeader = (grant?: string): Record<string, string> | undefined => (grant ? { 'x-step-up-grant': grant } : undefined);
+  const grantHeader = (grant?: string): Record<string, string> | undefined =>
+    grant ? { 'x-step-up-grant': grant } : undefined;
 
   /** `raw`: the body is the bytes of a file (an image upload), sent as they are; otherwise `body` is sent as JSON. */
-  async function request<T>(method: string, path: string, body?: unknown, raw?: Blob, extraHeaders?: Record<string, string>): Promise<T> {
+  async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    raw?: Blob,
+    extraHeaders?: Record<string, string>,
+  ): Promise<T> {
     let response: Response;
     try {
       response = await send(path, {
@@ -404,8 +548,10 @@ export function createApi(options: ApiOptions = {}) {
   }
 
   const workspace = (id: string) => `/api/workspaces/${encodeURIComponent(id)}`;
-  const asoPath = (workspaceId: string, appId: string) => `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/aso`;
-  const analyticsPath = (workspaceId: string, appId: string) => `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/analytics`;
+  const asoPath = (workspaceId: string, appId: string) =>
+    `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/aso`;
+  const analyticsPath = (workspaceId: string, appId: string) =>
+    `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/analytics`;
   const planPath = (workspaceId: string, appId: string, planId: string) =>
     `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans/${encodeURIComponent(planId)}`;
 
@@ -415,38 +561,64 @@ export function createApi(options: ApiOptions = {}) {
     demoStatus: (): Promise<boolean> =>
       request<unknown>('GET', '/demo/status').then(isDemoStatus, () => false),
     status: () => request<AuthStatus>('GET', '/api/auth/status'),
-    register: (input: { email: string; displayName: string; password: string; workspaceName: string }) =>
-      request<{ user: User; workspaceId: string }>('POST', '/api/auth/register', input),
+    register: (input: {
+      email: string;
+      displayName: string;
+      password: string;
+      workspaceName: string;
+    }) => request<{ user: User; workspaceId: string }>('POST', '/api/auth/register', input),
     login: (input: { email: string; password: string }) =>
       request<LoginResult>('POST', '/api/auth/login', input),
     // The second step of signing in (docs/api/two-factor.md): the `challenge` from `login` is the credential for 5 minutes.
     loginSecondFactor: (input: { challenge: string; method: LoginMethod; code: string }) =>
       request<{ user: User }>('POST', '/api/auth/login/two-factor', input),
-    loginEmailCode: (challenge: string) => request<CodeSent>('POST', '/api/auth/login/two-factor/email-code', { challenge }),
-    loginEnrollTotp: (challenge: string) => request<TotpBegin>('POST', '/api/auth/login/enroll/totp', { challenge }),
-    loginEnrollTotpConfirm: (challenge: string, code: string) => request<{ user: User }>('POST', '/api/auth/login/enroll/totp/confirm', { challenge, code }),
-    loginEnrollEmail: (challenge: string) => request<CodeSent>('POST', '/api/auth/login/enroll/email', { challenge }),
-    loginEnrollEmailConfirm: (challenge: string, code: string) => request<{ user: User }>('POST', '/api/auth/login/enroll/email/confirm', { challenge, code }),
+    loginEmailCode: (challenge: string) =>
+      request<CodeSent>('POST', '/api/auth/login/two-factor/email-code', { challenge }),
+    loginEnrollTotp: (challenge: string) =>
+      request<TotpBegin>('POST', '/api/auth/login/enroll/totp', { challenge }),
+    loginEnrollTotpConfirm: (challenge: string, code: string) =>
+      request<{ user: User }>('POST', '/api/auth/login/enroll/totp/confirm', { challenge, code }),
+    loginEnrollEmail: (challenge: string) =>
+      request<CodeSent>('POST', '/api/auth/login/enroll/email', { challenge }),
+    loginEnrollEmailConfirm: (challenge: string, code: string) =>
+      request<{ user: User }>('POST', '/api/auth/login/enroll/email/confirm', { challenge, code }),
     logout: () => request<void>('POST', '/api/auth/logout'),
     me: () => request<Me>('GET', '/api/me'),
     credentials: (workspaceId: string) =>
       request<{ credentials: CredentialSummary[] }>('GET', `${workspace(workspaceId)}/credentials`),
     addCredential: (workspaceId: string, input: { kind: string; label: string; secret: string }) =>
-      request<{ credential: CredentialSummary }>('POST', `${workspace(workspaceId)}/credentials`, input),
+      request<{ credential: CredentialSummary }>(
+        'POST',
+        `${workspace(workspaceId)}/credentials`,
+        input,
+      ),
     replaceSecret: (workspaceId: string, id: string, secret: string) =>
-      request<void>('PUT', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`, { secret }),
+      request<void>('PUT', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`, {
+        secret,
+      }),
     deleteCredential: (workspaceId: string, id: string, grant?: string) =>
-      request<void>('DELETE', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`, undefined, undefined, grantHeader(grant)),
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`,
+        undefined,
+        undefined,
+        grantHeader(grant),
+      ),
     /** Tries a secret against the provider without saving it. */
     testSecret: (workspaceId: string, input: { kind: string; secret: string }) =>
       request<TestResult>('POST', `${workspace(workspaceId)}/credentials/test`, input),
     /** Tries a saved credential and records the outcome on it. */
     testCredential: (workspaceId: string, id: string) =>
-      request<TestResult>('POST', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}/test`),
+      request<TestResult>(
+        'POST',
+        `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}/test`,
+      ),
     members: (workspaceId: string) =>
       request<{ members: Member[] }>('GET', `${workspace(workspaceId)}/members`),
     changeRole: (workspaceId: string, userId: string, role: string) =>
-      request<void>('PATCH', `${workspace(workspaceId)}/members/${encodeURIComponent(userId)}`, { role }),
+      request<void>('PATCH', `${workspace(workspaceId)}/members/${encodeURIComponent(userId)}`, {
+        role,
+      }),
     removeMember: (workspaceId: string, userId: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/members/${encodeURIComponent(userId)}`),
     invitations: (workspaceId: string) =>
@@ -458,22 +630,50 @@ export function createApi(options: ApiOptions = {}) {
     invitation: (token: string) =>
       request<InvitationPreview>('GET', `/api/invitations/${encodeURIComponent(token)}`),
     acceptInvitation: (token: string, input: { displayName?: string; password?: string } = {}) =>
-      request<AcceptedInvitation>('POST', `/api/invitations/${encodeURIComponent(token)}/accept`, input),
+      request<AcceptedInvitation>(
+        'POST',
+        `/api/invitations/${encodeURIComponent(token)}/accept`,
+        input,
+      ),
     repositories: (workspaceId: string) =>
-      request<{ repositories: RepositorySummary[] }>('GET', `${workspace(workspaceId)}/repositories`),
+      request<{ repositories: RepositorySummary[] }>(
+        'GET',
+        `${workspace(workspaceId)}/repositories`,
+      ),
     repository: (workspaceId: string, id: string) =>
-      request<RepositoryDetail>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}`),
-    connectRepository: (workspaceId: string, input: { credentialId: string; owner: string; repo: string }) =>
-      request<{ repository: RepositorySummary }>('POST', `${workspace(workspaceId)}/repositories`, input),
+      request<RepositoryDetail>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}`,
+      ),
+    connectRepository: (
+      workspaceId: string,
+      input: { credentialId: string; owner: string; repo: string },
+    ) =>
+      request<{ repository: RepositorySummary }>(
+        'POST',
+        `${workspace(workspaceId)}/repositories`,
+        input,
+      ),
     disconnectRepository: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}`),
     // Local clones (docs/adr/0005-local-clone-reads.md). Admin and owner only, except `localConfig`.
     localConfig: (workspaceId: string) =>
       request<{ local: LocalConfig }>('GET', `${workspace(workspaceId)}/repositories/local/config`),
     checkLocalClone: (workspaceId: string, input: { path: string; branch?: string }) =>
-      request<{ check: LocalCheck }>('POST', `${workspace(workspaceId)}/repositories/local/check`, input),
-    connectLocalRepository: (workspaceId: string, input: { path: string; branch?: string; name?: string }) =>
-      request<{ repository: RepositorySummary }>('POST', `${workspace(workspaceId)}/repositories/local`, input),
+      request<{ check: LocalCheck }>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/local/check`,
+        input,
+      ),
+    connectLocalRepository: (
+      workspaceId: string,
+      input: { path: string; branch?: string; name?: string },
+    ) =>
+      request<{ repository: RepositorySummary }>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/local`,
+        input,
+      ),
     attachLocalClone: (
       workspaceId: string,
       id: string,
@@ -491,12 +691,17 @@ export function createApi(options: ApiOptions = {}) {
       ),
     /** Lists the repository's files, detects the project type and stores the result. */
     scanRepository: (workspaceId: string, id: string) =>
-      request<RepositoryDetail>('POST', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/scan`),
+      request<RepositoryDetail>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/scan`,
+      ),
     repositoryListing: (workspaceId: string, id: string, selection: ListingSelection = {}) => {
       const query = new URLSearchParams();
       if (selection.target) query.set('target', selection.target);
-      if (selection.roots?.appStore !== undefined) query.set('appStoreRoot', selection.roots.appStore);
-      if (selection.roots?.googlePlay !== undefined) query.set('googlePlayRoot', selection.roots.googlePlay);
+      if (selection.roots?.appStore !== undefined)
+        query.set('appStoreRoot', selection.roots.appStore);
+      if (selection.roots?.googlePlay !== undefined)
+        query.set('googlePlayRoot', selection.roots.googlePlay);
       const text = query.toString();
       return request<RepositoryListing>(
         'GET',
@@ -514,7 +719,12 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/listing-targets`,
         input,
       ),
-    updateListingTarget: (workspaceId: string, repositoryId: string, id: string, input: Partial<ListingTargetInput>) =>
+    updateListingTarget: (
+      workspaceId: string,
+      repositoryId: string,
+      id: string,
+      input: Partial<ListingTargetInput>,
+    ) =>
       request<{ target: SavedListingTarget }>(
         'PATCH',
         `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/listing-targets/${encodeURIComponent(id)}`,
@@ -541,10 +751,16 @@ export function createApi(options: ApiOptions = {}) {
       if (filter.status) query.set('status', filter.status);
       const text = query.toString();
       const suffix = text ? `?${text}` : '';
-      return request<{ changeSets: ChangeSetView[] }>('GET', `${workspace(workspaceId)}/change-sets${suffix}`);
+      return request<{ changeSets: ChangeSetView[] }>(
+        'GET',
+        `${workspace(workspaceId)}/change-sets${suffix}`,
+      );
     },
     changeSet: (workspaceId: string, id: string) =>
-      request<{ changeSet: ChangeSetView }>('GET', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}`),
+      request<{ changeSet: ChangeSetView }>(
+        'GET',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}`,
+      ),
     approveChangeSet: (workspaceId: string, id: string) =>
       request<{ changeSet: ChangeSetView }>(
         'POST',
@@ -566,37 +782,64 @@ export function createApi(options: ApiOptions = {}) {
       ),
     /** Cheap and read only: is the change set still what the repository holds? */
     changeSetStaleness: (workspaceId: string, id: string) =>
-      request<Staleness>('GET', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/staleness`),
+      request<Staleness>(
+        'GET',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/staleness`,
+      ),
     /**
      * Re-bases a stale change set onto the repository. A conflict is a 409 `refresh_conflicts` (the
      * ApiError's body has the files and their three texts); send `resolutions` per conflicting path.
      */
-    refreshChangeSet: (workspaceId: string, id: string, body?: { resolutions?: Record<string, Resolution> }) =>
-      request<RefreshResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/refresh`, body),
+    refreshChangeSet: (
+      workspaceId: string,
+      id: string,
+      body?: { resolutions?: Record<string, Resolution> },
+    ) =>
+      request<RefreshResult>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/refresh`,
+        body,
+      ),
     /**
      * Adds ONE commit on top of the branch of an applied (or failed) change set: never a rewrite, never
      * forced. A conflict is a 409 `refresh_conflicts` (with the repository) or `fixup_conflicts` (with
      * the branch); the ApiError's body has the files. `dryRun` writes nothing.
      */
     fixupChangeSet: (workspaceId: string, id: string, body: FixupBody = {}) =>
-      request<FixupResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/fixup`, body),
+      request<FixupResult>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/fixup`,
+        body,
+      ),
     /** Makes a store pull again from the live store listing and the repository as they are now; `refresh` reads the store first. */
     recomputeChangeSet: (workspaceId: string, id: string, body: { refresh?: boolean } = {}) =>
-      request<RecomputeResult>('POST', `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/recompute`, body),
+      request<RecomputeResult>(
+        'POST',
+        `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/recompute`,
+        body,
+      ),
     /** The managed clone of one repository: size and last use. */
     repositoryClone: (workspaceId: string, id: string) =>
-      request<RepositoryClone>('GET', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone`),
+      request<RepositoryClone>(
+        'GET',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone`,
+      ),
     /** Admin and owner: the clones of the workspace. */
-    clones: (workspaceId: string) => request<CloneReport>('GET', `${workspace(workspaceId)}/clones`),
+    clones: (workspaceId: string) =>
+      request<CloneReport>('GET', `${workspace(workspaceId)}/clones`),
     /** Admin and owner: removes the clone now (a cache; the next read fetches it again). */
     purgeRepositoryClone: (workspaceId: string, id: string) =>
-      request<PurgeResult>('POST', `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone/purge`),
+      request<PurgeResult>(
+        'POST',
+        `${workspace(workspaceId)}/repositories/${encodeURIComponent(id)}/clone/purge`,
+      ),
     discardChangeSet: (workspaceId: string, id: string) =>
       request<{ changeSet: ChangeSetView }>(
         'POST',
         `${workspace(workspaceId)}/change-sets/${encodeURIComponent(id)}/discard`,
       ),
-    apps: (workspaceId: string) => request<{ apps: AppSummary[] }>('GET', `${workspace(workspaceId)}/apps`),
+    apps: (workspaceId: string) =>
+      request<{ apps: AppSummary[] }>('GET', `${workspace(workspaceId)}/apps`),
     app: (workspaceId: string, id: string) =>
       request<AppDetail>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(id)}`),
     createApp: (workspaceId: string, input: NewApp) =>
@@ -609,9 +852,15 @@ export function createApi(options: ApiOptions = {}) {
     // Store listing of an app: values from the last syncs, drift against the repository, history.
     // All reads of our own database; only `refreshAppRepoListing` reads GitHub. Nothing writes to a store.
     appListingLive: (workspaceId: string, appId: string) =>
-      request<LiveListing>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/live`),
+      request<LiveListing>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/live`,
+      ),
     appListingDrift: (workspaceId: string, appId: string) =>
-      request<ListingDrift>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/drift`),
+      request<ListingDrift>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/listing/drift`,
+      ),
     appListingHistory: (
       workspaceId: string,
       appId: string,
@@ -652,19 +901,36 @@ export function createApi(options: ApiOptions = {}) {
     importApps: (workspaceId: string, input: { credentialId: string; items: ImportItem[] }) =>
       request<ImportResult>('POST', `${workspace(workspaceId)}/apps/import`, input),
     // Release planning: our own checklists, notes and deadlines (docs/api/plans.md).
-    plans: (workspaceId: string) => request<{ plans: PlanSummary[] }>('GET', `${workspace(workspaceId)}/plans`),
+    plans: (workspaceId: string) =>
+      request<{ plans: PlanSummary[] }>('GET', `${workspace(workspaceId)}/plans`),
     appPlans: (workspaceId: string, appId: string) =>
-      request<{ plans: PlanSummary[] }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans`),
+      request<{ plans: PlanSummary[] }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans`,
+      ),
     plan: (workspaceId: string, appId: string, planId: string) =>
       request<{ plan: PlanDetail }>('GET', `${planPath(workspaceId, appId, planId)}`),
     createPlan: (workspaceId: string, appId: string, input: NewPlan) =>
-      request<{ plan: PlanDetail }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans`, input),
+      request<{ plan: PlanDetail }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/plans`,
+        input,
+      ),
     updatePlan: (workspaceId: string, appId: string, planId: string, changes: PlanChanges) =>
       request<{ plan: PlanDetail }>('PATCH', planPath(workspaceId, appId, planId), changes),
     deletePlan: (workspaceId: string, appId: string, planId: string) =>
       request<void>('DELETE', planPath(workspaceId, appId, planId)),
-    addChecklistItem: (workspaceId: string, appId: string, planId: string, input: { text: string; required: boolean }) =>
-      request<{ plan: PlanDetail; itemId: string }>('POST', `${planPath(workspaceId, appId, planId)}/items`, input),
+    addChecklistItem: (
+      workspaceId: string,
+      appId: string,
+      planId: string,
+      input: { text: string; required: boolean },
+    ) =>
+      request<{ plan: PlanDetail; itemId: string }>(
+        'POST',
+        `${planPath(workspaceId, appId, planId)}/items`,
+        input,
+      ),
     updateChecklistItem: (
       workspaceId: string,
       appId: string,
@@ -672,26 +938,64 @@ export function createApi(options: ApiOptions = {}) {
       itemId: string,
       changes: { text?: string; required?: boolean; done?: boolean },
     ) =>
-      request<{ plan: PlanDetail }>('PATCH', `${planPath(workspaceId, appId, planId)}/items/${encodeURIComponent(itemId)}`, changes),
+      request<{ plan: PlanDetail }>(
+        'PATCH',
+        `${planPath(workspaceId, appId, planId)}/items/${encodeURIComponent(itemId)}`,
+        changes,
+      ),
     deleteChecklistItem: (workspaceId: string, appId: string, planId: string, itemId: string) =>
-      request<{ plan: PlanDetail }>('DELETE', `${planPath(workspaceId, appId, planId)}/items/${encodeURIComponent(itemId)}`),
+      request<{ plan: PlanDetail }>(
+        'DELETE',
+        `${planPath(workspaceId, appId, planId)}/items/${encodeURIComponent(itemId)}`,
+      ),
     reorderChecklist: (workspaceId: string, appId: string, planId: string, order: string[]) =>
-      request<{ plan: PlanDetail }>('PUT', `${planPath(workspaceId, appId, planId)}/items/order`, { order }),
-    applyChecklistTemplate: (workspaceId: string, appId: string, planId: string, templateId: string) =>
-      request<{ plan: PlanDetail; added: number; skipped: number }>('POST', `${planPath(workspaceId, appId, planId)}/apply-template`, {
-        templateId,
+      request<{ plan: PlanDetail }>('PUT', `${planPath(workspaceId, appId, planId)}/items/order`, {
+        order,
       }),
-    setReleaseNotes: (workspaceId: string, appId: string, planId: string, locale: string, text: string) =>
-      request<{ plan: PlanDetail }>('PUT', `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`, { text }),
+    applyChecklistTemplate: (
+      workspaceId: string,
+      appId: string,
+      planId: string,
+      templateId: string,
+    ) =>
+      request<{ plan: PlanDetail; added: number; skipped: number }>(
+        'POST',
+        `${planPath(workspaceId, appId, planId)}/apply-template`,
+        {
+          templateId,
+        },
+      ),
+    setReleaseNotes: (
+      workspaceId: string,
+      appId: string,
+      planId: string,
+      locale: string,
+      text: string,
+    ) =>
+      request<{ plan: PlanDetail }>(
+        'PUT',
+        `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`,
+        { text },
+      ),
     deleteReleaseNotes: (workspaceId: string, appId: string, planId: string, locale: string) =>
-      request<{ plan: PlanDetail }>('DELETE', `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`),
+      request<{ plan: PlanDetail }>(
+        'DELETE',
+        `${planPath(workspaceId, appId, planId)}/notes/${encodeURIComponent(locale)}`,
+      ),
     // Staged rollout steps of a plan: planning data only, nothing reaches a store (docs/api/plans.md).
     rollout: (workspaceId: string, appId: string, planId: string) =>
       request<{ rollout: RolloutView }>('GET', `${planPath(workspaceId, appId, planId)}/rollout`),
     setRollout: (workspaceId: string, appId: string, planId: string, body: RolloutBody) =>
-      request<{ rollout: RolloutView }>('PUT', `${planPath(workspaceId, appId, planId)}/rollout`, body),
+      request<{ rollout: RolloutView }>(
+        'PUT',
+        `${planPath(workspaceId, appId, planId)}/rollout`,
+        body,
+      ),
     clearRollout: (workspaceId: string, appId: string, planId: string) =>
-      request<{ rollout: RolloutView }>('DELETE', `${planPath(workspaceId, appId, planId)}/rollout`),
+      request<{ rollout: RolloutView }>(
+        'DELETE',
+        `${planPath(workspaceId, appId, planId)}/rollout`,
+      ),
     rolloutStep: (
       workspaceId: string,
       appId: string,
@@ -708,22 +1012,51 @@ export function createApi(options: ApiOptions = {}) {
     // Store rollout writes (docs/api/rollout.md): off unless the server sets MRM_STORE_ROLLOUT_ENABLED. State,
     // preview and apply need `releases.rollout` (admin and up); only `rolloutApply` changes a store, once,
     // with the `confirmHash` of a preview. `query` is `stateQuery(base)` of lib/store-rollout.ts.
-    rolloutConfig: (workspaceId: string) => request<RolloutConfig>('GET', `${workspace(workspaceId)}/rollout/config`),
+    rolloutConfig: (workspaceId: string) =>
+      request<RolloutConfig>('GET', `${workspace(workspaceId)}/rollout/config`),
     rolloutState: (workspaceId: string, appId: string, query = '') =>
       request<RolloutStateView>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/state${query ? `?${query}` : ''}`,
       ),
     rolloutPreview: (workspaceId: string, appId: string, body: RolloutRequest) =>
-      request<{ preview: RolloutPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/preview`, body),
-    rolloutApply: (workspaceId: string, appId: string, body: RolloutRequest & { confirmHash: string }, grant?: string) =>
-      request<{ result: RolloutResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/apply`, body, undefined, grantHeader(grant)),
+      request<{ preview: RolloutPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/preview`,
+        body,
+      ),
+    rolloutApply: (
+      workspaceId: string,
+      appId: string,
+      body: RolloutRequest & { confirmHash: string },
+      grant?: string,
+    ) =>
+      request<{ result: RolloutResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/apply`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     checklistTemplates: (workspaceId: string) =>
-      request<{ templates: ChecklistTemplate[] }>('GET', `${workspace(workspaceId)}/checklist-templates`),
-    createChecklistTemplate: (workspaceId: string, input: { name: string; items: { text: string; required: boolean }[] }) =>
-      request<{ template: ChecklistTemplate }>('POST', `${workspace(workspaceId)}/checklist-templates`, input),
+      request<{ templates: ChecklistTemplate[] }>(
+        'GET',
+        `${workspace(workspaceId)}/checklist-templates`,
+      ),
+    createChecklistTemplate: (
+      workspaceId: string,
+      input: { name: string; items: { text: string; required: boolean }[] },
+    ) =>
+      request<{ template: ChecklistTemplate }>(
+        'POST',
+        `${workspace(workspaceId)}/checklist-templates`,
+        input,
+      ),
     deleteChecklistTemplate: (workspaceId: string, id: string) =>
-      request<void>('DELETE', `${workspace(workspaceId)}/checklist-templates/${encodeURIComponent(id)}`),
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/checklist-templates/${encodeURIComponent(id)}`,
+      ),
     // CI (docs/api/ci.md). Reading stored runs and builds is open to every member; the calls that
     // ask GitHub need the right of a scan, and dispatching a workflow needs `ci.dispatch`.
     workflows: (workspaceId: string, repositoryId: string) =>
@@ -787,24 +1120,48 @@ export function createApi(options: ApiOptions = {}) {
         input,
       ),
     appBuilds: (workspaceId: string, appId: string) =>
-      request<AppBuilds>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds`),
+      request<AppBuilds>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds`,
+      ),
     /** Builds to test: the CI artifacts of the runs of an app and its store builds (docs/api/builds.md). Needs the member role. */
     buildArtifacts: (workspaceId: string, appId: string) =>
-      request<BuildsList>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts`),
+      request<BuildsList>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts`,
+      ),
     /** A link a phone can open without signing in: ten minutes, once. Needs `builds.download` and the server switch. */
     createBuildLink: (workspaceId: string, appId: string, artifactId: string) =>
-      request<DownloadLink>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/link`),
+      request<DownloadLink>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/link`,
+      ),
     /** Google Play internal app sharing (docs/api/internal-sharing.md): whether the server offers it, and the limits. Needs `builds.read`. */
-    internalSharingConfig: (workspaceId: string) => request<InternalSharingConfig>('GET', `${workspace(workspaceId)}/builds/internal-sharing/config`),
+    internalSharingConfig: (workspaceId: string) =>
+      request<InternalSharingConfig>(
+        'GET',
+        `${workspace(workspaceId)}/builds/internal-sharing/config`,
+      ),
     /** What would be uploaded. Nothing is downloaded and Google is not contacted. Needs `builds.share`. */
-    internalSharePreview: (workspaceId: string, appId: string, artifactId: string, entry?: string) =>
+    internalSharePreview: (
+      workspaceId: string,
+      appId: string,
+      artifactId: string,
+      entry?: string,
+    ) =>
       request<{ preview: SharePreview }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/internal-share/preview`,
         entry ? { entry } : {},
       ),
     /** The upload. A store write: needs the preview's confirmHash, the typed phrase and (policy on) a step-up grant. */
-    internalShareApply: (workspaceId: string, appId: string, artifactId: string, body: { confirmHash: string; confirmation: string; entry?: string }, grant?: string) =>
+    internalShareApply: (
+      workspaceId: string,
+      appId: string,
+      artifactId: string,
+      body: { confirmHash: string; confirmation: string; entry?: string },
+      grant?: string,
+    ) =>
       request<{ result: ShareResult }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/internal-share`,
@@ -813,7 +1170,11 @@ export function createApi(options: ApiOptions = {}) {
         grantHeader(grant),
       ),
     /** The commits between a build and the one before it (or `base`). Reads GitHub. */
-    buildChanges: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string; base?: string }) => {
+    buildChanges: (
+      workspaceId: string,
+      appId: string,
+      build: { platform: string; buildNumber: string; base?: string },
+    ) => {
       const query = new URLSearchParams({ platform: build.platform, build: build.buildNumber });
       if (build.base) query.set('base', build.base);
       return request<BuildChanges>(
@@ -821,7 +1182,12 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/changes?${query.toString()}`,
       );
     },
-    linkBuild: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string }, runId: string) =>
+    linkBuild: (
+      workspaceId: string,
+      appId: string,
+      build: { platform: string; buildNumber: string },
+      runId: string,
+    ) =>
       request<{ build: AppBuild }>(
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/${encodeURIComponent(build.platform)}/${encodeURIComponent(build.buildNumber)}/link`,
@@ -829,7 +1195,10 @@ export function createApi(options: ApiOptions = {}) {
       ),
     /** Reads the runs, tags and releases from GitHub again and matches this app's builds. Needs the right of a scan. */
     rematchBuilds: (workspaceId: string, appId: string) =>
-      request<RematchedBuilds>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/rematch`),
+      request<RematchedBuilds>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/rematch`,
+      ),
     /** How the repository's tags carry build numbers: the stored patterns and the defaults. */
     buildConventions: (workspaceId: string, repositoryId: string, appId?: string) =>
       request<BuildConventionsView>(
@@ -840,7 +1209,13 @@ export function createApi(options: ApiOptions = {}) {
     setBuildConventions: (
       workspaceId: string,
       repositoryId: string,
-      input: { appId?: string; tagPatterns: string[]; releasePatterns: string[]; prefix: string; workflow: string | null },
+      input: {
+        appId?: string;
+        tagPatterns: string[];
+        releasePatterns: string[];
+        prefix: string;
+        workflow: string | null;
+      },
     ) =>
       request<BuildConventionsView>(
         'PUT',
@@ -853,7 +1228,11 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/repositories/${encodeURIComponent(repositoryId)}/build-conventions/tags`,
       ),
-    unlinkBuild: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string }) =>
+    unlinkBuild: (
+      workspaceId: string,
+      appId: string,
+      build: { platform: string; buildNumber: string },
+    ) =>
       request<{ build: AppBuild | null }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/${encodeURIComponent(build.platform)}/${encodeURIComponent(build.buildNumber)}/link`,
@@ -861,45 +1240,86 @@ export function createApi(options: ApiOptions = {}) {
     audit: (workspaceId: string, limit = 100) =>
       request<{ events: AuditEvent[] }>('GET', `${workspace(workspaceId)}/audit?limit=${limit}`),
     // The MCP server for AI assistants: whether it is on and which tools it offers (owners and admins). docs/api/mcp.md
-    mcpStatus: (workspaceId: string) => request<McpStatus>('GET', `${workspace(workspaceId)}/mcp/status`),
+    mcpStatus: (workspaceId: string) =>
+      request<McpStatus>('GET', `${workspace(workspaceId)}/mcp/status`),
     // API tokens. The token is in the answer to `createApiToken` and nowhere else.
     apiTokens: (workspaceId: string) =>
       request<{ tokens: ApiToken[] }>('GET', `${workspace(workspaceId)}/tokens`),
     createApiToken: (
       workspaceId: string,
-      input: { name: string; role: string; appIds?: string[]; actions?: string[]; expiresAt?: number },
+      input: {
+        name: string;
+        role: string;
+        appIds?: string[];
+        actions?: string[];
+        expiresAt?: number;
+      },
     ) => request<CreatedApiToken>('POST', `${workspace(workspaceId)}/tokens`, input),
     revokeApiToken: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/tokens/${encodeURIComponent(id)}`),
     // Alerts (docs/api/alerts.md): the inbox, a person's own choices, the workspace rules, the delivery log.
     alertCatalog: (workspaceId: string) =>
       request<{ catalog: CatalogEntry[] }>('GET', `${workspace(workspaceId)}/alerts/catalog`),
-    alertInbox: (workspaceId: string, query: { unread?: boolean; limit?: number; before?: number } = {}) => {
+    alertInbox: (
+      workspaceId: string,
+      query: { unread?: boolean; limit?: number; before?: number } = {},
+    ) => {
       const q = [
         query.unread ? 'unread=1' : '',
         query.limit ? `limit=${query.limit}` : '',
         query.before !== undefined ? `before=${query.before}` : '',
       ].filter(Boolean);
-      return request<AlertInboxPage>('GET', `${workspace(workspaceId)}/alerts/inbox${q.length ? `?${q.join('&')}` : ''}`);
+      return request<AlertInboxPage>(
+        'GET',
+        `${workspace(workspaceId)}/alerts/inbox${q.length ? `?${q.join('&')}` : ''}`,
+      );
     },
     markAlertsRead: (workspaceId: string, body: { ids: string[] } | { all: true }) =>
-      request<{ marked: number; unreadCount: number }>('POST', `${workspace(workspaceId)}/alerts/inbox/read`, body),
-    alertSettings: (workspaceId: string) => request<SettingsPage>('GET', `${workspace(workspaceId)}/alerts/settings`),
+      request<{ marked: number; unreadCount: number }>(
+        'POST',
+        `${workspace(workspaceId)}/alerts/inbox/read`,
+        body,
+      ),
+    alertSettings: (workspaceId: string) =>
+      request<SettingsPage>('GET', `${workspace(workspaceId)}/alerts/settings`),
     updateAlertSettings: (workspaceId: string, body: Partial<Omit<UserSettings, 'lastDigestAt'>>) =>
       request<{ settings: UserSettings }>('PUT', `${workspace(workspaceId)}/alerts/settings`, body),
-    setAlertPreference: (workspaceId: string, alertType: string, body: { appId?: string | null; channels: AlertChannel[] | null }) =>
-      request<{ preference: Preference | null }>('PUT', `${workspace(workspaceId)}/alerts/preferences/${encodeURIComponent(alertType)}`, body),
-    createAlertMute: (workspaceId: string, body: { appId?: string | null; alertType?: string | null; hours?: number }) =>
-      request<{ mute: Mute }>('POST', `${workspace(workspaceId)}/alerts/mutes`, body),
+    setAlertPreference: (
+      workspaceId: string,
+      alertType: string,
+      body: { appId?: string | null; channels: AlertChannel[] | null },
+    ) =>
+      request<{ preference: Preference | null }>(
+        'PUT',
+        `${workspace(workspaceId)}/alerts/preferences/${encodeURIComponent(alertType)}`,
+        body,
+      ),
+    createAlertMute: (
+      workspaceId: string,
+      body: { appId?: string | null; alertType?: string | null; hours?: number },
+    ) => request<{ mute: Mute }>('POST', `${workspace(workspaceId)}/alerts/mutes`, body),
     deleteAlertMute: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/alerts/mutes/${encodeURIComponent(id)}`),
     setAlertRule: (
       workspaceId: string,
       alertType: string,
-      body: { enabled?: boolean; channels?: AlertChannel[]; maxPerHour?: number | null; params?: Record<string, number> },
-    ) => request<{ rule: RuleView }>('PUT', `${workspace(workspaceId)}/alerts/rules/${encodeURIComponent(alertType)}`, body),
+      body: {
+        enabled?: boolean;
+        channels?: AlertChannel[];
+        maxPerHour?: number | null;
+        params?: Record<string, number>;
+      },
+    ) =>
+      request<{ rule: RuleView }>(
+        'PUT',
+        `${workspace(workspaceId)}/alerts/rules/${encodeURIComponent(alertType)}`,
+        body,
+      ),
     resetAlertRule: (workspaceId: string, alertType: string) =>
-      request<{ rule: RuleView }>('DELETE', `${workspace(workspaceId)}/alerts/rules/${encodeURIComponent(alertType)}`),
+      request<{ rule: RuleView }>(
+        'DELETE',
+        `${workspace(workspaceId)}/alerts/rules/${encodeURIComponent(alertType)}`,
+      ),
     alertDeliveries: (workspaceId: string, query: { workspace?: boolean; limit?: number } = {}) =>
       request<{ deliveries: Delivery[] }>(
         'GET',
@@ -915,13 +1335,23 @@ export function createApi(options: ApiOptions = {}) {
       input: { url: string; description?: string; eventTypes: string[]; enabled?: boolean },
     ) => request<CreatedWebhook>('POST', `${workspace(workspaceId)}/webhooks`, input),
     updateWebhook: (workspaceId: string, id: string, patch: Record<string, unknown>) =>
-      request<{ webhook: WebhookEndpoint }>('PATCH', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}`, patch),
+      request<{ webhook: WebhookEndpoint }>(
+        'PATCH',
+        `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}`,
+        patch,
+      ),
     deleteWebhook: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}`),
     rotateWebhookSecret: (workspaceId: string, id: string) =>
-      request<{ secret: string }>('POST', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/rotate-secret`),
+      request<{ secret: string }>(
+        'POST',
+        `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/rotate-secret`,
+      ),
     testWebhook: (workspaceId: string, id: string) =>
-      request<{ deliveryId: string }>('POST', `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/test`),
+      request<{ deliveryId: string }>(
+        'POST',
+        `${workspace(workspaceId)}/webhooks/${encodeURIComponent(id)}/test`,
+      ),
     webhookDeliveries: (workspaceId: string, id: string, limit = 30) =>
       request<{ deliveries: WebhookDelivery[] }>(
         'GET',
@@ -935,116 +1365,280 @@ export function createApi(options: ApiOptions = {}) {
     // Media files of the app's repository (docs/api/assets.md). Read-only. The images themselves
     // are loaded by the browser from `assetFileUrl` (lib/assets.ts), not through this client.
     appAssets: (workspaceId: string, appId: string) =>
-      request<AssetIndex>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets`),
+      request<AssetIndex>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets`,
+      ),
     // Staged listing changes and pushing them to a store as a DRAFT (docs/api/staged-changes.md). Staging,
     // unstaging and clearing change our own database only. `pushStagedDraft` is the one call that writes to a
     // store (the editable draft; it never submits), is sent once with the preview's hash, and is never retried.
-    storeDraftConfig: (workspaceId: string) => request<StoreDraftConfig>('GET', `${workspace(workspaceId)}/store-draft/config`),
+    storeDraftConfig: (workspaceId: string) =>
+      request<StoreDraftConfig>('GET', `${workspace(workspaceId)}/store-draft/config`),
     appStaged: (workspaceId: string, appId: string) =>
-      request<{ staged: StagedChangesView }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`),
+      request<{ staged: StagedChangesView }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`,
+      ),
     stageText: (
       workspaceId: string,
       appId: string,
       body: { locale: string; field: string; from: 'local' | 'repo' | 'store'; value?: string },
     ) =>
-      request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/text`, body),
+      request<{ staged: StagedChangesView }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/text`,
+        body,
+      ),
     stageAssets: (
       workspaceId: string,
       appId: string,
-      body: { locale: string; kind: string; device?: string | null; from?: 'repo'; paths?: string[]; commit?: string },
+      body: {
+        locale: string;
+        kind: string;
+        device?: string | null;
+        from?: 'repo';
+        paths?: string[];
+        commit?: string;
+      },
     ) =>
-      request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets`, body),
+      request<{ staged: StagedChangesView }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets`,
+        body,
+      ),
     // Two way sync of the graphics (docs/api/assets.md, docs/api/staged-changes.md). Reading a store and the comparison
     // change nothing in it. A pull and "to repository" make a DRAFT change set; uploads, removals and fixes change only
     // the staged set in our own database. Nothing here writes to a store: that is `pushStagedDraft`.
     appStoreImages: (workspaceId: string, appId: string, fresh = false) =>
-      request<{ store: StoreImagesView; cached: boolean }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${fresh ? '?fresh=1' : ''}`),
+      request<{ store: StoreImagesView; cached: boolean }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/store${fresh ? '?fresh=1' : ''}`,
+      ),
     appAssetDiff: (workspaceId: string, appId: string, fresh = false) =>
-      request<{ diff: AssetDiffView; cachedStore: boolean }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/diff${fresh ? '?fresh=1' : ''}`),
+      request<{ diff: AssetDiffView; cachedStore: boolean }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/diff${fresh ? '?fresh=1' : ''}`,
+      ),
     pullStoreImages: (workspaceId: string, appId: string, selection: PullSelection) =>
-      request<{ pull: PullReport }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/pull`, selection),
+      request<{ pull: PullReport }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/pull`,
+        selection,
+      ),
     inspectAssetFile: (workspaceId: string, appId: string, query: UploadQuery, file: Blob) =>
-      request<{ inspected: InspectedFile }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/inspect?${uploadQueryText(query)}`, undefined, file),
+      request<{ inspected: InspectedFile }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/inspect?${uploadQueryText(query)}`,
+        undefined,
+        file,
+      ),
     uploadStagedAsset: (workspaceId: string, appId: string, query: UploadQuery, file: Blob) =>
-      request<{ staged: StagedChangesView; position: number }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/upload?${uploadQueryText(query)}`, undefined, file),
-    removeStagedAssetFile: (workspaceId: string, appId: string, query: UploadQuery & { position: number }) =>
-      request<{ staged: StagedChangesView }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/file?${uploadQueryText(query)}`),
+      request<{ staged: StagedChangesView; position: number }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/upload?${uploadQueryText(query)}`,
+        undefined,
+        file,
+      ),
+    removeStagedAssetFile: (
+      workspaceId: string,
+      appId: string,
+      query: UploadQuery & { position: number },
+    ) =>
+      request<{ staged: StagedChangesView }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/file?${uploadQueryText(query)}`,
+      ),
     fixStagedAssetFile: (
       workspaceId: string,
       appId: string,
-      body: { locale: string; kind: string; device: string | null; position: number; fix: string; background?: string },
+      body: {
+        locale: string;
+        kind: string;
+        device: string | null;
+        position: number;
+        fix: string;
+        background?: string;
+      },
     ) =>
-      request<{ staged: StagedChangesView; summary: string }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/fix`, body),
+      request<{ staged: StagedChangesView; summary: string }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/fix`,
+        body,
+      ),
     stagedAssetsToRepo: (workspaceId: string, appId: string, sets?: string[]) =>
-      request<{ result: ToRepoResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/to-repo`, sets ? { sets } : {}),
+      request<{ result: ToRepoResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/assets/to-repo`,
+        sets ? { sets } : {},
+      ),
     unstageItem: (workspaceId: string, appId: string, id: string) =>
       request<{ staged: StagedChangesView }>(
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/items?id=${encodeURIComponent(id)}`,
       ),
     clearStaged: (workspaceId: string, appId: string) =>
-      request<{ staged: StagedChangesView }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`),
+      request<{ staged: StagedChangesView }>(
+        'DELETE',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`,
+      ),
     previewStagedPush: (workspaceId: string, appId: string) =>
-      request<{ preview: DraftPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push/preview`, {}),
+      request<{ preview: DraftPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push/preview`,
+        {},
+      ),
     pushStagedDraft: (workspaceId: string, appId: string, confirmHash: string, grant?: string) =>
-      request<{ result: DraftPushResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push`, { confirmHash }, undefined, grantHeader(grant)),
+      request<{ result: DraftPushResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push`,
+        { confirmHash },
+        undefined,
+        grantHeader(grant),
+      ),
     // Submitting the pushed draft for store review (docs/api/submit.md): a SEPARATE, IRREVERSIBLE store write,
     // off by default. `config` and `appStoreSubmit` read our own database; `previewStoreSubmit` reads the store.
     // `storeSubmit` is the only call that writes: sent once with the preview's hash and the typed phrase, and
     // never retried by this app (not on an error, a timeout or a lost answer).
-    storeSubmitConfig: (workspaceId: string) => request<StoreSubmitConfig>('GET', `${workspace(workspaceId)}/store-submit/config`),
+    storeSubmitConfig: (workspaceId: string) =>
+      request<StoreSubmitConfig>('GET', `${workspace(workspaceId)}/store-submit/config`),
     appStoreSubmit: (workspaceId: string, appId: string) =>
-      request<{ submit: SubmitState }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`),
+      request<{ submit: SubmitState }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`,
+      ),
     previewStoreSubmit: (workspaceId: string, appId: string) =>
-      request<{ preview: SubmitPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit/preview`, {}),
-    storeSubmit: (workspaceId: string, appId: string, body: { confirmHash: string; confirmation: string }, grant?: string) =>
-      request<{ result: SubmitResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`, body, undefined, grantHeader(grant)),
+      request<{ preview: SubmitPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit/preview`,
+        {},
+      ),
+    storeSubmit: (
+      workspaceId: string,
+      appId: string,
+      body: { confirmHash: string; confirmation: string },
+      grant?: string,
+    ) =>
+      request<{ result: SubmitResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     // Preparing a release (docs/api/releases-write.md): reads of the store for the build picker, the draft and the
     // earlier notes; staging is the existing staged route and writes nothing to a store.
-    releaseCandidates: (workspaceId: string, appId: string, query: { track?: string; version?: string } = {}) => {
+    releaseCandidates: (
+      workspaceId: string,
+      appId: string,
+      query: { track?: string; version?: string } = {},
+    ) => {
       const q = new URLSearchParams();
       if (query.track) q.set('track', query.track);
       if (query.version) q.set('version', query.version);
       const text = q.toString();
-      return request<{ candidates: ReleaseCandidates }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/candidates${text ? `?${text}` : ''}`);
+      return request<{ candidates: ReleaseCandidates }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/candidates${text ? `?${text}` : ''}`,
+      );
     },
     releaseEditable: (workspaceId: string, appId: string, track?: string) =>
-      request<{ editable: EditableRelease }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/editable${track ? `?track=${encodeURIComponent(track)}` : ''}`),
-    releaseNotesHistory: (workspaceId: string, appId: string, query: { platform?: string; locale?: string; limit?: number } = {}) => {
+      request<{ editable: EditableRelease }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/editable${track ? `?track=${encodeURIComponent(track)}` : ''}`,
+      ),
+    releaseNotesHistory: (
+      workspaceId: string,
+      appId: string,
+      query: { platform?: string; locale?: string; limit?: number } = {},
+    ) => {
       const q = new URLSearchParams();
       if (query.platform) q.set('platform', query.platform);
       if (query.locale) q.set('locale', query.locale);
       if (query.limit) q.set('limit', String(query.limit));
       const text = q.toString();
-      return request<{ history: NotesHistory }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/notes-history${text ? `?${text}` : ''}`);
+      return request<{ history: NotesHistory }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/notes-history${text ? `?${text}` : ''}`,
+      );
     },
     /** Stages one release field (a build, a version, a track, ...). Nothing reaches a store. */
-    stageReleaseField: (workspaceId: string, appId: string, body: { field: string; locale?: string; value: string }) =>
-      request<{ staged: StagedChangesView }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/release-fields`, body),
+    stageReleaseField: (
+      workspaceId: string,
+      appId: string,
+      body: { field: string; locale?: string; value: string },
+    ) =>
+      request<{ staged: StagedChangesView }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/release-fields`,
+        body,
+      ),
     // The release pipeline (docs/api/release-pipeline.md): reads of our own database.
     releasePipeline: (workspaceId: string, appId: string) =>
-      request<AppPipeline>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/pipeline`),
-    releasePipelineSummary: (workspaceId: string) => request<PipelineSummary>('GET', `${workspace(workspaceId)}/release/pipeline/summary`),
+      request<AppPipeline>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/pipeline`,
+      ),
+    releasePipelineSummary: (workspaceId: string) =>
+      request<PipelineSummary>('GET', `${workspace(workspaceId)}/release/pipeline/summary`),
     // Releasing (docs/api/releases-write.md): a SEPARATE, IRREVERSIBLE store write, off by default. Like submit:
     // `storeRelease` is sent once with the preview's hash and the typed phrase, and never retried by this app.
-    storeReleaseConfig: (workspaceId: string) => request<StoreReleaseConfig>('GET', `${workspace(workspaceId)}/store-release/config`),
+    storeReleaseConfig: (workspaceId: string) =>
+      request<StoreReleaseConfig>('GET', `${workspace(workspaceId)}/store-release/config`),
     appStoreRelease: (workspaceId: string, appId: string) =>
-      request<{ release: StoreReleaseState }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`),
+      request<{ release: StoreReleaseState }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`,
+      ),
     previewStoreRelease: (workspaceId: string, appId: string, body: ReleaseBody) =>
-      request<{ preview: ReleasePreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release/preview`, body),
-    storeRelease: (workspaceId: string, appId: string, body: ReleaseBody & { confirmHash: string; confirmation: string }, grant?: string) =>
-      request<{ result: ReleaseResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`, body, undefined, grantHeader(grant)),
+      request<{ preview: ReleasePreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release/preview`,
+        body,
+      ),
+    storeRelease: (
+      workspaceId: string,
+      appId: string,
+      body: ReleaseBody & { confirmHash: string; confirmation: string },
+      grant?: string,
+    ) =>
+      request<{ result: ReleaseResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     // Everything pending, and publishing it in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md). The two
     // pending reads and the config read our own database only. `previewPublish` reads the stores (a plan, no write).
     // `publishPending` is the only call that writes: sent once with the plan's hash and the typed phrase, never retried by this app.
     appPending: (workspaceId: string, appId: string) =>
-      request<{ pending: PendingView }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending`),
-    pendingSummary: (workspaceId: string) => request<PendingSummary>('GET', `${workspace(workspaceId)}/pending/summary`),
-    storePublishConfig: (workspaceId: string) => request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),
+      request<{ pending: PendingView }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/pending`,
+      ),
+    pendingSummary: (workspaceId: string) =>
+      request<PendingSummary>('GET', `${workspace(workspaceId)}/pending/summary`),
+    storePublishConfig: (workspaceId: string) =>
+      request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),
     previewPublish: (workspaceId: string, appId: string, body: { steps?: StepRequest[] } = {}) =>
-      request<{ plan: PublishPlan }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/preview`, body),
-    publishPending: (workspaceId: string, appId: string, body: { planHash: string; steps: StepRequest[]; phrase?: string }, grant?: string) =>
-      request<{ result: PublishResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish`, body, undefined, grantHeader(grant)),
+      request<{ plan: PublishPlan }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/preview`,
+        body,
+      ),
+    publishPending: (
+      workspaceId: string,
+      appId: string,
+      body: { planHash: string; steps: StepRequest[]; phrase?: string },
+      grant?: string,
+    ) =>
+      request<{ result: PublishResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>
@@ -1058,7 +1652,10 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/summary${weeks ? `?weeks=${weeks}` : ''}`,
       ),
     syncAppReviews: (workspaceId: string, appId: string) =>
-      request<ReviewSyncOutcome>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/sync`),
+      request<ReviewSyncOutcome>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/sync`,
+      ),
     triageReview: (workspaceId: string, appId: string, reviewId: string, body: TriageBody) =>
       request<{ review: Review }>(
         'PATCH',
@@ -1072,55 +1669,206 @@ export function createApi(options: ApiOptions = {}) {
       request<WorkspaceReviewsSummary>('GET', `${workspace(workspaceId)}/reviews/summary`),
     // Workspace settings and the translation of reviews (docs/api/settings.md, docs/api/reviews.md).
     // `translateReviews` sends the stored text of the named reviews to the workspace's translation provider.
-    workspaceSettings: (workspaceId: string) => request<SettingsResponse>('GET', `${workspace(workspaceId)}/settings`),
-    updateWorkspaceSettings: (workspaceId: string, changes: Record<string, SettingValue>, grant?: string) =>
-      request<SettingsUpdateResponse>('PUT', `${workspace(workspaceId)}/settings`, changes, undefined, grantHeader(grant)),
+    workspaceSettings: (workspaceId: string) =>
+      request<SettingsResponse>('GET', `${workspace(workspaceId)}/settings`),
+    updateWorkspaceSettings: (
+      workspaceId: string,
+      changes: Record<string, SettingValue>,
+      grant?: string,
+    ) =>
+      request<SettingsUpdateResponse>(
+        'PUT',
+        `${workspace(workspaceId)}/settings`,
+        changes,
+        undefined,
+        grantHeader(grant),
+      ),
     // Step-up confirmation (docs/api/step-up.md). The passkey calls move base64url JSON; `lib/step-up.ts` converts it.
-    stepUpStatus: (workspaceId: string) => request<StepUpStatus>('GET', `${workspace(workspaceId)}/step-up/status`),
+    stepUpStatus: (workspaceId: string) =>
+      request<StepUpStatus>('GET', `${workspace(workspaceId)}/step-up/status`),
     stepUpRegisterOptions: (workspaceId: string) =>
-      request<{ challengeId: string; publicKey: Record<string, unknown> }>('POST', `${workspace(workspaceId)}/step-up/passkeys/register/options`, {}),
+      request<{ challengeId: string; publicKey: Record<string, unknown> }>(
+        'POST',
+        `${workspace(workspaceId)}/step-up/passkeys/register/options`,
+        {},
+      ),
     stepUpRegisterVerify: (
       workspaceId: string,
-      body: { challengeId: string; name: string; credential: { id: string; clientDataJSON: string; attestationObject: string; transports?: string[] } },
+      body: {
+        challengeId: string;
+        name: string;
+        credential: {
+          id: string;
+          clientDataJSON: string;
+          attestationObject: string;
+          transports?: string[];
+        };
+      },
       grant?: string,
-    ) => request<{ passkey: { id: string; name: string } }>('POST', `${workspace(workspaceId)}/step-up/passkeys/register/verify`, body, undefined, grantHeader(grant)),
+    ) =>
+      request<{ passkey: { id: string; name: string } }>(
+        'POST',
+        `${workspace(workspaceId)}/step-up/passkeys/register/verify`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     stepUpDeletePasskey: (workspaceId: string, id: string, grant?: string) =>
-      request<void>('DELETE', `${workspace(workspaceId)}/step-up/passkeys/${encodeURIComponent(id)}`, undefined, undefined, grantHeader(grant)),
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/step-up/passkeys/${encodeURIComponent(id)}`,
+        undefined,
+        undefined,
+        grantHeader(grant),
+      ),
     stepUpSetPassword: (workspaceId: string, password: string, grant?: string) =>
-      request<void>('PUT', `${workspace(workspaceId)}/step-up/confirmation-password`, { password }, undefined, grantHeader(grant)),
-    stepUpAssertionOptions: (workspaceId: string, body: { action: StepUpAction | 'step_up.manage'; target?: StepUpTarget }) =>
-      request<{ challengeId: string; publicKey: Record<string, unknown> }>('POST', `${workspace(workspaceId)}/step-up/passkeys/assertion/options`, body),
+      request<void>(
+        'PUT',
+        `${workspace(workspaceId)}/step-up/confirmation-password`,
+        { password },
+        undefined,
+        grantHeader(grant),
+      ),
+    stepUpAssertionOptions: (
+      workspaceId: string,
+      body: { action: StepUpAction | 'step_up.manage'; target?: StepUpTarget },
+    ) =>
+      request<{ challengeId: string; publicKey: Record<string, unknown> }>(
+        'POST',
+        `${workspace(workspaceId)}/step-up/passkeys/assertion/options`,
+        body,
+      ),
     stepUpVerify: (
       workspaceId: string,
       body:
         | { factor: 'password'; action: string; target?: StepUpTarget; password: string }
         | { factor: 'recovery'; action: string; target?: StepUpTarget; code: string }
         | { factor: 'totp' | 'email'; action: string; target?: StepUpTarget; code: string }
-        | { factor: 'passkey'; action: string; target?: StepUpTarget; challengeId: string; assertion: { id: string; clientDataJSON: string; authenticatorData: string; signature: string } },
-    ) => request<{ grant: string; expiresAt: number }>('POST', `${workspace(workspaceId)}/step-up/verify`, body),
+        | {
+            factor: 'passkey';
+            action: string;
+            target?: StepUpTarget;
+            challengeId: string;
+            assertion: {
+              id: string;
+              clientDataJSON: string;
+              authenticatorData: string;
+              signature: string;
+            };
+          },
+    ) =>
+      request<{ grant: string; expiresAt: number }>(
+        'POST',
+        `${workspace(workspaceId)}/step-up/verify`,
+        body,
+      ),
     /** Ten new one-time codes; any older ones stop working. The codes are in this answer only. Needs a confirmation (`step_up.manage`). */
     stepUpMakeRecoveryCodes: (workspaceId: string, grant?: string) =>
-      request<{ codes: string[]; remaining: number; generatedAt: number }>('POST', `${workspace(workspaceId)}/step-up/recovery-codes`, {}, undefined, grantHeader(grant)),
+      request<{ codes: string[]; remaining: number; generatedAt: number }>(
+        'POST',
+        `${workspace(workspaceId)}/step-up/recovery-codes`,
+        {},
+        undefined,
+        grantHeader(grant),
+      ),
     // Authenticator app, emailed codes and mail settings (docs/api/two-factor.md, docs/api/mail.md). Changes carry a step-up grant.
-    twoFactorStatus: (workspaceId: string) => request<TwoFactorStatus>('GET', `${workspace(workspaceId)}/two-factor/status`),
-    twoFactorTotpBegin: (workspaceId: string, grant?: string) => request<TotpBegin>('POST', `${workspace(workspaceId)}/two-factor/totp/begin`, {}, undefined, grantHeader(grant)),
-    twoFactorTotpConfirm: (workspaceId: string, code: string) => request<{ totp: TotpStatus }>('POST', `${workspace(workspaceId)}/two-factor/totp/confirm`, { code }),
-    twoFactorTotpRemove: (workspaceId: string, grant?: string) => request<void>('DELETE', `${workspace(workspaceId)}/two-factor/totp`, undefined, undefined, grantHeader(grant)),
-    twoFactorEmailBegin: (workspaceId: string, email?: string, grant?: string) => request<CodeSent>('POST', `${workspace(workspaceId)}/two-factor/email/begin`, email ? { email } : {}, undefined, grantHeader(grant)),
-    twoFactorEmailConfirm: (workspaceId: string, code: string) => request<unknown>('POST', `${workspace(workspaceId)}/two-factor/email/confirm`, { code }),
-    twoFactorEmailRemove: (workspaceId: string, grant?: string) => request<void>('DELETE', `${workspace(workspaceId)}/two-factor/email`, undefined, undefined, grantHeader(grant)),
-    stepUpEmailCode: (workspaceId: string, body: { action: string; target?: StepUpTarget }) => request<CodeSent>('POST', `${workspace(workspaceId)}/step-up/email-code`, body),
-    twoFactorSetPolicy: (workspaceId: string, mode: LoginMode, grant?: string) => request<{ mode: LoginMode; membersWithoutSecondFactor: number }>('PUT', `${workspace(workspaceId)}/two-factor/policy`, { mode }, undefined, grantHeader(grant)),
-    twoFactorResetMember: (workspaceId: string, userId: string, grant?: string) => request<void>('DELETE', `${workspace(workspaceId)}/two-factor/members/${encodeURIComponent(userId)}`, undefined, undefined, grantHeader(grant)),
-    mailSettings: (workspaceId: string) => request<SmtpSettings>('GET', `${workspace(workspaceId)}/mail/settings`),
-    mailSaveSettings: (workspaceId: string, body: SmtpInput, grant?: string) => request<SmtpSettings>('PUT', `${workspace(workspaceId)}/mail/settings`, body, undefined, grantHeader(grant)),
-    mailClearSettings: (workspaceId: string, grant?: string) => request<SmtpSettings>('DELETE', `${workspace(workspaceId)}/mail/settings`, undefined, undefined, grantHeader(grant)),
-    mailSendTest: (workspaceId: string, to?: string) => request<MailTestResult>('POST', `${workspace(workspaceId)}/mail/test`, to ? { to } : {}),
-    stepUpSetPolicy: (workspaceId: string, body: { mode: 'off' | 'hard_actions'; actions?: StepUpAction[]; unattended?: StepUpAction[] }, grant?: string) =>
-      request<{ policy: StepUpStatus['policy']; enrolled: boolean }>('PUT', `${workspace(workspaceId)}/step-up/policy`, body, undefined, grantHeader(grant)),
+    twoFactorStatus: (workspaceId: string) =>
+      request<TwoFactorStatus>('GET', `${workspace(workspaceId)}/two-factor/status`),
+    twoFactorTotpBegin: (workspaceId: string, grant?: string) =>
+      request<TotpBegin>(
+        'POST',
+        `${workspace(workspaceId)}/two-factor/totp/begin`,
+        {},
+        undefined,
+        grantHeader(grant),
+      ),
+    twoFactorTotpConfirm: (workspaceId: string, code: string) =>
+      request<{ totp: TotpStatus }>('POST', `${workspace(workspaceId)}/two-factor/totp/confirm`, {
+        code,
+      }),
+    twoFactorTotpRemove: (workspaceId: string, grant?: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/two-factor/totp`,
+        undefined,
+        undefined,
+        grantHeader(grant),
+      ),
+    twoFactorEmailBegin: (workspaceId: string, email?: string, grant?: string) =>
+      request<CodeSent>(
+        'POST',
+        `${workspace(workspaceId)}/two-factor/email/begin`,
+        email ? { email } : {},
+        undefined,
+        grantHeader(grant),
+      ),
+    twoFactorEmailConfirm: (workspaceId: string, code: string) =>
+      request<unknown>('POST', `${workspace(workspaceId)}/two-factor/email/confirm`, { code }),
+    twoFactorEmailRemove: (workspaceId: string, grant?: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/two-factor/email`,
+        undefined,
+        undefined,
+        grantHeader(grant),
+      ),
+    stepUpEmailCode: (workspaceId: string, body: { action: string; target?: StepUpTarget }) =>
+      request<CodeSent>('POST', `${workspace(workspaceId)}/step-up/email-code`, body),
+    twoFactorSetPolicy: (workspaceId: string, mode: LoginMode, grant?: string) =>
+      request<{ mode: LoginMode; membersWithoutSecondFactor: number }>(
+        'PUT',
+        `${workspace(workspaceId)}/two-factor/policy`,
+        { mode },
+        undefined,
+        grantHeader(grant),
+      ),
+    twoFactorResetMember: (workspaceId: string, userId: string, grant?: string) =>
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/two-factor/members/${encodeURIComponent(userId)}`,
+        undefined,
+        undefined,
+        grantHeader(grant),
+      ),
+    mailSettings: (workspaceId: string) =>
+      request<SmtpSettings>('GET', `${workspace(workspaceId)}/mail/settings`),
+    mailSaveSettings: (workspaceId: string, body: SmtpInput, grant?: string) =>
+      request<SmtpSettings>(
+        'PUT',
+        `${workspace(workspaceId)}/mail/settings`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
+    mailClearSettings: (workspaceId: string, grant?: string) =>
+      request<SmtpSettings>(
+        'DELETE',
+        `${workspace(workspaceId)}/mail/settings`,
+        undefined,
+        undefined,
+        grantHeader(grant),
+      ),
+    mailSendTest: (workspaceId: string, to?: string) =>
+      request<MailTestResult>('POST', `${workspace(workspaceId)}/mail/test`, to ? { to } : {}),
+    stepUpSetPolicy: (
+      workspaceId: string,
+      body: { mode: 'off' | 'hard_actions'; actions?: StepUpAction[]; unattended?: StepUpAction[] },
+      grant?: string,
+    ) =>
+      request<{ policy: StepUpStatus['policy']; enrolled: boolean }>(
+        'PUT',
+        `${workspace(workspaceId)}/step-up/policy`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     testTranslation: (workspaceId: string) =>
       request<TranslationTestOutcome>('POST', `${workspace(workspaceId)}/translate/test`),
-    translateReviews: (workspaceId: string, appId: string, body: { reviewIds: string[]; target?: string }) =>
+    translateReviews: (
+      workspaceId: string,
+      appId: string,
+      body: { reviewIds: string[]; target?: string },
+    ) =>
       request<TranslateReviewsResult>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/translate`,
@@ -1128,13 +1876,19 @@ export function createApi(options: ApiOptions = {}) {
       ),
     // Replying to reviews (docs/adr/0007-review-replies.md): the only calls here that can publish
     // something in a store are `sendReviewReply`, one review at a time, with the hash of the draft.
-    reviewReplyConfig: (workspaceId: string) => request<ReplyConfig>('GET', `${workspace(workspaceId)}/reviews/reply-config`),
+    reviewReplyConfig: (workspaceId: string) =>
+      request<ReplyConfig>('GET', `${workspace(workspaceId)}/reviews/reply-config`),
     review: (workspaceId: string, appId: string, reviewId: string) =>
       request<{ review: Review }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}`,
       ),
-    saveReplyDraft: (workspaceId: string, appId: string, reviewId: string, body: { text: string } | { templateId: string }) =>
+    saveReplyDraft: (
+      workspaceId: string,
+      appId: string,
+      reviewId: string,
+      body: { text: string } | { templateId: string },
+    ) =>
       request<{ draft: ReplyDraft }>(
         'PUT',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
@@ -1145,7 +1899,12 @@ export function createApi(options: ApiOptions = {}) {
         'DELETE',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft`,
       ),
-    translateReplyDraft: (workspaceId: string, appId: string, reviewId: string, body: { text: string; target: string; source?: string }) =>
+    translateReplyDraft: (
+      workspaceId: string,
+      appId: string,
+      reviewId: string,
+      body: { text: string; target: string; source?: string },
+    ) =>
       request<{ text: string }>(
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/reviews/${encodeURIComponent(reviewId)}/reply-draft/translate`,
@@ -1158,33 +1917,70 @@ export function createApi(options: ApiOptions = {}) {
         { confirmHash },
       ),
     replyTemplates: (workspaceId: string) =>
-      request<{ templates: ReplyTemplate[] }>('GET', `${workspace(workspaceId)}/reviews/reply-templates`),
+      request<{ templates: ReplyTemplate[] }>(
+        'GET',
+        `${workspace(workspaceId)}/reviews/reply-templates`,
+      ),
     createReplyTemplate: (workspaceId: string, body: { name: string; body: string }) =>
-      request<{ template: ReplyTemplate }>('POST', `${workspace(workspaceId)}/reviews/reply-templates`, body),
+      request<{ template: ReplyTemplate }>(
+        'POST',
+        `${workspace(workspaceId)}/reviews/reply-templates`,
+        body,
+      ),
     deleteReplyTemplate: (workspaceId: string, id: string) =>
-      request<void>('DELETE', `${workspace(workspaceId)}/reviews/reply-templates/${encodeURIComponent(id)}`),
+      request<void>(
+        'DELETE',
+        `${workspace(workspaceId)}/reviews/reply-templates/${encodeURIComponent(id)}`,
+      ),
     // AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). A run makes a SUGGESTION and changes nothing; accepting calls an
     // existing service (keywords, a staged text, a reply draft). Nothing here pushes, submits, publishes or sends. No key is ever returned.
-    aiConfig: (workspaceId: string) => request<AiConfig>('GET', `${workspace(workspaceId)}/ai/config`),
-    updateAiConfig: (workspaceId: string, changes: AiSettingsChanges) => request<AiConfig>('PUT', `${workspace(workspaceId)}/ai/config`, changes),
-    testAi: (workspaceId: string) => request<AiTestOutcome>('POST', `${workspace(workspaceId)}/ai/test`),
+    aiConfig: (workspaceId: string) =>
+      request<AiConfig>('GET', `${workspace(workspaceId)}/ai/config`),
+    updateAiConfig: (workspaceId: string, changes: AiSettingsChanges) =>
+      request<AiConfig>('PUT', `${workspace(workspaceId)}/ai/config`, changes),
+    testAi: (workspaceId: string) =>
+      request<AiTestOutcome>('POST', `${workspace(workspaceId)}/ai/test`),
     // The models a provider offers. A typed key is used for this call only (never stored); without one the stored credential is used.
-    aiModels: (workspaceId: string, body: AiModelsBody) => request<AiModelsResponse>('POST', `${workspace(workspaceId)}/ai/models`, body),
-    aiTasks: (workspaceId: string) => request<AiTasksResponse>('GET', `${workspace(workspaceId)}/ai/tasks`),
+    aiModels: (workspaceId: string, body: AiModelsBody) =>
+      request<AiModelsResponse>('POST', `${workspace(workspaceId)}/ai/models`, body),
+    aiTasks: (workspaceId: string) =>
+      request<AiTasksResponse>('GET', `${workspace(workspaceId)}/ai/tasks`),
     runAiTask: (workspaceId: string, taskId: string, body: AiRunBody) =>
-      request<AiRunResult>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/run`, body),
+      request<AiRunResult>(
+        'POST',
+        `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/run`,
+        body,
+      ),
     /** What a run would send, exactly, from stored data. Contacts no provider and costs nothing. */
     previewAiTask: (workspaceId: string, taskId: string, body: AiRunBody) =>
-      request<{ preview: AiPreview }>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/preview`, body),
+      request<{ preview: AiPreview }>(
+        'POST',
+        `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/preview`,
+        body,
+      ),
     /** What the person told the assistant about this app (brand voice, words to avoid). Editing needs the right to edit the app. */
     appAiContext: (workspaceId: string, appId: string) =>
-      request<AiAppContextView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`),
+      request<AiAppContextView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`,
+      ),
     updateAppAiContext: (workspaceId: string, appId: string, context: Record<string, unknown>) =>
-      request<AiAppContextView>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`, context),
+      request<AiAppContextView>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`,
+        context,
+      ),
     /** The tags the assistant gave reviews earlier (advisory). Reads our own database: no provider is contacted. */
     reviewAiTags: (workspaceId: string, appId: string, reviewIds: string[]) =>
-      request<{ tags: AiReviewTagView[] }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-tags?ids=${reviewIds.map(encodeURIComponent).join(',')}`),
-    appAiSuggestions: (workspaceId: string, appId: string, query: { status?: AiSuggestionStatus; limit?: number } = {}) => {
+      request<{ tags: AiReviewTagView[] }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-tags?ids=${reviewIds.map(encodeURIComponent).join(',')}`,
+      ),
+    appAiSuggestions: (
+      workspaceId: string,
+      appId: string,
+      query: { status?: AiSuggestionStatus; limit?: number } = {},
+    ) => {
       const params = new URLSearchParams();
       if (query.status) params.set('status', query.status);
       if (query.limit) params.set('limit', String(query.limit));
@@ -1195,72 +1991,150 @@ export function createApi(options: ApiOptions = {}) {
       );
     },
     acceptAiSuggestion: (workspaceId: string, suggestionId: string, body: AiAcceptBody = {}) =>
-      request<AiAcceptResult>('POST', `${workspace(workspaceId)}/ai/suggestions/${encodeURIComponent(suggestionId)}/accept`, body),
+      request<AiAcceptResult>(
+        'POST',
+        `${workspace(workspaceId)}/ai/suggestions/${encodeURIComponent(suggestionId)}/accept`,
+        body,
+      ),
     dismissAiSuggestion: (workspaceId: string, suggestionId: string) =>
-      request<{ suggestion: AiSuggestionView }>('POST', `${workspace(workspaceId)}/ai/suggestions/${encodeURIComponent(suggestionId)}/dismiss`),
+      request<{ suggestion: AiSuggestionView }>(
+        'POST',
+        `${workspace(workspaceId)}/ai/suggestions/${encodeURIComponent(suggestionId)}/dismiss`,
+      ),
     // ASO (docs/api/aso.md). Every read is our own database; only `refreshAso` and `addAsoCompetitor` read a public store, and nothing writes to one.
-    asoConfig: (workspaceId: string) => request<AsoConfig>('GET', `${workspace(workspaceId)}/aso/config`),
-    asoSummary: (workspaceId: string, appId: string) => request<AsoSummary>('GET', `${asoPath(workspaceId, appId)}/summary`),
+    asoConfig: (workspaceId: string) =>
+      request<AsoConfig>('GET', `${workspace(workspaceId)}/aso/config`),
+    asoSummary: (workspaceId: string, appId: string) =>
+      request<AsoSummary>('GET', `${asoPath(workspaceId, appId)}/summary`),
     asoKeywords: (workspaceId: string, appId: string) =>
-      request<{ keywords: AsoKeyword[]; limits: { maxKeywordsPerApp: number } }>('GET', `${asoPath(workspaceId, appId)}/keywords`),
+      request<{ keywords: AsoKeyword[]; limits: { maxKeywordsPerApp: number } }>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/keywords`,
+      ),
     addAsoKeywords: (workspaceId: string, appId: string, keywords: AsoKeywordInput[]) =>
       request<AsoAddResult>('POST', `${asoPath(workspaceId, appId)}/keywords`, { keywords }),
-    updateAsoKeyword: (workspaceId: string, appId: string, keywordId: string, changes: { tag?: string | null; notes?: string | null; priority?: number }) =>
-      request<{ keyword: AsoKeyword }>('PATCH', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}`, changes),
+    updateAsoKeyword: (
+      workspaceId: string,
+      appId: string,
+      keywordId: string,
+      changes: { tag?: string | null; notes?: string | null; priority?: number },
+    ) =>
+      request<{ keyword: AsoKeyword }>(
+        'PATCH',
+        `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}`,
+        changes,
+      ),
     deleteAsoKeyword: (workspaceId: string, appId: string, keywordId: string) =>
-      request<void>('DELETE', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}`),
+      request<void>(
+        'DELETE',
+        `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}`,
+      ),
     asoKeywordHistory: (workspaceId: string, appId: string, keywordId: string, limit = 30) =>
-      request<AsoKeywordHistory>('GET', `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/history?limit=${limit}`),
+      request<AsoKeywordHistory>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/keywords/${encodeURIComponent(keywordId)}/history?limit=${limit}`,
+      ),
     asoCompetitors: (workspaceId: string, appId: string) =>
-      request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>('GET', `${asoPath(workspaceId, appId)}/competitors`),
+      request<{ competitors: AsoCompetitor[]; limits: { maxCompetitorsPerApp: number } }>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/competitors`,
+      ),
     /** Reads the public store once, so the name is real. Rate limited per workspace. */
-    addAsoCompetitor: (workspaceId: string, appId: string, body: { externalId: string; country?: string }) =>
-      request<{ competitor: AsoCompetitor }>('POST', `${asoPath(workspaceId, appId)}/competitors`, body),
+    addAsoCompetitor: (
+      workspaceId: string,
+      appId: string,
+      body: { externalId: string; country?: string },
+    ) =>
+      request<{ competitor: AsoCompetitor }>(
+        'POST',
+        `${asoPath(workspaceId, appId)}/competitors`,
+        body,
+      ),
     deleteAsoCompetitor: (workspaceId: string, appId: string, competitorId: string) =>
-      request<void>('DELETE', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}`),
+      request<void>(
+        'DELETE',
+        `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}`,
+      ),
     asoCompetitorHistory: (workspaceId: string, appId: string, competitorId: string, limit = 30) =>
-      request<AsoCompetitorHistory>('GET', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/history?limit=${limit}`),
+      request<AsoCompetitorHistory>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/history?limit=${limit}`,
+      ),
     /** Ranked next steps, worked out from stored data (no store is read). */
-    asoCoach: (workspaceId: string, appId: string) => request<AsoCoachResponse>('GET', `${asoPath(workspaceId, appId)}/coach`),
-    asoFit: (workspaceId: string, appId: string) => request<AsoFitResponse>('GET', `${asoPath(workspaceId, appId)}/fit`),
-    asoListingKeywords: (workspaceId: string, appId: string) => request<AsoListingKeywordsResponse>('GET', `${asoPath(workspaceId, appId)}/listing-keywords`),
+    asoCoach: (workspaceId: string, appId: string) =>
+      request<AsoCoachResponse>('GET', `${asoPath(workspaceId, appId)}/coach`),
+    asoFit: (workspaceId: string, appId: string) =>
+      request<AsoFitResponse>('GET', `${asoPath(workspaceId, appId)}/fit`),
+    asoListingKeywords: (workspaceId: string, appId: string) =>
+      request<AsoListingKeywordsResponse>('GET', `${asoPath(workspaceId, appId)}/listing-keywords`),
     asoIdeas: (workspaceId: string, appId: string, locale?: string) =>
-      request<AsoIdeasResponse>('GET', `${asoPath(workspaceId, appId)}/ideas${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
+      request<AsoIdeasResponse>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/ideas${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`,
+      ),
     asoGaps: (workspaceId: string, appId: string, locale?: string) =>
-      request<AsoGapsResponse>('GET', `${asoPath(workspaceId, appId)}/gaps${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
-    asoSuggestions: (workspaceId: string, appId: string) => request<AsoSuggestionsResponse>('GET', `${asoPath(workspaceId, appId)}/suggestions`),
+      request<AsoGapsResponse>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/gaps${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`,
+      ),
+    asoSuggestions: (workspaceId: string, appId: string) =>
+      request<AsoSuggestionsResponse>('GET', `${asoPath(workspaceId, appId)}/suggestions`),
     /** Google Play search terms imported from a Console file (our own database; Google Play apps only). */
     asoSearchTerms: (workspaceId: string, appId: string, query: SearchTermsQuery = {}) => {
       const params: string[] = [];
       for (const key of ['from', 'to', 'country', 'locale', 'sort', 'limit'] as const) {
         const value = query[key];
-        if (value !== undefined && value !== '') params.push(`${key}=${encodeURIComponent(String(value))}`);
+        if (value !== undefined && value !== '')
+          params.push(`${key}=${encodeURIComponent(String(value))}`);
       }
-      return request<SearchTermsResponse>('GET', `${asoPath(workspaceId, appId)}/search-terms${params.length > 0 ? `?${params.join('&')}` : ''}`);
+      return request<SearchTermsResponse>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/search-terms${params.length > 0 ? `?${params.join('&')}` : ''}`,
+      );
     },
     /** Rank history of tracked keywords laid on the days of the downloads. Our own database; a correlation view. */
-    asoRankVsDownloads: (workspaceId: string, appId: string, query: { country?: string; keywords?: string[]; from?: string; to?: string } = {}) => {
+    asoRankVsDownloads: (
+      workspaceId: string,
+      appId: string,
+      query: { country?: string; keywords?: string[]; from?: string; to?: string } = {},
+    ) => {
       const params: string[] = [];
       if (query.country) params.push(`country=${encodeURIComponent(query.country)}`);
-      if (query.keywords && query.keywords.length > 0) params.push(`keywords=${query.keywords.map(encodeURIComponent).join(',')}`);
+      if (query.keywords && query.keywords.length > 0)
+        params.push(`keywords=${query.keywords.map(encodeURIComponent).join(',')}`);
       if (query.from) params.push(`from=${encodeURIComponent(query.from)}`);
       if (query.to) params.push(`to=${encodeURIComponent(query.to)}`);
-      return request<RankVsDownloadsResponse>('GET', `${asoPath(workspaceId, appId)}/rank-vs-downloads${params.length > 0 ? `?${params.join('&')}` : ''}`);
+      return request<RankVsDownloadsResponse>(
+        'GET',
+        `${asoPath(workspaceId, appId)}/rank-vs-downloads${params.length > 0 ? `?${params.join('&')}` : ''}`,
+      );
     },
-    asoMarkets: (workspaceId: string, appId: string) => request<AsoMarketsResponse>('GET', `${asoPath(workspaceId, appId)}/markets`),
+    asoMarkets: (workspaceId: string, appId: string) =>
+      request<AsoMarketsResponse>('GET', `${asoPath(workspaceId, appId)}/markets`),
     /** Reads the public store (Apple: the iTunes Search API; Google Play only when the operator allows it). Read-only toward the stores. */
-    refreshAso: (workspaceId: string, appId: string) => request<AsoRefreshOutcome>('POST', `${asoPath(workspaceId, appId)}/refresh`),
+    refreshAso: (workspaceId: string, appId: string) =>
+      request<AsoRefreshOutcome>('POST', `${asoPath(workspaceId, appId)}/refresh`),
     /** Admins: queues a refresh of every app that has keywords or competitors. */
     refreshAsoAll: (workspaceId: string) =>
-      request<{ queued: number; skipped: { alreadyQueued: number; notReady: number; playOff: number; capped: number } }>('POST', `${workspace(workspaceId)}/aso/refresh`),
+      request<{
+        queued: number;
+        skipped: { alreadyQueued: number; notReady: number; playOff: number; capped: number };
+      }>('POST', `${workspace(workspaceId)}/aso/refresh`),
     // Analytics (docs/api/analytics.md). Reads (`analyticsStatus`, `analyticsOverview`) are our own database. `syncAnalytics` reads the stores;
     // `previewAppleEnable` reads Apple and changes nothing; `enableApple` is the one store write (a report request at Apple), with the
     // preview's hash; the import sends a report file to this server only. All but the two reads need `analytics.manage`.
-    analyticsStatus: (workspaceId: string, appId: string) => request<AnalyticsStatus>('GET', `${analyticsPath(workspaceId, appId)}/status`),
+    analyticsStatus: (workspaceId: string, appId: string) =>
+      request<AnalyticsStatus>('GET', `${analyticsPath(workspaceId, appId)}/status`),
     analyticsOverview: (
       workspaceId: string,
       appId: string,
-      query: { platform?: string; from?: string; to?: string; granularity?: string; breakdown?: string } = {},
+      query: {
+        platform?: string;
+        from?: string;
+        to?: string;
+        granularity?: string;
+        breakdown?: string;
+      } = {},
     ) => {
       const params = new URLSearchParams();
       for (const key of ['platform', 'from', 'to', 'granularity', 'breakdown'] as const) {
@@ -1268,23 +2142,71 @@ export function createApi(options: ApiOptions = {}) {
         if (value !== undefined && value !== '') params.set(key, value);
       }
       const text = params.toString();
-      return request<AnalyticsOverview>('GET', `${analyticsPath(workspaceId, appId)}/overview${text ? `?${text}` : ''}`);
+      return request<AnalyticsOverview>(
+        'GET',
+        `${analyticsPath(workspaceId, appId)}/overview${text ? `?${text}` : ''}`,
+      );
     },
     syncAnalytics: (workspaceId: string, appId: string, sources?: string[]) =>
-      request<AnalyticsSyncResult>('POST', `${analyticsPath(workspaceId, appId)}/sync`, sources && sources.length > 0 ? { sources } : undefined),
+      request<AnalyticsSyncResult>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/sync`,
+        sources && sources.length > 0 ? { sources } : undefined,
+      ),
     // The Google Play reports bucket (one per Play developer account, shared by its Android apps). Needs `analytics.manage` to change or test.
-    playBucket: (workspaceId: string, appId: string) => request<{ playBucket: PlayBucketView }>('GET', `${analyticsPath(workspaceId, appId)}/play-bucket`),
-    setPlayBucket: (workspaceId: string, appId: string, body: { bucket: string | null; scope?: 'account' | 'app' }) =>
-      request<{ playBucket: PlayBucketView }>('PUT', `${analyticsPath(workspaceId, appId)}/play-bucket`, body),
+    playBucket: (workspaceId: string, appId: string) =>
+      request<{ playBucket: PlayBucketView }>(
+        'GET',
+        `${analyticsPath(workspaceId, appId)}/play-bucket`,
+      ),
+    setPlayBucket: (
+      workspaceId: string,
+      appId: string,
+      body: { bucket: string | null; scope?: 'account' | 'app' },
+    ) =>
+      request<{ playBucket: PlayBucketView }>(
+        'PUT',
+        `${analyticsPath(workspaceId, appId)}/play-bucket`,
+        body,
+      ),
     testPlayBucket: (workspaceId: string, appId: string, bucket?: string) =>
-      request<{ result: PlayBucketTestResult }>('POST', `${analyticsPath(workspaceId, appId)}/play-bucket/test`, bucket !== undefined ? { bucket } : undefined),
+      request<{ result: PlayBucketTestResult }>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/play-bucket/test`,
+        bucket !== undefined ? { bucket } : undefined,
+      ),
     previewAppleEnable: (workspaceId: string, appId: string, backfill = false) =>
-      request<EnablePreview>('GET', `${analyticsPath(workspaceId, appId)}/apple/enable${backfill ? '?backfill=true' : ''}`),
-    enableApple: (workspaceId: string, appId: string, body: { confirmHash: string; backfill?: boolean }, grant?: string) =>
-      request<EnableResult>('POST', `${analyticsPath(workspaceId, appId)}/apple/enable`, body, undefined, grantHeader(grant)),
+      request<EnablePreview>(
+        'GET',
+        `${analyticsPath(workspaceId, appId)}/apple/enable${backfill ? '?backfill=true' : ''}`,
+      ),
+    enableApple: (
+      workspaceId: string,
+      appId: string,
+      body: { confirmHash: string; backfill?: boolean },
+      grant?: string,
+    ) =>
+      request<EnableResult>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/apple/enable`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     previewAnalyticsImport: (workspaceId: string, appId: string, fileName: string, file: Blob) =>
-      request<ImportPreview>('POST', `${analyticsPath(workspaceId, appId)}/import/preview?fileName=${encodeURIComponent(fileName)}`, undefined, file),
-    importAnalytics: (workspaceId: string, appId: string, fileName: string, confirmHash: string, file: Blob) =>
+      request<ImportPreview>(
+        'POST',
+        `${analyticsPath(workspaceId, appId)}/import/preview?fileName=${encodeURIComponent(fileName)}`,
+        undefined,
+        file,
+      ),
+    importAnalytics: (
+      workspaceId: string,
+      appId: string,
+      fileName: string,
+      confirmHash: string,
+      file: Blob,
+    ) =>
       request<AnalyticsImportResult>(
         'POST',
         `${analyticsPath(workspaceId, appId)}/import?fileName=${encodeURIComponent(fileName)}&confirmHash=${encodeURIComponent(confirmHash)}`,
@@ -1292,14 +2214,27 @@ export function createApi(options: ApiOptions = {}) {
         file,
       ),
     /** Sends a Play Console search terms file to this server only and says what it holds. Stores nothing. A file with no dates needs `period`. */
-    previewSearchTermsImport: (workspaceId: string, appId: string, fileName: string, file: Blob, period: string = '') =>
+    previewSearchTermsImport: (
+      workspaceId: string,
+      appId: string,
+      fileName: string,
+      file: Blob,
+      period: string = '',
+    ) =>
       request<SearchTermsPreview>(
         'POST',
         `${analyticsPath(workspaceId, appId)}/search-terms/import/preview?fileName=${encodeURIComponent(fileName)}${period === '' ? '' : `&${period}`}`,
         undefined,
         file,
       ),
-    importSearchTerms: (workspaceId: string, appId: string, fileName: string, confirmHash: string, file: Blob, period: string = '') =>
+    importSearchTerms: (
+      workspaceId: string,
+      appId: string,
+      fileName: string,
+      confirmHash: string,
+      file: Blob,
+      period: string = '',
+    ) =>
       request<SearchTermsImportResult>(
         'POST',
         `${analyticsPath(workspaceId, appId)}/search-terms/import?fileName=${encodeURIComponent(fileName)}&confirmHash=${encodeURIComponent(confirmHash)}${period === '' ? '' : `&${period}`}`,

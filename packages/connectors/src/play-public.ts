@@ -45,7 +45,7 @@ export const PLAY_MAX_SEARCH_LIMIT = 50;
 
 /** Shown wherever the unofficial source is offered (the config route, the docs, the web UI). */
 export const PLAY_UNOFFICIAL_NOTICE =
-  'Google Play has no official search or listing API. This reads the public pages of play.google.com, which may be against the Google Play Terms of Service or Google\'s Terms of Service. It is off by default; turn it on only if you accept that risk. It can stop working whenever Google changes its pages.';
+  "Google Play has no official search or listing API. This reads the public pages of play.google.com, which may be against the Google Play Terms of Service or Google's Terms of Service. It is off by default; turn it on only if you accept that risk. It can stop working whenever Google changes its pages.";
 
 export type PlayApp = {
   packageName: string;
@@ -67,7 +67,8 @@ export type PlayApp = {
 // ---------------------------------------------------------------------------------------------
 // Parsing (pure; the page text in, data out)
 
-const PACKAGE_LINK = /\/store\/apps\/details\?id(?:=|\\u003d)([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/g;
+const PACKAGE_LINK =
+  /\/store\/apps\/details\?id(?:=|\\u003d)([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/g;
 
 /** The package names linked from a search page, in page order, once each. Empty when the page has no such link. */
 export function parsePlaySearch(html: string): string[] {
@@ -128,7 +129,11 @@ function jsonLd(html: string): Record<string, unknown>[] {
 }
 
 const asText = (v: unknown, max: number): string | undefined =>
-  typeof v === 'string' ? cleanPublicText(v, max) : typeof v === 'number' && Number.isFinite(v) ? String(v) : undefined;
+  typeof v === 'string'
+    ? cleanPublicText(v, max)
+    : typeof v === 'number' && Number.isFinite(v)
+      ? String(v)
+      : undefined;
 
 const toNumber = (v: unknown): number | undefined => {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
@@ -137,7 +142,12 @@ const toNumber = (v: unknown): number | undefined => {
 };
 
 function stripTags(html: string): string {
-  return decodeEntities(html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]*>/g, ''));
+  return decodeEntities(
+    html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li)>/gi, '\n')
+      .replace(/<[^>]*>/g, ''),
+  );
 }
 
 const MAX_DESCRIPTION = 4000;
@@ -150,20 +160,32 @@ export function parsePlayApp(html: string, packageName: string): PlayApp | undef
   const ld = jsonLd(html).find((o) => {
     const type = o['@type'];
     const types = Array.isArray(type) ? type : [type];
-    return types.some((t) => t === 'SoftwareApplication' || t === 'MobileApplication' || t === 'GameApplication');
+    return types.some(
+      (t) => t === 'SoftwareApplication' || t === 'MobileApplication' || t === 'GameApplication',
+    );
   });
   const titleTag = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
-  const fromTitle = titleTag ? decodeEntities(titleTag).replace(/\s*[-–|]\s*Apps? on Google Play.*$/i, '').trim() : undefined;
+  const fromTitle = titleTag
+    ? decodeEntities(titleTag)
+        .replace(/\s*[-–|]\s*Apps? on Google Play.*$/i, '')
+        .trim()
+    : undefined;
   const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1];
   const name =
     asText(ld?.name, 200) ??
-    cleanPublicText((meta(html, 'og:title') ?? '').replace(/\s*[-–|]\s*Apps? on Google Play.*$/i, ''), 200) ??
+    cleanPublicText(
+      (meta(html, 'og:title') ?? '').replace(/\s*[-–|]\s*Apps? on Google Play.*$/i, ''),
+      200,
+    ) ??
     cleanPublicText(h1 ? stripTags(h1) : undefined, 200) ??
     cleanPublicText(fromTitle, 200);
   if (!name) return undefined;
   const app: PlayApp = { packageName, name };
 
-  const body = /<div\b[^>]*data-g-id\s*=\s*["']description["'][^>]*>([\s\S]{0,40000}?)<\/div>/i.exec(html)?.[1];
+  const body =
+    /<div\b[^>]*data-g-id\s*=\s*["']description["'][^>]*>([\s\S]{0,40000}?)<\/div>/i.exec(
+      html,
+    )?.[1];
   const description =
     cleanPublicText(body ? stripTags(body) : undefined, MAX_DESCRIPTION) ??
     asText(ld?.description, MAX_DESCRIPTION) ??
@@ -172,18 +194,31 @@ export function parsePlayApp(html: string, packageName: string): PlayApp | undef
 
   const version =
     asText(ld?.softwareVersion, 50) ??
-    cleanPublicText(/itemprop\s*=\s*["']softwareVersion["'][^>]*>([^<]{1,50})</i.exec(html)?.[1], 50);
+    cleanPublicText(
+      /itemprop\s*=\s*["']softwareVersion["'][^>]*>([^<]{1,50})</i.exec(html)?.[1],
+      50,
+    );
   if (version) app.version = version;
 
   const rating = isRecord(ld?.aggregateRating) ? ld.aggregateRating : undefined;
   const ratingValue =
-    toNumber(rating?.ratingValue) ?? toNumber(/aria-label\s*=\s*["']Rated\s+([0-9]+(?:\.[0-9]+)?)\s+stars?/i.exec(html)?.[1]);
-  if (ratingValue !== undefined && ratingValue >= 0 && ratingValue <= 5) app.ratingMilli = Math.round(ratingValue * 1000);
+    toNumber(rating?.ratingValue) ??
+    toNumber(/aria-label\s*=\s*["']Rated\s+([0-9]+(?:\.[0-9]+)?)\s+stars?/i.exec(html)?.[1]);
+  if (ratingValue !== undefined && ratingValue >= 0 && ratingValue <= 5)
+    app.ratingMilli = Math.round(ratingValue * 1000);
   const ratingCount =
     toNumber(rating?.ratingCount) ??
     toNumber(rating?.reviewCount) ??
-    toNumber(/itemprop\s*=\s*["']ratingCount["'][^>]*content\s*=\s*["']([0-9]+)["']/i.exec(html)?.[1]);
-  if (ratingCount !== undefined && Number.isInteger(ratingCount) && ratingCount >= 0 && ratingCount <= 1e10) app.ratingCount = ratingCount;
+    toNumber(
+      /itemprop\s*=\s*["']ratingCount["'][^>]*content\s*=\s*["']([0-9]+)["']/i.exec(html)?.[1],
+    );
+  if (
+    ratingCount !== undefined &&
+    Number.isInteger(ratingCount) &&
+    ratingCount >= 0 &&
+    ratingCount <= 1e10
+  )
+    app.ratingCount = ratingCount;
 
   const offers = Array.isArray(ld?.offers) ? ld.offers[0] : ld?.offers;
   const offer = isRecord(offers) ? offers : undefined;
@@ -192,7 +227,9 @@ export function parsePlayApp(html: string, packageName: string): PlayApp | undef
   const currency = asText(offer?.priceCurrency, 10);
   if (currency) app.currency = currency;
 
-  const image = asText(Array.isArray(ld?.image) ? ld.image[0] : ld?.image, 500) ?? cleanPublicText(meta(html, 'og:image'), 500);
+  const image =
+    asText(Array.isArray(ld?.image) ? ld.image[0] : ld?.image, 500) ??
+    cleanPublicText(meta(html, 'og:image'), 500);
   if (image) app.iconUrl = image;
 
   const shots = (html.match(/data-screenshot-index\s*=\s*["'][0-9]+["']/gi) ?? []).length;
@@ -235,12 +272,18 @@ export type PlaySearchOptions = {
 export type PlaySearchResult = { ids: string[]; total: number; limit: number };
 
 const country = (value: string): string => {
-  if (!/^[A-Za-z]{2}$/.test(value)) throw new AsoError('play_public', 'invalid_input', 'The storefront must be a two letter country code.');
+  if (!/^[A-Za-z]{2}$/.test(value))
+    throw new AsoError(
+      'play_public',
+      'invalid_input',
+      'The storefront must be a two letter country code.',
+    );
   return value.toLowerCase();
 };
 const language = (value: string | undefined): string => {
   const v = (value ?? 'en').replace(/_/g, '-');
-  if (!/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(v)) throw new AsoError('play_public', 'invalid_input', 'The language is not a language tag.');
+  if (!/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(v))
+    throw new AsoError('play_public', 'invalid_input', 'The language is not a language tag.');
   return v;
 };
 
@@ -264,7 +307,12 @@ export class PlayPublicConnector {
 
   #guard(): void {
     if (!this.#options.enabled) {
-      throw new AsoError('play_public', 'unavailable', 'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).', { reason: 'disabled' });
+      throw new AsoError(
+        'play_public',
+        'unavailable',
+        'Reading Google Play pages is switched off (MRM_ASO_PLAY_UNOFFICIAL_ENABLED).',
+        { reason: 'disabled' },
+      );
     }
   }
 
@@ -278,12 +326,22 @@ export class PlayPublicConnector {
       ...(this.#options.timeoutMs !== undefined ? { timeoutMs: this.#options.timeoutMs } : {}),
     });
     if (got.status >= 300 && got.status < 400) {
-      throw new AsoError('play_public', 'unavailable', 'Google Play redirected the request (a consent page or a moved address).', { status: got.status, reason: 'redirect' });
+      throw new AsoError(
+        'play_public',
+        'unavailable',
+        'Google Play redirected the request (a consent page or a moved address).',
+        { status: got.status, reason: 'redirect' },
+      );
     }
     if (got.status === 404) return undefined;
     checkStatus('play_public', got);
     if (blocked(got.text)) {
-      throw new AsoError('play_public', 'unavailable', 'Google Play asked for a consent or a robot check.', { reason: 'blocked' });
+      throw new AsoError(
+        'play_public',
+        'unavailable',
+        'Google Play asked for a consent or a robot check.',
+        { reason: 'blocked' },
+      );
     }
     return got.text;
   }
@@ -292,29 +350,51 @@ export class PlayPublicConnector {
   async search(options: PlaySearchOptions): Promise<PlaySearchResult> {
     this.#guard();
     const term = options.term.trim();
-    if (term === '' || term.length > 200) throw new AsoError('play_public', 'invalid_input', 'The search term is empty or too long.');
+    if (term === '' || term.length > 200)
+      throw new AsoError('play_public', 'invalid_input', 'The search term is empty or too long.');
     const limit = options.limit ?? PLAY_DEFAULT_SEARCH_LIMIT;
     if (!Number.isInteger(limit) || limit < 1 || limit > PLAY_MAX_SEARCH_LIMIT) {
-      throw new AsoError('play_public', 'invalid_input', `The limit must be a whole number from 1 to ${PLAY_MAX_SEARCH_LIMIT}.`);
+      throw new AsoError(
+        'play_public',
+        'invalid_input',
+        `The limit must be a whole number from 1 to ${PLAY_MAX_SEARCH_LIMIT}.`,
+      );
     }
     const html = await this.#page(playSearchUrl(options));
     const ids = html === undefined ? [] : parsePlaySearch(html).slice(0, limit);
     if (ids.length === 0) {
       // Not "no result": a search page that lists no app at all is far more likely a changed layout.
-      throw new AsoError('play_public', 'unavailable', 'Google Play\'s search page held no app links: its layout may have changed.', { reason: 'layout_changed' });
+      throw new AsoError(
+        'play_public',
+        'unavailable',
+        "Google Play's search page held no app links: its layout may have changed.",
+        { reason: 'layout_changed' },
+      );
     }
     return { ids, total: ids.length, limit };
   }
 
   /** The public data of one app, or undefined when Google Play has no such app in that country (404). Throws `AsoError`. */
-  async getApp(options: { packageName: string; country: string; language?: string }): Promise<PlayApp | undefined> {
+  async getApp(options: {
+    packageName: string;
+    country: string;
+    language?: string;
+  }): Promise<PlayApp | undefined> {
     this.#guard();
-    if (!isPlayPackageName(options.packageName)) throw new AsoError('play_public', 'invalid_input', 'Not a valid Android package name.');
-    const html = await this.#page(playDetailsUrl(options.packageName, options.country, options.language));
+    if (!isPlayPackageName(options.packageName))
+      throw new AsoError('play_public', 'invalid_input', 'Not a valid Android package name.');
+    const html = await this.#page(
+      playDetailsUrl(options.packageName, options.country, options.language),
+    );
     if (html === undefined) return undefined;
     const app = parsePlayApp(html, options.packageName);
     if (!app) {
-      throw new AsoError('play_public', 'unavailable', 'Google Play\'s app page held no app name: its layout may have changed.', { reason: 'layout_changed' });
+      throw new AsoError(
+        'play_public',
+        'unavailable',
+        "Google Play's app page held no app name: its layout may have changed.",
+        { reason: 'layout_changed' },
+      );
     }
     return app;
   }

@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import {
-  APPLE_PHASED_SCHEDULE,
   type ActorType,
+  APPLE_PHASED_SCHEDULE,
+  checkRolloutAction,
+  compareRollout,
+  isApplePlatform,
   type Platform,
   type ReleaseState,
   type RolloutAction,
@@ -13,22 +16,19 @@ import {
   type RolloutStepState,
   type RolloutStepStatus,
   type RolloutSummary,
-  type StoreRollout,
-  checkRolloutAction,
-  compareRollout,
   rolloutTemplate,
+  type StoreRollout,
+  storeFamilyOf,
   storeRollout,
   summarizeRollout,
   validateRolloutSteps,
-  isApplePlatform,
-  storeFamilyOf,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
-import { emitEvent } from './events.ts';
 import type { EventType } from './event-types.ts';
+import { emitEvent } from './events.ts';
 import type { PlansContext } from './plans.ts';
-import { type Failure, type Outcome, failure } from './repositories.ts';
+import { type Failure, failure, type Outcome } from './repositories.ts';
 
 /**
  * Staged rollout steps of a release plan. PLANNING DATA ONLY: nothing here reads a store with a
@@ -40,7 +40,8 @@ import { type Failure, type Outcome, failure } from './repositories.ts';
 type Actor = { type: ActorType; id: string };
 type Row = Record<string, unknown>;
 
-const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null => (v === null || v === undefined ? null : f(v));
+const orNull = <T>(v: unknown, f: (x: unknown) => T): T | null =>
+  v === null || v === undefined ? null : f(v);
 const DAY = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------------------------
@@ -105,7 +106,12 @@ const STEP_COLUMNS = `s.id, s.plan_id, s.position, s.percent, s.planned_at, s.no
        s.done_by, s.done_source, u.display_name AS done_by_name`;
 
 /** The steps of one plan, in order. */
-export async function loadRolloutSteps(sql: Sql, workspaceId: string, planId: string, now: number): Promise<RolloutStepView[]> {
+export async function loadRolloutSteps(
+  sql: Sql,
+  workspaceId: string,
+  planId: string,
+  now: number,
+): Promise<RolloutStepView[]> {
   const rows = await sql.query(
     `SELECT ${STEP_COLUMNS} FROM plan_rollout_steps s LEFT JOIN users u ON u.id = s.done_by
       WHERE s.plan_id = ? AND s.workspace_id = ? ORDER BY s.position, s.id`,
@@ -115,7 +121,11 @@ export async function loadRolloutSteps(sql: Sql, workspaceId: string, planId: st
 }
 
 /** The steps of every plan of the workspace, by plan id. */
-export async function loadRolloutStepsByPlan(sql: Sql, workspaceId: string, now: number): Promise<Map<string, RolloutStepView[]>> {
+export async function loadRolloutStepsByPlan(
+  sql: Sql,
+  workspaceId: string,
+  now: number,
+): Promise<Map<string, RolloutStepView[]>> {
   const rows = await sql.query(
     `SELECT ${STEP_COLUMNS} FROM plan_rollout_steps s LEFT JOIN users u ON u.id = s.done_by
       WHERE s.workspace_id = ? ORDER BY s.plan_id, s.position, s.id`,
@@ -132,7 +142,11 @@ export async function loadRolloutStepsByPlan(sql: Sql, workspaceId: string, now:
 }
 
 /** The compact summary a plan carries in lists. Null when the plan has no rollout plan. */
-export function rolloutSummaryOf(kind: unknown, steps: readonly RolloutStepState[], now: number): RolloutSummary | null {
+export function rolloutSummaryOf(
+  kind: unknown,
+  steps: readonly RolloutStepState[],
+  now: number,
+): RolloutSummary | null {
   if (kind !== 'steps' && kind !== 'apple_phased') return null;
   return summarizeRollout(kind, kind === 'steps' ? steps : [], now);
 }
@@ -166,7 +180,8 @@ export async function observeStore(
   );
   if (rows.length === 0) return null;
   const rank = (r: Row) =>
-    (String(r.track ?? '') === 'production' ? 0 : 10) + (r.status === 'rolling_out' || r.status === 'live' || r.status === 'halted' ? 0 : 5);
+    (String(r.track ?? '') === 'production' ? 0 : 10) +
+    (r.status === 'rolling_out' || r.status === 'live' || r.status === 'halted' ? 0 : 5);
   const best = [...rows].sort((a, b) => rank(a) - rank(b))[0] as Row;
   return storeRollout({
     platform: String(best.platform) as Platform,
@@ -216,15 +231,23 @@ function appleView(startAt: number | null): AppleRolloutView {
     schedule: APPLE_PHASED_SCHEDULE.map((s) => ({
       day: s.day,
       percent: s.percent,
-      date: startAt === null ? null : new Date(startAt + (s.day - 1) * DAY).toISOString().slice(0, 10),
+      date:
+        startAt === null ? null : new Date(startAt + (s.day - 1) * DAY).toISOString().slice(0, 10),
     })),
     note: APPLE_NOTE,
   };
 }
 
-async function buildView(sql: Sql, ref: RolloutRef, plan: PlanFacts, now: number): Promise<RolloutView> {
-  const steps = plan.kind === 'steps' ? await loadRolloutSteps(sql, ref.workspaceId, plan.id, now) : [];
-  const store = plan.kind === null ? null : await observeStore(sql, ref.workspaceId, plan.appId, plan.version);
+async function buildView(
+  sql: Sql,
+  ref: RolloutRef,
+  plan: PlanFacts,
+  now: number,
+): Promise<RolloutView> {
+  const steps =
+    plan.kind === 'steps' ? await loadRolloutSteps(sql, ref.workspaceId, plan.id, now) : [];
+  const store =
+    plan.kind === null ? null : await observeStore(sql, ref.workspaceId, plan.appId, plan.version);
   return {
     planningOnly: true,
     kind: plan.kind,
@@ -239,7 +262,10 @@ async function buildView(sql: Sql, ref: RolloutRef, plan: PlanFacts, now: number
 
 export type RolloutRef = { workspaceId: string; appId: string; planId: string };
 
-export async function getRollout(ctx: PlansContext, ref: RolloutRef): Promise<RolloutView | undefined> {
+export async function getRollout(
+  ctx: PlansContext,
+  ref: RolloutRef,
+): Promise<RolloutView | undefined> {
   const plan = await planFacts(ctx.db, ref);
   return plan ? buildView(ctx.db, ref, plan, ctx.now()) : undefined;
 }
@@ -253,15 +279,23 @@ export type SetRolloutInput =
 
 const notFound = (): Failure => failure(404, 'not_found');
 const touch = (tx: Sql, workspaceId: string, planId: string, at: number) =>
-  tx.execute('UPDATE release_plans SET updated_at = ? WHERE id = ? AND workspace_id = ?', [at, planId, workspaceId]);
+  tx.execute('UPDATE release_plans SET updated_at = ? WHERE id = ? AND workspace_id = ?', [
+    at,
+    planId,
+    workspaceId,
+  ]);
 
 const invalid = (issues: RolloutIssue[]) =>
-  failure(422, 'invalid_rollout', issues[0]?.message ?? 'This rollout plan is not valid.', { issues });
+  failure(422, 'invalid_rollout', issues[0]?.message ?? 'This rollout plan is not valid.', {
+    issues,
+  });
 
 /** Reminders about steps that no longer exist or no longer apply. */
 const dropStepReminders = (tx: Sql, planId: string, itemIds?: string[]) =>
   itemIds === undefined
-    ? tx.execute("DELETE FROM plan_reminders WHERE plan_id = ? AND kind = 'rollout_step_due'", [planId])
+    ? tx.execute("DELETE FROM plan_reminders WHERE plan_id = ? AND kind = 'rollout_step_due'", [
+        planId,
+      ])
     : itemIds.length === 0
       ? Promise.resolve(0)
       : tx.execute(
@@ -285,27 +319,53 @@ export async function setRollout(
     if (!plan) return notFound();
     if (body.template !== undefined) {
       const template = rolloutTemplate(body.template);
-      if (!template || template.kind !== body.kind || (template.platform !== null && storeFamilyOf(template.platform) !== storeFamilyOf(plan.appPlatform))) {
-        return failure(422, 'template_not_found', 'That rollout template does not exist or does not fit this app.');
+      if (
+        !template ||
+        template.kind !== body.kind ||
+        (template.platform !== null &&
+          storeFamilyOf(template.platform) !== storeFamilyOf(plan.appPlatform))
+      ) {
+        return failure(
+          422,
+          'template_not_found',
+          'That rollout template does not exist or does not fit this app.',
+        );
       }
     }
     const at = ctx.now();
-    const existing = plan.kind === 'steps' ? await loadRolloutSteps(tx, input.workspaceId, plan.id, at) : [];
+    const existing =
+      plan.kind === 'steps' ? await loadRolloutSteps(tx, input.workspaceId, plan.id, at) : [];
 
     if (body.kind === 'apple_phased') {
       if (!isApplePlatform(plan.appPlatform)) {
-        return failure(422, 'rollout_platform_mismatch', "Apple's phased release is for an iOS or macOS app.");
+        return failure(
+          422,
+          'rollout_platform_mismatch',
+          "Apple's phased release is for an iOS or macOS app.",
+        );
       }
       if (existing.some((s) => s.status === 'done')) {
-        return failure(409, 'rollout_has_done_steps', 'This plan has steps that are done. Reopen them before switching to the phased release.');
+        return failure(
+          409,
+          'rollout_has_done_steps',
+          'This plan has steps that are done. Reopen them before switching to the phased release.',
+        );
       }
       const startsAt = body.startsAt ?? null;
       if (startsAt !== null && (!Number.isInteger(startsAt) || startsAt < plan.createdAt)) {
-        return invalid([{ path: 'startsAt', message: 'Day 1 cannot be before the plan was created.' }]);
+        return invalid([
+          { path: 'startsAt', message: 'Day 1 cannot be before the plan was created.' },
+        ]);
       }
-      const unchanged = plan.kind === 'apple_phased' && plan.startAt === startsAt && plan.template === (body.template ?? null);
+      const unchanged =
+        plan.kind === 'apple_phased' &&
+        plan.startAt === startsAt &&
+        plan.template === (body.template ?? null);
       if (!unchanged) {
-        await tx.execute('DELETE FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [plan.id, input.workspaceId]);
+        await tx.execute('DELETE FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [
+          plan.id,
+          input.workspaceId,
+        ]);
         await dropStepReminders(tx, plan.id);
         await tx.execute(
           `UPDATE release_plans SET rollout_kind = 'apple_phased', rollout_template = ?, rollout_start_at = ?, updated_at = ?
@@ -344,22 +404,44 @@ export async function setRollout(
         if (current) {
           await tx.execute(
             'UPDATE plan_rollout_steps SET position = ?, percent = ?, planned_at = ?, note = ? WHERE id = ? AND plan_id = ? AND workspace_id = ?',
-            [position, step.percent, step.plannedAt ?? null, step.note ?? null, id, plan.id, input.workspaceId],
+            [
+              position,
+              step.percent,
+              step.plannedAt ?? null,
+              step.note ?? null,
+              id,
+              plan.id,
+              input.workspaceId,
+            ],
           );
         } else {
           await tx.execute(
             `INSERT INTO plan_rollout_steps (id, workspace_id, plan_id, position, percent, planned_at, note, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, 'planned')`,
-            [id, input.workspaceId, plan.id, position, step.percent, step.plannedAt ?? null, step.note ?? null],
+            [
+              id,
+              input.workspaceId,
+              plan.id,
+              position,
+              step.percent,
+              step.plannedAt ?? null,
+              step.note ?? null,
+            ],
           );
         }
       }
       for (const id of removed) {
-        await tx.execute('DELETE FROM plan_rollout_steps WHERE id = ? AND plan_id = ? AND workspace_id = ?', [id, plan.id, input.workspaceId]);
+        await tx.execute(
+          'DELETE FROM plan_rollout_steps WHERE id = ? AND plan_id = ? AND workspace_id = ?',
+          [id, plan.id, input.workspaceId],
+        );
       }
       await dropStepReminders(tx, plan.id, removed);
-      const after = JSON.stringify(body.steps.map((s, i) => [ids[i], s.percent, s.plannedAt ?? null, s.note ?? null]));
-      const changed = before !== after || plan.kind !== 'steps' || plan.template !== (body.template ?? null);
+      const after = JSON.stringify(
+        body.steps.map((s, i) => [ids[i], s.percent, s.plannedAt ?? null, s.note ?? null]),
+      );
+      const changed =
+        before !== after || plan.kind !== 'steps' || plan.template !== (body.template ?? null);
       if (changed) {
         await tx.execute(
           `UPDATE release_plans SET rollout_kind = 'steps', rollout_template = ?, rollout_start_at = NULL, updated_at = ?
@@ -398,8 +480,16 @@ export async function clearRollout(
     if (!plan) return notFound();
     if (plan.kind !== null) {
       const at = ctx.now();
-      const steps = (await tx.query('SELECT COUNT(*) AS n FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [plan.id, input.workspaceId]))[0];
-      await tx.execute('DELETE FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [plan.id, input.workspaceId]);
+      const steps = (
+        await tx.query(
+          'SELECT COUNT(*) AS n FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?',
+          [plan.id, input.workspaceId],
+        )
+      )[0];
+      await tx.execute('DELETE FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [
+        plan.id,
+        input.workspaceId,
+      ]);
       await dropStepReminders(tx, plan.id);
       await tx.execute(
         'UPDATE release_plans SET rollout_kind = NULL, rollout_template = NULL, rollout_start_at = NULL, updated_at = ? WHERE id = ? AND workspace_id = ?',
@@ -410,7 +500,12 @@ export async function clearRollout(
         actor,
         action: 'plan.rollout_clear',
         target: { type: 'release_plan', id: plan.id },
-        detail: { appId: plan.appId, version: plan.version, kind: plan.kind, steps: Number(steps?.n ?? 0) },
+        detail: {
+          appId: plan.appId,
+          version: plan.version,
+          kind: plan.kind,
+          steps: Number(steps?.n ?? 0),
+        },
         at,
       });
     }
@@ -465,13 +560,22 @@ export async function rolloutStepAction(
         if (input.fromStore) {
           const store = await observeStore(tx, input.workspaceId, plan.appId, plan.version);
           if (!store || store.percent === null) {
-            return failure(409, 'store_share_unknown', 'The store has not reported a rollout share for this version, so there is nothing to confirm against.');
+            return failure(
+              409,
+              'store_share_unknown',
+              'The store has not reported a rollout share for this version, so there is nothing to confirm against.',
+            );
           }
           if (store.percent < step.percent) {
-            return failure(409, 'store_not_at_step', `The store says ${store.percent}%, which is below this step (${step.percent}%).`, {
-              storePercent: store.percent,
-              stepPercent: step.percent,
-            });
+            return failure(
+              409,
+              'store_not_at_step',
+              `The store says ${store.percent}%, which is below this step (${step.percent}%).`,
+              {
+                storePercent: store.percent,
+                stepPercent: step.percent,
+              },
+            );
           }
           source = 'store';
         }
@@ -480,10 +584,23 @@ export async function rolloutStepAction(
       const moved = await tx.execute(
         `UPDATE plan_rollout_steps SET status = ?, done_at = ?, done_by = ?, done_source = ?
           WHERE id = ? AND plan_id = ? AND workspace_id = ? AND status = ?`,
-        [checked.to, done ? at : null, done ? actor.id : null, source, step.id, plan.id, input.workspaceId, step.status],
+        [
+          checked.to,
+          done ? at : null,
+          done ? actor.id : null,
+          source,
+          step.id,
+          plan.id,
+          input.workspaceId,
+          step.status,
+        ],
       );
       if (moved === 0) {
-        return failure(409, 'step_changed', 'Someone else changed this step. Reload and try again.');
+        return failure(
+          409,
+          'step_changed',
+          'Someone else changed this step. Reload and try again.',
+        );
       }
       await touch(tx, input.workspaceId, plan.id, at);
       const detail = {
@@ -519,7 +636,17 @@ export async function rolloutStepAction(
 // Clean-up
 
 /** Removes the rollout steps and reminder log of a plan (for plan deletion). */
-export async function purgeRolloutOfPlan(tx: Sql, workspaceId: string, planId: string): Promise<void> {
-  await tx.execute('DELETE FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [planId, workspaceId]);
-  await tx.execute('DELETE FROM plan_reminders WHERE plan_id = ? AND workspace_id = ?', [planId, workspaceId]);
+export async function purgeRolloutOfPlan(
+  tx: Sql,
+  workspaceId: string,
+  planId: string,
+): Promise<void> {
+  await tx.execute('DELETE FROM plan_rollout_steps WHERE plan_id = ? AND workspace_id = ?', [
+    planId,
+    workspaceId,
+  ]);
+  await tx.execute('DELETE FROM plan_reminders WHERE plan_id = ? AND workspace_id = ?', [
+    planId,
+    workspaceId,
+  ]);
 }

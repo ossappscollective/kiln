@@ -16,12 +16,18 @@ import {
 } from './release-pipeline.ts';
 
 const steps = (statuses: string[]) =>
-  ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({ id, status: statuses[i], at: null, detail: null })) as never;
+  ['ci', 'build', 'prepare', 'review', 'release'].map((id, i) => ({
+    id,
+    status: statuses[i],
+    at: null,
+    detail: null,
+  })) as never;
 
 const stall = (extra: Partial<SummaryStall> = {}): SummaryStall => ({
   step: 'draft',
   label: 'Prepared, not submitted',
-  message: 'Build 412 was uploaded 10 h ago by run #88; version 2.4.0 is still in Prepare for submission with its build and has not been submitted for review.',
+  message:
+    'Build 412 was uploaded 10 h ago by run #88; version 2.4.0 is still in Prepare for submission with its build and has not been submitted for review.',
   hours: 10,
   since: 1,
   stale: false,
@@ -57,20 +63,49 @@ test('the version of a stall comes from its evidence, without the track', () => 
 });
 
 test('the strip marks the step that matters now and says who is expected to act', () => {
-  const model = stripModel({ steps: steps(['done', 'done', 'stalled', 'todo', 'todo']), waitingOn: 'you', summary: 'Prepared, not submitted.', state: 'draft' });
-  assert.deepEqual(model.steps.map((s) => s.current), [false, false, true, false, false]);
-  assert.deepEqual(model.steps.map((s) => s.label), ['CI', 'Build', 'Prepare', 'Review', 'Release']);
+  const model = stripModel({
+    steps: steps(['done', 'done', 'stalled', 'todo', 'todo']),
+    waitingOn: 'you',
+    summary: 'Prepared, not submitted.',
+    state: 'draft',
+  });
+  assert.deepEqual(
+    model.steps.map((s) => s.current),
+    [false, false, true, false, false],
+  );
+  assert.deepEqual(
+    model.steps.map((s) => s.label),
+    ['CI', 'Build', 'Prepare', 'Review', 'Release'],
+  );
   assert.equal(model.steps[2]?.word, 'Stalled');
   assert.equal(model.waiting?.text, 'Waiting for you');
   assert.equal(model.step, 'confirm');
-  const store = stripModel({ steps: steps(['done', 'done', 'done', 'waiting', 'todo']), waitingOn: 'store', summary: 'In review.', state: 'in_review' });
+  const store = stripModel({
+    steps: steps(['done', 'done', 'done', 'waiting', 'todo']),
+    waitingOn: 'store',
+    summary: 'In review.',
+    state: 'in_review',
+  });
   assert.equal(store.steps[3]?.current, true);
   assert.equal(store.waiting?.text, 'Waiting on the store');
   // Nothing active: the step after the last done one.
-  const between = stripModel({ steps: steps(['done', 'done', 'todo', 'todo', 'todo']), waitingOn: 'you', summary: '', state: 'build_ready' });
+  const between = stripModel({
+    steps: steps(['done', 'done', 'todo', 'todo', 'todo']),
+    waitingOn: 'you',
+    summary: '',
+    state: 'build_ready',
+  });
   assert.equal(between.steps[2]?.current, true);
   // All done: nothing to mark.
-  assert.equal(stripModel({ steps: steps(['done', 'done', 'done', 'done', 'done']), waitingOn: null, summary: '', state: 'live' }).steps.some((s) => s.current), false);
+  assert.equal(
+    stripModel({
+      steps: steps(['done', 'done', 'done', 'done', 'done']),
+      waitingOn: null,
+      summary: '',
+      state: 'live',
+    }).steps.some((s) => s.current),
+    false,
+  );
 });
 
 test('the strip is quiet when nothing is on its way', () => {
@@ -82,25 +117,57 @@ test('the strip is quiet when nothing is on its way', () => {
 });
 
 test('a stalled release becomes "Release left unfinished" with the evidence sentence and a deep link', () => {
-  const item = unfinishedItem({ appId: 'a1', platform: 'ios', scope: 'ios', several: false, stalled: stall() });
+  const item = unfinishedItem({
+    appId: 'a1',
+    platform: 'ios',
+    scope: 'ios',
+    several: false,
+    stalled: stall(),
+  });
   assert.equal(item?.text, 'Release left unfinished');
   assert.match(item?.detail ?? '', /Build 412 was uploaded 10 h ago by run #88/);
   assert.equal(item?.href, '#/portfolio/a1/releases?platform=ios&version=2.4.0&step=confirm');
   assert.equal(item?.action, 'Finish the release');
   assert.equal(item?.tone, 'warn');
-  const named = unfinishedItem({ appId: 'a2', platform: 'android', scope: 'both', several: true, stalled: stall({ step: 'build_ready', evidence: [{ kind: 'build', id: '9', at: null }] }) });
+  const named = unfinishedItem({
+    appId: 'a2',
+    platform: 'android',
+    scope: 'both',
+    several: true,
+    stalled: stall({ step: 'build_ready', evidence: [{ kind: 'build', id: '9', at: null }] }),
+  });
   assert.equal(named?.text, 'Android: Release left unfinished');
   assert.equal(named?.href, '#/portfolio/a2/releases?platform=both&step=build');
-  const old = unfinishedItem({ appId: 'a1', platform: 'ios', scope: null, several: false, stalled: stall({ stale: true }) });
+  const old = unfinishedItem({
+    appId: 'a1',
+    platform: 'ios',
+    scope: null,
+    several: false,
+    stalled: stall({ stale: true }),
+  });
   assert.equal(old?.tone, 'info');
   assert.match(old?.text ?? '', /more than 14 days ago/);
-  assert.equal(unfinishedItem({ appId: 'a1', platform: 'ios', scope: null, several: false, stalled: null }), null);
+  assert.equal(
+    unfinishedItem({ appId: 'a1', platform: 'ios', scope: null, several: false, stalled: null }),
+    null,
+  );
 });
 
 test('only fresh stalls count for the badges', () => {
-  const app = (id: string, s: SummaryStall | null): PipelineSummaryApp => ({ app: { id, name: id, platform: 'ios', store: 'appstoreconnect' }, state: 'draft', waitingOn: 'you', since: null, summary: '', lastSyncedAt: null, stalled: s });
+  const app = (id: string, s: SummaryStall | null): PipelineSummaryApp => ({
+    app: { id, name: id, platform: 'ios', store: 'appstoreconnect' },
+    state: 'draft',
+    waitingOn: 'you',
+    since: null,
+    summary: '',
+    lastSyncedAt: null,
+    stalled: s,
+  });
   const summary = { apps: [app('a', stall()), app('b', stall({ stale: true })), app('c', null)] };
-  assert.deepEqual(stalledApps(summary).map((a) => a.app.id), ['a']);
+  assert.deepEqual(
+    stalledApps(summary).map((a) => a.app.id),
+    ['a'],
+  );
   assert.equal(stalledApps(null).length, 0);
   assert.equal(summaryByApp(summary).b?.app.id, 'b');
   assert.equal(summaryByApp(null).a, undefined);

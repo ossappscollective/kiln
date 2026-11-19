@@ -1,4 +1,10 @@
-import { type CompiledPattern, type NameFields, type Platform, compilePatterns, matchName } from '@mrm/core';
+import {
+  type CompiledPattern,
+  compilePatterns,
+  matchName,
+  type NameFields,
+  type Platform,
+} from '@mrm/core';
 import type { BuildConventions } from './build-conventions.ts';
 import type { WorkflowRunView } from './ci-runs.ts';
 
@@ -49,7 +55,10 @@ export type TagData = { tags: readonly TagRef[]; releases: readonly ReleaseRef[]
 export type BuildKey = { platform: Platform; buildNumber: string; version: string };
 
 /** The conventions with the defaults filled in. */
-export type ConventionPatterns = Pick<BuildConventions, 'tagPatterns' | 'releasePatterns' | 'prefix' | 'workflow'>;
+export type ConventionPatterns = Pick<
+  BuildConventions,
+  'tagPatterns' | 'releasePatterns' | 'prefix' | 'workflow'
+>;
 
 export type CompiledConventions = { tags: CompiledPattern[]; releases: CompiledPattern[] };
 
@@ -88,16 +97,22 @@ export type TagCandidate = {
   fields: NameFields;
 };
 
-const versionRank = (c: TagCandidate) => (c.versionMatch === true ? 0 : c.versionMatch === null ? 1 : 2);
+const versionRank = (c: TagCandidate) =>
+  c.versionMatch === true ? 0 : c.versionMatch === null ? 1 : 2;
 
 /**
  * The tags and releases whose names carry this build's number (and do not name the other
  * platform), best first: names whose version agrees with the build's, tags before releases.
  */
-export function findCandidates(build: BuildKey, data: TagData, compiled: CompiledConventions): TagCandidate[] {
+export function findCandidates(
+  build: BuildKey,
+  data: TagData,
+  compiled: CompiledConventions,
+): TagCandidate[] {
   const byTag = new Map<string, TagCandidate>();
   const tagSha = new Map(data.tags.map((t) => [t.name, t.sha]));
-  const version = (fields: NameFields) => (fields.version === undefined ? null : fields.version === build.version);
+  const version = (fields: NameFields) =>
+    fields.version === undefined ? null : fields.version === build.version;
 
   for (const tag of data.tags) {
     const hit = matchName(tag.name, compiled.tags);
@@ -123,9 +138,15 @@ export function findCandidates(build: BuildKey, data: TagData, compiled: Compile
       known.releaseAt = at;
       continue;
     }
-    const sha = tagSha.get(release.tagName) ?? (release.targetCommitish && SHA.test(release.targetCommitish) ? release.targetCommitish.toLowerCase() : null);
+    const sha =
+      tagSha.get(release.tagName) ??
+      (release.targetCommitish && SHA.test(release.targetCommitish)
+        ? release.targetCommitish.toLowerCase()
+        : null);
     // The release's tag may fit a tag pattern even if the tag list did not reach it.
-    const tagHit = tagSha.has(release.tagName) ? undefined : matchName(release.tagName, compiled.tags);
+    const tagHit = tagSha.has(release.tagName)
+      ? undefined
+      : matchName(release.tagName, compiled.tags);
     if (tagHit && fitsBuild(tagHit.fields, build)) {
       byTag.set(release.tagName, {
         kind: 'tag',
@@ -153,7 +174,10 @@ export function findCandidates(build: BuildKey, data: TagData, compiled: Compile
     });
   }
   return [...byTag.values()].sort(
-    (a, b) => versionRank(a) - versionRank(b) || Number(b.kind === 'tag') - Number(a.kind === 'tag') || a.tag.localeCompare(b.tag),
+    (a, b) =>
+      versionRank(a) - versionRank(b) ||
+      Number(b.kind === 'tag') - Number(a.kind === 'tag') ||
+      a.tag.localeCompare(b.tag),
   );
 }
 
@@ -167,12 +191,17 @@ export type NoCandidate = {
 };
 
 /** Why no tag or release carries the build: the first thing that is missing. */
-export function explainNoCandidate(build: BuildKey, data: TagData, compiled: CompiledConventions): NoCandidate {
+export function explainNoCandidate(
+  build: BuildKey,
+  data: TagData,
+  compiled: CompiledConventions,
+): NoCandidate {
   const total = data.tags.length + data.releases.filter((r) => !r.draft).length;
   if (total === 0) {
     return {
       code: 'no_tags',
-      message: 'The repository has no tags or releases that could be read, so there is nothing to find the number in.',
+      message:
+        'The repository has no tags or releases that could be read, so there is nothing to find the number in.',
       fitting: 0,
       newestFit: null,
     };
@@ -187,7 +216,9 @@ export function explainNoCandidate(build: BuildKey, data: TagData, compiled: Com
     const hit = matchName(release.name, compiled.releases);
     if (hit) fits.push({ name: release.name, fields: hit.fields });
   }
-  const own = fits.filter((f) => f.fields.platform === undefined || f.fields.platform === build.platform);
+  const own = fits.filter(
+    (f) => f.fields.platform === undefined || f.fields.platform === build.platform,
+  );
   let newestFit: NoCandidate['newestFit'] = null;
   for (const f of own) {
     if (newestFit === null || Number(f.fields.buildNumber) > Number(newestFit.buildNumber)) {
@@ -203,9 +234,17 @@ export function explainNoCandidate(build: BuildKey, data: TagData, compiled: Com
       newestFit: null,
     };
   }
-  const numbered = fits.filter((f) => stripZeros(f.fields.buildNumber) === stripZeros(build.buildNumber));
-  if (numbered.length > 0 && own.every((f) => stripZeros(f.fields.buildNumber) !== stripZeros(build.buildNumber))) {
-    const names = numbered.slice(0, 3).map((f) => `"${f.name.slice(0, 80)}"`).join(', ');
+  const numbered = fits.filter(
+    (f) => stripZeros(f.fields.buildNumber) === stripZeros(build.buildNumber),
+  );
+  if (
+    numbered.length > 0 &&
+    own.every((f) => stripZeros(f.fields.buildNumber) !== stripZeros(build.buildNumber))
+  ) {
+    const names = numbered
+      .slice(0, 3)
+      .map((f) => `"${f.name.slice(0, 80)}"`)
+      .join(', ');
     return {
       code: 'other_platform',
       message: `Number ${build.buildNumber} was found only for another platform (${names}), not for ${build.platform}.`,
@@ -216,7 +255,9 @@ export function explainNoCandidate(build: BuildKey, data: TagData, compiled: Com
   return {
     code: 'number_not_found',
     message: `${fits.length} tag or release names fit a pattern, but none has number ${build.buildNumber}${
-      newestFit ? ` (the highest for ${build.platform} is ${newestFit.buildNumber}, "${newestFit.name.slice(0, 80)}")` : ''
+      newestFit
+        ? ` (the highest for ${build.platform} is ${newestFit.buildNumber}, "${newestFit.name.slice(0, 80)}")`
+        : ''
     }.`,
     fitting: fits.length,
     newestFit,
@@ -240,7 +281,16 @@ export type CommitFacts = {
 
 export type RunFacts = Pick<
   WorkflowRunView,
-  'id' | 'workflow' | 'workflowPath' | 'headSha' | 'event' | 'status' | 'conclusion' | 'active' | 'startedAt' | 'updatedAt'
+  | 'id'
+  | 'workflow'
+  | 'workflowPath'
+  | 'headSha'
+  | 'event'
+  | 'status'
+  | 'conclusion'
+  | 'active'
+  | 'startedAt'
+  | 'updatedAt'
 >;
 
 export type RunMatch = {
@@ -256,7 +306,9 @@ export const RELEASE_WORKFLOW = /release|publish|deploy|ship|distribut|store|tes
 
 const workflowMatches = (run: RunFacts, wanted: string) => {
   const w = wanted.toLowerCase();
-  return [run.workflow, run.workflowPath, run.workflowPath?.split('/').pop()].some((v) => v?.toLowerCase() === w);
+  return [run.workflow, run.workflowPath, run.workflowPath?.split('/').pop()].some(
+    (v) => v?.toLowerCase() === w,
+  );
 };
 
 const hhmm = (ms: number) => `${new Date(ms).toISOString().slice(11, 16)} UTC`;
@@ -275,7 +327,12 @@ const hhmm = (ms: number) => `${new Date(ms).toISOString().slice(11, 16)} UTC`;
  * one alone contains the time; `low` otherwise.
  */
 export function matchCommitToRun(input: {
-  commit: { sha: string; parents: readonly string[]; at: number | null; atSource: 'commit' | 'release' | null };
+  commit: {
+    sha: string;
+    parents: readonly string[];
+    at: number | null;
+    atSource: 'commit' | 'release' | null;
+  };
   runs: readonly RunFacts[];
   /** The configured release workflow (file name, path or name), or null to detect it. */
   workflow: string | null;
@@ -288,7 +345,9 @@ export function matchCommitToRun(input: {
   const flags = usable.map((run) => {
     const related = parents.has(run.headSha as string) || run.headSha === commit.sha;
     const inWindow =
-      commit.at !== null && commit.at >= run.startedAt - slack.beforeMs && commit.at <= (run.active ? Number.POSITIVE_INFINITY : run.updatedAt + slack.afterMs);
+      commit.at !== null &&
+      commit.at >= run.startedAt - slack.beforeMs &&
+      commit.at <= (run.active ? Number.POSITIVE_INFINITY : run.updatedAt + slack.afterMs);
     return { run, related, inWindow, parent: parents.has(run.headSha as string) };
   });
   const qualified = flags.filter((f) => f.related || f.inWindow);
@@ -309,17 +368,22 @@ export function matchCommitToRun(input: {
     const wanted = input.workflow;
     pool = qualified.filter((f) => workflowMatches(f.run, wanted));
     if (pool.length === 0) {
-      return { reason: `A run qualified by commit or time, but none belongs to the workflow "${wanted}".` };
+      return {
+        reason: `A run qualified by commit or time, but none belongs to the workflow "${wanted}".`,
+      };
     }
   } else {
-    const hinted = qualified.filter((f) => RELEASE_WORKFLOW.test(`${f.run.workflow} ${f.run.workflowPath ?? ''}`));
+    const hinted = qualified.filter((f) =>
+      RELEASE_WORKFLOW.test(`${f.run.workflow} ${f.run.workflowPath ?? ''}`),
+    );
     if (hinted.length > 0) pool = hinted;
     else generic = true;
   }
 
   const both = pool.filter((f) => f.related && f.inWindow);
   const containing = pool.filter((f) => f.inWindow);
-  const newestStart = (a: (typeof pool)[number], b: (typeof pool)[number]) => b.run.startedAt - a.run.startedAt;
+  const newestStart = (a: (typeof pool)[number], b: (typeof pool)[number]) =>
+    b.run.startedAt - a.run.startedAt;
 
   let chosen: (typeof pool)[number];
   let confidence: Confidence;
@@ -333,20 +397,30 @@ export function matchCommitToRun(input: {
     chosen = containing[0] as (typeof pool)[number];
     confidence = 'medium';
   } else if (containing.length > 1) {
-    chosen = [...containing].sort((a, b) => Number(b.related) - Number(a.related) || newestStart(a, b))[0] as (typeof pool)[number];
+    chosen = [...containing].sort(
+      (a, b) => Number(b.related) - Number(a.related) || newestStart(a, b),
+    )[0] as (typeof pool)[number];
     confidence = 'low';
   } else {
-    chosen = [...pool].sort((a, b) => Number(b.parent) - Number(a.parent) || newestStart(a, b))[0] as (typeof pool)[number];
+    chosen = [...pool].sort(
+      (a, b) => Number(b.parent) - Number(a.parent) || newestStart(a, b),
+    )[0] as (typeof pool)[number];
     confidence = 'low';
   }
   if (generic) confidence = 'low';
 
   const parts: string[] = [];
-  if (chosen.run.headSha === commit.sha) parts.push(`the tag's commit is the run's commit ${commit.sha.slice(0, 7)}`);
-  else if (chosen.parent) parts.push(`the run's commit ${(chosen.run.headSha as string).slice(0, 7)} is the parent of the tag's commit ${commit.sha.slice(0, 7)}`);
+  if (chosen.run.headSha === commit.sha)
+    parts.push(`the tag's commit is the run's commit ${commit.sha.slice(0, 7)}`);
+  else if (chosen.parent)
+    parts.push(
+      `the run's commit ${(chosen.run.headSha as string).slice(0, 7)} is the parent of the tag's commit ${commit.sha.slice(0, 7)}`,
+    );
   if (chosen.inWindow && commit.at !== null) {
     const source = commit.atSource === 'release' ? 'the release was made' : 'the commit was made';
-    parts.push(`${source} at ${hhmm(commit.at)}, while the run ran (${hhmm(chosen.run.startedAt)} to ${chosen.run.active ? 'now' : hhmm(chosen.run.updatedAt)})`);
+    parts.push(
+      `${source} at ${hhmm(commit.at)}, while the run ran (${hhmm(chosen.run.startedAt)} to ${chosen.run.active ? 'now' : hhmm(chosen.run.updatedAt)})`,
+    );
   }
   if (generic) parts.push('the workflow is not recognised as a release workflow');
   if (pool.length > 1) parts.push(`${pool.length} runs qualified`);
@@ -408,13 +482,23 @@ export function resolveTagLink(input: {
       workflow: input.workflow,
     });
     const run = 'run' in found ? found : null;
-    const via = candidate.kind === 'tag' ? `tag "${candidate.tag}"` : `release "${candidate.releaseName ?? candidate.tag}" (tag "${candidate.tag}")`;
-    const versionNote = candidate.versionMatch === false ? ` The name's version ${candidate.fields.version} differs from the store's.` : '';
+    const via =
+      candidate.kind === 'tag'
+        ? `tag "${candidate.tag}"`
+        : `release "${candidate.releaseName ?? candidate.tag}" (tag "${candidate.tag}")`;
+    const versionNote =
+      candidate.versionMatch === false
+        ? ` The name's version ${candidate.fields.version} differs from the store's.`
+        : '';
     const reason = run
       ? `${via} has the number; ${run.reason}.${versionNote}`
       : `${via} has the number, on commit ${sha.slice(0, 7)}. No run found: ${(found as { reason: string }).reason}${versionNote}`;
     const commitConfidence: Confidence = candidate.versionMatch === false ? 'medium' : 'high';
-    const confidence: Confidence = run ? (rankOf(run.confidence) <= rankOf(commitConfidence) ? run.confidence : commitConfidence) : commitConfidence;
+    const confidence: Confidence = run
+      ? rankOf(run.confidence) <= rankOf(commitConfidence)
+        ? run.confidence
+        : commitConfidence
+      : commitConfidence;
     const link: TagLink = {
       candidate,
       facts,

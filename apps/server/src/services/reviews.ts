@@ -137,7 +137,10 @@ export type InboxFilter = ReviewFilter & {
 export const escapeLike = (value: string): string => value.replace(/[!%_]/g, (c) => `!${c}`);
 
 /** `prefix` is a table alias with its dot (`r.`) or empty. */
-function conditions(filter: ReviewFilter & Partial<InboxFilter>, prefix: string): { parts: string[]; params: Param[] } {
+function conditions(
+  filter: ReviewFilter & Partial<InboxFilter>,
+  prefix: string,
+): { parts: string[]; params: Param[] } {
   const parts: string[] = [];
   const params: Param[] = [];
   const c = (name: string) => `${prefix}${name}`;
@@ -162,11 +165,17 @@ function conditions(filter: ReviewFilter & Partial<InboxFilter>, prefix: string)
     params.push(...filter.statuses);
   }
   if (filter.hasResponse !== undefined) {
-    parts.push(filter.hasResponse ? `${c('developer_response')} IS NOT NULL` : `${c('developer_response')} IS NULL`);
+    parts.push(
+      filter.hasResponse
+        ? `${c('developer_response')} IS NOT NULL`
+        : `${c('developer_response')} IS NULL`,
+    );
   }
   if (filter.q) {
     const like = `%${escapeLike(filter.q.toLowerCase())}%`;
-    parts.push(`(LOWER(COALESCE(${c('title')}, '')) LIKE ? ESCAPE '!' OR LOWER(${c('body')}) LIKE ? ESCAPE '!')`);
+    parts.push(
+      `(LOWER(COALESCE(${c('title')}, '')) LIKE ? ESCAPE '!' OR LOWER(${c('body')}) LIKE ? ESCAPE '!')`,
+    );
     params.push(like, like);
   }
   if (filter.since !== undefined) {
@@ -180,17 +189,30 @@ function conditions(filter: ReviewFilter & Partial<InboxFilter>, prefix: string)
   return { parts, params };
 }
 
-function where(workspaceId: string, appId: string, filter: ReviewFilter): { clause: string; params: Param[] } {
+function where(
+  workspaceId: string,
+  appId: string,
+  filter: ReviewFilter,
+): { clause: string; params: Param[] } {
   const found = conditions(filter, '');
-  return { clause: ['workspace_id = ?', 'app_id = ?', ...found.parts].join(' AND '), params: [workspaceId, appId, ...found.params] };
+  return {
+    clause: ['workspace_id = ?', 'app_id = ?', ...found.parts].join(' AND '),
+    params: [workspaceId, appId, ...found.params],
+  };
 }
 
 type Cursor = { s: ReviewSort; v: number[]; id: string };
 
 export function encodeCursor(sort: ReviewSort, review: Review): string {
   const v =
-    sort === 'newest' ? [review.createdAt] : sort === 'updated' ? [review.updatedAt] : [review.rating, review.createdAt];
-  return Buffer.from(JSON.stringify({ s: sort, v, id: review.id } satisfies Cursor)).toString('base64url');
+    sort === 'newest'
+      ? [review.createdAt]
+      : sort === 'updated'
+        ? [review.updatedAt]
+        : [review.rating, review.createdAt];
+  return Buffer.from(JSON.stringify({ s: sort, v, id: review.id } satisfies Cursor)).toString(
+    'base64url',
+  );
 }
 
 /** The cursor of an earlier page for the same sort, or undefined when it is not one. */
@@ -201,7 +223,8 @@ export function decodeCursor(raw: string, sort: ReviewSort): Cursor | undefined 
     if (typeof value !== 'object' || value === null) return undefined;
     const c = value as Partial<Cursor>;
     const width = sort === 'rating' ? 2 : 1;
-    if (c.s !== sort || typeof c.id !== 'string' || !Array.isArray(c.v) || c.v.length !== width) return undefined;
+    if (c.s !== sort || typeof c.id !== 'string' || !Array.isArray(c.v) || c.v.length !== width)
+      return undefined;
     if (!c.v.every((n) => typeof n === 'number' && Number.isFinite(n))) return undefined;
     return { s: sort, v: c.v as number[], id: c.id };
   } catch {
@@ -220,10 +243,16 @@ const orderFor = (sort: ReviewSort, p: string): string =>
 function after(sort: ReviewSort, c: Cursor, p = ''): { clause: string; params: Param[] } {
   const [a = 0, b = 0] = c.v;
   if (sort === 'newest') {
-    return { clause: `(${p}created_at < ? OR (${p}created_at = ? AND ${p}id < ?))`, params: [a, a, c.id] };
+    return {
+      clause: `(${p}created_at < ? OR (${p}created_at = ? AND ${p}id < ?))`,
+      params: [a, a, c.id],
+    };
   }
   if (sort === 'updated') {
-    return { clause: `(${p}updated_at < ? OR (${p}updated_at = ? AND ${p}id < ?))`, params: [a, a, c.id] };
+    return {
+      clause: `(${p}updated_at < ? OR (${p}updated_at = ? AND ${p}id < ?))`,
+      params: [a, a, c.id],
+    };
   }
   return {
     clause: `(${p}rating > ? OR (${p}rating = ? AND (${p}created_at < ? OR (${p}created_at = ? AND ${p}id < ?))))`,
@@ -242,7 +271,10 @@ export async function listReviews(
   options: { sort?: ReviewSort; cursor?: string; limit?: number } = {},
 ): Promise<ReviewPage | { error: 'invalid_cursor' }> {
   const sort = options.sort ?? 'newest';
-  const limit = Math.min(Math.max(Math.trunc(options.limit ?? DEFAULT_REVIEWS_PAGE), 1), MAX_REVIEWS_PAGE);
+  const limit = Math.min(
+    Math.max(Math.trunc(options.limit ?? DEFAULT_REVIEWS_PAGE), 1),
+    MAX_REVIEWS_PAGE,
+  );
   const base = where(workspaceId, appId, filter);
   let clause = base.clause;
   const params = [...base.params];
@@ -259,7 +291,10 @@ export async function listReviews(
   );
   const page = rows.slice(0, limit).map(toReview);
   const last = page[page.length - 1];
-  return { reviews: page, nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null };
+  return {
+    reviews: page,
+    nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null,
+  };
 }
 
 /** One review of the workspace-wide inbox: the review and the app it belongs to. */
@@ -280,7 +315,10 @@ export async function listWorkspaceReviews(
   options: { sort?: ReviewSort; cursor?: string; limit?: number } = {},
 ): Promise<InboxPage | { error: 'invalid_cursor' }> {
   const sort = options.sort ?? 'newest';
-  const limit = Math.min(Math.max(Math.trunc(options.limit ?? DEFAULT_REVIEWS_PAGE), 1), MAX_REVIEWS_PAGE);
+  const limit = Math.min(
+    Math.max(Math.trunc(options.limit ?? DEFAULT_REVIEWS_PAGE), 1),
+    MAX_REVIEWS_PAGE,
+  );
   if (filter.appIds && filter.appIds.length === 0) return { reviews: [], nextCursor: null };
   const found = conditions(filter, 'r.');
   const parts = ['r.workspace_id = ?', ...found.parts];
@@ -298,7 +336,9 @@ export async function listWorkspaceReviews(
     params.push(filter.assigneeUserId);
   }
   if (filter.unassigned) parts.push('r.assignee_user_id IS NULL');
-  parts.push('EXISTS (SELECT 1 FROM apps a WHERE a.id = r.app_id AND a.workspace_id = r.workspace_id)');
+  parts.push(
+    'EXISTS (SELECT 1 FROM apps a WHERE a.id = r.app_id AND a.workspace_id = r.workspace_id)',
+  );
   if (options.cursor) {
     const cursor = decodeCursor(options.cursor, sort);
     if (!cursor) return { error: 'invalid_cursor' };
@@ -321,14 +361,22 @@ export async function listWorkspaceReviews(
       `SELECT id, name, platform FROM apps WHERE workspace_id = ? AND id IN (${appIds.map(() => '?').join(', ')})`,
       [workspaceId, ...appIds],
     );
-    for (const a of appRows) apps.set(String(a.id), { id: String(a.id), name: String(a.name), platform: String(a.platform) as Platform });
+    for (const a of appRows)
+      apps.set(String(a.id), {
+        id: String(a.id),
+        name: String(a.name),
+        platform: String(a.platform) as Platform,
+      });
   }
   const page = reviews.map((r) => ({
     ...r,
     app: apps.get(r.appId) ?? { id: r.appId, name: '', platform: r.platform },
   }));
   const last = reviews[reviews.length - 1];
-  return { reviews: page, nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null };
+  return {
+    reviews: page,
+    nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null,
+  };
 }
 
 export async function getReview(
@@ -356,20 +404,31 @@ export type TriageInput = {
 };
 
 export type TriageResult =
-  | { ok: true; review: Review; changed: string[]; from: { status: ReviewStatus; assigneeUserId: string | null } }
+  | {
+      ok: true;
+      review: Review;
+      changed: string[];
+      from: { status: ReviewStatus; assigneeUserId: string | null };
+    }
   | { ok: false; error: 'not_found' | 'assignee_not_member' };
 
 export async function triageReview(
   sql: Sql,
-  input: { workspaceId: string; appId: string; id: string; actorId: string; at: number } & TriageInput,
+  input: {
+    workspaceId: string;
+    appId: string;
+    id: string;
+    actorId: string;
+    at: number;
+  } & TriageInput,
 ): Promise<TriageResult> {
   const current = await getReview(sql, input.workspaceId, input.appId, input.id);
   if (!current) return { ok: false, error: 'not_found' };
   if (input.assigneeUserId) {
-    const [member] = await sql.query('SELECT user_id FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [
-      input.workspaceId,
-      input.assigneeUserId,
-    ]);
+    const [member] = await sql.query(
+      'SELECT user_id FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
+      [input.workspaceId, input.assigneeUserId],
+    );
     if (!member) return { ok: false, error: 'assignee_not_member' };
   }
   const changed: string[] = [];
@@ -386,7 +445,8 @@ export async function triageReview(
     changed.push('assignee');
   }
   if (input.internalNote !== undefined) {
-    const note = input.internalNote === null || input.internalNote.trim() === '' ? null : input.internalNote;
+    const note =
+      input.internalNote === null || input.internalNote.trim() === '' ? null : input.internalNote;
     if (note !== current.internalNote) {
       sets.push('internal_note = ?');
       params.push(note);
@@ -394,25 +454,41 @@ export async function triageReview(
     }
   }
   if (sets.length > 0) {
-    await sql.execute(`UPDATE app_reviews SET ${sets.join(', ')} WHERE id = ? AND app_id = ? AND workspace_id = ?`, [
-      ...params,
-      input.id,
-      input.appId,
-      input.workspaceId,
-    ]);
+    await sql.execute(
+      `UPDATE app_reviews SET ${sets.join(', ')} WHERE id = ? AND app_id = ? AND workspace_id = ?`,
+      [...params, input.id, input.appId, input.workspaceId],
+    );
   }
   const review = (await getReview(sql, input.workspaceId, input.appId, input.id)) as Review;
-  return { ok: true, review, changed, from: { status: current.status, assigneeUserId: current.assigneeUserId } };
+  return {
+    ok: true,
+    review,
+    changed,
+    from: { status: current.status, assigneeUserId: current.assigneeUserId },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Removal
 
 /** Removes every row about an app's reviews. Called in the transaction that deletes the app. */
-export async function deleteReviewData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
+export async function deleteReviewData(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<void> {
   // The reply drafts first (they point at reviews); the foreign key would cascade anyway.
-  for (const table of ['review_translations', 'review_reply_drafts', 'app_reviews', 'review_sync_state', 'app_rating_summaries']) {
-    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [appId, workspaceId]);
+  for (const table of [
+    'review_translations',
+    'review_reply_drafts',
+    'app_reviews',
+    'review_sync_state',
+    'app_rating_summaries',
+  ]) {
+    await sql.execute(`DELETE FROM ${table} WHERE app_id = ? AND workspace_id = ?`, [
+      appId,
+      workspaceId,
+    ]);
   }
 }
 

@@ -44,7 +44,10 @@ for (const [raw, expected] of appleTable) {
 }
 
 test('mapAppStoreState refines a live version by its phased release', () => {
-  assert.equal(mapAppStoreState('READY_FOR_DISTRIBUTION', { phasedRelease: 'ACTIVE' }), 'rolling_out');
+  assert.equal(
+    mapAppStoreState('READY_FOR_DISTRIBUTION', { phasedRelease: 'ACTIVE' }),
+    'rolling_out',
+  );
   assert.equal(mapAppStoreState('READY_FOR_DISTRIBUTION', { phasedRelease: 'PAUSED' }), 'halted');
   assert.equal(mapAppStoreState('READY_FOR_DISTRIBUTION', { phasedRelease: 'COMPLETE' }), 'live');
   assert.equal(mapAppStoreState('READY_FOR_DISTRIBUTION', { phasedRelease: 'INACTIVE' }), 'live');
@@ -68,12 +71,32 @@ const playTable: [
 ][] = [
   ['draft', { status: 'draft' }, { state: 'draft' }],
   ['draft ignores a stray fraction', { status: 'draft', userFraction: 0.5 }, { state: 'draft' }],
-  ['inProgress with fraction', { status: 'inProgress', userFraction: 0.2 }, { state: 'rolling_out', fraction: 0.2 }],
+  [
+    'inProgress with fraction',
+    { status: 'inProgress', userFraction: 0.2 },
+    { state: 'rolling_out', fraction: 0.2 },
+  ],
   ['inProgress without fraction', { status: 'inProgress' }, { state: 'rolling_out' }],
-  ['inProgress with nonsense fraction', { status: 'inProgress', userFraction: 0 }, { state: 'rolling_out' }],
-  ['inProgress with fraction above 1', { status: 'inProgress', userFraction: 1.5 }, { state: 'rolling_out' }],
-  ['inProgress with NaN fraction', { status: 'inProgress', userFraction: Number.NaN }, { state: 'rolling_out' }],
-  ['halted keeps its fraction', { status: 'halted', userFraction: 0.5 }, { state: 'halted', fraction: 0.5 }],
+  [
+    'inProgress with nonsense fraction',
+    { status: 'inProgress', userFraction: 0 },
+    { state: 'rolling_out' },
+  ],
+  [
+    'inProgress with fraction above 1',
+    { status: 'inProgress', userFraction: 1.5 },
+    { state: 'rolling_out' },
+  ],
+  [
+    'inProgress with NaN fraction',
+    { status: 'inProgress', userFraction: Number.NaN },
+    { state: 'rolling_out' },
+  ],
+  [
+    'halted keeps its fraction',
+    { status: 'halted', userFraction: 0.5 },
+    { state: 'halted', fraction: 0.5 },
+  ],
   ['halted without fraction', { status: 'halted' }, { state: 'halted' }],
   ['completed', { status: 'completed' }, { state: 'live' }],
   ['completed ignores fraction', { status: 'completed', userFraction: 0.5 }, { state: 'live' }],

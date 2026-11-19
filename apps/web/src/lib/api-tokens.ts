@@ -1,4 +1,4 @@
-import { type Action, type Role, type TokenRole, can, tokenActions, tokenRoles } from '@mrm/core';
+import { type Action, can, type Role, type TokenRole, tokenActions, tokenRoles } from '@mrm/core';
 import { fullTime, timeAgo } from './format.ts';
 import type { ApiToken } from './types.ts';
 
@@ -13,8 +13,10 @@ export const tokenRoleLabel: Record<TokenRole, string> = {
 /** One line per ceiling, for the form: what a token with this role can do at most. */
 export const tokenRoleHelp: Record<TokenRole, string> = {
   viewer: 'Reads apps, releases, listings, plans and events. Changes nothing.',
-  member: 'Also drafts change sets, syncs apps, edits plans and starts CI workflows. Cannot approve.',
-  admin: 'Also approves and applies change sets and adds apps. Still cannot manage tokens, people or secrets.',
+  member:
+    'Also drafts change sets, syncs apps, edits plans and starts CI workflows. Cannot approve.',
+  admin:
+    'Also approves and applies change sets and adds apps. Still cannot manage tokens, people or secrets.',
 };
 
 /** The ceilings a person may hand out: never above their own role, never owner. */
@@ -75,14 +77,22 @@ export type TokenFormProblems = { name?: string; actions?: string };
 export function validateTokenForm(form: TokenForm): TokenFormProblems {
   const problems: TokenFormProblems = {};
   const name = form.name.trim();
-  if (!name) problems.name = 'Give the token a name, such as the script or service that will use it.';
+  if (!name)
+    problems.name = 'Give the token a name, such as the script or service that will use it.';
   else if (name.length > 100) problems.name = 'Use at most 100 characters.';
   const allowed = new Set<string>(narrowableActions(form.role));
-  if (form.actions.some((a) => !allowed.has(a))) problems.actions = 'Some chosen actions are not allowed for this role.';
+  if (form.actions.some((a) => !allowed.has(a)))
+    problems.actions = 'Some chosen actions are not allowed for this role.';
   return problems;
 }
 
-export type CreateTokenInput = { name: string; role: TokenRole; appIds?: string[]; actions?: string[]; expiresAt?: number };
+export type CreateTokenInput = {
+  name: string;
+  role: TokenRole;
+  appIds?: string[];
+  actions?: string[];
+  expiresAt?: number;
+};
 
 /** The request body: lists that are empty mean "no limit" and are left out. */
 export function createInput(form: TokenForm, now: number = Date.now()): CreateTokenInput {
@@ -96,14 +106,26 @@ export function createInput(form: TokenForm, now: number = Date.now()): CreateTo
   };
 }
 
-export type TokenStatusView = { label: string; tone: 'ok' | 'bad' | 'warn' | 'neutral'; title: string };
+export type TokenStatusView = {
+  label: string;
+  tone: 'ok' | 'bad' | 'warn' | 'neutral';
+  title: string;
+};
 
 export function tokenStatus(token: ApiToken, now: number = Date.now()): TokenStatusView {
   if (token.status === 'revoked') {
-    return { label: 'Revoked', tone: 'neutral', title: token.revokedAt ? `Revoked ${fullTime(token.revokedAt)}.` : 'Revoked.' };
+    return {
+      label: 'Revoked',
+      tone: 'neutral',
+      title: token.revokedAt ? `Revoked ${fullTime(token.revokedAt)}.` : 'Revoked.',
+    };
   }
   if (token.status === 'expired') {
-    return { label: 'Expired', tone: 'bad', title: token.expiresAt ? `Expired ${fullTime(token.expiresAt)}.` : 'Expired.' };
+    return {
+      label: 'Expired',
+      tone: 'bad',
+      title: token.expiresAt ? `Expired ${fullTime(token.expiresAt)}.` : 'Expired.',
+    };
   }
   if (token.expiresAt !== null && token.expiresAt - now < 7 * DAY) {
     return { label: 'Expires soon', tone: 'warn', title: `Expires ${fullTime(token.expiresAt)}.` };
@@ -124,9 +146,14 @@ export function expiryLabel(token: ApiToken, now: number = Date.now()): string {
 
 /** What the token is limited to, as a short phrase: "all apps · all actions of the role". */
 export function scopeSummary(token: Pick<ApiToken, 'appIds' | 'actions'>): string {
-  const apps = token.appIds === null ? 'All apps' : `${token.appIds.length} app${token.appIds.length === 1 ? '' : 's'}`;
+  const apps =
+    token.appIds === null
+      ? 'All apps'
+      : `${token.appIds.length} app${token.appIds.length === 1 ? '' : 's'}`;
   const acts =
-    token.actions === null ? 'all actions of the role' : `${token.actions.length} action${token.actions.length === 1 ? '' : 's'}`;
+    token.actions === null
+      ? 'all actions of the role'
+      : `${token.actions.length} action${token.actions.length === 1 ? '' : 's'}`;
   return `${apps} · ${acts}`;
 }
 

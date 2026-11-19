@@ -137,7 +137,10 @@ async function inFlight(db: Database): Promise<{ apps: Set<string>; credentials:
   const credentials = new Set<string>();
   for (const row of rows) {
     try {
-      const payload = JSON.parse(String(row.payload)) as { appId?: unknown; credentialId?: unknown } | null;
+      const payload = JSON.parse(String(row.payload)) as {
+        appId?: unknown;
+        credentialId?: unknown;
+      } | null;
       if (typeof payload?.appId === 'string') apps.add(payload.appId);
       if (String(row.queue) === LISTING_READ_QUEUE && typeof payload?.credentialId === 'string') {
         credentials.add(payload.credentialId);
@@ -167,7 +170,8 @@ export async function queueListingReads(
   const perWorkspace = options.perWorkspace ?? DEFAULT_LISTING_PER_WORKSPACE;
   const spacing = options.spacingMs ?? DEFAULT_LISTING_SPACING_MS;
   const maxJitter = options.maxJitterMs ?? Math.min(MINUTE, Math.floor(intervalMs / 10));
-  const jitter = options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
+  const jitter =
+    options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
 
   // Apps with a credential that still exists, the longest unattempted first.
   const apps = await db.query(
@@ -187,9 +191,14 @@ export async function queueListingReads(
     const due = listingDueAt(
       intervalMs,
       {
-        readAt: app.listing_read_at === null || app.listing_read_at === undefined ? null : Number(app.listing_read_at),
+        readAt:
+          app.listing_read_at === null || app.listing_read_at === undefined
+            ? null
+            : Number(app.listing_read_at),
         attemptAt:
-          app.listing_attempt_at === null || app.listing_attempt_at === undefined ? null : Number(app.listing_attempt_at),
+          app.listing_attempt_at === null || app.listing_attempt_at === undefined
+            ? null
+            : Number(app.listing_attempt_at),
       },
       Number(app.listing_failures ?? 0),
     );
@@ -215,8 +224,14 @@ export async function queueListingReads(
       continue;
     }
     const delay =
-      summary.queued * spacing + Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
-    const payload: ListingReadPayload = { workspaceId, appId: id, credentialId, requestedBy: 'scheduler' };
+      summary.queued * spacing +
+      Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
+    const payload: ListingReadPayload = {
+      workspaceId,
+      appId: id,
+      credentialId,
+      requestedBy: 'scheduler',
+    };
     await enqueue(db, LISTING_READ_QUEUE, payload, { now: at, runAt: at + delay });
     busy.apps.add(id);
     busy.credentials.add(credentialId);
@@ -238,14 +253,21 @@ export type ListingReadContext = AppsContext & {
 const running = new Set<string>();
 
 /** Another running `app.listing` job for the same credential (not this one). */
-async function credentialInUse(db: Database, job: Pick<Job, 'id'>, credentialId: string): Promise<boolean> {
-  const rows = await db.query("SELECT id, payload FROM jobs WHERE queue = ? AND status = 'running' AND id <> ?", [
-    LISTING_READ_QUEUE,
-    job.id,
-  ]);
+async function credentialInUse(
+  db: Database,
+  job: Pick<Job, 'id'>,
+  credentialId: string,
+): Promise<boolean> {
+  const rows = await db.query(
+    "SELECT id, payload FROM jobs WHERE queue = ? AND status = 'running' AND id <> ?",
+    [LISTING_READ_QUEUE, job.id],
+  );
   return rows.some((row) => {
     try {
-      return (JSON.parse(String(row.payload)) as { credentialId?: unknown } | null)?.credentialId === credentialId;
+      return (
+        (JSON.parse(String(row.payload)) as { credentialId?: unknown } | null)?.credentialId ===
+        credentialId
+      );
     } catch {
       return false;
     }
@@ -269,10 +291,10 @@ export async function claimListingRead(
     [at, appId, workspaceId, at - CLAIM_GUARD_MS],
   );
   if (changed > 0) return true;
-  const [row] = await db.query('SELECT app_id FROM app_listing_status WHERE app_id = ? AND workspace_id = ?', [
-    appId,
-    workspaceId,
-  ]);
+  const [row] = await db.query(
+    'SELECT app_id FROM app_listing_status WHERE app_id = ? AND workspace_id = ?',
+    [appId, workspaceId],
+  );
   if (row) return false;
   try {
     await db.execute(
@@ -319,9 +341,14 @@ export async function runListingRead(
     const due = listingDueAt(
       ctx.intervalMs,
       {
-        readAt: row?.listing_read_at === null || row?.listing_read_at === undefined ? null : Number(row.listing_read_at),
+        readAt:
+          row?.listing_read_at === null || row?.listing_read_at === undefined
+            ? null
+            : Number(row.listing_read_at),
         attemptAt:
-          row?.listing_attempt_at === null || row?.listing_attempt_at === undefined ? null : Number(row.listing_attempt_at),
+          row?.listing_attempt_at === null || row?.listing_attempt_at === undefined
+            ? null
+            : Number(row.listing_attempt_at),
       },
       Number(row?.listing_failures ?? 0),
     );
@@ -331,24 +358,33 @@ export async function runListingRead(
   // One read per credential at a time.
   const deferrals = payload.deferrals ?? 0;
   if (deferrals < MAX_DEFERRALS && (await credentialInUse(db, job, app.credentialId))) {
-    await enqueue(db, LISTING_READ_QUEUE, { ...payload, deferrals: deferrals + 1 }, { now: at, runAt: at + DEFER_MS });
+    await enqueue(
+      db,
+      LISTING_READ_QUEUE,
+      { ...payload, deferrals: deferrals + 1 },
+      { now: at, runAt: at + DEFER_MS },
+    );
     return { status: 'skipped', reason: 'deferred' };
   }
 
   running.add(app.id);
   try {
-    if (!(await claimListingRead(db, workspaceId, app.id, at))) return { status: 'skipped', reason: 'claimed' };
+    if (!(await claimListingRead(db, workspaceId, app.id, at)))
+      return { status: 'skipped', reason: 'claimed' };
     const actor = { type: 'system' as ActorType, id: LISTING_READ_QUEUE };
     const fail = async (error: string): Promise<ListingReadOutcome> => {
       await recordListingFailure(db, workspaceId, app.id, error, ctx.now());
       return { status: 'failed', error };
     };
 
-    const [credential] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
-      app.credentialId,
-      workspaceId,
-    ]);
-    if (!credential) return fail('The credential of this app no longer exists. Add the app again with a new credential.');
+    const [credential] = await db.query(
+      'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+      [app.credentialId, workspaceId],
+    );
+    if (!credential)
+      return fail(
+        'The credential of this app no longer exists. Add the app again with a new credential.',
+      );
     const kind = String(credential.kind);
     if (kind !== credentialKindFor[app.platform]) {
       return fail("This app's credential is not the kind its platform needs.");
@@ -362,7 +398,9 @@ export async function runListingRead(
         trigger: 'job',
         requestedBy: payload.requestedBy,
       });
-      return done.ok ? { status: 'skipped', reason: 'synced' } : { status: 'skipped', reason: 'unsupported' };
+      return done.ok
+        ? { status: 'skipped', reason: 'synced' }
+        : { status: 'skipped', reason: 'unsupported' };
     }
     let secret: string | undefined;
     try {
@@ -384,7 +422,9 @@ export async function runListingRead(
     const guardedFetch: typeof fetch = (input, init) =>
       baseFetch(input, {
         ...init,
-        signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+        signal: init?.signal
+          ? AbortSignal.any([init.signal, controller.signal])
+          : controller.signal,
       });
     let connector: StoreConnector;
     try {
@@ -424,11 +464,7 @@ export async function runListingRead(
 export function createListingReadHandler(ctx: ListingReadContext): JobHandler {
   return async (payload, job) => {
     if (!isPayload(payload)) return;
-    await runListingRead(
-      { ...ctx, timeoutMs: ctx.timeoutMs },
-      payload,
-      job,
-    );
+    await runListingRead({ ...ctx, timeoutMs: ctx.timeoutMs }, payload, job);
   };
 }
 

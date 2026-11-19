@@ -102,7 +102,8 @@ export function problemsByPath(problems: readonly AssetProblem[]): Record<string
 
 export function worstSeverity(problems: readonly AssetProblem[]): AssetProblem['severity'] | null {
   let worst: AssetProblem['severity'] | null = null;
-  for (const p of problems) if (worst === null || SEVERITY_RANK[p.severity] < SEVERITY_RANK[worst]) worst = p.severity;
+  for (const p of problems)
+    if (worst === null || SEVERITY_RANK[p.severity] < SEVERITY_RANK[worst]) worst = p.severity;
   return worst;
 }
 
@@ -110,7 +111,12 @@ export function worstSeverity(problems: readonly AssetProblem[]): AssetProblem['
 // Thumbnails
 
 /** The file route of an asset (same origin). The commit makes the response cacheable for good. */
-export function assetFileUrl(workspaceId: string, appId: string, path: string, commit: string | null): string {
+export function assetFileUrl(
+  workspaceId: string,
+  appId: string,
+  path: string,
+  commit: string | null,
+): string {
   const base = `/api/workspaces/${encodeURIComponent(workspaceId)}/apps/${encodeURIComponent(appId)}/assets/file`;
   const query = `?path=${encodeURIComponent(path)}${commit ? `&commit=${encodeURIComponent(commit)}` : ''}`;
   return base + query;
@@ -170,7 +176,15 @@ export type LocaleGroup = {
 };
 
 const KIND_ORDER: Record<string, number> = {};
-['screenshot', 'preview', 'feature_graphic', 'promo_graphic', 'tv_banner', 'icon', 'app_icon'].forEach((k, i) => {
+[
+  'screenshot',
+  'preview',
+  'feature_graphic',
+  'promo_graphic',
+  'tv_banner',
+  'icon',
+  'app_icon',
+].forEach((k, i) => {
   KIND_ORDER[k] = i;
 });
 
@@ -179,7 +193,10 @@ export function groupKey(locale: string, kind: AssetKind, device: string | null)
 }
 
 /** An asset passes the filter when it matches the locale, the device and the kind of it. */
-export function matchesFilter(asset: { locale: string; device: string | null; kind: AssetKind }, filter: AssetFilter): boolean {
+export function matchesFilter(
+  asset: { locale: string; device: string | null; kind: AssetKind },
+  filter: AssetFilter,
+): boolean {
   if (filter.locale !== ALL && asset.locale !== filter.locale) return false;
   if (filter.kind !== ALL && asset.kind !== filter.kind) return false;
   if (filter.device !== ALL && (asset.device ?? '') !== filter.device) return false;
@@ -191,7 +208,10 @@ export function matchesFilter(asset: { locale: string; device: string | null; ki
  * a set only when it has files) are not made up. Locale folders sort by name; the project's own
  * files come last.
  */
-export function groupAssets(index: Pick<AssetIndex, 'assets' | 'sets' | 'problems'>, filter: AssetFilter = NO_FILTER): LocaleGroup[] {
+export function groupAssets(
+  index: Pick<AssetIndex, 'assets' | 'sets' | 'problems'>,
+  filter: AssetFilter = NO_FILTER,
+): LocaleGroup[] {
   const sets: Record<string, AssetSet> = {};
   for (const set of index.sets) sets[groupKey(set.locale, set.kind, set.device)] = set;
   const groups: Record<string, DeviceGroup> = {};
@@ -234,7 +254,13 @@ export function groupAssets(index: Pick<AssetIndex, 'assets' | 'sets' | 'problem
     const locale = (group.assets[0] as AssetItem).locale;
     let entry = byLocale[locale];
     if (!entry) {
-      entry = { locale, label: localeLabel(locale), isLocale: !NO_LOCALE.has(locale), groups: [], assetCount: 0 };
+      entry = {
+        locale,
+        label: localeLabel(locale),
+        isLocale: !NO_LOCALE.has(locale),
+        groups: [],
+        assetCount: 0,
+      };
       byLocale[locale] = entry;
       locales.push(locale);
     }
@@ -261,7 +287,11 @@ export function groupAssets(index: Pick<AssetIndex, 'assets' | 'sets' | 'problem
 
 export type FilterOption = { value: string; label: string };
 
-export type FilterOptions = { locales: FilterOption[]; devices: FilterOption[]; kinds: FilterOption[] };
+export type FilterOptions = {
+  locales: FilterOption[];
+  devices: FilterOption[];
+  kinds: FilterOption[];
+};
 
 /** Only values that occur in the index are offered, so no choice gives an empty gallery. */
 export function filterOptions(index: Pick<AssetIndex, 'assets'>): FilterOptions {
@@ -278,7 +308,10 @@ export function filterOptions(index: Pick<AssetIndex, 'assets'>): FilterOptions 
     }
     if (!kinds.includes(asset.kind)) kinds.push(asset.kind);
   }
-  locales.sort((a, b) => (NO_LOCALE.has(a) ? 1 : 0) - (NO_LOCALE.has(b) ? 1 : 0) || (a < b ? -1 : a > b ? 1 : 0));
+  locales.sort(
+    (a, b) =>
+      (NO_LOCALE.has(a) ? 1 : 0) - (NO_LOCALE.has(b) ? 1 : 0) || (a < b ? -1 : a > b ? 1 : 0),
+  );
   deviceIds.sort((a, b) => ((devices[a] as string) < (devices[b] as string) ? -1 : 1));
   kinds.sort((a, b) => (KIND_ORDER[a] ?? 99) - (KIND_ORDER[b] ?? 99));
   return {
@@ -290,7 +323,8 @@ export function filterOptions(index: Pick<AssetIndex, 'assets'>): FilterOptions 
 
 /** A filter whose values are no longer in the index (after a reload) falls back to everything. */
 export function sanitizeFilter(filter: AssetFilter, options: FilterOptions): AssetFilter {
-  const has = (list: FilterOption[], value: string) => value === ALL || list.some((o) => o.value === value);
+  const has = (list: FilterOption[], value: string) =>
+    value === ALL || list.some((o) => o.value === value);
   return {
     locale: has(options.locales, filter.locale) ? filter.locale : ALL,
     device: has(options.devices, filter.device) ? filter.device : ALL,
@@ -336,11 +370,22 @@ export const NOT_COMPARED = 'Not yet compared with the store';
  * The repository count of a set next to what the store has. `storeSide` is null until the listing
  * reads supply it: then the answer is "not yet compared", never a guess.
  */
-export function compareWithStore(storeSide: AssetIndex['storeSide'], group: Pick<DeviceGroup, 'count' | 'kind' | 'device'>, locale: string): StoreCompare {
+export function compareWithStore(
+  storeSide: AssetIndex['storeSide'],
+  group: Pick<DeviceGroup, 'count' | 'kind' | 'device'>,
+  locale: string,
+): StoreCompare {
   if (!storeSide) return { state: 'not_compared', text: NOT_COMPARED };
-  const entry = storeSide.counts.find((c) => c.locale === locale && c.kind === group.kind && (c.device ?? '') === (group.device ?? ''));
+  const entry = storeSide.counts.find(
+    (c) =>
+      c.locale === locale && c.kind === group.kind && (c.device ?? '') === (group.device ?? ''),
+  );
   if (!entry) return { state: 'not_compared', text: NOT_COMPARED };
   return entry.count === group.count
     ? { state: 'same', text: `The store has ${entry.count}, the same`, storeCount: entry.count }
-    : { state: 'differs', text: `The store has ${entry.count}, the repository ${group.count}`, storeCount: entry.count };
+    : {
+        state: 'differs',
+        text: `The store has ${entry.count}, the repository ${group.count}`,
+        storeCount: entry.count,
+      };
 }

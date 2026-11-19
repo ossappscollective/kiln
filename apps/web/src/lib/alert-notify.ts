@@ -10,7 +10,9 @@
 type Internals = { invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown> };
 
 const internals = (): Internals | undefined =>
-  typeof window === 'undefined' ? undefined : (window as unknown as { __TAURI_INTERNALS__?: Internals }).__TAURI_INTERNALS__;
+  typeof window === 'undefined'
+    ? undefined
+    : (window as unknown as { __TAURI_INTERNALS__?: Internals }).__TAURI_INTERNALS__;
 
 /** True inside the desktop shell. */
 export const inDesktopShell = (): boolean => internals() !== undefined;
@@ -21,13 +23,19 @@ export async function notificationState(): Promise<NotifyState> {
   const tauri = internals();
   if (tauri) {
     try {
-      return (await tauri.invoke('plugin:notification|is_permission_granted')) === true ? 'granted' : 'default';
+      return (await tauri.invoke('plugin:notification|is_permission_granted')) === true
+        ? 'granted'
+        : 'default';
     } catch {
       return 'unsupported';
     }
   }
   if (typeof Notification === 'undefined') return 'unsupported';
-  return Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'default';
+  return Notification.permission === 'granted'
+    ? 'granted'
+    : Notification.permission === 'denied'
+      ? 'denied'
+      : 'default';
 }
 
 /** Asks the person (call it from a click). Returns the state afterwards. */

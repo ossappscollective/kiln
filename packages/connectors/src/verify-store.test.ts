@@ -15,7 +15,8 @@ const ascSecret = (over: Record<string, string> = {}) =>
     privateKey: apple.privateKey,
     ...over,
   });
-const playSecret = () => buildSecret('google_play', { serviceAccount: fx.serviceAccountJson(google.privateKey) });
+const playSecret = () =>
+  buildSecret('google_play', { serviceAccount: fx.serviceAccountJson(google.privateKey) });
 
 function everything(result: { message: string; details?: string[] | undefined }): string {
   return [result.message, ...(result.details ?? [])].join('\n');
@@ -36,7 +37,8 @@ function assertClean(result: { message: string; details?: string[] | undefined }
   for (const pem of [parsed.privateKey, parsed.private_key]) {
     if (typeof pem !== 'string') continue;
     for (const line of pem.split('\n')) {
-      if (line.length >= 8 && !line.startsWith('-----')) assert.ok(!text.includes(line), 'no key line');
+      if (line.length >= 8 && !line.startsWith('-----'))
+        assert.ok(!text.includes(line), 'no key line');
     }
   }
   assert.ok(!/eyJ[A-Za-z0-9_-]{8,}\./.test(text), 'no JWT');
@@ -49,7 +51,11 @@ const opts = (fake: fx.FakeFetch) => ({ fetch: fake.fetch, now: () => T0 });
 // App Store Connect
 
 test('ASC: a working key is ok, with the app count and what was not checked', async () => {
-  const fake = new fx.FakeFetch().on({ method: 'GET', match: '/v1/apps?limit=1', json: fx.appleAppsOne });
+  const fake = new fx.FakeFetch().on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    json: fx.appleAppsOne,
+  });
   const result = await verifyAppStoreConnectCredential(ascSecret(), opts(fake));
   assert.equal(result.ok, true);
   assert.match(result.message, /can see 431 apps/);
@@ -61,14 +67,23 @@ test('ASC: a working key is ok, with the app count and what was not checked', as
 });
 
 test('ASC: a key that sees no apps is ok, and says so', async () => {
-  const fake = new fx.FakeFetch().on({ method: 'GET', match: '/v1/apps?limit=1', json: fx.appleAppsEmpty });
+  const fake = new fx.FakeFetch().on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    json: fx.appleAppsEmpty,
+  });
   const result = await verifyAppStoreConnectCredential(ascSecret(), opts(fake));
   assert.equal(result.ok, true);
   assert.match(result.message, /no apps yet/);
 });
 
 test('ASC: 401 is a wrong key or issuer, with format hints when the values look odd', async () => {
-  const fake = new fx.FakeFetch().on({ method: 'GET', match: '/v1/apps?limit=1', status: 401, json: fx.apple401 });
+  const fake = new fx.FakeFetch().on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    status: 401,
+    json: fx.apple401,
+  });
   const secret = ascSecret({ keyId: 'abc', issuerId: 'not-a-uuid' });
   const result = await verifyAppStoreConnectCredential(secret, opts(fake));
   assert.equal(result.ok, false);
@@ -95,7 +110,12 @@ test('ASC: 401 with a skewed clock is reported as clock skew', async () => {
 });
 
 test('ASC: 403 is a role or revoked key', async () => {
-  const fake = new fx.FakeFetch().on({ method: 'GET', match: '/v1/apps?limit=1', status: 403, json: fx.apple403 });
+  const fake = new fx.FakeFetch().on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    status: 403,
+    json: fx.apple403,
+  });
   const result = await verifyAppStoreConnectCredential(ascSecret(), opts(fake));
   assert.equal(result.ok, false);
   assert.match(result.message, /role/);
@@ -104,7 +124,10 @@ test('ASC: 403 is a role or revoked key', async () => {
 
 test('ASC: 429, 5xx, malformed JSON and network failure each have their own message', async () => {
   const cases: [Partial<fx.Route>, RegExp][] = [
-    [{ status: 429, json: fx.apple429, headers: { 'retry-after': '30' } }, /rate limit.*30 seconds/i],
+    [
+      { status: 429, json: fx.apple429, headers: { 'retry-after': '30' } },
+      /rate limit.*30 seconds/i,
+    ],
     [{ status: 502, raw: 'bad gateway' }, /failed.*502/],
     [{ status: 200, raw: '<html>' }, /could not be read/],
     [{ throws: new Error('boom') }, /Could not reach api\.appstoreconnect\.apple\.com/],
@@ -123,7 +146,10 @@ test('ASC: malformed secrets are caught before any request', async () => {
   const cases: [string, RegExp][] = [
     ['not json', /could not be read/],
     [JSON.stringify({ keyId: '', issuerId: fx.ISSUER_ID, privateKey: apple.privateKey }), /Key ID/],
-    [ascSecret({ privateKey: '-----BEGIN PRIVATE KEY-----\nQUJD\n-----END PRIVATE KEY-----' }), /\.p8/],
+    [
+      ascSecret({ privateKey: '-----BEGIN PRIVATE KEY-----\nQUJD\n-----END PRIVATE KEY-----' }),
+      /\.p8/,
+    ],
     [ascSecret({ privateKey: google.privateKey }), /P-256/],
   ];
   for (const [secret, pattern] of cases) {
@@ -150,7 +176,10 @@ test('Play: with a package, the key, the API and access to the app are proven, a
   const fake = playFake()
     .on({ method: 'POST', match: PKG_EDITS, json: fx.googleEdit })
     .on({ method: 'DELETE', match: `${PKG_EDITS}/${fx.googleEdit.id}`, json: {} });
-  const result = await verifyGooglePlayCredential(playSecret(), { ...opts(fake), packageName: PKG });
+  const result = await verifyGooglePlayCredential(playSecret(), {
+    ...opts(fake),
+    packageName: PKG,
+  });
   assert.equal(result.ok, true);
   assert.match(result.message, /can open an edit for com\.example\.coffee/);
   assert.match(result.message, /deleted without any change/);
@@ -164,18 +193,33 @@ test('Play: with a package, the key, the API and access to the app are proven, a
 });
 
 test('Play: without a package it says plainly what is not proven', async () => {
-  const fake = playFake().on({ method: 'POST', match: PROBE, status: 404, json: fx.google404Package });
+  const fake = playFake().on({
+    method: 'POST',
+    match: PROBE,
+    status: 404,
+    json: fx.google404Package,
+  });
   const result = await verifyGooglePlayCredential(playSecret(), opts(fake));
   assert.equal(result.ok, true);
   assert.match(result.message, /Access to your apps is not proven/);
   assert.match(result.message, /no call that lists apps/);
-  assert.ok(result.details?.some((d) => /Not checked: that this service account was invited/.test(d)));
+  assert.ok(
+    result.details?.some((d) => /Not checked: that this service account was invited/.test(d)),
+  );
   // Only the token and one rejected edit insert: nothing to delete, nothing read.
-  assert.deepEqual(fake.calls.map((c) => c.method), ['POST', 'POST']);
+  assert.deepEqual(
+    fake.calls.map((c) => c.method),
+    ['POST', 'POST'],
+  );
 });
 
 test('Play: a 403 for the probe package also means "API reachable, access unknown"', async () => {
-  const fake = playFake().on({ method: 'POST', match: PROBE, status: 403, json: fx.google403Forbidden });
+  const fake = playFake().on({
+    method: 'POST',
+    match: PROBE,
+    status: 403,
+    json: fx.google403Forbidden,
+  });
   const result = await verifyGooglePlayCredential(playSecret(), opts(fake));
   assert.equal(result.ok, true);
   assert.match(result.message, /not proven/);
@@ -197,22 +241,43 @@ test('Play: the API not being enabled is a failure that names the fix', async ()
 });
 
 test('Play: with a package, no permission means the account was not invited for that app', async () => {
-  const fake = playFake().on({ method: 'POST', match: PKG_EDITS, status: 403, json: fx.google403Forbidden });
-  const result = await verifyGooglePlayCredential(playSecret(), { ...opts(fake), packageName: PKG });
+  const fake = playFake().on({
+    method: 'POST',
+    match: PKG_EDITS,
+    status: 403,
+    json: fx.google403Forbidden,
+  });
+  const result = await verifyGooglePlayCredential(playSecret(), {
+    ...opts(fake),
+    packageName: PKG,
+  });
   assert.equal(result.ok, false);
   assert.match(result.message, /no access to com\.example\.coffee/);
   assert.match(result.message, /Users and permissions/);
 });
 
 test('Play: with a package, 404 means the app is not visible', async () => {
-  const fake = playFake().on({ method: 'POST', match: PKG_EDITS, status: 404, json: fx.google404Package });
-  const result = await verifyGooglePlayCredential(playSecret(), { ...opts(fake), packageName: PKG });
+  const fake = playFake().on({
+    method: 'POST',
+    match: PKG_EDITS,
+    status: 404,
+    json: fx.google404Package,
+  });
+  const result = await verifyGooglePlayCredential(playSecret(), {
+    ...opts(fake),
+    packageName: PKG,
+  });
   assert.equal(result.ok, false);
   assert.match(result.message, /no app com\.example\.coffee/);
 });
 
 test('Play: projectNotLinked is a failure, not a pass, even for the probe', async () => {
-  const fake = playFake().on({ method: 'POST', match: PROBE, status: 403, json: fx.google403NotLinked });
+  const fake = playFake().on({
+    method: 'POST',
+    match: PROBE,
+    status: 403,
+    json: fx.google403NotLinked,
+  });
   const result = await verifyGooglePlayCredential(playSecret(), opts(fake));
   assert.equal(result.ok, false);
   assert.match(result.message, /not linked/);
@@ -232,7 +297,12 @@ test('Play: invalid_grant from the token endpoint, with clock skew and without',
   assert.match(a.message, /clock/);
   assert.equal(skew.calls.length, 1, 'no Play request after a failed token exchange');
 
-  const sig = new fx.FakeFetch().on({ method: 'POST', match: '/token', status: 400, json: fx.googleTokenErrors.signature });
+  const sig = new fx.FakeFetch().on({
+    method: 'POST',
+    match: '/token',
+    status: 400,
+    json: fx.googleTokenErrors.signature,
+  });
   const b = await verifyGooglePlayCredential(playSecret(), opts(sig));
   assert.equal(b.ok, false);
   assert.match(b.message, /deleted or disabled/);
@@ -245,11 +315,21 @@ test('Play: bad secrets and package names are caught before any request', async 
   const cases: [string, string | undefined, RegExp][] = [
     ['nope', undefined, /not valid JSON/],
     [JSON.stringify({ ...json, client_email: '' }), undefined, /client_email/],
-    [JSON.stringify({ ...json, private_key: '-----BEGIN PRIVATE KEY-----\nQUJD\n-----END PRIVATE KEY-----' }), undefined, /could not be read/],
+    [
+      JSON.stringify({
+        ...json,
+        private_key: '-----BEGIN PRIVATE KEY-----\nQUJD\n-----END PRIVATE KEY-----',
+      }),
+      undefined,
+      /could not be read/,
+    ],
     [fx.serviceAccountJson(google.privateKey), '../x', /not a valid Android package name/],
   ];
   for (const [secret, packageName, pattern] of cases) {
-    const result = await verifyGooglePlayCredential(secret, { ...opts(fake), ...(packageName ? { packageName } : {}) });
+    const result = await verifyGooglePlayCredential(secret, {
+      ...opts(fake),
+      ...(packageName ? { packageName } : {}),
+    });
     assert.equal(result.ok, false);
     assert.match(result.message, pattern);
     assertClean(result, secret);
@@ -264,7 +344,10 @@ test('Play: a hostile error body cannot smuggle the token or key into the result
     status: 400,
     json: { error: { code: 400, message: `${fx.ACCESS_TOKEN} ${google.privateKey}` } },
   });
-  const result = await verifyGooglePlayCredential(playSecret(), { ...opts(fake), packageName: PKG });
+  const result = await verifyGooglePlayCredential(playSecret(), {
+    ...opts(fake),
+    packageName: PKG,
+  });
   assert.equal(result.ok, false);
   assertClean(result, playSecret());
   assert.ok(!everything(result).includes(fx.ACCESS_TOKEN));

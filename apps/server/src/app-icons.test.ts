@@ -1,23 +1,44 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { isPlainRelativePath, matchesEtag, safeImageHeaders } from './routes/assets.ts';
 import type { IconRow } from './services/app-icon-store.ts';
 import {
+  checkIconBytes,
   EMPTY_BACKOFF_MS,
+  failureBackoffMs,
   ICON_MAX_BYTES,
+  lookDue,
+  pickRepositoryIcon,
   REMOTE_RECHECK_REPO_MS,
   REMOTE_REFRESH_MS,
   REPO_RECHECK_MS,
-  checkIconBytes,
-  failureBackoffMs,
-  lookDue,
-  pickRepositoryIcon,
 } from './services/app-icons.ts';
-import { isPlainRelativePath, matchesEtag, safeImageHeaders } from './routes/assets.ts';
 
 const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
 const text = (s: string) => [...s].map((c) => c.charCodeAt(0));
 const png = (w: number, h: number, pad = 0) =>
-  Uint8Array.from([0x89, ...text('PNG'), 0x0d, 0x0a, 0x1a, 0x0a, ...be32(13), ...text('IHDR'), ...be32(w), ...be32(h), 8, 6, 0, 0, 0, 0, 0, 0, 0, ...new Array(pad).fill(0)]);
+  Uint8Array.from([
+    0x89,
+    ...text('PNG'),
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    ...be32(13),
+    ...text('IHDR'),
+    ...be32(w),
+    ...be32(h),
+    8,
+    6,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    ...new Array(pad).fill(0),
+  ]);
 
 type A = Parameters<typeof pickRepositoryIcon>[0]['assets'][number];
 const asset = (patch: Partial<A>): A => ({
@@ -41,9 +62,27 @@ const asset = (patch: Partial<A>): A => ({
 test('the icon of the repository: store icon before project icon, en-US first, then the larger', () => {
   const pick = (assets: A[]) => pickRepositoryIcon({ assets })?.path;
   assert.equal(pick([]), undefined);
-  assert.equal(pick([asset({ path: 'app', kind: 'app_icon', origin: 'project', width: 1024, height: 1024 }), asset({ path: 'store' })]), 'store');
-  assert.equal(pick([asset({ path: 'de', locale: 'de-DE', width: 1024, height: 1024 }), asset({ path: 'en' })]), 'en');
-  assert.equal(pick([asset({ path: 'small', width: 128, height: 128 }), asset({ path: 'large', width: 512, height: 512 })]), 'large');
+  assert.equal(
+    pick([
+      asset({ path: 'app', kind: 'app_icon', origin: 'project', width: 1024, height: 1024 }),
+      asset({ path: 'store' }),
+    ]),
+    'store',
+  );
+  assert.equal(
+    pick([
+      asset({ path: 'de', locale: 'de-DE', width: 1024, height: 1024 }),
+      asset({ path: 'en' }),
+    ]),
+    'en',
+  );
+  assert.equal(
+    pick([
+      asset({ path: 'small', width: 128, height: 128 }),
+      asset({ path: 'large', width: 512, height: 512 }),
+    ]),
+    'large',
+  );
   assert.equal(pick([asset({ path: 'b' }), asset({ path: 'a' })]), 'a', 'a tie is broken by path');
   assert.equal(pick([asset({ path: 'app', kind: 'app_icon', origin: 'project' })]), 'app');
 });
@@ -68,7 +107,10 @@ test('files that cannot be an icon are never picked', () => {
 });
 
 test('icon bytes: sniffed type, square, big enough, small enough', () => {
-  assert.deepEqual(checkIconBytes(png(512, 512)), { ok: true, image: { mediaType: 'image/png', width: 512, height: 512 } });
+  assert.deepEqual(checkIconBytes(png(512, 512)), {
+    ok: true,
+    image: { mediaType: 'image/png', width: 512, height: 512 },
+  });
   const refused = (bytes: Uint8Array, pattern: RegExp) => {
     const res = checkIconBytes(bytes);
     assert.equal(res.ok, false);
@@ -78,7 +120,10 @@ test('icon bytes: sniffed type, square, big enough, small enough', () => {
   refused(png(512, 512, ICON_MAX_BYTES), /256 KB/);
   refused(png(512, 400), /square/);
   refused(png(32, 32), /smaller/);
-  refused(new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'), /not a readable image/);
+  refused(
+    new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    /not a readable image/,
+  );
   refused(new TextEncoder().encode('<!doctype html>'), /not a readable image/);
   refused(Uint8Array.from([...text('GIF89a'), 0, 2, 0, 2, 0, 0, 0]), /gif/);
   refused(png(512, 512).subarray(0, 20), /not a readable image/);
@@ -115,10 +160,19 @@ test('when to look again', () => {
   const remote = row({ source: 'app_store', checkedAt: t0, fetchedAt: t0 });
   assert.equal(at(remote, REMOTE_RECHECK_REPO_MS - 1), false);
   assert.equal(at(remote, REMOTE_RECHECK_REPO_MS), true);
-  const recheckedButOld = row({ source: 'app_store', checkedAt: t0 + REMOTE_REFRESH_MS - 10, fetchedAt: t0 });
+  const recheckedButOld = row({
+    source: 'app_store',
+    checkedAt: t0 + REMOTE_REFRESH_MS - 10,
+    fetchedAt: t0,
+  });
   assert.equal(at(recheckedButOld, REMOTE_REFRESH_MS), true, 'seven days after the fetch');
   // Nothing found: after the empty back-off. A back-off is never overridden.
-  const empty = row({ source: null, data: null, checkedAt: t0, backoffUntil: t0 + EMPTY_BACKOFF_MS });
+  const empty = row({
+    source: null,
+    data: null,
+    checkedAt: t0,
+    backoffUntil: t0 + EMPTY_BACKOFF_MS,
+  });
   assert.equal(at(empty, EMPTY_BACKOFF_MS - 1), false);
   assert.equal(at(empty, EMPTY_BACKOFF_MS), true);
   const failing = row({ checkedAt: t0 - REPO_RECHECK_MS * 5, backoffUntil: t0 + 100 });
@@ -128,13 +182,31 @@ test('when to look again', () => {
 
 test('the failure back-off doubles from 15 minutes to a day', () => {
   const minute = 60_000;
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 20].map(failureBackoffMs), [15, 30, 60, 120, 240, 480, 960, 1440, 1440].map((m) => m * minute));
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6, 7, 8, 20].map(failureBackoffMs),
+    [15, 30, 60, 120, 240, 480, 960, 1440, 1440].map((m) => m * minute),
+  );
   assert.equal(failureBackoffMs(0), 15 * minute);
 });
 
 test('paths and entity tags of the file routes', () => {
-  for (const ok of ['a.png', 'fastlane/metadata/en-US/images/icon.png', 'a b/c.png', 'ü/é.png']) assert.equal(isPlainRelativePath(ok), true, ok);
-  for (const bad of ['', '/a', '../a', 'a/..', 'a/../b', './a', 'a/./b', 'a//b', 'a/', 'a\\b', 'a\0b', 'x'.repeat(1025)]) assert.equal(isPlainRelativePath(bad), false, JSON.stringify(bad));
+  for (const ok of ['a.png', 'fastlane/metadata/en-US/images/icon.png', 'a b/c.png', 'ü/é.png'])
+    assert.equal(isPlainRelativePath(ok), true, ok);
+  for (const bad of [
+    '',
+    '/a',
+    '../a',
+    'a/..',
+    'a/../b',
+    './a',
+    'a/./b',
+    'a//b',
+    'a/',
+    'a\\b',
+    'a\0b',
+    'x'.repeat(1025),
+  ])
+    assert.equal(isPlainRelativePath(bad), false, JSON.stringify(bad));
   assert.equal(matchesEtag('"abc"', '"abc"'), true);
   assert.equal(matchesEtag('W/"abc"', '"abc"'), true);
   assert.equal(matchesEtag('"x", "abc"', '"abc"'), true);

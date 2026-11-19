@@ -1,13 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import {
-  planAppleRollout,
-  planPlayRollout,
-  RolloutDriftError,
-  RolloutOutcomeUnknownError,
   type AppleRolloutState,
   type PlayRolloutState,
+  planAppleRollout,
+  planPlayRollout,
   type RolloutApplyInput,
   type RolloutApplyResult,
+  RolloutDriftError,
+  RolloutOutcomeUnknownError,
   type RolloutState,
   type RolloutTarget,
   StoreError,
@@ -128,18 +128,25 @@ export async function bootRollout(db: Database, rollout: Deps = {}) {
       name: name ?? `App ${appCount}`,
     });
     const id = res.body.app.id as string;
-    if (platform === 'ios') await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', ['1234567890', id]);
+    if (platform === 'ios')
+      await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', ['1234567890', id]);
     return id;
   };
   const events = async (type?: string) =>
-    (await t.call(t.owner, 'GET', `/events?since=0&limit=200${type ? `&type=${type}` : ''}`)).body.events as {
+    (await t.call(t.owner, 'GET', `/events?since=0&limit=200${type ? `&type=${type}` : ''}`)).body
+      .events as {
       type: string;
       payload: Record<string, unknown>;
     }[];
   const rp = (appId: string, rest: string) => `/apps/${appId}/rollout${rest}`;
-  const preview = (appId: string, body: Record<string, unknown>, cookie = t.owner) => t.call(cookie, 'POST', rp(appId, '/preview'), body);
-  const apply = (appId: string, body: Record<string, unknown>, confirmHash: string, cookie = t.owner) =>
-    t.call(cookie, 'POST', rp(appId, '/apply'), { ...body, confirmHash });
+  const preview = (appId: string, body: Record<string, unknown>, cookie = t.owner) =>
+    t.call(cookie, 'POST', rp(appId, '/preview'), body);
+  const apply = (
+    appId: string,
+    body: Record<string, unknown>,
+    confirmHash: string,
+    cookie = t.owner,
+  ) => t.call(cookie, 'POST', rp(appId, '/apply'), { ...body, confirmHash });
   /** A preview followed by the apply of what it said, as a person would. */
   const previewHash = async (appId: string, body: Record<string, unknown>): Promise<string> => {
     const res = await preview(appId, body);
@@ -147,12 +154,32 @@ export async function bootRollout(db: Database, rollout: Deps = {}) {
     return res.body.preview.confirmHash as string;
   };
   const audit = async (like = 'release.rollout_%') =>
-    (await db.query('SELECT action, actor_type, detail FROM audit_events WHERE action LIKE ? ORDER BY created_at', [like])).map((r) => ({
+    (
+      await db.query(
+        'SELECT action, actor_type, detail FROM audit_events WHERE action LIKE ? ORDER BY created_at',
+        [like],
+      )
+    ).map((r) => ({
       action: String(r.action),
       actorType: String(r.actor_type),
       detail: JSON.parse(String(r.detail ?? '{}')) as Record<string, unknown>,
     }));
-  const claims = async () => db.query('SELECT app_id, platform, status, action FROM store_rollout_claims');
-  return { ...t, stores, built, addApp, events, rp, preview, apply, previewHash, audit, claims, iosCredential, playCredential };
+  const claims = async () =>
+    db.query('SELECT app_id, platform, status, action FROM store_rollout_claims');
+  return {
+    ...t,
+    stores,
+    built,
+    addApp,
+    events,
+    rp,
+    preview,
+    apply,
+    previewHash,
+    audit,
+    claims,
+    iosCredential,
+    playCredential,
+  };
 }
 export type RolloutBoot = Awaited<ReturnType<typeof bootRollout>>;

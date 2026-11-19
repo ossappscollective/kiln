@@ -27,16 +27,16 @@ The two stores differ completely in what they offer:
 Keyword rank tracking, competitor tracking, keyword ideas and listing keyword fit, all **read-only toward the stores**: no
 credential is used, nothing is ever written to a store, nothing is scraped behind a login.
 
-| Piece | What it does | Where |
-| --- | --- | --- |
-| Tracked keywords | A term in a storefront (country) and locale, with a tag, a note and a priority. A check records the position of the app in the results or "not in the first N". | `aso_keywords`, `aso_rank_checks` |
-| Competitors | Apps the team follows, with a public snapshot (name, version, price, rating, description excerpt, screenshots) stored on the first look, on a change and as a heartbeat. | `aso_competitors`, `aso_competitor_snapshots` |
-| Keyword fit | Which tracked keywords the own live listing covers, per locale (strong, covered, partial, description only, missing), and the budget of the iOS keyword field. | core `listingFit` |
-| Ideas | Phrases mined from the own listing and the followed competitors' stored texts, by frequency. | core `mineIdeas` |
-| Coverage gaps | What competitors put in their names that the own listing does not have. | core `coverageGaps` |
-| Competitor suggestions | Apps that appear in the top results of several tracked keywords, for a person to confirm. Nothing is followed automatically. | core `suggestCompetitors` |
-| Per market view | The same term in several countries and locales as one row. | core `termsAcrossMarkets` |
-| Caching | A search or lookup is reused for `MRM_ASO_CACHE_MINUTES` and a call in flight is shared. | `services/aso-net.ts` |
+| Piece                  | What it does                                                                                                                                                             | Where                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| Tracked keywords       | A term in a storefront (country) and locale, with a tag, a note and a priority. A check records the position of the app in the results or "not in the first N".          | `aso_keywords`, `aso_rank_checks`             |
+| Competitors            | Apps the team follows, with a public snapshot (name, version, price, rating, description excerpt, screenshots) stored on the first look, on a change and as a heartbeat. | `aso_competitors`, `aso_competitor_snapshots` |
+| Keyword fit            | Which tracked keywords the own live listing covers, per locale (strong, covered, partial, description only, missing), and the budget of the iOS keyword field.           | core `listingFit`                             |
+| Ideas                  | Phrases mined from the own listing and the followed competitors' stored texts, by frequency.                                                                             | core `mineIdeas`                              |
+| Coverage gaps          | What competitors put in their names that the own listing does not have.                                                                                                  | core `coverageGaps`                           |
+| Competitor suggestions | Apps that appear in the top results of several tracked keywords, for a person to confirm. Nothing is followed automatically.                                             | core `suggestCompetitors`                     |
+| Per market view        | The same term in several countries and locales as one row.                                                                                                               | core `termsAcrossMarkets`                     |
+| Caching                | A search or lookup is reused for `MRM_ASO_CACHE_MINUTES` and a call in flight is shared.                                                                                 | `services/aso-net.ts`                         |
 
 Pure logic lives in `packages/core/src/aso.ts` (ES2017-safe so the web can share it), the two sources in
 `packages/connectors` (`apple-search.ts`, `play-public.ts`), the services and routes in `apps/server`.
@@ -88,18 +88,18 @@ the UI. Nothing here is ever sorted by a made-up importance except what the pers
 
 ### 5. Limits and retention (all in configuration)
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `MRM_ASO_INTERVAL_MINUTES` | `0` (off) | Scheduled refresh of every app; 0 or 60 to 10080. |
-| `MRM_ASO_RETENTION_DAYS` | `365` | Rank checks and competitor snapshots older than this are deleted, bounded per run; `0` keeps them. The newest snapshot of a competitor is never deleted. |
-| `MRM_ASO_MAX_KEYWORDS_PER_APP` | `50` | 1 to 500. |
-| `MRM_ASO_MAX_COMPETITORS_PER_APP` | `10` | 1 to 50. |
-| `MRM_ASO_MAX_CHECKS_PER_RUN` | `25` | Keyword checks in one refresh, the oldest first; the rest stays due. |
-| `MRM_ASO_RANK_DEPTH` | `50` | Results read to find the app (Apple up to 200, Google Play at most 50). |
-| `MRM_ASO_CACHE_MINUTES` | `60` | 0 turns the cache off. |
-| `MRM_ASO_APPLE_CALLS_PER_MINUTE` / `MRM_ASO_PLAY_CALLS_PER_MINUTE` | `10` / `4` | Per process; Apple documents about 20. |
-| `MRM_ASO_HEARTBEAT_DAYS` | `7` | A competitor with no stored snapshot for this long gets one anyway. |
-| `MRM_ASO_PLAY_UNOFFICIAL_ENABLED` | `false` | See above. |
+| Variable                                                           | Default    | Meaning                                                                                                                                                  |
+| ------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MRM_ASO_INTERVAL_MINUTES`                                         | `0` (off)  | Scheduled refresh of every app; 0 or 60 to 10080.                                                                                                        |
+| `MRM_ASO_RETENTION_DAYS`                                           | `365`      | Rank checks and competitor snapshots older than this are deleted, bounded per run; `0` keeps them. The newest snapshot of a competitor is never deleted. |
+| `MRM_ASO_MAX_KEYWORDS_PER_APP`                                     | `50`       | 1 to 500.                                                                                                                                                |
+| `MRM_ASO_MAX_COMPETITORS_PER_APP`                                  | `10`       | 1 to 50.                                                                                                                                                 |
+| `MRM_ASO_MAX_CHECKS_PER_RUN`                                       | `25`       | Keyword checks in one refresh, the oldest first; the rest stays due.                                                                                     |
+| `MRM_ASO_RANK_DEPTH`                                               | `50`       | Results read to find the app (Apple up to 200, Google Play at most 50).                                                                                  |
+| `MRM_ASO_CACHE_MINUTES`                                            | `60`       | 0 turns the cache off.                                                                                                                                   |
+| `MRM_ASO_APPLE_CALLS_PER_MINUTE` / `MRM_ASO_PLAY_CALLS_PER_MINUTE` | `10` / `4` | Per process; Apple documents about 20.                                                                                                                   |
+| `MRM_ASO_HEARTBEAT_DAYS`                                           | `7`        | A competitor with no stored snapshot for this long gets one anyway.                                                                                      |
+| `MRM_ASO_PLAY_UNOFFICIAL_ENABLED`                                  | `false`    | See above.                                                                                                                                               |
 
 What is stored is **public data about apps and the team's own choices**: a term, a rank, the public name, version, price, rating,
 the first 1000 characters of a competitor's description (written by its developer, so untrusted text that the web must show as
@@ -134,11 +134,11 @@ running instance does not grow without end.
 
 Three new actions:
 
-| Action | Who | Used for |
-| --- | --- | --- |
-| `aso.read` | viewers, members, admins, owners | Every `GET`, including the views that are worked out from stored data. |
-| `aso.write` | members, admins, owners | Add, change and delete keywords and competitors, and refresh **one app**. |
-| `aso.manage` | admins, owners | Refresh **every** app of the workspace; change the setting `aso.rankMoveThreshold`. |
+| Action       | Who                              | Used for                                                                            |
+| ------------ | -------------------------------- | ----------------------------------------------------------------------------------- |
+| `aso.read`   | viewers, members, admins, owners | Every `GET`, including the views that are worked out from stored data.              |
+| `aso.write`  | members, admins, owners          | Add, change and delete keywords and competitors, and refresh **one app**.           |
+| `aso.manage` | admins, owners                   | Refresh **every** app of the workspace; change the setting `aso.rankMoveThreshold`. |
 
 Why: this is public data with no credential and no store write, so the people who work on a listing every day (members) should not need an admin
 to add a keyword. The limits (keywords and competitors per app, checks per run, per workspace rate) bound what one member can ask of a store.

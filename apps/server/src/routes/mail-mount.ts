@@ -1,7 +1,7 @@
 import type { ConnectionOptions } from 'node:tls';
 import { Hono } from 'hono';
 import type { AppEnv, Services } from '../http.ts';
-import { type SmtpEnv, createConfiguredMailer } from '../services/mail-config.ts';
+import { createConfiguredMailer, type SmtpEnv } from '../services/mail-config.ts';
 import { type Mailer, setMailer } from '../services/mailer.ts';
 import type { Resolver } from '../services/webhook-transport.ts';
 import { loginTwoFactorRoutes } from './login-two-factor.ts';
@@ -47,12 +47,21 @@ export function setUpMail(services: Services, deps: MailDeps | undefined): MailS
 }
 
 /** `/api/auth/login/...`: the second step of signing in. Not mounted in single-user mode (there is no sign-in there). */
-export const loginSecondFactorRoutes = (setup: MailSetup, services: Services) => loginTwoFactorRoutes({ services, mailer: setup.mailer });
+export const loginSecondFactorRoutes = (setup: MailSetup, services: Services) =>
+  loginTwoFactorRoutes({ services, mailer: setup.mailer });
 
 /** `/api/workspaces/:workspaceId/two-factor/...`, `/step-up/email-code` and `/mail/...`. */
 export function mailAndTwoFactorRoutes(setup: MailSetup, services: Services) {
   const app = new Hono<AppEnv>();
   app.route('/', twoFactorRoutes({ services, mailer: setup.mailer }));
-  app.route('/', mailRoutes({ services, mailer: setup.mailer, env: setup.env, ...(setup.resolve ? { resolve: setup.resolve } : {}) }));
+  app.route(
+    '/',
+    mailRoutes({
+      services,
+      mailer: setup.mailer,
+      env: setup.env,
+      ...(setup.resolve ? { resolve: setup.resolve } : {}),
+    }),
+  );
   return app;
 }

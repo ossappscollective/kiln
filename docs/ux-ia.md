@@ -54,14 +54,14 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
   a switch of Keywords and Rank and downloads, and a "More" menu with the rest. Search terms: Google Play apps only.
   Every old address still works and redirects once (`canonicalAppHash`).
 
-  | Address (`?view=`) | Now |
-  | --- | --- |
-  | none, `analytics`, `overview` | Insights, Overview |
-  | `aso`, `keywords` | Keywords, Keywords (written `keywords`) |
-  | `rank` | Keywords, Rank and downloads |
-  | `listing`, `competitors`, `ideas`, `fit`, `gaps`, `markets` | Keywords, More menu entry of that name |
-  | `terms` | Search terms (an app with no Google Play record falls back to Keywords) |
-  | `/aso`, `/aso?view=x`, `/analytics` | redirect to `/insights?view=keywords|x`, `/insights` |
+  | Address (`?view=`)                                          | Now                                                                     |
+  | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+  | none, `analytics`, `overview`                               | Insights, Overview                                                      |
+  | `aso`, `keywords`                                           | Keywords, Keywords (written `keywords`)                                 |
+  | `rank`                                                      | Keywords, Rank and downloads                                            |
+  | `listing`, `competitors`, `ideas`, `fit`, `gaps`, `markets` | Keywords, More menu entry of that name                                  |
+  | `terms`                                                     | Search terms (an app with no Google Play record falls back to Keywords) |
+  | `/aso`, `/aso?view=x`, `/analytics`                         | redirect to `/insights?view=keywords                                    | x`, `/insights` |
 
 - **Store listing** (Text view): the context line (stores and locale count) and ONE status line ("3 locales need attention, 1 with
   missing fields", with "Show them"), then the toolbar: locale filters, search, "Legend and sources" (legend, where each side was
@@ -109,12 +109,12 @@ Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchH
 `#/settings` was one list of twelve cards. It is now four views behind the same small segmented control (`ViewSwitch`), kept in the
 address as `?view=`. Pure logic: `settings-views.ts` (`settingsViews`, `settingsViewOf`, `resolveSettingsView`, `withSettingsView`).
 
-| Address | View | Cards |
-| --- | --- | --- |
-| `#/settings` (also an unknown `?view=`) | General | Reviews, Releases, Translation |
-| `#/settings?view=analytics` | Analytics | the opt-in, the Apple vendor number, the Play bucket |
-| `#/settings?view=security` | Security | Security: confirm hard actions, Recovery codes, Authenticator app and email, Mail |
-| `#/settings?view=ai` | AI | AI assistant (with "What is sent" per task), Connect an AI assistant |
+| Address                                 | View      | Cards                                                                             |
+| --------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `#/settings` (also an unknown `?view=`) | General   | Reviews, Releases, Translation                                                    |
+| `#/settings?view=analytics`             | Analytics | the opt-in, the Apple vendor number, the Play bucket                              |
+| `#/settings?view=security`              | Security  | Security: confirm hard actions, Recovery codes, Authenticator app and email, Mail |
+| `#/settings?view=ai`                    | AI        | AI assistant (with "What is sent" per task), Connect an AI assistant              |
 
 - General is the default and is not written, so the old address keeps working. The links from Analytics ("Open Settings", the Play bucket
   link) open the Analytics view.
@@ -179,10 +179,10 @@ brand logos) and, on listing, assets, dashboard and releases, a "Staged changes"
 
 ## 3. Where does data live (chips on every page header)
 
-| Chip | Meaning |
-| --- | --- |
-| Repository | Files in the linked repository (fastlane metadata, images). Source for edits. |
-| Store live | What the store serves or reports now. Read from the connector. |
+| Chip        | Meaning                                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| Repository  | Files in the linked repository (fastlane metadata, images). Source for edits.                                        |
+| Store live  | What the store serves or reports now. Read from the connector.                                                       |
 | Store draft | The editable, unpublished version in the store (App Store Connect prepare-for-submission version, Google Play edit). |
 
 Other chips: "Triage stored here" (internal notes and status), "Planning data only", and
@@ -211,20 +211,20 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 
 ## 5. Store writes (gated) vs planning data
 
-| Control | Kind | Gate |
-| --- | --- | --- |
-| Increase Android staged rollout %, halt, resume, release to 100% | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md)) |
-| Apple phased release: pause, resume, release to all | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md)) |
-| Push listing text as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (server done, [api/staged-changes](api/staged-changes.md)) |
-| Push assets as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (same switch and route; server done) |
-| Release (App Store version, or a Google Play draft release at a share) | store write, irreversible | `MRM_STORE_RELEASE_ENABLED` and `store.release` (server done, [api/releases-write](api/releases-write.md)) |
-| Submit the pushed draft for store review | store write, irreversible | `MRM_STORE_SUBMIT_ENABLED` and `store.submit` (server done, [api/submit](api/submit.md)) |
+| Control                                                                               | Kind                      | Gate                                                                                                                                 |
+| ------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Increase Android staged rollout %, halt, resume, release to 100%                      | store write               | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md))                                                             |
+| Apple phased release: pause, resume, release to all                                   | store write               | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md))                                                             |
+| Push listing text as draft                                                            | store write               | `MRM_STORE_DRAFT_WRITE_ENABLED` (server done, [api/staged-changes](api/staged-changes.md))                                           |
+| Push assets as draft                                                                  | store write               | `MRM_STORE_DRAFT_WRITE_ENABLED` (same switch and route; server done)                                                                 |
+| Release (App Store version, or a Google Play draft release at a share)                | store write, irreversible | `MRM_STORE_RELEASE_ENABLED` and `store.release` (server done, [api/releases-write](api/releases-write.md))                           |
+| Submit the pushed draft for store review                                              | store write, irreversible | `MRM_STORE_SUBMIT_ENABLED` and `store.submit` (server done, [api/submit](api/submit.md))                                             |
 | Publish several steps at once (push draft, submit, release, rollout) after one review | store write, irreversible | `MRM_STORE_PUBLISH_BATCH_ENABLED`, `store.publish` and each step's own switch and right (server done, [api/pending](api/pending.md)) |
-| See everything an app has pending; which apps have pending changes | read only | `listing.read` (server done, [api/pending](api/pending.md)) |
-| Reply to a review | store write | `MRM_REVIEW_REPLY_ENABLED` (exists), plus the credential role |
-| Commit or push to a local clone | repository write | `MRM_LOCAL_REPO_WRITE` (exists) |
-| Rollout step plan, mark step done, reminders, checklist | planning data | none |
-| Triage status, assignee, note | internal data | role `reviews.triage` |
+| See everything an app has pending; which apps have pending changes                    | read only                 | `listing.read` (server done, [api/pending](api/pending.md))                                                                          |
+| Reply to a review                                                                     | store write               | `MRM_REVIEW_REPLY_ENABLED` (exists), plus the credential role                                                                        |
+| Commit or push to a local clone                                                       | repository write          | `MRM_LOCAL_REPO_WRITE` (exists)                                                                                                      |
+| Rollout step plan, mark step done, reminders, checklist                               | planning data             | none                                                                                                                                 |
+| Triage status, assignee, note                                                         | internal data             | role `reviews.triage`                                                                                                                |
 
 The screens for these exist (rollout controls on a release, the publish dialogs, Pending changes). Every store write asks for confirmation with the sentence "This changes the live store" (or, for a
 reply, "This will be published publicly in the store"), names the store, app, version and the

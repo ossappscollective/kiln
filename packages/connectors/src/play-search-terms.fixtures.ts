@@ -8,7 +8,9 @@ import { deflateRawSync, gzipSync } from 'node:zlib';
 
 export const csv = (rows: string[][], delimiter = ','): string =>
   `${rows
-    .map((r) => r.map((c) => (/[",\t\n;]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(delimiter))
+    .map((r) =>
+      r.map((c) => (/[",\t\n;]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(delimiter),
+    )
     .join('\r\n')}\r\n`;
 
 export const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
@@ -29,7 +31,17 @@ export const utf16 = (text: string): Uint8Array => {
 export const gz = (text: string): Uint8Array => new Uint8Array(gzipSync(Buffer.from(text)));
 
 /** The documented `traffic_source` breakdown. */
-export const TRAFFIC_HEADER = ['Date', 'Package name', 'Traffic source', 'Search term', 'UTM source', 'UTM campaign', 'Store listing acquisitions', 'Store listing visitors', 'Store listing conversion rate'];
+export const TRAFFIC_HEADER = [
+  'Date',
+  'Package name',
+  'Traffic source',
+  'Search term',
+  'UTM source',
+  'UTM campaign',
+  'Store listing acquisitions',
+  'Store listing visitors',
+  'Store listing conversion rate',
+];
 
 export const trafficSourceCsv = (a = '2026-11-02', b = '2026-11-03'): string =>
   csv([
@@ -46,7 +58,13 @@ export const trafficSourceCsv = (a = '2026-11-02', b = '2026-11-03'): string =>
 /** A console export for one period, per term, with a country and no date column (UNVERIFIED shape). */
 export const periodCsv = (): string =>
   csv([
-    ['Search term', 'Country/region', 'Store listing visitors', 'Store listing acquisitions', 'Store listing conversion rate'],
+    [
+      'Search term',
+      'Country/region',
+      'Store listing visitors',
+      'Store listing acquisitions',
+      'Store listing conversion rate',
+    ],
     ['coffee timer', 'US', '1,200', '150', '12.5%'],
     ['coffee timer', 'DE', '300', '20', '6,7 %'],
     ['Brew Timer', 'US', '800', '40', '5%'],
@@ -67,21 +85,64 @@ export const renamedCsv = (): string =>
   );
 
 /** A store zip: stored entries and deflate entries. No CRC is written (the reader does not check it). */
-export function zip(files: { name: string; data: Uint8Array; method?: 0 | 8; flags?: number }[]): Uint8Array {
+export function zip(
+  files: { name: string; data: Uint8Array; method?: 0 | 8; flags?: number }[],
+): Uint8Array {
   const parts: number[][] = [];
   const central: number[][] = [];
   let offset = 0;
-  const le = (n: number, bytes: number) => Array.from({ length: bytes }, (_, i) => Math.floor(n / 2 ** (8 * i)) & 0xff);
+  const le = (n: number, bytes: number) =>
+    Array.from({ length: bytes }, (_, i) => Math.floor(n / 2 ** (8 * i)) & 0xff);
   for (const f of files) {
     const method = f.method ?? 8;
     const body = method === 8 ? new Uint8Array(deflateRawSync(Buffer.from(f.data))) : f.data;
     const name = Array.from(new TextEncoder().encode(f.name));
-    const local = [...le(0x04034b50, 4), ...le(20, 2), ...le(f.flags ?? 0, 2), ...le(method, 2), ...le(0, 4), ...le(0, 4), ...le(body.length, 4), ...le(f.data.length, 4), ...le(name.length, 2), ...le(0, 2), ...name, ...Array.from(body)];
-    central.push([...le(0x02014b50, 4), ...le(20, 2), ...le(20, 2), ...le(f.flags ?? 0, 2), ...le(method, 2), ...le(0, 4), ...le(0, 4), ...le(body.length, 4), ...le(f.data.length, 4), ...le(name.length, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 4), ...le(offset, 4), ...name]);
+    const local = [
+      ...le(0x04034b50, 4),
+      ...le(20, 2),
+      ...le(f.flags ?? 0, 2),
+      ...le(method, 2),
+      ...le(0, 4),
+      ...le(0, 4),
+      ...le(body.length, 4),
+      ...le(f.data.length, 4),
+      ...le(name.length, 2),
+      ...le(0, 2),
+      ...name,
+      ...Array.from(body),
+    ];
+    central.push([
+      ...le(0x02014b50, 4),
+      ...le(20, 2),
+      ...le(20, 2),
+      ...le(f.flags ?? 0, 2),
+      ...le(method, 2),
+      ...le(0, 4),
+      ...le(0, 4),
+      ...le(body.length, 4),
+      ...le(f.data.length, 4),
+      ...le(name.length, 2),
+      ...le(0, 2),
+      ...le(0, 2),
+      ...le(0, 2),
+      ...le(0, 2),
+      ...le(0, 4),
+      ...le(offset, 4),
+      ...name,
+    ]);
     parts.push(local);
     offset += local.length;
   }
   const dir = central.reduce<number[]>((all, c) => all.concat(c), []);
-  const end = [...le(0x06054b50, 4), ...le(0, 2), ...le(0, 2), ...le(files.length, 2), ...le(files.length, 2), ...le(dir.length, 4), ...le(offset, 4), ...le(0, 2)];
+  const end = [
+    ...le(0x06054b50, 4),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(files.length, 2),
+    ...le(files.length, 2),
+    ...le(dir.length, 4),
+    ...le(offset, 4),
+    ...le(0, 2),
+  ];
   return new Uint8Array([...parts.reduce<number[]>((all, p) => all.concat(p), []), ...dir, ...end]);
 }

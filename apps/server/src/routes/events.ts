@@ -1,15 +1,15 @@
 import { type Action, can } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { type AppEnv, type Services, queryInt } from '../http.ts';
+import { type AppEnv, queryInt, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { eventReadAction, eventTypes } from '../services/event-types.ts';
 import {
   DEFAULT_EVENTS_LIMIT,
-  MAX_EVENTS_LIMIT,
   latestEventId,
   listEvents,
+  MAX_EVENTS_LIMIT,
   subscribeToEvents,
 } from '../services/events.ts';
 import { tokenStillValid } from '../services/tokens.ts';
@@ -93,10 +93,15 @@ export function eventRoutes(services: Services, hub: EventStreamHub) {
   };
 
   app.get('/:workspaceId/events', needs('events.read'), async (c) => {
-    const limit = queryInt(c.req.query('limit'), { fallback: DEFAULT_EVENTS_LIMIT, max: MAX_EVENTS_LIMIT });
-    if (limit === undefined) return invalid(c, 'limit', `Use a whole number from 1 to ${MAX_EVENTS_LIMIT}.`);
+    const limit = queryInt(c.req.query('limit'), {
+      fallback: DEFAULT_EVENTS_LIMIT,
+      max: MAX_EVENTS_LIMIT,
+    });
+    if (limit === undefined)
+      return invalid(c, 'limit', `Use a whole number from 1 to ${MAX_EVENTS_LIMIT}.`);
     const rawSince = c.req.query('since');
-    if (rawSince !== undefined && !/^[0-9]{1,15}$/.test(rawSince)) return invalid(c, 'since', 'Use an event id (a whole number, 0 or more).');
+    if (rawSince !== undefined && !/^[0-9]{1,15}$/.test(rawSince))
+      return invalid(c, 'since', 'Use an event id (a whole number, 0 or more).');
     const asked = parseTypes(c.req.query('type'));
     if (!Array.isArray(asked)) return invalid(c, 'type', asked.error);
     const since = rawSince === undefined ? undefined : Number(rawSince);
@@ -107,7 +112,11 @@ export function eventRoutes(services: Services, hub: EventStreamHub) {
         ? { events: [], hasMore: false }
         : await listEvents(db, ws(c), { since, limit, types, appIds: appIds ?? undefined });
     const last = page.events[page.events.length - 1];
-    return c.json({ events: page.events, hasMore: page.hasMore, nextCursor: last?.id ?? since ?? 0 });
+    return c.json({
+      events: page.events,
+      hasMore: page.hasMore,
+      nextCursor: last?.id ?? since ?? 0,
+    });
   });
 
   app.get('/:workspaceId/events/stream', needs('events.read'), async (c) => {
@@ -121,7 +130,8 @@ export function eventRoutes(services: Services, hub: EventStreamHub) {
 
     // Where to resume: Last-Event-ID (what a browser's EventSource sends), else ?since=, else now.
     const rawCursor = c.req.header('last-event-id') ?? c.req.query('since');
-    if (rawCursor !== undefined && !/^[0-9]{1,15}$/.test(rawCursor)) return invalid(c, 'since', 'Use an event id (a whole number, 0 or more).');
+    if (rawCursor !== undefined && !/^[0-9]{1,15}$/.test(rawCursor))
+      return invalid(c, 'since', 'Use an event id (a whole number, 0 or more).');
     let cursor = rawCursor === undefined ? await latestEventId(db, workspaceId) : Number(rawCursor);
 
     let wake = () => {};
@@ -133,7 +143,10 @@ export function eventRoutes(services: Services, hub: EventStreamHub) {
     const release = hub.open(userId, finish);
     if (!release) {
       return c.json(
-        { error: 'too_many_streams', message: 'Too many event streams are open. Close one and try again.' },
+        {
+          error: 'too_many_streams',
+          message: 'Too many event streams are open. Close one and try again.',
+        },
         429,
         { 'Retry-After': '5' },
       );
@@ -151,10 +164,19 @@ export function eventRoutes(services: Services, hub: EventStreamHub) {
           // Drain what is there, in pages, before waiting.
           for (;;) {
             if (types.length === 0) break;
-            const { events, hasMore } = await listEvents(db, workspaceId, { since: cursor, limit: MAX_EVENTS_LIMIT, types, appIds });
+            const { events, hasMore } = await listEvents(db, workspaceId, {
+              since: cursor,
+              limit: MAX_EVENTS_LIMIT,
+              types,
+              appIds,
+            });
             for (const event of events) {
               if (finished) break;
-              await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(event) });
+              await stream.writeSSE({
+                id: String(event.id),
+                event: event.type,
+                data: JSON.stringify(event),
+              });
               cursor = event.id;
             }
             if (!hasMore || finished) break;

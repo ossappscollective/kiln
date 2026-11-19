@@ -14,5 +14,6 @@ test('the MCP endpoint is off by default, and blank means off', () => {
 
 test('MRM_MCP_ENABLED accepts only true and false', () => {
   assert.equal(load({ MRM_MCP_ENABLED: 'true' }).mcpEnabled, true);
-  for (const bad of ['1', 'yes', 'TRUE', 'on']) assert.throws(() => load({ MRM_MCP_ENABLED: bad }), /MRM_MCP_ENABLED/, bad);
+  for (const bad of ['1', 'yes', 'TRUE', 'on'])
+    assert.throws(() => load({ MRM_MCP_ENABLED: bad }), /MRM_MCP_ENABLED/, bad);
 });

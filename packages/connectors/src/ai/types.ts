@@ -51,12 +51,18 @@ export class AiError extends Error {
    * prompt is fixed and holds no workspace data); a task run never returns or stores it, and audit and logs never hold it.
    */
   readonly sample: string | undefined;
-  constructor(kind: AiErrorKind, options: { retryAfterSeconds?: number; detail?: string; usage?: AiUsage; sample?: string } = {}) {
+  constructor(
+    kind: AiErrorKind,
+    options: { retryAfterSeconds?: number; detail?: string; usage?: AiUsage; sample?: string } = {},
+  ) {
     super(messages[kind]);
     this.name = 'AiError';
     this.kind = kind;
     this.retryAfterSeconds = options.retryAfterSeconds;
-    this.detail = options.detail !== undefined && /^[a-z0-9_]{1,24}$/.test(options.detail) ? options.detail : undefined;
+    this.detail =
+      options.detail !== undefined && /^[a-z0-9_]{1,24}$/.test(options.detail)
+        ? options.detail
+        : undefined;
     this.usage = options.usage;
     this.sample = options.sample ? sampleOf(options.sample) : undefined;
   }
@@ -71,7 +77,10 @@ export const AI_SAMPLE_CHARS = 300;
  */
 export function sampleOf(text: string): string | undefined {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what is removed
-  const clean = text.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim();
+  const clean = text
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const cut = Array.from(clean).slice(0, AI_SAMPLE_CHARS).join('').trim();
   return cut === '' ? undefined : cut;
 }
@@ -123,10 +132,18 @@ export function normalizeModels(items: readonly { id: unknown; label?: unknown }
     const id = typeof item.id === 'string' ? item.id.trim() : '';
     if (!AI_MODEL_ID.test(id) || seen.has(id)) continue;
     // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what is removed
-    const label = typeof item.label === 'string' ? item.label.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+    const label =
+      typeof item.label === 'string'
+        ? item.label
+            .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        : '';
     seen.set(id, label !== '' && label.length <= 80 && label !== id ? { id, label } : { id });
   }
-  return [...seen.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, AI_MODEL_LIST_CAP);
+  return [...seen.values()]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .slice(0, AI_MODEL_LIST_CAP);
 }
 
 export interface AiClient {
@@ -166,7 +183,8 @@ export function renderUserMessage(input: unknown): string {
 }
 
 /** The user message of a request: its own fixed text, or the rendered input. */
-export const userMessageOf = (request: Pick<AiCompleteRequest, 'input' | 'userMessage'>): string => request.userMessage ?? renderUserMessage(request.input);
+export const userMessageOf = (request: Pick<AiCompleteRequest, 'input' | 'userMessage'>): string =>
+  request.userMessage ?? renderUserMessage(request.input);
 
 /** A conservative guess for a provider that does not report usage: 3 characters a token. */
 export const guessTokens = (text: string): number => Math.ceil(text.length / 3);

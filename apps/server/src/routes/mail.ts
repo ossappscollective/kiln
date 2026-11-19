@@ -1,11 +1,18 @@
 import { type Action, can } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, type Services, parseBody } from '../http.ts';
+import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { recordAudit } from '../services/audit.ts';
-import { type SmtpEnv, clearSmtp, effectiveSmtp, saveSmtp, smtpInputSchema, smtpView } from '../services/mail-config.ts';
+import {
+  clearSmtp,
+  effectiveSmtp,
+  type SmtpEnv,
+  saveSmtp,
+  smtpInputSchema,
+  smtpView,
+} from '../services/mail-config.ts';
 import { plainAddress } from '../services/mail-mime.ts';
 import { MAIL_ERROR_MESSAGES, type Mailer } from '../services/mailer.ts';
 import { requireManage } from '../services/step-up.ts';
@@ -18,11 +25,19 @@ import type { Resolver } from '../services/webhook-transport.ts';
  * Saving or clearing it needs a fresh step-up confirmation whenever the person has a way to confirm: whoever controls the mail server
  * receives the emailed codes, so a stolen session must not be able to repoint it.
  */
-export type MailRoutesContext = { services: Services; mailer: Mailer; env: SmtpEnv; resolve?: Resolver };
+export type MailRoutesContext = {
+  services: Services;
+  mailer: Mailer;
+  env: SmtpEnv;
+  resolve?: Resolver;
+};
 
 const ws = (c: Context<AppEnv>) => c.req.param('workspaceId') ?? '';
 
-export const mailTestBody = z.object({ to: z.string().trim().max(254).optional() }).strict().optional();
+export const mailTestBody = z
+  .object({ to: z.string().trim().max(254).optional() })
+  .strict()
+  .optional();
 export const mailSettingsBody = smtpInputSchema;
 
 const TEST_WINDOW_MS = 10 * 60_000;
@@ -55,10 +70,33 @@ export function mailRoutes(ctx: MailRoutesContext) {
     if (!body.ok) return body.response;
     const refusal = await requireManage(guard, c);
     if (refusal) return refusal;
-    const done = await saveSmtp(db, { masterKey, env, value: body.data, workspaceId: ws(c), userId: c.get('user').id, now: now(), ...(ctx.resolve ? { resolve: ctx.resolve } : {}) });
+    const done = await saveSmtp(db, {
+      masterKey,
+      env,
+      value: body.data,
+      workspaceId: ws(c),
+      userId: c.get('user').id,
+      now: now(),
+      ...(ctx.resolve ? { resolve: ctx.resolve } : {}),
+    });
     if (!done.ok) {
-      if (done.error === 'smtp_locked') return c.json({ error: 'smtp_locked', message: 'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.' }, 409);
-      if (done.error === 'password_required') return c.json({ error: 'password_required', message: 'Type the password again when the host, the port or the user name changes.' }, 400);
+      if (done.error === 'smtp_locked')
+        return c.json(
+          {
+            error: 'smtp_locked',
+            message:
+              'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.',
+          },
+          409,
+        );
+      if (done.error === 'password_required')
+        return c.json(
+          {
+            error: 'password_required',
+            message: 'Type the password again when the host, the port or the user name changes.',
+          },
+          400,
+        );
       return c.json(
         {
           error: 'address_not_allowed',
@@ -77,8 +115,21 @@ export function mailRoutes(ctx: MailRoutesContext) {
   routes.delete('/:workspaceId/mail/settings', needs('settings.write'), async (c) => {
     const refusal = await requireManage(guard, c);
     if (refusal) return refusal;
-    const done = await clearSmtp(db, { env, workspaceId: ws(c), userId: c.get('user').id, now: now() });
-    if (done === 'smtp_locked') return c.json({ error: 'smtp_locked', message: 'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.' }, 409);
+    const done = await clearSmtp(db, {
+      env,
+      workspaceId: ws(c),
+      userId: c.get('user').id,
+      now: now(),
+    });
+    if (done === 'smtp_locked')
+      return c.json(
+        {
+          error: 'smtp_locked',
+          message:
+            'The mail server is set by the server environment (MRM_SMTP_HOST). Change it there.',
+        },
+        409,
+      );
     return c.json(await view());
   });
 
@@ -93,16 +144,32 @@ export function mailRoutes(ctx: MailRoutesContext) {
     if (recent.length >= TEST_MAX) {
       const wait = Math.max(1, Math.ceil(((recent[0] as number) + TEST_WINDOW_MS - at) / 1000));
       c.header('Retry-After', String(wait));
-      return c.json({ error: 'rate_limited', retryAfterSeconds: wait, message: 'Too many test messages. Try again later.' }, 429);
+      return c.json(
+        {
+          error: 'rate_limited',
+          retryAfterSeconds: wait,
+          message: 'Too many test messages. Try again later.',
+        },
+        429,
+      );
     }
     let to: string | undefined;
     if (services.singleUser) {
-      to = body.data?.to ? plainAddress(body.data.to) : ((await activeEmail(db, user.id)) ?? undefined);
-      if (!to) return c.json({ error: 'email_required', message: 'Enter the address to send the test message to.' }, 400);
+      to = body.data?.to
+        ? plainAddress(body.data.to)
+        : ((await activeEmail(db, user.id)) ?? undefined);
+      if (!to)
+        return c.json(
+          { error: 'email_required', message: 'Enter the address to send the test message to.' },
+          400,
+        );
     } else {
       to = user.email;
       if (body.data?.to && body.data.to.trim().toLowerCase() !== user.email.toLowerCase()) {
-        return c.json({ error: 'forbidden', message: 'A test message goes to your own account email only.' }, 403);
+        return c.json(
+          { error: 'forbidden', message: 'A test message goes to your own account email only.' },
+          403,
+        );
       }
     }
     recent.push(at);
@@ -113,10 +180,21 @@ export function mailRoutes(ctx: MailRoutesContext) {
       text: 'This is a test message. If you can read it, this server can send email.\n\nNo action is needed.',
       html: '<p>This is a test message. If you can read it, this server can send email.</p><p>No action is needed.</p>',
     });
-    await recordAudit(db, { workspaceId: ws(c), actor: { type: 'user', id: user.id }, action: 'mail.test_sent', detail: sent.ok ? { ok: true } : { ok: false, code: sent.code }, at });
+    await recordAudit(db, {
+      workspaceId: ws(c),
+      actor: { type: 'user', id: user.id },
+      action: 'mail.test_sent',
+      detail: sent.ok ? { ok: true } : { ok: false, code: sent.code },
+      at,
+    });
     c.header('Cache-Control', 'no-store');
     if (sent.ok) return c.json({ ok: true, to });
-    return c.json({ ok: false, code: sent.code, ...(sent.hint ? { hint: sent.hint } : {}), message: MAIL_ERROR_MESSAGES[sent.code] });
+    return c.json({
+      ok: false,
+      code: sent.code,
+      ...(sent.hint ? { hint: sent.hint } : {}),
+      message: MAIL_ERROR_MESSAGES[sent.code],
+    });
   });
 
   return routes;

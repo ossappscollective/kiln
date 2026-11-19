@@ -8,7 +8,9 @@ export function emailProblem(value: string): string {
   const v = value.trim();
   if (!v) return 'Enter your email address.';
   // One @, something on each side, a dot in the domain. The server has the final say.
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? '' : 'Enter an email address like name@example.com.';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+    ? ''
+    : 'Enter an email address like name@example.com.';
 }
 
 export function passwordProblem(value: string, min: number): string {

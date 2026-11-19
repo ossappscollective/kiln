@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addDays, dayToMs } from './analytics.ts';
 import {
-  type DownloadsIn,
-  type RankCheckIn,
   buildRankVsDownloads,
   compareMove,
+  type DownloadsIn,
   dailyRanks,
   describeComparison,
+  type RankCheckIn,
   rankDownloadsLimits,
   rankMarkers,
 } from './aso-rank-downloads.ts';
@@ -15,7 +15,11 @@ import {
 const D0 = '2026-09-01';
 const day = (n: number) => addDays(D0, n);
 const at = (n: number, hour = 12) => dayToMs(day(n)) + hour * 3_600_000;
-const check = (n: number, rank: number | null, hour = 12): RankCheckIn => ({ checkedAt: at(n, hour), rank, total: 50 });
+const check = (n: number, rank: number | null, hour = 12): RankCheckIn => ({
+  checkedAt: at(n, hour),
+  rank,
+  total: 50,
+});
 const TODAY = day(60);
 
 /** A flat rank of 30, then 12 from day `moveAt` on, checked every day from 0 to `last`. */
@@ -25,21 +29,46 @@ const steppedChecks = (moveAt: number, last: number, before = 30, after = 12): R
   return out;
 };
 
-const downloads = (from: number, to: number, value: (n: number) => number | null, over: Partial<DownloadsIn> = {}): DownloadsIn => ({
+const downloads = (
+  from: number,
+  to: number,
+  value: (n: number) => number | null,
+  over: Partial<DownloadsIn> = {},
+): DownloadsIn => ({
   metric: 'downloads_first_time',
   label: 'First-time downloads',
   source: 'apple',
   delayDays: 2,
-  points: Array.from({ length: to - from + 1 }, (_, i) => ({ day: day(from + i), value: value(from + i) })),
+  points: Array.from({ length: to - from + 1 }, (_, i) => ({
+    day: day(from + i),
+    value: value(from + i),
+  })),
   ...over,
 });
 
-test('the last check of a UTC day is the day\'s rank; a move is dated by the later check', () => {
+test("the last check of a UTC day is the day's rank; a move is dated by the later check", () => {
   const daily = dailyRanks([check(0, 30, 9), check(0, 28, 20), check(1, 29), check(2, 12)]);
-  assert.deepEqual(daily.map((d) => [d.day, d.sample.rank]), [[day(0), 28], [day(1), 29], [day(2), 12]]);
+  assert.deepEqual(
+    daily.map((d) => [d.day, d.sample.rank]),
+    [
+      [day(0), 28],
+      [day(1), 29],
+      [day(2), 12],
+    ],
+  );
   const markers = rankMarkers('k', daily, 5);
   assert.equal(markers.length, 1);
-  assert.deepEqual([markers[0]?.day, markers[0]?.previousDay, markers[0]?.kind, markers[0]?.delta, markers[0]?.from, markers[0]?.to], [day(2), day(1), 'up', 17, 29, 12]);
+  assert.deepEqual(
+    [
+      markers[0]?.day,
+      markers[0]?.previousDay,
+      markers[0]?.kind,
+      markers[0]?.delta,
+      markers[0]?.from,
+      markers[0]?.to,
+    ],
+    [day(2), day(1), 'up', 17, 29, 12],
+  );
 });
 
 test('markers use the threshold; entering or leaving counts only within the top 10', () => {
@@ -47,7 +76,11 @@ test('markers use the threshold; entering or leaving counts only within the top 
   assert.equal(rankMarkers('k', small, 5).length, 0);
   assert.equal(rankMarkers('k', small, 3).length, 1);
   assert.equal(rankMarkers('k', dailyRanks([check(0, null), check(1, 8)]), 5)[0]?.kind, 'entered');
-  assert.equal(rankMarkers('k', dailyRanks([check(0, null), check(1, 40)]), 5).length, 0, 'entering at 40 is not news');
+  assert.equal(
+    rankMarkers('k', dailyRanks([check(0, null), check(1, 40)]), 5).length,
+    0,
+    'entering at 40 is not news',
+  );
   assert.equal(rankMarkers('k', dailyRanks([check(0, 4), check(1, null)]), 5)[0]?.kind, 'dropped');
   assert.equal(rankMarkers('k', dailyRanks([check(0, 12), check(1, 30)]), 5)[0]?.kind, 'down');
 });
@@ -59,13 +92,22 @@ test('compareMove: seven days before the earlier check and seven days after the 
   assert.ok(marker);
   const c = compareMove(marker, values, { settledThrough: day(38) });
   assert.equal(c.status, 'ok');
-  assert.deepEqual([c.before.from, c.before.to, c.before.days, c.before.perDay], [day(13), day(19), 7, 10]);
-  assert.deepEqual([c.after.from, c.after.to, c.after.days, c.after.perDay], [day(21), day(27), 7, 15]);
+  assert.deepEqual(
+    [c.before.from, c.before.to, c.before.days, c.before.perDay],
+    [day(13), day(19), 7, 10],
+  );
+  assert.deepEqual(
+    [c.after.from, c.after.to, c.after.days, c.after.perDay],
+    [day(21), day(27), 7, 15],
+  );
   assert.equal(c.changePercent, 50);
   assert.equal(c.checkGapDays, 1);
   assert.equal(c.overlapsOtherMove, false);
   assert.match(describeComparison(c, 'water reminder'), /Correlation, not proof\./);
-  assert.match(describeComparison(c, 'water reminder'), /7 days before: 10; 7 days after: 15 \(\+50%\)/);
+  assert.match(
+    describeComparison(c, 'water reminder'),
+    /7 days before: 10; 7 days after: 15 \(\+50%\)/,
+  );
 });
 
 test('compareMove: gaps are not zeros, an unsettled "after" waits, too few days is said, nothing before gives no percent', () => {
@@ -88,7 +130,10 @@ test('compareMove: gaps are not zeros, an unsettled "after" waits, too few days 
   const thin = compareMove(marker, values, { settledThrough: day(38) });
   assert.equal(thin.status, 'too_few_days');
   assert.equal(thin.changePercent, null);
-  assert.match(describeComparison(thin, 'x'), /Not enough days with numbers to compare \(7 before, 4 after; at least 5 each\)\. Correlation, not proof\./);
+  assert.match(
+    describeComparison(thin, 'x'),
+    /Not enough days with numbers to compare \(7 before, 4 after; at least 5 each\)\. Correlation, not proof\./,
+  );
 
   // The store has not settled the last day of the window: wait, and say through when.
   const waiting = compareMove(marker, values, { settledThrough: day(26) });
@@ -116,7 +161,10 @@ test('checks several days apart are flagged, and two moves close together say th
   const ca = compareMove(a, values, { settledThrough: day(58), others: all });
   assert.equal(ca.checkGapDays, 4);
   assert.equal(ca.overlapsOtherMove, true);
-  assert.equal(compareMove(c, values, { settledThrough: day(58), others: all }).overlapsOtherMove, false);
+  assert.equal(
+    compareMove(c, values, { settledThrough: day(58), others: all }).overlapsOtherMove,
+    false,
+  );
 });
 
 test('buildRankVsDownloads aligns both series on the days of the range', () => {
@@ -154,7 +202,12 @@ test('lag: the newest days are not settled, so a late move waits', () => {
     to: day(29),
     today: day(30),
     keywords: [{ id: 'k1', term: 'x term', checks: steppedChecks(25, 29) }],
-    downloads: downloads(-7, 29, () => 10, { delayDays: 4, source: 'play', metric: 'installs_user', label: 'User installs' }),
+    downloads: downloads(-7, 29, () => 10, {
+      delayDays: 4,
+      source: 'play',
+      metric: 'installs_user',
+      label: 'User installs',
+    }),
     threshold: 5,
     analyticsEnabled: true,
   });
@@ -167,7 +220,9 @@ test('lag: the newest days are not settled, so a late move waits', () => {
 
 test('fewer than 14 days of either series hides the view and says what is missing', () => {
   const rankOnly = buildRankVsDownloads({
-    from: day(0), to: day(29), today: TODAY,
+    from: day(0),
+    to: day(29),
+    today: TODAY,
     keywords: [{ id: 'k1', term: 'x term', checks: steppedChecks(15, 29) }],
     downloads: null,
     threshold: 5,
@@ -177,11 +232,21 @@ test('fewer than 14 days of either series hides the view and says what is missin
   assert.equal(rankOnly.missing, 'turn_on_analytics');
   assert.deepEqual([rankOnly.markers.length, rankOnly.comparisons.length], [0, 0]);
 
-  const noneRead = buildRankVsDownloads({ from: day(0), to: day(29), today: TODAY, keywords: [{ id: 'k1', term: 'x', checks: steppedChecks(15, 29) }], downloads: null, threshold: 5, analyticsEnabled: true });
+  const noneRead = buildRankVsDownloads({
+    from: day(0),
+    to: day(29),
+    today: TODAY,
+    keywords: [{ id: 'k1', term: 'x', checks: steppedChecks(15, 29) }],
+    downloads: null,
+    threshold: 5,
+    analyticsEnabled: true,
+  });
   assert.equal(noneRead.missing, 'no_downloads');
 
   const fewRanks = buildRankVsDownloads({
-    from: day(0), to: day(29), today: TODAY,
+    from: day(0),
+    to: day(29),
+    today: TODAY,
     keywords: [{ id: 'k1', term: 'x term', checks: steppedChecks(5, 12) }],
     downloads: downloads(0, 29, () => 10),
     threshold: 5,
@@ -192,7 +257,9 @@ test('fewer than 14 days of either series hides the view and says what is missin
   assert.equal(fewRanks.missing, null);
 
   const fewDownloads = buildRankVsDownloads({
-    from: day(0), to: day(29), today: TODAY,
+    from: day(0),
+    to: day(29),
+    today: TODAY,
     keywords: [{ id: 'k1', term: 'x term', checks: steppedChecks(15, 29) }],
     downloads: downloads(0, 12, () => 10),
     threshold: 5,
@@ -201,14 +268,24 @@ test('fewer than 14 days of either series hides the view and says what is missin
   assert.equal(fewDownloads.enough, false);
   assert.equal(fewDownloads.coverage.downloadDays, 13);
 
-  const noRanks = buildRankVsDownloads({ from: day(0), to: day(29), today: TODAY, keywords: [{ id: 'k', term: 'x', checks: [] }], downloads: downloads(0, 29, () => 10), threshold: 5, analyticsEnabled: true });
+  const noRanks = buildRankVsDownloads({
+    from: day(0),
+    to: day(29),
+    today: TODAY,
+    keywords: [{ id: 'k', term: 'x', checks: [] }],
+    downloads: downloads(0, 29, () => 10),
+    threshold: 5,
+    analyticsEnabled: true,
+  });
   assert.equal(noRanks.missing, 'no_rank_checks');
   assert.equal(noRanks.enough, false);
 });
 
 test('exactly 14 days of both is enough; the rank days are the days any chosen keyword was checked', () => {
   const view = buildRankVsDownloads({
-    from: day(0), to: day(29), today: TODAY,
+    from: day(0),
+    to: day(29),
+    today: TODAY,
     keywords: [
       { id: 'a', term: 'a term', checks: steppedChecks(100, 6) },
       { id: 'b', term: 'b term', checks: Array.from({ length: 7 }, (_, i) => check(10 + i, 20)) },
@@ -223,22 +300,60 @@ test('exactly 14 days of both is enough; the rank days are the days any chosen k
 });
 
 test('at most five keywords, and the range is capped', () => {
-  const many = Array.from({ length: 8 }, (_, i) => ({ id: `k${i}`, term: `term ${i}`, checks: steppedChecks(15, 29) }));
-  const view = buildRankVsDownloads({ from: day(0), to: day(29), today: TODAY, keywords: many, downloads: downloads(0, 29, () => 10), threshold: 5, analyticsEnabled: true });
+  const many = Array.from({ length: 8 }, (_, i) => ({
+    id: `k${i}`,
+    term: `term ${i}`,
+    checks: steppedChecks(15, 29),
+  }));
+  const view = buildRankVsDownloads({
+    from: day(0),
+    to: day(29),
+    today: TODAY,
+    keywords: many,
+    downloads: downloads(0, 29, () => 10),
+    threshold: 5,
+    analyticsEnabled: true,
+  });
   assert.equal(view.keywords.length, rankDownloadsLimits.maxKeywords);
-  const long = buildRankVsDownloads({ from: day(0), to: day(900), today: day(1000), keywords: [], downloads: null, threshold: 5, analyticsEnabled: true });
+  const long = buildRankVsDownloads({
+    from: day(0),
+    to: day(900),
+    today: day(1000),
+    keywords: [],
+    downloads: null,
+    threshold: 5,
+    analyticsEnabled: true,
+  });
   assert.equal(long.days.length, rankDownloadsLimits.maxDays);
 });
 
 test('no sentence claims a cause', () => {
   const view = buildRankVsDownloads({
-    from: day(0), to: day(29), today: TODAY,
+    from: day(0),
+    to: day(29),
+    today: TODAY,
     keywords: [{ id: 'k1', term: 'water reminder', checks: steppedChecks(15, 29) }],
     downloads: downloads(-7, 36, (n) => (n < 15 ? 10 : 20)),
     threshold: 5,
     analyticsEnabled: true,
   });
-  const text = [...view.notes.map((n) => n.message), ...view.comparisons.map((c) => describeComparison(c, 'water reminder'))].join(' ').toLowerCase();
-  for (const word of ['because', 'caused', 'led to', 'resulted', 'drove', 'thanks to', 'due to', 'boosted', 'improved downloads']) assert.ok(!text.includes(word), word);
+  const text = [
+    ...view.notes.map((n) => n.message),
+    ...view.comparisons.map((c) => describeComparison(c, 'water reminder')),
+  ]
+    .join(' ')
+    .toLowerCase();
+  for (const word of [
+    'because',
+    'caused',
+    'led to',
+    'resulted',
+    'drove',
+    'thanks to',
+    'due to',
+    'boosted',
+    'improved downloads',
+  ])
+    assert.ok(!text.includes(word), word);
   assert.ok(text.includes('correlation, not proof'));
 });

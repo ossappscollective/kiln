@@ -1,4 +1,9 @@
-import { AiError, type AiClientOptions, DEFAULT_AI_MAX_RESPONSE_BYTES, DEFAULT_AI_TIMEOUT_MS } from './types.ts';
+import {
+  type AiClientOptions,
+  AiError,
+  DEFAULT_AI_MAX_RESPONSE_BYTES,
+  DEFAULT_AI_TIMEOUT_MS,
+} from './types.ts';
 
 /**
  * One JSON POST with a time limit and a size cap, for every adapter. Throws only `AiError`: a network
@@ -53,12 +58,20 @@ async function readCapped(response: Response, maxBytes: number): Promise<string 
   return new TextDecoder().decode(all);
 }
 
-export const postJson = (request: JsonRequest, options: AiClientOptions): Promise<JsonReply> => sendJson('POST', request, options);
+export const postJson = (request: JsonRequest, options: AiClientOptions): Promise<JsonReply> =>
+  sendJson('POST', request, options);
 
 /** The same guarded call as `postJson` for a read (the list of models): no body, same limits, same fixed errors. */
-export const getJson = (request: Omit<JsonRequest, 'body'>, options: AiClientOptions): Promise<JsonReply> => sendJson('GET', request, options);
+export const getJson = (
+  request: Omit<JsonRequest, 'body'>,
+  options: AiClientOptions,
+): Promise<JsonReply> => sendJson('GET', request, options);
 
-async function sendJson(method: 'GET' | 'POST', request: JsonRequest, options: AiClientOptions): Promise<JsonReply> {
+async function sendJson(
+  method: 'GET' | 'POST',
+  request: JsonRequest,
+  options: AiClientOptions,
+): Promise<JsonReply> {
   const send = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS;
   const maxBytes = options.maxResponseBytes ?? DEFAULT_AI_MAX_RESPONSE_BYTES;
@@ -73,7 +86,11 @@ async function sendJson(method: 'GET' | 'POST', request: JsonRequest, options: A
   try {
     response = await send(request.url, {
       method,
-      headers: { ...(method === 'POST' ? { 'content-type': 'application/json' } : {}), accept: 'application/json', ...request.headers },
+      headers: {
+        ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+        accept: 'application/json',
+        ...request.headers,
+      },
       ...(method === 'POST' ? { body: JSON.stringify(request.body) } : {}),
       // A redirect would carry the key to another address.
       redirect: 'manual',
@@ -83,8 +100,11 @@ async function sendJson(method: 'GET' | 'POST', request: JsonRequest, options: A
   } catch (error) {
     if (error instanceof AiError) throw error;
     const name = error instanceof Error ? error.name : '';
-    if (controller.signal.aborted || name === 'TimeoutError' || name === 'AbortError') throw new AiError('unavailable', { detail: 'timeout' });
-    throw new AiError('unavailable', { detail: error instanceof Error && error.message === 'blocked' ? 'blocked' : 'connection' });
+    if (controller.signal.aborted || name === 'TimeoutError' || name === 'AbortError')
+      throw new AiError('unavailable', { detail: 'timeout' });
+    throw new AiError('unavailable', {
+      detail: error instanceof Error && error.message === 'blocked' ? 'blocked' : 'connection',
+    });
   } finally {
     clearTimeout(timer);
     outer?.removeEventListener('abort', onOuter);
@@ -103,10 +123,15 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Seconds from a Retry-After header (a number of seconds; a date is converted), or the fallback. */
-export function retryAfterSeconds(header: string | null, fallback: number, now: number = Date.now()): number {
+export function retryAfterSeconds(
+  header: string | null,
+  fallback: number,
+  now: number = Date.now(),
+): number {
   if (header) {
     const seconds = Number(header);
-    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.max(Math.ceil(seconds), 1), 3600);
+    if (Number.isFinite(seconds) && seconds >= 0)
+      return Math.min(Math.max(Math.ceil(seconds), 1), 3600);
     const date = Date.parse(header);
     if (!Number.isNaN(date)) return Math.min(Math.max(Math.ceil((date - now) / 1000), 1), 3600);
   }

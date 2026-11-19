@@ -22,7 +22,11 @@ import { recordAudit } from './audit.ts';
  * address) are here too: they run on every text a model writes, after the model, because a prompt is a request and not a guarantee.
  */
 
-export type StoredAiContext = { context: AiAppContext; updatedAt: number | null; updatedBy: string | null };
+export type StoredAiContext = {
+  context: AiAppContext;
+  updatedAt: number | null;
+  updatedBy: string | null;
+};
 
 function parse(raw: unknown): AiAppContext {
   try {
@@ -33,10 +37,21 @@ function parse(raw: unknown): AiAppContext {
   }
 }
 
-export async function getAppContext(sql: Sql, workspaceId: string, appId: string): Promise<StoredAiContext> {
-  const [row] = await sql.query('SELECT context, updated_at, updated_by FROM ai_app_context WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
+export async function getAppContext(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<StoredAiContext> {
+  const [row] = await sql.query(
+    'SELECT context, updated_at, updated_by FROM ai_app_context WHERE workspace_id = ? AND app_id = ?',
+    [workspaceId, appId],
+  );
   if (!row) return { context: emptyAiAppContext(), updatedAt: null, updatedBy: null };
-  return { context: parse(row.context), updatedAt: Number(row.updated_at), updatedBy: String(row.updated_by) };
+  return {
+    context: parse(row.context),
+    updatedAt: Number(row.updated_at),
+    updatedBy: String(row.updated_by),
+  };
 }
 
 /**
@@ -48,31 +63,33 @@ export async function setAppContext(
   input: { workspaceId: string; appId: string; actor: AiActor; context: unknown; at: number },
 ): Promise<{ ok: true; stored: StoredAiContext } | AiFailure> {
   const checked = normalizeAiAppContext(input.context);
-  if (!checked.ok) return aiFail(400, 'invalid_request', 'The AI context is not valid.', { issues: checked.issues });
+  if (!checked.ok)
+    return aiFail(400, 'invalid_request', 'The AI context is not valid.', {
+      issues: checked.issues,
+    });
   const next = checked.value;
   await db.transaction(async (tx) => {
     const before = (await getAppContext(tx, input.workspaceId, input.appId)).context;
-    const changed = aiContextKeys.filter((key) => JSON.stringify(before[key]) !== JSON.stringify(next[key]));
+    const changed = aiContextKeys.filter(
+      (key) => JSON.stringify(before[key]) !== JSON.stringify(next[key]),
+    );
     if (changed.length === 0) return;
     if (isEmptyAiAppContext(next)) {
-      await tx.execute('DELETE FROM ai_app_context WHERE workspace_id = ? AND app_id = ?', [input.workspaceId, input.appId]);
-    } else {
-      const json = JSON.stringify(next);
-      const updated = await tx.execute('UPDATE ai_app_context SET context = ?, updated_by = ?, updated_at = ? WHERE workspace_id = ? AND app_id = ?', [
-        json,
-        input.actor.id,
-        input.at,
+      await tx.execute('DELETE FROM ai_app_context WHERE workspace_id = ? AND app_id = ?', [
         input.workspaceId,
         input.appId,
       ]);
+    } else {
+      const json = JSON.stringify(next);
+      const updated = await tx.execute(
+        'UPDATE ai_app_context SET context = ?, updated_by = ?, updated_at = ? WHERE workspace_id = ? AND app_id = ?',
+        [json, input.actor.id, input.at, input.workspaceId, input.appId],
+      );
       if (Number(updated) === 0) {
-        await tx.execute('INSERT INTO ai_app_context (app_id, workspace_id, context, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)', [
-          input.appId,
-          input.workspaceId,
-          json,
-          input.actor.id,
-          input.at,
-        ]);
+        await tx.execute(
+          'INSERT INTO ai_app_context (app_id, workspace_id, context, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)',
+          [input.appId, input.workspaceId, json, input.actor.id, input.at],
+        );
       }
     }
     await recordAudit(tx, {
@@ -108,7 +125,8 @@ export function contextForPrompt(context: AiAppContext): Record<string, unknown>
 /** The task's input with the app context added under `appContext` (when there is one). Inputs that are not plain objects are left alone. */
 export function withAppContext(input: unknown, context: AiAppContext): unknown {
   const block = contextForPrompt(context);
-  if (block === undefined || typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  if (block === undefined || typeof input !== 'object' || input === null || Array.isArray(input))
+    return input;
   return { ...(input as Record<string, unknown>), appContext: block };
 }
 
@@ -120,7 +138,8 @@ const LINK = /\bhttps?:\/\/|\bwww\.|\b[a-z0-9-]+\.(com|net|org|io|app|de|fr|es|c
 const PHONE = /(?:\+|\b)\d[\d\s().-]{6,}\d/;
 
 /** An email address, a link or a phone number: a reply never holds one. */
-export const hasPersonalData = (text: string): boolean => EMAIL.test(text) || LINK.test(text) || PHONE.test(text);
+export const hasPersonalData = (text: string): boolean =>
+  EMAIL.test(text) || LINK.test(text) || PHONE.test(text);
 
 const PROMISE = [
   /\brefund/i,
@@ -169,11 +188,16 @@ export function applyContextRules(proposal: AiProposal, context: AiAppContext): 
       ban(proposal, proposal.text, context);
       break;
     case 'listing_variants':
-      for (const field of proposal.fields) for (const variant of field.variants) ban(variant, variant.text, context);
+      for (const field of proposal.fields)
+        for (const variant of field.variants) ban(variant, variant.text, context);
       break;
     case 'insight':
-      if (proposal.insight === 'fix_next' && findBannedWord(proposal.releaseNotes, context.bannedWords) !== undefined) {
-        if (!proposal.releaseNotesFlags.includes('banned_term')) proposal.releaseNotesFlags.push('banned_term');
+      if (
+        proposal.insight === 'fix_next' &&
+        findBannedWord(proposal.releaseNotes, context.bannedWords) !== undefined
+      ) {
+        if (!proposal.releaseNotesFlags.includes('banned_term'))
+          proposal.releaseNotesFlags.push('banned_term');
       }
       break;
   }

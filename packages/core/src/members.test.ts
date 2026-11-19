@@ -32,7 +32,8 @@ const change = (
 ) => decideRoleChange({ actorRole, targetRole, newRole, ownerCount });
 
 test('role changes: owners may do anything while another owner remains', () => {
-  for (const target of roles) for (const next of roles) assert.deepEqual(change('owner', target, next), { ok: true });
+  for (const target of roles)
+    for (const next of roles) assert.deepEqual(change('owner', target, next), { ok: true });
 });
 
 test('the last owner cannot be demoted, but may keep the owner role', () => {

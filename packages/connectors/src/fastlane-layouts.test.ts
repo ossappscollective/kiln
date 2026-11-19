@@ -2,16 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detectProject } from './detect.ts';
 import {
-  checkListingRoot,
-  detectedTargets,
-  listingChangeSet,
-  listingFilePaths,
-  listingCandidates,
-  loadListing,
-  parseMetadataHints,
-  readListing,
-} from './fastlane.ts';
-import {
   CARD_APP,
   mapsApp,
   type RepoFiles,
@@ -19,6 +9,16 @@ import {
   scannerMonorepo,
   weatherApp,
 } from './fastlane.fixtures.ts';
+import {
+  checkListingRoot,
+  detectedTargets,
+  listingCandidates,
+  listingChangeSet,
+  listingFilePaths,
+  loadListing,
+  parseMetadataHints,
+  readListing,
+} from './fastlane.ts';
 
 /**
  * Real project layouts, as hand-written file lists (see fastlane.fixtures.ts):
@@ -84,8 +84,18 @@ test('b) every app id becomes a candidate and a target with both of its folders'
   assert.deepEqual(card?.locales, ['en-US']);
   assert.equal(card?.origin, 'convention');
   assert.deepEqual(detectedTargets(candidates), [
-    { key: `app:${CARD_APP}`, label: CARD_APP, app: CARD_APP, roots: { appStore: `${CARD}/ios`, googlePlay: `${CARD}/android` } },
-    { key: `app:${SCAN_APP}`, label: SCAN_APP, app: SCAN_APP, roots: { appStore: `${SCAN}/ios`, googlePlay: `${SCAN}/android` } },
+    {
+      key: `app:${CARD_APP}`,
+      label: CARD_APP,
+      app: CARD_APP,
+      roots: { appStore: `${CARD}/ios`, googlePlay: `${CARD}/android` },
+    },
+    {
+      key: `app:${SCAN_APP}`,
+      label: SCAN_APP,
+      app: SCAN_APP,
+      roots: { appStore: `${SCAN}/ios`, googlePlay: `${SCAN}/android` },
+    },
   ]);
 });
 
@@ -106,7 +116,9 @@ test('b) with several apps the first is the default, in a fixed order, and the r
 test('an app named by the Appfile is preferred over alphabetical order', () => {
   const repo = scannerMonorepo({ cardChangelogs: 1, scanChangelogs: 1 });
   repo['fastlane/Appfile'] = `app_identifier("${SCAN_APP}")\n`;
-  const hints = parseMetadataHints([{ path: 'fastlane/Appfile', source: repo['fastlane/Appfile'] }]);
+  const hints = parseMetadataHints([
+    { path: 'fastlane/Appfile', source: repo['fastlane/Appfile'] },
+  ]);
   assert.deepEqual(hints.apps, [SCAN_APP]);
   const snap = readListing(repo, { hints });
   assert.equal(snap.roots.appStore, `${SCAN}/ios`);
@@ -118,22 +130,38 @@ test('b) choosing an app reads and writes only the files of that app', () => {
   const roots = { appStore: `${SCAN}/ios`, googlePlay: `${SCAN}/android` };
   const snap = readListing(repo, { roots });
   assert.equal(snap.explicit.appStore, true);
-  assert.deepEqual(snap.warnings.filter((w) => /Several/.test(w)), []);
+  assert.deepEqual(
+    snap.warnings.filter((w) => /Several/.test(w)),
+    [],
+  );
   assert.equal(snap.listing.appStore?.locales['en-US']?.name, 'Example Scanner');
   assert.equal(snap.listing.googlePlay?.locales['en-US']?.title, 'Example Scanner');
   assert.ok(Object.keys(snap.files).every((p) => p.startsWith(`${SCAN}/`)));
 
   const after = structuredClone(snap.listing);
-  after.appStore = { ...after.appStore, locales: { ...after.appStore?.locales, 'en-US': { ...after.appStore?.locales['en-US'], subtitle: 'New' } } };
+  after.appStore = {
+    ...after.appStore,
+    locales: {
+      ...after.appStore?.locales,
+      'en-US': { ...after.appStore?.locales['en-US'], subtitle: 'New' },
+    },
+  };
   after.googlePlay = {
     ...after.googlePlay,
-    locales: { ...after.googlePlay?.locales, 'en-US': { ...after.googlePlay?.locales['en-US'], title: 'Scanner' } },
+    locales: {
+      ...after.googlePlay?.locales,
+      'en-US': { ...after.googlePlay?.locales['en-US'], title: 'Scanner' },
+    },
     changelogs: { 'en-US': { ...after.googlePlay?.changelogs['en-US'], '4': 'New release.' } },
   };
   const changes = listingChangeSet(snap, after);
   assert.deepEqual(
     changes.map((c) => c.path),
-    [`${SCAN}/android/en-US/changelogs/4.txt`, `${SCAN}/android/en-US/title.txt`, `${SCAN}/ios/en-US/subtitle.txt`],
+    [
+      `${SCAN}/android/en-US/changelogs/4.txt`,
+      `${SCAN}/android/en-US/title.txt`,
+      `${SCAN}/ios/en-US/subtitle.txt`,
+    ],
   );
   assert.ok(changes.every((c) => c.path.startsWith(`${SCAN}/`)));
 });
@@ -165,11 +193,15 @@ test('an empty custom root means the store is not read, and nothing is written f
 
 test('a custom folder with no listing files says so, and what is there instead', () => {
   const repo = scannerMonorepo({ cardChangelogs: 1, scanChangelogs: 1 });
-  const missing = readListing(repo, { roots: { appStore: 'fastlane/metadata/com.example.nope/ios' } });
+  const missing = readListing(repo, {
+    roots: { appStore: 'fastlane/metadata/com.example.nope/ios' },
+  });
   assert.equal(missing.found.appStore, false);
   assert.equal(missing.diagnostics.appStore.state, 'missing');
   assert.match(missing.diagnostics.appStore.message, /does not exist/);
-  assert.deepEqual(missing.diagnostics.appStore.searched, ['fastlane/metadata/com.example.nope/ios']);
+  assert.deepEqual(missing.diagnostics.appStore.searched, [
+    'fastlane/metadata/com.example.nope/ios',
+  ]);
 
   const empty = readListing(repo, { roots: { appStore: `${SCAN}/ios/review_information` } });
   assert.equal(empty.diagnostics.appStore.state, 'no_listing_files');
@@ -214,7 +246,20 @@ test('checkListingRoot applies the repository path rules', () => {
   for (const ok of ['fastlane/metadata/ios', './fastlane/metadata/', 'metadata', 'a b/c.d']) {
     assert.equal(checkListingRoot(ok), undefined, ok);
   }
-  for (const bad of ['', '   ', '/etc', '../x', 'a/../b', 'a//b', 'a\\b', '.git/hooks', 'x/.GIT/y', 'a/./b', 'a\u0000b', 'x'.repeat(301)]) {
+  for (const bad of [
+    '',
+    '   ',
+    '/etc',
+    '../x',
+    'a/../b',
+    'a//b',
+    'a\\b',
+    '.git/hooks',
+    'x/.GIT/y',
+    'a/./b',
+    'a\u0000b',
+    'x'.repeat(301),
+  ]) {
     assert.notEqual(checkListingRoot(bad), undefined, JSON.stringify(bad));
   }
 });
@@ -262,7 +307,9 @@ test('a hinted folder is preferred, and works with any name', () => {
     'fastlane/store/apple/en-US/name.txt': 'Hinted',
     'fastlane/metadata/en-US/name.txt': 'Conventional',
   };
-  const hints = parseMetadataHints([{ path: 'fastlane/Deliverfile', source: repo['fastlane/Deliverfile'] as string }]);
+  const hints = parseMetadataHints([
+    { path: 'fastlane/Deliverfile', source: repo['fastlane/Deliverfile'] as string },
+  ]);
   const snap = readListing(repo, { hints });
   assert.equal(snap.roots.appStore, 'fastlane/store/apple');
   assert.equal(snap.listing.appStore?.locales['en-US']?.name, 'Hinted');
@@ -276,7 +323,10 @@ test('a hint that names a folder with no listing files is only mentioned in the 
   const d = await detectProject(Object.keys(repo), async (p) => repo[p]);
   // The Fastfile defaults to fastlane/metadata/ios, which does not exist in this monorepo.
   assert.deepEqual(d.listing?.hints.appStore, ['fastlane/metadata/ios']);
-  assert.equal(d.listing?.candidates.every((c) => c.origin === 'convention'), true);
+  assert.equal(
+    d.listing?.candidates.every((c) => c.origin === 'convention'),
+    true,
+  );
   assert.equal(d.listing?.targets.length, 2);
   assert.match(d.warnings.join('\n'), /Several apps or metadata folders were found/);
   const snap = readListing(repo, { hints: d.listing?.hints });
@@ -296,7 +346,14 @@ test('only the files of the chosen folder are read, and no screenshots, images o
   assert.equal(snap.found.appStore, true);
   assert.ok(reads.every((p) => p.startsWith('fastlane/metadata/')));
   assert.ok(reads.every((p) => p.endsWith('.txt')));
-  assert.ok(reads.every((p) => !p.includes('/screenshots/') && !p.includes('/images/') && !p.includes('review_information')));
+  assert.ok(
+    reads.every(
+      (p) =>
+        !p.includes('/screenshots/') &&
+        !p.includes('/images/') &&
+        !p.includes('review_information'),
+    ),
+  );
   assert.equal(new Set(reads).size, reads.length, 'no file is read twice');
   assert.ok(reads.includes('fastlane/metadata/ios/en-US/name.txt'));
   assert.ok(reads.includes('fastlane/metadata/ios/copyright.txt'));
@@ -315,14 +372,25 @@ test('release notes: the newest are read, the rest are left alone and reported',
   assert.ok(notes.includes('fastlane/metadata/android/en-US/changelogs/136.txt'));
   assert.ok(!notes.includes('fastlane/metadata/android/en-US/changelogs/135.txt'));
   assert.ok(reads.length < 50, `${reads.length} reads`);
-  assert.match(snap.warnings.join('\n'), /Only the 10 newest release notes of each locale were read; 266 older ones/);
+  assert.match(
+    snap.warnings.join('\n'),
+    /Only the 10 newest release notes of each locale were read; 266 older ones/,
+  );
   // An edit of the shown notes touches only those files: the unread ones are not deleted.
   const after = structuredClone(snap.listing);
   const en = after.googlePlay?.changelogs['en-US'];
   assert.ok(en);
   en['145'] = 'Edited.';
-  assert.deepEqual(listingChangeSet(snap, after).map((c) => c.path), ['fastlane/metadata/android/en-US/changelogs/145.txt']);
-  assert.equal(listingFilePaths(Object.keys(repo), { maxChangelogs: 1000 }).paths.filter((p) => p.includes('/changelogs/')).length, 286);
+  assert.deepEqual(
+    listingChangeSet(snap, after).map((c) => c.path),
+    ['fastlane/metadata/android/en-US/changelogs/145.txt'],
+  );
+  assert.equal(
+    listingFilePaths(Object.keys(repo), { maxChangelogs: 1000 }).paths.filter((p) =>
+      p.includes('/changelogs/'),
+    ).length,
+    286,
+  );
 });
 
 test('the scan prefetches its files together and reads each one once', async () => {

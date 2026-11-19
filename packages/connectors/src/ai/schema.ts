@@ -33,13 +33,28 @@ const SUPPORTED = new Set([
 ]);
 
 /** Keywords the providers' structured output modes do not accept (or accept only in part). They are checked here, not there. */
-const PROVIDER_UNSUPPORTED = ['minLength', 'maxLength', 'minItems', 'maxItems', 'minimum', 'maximum'] as const;
+const PROVIDER_UNSUPPORTED = [
+  'minLength',
+  'maxLength',
+  'minItems',
+  'maxItems',
+  'minimum',
+  'maximum',
+] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const typeOf = (value: unknown): string =>
-  value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value === 'number' ? (Number.isInteger(value) ? 'integer' : 'number') : typeof value;
+  value === null
+    ? 'null'
+    : Array.isArray(value)
+      ? 'array'
+      : typeof value === 'number'
+        ? Number.isInteger(value)
+          ? 'integer'
+          : 'number'
+        : typeof value;
 
 const matchesType = (name: string, value: unknown): boolean => {
   const actual = typeOf(value);
@@ -48,11 +63,13 @@ const matchesType = (name: string, value: unknown): boolean => {
 
 const codePoints = (value: string): number => Array.from(value).length;
 
-const join = (path: string, key: string | number): string => (path === '' ? String(key) : `${path}.${key}`);
+const join = (path: string, key: string | number): string =>
+  path === '' ? String(key) : `${path}.${key}`;
 
 function check(schema: JsonSchema, value: unknown, path: string, issues: SchemaIssue[]): void {
   for (const key of Object.keys(schema)) {
-    if (!SUPPORTED.has(key) && !ANNOTATIONS.has(key)) throw new Error(`Unsupported JSON Schema keyword: ${key}`);
+    if (!SUPPORTED.has(key) && !ANNOTATIONS.has(key))
+      throw new Error(`Unsupported JSON Schema keyword: ${key}`);
   }
   const type = schema.type;
   if (type !== undefined) {
@@ -71,33 +88,43 @@ function check(schema: JsonSchema, value: unknown, path: string, issues: SchemaI
     return;
   }
   if (typeof value === 'string') {
-    if (typeof schema.minLength === 'number' && codePoints(value) < schema.minLength) issues.push({ path, reason: `shorter than ${schema.minLength}` });
-    if (typeof schema.maxLength === 'number' && codePoints(value) > schema.maxLength) issues.push({ path, reason: `longer than ${schema.maxLength}` });
+    if (typeof schema.minLength === 'number' && codePoints(value) < schema.minLength)
+      issues.push({ path, reason: `shorter than ${schema.minLength}` });
+    if (typeof schema.maxLength === 'number' && codePoints(value) > schema.maxLength)
+      issues.push({ path, reason: `longer than ${schema.maxLength}` });
   }
   if (typeof value === 'number') {
-    if (typeof schema.minimum === 'number' && value < schema.minimum) issues.push({ path, reason: `below ${schema.minimum}` });
-    if (typeof schema.maximum === 'number' && value > schema.maximum) issues.push({ path, reason: `above ${schema.maximum}` });
+    if (typeof schema.minimum === 'number' && value < schema.minimum)
+      issues.push({ path, reason: `below ${schema.minimum}` });
+    if (typeof schema.maximum === 'number' && value > schema.maximum)
+      issues.push({ path, reason: `above ${schema.maximum}` });
   }
   if (Array.isArray(value)) {
-    if (typeof schema.minItems === 'number' && value.length < schema.minItems) issues.push({ path, reason: `fewer than ${schema.minItems} items` });
-    if (typeof schema.maxItems === 'number' && value.length > schema.maxItems) issues.push({ path, reason: `more than ${schema.maxItems} items` });
+    if (typeof schema.minItems === 'number' && value.length < schema.minItems)
+      issues.push({ path, reason: `fewer than ${schema.minItems} items` });
+    if (typeof schema.maxItems === 'number' && value.length > schema.maxItems)
+      issues.push({ path, reason: `more than ${schema.maxItems} items` });
     if (isRecord(schema.items)) {
       const items = schema.items as JsonSchema;
       value.forEach((item, index) => check(items, item, join(path, index), issues));
     }
   }
   if (isRecord(value)) {
-    const properties = isRecord(schema.properties) ? (schema.properties as Record<string, JsonSchema>) : {};
+    const properties = isRecord(schema.properties)
+      ? (schema.properties as Record<string, JsonSchema>)
+      : {};
     if (Array.isArray(schema.required)) {
       for (const name of schema.required as string[]) {
-        if (!Object.prototype.hasOwnProperty.call(value, name)) issues.push({ path: join(path, name), reason: 'missing' });
+        if (!Object.hasOwn(value, name)) issues.push({ path: join(path, name), reason: 'missing' });
       }
     }
     for (const name of Object.keys(value)) {
       const sub = properties[name];
       if (sub !== undefined) check(sub, value[name], join(path, name), issues);
-      else if (schema.additionalProperties === false) issues.push({ path: join(path, name), reason: 'not allowed' });
-      else if (isRecord(schema.additionalProperties)) check(schema.additionalProperties as JsonSchema, value[name], join(path, name), issues);
+      else if (schema.additionalProperties === false)
+        issues.push({ path: join(path, name), reason: 'not allowed' });
+      else if (isRecord(schema.additionalProperties))
+        check(schema.additionalProperties as JsonSchema, value[name], join(path, name), issues);
     }
   }
 }
@@ -124,7 +151,8 @@ export function providerSchema(schema: JsonSchema): JsonSchema {
       // `properties` maps names to schemas: its keys are names, not keywords.
       if (key === 'properties' && isRecord(node[key])) {
         const props: Record<string, unknown> = {};
-        for (const name of Object.keys(node[key] as Record<string, unknown>)) props[name] = strip((node[key] as Record<string, unknown>)[name]);
+        for (const name of Object.keys(node[key] as Record<string, unknown>))
+          props[name] = strip((node[key] as Record<string, unknown>)[name]);
         out[key] = props;
       } else {
         out[key] = strip(node[key]);
@@ -207,8 +235,11 @@ export function exampleOf(schema: JsonSchema): unknown {
   switch (type) {
     case 'object': {
       const out: Record<string, unknown> = {};
-      const properties = isRecord(schema.properties) ? (schema.properties as Record<string, JsonSchema>) : {};
-      for (const name of Object.keys(properties)) out[name] = exampleOf(properties[name] as JsonSchema);
+      const properties = isRecord(schema.properties)
+        ? (schema.properties as Record<string, JsonSchema>)
+        : {};
+      for (const name of Object.keys(properties))
+        out[name] = exampleOf(properties[name] as JsonSchema);
       return out;
     }
     case 'array':
@@ -271,7 +302,8 @@ export function repairModelJson(text: string): unknown {
   } else {
     tail = tail.replace(/\s+$/, '');
     // A number cut in the middle cannot be told from a whole one: never guess a digit.
-    if (!tail.endsWith('"') && /^-?[0-9]/.test(/[^\s,:[\]{}]+$/.exec(tail)?.[0] ?? '')) return undefined;
+    if (!tail.endsWith('"') && /^-?[0-9]/.test(/[^\s,:[\]{}]+$/.exec(tail)?.[0] ?? ''))
+      return undefined;
     // A cut right after an opening bracket would become an empty list or object the model never wrote.
     if (/[[{]$/.test(tail)) return undefined;
     tail = tail.replace(/,$/, '');

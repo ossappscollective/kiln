@@ -65,7 +65,8 @@ export function createPoller(options: PollerOptions): Poller {
   // Bumped by stop, so a tick that finishes later knows it belongs to a poller that was stopped.
   let generation = 0;
 
-  const delay = () => Math.min(max, (options.delayMs?.() ?? options.intervalMs) * 2 ** Math.min(failures, 10));
+  const delay = () =>
+    Math.min(max, (options.delayMs?.() ?? options.intervalMs) * 2 ** Math.min(failures, 10));
 
   function schedule(ms: number) {
     if (!active) return;

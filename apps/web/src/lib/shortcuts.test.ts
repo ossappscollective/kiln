@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import { appSectionDefs } from './app-scope.ts';
 import { shortcutFor } from './reviews.ts';
 import {
+  appChords,
   CHORD_LEADER,
   CHORD_TIMEOUT_MS,
-  appChords,
   chordHint,
   idleChord,
   isTypingTarget,
@@ -15,7 +15,11 @@ import {
   workspaceChords,
 } from './shortcuts.ts';
 
-const press = (key: string, extra: Record<string, unknown> = {}) => ({ key, typing: false, ...extra });
+const press = (key: string, extra: Record<string, unknown> = {}) => ({
+  key,
+  typing: false,
+  ...extra,
+});
 
 test('chord keys are unique in each context and the leader is not a chord key', () => {
   for (const chords of [appChords, workspaceChords]) {
@@ -29,7 +33,11 @@ test('chord keys are unique in each context and the leader is not a chord key', 
 test('every app chord names a real app section, and every section has one', () => {
   const ids = appSectionDefs.map((s) => s.id as string);
   for (const c of appChords) assert.ok(ids.includes(c.target), c.target);
-  for (const id of ids) assert.ok(appChords.some((c) => c.target === id), id);
+  for (const id of ids)
+    assert.ok(
+      appChords.some((c) => c.target === id),
+      id,
+    );
 });
 
 test('the leader and the modifier combinations do not clash with the reviews keys', () => {
@@ -48,12 +56,26 @@ test('Cmd or Ctrl + K opens the switcher and Cmd or Ctrl + 1 to 9 jump', () => {
   const k = stepShortcut(idleChord, press('k', { metaKey: true }), 0, 'app');
   assert.deepEqual(k.action, { type: 'open-switcher' });
   assert.equal(k.consume, true);
-  assert.deepEqual(stepShortcut(idleChord, press('K', { ctrlKey: true }), 0, 'workspace').action, { type: 'open-switcher' });
-  assert.deepEqual(stepShortcut(idleChord, press('3', { ctrlKey: true }), 0, 'workspace').action, { type: 'jump-app', index: 2 });
-  assert.deepEqual(stepShortcut(idleChord, press('9', { metaKey: true }), 0, 'app').action, { type: 'jump-app', index: 8 });
+  assert.deepEqual(stepShortcut(idleChord, press('K', { ctrlKey: true }), 0, 'workspace').action, {
+    type: 'open-switcher',
+  });
+  assert.deepEqual(stepShortcut(idleChord, press('3', { ctrlKey: true }), 0, 'workspace').action, {
+    type: 'jump-app',
+    index: 2,
+  });
+  assert.deepEqual(stepShortcut(idleChord, press('9', { metaKey: true }), 0, 'app').action, {
+    type: 'jump-app',
+    index: 8,
+  });
   assert.equal(stepShortcut(idleChord, press('0', { metaKey: true }), 0, 'app').action, null);
-  assert.equal(stepShortcut(idleChord, press('k', { metaKey: true, shiftKey: true }), 0, 'app').action, null);
-  assert.equal(stepShortcut(idleChord, press('k', { metaKey: true, altKey: true }), 0, 'app').action, null);
+  assert.equal(
+    stepShortcut(idleChord, press('k', { metaKey: true, shiftKey: true }), 0, 'app').action,
+    null,
+  );
+  assert.equal(
+    stepShortcut(idleChord, press('k', { metaKey: true, altKey: true }), 0, 'app').action,
+    null,
+  );
 });
 
 test('g then a letter goes to the section of the context', () => {
@@ -64,10 +86,20 @@ test('g then a letter goes to the section of the context', () => {
   assert.deepEqual(second.action, { type: 'go', target: 'listing' });
   assert.equal(second.consume, true);
   assert.deepEqual(second.state, idleChord);
-  const ws = stepShortcut(stepShortcut(idleChord, press('g'), 0, 'workspace').state, press('a'), 10, 'workspace');
+  const ws = stepShortcut(
+    stepShortcut(idleChord, press('g'), 0, 'workspace').state,
+    press('a'),
+    10,
+    'workspace',
+  );
   assert.deepEqual(ws.action, { type: 'go', target: 'portfolio' });
   // g then r goes to releases; the reviews reply key is consumed so it does not also open a reply.
-  const r = stepShortcut(stepShortcut(idleChord, press('g'), 0, 'app').state, press('r'), 10, 'app');
+  const r = stepShortcut(
+    stepShortcut(idleChord, press('g'), 0, 'app').state,
+    press('r'),
+    10,
+    'app',
+  );
   assert.deepEqual(r.action, { type: 'go', target: 'releases' });
   assert.equal(r.consume, true);
 });
@@ -83,7 +115,9 @@ test('a chord times out, is cancelled by Escape or by a key that is not a chord'
   assert.equal(other.consume, false);
   // Shift alone does not break a chord; a shifted letter is not a chord.
   assert.deepEqual(stepShortcut(pending, press('Shift'), 5, 'app').state, pending);
-  assert.deepEqual(stepShortcut(pending, press('D', { shiftKey: true }), 10, 'app').action, { type: 'cancel' });
+  assert.deepEqual(stepShortcut(pending, press('D', { shiftKey: true }), 10, 'app').action, {
+    type: 'cancel',
+  });
 });
 
 test('nothing fires while typing, in a dialog, with alt, or on a held key', () => {
@@ -93,9 +127,15 @@ test('nothing fires while typing, in a dialog, with alt, or on a held key', () =
   assert.equal(stepShortcut(idleChord, press('g', { dialogOpen: true }), 0, 'app').action, null);
   assert.equal(stepShortcut(idleChord, press('g', { altKey: true }), 0, 'app').action, null);
   assert.equal(stepShortcut(idleChord, press('g', { repeat: true }), 0, 'app').action, null);
-  assert.equal(stepShortcut(idleChord, press('k', { metaKey: true, dialogOpen: true }), 0, 'app').action, null);
+  assert.equal(
+    stepShortcut(idleChord, press('k', { metaKey: true, dialogOpen: true }), 0, 'app').action,
+    null,
+  );
   // A modifier combination still works from a field.
-  assert.deepEqual(stepShortcut(idleChord, press('k', { metaKey: true, typing: true }), 0, 'app').action, { type: 'open-switcher' });
+  assert.deepEqual(
+    stepShortcut(idleChord, press('k', { metaKey: true, typing: true }), 0, 'app').action,
+    { type: 'open-switcher' },
+  );
 });
 
 test('isTypingTarget knows fields and editable text', () => {

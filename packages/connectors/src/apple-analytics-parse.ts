@@ -1,6 +1,11 @@
-import { type AnalyticsDimension, type AnalyticsMetric, type AnalyticsSource, analyticsLimits } from '@mrm/core';
-import { type AnalyticsPoint, AnalyticsError, type ParseStats } from './analytics-types.ts';
-import { type Table, columnIndex, normalizeHeader, parseDay, parseNumber } from './delimited.ts';
+import {
+  type AnalyticsDimension,
+  type AnalyticsMetric,
+  type AnalyticsSource,
+  analyticsLimits,
+} from '@mrm/core';
+import { AnalyticsError, type AnalyticsPoint, type ParseStats } from './analytics-types.ts';
+import { columnIndex, normalizeHeader, parseDay, parseNumber, type Table } from './delimited.ts';
 
 /**
  * Maps the files Apple produces to normalised daily facts. Two inputs share this code: the segments of the Analytics Reports API
@@ -17,7 +22,12 @@ import { type Table, columnIndex, normalizeHeader, parseDay, parseNumber } from 
  * - Weekly and monthly files carry the first day of the period in the Date column: only DAILY files are meant to be read here.
  */
 
-export const appleReportKinds = ['discovery_engagement', 'downloads', 'sessions', 'crashes'] as const;
+export const appleReportKinds = [
+  'discovery_engagement',
+  'downloads',
+  'sessions',
+  'crashes',
+] as const;
 export type AppleReportKind = (typeof appleReportKinds)[number];
 
 export type AppleReportVariant = 'standard' | 'detailed' | 'unknown';
@@ -56,10 +66,15 @@ export function appleReportVariant(name: string): AppleReportVariant {
 export function appleReportKindFromHeader(header: string[]): AppleReportKind | undefined {
   const cols = columnIndex(header);
   if (cols.has('download type') && cols.has('counts')) return 'downloads';
-  if (cols.has('event') && cols.has('counts') && (cols.has('page type') || cols.has('engagement type') || cols.has('source type'))) {
+  if (
+    cols.has('event') &&
+    cols.has('counts') &&
+    (cols.has('page type') || cols.has('engagement type') || cols.has('source type'))
+  ) {
     return 'discovery_engagement';
   }
-  if (cols.has('sessions') && (cols.has('total session duration') || cols.has('unique devices'))) return 'sessions';
+  if (cols.has('sessions') && (cols.has('total session duration') || cols.has('unique devices')))
+    return 'sessions';
   if (cols.has('crashes') && cols.has('date')) return 'crashes';
   return undefined;
 }
@@ -98,7 +113,13 @@ const isMac = (device: string) => /\b(mac|macos|desktop)\b/i.test(device);
 
 type Acc = Map<string, AnalyticsPoint>;
 
-function add(acc: Acc, date: string, metric: AnalyticsMetric, value: number, dimension?: { type: AnalyticsDimension; value: string }) {
+function add(
+  acc: Acc,
+  date: string,
+  metric: AnalyticsMetric,
+  value: number,
+  dimension?: { type: AnalyticsDimension; value: string },
+) {
   const dimKey = dimension ? `${dimension.type}\u0000${dimension.value}` : '';
   const key = `${date}\u0000${metric}\u0000${dimKey}`;
   const found = acc.get(key);
@@ -117,13 +138,19 @@ export function mapAppleTable(table: Table, options: ParseAppleOptions = {}): Pa
   const kind = named ?? appleReportKindFromHeader(table.header);
   if (!kind) throw new AnalyticsError('unknown_report');
   const cols = columnIndex(table.header);
-  for (const name of required[kind]) if (!cols.has(name)) throw new AnalyticsError('missing_columns');
+  for (const name of required[kind])
+    if (!cols.has(name)) throw new AnalyticsError('missing_columns');
 
   const at = (row: string[], name: string): string | undefined => {
     const i = cols.get(name);
     return i === undefined ? undefined : row[i];
   };
-  const stats: ParseStats = { rowsRead: table.rows.length, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0 };
+  const stats: ParseStats = {
+    rowsRead: table.rows.length,
+    rowsUsed: 0,
+    rowsUnreadable: 0,
+    rowsFiltered: 0,
+  };
   const acc: Acc = new Map();
   const notes: string[] = [];
   const hasDevice = cols.has('device');
@@ -146,7 +173,11 @@ export function mapAppleTable(table: Table, options: ParseAppleOptions = {}): Pa
     const sourceType = clip(at(row, 'source type') ?? '');
     const territory = clip(at(row, 'territory') ?? '');
     const version = clip(at(row, 'app version') ?? '');
-    const split = (metric: AnalyticsMetric, value: number, by: ('source_type' | 'territory' | 'app_version')[]) => {
+    const split = (
+      metric: AnalyticsMetric,
+      value: number,
+      by: ('source_type' | 'territory' | 'app_version')[],
+    ) => {
       add(acc, date, metric, value);
       for (const type of by) {
         const v = type === 'source_type' ? sourceType : type === 'territory' ? territory : version;
@@ -223,13 +254,21 @@ export function mapAppleTable(table: Table, options: ParseAppleOptions = {}): Pa
   const dates = [...new Set(points.map((p) => p.date))].sort();
   const variant = options.reportName ? appleReportVariant(options.reportName) : 'unknown';
   if (variant === 'detailed') {
-    notes.push('This is a Detailed report: Apple drops rows with fewer than 5 users and adds small random noise to its counts.');
+    notes.push(
+      'This is a Detailed report: Apple drops rows with fewer than 5 users and adds small random noise to its counts.',
+    );
   }
   if (kind === 'sessions' || kind === 'crashes') {
-    notes.push('Sessions and crashes cover only users who chose to share data with developers: a sample, not a total.');
+    notes.push(
+      'Sessions and crashes cover only users who chose to share data with developers: a sample, not a total.',
+    );
   }
-  if (noPageType) notes.push('The file has no Page Type column, so every page view was counted, not only product page views.');
-  if (hasDevice && !platform) notes.push('Rows of every device were kept because no platform was given.');
+  if (noPageType)
+    notes.push(
+      'The file has no Page Type column, so every page view was counted, not only product page views.',
+    );
+  if (hasDevice && !platform)
+    notes.push('Rows of every device were kept because no platform was given.');
   return {
     kind,
     variant,
@@ -260,14 +299,18 @@ export type ParsedAppleSales = {
  * Product type identifiers that are NOT a purchase or download of the app itself: updates (`7`, `7F`, `7T`, `F7`) and in-app
  * purchases (`IA...`). The full list of identifiers is UNVERIFIED here; anything else with the app's Apple Identifier counts.
  */
-const notAnApp = (productType: string) => /^(7|7F|7T|F7|IA[0-9A-Z]*|FI[0-9A-Z]*)$/i.test(productType);
+const notAnApp = (productType: string) =>
+  /^(7|7F|7T|F7|IA[0-9A-Z]*|FI[0-9A-Z]*)$/i.test(productType);
 
 /**
  * Reads a Sales and Trends daily summary for ONE app (`appleId` is its numeric App Store id). Units are negative for refunds, and
  * proceeds are `units * Developer Proceeds` in the `Currency of Proceeds` of the row (never converted). Rows of other apps, updates
  * and in-app purchases are left out. A report without a row for the app is not an error: it has no points.
  */
-export function mapAppleSalesTable(table: Table, options: { appleId: string; platform?: 'ios' | 'macos' }): ParsedAppleSales {
+export function mapAppleSalesTable(
+  table: Table,
+  options: { appleId: string; platform?: 'ios' | 'macos' },
+): ParsedAppleSales {
   const cols = columnIndex(table.header);
   for (const name of ['units', 'developer proceeds', 'apple identifier', 'begin date']) {
     if (!cols.has(name)) throw new AnalyticsError('missing_columns');
@@ -276,7 +319,12 @@ export function mapAppleSalesTable(table: Table, options: { appleId: string; pla
     const i = cols.get(name);
     return i === undefined ? undefined : row[i];
   };
-  const stats: ParseStats = { rowsRead: table.rows.length, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0 };
+  const stats: ParseStats = {
+    rowsRead: table.rows.length,
+    rowsUsed: 0,
+    rowsUnreadable: 0,
+    rowsFiltered: 0,
+  };
   const acc: Acc = new Map();
   for (const row of table.rows) {
     const date = parseDay(at(row, 'begin date'));
@@ -310,7 +358,10 @@ export function mapAppleSalesTable(table: Table, options: { appleId: string; pla
     stats.rowsUsed++;
   }
   const points = [...acc.values()].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.metric.localeCompare(b.metric) || (a.dimension?.value ?? '').localeCompare(b.dimension?.value ?? ''),
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.metric.localeCompare(b.metric) ||
+      (a.dimension?.value ?? '').localeCompare(b.dimension?.value ?? ''),
   );
   const dates = [...new Set(points.map((p) => p.date))].sort();
   return {

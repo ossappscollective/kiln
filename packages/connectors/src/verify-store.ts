@@ -108,7 +108,7 @@ export async function verifyAppStoreConnectCredential(
     const count = access.appCount;
     const details = [
       'Checked: Apple accepted a token signed with this key (GET /v1/apps).',
-      'Not checked: the key\'s role. Releases need App Manager or higher.',
+      "Not checked: the key's role. Releases need App Manager or higher.",
     ];
     if (count !== undefined) details.unshift(`Apps visible to this key: ${count}.`);
     return {
@@ -152,10 +152,7 @@ export async function verifyGooglePlayCredential(
   } catch (error) {
     return error instanceof StoreError ? fail(secret, error.message) : unexpected(secret);
   }
-  const who = [
-    `Service account: ${email}`,
-    ...(projectId ? [`Cloud project: ${projectId}`] : []),
-  ];
+  const who = [`Service account: ${email}`, ...(projectId ? [`Cloud project: ${projectId}`] : [])];
   try {
     await connector.checkToken();
   } catch (error) {

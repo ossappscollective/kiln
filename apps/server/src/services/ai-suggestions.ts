@@ -84,7 +84,13 @@ export function toSuggestionView(r: Row): AiSuggestionView {
     status: String(r.status) as AiSuggestionStatus,
     provider: String(r.provider) as AiProvider,
     model: String(r.model),
-    proposal: parseJson<AiProposal>(r.proposal, { kind: 'keywords', store: 'app_store', country: '', locale: '', items: [] }),
+    proposal: parseJson<AiProposal>(r.proposal, {
+      kind: 'keywords',
+      store: 'app_store',
+      country: '',
+      locale: '',
+      items: [],
+    }),
     scope: parseJson<Record<string, unknown>>(r.scope, {}),
     inputHash: String(r.input_hash),
     usage: { inputTokens: Number(r.input_tokens), outputTokens: Number(r.output_tokens) },
@@ -92,15 +98,25 @@ export function toSuggestionView(r: Row): AiSuggestionView {
     createdAt: Number(r.created_at),
     decidedBy: r.decided_by === null || r.decided_by === undefined ? null : String(r.decided_by),
     decidedAt: r.decided_at === null || r.decided_at === undefined ? null : Number(r.decided_at),
-    accepted: r.accepted === null || r.accepted === undefined ? null : parseJson<AiAcceptedRef | null>(r.accepted, null),
+    accepted:
+      r.accepted === null || r.accepted === undefined
+        ? null
+        : parseJson<AiAcceptedRef | null>(r.accepted, null),
   };
 }
 
 const COLUMNS = `id, workspace_id, app_id, task, task_version, kind, status, provider, model, scope, proposal, input_hash,
   input_tokens, output_tokens, created_by, created_at, decided_by, decided_at, accepted`;
 
-export async function getSuggestion(sql: Sql, workspaceId: string, id: string): Promise<AiSuggestionView | undefined> {
-  const [row] = await sql.query(`SELECT ${COLUMNS} FROM ai_suggestions WHERE workspace_id = ? AND id = ?`, [workspaceId, id]);
+export async function getSuggestion(
+  sql: Sql,
+  workspaceId: string,
+  id: string,
+): Promise<AiSuggestionView | undefined> {
+  const [row] = await sql.query(
+    `SELECT ${COLUMNS} FROM ai_suggestions WHERE workspace_id = ? AND id = ?`,
+    [workspaceId, id],
+  );
   return row ? toSuggestionView(row) : undefined;
 }
 
@@ -123,7 +139,10 @@ export async function listSuggestions(
     where.push('task = ?');
     params.push(filter.task);
   }
-  const limit = Math.max(1, Math.min(MAX_SUGGESTIONS_PAGE, Math.floor(filter.limit ?? DEFAULT_SUGGESTIONS_PAGE)));
+  const limit = Math.max(
+    1,
+    Math.min(MAX_SUGGESTIONS_PAGE, Math.floor(filter.limit ?? DEFAULT_SUGGESTIONS_PAGE)),
+  );
   const rows = await sql.query(
     `SELECT ${COLUMNS} FROM ai_suggestions WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT ${limit}`,
     params,
@@ -137,12 +156,26 @@ export async function listSuggestions(
  */
 export async function decideSuggestion(
   sql: Sql,
-  input: { workspaceId: string; id: string; status: 'accepted' | 'dismissed'; actorId: string; at: number; accepted?: AiAcceptedRef },
+  input: {
+    workspaceId: string;
+    id: string;
+    status: 'accepted' | 'dismissed';
+    actorId: string;
+    at: number;
+    accepted?: AiAcceptedRef;
+  },
 ): Promise<boolean> {
   const changed = await sql.execute(
     `UPDATE ai_suggestions SET status = ?, decided_by = ?, decided_at = ?, accepted = ?
       WHERE workspace_id = ? AND id = ? AND status = 'proposed'`,
-    [input.status, input.actorId, input.at, input.accepted ? JSON.stringify(input.accepted) : null, input.workspaceId, input.id],
+    [
+      input.status,
+      input.actorId,
+      input.at,
+      input.accepted ? JSON.stringify(input.accepted) : null,
+      input.workspaceId,
+      input.id,
+    ],
   );
   return Number(changed) > 0;
 }
@@ -157,34 +190,65 @@ export async function reopenSuggestion(sql: Sql, workspaceId: string, id: string
 }
 
 /** Rewrites the proposal of a suggestion that is still open (a partial accept marks the items it took). False when it was no longer proposed. */
-export async function updateProposal(sql: Sql, workspaceId: string, id: string, proposal: AiProposal): Promise<boolean> {
-  const changed = await sql.execute("UPDATE ai_suggestions SET proposal = ? WHERE workspace_id = ? AND id = ? AND status = 'proposed'", [
-    JSON.stringify(proposal),
-    workspaceId,
-    id,
-  ]);
+export async function updateProposal(
+  sql: Sql,
+  workspaceId: string,
+  id: string,
+  proposal: AiProposal,
+): Promise<boolean> {
+  const changed = await sql.execute(
+    "UPDATE ai_suggestions SET proposal = ? WHERE workspace_id = ? AND id = ? AND status = 'proposed'",
+    [JSON.stringify(proposal), workspaceId, id],
+  );
   return Number(changed) > 0;
 }
 
 /** Records what an accepted suggestion created. */
-export async function recordAccepted(sql: Sql, workspaceId: string, id: string, accepted: AiAcceptedRef): Promise<void> {
-  await sql.execute('UPDATE ai_suggestions SET accepted = ? WHERE workspace_id = ? AND id = ?', [JSON.stringify(accepted), workspaceId, id]);
+export async function recordAccepted(
+  sql: Sql,
+  workspaceId: string,
+  id: string,
+  accepted: AiAcceptedRef,
+): Promise<void> {
+  await sql.execute('UPDATE ai_suggestions SET accepted = ? WHERE workspace_id = ? AND id = ?', [
+    JSON.stringify(accepted),
+    workspaceId,
+    id,
+  ]);
 }
 
 /** Deletes everything AI knows about an app (called when the app is deleted). Usage rows keep no app text; their app id is cleared. */
 export async function deleteAiData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
-  await sql.execute('DELETE FROM ai_suggestions WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
+  await sql.execute('DELETE FROM ai_suggestions WHERE workspace_id = ? AND app_id = ?', [
+    workspaceId,
+    appId,
+  ]);
   // The context a person wrote for the app and the tags the assistant gave its reviews (docs/adr/0024-ai-features.md) go with it.
-  await sql.execute('DELETE FROM ai_app_context WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
-  await sql.execute('DELETE FROM review_classifications WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
-  await sql.execute('UPDATE ai_usage SET app_id = NULL WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
+  await sql.execute('DELETE FROM ai_app_context WHERE workspace_id = ? AND app_id = ?', [
+    workspaceId,
+    appId,
+  ]);
+  await sql.execute('DELETE FROM review_classifications WHERE workspace_id = ? AND app_id = ?', [
+    workspaceId,
+    appId,
+  ]);
+  await sql.execute('UPDATE ai_usage SET app_id = NULL WHERE workspace_id = ? AND app_id = ?', [
+    workspaceId,
+    appId,
+  ]);
 }
 
 /** Retention: suggestions older than the retention window and usage rows older than 400 days. Returns the rows deleted. */
 export async function purgeAiData(sql: Sql, now: number): Promise<number> {
-  const suggestions = await sql.execute('DELETE FROM ai_suggestions WHERE created_at < ?', [now - aiLimits.suggestionRetentionDays * DAY_MS]);
-  const usage = await sql.execute('DELETE FROM ai_usage WHERE created_at < ?', [now - USAGE_RETENTION_MS]);
+  const suggestions = await sql.execute('DELETE FROM ai_suggestions WHERE created_at < ?', [
+    now - aiLimits.suggestionRetentionDays * DAY_MS,
+  ]);
+  const usage = await sql.execute('DELETE FROM ai_usage WHERE created_at < ?', [
+    now - USAGE_RETENTION_MS,
+  ]);
   // Tags of reviews that no longer exist (pruned or deleted).
-  const tags = await sql.execute('DELETE FROM review_classifications WHERE review_id NOT IN (SELECT id FROM app_reviews)');
+  const tags = await sql.execute(
+    'DELETE FROM review_classifications WHERE review_id NOT IN (SELECT id FROM app_reviews)',
+  );
   return Number(suggestions) + Number(usage) + Number(tags);
 }

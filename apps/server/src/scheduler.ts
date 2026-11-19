@@ -1,18 +1,23 @@
 import type { Database } from '@mrm/db';
 import { enqueue } from './jobs.ts';
-import { APP_SYNC_QUEUE } from './services/apps.ts';
 import { type AnalyticsQueueSummary, queueAnalyticsSyncs } from './services/analytics-schedule.ts';
 import { type AnalyticsUpkeepSummary, analyticsUpkeep } from './services/analytics-store.ts';
-import { type AsoQueueSummary, type AsoUpkeepSummary, asoUpkeep, queueAsoRefreshes } from './services/aso-schedule.ts';
+import { APP_SYNC_QUEUE } from './services/apps.ts';
+import {
+  type AsoQueueSummary,
+  type AsoUpkeepSummary,
+  asoUpkeep,
+  queueAsoRefreshes,
+} from './services/aso-schedule.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './services/ci.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
 import { type ListingQueueSummary, queueListingReads } from './services/listing-schedule.ts';
 import { type ReminderSummary, sendPlanReminders } from './services/plan-reminders.ts';
 import { type ReleaseWatchSummary, sendReleaseWatch } from './services/release-watch.ts';
 import {
+  queueReviewSyncs,
   type ReviewQueueSummary,
   type ReviewUpkeepSummary,
-  queueReviewSyncs,
   reviewUpkeep,
 } from './services/review-schedule.ts';
 
@@ -176,7 +181,11 @@ export type Scheduler = {
 /** Minutes from MRM_SYNC_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function syncIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
-  if (!Number.isInteger(minutes) || minutes < MIN_SYNC_INTERVAL_MINUTES || minutes > MAX_SYNC_INTERVAL_MINUTES) {
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_SYNC_INTERVAL_MINUTES ||
+    minutes > MAX_SYNC_INTERVAL_MINUTES
+  ) {
     throw new Error(
       `The sync interval must be 0 (off) or from ${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES} minutes.`,
     );
@@ -187,7 +196,11 @@ export function syncIntervalMs(minutes: number): number {
 /** Minutes from MRM_REMINDER_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function reminderIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
-  if (!Number.isInteger(minutes) || minutes < MIN_REMINDER_INTERVAL_MINUTES || minutes > MAX_REMINDER_INTERVAL_MINUTES) {
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_REMINDER_INTERVAL_MINUTES ||
+    minutes > MAX_REMINDER_INTERVAL_MINUTES
+  ) {
     throw new Error(
       `The reminder interval must be 0 (off) or from ${MIN_REMINDER_INTERVAL_MINUTES} to ${MAX_REMINDER_INTERVAL_MINUTES} minutes.`,
     );
@@ -198,7 +211,11 @@ export function reminderIntervalMs(minutes: number): number {
 /** Minutes from MRM_RELEASE_WATCH_INTERVAL_MINUTES to milliseconds; 0 stays 0. Throws on a value out of range. */
 export function releaseWatchIntervalMs(minutes: number): number {
   if (minutes === 0) return 0;
-  if (!Number.isInteger(minutes) || minutes < MIN_RELEASE_WATCH_INTERVAL_MINUTES || minutes > MAX_RELEASE_WATCH_INTERVAL_MINUTES) {
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_RELEASE_WATCH_INTERVAL_MINUTES ||
+    minutes > MAX_RELEASE_WATCH_INTERVAL_MINUTES
+  ) {
     throw new Error(
       `The release watch interval must be 0 (off) or from ${MIN_RELEASE_WATCH_INTERVAL_MINUTES} to ${MAX_RELEASE_WATCH_INTERVAL_MINUTES} minutes.`,
     );
@@ -212,7 +229,8 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   const interval = options.syncIntervalMs ?? 0;
   const tickMs = options.tickMs ?? MINUTE;
   const maxJitter = options.maxJitterMs ?? Math.min(5 * MINUTE, Math.floor(interval / 10));
-  const jitter = options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
+  const jitter =
+    options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
   const perWorkspace = options.perWorkspacePerTick ?? DEFAULT_PER_WORKSPACE_PER_TICK;
   const maxPerTick = options.maxPerTick ?? DEFAULT_MAX_PER_TICK;
   const pollMaxMs = options.pollMaxMs ?? DEFAULT_POLL_MAX_MS;
@@ -327,24 +345,36 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
     summary.purged = await purgeOrphans(db);
     if (interval > 0) await queueSyncs(summary, at);
     await queuePolls(summary, at);
-    if (reminderInterval > 0 && (lastReminderAt === undefined || at - lastReminderAt >= reminderInterval)) {
+    if (
+      reminderInterval > 0 &&
+      (lastReminderAt === undefined || at - lastReminderAt >= reminderInterval)
+    ) {
       lastReminderAt = at;
       // A failing reminder run must not stop syncs or polls, and nothing may escape the timer.
       try {
         summary.reminders = await sendPlanReminders(db, at, {
-          ...(options.reminderLeadHours !== undefined ? { leadHours: options.reminderLeadHours } : {}),
-          ...(options.maxRemindersPerRun !== undefined ? { maxPerRun: options.maxRemindersPerRun } : {}),
+          ...(options.reminderLeadHours !== undefined
+            ? { leadHours: options.reminderLeadHours }
+            : {}),
+          ...(options.maxRemindersPerRun !== undefined
+            ? { maxPerRun: options.maxRemindersPerRun }
+            : {}),
           onError: report,
         });
       } catch (error) {
         report('plan reminders failed', error);
       }
     }
-    if (releaseWatchInterval > 0 && (lastReleaseWatchAt === undefined || at - lastReleaseWatchAt >= releaseWatchInterval)) {
+    if (
+      releaseWatchInterval > 0 &&
+      (lastReleaseWatchAt === undefined || at - lastReleaseWatchAt >= releaseWatchInterval)
+    ) {
       lastReleaseWatchAt = at;
       try {
         summary.releaseWatch = await sendReleaseWatch(db, at, {
-          ...(options.maxRemindersPerRun !== undefined ? { maxPerRun: options.maxRemindersPerRun } : {}),
+          ...(options.maxRemindersPerRun !== undefined
+            ? { maxPerRun: options.maxRemindersPerRun }
+            : {}),
           onError: report,
         });
       } catch (error) {
@@ -379,10 +409,16 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         report('scheduled review reads failed', error);
       }
     }
-    if (options.reviewRetentionDays !== undefined && (lastReviewUpkeepAt === undefined || at - lastReviewUpkeepAt >= 60 * MINUTE)) {
+    if (
+      options.reviewRetentionDays !== undefined &&
+      (lastReviewUpkeepAt === undefined || at - lastReviewUpkeepAt >= 60 * MINUTE)
+    ) {
       lastReviewUpkeepAt = at;
       try {
-        summary.reviewUpkeep = await reviewUpkeep(db, { now: at, retentionDays: options.reviewRetentionDays });
+        summary.reviewUpkeep = await reviewUpkeep(db, {
+          now: at,
+          retentionDays: options.reviewRetentionDays,
+        });
       } catch (error) {
         report('review upkeep failed', error);
       }
@@ -402,10 +438,16 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         report('scheduled ASO refreshes failed', error);
       }
     }
-    if (options.asoRetentionDays !== undefined && (lastAsoUpkeepAt === undefined || at - lastAsoUpkeepAt >= 60 * MINUTE)) {
+    if (
+      options.asoRetentionDays !== undefined &&
+      (lastAsoUpkeepAt === undefined || at - lastAsoUpkeepAt >= 60 * MINUTE)
+    ) {
       lastAsoUpkeepAt = at;
       try {
-        summary.asoUpkeep = await asoUpkeep(db, { now: at, retentionDays: options.asoRetentionDays });
+        summary.asoUpkeep = await asoUpkeep(db, {
+          now: at,
+          retentionDays: options.asoRetentionDays,
+        });
       } catch (error) {
         report('ASO upkeep failed', error);
       }
@@ -433,7 +475,11 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
       }
     }
     const sweep = options.cloneSweep;
-    if (sweep && sweep.intervalMs > 0 && (lastSweepAt === undefined || at - lastSweepAt >= sweep.intervalMs)) {
+    if (
+      sweep &&
+      sweep.intervalMs > 0 &&
+      (lastSweepAt === undefined || at - lastSweepAt >= sweep.intervalMs)
+    ) {
       lastSweepAt = at;
       try {
         summary.cloneSweep = await sweep.run();
@@ -442,7 +488,11 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
       }
     }
     const alertsPass = options.alerts;
-    if (alertsPass && alertsPass.intervalMs > 0 && (lastAlertsAt === undefined || at - lastAlertsAt >= alertsPass.intervalMs)) {
+    if (
+      alertsPass &&
+      alertsPass.intervalMs > 0 &&
+      (lastAlertsAt === undefined || at - lastAlertsAt >= alertsPass.intervalMs)
+    ) {
       lastAlertsAt = at;
       try {
         summary.alerts = await alertsPass.run();

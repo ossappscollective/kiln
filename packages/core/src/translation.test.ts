@@ -45,7 +45,20 @@ test('normalizeLanguageTag gives the usual spelling and refuses what is not a ta
   assert.equal(normalizeLanguageTag('ZH-HANT-TW'), 'zh-Hant-TW');
   assert.equal(normalizeLanguageTag('es-419'), 'es-419');
   assert.equal(normalizeLanguageTag(' fil '), 'fil');
-  for (const bad of ['', 'e', 'english', 'en-', 'en-US-x-private', 'en-US-US', 'en US', 'en-Latn-Latn', 'x-klingon', '12', 'en-1', 'en;q=0.8']) {
+  for (const bad of [
+    '',
+    'e',
+    'english',
+    'en-',
+    'en-US-x-private',
+    'en-US-US',
+    'en US',
+    'en-Latn-Latn',
+    'x-klingon',
+    '12',
+    'en-1',
+    'en;q=0.8',
+  ]) {
     assert.equal(normalizeLanguageTag(bad), undefined, JSON.stringify(bad));
   }
 });

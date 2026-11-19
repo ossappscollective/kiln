@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { credentialKinds } from './credentials.ts';
-import { credentialGuides, guideFor } from './credential-guides.ts';
 import type { CredentialGuide } from './credential-guides.ts';
+import { credentialGuides, guideFor } from './credential-guides.ts';
+import { credentialKinds } from './credentials.ts';
 
 const allowedHosts = new Set([
   'developer.apple.com',

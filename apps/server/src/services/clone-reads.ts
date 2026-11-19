@@ -7,8 +7,8 @@ import {
   GitCloneError,
   GitCloneReader,
   GithubError,
-  type RepoConnector,
   isBlobReads,
+  type RepoConnector,
   removeClone,
   removeWorkspaceClones,
 } from '@mrm/connectors';
@@ -88,7 +88,9 @@ export const isCloneBacked = (client: unknown): client is CloneBackedClient =>
 export function canFallBack(error: unknown): boolean {
   if (error instanceof GitCloneError) {
     return (
-      error.reason === 'git_missing' || error.reason === 'not_managed' || error.kind === 'unexpected'
+      error.reason === 'git_missing' ||
+      error.reason === 'not_managed' ||
+      error.kind === 'unexpected'
     );
   }
   // Auth, not found, rate limits, timeouts, too large, not text: the API would say the same.
@@ -124,7 +126,10 @@ export function withCloneReads(
 ): CloneBackedClient {
   let signal = options.signal;
   let fellBack = false;
-  const reads: ReadReport = { fallbacks: [], ...(options.origin ? { origin: options.origin } : {}) };
+  const reads: ReadReport = {
+    fallbacks: [],
+    ...(options.origin ? { origin: options.origin } : {}),
+  };
   const call = () => (signal ? { signal } : {});
 
   async function run<T>(
@@ -207,13 +212,15 @@ export function withCloneReads(
     listBlobEntries: (ref?: string, options: { signal?: AbortSignal } = {}) =>
       run(
         'listBlobEntries',
-        () => cloneBlobs().listBlobEntries(ref, options.signal ? options : { ...options, ...call() }),
+        () =>
+          cloneBlobs().listBlobEntries(ref, options.signal ? options : { ...options, ...call() }),
         isBlobReads(api) ? () => (api as BlobReads).listBlobEntries(ref, options) : undefined,
       ),
     readBlobHeads: (paths: readonly string[], options: BlobHeadsOptions) =>
       run(
         'readBlobHeads',
-        () => cloneBlobs().readBlobHeads(paths, options.signal ? options : { ...options, ...call() }),
+        () =>
+          cloneBlobs().readBlobHeads(paths, options.signal ? options : { ...options, ...call() }),
         isBlobReads(api) ? () => (api as BlobReads).readBlobHeads(paths, options) : undefined,
       ),
   };
@@ -309,7 +316,11 @@ export function createCloneReads(options: CloneReadsOptions): CloneReads {
     options.mode === 'clone' || (options.mode === 'auto' && options.gitAvailable !== false);
   const pool = new Map<
     string,
-    { reader: GitCloneReader; shape: string; token: { current: string | (() => string | Promise<string>) } }
+    {
+      reader: GitCloneReader;
+      shape: string;
+      token: { current: string | (() => string | Promise<string>) };
+    }
   >();
   const keyOf = (workspaceId: string, repositoryId: string) => `${workspaceId}/${repositoryId}`;
 
@@ -322,11 +333,12 @@ export function createCloneReads(options: CloneReadsOptions): CloneReads {
     fallback: options.mode === 'auto',
     log,
     reader(target, token) {
-      const source: CloneSource = target.source ?? options.source?.(target) ?? {
-        type: 'github',
-        owner: target.owner,
-        repo: target.repo,
-      };
+      const source: CloneSource = target.source ??
+        options.source?.(target) ?? {
+          type: 'github',
+          owner: target.owner,
+          repo: target.repo,
+        };
       const key = keyOf(target.workspaceId, target.repositoryId);
       const shape = JSON.stringify([source, target.defaultBranch, target.ttlMs ?? null]);
       let entry = pool.get(key);
@@ -409,7 +421,8 @@ export function checkGit(gitPath: string): Promise<GitCheck> {
           const code = (error as NodeJS.ErrnoException).code;
           resolve({
             ok: false,
-            message: code === 'ENOENT' ? `"${gitPath}" was not found` : `"${gitPath} --version" failed`,
+            message:
+              code === 'ENOENT' ? `"${gitPath}" was not found` : `"${gitPath} --version" failed`,
           });
           return;
         }

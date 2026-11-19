@@ -57,7 +57,10 @@ export async function invite(
   workspaceId: string,
   input: { email: string; role: string },
 ) {
-  const res = await app.request(`/api/workspaces/${workspaceId}/invitations`, send('POST', input, cookie));
+  const res = await app.request(
+    `/api/workspaces/${workspaceId}/invitations`,
+    send('POST', input, cookie),
+  );
   return { res, body: (await res.json()) as Json & { token: string; invitation: { id: string } } };
 }
 
@@ -91,7 +94,11 @@ export async function seedWorkspace(db: Database, name: string, ownerEmail: stri
     'Owner of ' + name,
     now,
   ]);
-  await db.execute('INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)', [workspaceId, name, now]);
+  await db.execute('INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)', [
+    workspaceId,
+    name,
+    now,
+  ]);
   await db.execute('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)', [
     workspaceId,
     userId,

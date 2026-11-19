@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import {
   analyzeKeywordField,
   checkTerm,
-  defaultLocaleFor,
   coverageGaps,
   decideSnapshot,
   defaultCountryFor,
+  defaultLocaleFor,
   diffCompetitor,
   fitKeyword,
   isBigMove,
@@ -35,7 +35,19 @@ test('checkTerm: one keyword however it is typed', () => {
 });
 
 test('checkTerm refuses what is not a keyword', () => {
-  for (const bad of ['', '   ', '!!!', '😀', 'a\u0000b', 'a‮b', 'x'.repeat(81), 'a b c d e f g h i', 5, null, undefined]) {
+  for (const bad of [
+    '',
+    '   ',
+    '!!!',
+    '😀',
+    'a\u0000b',
+    'a‮b',
+    'x'.repeat(81),
+    'a b c d e f g h i',
+    5,
+    null,
+    undefined,
+  ]) {
     assert.equal(checkTerm(bad).ok, false, String(bad));
   }
   assert.equal(checkTerm('x'.repeat(80)).ok, true);
@@ -44,11 +56,13 @@ test('checkTerm refuses what is not a keyword', () => {
 
 test('country and locale normalization', () => {
   assert.equal(normalizeCountry(' DE '), 'de');
-  for (const bad of ['deu', 'd', '1a', '', undefined, 4]) assert.equal(normalizeCountry(bad), undefined);
+  for (const bad of ['deu', 'd', '1a', '', undefined, 4])
+    assert.equal(normalizeCountry(bad), undefined);
   assert.equal(normalizeLocale('pt_br'), 'pt-BR');
   assert.equal(normalizeLocale('zh-hans-cn'), 'zh-Hans-CN');
   assert.equal(normalizeLocale('EN'), 'en');
-  for (const bad of ['', 'e', 'en-US-x-y', 'en-123456789', 'x1']) assert.equal(normalizeLocale(bad), undefined, bad);
+  for (const bad of ['', 'e', 'en-US-x-y', 'en-123456789', 'x1'])
+    assert.equal(normalizeLocale(bad), undefined, bad);
 });
 
 test('defaultLocaleFor', () => {
@@ -58,7 +72,13 @@ test('defaultLocaleFor', () => {
 });
 
 test('words splits on punctuation and keeps letters of every script', () => {
-  assert.deepEqual(words('Fast, simple & free! Ünïcode — 3D ✨'), ['fast', 'simple', 'free', 'ünïcode', '3d']);
+  assert.deepEqual(words('Fast, simple & free! Ünïcode — 3D ✨'), [
+    'fast',
+    'simple',
+    'free',
+    'ünïcode',
+    '3d',
+  ]);
   assert.deepEqual(words('Привет, мир'), ['привет', 'мир']);
 });
 
@@ -89,7 +109,10 @@ test('rankTrend', () => {
   assert.equal(rankTrend([]).direction, 'unknown');
   assert.equal(rankTrend([p(3)]).direction, 'unknown');
   const up = rankTrend([p(30), p(22), p(9)]);
-  assert.deepEqual([up.direction, up.delta, up.best, up.worst, up.latest, up.ranked], ['up', 21, 9, 30, 9, 3]);
+  assert.deepEqual(
+    [up.direction, up.delta, up.best, up.worst, up.latest, up.ranked],
+    ['up', 21, 9, 30, 9, 3],
+  );
   const down = rankTrend([p(5), p(null)]);
   assert.equal(down.direction, 'down');
   assert.equal(down.delta, -46);
@@ -98,12 +121,20 @@ test('rankTrend', () => {
   assert.equal(rankTrend([p(null), p(null)]).best, null);
 });
 
-const IOS = { title: 'Habit Tracker: Daily Goals', subtitle: 'Build routines that stick', keywords: 'streak,reminder,planner', description: 'Our meditation timer helps you relax.' };
+const IOS = {
+  title: 'Habit Tracker: Daily Goals',
+  subtitle: 'Build routines that stick',
+  keywords: 'streak,reminder,planner',
+  description: 'Our meditation timer helps you relax.',
+};
 
 test('fitKeyword on iOS: strong, covered, partial, description only, missing', () => {
   const fit = (term: string) => fitKeyword('ios', 'en-US', IOS, { id: term, term });
   assert.equal(fit('habit tracker').status, 'strong');
-  assert.deepEqual(fit('habit tracker').where.map((w) => [w.field, w.phrase]), [['title', true]]);
+  assert.deepEqual(
+    fit('habit tracker').where.map((w) => [w.field, w.phrase]),
+    [['title', true]],
+  );
   assert.equal(fit('build routines').status, 'strong');
   // Words spread over name, subtitle and keyword field: covered, not strong.
   assert.equal(fit('daily streak').status, 'covered');
@@ -117,7 +148,11 @@ test('fitKeyword on iOS: strong, covered, partial, description only, missing', (
 });
 
 test('fitKeyword on Android searches the descriptions too', () => {
-  const fields = { title: 'Sleep Sounds', shortDescription: 'White noise for deep sleep', description: 'Rain, ocean and forest ambience. Timer included.' };
+  const fields = {
+    title: 'Sleep Sounds',
+    shortDescription: 'White noise for deep sleep',
+    description: 'Rain, ocean and forest ambience. Timer included.',
+  };
   const fit = (term: string) => fitKeyword('android', 'en', fields, { id: term, term });
   assert.equal(fit('sleep sounds').status, 'strong');
   assert.equal(fit('white noise').status, 'strong');
@@ -128,7 +163,10 @@ test('fitKeyword on Android searches the descriptions too', () => {
 
 test('matching ignores case and accents, and does not stem German', () => {
   const fields = { title: 'Küchen Planer', keywords: '' };
-  assert.equal(fitKeyword('ios', 'de-DE', fields, { id: '1', term: 'KUCHEN planer' }).status, 'strong');
+  assert.equal(
+    fitKeyword('ios', 'de-DE', fields, { id: '1', term: 'KUCHEN planer' }).status,
+    'strong',
+  );
   // "Planers" is not folded in German.
   assert.equal(fitKeyword('ios', 'de-DE', fields, { id: '1', term: 'planers' }).status, 'missing');
 });
@@ -146,13 +184,26 @@ test('listingFit orders the gaps by priority, then the worst fit, then the worse
       { id: 'e', term: 'journal', priority: 2, rank: 4 },
     ],
   });
-  assert.deepEqual(fit.counts, { strong: 1, covered: 0, partial: 0, description_only: 1, missing: 3 });
-  assert.deepEqual(fit.gaps.map((g) => g.id), ['c', 'd', 'b', 'e']);
+  assert.deepEqual(fit.counts, {
+    strong: 1,
+    covered: 0,
+    partial: 0,
+    description_only: 1,
+    missing: 3,
+  });
+  assert.deepEqual(
+    fit.gaps.map((g) => g.id),
+    ['c', 'd', 'b', 'e'],
+  );
   assert.ok(fit.assumptions.some((a) => a.startsWith('UNVERIFIED')));
 });
 
 test('keyword field: budget, duplicates, words already in the name, wasted spaces', () => {
-  const report = analyzeKeywordField('streak, reminder ,Habit,reminder, planner,tracker', { title: 'Habit Tracker', subtitle: 'Daily goals', language: 'en' });
+  const report = analyzeKeywordField('streak, reminder ,Habit,reminder, planner,tracker', {
+    title: 'Habit Tracker',
+    subtitle: 'Daily goals',
+    language: 'en',
+  });
   assert.equal(report.max, 100);
   assert.deepEqual(report.terms, ['streak', 'reminder', 'Habit', 'reminder', 'planner', 'tracker']);
   assert.deepEqual(report.duplicates, ['reminder']);
@@ -168,11 +219,18 @@ test('keyword field: budget, duplicates, words already in the name, wasted space
   assert.equal(over.remaining, -20);
   const listing = listingFit({ platform: 'ios', locale: 'en-US', fields: IOS, keywords: [] });
   assert.equal(listing.keywordField?.bytes, 'streak,reminder,planner'.length);
-  assert.equal(listingFit({ platform: 'android', locale: 'en', fields: { title: 'x' }, keywords: [] }).keywordField, undefined);
+  assert.equal(
+    listingFit({ platform: 'android', locale: 'en', fields: { title: 'x' }, keywords: [] })
+      .keywordField,
+    undefined,
+  );
 });
 
 const TEXTS = [
-  { id: 'c1', text: 'Habit tracker and daily planner. Track habits, build streaks with the habit tracker.' },
+  {
+    id: 'c1',
+    text: 'Habit tracker and daily planner. Track habits, build streaks with the habit tracker.',
+  },
   { id: 'c2', text: 'The best habit tracker for goals. Daily planner and reminders.' },
   { id: 'c3', text: 'Sleep sounds for the night.' },
 ];
@@ -192,18 +250,27 @@ test('mineIdeas: n-grams, stop words, sources, no phrase that adds nothing', () 
   assert.equal(ideas[0]?.term, 'habit tracker');
   // Source minimum, exclusions, limit.
   assert.equal(mineIdeas(TEXTS, { minOccurrences: 1, minSources: 3 }).length, 0);
-  assert.equal(mineIdeas(TEXTS, { exclude: ['Habit-Tracker'] }).some((i) => i.term === 'habit tracker'), false);
+  assert.equal(
+    mineIdeas(TEXTS, { exclude: ['Habit-Tracker'] }).some((i) => i.term === 'habit tracker'),
+    false,
+  );
   assert.equal(mineIdeas(TEXTS, { minOccurrences: 1, limit: 3 }).length, 3);
 });
 
 test('mineIdeas: stop words per language', () => {
-  const de = mineIdeas([{ id: 'a', text: 'Die beste Küchen App für die Küchen Planung. Küchen Planung ist einfach.' }], { language: 'de-AT', minOccurrences: 2 });
+  const de = mineIdeas(
+    [{ id: 'a', text: 'Die beste Küchen App für die Küchen Planung. Küchen Planung ist einfach.' }],
+    { language: 'de-AT', minOccurrences: 2 },
+  );
   const terms = de.map((i) => i.term);
   assert.ok(terms.includes('küchen planung'), terms.join('|'));
   assert.equal(terms.includes('die'), false);
   assert.equal(terms.includes('für'), false);
   // A language without a list is still mined, filtering only short words and numbers.
-  const ja = mineIdeas([{ id: 'a', text: 'bla bla bla 2024 2024 of of of' }], { language: 'xx', minOccurrences: 2 });
+  const ja = mineIdeas([{ id: 'a', text: 'bla bla bla 2024 2024 of of of' }], {
+    language: 'xx',
+    minOccurrences: 2,
+  });
   const jaTerms = ja.map((i) => i.term);
   assert.ok(jaTerms.includes('bla'));
   assert.equal(jaTerms.includes('2024'), false);
@@ -211,7 +278,18 @@ test('mineIdeas: stop words per language', () => {
 });
 
 test('diffCompetitor and decideSnapshot', () => {
-  const base = { version: '1.0', ratingMilli: 4500, ratingCount: 1000, price: '0', title: 'Habit', subtitle: 'Goals', textHash: 't1', descriptionHash: 'd1', screenshotCount: 5, mediaHash: 'm1' };
+  const base = {
+    version: '1.0',
+    ratingMilli: 4500,
+    ratingCount: 1000,
+    price: '0',
+    title: 'Habit',
+    subtitle: 'Goals',
+    textHash: 't1',
+    descriptionHash: 'd1',
+    screenshotCount: 5,
+    mediaHash: 'm1',
+  };
   assert.deepEqual(diffCompetitor(undefined, base), { changes: [], notable: false });
   assert.deepEqual(diffCompetitor(base, { ...base }), { changes: [], notable: false });
   // Count drift is not a change; a big jump is, but not notable.
@@ -225,18 +303,36 @@ test('diffCompetitor and decideSnapshot', () => {
   assert.equal(rating.changes[0]?.field, 'rating');
   assert.equal(rating.notable, false);
   assert.equal(diffCompetitor(base, { ...base, ratingMilli: 4200 }).notable, true);
-  const release = diffCompetitor(base, { ...base, version: '1.1', title: 'Habit Pro', textHash: 't2' });
+  const release = diffCompetitor(base, {
+    ...base,
+    version: '1.1',
+    title: 'Habit Pro',
+    textHash: 't2',
+  });
   assert.deepEqual(release.changes, [
     { field: 'version', from: '1.0', to: '1.1' },
     { field: 'title', from: 'Habit', to: 'Habit Pro' },
   ]);
   assert.equal(release.notable, true);
-  assert.deepEqual(diffCompetitor(base, { ...base, textHash: 't3', descriptionHash: 'd3' }).changes, [{ field: 'description' }]);
-  assert.deepEqual(diffCompetitor(base, { ...base, mediaHash: 'm2', screenshotCount: 6 }).changes.map((c) => c.field), ['media', 'screenshots']);
+  assert.deepEqual(
+    diffCompetitor(base, { ...base, textHash: 't3', descriptionHash: 'd3' }).changes,
+    [{ field: 'description' }],
+  );
+  assert.deepEqual(
+    diffCompetitor(base, { ...base, mediaHash: 'm2', screenshotCount: 6 }).changes.map(
+      (c) => c.field,
+    ),
+    ['media', 'screenshots'],
+  );
 
   const day = 24 * 3_600_000;
   const stored = { ...base, checkedAt: 1000 };
-  assert.deepEqual(decideSnapshot(undefined, base, 5000, 7 * day), { store: true, kind: 'first', changes: [], notable: false });
+  assert.deepEqual(decideSnapshot(undefined, base, 5000, 7 * day), {
+    store: true,
+    kind: 'first',
+    changes: [],
+    notable: false,
+  });
   assert.equal(decideSnapshot(stored, base, 1000 + day, 7 * day).store, false);
   assert.equal(decideSnapshot(stored, base, 1000 + 7 * day, 7 * day).kind, 'heartbeat');
   const change = decideSnapshot(stored, { ...base, version: '2.0' }, 1000 + day, 7 * day);
@@ -250,10 +346,13 @@ test('suggestCompetitors: apps in the top results of several keywords', () => {
     { keywordId: 'k3', ids: ['e', 'b', 'b', 'f', 'known'] },
   ];
   const out = suggestCompetitors(results, { ownId: 'own', exclude: ['known'] });
-  assert.deepEqual(out.map((o) => [o.externalId, o.keywordCount, o.bestRank, o.averageRank]), [
-    ['b', 3, 1, 2],
-    ['a', 2, 2, 2],
-  ]);
+  assert.deepEqual(
+    out.map((o) => [o.externalId, o.keywordCount, o.bestRank, o.averageRank]),
+    [
+      ['b', 3, 1, 2],
+      ['a', 2, 2, 2],
+    ],
+  );
   assert.deepEqual(out[0]?.keywordIds, ['k1', 'k2', 'k3']);
   assert.equal(suggestCompetitors(results, { minKeywords: 1, topN: 2 }).length, 4);
   assert.deepEqual(suggestCompetitors([], {}), []);
@@ -270,8 +369,18 @@ test('coverageGaps: what competitors name that our listing does not', () => {
       { id: '3', term: 'yoga' },
     ],
     competitors: [
-      { id: 'c1', title: 'Water Reminder: Drink More', subtitle: 'Hydration tracker', description: 'Includes yoga breaks.' },
-      { id: 'c2', title: 'Hydro Water Reminder', subtitle: 'Hydration tracker', description: 'A habit tracker too.' },
+      {
+        id: 'c1',
+        title: 'Water Reminder: Drink More',
+        subtitle: 'Hydration tracker',
+        description: 'Includes yoga breaks.',
+      },
+      {
+        id: 'c2',
+        title: 'Hydro Water Reminder',
+        subtitle: 'Hydration tracker',
+        description: 'A habit tracker too.',
+      },
       { id: 'c3', title: 'Calm Yoga', description: 'yoga' },
     ],
   });
@@ -280,7 +389,11 @@ test('coverageGaps: what competitors name that our listing does not', () => {
   const water = gaps.find((g) => g.term === 'water reminder');
   assert.deepEqual(water?.inTitle, ['c1', 'c2']);
   assert.equal(water?.origin, 'tracked');
-  assert.equal(water?.ourStatus, 'partial', 'the reminder is in the keyword field, the water is nowhere');
+  assert.equal(
+    water?.ourStatus,
+    'partial',
+    'the reminder is in the keyword field, the water is nowhere',
+  );
   const idea = gaps.find((g) => g.origin === 'idea');
   assert.ok(idea, 'a phrase two competitors share becomes an idea');
   assert.equal(terms[0], 'water reminder');
@@ -290,13 +403,28 @@ test('coverageGaps: what competitors name that our listing does not', () => {
 
 test('termsAcrossMarkets groups one term over countries and locales', () => {
   const m = (id: string, key: string, country: string, locale: string, rank: number | null) => ({
-    id, term: key, key, country, locale, rank, state: rank === null ? ('not_ranked' as const) : ('ranked' as const), checkedAt: 1,
+    id,
+    term: key,
+    key,
+    country,
+    locale,
+    rank,
+    state: rank === null ? ('not_ranked' as const) : ('ranked' as const),
+    checkedAt: 1,
   });
-  const rows = termsAcrossMarkets([m('1', 'habit', 'us', 'en-US', 12), m('2', 'habit', 'de', 'de-DE', null), m('3', 'habit', 'gb', 'en-GB', 4), m('4', 'water', 'us', 'en-US', null)]);
-  assert.deepEqual(rows.map((r) => [r.key, r.bestRank, r.markets.map((x) => x.country)]), [
-    ['habit', 4, ['de', 'gb', 'us']],
-    ['water', null, ['us']],
+  const rows = termsAcrossMarkets([
+    m('1', 'habit', 'us', 'en-US', 12),
+    m('2', 'habit', 'de', 'de-DE', null),
+    m('3', 'habit', 'gb', 'en-GB', 4),
+    m('4', 'water', 'us', 'en-US', null),
   ]);
+  assert.deepEqual(
+    rows.map((r) => [r.key, r.bestRank, r.markets.map((x) => x.country)]),
+    [
+      ['habit', 4, ['de', 'gb', 'us']],
+      ['water', null, ['us']],
+    ],
+  );
 });
 
 test('defaultCountryFor: the storefront of a listing locale, the reverse of defaultLocaleFor', () => {

@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -59,7 +67,13 @@ function layout() {
   const outside = join(base, 'outside');
   const data = join(base, 'data');
   for (const d of [root, outside, data]) mkdirSync(d);
-  return { base, root, outside, data, cfg: { roots: [root], excluded: [data, join(data, 'clones')] } };
+  return {
+    base,
+    root,
+    outside,
+    data,
+    cfg: { roots: [root], excluded: [data, join(data, 'clones')] },
+  };
 }
 
 test('isInside: the folder itself and what is under it, not a sibling with the same prefix', () => {
@@ -71,8 +85,23 @@ test('isInside: the folder itself and what is under it, not a sibling with the s
 });
 
 test('path text rules: NUL, control characters, relative, ~, .., length, type', () => {
-  const bad: unknown[] = ['', '   ', 'relative/x', '~/code', './x', '/a/../b', '/a\u0000b', '/a\nb', `/${'x'.repeat(4100)}`, 42, null, undefined, {}];
-  for (const value of bad) assert.equal(checkPathText(value).ok, false, JSON.stringify(value)?.slice(0, 30));
+  const bad: unknown[] = [
+    '',
+    '   ',
+    'relative/x',
+    '~/code',
+    './x',
+    '/a/../b',
+    '/a\u0000b',
+    '/a\nb',
+    `/${'x'.repeat(4100)}`,
+    42,
+    null,
+    undefined,
+    {},
+  ];
+  for (const value of bad)
+    assert.equal(checkPathText(value).ok, false, JSON.stringify(value)?.slice(0, 30));
   const ok = checkPathText('  /Volumes/dev/nativescript/oss-weather  ');
   assert.deepEqual(ok, { ok: true, path: '/Volumes/dev/nativescript/oss-weather' });
 });
@@ -192,8 +221,28 @@ test('a root that does not exist allows nothing', async () => {
 });
 
 test('branch names: refs that are safe as one git argument', () => {
-  for (const ok of ['main', 'feature/x', 'release-1.2', 'a_b', 'v1.0.0', 'x'.repeat(200)]) assert.equal(isSafeBranchName(ok), true, ok);
-  for (const bad of ['', '-rf', '--upload-pack=x', 'a..b', 'a//b', 'a/', 'a.', 'a.lock', '.hidden', 'a/.b', 'a b', 'a@{1}', 'a;b', 'a\nb', 'x'.repeat(201), '$(x)', 42, null]) {
+  for (const ok of ['main', 'feature/x', 'release-1.2', 'a_b', 'v1.0.0', 'x'.repeat(200)])
+    assert.equal(isSafeBranchName(ok), true, ok);
+  for (const bad of [
+    '',
+    '-rf',
+    '--upload-pack=x',
+    'a..b',
+    'a//b',
+    'a/',
+    'a.',
+    'a.lock',
+    '.hidden',
+    'a/.b',
+    'a b',
+    'a@{1}',
+    'a;b',
+    'a\nb',
+    'x'.repeat(201),
+    '$(x)',
+    42,
+    null,
+  ]) {
     assert.equal(isSafeBranchName(bad), false, String(bad));
   }
 });
@@ -216,8 +265,22 @@ test('remote URLs: owner and repo only, credentials in the URL are never returne
     assert.deepEqual(parsed, gh, url);
     assert.equal(JSON.stringify(parsed).includes('secret'), false);
   }
-  assert.deepEqual(parseRemoteUrl('git@gitlab.com:team/app.git'), { host: 'gitlab.com', owner: 'team', repo: 'app', github: false });
-  for (const url of ['', '/Volumes/dev/x', 'file:///x/y', '../x', 'https://github.com/acme', 'https://github.com/a/b/c', 'https://github.com/-bad/x', 'https://github.com/acme/..']) {
+  assert.deepEqual(parseRemoteUrl('git@gitlab.com:team/app.git'), {
+    host: 'gitlab.com',
+    owner: 'team',
+    repo: 'app',
+    github: false,
+  });
+  for (const url of [
+    '',
+    '/Volumes/dev/x',
+    'file:///x/y',
+    '../x',
+    'https://github.com/acme',
+    'https://github.com/a/b/c',
+    'https://github.com/-bad/x',
+    'https://github.com/acme/..',
+  ]) {
     assert.equal(parseRemoteUrl(url), null, url);
   }
 });
@@ -249,7 +312,11 @@ test('inspectLocalRepo: branch, tip, branches, origin, uncommitted count; read o
   assert.equal(other.ok && other.inspection.branch, 'feature/x');
   const missing = await inspectLocalRepo({ gitPath: 'git', realPath: dir, branch: 'nope' });
   assert.equal(missing.ok === false && missing.code, 'branch_not_found');
-  const evil = await inspectLocalRepo({ gitPath: 'git', realPath: dir, branch: '--upload-pack=touch x' });
+  const evil = await inspectLocalRepo({
+    gitPath: 'git',
+    realPath: dir,
+    branch: '--upload-pack=touch x',
+  });
   assert.equal(evil.ok === false && evil.code, 'invalid_branch');
 });
 
@@ -320,30 +387,57 @@ test('a filter name that cannot be passed safely skips the count instead of gues
 });
 
 test('git failures are classified without echoing git’s text; dubious ownership explains the fix', () => {
-  const dubious = gitProblem({ code: 128, stdout: '', stderr: "fatal: detected dubious ownership in repository at '/Volumes/dev/x'\n" });
+  const dubious = gitProblem({
+    code: 128,
+    stdout: '',
+    stderr: "fatal: detected dubious ownership in repository at '/Volumes/dev/x'\n",
+  });
   assert.equal(dubious.code, 'dubious_ownership');
   assert.equal(dubious.message, DUBIOUS_OWNERSHIP_MESSAGE);
   assert.match(dubious.message, /chown/);
   assert.match(dubious.message, /safe\.directory/);
   assert.equal(dubious.message.includes('/Volumes/dev/x'), false);
-  assert.equal(gitProblem({ code: null, stdout: '', stderr: '', failed: 'missing' }).code, 'git_missing');
-  assert.equal(gitProblem({ code: null, stdout: '', stderr: '', failed: 'timeout' }).code, 'git_timeout');
-  assert.equal(gitProblem({ code: 128, stdout: '', stderr: 'fatal: not a git repository' }).code, 'not_a_repository');
-  assert.equal(gitProblem({ code: 1, stdout: '', stderr: 'secret stuff' }).message.includes('secret'), false);
+  assert.equal(
+    gitProblem({ code: null, stdout: '', stderr: '', failed: 'missing' }).code,
+    'git_missing',
+  );
+  assert.equal(
+    gitProblem({ code: null, stdout: '', stderr: '', failed: 'timeout' }).code,
+    'git_timeout',
+  );
+  assert.equal(
+    gitProblem({ code: 128, stdout: '', stderr: 'fatal: not a git repository' }).code,
+    'not_a_repository',
+  );
+  assert.equal(
+    gitProblem({ code: 1, stdout: '', stderr: 'secret stuff' }).message.includes('secret'),
+    false,
+  );
 });
 
 test('reader errors on a local source become coded errors a person can act on', () => {
   const t = (e: unknown) => translateLocalError(e, 'main');
   const own = new LocalReadError('x', 'y');
   assert.equal(t(own), own);
-  const dubious = t(new GitCloneError('forbidden', 'git refuses to read the local repository because another user owns it.'));
+  const dubious = t(
+    new GitCloneError(
+      'forbidden',
+      'git refuses to read the local repository because another user owns it.',
+    ),
+  );
   assert.ok(dubious instanceof LocalReadError);
   assert.equal((dubious as LocalReadError).code, 'dubious_ownership');
   const branch = t(new GitCloneError('not_found', 'x', 'ref_missing', 404)) as LocalReadError;
   assert.equal(branch.code, 'local_branch_missing');
   assert.match(branch.message, /main/);
-  assert.equal((t(new GitCloneError('not_found', 'gone', undefined, 404)) as LocalReadError).code, 'local_missing');
-  assert.equal((t(new GitCloneError('unexpected', 'no git', 'git_missing')) as LocalReadError).code, 'local_git_missing');
+  assert.equal(
+    (t(new GitCloneError('not_found', 'gone', undefined, 404)) as LocalReadError).code,
+    'local_missing',
+  );
+  assert.equal(
+    (t(new GitCloneError('unexpected', 'no git', 'git_missing')) as LocalReadError).code,
+    'local_git_missing',
+  );
   const other = new GitCloneError('network', 'timed out', 'timeout');
   assert.equal(t(other), other);
 });

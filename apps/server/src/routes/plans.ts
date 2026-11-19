@@ -1,5 +1,9 @@
 import {
   type Action,
+  can,
+  isPlanLocale,
+  isPlanVersion,
+  isTargetDate,
   MAX_BLOCKED_REASON_LENGTH,
   MAX_CHECKLIST_ITEMS,
   MAX_CHECKLIST_TEXT_LENGTH,
@@ -7,22 +11,22 @@ import {
   MAX_PLAN_VERSION_LENGTH,
   MAX_ROLLOUT_NOTE_LENGTH,
   MAX_TEMPLATE_NAME_LENGTH,
-  can,
-  isPlanLocale,
-  isPlanVersion,
-  isTargetDate,
   PLATFORMS,
 } from '@mrm/core';
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
-import { clearRollout, getRollout, rolloutStepAction, setRollout } from '../services/plan-rollout.ts';
 import {
-  type PlansContext,
+  clearRollout,
+  getRollout,
+  rolloutStepAction,
+  setRollout,
+} from '../services/plan-rollout.ts';
+import {
   addItem,
   applyTemplate,
   createPlan,
@@ -34,6 +38,7 @@ import {
   getPlan,
   listPlans,
   listTemplates,
+  type PlansContext,
   reorderItems,
   setReleaseNotes,
   updateItem,
@@ -61,7 +66,10 @@ const version = z
   .trim()
   .min(1)
   .max(MAX_PLAN_VERSION_LENGTH)
-  .refine(isPlanVersion, 'Start with a letter or digit; then letters, digits, dots, hyphens, plus signs and underscores.');
+  .refine(
+    isPlanVersion,
+    'Start with a letter or digit; then letters, digits, dots, hyphens, plus signs and underscores.',
+  );
 const targetDate = z.string().refine(isTargetDate, 'A date written YYYY-MM-DD.');
 const planNotes = z.string().max(MAX_PLAN_NOTES_LENGTH);
 const reason = z.string().trim().max(MAX_BLOCKED_REASON_LENGTH);
@@ -104,7 +112,10 @@ const notesBody = z.strictObject({ text: z.string().max(MAX_PLAN_NOTES_LENGTH * 
 
 // A time as an ISO 8601 date-time (with an offset) or as epoch milliseconds, the form every answer uses.
 const instant = z.union([
-  z.string().datetime({ offset: true }).transform((v) => Date.parse(v)),
+  z
+    .string()
+    .datetime({ offset: true })
+    .transform((v) => Date.parse(v)),
   z.number().int().min(0),
 ]);
 const rolloutStep = z.strictObject({
@@ -121,8 +132,16 @@ const rolloutStep = z.strictObject({
     .optional(),
 });
 const rolloutBody = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('steps'), template: id.optional(), steps: z.array(rolloutStep).max(100) }),
-  z.strictObject({ kind: z.literal('apple_phased'), template: id.optional(), startsAt: instant.nullable().optional() }),
+  z.strictObject({
+    kind: z.literal('steps'),
+    template: id.optional(),
+    steps: z.array(rolloutStep).max(100),
+  }),
+  z.strictObject({
+    kind: z.literal('apple_phased'),
+    template: id.optional(),
+    startsAt: instant.nullable().optional(),
+  }),
 ]);
 const stepActionBody = z.strictObject({ fromStore: z.boolean().optional() });
 
@@ -172,7 +191,9 @@ export function planRoutes(ctx: PlansContext) {
 
   // --- Plans -----------------------------------------------------------------------------------
 
-  app.get('/:workspaceId/plans', needs('plans.read'), async (c) => c.json({ plans: await listPlans(ctx, ws(c)) }));
+  app.get('/:workspaceId/plans', needs('plans.read'), async (c) =>
+    c.json({ plans: await listPlans(ctx, ws(c)) }),
+  );
 
   app.get('/:workspaceId/apps/:id/plans', needs('plans.read'), async (c) => {
     if (!(await getApp(db, ws(c), param(c, 'id')))) return notFound(c);
@@ -182,7 +203,11 @@ export function planRoutes(ctx: PlansContext) {
   app.post('/:workspaceId/apps/:id/plans', needs('plans.write'), small, async (c) => {
     const body = await parseBody(c, createBody);
     if (!body.ok) return body.response;
-    const done = await createPlan(ctx, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data }, actor(c));
+    const done = await createPlan(
+      ctx,
+      { workspaceId: ws(c), appId: param(c, 'id'), ...body.data },
+      actor(c),
+    );
     return done.ok ? c.json({ plan: done.plan }, 201) : respond(c, done);
   });
 
@@ -213,55 +238,100 @@ export function planRoutes(ctx: PlansContext) {
   });
 
   // Before `/items/:itemId`, so "order" is never read as an item id.
-  app.put('/:workspaceId/apps/:id/plans/:planId/items/order', needs('plans.write'), small, async (c) => {
-    const body = await parseBody(c, orderBody);
-    if (!body.ok) return body.response;
-    const done = await reorderItems(ctx, { ...ref(c), order: body.data.order }, actor(c));
-    return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
-  });
+  app.put(
+    '/:workspaceId/apps/:id/plans/:planId/items/order',
+    needs('plans.write'),
+    small,
+    async (c) => {
+      const body = await parseBody(c, orderBody);
+      if (!body.ok) return body.response;
+      const done = await reorderItems(ctx, { ...ref(c), order: body.data.order }, actor(c));
+      return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
+    },
+  );
 
-  app.patch('/:workspaceId/apps/:id/plans/:planId/items/:itemId', needs('plans.write'), small, async (c) => {
-    const body = await parseBody(c, itemPatchBody);
-    if (!body.ok) return body.response;
-    const done = await updateItem(ctx, { ...ref(c), itemId: param(c, 'itemId'), patch: body.data }, actor(c));
-    return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
-  });
+  app.patch(
+    '/:workspaceId/apps/:id/plans/:planId/items/:itemId',
+    needs('plans.write'),
+    small,
+    async (c) => {
+      const body = await parseBody(c, itemPatchBody);
+      if (!body.ok) return body.response;
+      const done = await updateItem(
+        ctx,
+        { ...ref(c), itemId: param(c, 'itemId'), patch: body.data },
+        actor(c),
+      );
+      return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
+    },
+  );
 
-  app.delete('/:workspaceId/apps/:id/plans/:planId/items/:itemId', needs('plans.write'), async (c) => {
-    const done = await deleteItem(ctx, { ...ref(c), itemId: param(c, 'itemId') }, actor(c));
-    return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
-  });
+  app.delete(
+    '/:workspaceId/apps/:id/plans/:planId/items/:itemId',
+    needs('plans.write'),
+    async (c) => {
+      const done = await deleteItem(ctx, { ...ref(c), itemId: param(c, 'itemId') }, actor(c));
+      return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
+    },
+  );
 
-  app.post('/:workspaceId/apps/:id/plans/:planId/apply-template', needs('plans.write'), small, async (c) => {
-    const body = await parseBody(c, applyBody);
-    if (!body.ok) return body.response;
-    const done = await applyTemplate(ctx, { ...ref(c), templateId: body.data.templateId }, actor(c));
-    return done.ok ? c.json({ plan: done.plan, added: done.added, skipped: done.skipped }) : respond(c, done);
-  });
+  app.post(
+    '/:workspaceId/apps/:id/plans/:planId/apply-template',
+    needs('plans.write'),
+    small,
+    async (c) => {
+      const body = await parseBody(c, applyBody);
+      if (!body.ok) return body.response;
+      const done = await applyTemplate(
+        ctx,
+        { ...ref(c), templateId: body.data.templateId },
+        actor(c),
+      );
+      return done.ok
+        ? c.json({ plan: done.plan, added: done.added, skipped: done.skipped })
+        : respond(c, done);
+    },
+  );
 
   // --- Release notes ---------------------------------------------------------------------------
 
   const localeProblem = (c: Context<AppEnv>) =>
     c.json(
-      { error: 'invalid_request', issues: [{ path: 'locale', message: 'A locale code such as en-US, de or default.' }] },
+      {
+        error: 'invalid_request',
+        issues: [{ path: 'locale', message: 'A locale code such as en-US, de or default.' }],
+      },
       400,
     );
 
-  app.put('/:workspaceId/apps/:id/plans/:planId/notes/:locale', needs('plans.write'), small, async (c) => {
-    const locale = param(c, 'locale');
-    if (!isPlanLocale(locale)) return localeProblem(c);
-    const body = await parseBody(c, notesBody);
-    if (!body.ok) return body.response;
-    const done = await setReleaseNotes(ctx, { ...ref(c), locale, text: body.data.text }, actor(c));
-    return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
-  });
+  app.put(
+    '/:workspaceId/apps/:id/plans/:planId/notes/:locale',
+    needs('plans.write'),
+    small,
+    async (c) => {
+      const locale = param(c, 'locale');
+      if (!isPlanLocale(locale)) return localeProblem(c);
+      const body = await parseBody(c, notesBody);
+      if (!body.ok) return body.response;
+      const done = await setReleaseNotes(
+        ctx,
+        { ...ref(c), locale, text: body.data.text },
+        actor(c),
+      );
+      return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
+    },
+  );
 
-  app.delete('/:workspaceId/apps/:id/plans/:planId/notes/:locale', needs('plans.write'), async (c) => {
-    const locale = param(c, 'locale');
-    if (!isPlanLocale(locale)) return localeProblem(c);
-    const done = await deleteReleaseNotes(ctx, { ...ref(c), locale }, actor(c));
-    return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
-  });
+  app.delete(
+    '/:workspaceId/apps/:id/plans/:planId/notes/:locale',
+    needs('plans.write'),
+    async (c) => {
+      const locale = param(c, 'locale');
+      if (!isPlanLocale(locale)) return localeProblem(c);
+      const done = await deleteReleaseNotes(ctx, { ...ref(c), locale }, actor(c));
+      return done.ok ? c.json({ plan: done.plan }) : respond(c, done);
+    },
+  );
 
   // --- Staged rollout (planning data only: nothing here reaches a store) -----------------------
 
@@ -270,12 +340,17 @@ export function planRoutes(ctx: PlansContext) {
     return rollout ? c.json({ rollout }) : notFound(c);
   });
 
-  app.put('/:workspaceId/apps/:id/plans/:planId/rollout', needs('plans.write'), small, async (c) => {
-    const body = await parseBody(c, rolloutBody);
-    if (!body.ok) return body.response;
-    const done = await setRollout(ctx, { ...ref(c), body: body.data }, actor(c));
-    return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
-  });
+  app.put(
+    '/:workspaceId/apps/:id/plans/:planId/rollout',
+    needs('plans.write'),
+    small,
+    async (c) => {
+      const body = await parseBody(c, rolloutBody);
+      if (!body.ok) return body.response;
+      const done = await setRollout(ctx, { ...ref(c), body: body.data }, actor(c));
+      return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
+    },
+  );
 
   app.delete('/:workspaceId/apps/:id/plans/:planId/rollout', needs('plans.write'), async (c) => {
     const done = await clearRollout(ctx, ref(c), actor(c));
@@ -283,36 +358,54 @@ export function planRoutes(ctx: PlansContext) {
   });
 
   /** The body is optional ({} or nothing); only `complete` reads `fromStore`. */
-  const stepAction = (action: 'complete' | 'skip' | 'reopen') =>
-    async (c: Context<AppEnv>) => {
-      const text = await c.req.text();
-      let raw: unknown = {};
-      if (text.trim() !== '') {
-        try {
-          raw = JSON.parse(text);
-        } catch {
-          raw = undefined;
-        }
+  const stepAction = (action: 'complete' | 'skip' | 'reopen') => async (c: Context<AppEnv>) => {
+    const text = await c.req.text();
+    let raw: unknown = {};
+    if (text.trim() !== '') {
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        raw = undefined;
       }
-      const parsed = stepActionBody.safeParse(raw);
-      if (!parsed.success) {
-        return c.json(
-          { error: 'invalid_request', issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
-          400,
-        );
-      }
-      if (action !== 'complete' && parsed.data.fromStore) {
-        return c.json({ error: 'invalid_request', issues: [{ path: 'fromStore', message: 'Only a step that is completed can be confirmed from the store.' }] }, 400);
-      }
-      const done = await rolloutStepAction(
-        ctx,
-        { ...ref(c), stepId: param(c, 'stepId'), action, fromStore: parsed.data.fromStore },
-        actor(c),
+    }
+    const parsed = stepActionBody.safeParse(raw);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        },
+        400,
       );
-      return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
-    };
+    }
+    if (action !== 'complete' && parsed.data.fromStore) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [
+            {
+              path: 'fromStore',
+              message: 'Only a step that is completed can be confirmed from the store.',
+            },
+          ],
+        },
+        400,
+      );
+    }
+    const done = await rolloutStepAction(
+      ctx,
+      { ...ref(c), stepId: param(c, 'stepId'), action, fromStore: parsed.data.fromStore },
+      actor(c),
+    );
+    return done.ok ? c.json({ rollout: done.rollout }) : respond(c, done);
+  };
   for (const action of ['complete', 'skip', 'reopen'] as const) {
-    app.post(`/:workspaceId/apps/:id/plans/:planId/rollout/steps/:stepId/${action}`, needs('plans.write'), small, stepAction(action));
+    app.post(
+      `/:workspaceId/apps/:id/plans/:planId/rollout/steps/:stepId/${action}`,
+      needs('plans.write'),
+      small,
+      stepAction(action),
+    );
   }
 
   // --- Checklist templates ---------------------------------------------------------------------
@@ -328,15 +421,28 @@ export function planRoutes(ctx: PlansContext) {
     return done.ok ? c.json({ template: done.template }, 201) : respond(c, done);
   });
 
-  app.patch('/:workspaceId/checklist-templates/:templateId', needs('plans.write'), big, async (c) => {
-    const body = await parseBody(c, templatePatchBody);
-    if (!body.ok) return body.response;
-    const done = await updateTemplate(ctx, { workspaceId: ws(c), id: param(c, 'templateId'), ...body.data }, actor(c));
-    return done.ok ? c.json({ template: done.template }) : respond(c, done);
-  });
+  app.patch(
+    '/:workspaceId/checklist-templates/:templateId',
+    needs('plans.write'),
+    big,
+    async (c) => {
+      const body = await parseBody(c, templatePatchBody);
+      if (!body.ok) return body.response;
+      const done = await updateTemplate(
+        ctx,
+        { workspaceId: ws(c), id: param(c, 'templateId'), ...body.data },
+        actor(c),
+      );
+      return done.ok ? c.json({ template: done.template }) : respond(c, done);
+    },
+  );
 
   app.delete('/:workspaceId/checklist-templates/:templateId', needs('plans.write'), async (c) => {
-    const done = await deleteTemplate(ctx, { workspaceId: ws(c), id: param(c, 'templateId') }, actor(c));
+    const done = await deleteTemplate(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'templateId') },
+      actor(c),
+    );
     return done.ok ? c.body(null, 204) : respond(c, done);
   });
 

@@ -1,6 +1,12 @@
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type ClonedRepository, type CloneSize, cloneSize, isCloneBusy, listClones } from '@mrm/connectors';
+import {
+  type ClonedRepository,
+  type CloneSize,
+  cloneSize,
+  isCloneBusy,
+  listClones,
+} from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import type { CloneReads } from './clone-reads.ts';
@@ -134,10 +140,12 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
   };
 
   const inUse = (clone: ClonedRepository): boolean =>
-    isCloneBusy(cloneDir, clone.workspaceId, clone.cloneId) || now() - clone.lastUsedAt < IN_USE_GRACE_MS;
+    isCloneBusy(cloneDir, clone.workspaceId, clone.cloneId) ||
+    now() - clone.lastUsedAt < IN_USE_GRACE_MS;
 
   const gone = async (clone: ClonedRepository): Promise<boolean> =>
-    (await lstat(join(cloneDir, clone.workspaceId, clone.cloneId)).catch(() => undefined)) === undefined;
+    (await lstat(join(cloneDir, clone.workspaceId, clone.cloneId)).catch(() => undefined)) ===
+    undefined;
 
   /** Removes one clone through the pool. True when it is gone afterwards. */
   async function removeOne(clone: ClonedRepository): Promise<boolean> {
@@ -147,7 +155,9 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
   }
 
   const repositoryIdOf = (cloneId: string): { id: string; kind: 'github' | 'local' } =>
-    cloneId.endsWith('-local') ? { id: cloneId.slice(0, -'-local'.length), kind: 'local' } : { id: cloneId, kind: 'github' };
+    cloneId.endsWith('-local')
+      ? { id: cloneId.slice(0, -'-local'.length), kind: 'local' }
+      : { id: cloneId, kind: 'github' };
 
   async function names(workspaceId: string): Promise<Map<string, string>> {
     const rows = await db.query(
@@ -158,7 +168,10 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
     );
     const out = new Map<string, string>();
     for (const row of rows) {
-      const name = row.owner && row.repo ? `${String(row.owner)}/${String(row.repo)}` : String(row.local_name ?? 'Local repository');
+      const name =
+        row.owner && row.repo
+          ? `${String(row.owner)}/${String(row.repo)}`
+          : String(row.local_name ?? 'Local repository');
       out.set(String(row.id), name);
     }
     return out;
@@ -189,7 +202,9 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
       await recordAudit(db, { workspaceId, actor, action, target, detail, at: now() });
     } catch (error) {
       // The workspace may be gone (its clones are what is left): the removal stands.
-      log(`Clones: could not record ${action} for workspace ${workspaceId} (${(error as Error).name}).`);
+      log(
+        `Clones: could not record ${action} for workspace ${workspaceId} (${(error as Error).name}).`,
+      );
     }
   }
 
@@ -214,9 +229,17 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
       summary.scanned = clones.length;
       summary.bytesBefore = clones.reduce((sum, c) => sum + c.bytes, 0);
       let remaining = summary.bytesBefore;
-      const removedBy = new Map<string, { removed: number; idle: number; budget: number; freedBytes: number }>();
+      const removedBy = new Map<
+        string,
+        { removed: number; idle: number; budget: number; freedBytes: number }
+      >();
       const note = (clone: ClonedRepository, reason: 'idle' | 'budget') => {
-        const entry = removedBy.get(clone.workspaceId) ?? { removed: 0, idle: 0, budget: 0, freedBytes: 0 };
+        const entry = removedBy.get(clone.workspaceId) ?? {
+          removed: 0,
+          idle: 0,
+          budget: 0,
+          freedBytes: 0,
+        };
         entry.removed++;
         entry[reason]++;
         entry.freedBytes += clone.bytes;
@@ -227,7 +250,10 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
         remaining -= clone.bytes;
       };
       const skipped = new Set<string>();
-      const tryRemove = async (clone: ClonedRepository, reason: 'idle' | 'budget'): Promise<void> => {
+      const tryRemove = async (
+        clone: ClonedRepository,
+        reason: 'idle' | 'budget',
+      ): Promise<void> => {
         if (inUse(clone)) {
           skipped.add(clone.dir);
           return;
@@ -328,7 +354,8 @@ export function createCloneUpkeep(options: CloneUpkeepOptions): CloneUpkeep {
       const own = new Set([repositoryId, localCloneId(repositoryId)]);
       const found = (await entries(workspaceId)).filter((c) => own.has(c.cloneId));
       // Busy means a lock is held now; recent use alone does not stop a person who asked.
-      if (found.some((c) => isCloneBusy(cloneDir, c.workspaceId, c.cloneId))) return { ok: false, reason: 'busy' };
+      if (found.some((c) => isCloneBusy(cloneDir, c.workspaceId, c.cloneId)))
+        return { ok: false, reason: 'busy' };
       let removed = 0;
       let freedBytes = 0;
       for (const clone of found) {

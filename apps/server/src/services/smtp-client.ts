@@ -1,9 +1,8 @@
-import { isIP } from 'node:net';
-import net from 'node:net';
+import net, { isIP } from 'node:net';
 import tls from 'node:tls';
-import { type MailErrorCode, type MailHint, type MailInput, type MailResult } from './mailer.ts';
 import { buildMessage, dataPayload, parseMailbox } from './mail-mime.ts';
-import { type Resolver, classifyAddress, systemResolver } from './webhook-transport.ts';
+import type { MailErrorCode, MailHint, MailInput, MailResult } from './mailer.ts';
+import { classifyAddress, type Resolver, systemResolver } from './webhook-transport.ts';
 
 /**
  * A small SMTP client on node:net and node:tls (no dependency). It speaks RFC 5321 submission: plain, STARTTLS (RFC 3207) or
@@ -31,7 +30,8 @@ export type SmtpConfig = {
   from: string;
 };
 
-export const defaultPort = (secure: SmtpSecure): number => (secure === 'tls' ? 465 : secure === 'none' ? 25 : 587);
+export const defaultPort = (secure: SmtpSecure): number =>
+  secure === 'tls' ? 465 : secure === 'none' ? 25 : 587;
 
 export type SmtpOptions = {
   /** Private and loopback addresses may be used (MRM_SMTP_ALLOW_PRIVATE_HOSTS). */
@@ -65,13 +65,19 @@ export type HostCheck =
   | { ok: true; address: string; family: 4 | 6; loopback: boolean }
   | { ok: false; hint: 'private_address_blocked' | 'host_not_allowed' | 'host_not_found' };
 
-const HOST_NAME = /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
-export const validHost = (host: string): boolean => (isIP(host) !== 0 ? true : HOST_NAME.test(host));
+const HOST_NAME =
+  /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
+export const validHost = (host: string): boolean =>
+  isIP(host) !== 0 ? true : HOST_NAME.test(host);
 
-const isLoopback = (address: string) => /^127\./.test(address) || address === '::1' || /^::ffff:127\./i.test(address);
+const isLoopback = (address: string) =>
+  /^127\./.test(address) || address === '::1' || /^::ffff:127\./i.test(address);
 
 /** Resolves the host and applies the address policy. Never touches the mail server itself. */
-export async function checkMailHost(host: string, options: Pick<SmtpOptions, 'allowPrivateHosts' | 'resolve'> = {}): Promise<HostCheck> {
+export async function checkMailHost(
+  host: string,
+  options: Pick<SmtpOptions, 'allowPrivateHosts' | 'resolve'> = {},
+): Promise<HostCheck> {
   if (!validHost(host)) return { ok: false, hint: 'host_not_allowed' };
   let answers: { address: string; family: number }[];
   if (isIP(host) !== 0) answers = [{ address: host, family: isIP(host) }];
@@ -91,7 +97,12 @@ export async function checkMailHost(host: string, options: Pick<SmtpOptions, 'al
     if (cls === 'private' && !options.allowPrivateHosts) blockedPrivate = true;
   }
   if (blockedPrivate) return { ok: false, hint: 'private_address_blocked' };
-  return { ok: true, address: first.address, family: first.family === 6 ? 6 : 4, loopback: isLoopback(first.address) };
+  return {
+    ok: true,
+    address: first.address,
+    family: first.family === 6 ? 6 : 4,
+    loopback: isLoopback(first.address),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -105,10 +116,17 @@ const MAX_REPLY_LINES = 100;
 function mapSocketError(error: unknown, secure: boolean): SmtpFailure {
   const code = String((error as { code?: unknown } | null)?.code ?? '');
   if (code === 'ETIMEDOUT') return new SmtpFailure('smtp_timeout');
-  if (/^(ERR_TLS_|ERR_SSL_|CERT_|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_|HOSTNAME_MISMATCH|ERR_OSSL)/.test(code) || code === 'EPROTO') {
+  if (
+    /^(ERR_TLS_|ERR_SSL_|CERT_|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_|HOSTNAME_MISMATCH|ERR_OSSL)/.test(
+      code,
+    ) ||
+    code === 'EPROTO'
+  ) {
     return new SmtpFailure('smtp_tls_failed', 'certificate_rejected');
   }
-  return new SmtpFailure(secure && code === 'ECONNRESET' ? 'smtp_tls_failed' : 'smtp_connection_failed');
+  return new SmtpFailure(
+    secure && code === 'ECONNRESET' ? 'smtp_tls_failed' : 'smtp_connection_failed',
+  );
 }
 
 class Wire {
@@ -116,7 +134,9 @@ class Wire {
   private buffer = '';
   private lines: string[] = [];
   private queue: Reply[] = [];
-  private waiter: { resolve: (r: Reply) => void; reject: (e: SmtpFailure) => void; timer: NodeJS.Timeout } | undefined;
+  private waiter:
+    | { resolve: (r: Reply) => void; reject: (e: SmtpFailure) => void; timer: NodeJS.Timeout }
+    | undefined;
   private failure: SmtpFailure | undefined;
   private readonly secure: boolean;
   private readonly onData = (chunk: Buffer) => this.take(chunk.toString('latin1'));
@@ -131,14 +151,16 @@ class Wire {
 
   private take(text: string) {
     this.buffer += text;
-    if (this.buffer.length > MAX_REPLY_BYTES) return this.fail(new SmtpFailure('smtp_connection_failed'));
+    if (this.buffer.length > MAX_REPLY_BYTES)
+      return this.fail(new SmtpFailure('smtp_connection_failed'));
     for (;;) {
       const end = this.buffer.indexOf('\n');
       if (end < 0) break;
       const line = this.buffer.slice(0, end).replace(/\r$/, '');
       this.buffer = this.buffer.slice(end + 1);
       this.lines.push(line);
-      if (this.lines.length > MAX_REPLY_LINES) return this.fail(new SmtpFailure('smtp_connection_failed'));
+      if (this.lines.length > MAX_REPLY_LINES)
+        return this.fail(new SmtpFailure('smtp_connection_failed'));
       const m = /^(\d{3})([ -]|$)/.exec(line);
       if (!m) return this.fail(new SmtpFailure('smtp_connection_failed'));
       if (m[2] !== '-') {
@@ -188,7 +210,8 @@ class Wire {
 
   /** Hands the raw socket to TLS. Anything the server sent before TLS began is an attack, not a reply. */
   detach(): net.Socket {
-    if (this.buffer.length > 0 || this.lines.length > 0 || this.queue.length > 0) throw new SmtpFailure('smtp_tls_failed');
+    if (this.buffer.length > 0 || this.lines.length > 0 || this.queue.length > 0)
+      throw new SmtpFailure('smtp_tls_failed');
     this.socket.removeListener('data', this.onData);
     this.socket.removeAllListeners('close');
     this.socket.removeAllListeners('error');
@@ -201,7 +224,15 @@ class Wire {
   }
 }
 
-function connect(address: string, family: 4 | 6, port: number, implicitTls: boolean, servername: string | undefined, timeoutMs: number, tlsOptions: tls.ConnectionOptions | undefined): Promise<net.Socket> {
+function connect(
+  address: string,
+  family: 4 | 6,
+  port: number,
+  implicitTls: boolean,
+  servername: string | undefined,
+  timeoutMs: number,
+  tlsOptions: tls.ConnectionOptions | undefined,
+): Promise<net.Socket> {
   return new Promise((resolve, reject) => {
     let socket: net.Socket;
     const done = (fn: () => void) => {
@@ -214,7 +245,13 @@ function connect(address: string, family: 4 | 6, port: number, implicitTls: bool
     }, timeoutMs);
     const onError = (e: unknown) => done(() => reject(mapSocketError(e, implicitTls)));
     if (implicitTls) {
-      socket = tls.connect({ host: address, port, ...(servername ? { servername } : {}), minVersion: 'TLSv1.2', ...tlsOptions });
+      socket = tls.connect({
+        host: address,
+        port,
+        ...(servername ? { servername } : {}),
+        minVersion: 'TLSv1.2',
+        ...tlsOptions,
+      });
       socket.once('secureConnect', () => done(() => resolve(socket)));
     } else {
       socket = net.connect({ host: address, family, port });
@@ -224,9 +261,19 @@ function connect(address: string, family: 4 | 6, port: number, implicitTls: bool
   });
 }
 
-function upgrade(socket: net.Socket, host: string, timeoutMs: number, tlsOptions: tls.ConnectionOptions | undefined): Promise<tls.TLSSocket> {
+function upgrade(
+  socket: net.Socket,
+  host: string,
+  timeoutMs: number,
+  tlsOptions: tls.ConnectionOptions | undefined,
+): Promise<tls.TLSSocket> {
   return new Promise((resolve, reject) => {
-    const secure = tls.connect({ socket, ...(isIP(host) === 0 ? { servername: host } : { host }), minVersion: 'TLSv1.2', ...tlsOptions });
+    const secure = tls.connect({
+      socket,
+      ...(isIP(host) === 0 ? { servername: host } : { host }),
+      minVersion: 'TLSv1.2',
+      ...tlsOptions,
+    });
     const timer = setTimeout(() => {
       secure.destroy();
       reject(new SmtpFailure('smtp_timeout'));
@@ -238,7 +285,9 @@ function upgrade(socket: net.Socket, host: string, timeoutMs: number, tlsOptions
     secure.once('error', (e) => {
       clearTimeout(timer);
       const mapped = mapSocketError(e, true);
-      reject(mapped.code === 'smtp_connection_failed' ? new SmtpFailure('smtp_tls_failed') : mapped);
+      reject(
+        mapped.code === 'smtp_connection_failed' ? new SmtpFailure('smtp_tls_failed') : mapped,
+      );
     });
   });
 }
@@ -246,7 +295,8 @@ function upgrade(socket: net.Socket, host: string, timeoutMs: number, tlsOptions
 // ---------------------------------------------------------------------------------------------
 // One delivery
 
-const capabilities = (lines: string[]) => lines.slice(1).map((l) => l.slice(4).trim().toUpperCase());
+const capabilities = (lines: string[]) =>
+  lines.slice(1).map((l) => l.slice(4).trim().toUpperCase());
 
 /** Sends a built message. Resolves to a result, never throws for a mail problem. */
 export async function deliver(
@@ -272,8 +322,17 @@ export async function deliver(
     });
     const run = async (): Promise<MailResult> => {
       // Before anything is sent or even connected: a password never goes over a plain connection to another machine.
-      if (config.user && config.secure === 'none' && !target.loopback) throw new SmtpFailure('smtp_tls_failed', 'login_needs_tls');
-      const socket = await connect(target.address, target.family, config.port, config.secure === 'tls', servername, step, options.tls);
+      if (config.user && config.secure === 'none' && !target.loopback)
+        throw new SmtpFailure('smtp_tls_failed', 'login_needs_tls');
+      const socket = await connect(
+        target.address,
+        target.family,
+        config.port,
+        config.secure === 'tls',
+        servername,
+        step,
+        options.tls,
+      );
       wire = new Wire(socket, config.secure === 'tls');
       const greeting = await wire.read(step);
       if (greeting.code !== 220) throw new SmtpFailure('smtp_connection_failed');
@@ -295,7 +354,8 @@ export async function deliver(
       let caps = await ehlo();
 
       if (config.secure === 'starttls') {
-        if (!caps.includes('STARTTLS')) throw new SmtpFailure('smtp_tls_failed', 'starttls_not_offered');
+        if (!caps.includes('STARTTLS'))
+          throw new SmtpFailure('smtp_tls_failed', 'starttls_not_offered');
         wire.write('STARTTLS\r\n');
         const go = await wire.read(step);
         if (go.code !== 220) throw new SmtpFailure('smtp_tls_failed', 'starttls_not_offered');
@@ -305,7 +365,11 @@ export async function deliver(
         caps = await ehlo();
       }
       const w = wire as Wire;
-      const expectNow = async (ok: (code: number) => boolean, failure: () => SmtpFailure, timeout = step) => {
+      const expectNow = async (
+        ok: (code: number) => boolean,
+        failure: () => SmtpFailure,
+        timeout = step,
+      ) => {
         const reply = await w.read(timeout);
         if (!ok(reply.code)) throw failure();
         return reply;
@@ -313,12 +377,17 @@ export async function deliver(
 
       if (config.user !== undefined && config.user !== '') {
         // A password only ever travels over an encrypted connection (or to a relay on this machine).
-        if (!w.inSecure && !target.loopback) throw new SmtpFailure('smtp_tls_failed', 'login_needs_tls');
-        const mechs = caps.filter((c) => c.startsWith('AUTH ') || c.startsWith('AUTH=')).flatMap((c) => c.slice(5).trim().split(/\s+/));
+        if (!w.inSecure && !target.loopback)
+          throw new SmtpFailure('smtp_tls_failed', 'login_needs_tls');
+        const mechs = caps
+          .filter((c) => c.startsWith('AUTH ') || c.startsWith('AUTH='))
+          .flatMap((c) => c.slice(5).trim().split(/\s+/));
         const authFailed = (hint?: MailHint) => () => new SmtpFailure('smtp_auth_failed', hint);
         const password = config.password ?? '';
         if (mechs.includes('PLAIN')) {
-          w.write(`AUTH PLAIN ${Buffer.from(`\0${config.user}\0${password}`).toString('base64')}\r\n`);
+          w.write(
+            `AUTH PLAIN ${Buffer.from(`\0${config.user}\0${password}`).toString('base64')}\r\n`,
+          );
           await expectNow((c) => c === 235, authFailed());
         } else if (mechs.includes('LOGIN')) {
           w.write('AUTH LOGIN\r\n');
@@ -331,7 +400,8 @@ export async function deliver(
       }
 
       const size = caps.map((c) => /^SIZE (\d+)$/.exec(c)).find(Boolean)?.[1];
-      if (size && Number(size) > 0 && Buffer.byteLength(message.data) > Number(size)) throw new SmtpFailure('smtp_rejected', 'message_too_large');
+      if (size && Number(size) > 0 && Buffer.byteLength(message.data) > Number(size))
+        throw new SmtpFailure('smtp_rejected', 'message_too_large');
 
       const rejected = () => new SmtpFailure('smtp_rejected');
       w.write(`MAIL FROM:<${message.envelopeFrom}>\r\n`);
@@ -353,7 +423,8 @@ export async function deliver(
     };
     return await Promise.race([run(), deadline]);
   } catch (error) {
-    if (error instanceof SmtpFailure) return { ok: false, code: error.code, ...(error.hint ? { hint: error.hint } : {}) };
+    if (error instanceof SmtpFailure)
+      return { ok: false, code: error.code, ...(error.hint ? { hint: error.hint } : {}) };
     return { ok: false, code: 'smtp_connection_failed' };
   } finally {
     if (giveUp) clearTimeout(giveUp);
@@ -362,10 +433,21 @@ export async function deliver(
 }
 
 /** The whole job: check the message and the host, then deliver. */
-export async function sendViaSmtp(config: SmtpConfig, input: MailInput, options: SmtpOptions = {}): Promise<MailResult> {
+export async function sendViaSmtp(
+  config: SmtpConfig,
+  input: MailInput,
+  options: SmtpOptions = {},
+): Promise<MailResult> {
   const from = parseMailbox(config.from);
   if (!from) return { ok: false, code: 'smtp_rejected', hint: 'invalid_address' };
-  const built = buildMessage({ from, to: Array.isArray(input.to) ? input.to : [input.to], subject: input.subject, text: input.text, ...(input.html === undefined ? {} : { html: input.html }), now: (options.now ?? Date.now)() });
+  const built = buildMessage({
+    from,
+    to: Array.isArray(input.to) ? input.to : [input.to],
+    subject: input.subject,
+    text: input.text,
+    ...(input.html === undefined ? {} : { html: input.html }),
+    now: (options.now ?? Date.now)(),
+  });
   if (!built.ok) return { ok: false, code: 'smtp_rejected', hint: built.hint };
   const target = await checkMailHost(config.host, options);
   if (!target.ok) return { ok: false, code: 'smtp_connection_failed', hint: target.hint };

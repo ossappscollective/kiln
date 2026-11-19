@@ -22,7 +22,12 @@ export type CloneLimits = { maxBytes: number; idleDays: number };
 export type RepositoryClone = { enabled: boolean; clone: CloneView | null; limits: CloneLimits };
 
 /** `GET /clones`. */
-export type CloneReport = { enabled: boolean; clones: CloneView[]; totalBytes: number; limits: CloneLimits };
+export type CloneReport = {
+  enabled: boolean;
+  clones: CloneView[];
+  totalBytes: number;
+  limits: CloneLimits;
+};
 
 export type PurgeResult = { removed: number; freedBytes: number };
 
@@ -36,22 +41,34 @@ export function formatBytes(bytes: number, lowerBound = false): string {
     value /= 1024;
     unit++;
   }
-  const text = unit === 0 ? String(Math.round(value)) : value < 10 ? value.toFixed(1) : String(Math.round(value));
+  const text =
+    unit === 0
+      ? String(Math.round(value))
+      : value < 10
+        ? value.toFixed(1)
+        : String(Math.round(value));
   return `${lowerBound ? 'at least ' : ''}${text} ${UNITS[unit]}`;
 }
 
 /** What the server does with idle clones, in a sentence (the limits come from the server's settings). */
 export function limitsSentence(limits: CloneLimits): string {
   const parts: string[] = [];
-  if (limits.idleDays > 0) parts.push(`removed after ${limits.idleDays} ${limits.idleDays === 1 ? 'day' : 'days'} without use`);
-  if (limits.maxBytes > 0) parts.push(`the least recently used are removed above ${formatBytes(limits.maxBytes)} in total`);
+  if (limits.idleDays > 0)
+    parts.push(
+      `removed after ${limits.idleDays} ${limits.idleDays === 1 ? 'day' : 'days'} without use`,
+    );
+  if (limits.maxBytes > 0)
+    parts.push(
+      `the least recently used are removed above ${formatBytes(limits.maxBytes)} in total`,
+    );
   if (parts.length === 0) return 'Clones are kept until the repository is disconnected.';
   return `Clones are ${parts.join('; ')}. A removed clone is fetched again by the next read.`;
 }
 
 /** The card's line about the clone, or the reason there is none. */
 export function cloneSummary(state: Pick<RepositoryClone, 'enabled' | 'clone'>): string {
-  if (!state.enabled) return 'Reads use the GitHub API (MRM_READS=api), so nothing is kept on disk.';
+  if (!state.enabled)
+    return 'Reads use the GitHub API (MRM_READS=api), so nothing is kept on disk.';
   if (!state.clone) return 'No clone on disk yet. The next scan or listing makes one.';
   return `${formatBytes(state.clone.bytes, state.clone.sizeIsLowerBound)} on the server.`;
 }

@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type AttentionInput, attentionItems, ciFailed, newestBuild, stagedUnpushedCount } from './app-attention.ts';
+import {
+  type AttentionInput,
+  attentionItems,
+  ciFailed,
+  newestBuild,
+  stagedUnpushedCount,
+} from './app-attention.ts';
 import type { AppBuild, PlanSummary } from './types.ts';
 
-const build = (n: string, uploadedAt: number, conclusion: string | null, status = 'completed'): AppBuild =>
+const build = (
+  n: string,
+  uploadedAt: number,
+  conclusion: string | null,
+  status = 'completed',
+): AppBuild =>
   ({
     platform: 'ios',
     buildNumber: n,
@@ -14,11 +25,18 @@ const build = (n: string, uploadedAt: number, conclusion: string | null, status 
     uploadedAt,
     syncedAt: 1,
     linkState: conclusion === null ? 'unlinked' : 'linked',
-    link: conclusion === null ? null : ({ run: { id: 'r', workflow: 'w', title: null, status, conclusion } } as AppBuild['link']),
+    link:
+      conclusion === null
+        ? null
+        : ({
+            run: { id: 'r', workflow: 'w', title: null, status, conclusion },
+          } as AppBuild['link']),
     diagnostic: null,
   }) as AppBuild;
 
-const plan = (over: Partial<PlanSummary> & { overdue?: boolean; dueSoon?: boolean } = {}): PlanSummary =>
+const plan = (
+  over: Partial<PlanSummary> & { overdue?: boolean; dueSoon?: boolean } = {},
+): PlanSummary =>
   ({
     id: 'p1',
     version: '2.0.0',
@@ -58,9 +76,15 @@ describe('attention items', () => {
   });
 
   it('reports a failed newest build, not an older failure', () => {
-    const input = { ...empty([ios]), builds: { a1: [build('1', 10, 'failure'), build('2', 20, 'success')] } };
+    const input = {
+      ...empty([ios]),
+      builds: { a1: [build('1', 10, 'failure'), build('2', 20, 'success')] },
+    };
     assert.deepEqual(attentionItems(input), []);
-    const bad = { ...empty([ios]), builds: { a1: [build('1', 10, 'success'), build('2', 20, 'timed_out')] } };
+    const bad = {
+      ...empty([ios]),
+      builds: { a1: [build('1', 10, 'success'), build('2', 20, 'timed_out')] },
+    };
     const items = attentionItems(bad);
     assert.equal(items.length, 1);
     assert.equal(items[0]?.text, 'CI failed for build 2');
@@ -84,11 +108,19 @@ describe('attention items', () => {
     assert.equal(items[1]?.text, 'iOS: 1 staged change is not pushed to the store draft');
     assert.equal(items[2]?.text, 'Android: 2 locales differ from the store or the repository');
     assert.equal(items[3]?.text, 'iOS: 3 new reviews to triage');
-    assert.equal(attentionItems({ ...empty([ios]), newReviews: { a1: 1 } })[0]?.text, '1 new review to triage');
+    assert.equal(
+      attentionItems({ ...empty([ios]), newReviews: { a1: 1 } })[0]?.text,
+      '1 new review to triage',
+    );
   });
 
   it('skips released plans and plans of the other platform', () => {
-    const input = { ...empty([ios]), plans: { a1: [plan({ overdue: true, released: true }), plan({ overdue: true, platform: 'android' })] } };
+    const input = {
+      ...empty([ios]),
+      plans: {
+        a1: [plan({ overdue: true, released: true }), plan({ overdue: true, platform: 'android' })],
+      },
+    };
     assert.deepEqual(attentionItems(input), []);
   });
 

@@ -1,4 +1,11 @@
-import { type Action, PLATFORMS, type Platform, isPlatform, platformLabel, sortPlatforms } from '@mrm/core';
+import {
+  type Action,
+  isPlatform,
+  PLATFORMS,
+  type Platform,
+  platformLabel,
+  sortPlatforms,
+} from '@mrm/core';
 import type { IconName } from './icons.ts';
 
 /**
@@ -37,9 +44,36 @@ export function parseViewPath(hash: string): ViewPath {
 // ---------------------------------------------------------------------------------------------
 // Sections of an app
 
-export type AppSection = 'dashboard' | 'pending' | 'listing' | 'releases' | 'workflows' | 'assets' | 'reviews' | 'insights' | 'aso' | 'analytics' | 'builds' | 'test-builds' | 'settings';
+export type AppSection =
+  | 'dashboard'
+  | 'pending'
+  | 'listing'
+  | 'releases'
+  | 'workflows'
+  | 'assets'
+  | 'reviews'
+  | 'insights'
+  | 'aso'
+  | 'analytics'
+  | 'builds'
+  | 'test-builds'
+  | 'settings';
 
-export const appSections: readonly AppSection[] = ['dashboard', 'pending', 'listing', 'releases', 'workflows', 'assets', 'reviews', 'insights', 'aso', 'analytics', 'builds', 'test-builds', 'settings'];
+export const appSections: readonly AppSection[] = [
+  'dashboard',
+  'pending',
+  'listing',
+  'releases',
+  'workflows',
+  'assets',
+  'reviews',
+  'insights',
+  'aso',
+  'analytics',
+  'builds',
+  'test-builds',
+  'settings',
+];
 
 export type SectionDef = { id: AppSection; label: string; icon: IconName; requires: Action };
 
@@ -94,10 +128,15 @@ export function parseAppAddress(hash: string): AppAddress | null {
   if (view !== 'portfolio' || !id) return null;
   const platform = query.get('platform');
   const scope = isPlatformScope(platform) ? platform : null;
-  if (part === 'release' && version) return { id, section: 'releases', release: version, platform: scope };
+  if (part === 'release' && version)
+    return { id, section: 'releases', release: version, platform: scope };
   // `#/portfolio/<id>?section=pending` names a section too (the path wins when it names one).
   const asked = query.get('section') ?? undefined;
-  const section: AppSection = isAppSection(part) ? part : !part && isAppSection(asked) ? asked : 'dashboard';
+  const section: AppSection = isAppSection(part)
+    ? part
+    : !part && isAppSection(asked)
+      ? asked
+      : 'dashboard';
   return { id, section, release: null, platform: scope };
 }
 
@@ -111,15 +150,22 @@ export function appAddress(
   release: string | null = null,
 ): string {
   const base = `#/portfolio/${enc(id)}`;
-  const path = release !== null ? `${base}/release/${enc(release)}` : section === 'dashboard' ? base : `${base}/${section}`;
+  const path =
+    release !== null
+      ? `${base}/release/${enc(release)}`
+      : section === 'dashboard'
+        ? base
+        : `${base}/${section}`;
   return platform ? `${path}?platform=${platform}` : path;
 }
 
 /** The workflows of one app (the link from Builds and CI). */
-export const appWorkflowsHref = (id: string, platform: PlatformScope | null = null): string => appAddress(id, 'workflows', platform);
+export const appWorkflowsHref = (id: string, platform: PlatformScope | null = null): string =>
+  appAddress(id, 'workflows', platform);
 
 /** The reviews of one app (the link from the inbox). */
-export const appReviewsHref = (id: string, platform: PlatformScope | null = null): string => appAddress(id, 'reviews', platform);
+export const appReviewsHref = (id: string, platform: PlatformScope | null = null): string =>
+  appAddress(id, 'reviews', platform);
 
 /** The same address with another platform scope; other query parts stay. */
 export function withScope(hash: string, platform: PlatformScope | null): string {
@@ -154,16 +200,25 @@ export const allScopeLabel = (count: number): string => (count > 2 ? 'All' : 'Bo
  * one disabled with a reason, so that layout does not move. An app with a macOS record shows only the
  * platforms it has (nothing disabled), and the macOS option never appears for an app without it.
  */
-export function resolveScope(requested: PlatformScope | null, available: readonly Platform[]): ResolvedScope {
+export function resolveScope(
+  requested: PlatformScope | null,
+  available: readonly Platform[],
+): ResolvedScope {
   const have = sortPlatforms(available);
-  const fallback: PlatformScope = have.length >= 2 || have.length === 0 ? 'both' : (have[0] as Platform);
-  const allowed = (scope: PlatformScope) => (scope === 'both' ? have.length >= 2 : have.includes(scope));
+  const fallback: PlatformScope =
+    have.length >= 2 || have.length === 0 ? 'both' : (have[0] as Platform);
+  const allowed = (scope: PlatformScope) =>
+    scope === 'both' ? have.length >= 2 : have.includes(scope);
   const scope = requested !== null && allowed(requested) ? requested : fallback;
   const option = (id: PlatformScope, label: string): ScopeOption => ({
     id,
     label,
     disabled: !allowed(id),
-    reason: allowed(id) ? '' : id === 'both' ? 'This app is on one store only' : 'This app is not on that store',
+    reason: allowed(id)
+      ? ''
+      : id === 'both'
+        ? 'This app is on one store only'
+        : 'This app is not on that store',
   });
   const hasMac = have.includes('macos');
   const shown: Platform[] = hasMac ? have : PLATFORMS.filter((p) => p !== 'macos');

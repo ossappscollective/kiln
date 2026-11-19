@@ -28,7 +28,10 @@ const app = (n: number, over: Record<string, unknown> = {}) => ({
   userRatingCount: 1000 * n,
   description: `Habit App ${n} helps you build streaks.\nTrack your daily goals.`,
   artworkUrl512: `https://is1-ssl.mzstatic.com/image/thumb/Purple/v4/${n}/512x512bb.jpg`,
-  screenshotUrls: [`https://is1-ssl.mzstatic.com/image/thumb/${n}/a.jpg`, `https://is1-ssl.mzstatic.com/image/thumb/${n}/b.jpg`],
+  screenshotUrls: [
+    `https://is1-ssl.mzstatic.com/image/thumb/${n}/a.jpg`,
+    `https://is1-ssl.mzstatic.com/image/thumb/${n}/b.jpg`,
+  ],
   ipadScreenshotUrls: [`https://is1-ssl.mzstatic.com/image/thumb/${n}/c.jpg`],
   sellerName: `Maker ${n} GmbH`,
   primaryGenreName: 'Health & Fitness',
@@ -69,4 +72,5 @@ export const playAppHtml = `<!doctype html><html lang="en"><head>
 </body></html>`;
 
 /** An app page whose markup has lost everything the parser looks for. */
-export const playChangedHtml = '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>';
+export const playChangedHtml =
+  '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>';

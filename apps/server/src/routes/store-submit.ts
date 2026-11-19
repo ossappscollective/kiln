@@ -1,19 +1,19 @@
 import { type Action, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { requireStepUp } from '../services/step-up.ts';
 import type { Failure } from '../services/repositories.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import {
-  type SubmitConnectorFactory,
-  type SubmitContext,
   applySubmit,
   defaultSubmitConnectorFactory,
   getSubmitState,
   previewSubmit,
+  type SubmitConnectorFactory,
+  type SubmitContext,
   submitConfig,
   submitDisabledFailure,
 } from '../services/store-submit.ts';
@@ -50,7 +50,9 @@ const hash64 = /^[0-9a-f]{64}$/;
 const previewBody = z.object({}).strict().optional();
 const applyBody = z
   .object({
-    confirmHash: z.string().regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
+    confirmHash: z
+      .string()
+      .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
     confirmation: z.string().min(1).max(300),
   })
   .strict();
@@ -77,7 +79,9 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
     return next();
   };
 
-  routes.get('/:workspaceId/store-submit/config', needs('apps.read'), (c) => c.json(submitConfig(submit)));
+  routes.get('/:workspaceId/store-submit/config', needs('apps.read'), (c) =>
+    c.json(submitConfig(submit)),
+  );
 
   routes.get('/:workspaceId/apps/:id/store-submit', needs('store.submit'), async (c) => {
     const done = await getSubmitState(submit, { workspaceId: ws(c), appId: param(c, 'id') });
@@ -89,7 +93,11 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
     if (!submit.submitEnabled) return respond(c, submitDisabledFailure());
     const body = await parseBody(c, previewBody);
     if (!body.ok) return body.response;
-    const done = await previewSubmit(submit, { workspaceId: ws(c), appId: param(c, 'id'), actor: actor(c) });
+    const done = await previewSubmit(submit, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      actor: actor(c),
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
   });
@@ -97,11 +105,20 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
   // The only route that hands anything to a store's review. One app per request: no bulk submit.
   routes.post('/:workspaceId/apps/:id/store-submit', needs('store.submit'), async (c) => {
     if (!submit.submitEnabled) return respond(c, submitDisabledFailure());
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.submit', { id: param(c, 'id'), hashField: 'confirmHash' });
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.submit', {
+      id: param(c, 'id'),
+      hashField: 'confirmHash',
+    });
     if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, applyBody);
     if (!body.ok) return body.response;
-    const done = await applySubmit(submit, { workspaceId: ws(c), appId: param(c, 'id'), confirmHash: body.data.confirmHash, confirmation: body.data.confirmation, actor: actor(c) });
+    const done = await applySubmit(submit, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      confirmHash: body.data.confirmHash,
+      confirmation: body.data.confirmation,
+      actor: actor(c),
+    });
     return done.ok ? c.json({ result: done.result }) : respond(c, done);
   });
 

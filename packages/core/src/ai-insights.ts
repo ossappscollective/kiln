@@ -55,7 +55,16 @@ export const emptyAiAppContext = (): AiAppContext => ({
   dontList: [],
 });
 
-export const aiContextKeys = ['about', 'audience', 'tone', 'brandVoice', 'bannedWords', 'brandTerms', 'doList', 'dontList'] as const;
+export const aiContextKeys = [
+  'about',
+  'audience',
+  'tone',
+  'brandVoice',
+  'bannedWords',
+  'brandTerms',
+  'doList',
+  'dontList',
+] as const;
 
 export function isEmptyAiAppContext(context: AiAppContext): boolean {
   return (
@@ -71,7 +80,8 @@ export function isEmptyAiAppContext(context: AiAppContext): boolean {
 }
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is removed
-const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g;
+const CONTROL =
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 function oneLine(value: string): string {
   return value.replace(CONTROL, '').replace(/\s+/g, ' ').trim();
@@ -87,7 +97,9 @@ function paragraph(value: string): string {
 }
 
 export type AiContextIssue = { path: string; message: string };
-export type AiContextResult = { ok: true; value: AiAppContext } | { ok: false; issues: AiContextIssue[] };
+export type AiContextResult =
+  | { ok: true; value: AiAppContext }
+  | { ok: false; issues: AiContextIssue[] };
 
 /**
  * Validates what a person typed. Unknown keys are refused; text is cleaned (control characters removed); lists lose empty and repeated
@@ -96,12 +108,18 @@ export type AiContextResult = { ok: true; value: AiAppContext } | { ok: false; i
 export function normalizeAiAppContext(raw: unknown): AiContextResult {
   const issues: AiContextIssue[] = [];
   const out = emptyAiAppContext();
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, issues: [{ path: '', message: 'Send an object.' }] };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
+    return { ok: false, issues: [{ path: '', message: 'Send an object.' }] };
   const input = raw as Record<string, unknown>;
   for (const key of Object.keys(input)) {
-    if ((aiContextKeys as readonly string[]).indexOf(key) === -1) issues.push({ path: key, message: 'Not a field of the AI context.' });
+    if ((aiContextKeys as readonly string[]).indexOf(key) === -1)
+      issues.push({ path: key, message: 'Not a field of the AI context.' });
   }
-  const text = (key: 'about' | 'audience' | 'tone' | 'brandVoice', max: number, multiline: boolean) => {
+  const text = (
+    key: 'about' | 'audience' | 'tone' | 'brandVoice',
+    max: number,
+    multiline: boolean,
+  ) => {
     const value = input[key];
     if (value === undefined || value === null) return;
     if (typeof value !== 'string') {
@@ -109,14 +127,19 @@ export function normalizeAiAppContext(raw: unknown): AiContextResult {
       return;
     }
     const cleaned = multiline ? paragraph(value) : oneLine(value);
-    if (Array.from(cleaned).length > max) issues.push({ path: key, message: `At most ${max} characters.` });
+    if (Array.from(cleaned).length > max)
+      issues.push({ path: key, message: `At most ${max} characters.` });
     else out[key] = cleaned;
   };
   text('about', aiContextLimits.aboutChars, true);
   text('audience', aiContextLimits.audienceChars, false);
   text('tone', aiContextLimits.toneChars, false);
   text('brandVoice', aiContextLimits.brandVoiceChars, true);
-  const list = (key: 'bannedWords' | 'brandTerms' | 'doList' | 'dontList', items: number, chars: number) => {
+  const list = (
+    key: 'bannedWords' | 'brandTerms' | 'doList' | 'dontList',
+    items: number,
+    chars: number,
+  ) => {
     const value = input[key];
     if (value === undefined || value === null) return;
     if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) {
@@ -132,7 +155,8 @@ export function normalizeAiAppContext(raw: unknown): AiContextResult {
       cleaned.push(one);
     }
     if (cleaned.length > items) issues.push({ path: key, message: `At most ${items} entries.` });
-    else if (cleaned.some((c) => Array.from(c).length > chars)) issues.push({ path: key, message: `Each entry has at most ${chars} characters.` });
+    else if (cleaned.some((c) => Array.from(c).length > chars))
+      issues.push({ path: key, message: `Each entry has at most ${chars} characters.` });
     else out[key] = cleaned;
   };
   list('bannedWords', aiContextLimits.termItems, aiContextLimits.termChars);
@@ -155,7 +179,8 @@ export function findBannedWord(text: string, words: readonly string[]): string |
       const before = at === 0 ? '' : lower.charAt(at - 1);
       const after = lower.charAt(at + needle.length);
       const letter = /[a-z0-9À-ɏͰ-ϿЀ-ӿ]/;
-      if (!(before !== '' && letter.test(before)) && !(after !== '' && letter.test(after))) return word;
+      if (!(before !== '' && letter.test(before)) && !(after !== '' && letter.test(after)))
+        return word;
       from = at + 1;
     }
   }
@@ -207,7 +232,13 @@ export type AiReviewTags = {
 // ---------------------------------------------------------------------------------------------
 // Insights: reports that are read, not accepted. "Accepting" one only marks it reviewed.
 
-export const aiInsightKinds = ['review_summary', 'review_classify', 'fix_next', 'listing_audit', 'aso_health'] as const;
+export const aiInsightKinds = [
+  'review_summary',
+  'review_classify',
+  'fix_next',
+  'listing_audit',
+  'aso_health',
+] as const;
 export type AiInsightKind = (typeof aiInsightKinds)[number];
 
 export type AiPeriod = { days: number; from: number; to: number };
@@ -282,7 +313,15 @@ export type AiFixNextInsight = {
   notes: string[];
 };
 
-export type AiAuditField = { field: string; label: string; length: number; limit: number | null; unit: 'characters' | 'bytes'; percent: number | null; empty: boolean };
+export type AiAuditField = {
+  field: string;
+  label: string;
+  length: number;
+  limit: number | null;
+  unit: 'characters' | 'bytes';
+  percent: number | null;
+  empty: boolean;
+};
 export type AiAuditCoverage = { term: string; rank: number | null; inFields: string[] };
 export type AiAuditFinding = {
   field: string | null;
@@ -307,21 +346,46 @@ export type AiListingAuditInsight = {
   notes: string[];
 };
 
-export const aiHealthAreas = ['keywords', 'listing', 'reviews', 'competitors', 'analytics', 'other'] as const;
+export const aiHealthAreas = [
+  'keywords',
+  'listing',
+  'reviews',
+  'competitors',
+  'analytics',
+  'other',
+] as const;
 export type AiHealthArea = (typeof aiHealthAreas)[number];
 
-export type AiHealthAction = { position: number; title: string; detail: string; area: AiHealthArea; flags: AiFlag[] };
+export type AiHealthAction = {
+  position: number;
+  title: string;
+  detail: string;
+  area: AiHealthArea;
+  flags: AiFlag[];
+};
 export type AiAsoHealthInsight = {
   kind: 'insight';
   insight: 'aso_health';
   summary: string;
   actions: AiHealthAction[];
   /** What the report was worked out from, counted by the server. */
-  basedOn: { keywords: number; ranked: number; coachSteps: number; competitors: number; analyticsSeries: number; lastCheckAt: number | null };
+  basedOn: {
+    keywords: number;
+    ranked: number;
+    coachSteps: number;
+    competitors: number;
+    analyticsSeries: number;
+    lastCheckAt: number | null;
+  };
   notes: string[];
 };
 
-export type AiInsightProposal = AiReviewSummaryInsight | AiReviewClassifyInsight | AiFixNextInsight | AiListingAuditInsight | AiAsoHealthInsight;
+export type AiInsightProposal =
+  | AiReviewSummaryInsight
+  | AiReviewClassifyInsight
+  | AiFixNextInsight
+  | AiListingAuditInsight
+  | AiAsoHealthInsight;
 
 // ---------------------------------------------------------------------------------------------
 // Listing variants

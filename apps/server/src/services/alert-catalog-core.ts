@@ -14,18 +14,30 @@ import type { EventType } from './event-types.ts';
 export const alertSeverities = ['info', 'warning', 'critical'] as const;
 export type AlertSeverity = (typeof alertSeverities)[number];
 export const severityRank: Record<AlertSeverity, number> = { info: 0, warning: 1, critical: 2 };
-export const isSeverity = (v: unknown): v is AlertSeverity => typeof v === 'string' && (alertSeverities as readonly string[]).includes(v);
+export const isSeverity = (v: unknown): v is AlertSeverity =>
+  typeof v === 'string' && (alertSeverities as readonly string[]).includes(v);
 
 /** `webhook` is workspace wide (the webhook endpoints decide who hears it); the others are per person. */
 export const alertChannels = ['in_app', 'email', 'desktop', 'webhook'] as const;
 export type AlertChannel = (typeof alertChannels)[number];
 export const personalChannels = ['in_app', 'email', 'desktop'] as const;
 export type PersonalChannel = (typeof personalChannels)[number];
-export const isChannel = (v: unknown): v is AlertChannel => typeof v === 'string' && (alertChannels as readonly string[]).includes(v);
+export const isChannel = (v: unknown): v is AlertChannel =>
+  typeof v === 'string' && (alertChannels as readonly string[]).includes(v);
 export const isPersonalChannel = (v: unknown): v is PersonalChannel =>
   typeof v === 'string' && (personalChannels as readonly string[]).includes(v);
 
-export const alertGroups = ['releases', 'reviews', 'store', 'builds', 'analytics', 'aso', 'ai', 'security', 'system'] as const;
+export const alertGroups = [
+  'releases',
+  'reviews',
+  'store',
+  'builds',
+  'analytics',
+  'aso',
+  'ai',
+  'security',
+  'system',
+] as const;
 export type AlertGroup = (typeof alertGroups)[number];
 export const alertGroupLabels: Record<AlertGroup, string> = {
   releases: 'Releases and rollouts',
@@ -42,7 +54,13 @@ export const alertGroupLabels: Record<AlertGroup, string> = {
 /** Plain values only: ids, names, numbers. Nothing here may be a secret (see `redactAlertData`). */
 export type AlertData = Record<string, string | number | boolean | null>;
 
-export type AlertParamDef = { default: number; min: number; max: number; unit: string; label: string };
+export type AlertParamDef = {
+  default: number;
+  min: number;
+  max: number;
+  unit: string;
+  label: string;
+};
 
 export type EventLike = {
   type: string;
@@ -69,7 +87,10 @@ export type AlertDef<Id extends string = string> = {
   allowedChannels: readonly AlertChannel[];
   /** Who is told: people whose role has this action. */
   audience: Action;
-  source: { kind: 'event'; events: readonly EventType[] } | { kind: 'state'; check: string } | { kind: 'internal' };
+  source:
+    | { kind: 'event'; events: readonly EventType[] }
+    | { kind: 'state'; check: string }
+    | { kind: 'internal' };
   /** The key under which repeats collapse; this is its template. */
   dedupe: string;
   dedupeKey: (d: AlertData) => string;
@@ -84,10 +105,16 @@ export type AlertDef<Id extends string = string> = {
 };
 
 export const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-export const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+export const num = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null;
 export const app = (d: AlertData) => String(d.appName ?? d.appId ?? 'An app');
 export const ver = (d: AlertData) => (d.version ? ` ${String(d.version)}` : '');
-export const everyone = ['in_app', 'email', 'desktop', 'webhook'] as const satisfies readonly AlertChannel[];
+export const everyone = [
+  'in_app',
+  'email',
+  'desktop',
+  'webhook',
+] as const satisfies readonly AlertChannel[];
 export const noEmail = ['in_app', 'desktop', 'webhook'] as const satisfies readonly AlertChannel[];
 export const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -107,7 +134,8 @@ export function def<Id extends string>(d: AlertDef<Id>): AlertDef<Id> {
   return d;
 }
 
-const isStatus = (e: EventLike, ...to: string[]) => e.type === 'app.release.status_changed' && to.includes(String(e.payload.to));
+const isStatus = (e: EventLike, ...to: string[]) =>
+  e.type === 'app.release.status_changed' && to.includes(String(e.payload.to));
 
 export const releaseDefs = [
   def({
@@ -168,7 +196,8 @@ export const releaseDefs = [
     maxPerHour: 20,
     params: {},
     title: (d) => `${app(d)}${ver(d)} is ${d.to === 'rolling_out' ? 'rolling out' : 'live'}`,
-    body: (d) => `The store reports${ver(d)} of ${app(d)} as ${d.to === 'rolling_out' ? 'rolling out' : 'live'}.`,
+    body: (d) =>
+      `The store reports${ver(d)} of ${app(d)} as ${d.to === 'rolling_out' ? 'rolling out' : 'live'}.`,
     fromEvent: (e) => (isStatus(e, 'live', 'rolling_out') ? statusData(e) : null),
   }),
   def({
@@ -212,7 +241,11 @@ export const releaseDefs = [
       `The rollout of ${app(d)}${ver(d)}${d.track ? ` on track ${String(d.track)}` : ''} is halted. Users get no further expansion until it is resumed.`,
     fromEvent: (e) => {
       if (e.type === 'release.rollout_changed' && e.payload.action === 'halt') {
-        return { appId: e.subject.appId ?? null, version: str(e.payload.version), track: str(e.payload.track) };
+        return {
+          appId: e.subject.appId ?? null,
+          version: str(e.payload.version),
+          track: str(e.payload.track),
+        };
       }
       return isStatus(e, 'halted') ? statusData(e) : null;
     },
@@ -290,7 +323,8 @@ export const releaseDefs = [
     maxPerHour: 20,
     params: {},
     title: (d) => `${app(d)}${ver(d)} is due soon`,
-    body: (d) => `The release plan for ${app(d)}${ver(d)} has a target date of ${String(d.targetDate ?? 'unknown')}${d.blocked ? ' and is blocked' : ''}.`,
+    body: (d) =>
+      `The release plan for ${app(d)}${ver(d)} has a target date of ${String(d.targetDate ?? 'unknown')}${d.blocked ? ' and is blocked' : ''}.`,
     fromEvent: (e) => ({
       appId: e.subject.appId ?? null,
       appName: str(e.payload.appName),

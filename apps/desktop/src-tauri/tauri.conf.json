@@ -23,9 +23,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/mrm-node"
-    ],
+    "externalBin": ["binaries/mrm-node"],
     "resources": {
       "binaries/server/": "server/"
     },

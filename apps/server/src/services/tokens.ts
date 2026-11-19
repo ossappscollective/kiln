@@ -1,13 +1,13 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   type Action,
-  type Role,
-  type TokenRole,
   actions,
   can,
   isRole,
   isTokenRole,
   lowerRole,
+  type Role,
+  type TokenRole,
   tokenForbiddenActions,
   tokenRoles,
 } from '@mrm/core';
@@ -67,7 +67,12 @@ export type TokenSummary = {
   status: TokenStatus;
 };
 
-export type TokenFailure = { ok: false; status: 400 | 403 | 404 | 409; error: string; message?: string };
+export type TokenFailure = {
+  ok: false;
+  status: 400 | 403 | 404 | 409;
+  error: string;
+  message?: string;
+};
 
 const parseList = (value: unknown): string[] | null => {
   if (value === null || value === undefined) return null;
@@ -95,8 +100,16 @@ function toSummary(r: Row, now: number): TokenSummary {
     lastUsedAt: nullable(r.last_used_at),
     revokedAt,
     createdAt: Number(r.created_at),
-    createdBy: { id: String(r.created_by), name: r.creator_name === null || r.creator_name === undefined ? null : String(r.creator_name) },
-    status: revokedAt !== null ? 'revoked' : expiresAt !== null && expiresAt <= now ? 'expired' : 'active',
+    createdBy: {
+      id: String(r.created_by),
+      name: r.creator_name === null || r.creator_name === undefined ? null : String(r.creator_name),
+    },
+    status:
+      revokedAt !== null
+        ? 'revoked'
+        : expiresAt !== null && expiresAt <= now
+          ? 'expired'
+          : 'active',
   };
 }
 
@@ -107,7 +120,11 @@ const SUMMARY_SELECT = `SELECT t.id, t.name, t.prefix, t.role, t.app_ids, t.acti
 /** The most tokens one list returns (newest first). Revoked and expired ones stay listed. */
 export const MAX_TOKENS_LISTED = 200;
 
-export async function listTokens(sql: Sql, workspaceId: string, now: number): Promise<TokenSummary[]> {
+export async function listTokens(
+  sql: Sql,
+  workspaceId: string,
+  now: number,
+): Promise<TokenSummary[]> {
   const rows = await sql.query(
     `${SUMMARY_SELECT} WHERE t.workspace_id = ? ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
     [workspaceId, MAX_TOKENS_LISTED],
@@ -121,7 +138,10 @@ export async function getToken(
   id: string,
   now: number,
 ): Promise<TokenSummary | undefined> {
-  const [row] = await sql.query(`${SUMMARY_SELECT} WHERE t.workspace_id = ? AND t.id = ?`, [workspaceId, id]);
+  const [row] = await sql.query(`${SUMMARY_SELECT} WHERE t.workspace_id = ? AND t.id = ?`, [
+    workspaceId,
+    id,
+  ]);
   return row ? toSummary(row, now) : undefined;
 }
 
@@ -142,7 +162,12 @@ export async function createToken(
     };
   }
   if (input.expiresAt !== undefined && input.expiresAt <= now) {
-    return { ok: false, status: 400, error: 'invalid_request', message: 'The expiry must be in the future.' };
+    return {
+      ok: false,
+      status: 400,
+      error: 'invalid_request',
+      message: 'The expiry must be in the future.',
+    };
   }
   const list = input.actions ? [...new Set(input.actions)] : undefined;
   for (const action of list ?? []) {
@@ -217,7 +242,12 @@ export async function createToken(
     return 'ok' as const;
   });
   if (outcome === 'unknown_app') {
-    return { ok: false, status: 400, error: 'unknown_app', message: 'One of the apps is not in this workspace.' };
+    return {
+      ok: false,
+      status: 400,
+      error: 'unknown_app',
+      message: 'One of the apps is not in this workspace.',
+    };
   }
   if (outcome === 'too_many') {
     return {
@@ -239,17 +269,16 @@ export async function revokeToken(
   now: number,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
-    const [row] = await tx.query('SELECT name, revoked_at FROM api_tokens WHERE id = ? AND workspace_id = ?', [
-      input.id,
-      input.workspaceId,
-    ]);
+    const [row] = await tx.query(
+      'SELECT name, revoked_at FROM api_tokens WHERE id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
     if (!row) return false;
     if (row.revoked_at !== null && row.revoked_at !== undefined) return true;
-    await tx.execute('UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL', [
-      now,
-      input.id,
-      input.workspaceId,
-    ]);
+    await tx.execute(
+      'UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL',
+      [now, input.id, input.workspaceId],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,
@@ -286,7 +315,11 @@ export type TokenPrincipal = {
  * expired, or when its creator is no longer a member of the workspace (the token then dies with
  * the membership). A creator who was demoted keeps the token, which then holds the lower role.
  */
-export async function authenticateToken(sql: Sql, presented: string, now: number): Promise<TokenPrincipal | undefined> {
+export async function authenticateToken(
+  sql: Sql,
+  presented: string,
+  now: number,
+): Promise<TokenPrincipal | undefined> {
   if (!looksLikeToken(presented)) return undefined;
   const [row] = await sql.query(
     `SELECT t.id, t.name, t.workspace_id, t.role, t.app_ids, t.actions, t.expires_at,
@@ -302,7 +335,11 @@ export async function authenticateToken(sql: Sql, presented: string, now: number
     tokenId: String(row.id),
     name: String(row.name),
     workspaceId: String(row.workspace_id),
-    user: { id: String(row.user_id), email: String(row.email), displayName: String(row.display_name) },
+    user: {
+      id: String(row.user_id),
+      email: String(row.email),
+      displayName: String(row.display_name),
+    },
     tokenRole: row.role,
     memberRole: row.member_role,
     ceiling: lowerRole(row.role, row.member_role),

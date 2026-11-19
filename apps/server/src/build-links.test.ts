@@ -34,7 +34,11 @@ const ref = (over: Partial<RunRef> = {}): RunRef => ({
   ...over,
 });
 const ios = (buildNumber: string): BuildRef => ({ platform: 'ios', buildNumber, version: '2.4.0' });
-const android = (buildNumber: string): BuildRef => ({ platform: 'android', buildNumber, version: '2.4.0' });
+const android = (buildNumber: string): BuildRef => ({
+  platform: 'android',
+  buildNumber,
+  version: '2.4.0',
+});
 
 // ---------------------------------------------------------------------------------------------
 // Matchers
@@ -44,13 +48,20 @@ test('dispatch_input: an input that names the build number, with the platform in
     dispatchInputMatcher.match(build, ref({ inputs }));
   assert.ok(m({ build_number: '240' }, ios('240')));
   assert.ok(m({ build_number: '240' }, android('240')), 'a generic name fits both platforms');
-  assert.ok(m({ 'Build-Number': ' 240 ' }, ios('240')), 'case, dashes and spaces around the value do not matter');
+  assert.ok(
+    m({ 'Build-Number': ' 240 ' }, ios('240')),
+    'case, dashes and spaces around the value do not matter',
+  );
   assert.ok(m({ ios_build_number: '240' }, ios('240')));
   assert.equal(m({ ios_build_number: '240' }, android('240')), undefined);
   assert.ok(m({ version_code: '241' }, android('241')));
   assert.equal(m({ version_code: '241' }, ios('241')), undefined);
   assert.equal(m({ build_number: '241' }, ios('240')), undefined);
-  assert.equal(m({ track: '240' }, ios('240')), undefined, 'only inputs that name a build number count');
+  assert.equal(
+    m({ track: '240' }, ios('240')),
+    undefined,
+    'only inputs that name a build number count',
+  );
   assert.equal(dispatchInputMatcher.match(ios('240'), ref({ inputs: null })), undefined);
 });
 
@@ -58,12 +69,19 @@ test('run_title: the conventions that ship, and what they must not match', () =>
   const title = (t: string, build: BuildRef, extra: Partial<RunRef> = {}) =>
     runTitleMatcher.match(build, ref({ title: t, ...extra }));
   assert.ok(title('Release 2.4.0 (build 240)', ios('240')));
-  assert.ok(title('Release 2.4.0 (build 240)', android('240')), 'a plain "build N" names both platforms');
+  assert.ok(
+    title('Release 2.4.0 (build 240)', android('240')),
+    'a plain "build N" names both platforms',
+  );
   assert.ok(title('Build number: 240', ios('240')));
   assert.ok(title('build_number=240', ios('240')));
   assert.ok(title('Build #240 on main', ios('240')));
   assert.ok(title('iOS build 240', ios('240')));
-  assert.equal(title('iOS build 240', android('240')), undefined, 'a platform prefix limits the match');
+  assert.equal(
+    title('iOS build 240', android('240')),
+    undefined,
+    'a platform prefix limits the match',
+  );
   assert.ok(title('Android versionCode 241', android('241')));
   assert.ok(title('Android build 241', android('241')));
   assert.equal(title('Android versionCode 241', ios('241')), undefined);
@@ -77,7 +95,10 @@ test('run_title: the conventions that ship, and what they must not match', () =>
   assert.equal(title('Release (build 240)', ios('24')), undefined);
   assert.equal(runTitleMatcher.match(ios('240'), ref({ title: null })), undefined);
   // GitHub's default title is the commit message: "fix build 3 failures" is not a build number.
-  assert.equal(title('fix build 3 failures', ios('3'), { commitMessage: 'fix build 3 failures' }), undefined);
+  assert.equal(
+    title('fix build 3 failures', ios('3'), { commitMessage: 'fix build 3 failures' }),
+    undefined,
+  );
   assert.ok(title('fix build 3 failures', ios('3'), { commitMessage: 'something else' }));
 });
 
@@ -86,9 +107,16 @@ test('run_number is opt-in and needs named workflows', () => {
   assert.equal(m.id, 'run_number');
   assert.ok(m.match(ios('107'), ref({ runNumber: 7 })));
   assert.equal(m.match(ios('108'), ref({ runNumber: 7 })), undefined);
-  const other = ref({ runNumber: 7, workflowPath: '.github/workflows/android.yml', workflow: 'Android' });
+  const other = ref({
+    runNumber: 7,
+    workflowPath: '.github/workflows/android.yml',
+    workflow: 'Android',
+  });
   assert.equal(m.match(ios('107'), other), undefined);
-  assert.equal(runNumberMatcher({ workflows: [] }).match(ios('7'), ref({ runNumber: 7 })), undefined);
+  assert.equal(
+    runNumberMatcher({ workflows: [] }).match(ios('7'), ref({ runNumber: 7 })),
+    undefined,
+  );
 });
 
 test('matchBuilds: the first matcher that finds a run wins, a successful newest run is preferred, no sha no link', () => {
@@ -113,7 +141,8 @@ test('matchBuilds: the first matcher that finds a run wins, a successful newest 
   const named = {
     id: 'workflow_name',
     description: 'The workflow is called "Release N".',
-    match: (b: BuildRef, r: RunRef) => (r.workflow === `Release ${b.buildNumber}` ? 'name' : undefined),
+    match: (b: BuildRef, r: RunRef) =>
+      r.workflow === `Release ${b.buildNumber}` ? 'name' : undefined,
   };
   const custom = matchBuilds([ios('7')], [ref({ id: '99', workflow: 'Release 7' })], [named]);
   assert.equal(custom.get('ios\u00007')?.matcher, 'workflow_name');
@@ -138,7 +167,13 @@ test('buildsFromReleases: iOS builds per version, Android version codes per trac
   const builds = buildsFromReleases([
     release({ track: 'internal', versionCodes: ['241', '242'], status: 'draft', version: '2.5.0' }),
     release({ track: 'production', versionCodes: ['241'], status: 'rolling_out' }),
-    release({ track: 'beta', build: '240,239', versionCodes: null, status: 'live', version: '2.3.0' }),
+    release({
+      track: 'beta',
+      build: '240,239',
+      versionCodes: null,
+      status: 'live',
+      version: '2.3.0',
+    }),
     release({ platform: 'ios', build: '12', version: '1.0', storeUpdatedAt: 5 }),
     release({ platform: 'ios', build: null, version: '0.9' }),
   ]);
@@ -149,7 +184,11 @@ test('buildsFromReleases: iOS builds per version, Android version codes per trac
   );
   const by = new Map(builds.map((b) => [`${b.platform}:${b.buildNumber}`, b]));
   assert.deepEqual(by.get('android:241')?.tracks, ['internal', 'production']);
-  assert.equal(by.get('android:241')?.status, 'rolling_out', 'the most advanced release names the state');
+  assert.equal(
+    by.get('android:241')?.status,
+    'rolling_out',
+    'the most advanced release names the state',
+  );
   assert.equal(by.get('android:241')?.version, '2.4.0');
   assert.equal(by.get('android:240')?.version, '2.3.0');
   assert.equal(by.get('ios:12')?.uploadedAt, 5);
@@ -183,18 +222,30 @@ dbTest('builds: linked by a run title and by a dispatch input, unlinked otherwis
     { version: '2.1.0', build: null },
   ]);
   t.fake.runs = [
-    run('1001', { displayTitle: 'Release 2.4.0 (build 240)', headSha: SHA_2, commitMessage: 'Fix the crash\n\nwith details' }),
+    run('1001', {
+      displayTitle: 'Release 2.4.0 (build 240)',
+      headSha: SHA_2,
+      commitMessage: 'Fix the crash\n\nwith details',
+    }),
     run('1000', { displayTitle: 'noise' }),
   ];
   await refresh(t);
   // Run 1000 is the one this tool dispatched for build 239.
-  await db.execute(`UPDATE workflow_runs SET inputs_json = '{"build_number":"239"}' WHERE run_id = '1000'`);
+  await db.execute(
+    `UPDATE workflow_runs SET inputs_json = '{"build_number":"239"}' WHERE run_id = '1000'`,
+  );
 
   const res = await t.call(t.owner, 'GET', `/apps/${appId}/builds`);
   assert.equal(res.status, 200);
   assert.deepEqual(res.body.repository, { id: t.repositoryId, owner: 'acme', repo: 'app' });
-  assert.deepEqual(res.body.matchers.map((m: { id: string }) => m.id), ['dispatch_input', 'run_title']);
-  assert.deepEqual(res.body.builds.map((b: { buildNumber: string }) => b.buildNumber), ['240', '239', '238']);
+  assert.deepEqual(
+    res.body.matchers.map((m: { id: string }) => m.id),
+    ['dispatch_input', 'run_title'],
+  );
+  assert.deepEqual(
+    res.body.builds.map((b: { buildNumber: string }) => b.buildNumber),
+    ['240', '239', '238'],
+  );
   const [b240, b239, b238] = res.body.builds;
 
   assert.equal(b240.platform, 'ios');
@@ -226,7 +277,13 @@ dbTest('builds: Android version codes link through the title, one number per row
     { version: '2.4.0', build: '241,242', track: 'production', codes: ['241', '242'] },
     { version: '2.4.0', build: '242', track: 'internal', codes: ['242'], status: 'draft' },
   ]);
-  t.fake.runs = [run('1100', { displayTitle: 'Android versionCode 242', headSha: SHA_3, path: '.github/workflows/android.yml' })];
+  t.fake.runs = [
+    run('1100', {
+      displayTitle: 'Android versionCode 242',
+      headSha: SHA_3,
+      path: '.github/workflows/android.yml',
+    }),
+  ];
   await refresh(t);
   const res = await t.call(t.owner, 'GET', `/apps/${appId}/builds`);
   const [b242, b241] = res.body.builds;
@@ -239,7 +296,9 @@ dbTest('builds: Android version codes link through the title, one number per row
 
 dbTest('builds: an app without a repository lists its builds, all unlinked', async (db) => {
   const t = await bootCi(db);
-  const appId = await t.seedApp('ios', [{ version: '2.4.0', build: '240' }], { repositoryId: null });
+  const appId = await t.seedApp('ios', [{ version: '2.4.0', build: '240' }], {
+    repositoryId: null,
+  });
   const res = await t.call(t.owner, 'GET', `/apps/${appId}/builds`);
   assert.equal(res.status, 200);
   assert.equal(res.body.repository, null);
@@ -263,7 +322,11 @@ dbTest('a refresh stores the links it finds, which then outlive the run rows', a
   const [build] = res.body.builds;
   assert.equal(build.linkState, 'linked');
   assert.equal(build.link.commit.sha, SHA_2);
-  assert.equal(build.link.run.url, 'https://github.com/acme/app/actions/runs/1200', 'the stored link keeps the run address');
+  assert.equal(
+    build.link.run.url,
+    'https://github.com/acme/app/actions/runs/1200',
+    'the stored link keeps the run address',
+  );
   assert.equal(build.link.run.status, 'unknown');
 });
 
@@ -308,7 +371,11 @@ dbTest('a manual link wins over the matchers, is audited, and can be removed', a
   assert.equal(removed.body.build.link.manual, false);
   assert.equal(removed.body.build.link.source, 'run_title', 'what the matcher finds applies again');
   assert.equal((await t.auditActions()).filter((a) => a.action === 'build.unlink').length, 1);
-  assert.equal((await t.call(member, 'DELETE', linkRoute(appId, 'ios', '240'))).status, 404, 'nothing manual left');
+  assert.equal(
+    (await t.call(member, 'DELETE', linkRoute(appId, 'ios', '240'))).status,
+    404,
+    'nothing manual left',
+  );
   assert.equal((await t.call(member, 'DELETE', linkRoute(appId, 'ios', '239'))).status, 404);
 });
 
@@ -343,44 +410,54 @@ dbTest('manual linking checks the build, the run and the repository', async (db)
 // ---------------------------------------------------------------------------------------------
 // What changed
 
-dbTest('what changed: the commits between a build and the previous linked one, newest first, cached', async (db) => {
-  const t = await bootCi(db);
-  const appId = await t.seedApp('ios', [
-    { version: '2.4.0', build: '240' },
-    { version: '2.3.0', build: '239' },
-    { version: '2.2.0', build: '238' },
-  ]);
-  t.fake.runs = [
-    run('1501', { displayTitle: 'build 240', headSha: SHA_3 }),
-    run('1500', { displayTitle: 'build 238', headSha: SHA_1 }),
-  ];
-  await refresh(t);
+dbTest(
+  'what changed: the commits between a build and the previous linked one, newest first, cached',
+  async (db) => {
+    const t = await bootCi(db);
+    const appId = await t.seedApp('ios', [
+      { version: '2.4.0', build: '240' },
+      { version: '2.3.0', build: '239' },
+      { version: '2.2.0', build: '238' },
+    ]);
+    t.fake.runs = [
+      run('1501', { displayTitle: 'build 240', headSha: SHA_3 }),
+      run('1500', { displayTitle: 'build 238', headSha: SHA_1 }),
+    ];
+    await refresh(t);
 
-  const res = await t.call(t.owner, 'GET', `/apps/${appId}/builds/changes?platform=ios&build=240`);
-  assert.equal(res.status, 200);
-  assert.deepEqual(t.fake.calls.filter((c) => c.name === 'compareCommits')[0]?.args, [SHA_1, SHA_3]);
-  assert.deepEqual(
-    res.body.base,
-    { buildNumber: '238', version: '2.2.0', sha: SHA_1, shortSha: '1111111' },
-    '239 is unlinked, so 238 is the base',
-  );
-  assert.equal(res.body.head.buildNumber, '240');
-  assert.equal(res.body.status, 'ahead');
-  assert.equal(res.body.totalCommits, 2);
-  assert.equal(res.body.truncated, false);
-  assert.deepEqual(
-    res.body.commits.map((c: { title: string; shortSha: string }) => [c.title, c.shortSha]),
-    [
-      ['Second change', '3333333'],
-      ['First change', '2222222'],
-    ],
-  );
-  assert.equal(res.body.commits[1].author, 'Ada');
-  assert.equal(res.body.commits[1].message, 'First change\n\nbody');
+    const res = await t.call(
+      t.owner,
+      'GET',
+      `/apps/${appId}/builds/changes?platform=ios&build=240`,
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(t.fake.calls.filter((c) => c.name === 'compareCommits')[0]?.args, [
+      SHA_1,
+      SHA_3,
+    ]);
+    assert.deepEqual(
+      res.body.base,
+      { buildNumber: '238', version: '2.2.0', sha: SHA_1, shortSha: '1111111' },
+      '239 is unlinked, so 238 is the base',
+    );
+    assert.equal(res.body.head.buildNumber, '240');
+    assert.equal(res.body.status, 'ahead');
+    assert.equal(res.body.totalCommits, 2);
+    assert.equal(res.body.truncated, false);
+    assert.deepEqual(
+      res.body.commits.map((c: { title: string; shortSha: string }) => [c.title, c.shortSha]),
+      [
+        ['Second change', '3333333'],
+        ['First change', '2222222'],
+      ],
+    );
+    assert.equal(res.body.commits[1].author, 'Ada');
+    assert.equal(res.body.commits[1].message, 'First change\n\nbody');
 
-  await t.call(t.owner, 'GET', `/apps/${appId}/builds/changes?platform=ios&build=240&base=238`);
-  assert.equal(t.fake.count('compareCommits'), 1, 'the same pair of commits is kept for a while');
-});
+    await t.call(t.owner, 'GET', `/apps/${appId}/builds/changes?platform=ios&build=240&base=238`);
+    assert.equal(t.fake.count('compareCommits'), 1, 'the same pair of commits is kept for a while');
+  },
+);
 
 dbTest('what changed: explains why it cannot answer', async (db) => {
   const t = await bootCi(db);
@@ -392,7 +469,8 @@ dbTest('what changed: explains why it cannot answer', async (db) => {
     repositoryId: null,
     identifier: 'com.acme.bare',
   });
-  const get = (id: string, query: string) => t.call(t.owner, 'GET', `/apps/${id}/builds/changes?${query}`);
+  const get = (id: string, query: string) =>
+    t.call(t.owner, 'GET', `/apps/${id}/builds/changes?${query}`);
 
   assert.equal((await get(appId, 'platform=ios&build=999')).body.error, 'build_not_found');
   assert.equal((await get(appId, 'platform=ios&build=240')).body.error, 'build_not_linked');
@@ -404,7 +482,10 @@ dbTest('what changed: explains why it cannot answer', async (db) => {
   t.fake.runs = [run('1601', { displayTitle: 'build 240', headSha: SHA_3 })];
   await refresh(t);
   assert.equal((await get(appId, 'platform=ios&build=240')).body.error, 'no_base_build');
-  assert.equal((await get(appId, 'platform=ios&build=240&base=239')).body.error, 'build_not_linked');
+  assert.equal(
+    (await get(appId, 'platform=ios&build=240&base=239')).body.error,
+    'build_not_linked',
+  );
 
   // Two builds from one commit: identical, and GitHub is not asked.
   t.fake.runs = [run('1602', { displayTitle: 'build 239', headSha: SHA_3 })];

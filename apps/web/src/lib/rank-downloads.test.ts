@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addDays, buildRankVsDownloads, dateToDay } from '@mrm/core';
 import {
-  MAX_DRAWN,
-  type RankVsDownloadsResponse,
   chartName,
   dayIndexAt,
   delayLine,
   downloadsName,
   downloadsPanel,
   gateOf,
+  MAX_DRAWN,
   markerText,
   queryText,
+  type RankVsDownloadsResponse,
   rankPanel,
   tipFor,
   toggleKeyword,
@@ -24,11 +24,21 @@ const day = (ago: number) => addDays(TODAY, -ago);
 const noon = (d: string) => Date.parse(`${d}T12:00:00Z`);
 
 /** A view as the server answers it: 40 days, one keyword that went from 30 to 5 on day(19), downloads 10 then 20 a day. */
-function view(over: { rank?: (ago: number) => number | null; skipChecks?: (ago: number) => boolean; downloads?: boolean; analytics?: boolean; first?: number } = {}): RankVsDownloadsResponse {
+function view(
+  over: {
+    rank?: (ago: number) => number | null;
+    skipChecks?: (ago: number) => boolean;
+    downloads?: boolean;
+    analytics?: boolean;
+    first?: number;
+  } = {},
+): RankVsDownloadsResponse {
   const first = over.first ?? 40;
   const rank = over.rank ?? ((ago) => (ago >= 20 ? 30 : 5));
   const checks: { checkedAt: number; rank: number | null; total: number }[] = [];
-  for (let ago = first; ago >= 1; ago--) if (!over.skipChecks?.(ago)) checks.push({ checkedAt: noon(day(ago)), rank: rank(ago), total: 50 });
+  for (let ago = first; ago >= 1; ago--)
+    if (!over.skipChecks?.(ago))
+      checks.push({ checkedAt: noon(day(ago)), rank: rank(ago), total: 50 });
   const points = [];
   for (let ago = first; ago >= 1; ago--) points.push({ day: day(ago), value: ago >= 19 ? 10 : 20 });
   const built = buildRankVsDownloads({
@@ -36,18 +46,41 @@ function view(over: { rank?: (ago: number) => number | null; skipChecks?: (ago: 
     to: day(1),
     today: TODAY,
     keywords: [{ id: 'k1', term: 'coffee timer', checks }],
-    downloads: over.downloads === false ? null : { metric: 'installs_user', label: 'User installs', source: 'play', delayDays: 7, points },
+    downloads:
+      over.downloads === false
+        ? null
+        : { metric: 'installs_user', label: 'User installs', source: 'play', delayDays: 7, points },
     threshold: 5,
     analyticsEnabled: over.analytics ?? true,
   });
-  return { ...built, appId: 'a1', platform: 'android', country: 'us', countries: ['us'], available: [{ id: 'k1', term: 'coffee timer', locale: 'en-US', priority: 2, checks: checks.length, lastCheckedAt: null }], selected: ['k1'] };
+  return {
+    ...built,
+    appId: 'a1',
+    platform: 'android',
+    country: 'us',
+    countries: ['us'],
+    available: [
+      {
+        id: 'k1',
+        term: 'coffee timer',
+        locale: 'en-US',
+        priority: 2,
+        checks: checks.length,
+        lastCheckedAt: null,
+      },
+    ],
+    selected: ['k1'],
+  };
 }
 
 const box = { width: 400, height: 150, left: 44, right: 14, top: 12, bottom: 8 };
 
 test('the query is built from what is set', () => {
   assert.equal(queryText({}), '');
-  assert.equal(queryText({ country: 'us', keywords: ['a', 'b'], from: '2026-10-01', to: '2026-10-31' }), '?country=us&keywords=a,b&from=2026-10-01&to=2026-10-31');
+  assert.equal(
+    queryText({ country: 'us', keywords: ['a', 'b'], from: '2026-10-01', to: '2026-10-31' }),
+    '?country=us&keywords=a,b&from=2026-10-01&to=2026-10-31',
+  );
 });
 
 test('ticking a keyword adds it, ticking it again removes it, a fourth drops the oldest', () => {
@@ -60,14 +93,20 @@ test('ticking a keyword adds it, ticking it again removes it, a fourth drops the
 test('the view draws only with enough days of both series, and says plainly what is missing', () => {
   assert.deepEqual(gateOf(view()), { kind: 'chart' });
   const off = gateOf(view({ downloads: false, analytics: false }));
-  assert.deepEqual([off.kind, off.kind === 'missing' && off.text, off.kind === 'missing' && off.action], ['missing', 'Turn on Analytics to see downloads.', 'analytics']);
+  assert.deepEqual(
+    [off.kind, off.kind === 'missing' && off.text, off.kind === 'missing' && off.action],
+    ['missing', 'Turn on Analytics to see downloads.', 'analytics'],
+  );
   const none = gateOf(view({ downloads: false }));
   assert.match(none.kind === 'missing' ? none.text : '', /No download numbers are stored/);
   const noRank = gateOf(view({ skipChecks: () => true }));
   assert.match(noRank.kind === 'missing' ? noRank.text : '', /No rank checks/);
   const short = gateOf(view({ first: 9 }));
   assert.equal(short.kind, 'too_few');
-  assert.match(short.kind === 'too_few' ? short.text : '', /at least 14 days of both\. .*9 days with a rank and 9 with downloads/);
+  assert.match(
+    short.kind === 'too_few' ? short.text : '',
+    /at least 14 days of both\. .*9 days with a rank and 9 with downloads/,
+  );
   const nothing = view();
   assert.equal(gateOf({ ...nothing, available: [], selected: [] }).kind, 'missing');
   assert.equal(gateOf({ ...nothing, selected: [] }).kind, 'missing');
@@ -122,7 +161,11 @@ test('the downloads panel shades the days the store may still change and hatches
   assert.ok(geo);
   assert.equal(geo?.bars.length, 40);
   assert.ok(geo?.provisional, 'the days after the settled day are provisional');
-  assert.equal(geo?.provisional?.from, v.days.length - 6, 'settled through 7 days ago, so the shade starts the day after');
+  assert.equal(
+    geo?.provisional?.from,
+    v.days.length - 6,
+    'settled through 7 days ago, so the shade starts the day after',
+  );
   assert.equal(v.days[geo?.provisional?.from ?? 0], day(6));
   assert.equal(downloadsPanel(view({ downloads: false }), box), null);
 });
@@ -157,10 +200,22 @@ test('what changed always says correlation, not proof, and the days compared; no
   const c = list[0];
   assert.equal(c?.status, 'ok');
   assert.match(c?.head ?? '', /^coffee timer moved from 30 to 5 on /);
-  assert.match(c?.detail ?? '', /Downloads per day: 10 in the 7 days before, 20 in the 7 days after \(\+100%\)\./);
+  assert.match(
+    c?.detail ?? '',
+    /Downloads per day: 10 in the 7 days before, 20 in the 7 days after \(\+100%\)\./,
+  );
   assert.equal(c?.label, 'Correlation, not proof. Compared 7 days before with 7 days after.');
   assert.equal(c?.percent, 100);
-  for (const word of ['caused', 'because', 'due to', 'led to', 'result of', 'drove', 'boosted', 'thanks to']) {
+  for (const word of [
+    'caused',
+    'because',
+    'due to',
+    'led to',
+    'result of',
+    'drove',
+    'boosted',
+    'thanks to',
+  ]) {
     assert.ok(!`${c?.head} ${c?.detail} ${c?.label}`.toLowerCase().includes(word), word);
   }
 });
@@ -181,7 +236,18 @@ test('too few days with a number is said with the counts; an overlap and a check
   const v = view();
   const comparison = v.comparisons[0];
   if (!comparison) throw new Error('no comparison');
-  const few = whatChanged({ ...comparison, status: 'too_few_days', before: { ...comparison.before, days: 3 }, after: { ...comparison.after, days: 7 }, changePercent: null, overlapsOtherMove: true, checkGapDays: 3 }, 'coffee timer');
+  const few = whatChanged(
+    {
+      ...comparison,
+      status: 'too_few_days',
+      before: { ...comparison.before, days: 3 },
+      after: { ...comparison.after, days: 7 },
+      changePercent: null,
+      overlapsOtherMove: true,
+      checkGapDays: 3,
+    },
+    'coffee timer',
+  );
   assert.match(few.detail, /Not enough days with a download number: 3 before and 7 after/);
   assert.match(few.label, /Correlation, not proof\. 3 days before and 7 days after/);
   assert.match(few.overlap ?? '', /Another rank move/);
@@ -191,12 +257,37 @@ test('too few days with a number is said with the counts; an overlap and a check
 test('the words about delays, the downloads name and the chart name', () => {
   const play = view();
   assert.match(delayLine(play) ?? '', /Play files reach this server 3 to 7 days late/);
-  assert.match(delayLine(play) ?? '', new RegExp(`through .*${dateToDay(Date.parse(`${day(7)}T00:00:00Z`)).slice(0, 4)}`));
+  assert.match(
+    delayLine(play) ?? '',
+    new RegExp(`through .*${dateToDay(Date.parse(`${day(7)}T00:00:00Z`)).slice(0, 4)}`),
+  );
   assert.equal(downloadsName(play), 'User installs, from Google Play');
   assert.equal(downloadsName({ downloads: null }), 'Downloads');
   assert.equal(delayLine({ downloads: null }), null);
-  assert.match(chartName(play), /^Rank of coffee timer \(rank 1 at the top\) above user installs per day/);
-  const apple = { ...play, downloads: play.downloads ? { ...play.downloads, source: 'apple' as const, delayDays: 2 } : null };
+  assert.match(
+    chartName(play),
+    /^Rank of coffee timer \(rank 1 at the top\) above user installs per day/,
+  );
+  const apple = {
+    ...play,
+    downloads: play.downloads
+      ? { ...play.downloads, source: 'apple' as const, delayDays: 2 }
+      : null,
+  };
   assert.match(delayLine(apple) ?? '', /Apple reports downloads about 2 days late/);
-  assert.match(markerText({ keywordId: 'k', day: day(3), previousDay: day(4), kind: 'dropped', from: 4, to: null, delta: null }, 'x'), /x: left the results \(was 4\)/);
+  assert.match(
+    markerText(
+      {
+        keywordId: 'k',
+        day: day(3),
+        previousDay: day(4),
+        kind: 'dropped',
+        from: 4,
+        to: null,
+        delta: null,
+      },
+      'x',
+    ),
+    /x: left the results \(was 4\)/,
+  );
 });

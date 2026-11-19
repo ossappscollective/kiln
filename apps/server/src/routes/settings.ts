@@ -1,15 +1,15 @@
 import { type Action, can, translationProviderInfo } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { requireStepUp } from '../services/step-up.ts';
 import { translationCredentialId, translationUsageToday } from '../services/translation.ts';
 import {
-  type SettingsContext,
   describeSettings,
   getSettings,
+  type SettingsContext,
   updateSettings,
 } from '../services/workspace-settings.ts';
 
@@ -44,12 +44,17 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
   routes.get('/:workspaceId/settings', needs('settings.read'), async (c) => {
     const role = c.get('role');
     const settings = await getSettings(db, ws(c));
-    const provider = settings.values['translation.provider'] as keyof typeof translationProviderInfo;
+    const provider = settings.values[
+      'translation.provider'
+    ] as keyof typeof translationProviderInfo;
     const credentialId = await translationCredentialId(db, ws(c), provider);
     // Which credential is in use is shown to those who may see credentials; everyone sees whether there is one.
     let credential: { id: string; label: string } | undefined;
     if (credentialId && can(role, 'credentials.read')) {
-      const [row] = await db.query('SELECT label FROM credentials WHERE id = ? AND workspace_id = ?', [credentialId, ws(c)]);
+      const [row] = await db.query(
+        'SELECT label FROM credentials WHERE id = ? AND workspace_id = ?',
+        [credentialId, ws(c)],
+      );
       if (row) credential = { id: credentialId, label: String(row.label) };
     }
     return c.json({
@@ -68,7 +73,15 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
     const raw: unknown = await c.req.json().catch(() => undefined);
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       return c.json(
-        { error: 'invalid_request', issues: [{ path: '', message: 'Send an object of setting keys to values (null resets one to its default).' }] },
+        {
+          error: 'invalid_request',
+          issues: [
+            {
+              path: '',
+              message: 'Send an object of setting keys to values (null resets one to its default).',
+            },
+          ],
+        },
         400,
       );
     }
@@ -86,7 +99,10 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
       { workspaceId: ws(c), role: c.get('role'), changes },
       { type: 'user', id: c.get('user').id },
       ctx.now(),
-      { ...(ctx.allowPrivateUrls ? { allowPrivateUrls: true } : {}), ...(ctx.resolve ? { resolve: ctx.resolve } : {}) },
+      {
+        ...(ctx.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
+        ...(ctx.resolve ? { resolve: ctx.resolve } : {}),
+      },
     );
     if (!done.ok) return c.json(done.body, done.status);
     return c.json({

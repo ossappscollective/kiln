@@ -1,4 +1,6 @@
 import {
+  evaluatePipeline,
+  isGooglePlatform,
   type Pipeline,
   type PipelineBuildFact,
   type PipelineFacts,
@@ -6,16 +8,14 @@ import {
   type PipelineState,
   type PipelineVersionFact,
   type Platform,
-  type ReleaseState,
-  RELEASE_STATES,
-  evaluatePipeline,
-  isGooglePlatform,
   parsePlatform,
+  RELEASE_STATES,
+  type ReleaseState,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { effectiveConventions, listConventions } from './build-conventions.ts';
 import { RELEASE_WORKFLOW } from './build-tags.ts';
-import { RUN_COLUMNS, type WorkflowRunView, runCountsForApp, runViews } from './ci-runs.ts';
+import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './ci-runs.ts';
 import { getSettings } from './workspace-settings.ts';
 
 /**
@@ -31,9 +31,20 @@ const MAX_RUNS_READ = 2000;
 const STATES = new Set<string>(RELEASE_STATES);
 
 type Row = Record<string, unknown>;
-type AppRow = { id: string; name: string; platform: Platform; repositoryId: string | null; lastSyncedAt: number | null };
+type AppRow = {
+  id: string;
+  name: string;
+  platform: Platform;
+  repositoryId: string | null;
+  lastSyncedAt: number | null;
+};
 
-export type PipelineApp = { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
+export type PipelineApp = {
+  id: string;
+  name: string;
+  platform: Platform;
+  store: 'appstoreconnect' | 'googleplay';
+};
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
@@ -68,18 +79,24 @@ const runFact = (r: WorkflowRunView): PipelineRunFact => ({
 export async function loadPipelineFacts(
   sql: Sql,
   input: { workspaceId: string; appIds?: readonly string[] | undefined; now: number },
-): Promise<{ facts: PipelineFacts[]; apps: Map<string, PipelineApp>; settings: { stalledAfterHours: number; stalledRepeatHours: number } }> {
+): Promise<{
+  facts: PipelineFacts[];
+  apps: Map<string, PipelineApp>;
+  settings: { stalledAfterHours: number; stalledRepeatHours: number };
+}> {
   const { workspaceId, now } = input;
   const settings = (await getSettings(sql, workspaceId)).values;
   const stalledAfterHours = Number(settings['release.stalledAfterHours']);
   const stalledRepeatHours = Number(settings['release.stalledRepeatHours']);
   const wanted = input.appIds === undefined ? undefined : new Set(input.appIds);
-  const appRows = (await sql.query(
-    `SELECT a.id, a.name, a.platform, a.last_synced_at,
+  const appRows = (
+    await sql.query(
+      `SELECT a.id, a.name, a.platform, a.last_synced_at,
             (SELECT r.id FROM repositories r WHERE r.id = a.repository_id AND r.workspace_id = a.workspace_id) AS repository_id
        FROM apps a WHERE a.workspace_id = ? ORDER BY a.name, a.id`,
-    [workspaceId],
-  ))
+      [workspaceId],
+    )
+  )
     .filter((r) => wanted === undefined || wanted.has(String(r.id)))
     .map(
       (r): AppRow => ({
@@ -91,9 +108,18 @@ export async function loadPipelineFacts(
       }),
     );
   const apps = new Map<string, PipelineApp>(
-    appRows.map((a) => [a.id, { id: a.id, name: a.name, platform: a.platform, store: isGooglePlatform(a.platform) ? 'googleplay' : 'appstoreconnect' }]),
+    appRows.map((a) => [
+      a.id,
+      {
+        id: a.id,
+        name: a.name,
+        platform: a.platform,
+        store: isGooglePlatform(a.platform) ? 'googleplay' : 'appstoreconnect',
+      },
+    ]),
   );
-  if (appRows.length === 0) return { facts: [], apps, settings: { stalledAfterHours, stalledRepeatHours } };
+  if (appRows.length === 0)
+    return { facts: [], apps, settings: { stalledAfterHours, stalledRepeatHours } };
 
   const releases = await sql.query(
     `SELECT app_id, platform, version, track, build, status, raw_state, details_json, status_since, synced_at
@@ -105,9 +131,14 @@ export async function loadPipelineFacts(
        FROM app_builds WHERE workspace_id = ?`,
     [workspaceId],
   );
-  const links = await sql.query('SELECT app_id, platform, build_number, run_id FROM build_links WHERE workspace_id = ?', [workspaceId]);
+  const links = await sql.query(
+    'SELECT app_id, platform, build_number, run_id FROM build_links WHERE workspace_id = ?',
+    [workspaceId],
+  );
 
-  const repositoryIds = [...new Set(appRows.flatMap((a) => (a.repositoryId ? [a.repositoryId] : [])))];
+  const repositoryIds = [
+    ...new Set(appRows.flatMap((a) => (a.repositoryId ? [a.repositoryId] : []))),
+  ];
   let runs: WorkflowRunView[] = [];
   const preferred = new Map<string, string | null>();
   if (repositoryIds.length > 0) {
@@ -122,7 +153,8 @@ export async function loadPipelineFacts(
     for (const repositoryId of repositoryIds) {
       const conventions = await listConventions(sql, workspaceId, repositoryId);
       for (const a of appRows) {
-        if (a.repositoryId === repositoryId) preferred.set(a.id, effectiveConventions(conventions, a.id).workflow);
+        if (a.repositoryId === repositoryId)
+          preferred.set(a.id, effectiveConventions(conventions, a.id).workflow);
       }
     }
   }
@@ -131,11 +163,22 @@ export async function loadPipelineFacts(
   for (const app of appRows) {
     const linkOf = new Map<string, string>();
     for (const l of links) {
-      if (String(l.app_id) === app.id && String(l.platform) === app.platform && String(l.run_id) !== '') linkOf.set(String(l.build_number), String(l.run_id));
+      if (
+        String(l.app_id) === app.id &&
+        String(l.platform) === app.platform &&
+        String(l.run_id) !== ''
+      )
+        linkOf.set(String(l.build_number), String(l.run_id));
     }
-    const forApp = runs.filter((r) => r.repositoryId === app.repositoryId && runCountsForApp(r, app.id));
+    const forApp = runs.filter(
+      (r) => r.repositoryId === app.repositoryId && runCountsForApp(r, app.id),
+    );
     const linkedRunIds = new Set(linkOf.values());
-    const appRuns = forApp.filter((r) => linkedRunIds.has(r.id) || releaseLike(r, app.id, preferred.get(app.id) ?? null)).map(runFact);
+    const appRuns = forApp
+      .filter(
+        (r) => linkedRunIds.has(r.id) || releaseLike(r, app.id, preferred.get(app.id) ?? null),
+      )
+      .map(runFact);
 
     const buildFacts: PipelineBuildFact[] = builds
       .filter((b) => String(b.app_id) === app.id && String(b.platform) === app.platform)
@@ -144,7 +187,10 @@ export async function loadPipelineFacts(
         return {
           buildNumber: String(b.build_number),
           version: str(b.version),
-          state: state === 'processing' || state === 'processed' || state === 'invalid' ? state : 'unknown',
+          state:
+            state === 'processing' || state === 'processed' || state === 'invalid'
+              ? state
+              : 'unknown',
           rawState: str(b.raw_state),
           expired: b.expired === null || b.expired === undefined ? null : Number(b.expired) === 1,
           uploadedAt: num(b.uploaded_at),
@@ -186,12 +232,17 @@ export async function loadPipelineFacts(
   return { facts, apps, settings: { stalledAfterHours, stalledRepeatHours } };
 }
 
-function parseDetails(raw: unknown): { versionCodes: string[] | null; rolloutFraction: number | null } {
+function parseDetails(raw: unknown): {
+  versionCodes: string[] | null;
+  rolloutFraction: number | null;
+} {
   if (typeof raw !== 'string') return { versionCodes: null, rolloutFraction: null };
   try {
     const v = JSON.parse(raw) as { versionCodes?: unknown; rolloutFraction?: unknown } | null;
     return {
-      versionCodes: Array.isArray(v?.versionCodes) ? (v?.versionCodes as unknown[]).map(String) : null,
+      versionCodes: Array.isArray(v?.versionCodes)
+        ? (v?.versionCodes as unknown[]).map(String)
+        : null,
       rolloutFraction: typeof v?.rolloutFraction === 'number' ? v.rolloutFraction : null,
     };
   } catch {
@@ -202,8 +253,15 @@ function parseDetails(raw: unknown): { versionCodes: string[] | null; rolloutFra
 export type AppPipeline = { app: PipelineApp; pipeline: Pipeline; lastSyncedAt: number | null };
 
 /** The pipeline of one app, or undefined when the app is not in the workspace. */
-export async function appPipeline(sql: Sql, input: { workspaceId: string; appId: string; now: number }): Promise<AppPipeline | undefined> {
-  const loaded = await loadPipelineFacts(sql, { workspaceId: input.workspaceId, appIds: [input.appId], now: input.now });
+export async function appPipeline(
+  sql: Sql,
+  input: { workspaceId: string; appId: string; now: number },
+): Promise<AppPipeline | undefined> {
+  const loaded = await loadPipelineFacts(sql, {
+    workspaceId: input.workspaceId,
+    appIds: [input.appId],
+    now: input.now,
+  });
   const f = loaded.facts[0];
   const app = loaded.apps.get(input.appId);
   if (!f || !app) return undefined;
@@ -217,7 +275,15 @@ export type PipelineSummaryApp = {
   since: number | null;
   summary: string;
   lastSyncedAt: number | null;
-  stalled: { step: string; label: string; message: string; hours: number; since: number; stale: boolean; evidence: { kind: string; id: string; at: number | null }[] } | null;
+  stalled: {
+    step: string;
+    label: string;
+    message: string;
+    hours: number;
+    since: number;
+    stale: boolean;
+    evidence: { kind: string; id: string; at: number | null }[];
+  } | null;
 };
 
 export type PipelineSummary = {
@@ -262,11 +328,17 @@ export async function pipelineSummary(
   }
   // Stalled first (fresh before stale, oldest stall first), then the others in name order (the order they came in).
   const rank = (a: PipelineSummaryApp) => (a.stalled === null ? 2 : a.stalled.stale ? 1 : 0);
-  apps.sort((a, b) => rank(a) - rank(b) || (a.stalled && b.stalled ? a.stalled.since - b.stalled.since : 0));
+  apps.sort(
+    (a, b) => rank(a) - rank(b) || (a.stalled && b.stalled ? a.stalled.since - b.stalled.since : 0),
+  );
   return {
     stalledAfterHours: loaded.settings.stalledAfterHours,
     apps,
-    totals: { apps: apps.length, stalled: apps.filter((a) => a.stalled !== null && !a.stalled.stale).length, byState },
+    totals: {
+      apps: apps.length,
+      stalled: apps.filter((a) => a.stalled !== null && !a.stalled.stale).length,
+      byState,
+    },
     generatedAt: input.now,
   };
 }

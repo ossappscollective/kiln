@@ -26,10 +26,34 @@ export const nameTokens = (text: string): string[] =>
 const IOS_WORDS = ['ios', 'iphone', 'ipados', 'testflight', 'xcode', 'appstore'];
 const ANDROID_WORDS = ['android', 'gradle', 'apk', 'aab', 'playstore'];
 const MACOS_WORDS = ['macos', 'osx', 'mac'];
-const RELEASE_WORDS = ['release', 'releases', 'publish', 'deploy', 'ship', 'distribute', 'testflight', 'fastlane', 'production', 'submit', 'store', 'appstore', 'playstore'];
-const BUILD_WORDS = ['build', 'builds', 'archive', 'beta', 'nightly', 'assemble', 'bundle', 'package'];
+const RELEASE_WORDS = [
+  'release',
+  'releases',
+  'publish',
+  'deploy',
+  'ship',
+  'distribute',
+  'testflight',
+  'fastlane',
+  'production',
+  'submit',
+  'store',
+  'appstore',
+  'playstore',
+];
+const BUILD_WORDS = [
+  'build',
+  'builds',
+  'archive',
+  'beta',
+  'nightly',
+  'assemble',
+  'bundle',
+  'package',
+];
 
-const has = (tokens: readonly string[], words: readonly string[]) => words.some((w) => tokens.indexOf(w) >= 0);
+const has = (tokens: readonly string[], words: readonly string[]) =>
+  words.some((w) => tokens.indexOf(w) >= 0);
 
 /** The file part of a workflow path: `.github/workflows/ios.yml` is `ios.yml`. */
 export const fileOf = (path: string): string => path.split('/').pop() ?? path;
@@ -68,7 +92,13 @@ export type WorkflowEntry = {
   platforms: Platform[];
 };
 
-const RANK: Record<WorkflowRelevance, number> = { configured: 0, used: 1, release: 2, build: 3, other: 4 };
+const RANK: Record<WorkflowRelevance, number> = {
+  configured: 0,
+  used: 1,
+  release: 2,
+  build: 3,
+  other: 4,
+};
 
 /** The text people read beside the mark. */
 export const relevanceLabel = (relevance: WorkflowRelevance): string => {
@@ -87,13 +117,21 @@ export const relevanceLabel = (relevance: WorkflowRelevance): string => {
 };
 
 /** Whether a name, file or path from the build conventions (`release.yml`) points at this workflow. */
-export const isConfiguredWorkflow = (workflow: Pick<CiWorkflow, 'name' | 'path'>, wanted: string): boolean => {
+export const isConfiguredWorkflow = (
+  workflow: Pick<CiWorkflow, 'name' | 'path'>,
+  wanted: string,
+): boolean => {
   const w = wanted.trim();
-  return w !== '' && (workflow.path === w || fileOf(workflow.path) === fileOf(w) || workflow.name === w);
+  return (
+    w !== '' && (workflow.path === w || fileOf(workflow.path) === fileOf(w) || workflow.name === w)
+  );
 };
 
 /** Whether a stored run belongs to this workflow (same file, else same name). */
-export function runIsOf(run: Pick<WorkflowRun, 'workflow' | 'workflowPath'>, workflow: Pick<CiWorkflow, 'name' | 'path'>): boolean {
+export function runIsOf(
+  run: Pick<WorkflowRun, 'workflow' | 'workflowPath'>,
+  workflow: Pick<CiWorkflow, 'name' | 'path'>,
+): boolean {
   if (run.workflowPath) return fileOf(run.workflowPath) === fileOf(workflow.path);
   return run.workflow === workflow.name;
 }
@@ -104,7 +142,9 @@ export type RankContext = {
   /** The ids of the apps in scope: a workflow that was started for one of them is "used for this app". */
   appIds?: readonly string[];
   /** Stored runs, to find the workflows that were started for one of the apps. */
-  runs?: readonly (Pick<WorkflowRun, 'workflow' | 'workflowPath' | 'appId'> & { appIds?: readonly string[] })[];
+  runs?: readonly (Pick<WorkflowRun, 'workflow' | 'workflowPath' | 'appId'> & {
+    appIds?: readonly string[];
+  })[];
 };
 
 /**
@@ -112,7 +152,10 @@ export type RankContext = {
  * then a workflow started for the app from here, then names that say release or build, then the rest
  * by name. A workflow GitHub has disabled goes after those that can run.
  */
-export function rankWorkflows(workflows: readonly CiWorkflow[], context: RankContext = {}): WorkflowEntry[] {
+export function rankWorkflows(
+  workflows: readonly CiWorkflow[],
+  context: RankContext = {},
+): WorkflowEntry[] {
   const configured = (context.configured ?? []).filter((c) => c.trim() !== '');
   const appIds = context.appIds ?? [];
   const runs = context.runs ?? [];
@@ -120,13 +163,32 @@ export function rankWorkflows(workflows: readonly CiWorkflow[], context: RankCon
     const platforms = platformHints(workflow);
     const words = wordsOf(workflow);
     if (configured.some((c) => isConfiguredWorkflow(workflow, c))) {
-      return { workflow, relevance: 'configured', reason: "The release workflow set in this app's build conventions.", platforms };
+      return {
+        workflow,
+        relevance: 'configured',
+        reason: "The release workflow set in this app's build conventions.",
+        platforms,
+      };
     }
-    if (runs.some((r) => runAppIds(r).some((id) => appIds.indexOf(id) >= 0) && runIsOf(r, workflow))) {
-      return { workflow, relevance: 'used', reason: 'A run of it was started from here for this app.', platforms };
+    if (
+      runs.some((r) => runAppIds(r).some((id) => appIds.indexOf(id) >= 0) && runIsOf(r, workflow))
+    ) {
+      return {
+        workflow,
+        relevance: 'used',
+        reason: 'A run of it was started from here for this app.',
+        platforms,
+      };
     }
-    if (has(words, RELEASE_WORDS)) return { workflow, relevance: 'release', reason: 'Its name says release, publish or deploy.', platforms };
-    if (has(words, BUILD_WORDS)) return { workflow, relevance: 'build', reason: 'Its name says build.', platforms };
+    if (has(words, RELEASE_WORDS))
+      return {
+        workflow,
+        relevance: 'release',
+        reason: 'Its name says release, publish or deploy.',
+        platforms,
+      };
+    if (has(words, BUILD_WORDS))
+      return { workflow, relevance: 'build', reason: 'Its name says build.', platforms };
     return { workflow, relevance: 'other', reason: '', platforms };
   });
   return entries.sort(
@@ -141,7 +203,10 @@ export function rankWorkflows(workflows: readonly CiWorkflow[], context: RankCon
  * When there are many workflows, the marked ones are shown and the rest wait behind a toggle. Few
  * workflows, or none marked, show everything.
  */
-export function splitRelevant(entries: readonly WorkflowEntry[], limit = 8): { shown: WorkflowEntry[]; rest: WorkflowEntry[] } {
+export function splitRelevant(
+  entries: readonly WorkflowEntry[],
+  limit = 8,
+): { shown: WorkflowEntry[]; rest: WorkflowEntry[] } {
   const marked = entries.filter((e) => e.relevance !== 'other');
   if (entries.length <= limit || marked.length === 0) return { shown: [...entries], rest: [] };
   return { shown: marked, rest: entries.filter((e) => e.relevance === 'other') };
@@ -178,13 +243,20 @@ export function filterByPlatform<T>(
     if (hints.length === 0 || hints.some((h) => wanted.indexOf(h) >= 0)) shown.push(item);
     else hidden.push(item);
   }
-  if (shown.length === 0 && hidden.length > 0) return { shown: [...hidden], hidden: [], fellBack: true };
+  if (shown.length === 0 && hidden.length > 0)
+    return { shown: [...hidden], hidden: [], fellBack: true };
   return { shown, hidden, fellBack: false };
 }
 
 /** The sentence under the toolbar when the scope left something out; empty when it left nothing. */
-export function scopeNote(input: { noun: string; scopeLabel: string; hidden: number; fellBack: boolean }): string {
-  if (input.fellBack) return `No ${input.noun}s are named for ${input.scopeLabel}, so all of them are shown.`;
+export function scopeNote(input: {
+  noun: string;
+  scopeLabel: string;
+  hidden: number;
+  fellBack: boolean;
+}): string {
+  if (input.fellBack)
+    return `No ${input.noun}s are named for ${input.scopeLabel}, so all of them are shown.`;
   if (input.hidden === 0) return '';
   return `${input.hidden} ${input.noun}${input.hidden === 1 ? '' : 's'} for other platforms ${input.hidden === 1 ? 'is' : 'are'} hidden.`;
 }
@@ -193,7 +265,10 @@ export function scopeNote(input: { noun: string; scopeLabel: string; hidden: num
 // Runs of a workflow
 
 /** The newest run of each workflow, by workflow id. A workflow with no stored run has no entry. */
-export function lastRuns(workflows: readonly CiWorkflow[], runs: readonly WorkflowRun[]): Record<string, WorkflowRun> {
+export function lastRuns(
+  workflows: readonly CiWorkflow[],
+  runs: readonly WorkflowRun[],
+): Record<string, WorkflowRun> {
   const out: Record<string, WorkflowRun> = {};
   for (const w of workflows) {
     let best: WorkflowRun | undefined;
@@ -207,7 +282,9 @@ export function lastRuns(workflows: readonly CiWorkflow[], runs: readonly Workfl
 }
 
 /** Workflows known only from their runs, for a role that cannot ask GitHub for the list. They cannot be started. */
-export function workflowsFromRuns(runs: readonly Pick<WorkflowRun, 'workflow' | 'workflowPath'>[]): CiWorkflow[] {
+export function workflowsFromRuns(
+  runs: readonly Pick<WorkflowRun, 'workflow' | 'workflowPath'>[],
+): CiWorkflow[] {
   const seen: Record<string, CiWorkflow> = {};
   for (const r of runs) {
     const path = r.workflowPath ?? r.workflow;
@@ -218,9 +295,13 @@ export function workflowsFromRuns(runs: readonly Pick<WorkflowRun, 'workflow' | 
 }
 
 /** Why a workflow cannot be run now; null when it can. */
-export function runBlockedReason(workflow: Pick<CiWorkflow, 'state'>, canDispatch: boolean): string | null {
+export function runBlockedReason(
+  workflow: Pick<CiWorkflow, 'state'>,
+  canDispatch: boolean,
+): string | null {
   if (!canDispatch) return 'Starting a workflow needs the member or admin role.';
-  if (!canDispatchWorkflow(workflow)) return `This workflow is ${workflow.state.replace(/_/g, ' ')} on GitHub.`;
+  if (!canDispatchWorkflow(workflow))
+    return `This workflow is ${workflow.state.replace(/_/g, ' ')} on GitHub.`;
   return null;
 }
 
@@ -244,7 +325,13 @@ export function suggestAppId(
 // ---------------------------------------------------------------------------------------------
 // The workspace list
 
-export type RepoRef = { id: string; owner: string | null; repo: string | null; name: string; defaultBranch: string };
+export type RepoRef = {
+  id: string;
+  owner: string | null;
+  repo: string | null;
+  name: string;
+  defaultBranch: string;
+};
 export type WorkflowRow = { repository: RepoRef; entry: WorkflowEntry; last: WorkflowRun | null };
 
 export type StatusFilter = 'all' | 'running' | 'failed' | 'succeeded' | 'never';
@@ -257,7 +344,8 @@ export const statusFilters: readonly { id: StatusFilter; label: string }[] = [
   { id: 'never', label: 'Never run' },
 ];
 
-export const isStatusFilter = (value: string): value is StatusFilter => statusFilters.some((f) => f.id === value);
+export const isStatusFilter = (value: string): value is StatusFilter =>
+  statusFilters.some((f) => f.id === value);
 
 export function matchesStatus(last: WorkflowRun | null, filter: StatusFilter): boolean {
   switch (filter) {
@@ -275,7 +363,11 @@ export function matchesStatus(last: WorkflowRun | null, filter: StatusFilter): b
 }
 
 /** The rows of one repository: its ranked workflows with their last runs. */
-export function rowsOf(repository: RepoRef, entries: readonly WorkflowEntry[], runs: readonly WorkflowRun[]): WorkflowRow[] {
+export function rowsOf(
+  repository: RepoRef,
+  entries: readonly WorkflowEntry[],
+  runs: readonly WorkflowRun[],
+): WorkflowRow[] {
   const last = lastRuns(
     entries.map((e) => e.workflow),
     runs,
@@ -289,15 +381,21 @@ export function sortRows(rows: readonly WorkflowRow[]): WorkflowRow[] {
     (a, b) =>
       Number(b.last?.active === true) - Number(a.last?.active === true) ||
       a.repository.name.localeCompare(b.repository.name) ||
-      Number(!canDispatchWorkflow(a.entry.workflow)) - Number(!canDispatchWorkflow(b.entry.workflow)) ||
+      Number(!canDispatchWorkflow(a.entry.workflow)) -
+        Number(!canDispatchWorkflow(b.entry.workflow)) ||
       RANK[a.entry.relevance] - RANK[b.entry.relevance] ||
       a.entry.workflow.name.localeCompare(b.entry.workflow.name),
   );
 }
 
-export function filterRows(rows: readonly WorkflowRow[], filter: { repositoryId: string; status: StatusFilter }): WorkflowRow[] {
+export function filterRows(
+  rows: readonly WorkflowRow[],
+  filter: { repositoryId: string; status: StatusFilter },
+): WorkflowRow[] {
   return rows.filter(
-    (r) => (filter.repositoryId === '' || r.repository.id === filter.repositoryId) && matchesStatus(r.last, filter.status),
+    (r) =>
+      (filter.repositoryId === '' || r.repository.id === filter.repositoryId) &&
+      matchesStatus(r.last, filter.status),
   );
 }
 

@@ -21,8 +21,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -32,8 +32,8 @@ import { request as httpRequest } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(desktopDir, '../..');
@@ -420,8 +420,12 @@ async function smoke(nodeBinary, serverDir, hasWeb) {
     },
   });
   let output = '';
-  child.stdout.on('data', (chunk) => { output += chunk; });
-  child.stderr.on('data', (chunk) => { output += chunk; });
+  child.stdout.on('data', (chunk) => {
+    output += chunk;
+  });
+  child.stderr.on('data', (chunk) => {
+    output += chunk;
+  });
   const exited = new Promise((done) => child.once('exit', (code) => done({ code })));
   const finish = (ok, reason, steps = []) => {
     if (child.exitCode === null) child.kill('SIGKILL');

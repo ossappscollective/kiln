@@ -3,11 +3,11 @@ import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from '.
 import { googleError, isPlayPackageName } from './googleplay.ts';
 import {
   checkReplyText,
+  clampLimit,
   cleanBody,
   cleanName,
   cleanShort,
   cleanTitle,
-  clampLimit,
   type ListReviewsOptions,
   type ListReviewsResult,
   PLAY_REPLY_LIMIT,
@@ -24,8 +24,8 @@ import {
   type Json,
   num,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -107,7 +107,10 @@ export function parsePlayTimestamp(value: unknown): number | undefined {
   const seconds = typeof value.seconds === 'string' ? Number(value.seconds) : num(value.seconds);
   if (seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return undefined;
   const nanos = num(value.nanos);
-  return Math.floor(seconds * 1000 + (nanos !== undefined && nanos >= 0 && nanos < 1e9 ? Math.floor(nanos / 1e6) : 0));
+  return Math.floor(
+    seconds * 1000 +
+      (nanos !== undefined && nanos >= 0 && nanos < 1e9 ? Math.floor(nanos / 1e6) : 0),
+  );
 }
 
 const codeText = (value: unknown): string | undefined => {
@@ -150,13 +153,19 @@ export function parsePlayReview(review: unknown): StoreReview | undefined {
   if (rating === undefined || modified === undefined) return undefined;
 
   // With `translationLanguage`, `text` is the translation and `originalText` the original.
-  const original = typeof user.originalText === 'string' && user.originalText.trim() !== '' ? user.originalText : undefined;
+  const original =
+    typeof user.originalText === 'string' && user.originalText.trim() !== ''
+      ? user.originalText
+      : undefined;
   const shown = typeof user.text === 'string' ? user.text : '';
   const source = original ?? shown;
   const tab = source.indexOf('\t');
   const title = tab > 0 ? cleanTitle(source.slice(0, tab)) : undefined;
   const body = cleanBody(tab >= 0 ? source.slice(tab + 1) : source) ?? '';
-  const translated = original !== undefined ? cleanBody(shown.includes('\t') ? shown.slice(shown.indexOf('\t') + 1) : shown) : undefined;
+  const translated =
+    original !== undefined
+      ? cleanBody(shown.includes('\t') ? shown.slice(shown.indexOf('\t') + 1) : shown)
+      : undefined;
 
   const metadata = isRecord(user.deviceMetadata) ? user.deviceMetadata : {};
   const device = cleanShort(user.device) ?? cleanShort(metadata.productName);
@@ -184,11 +193,17 @@ export function parsePlayReview(review: unknown): StoreReview | undefined {
     createdAt: modified,
     updatedAt: modified,
     ...(translated !== undefined ? { translatedBody: translated } : {}),
-    ...(reply !== undefined ? { developerResponse: { body: reply, ...(replyAt !== undefined ? { at: replyAt } : {}) } } : {}),
+    ...(reply !== undefined
+      ? { developerResponse: { body: reply, ...(replyAt !== undefined ? { at: replyAt } : {}) } }
+      : {}),
   };
 }
 
-export function parsePlayReviews(page: unknown): { reviews: StoreReview[]; skipped: number; nextToken?: string } {
+export function parsePlayReviews(page: unknown): {
+  reviews: StoreReview[];
+  skipped: number;
+  nextToken?: string;
+} {
   const body = isRecord(page) ? page : {};
   const reviews: StoreReview[] = [];
   let skipped = 0;
@@ -225,7 +240,9 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
 
   constructor(options: PlayReviewsConnectorOptions) {
     this.#account =
-      typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+      typeof options.serviceAccount === 'string'
+        ? parseServiceAccount(options.serviceAccount)
+        : options.serviceAccount;
     if (!isPlayPackageName(options.packageName)) {
       throw new StoreError(
         'googleplay',
@@ -239,7 +256,9 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     this.#tokens = new GoogleTokenProvider(this.#account, this.#http);
     const wanted = options.pageSize ?? MAX_PAGE_SIZE;
-    this.#pageSize = Number.isFinite(wanted) ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(wanted))) : MAX_PAGE_SIZE;
+    this.#pageSize = Number.isFinite(wanted)
+      ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(wanted)))
+      : MAX_PAGE_SIZE;
     this.#maxPages = Math.max(1, options.maxPages ?? 5);
   }
 
@@ -251,9 +270,11 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
    */
   async listReviews(options: ListReviewsOptions = {}): Promise<ListReviewsResult> {
     const limit = clampLimit(options.limit);
-    const language = options.translationLanguage && /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(options.translationLanguage)
-      ? `&translationLanguage=${enc(options.translationLanguage)}`
-      : '';
+    const language =
+      options.translationLanguage &&
+      /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(options.translationLanguage)
+        ? `&translationLanguage=${enc(options.translationLanguage)}`
+        : '';
     const reviews: StoreReview[] = [];
     const warnings: string[] = [];
     let skipped = 0;
@@ -266,14 +287,20 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
       const parsed = parsePlayReviews(reply.json);
       skipped += parsed.skipped;
       const since = options.since;
-      reviews.push(...(since === undefined ? parsed.reviews : parsed.reviews.filter((r) => r.updatedAt >= since)));
+      reviews.push(
+        ...(since === undefined
+          ? parsed.reviews
+          : parsed.reviews.filter((r) => r.updatedAt >= since)),
+      );
       token = parsed.nextToken;
       if (token === undefined) {
         complete = true;
         break;
       }
       if (reviews.length >= limit) {
-        warnings.push('Stopped at the limit of this read; reviews beyond it are read by the next sync if they are still in Google’s one week window.');
+        warnings.push(
+          'Stopped at the limit of this read; reviews beyond it are read by the next sync if they are still in Google’s one week window.',
+        );
         break;
       }
       if (page >= this.#maxPages) {
@@ -284,21 +311,31 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
       }
     }
     if (skipped > 0) {
-      warnings.push(`${skipped} review${skipped === 1 ? '' : 's'} without an id, a user comment, a rating or a time were left out.`);
+      warnings.push(
+        `${skipped} review${skipped === 1 ? '' : 's'} without an id, a user comment, a rating or a time were left out.`,
+      );
     }
     return { reviews, complete, warnings, skipped };
   }
 
   /** One review by id (`reviews.get`), or undefined when Google has none (it is past the one week window). */
-  async getReview(reviewId: string, options: { translationLanguage?: string } = {}): Promise<StoreReview | undefined> {
+  async getReview(
+    reviewId: string,
+    options: { translationLanguage?: string } = {},
+  ): Promise<StoreReview | undefined> {
     if (!/^[A-Za-z0-9._:-]{1,200}$/.test(reviewId)) {
       throw new StoreError('googleplay', 'invalid_input', 'Not a valid review id.');
     }
-    const language = options.translationLanguage && /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(options.translationLanguage)
-      ? `?translationLanguage=${enc(options.translationLanguage)}`
-      : '';
+    const language =
+      options.translationLanguage &&
+      /^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})?$/.test(options.translationLanguage)
+        ? `?translationLanguage=${enc(options.translationLanguage)}`
+        : '';
     try {
-      const reply = await this.#call(`${this.#url(`/${enc(reviewId)}`)}${language}`, 'reading a review');
+      const reply = await this.#call(
+        `${this.#url(`/${enc(reviewId)}`)}${language}`,
+        'reading a review',
+      );
       return parsePlayReview(reply.json);
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return undefined;
@@ -364,7 +401,12 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
           403,
         );
       }
-      throw new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
+      throw new StoreError(
+        'googleplay',
+        error.kind,
+        this.#http.redact(error.message),
+        error.status,
+      );
     }
   }
 
@@ -375,7 +417,9 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
   async #call(url: string, what: string): Promise<StoreReply> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
-      const reply = await this.#http.send('GET', url, { headers: { authorization: `Bearer ${token}` } });
+      const reply = await this.#http.send('GET', url, {
+        headers: { authorization: `Bearer ${token}` },
+      });
       if (reply.status === 401 && attempt === 0) {
         // A cached token can be revoked early. Mint a new one once.
         this.#tokens.invalidate();
@@ -397,7 +441,12 @@ export class PlayReviewsConnector implements StoreReviewReplyConnector {
         ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}),
       });
       if (error instanceof StoreRateLimitError) throw error;
-      throw new StoreError('googleplay', error.kind, this.#http.redact(error.message), error.status);
+      throw new StoreError(
+        'googleplay',
+        error.kind,
+        this.#http.redact(error.message),
+        error.status,
+      );
     }
   }
 }

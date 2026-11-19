@@ -122,9 +122,7 @@ export function mapPlayTrackRelease(release: PlayTrackRelease): PlayReleaseMappi
     case 'draft':
       return { state: 'draft' };
     case 'inProgress':
-      return fraction === undefined
-        ? { state: 'rolling_out' }
-        : { state: 'rolling_out', fraction };
+      return fraction === undefined ? { state: 'rolling_out' } : { state: 'rolling_out', fraction };
     case 'halted':
       return fraction === undefined ? { state: 'halted' } : { state: 'halted', fraction };
     case 'completed':

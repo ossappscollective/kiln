@@ -4,7 +4,7 @@ import type { QueryResult } from 'pg';
 import { type Dialect, detectDialect, sqlitePath } from './dialect.ts';
 import { migrations } from './migrations.ts';
 
-export { detectDialect, type Dialect } from './dialect.ts';
+export { type Dialect, detectDialect } from './dialect.ts';
 export { type Migration, migrations } from './migrations.ts';
 
 export type Param = string | number | null;
@@ -91,7 +91,9 @@ async function connectPostgres(url: string): Promise<Database> {
   // Unhandled, that would crash the process; the pool discards the client and reconnects on demand.
   pool.on('error', (error) => console.error('Postgres pool error:', error.message));
 
-  const over = (client: { query: (text: string, values?: unknown[]) => Promise<QueryResult> }): Sql => ({
+  const over = (client: {
+    query: (text: string, values?: unknown[]) => Promise<QueryResult>;
+  }): Sql => ({
     dialect: 'postgres',
     async query(statement, params = []) {
       const result = await client.query(toPostgresPlaceholders(statement), params);

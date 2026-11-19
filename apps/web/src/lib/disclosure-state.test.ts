@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import { expandedOr, forgetExpanded, recallExpanded, rememberExpanded, screenKey } from './disclosure-state.ts';
+import {
+  expandedOr,
+  forgetExpanded,
+  recallExpanded,
+  rememberExpanded,
+  screenKey,
+} from './disclosure-state.ts';
 
 describe('disclosure state', () => {
   beforeEach(() => forgetExpanded());

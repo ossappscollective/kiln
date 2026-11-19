@@ -42,7 +42,8 @@ export type Placeholder = (typeof PLACEHOLDERS)[number];
 export const PLACEHOLDER_HELP: Record<Placeholder, string> = {
   buildNumber: 'The build number or version code (digits). Required.',
   version: 'The version, for example 1.4.0.',
-  platform: 'ios, macos (or mac, osx) or android. Any other word is read as another platform and is not matched.',
+  platform:
+    'ios, macos (or mac, osx) or android. Any other word is read as another platform and is not matched.',
   flavor: 'Free text such as appstore or playstore. Not checked.',
   prefix: 'The prefix you set for this app (for a monorepo). Empty when none is set.',
 };
@@ -117,8 +118,10 @@ const CONTROL = /[\x00-\x1f\x7f]/;
 
 /** Why a prefix is not acceptable, or undefined. */
 export function prefixProblem(prefix: string): string | undefined {
-  if (prefix.length > MAX_PREFIX_LENGTH) return `The prefix is too long (${MAX_PREFIX_LENGTH} characters at most).`;
-  if (!/^[A-Za-z0-9._/-]*$/.test(prefix)) return 'A prefix holds letters, digits, . _ - and / only.';
+  if (prefix.length > MAX_PREFIX_LENGTH)
+    return `The prefix is too long (${MAX_PREFIX_LENGTH} characters at most).`;
+  if (!/^[A-Za-z0-9._/-]*$/.test(prefix))
+    return 'A prefix holds letters, digits, . _ - and / only.';
   return undefined;
 }
 
@@ -126,17 +129,24 @@ export function prefixProblem(prefix: string): string | undefined {
  * Compiles one pattern. The result is anchored (the whole name must fit) and case-insensitive.
  * `prefix` fills `{prefix}`; it is escaped, never read as a pattern.
  */
-export function compilePattern(pattern: string, options: { kind?: PatternKind; prefix?: string } = {}): Compiled {
+export function compilePattern(
+  pattern: string,
+  options: { kind?: PatternKind; prefix?: string } = {},
+): Compiled {
   const kind = options.kind ?? 'tag';
   const prefix = options.prefix ?? '';
   const bad = prefixProblem(prefix);
   if (bad) return { ok: false, error: bad };
   if (pattern.length === 0) return { ok: false, error: 'The pattern is empty.' };
   if (pattern.length > MAX_PATTERN_LENGTH) {
-    return { ok: false, error: `The pattern is too long (${MAX_PATTERN_LENGTH} characters at most).` };
+    return {
+      ok: false,
+      error: `The pattern is too long (${MAX_PATTERN_LENGTH} characters at most).`,
+    };
   }
   if (CONTROL.test(pattern)) return { ok: false, error: 'The pattern has a control character.' };
-  if (kind === 'tag' && /\s/.test(pattern)) return { ok: false, error: 'A tag name has no spaces.' };
+  if (kind === 'tag' && /\s/.test(pattern))
+    return { ok: false, error: 'A tag name has no spaces.' };
 
   let source = '';
   const slots: Exclude<Placeholder, 'prefix'>[] = [];
@@ -156,7 +166,10 @@ export function compilePattern(pattern: string, options: { kind?: PatternKind; p
       if (end < 0 || end - i > 20) return { ok: false, error: 'A { has no closing }.' };
       const name = pattern.slice(i + 1, end);
       if (!(PLACEHOLDERS as readonly string[]).includes(name)) {
-        return { ok: false, error: `{${name}} is not a placeholder. Use ${PLACEHOLDERS.map((p) => `{${p}}`).join(', ')}.` };
+        return {
+          ok: false,
+          error: `{${name}} is not a placeholder. Use ${PLACEHOLDERS.map((p) => `{${p}}`).join(', ')}.`,
+        };
       }
       const placeholder = name as Placeholder;
       if (used.has(placeholder)) return { ok: false, error: `{${placeholder}} can be used once.` };
@@ -173,7 +186,8 @@ export function compilePattern(pattern: string, options: { kind?: PatternKind; p
       return { ok: false, error: 'A } has no opening {.' };
     } else if (ch === '*') {
       if (lastWasWildcard) return { ok: false, error: 'Two * cannot stand next to each other.' };
-      if (++wildcards > MAX_WILDCARDS) return { ok: false, error: `At most ${MAX_WILDCARDS} * in a pattern.` };
+      if (++wildcards > MAX_WILDCARDS)
+        return { ok: false, error: `At most ${MAX_WILDCARDS} * in a pattern.` };
       flush();
       source += WILDCARD;
       lastWasWildcard = true;
@@ -215,7 +229,10 @@ export function compilePattern(pattern: string, options: { kind?: PatternKind; p
 }
 
 /** Problems of a list of patterns, one message per bad entry (`Pattern 2: ...`). Empty is fine. */
-export function patternListProblems(patterns: readonly string[], options: { kind?: PatternKind; prefix?: string } = {}): string[] {
+export function patternListProblems(
+  patterns: readonly string[],
+  options: { kind?: PatternKind; prefix?: string } = {},
+): string[] {
   const problems: string[] = [];
   if (patterns.length > MAX_PATTERNS) problems.push(`At most ${MAX_PATTERNS} patterns.`);
   const seen = new Set<string>();
@@ -244,7 +261,10 @@ export function compilePatterns(
 export type NameMatch = { pattern: string; fields: NameFields };
 
 /** The first pattern that fits the name, with what it read. */
-export function matchName(name: string, compiled: readonly CompiledPattern[]): NameMatch | undefined {
+export function matchName(
+  name: string,
+  compiled: readonly CompiledPattern[],
+): NameMatch | undefined {
   for (const c of compiled) {
     const fields = c.test(name);
     if (fields) return { pattern: c.pattern, fields };
@@ -277,7 +297,8 @@ export function previewPatterns(
     const hit = matchName(name, compiled);
     if (!hit) return { name, matched: false };
     const row: PreviewRow = { name, matched: true, pattern: hit.pattern, fields: hit.fields };
-    if (options.platform && hit.fields.platform !== undefined) row.platformOk = hit.fields.platform === options.platform;
+    if (options.platform && hit.fields.platform !== undefined)
+      row.platformOk = hit.fields.platform === options.platform;
     return row;
   });
 }
@@ -291,7 +312,10 @@ const isAlnum = (c: string | undefined) => c !== undefined && /[A-Za-z0-9]/.test
 /** Every match of a global expression (`matchAll` needs a newer library than the web build's). */
 function allMatches(text: string, pattern: RegExp): RegExpExecArray[] {
   const out: RegExpExecArray[] = [];
-  const re = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`);
+  const re = new RegExp(
+    pattern.source,
+    pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`,
+  );
   for (let m = re.exec(text); m !== null; m = re.exec(text)) {
     out.push(m);
     if (m[0] === '') re.lastIndex += 1;
@@ -300,7 +324,11 @@ function allMatches(text: string, pattern: RegExp): RegExpExecArray[] {
 }
 
 /** The last occurrence of `needle` that no `touching` character is next to, or -1. */
-function lastWhole(text: string, needle: string, touching: (c: string | undefined) => boolean): number {
+function lastWhole(
+  text: string,
+  needle: string,
+  touching: (c: string | undefined) => boolean,
+): number {
   let at = text.lastIndexOf(needle);
   while (at >= 0) {
     if (!touching(text[at - 1]) && !touching(text[at + needle.length])) return at;

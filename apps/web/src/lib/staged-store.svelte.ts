@@ -1,6 +1,6 @@
 import type { StagedChangesView } from '@mrm/core';
 import type { Api } from './api.ts';
-import { stagingError, type StoreDraftConfig } from './staged.ts';
+import { type StoreDraftConfig, stagingError } from './staged.ts';
 
 /**
  * The staged changes of the apps on screen, shared by the tray, the listing grid, the locale drawer and the
@@ -46,7 +46,8 @@ export const stagedStore = {
   },
   /** Reads the server's switch once per workspace (a failure can be tried again by calling it again). */
   async loadConfig(api: Api, workspaceId: string, force = false): Promise<void> {
-    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined)) return;
+    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined))
+      return;
     configLoading[workspaceId] = true;
     try {
       configs[workspaceId] = await api.storeDraftConfig(workspaceId);

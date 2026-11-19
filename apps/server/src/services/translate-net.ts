@@ -1,8 +1,8 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import {
-  type Resolver,
   checkWebhookUrl,
+  type Resolver,
   resolveAllowed,
   sameAddress,
 } from './webhook-transport.ts';
@@ -33,7 +33,10 @@ export type UrlRefused = { ok: false; message: string };
  * Checks a LibreTranslate address without the network. The normalized form has no trailing slash
  * and keeps a path prefix (`https://host/libre`).
  */
-export function checkTranslateUrl(raw: string, options: { allowPrivate?: boolean } = {}): UrlOk | UrlRefused {
+export function checkTranslateUrl(
+  raw: string,
+  options: { allowPrivate?: boolean } = {},
+): UrlOk | UrlRefused {
   const check = checkWebhookUrl(raw.trim(), options.allowPrivate ? { allowPrivate: true } : {});
   if (!check.ok) return { ok: false, message: check.message };
   if (check.url.search || check.url.hash) {
@@ -112,7 +115,14 @@ export const realPostExchange: PostExchange = (request) =>
       if (Number.isFinite(declared) && declared > request.maxBytes) {
         res.destroy();
         req.destroy();
-        return done(() => resolve({ status: res.statusCode ?? 0, headers: {}, body: new Uint8Array(0), overflow: true }));
+        return done(() =>
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: {},
+            body: new Uint8Array(0),
+            overflow: true,
+          }),
+        );
       }
       const chunks: Buffer[] = [];
       let size = 0;
@@ -121,7 +131,14 @@ export const realPostExchange: PostExchange = (request) =>
         headers[name.toLowerCase()] = Array.isArray(value) ? value[0] : value;
       }
       const finish = (overflow: boolean) =>
-        done(() => resolve({ status: res.statusCode ?? 0, headers, body: new Uint8Array(Buffer.concat(chunks)), overflow }));
+        done(() =>
+          resolve({
+            status: res.statusCode ?? 0,
+            headers,
+            body: new Uint8Array(Buffer.concat(chunks)),
+            overflow,
+          }),
+        );
       res.on('data', (chunk: Buffer) => {
         size += chunk.length;
         if (size > request.maxBytes) {
@@ -168,7 +185,8 @@ export function createGuardedFetch(options: GuardedFetchOptions = {}): GuardedFe
 
   const guarded = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     blocked = undefined;
-    const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    const raw =
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const check = checkWebhookUrl(raw, options.allowPrivate ? { allowPrivate: true } : {});
     if (!check.ok) {
       blocked = check.message;
@@ -195,7 +213,10 @@ export function createGuardedFetch(options: GuardedFetchOptions = {}): GuardedFe
     try {
       // Every candidate address passed the same checks. `localhost` often answers ::1 first while the
       // server listens on IPv4 only (a published Docker port), so a refused connection tries the next one.
-      const candidates = [{ address: resolved.address, family: resolved.family }, ...(resolved.others ?? [])];
+      const candidates = [
+        { address: resolved.address, family: resolved.family },
+        ...(resolved.others ?? []),
+      ];
       let res: Awaited<ReturnType<PostExchange>> | undefined;
       for (let i = 0; i < candidates.length && !res; i++) {
         const c = candidates[i] as { address: string; family: 4 | 6 };
@@ -219,9 +240,13 @@ export function createGuardedFetch(options: GuardedFetchOptions = {}): GuardedFe
       if (!res) throw new Error('network');
       if (res.overflow) throw new Error('too large');
       const responseHeaders = new Headers();
-      for (const [name, value] of Object.entries(res.headers)) if (value !== undefined) responseHeaders.set(name, value);
+      for (const [name, value] of Object.entries(res.headers))
+        if (value !== undefined) responseHeaders.set(name, value);
       // Never followed: the 3xx is the answer.
-      return new Response(NO_BODY.has(res.status) ? null : res.body, { status: res.status, headers: responseHeaders });
+      return new Response(NO_BODY.has(res.status) ? null : res.body, {
+        status: res.status,
+        headers: responseHeaders,
+      });
     } finally {
       clearTimeout(timer);
       outer?.removeEventListener('abort', onOuter);

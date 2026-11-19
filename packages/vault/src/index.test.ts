@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { VaultError, decryptSecret, encryptSecret, parseMasterKey } from './index.ts';
+import { decryptSecret, encryptSecret, parseMasterKey, VaultError } from './index.ts';
 
 const key = randomBytes(32);
 
@@ -52,7 +52,13 @@ test('a truncated or padded auth tag is rejected, not accepted as a shorter tag'
   const parts = stored.split('.');
   const tag = Buffer.from(parts[2] as string, 'base64url');
   assert.equal(tag.length, 16);
-  for (const bad of [tag.subarray(0, 4), tag.subarray(0, 12), tag.subarray(0, 15), Buffer.concat([tag, tag]), Buffer.alloc(0)]) {
+  for (const bad of [
+    tag.subarray(0, 4),
+    tag.subarray(0, 12),
+    tag.subarray(0, 15),
+    Buffer.concat([tag, tag]),
+    Buffer.alloc(0),
+  ]) {
     const forged = [parts[0], parts[1], bad.toString('base64url'), parts[3]].join('.');
     assert.throws(() => decryptSecret(forged, key, 'ws1:cred1'), VaultError);
   }
@@ -64,6 +70,8 @@ test('a v1 value made without an explicit tag length (as before) still decrypts'
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   cipher.setAAD(Buffer.from('ws1:cred1'));
   const body = Buffer.concat([cipher.update('old secret', 'utf8'), cipher.final()]);
-  const stored = ['v1', iv, cipher.getAuthTag(), body].map((p) => (typeof p === 'string' ? p : p.toString('base64url'))).join('.');
+  const stored = ['v1', iv, cipher.getAuthTag(), body]
+    .map((p) => (typeof p === 'string' ? p : p.toString('base64url')))
+    .join('.');
   assert.equal(decryptSecret(stored, key, 'ws1:cred1'), 'old secret');
 });

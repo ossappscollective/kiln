@@ -82,23 +82,23 @@ Sources: [EAS Metadata](https://docs.expo.dev/eas/metadata/),
 
 ### Store limits
 
-| Field | Limit | Source |
-| --- | --- | --- |
-| App Store name | 2 to 30 characters | [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information) |
-| App Store subtitle | 30 characters | same |
-| Promotional text | 170 characters | [Platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information) |
-| Description | 4000 characters, required, plain text | same |
-| Keywords | 100 bytes, required; each keyword more than two characters | same |
-| What's new | 4000 characters | same |
-| Support URL | required, full URL with protocol | same |
-| Marketing URL | optional, full URL with protocol | same |
-| Privacy policy URL | required for iOS and macOS | App information |
-| Copyright | required, year then owner | Platform version information |
-| Play app name | 30 characters | [Play Console store listing](https://support.google.com/googleplay/android-developer/answer/9859152) |
-| Play short description | 80 characters | same |
-| Play full description | 4000 characters | same |
-| Play release notes | 500 Unicode characters per language | [Release notes](https://support.google.com/googleplay/android-developer/answer/9859348) |
-| Play promo video | a YouTube URL | [`edits.listings`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.listings) |
+| Field                  | Limit                                                      | Source                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| App Store name         | 2 to 30 characters                                         | [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information)                           |
+| App Store subtitle     | 30 characters                                              | same                                                                                                                                      |
+| Promotional text       | 170 characters                                             | [Platform version information](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information) |
+| Description            | 4000 characters, required, plain text                      | same                                                                                                                                      |
+| Keywords               | 100 bytes, required; each keyword more than two characters | same                                                                                                                                      |
+| What's new             | 4000 characters                                            | same                                                                                                                                      |
+| Support URL            | required, full URL with protocol                           | same                                                                                                                                      |
+| Marketing URL          | optional, full URL with protocol                           | same                                                                                                                                      |
+| Privacy policy URL     | required for iOS and macOS                                 | App information                                                                                                                           |
+| Copyright              | required, year then owner                                  | Platform version information                                                                                                              |
+| Play app name          | 30 characters                                              | [Play Console store listing](https://support.google.com/googleplay/android-developer/answer/9859152)                                      |
+| Play short description | 80 characters                                              | same                                                                                                                                      |
+| Play full description  | 4000 characters                                            | same                                                                                                                                      |
+| Play release notes     | 500 Unicode characters per language                        | [Release notes](https://support.google.com/googleplay/android-developer/answer/9859348)                                                   |
+| Play promo video       | a YouTube URL                                              | [`edits.listings`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.listings)                                        |
 
 Play's limits apply to full-width and half-width characters alike.
 

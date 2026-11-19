@@ -52,7 +52,14 @@ export function reviewSyncIntervalMs(minutes: number): number {
 export type ReviewQueueSummary = {
   queued: number;
   /** Apps not queued, by reason. */
-  skipped: { recent: number; backoff: number; alreadyQueued: number; rateLimited: number; capped: number; notReady: number };
+  skipped: {
+    recent: number;
+    backoff: number;
+    alreadyQueued: number;
+    rateLimited: number;
+    capped: number;
+    notReady: number;
+  };
 };
 
 export type ReviewQueueOptions = {
@@ -70,13 +77,17 @@ export type ReviewQueueOptions = {
 };
 
 /** Queues `review.sync` jobs for the apps that are due. Never reads a store itself. */
-export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions): Promise<ReviewQueueSummary> {
+export async function queueReviewSyncs(
+  db: Database,
+  options: ReviewQueueOptions,
+): Promise<ReviewQueueSummary> {
   const { now, intervalMs } = options;
   const perTick = options.perTick ?? DEFAULT_REVIEW_PER_TICK;
   const perWorkspace = options.perWorkspace ?? DEFAULT_REVIEW_PER_WORKSPACE;
   const spacing = options.spacingMs ?? DEFAULT_REVIEW_SPACING_MS;
   const maxJitter = options.maxJitterMs ?? Math.min(5 * MINUTE, Math.floor(intervalMs / 10));
-  const jitter = options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
+  const jitter =
+    options.jitter ?? ((_key: string, max: number) => Math.floor(Math.random() * (max + 1)));
   const summary: ReviewQueueSummary = {
     queued: 0,
     skipped: { recent: 0, backoff: 0, alreadyQueued: 0, rateLimited: 0, capped: 0, notReady: 0 },
@@ -90,9 +101,10 @@ export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions
          ON s.app_id = a.id AND s.store = CASE WHEN a.platform = 'android' THEN 'googleplay' ELSE 'appstoreconnect' END
       ORDER BY COALESCE(s.last_attempt_at, 0), a.created_at, a.id`,
   );
-  const jobs = await db.query("SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')", [
-    REVIEW_SYNC_QUEUE,
-  ]);
+  const jobs = await db.query(
+    "SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')",
+    [REVIEW_SYNC_QUEUE],
+  );
   const queuedApps = new Set<string>();
   const queuedCredentials = new Set<string>();
   for (const job of jobs) {
@@ -122,7 +134,10 @@ export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions
       continue;
     }
     // A macOS entry that shares its App Store Connect app with an iOS entry has the same customer reviews: not read twice.
-    if (String(app.platform) === 'macos' && sharedWithIos.has(`${workspaceId}\u0000${String(app.store_app_id)}`)) {
+    if (
+      String(app.platform) === 'macos' &&
+      sharedWithIos.has(`${workspaceId}\u0000${String(app.store_app_id)}`)
+    ) {
       summary.skipped.notReady++;
       continue;
     }
@@ -130,7 +145,11 @@ export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions
       summary.skipped.recent++;
       continue;
     }
-    if (app.backoff_until !== null && app.backoff_until !== undefined && Number(app.backoff_until) > now) {
+    if (
+      app.backoff_until !== null &&
+      app.backoff_until !== undefined &&
+      Number(app.backoff_until) > now
+    ) {
       summary.skipped.backoff++;
       continue;
     }
@@ -148,8 +167,16 @@ export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions
       continue;
     }
     const delay = Math.min(Math.max(Math.trunc(jitter(id, maxJitter)), 0), maxJitter);
-    const payload: ReviewSyncPayload = { workspaceId, appId: id, credentialId, requestedBy: 'scheduler' };
-    await enqueue(db, REVIEW_SYNC_QUEUE, payload, { now, runAt: now + summary.queued * spacing + delay });
+    const payload: ReviewSyncPayload = {
+      workspaceId,
+      appId: id,
+      credentialId,
+      requestedBy: 'scheduler',
+    };
+    await enqueue(db, REVIEW_SYNC_QUEUE, payload, {
+      now,
+      runAt: now + summary.queued * spacing + delay,
+    });
     queuedApps.add(id);
     queuedCredentials.add(credentialId);
     perWorkspaceCount.set(workspaceId, (perWorkspaceCount.get(workspaceId) ?? 0) + 1);
@@ -172,10 +199,15 @@ export type ReviewUpkeepSummary = { pruned: number; orphans: number };
  * Data protection upkeep: deletes reviews older than the retention (by the store's date of the
  * review), a bounded number per run, and the rows of apps that no longer exist.
  */
-export async function reviewUpkeep(db: Database, options: ReviewUpkeepOptions): Promise<ReviewUpkeepSummary> {
+export async function reviewUpkeep(
+  db: Database,
+  options: ReviewUpkeepOptions,
+): Promise<ReviewUpkeepSummary> {
   const maxRows = options.maxRows ?? 1000;
   const pruned =
-    options.retentionDays > 0 ? await pruneReviews(db, options.now - options.retentionDays * DAY, maxRows) : 0;
+    options.retentionDays > 0
+      ? await pruneReviews(db, options.now - options.retentionDays * DAY, maxRows)
+      : 0;
   const orphans = await purgeOrphanReviewRows(db, maxRows);
   // Stored translations of reviews that are gone (pruned or deleted with their app).
   await purgeOrphanTranslations(db, maxRows).catch(() => 0);

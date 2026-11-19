@@ -109,9 +109,14 @@ export function normalizeFraction(value: unknown): number | undefined {
 export const percent = (fraction: number | null): string =>
   fraction === null ? 'unknown' : `${Number((fraction * 100).toFixed(2))}%`;
 
-const refuse = (code: RolloutPlanFailureCode, message: string): RolloutPlan => ({ ok: false, code, message });
+const refuse = (code: RolloutPlanFailureCode, message: string): RolloutPlan => ({
+  ok: false,
+  code,
+  message,
+});
 
-const playLabel = (s: PlayRolloutState) => `version code${s.versionCodes.length === 1 ? '' : 's'} ${s.versionCodes.join(', ')} on ${s.track}`;
+const playLabel = (s: PlayRolloutState) =>
+  `version code${s.versionCodes.length === 1 ? '' : 's'} ${s.versionCodes.join(', ')} on ${s.track}`;
 
 /** What changing a Play release to `change` would give, or why it is refused. Pure. */
 export function planPlayRollout(current: PlayRolloutState, change: PlayRolloutChange): RolloutPlan {
@@ -120,16 +125,28 @@ export function planPlayRollout(current: PlayRolloutState, change: PlayRolloutCh
     case 'set_fraction': {
       const next = normalizeFraction(change.userFraction);
       if (next === undefined) {
-        return refuse('invalid_fraction', 'The share must be more than 0 and less than 1 (for example 0.2 for 20 percent). To reach everyone, complete the rollout.');
+        return refuse(
+          'invalid_fraction',
+          'The share must be more than 0 and less than 1 (for example 0.2 for 20 percent). To reach everyone, complete the rollout.',
+        );
       }
       if (current.status !== 'inProgress') {
-        return refuse('not_allowed', `The share can only be raised while the rollout is in progress; this release is ${current.status}.`);
+        return refuse(
+          'not_allowed',
+          `The share can only be raised while the rollout is in progress; this release is ${current.status}.`,
+        );
       }
       if (current.userFraction === null) {
-        return refuse('not_allowed', 'Google Play reports no current share for this release, so a higher one cannot be checked.');
+        return refuse(
+          'not_allowed',
+          'Google Play reports no current share for this release, so a higher one cannot be checked.',
+        );
       }
       if (next <= current.userFraction) {
-        return refuse('not_an_increase', `The share can only go up: it is ${percent(current.userFraction)} now and ${percent(next)} was asked. To stop a rollout, halt it.`);
+        return refuse(
+          'not_an_increase',
+          `The share can only go up: it is ${percent(current.userFraction)} now and ${percent(next)} was asked. To stop a rollout, halt it.`,
+        );
       }
       return {
         ok: true,
@@ -140,7 +157,10 @@ export function planPlayRollout(current: PlayRolloutState, change: PlayRolloutCh
     }
     case 'halt':
       if (current.status !== 'inProgress') {
-        return refuse('not_allowed', `Only a rollout in progress can be halted; this release is ${current.status}.`);
+        return refuse(
+          'not_allowed',
+          `Only a rollout in progress can be halted; this release is ${current.status}.`,
+        );
       }
       return {
         ok: true,
@@ -150,18 +170,28 @@ export function planPlayRollout(current: PlayRolloutState, change: PlayRolloutCh
       };
     case 'resume': {
       if (current.status !== 'halted') {
-        return refuse('not_allowed', `Only a halted rollout can be resumed; this release is ${current.status}.`);
+        return refuse(
+          'not_allowed',
+          `Only a halted rollout can be resumed; this release is ${current.status}.`,
+        );
       }
-      const asked = change.userFraction === undefined ? undefined : normalizeFraction(change.userFraction);
+      const asked =
+        change.userFraction === undefined ? undefined : normalizeFraction(change.userFraction);
       if (change.userFraction !== undefined && asked === undefined) {
         return refuse('invalid_fraction', 'The share must be more than 0 and less than 1.');
       }
       const next = asked ?? current.userFraction;
       if (next === null) {
-        return refuse('invalid_fraction', 'The halted release has no share recorded: say which share to resume at.');
+        return refuse(
+          'invalid_fraction',
+          'The halted release has no share recorded: say which share to resume at.',
+        );
       }
       if (current.userFraction !== null && next < current.userFraction) {
-        return refuse('not_an_increase', `The share can only go up: it was halted at ${percent(current.userFraction)} and ${percent(next)} was asked.`);
+        return refuse(
+          'not_an_increase',
+          `The share can only go up: it was halted at ${percent(current.userFraction)} and ${percent(next)} was asked.`,
+        );
       }
       return {
         ok: true,
@@ -172,7 +202,10 @@ export function planPlayRollout(current: PlayRolloutState, change: PlayRolloutCh
     }
     case 'complete':
       if (current.status !== 'inProgress') {
-        return refuse('not_allowed', `Only a rollout in progress can be completed (resume a halted one first); this release is ${current.status}.`);
+        return refuse(
+          'not_allowed',
+          `Only a rollout in progress can be completed (resume a halted one first); this release is ${current.status}.`,
+        );
       }
       return {
         ok: true,
@@ -184,7 +217,10 @@ export function planPlayRollout(current: PlayRolloutState, change: PlayRolloutCh
 }
 
 /** What changing an App Store phased release to `change` would give, or why it is refused. Pure. */
-export function planAppleRollout(current: AppleRolloutState, change: AppleRolloutChange): RolloutPlan {
+export function planAppleRollout(
+  current: AppleRolloutState,
+  change: AppleRolloutChange,
+): RolloutPlan {
   const label = `version ${current.version}`;
   const state = current.phasedReleaseState;
   if (current.phasedReleaseId === null || state === null || state === 'INACTIVE') {
@@ -196,14 +232,24 @@ export function planAppleRollout(current: AppleRolloutState, change: AppleRollou
     );
   }
   if (state === 'COMPLETE') {
-    return refuse('not_allowed', `The phased release of ${label} is finished: it is already available to everyone.`);
+    return refuse(
+      'not_allowed',
+      `The phased release of ${label} is finished: it is already available to everyone.`,
+    );
   }
   if (state !== 'ACTIVE' && state !== 'PAUSED') {
-    return refuse('not_allowed', `The phased release of ${label} is in a state this server does not change (${state}).`);
+    return refuse(
+      'not_allowed',
+      `The phased release of ${label} is in a state this server does not change (${state}).`,
+    );
   }
   switch (change.action) {
     case 'pause':
-      if (state !== 'ACTIVE') return refuse('not_allowed', `Only a running phased release can be paused; this one is ${state}.`);
+      if (state !== 'ACTIVE')
+        return refuse(
+          'not_allowed',
+          `Only a running phased release can be paused; this one is ${state}.`,
+        );
       return {
         ok: true,
         proposed: { ...current, phasedReleaseState: 'PAUSED' },
@@ -211,7 +257,11 @@ export function planAppleRollout(current: AppleRolloutState, change: AppleRollou
         summary: `Pause the phased release of ${label}. Apple allows 30 days of pause in total.`,
       };
     case 'resume':
-      if (state !== 'PAUSED') return refuse('not_allowed', `Only a paused phased release can be resumed; this one is ${state}.`);
+      if (state !== 'PAUSED')
+        return refuse(
+          'not_allowed',
+          `Only a paused phased release can be resumed; this one is ${state}.`,
+        );
       return {
         ok: true,
         proposed: { ...current, phasedReleaseState: 'ACTIVE' },
@@ -310,8 +360,10 @@ export interface StoreRolloutConnector {
 }
 
 /** A Play track id: `production`, `beta`, `wear:production`, a custom track name. */
-export const isPlayTrackName = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/.test(value);
+export const isPlayTrackName = (value: string): boolean =>
+  /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/.test(value);
 /** A Play version code: digits, at most 10 (Google caps it at 2.1 billion). */
 export const isVersionCode = (value: string): boolean => /^[0-9]{1,10}$/.test(value);
 /** A marketing version as Apple allows it: digits and dots, plus the dashes and letters some teams use. */
-export const isMarketingVersion = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value);
+export const isMarketingVersion = (value: string): boolean =>
+  /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value);

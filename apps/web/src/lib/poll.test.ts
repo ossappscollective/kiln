@@ -63,10 +63,17 @@ test('ticks every interval while there is more, and stops by itself when there i
   });
   poller.start();
   assert.equal(poller.running, true);
-  assert.deepEqual(h.pending().map((p) => p.ms), [5_000], 'the first tick waits one interval');
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [5_000],
+    'the first tick waits one interval',
+  );
   await h.fire();
   assert.equal(ticks, 1);
-  assert.deepEqual(h.pending().map((p) => p.ms), [5_000]);
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [5_000],
+  );
   await h.fire();
   await h.fire();
   assert.equal(ticks, 3);
@@ -78,10 +85,18 @@ test('ticks every interval while there is more, and stops by itself when there i
 test('start can tick at once, and starting twice changes nothing', async () => {
   const h = harness();
   let ticks = 0;
-  const poller = createPoller({ intervalMs: 5_000, timers: h.timers, visibility: h.visibility, tick: async () => (ticks++, true) });
+  const poller = createPoller({
+    intervalMs: 5_000,
+    timers: h.timers,
+    visibility: h.visibility,
+    tick: async () => (ticks++, true),
+  });
   poller.start(true);
   poller.start(true);
-  assert.deepEqual(h.pending().map((p) => p.ms), [0]);
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [0],
+  );
   assert.equal(h.listeners.size, 1);
   await h.fire();
   assert.equal(ticks, 1);
@@ -91,7 +106,12 @@ test('start can tick at once, and starting twice changes nothing', async () => {
 test('a hidden page is not polled, and coming back ticks at once', async () => {
   const h = harness();
   let ticks = 0;
-  const poller = createPoller({ intervalMs: 5_000, timers: h.timers, visibility: h.visibility, tick: async () => (ticks++, true) });
+  const poller = createPoller({
+    intervalMs: 5_000,
+    timers: h.timers,
+    visibility: h.visibility,
+    tick: async () => (ticks++, true),
+  });
   poller.start();
   await h.show(false);
   await h.fire();
@@ -100,10 +120,17 @@ test('a hidden page is not polled, and coming back ticks at once', async () => {
   assert.equal(poller.running, true);
 
   await h.show(true);
-  assert.deepEqual(h.pending().map((p) => p.ms), [0], 'visible again: next tick without waiting');
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [0],
+    'visible again: next tick without waiting',
+  );
   await h.fire();
   assert.equal(ticks, 1);
-  assert.deepEqual(h.pending().map((p) => p.ms), [5_000]);
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [5_000],
+  );
   poller.stop();
 });
 
@@ -125,11 +152,23 @@ test('a failing tick is reported and retried slower, and a good one resets the p
   });
   poller.start();
   await h.fire();
-  assert.deepEqual(h.pending().map((p) => p.ms), [10_000], 'one failure: twice the interval');
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [10_000],
+    'one failure: twice the interval',
+  );
   await h.fire();
-  assert.deepEqual(h.pending().map((p) => p.ms), [12_000], 'two failures: capped');
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [12_000],
+    'two failures: capped',
+  );
   await h.fire();
-  assert.deepEqual(h.pending().map((p) => p.ms), [5_000], 'a success: back to the interval');
+  assert.deepEqual(
+    h.pending().map((p) => p.ms),
+    [5_000],
+    'a success: back to the interval',
+  );
   assert.equal(errors.length, 2);
   await h.fire();
   assert.equal(poller.running, false);

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
-import { AnalyticsError } from './analytics-types.ts';
+import { gzipSync } from 'node:zlib';
 import * as fx from './analytics.fixtures.ts';
+import { AnalyticsError } from './analytics-types.ts';
 import {
   columnIndex,
   decodeTableText,
@@ -45,7 +45,12 @@ test('parseTable: no header, an unterminated quote and too many columns are bad_
   assert.equal(await code(() => parseTable(''))(), 'bad_format');
   assert.equal(await code(() => parseTable('\t\t\n1\t2\t3'))(), 'bad_format');
   assert.equal(await code(() => parseTable('a,b\n"open,1\n'))(), 'bad_format');
-  assert.equal(await code(() => parseTable(`${Array.from({ length: 20 }, (_, i) => `c${i}`).join(',')}\n`, { maxColumns: 5 }))(), 'bad_format');
+  assert.equal(
+    await code(() =>
+      parseTable(`${Array.from({ length: 20 }, (_, i) => `c${i}`).join(',')}\n`, { maxColumns: 5 }),
+    )(),
+    'bad_format',
+  );
 });
 
 test('parseTable: more rows than the cap is file_too_large', async () => {
@@ -65,33 +70,60 @@ test('headers are read by normalized name, whatever the case, spacing or undersc
 test('decodeTableText: UTF-8 with and without a mark, UTF-16 with a mark (LE and BE) and without', () => {
   const text = 'Date,Name\n2026-11-10,Café\n';
   assert.equal(decodeTableText(new Uint8Array(Buffer.from(text))), text);
-  assert.equal(decodeTableText(new Uint8Array(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(text)]))), text);
+  assert.equal(
+    decodeTableText(
+      new Uint8Array(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(text)])),
+    ),
+    text,
+  );
   assert.equal(decodeTableText(fx.utf16le(text)), text);
   const be = Buffer.from(text, 'utf16le').swap16();
-  assert.equal(decodeTableText(new Uint8Array(Buffer.concat([Buffer.from([0xfe, 0xff]), be]))), text);
-  assert.equal(decodeTableText(fx.utf16leNoBom(text.repeat(3))), text.repeat(3), 'NUL bytes of ASCII text give UTF-16 away');
+  assert.equal(
+    decodeTableText(new Uint8Array(Buffer.concat([Buffer.from([0xfe, 0xff]), be]))),
+    text,
+  );
+  assert.equal(
+    decodeTableText(fx.utf16leNoBom(text.repeat(3))),
+    text.repeat(3),
+    'NUL bytes of ASCII text give UTF-16 away',
+  );
 });
 
 test('gunzipCapped: decompresses, refuses a bad file and stops a bomb at the cap', async () => {
   const body = 'x'.repeat(5000);
   assert.equal(Buffer.from(await gunzipCapped(fx.gz(body), 10_000)).toString(), body);
-  assert.equal(await code(() => gunzipCapped(new Uint8Array(Buffer.from('not gzip at all')), 1000))(), 'bad_gzip');
+  assert.equal(
+    await code(() => gunzipCapped(new Uint8Array(Buffer.from('not gzip at all')), 1000))(),
+    'bad_gzip',
+  );
   const truncated = fx.gz(body).slice(0, 12);
   assert.equal(await code(() => gunzipCapped(truncated, 10_000))(), 'bad_gzip');
   // 20 MB of zeros compress to a few kilobytes: the cap is applied while decompressing.
   const bomb = new Uint8Array(gzipSync(Buffer.alloc(20 * 1024 * 1024)));
   assert.ok(bomb.length < 100_000);
   assert.equal(await code(() => gunzipCapped(bomb, 1024 * 1024))(), 'file_too_large');
-  assert.equal(await code(() => gunzipCapped(bomb, 1024 * 1024, 'segment_too_large'))(), 'segment_too_large');
+  assert.equal(
+    await code(() => gunzipCapped(bomb, 1024 * 1024, 'segment_too_large'))(),
+    'segment_too_large',
+  );
 });
 
 test('openFileBytes and readTable: gzip is recognised by its bytes, not its name, and both sizes are capped', async () => {
   const csv = 'a,b\n1,2\n';
   assert.deepEqual((await readTable(fx.gz(csv))).rows, [['1', '2']]);
   assert.deepEqual((await readTable(new Uint8Array(Buffer.from(csv)))).rows, [['1', '2']]);
-  assert.equal(await code(() => openFileBytes(new Uint8Array(100), { maxFileBytes: 50 }))(), 'file_too_large');
-  assert.equal(await code(() => openFileBytes(new Uint8Array(100), { maxTextBytes: 50 }))(), 'file_too_large');
-  assert.equal(await code(() => readTable(fx.gz(csv.repeat(1000)), { maxTextBytes: 100 }))(), 'file_too_large');
+  assert.equal(
+    await code(() => openFileBytes(new Uint8Array(100), { maxFileBytes: 50 }))(),
+    'file_too_large',
+  );
+  assert.equal(
+    await code(() => openFileBytes(new Uint8Array(100), { maxTextBytes: 50 }))(),
+    'file_too_large',
+  );
+  assert.equal(
+    await code(() => readTable(fx.gz(csv.repeat(1000)), { maxTextBytes: 100 }))(),
+    'file_too_large',
+  );
 });
 
 test('parseDay and parseNumber accept the likely formats and nothing else', () => {

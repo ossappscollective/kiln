@@ -1,15 +1,15 @@
 import { type Action, can, checkSecret, credentialKinds } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, type Services, parseBody } from '../http.ts';
+import { type AppEnv, parseBody, type Services } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import {
   type CredentialTesterOptions,
-  type TestLimiter,
-  type TestOutcome,
   createCredentialTester,
   createTestLimiter,
+  type TestLimiter,
+  type TestOutcome,
 } from '../services/credential-tests.ts';
 import {
   credentialExists,
@@ -31,7 +31,10 @@ export type CredentialTestDeps = CredentialTesterOptions & {
 
 const testBody = z.object({
   kind: z.enum(credentialKinds),
-  secret: z.string().min(1).max(64 * 1024),
+  secret: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
 });
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';

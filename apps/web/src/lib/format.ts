@@ -13,7 +13,11 @@ export function timeAgo(then: number, now: number = Date.now(), locale?: string)
   if (diff < DAY) return plural(Math.floor(diff / HOUR), 'hour');
   if (diff < 2 * DAY) return 'yesterday';
   if (diff < 7 * DAY) return plural(Math.floor(diff / DAY), 'day');
-  return new Date(then).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(then).toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export function fullTime(at: number, locale?: string): string {
@@ -31,35 +35,51 @@ const actions: Record<string, (detail: Record<string, unknown> | null) => string
   'credential.create': (d) => `added a credential${d?.label ? ` “${String(d.label)}”` : ''}`,
   'credential.rotate': () => 'replaced the secret of a credential',
   'credential.delete': () => 'deleted a credential',
-  'invitation.create': (d) => `invited ${d?.email ? String(d.email) : 'someone'}${d?.role ? ` as ${String(d.role)}` : ''}`,
-  'invitation.accept': (d) => `joined the workspace${d?.role ? ` as ${String(d.role)}` : ''} from an invitation`,
+  'invitation.create': (d) =>
+    `invited ${d?.email ? String(d.email) : 'someone'}${d?.role ? ` as ${String(d.role)}` : ''}`,
+  'invitation.accept': (d) =>
+    `joined the workspace${d?.role ? ` as ${String(d.role)}` : ''} from an invitation`,
   'invitation.revoke': (d) => `revoked the invitation${d?.email ? ` for ${String(d.email)}` : ''}`,
-  'member.role_change': (d) => `changed a member’s role${d?.from && d?.to ? ` from ${String(d.from)} to ${String(d.to)}` : ''}`,
+  'member.role_change': (d) =>
+    `changed a member’s role${d?.from && d?.to ? ` from ${String(d.from)} to ${String(d.to)}` : ''}`,
   'member.remove': (d) => (d?.self ? 'left the workspace' : 'removed a member from the workspace'),
   'credential.use': (d) => `used a credential${d?.purpose ? ` for ${String(d.purpose)}` : ''}`,
   'plan.create': (d) => `started a plan${d?.version ? ` for version ${String(d.version)}` : ''}`,
   'plan.update': (d) => `changed a release plan${d?.version ? ` (${String(d.version)})` : ''}`,
   'plan.delete': (d) => `deleted the plan${d?.version ? ` for version ${String(d.version)}` : ''}`,
-  'plan.apply_template': (d) => `added checklist items${d?.template ? ` from “${String(d.template)}”` : ''}`,
+  'plan.apply_template': (d) =>
+    `added checklist items${d?.template ? ` from “${String(d.template)}”` : ''}`,
   'plan.notes_set': (d) => `edited the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
-  'plan.notes_delete': (d) => `removed the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
-  'plan.rollout_set': (d) => `planned a staged rollout${d?.version ? ` for version ${String(d.version)}` : ''}`,
-  'plan.rollout_clear': (d) => `removed the rollout plan${d?.version ? ` of version ${String(d.version)}` : ''}`,
-  'plan.rollout_step_done': (d) => `marked a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''} done${d?.source === 'store' ? ' after the store reported it' : ''}`,
-  'plan.rollout_step_skipped': (d) => `skipped a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''}`,
-  'plan.rollout_step_reopened': (d) => `reopened a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''}`,
-  'plan.reminder': (d) => `sent a reminder${d?.kind ? ` (${String(d.kind).replace(/_/g, ' ')})` : ''}${d?.version ? ` for version ${String(d.version)}` : ''}`,
+  'plan.notes_delete': (d) =>
+    `removed the release notes${d?.locale ? ` for ${String(d.locale)}` : ''}`,
+  'plan.rollout_set': (d) =>
+    `planned a staged rollout${d?.version ? ` for version ${String(d.version)}` : ''}`,
+  'plan.rollout_clear': (d) =>
+    `removed the rollout plan${d?.version ? ` of version ${String(d.version)}` : ''}`,
+  'plan.rollout_step_done': (d) =>
+    `marked a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''} done${d?.source === 'store' ? ' after the store reported it' : ''}`,
+  'plan.rollout_step_skipped': (d) =>
+    `skipped a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''}`,
+  'plan.rollout_step_reopened': (d) =>
+    `reopened a rollout step${d?.percent ? ` (${String(d.percent)}%)` : ''}`,
+  'plan.reminder': (d) =>
+    `sent a reminder${d?.kind ? ` (${String(d.kind).replace(/_/g, ' ')})` : ''}${d?.version ? ` for version ${String(d.version)}` : ''}`,
   'checklist.item_add': () => 'added a checklist item to a release plan',
   'checklist.item_update': () => 'changed a checklist item of a release plan',
   'checklist.item_delete': () => 'removed a checklist item from a release plan',
   'checklist.reorder': () => 'reordered the checklist of a release plan',
-  'checklist_template.create': (d) => `saved a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
-  'checklist_template.update': (d) => `changed a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
-  'checklist_template.delete': (d) => `deleted a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
-  'token.create': (d) => `made an API token${d?.name ? ` “${String(d.name)}”` : ''}${d?.role ? ` (${String(d.role)})` : ''}`,
+  'checklist_template.create': (d) =>
+    `saved a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'checklist_template.update': (d) =>
+    `changed a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'checklist_template.delete': (d) =>
+    `deleted a checklist template${d?.name ? ` “${String(d.name)}”` : ''}`,
+  'token.create': (d) =>
+    `made an API token${d?.name ? ` “${String(d.name)}”` : ''}${d?.role ? ` (${String(d.role)})` : ''}`,
   'token.revoke': (d) => `revoked an API token${d?.name ? ` “${String(d.name)}”` : ''}`,
   'webhook.create': (d) => `added a webhook${d?.url ? ` for ${String(d.url)}` : ''}`,
-  'webhook.update': (d) => `changed a webhook${Array.isArray(d?.changed) && d.changed.length > 0 ? ` (${d.changed.join(', ')})` : ''}`,
+  'webhook.update': (d) =>
+    `changed a webhook${Array.isArray(d?.changed) && d.changed.length > 0 ? ` (${d.changed.join(', ')})` : ''}`,
   'webhook.delete': (d) => `deleted a webhook${d?.url ? ` for ${String(d.url)}` : ''}`,
   'webhook.rotate_secret': () => 'made a new signing secret for a webhook',
   'webhook.test': () => 'sent a test event to a webhook',
@@ -84,7 +104,9 @@ export function describeEventParts(
 }
 
 /** "Ada added a credential “Acme key”". Unknown actions show their raw name. */
-export function describeEvent(event: Pick<AuditEvent, 'action' | 'actorType' | 'actorName' | 'detail'>): string {
+export function describeEvent(
+  event: Pick<AuditEvent, 'action' | 'actorType' | 'actorName' | 'detail'>,
+): string {
   const { who, what } = describeEventParts(event);
   return `${who} ${what}`;
 }
@@ -96,7 +118,7 @@ export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
   const first = [...(words[0] as string)][0] ?? '';
-  const last = words.length > 1 ? [...(words[words.length - 1] as string)][0] ?? '' : '';
+  const last = words.length > 1 ? ([...(words[words.length - 1] as string)][0] ?? '') : '';
   return (first + last).toUpperCase();
 }
 
@@ -126,14 +148,19 @@ export function categoryLabel(category: string): string {
 }
 
 /** An icon name (see components/ui/icons.ts) and a tone for an audit action. */
-export function eventVisual(action: string): { icon: string; tone: 'ok' | 'bad' | 'info' | 'neutral' } {
+export function eventVisual(action: string): {
+  icon: string;
+  tone: 'ok' | 'bad' | 'info' | 'neutral';
+} {
   const verb = action.slice(action.lastIndexOf('.') + 1);
   const category = eventCategory(action);
-  if (verb === 'delete' || verb === 'remove' || verb === 'revoke') return { icon: 'trash', tone: 'bad' };
+  if (verb === 'delete' || verb === 'remove' || verb === 'revoke')
+    return { icon: 'trash', tone: 'bad' };
   if (verb === 'rotate') return { icon: 'refresh', tone: 'info' };
   if (verb === 'use') return { icon: 'key', tone: 'neutral' };
   if (category === 'workspace') return { icon: 'layers', tone: 'ok' };
-  if (category === 'member' || category === 'invite' || category === 'invitation') return { icon: 'users', tone: 'ok' };
+  if (category === 'member' || category === 'invite' || category === 'invitation')
+    return { icon: 'users', tone: 'ok' };
   if (category === 'credential') return { icon: 'key', tone: 'ok' };
   if (category === 'token') return { icon: 'shield', tone: 'ok' };
   if (category === 'webhook') return { icon: 'globe', tone: 'ok' };

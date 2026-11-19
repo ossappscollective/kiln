@@ -1,18 +1,18 @@
 import { type Action, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { requireStepUp } from '../services/step-up.ts';
 import type { Failure } from '../services/repositories.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import {
-  type RolloutConnectorFactory,
-  type RolloutContext,
   applyRollout,
   defaultRolloutConnectorFactory,
   previewRollout,
+  type RolloutConnectorFactory,
+  type RolloutContext,
   readRolloutState,
   rolloutConfig,
   rolloutDisabledFailure,
@@ -55,11 +55,21 @@ const requestShape = {
   userFraction: z.number().finite().optional(),
 };
 const previewBody = z.object(requestShape).strict();
-const applyBody = z.object({ ...requestShape, confirmHash: z.string().regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.') }).strict();
+const applyBody = z
+  .object({
+    ...requestShape,
+    confirmHash: z
+      .string()
+      .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
+  })
+  .strict();
 
 /** A comma separated or repeated query parameter as a list of strings. */
 const list = (c: Context<AppEnv>, name: string): string[] =>
-  (c.req.queries(name) ?? []).flatMap((v) => v.split(',')).map((v) => v.trim()).filter((v) => v !== '');
+  (c.req.queries(name) ?? [])
+    .flatMap((v) => v.split(','))
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
 
 export function rolloutRoutes(ctx: RolloutRoutesContext) {
   const { db } = ctx;
@@ -84,7 +94,9 @@ export function rolloutRoutes(ctx: RolloutRoutesContext) {
     return next();
   };
 
-  routes.get('/:workspaceId/rollout/config', needs('apps.read'), (c) => c.json(rolloutConfig(rolloutCtx)));
+  routes.get('/:workspaceId/rollout/config', needs('apps.read'), (c) =>
+    c.json(rolloutConfig(rolloutCtx)),
+  );
 
   routes.get('/:workspaceId/apps/:id/rollout/state', needs('releases.rollout'), async (c) => {
     if (!rolloutCtx.rolloutEnabled) return off(c);
@@ -106,14 +118,22 @@ export function rolloutRoutes(ctx: RolloutRoutesContext) {
     if (!rolloutCtx.rolloutEnabled) return off(c);
     const body = await parseBody(c, previewBody);
     if (!body.ok) return body.response;
-    const done = await previewRollout(rolloutCtx, { workspaceId: ws(c), appId: param(c, 'id'), request: body.data, actor: actor(c) });
+    const done = await previewRollout(rolloutCtx, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      request: body.data,
+      actor: actor(c),
+    });
     return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
   });
 
   // The only route that changes a rollout in a store. One app per request: no bulk change.
   routes.post('/:workspaceId/apps/:id/rollout/apply', needs('releases.rollout'), async (c) => {
     if (!rolloutCtx.rolloutEnabled) return off(c);
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'rollout', { id: param(c, 'id'), hashField: 'confirmHash' });
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'rollout', {
+      id: param(c, 'id'),
+      hashField: 'confirmHash',
+    });
     if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, applyBody);
     if (!body.ok) return body.response;

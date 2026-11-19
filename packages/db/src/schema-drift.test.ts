@@ -47,23 +47,30 @@ async function describeSchema(dialect: Dialect): Promise<Described[]> {
 
 // The runtime uses the SQL migrations; the drizzle schemas are the typed description of the
 // same tables. This keeps the two from drifting apart, on each database we can reach.
-dbTest('the drizzle schema matches the migrated database: tables, columns, types, nullability, indexes', async (db) => {
-  await migrate(db);
-  const expected = await describeSchema(db.dialect);
-  assert.ok(expected.length >= 7);
-  assert.deepEqual(
-    (await tableNames(db)).filter((n) => n !== 'schema_migrations'),
-    expected.map((t) => t.name),
-    'tables',
-  );
-  for (const table of expected) {
-    assert.deepEqual(await tableColumns(db, table.name), table.columns, `columns of ${table.name}`);
-    const indexes = await tableIndexes(db, table.name);
-    for (const index of table.indexes) {
-      assert.ok(indexes.includes(index), `index ${index} on ${table.name}`);
+dbTest(
+  'the drizzle schema matches the migrated database: tables, columns, types, nullability, indexes',
+  async (db) => {
+    await migrate(db);
+    const expected = await describeSchema(db.dialect);
+    assert.ok(expected.length >= 7);
+    assert.deepEqual(
+      (await tableNames(db)).filter((n) => n !== 'schema_migrations'),
+      expected.map((t) => t.name),
+      'tables',
+    );
+    for (const table of expected) {
+      assert.deepEqual(
+        await tableColumns(db, table.name),
+        table.columns,
+        `columns of ${table.name}`,
+      );
+      const indexes = await tableIndexes(db, table.name);
+      for (const index of table.indexes) {
+        assert.ok(indexes.includes(index), `index ${index} on ${table.name}`);
+      }
     }
-  }
-});
+  },
+);
 
 test('schema.pg.ts defines the same tables and columns as schema.sqlite.ts', async () => {
   const names = (tables: Described[]) =>

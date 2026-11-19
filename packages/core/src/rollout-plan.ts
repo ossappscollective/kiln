@@ -115,16 +115,20 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
   },
 ];
 
-export const rolloutTemplate = (id: string): RolloutTemplate | undefined => ROLLOUT_TEMPLATES.find((t) => t.id === id);
+export const rolloutTemplate = (id: string): RolloutTemplate | undefined =>
+  ROLLOUT_TEMPLATES.find((t) => t.id === id);
 
 /** The templates that make sense for an app of this platform. */
 export const rolloutTemplatesFor = (platform: Platform): RolloutTemplate[] =>
-  ROLLOUT_TEMPLATES.filter((t) => t.platform === null || storeFamilyOf(t.platform) === storeFamilyOf(platform));
+  ROLLOUT_TEMPLATES.filter(
+    (t) => t.platform === null || storeFamilyOf(t.platform) === storeFamilyOf(platform),
+  );
 
 // ---------------------------------------------------------------------------------------------
 // Validation
 
-const validDate = (value: number) => Number.isInteger(value) && value > 0 && Number.isFinite(new Date(value).getTime());
+const validDate = (value: number) =>
+  Number.isInteger(value) && value > 0 && Number.isFinite(new Date(value).getTime());
 
 /**
  * Checks a rollout plan before it is stored. Rules: 1 to 12 steps; each percent a whole number from
@@ -139,9 +143,13 @@ export function validateRolloutSteps(
 ): { ok: true } | { ok: false; issues: RolloutIssue[] } {
   const issues: RolloutIssue[] = [];
   const existing = new Map((options.existing ?? []).map((s) => [s.id, s]));
-  if (input.length < 1) issues.push({ path: 'steps', message: 'A rollout plan needs at least one step.' });
+  if (input.length < 1)
+    issues.push({ path: 'steps', message: 'A rollout plan needs at least one step.' });
   if (input.length > MAX_ROLLOUT_STEPS) {
-    issues.push({ path: 'steps', message: `A rollout plan can have ${MAX_ROLLOUT_STEPS} steps at most.` });
+    issues.push({
+      path: 'steps',
+      message: `A rollout plan can have ${MAX_ROLLOUT_STEPS} steps at most.`,
+    });
   }
   const seen = new Set<string>();
   let previousPercent = 0;
@@ -151,8 +159,13 @@ export function validateRolloutSteps(
     const at = `steps.${i}`;
     const stored = step.id === undefined ? undefined : existing.get(step.id);
     if (step.id !== undefined) {
-      if (!stored) issues.push({ path: `${at}.id`, message: 'This step does not exist. Reload and try again.' });
-      else if (seen.has(step.id)) issues.push({ path: `${at}.id`, message: 'A step is listed twice.' });
+      if (!stored)
+        issues.push({
+          path: `${at}.id`,
+          message: 'This step does not exist. Reload and try again.',
+        });
+      else if (seen.has(step.id))
+        issues.push({ path: `${at}.id`, message: 'A step is listed twice.' });
       seen.add(step.id);
     }
     statuses.push(stored?.status ?? 'planned');
@@ -160,11 +173,17 @@ export function validateRolloutSteps(
       issues.push({ path: `${at}.percent`, message: 'A whole number from 1 to 100.' });
     } else {
       if (step.percent <= previousPercent) {
-        issues.push({ path: `${at}.percent`, message: `Each step must be higher than the one before (${previousPercent}%).` });
+        issues.push({
+          path: `${at}.percent`,
+          message: `Each step must be higher than the one before (${previousPercent}%).`,
+        });
       }
       previousPercent = Math.max(previousPercent, step.percent);
       if (stored?.status === 'done' && stored.percent !== step.percent) {
-        issues.push({ path: `${at}.percent`, message: 'A step that is done keeps its percentage. Reopen it first.' });
+        issues.push({
+          path: `${at}.percent`,
+          message: 'A step that is done keeps its percentage. Reopen it first.',
+        });
       }
     }
     const plannedAt = step.plannedAt ?? null;
@@ -173,27 +192,42 @@ export function validateRolloutSteps(
         issues.push({ path: `${at}.plannedAt`, message: 'A date and time.' });
       } else {
         if (stored?.status !== 'done' && plannedAt < options.planCreatedAt) {
-          issues.push({ path: `${at}.plannedAt`, message: 'Plan a step after the plan was created.' });
+          issues.push({
+            path: `${at}.plannedAt`,
+            message: 'Plan a step after the plan was created.',
+          });
         }
         if (previousPlannedAt !== null && plannedAt < previousPlannedAt) {
-          issues.push({ path: `${at}.plannedAt`, message: 'A step cannot be planned before the step above it.' });
+          issues.push({
+            path: `${at}.plannedAt`,
+            message: 'A step cannot be planned before the step above it.',
+          });
         }
         previousPlannedAt = plannedAt;
       }
     }
     const note = step.note ?? null;
     if (note !== null && (note.length > MAX_ROLLOUT_NOTE_LENGTH || /[\r\n]/.test(note))) {
-      issues.push({ path: `${at}.note`, message: `One line of at most ${MAX_ROLLOUT_NOTE_LENGTH} characters.` });
+      issues.push({
+        path: `${at}.note`,
+        message: `One line of at most ${MAX_ROLLOUT_NOTE_LENGTH} characters.`,
+      });
     }
   });
   for (const stored of existing.values()) {
     if (stored.status === 'done' && !seen.has(stored.id)) {
-      issues.push({ path: 'steps', message: `The step at ${stored.percent}% is done and cannot be removed. Reopen it first.` });
+      issues.push({
+        path: 'steps',
+        message: `The step at ${stored.percent}% is done and cannot be removed. Reopen it first.`,
+      });
     }
   }
   const lastDone = statuses.lastIndexOf('done');
   if (lastDone > 0 && statuses.slice(0, lastDone).includes('planned')) {
-    issues.push({ path: 'steps', message: 'A step before a completed step must be done or skipped.' });
+    issues.push({
+      path: 'steps',
+      message: 'A step before a completed step must be done or skipped.',
+    });
   }
   return issues.length === 0 ? { ok: true } : { ok: false, issues };
 }
@@ -229,22 +263,35 @@ export function checkRolloutAction(
   const index = steps.findIndex((s) => s.id === stepId);
   const step = steps[index];
   if (!step) return { ok: false, code: 'step_not_found', message: 'That step does not exist.' };
-  const target: RolloutStepStatus = action === 'complete' ? 'done' : action === 'skip' ? 'skipped' : 'planned';
+  const target: RolloutStepStatus =
+    action === 'complete' ? 'done' : action === 'skip' ? 'skipped' : 'planned';
   if (step.status === target) return { ok: true, noop: true, to: target };
   if (action === 'complete') {
     if (steps.slice(0, index).some((s) => s.status === 'planned')) {
-      return { ok: false, code: 'earlier_steps_open', message: 'Complete or skip the earlier steps first.' };
+      return {
+        ok: false,
+        code: 'earlier_steps_open',
+        message: 'Complete or skip the earlier steps first.',
+      };
     }
     return { ok: true, noop: false, to: target };
   }
   if (action === 'skip') {
     if (step.status === 'done') {
-      return { ok: false, code: 'invalid_transition', message: 'A step that is done cannot be skipped. Reopen it first.' };
+      return {
+        ok: false,
+        code: 'invalid_transition',
+        message: 'A step that is done cannot be skipped. Reopen it first.',
+      };
     }
     return { ok: true, noop: false, to: target };
   }
   if (steps.slice(index + 1).some((s) => s.status === 'done')) {
-    return { ok: false, code: 'later_steps_done', message: 'Reopen the later steps that are done first.' };
+    return {
+      ok: false,
+      code: 'later_steps_done',
+      message: 'Reopen the later steps that are done first.',
+    };
   }
   return { ok: true, noop: false, to: target };
 }
@@ -271,7 +318,11 @@ export type RolloutSummary = {
   nextPlannedAt: number | null;
 };
 
-export function summarizeRollout(kind: RolloutKind, steps: readonly RolloutStepState[], now: number): RolloutSummary {
+export function summarizeRollout(
+  kind: RolloutKind,
+  steps: readonly RolloutStepState[],
+  now: number,
+): RolloutSummary {
   const lastDone = steps.map((s) => s.status).lastIndexOf('done');
   const nextIndex = steps.findIndex((s) => s.status === 'planned');
   const next = nextIndex < 0 ? undefined : steps[nextIndex];
@@ -283,9 +334,14 @@ export function summarizeRollout(kind: RolloutKind, steps: readonly RolloutStepS
     planned: steps.filter((s) => s.status === 'planned').length,
     planPercent: lastDone < 0 ? 0 : (steps[lastDone]?.percent ?? 0),
     current: lastDone < 0 ? null : { index: lastDone + 1, percent: steps[lastDone]?.percent ?? 0 },
-    next: next ? { id: next.id, index: nextIndex + 1, percent: next.percent, plannedAt: next.plannedAt } : null,
-    dueSteps: steps.filter((s) => s.status === 'planned' && s.plannedAt !== null && s.plannedAt <= now).length,
-    nextPlannedAt: steps.find((s) => s.status === 'planned' && s.plannedAt !== null)?.plannedAt ?? null,
+    next: next
+      ? { id: next.id, index: nextIndex + 1, percent: next.percent, plannedAt: next.plannedAt }
+      : null,
+    dueSteps: steps.filter(
+      (s) => s.status === 'planned' && s.plannedAt !== null && s.plannedAt <= now,
+    ).length,
+    nextPlannedAt:
+      steps.find((s) => s.status === 'planned' && s.plannedAt !== null)?.plannedAt ?? null,
   };
 }
 
@@ -357,9 +413,14 @@ const SAME = 0.05;
  * never fixed: a step is marked done only when a person asks, and only while the store's share has
  * reached the step (`confirmStepId`).
  */
-export function compareRollout(steps: readonly RolloutStepState[], store: StoreRollout | null): RolloutComparison {
+export function compareRollout(
+  steps: readonly RolloutStepState[],
+  store: StoreRollout | null,
+): RolloutComparison {
   const summary = summarizeRollout('steps', steps, 0);
-  const planStep = summary.current ? { index: summary.current.index, total: steps.length, percent: summary.current.percent } : null;
+  const planStep = summary.current
+    ? { index: summary.current.index, total: steps.length, percent: summary.current.percent }
+    : null;
   const planText = planStep
     ? `the plan has step ${planStep.index} of ${planStep.total} (${formatPercent(planStep.percent)}) done`
     : 'the plan has no step done yet';
@@ -390,7 +451,13 @@ export function compareRollout(steps: readonly RolloutStepState[], store: StoreR
   const confirmStepId = firstOpen && store.percent >= firstOpen.percent ? firstOpen.id : null;
   const said = `Store says ${formatPercent(store.percent)}${store.inferred ? ' (live for everyone)' : ''}`;
   if (Math.abs(store.percent - summary.planPercent) < SAME) {
-    return { ...base, verdict: 'match', mismatch: false, confirmStepId, message: `${said}, ${planText}: they agree.${halted}` };
+    return {
+      ...base,
+      verdict: 'match',
+      mismatch: false,
+      confirmStepId,
+      message: `${said}, ${planText}: they agree.${halted}`,
+    };
   }
   if (store.percent > summary.planPercent) {
     return {
@@ -440,21 +507,38 @@ export function deadlineReminder(
   const start = Date.parse(`${targetDate}T00:00:00Z`);
   if (!Number.isFinite(start)) return none;
   const end = start + DAY_MS;
-  const lead = Math.min(Math.max(options.leadHours ?? DEFAULT_REMINDER_LEAD_HOURS, 1), MAX_REMINDER_LEAD_HOURS) * HOUR_MS;
+  const lead =
+    Math.min(
+      Math.max(options.leadHours ?? DEFAULT_REMINDER_LEAD_HOURS, 1),
+      MAX_REMINDER_LEAD_HOURS,
+    ) * HOUR_MS;
   if (now >= end) {
     const late = now - end;
     return late > REMINDER_STALE_DAYS * DAY_MS
       ? none
-      : { kind: 'overdue', dueKey: targetDate, hoursLeft: 0, daysOverdue: Math.floor(late / DAY_MS) + 1 };
+      : {
+          kind: 'overdue',
+          dueKey: targetDate,
+          hoursLeft: 0,
+          daysOverdue: Math.floor(late / DAY_MS) + 1,
+        };
   }
   if (now >= end - lead) {
-    return { kind: 'due_soon', dueKey: targetDate, hoursLeft: Math.max(0, Math.ceil((end - now) / HOUR_MS)), daysOverdue: 0 };
+    return {
+      kind: 'due_soon',
+      dueKey: targetDate,
+      hoursLeft: Math.max(0, Math.ceil((end - now) / HOUR_MS)),
+      daysOverdue: 0,
+    };
   }
   return none;
 }
 
 /** Whether an open step's planned time has passed (and is not stale), so a reminder is due. */
-export function rolloutStepReminderDue(step: Pick<RolloutStepState, 'status' | 'plannedAt'>, now: number): boolean {
+export function rolloutStepReminderDue(
+  step: Pick<RolloutStepState, 'status' | 'plannedAt'>,
+  now: number,
+): boolean {
   return (
     step.status === 'planned' &&
     step.plannedAt !== null &&

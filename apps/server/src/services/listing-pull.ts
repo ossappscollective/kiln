@@ -1,17 +1,18 @@
+import { createHash } from 'node:crypto';
 import {
   type ActorType,
   type AppStoreListing,
+  isApplePlatform,
   type Listing,
   type ListingProblem,
   type LocaleText,
-  type PlayListing,
   type Platform,
-  isApplePlatform,
+  type PlayListing,
   platformMeta,
+  validateListing,
 } from '@mrm/core';
-import { validateListing } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { createHash } from 'node:crypto';
+import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import {
   type ChangeSetOrigin,
@@ -25,7 +26,6 @@ import {
   parseOrigin,
   rowOf,
 } from './change-sets.ts';
-import { getApp, type ManagedApp } from './apps.ts';
 import {
   classifyDrift,
   fieldKey,
@@ -35,16 +35,8 @@ import {
   toListing,
 } from './listing-drift.ts';
 import { getLiveListing, type LiveChannel } from './listing-live.ts';
-import {
-  canonicalLocale,
-  matchRepoLocale,
-  newRepoLocale,
-} from './listing-locales.ts';
-import {
-  type ListingSourceKind,
-  listingSources,
-  mergedListing,
-} from './listing-sources.ts';
+import { canonicalLocale, matchRepoLocale, newRepoLocale } from './listing-locales.ts';
+import { type ListingSourceKind, listingSources, mergedListing } from './listing-sources.ts';
 import {
   type ListingSelection,
   type ListingTarget,
@@ -184,8 +176,12 @@ export function planPull(input: PullPlanInput): PullPlan {
   const { platform, selection } = input;
   const fields = listingFieldsFor(platform);
   const explicit = selection.items !== undefined || selection.fields !== undefined;
-  const wantedItems = selection.items ? new Set(selection.items.map((i) => itemKey(i.locale, i.field))) : undefined;
-  const wantedLocales = selection.locales ? new Set(selection.locales.map(canonicalLocale)) : undefined;
+  const wantedItems = selection.items
+    ? new Set(selection.items.map((i) => itemKey(i.locale, i.field)))
+    : undefined;
+  const wantedLocales = selection.locales
+    ? new Set(selection.locales.map(canonicalLocale))
+    : undefined;
   const wantedFields = selection.fields ? new Set(selection.fields) : undefined;
 
   const repoLocaleTexts: Texts = {};
@@ -199,9 +195,14 @@ export function planPull(input: PullPlanInput): PullPlan {
   const selected = (locale: string, repoLocale: string | undefined, field: string): boolean => {
     if (wantedFields && !wantedFields.has(field)) return false;
     const names = (set: ReadonlySet<string>) =>
-      set.has(canonicalLocale(locale)) || (repoLocale !== undefined && set.has(canonicalLocale(repoLocale)));
+      set.has(canonicalLocale(locale)) ||
+      (repoLocale !== undefined && set.has(canonicalLocale(repoLocale)));
     if (wantedLocales && !names(wantedLocales)) return false;
-    if (wantedItems && !wantedItems.has(itemKey(locale, field)) && !(repoLocale !== undefined && wantedItems.has(itemKey(repoLocale, field)))) {
+    if (
+      wantedItems &&
+      !wantedItems.has(itemKey(locale, field)) &&
+      !(repoLocale !== undefined && wantedItems.has(itemKey(repoLocale, field)))
+    ) {
       return false;
     }
     return true;
@@ -221,7 +222,9 @@ export function planPull(input: PullPlanInput): PullPlan {
   type Resolved = { locale: string; repoLocale: string; how: LocaleMapping['how'] };
   const resolved: Resolved[] = [];
   for (const locale of storeLocales) {
-    const wantedHere = fields.filter((f) => selected(locale, undefined, f) || selected(locale, locale, f));
+    const wantedHere = fields.filter(
+      (f) => selected(locale, undefined, f) || selected(locale, locale, f),
+    );
     // Whether this locale is in play at all (a field that the store has and the selection names).
     const inPlay = wantedHere.some((f) => provided(locale, f) !== undefined || explicit);
     if (!inPlay) continue;
@@ -264,7 +267,10 @@ export function planPull(input: PullPlanInput): PullPlan {
     }
   }
   // Two store locales for one folder: the one with the exact code keeps it.
-  resolved.sort((a, b) => Number(b.how === 'exact') - Number(a.how === 'exact') || a.locale.localeCompare(b.locale));
+  resolved.sort(
+    (a, b) =>
+      Number(b.how === 'exact') - Number(a.how === 'exact') || a.locale.localeCompare(b.locale),
+  );
   const placed: Resolved[] = [];
   for (const r of resolved) {
     const owner = claimed.get(r.repoLocale);
@@ -318,7 +324,11 @@ export function planPull(input: PullPlanInput): PullPlan {
         }).status;
         if (verdict === 'identical') {
           if (explicit) {
-            skipped.push({ ...at, reason: 'identical', message: `${label} is already the same in the repository.` });
+            skipped.push({
+              ...at,
+              reason: 'identical',
+              message: `${label} is already the same in the repository.`,
+            });
           }
           continue;
         }
@@ -334,9 +344,9 @@ export function planPull(input: PullPlanInput): PullPlan {
         if (verdict !== 'store-ahead' && verdict !== 'diverged') continue;
       }
       // The store's limits. A value that is over a limit is reported and not pulled, never shortened.
-      const found = validateListing(toListing(platform, new Map([[fieldKey(repoLocale, field), after]]))).filter(
-        (p) => p.locale === repoLocale && p.field === field,
-      );
+      const found = validateListing(
+        toListing(platform, new Map([[fieldKey(repoLocale, field), after]])),
+      ).filter((p) => p.locale === repoLocale && p.field === field);
       problems.push(...found);
       const tooLong = found.find((p) => p.code === 'too_long' && p.severity === 'error');
       if (tooLong) {
@@ -363,22 +373,21 @@ export function planPull(input: PullPlanInput): PullPlan {
   const locales: Texts = {};
   for (const [locale, text] of Object.entries(repoLocaleTexts)) locales[locale] = { ...text };
   for (const c of changes) (locales[c.repoLocale] ??= {})[c.field] = c.after;
-  const desired: Listing =
-    isApplePlatform(platform)
-      ? {
-          appStore: {
-            locales: locales as Record<string, LocaleText<never>>,
-            ...((input.repo as AppStoreListing | undefined)?.copyright === undefined
-              ? {}
-              : { copyright: (input.repo as AppStoreListing).copyright as string }),
-          } as AppStoreListing,
-        }
-      : {
-          googlePlay: {
-            locales: locales as PlayListing['locales'],
-            changelogs: (input.repo as PlayListing | undefined)?.changelogs ?? {},
-          },
-        };
+  const desired: Listing = isApplePlatform(platform)
+    ? {
+        appStore: {
+          locales: locales as Record<string, LocaleText<never>>,
+          ...((input.repo as AppStoreListing | undefined)?.copyright === undefined
+            ? {}
+            : { copyright: (input.repo as AppStoreListing).copyright as string }),
+        } as AppStoreListing,
+      }
+    : {
+        googlePlay: {
+          locales: locales as PlayListing['locales'],
+          changelogs: (input.repo as PlayListing | undefined)?.changelogs ?? {},
+        },
+      };
   return { changes, skipped, problems, locales: mappings, desired };
 }
 
@@ -409,7 +418,12 @@ export async function loadPullHistory(
     const key = fieldKey(String(r.locale), String(r.field));
     const hash = String(r.value_hash);
     const source = String(r.source);
-    if (source === 'change_set' && excludeChangeSet !== undefined && String(r.source_ref) === excludeChangeSet) continue;
+    if (
+      source === 'change_set' &&
+      excludeChangeSet !== undefined &&
+      String(r.source_ref) === excludeChangeSet
+    )
+      continue;
     if (source === 'repo' || source === 'change_set') {
       const list = repo.get(key) ?? [];
       if (!list.includes(hash)) list.push(hash);
@@ -453,7 +467,11 @@ export type PullTarget = {
   source: ListingSourceKind;
   /** The file (Expo) or the folder (fastlane). */
   path: string;
-  selected: { id: string | null; origin: 'custom' | 'detected' | 'folders' | 'default'; label: string };
+  selected: {
+    id: string | null;
+    origin: 'custom' | 'detected' | 'folders' | 'default';
+    label: string;
+  };
 };
 
 export type PullResult = {
@@ -502,12 +520,17 @@ async function chooseSelection(
   app: ManagedApp,
   given: ListingSelection | undefined,
 ): Promise<{ ok: true; selection?: ListingSelection } | Failure> {
-  if (given && (given.target !== undefined || given.roots !== undefined)) return { ok: true, selection: given };
-  const mine = (await listListingTargets(ctx.db, workspaceId, repositoryId)).filter((t) => t.appId === app.id);
+  if (given && (given.target !== undefined || given.roots !== undefined))
+    return { ok: true, selection: given };
+  const mine = (await listListingTargets(ctx.db, workspaceId, repositoryId)).filter(
+    (t) => t.appId === app.id,
+  );
   if (mine.length === 1) return { ok: true, selection: { target: (mine[0] as ListingTarget).id } };
   if (mine.length > 1) return targetRequired(mine.map(savedView));
   const detection = await getDetection(ctx.db, workspaceId, repositoryId);
-  const auto = detection?.listing?.targets.find((t) => t.app !== undefined && t.app === app.identifier);
+  const auto = detection?.listing?.targets.find(
+    (t) => t.app !== undefined && t.app === app.identifier,
+  );
   return auto ? { ok: true, selection: { target: `auto:${auto.key}` } } : { ok: true };
 }
 
@@ -532,11 +555,18 @@ type PullState = { plan?: PullPlan; target?: PullTarget };
  * optional store read, the stored store snapshot, the folders and the recorded histories. Shared by
  * the pull and the recompute of a pull.
  */
-async function preparePull(ctx: { repo: RepoContext }, input: PullInput): Promise<Outcome<{ prepared: Prepared }>> {
+async function preparePull(
+  ctx: { repo: RepoContext },
+  input: PullInput,
+): Promise<Outcome<{ prepared: Prepared }>> {
   const { workspaceId, app } = input;
   const { db } = ctx.repo;
   if (!app.repositoryId) {
-    return failure(422, 'no_repository', 'This app is not linked to a repository. Link one to pull into it.');
+    return failure(
+      422,
+      'no_repository',
+      'This app is not linked to a repository. Link one to pull into it.',
+    );
   }
   const repository = await getRepository(db, workspaceId, app.repositoryId);
   if (!repository) {
@@ -545,7 +575,11 @@ async function preparePull(ctx: { repo: RepoContext }, input: PullInput): Promis
   const wanted = input.fields ?? [];
   for (const field of [...wanted, ...(input.items ?? []).map((i) => i.field)]) {
     if (!listingFieldsFor(app.platform).includes(field)) {
-      return failure(422, 'invalid_field', `${field} is not a listing field of an ${app.platform} app.`);
+      return failure(
+        422,
+        'invalid_field',
+        `${field} is not a listing field of an ${app.platform} app.`,
+      );
     }
   }
 
@@ -578,7 +612,16 @@ async function preparePull(ctx: { repo: RepoContext }, input: PullInput): Promis
   const history = await loadPullHistory(db, workspaceId, app.id, channel, input.excludeChangeSet);
   return {
     ok: true,
-    prepared: { repository, channel, live, snapshot, selection: chosen.selection, slot, history, refreshed },
+    prepared: {
+      repository,
+      channel,
+      live,
+      snapshot,
+      selection: chosen.selection,
+      slot,
+      history,
+      refreshed,
+    },
   };
 }
 
@@ -640,7 +683,8 @@ function pullBuilder(prepared: Prepared, input: PullInput, state: PullState): Li
 // What a pull remembers, so that it can be made again
 
 /** A short stable hash of a text: enough to tell that the store's text changed, and no text is kept. */
-export const textHash = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 16);
+export const textHash = (value: string): string =>
+  createHash('sha256').update(value).digest('hex').slice(0, 16);
 
 export type PullOriginField = { locale: string; repoLocale: string; field: string; hash: string };
 
@@ -665,7 +709,11 @@ export type StorePullOrigin = ChangeSetOrigin & {
   storeReadAt: number | null;
 };
 
-function originOf(prepared: Prepared, input: PullInput, plan: PullPlan | undefined): StorePullOrigin {
+function originOf(
+  prepared: Prepared,
+  input: PullInput,
+  plan: PullPlan | undefined,
+): StorePullOrigin {
   return {
     v: 1,
     source: 'store_pull',
@@ -675,11 +723,18 @@ function originOf(prepared: Prepared, input: PullInput, plan: PullPlan | undefin
       ...(input.channel ? { channel: input.channel } : {}),
       ...(input.locales ? { locales: [...input.locales] } : {}),
       ...(input.fields ? { fields: [...input.fields] } : {}),
-      ...(input.items ? { items: input.items.map((i) => ({ locale: i.locale, field: i.field })) } : {}),
+      ...(input.items
+        ? { items: input.items.map((i) => ({ locale: i.locale, field: i.field })) }
+        : {}),
       addLocales: input.addLocales === true,
       ...(prepared.selection ? { selection: prepared.selection } : {}),
     },
-    fields: (plan?.changes ?? []).map((c) => ({ locale: c.locale, repoLocale: c.repoLocale, field: c.field, hash: textHash(c.after) })),
+    fields: (plan?.changes ?? []).map((c) => ({
+      locale: c.locale,
+      repoLocale: c.repoLocale,
+      field: c.field,
+      hash: textHash(c.after),
+    })),
     storeReadAt: prepared.live.readAt,
   };
 }
@@ -793,7 +848,10 @@ export type FieldDiff = {
 const fieldId = (repoLocale: string, field: string) => `${repoLocale}\u0000${field}`;
 
 /** Per field, what changed between the draft's origin and a new plan. Pure. */
-export function diffFromPrevious(previous: readonly PullOriginField[], plan: PullPlan): FieldDiff[] {
+export function diffFromPrevious(
+  previous: readonly PullOriginField[],
+  plan: PullPlan,
+): FieldDiff[] {
   const before = new Map(previous.map((f) => [fieldId(f.repoLocale, f.field), f]));
   const out: FieldDiff[] = [];
   const seen = new Set<string>();
@@ -805,14 +863,21 @@ export function diffFromPrevious(previous: readonly PullOriginField[], plan: Pul
       locale: change.locale,
       repoLocale: change.repoLocale,
       field: change.field,
-      change: old === undefined ? 'added' : old.hash === textHash(change.after) ? 'unchanged' : 'store_changed',
+      change:
+        old === undefined
+          ? 'added'
+          : old.hash === textHash(change.after)
+            ? 'unchanged'
+            : 'store_changed',
     });
   }
   for (const old of previous) {
     const key = fieldId(old.repoLocale, old.field);
     if (seen.has(key)) continue;
     const skip = plan.skipped.find(
-      (s) => (s.repoLocale ?? s.locale) === old.repoLocale && (s.field === undefined || s.field === old.field),
+      (s) =>
+        (s.repoLocale ?? s.locale) === old.repoLocale &&
+        (s.field === undefined || s.field === old.field),
     );
     out.push({
       locale: old.locale,
@@ -864,9 +929,18 @@ export async function planRecompute(
     );
   }
   const app = await getApp(ctx.repo.db, workspaceId, origin.appId);
-  if (!app) return failure(409, 'app_gone', 'The app this change set was pulled for is not there any more.');
+  if (!app)
+    return failure(
+      409,
+      'app_gone',
+      'The app this change set was pulled for is not there any more.',
+    );
   if (app.repositoryId !== String(row.repository_id)) {
-    return failure(409, 'app_relinked', 'The app is linked to another repository now, so this change set cannot be recomputed.');
+    return failure(
+      409,
+      'app_relinked',
+      'The app is linked to another repository now, so this change set cannot be recomputed.',
+    );
   }
   const request = origin.request;
   const pull: PullInput = {
@@ -901,7 +975,9 @@ export async function planRecompute(
   const { live, channel, refreshed } = prepared.prepared;
   const warnings: string[] = [...computed.warnings];
   if (live.error) {
-    warnings.unshift(`The last attempt to read the store failed (${live.error}); the values of the last successful read were used.`);
+    warnings.unshift(
+      `The last attempt to read the store failed (${live.error}); the values of the last successful read were used.`,
+    );
   }
   return {
     ok: true,
@@ -993,7 +1069,15 @@ export async function recomputeStorePull(
           SET files_json = ?, origin_json = ?, status = 'draft', approved_by = NULL, approved_at = NULL,
               error = NULL, updated_at = ?
         WHERE id = ? AND workspace_id = ? AND status = ? AND updated_at = ?`,
-      [JSON.stringify(plan.files), JSON.stringify(plan.origin), at, id, workspaceId, status, Number(row.updated_at)],
+      [
+        JSON.stringify(plan.files),
+        JSON.stringify(plan.origin),
+        at,
+        id,
+        workspaceId,
+        status,
+        Number(row.updated_at),
+      ],
     );
     if (changed === 0) {
       return failure(

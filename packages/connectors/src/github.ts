@@ -15,13 +15,13 @@ import {
 import type {
   CommitOnBranchOptions,
   CommitOnBranchResult,
-  PullRequestInfo,
   DispatchResult,
   ListWorkflowRunsOptions,
-  ProposalResult,
   OpenPullRequestOptions,
   OpenPullRequestResult,
+  ProposalResult,
   ProposeOptions,
+  PullRequestInfo,
   RepoConnector,
   WorkflowRun,
 } from './types.ts';
@@ -483,7 +483,9 @@ export class GithubRepoConnector implements RepoConnector {
     const queue: { sha: string; prefix: string }[] = [{ sha: commit, prefix: '' }];
     const worker = async () => {
       for (let job = queue.shift(); job; job = queue.shift()) {
-        const reply = await this.#api('GET', this.#repoPath(`/git/trees/${enc(job.sha)}`), { signal });
+        const reply = await this.#api('GET', this.#repoPath(`/git/trees/${enc(job.sha)}`), {
+          signal,
+        });
         const part = isRecord(reply.json) ? reply.json : {};
         if (part.truncated === true) {
           throw new GithubError(
@@ -582,8 +584,14 @@ export class GithubRepoConnector implements RepoConnector {
   // Binary files, bounded (see blobs.ts). Additive: `readFile` above is for text.
 
   /** Every file of a commit with its blob sha and size (the tree gives both). Symlinks are left out. */
-  async listBlobEntries(ref?: string, options: { signal?: AbortSignal } = {}): Promise<BlobListing> {
-    const commit = await this.#commitSha(ref ?? (await this.defaultBranch(options.signal)), options.signal);
+  async listBlobEntries(
+    ref?: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<BlobListing> {
+    const commit = await this.#commitSha(
+      ref ?? (await this.defaultBranch(options.signal)),
+      options.signal,
+    );
     let pending = this.#blobTrees.get(commit);
     if (!pending) {
       pending = this.#tree(commit, options.signal).then((entries) =>
@@ -592,7 +600,9 @@ export class GithubRepoConnector implements RepoConnector {
           .flatMap((e): BlobEntry[] => {
             const path = text(e.path);
             const oid = text(e.sha);
-            return path && oid ? [{ path, oid, mode: text(e.mode) ?? '100644', size: num(e.size) ?? null }] : [];
+            return path && oid
+              ? [{ path, oid, mode: text(e.mode) ?? '100644', size: num(e.size) ?? null }]
+              : [];
           })
           .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
       );
@@ -650,10 +660,19 @@ export class GithubRepoConnector implements RepoConnector {
           continue;
         }
         try {
-          const reply = await this.#api('GET', this.#repoPath(`/git/blobs/${enc(entry.oid)}`), signal ? { signal } : {});
+          const reply = await this.#api(
+            'GET',
+            this.#repoPath(`/git/blobs/${enc(entry.oid)}`),
+            signal ? { signal } : {},
+          );
           const body = isRecord(reply.json) ? reply.json : {};
           if (body.encoding !== 'base64' || typeof body.content !== 'string') {
-            items.set(entry.path, { ok: false, oid: entry.oid, reason: 'missing', size: entry.size });
+            items.set(entry.path, {
+              ok: false,
+              oid: entry.oid,
+              reason: 'missing',
+              size: entry.size,
+            });
             continue;
           }
           const bytes = Buffer.from(body.content, 'base64');
@@ -662,12 +681,18 @@ export class GithubRepoConnector implements RepoConnector {
             entry.path,
             bytes.length > options.maxFileBytes
               ? { ok: false, oid: entry.oid, reason: 'too_large', size: bytes.length }
-              : { ok: true, oid: entry.oid, size: bytes.length, head: new Uint8Array(bytes.subarray(0, options.headBytes)) },
+              : {
+                  ok: true,
+                  oid: entry.oid,
+                  size: bytes.length,
+                  head: new Uint8Array(bytes.subarray(0, options.headBytes)),
+                },
           );
         } catch (error) {
           const fatal =
             error instanceof GithubRateLimitError ||
-            (error instanceof GithubError && ['auth', 'forbidden', 'network', 'server'].includes(error.kind)) ||
+            (error instanceof GithubError &&
+              ['auth', 'forbidden', 'network', 'server'].includes(error.kind)) ||
             !(error instanceof GithubError);
           if (fatal) throw error;
           items.set(entry.path, { ok: false, oid: entry.oid, reason: 'missing', size: entry.size });
@@ -747,7 +772,10 @@ export class GithubRepoConnector implements RepoConnector {
           continue;
         }
         const blob = await this.#api('POST', this.#repoPath('/git/blobs'), {
-          body: { content: change.content, encoding: change.encoding === 'base64' ? 'base64' : 'utf-8' },
+          body: {
+            content: change.content,
+            encoding: change.encoding === 'base64' ? 'base64' : 'utf-8',
+          },
           signal,
         });
         const sha = text(isRecord(blob.json) ? blob.json.sha : undefined);
@@ -860,21 +888,42 @@ export class GithubRepoConnector implements RepoConnector {
     const info = (json: Json): PullRequestInfo | undefined => {
       const number = num(json.number);
       if (number === undefined) return undefined;
-      const state = text(json.state) === 'open' ? 'open' : json.merged === true || text(json.merged_at) ? 'merged' : 'closed';
+      const state =
+        text(json.state) === 'open'
+          ? 'open'
+          : json.merged === true || text(json.merged_at)
+            ? 'merged'
+            : 'closed';
       const head = isRecord(json.head) ? text(json.head.ref) : undefined;
       const base = isRecord(json.base) ? text(json.base.ref) : undefined;
       const url = text(json.html_url);
-      return { number, state, ...(url ? { url } : {}), ...(head ? { branch: head } : {}), ...(base ? { base } : {}) };
+      return {
+        number,
+        state,
+        ...(url ? { url } : {}),
+        ...(head ? { branch: head } : {}),
+        ...(base ? { base } : {}),
+      };
     };
     const signal = options.signal ? { signal: options.signal } : {};
     if (options.number !== undefined) {
-      const reply = await this.#api('GET', this.#repoPath(`/pulls/${enc(String(options.number))}`), { allow: [404], ...signal });
+      const reply = await this.#api(
+        'GET',
+        this.#repoPath(`/pulls/${enc(String(options.number))}`),
+        { allow: [404], ...signal },
+      );
       return reply.status === 404 || !isRecord(reply.json) ? undefined : info(reply.json);
     }
     if (options.branch === undefined) return undefined;
     const branch = checkBranchName(options.branch);
     const reply = await this.#api('GET', this.#repoPath('/pulls'), {
-      query: { head: `${this.owner}:${branch}`, state: 'all', sort: 'created', direction: 'desc', per_page: '10' },
+      query: {
+        head: `${this.owner}:${branch}`,
+        state: 'all',
+        sort: 'created',
+        direction: 'desc',
+        per_page: '10',
+      },
       ...signal,
     });
     const found = records(reply.json)
@@ -918,9 +967,12 @@ export class GithubRepoConnector implements RepoConnector {
       ...(signal ? { signal } : {}),
     });
     const tipTree = text(
-      isRecord(tipCommit.json) && isRecord(tipCommit.json.tree) ? tipCommit.json.tree.sha : undefined,
+      isRecord(tipCommit.json) && isRecord(tipCommit.json.tree)
+        ? tipCommit.json.tree.sha
+        : undefined,
     );
-    if (!tipTree) throw new GithubError('unexpected', 'GitHub did not return the tree of the branch.');
+    if (!tipTree)
+      throw new GithubError('unexpected', 'GitHub did not return the tree of the branch.');
     const existing = new Map<string, Json>();
     for (const entry of await this.#tree(tipTree, signal)) {
       const path = text(entry.path);
@@ -961,7 +1013,8 @@ export class GithubRepoConnector implements RepoConnector {
           ...(signal ? { signal } : {}),
         });
         const sha = text(isRecord(blob.json) ? blob.json.sha : undefined);
-        if (!sha) throw new GithubError('unexpected', `GitHub did not return a blob for ${change.path}.`);
+        if (!sha)
+          throw new GithubError('unexpected', `GitHub did not return a blob for ${change.path}.`);
         treeEntries.push({ path: change.path, mode: change.mode, type: 'blob', sha });
       }
     };
@@ -988,7 +1041,8 @@ export class GithubRepoConnector implements RepoConnector {
         ...(signal ? { signal } : {}),
       });
     } catch (error) {
-      if (error instanceof GithubError && error.kind === 'validation') throw new BranchMovedError(branch);
+      if (error instanceof GithubError && error.kind === 'validation')
+        throw new BranchMovedError(branch);
       throw error;
     }
     return { commit: commitSha, parent: tip, tree: treeSha, changed: planned.length };
@@ -1036,7 +1090,10 @@ export class GithubRepoConnector implements RepoConnector {
     return { changes, conflicts };
   }
 
-  #pullRequestBody(changeSet: ChangeSet, changes: { path: string; content?: string; encoding?: 'base64' }[]): string {
+  #pullRequestBody(
+    changeSet: ChangeSet,
+    changes: { path: string; content?: string; encoding?: 'base64' }[],
+  ): string {
     const shown = changes.slice(0, 50).map((c) => `- \`${c.path}\``);
     const more = changes.length > 50 ? [`- and ${changes.length - 50} more`] : [];
     return [
@@ -1188,7 +1245,8 @@ export class GithubRepoConnector implements RepoConnector {
       ...(options.etag ? { ifNoneMatch: options.etag, allow: [304] } : {}),
     });
     const etag = reply.headers.get('etag') ?? undefined;
-    if (reply.status === 304) return { runs: [], notModified: true, ...(options.etag ? { etag: options.etag } : {}) };
+    if (reply.status === 304)
+      return { runs: [], notModified: true, ...(options.etag ? { etag: options.etag } : {}) };
     const body = isRecord(reply.json) ? reply.json : {};
     const runs = records(body.workflow_runs).flatMap((run) => {
       const mapped = mapCiRun(run);
@@ -1217,8 +1275,15 @@ export class GithubRepoConnector implements RepoConnector {
       ...(options.etag ? { ifNoneMatch: options.etag } : {}),
     });
     const etag = reply.headers.get('etag') ?? undefined;
-    if (reply.status === 304) return { jobs: [], notModified: true, truncated: false, ...(options.etag ? { etag: options.etag } : {}) };
-    if (reply.status === 404) return { jobs: [], notModified: false, truncated: false, missing: true };
+    if (reply.status === 304)
+      return {
+        jobs: [],
+        notModified: true,
+        truncated: false,
+        ...(options.etag ? { etag: options.etag } : {}),
+      };
+    if (reply.status === 404)
+      return { jobs: [], notModified: false, truncated: false, missing: true };
     const body = isRecord(reply.json) ? reply.json : {};
     const all = records(body.jobs);
     const jobs = all.slice(0, 100).flatMap(mapCiJob);
@@ -1231,12 +1296,22 @@ export class GithubRepoConnector implements RepoConnector {
    * or of one run. Names, sizes, times and the run they belong to; never a download address.
    */
   async listArtifacts(
-    options: { runId?: string; maxPages?: number; signal?: AbortSignal; etag?: string | undefined } = {},
+    options: {
+      runId?: string;
+      maxPages?: number;
+      signal?: AbortSignal;
+      etag?: string | undefined;
+    } = {},
   ): Promise<CiArtifactList> {
     if (options.runId !== undefined && !/^[0-9]{1,20}$/.test(options.runId)) {
-      throw new GithubError('invalid_input', `Not a workflow run id: ${JSON.stringify(options.runId)}.`);
+      throw new GithubError(
+        'invalid_input',
+        `Not a workflow run id: ${JSON.stringify(options.runId)}.`,
+      );
     }
-    const path = this.#repoPath(options.runId ? `/actions/runs/${options.runId}/artifacts` : '/actions/artifacts');
+    const path = this.#repoPath(
+      options.runId ? `/actions/runs/${options.runId}/artifacts` : '/actions/artifacts',
+    );
     const maxPages = Math.min(Math.max(Math.trunc(options.maxPages ?? 1), 1), 5);
     const artifacts: CiArtifact[] = [];
     let etag: string | undefined;
@@ -1250,7 +1325,13 @@ export class GithubRepoConnector implements RepoConnector {
         ...(first && options.etag ? { ifNoneMatch: options.etag } : {}),
       });
       if (first) etag = reply.headers.get('etag') ?? undefined;
-      if (reply.status === 304) return { artifacts: [], truncated: false, notModified: true, ...(options.etag ? { etag: options.etag } : {}) };
+      if (reply.status === 304)
+        return {
+          artifacts: [],
+          truncated: false,
+          notModified: true,
+          ...(options.etag ? { etag: options.etag } : {}),
+        };
       const body = isRecord(reply.json) ? reply.json : {};
       const got = records(body.artifacts).flatMap(mapCiArtifact);
       artifacts.push(...got);
@@ -1292,10 +1373,16 @@ export class GithubRepoConnector implements RepoConnector {
       try {
         target = new URL(location ?? '', this.#base);
       } catch {
-        throw new GithubError('unexpected', 'GitHub sent a download address that could not be read.');
+        throw new GithubError(
+          'unexpected',
+          'GitHub sent a download address that could not be read.',
+        );
       }
       if (!isSafeRedirectTarget(target, options.allowHttp)) {
-        throw new GithubError('unexpected', 'GitHub sent a download address that is not a public https address.');
+        throw new GithubError(
+          'unexpected',
+          'GitHub sent a download address that is not a public https address.',
+        );
       }
       let response: Response;
       try {
@@ -1307,7 +1394,9 @@ export class GithubRepoConnector implements RepoConnector {
             method: 'GET',
             headers: { 'user-agent': this.#userAgent },
             redirect: 'manual',
-            signal: options.signal ? AbortSignal.any([options.signal, headers.signal]) : headers.signal,
+            signal: options.signal
+              ? AbortSignal.any([options.signal, headers.signal])
+              : headers.signal,
           });
         } finally {
           clearTimeout(timer);
@@ -1327,10 +1416,21 @@ export class GithubRepoConnector implements RepoConnector {
       }
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
-        throw new GithubError('server', `The artifact storage answered ${response.status}.`, response.status);
+        throw new GithubError(
+          'server',
+          `The artifact storage answered ${response.status}.`,
+          response.status,
+        );
       }
       const length = Number(response.headers.get('content-length'));
-      return { status: 'ok', body: response.body, contentLength: Number.isFinite(length) && length >= 0 && response.headers.has('content-length') ? length : null };
+      return {
+        status: 'ok',
+        body: response.body,
+        contentLength:
+          Number.isFinite(length) && length >= 0 && response.headers.has('content-length')
+            ? length
+            : null,
+      };
     }
     throw new GithubError('unexpected', 'GitHub redirected the artifact download too many times.');
   }
@@ -1419,7 +1519,8 @@ export class GithubRepoConnector implements RepoConnector {
         const name = text(item.name);
         const commit = isRecord(item.commit) ? item.commit : {};
         const sha = text(commit.sha);
-        if (name && name.length <= 250 && sha && SHA.test(sha)) tags.push({ name, sha: sha.toLowerCase() });
+        if (name && name.length <= 250 && sha && SHA.test(sha))
+          tags.push({ name, sha: sha.toLowerCase() });
       }
       if (items.length < 100) return { tags, truncated: false, pages: page };
     }
@@ -1446,9 +1547,13 @@ export class GithubRepoConnector implements RepoConnector {
     }
     const limit = Math.min(Math.max(Math.trunc(options.limit ?? 500), 1), 1000);
     let budget = Math.min(Math.max(Math.trunc(options.resolveLimit ?? 50), 0), 200);
-    const reply = await this.#api('GET', this.#repoPath(`/git/matching-refs/tags/${encPath(prefix)}`), {
-      signal: options.signal,
-    });
+    const reply = await this.#api(
+      'GET',
+      this.#repoPath(`/git/matching-refs/tags/${encPath(prefix)}`),
+      {
+        signal: options.signal,
+      },
+    );
     const items = records(reply.json);
     const tags: GitTag[] = [];
     let unresolved = 0;
@@ -1471,7 +1576,8 @@ export class GithubRepoConnector implements RepoConnector {
         const tagReply = await this.#api('GET', this.#repoPath(`/git/tags/${enc(sha)}`), {
           signal: options.signal,
         });
-        object = isRecord(tagReply.json) && isRecord(tagReply.json.object) ? tagReply.json.object : {};
+        object =
+          isRecord(tagReply.json) && isRecord(tagReply.json.object) ? tagReply.json.object : {};
         sha = text(object.sha);
         kind = text(object.type);
       }
@@ -1480,7 +1586,9 @@ export class GithubRepoConnector implements RepoConnector {
         continue;
       }
       if (tags.length >= limit) return { tags, truncated: true, pages: 1, unresolved };
-      tags.push(annotated ? { name, sha: sha.toLowerCase(), annotated } : { name, sha: sha.toLowerCase() });
+      tags.push(
+        annotated ? { name, sha: sha.toLowerCase(), annotated } : { name, sha: sha.toLowerCase() },
+      );
     }
     return { tags, truncated: false, pages: 1, unresolved };
   }
@@ -1518,7 +1626,9 @@ export class GithubRepoConnector implements RepoConnector {
    * The releases of the repository (`GET /repos/{r}/releases`, 100 per page, at most `maxPages`:
    * default 3, at most 10). Drafts are kept and marked, because they have no tag yet.
    */
-  async listReleases(options: { maxPages?: number; signal?: AbortSignal } = {}): Promise<ReleaseList> {
+  async listReleases(
+    options: { maxPages?: number; signal?: AbortSignal } = {},
+  ): Promise<ReleaseList> {
     const maxPages = Math.min(Math.max(Math.trunc(options.maxPages ?? 3), 1), 10);
     const releases: GitRelease[] = [];
     for (let page = 1; page <= maxPages; page++) {
@@ -1630,7 +1740,12 @@ export type CiArtifact = {
   digest: string | null;
 };
 
-export type CiArtifactList = { artifacts: CiArtifact[]; truncated: boolean; notModified: boolean; etag?: string };
+export type CiArtifactList = {
+  artifacts: CiArtifact[];
+  truncated: boolean;
+  notModified: boolean;
+  etag?: string;
+};
 
 /** The answer of an artifact download: the zip as a stream, or why there is none. The stream is not read yet. */
 export type CiArtifactDownload =
@@ -1642,7 +1757,13 @@ export type CiArtifactDownload =
 export function isSafeRedirectTarget(url: URL, allowHttp = false): boolean {
   if (url.protocol !== 'https:' && !(allowHttp && url.protocol === 'http:')) return false;
   const host = url.hostname.toLowerCase();
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false;
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal')
+  )
+    return false;
   if (host.startsWith('[') || /^[0-9.]+$/.test(host)) return false;
   return host.includes('.');
 }
@@ -1811,7 +1932,9 @@ function mapCiRun(run: Json): CiRun | undefined {
   set('path', text(run.path));
   set(
     'workflowId',
-    typeof workflowId === 'number' || typeof workflowId === 'string' ? String(workflowId) : undefined,
+    typeof workflowId === 'number' || typeof workflowId === 'string'
+      ? String(workflowId)
+      : undefined,
   );
   set('startedAt', isoTime(run.run_started_at));
   set('attempt', num(run.run_attempt));

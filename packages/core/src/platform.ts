@@ -35,12 +35,42 @@ export type PlatformMeta = {
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
-  ios: { id: 'ios', label: 'iOS', storeName: 'App Store', consoleName: 'App Store Connect', family: 'apple', glyph: 'platform-ios', applePlatform: 'IOS', credentialKind: 'app_store_connect', order: 0 },
-  macos: { id: 'macos', label: 'macOS', storeName: 'Mac App Store', consoleName: 'App Store Connect', family: 'apple', glyph: 'platform-macos', applePlatform: 'MAC_OS', credentialKind: 'app_store_connect', order: 1 },
-  android: { id: 'android', label: 'Android', storeName: 'Google Play', consoleName: 'Google Play Console', family: 'google', glyph: 'platform-android', credentialKind: 'google_play', order: 2 },
+  ios: {
+    id: 'ios',
+    label: 'iOS',
+    storeName: 'App Store',
+    consoleName: 'App Store Connect',
+    family: 'apple',
+    glyph: 'platform-ios',
+    applePlatform: 'IOS',
+    credentialKind: 'app_store_connect',
+    order: 0,
+  },
+  macos: {
+    id: 'macos',
+    label: 'macOS',
+    storeName: 'Mac App Store',
+    consoleName: 'App Store Connect',
+    family: 'apple',
+    glyph: 'platform-macos',
+    applePlatform: 'MAC_OS',
+    credentialKind: 'app_store_connect',
+    order: 1,
+  },
+  android: {
+    id: 'android',
+    label: 'Android',
+    storeName: 'Google Play',
+    consoleName: 'Google Play Console',
+    family: 'google',
+    glyph: 'platform-android',
+    credentialKind: 'google_play',
+    order: 2,
+  },
 };
 
-export const isPlatform = (value: unknown): value is Platform => typeof value === 'string' && (PLATFORMS as readonly string[]).includes(value);
+export const isPlatform = (value: unknown): value is Platform =>
+  typeof value === 'string' && (PLATFORMS as readonly string[]).includes(value);
 
 /** A platform string (any case), or undefined. */
 export const parsePlatform = (value: string | null | undefined): Platform | undefined => {
@@ -51,12 +81,15 @@ export const parsePlatform = (value: string | null | undefined): Platform | unde
 export const platformMeta = (platform: Platform): PlatformMeta => PLATFORM_META[platform];
 export const platformLabel = (platform: Platform): string => PLATFORM_META[platform].label;
 export const storeFamilyOf = (platform: Platform): StoreFamily => PLATFORM_META[platform].family;
-export const isApplePlatform = (platform: Platform): boolean => PLATFORM_META[platform].family === 'apple';
-export const isGooglePlatform = (platform: Platform): boolean => PLATFORM_META[platform].family === 'google';
+export const isApplePlatform = (platform: Platform): boolean =>
+  PLATFORM_META[platform].family === 'apple';
+export const isGooglePlatform = (platform: Platform): boolean =>
+  PLATFORM_META[platform].family === 'google';
 
 /** Platforms in display order (iOS, macOS, Android), without duplicates. */
 export const sortPlatforms = (platforms: readonly Platform[]): Platform[] =>
   PLATFORMS.filter((p) => platforms.includes(p));
 
 /** The platforms that share a store family with `platform`, itself included. */
-export const platformsOfFamily = (family: StoreFamily): Platform[] => PLATFORMS.filter((p) => PLATFORM_META[p].family === family);
+export const platformsOfFamily = (family: StoreFamily): Platform[] =>
+  PLATFORMS.filter((p) => PLATFORM_META[p].family === family);

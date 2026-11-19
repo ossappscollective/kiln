@@ -1,5 +1,12 @@
 import { getContext, setContext } from 'svelte';
-import { type SectionScope, type StorageLike, browserStorage, readSectionOpen, writeSectionOpen, writeSectionsOpen } from './section-state.ts';
+import {
+  browserStorage,
+  readSectionOpen,
+  type SectionScope,
+  type StorageLike,
+  writeSectionOpen,
+  writeSectionsOpen,
+} from './section-state.ts';
 
 /**
  * The page-wide side of the collapsible sections: the shell makes one host (scope = workspace, person and page, read when a section is
@@ -21,7 +28,10 @@ export type SectionHost = {
 
 const HOST = Symbol('mrm.section-host');
 
-export function createSectionHost(scope: () => SectionScope, storage: StorageLike | null = browserStorage()): SectionHost {
+export function createSectionHost(
+  scope: () => SectionScope,
+  storage: StorageLike | null = browserStorage(),
+): SectionHost {
   let entries = $state<Record<string, { key: string; open: boolean }>>({});
   const setters = new Map<string, (open: boolean) => void>();
   return {
@@ -58,4 +68,5 @@ export function createSectionHost(scope: () => SectionScope, storage: StorageLik
 }
 
 export const provideSectionHost = (host: SectionHost): void => void setContext(HOST, host);
-export const sectionHost = (): SectionHost | null => getContext<SectionHost | undefined>(HOST) ?? null;
+export const sectionHost = (): SectionHost | null =>
+  getContext<SectionHost | undefined>(HOST) ?? null;

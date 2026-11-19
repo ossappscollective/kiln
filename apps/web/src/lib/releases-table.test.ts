@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   buildReleaseTable,
-  buildText,
   buildsForRelease,
+  buildText,
   ciFor,
   defaultReleaseFilter,
   filterGroups,
@@ -60,7 +60,12 @@ const run = (status: string, conclusion: string | null) => ({
   updatedAt: 1,
 });
 
-function linked(buildNumber: string, status: string, conclusion: string | null, platform: 'ios' | 'android' = 'ios'): AppBuild {
+function linked(
+  buildNumber: string,
+  status: string,
+  conclusion: string | null,
+  platform: 'ios' | 'android' = 'ios',
+): AppBuild {
   return build({
     buildNumber,
     platform,
@@ -99,7 +104,12 @@ function plan(partial: Partial<PlanSummary> = {}): PlanSummary {
     updatedAt: 1,
     released: false,
     due: { dueSoon: false, overdue: false, daysLeft: null },
-    readiness: { ready: false, required: { total: 0, done: 0, open: 0 }, notes: {} as never, reasons: [] },
+    readiness: {
+      ready: false,
+      required: { total: 0, done: 0, open: 0 },
+      notes: {} as never,
+      reasons: [],
+    },
     checklist: { total: 4, done: 1 },
     rollout: null,
     ...partial,
@@ -109,16 +119,30 @@ function plan(partial: Partial<PlanSummary> = {}): PlanSummary {
 test('buildText shows version codes on Android and the build on iOS', () => {
   assert.equal(buildText(release({ id: 'a' })), '45');
   assert.equal(buildText(release({ id: 'a', build: null })), '—');
-  assert.equal(buildText(release({ id: 'a', platform: 'android', build: '312', versionCodes: ['311', '312'] })), '311, 312');
+  assert.equal(
+    buildText(
+      release({ id: 'a', platform: 'android', build: '312', versionCodes: ['311', '312'] }),
+    ),
+    '311, 312',
+  );
 });
 
 test('buildsForRelease matches by platform and build number or version code', () => {
-  const builds = [build({ buildNumber: '45' }), build({ buildNumber: '46' }), build({ buildNumber: '312', platform: 'android' })];
+  const builds = [
+    build({ buildNumber: '45' }),
+    build({ buildNumber: '46' }),
+    build({ buildNumber: '312', platform: 'android' }),
+  ];
   assert.deepEqual(
     buildsForRelease(release({ id: 'a' }), builds).map((b) => b.buildNumber),
     ['45'],
   );
-  const android = release({ id: 'b', platform: 'android', build: '312', versionCodes: ['312', '999'] });
+  const android = release({
+    id: 'b',
+    platform: 'android',
+    build: '312',
+    versionCodes: ['312', '999'],
+  });
   assert.deepEqual(
     buildsForRelease(android, builds).map((b) => b.buildNumber),
     ['312'],
@@ -141,8 +165,16 @@ test('ciFor reports the run, a tag, no link, no build, or unknown', () => {
 });
 
 test('ciFor prefers the build with a run when a release has several', () => {
-  const android = release({ id: 'b', platform: 'android', build: '312', versionCodes: ['311', '312'] });
-  const builds = [build({ buildNumber: '311', platform: 'android' }), linked('312', 'completed', 'success', 'android')];
+  const android = release({
+    id: 'b',
+    platform: 'android',
+    build: '312',
+    versionCodes: ['311', '312'],
+  });
+  const builds = [
+    build({ buildNumber: '311', platform: 'android' }),
+    linked('312', 'completed', 'success', 'android'),
+  ];
   assert.equal(ciFor(android, builds).label, 'Succeeded');
 });
 
@@ -165,8 +197,14 @@ test('planCell says blocked, released, overdue, due soon, ready or progress, in 
   assert.equal(planCell(null, false).label, '—');
   const cell = (p: Partial<PlanSummary>) => planCell({ plan: plan(p), viaApp: false });
   assert.equal(cell({ blocked: true, released: true, blockedReason: 'Legal' }).label, 'Blocked');
-  assert.equal(cell({ released: true, due: { dueSoon: false, overdue: true, daysLeft: -1 } }).label, 'Released');
-  assert.equal(cell({ due: { dueSoon: false, overdue: true, daysLeft: -2 }, targetDate: '2026-01-01' }).label, 'Overdue');
+  assert.equal(
+    cell({ released: true, due: { dueSoon: false, overdue: true, daysLeft: -1 } }).label,
+    'Released',
+  );
+  assert.equal(
+    cell({ due: { dueSoon: false, overdue: true, daysLeft: -2 }, targetDate: '2026-01-01' }).label,
+    'Overdue',
+  );
   assert.equal(cell({ due: { dueSoon: true, overdue: false, daysLeft: 1 } }).label, 'Due soon');
   assert.equal(cell({ readiness: { ready: true } as never }).label, 'Ready');
   const progress = cell({});
@@ -180,9 +218,35 @@ const iosReleases = [
   release({ id: 'i2', version: '2.0.0', build: '40' }),
 ];
 const androidReleases = [
-  release({ id: 'a1', appId: 'and-1', platform: 'android', version: '2.1.0', track: 'production', build: '312', versionCodes: ['312'], status: 'live', rolloutFraction: null }),
-  release({ id: 'a2', appId: 'and-1', platform: 'android', version: '2.1.0', track: 'beta', build: '313', versionCodes: ['313'], status: 'in_review' }),
-  release({ id: 'a3', appId: 'and-1', platform: 'android', version: '1.9.0', build: '300', versionCodes: ['300'] }),
+  release({
+    id: 'a1',
+    appId: 'and-1',
+    platform: 'android',
+    version: '2.1.0',
+    track: 'production',
+    build: '312',
+    versionCodes: ['312'],
+    status: 'live',
+    rolloutFraction: null,
+  }),
+  release({
+    id: 'a2',
+    appId: 'and-1',
+    platform: 'android',
+    version: '2.1.0',
+    track: 'beta',
+    build: '313',
+    versionCodes: ['313'],
+    status: 'in_review',
+  }),
+  release({
+    id: 'a3',
+    appId: 'and-1',
+    platform: 'android',
+    version: '1.9.0',
+    build: '300',
+    versionCodes: ['300'],
+  }),
 ];
 
 test('buildReleaseTable groups by version, newest first, iOS before Android', () => {
@@ -217,7 +281,12 @@ test('buildReleaseTable groups by version, newest first, iOS before Android', ()
 });
 
 test('buildReleaseTable without plans says so, not "No plan"', () => {
-  const groups = buildReleaseTable({ releases: { 'ios-1': iosReleases }, plans: null, builds: {}, appIds: ['ios-1'] });
+  const groups = buildReleaseTable({
+    releases: { 'ios-1': iosReleases },
+    plans: null,
+    builds: {},
+    appIds: ['ios-1'],
+  });
   assert.equal(groups[0]?.rows[0]?.plan.label, '—');
 });
 
@@ -262,13 +331,19 @@ test('splitCurrent keeps the newest, what is live now, what is in progress and w
     'ios-1': [{ ...plan(), version: '3.0.0', released: false }],
   };
   const groups = buildReleaseTable({
-    releases: { 'ios-1': releases.filter((r) => r.appId === 'ios-1'), 'and-1': releases.filter((r) => r.appId === 'and-1') },
+    releases: {
+      'ios-1': releases.filter((r) => r.appId === 'ios-1'),
+      'and-1': releases.filter((r) => r.appId === 'and-1'),
+    },
     plans,
     builds: {},
     appIds: ['ios-1', 'and-1'],
   });
   const split = splitCurrent(groups);
-  const ids = (list: typeof groups) => list.flatMap((g) => g.rows.map((r) => `${r.platform}:${r.version}${r.track ? `:${r.track}` : ''}`));
+  const ids = (list: typeof groups) =>
+    list.flatMap((g) =>
+      g.rows.map((r) => `${r.platform}:${r.version}${r.track ? `:${r.track}` : ''}`),
+    );
   assert.deepEqual(ids(split.current).sort(), [
     'android:9.1:internal',
     'android:9.1:production',
@@ -285,7 +360,9 @@ test('splitCurrent keeps the newest, what is live now, what is in progress and w
 test('splitCurrent with nothing in the table, and a table of only live history', () => {
   assert.deepEqual(splitCurrent([]), { current: [], older: [], currentCount: 0, olderCount: 0 });
   const groups = buildReleaseTable({
-    releases: { 'ios-1': [release({ id: 'a', version: '2.0.0' }), release({ id: 'b', version: '1.0.0' })] },
+    releases: {
+      'ios-1': [release({ id: 'a', version: '2.0.0' }), release({ id: 'b', version: '1.0.0' })],
+    },
     plans: null,
     builds: {},
     appIds: ['ios-1'],

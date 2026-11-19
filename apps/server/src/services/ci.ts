@@ -1,8 +1,7 @@
-import { type ActorType, DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS, type Platform } from '@mrm/core';
 import type {
-  CiJob,
   CiArtifactDownload,
   CiArtifactList,
+  CiJob,
   CiJobList,
   CiRun,
   CiRunPage,
@@ -11,34 +10,29 @@ import type {
   DispatchResult,
   ListWorkflowRunsOptions,
 } from '@mrm/connectors';
-import { type JobHandler, enqueue } from '../jobs.ts';
-import { type ManagedApp, getApp, listAppReleases } from './apps.ts';
+import {
+  type ActorType,
+  DEFAULT_RELEASE_PATTERNS,
+  DEFAULT_TAG_PATTERNS,
+  type Platform,
+} from '@mrm/core';
+import { enqueue, type JobHandler } from '../jobs.ts';
+import { getApp, listAppReleases, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import {
   type BuildConventions,
   type EffectiveConventions,
-  type StoredConventions,
   effectiveConventions,
   listConventions,
+  type StoredConventions,
   saveConventions,
 } from './build-conventions.ts';
-import {
-  type ReadTagData,
-  type ScanApp,
-  type StoredScan,
-  type TagClient,
-  clearScanCaches,
-  getScan,
-  isTagClient,
-  readTagData,
-  scanBuildTags,
-} from './build-scan.ts';
 import {
   type BuildMatcher,
   type BuildView,
   buildKey,
-  buildViews,
   buildsFromReleases,
+  buildViews,
   defaultMatchers,
   listBuildLinks,
   loadRunRefs,
@@ -48,32 +42,43 @@ import {
   removeBuildLink,
 } from './build-links.ts';
 import {
-  REFRESH_PAGE_SIZE,
-  type StoreResult,
-  type WorkflowRunView,
+  clearScanCaches,
+  getScan,
+  isTagClient,
+  type ReadTagData,
+  readTagData,
+  type ScanApp,
+  type StoredScan,
+  scanBuildTags,
+  type TagClient,
+} from './build-scan.ts';
+import {
   countActiveRuns,
-  getRunView,
   firstLine,
+  getRunView,
   pruneRuns,
+  REFRESH_PAGE_SIZE,
   recordDispatch,
+  type StoreResult,
   storeRuns,
+  type WorkflowRunView,
 } from './ci-runs.ts';
-import { type TestLimiter, createTestLimiter } from './credential-tests.ts';
+import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
 import {
   type Failure,
-  type Outcome,
-  type RepoClient,
-  type RepoContext,
-  type Repository,
   failure,
   getRepository,
   githubFailure,
   isTimeoutError,
+  type Outcome,
   openConnector,
+  type RepoClient,
+  type RepoContext,
+  type Repository,
   withTimeout,
 } from './repositories.ts';
 import { timedCache } from './timed-cache.ts';
-import { type WorkflowDispatchInfo, parseWorkflowDispatch } from './workflow-inputs.ts';
+import { parseWorkflowDispatch, type WorkflowDispatchInfo } from './workflow-inputs.ts';
 
 type Actor = { type: ActorType; id: string };
 
@@ -109,13 +114,18 @@ export type CiContext = RepoContext & {
 
 export function createCiContext(
   base: RepoContext,
-  options: Partial<Pick<CiContext, 'limiter' | 'rematchLimiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>> = {},
+  options: Partial<
+    Pick<CiContext, 'limiter' | 'rematchLimiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>
+  > = {},
 ): CiContext {
   return {
     ...base,
     limiter: options.limiter ?? createTestLimiter({ limit: CI_LIMIT_PER_MINUTE, now: base.now }),
-    rematchLimiter: options.rematchLimiter ?? createTestLimiter({ limit: REMATCH_LIMIT_PER_MINUTE, now: base.now }),
-    activeLimiter: options.activeLimiter ?? createTestLimiter({ limit: ACTIVE_LIMIT_PER_MINUTE, now: base.now }),
+    rematchLimiter:
+      options.rematchLimiter ??
+      createTestLimiter({ limit: REMATCH_LIMIT_PER_MINUTE, now: base.now }),
+    activeLimiter:
+      options.activeLimiter ?? createTestLimiter({ limit: ACTIVE_LIMIT_PER_MINUTE, now: base.now }),
     matchers: options.matchers ?? defaultMatchers(),
     pollMaxMs: options.pollMaxMs ?? DEFAULT_POLL_MAX_MS,
   };
@@ -139,11 +149,22 @@ export type CiClient = RepoClient &
       options?: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined },
     ): Promise<CiRunPage>;
     /** The jobs and steps of a run (no logs). A client without it cannot show job progress. */
-    listRunJobs?(runId: string, options?: { signal?: AbortSignal; etag?: string | undefined }): Promise<CiJobList>;
+    listRunJobs?(
+      runId: string,
+      options?: { signal?: AbortSignal; etag?: string | undefined },
+    ): Promise<CiJobList>;
     /** The workflow artifacts of the repository (names, sizes, times; no address). A client without it cannot list builds. */
-    listArtifacts?(options?: { runId?: string; maxPages?: number; signal?: AbortSignal; etag?: string | undefined }): Promise<CiArtifactList>;
+    listArtifacts?(options?: {
+      runId?: string;
+      maxPages?: number;
+      signal?: AbortSignal;
+      etag?: string | undefined;
+    }): Promise<CiArtifactList>;
     /** Opens the zip of an artifact (the redirect is followed inside, without the credential). */
-    openArtifactDownload?(artifactId: string, options?: { signal?: AbortSignal; allowHttp?: boolean }): Promise<CiArtifactDownload>;
+    openArtifactDownload?(
+      artifactId: string,
+      options?: { signal?: AbortSignal; allowHttp?: boolean },
+    ): Promise<CiArtifactDownload>;
     compareCommits(
       base: string,
       head: string,
@@ -196,7 +217,9 @@ export async function guarded<T>(
 ): Promise<{ ok: true; value: T } | Failure> {
   const controller = new AbortController();
   try {
-    const value = await withTimeout(work(controller.signal), ctx.timeoutMs, () => controller.abort());
+    const value = await withTimeout(work(controller.signal), ctx.timeoutMs, () =>
+      controller.abort(),
+    );
     return { ok: true, value };
   } catch (error) {
     return githubFailure(error, secret);
@@ -222,7 +245,10 @@ const previewCache = timedCache<RepositoryTags>(WORKFLOW_CACHE_TTL_MS, 50);
 /** When the runs of a repository were last asked for (success or not), and last read successfully. */
 const lastAttempt = new Map<string, number>();
 const lastSuccess = new Map<string, number>();
-const refreshing = new Map<string, Promise<Outcome<{ refreshed: boolean; refreshedAt: number | null }>>>();
+const refreshing = new Map<
+  string,
+  Promise<Outcome<{ refreshed: boolean; refreshedAt: number | null }>>
+>();
 /** The ETag of the last read of a repository's runs (the first page), so the next read can be conditional. */
 const runEtags = new Map<string, string>();
 /** The run ids of that page, for a 304 (which carries no runs): an active run not among them is asked for one by one. */
@@ -250,16 +276,19 @@ export function clearCiCaches(): void {
 }
 
 /** When the runs of a repository were last asked for (a try counts, as does a failure), or undefined. */
-export const lastRefreshAttempt = (repositoryId: string): number | undefined => lastAttempt.get(repositoryId);
+export const lastRefreshAttempt = (repositoryId: string): number | undefined =>
+  lastAttempt.get(repositoryId);
 /** When the runs of a repository were last read from GitHub successfully, or undefined. */
-export const lastRefreshSuccess = (repositoryId: string): number | undefined => lastSuccess.get(repositoryId);
+export const lastRefreshSuccess = (repositoryId: string): number | undefined =>
+  lastSuccess.get(repositoryId);
 
 /** The GitHub login that started a run, when a read since the last restart saw it. */
 export const runActor = (repositoryId: string, runId: string, now: number): string | null =>
   actorCache.get(`${repositoryId}\u0000${runId}`, now) ?? null;
 
 function rememberActors(repositoryId: string, runs: readonly CiRun[], now: number): void {
-  for (const run of runs) if (run.actor) actorCache.set(`${repositoryId}\u0000${run.id}`, run.actor, now);
+  for (const run of runs)
+    if (run.actor) actorCache.set(`${repositoryId}\u0000${run.id}`, run.actor, now);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -281,7 +310,12 @@ async function loadWorkflows(
   const read = await guarded(ctx, opened.secret, (signal) => opened.client.listWorkflows(signal));
   if (!read.ok) return read;
   workflowCache.set(repository.id, read.value, ctx.now());
-  return { ok: true, workflows: read.value, cached: false, opened: { client: opened.client, secret: opened.secret } };
+  return {
+    ok: true,
+    workflows: read.value,
+    cached: false,
+    opened: { client: opened.client, secret: opened.secret },
+  };
 }
 
 export async function listWorkflows(
@@ -313,7 +347,11 @@ export async function getWorkflowInputs(
   if (!listed.ok) return listed;
   const workflow = listed.workflows.find((w) => sameWorkflow(w, input.workflow));
   if (!workflow) {
-    return failure(404, 'workflow_not_found', `${repository.owner}/${repository.repo} has no workflow ${input.workflow}.`);
+    return failure(
+      404,
+      'workflow_not_found',
+      `${repository.owner}/${repository.repo} has no workflow ${input.workflow}.`,
+    );
   }
   const opened: Outcome<Opened> = listed.opened
     ? { ok: true, ...listed.opened }
@@ -402,7 +440,10 @@ export async function dispatchRun(
 
   let result: DispatchResult;
   try {
-    result = await withTimeout(opened.client.dispatchWorkflow(input.workflow, ref, inputs), ctx.timeoutMs);
+    result = await withTimeout(
+      opened.client.dispatchWorkflow(input.workflow, ref, inputs),
+      ctx.timeoutMs,
+    );
   } catch (error) {
     const failed = isTimeoutError(error)
       ? failure(
@@ -464,9 +505,11 @@ export async function refreshRuns(
   const running = refreshing.get(repository.id);
   if (running) return running;
   lastAttempt.set(repository.id, now);
-  const work = readRuns(ctx, input.workspaceId, repository, actor, input.tags ?? 'auto').finally(() => {
-    refreshing.delete(repository.id);
-  });
+  const work = readRuns(ctx, input.workspaceId, repository, actor, input.tags ?? 'auto').finally(
+    () => {
+      refreshing.delete(repository.id);
+    },
+  );
   refreshing.set(repository.id, work);
   return work;
 }
@@ -487,7 +530,11 @@ async function readRuns(
     let notModified = false;
     let etag: string | undefined;
     if (client.listCiRunsPage) {
-      const page = await client.listCiRunsPage({ limit: REFRESH_PAGE_SIZE, signal, etag: runEtags.get(repository.id) });
+      const page = await client.listCiRunsPage({
+        limit: REFRESH_PAGE_SIZE,
+        signal,
+        etag: runEtags.get(repository.id),
+      });
       runs = page.runs;
       notModified = page.notModified;
       etag = page.etag;
@@ -495,7 +542,9 @@ async function readRuns(
       runs = await client.listCiRuns({ limit: REFRESH_PAGE_SIZE, signal });
     }
     // Active runs that fell off the page (a busy repository) are asked for one by one.
-    const seen = notModified ? (runPageIds.get(repository.id) ?? new Set<string>()) : new Set(runs.map((r) => r.id));
+    const seen = notModified
+      ? (runPageIds.get(repository.id) ?? new Set<string>())
+      : new Set(runs.map((r) => r.id));
     if (!notModified) runPageIds.set(repository.id, seen);
     const stale = await ctx.db.query(
       `SELECT run_id FROM workflow_runs
@@ -516,7 +565,10 @@ async function readRuns(
   else runEtags.delete(repository.id);
 
   const now = ctx.now();
-  const fetched = [...read.value.runs, ...read.value.settled.flatMap((s) => (s.run ? [s.run] : []))];
+  const fetched = [
+    ...read.value.runs,
+    ...read.value.settled.flatMap((s) => (s.run ? [s.run] : [])),
+  ];
   rememberActors(repository.id, fetched, now);
   await ctx.db.transaction(async (tx) => {
     await storeRuns(tx, { workspaceId, repositoryId: repository.id, runs: fetched, now });
@@ -629,7 +681,11 @@ export async function readRunJobs(
   const ttl = input.active ? JOBS_TTL_ACTIVE_MS : JOBS_TTL_DONE_MS;
   const entry = jobsStore.get(key, ctx.now());
   if (entry && ctx.now() - entry.readAt < ttl) {
-    return { ok: true, jobs: { jobs: entry.jobs, truncated: entry.truncated, readAt: entry.readAt }, cached: true };
+    return {
+      ok: true,
+      jobs: { jobs: entry.jobs, truncated: entry.truncated, readAt: entry.readAt },
+      cached: true,
+    };
   }
   const running = jobsInFlight.get(key);
   if (running) return running;
@@ -637,9 +693,13 @@ export async function readRunJobs(
     const opened = await openCi(ctx, input.workspaceId, input.repository, actor, 'ci.jobs');
     if (!opened.ok) return opened;
     const { client } = opened;
-    if (!client.listRunJobs) return failure(422, 'ci_unsupported', 'This repository connection cannot read CI jobs.');
+    if (!client.listRunJobs)
+      return failure(422, 'ci_unsupported', 'This repository connection cannot read CI jobs.');
     const read = await guarded(ctx, opened.secret, (signal) =>
-      (client.listRunJobs as NonNullable<CiClient['listRunJobs']>)(input.runId, { signal, etag: entry?.etag }),
+      (client.listRunJobs as NonNullable<CiClient['listRunJobs']>)(input.runId, {
+        signal,
+        etag: entry?.etag,
+      }),
     );
     if (!read.ok) return read;
     const now = ctx.now();
@@ -648,9 +708,18 @@ export async function readRunJobs(
     const value: JobsEntry =
       list.notModified && entry
         ? { ...entry, readAt: now }
-        : { jobs: list.jobs, truncated: list.truncated, readAt: now, ...(list.etag ? { etag: list.etag } : {}) };
+        : {
+            jobs: list.jobs,
+            truncated: list.truncated,
+            readAt: now,
+            ...(list.etag ? { etag: list.etag } : {}),
+          };
     jobsStore.set(key, value, now);
-    return { ok: true, jobs: { jobs: value.jobs, truncated: value.truncated, readAt: now }, cached: false };
+    return {
+      ok: true,
+      jobs: { jobs: value.jobs, truncated: value.truncated, readAt: now },
+      cached: false,
+    };
   })().finally(() => {
     jobsInFlight.delete(key);
   });
@@ -672,7 +741,8 @@ export type CiPollPayload = {
 };
 
 /** 15 s, 22 s, 34 s, 51 s, then a minute. */
-export const pollDelayMs = (attempt: number) => Math.min(Math.round(15_000 * 1.5 ** attempt), 60_000);
+export const pollDelayMs = (attempt: number) =>
+  Math.min(Math.round(15_000 * 1.5 ** attempt), 60_000);
 
 /**
  * Queues a poll of a repository's runs, unless one is already waiting for it. A poll that is
@@ -816,12 +886,25 @@ function diagnosticsOf(input: {
       usingDefaults: c.usingDefaultTags && c.usingDefaultReleases,
       source: c.source,
     },
-    tags: scan ? { seen: scan.summary.tags.seen, truncated: scan.summary.tags.truncated, sample: scan.summary.sampleTags, targeted: scan.summary.tags.targeted } : null,
+    tags: scan
+      ? {
+          seen: scan.summary.tags.seen,
+          truncated: scan.summary.tags.truncated,
+          sample: scan.summary.sampleTags,
+          targeted: scan.summary.tags.targeted,
+        }
+      : null,
     releases: scan ? scan.summary.releases : null,
     newestRelease: scan?.summary.newestRelease ?? null,
     fitting: entry?.fitting ?? 0,
     newestFit: entry?.newestFit ?? null,
-    runs: { stored: input.runs.length, newestAt: input.runs.reduce<number | null>((m, r) => (m === null || r.startedAt > m ? r.startedAt : m), null) },
+    runs: {
+      stored: input.runs.length,
+      newestAt: input.runs.reduce<number | null>(
+        (m, r) => (m === null || r.startedAt > m ? r.startedAt : m),
+        null,
+      ),
+    },
     canReadTags: true,
   };
 }
@@ -856,7 +939,9 @@ async function viewsFor(
   });
   return {
     app,
-    repository: repository ? { id: repository.id, owner: repository.owner, repo: repository.repo } : null,
+    repository: repository
+      ? { id: repository.id, owner: repository.owner, repo: repository.repo }
+      : null,
     matchers: ctx.matchers.map((m) => ({ id: m.id, description: m.description })),
     builds,
     diagnostics: repository ? diagnosticsOf({ conventions: effective, scan, entry, runs }) : null,
@@ -872,7 +957,12 @@ export async function listAppBuilds(
   return app ? viewsFor(ctx, input.workspaceId, app) : undefined;
 }
 
-export type BuildRefInput = { workspaceId: string; appId: string; platform: Platform; buildNumber: string };
+export type BuildRefInput = {
+  workspaceId: string;
+  appId: string;
+  platform: Platform;
+  buildNumber: string;
+};
 
 /**
  * Links a build to a run by hand. It beats any matcher, and stays until `unlinkBuild`. The run
@@ -886,19 +976,33 @@ export async function linkBuildToRun(
   const { workspaceId } = input;
   const app = await getApp(ctx.db, workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const repository = app.repositoryId ? await getRepository(ctx.db, workspaceId, app.repositoryId) : undefined;
+  const repository = app.repositoryId
+    ? await getRepository(ctx.db, workspaceId, app.repositoryId)
+    : undefined;
   if (!repository) {
-    return failure(422, 'no_repository', 'Link a repository to this app before linking its builds to CI runs.');
+    return failure(
+      422,
+      'no_repository',
+      'Link a repository to this app before linking its builds to CI runs.',
+    );
   }
   const current = await viewsFor(ctx, workspaceId, app);
   const exists = current.builds.some(
     (b) => b.platform === input.platform && b.buildNumber === input.buildNumber,
   );
   if (!exists) {
-    return failure(422, 'build_not_found', `This app has no ${input.platform} build ${input.buildNumber}. Sync the app first.`);
+    return failure(
+      422,
+      'build_not_found',
+      `This app has no ${input.platform} build ${input.buildNumber}. Sync the app first.`,
+    );
   }
   if (input.platform !== app.platform) {
-    return failure(422, 'build_not_found', `This app is an ${app.platform} app, so it has no ${input.platform} builds.`);
+    return failure(
+      422,
+      'build_not_found',
+      `This app is an ${app.platform} app, so it has no ${input.platform} builds.`,
+    );
   }
 
   let run = await getRunView(ctx.db, workspaceId, repository.id, input.runId);
@@ -906,13 +1010,21 @@ export async function linkBuildToRun(
     const fetched = await fetchRun(ctx, { workspaceId, repository, runId: input.runId }, actor);
     if (!fetched.ok) {
       return fetched.status === 404
-        ? failure(422, 'run_not_found', `${repository.owner}/${repository.repo} has no workflow run ${input.runId}.`)
+        ? failure(
+            422,
+            'run_not_found',
+            `${repository.owner}/${repository.repo} has no workflow run ${input.runId}.`,
+          )
         : fetched;
     }
     run = fetched.run;
   }
   if (!run.headSha) {
-    return failure(422, 'run_without_commit', 'That run has no commit, so it cannot explain a build.');
+    return failure(
+      422,
+      'run_without_commit',
+      'That run has no commit, so it cannot explain a build.',
+    );
   }
   const linkedRun = run;
   const now = ctx.now();
@@ -944,7 +1056,9 @@ export async function linkBuildToRun(
     });
   });
   const after = await viewsFor(ctx, workspaceId, app);
-  const build = after.builds.find((b) => b.platform === input.platform && b.buildNumber === input.buildNumber);
+  const build = after.builds.find(
+    (b) => b.platform === input.platform && b.buildNumber === input.buildNumber,
+  );
   return { ok: true, build: build as BuildView };
 }
 
@@ -976,7 +1090,10 @@ export async function unlinkBuild(
   const after = await viewsFor(ctx, workspaceId, app);
   return {
     ok: true,
-    build: after.builds.find((b) => b.platform === input.platform && b.buildNumber === input.buildNumber) ?? null,
+    build:
+      after.builds.find(
+        (b) => b.platform === input.platform && b.buildNumber === input.buildNumber,
+      ) ?? null,
   };
 }
 
@@ -1024,23 +1141,44 @@ export async function buildChanges(
   const { workspaceId } = input;
   const app = await getApp(ctx.db, workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const repository = app.repositoryId ? await getRepository(ctx.db, workspaceId, app.repositoryId) : undefined;
+  const repository = app.repositoryId
+    ? await getRepository(ctx.db, workspaceId, app.repositoryId)
+    : undefined;
   if (!repository) {
     return failure(422, 'no_repository', 'Link a repository to this app to see what changed.');
   }
   const { builds } = await viewsFor(ctx, workspaceId, app);
-  const same = (b: BuildView, number: string) => b.platform === input.platform && b.buildNumber === number;
+  const same = (b: BuildView, number: string) =>
+    b.platform === input.platform && b.buildNumber === number;
   const head = builds.find((b) => same(b, input.buildNumber));
-  if (!head) return failure(404, 'build_not_found', `This app has no ${input.platform} build ${input.buildNumber}.`);
+  if (!head)
+    return failure(
+      404,
+      'build_not_found',
+      `This app has no ${input.platform} build ${input.buildNumber}.`,
+    );
   if (!head.link?.commit) {
-    return failure(422, 'build_not_linked', `Build ${head.buildNumber} is not linked to a CI run, so its commit is not known.`);
+    return failure(
+      422,
+      'build_not_linked',
+      `Build ${head.buildNumber} is not linked to a CI run, so its commit is not known.`,
+    );
   }
   let base: BuildView | undefined;
   if (input.base !== undefined) {
     base = builds.find((b) => same(b, input.base as string));
-    if (!base) return failure(404, 'build_not_found', `This app has no ${input.platform} build ${input.base}.`);
+    if (!base)
+      return failure(
+        404,
+        'build_not_found',
+        `This app has no ${input.platform} build ${input.base}.`,
+      );
     if (!base.link?.commit) {
-      return failure(422, 'build_not_linked', `Build ${base.buildNumber} is not linked to a CI run, so its commit is not known.`);
+      return failure(
+        422,
+        'build_not_linked',
+        `Build ${base.buildNumber} is not linked to a CI run, so its commit is not known.`,
+      );
     }
   } else {
     base = previousLinkedBuild(builds, head);
@@ -1048,11 +1186,24 @@ export async function buildChanges(
       return failure(422, 'no_base_build', 'There is no earlier linked build to compare with.');
     }
   }
-  const baseCommit = (base.link as NonNullable<BuildView['link']>).commit as { sha: string; shortSha: string };
+  const baseCommit = (base.link as NonNullable<BuildView['link']>).commit as {
+    sha: string;
+    shortSha: string;
+  };
   const headCommit = head.link.commit;
   const ends = {
-    base: { buildNumber: base.buildNumber, version: base.version, sha: baseCommit.sha, shortSha: baseCommit.shortSha },
-    head: { buildNumber: head.buildNumber, version: head.version, sha: headCommit.sha, shortSha: headCommit.shortSha },
+    base: {
+      buildNumber: base.buildNumber,
+      version: base.version,
+      sha: baseCommit.sha,
+      shortSha: baseCommit.shortSha,
+    },
+    head: {
+      buildNumber: head.buildNumber,
+      version: head.version,
+      sha: headCommit.sha,
+      shortSha: headCommit.shortSha,
+    },
   };
 
   if (baseCommit.sha === headCommit.sha) {
@@ -1111,7 +1262,6 @@ export async function buildChanges(
   };
 }
 
-
 // ---------------------------------------------------------------------------------------------
 // Build number conventions
 
@@ -1162,7 +1312,10 @@ export async function getConventions(
       stored: rows.find((r) => r.appId === appId) ?? null,
       repository: rows.find((r) => r.appId === null) ?? null,
       effective: effectiveConventions(rows, appId),
-      defaults: { tagPatterns: [...DEFAULT_TAG_PATTERNS], releasePatterns: [...DEFAULT_RELEASE_PATTERNS] },
+      defaults: {
+        tagPatterns: [...DEFAULT_TAG_PATTERNS],
+        releasePatterns: [...DEFAULT_RELEASE_PATTERNS],
+      },
     },
   };
 }
@@ -1170,7 +1323,12 @@ export async function getConventions(
 /** Stores the conventions (audited as `build.conventions`). The body was validated by the route. */
 export async function setConventions(
   ctx: Pick<CiContext, 'db' | 'now'>,
-  input: { workspaceId: string; repositoryId: string; appId?: string | undefined; conventions: BuildConventions },
+  input: {
+    workspaceId: string;
+    repositoryId: string;
+    appId?: string | undefined;
+    conventions: BuildConventions;
+  },
   actor: Actor,
 ): Promise<Outcome<{ conventions: ConventionsView }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
@@ -1185,7 +1343,11 @@ export async function setConventions(
     actor,
     now: ctx.now(),
   });
-  return getConventions(ctx, { workspaceId: input.workspaceId, repositoryId: repository.id, appId: scope.app?.id });
+  return getConventions(ctx, {
+    workspaceId: input.workspaceId,
+    repositoryId: repository.id,
+    appId: scope.app?.id,
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1220,14 +1382,21 @@ export async function listRepositoryTags(
     return failure(422, 'ci_unsupported', 'This repository connection cannot read tags.');
   }
   const client = opened.client;
-  const read = await guarded(ctx, opened.secret, (signal) => readTagData(client, { signal, now: ctx.now() }));
+  const read = await guarded(ctx, opened.secret, (signal) =>
+    readTagData(client, { signal, now: ctx.now() }),
+  );
   if (!read.ok) return read;
   const data: ReadTagData = read.value;
   const value: RepositoryTags = {
     tags: data.tags.slice(0, PREVIEW_TAGS).map((t) => ({ name: t.name, sha: t.sha })),
     releases: data.releases
       .slice(0, PREVIEW_RELEASES)
-      .map((r) => ({ name: r.name, tagName: r.tagName, draft: r.draft, publishedAt: r.publishedAt ?? r.createdAt })),
+      .map((r) => ({
+        name: r.name,
+        tagName: r.tagName,
+        draft: r.draft,
+        publishedAt: r.publishedAt ?? r.createdAt,
+      })),
     tagsTruncated: data.tagsTruncated || data.tags.length > PREVIEW_TAGS,
     releasesTruncated: data.releasesTruncated || data.releases.length > PREVIEW_RELEASES,
     releasesError: data.releasesError,
@@ -1262,11 +1431,21 @@ export async function rematchBuilds(
   const { workspaceId } = input;
   const app = await getApp(ctx.db, workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  const repository = app.repositoryId ? await getRepository(ctx.db, workspaceId, app.repositoryId) : undefined;
+  const repository = app.repositoryId
+    ? await getRepository(ctx.db, workspaceId, app.repositoryId)
+    : undefined;
   if (!repository) {
-    return failure(422, 'no_repository', 'Link a repository to this app before matching its builds to CI runs.');
+    return failure(
+      422,
+      'no_repository',
+      'Link a repository to this app before matching its builds to CI runs.',
+    );
   }
-  const refreshed = await refreshRuns(ctx, { workspaceId, repository, force: true, tags: 'skip' }, actor);
+  const refreshed = await refreshRuns(
+    ctx,
+    { workspaceId, repository, force: true, tags: 'skip' },
+    actor,
+  );
   if (!refreshed.ok) return refreshed;
   const opened = await openCi(ctx, workspaceId, repository, actor, 'ci.rematch');
   if (!opened.ok) return opened;
@@ -1307,6 +1486,13 @@ function unsearched(scan: StoredScan | undefined): { code: string; message: stri
       message: `The last search of tags and releases failed${scan.error ? `: ${scan.error}` : ''}. Use "Re-run matching".`,
     };
   }
-  if (scan) return { code: 'not_searched', message: 'Tags were searched before this build was synced. Use "Re-run matching".' };
-  return { code: 'not_searched', message: 'Tags and releases have not been searched yet. Use "Re-run matching".' };
+  if (scan)
+    return {
+      code: 'not_searched',
+      message: 'Tags were searched before this build was synced. Use "Re-run matching".',
+    };
+  return {
+    code: 'not_searched',
+    message: 'Tags and releases have not been searched yet. Use "Re-run matching".',
+  };
 }

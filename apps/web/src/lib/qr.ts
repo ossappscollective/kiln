@@ -17,7 +17,8 @@ const rawModules = (v: number): number => {
   }
   return r;
 };
-const dataCodewords = (v: number): number => Math.floor(rawModules(v) / 8) - (ECC_PER_BLOCK[v] as number) * (BLOCKS[v] as number);
+const dataCodewords = (v: number): number =>
+  Math.floor(rawModules(v) / 8) - (ECC_PER_BLOCK[v] as number) * (BLOCKS[v] as number);
 
 /** The most bytes a code of this kind can hold. */
 export const QR_MAX_BYTES = dataCodewords(QR_MAX_VERSION) - 3;
@@ -81,7 +82,8 @@ export function codewordsOf(bytes: readonly number[]): { version: number; words:
   push(0, Math.min(4, capacity - bits.length));
   while (bits.length % 8 !== 0) bits.push(0);
   const data: number[] = [];
-  for (let i = 0; i < bits.length; i += 8) data.push(bits.slice(i, i + 8).reduce((a, b) => (a << 1) | b, 0));
+  for (let i = 0; i < bits.length; i += 8)
+    data.push(bits.slice(i, i + 8).reduce((a, b) => (a << 1) | b, 0));
   for (let pad = 0xec; data.length < dataCodewords(version); pad ^= 0xec ^ 0x11) data.push(pad);
 
   const numBlocks = BLOCKS[version] as number;
@@ -137,8 +139,12 @@ export function qrMatrix(text: string): QrMatrix | null {
   if (!coded) return null;
   const { version, words } = coded;
   const size = version * 4 + 17;
-  const modules: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
-  const fixed: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
+  const modules: boolean[][] = Array.from({ length: size }, () =>
+    new Array<boolean>(size).fill(false),
+  );
+  const fixed: boolean[][] = Array.from({ length: size }, () =>
+    new Array<boolean>(size).fill(false),
+  );
   const set = (x: number, y: number, dark: boolean) => {
     (modules[y] as boolean[])[x] = dark;
     (fixed[y] as boolean[])[x] = true;
@@ -164,8 +170,15 @@ export function qrMatrix(text: string): QrMatrix | null {
   const align = alignmentPositions(version);
   align.forEach((ax, i) => {
     align.forEach((ay, j) => {
-      if ((i === 0 && j === 0) || (i === 0 && j === align.length - 1) || (i === align.length - 1 && j === 0)) return;
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      if (
+        (i === 0 && j === 0) ||
+        (i === 0 && j === align.length - 1) ||
+        (i === align.length - 1 && j === 0)
+      )
+        return;
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++)
+          set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
     });
   });
 
@@ -215,7 +228,8 @@ export function qrMatrix(text: string): QrMatrix | null {
     const rule = MASKS[mask] as (x: number, y: number) => boolean;
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (!(fixed[y] as boolean[])[x] && rule(x, y)) (modules[y] as boolean[])[x] = !(modules[y] as boolean[])[x];
+        if (!(fixed[y] as boolean[])[x] && rule(x, y))
+          (modules[y] as boolean[])[x] = !(modules[y] as boolean[])[x];
       }
     }
   };
@@ -261,7 +275,14 @@ export function penalty(m: QrMatrix): number {
     for (let x = 0; x < size; x++) {
       const c = (m[y] as boolean[])[x];
       if (c) dark++;
-      if (x + 1 < size && y + 1 < size && c === (m[y] as boolean[])[x + 1] && c === (m[y + 1] as boolean[])[x] && c === (m[y + 1] as boolean[])[x + 1]) score += 3;
+      if (
+        x + 1 < size &&
+        y + 1 < size &&
+        c === (m[y] as boolean[])[x + 1] &&
+        c === (m[y + 1] as boolean[])[x] &&
+        c === (m[y + 1] as boolean[])[x + 1]
+      )
+        score += 3;
     }
   }
   const total = size * size;

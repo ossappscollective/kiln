@@ -1,31 +1,39 @@
 import {
+  buildCoach,
   type CoachAction,
   type CoachKeyword,
   type CompetitorText,
   type CoverageGap,
+  coverageGaps,
+  defaultLocaleFor,
   type FitFields,
   type FitKeyword,
   type Idea,
   type IdeaSource,
-  type ListingFit,
-  type MarketKeyword,
-  type SuggestedCompetitor,
-  type TermAcrossMarkets,
-  buildCoach,
-  coverageGaps,
-  defaultLocaleFor,
-  languageOf,
-  listingFit,
-  mineIdeas,
-  normalizeLocale,
-  suggestCompetitors,
-  termsAcrossMarkets,
   isApplePlatform,
   isGooglePlatform,
+  type ListingFit,
+  languageOf,
+  listingFit,
+  type MarketKeyword,
+  mineIdeas,
+  normalizeLocale,
+  type SuggestedCompetitor,
+  suggestCompetitors,
+  type TermAcrossMarkets,
+  termsAcrossMarkets,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { type ManagedApp } from './apps.ts';
-import { type AsoAppState, type AsoCompetitor, type AsoKeyword, getAsoState, listCompetitors, listKeywords, platformStore } from './aso.ts';
+import type { ManagedApp } from './apps.ts';
+import {
+  type AsoAppState,
+  type AsoCompetitor,
+  type AsoKeyword,
+  getAsoState,
+  listCompetitors,
+  listKeywords,
+  platformStore,
+} from './aso.ts';
 import { getLiveListing } from './listing-live.ts';
 import { rankMoveThresholdFor } from './workspace-settings.ts';
 
@@ -43,12 +51,20 @@ import { rankMoveThresholdFor } from './workspace-settings.ts';
  * - `marketsFor`: the same term in several countries as one row.
  */
 
-type ListingChannel = { channel: 'live' | 'editable'; locale: string; fields: FitFields; observedAt: number | null };
+type ListingChannel = {
+  channel: 'live' | 'editable';
+  locale: string;
+  fields: FitFields;
+  observedAt: number | null;
+};
 
 const tag = (locale: string): string => locale.replace(/_/g, '-').toLowerCase();
 
 /** The stored text of one locale, under the names the fit logic uses. */
-function fitFieldsOf(platform: ManagedApp['platform'], text: Record<string, string | undefined>): FitFields {
+function fitFieldsOf(
+  platform: ManagedApp['platform'],
+  text: Record<string, string | undefined>,
+): FitFields {
   const fields: FitFields = {};
   if (isApplePlatform(platform)) {
     if (text.name !== undefined) fields.title = text.name;
@@ -68,10 +84,27 @@ export async function listingLocalesFor(
   sql: Sql,
   workspaceId: string,
   app: ManagedApp,
-): Promise<{ locales: { locale: string; fields: FitFields }[]; readAt: number | null; error: string | null }> {
-  const listing = await getLiveListing(sql, workspaceId, { id: app.id, platform: app.platform, identifier: app.identifier });
-  const channel = listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ?? listing.channels.find((c) => Object.keys(c.locales).length > 0);
-  const locales = channel ? Object.keys(channel.locales).sort().map((locale) => ({ locale, fields: fitFieldsOf(app.platform, channel.locales[locale] ?? {}) })) : [];
+): Promise<{
+  locales: { locale: string; fields: FitFields }[];
+  readAt: number | null;
+  error: string | null;
+}> {
+  const listing = await getLiveListing(sql, workspaceId, {
+    id: app.id,
+    platform: app.platform,
+    identifier: app.identifier,
+  });
+  const channel =
+    listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ??
+    listing.channels.find((c) => Object.keys(c.locales).length > 0);
+  const locales = channel
+    ? Object.keys(channel.locales)
+        .sort()
+        .map((locale) => ({
+          locale,
+          fields: fitFieldsOf(app.platform, channel.locales[locale] ?? {}),
+        }))
+    : [];
   return { locales, readAt: listing.readAt, error: listing.error };
 }
 
@@ -82,8 +115,14 @@ export async function ownFields(
   app: ManagedApp,
   locale: string,
 ): Promise<{ found: ListingChannel | null; readAt: number | null; error: string | null }> {
-  const listing = await getLiveListing(sql, workspaceId, { id: app.id, platform: app.platform, identifier: app.identifier });
-  const channel = listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ?? listing.channels.find((c) => Object.keys(c.locales).length > 0);
+  const listing = await getLiveListing(sql, workspaceId, {
+    id: app.id,
+    platform: app.platform,
+    identifier: app.identifier,
+  });
+  const channel =
+    listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ??
+    listing.channels.find((c) => Object.keys(c.locales).length > 0);
   if (!channel) return { found: null, readAt: listing.readAt, error: listing.error };
   const names = Object.keys(channel.locales);
   const wanted = tag(locale);
@@ -92,7 +131,11 @@ export async function ownFields(
   const chosen = exact ?? sameLanguage;
   if (!chosen) return { found: null, readAt: listing.readAt, error: listing.error };
   const fields = fitFieldsOf(app.platform, channel.locales[chosen] ?? {});
-  return { found: { channel: channel.channel, locale: chosen, fields, observedAt: channel.observedAt }, readAt: listing.readAt, error: listing.error };
+  return {
+    found: { channel: channel.channel, locale: chosen, fields, observedAt: channel.observedAt },
+    readAt: listing.readAt,
+    error: listing.error,
+  };
 }
 
 /**
@@ -104,7 +147,11 @@ export async function listingKeywordsFor(
   sql: Sql,
   workspaceId: string,
   app: ManagedApp,
-): Promise<{ readAt: number | null; error: string | null; locales: { locale: string; fields: FitFields }[] }> {
+): Promise<{
+  readAt: number | null;
+  error: string | null;
+  locales: { locale: string; fields: FitFields }[];
+}> {
   const stored = await listingLocalesFor(sql, workspaceId, app);
   const locales = stored.locales.map((l) => {
     const { description: _description, ...rest } = l.fields;
@@ -113,7 +160,12 @@ export async function listingKeywordsFor(
   return { readAt: stored.readAt, error: stored.error, locales };
 }
 
-const fitKeywordOf = (k: AsoKeyword): FitKeyword => ({ id: k.id, term: k.term, priority: k.priority, rank: k.state === 'ranked' ? k.rank : k.state === 'not_ranked' ? null : undefined });
+const fitKeywordOf = (k: AsoKeyword): FitKeyword => ({
+  id: k.id,
+  term: k.term,
+  priority: k.priority,
+  rank: k.state === 'ranked' ? k.rank : k.state === 'not_ranked' ? null : undefined,
+});
 
 export type FitView = {
   /** The locale of the tracked keywords this block is about. */
@@ -155,7 +207,14 @@ export async function listingFitFor(
       listingLocale: own.found?.locale ?? null,
       channel: own.found?.channel ?? null,
       keywords: group.length,
-      fit: own.found ? listingFit({ platform: app.platform, locale, fields: own.found.fields, keywords: group.map(fitKeywordOf) }) : null,
+      fit: own.found
+        ? listingFit({
+            platform: app.platform,
+            locale,
+            fields: own.found.fields,
+            keywords: group.map(fitKeywordOf),
+          })
+        : null,
       fields: own.found?.fields ?? null,
     });
   }
@@ -183,7 +242,8 @@ export async function defaultLocale(sql: Sql, workspaceId: string, appId: string
   return best;
 }
 
-export const checkLocale = (raw: string | undefined): string | undefined => (raw === undefined ? undefined : normalizeLocale(raw));
+export const checkLocale = (raw: string | undefined): string | undefined =>
+  raw === undefined ? undefined : normalizeLocale(raw);
 
 type CompetitorTexts = { competitor: AsoCompetitor; text: CompetitorText }[];
 
@@ -211,7 +271,12 @@ export async function ideasFor(
   workspaceId: string,
   app: ManagedApp,
   options: { locale?: string; limit?: number; minOccurrences?: number } = {},
-): Promise<{ locale: string; basedOn: { ownListing: boolean; competitors: number }; ideas: Idea[]; notes: string[] }> {
+): Promise<{
+  locale: string;
+  basedOn: { ownListing: boolean; competitors: number };
+  ideas: Idea[];
+  notes: string[];
+}> {
   const locale = options.locale ?? (await defaultLocale(sql, workspaceId, app.id));
   const keywords = await listKeywords(sql, workspaceId, app.id);
   const competitors = competitorTexts(await listCompetitors(sql, workspaceId, app.id));
@@ -235,10 +300,21 @@ export async function ideasFor(
     limit: options.limit ?? 30,
     minOccurrences: options.minOccurrences ?? 2,
   });
-  const notes = ['The score is a frequency in the texts listed under basedOn. It is not a search volume or a popularity.'];
-  if (!own.found) notes.push('No live listing text is stored for this locale (sync the app), so only competitors are used.');
-  if (competitors.length === 0) notes.push('No competitor is followed, so only the own listing is used.');
-  return { locale, basedOn: { ownListing: own.found !== null, competitors: competitors.length }, ideas, notes };
+  const notes = [
+    'The score is a frequency in the texts listed under basedOn. It is not a search volume or a popularity.',
+  ];
+  if (!own.found)
+    notes.push(
+      'No live listing text is stored for this locale (sync the app), so only competitors are used.',
+    );
+  if (competitors.length === 0)
+    notes.push('No competitor is followed, so only the own listing is used.');
+  return {
+    locale,
+    basedOn: { ownListing: own.found !== null, competitors: competitors.length },
+    ideas,
+    notes,
+  };
 }
 
 /** Terms competitors use in their names and texts that the own listing does not have. */
@@ -249,11 +325,16 @@ export async function gapsFor(
   options: { locale?: string; limit?: number } = {},
 ): Promise<{ locale: string; competitors: number; gaps: CoverageGap[]; notes: string[] }> {
   const locale = options.locale ?? (await defaultLocale(sql, workspaceId, app.id));
-  const keywords = (await listKeywords(sql, workspaceId, app.id)).filter((k) => tag(k.locale) === tag(locale));
+  const keywords = (await listKeywords(sql, workspaceId, app.id)).filter(
+    (k) => tag(k.locale) === tag(locale),
+  );
   const texts = competitorTexts(await listCompetitors(sql, workspaceId, app.id));
   const own = await ownFields(sql, workspaceId, app, locale);
   const notes: string[] = [];
-  if (!own.found) notes.push('No live listing text is stored for this locale (sync the app): every term then reads as missing.');
+  if (!own.found)
+    notes.push(
+      'No live listing text is stored for this locale (sync the app): every term then reads as missing.',
+    );
   if (texts.length === 0) notes.push('No competitor is followed.');
   const gaps = coverageGaps({
     platform: app.platform,
@@ -294,7 +375,10 @@ export async function suggestionsFor(
       if (Array.isArray(parsed)) {
         top.set(
           String(row.keyword_id),
-          parsed.filter((p): p is { id: string; name?: string } => typeof p === 'object' && p !== null && typeof (p as { id?: unknown }).id === 'string'),
+          parsed.filter(
+            (p): p is { id: string; name?: string } =>
+              typeof p === 'object' && p !== null && typeof (p as { id?: unknown }).id === 'string',
+          ),
         );
       }
     } catch {
@@ -322,17 +406,35 @@ export async function suggestionsFor(
       minKeywords: options.minKeywords ?? 2,
       ...(options.limit !== undefined ? { limit: options.limit } : {}),
     });
-    for (const s of found) suggestions.push({ ...s, country, name: names.get(`${country}\u0000${s.externalId}`) ?? null });
+    for (const s of found)
+      suggestions.push({
+        ...s,
+        country,
+        name: names.get(`${country}\u0000${s.externalId}`) ?? null,
+      });
   }
-  suggestions.sort((a, b) => b.keywordCount - a.keywordCount || a.averageRank - b.averageRank || a.externalId.localeCompare(b.externalId));
+  suggestions.sort(
+    (a, b) =>
+      b.keywordCount - a.keywordCount ||
+      a.averageRank - b.averageRank ||
+      a.externalId.localeCompare(b.externalId),
+  );
   const notes: string[] = [];
-  if (used === 0) notes.push('No keyword has been checked yet, so there are no results to compare. Refresh the app first.');
-  if (isGooglePlatform(app.platform)) notes.push('Google Play results carry no names; look an app up before following it.');
+  if (used === 0)
+    notes.push(
+      'No keyword has been checked yet, so there are no results to compare. Refresh the app first.',
+    );
+  if (isGooglePlatform(app.platform))
+    notes.push('Google Play results carry no names; look an app up before following it.');
   return { suggestions: suggestions.slice(0, options.limit ?? 20), basedOnKeywords: used, notes };
 }
 
 /** The same term in each tracked country and locale as one row. */
-export async function marketsFor(sql: Sql, workspaceId: string, appId: string): Promise<TermAcrossMarkets[]> {
+export async function marketsFor(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<TermAcrossMarkets[]> {
   const keywords = await listKeywords(sql, workspaceId, appId);
   const items: MarketKeyword[] = keywords.map((k) => ({
     id: k.id,
@@ -351,19 +453,49 @@ export const localeOfCountry = (country: string): string => defaultLocaleFor(cou
 
 export type AsoSummary = {
   app: { id: string; platform: ManagedApp['platform']; store: 'app_store' | 'google_play' };
-  keywords: { total: number; ranked: number; notRanked: number; unchecked: number; failing: number; top3: number; top10: number };
+  keywords: {
+    total: number;
+    ranked: number;
+    notRanked: number;
+    unchecked: number;
+    failing: number;
+    top3: number;
+    top10: number;
+  };
   /** The biggest moves between the last two checks, at most five. */
-  movers: { keywordId: string; term: string; country: string; locale: string; kind: string; from: number | null; to: number | null; delta: number | null }[];
+  movers: {
+    keywordId: string;
+    term: string;
+    country: string;
+    locale: string;
+    kind: string;
+    from: number | null;
+    to: number | null;
+    delta: number | null;
+  }[];
   competitors: { total: number; notFound: number; changedRecently: number };
   state: AsoAppState;
 };
 
 const RECENT_CHANGE_MS = 7 * 24 * 60 * 60_000;
 
-export async function summaryFor(sql: Sql, workspaceId: string, app: ManagedApp, now: number): Promise<AsoSummary> {
+export async function summaryFor(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+  now: number,
+): Promise<AsoSummary> {
   const keywords = await listKeywords(sql, workspaceId, app.id);
   const competitors = await listCompetitors(sql, workspaceId, app.id);
-  const counts = { total: keywords.length, ranked: 0, notRanked: 0, unchecked: 0, failing: 0, top3: 0, top10: 0 };
+  const counts = {
+    total: keywords.length,
+    ranked: 0,
+    notRanked: 0,
+    unchecked: 0,
+    failing: 0,
+    top3: 0,
+    top10: 0,
+  };
   const moves: AsoSummary['movers'] = [];
   for (const k of keywords) {
     if (k.state === null) counts.unchecked += 1;
@@ -374,8 +506,20 @@ export async function summaryFor(sql: Sql, workspaceId: string, app: ManagedApp,
     } else counts.notRanked += 1;
     if (k.error) counts.failing += 1;
     const c = k.change;
-    if (c && (c.kind === 'up' || c.kind === 'down' || c.kind === 'entered' || c.kind === 'dropped')) {
-      moves.push({ keywordId: k.id, term: k.term, country: k.country, locale: k.locale, kind: c.kind, from: c.from, to: c.to, delta: c.delta ?? null });
+    if (
+      c &&
+      (c.kind === 'up' || c.kind === 'down' || c.kind === 'entered' || c.kind === 'dropped')
+    ) {
+      moves.push({
+        keywordId: k.id,
+        term: k.term,
+        country: k.country,
+        locale: k.locale,
+        kind: c.kind,
+        from: c.from,
+        to: c.to,
+        delta: c.delta ?? null,
+      });
     }
   }
   const size = (m: AsoSummary['movers'][number]) => (m.delta !== null ? Math.abs(m.delta) : 1000);
@@ -387,7 +531,9 @@ export async function summaryFor(sql: Sql, workspaceId: string, app: ManagedApp,
     competitors: {
       total: competitors.length,
       notFound: competitors.filter((c) => c.state === 'not_found').length,
-      changedRecently: competitors.filter((c) => c.latest?.kind === 'change' && now - c.latest.checkedAt < RECENT_CHANGE_MS).length,
+      changedRecently: competitors.filter(
+        (c) => c.latest?.kind === 'change' && now - c.latest.checkedAt < RECENT_CHANGE_MS,
+      ).length,
     },
     state: await getAsoState(sql, workspaceId, app.id),
   };
@@ -399,7 +545,11 @@ export async function summaryFor(sql: Sql, workspaceId: string, app: ManagedApp,
 type TopResult = { id: string; name?: string };
 
 /** The stored results (best first) of the newest check of each keyword of the app. */
-async function latestTopResults(sql: Sql, workspaceId: string, appId: string): Promise<Map<string, TopResult[]>> {
+async function latestTopResults(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<Map<string, TopResult[]>> {
   const rows = await sql.query(
     `SELECT keyword_id, top_results FROM aso_rank_checks c
       WHERE c.app_id = ? AND c.workspace_id = ?
@@ -413,7 +563,10 @@ async function latestTopResults(sql: Sql, workspaceId: string, appId: string): P
       if (Array.isArray(parsed)) {
         top.set(
           String(row.keyword_id),
-          parsed.filter((p): p is TopResult => typeof p === 'object' && p !== null && typeof (p as { id?: unknown }).id === 'string'),
+          parsed.filter(
+            (p): p is TopResult =>
+              typeof p === 'object' && p !== null && typeof (p as { id?: unknown }).id === 'string',
+          ),
         );
       }
     } catch {
@@ -426,14 +579,25 @@ async function latestTopResults(sql: Sql, workspaceId: string, appId: string): P
 export type CoachView = {
   actions: CoachAction[];
   /** What the actions were worked out from. */
-  basedOn: { keywords: number; competitors: number; listingLocales: number; lastCheckAt: number | null; listingReadAt: number | null };
+  basedOn: {
+    keywords: number;
+    competitors: number;
+    listingLocales: number;
+    lastCheckAt: number | null;
+    listingReadAt: number | null;
+  };
 };
 
 /**
  * A short ranked list of next steps for an app. Reads our own database only (no store is contacted) and
  * proposes; nothing here changes a keyword, a competitor or a listing.
  */
-export async function coachFor(sql: Sql, workspaceId: string, app: ManagedApp, now: number): Promise<CoachView> {
+export async function coachFor(
+  sql: Sql,
+  workspaceId: string,
+  app: ManagedApp,
+  now: number,
+): Promise<CoachView> {
   const keywords = await listKeywords(sql, workspaceId, app.id);
   const competitors = await listCompetitors(sql, workspaceId, app.id);
   const state = await getAsoState(sql, workspaceId, app.id);
@@ -453,21 +617,38 @@ export async function coachFor(sql: Sql, workspaceId: string, app: ManagedApp, n
   }));
 
   // A followed competitor in the stored results of a keyword, before the own app (or while it is not in them).
-  const above: { keywordId: string; competitorId: string; competitorName: string; competitorRank: number }[] = [];
+  const above: {
+    keywordId: string;
+    competitorId: string;
+    competitorName: string;
+    competitorRank: number;
+  }[] = [];
   if (competitors.length > 0) {
     const top = await latestTopResults(sql, workspaceId, app.id);
     for (const k of keywords) {
       if (k.state === null) continue;
       const hits = top.get(k.id);
       if (!hits) continue;
-      let best: { competitorId: string; competitorName: string; competitorRank: number } | null = null;
+      let best: { competitorId: string; competitorName: string; competitorRank: number } | null =
+        null;
       hits.forEach((hit, index) => {
         const rank = index + 1;
         if (k.state === 'ranked' && k.rank !== null && rank >= k.rank) return;
-        const competitor = competitors.find((c) => c.country === k.country && c.externalId === hit.id);
-        if (competitor && (best === null || rank < best.competitorRank)) best = { competitorId: competitor.id, competitorName: competitor.name, competitorRank: rank };
+        const competitor = competitors.find(
+          (c) => c.country === k.country && c.externalId === hit.id,
+        );
+        if (competitor && (best === null || rank < best.competitorRank))
+          best = {
+            competitorId: competitor.id,
+            competitorName: competitor.name,
+            competitorRank: rank,
+          };
       });
-      if (best !== null) above.push({ keywordId: k.id, ...(best as { competitorId: string; competitorName: string; competitorRank: number }) });
+      if (best !== null)
+        above.push({
+          keywordId: k.id,
+          ...(best as { competitorId: string; competitorName: string; competitorRank: number }),
+        });
     }
   }
 
@@ -483,6 +664,12 @@ export async function coachFor(sql: Sql, workspaceId: string, app: ManagedApp, n
   });
   return {
     actions,
-    basedOn: { keywords: keywords.length, competitors: competitors.length, listingLocales: listing.locales.length, lastCheckAt: state.lastSuccessAt, listingReadAt: listing.readAt },
+    basedOn: {
+      keywords: keywords.length,
+      competitors: competitors.length,
+      listingLocales: listing.locales.length,
+      lastCheckAt: state.lastSuccessAt,
+      listingReadAt: listing.readAt,
+    },
   };
 }

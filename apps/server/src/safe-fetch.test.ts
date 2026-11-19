@@ -7,12 +7,22 @@ import { type Exchange, type ExchangeResponse, safeGet } from './services/safe-f
 /** The outbound GET of the icon lookup. Every refusal here happens before or without a real connection. */
 
 type Reply = Partial<ExchangeResponse>;
-const reply = (r: Reply = {}): ExchangeResponse => ({ status: 200, headers: {}, body: new Uint8Array([1, 2, 3]), overflow: false, ...r });
+const reply = (r: Reply = {}): ExchangeResponse => ({
+  status: 200,
+  headers: {},
+  body: new Uint8Array([1, 2, 3]),
+  overflow: false,
+  ...r,
+});
 
 function scripted(replies: (Reply | Error)[]) {
   const seen: { url: string; address: string; servername?: string }[] = [];
   const exchange: Exchange = async (request) => {
-    seen.push({ url: request.url.toString(), address: request.address, ...(request.servername ? { servername: request.servername } : {}) });
+    seen.push({
+      url: request.url.toString(),
+      address: request.address,
+      ...(request.servername ? { servername: request.servername } : {}),
+    });
     const next = replies.shift() ?? { status: 500 };
     if (next instanceof Error) throw next;
     return reply(next);
@@ -21,18 +31,34 @@ function scripted(replies: (Reply | Error)[]) {
 }
 
 const publicResolve = async () => [{ address: '93.184.216.34', family: 4 }];
-const only = (...hosts: string[]) => (host: string) => hosts.includes(host);
-const base = { allowHost: only('itunes.apple.com', 'a.mzstatic.com'), maxBytes: 1000, resolve: publicResolve };
+const only =
+  (...hosts: string[]) =>
+  (host: string) =>
+    hosts.includes(host);
+const base = {
+  allowHost: only('itunes.apple.com', 'a.mzstatic.com'),
+  maxBytes: 1000,
+  resolve: publicResolve,
+};
 
 test('a good answer comes back with its bytes and the connection goes to the checked address', async () => {
   const s = scripted([{ headers: { 'content-type': 'image/png' } }]);
-  const res = await safeGet('https://itunes.apple.com/lookup?id=1', { ...base, exchange: s.exchange });
+  const res = await safeGet('https://itunes.apple.com/lookup?id=1', {
+    ...base,
+    exchange: s.exchange,
+  });
   assert.equal(res.ok, true);
   if (res.ok) {
     assert.deepEqual([...res.body], [1, 2, 3]);
     assert.equal(res.contentType, 'image/png');
   }
-  assert.deepEqual(s.seen, [{ url: 'https://itunes.apple.com/lookup?id=1', address: '93.184.216.34', servername: 'itunes.apple.com' }]);
+  assert.deepEqual(s.seen, [
+    {
+      url: 'https://itunes.apple.com/lookup?id=1',
+      address: '93.184.216.34',
+      servername: 'itunes.apple.com',
+    },
+  ]);
 });
 
 test('urls that are refused before any connection', async () => {
@@ -54,7 +80,13 @@ test('urls that are refused before any connection', async () => {
     assert.equal(s.seen.length, 0, `${url}: nothing was connected`);
   }
   // The allowlist, with hosts that would otherwise pass.
-  for (const url of ['https://example.com/x', 'https://evil.example.com/x', 'https://itunes.apple.com.evil.example.com/x', 'https://evilitunes.apple.com/x', 'https://mzstatic.com/x']) {
+  for (const url of [
+    'https://example.com/x',
+    'https://evil.example.com/x',
+    'https://itunes.apple.com.evil.example.com/x',
+    'https://evilitunes.apple.com/x',
+    'https://mzstatic.com/x',
+  ]) {
     const s = scripted([reply()]);
     const res = await safeGet(url, { ...base, exchange: s.exchange });
     assert.equal(res.ok, false, url);
@@ -63,11 +95,21 @@ test('urls that are refused before any connection', async () => {
 });
 
 test('a host that resolves to a private, loopback, link-local or mixed answer is refused', async () => {
-  for (const addresses of [['10.1.2.3'], ['127.0.0.1'], ['192.168.0.9'], ['169.254.169.254'], ['::1'], ['fd00::1'], ['93.184.216.34', '10.0.0.1'], ['::ffff:10.0.0.1']]) {
+  for (const addresses of [
+    ['10.1.2.3'],
+    ['127.0.0.1'],
+    ['192.168.0.9'],
+    ['169.254.169.254'],
+    ['::1'],
+    ['fd00::1'],
+    ['93.184.216.34', '10.0.0.1'],
+    ['::ffff:10.0.0.1'],
+  ]) {
     const s = scripted([reply()]);
     const res = await safeGet('https://itunes.apple.com/x', {
       ...base,
-      resolve: async () => addresses.map((address) => ({ address, family: address.includes(':') ? 6 : 4 })),
+      resolve: async () =>
+        addresses.map((address) => ({ address, family: address.includes(':') ? 6 : 4 })),
       exchange: s.exchange,
     });
     assert.equal(res.ok, false, addresses.join());
@@ -77,7 +119,11 @@ test('a host that resolves to a private, loopback, link-local or mixed answer is
 });
 
 test('a name that cannot be resolved is a transient failure', async () => {
-  const res = await safeGet('https://itunes.apple.com/x', { ...base, resolve: async () => Promise.reject(new Error('nope')), exchange: scripted([]).exchange });
+  const res = await safeGet('https://itunes.apple.com/x', {
+    ...base,
+    resolve: async () => Promise.reject(new Error('nope')),
+    exchange: scripted([]).exchange,
+  });
   assert.equal(res.ok, false);
   if (!res.ok) {
     assert.equal(res.kind, 'dns');
@@ -93,7 +139,10 @@ test('redirects are followed to allowed hosts only, each hop is checked again, a
   ]);
   const good = await safeGet('https://itunes.apple.com/x', { ...base, exchange: ok.exchange });
   assert.equal(good.ok, true);
-  assert.deepEqual(ok.seen.map((x) => x.url), ['https://itunes.apple.com/x', 'https://a.mzstatic.com/one', 'https://a.mzstatic.com/two']);
+  assert.deepEqual(
+    ok.seen.map((x) => x.url),
+    ['https://itunes.apple.com/x', 'https://a.mzstatic.com/one', 'https://a.mzstatic.com/two'],
+  );
 
   const targets = [
     'https://evil.example.com/x',
@@ -106,26 +155,46 @@ test('redirects are followed to allowed hosts only, each hop is checked again, a
   ];
   for (const location of targets) {
     const s = scripted([{ status: 302, headers: { location } }, { status: 200 }]);
-    const res = await safeGet('https://itunes.apple.com/x', { ...base, allowHost: (h) => h === 'itunes.apple.com' || h === 'a.mzstatic.com', exchange: s.exchange });
+    const res = await safeGet('https://itunes.apple.com/x', {
+      ...base,
+      allowHost: (h) => h === 'itunes.apple.com' || h === 'a.mzstatic.com',
+      exchange: s.exchange,
+    });
     assert.equal(res.ok, false, location);
     assert.equal(s.seen.length, 1, `${location}: the target was never connected to`);
   }
 
-  const loop = scripted(Array.from({ length: 10 }, () => ({ status: 302, headers: { location: 'https://a.mzstatic.com/again' } })));
-  const looped = await safeGet('https://a.mzstatic.com/again', { ...base, exchange: loop.exchange });
+  const loop = scripted(
+    Array.from({ length: 10 }, () => ({
+      status: 302,
+      headers: { location: 'https://a.mzstatic.com/again' },
+    })),
+  );
+  const looped = await safeGet('https://a.mzstatic.com/again', {
+    ...base,
+    exchange: loop.exchange,
+  });
   assert.equal(looped.ok, false);
   assert.equal(loop.seen.length, 4, 'the first request and three redirects');
   if (!looped.ok) assert.match(looped.message, /Too many redirects/);
 
-  const empty = await safeGet('https://itunes.apple.com/x', { ...base, exchange: scripted([{ status: 302 }]).exchange });
+  const empty = await safeGet('https://itunes.apple.com/x', {
+    ...base,
+    exchange: scripted([{ status: 302 }]).exchange,
+  });
   assert.equal(empty.ok, false);
 });
 
 test('a redirect to a name that resolves privately is refused at the second hop', async () => {
-  const s = scripted([{ status: 302, headers: { location: 'https://a.mzstatic.com/x' } }, { status: 200 }]);
+  const s = scripted([
+    { status: 302, headers: { location: 'https://a.mzstatic.com/x' } },
+    { status: 200 },
+  ]);
   const res = await safeGet('https://itunes.apple.com/x', {
     ...base,
-    resolve: async (host) => [{ address: host === 'a.mzstatic.com' ? '10.0.0.5' : '93.184.216.34', family: 4 }],
+    resolve: async (host) => [
+      { address: host === 'a.mzstatic.com' ? '10.0.0.5' : '93.184.216.34', family: 4 },
+    ],
     exchange: s.exchange,
   });
   assert.equal(res.ok, false);
@@ -133,29 +202,57 @@ test('a redirect to a name that resolves privately is refused at the second hop'
 });
 
 test('a body over the cap is a failure, never a truncated success; other statuses are failures too', async () => {
-  const big = await safeGet('https://itunes.apple.com/x', { ...base, exchange: scripted([{ overflow: true, body: new Uint8Array(0) }]).exchange });
+  const big = await safeGet('https://itunes.apple.com/x', {
+    ...base,
+    exchange: scripted([{ overflow: true, body: new Uint8Array(0) }]).exchange,
+  });
   assert.equal(big.ok, false);
   if (!big.ok) assert.equal(big.kind, 'too_large');
-  for (const [status, transient] of [[404, false], [403, false], [429, true], [500, true], [503, true], [204, false]] as const) {
-    const res = await safeGet('https://itunes.apple.com/x', { ...base, exchange: scripted([{ status }]).exchange });
+  for (const [status, transient] of [
+    [404, false],
+    [403, false],
+    [429, true],
+    [500, true],
+    [503, true],
+    [204, false],
+  ] as const) {
+    const res = await safeGet('https://itunes.apple.com/x', {
+      ...base,
+      exchange: scripted([{ status }]).exchange,
+    });
     assert.equal(res.ok, false, String(status));
     if (!res.ok) assert.equal(res.transient, transient, String(status));
   }
 });
 
 test('a connection that fails or hangs is reported without the address, and the timeout covers redirects', async () => {
-  const failed = await safeGet('https://itunes.apple.com/x', { ...base, exchange: scripted([new Error('connect ECONNREFUSED 93.184.216.34:443')]).exchange });
+  const failed = await safeGet('https://itunes.apple.com/x', {
+    ...base,
+    exchange: scripted([new Error('connect ECONNREFUSED 93.184.216.34:443')]).exchange,
+  });
   assert.equal(failed.ok, false);
   if (!failed.ok) {
     assert.equal(failed.kind, 'network');
     assert.doesNotMatch(failed.message, /93\.184|ECONNREFUSED/);
   }
-  const hang: Exchange = (request) => new Promise((_, reject) => request.signal.addEventListener('abort', () => reject(new Error('aborted'))));
-  const slow = await safeGet('https://itunes.apple.com/x', { ...base, exchange: hang, timeoutMs: 30 });
+  const hang: Exchange = (request) =>
+    new Promise((_, reject) =>
+      request.signal.addEventListener('abort', () => reject(new Error('aborted'))),
+    );
+  const slow = await safeGet('https://itunes.apple.com/x', {
+    ...base,
+    exchange: hang,
+    timeoutMs: 30,
+  });
   assert.equal(slow.ok, false);
   if (!slow.ok) assert.equal(slow.kind, 'timeout');
   const controller = new AbortController();
-  const aborted = safeGet('https://itunes.apple.com/x', { ...base, exchange: hang, signal: controller.signal, timeoutMs: 5000 });
+  const aborted = safeGet('https://itunes.apple.com/x', {
+    ...base,
+    exchange: hang,
+    signal: controller.signal,
+    timeoutMs: 5000,
+  });
   controller.abort();
   assert.equal((await aborted).ok, false);
 });
@@ -166,7 +263,10 @@ async function localServer(handler: Parameters<typeof createServer>[1]) {
   const server = createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
-  return { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
 }
 
 test('the real exchange: reads a body up to the cap, refuses a bigger one, follows a redirect inside the allowlist', async () => {
@@ -194,7 +294,12 @@ test('the real exchange: reads a body up to the cap, refuses a bigger one, follo
     }
   });
   try {
-    const options = { allowHost: only('127.0.0.1'), maxBytes: 1000, allowPrivate: true, timeoutMs: 3000 };
+    const options = {
+      allowHost: only('127.0.0.1'),
+      maxBytes: 1000,
+      allowPrivate: true,
+      timeoutMs: 3000,
+    };
     const ok = await safeGet(`${local.url}/ok`, options);
     assert.equal(ok.ok, true);
     if (ok.ok) assert.equal(new TextDecoder().decode(ok.body), 'hello');

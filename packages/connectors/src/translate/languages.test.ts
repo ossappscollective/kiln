@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { azureCode, deeplSource, deeplTarget, detectedTag, googleCode, libreTranslateCode, providerSource, providerTarget } from './languages.ts';
+import {
+  azureCode,
+  deeplSource,
+  deeplTarget,
+  detectedTag,
+  googleCode,
+  libreTranslateCode,
+  providerSource,
+  providerTarget,
+} from './languages.ts';
 
 const table = (fn: (tag: string) => string | undefined, rows: [string, string | undefined][]) => {
   for (const [tag, expected] of rows) assert.equal(fn(tag), expected, tag);
@@ -8,40 +17,109 @@ const table = (fn: (tag: string) => string | undefined, rows: [string, string | 
 
 test('Google: Chinese by script or region, Portuguese variants, Norwegian, Filipino, region dropped', () => {
   table(googleCode, [
-    ['en', 'en'], ['en-GB', 'en'], ['EN_us', 'en'],
-    ['zh', 'zh-CN'], ['zh-Hans', 'zh-CN'], ['zh-CN', 'zh-CN'], ['zh-SG', 'zh-CN'],
-    ['zh-Hant', 'zh-TW'], ['zh-TW', 'zh-TW'], ['zh-HK', 'zh-TW'], ['zh-Hant-HK', 'zh-TW'],
-    ['pt', 'pt'], ['pt-BR', 'pt-BR'], ['pt-PT', 'pt-PT'], ['pt-AO', 'pt'],
-    ['nb', 'no'], ['no', 'no'], ['nn', 'no'], ['tl', 'fil'], ['fil', 'fil'], ['he', 'he'], ['de-CH', 'de'],
-    ['not a tag', undefined], ['', undefined],
+    ['en', 'en'],
+    ['en-GB', 'en'],
+    ['EN_us', 'en'],
+    ['zh', 'zh-CN'],
+    ['zh-Hans', 'zh-CN'],
+    ['zh-CN', 'zh-CN'],
+    ['zh-SG', 'zh-CN'],
+    ['zh-Hant', 'zh-TW'],
+    ['zh-TW', 'zh-TW'],
+    ['zh-HK', 'zh-TW'],
+    ['zh-Hant-HK', 'zh-TW'],
+    ['pt', 'pt'],
+    ['pt-BR', 'pt-BR'],
+    ['pt-PT', 'pt-PT'],
+    ['pt-AO', 'pt'],
+    ['nb', 'no'],
+    ['no', 'no'],
+    ['nn', 'no'],
+    ['tl', 'fil'],
+    ['fil', 'fil'],
+    ['he', 'he'],
+    ['de-CH', 'de'],
+    ['not a tag', undefined],
+    ['', undefined],
   ]);
 });
 
 test('DeepL: English and Portuguese variants, Chinese per script, NB, es-419, sources without variants', () => {
   table(deeplTarget, [
-    ['en', 'EN-US'], ['en-US', 'EN-US'], ['en-CA', 'EN-US'], ['en-GB', 'EN-GB'], ['en-AU', 'EN-GB'],
-    ['pt', 'PT-BR'], ['pt-BR', 'PT-BR'], ['pt-PT', 'PT-PT'],
-    ['zh', 'ZH-HANS'], ['zh-Hans', 'ZH-HANS'], ['zh-CN', 'ZH-HANS'], ['zh-Hant', 'ZH-HANT'], ['zh-TW', 'ZH-HANT'],
-    ['nb', 'NB'], ['no', 'NB'], ['nn', 'NB'], ['es', 'ES'], ['es-MX', 'ES'], ['es-419', 'ES-419'],
-    ['de', 'DE'], ['ja-JP', 'JA'], ['??', undefined],
+    ['en', 'EN-US'],
+    ['en-US', 'EN-US'],
+    ['en-CA', 'EN-US'],
+    ['en-GB', 'EN-GB'],
+    ['en-AU', 'EN-GB'],
+    ['pt', 'PT-BR'],
+    ['pt-BR', 'PT-BR'],
+    ['pt-PT', 'PT-PT'],
+    ['zh', 'ZH-HANS'],
+    ['zh-Hans', 'ZH-HANS'],
+    ['zh-CN', 'ZH-HANS'],
+    ['zh-Hant', 'ZH-HANT'],
+    ['zh-TW', 'ZH-HANT'],
+    ['nb', 'NB'],
+    ['no', 'NB'],
+    ['nn', 'NB'],
+    ['es', 'ES'],
+    ['es-MX', 'ES'],
+    ['es-419', 'ES-419'],
+    ['de', 'DE'],
+    ['ja-JP', 'JA'],
+    ['??', undefined],
   ]);
-  table(deeplSource, [['en-GB', 'EN'], ['pt-BR', 'PT'], ['zh-Hant', 'ZH'], ['nb', 'NB'], ['no', 'NB'], ['de', 'DE'], ['??', undefined]]);
+  table(deeplSource, [
+    ['en-GB', 'EN'],
+    ['pt-BR', 'PT'],
+    ['zh-Hant', 'ZH'],
+    ['nb', 'NB'],
+    ['no', 'NB'],
+    ['de', 'DE'],
+    ['??', undefined],
+  ]);
 });
 
 test('Azure: zh-Hans and zh-Hant, pt and pt-pt, nb, fil, Serbian scripts, French Canada', () => {
   table(azureCode, [
-    ['zh', 'zh-Hans'], ['zh-CN', 'zh-Hans'], ['zh-Hant', 'zh-Hant'], ['zh-TW', 'zh-Hant'], ['zh-HK', 'zh-Hant'],
-    ['pt', 'pt'], ['pt-BR', 'pt'], ['pt-PT', 'pt-pt'],
-    ['nb', 'nb'], ['no', 'nb'], ['nn', 'nb'], ['tl', 'fil'], ['fil', 'fil'], ['he', 'he'],
-    ['sr', 'sr-Cyrl'], ['sr-Latn', 'sr-Latn'], ['sr-Cyrl', 'sr-Cyrl'], ['fr-CA', 'fr-ca'], ['fr-FR', 'fr'],
-    ['en-GB', 'en'], ['yue', 'yue'], ['??', undefined],
+    ['zh', 'zh-Hans'],
+    ['zh-CN', 'zh-Hans'],
+    ['zh-Hant', 'zh-Hant'],
+    ['zh-TW', 'zh-Hant'],
+    ['zh-HK', 'zh-Hant'],
+    ['pt', 'pt'],
+    ['pt-BR', 'pt'],
+    ['pt-PT', 'pt-pt'],
+    ['nb', 'nb'],
+    ['no', 'nb'],
+    ['nn', 'nb'],
+    ['tl', 'fil'],
+    ['fil', 'fil'],
+    ['he', 'he'],
+    ['sr', 'sr-Cyrl'],
+    ['sr-Latn', 'sr-Latn'],
+    ['sr-Cyrl', 'sr-Cyrl'],
+    ['fr-CA', 'fr-ca'],
+    ['fr-FR', 'fr'],
+    ['en-GB', 'en'],
+    ['yue', 'yue'],
+    ['??', undefined],
   ]);
 });
 
 test('LibreTranslate: zh and zt, pt and pb, nb', () => {
   table(libreTranslateCode, [
-    ['zh', 'zh'], ['zh-Hans', 'zh'], ['zh-Hant', 'zt'], ['zh-TW', 'zt'], ['pt', 'pt'], ['pt-PT', 'pt'], ['pt-BR', 'pb'],
-    ['nb', 'nb'], ['no', 'nb'], ['en-GB', 'en'], ['??', undefined],
+    ['zh', 'zh'],
+    ['zh-Hans', 'zh'],
+    ['zh-Hant', 'zt'],
+    ['zh-TW', 'zt'],
+    ['pt', 'pt'],
+    ['pt-PT', 'pt'],
+    ['pt-BR', 'pb'],
+    ['nb', 'nb'],
+    ['no', 'nb'],
+    ['en-GB', 'en'],
+    ['??', undefined],
   ]);
 });
 

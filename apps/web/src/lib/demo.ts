@@ -5,7 +5,9 @@
 
 /** Whether an answer of `GET /demo/status` says this is the demo workspace. Anything else (HTML, an error body, nothing) is not demo. */
 export function isDemoStatus(value: unknown): boolean {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>).demo === true;
+  return (
+    typeof value === 'object' && value !== null && (value as Record<string, unknown>).demo === true
+  );
 }
 
 /** The sentence of the bar. */

@@ -1,11 +1,31 @@
-import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES, classifyAppleScreenshot, normalizeReleaseValue, PLATFORM_META } from '@mrm/core';
 import {
-  AppStoreConnectTokenProvider,
+  APPLE_VERSION_LOCALIZATION_ATTRIBUTES,
+  classifyAppleScreenshot,
+  normalizeReleaseValue,
+  PLATFORM_META,
+} from '@mrm/core';
+import {
   type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { appleError, isAppleParameterError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
+import { appleBuildEligibility } from './release-eligibility.ts';
+import {
+  type BuildCandidate,
+  type BuildTestNotes,
+  type EditableRelease,
+  MAX_BUILDS_WITH_NOTES,
+  MAX_NOTE_CHARS,
+  MAX_NOTE_LOCALES,
+  MAX_NOTES_HISTORY_VERSIONS,
+  type NotesHistoryEntry,
+  type NotesHistoryRead,
+  type ReleaseCandidates,
+  type StoreNotesHistoryReader,
+  type StoreReleaseReader,
+} from './release-types.ts';
 import {
   APPLE_DRAFT_VERSION_STATES,
   DRAFT_IMAGE_READY_STATES,
@@ -24,34 +44,19 @@ import {
   type DraftState,
   type DraftStep,
   type DraftTextState,
-  setMatches,
   type StoreDraftConnector,
   type StoreImageReader,
   type StoreImageRecord,
   type StoreImagesRead,
+  setMatches,
 } from './store-draft-types.ts';
-import { appleBuildEligibility } from './release-eligibility.ts';
-import {
-  type BuildCandidate,
-  type BuildTestNotes,
-  type EditableRelease,
-  MAX_BUILDS_WITH_NOTES,
-  MAX_NOTE_CHARS,
-  MAX_NOTE_LOCALES,
-  MAX_NOTES_HISTORY_VERSIONS,
-  type NotesHistoryEntry,
-  type NotesHistoryRead,
-  type ReleaseCandidates,
-  type StoreNotesHistoryReader,
-  type StoreReleaseReader,
-} from './release-types.ts';
 import {
   enc,
   isRecord,
   type Json,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -155,7 +160,12 @@ const UPLOAD_HOST = /(^|\.)apple\.com$/i;
 
 type LocalizationRef = { id: string; attributes: Json };
 /** The editable version, with the attributes of the list answer (release type, earliest release date, copyright). */
-type AttachedBuild = { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null };
+type AttachedBuild = {
+  id: string;
+  buildNumber: string | null;
+  processingState: string | null;
+  expired: boolean | null;
+};
 type VersionRef = { id: string; versionString: string | null; state: string; attrs: Json };
 /** App Store version attribute of a release field (`version_string` is written as `versionString`). */
 const VERSION_ATTRIBUTES: Readonly<Record<string, string>> = {
@@ -180,13 +190,15 @@ type RefData = {
 
 const REFERENCE_PREFIX = 'mrm:sha256:';
 const REFERENCE_HEX = 32;
-const referenceName = (sha256: string): string => `${REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
+const referenceName = (sha256: string): string =>
+  `${REFERENCE_PREFIX}${sha256.slice(0, REFERENCE_HEX)}`;
 const hashOfReference = (name: string | undefined): string | null => {
   if (name === undefined || !name.startsWith(REFERENCE_PREFIX)) return null;
   const hex = name.slice(REFERENCE_PREFIX.length).toLowerCase();
   return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
 };
-const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+const num = (v: unknown): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 /** The family keyword of a device id of this server's (`iphone_6_5` is an IPHONE display, and so on). */
 const familyOf = (device: string | null): string | null => {
   if (device === null) return null;
@@ -212,7 +224,9 @@ function capText(value: string): { text: string; truncated: boolean } {
   return { text: value.slice(0, end), truncated: true };
 }
 
-export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader {
+export class AppleDraftConnector
+  implements StoreDraftConnector, StoreImageReader, StoreReleaseReader, StoreNotesHistoryReader
+{
   readonly store = 'appstoreconnect' as const;
   readonly platform: 'ios' | 'macos';
   readonly #apple: string;
@@ -232,14 +246,22 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
 
   constructor(options: AppleDraftConnectorOptions) {
     if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
-      throw new StoreError('appstoreconnect', 'invalid_input', 'The App Store id of the app is missing or not a number. Sync the app first.');
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        'The App Store id of the app is missing or not a number. Sync the app first.',
+      );
     }
     this.#appId = options.appStoreId;
     this.platform = options.platform ?? 'ios';
     this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
     this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
-    this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
+    this.#writeHttp = new StoreHttp({
+      ...options,
+      store: 'appstoreconnect',
+      maxRateLimitRetries: 0,
+    });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? 200;
     this.#pageSize = Number.isFinite(wanted) ? Math.min(200, Math.max(1, Math.trunc(wanted))) : 200;
@@ -259,7 +281,10 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   }
 
   /** Builds a connector from the stored secret (core `buildSecret` JSON for `app_store_connect`). */
-  static fromSecret(secret: string, options: Omit<AppleDraftConnectorOptions, 'credential'>): AppleDraftConnector {
+  static fromSecret(
+    secret: string,
+    options: Omit<AppleDraftConnectorOptions, 'credential'>,
+  ): AppleDraftConnector {
     return new AppleDraftConnector({ ...options, credential: parseAppStoreConnectSecret(secret) });
   }
 
@@ -277,23 +302,52 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     {
       locale: string;
       text: Record<string, string | null>;
-      groups: { group: string; images: { id: string; checksum: string | null; width: number | null; height: number | null; state: string | null }[] }[];
+      groups: {
+        group: string;
+        images: {
+          id: string;
+          checksum: string | null;
+          width: number | null;
+          height: number | null;
+          state: string | null;
+        }[];
+      }[];
     }[]
   > {
     const locs = await this.#localizations(versionId);
     const out = [];
     for (const [locale, ref] of locs) {
       const text_: Record<string, string | null> = {};
-      for (const field of Object.keys(APPLE_VERSION_LOCALIZATION_ATTRIBUTES)) text_[field] = text(ref.attributes[attr(field)]) ?? null;
-      const groups = new Map<string, { id: string; checksum: string | null; width: number | null; height: number | null; state: string | null }[]>();
+      for (const field of Object.keys(APPLE_VERSION_LOCALIZATION_ATTRIBUTES))
+        text_[field] = text(ref.attributes[attr(field)]) ?? null;
+      const groups = new Map<
+        string,
+        {
+          id: string;
+          checksum: string | null;
+          width: number | null;
+          height: number | null;
+          state: string | null;
+        }[]
+      >();
       for (const p of await this.#placements(ref.id)) {
         const a = isRecord(p.image.attributes) ? p.image.attributes : {};
         const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
         const list = groups.get(p.group) ?? [];
-        list.push({ id: p.id, checksum: hashOfReference(text(a.referenceName)), width: num(asset.width) ?? null, height: num(asset.height) ?? null, state: text(a.state) ?? null });
+        list.push({
+          id: p.id,
+          checksum: hashOfReference(text(a.referenceName)),
+          width: num(asset.width) ?? null,
+          height: num(asset.height) ?? null,
+          state: text(a.state) ?? null,
+        });
         groups.set(p.group, list);
       }
-      out.push({ locale, text: text_, groups: [...groups].map(([group, images]) => ({ group, images })) });
+      out.push({
+        locale,
+        text: text_,
+        groups: [...groups].map(([group, images]) => ({ group, images })),
+      });
     }
     return out;
   }
@@ -320,7 +374,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const asset = isRecord(a.imageAsset) ? a.imageAsset : {};
         const width = num(asset.width) ?? null;
         const height = num(asset.height) ?? null;
-        const device = width !== null && height !== null ? classifyAppleScreenshot(width, height) : null;
+        const device =
+          width !== null && height !== null ? classifyAppleScreenshot(width, height) : null;
         if (device === null) {
           unplaced++;
           continue;
@@ -352,7 +407,9 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   }
 
   /** The editable iOS version, else the one that is live (`READY_FOR_SALE`, UNVERIFIED name), else a refusal. */
-  async #readableVersion(notes: string[]): Promise<{ id: string; versionString: string | null; state: string; editable: boolean }> {
+  async #readableVersion(
+    notes: string[],
+  ): Promise<{ id: string; versionString: string | null; state: string; editable: boolean }> {
     try {
       const v = await this.#editableVersion();
       return { id: v.id, versionString: v.versionString, state: v.state, editable: true };
@@ -360,7 +417,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       if (!(error instanceof StoreError) || error.kind !== 'no_editable_version') throw error;
     }
     const what = 'looking for the live App Store version';
-    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    let url: string | undefined =
+      `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
       for (const item of records(body.data)) {
@@ -376,13 +434,25 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       const next = text(links.next);
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
-    throw new StoreError('appstoreconnect', 'no_editable_version', `App Store Connect has no editable and no live ${this.#label} version to read the screenshots of.`, 404);
+    throw new StoreError(
+      'appstoreconnect',
+      'no_editable_version',
+      `App Store Connect has no editable and no live ${this.#label} version to read the screenshots of.`,
+      404,
+    );
   }
 
   async applyDraft(input: DraftApplyInput): Promise<DraftApplyResult> {
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
-      assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target, width: a.width ?? null, height: a.height ?? null })),
+      assets: input.assets.map((a) => ({
+        locale: a.locale,
+        kind: a.kind,
+        device: a.device,
+        target: a.target,
+        width: a.width ?? null,
+        height: a.height ?? null,
+      })),
       ...(input.fields !== undefined && input.fields.length > 0 ? { fields: input.fields } : {}),
     };
     const version = await this.#editableVersion();
@@ -392,7 +462,11 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     if (!input.guard(before)) throw new DraftDriftError(before);
 
     const steps: DraftStep[] = [];
-    let at: { type: DraftStep['type']; locale: string; target: string } = { type: 'text', locale: '', target: '' };
+    let at: { type: DraftStep['type']; locale: string; target: string } = {
+      type: 'text',
+      locale: '',
+      target: '',
+    };
     try {
       // Texts, one request per locale (all of its changed fields together), then the sets.
       const byLocale = new Map<string, Map<string, string>>();
@@ -411,59 +485,120 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         if (known) {
           const changed: Record<string, string> = {};
           for (const [key, value] of Object.entries(wanted)) {
-            if (typeof known.attributes[key] !== 'string' || known.attributes[key] !== value) changed[key] = value;
+            if (typeof known.attributes[key] !== 'string' || known.attributes[key] !== value)
+              changed[key] = value;
           }
           if (Object.keys(changed).length === 0) {
-            for (const field of fields.keys()) steps.push({ type: 'text', locale, target: field, outcome: 'already_same' });
+            for (const field of fields.keys())
+              steps.push({ type: 'text', locale, target: field, outcome: 'already_same' });
             continue;
           }
-          await this.#write('PATCH', `/v1/appStoreVersionLocalizations/${enc(known.id)}`, `changing the ${locale} texts`, {
-            data: { type: 'appStoreVersionLocalizations', id: known.id, attributes: changed },
-          });
+          await this.#write(
+            'PATCH',
+            `/v1/appStoreVersionLocalizations/${enc(known.id)}`,
+            `changing the ${locale} texts`,
+            {
+              data: { type: 'appStoreVersionLocalizations', id: known.id, attributes: changed },
+            },
+          );
           for (const field of fields.keys()) {
             const changedHere = attr(field) in changed;
-            steps.push({ type: 'text', locale, target: field, outcome: changedHere ? 'applied' : 'already_same' });
+            steps.push({
+              type: 'text',
+              locale,
+              target: field,
+              outcome: changedHere ? 'applied' : 'already_same',
+            });
           }
         } else {
-          const created = await this.#write('POST', '/v1/appStoreVersionLocalizations', `adding the ${locale} locale`, {
-            data: {
-              type: 'appStoreVersionLocalizations',
-              attributes: { locale, ...wanted },
-              relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: version.id } } },
+          const created = await this.#write(
+            'POST',
+            '/v1/appStoreVersionLocalizations',
+            `adding the ${locale} locale`,
+            {
+              data: {
+                type: 'appStoreVersionLocalizations',
+                attributes: { locale, ...wanted },
+                relationships: {
+                  appStoreVersion: { data: { type: 'appStoreVersions', id: version.id } },
+                },
+              },
             },
-          });
+          );
           const id = idOf(created);
-          if (!id) throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect created the ${locale} locale but sent no id.`, created.status);
+          if (!id)
+            throw new StoreError(
+              'appstoreconnect',
+              'unexpected',
+              `App Store Connect created the ${locale} locale but sent no id.`,
+              created.status,
+            );
           localeIds.set(locale, id);
           steps.push({ type: 'locale', locale, target: 'locale', outcome: 'applied' });
-          for (const field of fields.keys()) steps.push({ type: 'text', locale, target: field, outcome: 'applied' });
+          for (const field of fields.keys())
+            steps.push({ type: 'text', locale, target: field, outcome: 'applied' });
         }
       }
       if (input.fields !== undefined && input.fields.length > 0) {
         at = { type: 'field', locale: '', target: 'version' };
-        steps.push(...(await this.#applyFields(version.id, input.fields, before.fields ?? [], (target) => (at = { type: 'field', locale: '', target }))));
+        steps.push(
+          ...(await this.#applyFields(
+            version.id,
+            input.fields,
+            before.fields ?? [],
+            (target) => (at = { type: 'field', locale: '', target }),
+          )),
+        );
       }
       for (const write of input.assets) {
         at = { type: 'asset', locale: write.locale, target: write.target };
         let locId = localeIds.get(write.locale);
         if (!locId) {
           at = { type: 'locale', locale: write.locale, target: 'locale' };
-          const created = await this.#write('POST', '/v1/appStoreVersionLocalizations', `adding the ${write.locale} locale`, {
-            data: {
-              type: 'appStoreVersionLocalizations',
-              attributes: { locale: write.locale },
-              relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: version.id } } },
+          const created = await this.#write(
+            'POST',
+            '/v1/appStoreVersionLocalizations',
+            `adding the ${write.locale} locale`,
+            {
+              data: {
+                type: 'appStoreVersionLocalizations',
+                attributes: { locale: write.locale },
+                relationships: {
+                  appStoreVersion: { data: { type: 'appStoreVersions', id: version.id } },
+                },
+              },
             },
-          });
+          );
           locId = idOf(created);
-          if (!locId) throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect created the ${write.locale} locale but sent no id.`, created.status);
+          if (!locId)
+            throw new StoreError(
+              'appstoreconnect',
+              'unexpected',
+              `App Store Connect created the ${write.locale} locale but sent no id.`,
+              created.status,
+            );
           localeIds.set(write.locale, locId);
-          steps.push({ type: 'locale', locale: write.locale, target: 'locale', outcome: 'applied' });
+          steps.push({
+            type: 'locale',
+            locale: write.locale,
+            target: 'locale',
+            outcome: 'applied',
+          });
           at = { type: 'asset', locale: write.locale, target: write.target };
         }
-        const state = before.assets.find((a) => a.locale === write.locale && a.target === write.target);
+        const state = before.assets.find(
+          (a) => a.locale === write.locale && a.target === write.target,
+        );
         const group = state?.placementGroup ?? (await this.#groupFor(write));
-        steps.push(await this.#replaceSet(locId, write, group, state, read.placements.get(`${write.locale}\u0000${group}`) ?? []));
+        steps.push(
+          await this.#replaceSet(
+            locId,
+            write,
+            group,
+            state,
+            read.placements.get(`${write.locale}\u0000${group}`) ?? [],
+          ),
+        );
       }
     } catch (error) {
       throw this.#settle(error, steps, at);
@@ -472,9 +607,18 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   }
 
   /** A failure after some steps is partial, a lost answer is unknown; a failure before any step is just the failure. */
-  #settle(error: unknown, steps: DraftStep[], at: { type: DraftStep['type']; locale: string; target: string }): unknown {
+  #settle(
+    error: unknown,
+    steps: DraftStep[],
+    at: { type: DraftStep['type']; locale: string; target: string },
+  ): unknown {
     if (error instanceof DraftOutcomeUnknownError) {
-      return new DraftOutcomeUnknownError('appstoreconnect', error.message, [...steps], error.status);
+      return new DraftOutcomeUnknownError(
+        'appstoreconnect',
+        error.message,
+        [...steps],
+        error.status,
+      );
     }
     if (error instanceof StoreError && steps.some((s) => s.outcome === 'applied')) {
       return new DraftPartialError(error, [...steps], at);
@@ -487,7 +631,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
 
   async #editableVersion(): Promise<VersionRef> {
     const what = 'looking for the editable App Store version';
-    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    let url: string | undefined =
+      `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
     const found: VersionRef[] = [];
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
@@ -495,7 +640,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const a = isRecord(item.attributes) ? item.attributes : {};
         const id = text(item.id);
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
-        if (!id || text(a.platform) !== this.#apple || !APPLE_DRAFT_VERSION_STATES.includes(state)) continue;
+        if (!id || text(a.platform) !== this.#apple || !APPLE_DRAFT_VERSION_STATES.includes(state))
+          continue;
         found.push({ id, versionString: text(a.versionString) ?? null, state, attrs: a });
       }
       const links = isRecord(body.links) ? body.links : {};
@@ -511,7 +657,11 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       );
     }
     if (found.length > 1) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect has more than one editable ${this.#label} version; this server will not guess which one to write to.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `App Store Connect has more than one editable ${this.#label} version; this server will not guess which one to write to.`,
+      );
     }
     return found[0] as VersionRef;
   }
@@ -519,7 +669,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   async #localizations(versionId: string): Promise<Map<string, LocalizationRef>> {
     const what = 'reading the localizations of the editable version';
     const out = new Map<string, LocalizationRef>();
-    let url: string | undefined = `${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionLocalizations?limit=${this.#pageSize}`;
+    let url: string | undefined =
+      `${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionLocalizations?limit=${this.#pageSize}`;
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
       for (const item of records(body.data)) {
@@ -543,7 +694,12 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     const textState: DraftTextState[] = request.text.map((t) => {
       const ref = locs.get(t.locale);
       const value = ref ? text(ref.attributes[attr(t.field)]) : undefined;
-      return { locale: t.locale, field: t.field, value: value ?? null, localeExists: ref !== undefined };
+      return {
+        locale: t.locale,
+        field: t.field,
+        value: value ?? null,
+        localeExists: ref !== undefined,
+      };
     });
     const read = new Map<string, PlacementRef[]>();
     for (const locale of new Set(request.assets.map((a) => a.locale))) {
@@ -566,11 +722,20 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         images: mine.map((p) => {
           const a = isRecord(p.image.attributes) ? p.image.attributes : {};
           const hash = hashOfReference(text(a.referenceName));
-          return { id: p.id, name: text(a.fileName) ?? null, checksum: hash, checksumKind: 'sha256' as const, state: text(a.state) ?? null };
+          return {
+            id: p.id,
+            name: text(a.fileName) ?? null,
+            checksum: hash,
+            checksumKind: 'sha256' as const,
+            state: text(a.state) ?? null,
+          };
         }),
       });
     }
-    const fields = request.fields !== undefined && request.fields.length > 0 ? await this.#readFields(request.fields, version) : undefined;
+    const fields =
+      request.fields !== undefined && request.fields.length > 0
+        ? await this.#readFields(request.fields, version)
+        : undefined;
     return {
       state: {
         store: 'appstoreconnect',
@@ -584,19 +749,26 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     };
   }
 
-
   // -------------------------------------------------------------------------------------------
   // Release fields of the editable version (docs/api/releases-write.md). Names UNVERIFIED unless said.
 
   /** The build attached to a version, or null. `GET /v1/appStoreVersions/{id}/build` (title VERIFIED; the attributes are UNVERIFIED). */
   async #attachedBuild(versionId: string): Promise<AttachedBuild | null> {
     try {
-      const { json } = await this.#get(`${this.#base}/v1/appStoreVersions/${enc(versionId)}/build`, 'reading the build of the version');
+      const { json } = await this.#get(
+        `${this.#base}/v1/appStoreVersions/${enc(versionId)}/build`,
+        'reading the build of the version',
+      );
       const data = isRecord(json.data) ? json.data : undefined;
       const id = data ? text(data.id) : undefined;
       if (!data || !id) return null;
       const a = isRecord(data.attributes) ? data.attributes : {};
-      return { id, buildNumber: text(a.version) ?? null, processingState: text(a.processingState) ?? null, expired: typeof a.expired === 'boolean' ? a.expired : null };
+      return {
+        id,
+        buildNumber: text(a.version) ?? null,
+        processingState: text(a.processingState) ?? null,
+        expired: typeof a.expired === 'boolean' ? a.expired : null,
+      };
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return null;
       throw error;
@@ -606,7 +778,10 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   /** The phased release of a version, or null when it has none (404 and `data: null` both mean none). */
   async #phasedRelease(versionId: string): Promise<{ id: string; state: string | null } | null> {
     try {
-      const { json } = await this.#get(`${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionPhasedRelease`, 'reading the phased release');
+      const { json } = await this.#get(
+        `${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionPhasedRelease`,
+        'reading the phased release',
+      );
       const data = isRecord(json.data) ? json.data : undefined;
       const id = data ? text(data.id) : undefined;
       if (!data || !id) return null;
@@ -621,12 +796,20 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   /** One build by id (`GET /v1/builds/{id}`), or null when Apple does not know it. */
   async #buildById(buildId: string): Promise<AttachedBuild | null> {
     try {
-      const { json } = await this.#get(`${this.#base}/v1/builds/${enc(buildId)}`, 'looking up the build');
+      const { json } = await this.#get(
+        `${this.#base}/v1/builds/${enc(buildId)}`,
+        'looking up the build',
+      );
       const data = isRecord(json.data) ? json.data : undefined;
       const id = data ? text(data.id) : undefined;
       if (!data || !id) return null;
       const a = isRecord(data.attributes) ? data.attributes : {};
-      return { id, buildNumber: text(a.version) ?? null, processingState: text(a.processingState) ?? null, expired: typeof a.expired === 'boolean' ? a.expired : null };
+      return {
+        id,
+        buildNumber: text(a.version) ?? null,
+        processingState: text(a.processingState) ?? null,
+        expired: typeof a.expired === 'boolean' ? a.expired : null,
+      };
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'not_found') return null;
       throw error;
@@ -634,7 +817,10 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   }
 
   /** What the store holds for the wanted release fields, in the canonical text of `@mrm/core`. */
-  async #readFields(wanted: readonly DraftFieldWrite[], version: VersionRef): Promise<DraftFieldState[]> {
+  async #readFields(
+    wanted: readonly DraftFieldWrite[],
+    version: VersionRef,
+  ): Promise<DraftFieldState[]> {
     const out: DraftFieldState[] = [];
     let attached: AttachedBuild | null | undefined;
     for (const w of wanted) {
@@ -643,11 +829,22 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
           out.push({ field: w.field, locale: '', value: version.versionString });
           break;
         case 'release_type':
-          out.push({ field: w.field, locale: '', value: (text(version.attrs.releaseType) ?? '').toUpperCase() || null });
+          out.push({
+            field: w.field,
+            locale: '',
+            value: (text(version.attrs.releaseType) ?? '').toUpperCase() || null,
+          });
           break;
         case 'earliest_release_date': {
           const raw = text(version.attrs.earliestReleaseDate);
-          out.push({ field: w.field, locale: '', value: raw === undefined || raw === '' ? null : normalizeReleaseValue('earliest_release_date', raw) });
+          out.push({
+            field: w.field,
+            locale: '',
+            value:
+              raw === undefined || raw === ''
+                ? null
+                : normalizeReleaseValue('earliest_release_date', raw),
+          });
           break;
         }
         case 'copyright':
@@ -673,7 +870,15 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         }
         case 'phased_release': {
           const phased = await this.#phasedRelease(version.id);
-          out.push({ field: w.field, locale: '', value: phased ? 'on' : 'off', facts: { phasedReleaseId: phased?.id ?? null, phasedReleaseState: phased?.state ?? null } });
+          out.push({
+            field: w.field,
+            locale: '',
+            value: phased ? 'on' : 'off',
+            facts: {
+              phasedReleaseId: phased?.id ?? null,
+              phasedReleaseState: phased?.state ?? null,
+            },
+          });
           break;
         }
         default:
@@ -689,7 +894,12 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
    * phased release (`POST /v1/appStoreVersionPhasedReleases` to switch it on, `DELETE /v1/appStoreVersionPhasedReleases/{id}` to
    * switch it off). Only what differs from the store is sent. Never retried.
    */
-  async #applyFields(versionId: string, fields: readonly DraftFieldWrite[], current: readonly DraftFieldState[], at: (target: string) => void): Promise<DraftStep[]> {
+  async #applyFields(
+    versionId: string,
+    fields: readonly DraftFieldWrite[],
+    current: readonly DraftFieldState[],
+    at: (target: string) => void,
+  ): Promise<DraftStep[]> {
     const steps: DraftStep[] = [];
     const now = (field: string) => current.find((c) => c.field === field);
     const attributes: Record<string, string> = {};
@@ -716,34 +926,60 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
           type: 'appStoreVersions',
           id: versionId,
           ...(Object.keys(attributes).length > 0 ? { attributes } : {}),
-          ...(buildId !== undefined ? { relationships: { build: { data: { type: 'builds', id: buildId } } } } : {}),
+          ...(buildId !== undefined
+            ? { relationships: { build: { data: { type: 'builds', id: buildId } } } }
+            : {}),
         },
       });
-      for (const field of sent) steps.push({ type: 'field', locale: '', target: field, outcome: 'applied' });
+      for (const field of sent)
+        steps.push({ type: 'field', locale: '', target: field, outcome: 'applied' });
     }
     steps.push(...done);
     const phased = fields.find((f) => f.field === 'phased_release');
     if (phased) {
       const state = now('phased_release');
       if (state?.value === phased.value) {
-        steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'already_same' });
+        steps.push({
+          type: 'field',
+          locale: '',
+          target: 'phased_release',
+          outcome: 'already_same',
+        });
       } else if (phased.value === 'on') {
         at('phased_release');
-        await this.#write('POST', '/v1/appStoreVersionPhasedReleases', 'switching phased release on', {
-          data: {
-            type: 'appStoreVersionPhasedReleases',
-            attributes: { phasedReleaseState: 'INACTIVE' },
-            relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: versionId } } },
+        await this.#write(
+          'POST',
+          '/v1/appStoreVersionPhasedReleases',
+          'switching phased release on',
+          {
+            data: {
+              type: 'appStoreVersionPhasedReleases',
+              attributes: { phasedReleaseState: 'INACTIVE' },
+              relationships: {
+                appStoreVersion: { data: { type: 'appStoreVersions', id: versionId } },
+              },
+            },
           },
-        });
+        );
         steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'applied' });
       } else {
         const id = state?.facts?.phasedReleaseId;
         if (typeof id !== 'string' || id === '') {
-          steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'already_same' });
+          steps.push({
+            type: 'field',
+            locale: '',
+            target: 'phased_release',
+            outcome: 'already_same',
+          });
         } else {
           at('phased_release');
-          await this.#write('DELETE', `/v1/appStoreVersionPhasedReleases/${enc(id)}`, 'switching phased release off', undefined, [404]);
+          await this.#write(
+            'DELETE',
+            `/v1/appStoreVersionPhasedReleases/${enc(id)}`,
+            'switching phased release off',
+            undefined,
+            [404],
+          );
           steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'applied' });
         }
       }
@@ -761,7 +997,10 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
    * attribute names are UNVERIFIED because Apple's page lists none). The platform and the version are filtered here too, from
    * the pre release version Apple includes, so a Mac build never shows in an iOS list even if a filter is ignored.
    */
-  async listReleaseCandidates(input: { version?: string; track?: string }): Promise<ReleaseCandidates> {
+  async listReleaseCandidates(input: {
+    version?: string;
+    track?: string;
+  }): Promise<ReleaseCandidates> {
     let editable: VersionRef | undefined;
     try {
       editable = await this.#editableVersion();
@@ -776,7 +1015,9 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       [
         `filter[app]=${enc(this.#appId)}`,
         `filter[preReleaseVersion.platform]=${this.#apple}`,
-        ...(input.version !== undefined && input.version !== '' ? [`filter[preReleaseVersion.version]=${enc(input.version)}`] : []),
+        ...(input.version !== undefined && input.version !== ''
+          ? [`filter[preReleaseVersion.version]=${enc(input.version)}`]
+          : []),
         'include=preReleaseVersion',
         'sort=-uploadedDate',
         `fields[builds]=version,uploadedDate,processingState,expired,preReleaseVersion${withCompliance ? ',usesNonExemptEncryption' : ''}`,
@@ -804,7 +1045,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       const pre = new Map<string, Json>();
       for (const item of records(body.included)) {
         const id = text(item.id);
-        if (id && text(item.type) === 'preReleaseVersions') pre.set(id, isRecord(item.attributes) ? item.attributes : {});
+        if (id && text(item.type) === 'preReleaseVersions')
+          pre.set(id, isRecord(item.attributes) ? item.attributes : {});
       }
       for (const item of records(body.data)) {
         const id = text(item.id);
@@ -817,12 +1059,22 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const platform = preAttrs ? text(preAttrs.platform) : undefined;
         if (platform !== undefined && platform !== this.#apple) continue;
         const version = preAttrs ? (text(preAttrs.version) ?? null) : null;
-        if (input.version !== undefined && input.version !== '' && version !== null && version !== input.version) continue;
+        if (
+          input.version !== undefined &&
+          input.version !== '' &&
+          version !== null &&
+          version !== input.version
+        )
+          continue;
         const processingState = text(a.processingState) ?? null;
         const expired = typeof a.expired === 'boolean' ? a.expired : null;
         const ready = processingState === 'VALID' && expired !== true;
         const exportCompliance: BuildCandidate['exportCompliance'] =
-          !withCompliance || !('usesNonExemptEncryption' in a) ? 'unknown' : typeof a.usesNonExemptEncryption === 'boolean' ? 'answered' : 'missing';
+          !withCompliance || !('usesNonExemptEncryption' in a)
+            ? 'unknown'
+            : typeof a.usesNonExemptEncryption === 'boolean'
+              ? 'answered'
+              : 'missing';
         const isAttached = attached !== null && attached.id === id;
         const buildNumber = text(a.version) ?? null;
         builds.push({
@@ -833,10 +1085,23 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
           processingState,
           expired,
           selectable: ready,
-          reason: ready ? null : expired === true ? 'The build has expired.' : processingState === null ? 'Apple did not say whether the build is processed.' : `The build is not processed (${processingState}).`,
+          reason: ready
+            ? null
+            : expired === true
+              ? 'The build has expired.'
+              : processingState === null
+                ? 'Apple did not say whether the build is processed.'
+                : `The build is not processed (${processingState}).`,
           attached: isAttached,
           eligibility: appleBuildEligibility(
-            { buildNumber, version, processingState, expired, exportCompliance, attached: isAttached },
+            {
+              buildNumber,
+              version,
+              processingState,
+              expired,
+              exportCompliance,
+              attached: isAttached,
+            },
             editable ? { versionString: editable.versionString } : null,
           ),
           exportCompliance,
@@ -851,7 +1116,9 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     return {
       store: 'appstoreconnect',
       platform: this.platform,
-      version: editable ? { id: editable.id, versionString: editable.versionString, state: editable.state } : null,
+      version: editable
+        ? { id: editable.id, versionString: editable.versionString, state: editable.state }
+        : null,
       builds,
       attachedBuildId: attached?.id ?? null,
       truncatedAt,
@@ -866,7 +1133,9 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
    * languages. A note is data for a person: it is never logged and no error carries it.
    */
   async #attachTestNotes(builds: BuildCandidate[]): Promise<void> {
-    const wanted = builds.filter((b) => b.processingState === 'VALID' && b.expired !== true).slice(0, MAX_BUILDS_WITH_NOTES);
+    const wanted = builds
+      .filter((b) => b.processingState === 'VALID' && b.expired !== true)
+      .slice(0, MAX_BUILDS_WITH_NOTES);
     let next = 0;
     const worker = async () => {
       for (let i = next++; i < wanted.length; i = next++) {
@@ -897,7 +1166,14 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       return {
         read: false,
         locales: [],
-        error: kind === 'forbidden' || kind === 'auth' ? 'forbidden' : kind === 'rate_limited' ? 'rate_limited' : kind === 'not_found' ? 'not_found' : 'unavailable',
+        error:
+          kind === 'forbidden' || kind === 'auth'
+            ? 'forbidden'
+            : kind === 'rate_limited'
+              ? 'rate_limited'
+              : kind === 'not_found'
+                ? 'not_found'
+                : 'unavailable',
       };
     }
   }
@@ -909,13 +1185,22 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
    * MAX_NOTES_HISTORY_VERSIONS versions are read, four at a time. A version that cannot be read is skipped and counted in `failed`;
    * when none can be read the first error is thrown. Texts are cut at MAX_NOTE_CHARS and are never logged.
    */
-  async readNotesHistory(input: { locale?: string; maxVersions?: number } = {}): Promise<NotesHistoryRead> {
+  async readNotesHistory(
+    input: { locale?: string; maxVersions?: number } = {},
+  ): Promise<NotesHistoryRead> {
     const what = 'listing the versions of the app';
-    const limit = Math.min(Math.max(Math.trunc(input.maxVersions ?? MAX_NOTES_HISTORY_VERSIONS), 1), MAX_NOTES_HISTORY_VERSIONS);
-    const wantedLocale = input.locale === undefined || input.locale === '' ? undefined : input.locale.toLowerCase().replace(/_/g, '-');
+    const limit = Math.min(
+      Math.max(Math.trunc(input.maxVersions ?? MAX_NOTES_HISTORY_VERSIONS), 1),
+      MAX_NOTES_HISTORY_VERSIONS,
+    );
+    const wantedLocale =
+      input.locale === undefined || input.locale === ''
+        ? undefined
+        : input.locale.toLowerCase().replace(/_/g, '-');
     type Listed = { id: string; version: string | null; state: string | null; at: number | null };
     const listed: Listed[] = [];
-    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    let url: string | undefined =
+      `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
       for (const item of records(body.data)) {
@@ -951,11 +1236,24 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
           const out: NotesHistoryEntry[] = [];
           const locs = await this.#localizations(v.id);
           for (const [locale, ref] of locs) {
-            if (wantedLocale !== undefined && locale.toLowerCase().replace(/_/g, '-') !== wantedLocale) continue;
+            if (
+              wantedLocale !== undefined &&
+              locale.toLowerCase().replace(/_/g, '-') !== wantedLocale
+            )
+              continue;
             const notes = text(ref.attributes.whatsNew);
             if (notes === undefined || notes.trim() === '') continue;
             const capped = capText(notes);
-            out.push({ source: 'appstoreconnect', locale, text: capped.text, truncated: capped.truncated, version: v.version, track: null, state: v.state, at: v.at });
+            out.push({
+              source: 'appstoreconnect',
+              locale,
+              text: capped.text,
+              truncated: capped.truncated,
+              version: v.version,
+              track: null,
+              state: v.state,
+              at: v.at,
+            });
           }
           perVersion[i] = out;
         } catch (error) {
@@ -977,14 +1275,26 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   /** The release fields of the editable version (a refusal `no_editable_version` when there is none). */
   async readEditableRelease(): Promise<EditableRelease> {
     const version = await this.#editableVersion();
-    const [build, phased, locs] = await Promise.all([this.#attachedBuild(version.id), this.#phasedRelease(version.id), this.#localizations(version.id)]);
+    const [build, phased, locs] = await Promise.all([
+      this.#attachedBuild(version.id),
+      this.#phasedRelease(version.id),
+      this.#localizations(version.id),
+    ]);
     const earliest = text(version.attrs.earliestReleaseDate);
     return {
       store: 'appstoreconnect',
       platform: this.platform,
-      version: { id: version.id, versionString: version.versionString, state: version.state, editable: true },
+      version: {
+        id: version.id,
+        versionString: version.versionString,
+        state: version.state,
+        editable: true,
+      },
       releaseType: (text(version.attrs.releaseType) ?? '').toUpperCase() || null,
-      earliestReleaseDate: earliest === undefined || earliest === '' ? null : normalizeReleaseValue('earliest_release_date', earliest),
+      earliestReleaseDate:
+        earliest === undefined || earliest === ''
+          ? null
+          : normalizeReleaseValue('earliest_release_date', earliest),
       copyright: text(version.attrs.copyright) ?? null,
       build,
       phasedRelease: phased,
@@ -1000,7 +1310,8 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     const what = 'reading the screenshot placements';
     const query =
       'filter[placementType]=APP_SCREENSHOT&sort=placementGroupPosition&include=image&limit=200&fields[appAssetLibraryImages]=fileName,referenceName,state,specId,fileSize,category,imageAsset';
-    let url: string | undefined = `${this.#base}/v1/appStoreVersionLocalizations/${enc(localizationId)}/placements?${query}`;
+    let url: string | undefined =
+      `${this.#base}/v1/appStoreVersionLocalizations/${enc(localizationId)}/placements?${query}`;
     const out: PlacementRef[] = [];
     const images = new Map<string, Json>();
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
@@ -1013,18 +1324,25 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const id = text(item.id);
         const a = isRecord(item.attributes) ? item.attributes : {};
         const group = text(a.placementGroup);
-        if (!id || !group || (text(a.placementType) ?? 'APP_SCREENSHOT') !== 'APP_SCREENSHOT') continue;
+        if (!id || !group || (text(a.placementType) ?? 'APP_SCREENSHOT') !== 'APP_SCREENSHOT')
+          continue;
         const rels = isRecord(item.relationships) ? item.relationships : {};
         const rel = isRecord(rels.image) ? rels.image : {};
         const imageId = isRecord(rel.data) ? text(rel.data.id) : undefined;
-        out.push({ id, group, imageId: imageId ?? null, image: (imageId ? images.get(imageId) : undefined) ?? {} });
+        out.push({
+          id,
+          group,
+          imageId: imageId ?? null,
+          image: (imageId ? images.get(imageId) : undefined) ?? {},
+        });
       }
       const links = isRecord(body.links) ? body.links : {};
       const next = text(links.next);
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
     // `included` may come on a later page than the placement that points at it.
-    for (const p of out) if (p.imageId && Object.keys(p.image).length === 0) p.image = images.get(p.imageId) ?? {};
+    for (const p of out)
+      if (p.imageId && Object.keys(p.image).length === 0) p.image = images.get(p.imageId) ?? {};
     return out;
   }
 
@@ -1033,9 +1351,19 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
 
   async #libraryId(): Promise<string> {
     if (this.#library) return this.#library;
-    const body = (await this.#get(`${this.#base}/v1/apps/${enc(this.#appId)}/assetLibrary`, 'reading the app asset library')).json;
+    const body = (
+      await this.#get(
+        `${this.#base}/v1/apps/${enc(this.#appId)}/assetLibrary`,
+        'reading the app asset library',
+      )
+    ).json;
     const id = isRecord(body.data) ? text(body.data.id) : undefined;
-    if (!id) throw new StoreError('appstoreconnect', 'unexpected', 'App Store Connect sent no asset library for this app.');
+    if (!id)
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        'App Store Connect sent no asset library for this app.',
+      );
     this.#library = id;
     return id;
   }
@@ -1044,17 +1372,43 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     if (this.#ref) return this.#ref;
     const what = 'reading the asset library reference data';
     const fields = 'features,placementProfileGroups,imageSpecs,placementTypes,displayClasses';
-    const body = (await this.#get(`${this.#base}/v1/appAssetLibraryRefData?fields[appAssetLibraryRefData]=${fields}`, what)).json;
+    const body = (
+      await this.#get(
+        `${this.#base}/v1/appAssetLibraryRefData?fields[appAssetLibraryRefData]=${fields}`,
+        what,
+      )
+    ).json;
     const first = records(body.data)[0];
     const a = first && isRecord(first.attributes) ? first.attributes : undefined;
-    if (!a) throw new StoreError('appstoreconnect', 'unexpected', 'App Store Connect sent no asset library reference data.');
+    if (!a)
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        'App Store Connect sent no asset library reference data.',
+      );
     const specs = new Map<string, Dims>();
     for (const spec of records(a.imageSpecs)) {
       const id = text(spec.specId);
       const d = isRecord(spec.dimensions) ? spec.dimensions : {};
-      const dims = { minWidth: num(d.minWidth), maxWidth: num(d.maxWidth), minHeight: num(d.minHeight), maxHeight: num(d.maxHeight) };
-      if (id && dims.minWidth !== undefined && dims.maxWidth !== undefined && dims.minHeight !== undefined && dims.maxHeight !== undefined) {
-        specs.set(id, { minWidth: dims.minWidth, maxWidth: dims.maxWidth, minHeight: dims.minHeight, maxHeight: dims.maxHeight });
+      const dims = {
+        minWidth: num(d.minWidth),
+        maxWidth: num(d.maxWidth),
+        minHeight: num(d.minHeight),
+        maxHeight: num(d.maxHeight),
+      };
+      if (
+        id &&
+        dims.minWidth !== undefined &&
+        dims.maxWidth !== undefined &&
+        dims.minHeight !== undefined &&
+        dims.maxHeight !== undefined
+      ) {
+        specs.set(id, {
+          minWidth: dims.minWidth,
+          maxWidth: dims.maxWidth,
+          minHeight: dims.minHeight,
+          maxHeight: dims.maxHeight,
+        });
       }
     }
     const screenshotSpecs = new Map<string, Set<string>>();
@@ -1063,20 +1417,28 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       for (const mapping of records(type.specMappings)) {
         const group = text(mapping.placementGroupId);
         if (!group) continue;
-        const ids = Array.isArray(mapping.specs) ? mapping.specs.filter((x): x is string => typeof x === 'string') : [];
+        const ids = Array.isArray(mapping.specs)
+          ? mapping.specs.filter((x): x is string => typeof x === 'string')
+          : [];
         screenshotSpecs.set(group, new Set([...(screenshotSpecs.get(group) ?? []), ...ids]));
       }
     }
     const groups = new Map<string, { platform: string | null; displayClass: string | null }>();
     for (const g of records(a.placementProfileGroups)) {
       const id = text(g.placementProfileGroupId);
-      if (id) groups.set(id, { platform: text(g.platform) ?? null, displayClass: text(g.displayClassId) ?? null });
+      if (id)
+        groups.set(id, {
+          platform: text(g.platform) ?? null,
+          displayClass: text(g.displayClassId) ?? null,
+        });
     }
     const displayClasses = new Map<string, { family: string | null; screens: string[] }>();
     for (const d of records(a.displayClasses)) {
       const id = text(d.displayClassId);
       if (id) {
-        const screens = Array.isArray(d.screenDimensions) ? d.screenDimensions.filter((x): x is string => typeof x === 'string') : [];
+        const screens = Array.isArray(d.screenDimensions)
+          ? d.screenDimensions.filter((x): x is string => typeof x === 'string')
+          : [];
         displayClasses.set(id, { family: text(d.deviceFamily) ?? null, screens });
       }
     }
@@ -1093,7 +1455,11 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       }
     }
     if (screenshotSpecs.size === 0) {
-      throw new StoreError('appstoreconnect', 'unexpected', 'The App Store Connect reference data lists no screenshot placement groups, so this server cannot place a screenshot.');
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        'The App Store Connect reference data lists no screenshot placement groups, so this server cannot place a screenshot.',
+      );
     }
     this.#ref = { screenshotSpecs, specs, groups, displayClasses, maxCount };
     return this.#ref;
@@ -1104,28 +1470,51 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
    * by the device family and then the screen size when several do. Never a guess: no group, or no single group, is a
    * refusal that names the size.
    */
-  async #groupFor(slot: Pick<DraftSlot, 'device' | 'width' | 'height' | 'target'>): Promise<string> {
+  async #groupFor(
+    slot: Pick<DraftSlot, 'device' | 'width' | 'height' | 'target'>,
+  ): Promise<string> {
     const ref = await this.#refData();
     const w = slot.width ?? null;
     const h = slot.height ?? null;
     if (w === null || h === null) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `The size of the files of the ${slot.target} set is not known, so its App Store placement group cannot be found.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `The size of the files of the ${slot.target} set is not known, so its App Store placement group cannot be found.`,
+      );
     }
     let found = [...ref.screenshotSpecs]
-      .filter(([, ids]) => [...ids].some((id) => {
-        const d = ref.specs.get(id);
-        return d !== undefined && w >= d.minWidth && w <= d.maxWidth && h >= d.minHeight && h <= d.maxHeight;
-      }))
+      .filter(([, ids]) =>
+        [...ids].some((id) => {
+          const d = ref.specs.get(id);
+          return (
+            d !== undefined &&
+            w >= d.minWidth &&
+            w <= d.maxWidth &&
+            h >= d.minHeight &&
+            h <= d.maxHeight
+          );
+        }),
+      )
       .map(([group]) => group);
     const describe = () => `${w}x${h}`;
     if (found.length === 0) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect's reference data has no screenshot placement group for ${describe()} pixels.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `App Store Connect's reference data has no screenshot placement group for ${describe()} pixels.`,
+      );
     }
     if (found.length > 1) {
       const family = familyOf(slot.device);
       const info = (g: string) => {
         const group = ref.groups.get(g);
-        return { platform: group?.platform ?? '', display: (group?.displayClass ? ref.displayClasses.get(group.displayClass) : undefined) ?? { family: null, screens: [] } };
+        return {
+          platform: group?.platform ?? '',
+          display: (group?.displayClass
+            ? ref.displayClasses.get(group.displayClass)
+            : undefined) ?? { family: null, screens: [] },
+        };
       };
       if (family) {
         const narrowed = found.filter((g) => {
@@ -1161,20 +1550,40 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     existing: PlacementRef[],
   ): Promise<DraftStep> {
     const base = { type: 'asset' as const, locale: write.locale, target: write.target };
-    if (state?.setExists && setMatches(state.images, write.files)) return { ...base, outcome: 'already_same' };
+    if (state?.setExists && setMatches(state.images, write.files))
+      return { ...base, outcome: 'already_same' };
     const ref = await this.#refData();
     const max = ref.maxCount.get(group) ?? MAX_SET_FILES;
     if (write.files.length > max) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `The ${write.target} set of ${write.locale} has ${write.files.length} files; the group takes at most ${max}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `The ${write.target} set of ${write.locale} has ${write.files.length} files; the group takes at most ${max}.`,
+      );
     }
 
     // 1. Which placements already show a wanted file, in which place.
-    const pool = existing.map((p) => ({ p, hash: hashOfReference(text((isRecord(p.image.attributes) ? p.image.attributes : {}).referenceName)), used: false }));
+    const pool = existing.map((p) => ({
+      p,
+      hash: hashOfReference(
+        text((isRecord(p.image.attributes) ? p.image.attributes : {}).referenceName),
+      ),
+      used: false,
+    }));
     const plan = write.files.map((file) => {
       const wanted = file.sha256.slice(0, REFERENCE_HEX);
-      const hit = pool.find((e) => !e.used && e.hash === wanted && text((isRecord(e.p.image.attributes) ? e.p.image.attributes : {}).state) !== 'FAILED');
+      const hit = pool.find(
+        (e) =>
+          !e.used &&
+          e.hash === wanted &&
+          text((isRecord(e.p.image.attributes) ? e.p.image.attributes : {}).state) !== 'FAILED',
+      );
       if (hit) hit.used = true;
-      return { file, placementId: hit?.p.id as string | undefined, imageId: undefined as string | undefined };
+      return {
+        file,
+        placementId: hit?.p.id as string | undefined,
+        imageId: undefined as string | undefined,
+      };
     });
     // 2. Images first: nothing visible changes until a placement is made.
     let uploaded = 0;
@@ -1194,25 +1603,44 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     let removed = 0;
     const removeStale = async () => {
       for (const id of stale) {
-        await this.#write('DELETE', `/v1/appAssetLibraryPlacements/${enc(id)}`, 'removing a screenshot placement of the draft', undefined, [404]);
+        await this.#write(
+          'DELETE',
+          `/v1/appAssetLibraryPlacements/${enc(id)}`,
+          'removing a screenshot placement of the draft',
+          undefined,
+          [404],
+        );
         removed++;
       }
     };
     if (!roomForBoth) await removeStale();
     for (const item of plan) {
       if (item.placementId) continue;
-      const created = await this.#write('POST', '/v1/appAssetLibraryPlacements', `placing ${item.file.name}`, {
-        data: {
-          type: 'appAssetLibraryPlacements',
-          attributes: { placementType: 'APP_SCREENSHOT', placementGroup: group },
-          relationships: {
-            image: { data: { type: 'appAssetLibraryImages', id: item.imageId } },
-            appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: localizationId } },
+      const created = await this.#write(
+        'POST',
+        '/v1/appAssetLibraryPlacements',
+        `placing ${item.file.name}`,
+        {
+          data: {
+            type: 'appAssetLibraryPlacements',
+            attributes: { placementType: 'APP_SCREENSHOT', placementGroup: group },
+            relationships: {
+              image: { data: { type: 'appAssetLibraryImages', id: item.imageId } },
+              appStoreVersionLocalization: {
+                data: { type: 'appStoreVersionLocalizations', id: localizationId },
+              },
+            },
           },
         },
-      });
+      );
       const id = idOf(created);
-      if (!id) throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect placed ${item.file.name} but sent no placement id.`, created.status);
+      if (!id)
+        throw new StoreError(
+          'appstoreconnect',
+          'unexpected',
+          `App Store Connect placed ${item.file.name} but sent no placement id.`,
+          created.status,
+        );
       item.placementId = id;
     }
     if (roomForBoth) await removeStale();
@@ -1220,26 +1648,45 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     // New placements are appended in the order they were made, so the group is already in order when the kept
     // placements come first, in their own order, and the new ones follow in the wanted order.
     const wantedOrder = plan.map((p) => p.placementId as string);
-    const keptIds = new Set(plan.filter((p) => existing.some((e) => e.id === p.placementId)).map((p) => p.placementId));
-    const resulting = [...existing.filter((p) => keptIds.has(p.id)).map((p) => p.id), ...plan.filter((p) => !keptIds.has(p.placementId)).map((p) => p.placementId as string)];
-    const inOrder = resulting.length === wantedOrder.length && resulting.every((id, i) => id === wantedOrder[i]);
+    const keptIds = new Set(
+      plan.filter((p) => existing.some((e) => e.id === p.placementId)).map((p) => p.placementId),
+    );
+    const resulting = [
+      ...existing.filter((p) => keptIds.has(p.id)).map((p) => p.id),
+      ...plan.filter((p) => !keptIds.has(p.placementId)).map((p) => p.placementId as string),
+    ];
+    const inOrder =
+      resulting.length === wantedOrder.length && resulting.every((id, i) => id === wantedOrder[i]);
     if (!inOrder && wantedOrder.length > 0) {
-      await this.#write('POST', '/v1/appAssetLibraryPlacementOrderingRequests', 'ordering the screenshots', {
-        data: {
-          type: 'appAssetLibraryPlacementOrderingRequests',
-          attributes: { placementGroup: group },
-          relationships: {
-            orderedPlacements: { data: wantedOrder.map((id) => ({ type: 'appAssetLibraryPlacements', id })) },
-            appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: localizationId } },
+      await this.#write(
+        'POST',
+        '/v1/appAssetLibraryPlacementOrderingRequests',
+        'ordering the screenshots',
+        {
+          data: {
+            type: 'appAssetLibraryPlacementOrderingRequests',
+            attributes: { placementGroup: group },
+            relationships: {
+              orderedPlacements: {
+                data: wantedOrder.map((id) => ({ type: 'appAssetLibraryPlacements', id })),
+              },
+              appStoreVersionLocalization: {
+                data: { type: 'appStoreVersionLocalizations', id: localizationId },
+              },
+            },
           },
         },
-      });
+      );
     }
     return { ...base, outcome: 'applied', uploaded, removed };
   }
 
   /** An image of the library that already is this file and is processed, or undefined. A failed lookup is just "not found". */
-  async #libraryImage(file: DraftAssetWrite['files'][number], group: string, ref: RefData): Promise<string | undefined> {
+  async #libraryImage(
+    file: DraftAssetWrite['files'][number],
+    group: string,
+    ref: RefData,
+  ): Promise<string | undefined> {
     const library = await this.#libraryId();
     const name = referenceName(file.sha256);
     let body: Json;
@@ -1251,7 +1698,15 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         )
       ).json;
     } catch (error) {
-      if (error instanceof StoreError && error.kind !== 'network' && error.kind !== 'server' && error.kind !== 'rate_limited' && error.kind !== 'auth' && error.kind !== 'forbidden') return undefined;
+      if (
+        error instanceof StoreError &&
+        error.kind !== 'network' &&
+        error.kind !== 'server' &&
+        error.kind !== 'rate_limited' &&
+        error.kind !== 'auth' &&
+        error.kind !== 'forbidden'
+      )
+        return undefined;
       throw error;
     }
     const accepted = ref.screenshotSpecs.get(group) ?? new Set<string>();
@@ -1260,7 +1715,11 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       const id = text(item.id);
       const specId = text(a.specId);
       if (!id || text(a.referenceName) !== name || a.fileSize !== file.bytes.length) continue;
-      if (!DRAFT_IMAGE_READY_STATES.includes(text(a.state) ?? '') || (text(a.category) ?? 'APP_SCREENSHOTS_AND_PREVIEWS') !== 'APP_SCREENSHOTS_AND_PREVIEWS') continue;
+      if (
+        !DRAFT_IMAGE_READY_STATES.includes(text(a.state) ?? '') ||
+        (text(a.category) ?? 'APP_SCREENSHOTS_AND_PREVIEWS') !== 'APP_SCREENSHOTS_AND_PREVIEWS'
+      )
+        continue;
       if (specId === undefined || !accepted.has(specId)) continue;
       return id;
     }
@@ -1268,29 +1727,51 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   }
 
   /** Reserve, upload every part, commit, wait until Apple has processed it. Returns the library image id. */
-  async #upload(file: DraftAssetWrite['files'][number], group: string, ref: RefData): Promise<string> {
+  async #upload(
+    file: DraftAssetWrite['files'][number],
+    group: string,
+    ref: RefData,
+  ): Promise<string> {
     const what = `uploading ${file.name}`;
     const library = await this.#libraryId();
-    const reserved = await this.#write('POST', '/v1/appAssetLibraryImages', `reserving the upload of ${file.name}`, {
-      data: {
-        type: 'appAssetLibraryImages',
-        attributes: { fileName: file.name, fileSize: file.bytes.length, category: 'APP_SCREENSHOTS_AND_PREVIEWS', referenceName: referenceName(file.sha256) },
-        relationships: { assetLibrary: { data: { type: 'appAssetLibraries', id: library } } },
+    const reserved = await this.#write(
+      'POST',
+      '/v1/appAssetLibraryImages',
+      `reserving the upload of ${file.name}`,
+      {
+        data: {
+          type: 'appAssetLibraryImages',
+          attributes: {
+            fileName: file.name,
+            fileSize: file.bytes.length,
+            category: 'APP_SCREENSHOTS_AND_PREVIEWS',
+            referenceName: referenceName(file.sha256),
+          },
+          relationships: { assetLibrary: { data: { type: 'appAssetLibraries', id: library } } },
+        },
       },
-    });
+    );
     const id = idOf(reserved);
     const data = isRecord(reserved.json) && isRecord(reserved.json.data) ? reserved.json.data : {};
     const attributes = isRecord(data.attributes) ? data.attributes : {};
     const operations = records(attributes.uploadOperations);
     if (!id || operations.length === 0) {
-      throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect reserved ${file.name} but sent no upload instructions.`, reserved.status);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `App Store Connect reserved ${file.name} but sent no upload instructions.`,
+        reserved.status,
+      );
     }
     for (const op of operations) await this.#putPart(op, file.bytes, what);
     await this.#write('PATCH', `/v1/appAssetLibraryImages/${enc(id)}`, `committing ${file.name}`, {
       data: { type: 'appAssetLibraryImages', id, attributes: { uploaded: true } },
     });
     const specId = await this.#waitProcessed(id, file.name);
-    if (specId === undefined || !(ref.screenshotSpecs.get(group) ?? new Set<string>()).has(specId)) {
+    if (
+      specId === undefined ||
+      !(ref.screenshotSpecs.get(group) ?? new Set<string>()).has(specId)
+    ) {
       await this.#discard(id, file.name);
       throw new StoreError(
         'appstoreconnect',
@@ -1304,7 +1785,13 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   /** Removes an image THIS connector made and could not use: it has no placements, so the delete is safe. */
   async #discard(id: string, name: string): Promise<void> {
     try {
-      await this.#write('DELETE', `/v1/appAssetLibraryImages/${enc(id)}`, `removing the unusable ${name}`, undefined, [404]);
+      await this.#write(
+        'DELETE',
+        `/v1/appAssetLibraryImages/${enc(id)}`,
+        `removing the unusable ${name}`,
+        undefined,
+        [404],
+      );
     } catch {
       // An unused image in the library is harmless; the next push finds or replaces it.
     }
@@ -1322,10 +1809,18 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       target = undefined;
     }
     if (!target || target.protocol !== 'https:' || !UPLOAD_HOST.test(target.hostname)) {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent an upload address that is not an https address of apple.com while ${what}. Nothing was sent to it.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent an upload address that is not an https address of apple.com while ${what}. Nothing was sent to it.`,
+      );
     }
     if (offset < 0 || length < 0 || offset + length > bytes.length) {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple asked for a byte range outside the file while ${what}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple asked for a byte range outside the file while ${what}.`,
+      );
     }
     // The headers are Apple's, to be sent as given; the content type goes in its own field.
     let contentType = 'application/octet-stream';
@@ -1339,13 +1834,27 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     }
     let reply: StoreReply;
     try {
-      reply = await this.#writeHttp.send(method, target.toString(), { headers, raw: { body: bytes.subarray(offset, offset + length), contentType } });
+      reply = await this.#writeHttp.send(method, target.toString(), {
+        headers,
+        raw: { body: bytes.subarray(offset, offset + length), contentType },
+      });
     } catch (error) {
-      if (error instanceof StoreError) throw new StoreError('appstoreconnect', error.kind, `The upload of a part failed while ${what}: ${error.message}`, error.status);
+      if (error instanceof StoreError)
+        throw new StoreError(
+          'appstoreconnect',
+          error.kind,
+          `The upload of a part failed while ${what}: ${error.message}`,
+          error.status,
+        );
       throw error;
     }
     if (reply.status < 200 || reply.status >= 300) {
-      throw new StoreError('appstoreconnect', reply.status >= 500 ? 'server' : 'unexpected', `Apple's upload server answered HTTP ${reply.status} while ${what}.`, reply.status);
+      throw new StoreError(
+        'appstoreconnect',
+        reply.status >= 500 ? 'server' : 'unexpected',
+        `Apple's upload server answered HTTP ${reply.status} while ${what}.`,
+        reply.status,
+      );
     }
   }
 
@@ -1353,20 +1862,35 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   async #waitProcessed(id: string, name: string): Promise<string | undefined> {
     for (let attempt = 0; attempt < this.#maxPolls; attempt++) {
       const body = (
-        await this.#get(`${this.#base}/v1/appAssetLibraryImages/${enc(id)}?fields[appAssetLibraryImages]=state,stateDetails,specId,fileName`, `checking ${name}`)
+        await this.#get(
+          `${this.#base}/v1/appAssetLibraryImages/${enc(id)}?fields[appAssetLibraryImages]=state,stateDetails,specId,fileName`,
+          `checking ${name}`,
+        )
       ).json;
       const data = isRecord(body.data) ? body.data : {};
       const a = isRecord(data.attributes) ? data.attributes : {};
       const state = text(a.state);
       if (state !== undefined && DRAFT_IMAGE_READY_STATES.includes(state)) return text(a.specId);
       if (state === 'FAILED') {
-        const details = isRecord(a.stateDetails) ? (text(a.stateDetails.description) ?? text(a.stateDetails.message) ?? text(a.stateDetails.code)) : text(a.stateDetails);
+        const details = isRecord(a.stateDetails)
+          ? (text(a.stateDetails.description) ??
+            text(a.stateDetails.message) ??
+            text(a.stateDetails.code))
+          : text(a.stateDetails);
         await this.#discard(id, name);
-        throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect rejected ${name} while processing it (${this.#http.redact(details ?? 'no reason given')}).`);
+        throw new StoreError(
+          'appstoreconnect',
+          'invalid_input',
+          `App Store Connect rejected ${name} while processing it (${this.#http.redact(details ?? 'no reason given')}).`,
+        );
       }
       await this.#sleep(this.#pollMs);
     }
-    throw new StoreError('appstoreconnect', 'server', `App Store Connect had not finished processing ${name} after ${this.#maxPolls} checks. It stays in the asset library without a placement; push again to use it.`);
+    throw new StoreError(
+      'appstoreconnect',
+      'server',
+      `App Store Connect had not finished processing ${name} after ${this.#maxPolls} checks. It stays in the asset library without a placement; push again to use it.`,
+    );
   }
 
   // -------------------------------------------------------------------------------------------
@@ -1375,21 +1899,43 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   #fail(reply: StoreReply, what: string): StoreError {
     if (reply.status === 401) this.#tokens.invalidate();
     const error = appleError(reply, this.#http.now(), what);
-    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
     const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
-      const fields = { code: redact(d.code), title: redact(d.title), detail: redact(d.detail), parameter: redact(d.parameter), pointer: redact(d.pointer) };
-      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+      const fields = {
+        code: redact(d.code),
+        title: redact(d.title),
+        detail: redact(d.detail),
+        parameter: redact(d.parameter),
+        pointer: redact(d.pointer),
+      };
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
     });
-    return new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
+    return new StoreError(
+      'appstoreconnect',
+      error.kind,
+      this.#http.redact(error.message),
+      error.status,
+      details,
+    );
   }
 
   async #get(url: string, what: string): Promise<{ json: Json }> {
     const token = this.#tokens.token();
     this.#http.known.add(token);
-    const reply = await this.#http.send('GET', url, { headers: { authorization: `Bearer ${token}` } });
+    const reply = await this.#http.send('GET', url, {
+      headers: { authorization: `Bearer ${token}` },
+    });
     if (reply.status >= 200 && reply.status < 300) {
       if (reply.malformed || !isRecord(reply.json)) {
-        throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect answered ${what} with a response that could not be read.`, reply.status);
+        throw new StoreError(
+          'appstoreconnect',
+          'unexpected',
+          `App Store Connect answered ${what} with a response that could not be read.`,
+          reply.status,
+        );
       }
       return { json: reply.json };
     }
@@ -1397,7 +1943,13 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   }
 
   /** One write. No retries. A lost answer or a 5xx is `DraftOutcomeUnknownError`; a 4xx is a refusal. `okStatuses` are extra statuses that count as done (a 404 on a delete). */
-  async #write(method: string, path: string, what: string, json?: unknown, okStatuses: number[] = []): Promise<StoreReply> {
+  async #write(
+    method: string,
+    path: string,
+    what: string,
+    json?: unknown,
+    okStatuses: number[] = [],
+  ): Promise<StoreReply> {
     const token = this.#tokens.token();
     this.#http.known.add(token);
     this.#writeHttp.known.add(token);
@@ -1418,9 +1970,15 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
       }
       throw error;
     }
-    if ((reply.status >= 200 && reply.status < 300) || okStatuses.includes(reply.status)) return reply;
+    if ((reply.status >= 200 && reply.status < 300) || okStatuses.includes(reply.status))
+      return reply;
     if (reply.status >= 500) {
-      throw new DraftOutcomeUnknownError('appstoreconnect', `App Store Connect answered HTTP ${reply.status} while ${what}, so it is not known whether Apple applied it.`, [], reply.status);
+      throw new DraftOutcomeUnknownError(
+        'appstoreconnect',
+        `App Store Connect answered HTTP ${reply.status} while ${what}, so it is not known whether Apple applied it.`,
+        [],
+        reply.status,
+      );
     }
     const error = this.#fail(reply, what);
     if (reply.status === 403 && error.kind === 'forbidden') {
@@ -1441,10 +1999,18 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     try {
       target = new URL(next, this.#base);
     } catch {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link that could not be read while ${what}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link that could not be read while ${what}.`,
+      );
     }
     if (target.origin !== new URL(this.#base).origin) {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link to another host while ${what}. It was not followed.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link to another host while ${what}. It was not followed.`,
+      );
     }
     return target.toString();
   }
@@ -1454,4 +2020,3 @@ function idOf(reply: StoreReply): string | undefined {
   const data = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data : {};
   return text(data.id);
 }
-

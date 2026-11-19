@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AsoError } from './aso-common.ts';
+import {
+  appleSearchUrl,
+  lookupApple,
+  parseAppleApps,
+  rankIn,
+  searchApple,
+} from './apple-search.ts';
 import { APPLE_OWN_ID, appleLookupReply, appleSearchReply } from './aso.fixtures.ts';
-import { appleSearchUrl, lookupApple, parseAppleApps, rankIn, searchApple } from './apple-search.ts';
+import { AsoError } from './aso-common.ts';
 
 type Seen = { url: string; init: RequestInit | undefined };
 
-function fakeFetch(respond: () => Response | Promise<Response>): { fetch: typeof fetch; seen: Seen[] } {
+function fakeFetch(respond: () => Response | Promise<Response>): {
+  fetch: typeof fetch;
+  seen: Seen[];
+} {
   const seen: Seen[] = [];
   return {
     seen,
@@ -17,7 +26,10 @@ function fakeFetch(respond: () => Response | Promise<Response>): { fetch: typeof
   };
 }
 const json = (value: unknown, status = 200, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(value), { status, headers: { 'content-type': 'text/javascript', ...headers } });
+  new Response(JSON.stringify(value), {
+    status,
+    headers: { 'content-type': 'text/javascript', ...headers },
+  });
 
 const failure = async (run: () => Promise<unknown>): Promise<AsoError> => {
   try {
@@ -31,13 +43,24 @@ const failure = async (run: () => Promise<unknown>): Promise<AsoError> => {
 
 test('a search is one GET to the fixed host with the documented parameters, no credential, no redirects', async () => {
   const { fetch, seen } = fakeFetch(() => json(appleSearchReply));
-  const result = await searchApple({ term: 'habit tracker & goals', country: 'DE', limit: 25, fetch });
+  const result = await searchApple({
+    term: 'habit tracker & goals',
+    country: 'DE',
+    limit: 25,
+    fetch,
+  });
   assert.equal(seen.length, 1);
   const url = new URL(seen[0]?.url ?? '');
   assert.equal(url.protocol, 'https:');
   assert.equal(url.host, 'itunes.apple.com');
   assert.equal(url.pathname, '/search');
-  assert.deepEqual(Object.fromEntries(url.searchParams), { term: 'habit tracker & goals', country: 'de', media: 'software', entity: 'software', limit: '25' });
+  assert.deepEqual(Object.fromEntries(url.searchParams), {
+    term: 'habit tracker & goals',
+    country: 'de',
+    media: 'software',
+    entity: 'software',
+    limit: '25',
+  });
   assert.equal(seen[0]?.init?.method, 'GET');
   assert.equal(seen[0]?.init?.redirect, 'manual');
   const headers = new Headers(seen[0]?.init?.headers);
@@ -45,14 +68,23 @@ test('a search is one GET to the fixed host with the documented parameters, no c
   assert.equal(headers.get('cookie'), null);
   assert.match(headers.get('user-agent') ?? '', /mobile-release-manager/);
   assert.ok(seen[0]?.init?.signal, 'a timeout is set');
-  assert.deepEqual(result.ids, ['1500000002', '1500000001', '1500000007', '1500000003', '1500000004']);
+  assert.deepEqual(result.ids, [
+    '1500000002',
+    '1500000001',
+    '1500000007',
+    '1500000003',
+    '1500000004',
+  ]);
   assert.equal(result.total, 5);
   assert.equal(result.limit, 25);
 });
 
-test('the default limit is Apple\'s documented 50, and lang is passed when asked', () => {
+test("the default limit is Apple's documented 50, and lang is passed when asked", () => {
   assert.match(appleSearchUrl({ term: 'x', country: 'us' }), /&limit=50$/);
-  assert.match(appleSearchUrl({ term: 'x', country: 'US', limit: 200, lang: 'ja_jp' }), /limit=200&lang=ja_jp$/);
+  assert.match(
+    appleSearchUrl({ term: 'x', country: 'US', limit: 200, lang: 'ja_jp' }),
+    /limit=200&lang=ja_jp$/,
+  );
 });
 
 test('rankIn is the position, or null', () => {
@@ -77,8 +109,20 @@ test('the apps are parsed with what Apple sent, and the optional parts may be mi
   assert.match(first?.iconUrl ?? '', /mzstatic\.com/);
   assert.equal(apps[2]?.name, 'Café & Goals');
   // The bare minimum is an id.
-  const bare = parseAppleApps({ results: [{ trackId: 5 }, { trackId: 5 }, { nope: true }, { trackId: 6, kind: 'song' }, { trackId: 7, wrapperType: 'track', kind: 'feature-movie' }, { trackId: 8, trackName: 'Eight', averageUserRating: 9, userRatingCount: -4 }] });
-  assert.deepEqual(bare.map((a) => a.trackId), ['5', '8']);
+  const bare = parseAppleApps({
+    results: [
+      { trackId: 5 },
+      { trackId: 5 },
+      { nope: true },
+      { trackId: 6, kind: 'song' },
+      { trackId: 7, wrapperType: 'track', kind: 'feature-movie' },
+      { trackId: 8, trackName: 'Eight', averageUserRating: 9, userRatingCount: -4 },
+    ],
+  });
+  assert.deepEqual(
+    bare.map((a) => a.trackId),
+    ['5', '8'],
+  );
   assert.equal(bare[1]?.ratingMilli, undefined);
   assert.equal(bare[1]?.ratingCount, undefined);
 });
@@ -91,7 +135,10 @@ test('a reply without a result list is unexpected, and says nothing about the te
     assert.equal(error.message.includes('secret'), false);
   }
   const { fetch } = fakeFetch(() => new Response('<html>', { status: 200 }));
-  assert.equal((await failure(() => searchApple({ term: 'x', country: 'us', fetch }))).kind, 'unexpected');
+  assert.equal(
+    (await failure(() => searchApple({ term: 'x', country: 'us', fetch }))).kind,
+    'unexpected',
+  );
 });
 
 test('statuses: 429 and 403 are a rate limit with Retry-After, 5xx is server, the rest unexpected', async () => {
@@ -100,7 +147,10 @@ test('statuses: 429 and 403 are a rate limit with Retry-After, 5xx is server, th
     return failure(() => searchApple({ term: 'x', country: 'us', fetch }));
   };
   const limited = await run(429, { 'retry-after': '120' });
-  assert.deepEqual([limited.kind, limited.retryAfterSeconds, limited.status], ['rate_limited', 120, 429]);
+  assert.deepEqual(
+    [limited.kind, limited.retryAfterSeconds, limited.status],
+    ['rate_limited', 120, 429],
+  );
   assert.equal((await run(403)).retryAfterSeconds, 60);
   assert.equal((await run(503)).kind, 'server');
   assert.equal((await run(404)).kind, 'unexpected');
@@ -118,14 +168,23 @@ test('network failures and timeouts are typed, without the term or the address',
   const network = await boom(new TypeError('connect ECONNREFUSED 10.0.0.1:443 private words'));
   assert.equal(network.kind, 'network');
   assert.equal(/10\.0|private/.test(network.message), false);
-  assert.equal((await boom(Object.assign(new Error('x'), { name: 'TimeoutError' }))).kind, 'timeout');
-  assert.equal((await boom(Object.assign(new Error('x'), { name: 'TooLargeError' }))).kind, 'too_large');
+  assert.equal(
+    (await boom(Object.assign(new Error('x'), { name: 'TimeoutError' }))).kind,
+    'timeout',
+  );
+  assert.equal(
+    (await boom(Object.assign(new Error('x'), { name: 'TooLargeError' }))).kind,
+    'too_large',
+  );
 });
 
 test('a body above the cap is too large, never a cut reply', async () => {
   const big = `{"results":[],"pad":"${'x'.repeat(5 * 1024 * 1024)}"}`;
   const { fetch } = fakeFetch(() => new Response(big, { status: 200 }));
-  assert.equal((await failure(() => searchApple({ term: 'x', country: 'us', fetch }))).kind, 'too_large');
+  assert.equal(
+    (await failure(() => searchApple({ term: 'x', country: 'us', fetch }))).kind,
+    'too_large',
+  );
 });
 
 test('input is checked before any request', async () => {
@@ -140,7 +199,11 @@ test('input is checked before any request', async () => {
     { term: 'x', country: 'us', limit: 201 },
     { term: 'x', country: 'us', limit: 1.5 },
   ]) {
-    assert.equal((await failure(() => searchApple({ ...bad, fetch }))).kind, 'invalid_input', JSON.stringify(bad));
+    assert.equal(
+      (await failure(() => searchApple({ ...bad, fetch }))).kind,
+      'invalid_input',
+      JSON.stringify(bad),
+    );
   }
   assert.equal(seen.length, 0);
 });
@@ -154,6 +217,10 @@ test('a lookup is one GET by id and country, and finds the app or nothing', asyn
   const empty = fakeFetch(() => json({ resultCount: 0, results: [] }));
   assert.equal(await lookupApple({ id: '42', country: 'us', fetch: empty.fetch }), undefined);
   for (const id of ['', 'abc', '12;13', '1'.repeat(21)]) {
-    assert.equal((await failure(() => lookupApple({ id, country: 'us', fetch }))).kind, 'invalid_input', id);
+    assert.equal(
+      (await failure(() => lookupApple({ id, country: 'us', fetch }))).kind,
+      'invalid_input',
+      id,
+    );
   }
 });

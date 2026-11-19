@@ -1,6 +1,6 @@
 import { type ActorType, type FileChange, type Listing, platformMeta } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { flattenListing, hasStoreListing, hashListingValue, fieldKey } from './listing-drift.ts';
+import { fieldKey, flattenListing, hashListingValue, hasStoreListing } from './listing-drift.ts';
 import {
   type ListingApp,
   recordChangeSetValues,
@@ -10,8 +10,8 @@ import {
 } from './listing-live.ts';
 import {
   mergedListing,
-  readListings,
   type RepositoryListings,
+  readListings,
   repositorySections,
 } from './listing-sources.ts';
 import { listListingTargets } from './listing-targets.ts';
@@ -20,8 +20,8 @@ import {
   failure,
   getRepository,
   githubFailure,
-  openConnectorForRepository,
   type Outcome,
+  openConnectorForRepository,
   type RepoContext,
   readRepositoryListing,
 } from './repositories.ts';
@@ -72,20 +72,36 @@ export async function refreshRepoListing(
 ): Promise<Outcome<RepoRefresh>> {
   const { workspaceId, app } = input;
   if (!app.repositoryId) {
-    return failure(422, 'no_repository', 'This app is not linked to a repository. Link one to compare it.');
+    return failure(
+      422,
+      'no_repository',
+      'This app is not linked to a repository. Link one to compare it.',
+    );
   }
   const repository = await getRepository(ctx.db, workspaceId, app.repositoryId);
   if (!repository) {
     return failure(422, 'no_repository', 'The repository of this app is not connected any more.');
   }
-  const opened = await openConnectorForRepository(ctx, workspaceId, repository, actor, 'repository.listing');
+  const opened = await openConnectorForRepository(
+    ctx,
+    workspaceId,
+    repository,
+    actor,
+    'repository.listing',
+  );
   if (!opened.ok) return remember(ctx.db, workspaceId, app.id, ctx.now(), opened);
   let listing: Listing;
   let listings: RepositoryListings;
   let ref = repository.defaultBranch;
   try {
     const selection = await selectionFor(ctx.db, workspaceId, repository.id, app.id);
-    const read = await readRepositoryListing(ctx, workspaceId, repository, opened.connector, selection);
+    const read = await readRepositoryListing(
+      ctx,
+      workspaceId,
+      repository,
+      opened.connector,
+      selection,
+    );
     if (!read.ok) return remember(ctx.db, workspaceId, app.id, ctx.now(), read);
     listings = read.listings;
     listing = mergedListing(listings);
@@ -112,7 +128,15 @@ export async function refreshRepoListing(
     const recorded = found
       ? await recordStream(
           tx,
-          { workspaceId, app, source: 'repo', channel: 'default', sourceRef: ref, observedAt: at, actor },
+          {
+            workspaceId,
+            app,
+            source: 'repo',
+            channel: 'default',
+            sourceRef: ref,
+            observedAt: at,
+            actor,
+          },
           flattenListing(listing, app.platform),
         )
       : { changed: 0, removed: 0, unchanged: 0 };
@@ -122,7 +146,15 @@ export async function refreshRepoListing(
     if (found) {
       await recordSections(
         tx,
-        { workspaceId, app, source: 'repo', channel: 'default', sourceRef: ref, observedAt: at, actor },
+        {
+          workspaceId,
+          app,
+          source: 'repo',
+          channel: 'default',
+          sourceRef: ref,
+          observedAt: at,
+          actor,
+        },
         repositorySections(listings, listing, app.platform),
       );
     }
@@ -187,8 +219,18 @@ export async function changedFields(
     if (f.before !== undefined) before.set(f.path, f.before);
     if (f.after !== undefined) after.set(f.path, f.after);
   }
-  const was = new Map(flattenListing(await listingOfFiles(before), platform).map((v) => [fieldKey(v.locale, v.field), v]));
-  const now = new Map(flattenListing(await listingOfFiles(after), platform).map((v) => [fieldKey(v.locale, v.field), v]));
+  const was = new Map(
+    flattenListing(await listingOfFiles(before), platform).map((v) => [
+      fieldKey(v.locale, v.field),
+      v,
+    ]),
+  );
+  const now = new Map(
+    flattenListing(await listingOfFiles(after), platform).map((v) => [
+      fieldKey(v.locale, v.field),
+      v,
+    ]),
+  );
   const changes: { locale: string; field: string; value: string | null }[] = [];
   for (const [key, v] of now) {
     const old = was.get(key);
@@ -246,7 +288,8 @@ export async function recordAppliedChangeSets(
           source: 'change_set',
           channel: 'default',
           sourceRef: id,
-          observedAt: row.applied_at === null || row.applied_at === undefined ? now : Number(row.applied_at),
+          observedAt:
+            row.applied_at === null || row.applied_at === undefined ? now : Number(row.applied_at),
           actor: { type: String(row.created_by_type) as ActorType, id: String(row.created_by_id) },
         },
         changes,

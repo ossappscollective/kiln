@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  DIFF_TOKEN_CAP,
   actorText,
   comparison,
+  DIFF_TOKEN_CAP,
   describeSource,
   diffWords,
   driftSummaryText,
@@ -19,9 +19,21 @@ import {
   usage,
   usageText,
 } from './listing-drift.ts';
-import type { DriftField, DriftLocale, DriftSide, DriftStatus, ListingDrift, ListingHistoryEntry } from './types.ts';
+import type {
+  DriftField,
+  DriftLocale,
+  DriftSide,
+  DriftStatus,
+  ListingDrift,
+  ListingHistoryEntry,
+} from './types.ts';
 
-const side = (value: string | null): DriftSide => ({ value, observedAt: value === null ? null : 1, sourceRef: null, source: null });
+const side = (value: string | null): DriftSide => ({
+  value,
+  observedAt: value === null ? null : 1,
+  sourceRef: null,
+  source: null,
+});
 
 function field(status: DriftStatus, partial: Partial<DriftField> = {}): DriftField {
   return {
@@ -46,7 +58,13 @@ const rejoin = (parts: ReturnType<typeof diffWords>, kinds: string[]) =>
     .join('');
 
 test('every status has words, a tone and an explanation', () => {
-  const all: DriftStatus[] = ['identical', 'repo-ahead', 'store-ahead', 'diverged', 'missing-in-one'];
+  const all: DriftStatus[] = [
+    'identical',
+    'repo-ahead',
+    'store-ahead',
+    'diverged',
+    'missing-in-one',
+  ];
   for (const status of all) {
     assert.ok(statusLabel(status).length > 3);
     assert.ok(statusExplanation(status).endsWith('.'));
@@ -57,14 +75,25 @@ test('every status has words, a tone and an explanation', () => {
 });
 
 test('a missing field says which side lacks the value', () => {
-  assert.equal(statusDetail(field('missing-in-one', { missingIn: 'repo' })), 'Missing in the repository');
-  assert.equal(statusDetail(field('missing-in-one', { missingIn: 'store' })), 'Missing in the store');
+  assert.equal(
+    statusDetail(field('missing-in-one', { missingIn: 'repo' })),
+    'Missing in the repository',
+  );
+  assert.equal(
+    statusDetail(field('missing-in-one', { missingIn: 'store' })),
+    'Missing in the store',
+  );
   assert.equal(statusDetail(field('missing-in-one')), 'Missing on one side');
   assert.equal(statusDetail(field('diverged')), 'Diverged');
 });
 
 test('usage counts characters by code point and bytes as UTF-8', () => {
-  assert.deepEqual(usage('Acme', 30, 'characters'), { count: 4, limit: 30, unit: 'characters', over: false });
+  assert.deepEqual(usage('Acme', 30, 'characters'), {
+    count: 4,
+    limit: 30,
+    unit: 'characters',
+    over: false,
+  });
   assert.equal(usage('😀😀', 30, 'characters').count, 2);
   assert.equal(usage('é', 100, 'bytes').count, 2);
   assert.equal(usage('x'.repeat(31), 30, 'characters').over, true);
@@ -125,7 +154,18 @@ test('the comparison needs two different values', () => {
 });
 
 const locales: DriftLocale[] = [
-  { locale: 'en-US', fields: [field('identical'), field('diverged', { field: 'subtitle', label: 'Subtitle', repo: side('Fast trips'), live: side('Quick rides') })] },
+  {
+    locale: 'en-US',
+    fields: [
+      field('identical'),
+      field('diverged', {
+        field: 'subtitle',
+        label: 'Subtitle',
+        repo: side('Fast trips'),
+        live: side('Quick rides'),
+      }),
+    ],
+  },
   { locale: 'de-DE', fields: [field('identical', { locale: 'de-DE' })] },
 ];
 
@@ -156,7 +196,19 @@ test('locale and drift summaries', () => {
     locales,
   };
   assert.equal(driftSummaryText(drift), '1 diverged, 1 store ahead, 2 identical');
-  assert.equal(driftSummaryText({ ...drift, summary: { identical: 0, 'repo-ahead': 0, 'store-ahead': 0, diverged: 0, 'missing-in-one': 0 } }), 'No listing values yet');
+  assert.equal(
+    driftSummaryText({
+      ...drift,
+      summary: {
+        identical: 0,
+        'repo-ahead': 0,
+        'store-ahead': 0,
+        diverged: 0,
+        'missing-in-one': 0,
+      },
+    }),
+    'No listing values yet',
+  );
 });
 
 test('sources read as words with a short reference', () => {
@@ -164,13 +216,35 @@ test('sources read as words with a short reference', () => {
   assert.equal(shortRef('repo', sha), '3fa9c1b');
   assert.equal(shortRef('store', '2.1.0'), '2.1.0');
   assert.equal(shortRef('store', null), null);
-  assert.equal(describeSource({ source: 'repo', sourceRef: sha, channel: 'default' }), 'Repository · 3fa9c1b');
-  assert.equal(describeSource({ source: 'store', sourceRef: '2.0.0', channel: 'live' }), 'Store · live version · 2.0.0');
-  assert.equal(describeSource({ source: 'store', sourceRef: null, channel: 'editable' }), 'Store · editable version');
-  assert.equal(describeSource({ source: 'change_set', sourceRef: '1b2c3d4e-aaaa-bbbb-cccc-1234567890ab', channel: 'default' }), 'Change set · 1b2c3d4e…');
+  assert.equal(
+    describeSource({ source: 'repo', sourceRef: sha, channel: 'default' }),
+    'Repository · 3fa9c1b',
+  );
+  assert.equal(
+    describeSource({ source: 'store', sourceRef: '2.0.0', channel: 'live' }),
+    'Store · live version · 2.0.0',
+  );
+  assert.equal(
+    describeSource({ source: 'store', sourceRef: null, channel: 'editable' }),
+    'Store · editable version',
+  );
+  assert.equal(
+    describeSource({
+      source: 'change_set',
+      sourceRef: '1b2c3d4e-aaaa-bbbb-cccc-1234567890ab',
+      channel: 'default',
+    }),
+    'Change set · 1b2c3d4e…',
+  );
 });
 
-const entry = (id: string, source: ListingHistoryEntry['source'], value: string | null, observedAt: number, channel = 'live'): ListingHistoryEntry => ({
+const entry = (
+  id: string,
+  source: ListingHistoryEntry['source'],
+  value: string | null,
+  observedAt: number,
+  channel = 'live',
+): ListingHistoryEntry => ({
   id,
   locale: 'en-US',
   field: 'name',

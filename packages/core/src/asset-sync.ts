@@ -1,6 +1,12 @@
-import { type AssetKind, type AssetStore, APPLE_DISPLAYS, PLAY_DEVICES, deviceLabel } from './store-asset-specs.ts';
-import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
 import { isApplePlatform, isGooglePlatform, PLATFORMS, type Platform } from './platform.ts';
+import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
+import {
+  APPLE_DISPLAYS,
+  type AssetKind,
+  type AssetStore,
+  deviceLabel,
+  PLAY_DEVICES,
+} from './store-asset-specs.ts';
 
 /**
  * Two way sync of store images (docs/adr/0012-assets-two-way-sync.md, docs/api/assets.md): the shapes the
@@ -23,9 +29,15 @@ export type AssetPlatform = Platform;
 export const assetPlatformOf = (platform: Platform): AssetPlatform => platform;
 
 /** `ios/en-US/screenshot:iphone_6_9`: the key of one set of one platform. */
-export const storeSetKey = (platform: AssetPlatform, locale: string, slot: AssetSlot): string => `${platform}/${locale}/${slotKey(slot)}`;
+export const storeSetKey = (platform: AssetPlatform, locale: string, slot: AssetSlot): string =>
+  `${platform}/${locale}/${slotKey(slot)}`;
 /** The key of one image: the set and its place (1-based) in it. */
-export const storeImageKey = (platform: AssetPlatform, locale: string, slot: AssetSlot, position: number): string => `${storeSetKey(platform, locale, slot)}#${position}`;
+export const storeImageKey = (
+  platform: AssetPlatform,
+  locale: string,
+  slot: AssetSlot,
+  position: number,
+): string => `${storeSetKey(platform, locale, slot)}#${position}`;
 
 // ---------------------------------------------------------------------------------------------
 // Limits of the sync (the server's own; the stores state none for the pull)
@@ -114,7 +126,12 @@ export type RepoSideFile = {
  * - `differs`: another checksum, size or pixel size.
  * - `only_repo` / `only_store`: nothing at that position on the other side.
  */
-export type AssetCompareStatus = 'identical' | 'likely_same' | 'differs' | 'only_repo' | 'only_store';
+export type AssetCompareStatus =
+  | 'identical'
+  | 'likely_same'
+  | 'differs'
+  | 'only_repo'
+  | 'only_store';
 
 export const COMPARE_LABELS: Readonly<Record<AssetCompareStatus, string>> = {
   identical: 'Identical',
@@ -142,28 +159,48 @@ const sameChecksum = (a: string, b: string): boolean => {
 };
 
 /** Compares one pair. Pure. */
-export function compareFile(repo: RepoSideFile | null, store: StoreImageFile | null): { status: AssetCompareStatus; reason: string } {
+export function compareFile(
+  repo: RepoSideFile | null,
+  store: StoreImageFile | null,
+): { status: AssetCompareStatus; reason: string } {
   if (repo !== null && store === null) return { status: 'only_repo', reason: '' };
   if (repo === null && store !== null) return { status: 'only_store', reason: '' };
   if (repo === null || store === null) return { status: 'differs', reason: 'Nothing to compare.' };
   const mine = store.checksumKind === 'md5' ? (repo.md5 ?? null) : repo.sha256;
   if (store.checksum !== null && mine !== null) {
-    return sameChecksum(store.checksum, mine) ? { status: 'identical', reason: '' } : { status: 'differs', reason: 'The checksums differ.' };
+    return sameChecksum(store.checksum, mine)
+      ? { status: 'identical', reason: '' }
+      : { status: 'differs', reason: 'The checksums differ.' };
   }
-  if (repo.width !== null && repo.height !== null && store.width !== null && store.height !== null && (repo.width !== store.width || repo.height !== store.height)) {
-    return { status: 'differs', reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.` };
+  if (
+    repo.width !== null &&
+    repo.height !== null &&
+    store.width !== null &&
+    store.height !== null &&
+    (repo.width !== store.width || repo.height !== store.height)
+  ) {
+    return {
+      status: 'differs',
+      reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.`,
+    };
   }
   if (repo.bytes !== null && store.bytes !== null && repo.bytes !== store.bytes) {
     return { status: 'differs', reason: 'The file sizes differ.' };
   }
   const known = repo.width !== null && store.width !== null;
   return known
-    ? { status: 'likely_same', reason: 'The store gives no checksum, so the files are only compared by size.' }
+    ? {
+        status: 'likely_same',
+        reason: 'The store gives no checksum, so the files are only compared by size.',
+      }
     : { status: 'likely_same', reason: 'Too little is known about one side to say more.' };
 }
 
 /** Pairs the files of a set by position and compares each pair. A set with files on one side only is all `only_*`. */
-export function compareSet(repo: readonly RepoSideFile[], store: readonly StoreImageFile[]): AssetCompareRow[] {
+export function compareSet(
+  repo: readonly RepoSideFile[],
+  store: readonly StoreImageFile[],
+): AssetCompareRow[] {
   const rows: AssetCompareRow[] = [];
   const n = Math.max(repo.length, store.length);
   for (let i = 0; i < n; i++) {
@@ -178,7 +215,13 @@ export function compareSet(repo: readonly RepoSideFile[], store: readonly StoreI
 export type AssetCompareTotals = Record<AssetCompareStatus, number>;
 
 export function compareTotals(rows: readonly { status: AssetCompareStatus }[]): AssetCompareTotals {
-  const out: AssetCompareTotals = { identical: 0, likely_same: 0, differs: 0, only_repo: 0, only_store: 0 };
+  const out: AssetCompareTotals = {
+    identical: 0,
+    likely_same: 0,
+    differs: 0,
+    only_repo: 0,
+    only_store: 0,
+  };
   for (const r of rows) out[r.status] += 1;
   return out;
 }
@@ -188,7 +231,8 @@ export function compareText(totals: AssetCompareTotals): string {
   const parts: string[] = [];
   if (totals.identical > 0) parts.push(`${totals.identical} identical`);
   if (totals.likely_same > 0) parts.push(`${totals.likely_same} probably the same`);
-  if (totals.differs > 0) parts.push(`${totals.differs} ${totals.differs === 1 ? 'differs' : 'differ'}`);
+  if (totals.differs > 0)
+    parts.push(`${totals.differs} ${totals.differs === 1 ? 'differs' : 'differ'}`);
   if (totals.only_repo > 0) parts.push(`${totals.only_repo} only in the repository`);
   if (totals.only_store > 0) parts.push(`${totals.only_store} only in the store`);
   return parts.join(', ');
@@ -224,9 +268,20 @@ export type AssetDiffView = {
 // What can be fixed in a file
 
 /** The rules that complain about an alpha channel (Google's `*.format` rules say it in their message). */
-export const ALPHA_RULES: readonly string[] = ['apple.screenshot.alpha', 'apple.icon.alpha', 'play.feature_graphic.format', 'play.tv_banner.format', 'play.screenshot.format'];
+export const ALPHA_RULES: readonly string[] = [
+  'apple.screenshot.alpha',
+  'apple.icon.alpha',
+  'play.feature_graphic.format',
+  'play.tv_banner.format',
+  'play.screenshot.format',
+];
 
-export const REQUIRED_SIZE_RULES = ['apple.screenshot.size', 'play.icon.size', 'play.feature_graphic.size', 'play.tv_banner.size'] as const;
+export const REQUIRED_SIZE_RULES = [
+  'apple.screenshot.size',
+  'play.icon.size',
+  'play.feature_graphic.size',
+  'play.tv_banner.size',
+] as const;
 
 export type Size = { width: number; height: number };
 
@@ -234,7 +289,9 @@ export type Size = { width: number; height: number };
 export function requiredSizes(platform: Platform, slot: AssetSlot): Size[] {
   if (isApplePlatform(platform)) {
     if (slot.kind !== 'screenshot' || slot.device === null) return [];
-    const base = slot.device.startsWith('imessage:') ? slot.device.slice('imessage:'.length) : slot.device;
+    const base = slot.device.startsWith('imessage:')
+      ? slot.device.slice('imessage:'.length)
+      : slot.device;
     const display = APPLE_DISPLAYS.find((d) => d.id === base);
     return display ? display.sizes.map(([width, height]) => ({ width, height })) : [];
   }
@@ -250,14 +307,20 @@ export const sizeText = (s: Size): string => `${s.width} x ${s.height}`;
 export function requiredSizesText(platform: Platform, slot: AssetSlot): string {
   const sizes = requiredSizes(platform, slot);
   if (sizes.length === 0) {
-    if (isGooglePlatform(platform) && slot.kind === 'screenshot') return 'Google Play takes 320 to 3840 px on each side, the longer side at most twice the shorter';
+    if (isGooglePlatform(platform) && slot.kind === 'screenshot')
+      return 'Google Play takes 320 to 3840 px on each side, the longer side at most twice the shorter';
     return 'The store states no exact size for this graphic';
   }
   return sizes.map(sizeText).join(', ');
 }
 
 /** The size to resize to: the required one with the closest aspect ratio, in the file's own orientation. */
-export function nearestRequiredSize(platform: Platform, slot: AssetSlot, width: number, height: number): Size | null {
+export function nearestRequiredSize(
+  platform: Platform,
+  slot: AssetSlot,
+  width: number,
+  height: number,
+): Size | null {
   const sizes = requiredSizes(platform, slot);
   if (sizes.length === 0 || width < 1 || height < 1) return null;
   const portrait = height >= width;
@@ -276,7 +339,8 @@ export function nearestRequiredSize(platform: Platform, slot: AssetSlot, width: 
 
 export type FixKind = 'remove_alpha' | 'rename_extension' | 'resize';
 export const FIX_KINDS: readonly FixKind[] = ['remove_alpha', 'rename_extension', 'resize'];
-export const isFixKind = (v: unknown): v is FixKind => typeof v === 'string' && (FIX_KINDS as readonly string[]).indexOf(v) !== -1;
+export const isFixKind = (v: unknown): v is FixKind =>
+  typeof v === 'string' && (FIX_KINDS as readonly string[]).indexOf(v) !== -1;
 
 export type FixOption = {
   kind: FixKind;
@@ -301,7 +365,12 @@ export type FixFacts = {
   device: string | null;
 };
 
-const EXTENSION_FOR: Readonly<Record<string, string>> = { png: 'png', jpeg: 'jpg', webp: 'webp', gif: 'gif' };
+const EXTENSION_FOR: Readonly<Record<string, string>> = {
+  png: 'png',
+  jpeg: 'jpg',
+  webp: 'webp',
+  gif: 'gif',
+};
 export const extensionForFormat = (format: string): string | undefined => EXTENSION_FOR[format];
 
 /**
@@ -309,7 +378,11 @@ export const extensionForFormat = (format: string): string | undefined => EXTENS
  * and what has to be done by hand. The fix itself is made by the server (a PNG codec in pure TypeScript); only 8 bit,
  * non interlaced PNG files can be changed: the server says so when a file is something else.
  */
-export function fixAdvice(platform: Platform, facts: FixFacts, rules: readonly string[]): FixAdvice {
+export function fixAdvice(
+  platform: Platform,
+  facts: FixFacts,
+  rules: readonly string[],
+): FixAdvice {
   const options: FixOption[] = [];
   const manual: string[] = [];
   const slot: AssetSlot = { kind: facts.kind, device: facts.device };
@@ -317,35 +390,68 @@ export function fixAdvice(platform: Platform, facts: FixFacts, rules: readonly s
   const alphaRule = rules.some((r) => ALPHA_RULES.indexOf(r) !== -1);
   if (alphaRule && facts.hasAlpha === true) {
     if (facts.format === 'png') {
-      options.push({ kind: 'remove_alpha', label: 'Remove the alpha channel', detail: 'Flattens the transparency onto a background colour (white by default) and writes a PNG without alpha.' });
+      options.push({
+        kind: 'remove_alpha',
+        label: 'Remove the alpha channel',
+        detail:
+          'Flattens the transparency onto a background colour (white by default) and writes a PNG without alpha.',
+      });
     } else {
-      manual.push(`The alpha channel can only be removed from a PNG, and this is ${facts.format ? facts.format.toUpperCase() : 'not a PNG'}. Export it again without transparency.`);
+      manual.push(
+        `The alpha channel can only be removed from a PNG, and this is ${facts.format ? facts.format.toUpperCase() : 'not a PNG'}. Export it again without transparency.`,
+      );
     }
   }
   if (has('inspect.extension') && facts.format !== null) {
     const right = extensionForFormat(facts.format);
     if (right !== undefined && right !== facts.extension) {
-      options.push({ kind: 'rename_extension', label: `Rename to .${right}`, detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.` });
+      options.push({
+        kind: 'rename_extension',
+        label: `Rename to .${right}`,
+        detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.`,
+      });
     }
   }
-  const sizeRule = REQUIRED_SIZE_RULES.some((r) => has(r)) || (isApplePlatform(platform) && facts.kind === 'screenshot' && facts.device === null);
+  const sizeRule =
+    REQUIRED_SIZE_RULES.some((r) => has(r)) ||
+    (isApplePlatform(platform) && facts.kind === 'screenshot' && facts.device === null);
   if (sizeRule) {
     const need = requiredSizesText(platform, slot);
-    if (facts.format === 'png' && facts.width !== null && facts.height !== null && nearestRequiredSize(platform, slot, facts.width, facts.height) !== null) {
-      options.push({ kind: 'resize', label: 'Resize to the required size', detail: `Scales to the nearest required size (${need}). Only PNG files are resized; a different aspect ratio is cropped to fill.` });
+    if (
+      facts.format === 'png' &&
+      facts.width !== null &&
+      facts.height !== null &&
+      nearestRequiredSize(platform, slot, facts.width, facts.height) !== null
+    ) {
+      options.push({
+        kind: 'resize',
+        label: 'Resize to the required size',
+        detail: `Scales to the nearest required size (${need}). Only PNG files are resized; a different aspect ratio is cropped to fill.`,
+      });
     } else {
-      manual.push(`The size is wrong${facts.width !== null && facts.height !== null ? ` (${facts.width} x ${facts.height})` : ''}. Required: ${need}.${facts.format === 'png' ? '' : ' Only PNG files can be resized here.'}`);
+      manual.push(
+        `The size is wrong${facts.width !== null && facts.height !== null ? ` (${facts.width} x ${facts.height})` : ''}. Required: ${need}.${facts.format === 'png' ? '' : ' Only PNG files can be resized here.'}`,
+      );
     }
   }
-  if (isApplePlatform(platform) && facts.format !== null && facts.format !== 'png' && facts.format !== 'jpeg') {
-    manual.push(`${facts.format.toUpperCase()} is not accepted by the App Store. Export a PNG or JPEG.`);
+  if (
+    isApplePlatform(platform) &&
+    facts.format !== null &&
+    facts.format !== 'png' &&
+    facts.format !== 'jpeg'
+  ) {
+    manual.push(
+      `${facts.format.toUpperCase()} is not accepted by the App Store. Export a PNG or JPEG.`,
+    );
   }
   return { options, manual };
 }
 
 /** The label of a set, for a message: "Screenshots, iPhone 6.9"". */
 export function setTitleOf(platform: Platform, kindLabel: string, device: string | null): string {
-  return device === null ? kindLabel : `${kindLabel}, ${deviceLabel(assetStoreOf(platform), device)}`;
+  return device === null
+    ? kindLabel
+    : `${kindLabel}, ${deviceLabel(assetStoreOf(platform), device)}`;
 }
 
 export const playDeviceOfTarget = (target: string): string | null => {

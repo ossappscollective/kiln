@@ -7,7 +7,12 @@
  * Nothing here is a claim about a store that the research doc marks UNVERIFIED: those notes keep their mark in the text.
  */
 
-export const analyticsSources = ['apple_analytics', 'apple_sales', 'play_vitals', 'play_reports'] as const;
+export const analyticsSources = [
+  'apple_analytics',
+  'apple_sales',
+  'play_vitals',
+  'play_reports',
+] as const;
 export type AnalyticsSource = (typeof analyticsSources)[number];
 export const isAnalyticsSource = (v: unknown): v is AnalyticsSource =>
   typeof v === 'string' && (analyticsSources as readonly string[]).includes(v);
@@ -57,24 +62,132 @@ export type MetricInfo = {
 };
 
 export const metricInfo: Record<AnalyticsMetric, MetricInfo> = {
-  impressions: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 3, label: 'Impressions' },
-  product_page_views: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 3, label: 'Product page views' },
-  downloads_first_time: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 2, label: 'First-time downloads' },
-  downloads_redownload: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 2, label: 'Redownloads' },
-  sessions: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 5, label: 'Sessions' },
-  crashes: { source: 'apple_analytics', unit: 'count', aggregation: 'sum', delayDays: 5, label: 'Crashes' },
-  sales_units: { source: 'apple_sales', unit: 'count', aggregation: 'sum', delayDays: 1, label: 'Units' },
-  sales_proceeds: { source: 'apple_sales', unit: 'money', aggregation: 'sum', delayDays: 1, label: 'Proceeds' },
-  crash_rate: { source: 'play_vitals', unit: 'ratio', aggregation: 'mean', delayDays: 2, label: 'Crash rate' },
-  anr_rate: { source: 'play_vitals', unit: 'ratio', aggregation: 'mean', delayDays: 2, label: 'ANR rate' },
-  installs_user: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'User installs' },
-  installs_device: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Device installs' },
-  uninstalls_device: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Device uninstalls' },
-  active_installs_device: { source: 'play_reports', unit: 'count', aggregation: 'mean', delayDays: 7, label: 'Active device installs' },
-  rating_average_daily: { source: 'play_reports', unit: 'rating', aggregation: 'mean', delayDays: 7, label: 'Average rating of the day' },
-  rating_average_total: { source: 'play_reports', unit: 'rating', aggregation: 'mean', delayDays: 7, label: 'Average rating, all time' },
-  store_listing_visitors: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Store listing visitors' },
-  store_listing_acquisitions: { source: 'play_reports', unit: 'count', aggregation: 'sum', delayDays: 7, label: 'Store listing acquisitions' },
+  impressions: {
+    source: 'apple_analytics',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 3,
+    label: 'Impressions',
+  },
+  product_page_views: {
+    source: 'apple_analytics',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 3,
+    label: 'Product page views',
+  },
+  downloads_first_time: {
+    source: 'apple_analytics',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 2,
+    label: 'First-time downloads',
+  },
+  downloads_redownload: {
+    source: 'apple_analytics',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 2,
+    label: 'Redownloads',
+  },
+  sessions: {
+    source: 'apple_analytics',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 5,
+    label: 'Sessions',
+  },
+  crashes: {
+    source: 'apple_analytics',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 5,
+    label: 'Crashes',
+  },
+  sales_units: {
+    source: 'apple_sales',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 1,
+    label: 'Units',
+  },
+  sales_proceeds: {
+    source: 'apple_sales',
+    unit: 'money',
+    aggregation: 'sum',
+    delayDays: 1,
+    label: 'Proceeds',
+  },
+  crash_rate: {
+    source: 'play_vitals',
+    unit: 'ratio',
+    aggregation: 'mean',
+    delayDays: 2,
+    label: 'Crash rate',
+  },
+  anr_rate: {
+    source: 'play_vitals',
+    unit: 'ratio',
+    aggregation: 'mean',
+    delayDays: 2,
+    label: 'ANR rate',
+  },
+  installs_user: {
+    source: 'play_reports',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'User installs',
+  },
+  installs_device: {
+    source: 'play_reports',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Device installs',
+  },
+  uninstalls_device: {
+    source: 'play_reports',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Device uninstalls',
+  },
+  active_installs_device: {
+    source: 'play_reports',
+    unit: 'count',
+    aggregation: 'mean',
+    delayDays: 7,
+    label: 'Active device installs',
+  },
+  rating_average_daily: {
+    source: 'play_reports',
+    unit: 'rating',
+    aggregation: 'mean',
+    delayDays: 7,
+    label: 'Average rating of the day',
+  },
+  rating_average_total: {
+    source: 'play_reports',
+    unit: 'rating',
+    aggregation: 'mean',
+    delayDays: 7,
+    label: 'Average rating, all time',
+  },
+  store_listing_visitors: {
+    source: 'play_reports',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Store listing visitors',
+  },
+  store_listing_acquisitions: {
+    source: 'play_reports',
+    unit: 'count',
+    aggregation: 'sum',
+    delayDays: 7,
+    label: 'Store listing acquisitions',
+  },
 };
 
 /** Which source reads which metrics, in a stable order. */
@@ -177,37 +290,51 @@ export type AnalyticsNextStep = (typeof analyticsNextSteps)[number];
 export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   analytics_role_required:
     'The App Store Connect API key may not create analytics report requests (Apple lists the Admin role for it). Use an Admin key once, or import a report file you downloaded from App Store Connect.',
-  analytics_request_missing: 'No analytics report request exists for this app yet. Enable Apple analytics first.',
-  analytics_request_stopped: 'Apple stopped the ongoing analytics report request because nothing was read for a long time. Enable Apple analytics again.',
-  report_not_ready: 'Apple has not produced any report for the request yet. The first reports take one to two days.',
-  segment_expired: 'The download link for an Apple report expired before it was used (they last about 5 minutes). The next sync tries again.',
+  analytics_request_missing:
+    'No analytics report request exists for this app yet. Enable Apple analytics first.',
+  analytics_request_stopped:
+    'Apple stopped the ongoing analytics report request because nothing was read for a long time. Enable Apple analytics again.',
+  report_not_ready:
+    'Apple has not produced any report for the request yet. The first reports take one to two days.',
+  segment_expired:
+    'The download link for an Apple report expired before it was used (they last about 5 minutes). The next sync tries again.',
   segment_too_large: 'A report file from Apple is larger than the limit this server reads.',
   file_too_large: 'The file is larger than the limit this server reads.',
   bad_gzip: 'The file could not be decompressed. Check that it is a complete .gz file.',
-  bad_zip: 'The .zip file could not be opened. Check that it is a complete zip file with the exported .csv inside.',
-  period_required: 'The file has no date column. Say which days it covers (from and to) and preview it again.',
+  bad_zip:
+    'The .zip file could not be opened. Check that it is a complete zip file with the exported .csv inside.',
+  period_required:
+    'The file has no date column. Say which days it covers (from and to) and preview it again.',
   bad_format: 'The file could not be read as a table of values separated by tabs or commas.',
-  unknown_report: 'This server does not know how to read that report. Supported: App Store Discovery and Engagement, App Store Downloads, App Sessions, App Crashes.',
+  unknown_report:
+    'This server does not know how to read that report. Supported: App Store Discovery and Engagement, App Store Downloads, App Sessions, App Crashes.',
   missing_columns: 'The file does not have the columns this report needs.',
   no_rows: 'The file holds no rows for this app and platform.',
-  vendor_number_missing: 'Sales and Trends needs the vendor number of the team. Set it in the analytics settings of the app.',
-  vendor_number_invalid: 'The vendor number is not valid. It is a number from App Store Connect, Payments and Financial Reports.',
-  sales_forbidden: 'The App Store Connect API key may not read Sales and Trends reports (it needs the Sales and Reports role or higher).',
+  vendor_number_missing:
+    'Sales and Trends needs the vendor number of the team. Set it in the analytics settings of the app.',
+  vendor_number_invalid:
+    'The vendor number is not valid. It is a number from App Store Connect, Payments and Financial Reports.',
+  sales_forbidden:
+    'The App Store Connect API key may not read Sales and Trends reports (it needs the Sales and Reports role or higher).',
   play_reporting_not_enabled:
     'The Google Play Developer Reporting API is not enabled in the Google Cloud project of the service account. In Google Cloud console, open that project, find Google Play Developer Reporting API and click Enable. Wait a few minutes, then sync again.',
   play_permission_missing:
     'Google Play refused the service account for Android vitals. In Play Console open Users and permissions, invite the service account email address (client_email in its JSON key) and give it access to this app with the permission View app quality information (read-only). New permissions can take a while to apply. Then sync again.',
   play_app_not_found:
     'The Play Developer Reporting API knows no app with this package name that the service account can see. Check that the package name is the application id of the app in Play Console, and that the service account was granted access to this app.',
-  play_vitals_bad_request: 'Google rejected the Android vitals request (HTTP 400). This is a fault of this server, not of your setup. Sync again later, and report it if it stays.',
+  play_vitals_bad_request:
+    'Google rejected the Android vitals request (HTTP 400). This is a fault of this server, not of your setup. Sync again later, and report it if it stays.',
   play_vitals_no_data:
     'Google has no Android vitals for this app yet. Play shows vitals only for apps with enough users and a published version, and they appear a day or two late. Nothing is wrong with the setup.',
-  bucket_missing: 'No Cloud Storage bucket id is set for this app. Copy it from the Reports page of Play Console.',
+  bucket_missing:
+    'No Cloud Storage bucket id is set for this app. Copy it from the Reports page of Play Console.',
   bucket_invalid: 'The bucket id is not valid. It looks like pubsite_prod_rev_<number>.',
-  bucket_forbidden: 'The service account may not read the Cloud Storage bucket of the Play Console reports.',
+  bucket_forbidden:
+    'The service account may not read the Cloud Storage bucket of the Play Console reports.',
   bucket_not_found: 'Google Cloud Storage has no bucket with this id.',
   reports_not_found: 'The bucket holds no report file for this app and month yet.',
-  package_not_in_bucket: 'This package is not in this bucket. The reports of an app are in the bucket of the Play account that owns it: check the bucket of this app.',
+  package_not_in_bucket:
+    'This package is not in this bucket. The reports of an app are in the bucket of the Play account that owns it: check the bucket of this app.',
   store_auth: 'The credential was refused by the store. Check the key and enter it again.',
   store_forbidden: 'The credential is not allowed to read this from the store.',
   store_not_found: 'The store has no such app for this credential.',
@@ -248,17 +375,25 @@ export const coverageNoteCodes = [
 export type CoverageNoteCode = (typeof coverageNoteCodes)[number];
 
 export const coverageNoteMessages: Record<CoverageNoteCode, string> = {
-  apple_usage_opt_in_only: 'Apple usage data (sessions, crashes) covers only users who chose to share data with developers.',
-  apple_privacy_thresholds: 'Apple drops rows with very few users and adds small random noise to detailed reports.',
-  apple_counts_not_unique: 'These are counts of events. Unique users cannot be added up across rows.',
+  apple_usage_opt_in_only:
+    'Apple usage data (sessions, crashes) covers only users who chose to share data with developers.',
+  apple_privacy_thresholds:
+    'Apple drops rows with very few users and adds small random noise to detailed reports.',
+  apple_counts_not_unique:
+    'These are counts of events. Unique users cannot be added up across rows.',
   apple_usage_sample_not_total: 'This is a sample of your users, not a total.',
   apple_estimates: 'Sales and Trends figures are next-day estimates.',
   apple_pacific_time: 'Apple sales days run on Pacific Time.',
-  apple_proceeds_per_currency: 'Proceeds are in the payout currency of each row. They are shown per currency and never converted.',
-  apple_in_app_not_included: 'Only the app itself is counted here, not in-app purchases (UNVERIFIED mapping of product types).',
-  apple_rating_history_not_available: 'Apple offers no rating history through its API, so there is no rating chart for the App Store.',
-  apple_impressions_only_via_reports: 'Impressions and product page views exist only in the Analytics Reports, which need a report request or an imported file.',
-  google_unit_unverified: 'Whether Google reports this rate as a fraction or a percentage is not confirmed (UNVERIFIED); the value is shown as the API sent it.',
+  apple_proceeds_per_currency:
+    'Proceeds are in the payout currency of each row. They are shown per currency and never converted.',
+  apple_in_app_not_included:
+    'Only the app itself is counted here, not in-app purchases (UNVERIFIED mapping of product types).',
+  apple_rating_history_not_available:
+    'Apple offers no rating history through its API, so there is no rating chart for the App Store.',
+  apple_impressions_only_via_reports:
+    'Impressions and product page views exist only in the Analytics Reports, which need a report request or an imported file.',
+  google_unit_unverified:
+    'Whether Google reports this rate as a fraction or a percentage is not confirmed (UNVERIFIED); the value is shown as the API sent it.',
   google_legacy_store_listing:
     'These come from the legacy Play Console export. Google changed its store listing metrics in 2026 and may no longer fill them (UNVERIFIED).',
   google_no_impressions: 'Google Play offers no impressions in any API or export.',
@@ -294,7 +429,8 @@ export const dateToDay = (ms: number): string => new Date(ms).toISOString().slic
 export const dayToMs = (day: string): number => Date.parse(`${day}T00:00:00Z`);
 export const addDays = (day: string, n: number): string => dateToDay(dayToMs(day) + n * 86_400_000);
 /** Whole days from `a` to `b` (negative when `b` is earlier). */
-export const daysBetween = (a: string, b: string): number => Math.round((dayToMs(b) - dayToMs(a)) / 86_400_000);
+export const daysBetween = (a: string, b: string): number =>
+  Math.round((dayToMs(b) - dayToMs(a)) / 86_400_000);
 
 export const granularities = ['day', 'week', 'month'] as const;
 export type Granularity = (typeof granularities)[number];
@@ -336,7 +472,10 @@ export function safeRatio(numerator: number | null, denominator: number | null):
 
 /** A Google Play Cloud Storage bucket id as Play Console shows it (`pubsite_prod_rev_<digits>`), optionally `gs://` prefixed. */
 export function normalizeBucketId(raw: string): string | undefined {
-  const trimmed = raw.trim().replace(/^gs:\/\//i, '').replace(/\/+$/, '');
+  const trimmed = raw
+    .trim()
+    .replace(/^gs:\/\//i, '')
+    .replace(/\/+$/, '');
   return /^pubsite_prod_rev_[0-9]{6,30}$/.test(trimmed) ? trimmed : undefined;
 }
 
@@ -360,13 +499,19 @@ export type PlayBucketTestCode = (typeof playBucketTestCodes)[number];
 
 export const playBucketTestMessages: Record<PlayBucketTestCode, string> = {
   ok: 'The bucket can be read and holds report files for this app.',
-  package_not_found: 'This package is not in this bucket: the bucket belongs to another Play account, or the app has no reports yet. The reports of an app are in the bucket of the Play account that owns it.',
-  no_reports_yet: 'The bucket can be read, but it holds no report file for this app yet. Google writes the files monthly, so this can be right for a new app or month.',
+  package_not_found:
+    'This package is not in this bucket: the bucket belongs to another Play account, or the app has no reports yet. The reports of an app are in the bucket of the Play account that owns it.',
+  no_reports_yet:
+    'The bucket can be read, but it holds no report file for this app yet. Google writes the files monthly, so this can be right for a new app or month.',
   not_set: 'No bucket is set for this app.',
-  bucket_invalid: 'That is not a Play reports bucket. It looks like gs://pubsite_prod_rev_ followed by digits.',
-  bucket_forbidden: 'The service account may not read this bucket. Grant it Storage Object Viewer on the bucket (and check the Play Console permission).',
-  bucket_not_found: 'Google Cloud Storage has no bucket with this id. Copy it again from Play Console.',
-  credential_problem: 'The saved Google Play credential could not be used. Check it under Credentials.',
+  bucket_invalid:
+    'That is not a Play reports bucket. It looks like gs://pubsite_prod_rev_ followed by digits.',
+  bucket_forbidden:
+    'The service account may not read this bucket. Grant it Storage Object Viewer on the bucket (and check the Play Console permission).',
+  bucket_not_found:
+    'Google Cloud Storage has no bucket with this id. Copy it again from Play Console.',
+  credential_problem:
+    'The saved Google Play credential could not be used. Check it under Credentials.',
   unreachable: 'Google Cloud Storage could not be reached just now. Try again later.',
 };
 

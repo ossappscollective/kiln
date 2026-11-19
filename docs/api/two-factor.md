@@ -9,14 +9,14 @@ registry). They are for people in a browser.
 
 ## What a person can set up
 
-| | Authenticator app | Email code |
-| --- | --- | --- |
-| Standard | TOTP, RFC 6238: SHA-1, 6 digits, 30 seconds | 6 digits |
-| Valid | the current 30 second step and one either side | 10 minutes, 5 tries |
-| Use | once: a code from a step already used is refused | once |
-| Stored | the secret, encrypted with the master key | a keyed hash only; the address is stored with its verified time |
-| Sent to | not sent: the app shows it | the person's verified address only |
-| Needs | nothing from the server | a mail server ([mail](mail.md)) |
+|          | Authenticator app                                | Email code                                                      |
+| -------- | ------------------------------------------------ | --------------------------------------------------------------- |
+| Standard | TOTP, RFC 6238: SHA-1, 6 digits, 30 seconds      | 6 digits                                                        |
+| Valid    | the current 30 second step and one either side   | 10 minutes, 5 tries                                             |
+| Use      | once: a code from a step already used is refused | once                                                            |
+| Stored   | the secret, encrypted with the master key        | a keyed hash only; the address is stored with its verified time |
+| Sent to  | not sent: the app shows it                       | the person's verified address only                              |
+| Needs    | nothing from the server                          | a mail server ([mail](mail.md))                                 |
 
 Both count as "enrolled" for [step-up](step-up.md): once a person has one, hard actions can be confirmed with it, and the
 passkey and password stay as they were. A wrong code counts toward the same lockout as a wrong password (5 failures, then 30
@@ -26,18 +26,18 @@ seconds, doubling to 15 minutes, for all ways together).
 
 All under `/api/workspaces/:workspaceId`, for the signed-in member; answers carry `Cache-Control: no-store`.
 
-| Route | Role | What it does |
-| --- | --- | --- |
-| `GET /two-factor/status` | member | `{ totp: { state: none \| pending \| active, confirmedAt }, email: { address, verified, verifiedAt, usable } \| null, mailConfigured, emailAddressEditable, recovery, login: { supported, mode, membersWithoutSecondFactor? } }`. `membersWithoutSecondFactor` is for owners and admins. |
-| `POST /two-factor/totp/begin` | member, step-up once enrolled | Makes a new secret (not active yet). Answers `201 { secret, uri, issuer, account }`: the secret as text and the `otpauth://` URI to draw as a QR code. Shown once; a second `begin` replaces a pending secret. `409 already_enrolled` when one is active. |
-| `POST /two-factor/totp/confirm` | member | `{ code }`. The first right code turns it on. `409 not_started`, `400 invalid_code`. |
-| `DELETE /two-factor/totp` | member, step-up | Removes it. |
-| `POST /two-factor/email/begin` | member, step-up once enrolled | Sends a code to prove an address. On a server with accounts it goes to the account email. In single-user mode there is no account email: send `{ email }`. `202 { expiresAt, resendAfterSeconds, to }` with `to` masked. |
-| `POST /two-factor/email/confirm` | member | `{ code }`. Marks the address verified. `400 invalid_code`, `400 code_expired` (ask for a new code), `429 too_many_attempts` (5 wrong tries: ask for a new code). |
-| `DELETE /two-factor/email` | member, step-up | Removes it. |
-| `POST /step-up/email-code` | member | `{ action, target? }`. Sends a code for one confirmation, bound to this session, workspace, action and target. The address is never part of the request. `409 factor_not_enrolled` when no address is verified. |
-| `PUT /two-factor/policy` | settings.write, step-up | `{ mode: off \| optional \| admins \| all }`. Servers with accounts only (`409 single_user_mode`). `409 two_factor_not_enrolled` when the person asking has no factor and `mode` would require one of them. |
-| `DELETE /two-factor/members/:userId` | members.manage, step-up | Removes that member's app and email. For a lost phone with no recovery codes. Audited. |
+| Route                                | Role                          | What it does                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /two-factor/status`             | member                        | `{ totp: { state: none \| pending \| active, confirmedAt }, email: { address, verified, verifiedAt, usable } \| null, mailConfigured, emailAddressEditable, recovery, login: { supported, mode, membersWithoutSecondFactor? } }`. `membersWithoutSecondFactor` is for owners and admins. |
+| `POST /two-factor/totp/begin`        | member, step-up once enrolled | Makes a new secret (not active yet). Answers `201 { secret, uri, issuer, account }`: the secret as text and the `otpauth://` URI to draw as a QR code. Shown once; a second `begin` replaces a pending secret. `409 already_enrolled` when one is active.                                |
+| `POST /two-factor/totp/confirm`      | member                        | `{ code }`. The first right code turns it on. `409 not_started`, `400 invalid_code`.                                                                                                                                                                                                     |
+| `DELETE /two-factor/totp`            | member, step-up               | Removes it.                                                                                                                                                                                                                                                                              |
+| `POST /two-factor/email/begin`       | member, step-up once enrolled | Sends a code to prove an address. On a server with accounts it goes to the account email. In single-user mode there is no account email: send `{ email }`. `202 { expiresAt, resendAfterSeconds, to }` with `to` masked.                                                                 |
+| `POST /two-factor/email/confirm`     | member                        | `{ code }`. Marks the address verified. `400 invalid_code`, `400 code_expired` (ask for a new code), `429 too_many_attempts` (5 wrong tries: ask for a new code).                                                                                                                        |
+| `DELETE /two-factor/email`           | member, step-up               | Removes it.                                                                                                                                                                                                                                                                              |
+| `POST /step-up/email-code`           | member                        | `{ action, target? }`. Sends a code for one confirmation, bound to this session, workspace, action and target. The address is never part of the request. `409 factor_not_enrolled` when no address is verified.                                                                          |
+| `PUT /two-factor/policy`             | settings.write, step-up       | `{ mode: off \| optional \| admins \| all }`. Servers with accounts only (`409 single_user_mode`). `409 two_factor_not_enrolled` when the person asking has no factor and `mode` would require one of them.                                                                              |
+| `DELETE /two-factor/members/:userId` | members.manage, step-up       | Removes that member's app and email. For a lost phone with no recovery codes. Audited.                                                                                                                                                                                                   |
 
 To confirm with a code, use [`POST /step-up/verify`](step-up.md#confirming-an-action) with `{ factor: "totp" | "email", action,
 target?, code }`. The answer is the usual grant. Reasons for a refusal: `invalid_code`, `code_already_used` (app),
@@ -53,12 +53,12 @@ Servers with accounts only. Single-user mode has no sign-in, so there it is only
 
 The policy `security.twoFactor`, per workspace, set by an owner or admin:
 
-| Mode | Meaning |
-| --- | --- |
-| `off` (default) | Signing in needs the password only. Nothing changes when you upgrade. |
-| `optional` | A person who has an app or a verified email must use it after the password. |
-| `admins` | Owners and admins must have one; they set it up at the next sign-in if they have none. Others as `optional`. |
-| `all` | Every member must have one. |
+| Mode            | Meaning                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| `off` (default) | Signing in needs the password only. Nothing changes when you upgrade.                                        |
+| `optional`      | A person who has an app or a verified email must use it after the password.                                  |
+| `admins`        | Owners and admins must have one; they set it up at the next sign-in if they have none. Others as `optional`. |
+| `all`           | Every member must have one.                                                                                  |
 
 A person who belongs to several workspaces gets the strictest of them. Raising the policy does not sign anyone out; it applies to
 the next sign-in. The Security card shows how many members have no second factor yet.
@@ -68,28 +68,33 @@ the next sign-in. The Security card shows how many members have no second factor
 `POST /api/auth/login` with the right email and password, when a second factor is asked for, answers `200` **without a session**:
 
 ```json
-{ "twoFactorRequired": true, "enrollmentRequired": false, "challenge": "lgc_...", "methods": ["totp", "email", "recovery"] }
+{
+  "twoFactorRequired": true,
+  "enrollmentRequired": false,
+  "challenge": "lgc_...",
+  "methods": ["totp", "email", "recovery"]
+}
 ```
 
 `challenge` is the only credential for the next calls. It lasts 5 minutes and 5 wrong codes, is kept by the browser in memory,
 and is stored by the server only as a SHA-256. Wrong password still answers `401 invalid_credentials` and counts toward the
 login limit; a right password does not reset that count before the second step succeeds.
 
-| Route | Body | Answer |
-| --- | --- | --- |
-| `POST /api/auth/login/two-factor` | `{ challenge, method: totp \| email \| recovery, code }` | `200 { user }` and the session cookie. `401 invalid_second_factor`; `401 challenge_invalid` (expired or used up: sign in again); `429 too_many_attempts`. |
-| `POST /api/auth/login/two-factor/email-code` | `{ challenge }` | `202 { expiresAt, resendAfterSeconds, to }` |
+| Route                                        | Body                                                     | Answer                                                                                                                                                    |
+| -------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/auth/login/two-factor`            | `{ challenge, method: totp \| email \| recovery, code }` | `200 { user }` and the session cookie. `401 invalid_second_factor`; `401 challenge_invalid` (expired or used up: sign in again); `429 too_many_attempts`. |
+| `POST /api/auth/login/two-factor/email-code` | `{ challenge }`                                          | `202 { expiresAt, resendAfterSeconds, to }`                                                                                                               |
 
 When `enrollmentRequired` is true the account has no second factor and the policy requires one. Only then these work, and only
 with a challenge of that kind (a challenge for an account that already has a factor cannot enroll a second one, so a stolen
 password cannot add a factor of the thief's):
 
-| Route | Body | Answer |
-| --- | --- | --- |
-| `POST /api/auth/login/enroll/totp` | `{ challenge }` | `201 { secret, uri, issuer, account }` |
-| `POST /api/auth/login/enroll/totp/confirm` | `{ challenge, code }` | `200 { user }` and the session cookie |
-| `POST /api/auth/login/enroll/email` | `{ challenge }` | `202 { expiresAt, resendAfterSeconds, to }` (the account email) |
-| `POST /api/auth/login/enroll/email/confirm` | `{ challenge, code }` | `200 { user }` and the session cookie |
+| Route                                       | Body                  | Answer                                                          |
+| ------------------------------------------- | --------------------- | --------------------------------------------------------------- |
+| `POST /api/auth/login/enroll/totp`          | `{ challenge }`       | `201 { secret, uri, issuer, account }`                          |
+| `POST /api/auth/login/enroll/totp/confirm`  | `{ challenge, code }` | `200 { user }` and the session cookie                           |
+| `POST /api/auth/login/enroll/email`         | `{ challenge }`       | `202 { expiresAt, resendAfterSeconds, to }` (the account email) |
+| `POST /api/auth/login/enroll/email/confirm` | `{ challenge, code }` | `200 { user }` and the session cookie                           |
 
 `methods` lists what can be used now: `totp` when an app is active, `email` when an address is verified and a mail server is
 set up, `recovery` while recovery codes are left. Recovery codes are the way in when the phone is gone.

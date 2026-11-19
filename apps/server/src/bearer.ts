@@ -1,14 +1,14 @@
-import { type Role, canToken, lowerRole } from '@mrm/core';
+import { canToken, lowerRole, type Role } from '@mrm/core';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
-import { type AppEnv, type Services, clientIp } from './http.ts';
-import { type LoginLimiter, createLoginLimiter } from './limiter.ts';
+import { type AppEnv, clientIp, type Services } from './http.ts';
+import { createLoginLimiter, type LoginLimiter } from './limiter.ts';
 import { requireUser, SESSION_COOKIE } from './routes/auth.ts';
 import { operations } from './services/api-operations.ts';
 import { runAsToken } from './services/audit.ts';
-import { type TestLimiter, createTestLimiter } from './services/credential-tests.ts';
+import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import { compilePath, tokenAllowedFor } from './services/openapi.ts';
-import { type TokenPrincipal, authenticateToken, touchToken } from './services/tokens.ts';
+import { authenticateToken, type TokenPrincipal, touchToken } from './services/tokens.ts';
 
 /**
  * Authentication for `/api/workspaces/*` and `/api/openapi.json`: the session cookie, as before, or
@@ -39,7 +39,11 @@ export type BearerOptions = {
   badTokenLimiter?: LoginLimiter;
 };
 
-const compiled = operations.map((op) => ({ op, match: compilePath(op.path), method: op.method.toUpperCase() }));
+const compiled = operations.map((op) => ({
+  op,
+  match: compilePath(op.path),
+  method: op.method.toUpperCase(),
+}));
 
 /** The operation a request is for, with its path parameters. */
 export function findOperation(method: string, path: string) {
@@ -51,15 +55,26 @@ export function findOperation(method: string, path: string) {
   return undefined;
 }
 
-const deny = (c: Context, status: 401 | 403 | 404 | 429, body: Record<string, unknown>, headers: Record<string, string> = {}) => {
+const deny = (
+  c: Context,
+  status: 401 | 403 | 404 | 429,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) => {
   for (const [name, value] of Object.entries(headers)) c.header(name, value);
   return c.json(body, status);
 };
 
-export function requireAuth(services: Services, options: BearerOptions = {}): MiddlewareHandler<AppEnv> {
+export function requireAuth(
+  services: Services,
+  options: BearerOptions = {},
+): MiddlewareHandler<AppEnv> {
   const cookieAuth = requireUser(services);
-  const limiter = options.limiter ?? createTestLimiter({ limit: TOKEN_RATE_LIMIT, now: services.now });
-  const badTokens = options.badTokenLimiter ?? createLoginLimiter({ max: BAD_TOKEN_LIMIT, windowMs: 5 * 60_000, now: services.now });
+  const limiter =
+    options.limiter ?? createTestLimiter({ limit: TOKEN_RATE_LIMIT, now: services.now });
+  const badTokens =
+    options.badTokenLimiter ??
+    createLoginLimiter({ max: BAD_TOKEN_LIMIT, windowMs: 5 * 60_000, now: services.now });
 
   return async (c: Context<AppEnv>, next: Next) => {
     if (getCookie(c, SESSION_COOKIE)) return cookieAuth(c, next);
@@ -69,21 +84,39 @@ export function requireAuth(services: Services, options: BearerOptions = {}): Mi
 
     const ip = clientIp(c, services.trustProxy);
     const blocked = ip ? badTokens.retryAfter(ip) : 0;
-    if (blocked > 0) return deny(c, 429, { error: 'too_many_attempts' }, { 'Retry-After': String(blocked) });
+    if (blocked > 0)
+      return deny(c, 429, { error: 'too_many_attempts' }, { 'Retry-After': String(blocked) });
 
     const principal = await authenticateToken(services.db, presented, services.now());
     if (!principal) {
       if (ip) badTokens.fail(ip);
-      return deny(c, 401, { error: 'invalid_token', message: 'The API token is not valid. It may be revoked or expired.' }, {
-        'WWW-Authenticate': 'Bearer error="invalid_token"',
-      });
+      return deny(
+        c,
+        401,
+        {
+          error: 'invalid_token',
+          message: 'The API token is not valid. It may be revoked or expired.',
+        },
+        {
+          'WWW-Authenticate': 'Bearer error="invalid_token"',
+        },
+      );
     }
 
     const wait = limiter.take(principal.tokenId);
     if (wait > 0) {
-      return deny(c, 429, { error: 'rate_limited', message: `Too many requests for this token. Try again in ${wait} seconds.`, retryAfterSeconds: wait }, {
-        'Retry-After': String(wait),
-      });
+      return deny(
+        c,
+        429,
+        {
+          error: 'rate_limited',
+          message: `Too many requests for this token. Try again in ${wait} seconds.`,
+          retryAfterSeconds: wait,
+        },
+        {
+          'Retry-After': String(wait),
+        },
+      );
     }
 
     const refusal = check(c, principal);
@@ -117,19 +150,31 @@ function check(c: Context<AppEnv>, principal: TokenPrincipal): Response | undefi
   const found = findOperation(c.req.method, path);
   if (!found || !tokenAllowedFor(found.op)) {
     return c.json(
-      { error: 'token_not_allowed', message: 'API tokens cannot call this endpoint. Use a signed-in session.' },
+      {
+        error: 'token_not_allowed',
+        message: 'API tokens cannot call this endpoint. Use a signed-in session.',
+      },
       403,
     );
   }
   const { op, params } = found;
-  if (typeof op.access === 'object' && !canToken(principal.ceiling, principal.actions, op.access.action)) {
+  if (
+    typeof op.access === 'object' &&
+    !canToken(principal.ceiling, principal.actions, op.access.action)
+  ) {
     return c.json({ error: 'forbidden', message: 'This token does not allow that.' }, 403);
   }
   // Workspace wide endpoints are closed to an app restricted token. The OpenAPI document is not in a workspace.
   if (principal.appIds !== null && workspace !== undefined) {
     const scope = op.appScope;
     if (!scope) {
-      return c.json({ error: 'forbidden', message: 'This token is limited to some apps; this endpoint is workspace wide.' }, 403);
+      return c.json(
+        {
+          error: 'forbidden',
+          message: 'This token is limited to some apps; this endpoint is workspace wide.',
+        },
+        403,
+      );
     }
     if (scope.kind === 'param' && !principal.appIds.includes(params[scope.name] ?? '')) {
       return c.json({ error: 'not_found' }, 404);
@@ -154,13 +199,22 @@ async function filterApps(c: Context<AppEnv>, principal: TokenPrincipal): Promis
   if (principal.appIds === null) return;
   const found = findOperation(c.req.method, c.req.path);
   if (found?.op.appScope?.kind !== 'list' || !c.res.ok) return;
-  const body = (await c.res.clone().json().catch(() => undefined)) as { apps?: { id?: string; app?: { id?: string } }[] } | undefined;
+  const body = (await c.res
+    .clone()
+    .json()
+    .catch(() => undefined)) as { apps?: { id?: string; app?: { id?: string } }[] } | undefined;
   if (!body || !Array.isArray(body.apps)) return;
   const allowed = new Set(principal.appIds);
   const headers = new Headers(c.res.headers);
   headers.delete('content-length');
-  c.res = new Response(JSON.stringify({ ...body, apps: body.apps.filter((a) => allowed.has(String(a.id ?? a.app?.id))) }), {
-    status: c.res.status,
-    headers,
-  });
+  c.res = new Response(
+    JSON.stringify({
+      ...body,
+      apps: body.apps.filter((a) => allowed.has(String(a.id ?? a.app?.id))),
+    }),
+    {
+      status: c.res.status,
+      headers,
+    },
+  );
 }

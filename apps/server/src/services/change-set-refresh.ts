@@ -1,6 +1,5 @@
 import type { ActorType, FileChange } from '@mrm/core';
 import { recordAudit } from './audit.ts';
-import { isCloneBacked } from './clone-reads.ts';
 import {
   type ChangeSetView,
   getChangeSet,
@@ -8,6 +7,8 @@ import {
   parseFiles,
   rowOf,
 } from './change-sets.ts';
+import { isCloneBacked } from './clone-reads.ts';
+import { openRepoSnapshot } from './repo-snapshot.ts';
 import {
   type Failure,
   failure,
@@ -18,7 +19,6 @@ import {
   type RepoContext,
   withTimeout,
 } from './repositories.ts';
-import { openRepoSnapshot } from './repo-snapshot.ts';
 import { mergeText } from './text-merge.ts';
 
 /**
@@ -104,7 +104,8 @@ export function evaluateFile(file: FileChange, current: string | undefined): Eva
   // The merge may land on what is there already (both sides made the same changes in pieces).
   if (merged.text === current) return { state: 'already_applied' };
   // A merged JSON file that no longer parses (an Expo store config) is never offered as clean.
-  if (isJsonPath(file.path) && parses(ours) && !parses(merged.text)) return conflict('invalid_json');
+  if (isJsonPath(file.path) && parses(ours) && !parses(merged.text))
+    return conflict('invalid_json');
   return { state: 'changed', file: { path: file.path, before: current, after: merged.text } };
 }
 
@@ -144,7 +145,13 @@ export async function readCurrent(
 ): Promise<Outcome<{ current: Current }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
-  const opened = await openConnectorForRepository(ctx, input.workspaceId, repository, actor, input.purpose);
+  const opened = await openConnectorForRepository(
+    ctx,
+    input.workspaceId,
+    repository,
+    actor,
+    input.purpose,
+  );
   if (!opened.ok) return opened;
   const { connector, secret } = opened;
   const controller = new AbortController();
@@ -153,7 +160,8 @@ export async function readCurrent(
     const current = await withTimeout(
       (async (): Promise<Current> => {
         // The point is to see what changed: the newest tip, not the one fetched a minute ago.
-        if (isCloneBacked(connector)) await connector.refresh(repository.defaultBranch, controller.signal);
+        if (isCloneBacked(connector))
+          await connector.refresh(repository.defaultBranch, controller.signal);
         const snapshot = await openRepoSnapshot({
           repositoryId: repository.id,
           connector,
@@ -169,7 +177,9 @@ export async function readCurrent(
         for (let i = 0; i < input.paths.length; i += READ_BATCH) {
           const batch = input.paths.slice(i, i + READ_BATCH);
           const read = await Promise.all(
-            batch.map((path) => (snapshot.files.includes(path) ? snapshot.read(path) : Promise.resolve(undefined))),
+            batch.map((path) =>
+              snapshot.files.includes(path) ? snapshot.read(path) : Promise.resolve(undefined),
+            ),
           );
           batch.forEach((path, n) => texts.set(path, read[n]));
         }
@@ -250,11 +260,20 @@ async function load(
   }
   const files = parseFiles(row);
   if (files.some((f) => f.encoding === 'base64')) {
-    return failure(422, 'binary_change_set', 'This change set holds images, which cannot be refreshed in place. Discard it and make the change again.');
+    return failure(
+      422,
+      'binary_change_set',
+      'This change set holds images, which cannot be refreshed in place. Discard it and make the change again.',
+    );
   }
   const read = await readCurrent(
     ctx,
-    { workspaceId: input.workspaceId, repositoryId: String(row.repository_id), paths: files.map((f) => f.path), purpose },
+    {
+      workspaceId: input.workspaceId,
+      repositoryId: String(row.repository_id),
+      paths: files.map((f) => f.path),
+      purpose,
+    },
     actor,
   );
   if (!read.ok) return read;
@@ -271,14 +290,22 @@ export async function changeSetStaleness(
   const done = await load(ctx, input, actor, STALENESS_PURPOSE);
   // Images are compared as bytes when the change set is applied (a changed file is a conflict then); there is no text to
   // compare here, so such a change set is reported as not stale rather than as an error.
-  if (!done.ok && done.body.error === 'binary_change_set') return { ok: true, stale: false, files: [], readAt: '' };
+  if (!done.ok && done.body.error === 'binary_change_set')
+    return { ok: true, stale: false, files: [], readAt: '' };
   if (!done.ok) return done;
   const { files, evaluations, current } = done.loaded;
-  const rows = files.map((file, i): StalenessFile => ({
-    path: file.path,
-    state: (evaluations[i] as Evaluation).state,
-  }));
-  return { ok: true, stale: rows.some((f) => f.state !== 'same'), files: rows, readAt: current.ref };
+  const rows = files.map(
+    (file, i): StalenessFile => ({
+      path: file.path,
+      state: (evaluations[i] as Evaluation).state,
+    }),
+  );
+  return {
+    ok: true,
+    stale: rows.some((f) => f.state !== 'same'),
+    files: rows,
+    readAt: current.ref,
+  };
 }
 
 const content = (text: string | undefined): string | null => (text === undefined ? null : text);
@@ -332,11 +359,21 @@ export async function refreshChangeSet(
           if (mine) kept.push(mine);
           counts.keptMine++;
           contentChanged = true;
-          results.push({ path: file.path, state: 'conflict', outcome: 'kept_mine', reason: evaluation.reason });
+          results.push({
+            path: file.path,
+            state: 'conflict',
+            outcome: 'kept_mine',
+            reason: evaluation.reason,
+          });
         } else if (choice === 'theirs') {
           counts.keptTheirs++;
           contentChanged = true;
-          results.push({ path: file.path, state: 'conflict', outcome: 'kept_theirs', reason: evaluation.reason });
+          results.push({
+            path: file.path,
+            state: 'conflict',
+            outcome: 'kept_theirs',
+            reason: evaluation.reason,
+          });
         } else {
           counts.conflicts++;
           results.push({

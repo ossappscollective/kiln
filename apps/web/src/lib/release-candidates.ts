@@ -63,12 +63,23 @@ export type AppleCandidates = {
   truncatedAt: number | null;
 };
 
-export type PlayCandidates = { store: 'googleplay'; platform: 'android'; track: string; codes: CodeCandidate[] };
+export type PlayCandidates = {
+  store: 'googleplay';
+  platform: 'android';
+  track: string;
+  codes: CodeCandidate[];
+};
 
 export type ReleaseCandidates = AppleCandidates | PlayCandidates;
 
 export type ReleaseNoteRead = { locale: string; text: string };
-export type PlayReleaseRead = { name: string | null; status: string; userFraction: number | null; versionCodes: string[]; notes: ReleaseNoteRead[] };
+export type PlayReleaseRead = {
+  name: string | null;
+  status: string;
+  userFraction: number | null;
+  versionCodes: string[];
+  notes: ReleaseNoteRead[];
+};
 
 export type EditableRelease =
   | {
@@ -78,11 +89,22 @@ export type EditableRelease =
       releaseType: string | null;
       earliestReleaseDate: string | null;
       copyright: string | null;
-      build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null;
+      build: {
+        id: string;
+        buildNumber: string | null;
+        processingState: string | null;
+        expired: boolean | null;
+      } | null;
       phasedRelease: { id: string; state: string | null } | null;
       releaseNotes: ReleaseNoteRead[];
     }
-  | { store: 'googleplay'; platform: 'android'; track: string; draft: PlayReleaseRead | null; others: PlayReleaseRead[] };
+  | {
+      store: 'googleplay';
+      platform: 'android';
+      track: string;
+      draft: PlayReleaseRead | null;
+      others: PlayReleaseRead[];
+    };
 
 // ---------------------------------------------------------------------------------------------
 // Eligibility, as it is shown
@@ -107,30 +129,52 @@ const CODE_SENTENCES: Record<string, string> = {
   state_unknown: 'Apple did not say whether this build is processed, so it cannot be chosen.',
   expired: 'This build has expired. Upload a new build.',
   wrong_version: 'This build belongs to another version than the one being prepared.',
-  no_editable_version: 'No version is in Prepare for Submission, so no build can be attached yet. Create the version in App Store Connect first.',
+  no_editable_version:
+    'No version is in Prepare for Submission, so no build can be attached yet. Create the version in App Store Connect first.',
   already_attached: 'This is the build of the version already.',
-  export_compliance_missing: 'Apple has no export compliance answer for this build. It can be chosen; App Store Connect may ask for it later.',
+  export_compliance_missing:
+    'Apple has no export compliance answer for this build. It can be chosen; App Store Connect may ask for it later.',
   already_in_draft: 'The draft release of this track holds this version code already.',
   already_live: 'A release of this track that is live or rolling out holds this version code.',
 };
 
 /** The eligibility of one build or code as a person sees it. Never an empty sentence, never just "not eligible". */
-export function eligibilityView(item: { eligibility?: Eligibility; selectable?: boolean; reason?: string | null }): EligibilityView {
+export function eligibilityView(item: {
+  eligibility?: Eligibility;
+  selectable?: boolean;
+  reason?: string | null;
+}): EligibilityView {
   const e = item.eligibility;
   if (e) {
-    const sentence = e.message.trim() !== '' ? e.message.trim() : (CODE_SENTENCES[e.code] ?? (e.eligible ? 'This can be chosen.' : 'This cannot be chosen now.'));
+    const sentence =
+      e.message.trim() !== ''
+        ? e.message.trim()
+        : (CODE_SENTENCES[e.code] ??
+          (e.eligible ? 'This can be chosen.' : 'This cannot be chosen now.'));
     if (e.eligible) {
       return e.severity === 'warning'
         ? { selectable: true, tone: 'warn', sentence, label: 'Read first' }
         : { selectable: true, tone: 'ok', sentence, label: 'Can be chosen' };
     }
     // Not eligible and not blocked: it is the build or code the draft has already.
-    if (e.severity !== 'blocked') return { selectable: false, tone: 'ok', sentence, label: 'Already chosen' };
+    if (e.severity !== 'blocked')
+      return { selectable: false, tone: 'ok', sentence, label: 'Already chosen' };
     return { selectable: false, tone: 'bad', sentence, label: 'Cannot be chosen' };
   }
-  if (item.selectable === true) return { selectable: true, tone: 'ok', sentence: CODE_SENTENCES.ok as string, label: 'Can be chosen' };
+  if (item.selectable === true)
+    return {
+      selectable: true,
+      tone: 'ok',
+      sentence: CODE_SENTENCES.ok as string,
+      label: 'Can be chosen',
+    };
   const reason = (item.reason ?? '').trim();
-  return { selectable: false, tone: 'bad', sentence: reason !== '' ? reason : 'This build cannot be chosen now.', label: 'Cannot be chosen' };
+  return {
+    selectable: false,
+    tone: 'bad',
+    sentence: reason !== '' ? reason : 'This build cannot be chosen now.',
+    label: 'Cannot be chosen',
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -139,13 +183,23 @@ export function eligibilityView(item: { eligibility?: Eligibility; selectable?: 
 export type SourceRun = { text: string; url: string | null };
 
 /** The CI run that made a build (from the builds of the app), or a sentence that says why there is none. */
-export function sourceRunOf(buildNumber: string | null, builds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[]): SourceRun {
+export function sourceRunOf(
+  buildNumber: string | null,
+  builds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[],
+): SourceRun {
   if (buildNumber === null) return { text: 'No CI run linked', url: null };
   const found = builds.filter((b) => b.buildNumber === buildNumber)[0];
-  if (!found) return { text: 'No CI run linked (this build is not in the builds of the app yet)', url: null };
+  if (!found)
+    return { text: 'No CI run linked (this build is not in the builds of the app yet)', url: null };
   const run = found.link?.run ?? null;
   if (run === null) {
-    return { text: found.linkState === 'tag' ? 'A tag carries this number, but no CI run was found' : 'No CI run linked', url: null };
+    return {
+      text:
+        found.linkState === 'tag'
+          ? 'A tag carries this number, but no CI run was found'
+          : 'No CI run linked',
+      url: null,
+    };
   }
   const title = run.title && run.title !== run.workflow ? ` ${run.title}` : '';
   return { text: `${run.workflow}${title}`, url: run.url };
@@ -163,9 +217,12 @@ export function uploadedText(iso: string | null): string {
 export function testNotesLine(notes: TestNotes | undefined): string {
   if (!notes) return 'TestFlight notes: this server did not say.';
   if (!notes.read) {
-    if (notes.error === 'forbidden') return 'TestFlight notes: not read. The credential of this app may not read them.';
-    if (notes.error === 'rate_limited') return 'TestFlight notes: not read. Apple is limiting requests; try again in a minute.';
-    if (notes.error === 'not_found') return 'TestFlight notes: not read. Apple has no test details for this build.';
+    if (notes.error === 'forbidden')
+      return 'TestFlight notes: not read. The credential of this app may not read them.';
+    if (notes.error === 'rate_limited')
+      return 'TestFlight notes: not read. Apple is limiting requests; try again in a minute.';
+    if (notes.error === 'not_found')
+      return 'TestFlight notes: not read. Apple has no test details for this build.';
     if (notes.error) return 'TestFlight notes: not read. Apple could not be reached.';
     return 'TestFlight notes: not read. Only the newest eight processed builds are read.';
   }
@@ -175,7 +232,8 @@ export function testNotesLine(notes: TestNotes | undefined): string {
 }
 
 /** The notes can be used: they were read and hold at least one text. */
-export const hasTestNotes = (notes: TestNotes | undefined): boolean => !!notes && notes.read && notes.locales.length > 0;
+export const hasTestNotes = (notes: TestNotes | undefined): boolean =>
+  !!notes && notes.read && notes.locales.length > 0;
 
 export type BuildRow = {
   id: string;
@@ -189,7 +247,10 @@ export type BuildRow = {
   hasTestNotes: boolean;
 };
 
-export function buildRows(builds: readonly BuildCandidate[], appBuilds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[]): BuildRow[] {
+export function buildRows(
+  builds: readonly BuildCandidate[],
+  appBuilds: readonly Pick<AppBuild, 'buildNumber' | 'link' | 'linkState'>[],
+): BuildRow[] {
   return builds.map((b) => ({
     id: b.id,
     title: b.buildNumber !== null ? `Build ${b.buildNumber}` : 'Build (number unknown)',
@@ -207,7 +268,10 @@ export function buildRows(builds: readonly BuildCandidate[], appBuilds: readonly
  * The sentence above the list when there is nothing to choose. It says why: no builds at all, or each reason in numbers
  * ("2 are for another version, 1 is still processing"). Null when at least one build can be chosen.
  */
-export function noBuildSentence(builds: readonly BuildCandidate[], versionString: string | null): string | null {
+export function noBuildSentence(
+  builds: readonly BuildCandidate[],
+  versionString: string | null,
+): string | null {
   if (builds.some((b) => eligibilityView(b).selectable)) return null;
   if (builds.length === 0) {
     return 'App Store Connect lists no builds for this app yet. Start the release workflow, or upload a build, then read this list again.';
@@ -264,7 +328,10 @@ const sameTrack = (a: string, b: string) => a.trim().toLowerCase() === b.trim().
  * The codes of one read as rows, newest first. `from` is the track a release is promoted from: its codes come first, so
  * "promote from beta" reads as the codes beta holds. `inFrom` are the codes found in a read of that track.
  */
-export function codeRows(codes: readonly CodeCandidate[], inFrom: readonly string[] = []): CodeRow[] {
+export function codeRows(
+  codes: readonly CodeCandidate[],
+  inFrom: readonly string[] = [],
+): CodeRow[] {
   const rows = codes.map((c) => ({
     versionCode: c.versionCode,
     source: c.source === 'bundle' ? 'App bundle' : 'APK',
@@ -283,11 +350,15 @@ export function codesInTrack(codes: readonly CodeCandidate[]): string[] {
 
 export function noCodeSentence(rows: readonly CodeRow[], track: string): string | null {
   if (rows.some((r) => r.eligibility.selectable)) return null;
-  if (rows.length === 0) return `Google Play lists no uploaded version codes for this app. Upload a bundle (the release workflow does) and read this list again for ${track}.`;
+  if (rows.length === 0)
+    return `Google Play lists no uploaded version codes for this app. Upload a bundle (the release workflow does) and read this list again for ${track}.`;
   const live = rows.filter((r) => r.eligibility.tone === 'bad').length;
   const chosen = rows.length - live;
   const parts: string[] = [];
-  if (live > 0) parts.push(`${live} ${live === 1 ? 'is' : 'are'} in a release of ${track} that is live or rolling out`);
+  if (live > 0)
+    parts.push(
+      `${live} ${live === 1 ? 'is' : 'are'} in a release of ${track} that is live or rolling out`,
+    );
   if (chosen > 0) parts.push(`${chosen} ${chosen === 1 ? 'is' : 'are'} in the draft already`);
   return `${rows.length} version ${rows.length === 1 ? 'code is' : 'codes are'} listed and none can be added: ${parts.join('; ')}.`;
 }
@@ -300,4 +371,5 @@ export const SUGGESTED_TRACKS = ['production', 'beta', 'alpha', 'internal'] as c
 export const isSameTrack = sameTrack;
 
 /** A track name Google Play accepts (the same rule as the server): letters, digits and `_ : . -`. */
-export const isTrackName = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/.test(value.trim());
+export const isTrackName = (value: string): boolean =>
+  /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,99}$/.test(value.trim());

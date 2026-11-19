@@ -1,7 +1,7 @@
 import type { AttentionItem } from './app-attention.ts';
 import type { PlatformScope } from './app-scope.ts';
-import type { Train } from './release-trains.ts';
 import { releaseStepHref } from './release-stepper.ts';
+import type { Train } from './release-trains.ts';
 
 /**
  * "Next step": the one card at the top of the Overview and of Releases. From the releases on their way (the release trains) and the
@@ -12,7 +12,9 @@ import { releaseStepHref } from './release-stepper.ts';
  * release left unfinished or a bad one; otherwise "Start release" (CI) or, without a linked repository, "Prepare release".
  */
 
-export type NextAction = { label: string; href: string } | { label: string; action: 'start-release' | 'prepare-release' };
+export type NextAction =
+  | { label: string; href: string }
+  | { label: string; action: 'start-release' | 'prepare-release' };
 
 export type NextStepKind = 'train' | 'attention' | 'start' | 'prepare' | 'idle';
 
@@ -57,17 +59,26 @@ function rank(t: Train): number {
 
 /** Trains in the order they matter: the most urgent first; equal ones keep their order. */
 export function orderTrains(trains: readonly Train[]): Train[] {
-  return trains.map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i).map((x) => x.t);
+  return trains
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i)
+    .map((x) => x.t);
 }
 
-const trainHref = (t: Train, scope: PlatformScope | null): string => releaseStepHref(t.button.appId, scope, t.button.step, t.version);
+const trainHref = (t: Train, scope: PlatformScope | null): string =>
+  releaseStepHref(t.button.appId, scope, t.button.step, t.version);
 
 export function chooseNextStep(input: NextStepInput): NextStep {
   const trains = orderTrains(input.trains);
   // The release left unfinished is the release trains' business: one line, not two. It only stays when no train could be read.
   const unfinished = input.attention.filter(isUnfinished);
-  const items = trains.length > 0 ? input.attention.filter((i) => !isUnfinished(i)) : [...input.attention];
-  const base = { items: [] as AttentionItem[], otherTrains: [] as NextStep['otherTrains'], train: null as Train | null };
+  const items =
+    trains.length > 0 ? input.attention.filter((i) => !isUnfinished(i)) : [...input.attention];
+  const base = {
+    items: [] as AttentionItem[],
+    otherTrains: [] as NextStep['otherTrains'],
+    train: null as Train | null,
+  };
 
   const lead = trains[0];
   if (lead) {
@@ -81,14 +92,23 @@ export function chooseNextStep(input: NextStepInput): NextStep {
       waiting: lead.waiting ? { who: lead.waiting.who, text: lead.waiting.text } : null,
       primary: { label: lead.button.label, href: trainHref(lead, input.scope) },
       train: lead,
-      otherTrains: trains.slice(1).map((t) => ({ title: t.title, text: t.lines[0] ?? '', href: trainHref(t, input.scope), label: t.button.label })),
+      otherTrains: trains
+        .slice(1)
+        .map((t) => ({
+          title: t.title,
+          text: t.lines[0] ?? '',
+          href: trainHref(t, input.scope),
+          label: t.button.label,
+        })),
       items,
       offerStart: input.canStart && r >= 2,
     };
   }
 
   // No release on its way that could be read: a release left unfinished, or something that has gone wrong, leads.
-  const lone = unfinished.find((i) => i.href !== null) ?? items.find((i) => i.tone === 'bad' && i.href !== null && !i.submitAppId);
+  const lone =
+    unfinished.find((i) => i.href !== null) ??
+    items.find((i) => i.tone === 'bad' && i.href !== null && !i.submitAppId);
   if (lone && lone.href) {
     return {
       ...base,
@@ -105,10 +125,28 @@ export function chooseNextStep(input: NextStepInput): NextStep {
 
   const nothing = { ...base, tone: 'neutral' as const, waiting: null, items, offerStart: false };
   if (input.canStart) {
-    return { ...nothing, kind: 'start', title: 'Nothing is waiting for you', text: 'Start the next release when you are ready. Nothing goes to the store until you confirm.', primary: { label: 'Start release', action: 'start-release' } };
+    return {
+      ...nothing,
+      kind: 'start',
+      title: 'Nothing is waiting for you',
+      text: 'Start the next release when you are ready. Nothing goes to the store until you confirm.',
+      primary: { label: 'Start release', action: 'start-release' },
+    };
   }
   if (input.canPrepare) {
-    return { ...nothing, kind: 'prepare', title: 'Nothing is waiting for you', text: 'Choose a build, write the notes, check it and send it to the store, one step at a time.', primary: { label: 'Prepare release', action: 'prepare-release' } };
+    return {
+      ...nothing,
+      kind: 'prepare',
+      title: 'Nothing is waiting for you',
+      text: 'Choose a build, write the notes, check it and send it to the store, one step at a time.',
+      primary: { label: 'Prepare release', action: 'prepare-release' },
+    };
   }
-  return { ...nothing, kind: 'idle', title: 'Nothing is waiting for you', text: 'A release you start will show here.', primary: null };
+  return {
+    ...nothing,
+    kind: 'idle',
+    title: 'Nothing is waiting for you',
+    text: 'A release you start will show here.',
+    primary: null,
+  };
 }

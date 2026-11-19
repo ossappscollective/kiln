@@ -29,7 +29,10 @@ function fakeGithub(routes: Record<string, Answer | (() => never)>) {
     const answer = routes[key];
     if (typeof answer === 'function') answer();
     const a = (answer ?? { status: 404, json: { message: 'Not Found' } }) as Answer;
-    return new Response(JSON.stringify(a.json ?? {}), { status: a.status ?? 200, headers: a.headers });
+    return new Response(JSON.stringify(a.json ?? {}), {
+      status: a.status ?? 200,
+      headers: a.headers,
+    });
   };
   return { fetch: fetchFn, calls };
 }
@@ -40,10 +43,18 @@ const happyApp = (over: Record<string, Answer | (() => never)> = {}, permissions
     json: {
       account: { login: 'acme', type: 'Organization' },
       repository_selection: 'selected',
-      permissions: permissions ?? { contents: 'write', pull_requests: 'write', actions: 'write', metadata: 'read' },
+      permissions: permissions ?? {
+        contents: 'write',
+        pull_requests: 'write',
+        actions: 'write',
+        metadata: 'read',
+      },
     },
   },
-  'POST /app/installations/42/access_tokens': { status: 201, json: { token: INSTALL_TOKEN, expires_at: '2030-01-01T00:00:00Z' } },
+  'POST /app/installations/42/access_tokens': {
+    status: 201,
+    json: { token: INSTALL_TOKEN, expires_at: '2030-01-01T00:00:00Z' },
+  },
   'GET /installation/repositories': { json: { total_count: 3, repositories: [] } },
   'DELETE /installation/token': { status: 204 },
   ...over,
@@ -51,7 +62,12 @@ const happyApp = (over: Record<string, Answer | (() => never)> = {}, permissions
 
 const noLeak = (result: unknown) => {
   const text = JSON.stringify(result);
-  for (const secret of [PEM, INSTALL_TOKEN, PAT, ...PEM.split('\n').filter((l) => l.length > 20 && !l.startsWith('-----'))]) {
+  for (const secret of [
+    PEM,
+    INSTALL_TOKEN,
+    PAT,
+    ...PEM.split('\n').filter((l) => l.length > 20 && !l.startsWith('-----')),
+  ]) {
     assert.ok(!text.includes(secret), 'result must not contain a secret');
   }
   assert.doesNotMatch(text, /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/);
@@ -66,13 +82,16 @@ test('app: success reports the app, the account and the repository count, and re
   assert.match(result.message, /3 repositories/);
   assert.ok(result.details?.includes('Repositories it can see: 3'));
   assert.ok(!result.details?.some((d) => d.startsWith('Warning')));
-  assert.deepEqual(gh.calls.map((c) => `${c.method} ${c.path}`), [
-    'GET /app',
-    'GET /app/installations/42',
-    'POST /app/installations/42/access_tokens',
-    'GET /installation/repositories',
-    'DELETE /installation/token',
-  ]);
+  assert.deepEqual(
+    gh.calls.map((c) => `${c.method} ${c.path}`),
+    [
+      'GET /app',
+      'GET /app/installations/42',
+      'POST /app/installations/42/access_tokens',
+      'GET /installation/repositories',
+      'DELETE /installation/token',
+    ],
+  );
   // The app JWT goes to the app endpoints and the installation token to the installation ones.
   assert.match(gh.calls[0]?.auth ?? '', /^Bearer eyJ/);
   assert.equal(gh.calls[3]?.auth, `Bearer ${INSTALL_TOKEN}`);
@@ -105,15 +124,22 @@ test('app: warns about missing and read-only permissions but still connects', as
 });
 
 test('app: warns when the installation has no repositories', async () => {
-  const gh = fakeGithub(happyApp({ 'GET /installation/repositories': { json: { total_count: 0 } } }));
+  const gh = fakeGithub(
+    happyApp({ 'GET /installation/repositories': { json: { total_count: 0 } } }),
+  );
   const result = await verifyGithubAppCredential(appSecret(), { fetch: gh.fetch });
   assert.equal(result.ok, true);
   assert.match((result.details ?? []).join('\n'), /no repositories/);
 });
 
 test('app: a rejected JWT says the key does not match the app', async () => {
-  const gh = fakeGithub({ 'GET /app': { status: 401, json: { message: 'A JSON web token could not be decoded' } } });
-  const result = await verifyGithubAppCredential(appSecret(), { fetch: gh.fetch, now: () => Date.now() });
+  const gh = fakeGithub({
+    'GET /app': { status: 401, json: { message: 'A JSON web token could not be decoded' } },
+  });
+  const result = await verifyGithubAppCredential(appSecret(), {
+    fetch: gh.fetch,
+    now: () => Date.now(),
+  });
   assert.equal(result.ok, false);
   assert.match(result.message, /private key does not match the app/);
   noLeak(result);
@@ -127,8 +153,10 @@ test('app: a rejected JWT with a skewed clock points at the clock', async () => 
   assert.match(result.message, /clock/);
 });
 
-test('app: an installation that is not this app\'s', async () => {
-  const gh = fakeGithub(happyApp({ 'GET /app/installations/42': { status: 404, json: { message: 'Not Found' } } }));
+test("app: an installation that is not this app's", async () => {
+  const gh = fakeGithub(
+    happyApp({ 'GET /app/installations/42': { status: 404, json: { message: 'Not Found' } } }),
+  );
   const result = await verifyGithubAppCredential(appSecret(), { fetch: gh.fetch });
   assert.equal(result.ok, false);
   assert.match(result.message, /installation ID does not belong to this app/);
@@ -136,9 +164,13 @@ test('app: an installation that is not this app\'s', async () => {
 });
 
 test('app: a suspended installation', async () => {
-  const gh = fakeGithub(happyApp({
-    'GET /app/installations/42': { json: { account: { login: 'acme' }, suspended_at: '2026-01-01T00:00:00Z' } },
-  }));
+  const gh = fakeGithub(
+    happyApp({
+      'GET /app/installations/42': {
+        json: { account: { login: 'acme' }, suspended_at: '2026-01-01T00:00:00Z' },
+      },
+    }),
+  );
   const result = await verifyGithubAppCredential(appSecret(), { fetch: gh.fetch });
   assert.equal(result.ok, false);
   assert.match(result.message, /suspended/);
@@ -155,10 +187,14 @@ test('app: ids that are not numbers and keys that are not RSA are caught before 
   const gh = fakeGithub(happyApp());
   const bad = await verifyGithubAppCredential(appSecret({ appId: 'abc' }), { fetch: gh.fetch });
   assert.match(bad.message, /App ID must be a number/);
-  const bad2 = await verifyGithubAppCredential(appSecret({ installationId: '4 2' }), { fetch: gh.fetch });
+  const bad2 = await verifyGithubAppCredential(appSecret({ installationId: '4 2' }), {
+    fetch: gh.fetch,
+  });
   assert.match(bad2.message, /installation ID must be a number/);
   const junk = '-----BEGIN PRIVATE KEY-----\nTOPSECRETJUNK\n-----END PRIVATE KEY-----';
-  const unreadable = await verifyGithubAppCredential(appSecret({ privateKey: junk }), { fetch: gh.fetch });
+  const unreadable = await verifyGithubAppCredential(appSecret({ privateKey: junk }), {
+    fetch: gh.fetch,
+  });
   assert.match(unreadable.message, /private key could not be read/);
   assert.doesNotMatch(JSON.stringify(unreadable), /TOPSECRETJUNK/);
   const { privateKey: ec } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -178,7 +214,9 @@ test('app: a secret of the wrong shape is reported, not thrown', async () => {
 
 test('app: a network failure and a timeout are sentences, not exceptions', async () => {
   const down: typeof fetch = async () => {
-    throw Object.assign(new Error(`connect ECONNREFUSED while sending ${PEM}`), { name: 'FetchError' });
+    throw Object.assign(new Error(`connect ECONNREFUSED while sending ${PEM}`), {
+      name: 'FetchError',
+    });
   };
   const failed = await verifyGithubAppCredential(appSecret(), { fetch: down });
   assert.equal(failed.ok, false);
@@ -193,10 +231,18 @@ test('app: a network failure and a timeout are sentences, not exceptions', async
 });
 
 test('app: a rate limit says how long to wait; a server error says to retry', async () => {
-  const limited = fakeGithub({ 'GET /app': { status: 403, headers: { 'retry-after': '30' }, json: { message: 'rate limit' } } });
-  assert.match((await verifyGithubAppCredential(appSecret(), { fetch: limited.fetch })).message, /30 seconds/);
+  const limited = fakeGithub({
+    'GET /app': { status: 403, headers: { 'retry-after': '30' }, json: { message: 'rate limit' } },
+  });
+  assert.match(
+    (await verifyGithubAppCredential(appSecret(), { fetch: limited.fetch })).message,
+    /30 seconds/,
+  );
   const broken = fakeGithub({ 'GET /app': { status: 502 } });
-  assert.match((await verifyGithubAppCredential(appSecret(), { fetch: broken.fetch })).message, /problem \(HTTP 502\)/);
+  assert.match(
+    (await verifyGithubAppCredential(appSecret(), { fetch: broken.fetch })).message,
+    /problem \(HTTP 502\)/,
+  );
 });
 
 test('app: GitHub echoing a secret in its error message is redacted', async () => {
@@ -207,7 +253,13 @@ test('app: GitHub echoing a secret in its error message is redacted', async () =
 });
 
 test('app: failing to revoke the installation token does not fail the check', async () => {
-  const gh = fakeGithub(happyApp({ 'DELETE /installation/token': () => { throw new Error('boom'); } }));
+  const gh = fakeGithub(
+    happyApp({
+      'DELETE /installation/token': () => {
+        throw new Error('boom');
+      },
+    }),
+  );
   const result = await verifyGithubAppCredential(appSecret(), { fetch: gh.fetch });
   assert.equal(result.ok, true);
 });
@@ -227,7 +279,9 @@ test('app: apiBase points at GitHub Enterprise Server', async () => {
 // ----- tokens ---------------------------------------------------------------------------------
 
 test('token: a classic token reports its login and scopes', async () => {
-  const gh = fakeGithub({ 'GET /user': { json: { login: 'ada' }, headers: { 'x-oauth-scopes': 'repo, read:org' } } });
+  const gh = fakeGithub({
+    'GET /user': { json: { login: 'ada' }, headers: { 'x-oauth-scopes': 'repo, read:org' } },
+  });
   const result = await verifyGithubTokenCredential(`  ${PAT}\n`, { fetch: gh.fetch });
   assert.equal(result.ok, true);
   assert.match(result.message, /Connected as ada/);
@@ -237,7 +291,9 @@ test('token: a classic token reports its login and scopes', async () => {
 });
 
 test('token: a classic token without the repo scope is warned about', async () => {
-  const gh = fakeGithub({ 'GET /user': { json: { login: 'ada' }, headers: { 'x-oauth-scopes': 'read:user' } } });
+  const gh = fakeGithub({
+    'GET /user': { json: { login: 'ada' }, headers: { 'x-oauth-scopes': 'read:user' } },
+  });
   const result = await verifyGithubTokenCredential(PAT, { fetch: gh.fetch });
   assert.equal(result.ok, true);
   assert.match((result.details ?? []).join('\n'), /no repo scope/);
@@ -245,7 +301,10 @@ test('token: a classic token without the repo scope is warned about', async () =
 
 test('token: a fine-grained token has no scopes header, and we say so instead of guessing', async () => {
   const gh = fakeGithub({
-    'GET /user': { json: { login: 'ada' }, headers: { 'github-authentication-token-expiration': '2030-01-01 00:00:00 UTC' } },
+    'GET /user': {
+      json: { login: 'ada' },
+      headers: { 'github-authentication-token-expiration': '2030-01-01 00:00:00 UTC' },
+    },
   });
   const result = await verifyGithubTokenCredential(PAT, { fetch: gh.fetch });
   assert.equal(result.ok, true);
@@ -255,7 +314,9 @@ test('token: a fine-grained token has no scopes header, and we say so instead of
 });
 
 test('token: rejected, malformed, unreachable', async () => {
-  const rejected = await verifyGithubTokenCredential(PAT, { fetch: fakeGithub({ 'GET /user': { status: 401 } }).fetch });
+  const rejected = await verifyGithubTokenCredential(PAT, {
+    fetch: fakeGithub({ 'GET /user': { status: 401 } }).fetch,
+  });
   assert.equal(rejected.ok, false);
   assert.match(rejected.message, /rejected the token/);
   const spaced = await verifyGithubTokenCredential('a b', { fetch: fakeGithub({}).fetch });

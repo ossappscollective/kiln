@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { type TestContext, test } from 'node:test';
 import { type Dialect, detectDialect } from './dialect.ts';
-import { type Database, type Sql, createDatabase } from './index.ts';
+import { createDatabase, type Database, type Sql } from './index.ts';
 
 /**
  * Test helpers: run one test body against every database we support.

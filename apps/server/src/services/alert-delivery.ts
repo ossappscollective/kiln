@@ -1,7 +1,12 @@
 import type { Database } from '@mrm/db';
 import { DEFAULT_MAX_ATTEMPTS, type JobHandler } from '../jobs.ts';
 import { ALERT_QUEUE, type DeliveryOutcome } from './alerts.ts';
-import { type MailInput, type MailResult, isMailErrorCode, sendMail as realSendMail } from './mailer.ts';
+import {
+  isMailErrorCode,
+  type MailInput,
+  type MailResult,
+  sendMail as realSendMail,
+} from './mailer.ts';
 
 /**
  * The job that sends one alert email (docs/alerts.md). The delivery row holds the rendered subject and text (ids and names only), so
@@ -34,7 +39,12 @@ export function createAlertDeliveryHandler(ctx: AlertDeliveryContext): JobHandle
     );
     if (!row || String(row.channel) !== 'email') return;
     // Sent already (a repeated job), or given up on.
-    if (String(row.status) === 'sent' || String(row.status) === 'failed' || String(row.status) === 'skipped') return;
+    if (
+      String(row.status) === 'sent' ||
+      String(row.status) === 'failed' ||
+      String(row.status) === 'skipped'
+    )
+      return;
     const at = ctx.now();
     const record = (status: string, outcome: DeliveryOutcome) =>
       ctx.db.execute(
@@ -58,12 +68,18 @@ export function createAlertDeliveryHandler(ctx: AlertDeliveryContext): JobHandle
       await record('skipped', 'no_address');
       return;
     }
-    const result = await send({ to, subject: String(row.subject ?? 'Alert'), text: String(row.body ?? '') });
+    const result = await send({
+      to,
+      subject: String(row.subject ?? 'Alert'),
+      text: String(row.body ?? ''),
+    });
     if (result.ok) {
       await record('sent', 'ok');
       return;
     }
-    const outcome: DeliveryOutcome = isMailErrorCode(result.code) ? result.code : 'smtp_connection_failed';
+    const outcome: DeliveryOutcome = isMailErrorCode(result.code)
+      ? result.code
+      : 'smtp_connection_failed';
     const transient = transientCodes.has(outcome);
     const last = !transient || job.attempts >= maxAttempts;
     await record(last ? 'failed' : 'retrying', outcome);

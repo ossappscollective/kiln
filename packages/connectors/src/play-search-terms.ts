@@ -1,14 +1,23 @@
 import {
-  SEARCH_TERM_OTHER_KEY,
-  type SearchTermPoint,
   analyticsLimits,
   daysBetween,
   isIsoDate,
   readSearchTerm,
+  SEARCH_TERM_OTHER_KEY,
+  type SearchTermPoint,
   searchTermLimits,
 } from '@mrm/core';
 import { AnalyticsError, type ParseStats } from './analytics-types.ts';
-import { type Table, columnIndex, decodeTableText, isGzip, normalizeHeader, openFileBytes, parseTable, readTable } from './delimited.ts';
+import {
+  columnIndex,
+  decodeTableText,
+  isGzip,
+  normalizeHeader,
+  openFileBytes,
+  parseTable,
+  readTable,
+  type Table,
+} from './delimited.ts';
 import { isZip, readZipEntries } from './zip.ts';
 
 /**
@@ -31,10 +40,40 @@ import { isZip, readZipEntries } from './zip.ts';
  * Nothing here logs or returns a cell of the file except as the numbers and normalised terms of the points.
  */
 
-const TERM = ['search term', 'search terms', 'search query', 'search queries', 'query', 'queries', 'term', 'terms', 'keyword', 'keywords'];
-const VISITORS = ['store listing visitors', 'listing visitors', 'store visitors', 'unique visitors', 'visitors'];
-const INSTALLS = ['store listing acquisitions', 'listing acquisitions', 'acquisitions', 'store listing installs', 'installs', 'first time installers', 'new installers'];
-const CONVERSION = ['store listing conversion rate', 'listing conversion rate', 'conversion rate', 'conversion'];
+const TERM = [
+  'search term',
+  'search terms',
+  'search query',
+  'search queries',
+  'query',
+  'queries',
+  'term',
+  'terms',
+  'keyword',
+  'keywords',
+];
+const VISITORS = [
+  'store listing visitors',
+  'listing visitors',
+  'store visitors',
+  'unique visitors',
+  'visitors',
+];
+const INSTALLS = [
+  'store listing acquisitions',
+  'listing acquisitions',
+  'acquisitions',
+  'store listing installs',
+  'installs',
+  'first time installers',
+  'new installers',
+];
+const CONVERSION = [
+  'store listing conversion rate',
+  'listing conversion rate',
+  'conversion rate',
+  'conversion',
+];
 const DAY = ['date', 'day'];
 const START = ['start date', 'period start', 'from date', 'from'];
 const END = ['end date', 'period end', 'to date', 'to'];
@@ -73,7 +112,8 @@ export function mapSearchTermColumns(header: string[]): Mapping | undefined {
   const visitors = find(cols, VISITORS, ['visitors']);
   const installs = find(cols, INSTALLS, ['acquisition']);
   const conversion = find(cols, CONVERSION, ['conversion']);
-  if (visitors === undefined && installs === undefined && conversion === undefined) return undefined;
+  if (visitors === undefined && installs === undefined && conversion === undefined)
+    return undefined;
   const map: Mapping = { term };
   if (visitors !== undefined) map.visitors = visitors;
   if (installs !== undefined) map.installs = installs;
@@ -122,7 +162,8 @@ export function parseSearchDay(raw: string | undefined): string | undefined {
     } else return undefined; // 03/04/2026 is March or April: not guessed
   } else return undefined;
   const date = new Date(Date.UTC(y, m - 1, d));
-  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return undefined;
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d)
+    return undefined;
   return date.toISOString().slice(0, 10);
 }
 
@@ -183,15 +224,27 @@ export type SearchTermsReadOptions = {
 };
 
 /** Checks a period the person gave: both dates, in order, not longer than `maxPeriodDays`. */
-export function checkPeriod(from: string | undefined, to: string | undefined): { from: string; to: string } | undefined {
-  if (from === undefined || to === undefined || !isIsoDate(from) || !isIsoDate(to) || from > to) return undefined;
+export function checkPeriod(
+  from: string | undefined,
+  to: string | undefined,
+): { from: string; to: string } | undefined {
+  if (from === undefined || to === undefined || !isIsoDate(from) || !isIsoDate(to) || from > to)
+    return undefined;
   return daysBetween(from, to) + 1 <= searchTermLimits.maxPeriodDays ? { from, to } : undefined;
 }
 
 type Acc = SearchTermPoint;
 
-function mapTable(table: Table, map: Mapping, period: { from: string; to: string } | undefined, into: Map<string, Acc>, stats: SearchTermStats, seen: { countriesUnknown: number; sourcesLeft: number }): void {
-  const cell = (row: string[], i: number | undefined): string => (i === undefined ? '' : (row[i] ?? ''));
+function mapTable(
+  table: Table,
+  map: Mapping,
+  period: { from: string; to: string } | undefined,
+  into: Map<string, Acc>,
+  stats: SearchTermStats,
+  seen: { countriesUnknown: number; sourcesLeft: number },
+): void {
+  const cell = (row: string[], i: number | undefined): string =>
+    i === undefined ? '' : (row[i] ?? '');
   for (const row of table.rows) {
     stats.rowsRead += 1;
     if (map.source !== undefined) {
@@ -232,15 +285,26 @@ function mapTable(table: Table, map: Mapping, period: { from: string; to: string
       from = period.from;
       to = period.to;
     }
-    if (from === undefined || to === undefined || from > to || daysBetween(from, to) + 1 > searchTermLimits.maxPeriodDays) {
+    if (
+      from === undefined ||
+      to === undefined ||
+      from > to ||
+      daysBetween(from, to) + 1 > searchTermLimits.maxPeriodDays
+    ) {
       stats.rowsUnreadable += 1;
       continue;
     }
 
     const visitors = map.visitors === undefined ? null : parseCountCell(cell(row, map.visitors));
     const installs = map.installs === undefined ? null : parseCountCell(cell(row, map.installs));
-    const conversion = map.conversion === undefined ? null : parseRatioCell(cell(row, map.conversion));
-    if (visitors === undefined || installs === undefined || conversion === undefined || (visitors === null && installs === null && conversion === null)) {
+    const conversion =
+      map.conversion === undefined ? null : parseRatioCell(cell(row, map.conversion));
+    if (
+      visitors === undefined ||
+      installs === undefined ||
+      conversion === undefined ||
+      (visitors === null && installs === null && conversion === null)
+    ) {
       stats.rowsUnreadable += 1;
       continue;
     }
@@ -260,34 +324,67 @@ function mapTable(table: Table, map: Mapping, period: { from: string; to: string
       into.set(id, { country, from, to, term, key, visitors, installs, conversion });
     } else {
       // The same term, day and storefront twice in a file (another breakdown of the same traffic): the counts add up.
-      have.visitors = have.visitors === null ? visitors : visitors === null ? have.visitors : have.visitors + visitors;
-      have.installs = have.installs === null ? installs : installs === null ? have.installs : have.installs + installs;
+      have.visitors =
+        have.visitors === null
+          ? visitors
+          : visitors === null
+            ? have.visitors
+            : have.visitors + visitors;
+      have.installs =
+        have.installs === null
+          ? installs
+          : installs === null
+            ? have.installs
+            : have.installs + installs;
       have.conversion = null;
     }
   }
 }
 
 /** Entries of an archive that can hold a table. */
-const wantsEntry = (name: string) => /\.(csv|tsv|txt)$/i.test(name) && name.indexOf('__MACOSX') < 0 && !/(^|\/)\./.test(name);
+const wantsEntry = (name: string) =>
+  /\.(csv|tsv|txt)$/i.test(name) && name.indexOf('__MACOSX') < 0 && !/(^|\/)\./.test(name);
 
 /**
  * Reads the bytes of an uploaded file: a .zip of tables, a .gz, or a plain table. Throws an `AnalyticsError`: `file_too_large`, `bad_gzip`,
  * `bad_zip`, `bad_format`, `missing_columns` (no table has a term column and a number column), `period_required`, `no_rows`.
  */
-export async function readSearchTermsFile(bytes: Uint8Array, options: SearchTermsReadOptions = {}): Promise<SearchTermsFile> {
-  const limits = { maxFileBytes: analyticsLimits.maxFileBytes, maxTextBytes: analyticsLimits.maxTextBytes, maxRows: analyticsLimits.maxRows };
+export async function readSearchTermsFile(
+  bytes: Uint8Array,
+  options: SearchTermsReadOptions = {},
+): Promise<SearchTermsFile> {
+  const limits = {
+    maxFileBytes: analyticsLimits.maxFileBytes,
+    maxTextBytes: analyticsLimits.maxTextBytes,
+    maxRows: analyticsLimits.maxRows,
+  };
   if (bytes.length > limits.maxFileBytes) throw new AnalyticsError('file_too_large');
   const tables: Table[] = [];
   if (isZip(bytes)) {
-    const entries = await readZipEntries(bytes, wantsEntry, { maxEntryBytes: limits.maxTextBytes, maxTotalBytes: limits.maxTextBytes });
+    const entries = await readZipEntries(bytes, wantsEntry, {
+      maxEntryBytes: limits.maxTextBytes,
+      maxTotalBytes: limits.maxTextBytes,
+    });
     if (entries.length === 0) throw new AnalyticsError('bad_zip');
-    for (const e of entries) tables.push(parseTable(decodeTableText(isGzip(e.bytes) ? await openFileBytes(e.bytes, limits) : e.bytes), limits));
+    for (const e of entries)
+      tables.push(
+        parseTable(
+          decodeTableText(isGzip(e.bytes) ? await openFileBytes(e.bytes, limits) : e.bytes),
+          limits,
+        ),
+      );
   } else {
     tables.push(await readTable(bytes, limits));
   }
 
   const into = new Map<string, Acc>();
-  const stats: SearchTermStats = { rowsRead: 0, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0, rowsOther: 0 };
+  const stats: SearchTermStats = {
+    rowsRead: 0,
+    rowsUsed: 0,
+    rowsUnreadable: 0,
+    rowsFiltered: 0,
+    rowsOther: 0,
+  };
   const seen = { countriesUnknown: 0, sourcesLeft: 0 };
   const period = checkPeriod(options.from, options.to);
   let files = 0;
@@ -316,7 +413,23 @@ export async function readSearchTermsFile(bytes: Uint8Array, options: SearchTerm
   if (into.size === 0) throw new AnalyticsError('no_rows');
 
   const points = [...into.values()].sort((a, b) =>
-    a.from !== b.from ? (a.from < b.from ? -1 : 1) : a.to !== b.to ? (a.to < b.to ? -1 : 1) : a.country !== b.country ? (a.country < b.country ? -1 : 1) : a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
+    a.from !== b.from
+      ? a.from < b.from
+        ? -1
+        : 1
+      : a.to !== b.to
+        ? a.to < b.to
+          ? -1
+          : 1
+        : a.country !== b.country
+          ? a.country < b.country
+            ? -1
+            : 1
+          : a.key < b.key
+            ? -1
+            : a.key > b.key
+              ? 1
+              : 0,
   );
   let dateFrom = points[0]?.from ?? null;
   let dateTo = points[0]?.to ?? null;
@@ -330,14 +443,46 @@ export async function readSearchTermsFile(bytes: Uint8Array, options: SearchTerm
   }
 
   const notes: string[] = [];
-  if (!hasDates && period) notes.push(`The file has no date column. All of its numbers are stored for the period you gave, ${period.from} to ${period.to}.`);
-  if (hasDates && needsPeriod && period) notes.push('One of the files has no date column; its numbers are stored for the period you gave.');
-  if (seen.sourcesLeft > 0) notes.push(`${seen.sourcesLeft} rows were left out because their traffic source is not Google Play search.`);
-  if (seen.countriesUnknown > 0) notes.push(`${seen.countriesUnknown} rows have a country that is not a two letter code; they are stored as "not split by country".`);
-  if (!hasCountry) notes.push('The file has no country column: the terms are not split by country.');
-  if (stats.rowsOther > 0) notes.push('The file has an "Other" line: Google groups terms that were too small to report on their own.');
-  if (skipped > 0) notes.push(`${skipped} files in the archive have no search term table and were skipped.`);
-  if (hasConversion) notes.push('A conversion rate in the file is kept as it was given; the view works it out from installs and visitors when it can.');
+  if (!hasDates && period)
+    notes.push(
+      `The file has no date column. All of its numbers are stored for the period you gave, ${period.from} to ${period.to}.`,
+    );
+  if (hasDates && needsPeriod && period)
+    notes.push(
+      'One of the files has no date column; its numbers are stored for the period you gave.',
+    );
+  if (seen.sourcesLeft > 0)
+    notes.push(
+      `${seen.sourcesLeft} rows were left out because their traffic source is not Google Play search.`,
+    );
+  if (seen.countriesUnknown > 0)
+    notes.push(
+      `${seen.countriesUnknown} rows have a country that is not a two letter code; they are stored as "not split by country".`,
+    );
+  if (!hasCountry)
+    notes.push('The file has no country column: the terms are not split by country.');
+  if (stats.rowsOther > 0)
+    notes.push(
+      'The file has an "Other" line: Google groups terms that were too small to report on their own.',
+    );
+  if (skipped > 0)
+    notes.push(`${skipped} files in the archive have no search term table and were skipped.`);
+  if (hasConversion)
+    notes.push(
+      'A conversion rate in the file is kept as it was given; the view works it out from installs and visitors when it can.',
+    );
 
-  return { points, stats, dateFrom, dateTo, hasDates, hasCountry, hasConversion, terms: terms.size, countries: [...countries].sort(), files, notes };
+  return {
+    points,
+    stats,
+    dateFrom,
+    dateTo,
+    hasDates,
+    hasCountry,
+    hasConversion,
+    terms: terms.size,
+    countries: [...countries].sort(),
+    files,
+    notes,
+  };
 }

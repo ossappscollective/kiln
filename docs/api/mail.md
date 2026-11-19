@@ -9,14 +9,14 @@ Without a mail server nothing breaks: every feature that needs mail says "No mai
 
 **Environment** (the operator's choice; the screen then shows the settings read only):
 
-| Variable | Meaning |
-| --- | --- |
-| `MRM_SMTP_HOST` | Host name or IP address, without `smtp://` or a port. Setting it turns the environment on. |
-| `MRM_SMTP_PORT` | 1 to 65535. Default 587 for `starttls`, 465 for `tls`, 25 for `none`. |
-| `MRM_SMTP_SECURE` | `starttls` (default), `tls` (TLS from the first byte) or `none`. |
+| Variable                             | Meaning                                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `MRM_SMTP_HOST`                      | Host name or IP address, without `smtp://` or a port. Setting it turns the environment on.                     |
+| `MRM_SMTP_PORT`                      | 1 to 65535. Default 587 for `starttls`, 465 for `tls`, 25 for `none`.                                          |
+| `MRM_SMTP_SECURE`                    | `starttls` (default), `tls` (TLS from the first byte) or `none`.                                               |
 | `MRM_SMTP_USER`, `MRM_SMTP_PASSWORD` | Optional login (AUTH PLAIN or LOGIN). The password is only ever sent over TLS, or to a server on this machine. |
-| `MRM_SMTP_FROM` | Required with the host. `mrm@example.com` or `Release Manager <mrm@example.com>`. |
-| `MRM_SMTP_ALLOW_PRIVATE_HOSTS` | `true` to allow a mail host on a private, loopback or link-local address. Default `false`. |
+| `MRM_SMTP_FROM`                      | Required with the host. `mrm@example.com` or `Release Manager <mrm@example.com>`.                              |
+| `MRM_SMTP_ALLOW_PRIVATE_HOSTS`       | `true` to allow a mail host on a private, loopback or link-local address. Default `false`.                     |
 
 A wrong value stops the server at start with one plain sentence naming the variable.
 
@@ -37,12 +37,12 @@ SMTP host and credentials they give you, `starttls` 587 or `tls` 465. None of th
 Under `/api/workspaces/:workspaceId`. The setting is for the whole server, not the workspace. **API tokens are refused**
 (`token: false`).
 
-| Route | Role | What it does |
-| --- | --- | --- |
-| `GET /mail/settings` | settings.write | `{ source: env \| settings \| none, configured, locked, host, port, secure, user, from, passwordSet, allowPrivateHosts }`. Never the password. |
-| `PUT /mail/settings` | settings.write, step-up | `{ host, port?, secure, user?, password?, from }`. `409 smtp_locked` when the environment decides; `400 password_required` when host, port or user changed and no password was sent; `400 address_not_allowed` with a `hint` (`private_address_blocked`, ...). |
-| `DELETE /mail/settings` | settings.write, step-up | Removes the saved setting. `409 smtp_locked` under the environment. |
-| `POST /mail/test` | settings.write | Sends one message to **your own account email** (single-user mode: to the `{ to }` you type). `200 { ok: true, to }` or `200 { ok: false, code, hint?, message }`. 5 per 10 minutes per person. It cannot be used to mail anyone else. |
+| Route                   | Role                    | What it does                                                                                                                                                                                                                                                   |
+| ----------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /mail/settings`    | settings.write          | `{ source: env \| settings \| none, configured, locked, host, port, secure, user, from, passwordSet, allowPrivateHosts }`. Never the password.                                                                                                                 |
+| `PUT /mail/settings`    | settings.write, step-up | `{ host, port?, secure, user?, password?, from }`. `409 smtp_locked` when the environment decides; `400 password_required` when host, port or user changed and no password was sent; `400 address_not_allowed` with a `hint` (`private_address_blocked`, ...). |
+| `DELETE /mail/settings` | settings.write, step-up | Removes the saved setting. `409 smtp_locked` under the environment.                                                                                                                                                                                            |
+| `POST /mail/test`       | settings.write          | Sends one message to **your own account email** (single-user mode: to the `{ to }` you type). `200 { ok: true, to }` or `200 { ok: false, code, hint?, message }`. 5 per 10 minutes per person. It cannot be used to mail anyone else.                         |
 
 ## The mailer for other code
 
@@ -64,14 +64,14 @@ Non-ASCII subjects and names are encoded (RFC 2047) and bodies are quoted-printa
 
 ## Failures
 
-| Code | Meaning | Usual cause |
-| --- | --- | --- |
-| `smtp_not_configured` | no mail server | nothing set up |
-| `smtp_connection_failed` | could not connect, or the host is not allowed | wrong host or port, firewall, `private_address_blocked`, `host_not_found` |
-| `smtp_auth_failed` | user name or password refused | wrong password; app password needed; `no_auth_mechanism` |
-| `smtp_tls_failed` | TLS could not be made | `certificate_rejected`, `starttls_not_offered`; wrong security for the port (STARTTLS on 465) |
-| `smtp_rejected` | the server refused the sender or a recipient or the message | sender not allowed to use that address; mailbox unknown |
-| `smtp_timeout` | no answer in time | blocked port, slow server |
+| Code                     | Meaning                                                     | Usual cause                                                                                   |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `smtp_not_configured`    | no mail server                                              | nothing set up                                                                                |
+| `smtp_connection_failed` | could not connect, or the host is not allowed               | wrong host or port, firewall, `private_address_blocked`, `host_not_found`                     |
+| `smtp_auth_failed`       | user name or password refused                               | wrong password; app password needed; `no_auth_mechanism`                                      |
+| `smtp_tls_failed`        | TLS could not be made                                       | `certificate_rejected`, `starttls_not_offered`; wrong security for the port (STARTTLS on 465) |
+| `smtp_rejected`          | the server refused the sender or a recipient or the message | sender not allowed to use that address; mailbox unknown                                       |
+| `smtp_timeout`           | no answer in time                                           | blocked port, slow server                                                                     |
 
 ## Security notes
 

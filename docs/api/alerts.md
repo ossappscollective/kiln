@@ -19,19 +19,19 @@ every operation that needs it is closed to tokens anyway.)
 
 ## Endpoints
 
-| Method and path | Right | Token | What |
-|---|---|---|---|
-| `GET /alerts/catalog` | `alerts.read` | yes | Every alert type with the workspace rule applied. |
-| `GET /alerts/inbox?unread=1&limit=&before=` | `alerts.read` | yes | The caller's alerts, newest first (by last seen). |
-| `GET /alerts/unread-count` | `alerts.read` | yes | `{ "unreadCount": n }`. |
-| `POST /alerts/inbox/read` | `alerts.read` | no | Body `{ "ids": [...] }` or `{ "all": true }`. Answers `{ marked, unreadCount }`. |
-| `GET /alerts/settings` | `alerts.read` | no | The caller's settings, channel choices and mutes. |
-| `PUT /alerts/settings` | `alerts.write` | no | Lowest severity, quiet hours, time zone, digest. |
-| `PUT /alerts/preferences/{alertType}` | `alerts.write` | no | The caller's channels for a type, for all apps or one. |
-| `POST /alerts/mutes`, `DELETE /alerts/mutes/{id}` | `alerts.write` | no | Mute or snooze; remove. |
-| `PUT /alerts/rules/{alertType}`, `DELETE ...` | `alerts.manage` | explicit | Workspace rule; back to the default. |
-| `GET /alerts/deliveries?limit=&scope=workspace` | `alerts.read` (`alerts.manage` for `scope=workspace`) | yes | The delivery log: the caller's rows, or the whole workspace for admins. |
-| `POST /alerts/test` | `alerts.write` | no | Send a test alert through one channel (10 per workspace per minute; 429 with `Retry-After`). |
+| Method and path                                   | Right                                                 | Token    | What                                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `GET /alerts/catalog`                             | `alerts.read`                                         | yes      | Every alert type with the workspace rule applied.                                            |
+| `GET /alerts/inbox?unread=1&limit=&before=`       | `alerts.read`                                         | yes      | The caller's alerts, newest first (by last seen).                                            |
+| `GET /alerts/unread-count`                        | `alerts.read`                                         | yes      | `{ "unreadCount": n }`.                                                                      |
+| `POST /alerts/inbox/read`                         | `alerts.read`                                         | no       | Body `{ "ids": [...] }` or `{ "all": true }`. Answers `{ marked, unreadCount }`.             |
+| `GET /alerts/settings`                            | `alerts.read`                                         | no       | The caller's settings, channel choices and mutes.                                            |
+| `PUT /alerts/settings`                            | `alerts.write`                                        | no       | Lowest severity, quiet hours, time zone, digest.                                             |
+| `PUT /alerts/preferences/{alertType}`             | `alerts.write`                                        | no       | The caller's channels for a type, for all apps or one.                                       |
+| `POST /alerts/mutes`, `DELETE /alerts/mutes/{id}` | `alerts.write`                                        | no       | Mute or snooze; remove.                                                                      |
+| `PUT /alerts/rules/{alertType}`, `DELETE ...`     | `alerts.manage`                                       | explicit | Workspace rule; back to the default.                                                         |
+| `GET /alerts/deliveries?limit=&scope=workspace`   | `alerts.read` (`alerts.manage` for `scope=workspace`) | yes      | The delivery log: the caller's rows, or the whole workspace for admins.                      |
+| `POST /alerts/test`                               | `alerts.write`                                        | no       | Send a test alert through one channel (10 per workspace per minute; 429 with `Retry-After`). |
 
 ### Catalog
 

@@ -1,5 +1,13 @@
 import type { AiAcceptedRef, AiSuggestionView } from '@mrm/core';
-import type { AiAcceptBody, AiConfig, AiReviewTagView, AiRunBody, AiTaskView, AiTasksResponse, AiUsageWarning } from './ai.ts';
+import type {
+  AiAcceptBody,
+  AiConfig,
+  AiReviewTagView,
+  AiRunBody,
+  AiTasksResponse,
+  AiTaskView,
+  AiUsageWarning,
+} from './ai.ts';
 import { isOpen } from './ai.ts';
 import type { Api } from './api.ts';
 
@@ -136,7 +144,10 @@ export const aiStore = {
         const mine = suggestions[appId] ?? [];
         // A suggestion made or decided here while the read was out is newer than the read: keep it.
         const kept = mine.filter((s) => !out.suggestions.some((o) => o.id === s.id));
-        suggestions[appId] = [...out.suggestions.map((o) => mine.find((m) => m.id === o.id) ?? o), ...kept].sort((a, b) => b.createdAt - a.createdAt);
+        suggestions[appId] = [
+          ...out.suggestions.map((o) => mine.find((m) => m.id === o.id) ?? o),
+          ...kept,
+        ].sort((a, b) => b.createdAt - a.createdAt);
         return '';
       })
       .catch(() => 'Could not read the AI suggestions.')
@@ -152,7 +163,12 @@ export const aiStore = {
    * Runs a task for an app. It stores the suggestion it made and returns it; an error (an `ApiError`) is thrown for the screen to turn
    * into a sentence. The usage meter is read again afterwards, quietly.
    */
-  async run(api: Api, workspaceId: string, taskId: string, body: AiRunBody): Promise<AiSuggestionView> {
+  async run(
+    api: Api,
+    workspaceId: string,
+    taskId: string,
+    body: AiRunBody,
+  ): Promise<AiSuggestionView> {
     try {
       const out = await api.runAiTask(workspaceId, taskId, body);
       warnings[workspaceId] = out.warning ?? undefined;
@@ -176,7 +192,13 @@ export const aiStore = {
     return tags[reviewId] ?? null;
   },
   /** Reads the tags of the given reviews that were not asked for yet (`force`: all of them again). Never throws: tags are a quiet extra. */
-  async loadTags(api: Api, workspaceId: string, appId: string, reviewIds: readonly string[], force = false): Promise<void> {
+  async loadTags(
+    api: Api,
+    workspaceId: string,
+    appId: string,
+    reviewIds: readonly string[],
+    force = false,
+  ): Promise<void> {
     const want = reviewIds.filter((id) => force || tagsAsked[id] !== true);
     for (let at = 0; at < want.length; at += 100) {
       const chunk = want.slice(at, at + 100);
@@ -191,7 +213,12 @@ export const aiStore = {
   },
 
   /** Accepts the chosen parts. The server closes the suggestion on the first accept. Throws an `ApiError` when it is refused. */
-  async accept(api: Api, workspaceId: string, suggestion: AiSuggestionView, body: AiAcceptBody): Promise<AiAcceptedRef> {
+  async accept(
+    api: Api,
+    workspaceId: string,
+    suggestion: AiSuggestionView,
+    body: AiAcceptBody,
+  ): Promise<AiAcceptedRef> {
     const out = await api.acceptAiSuggestion(workspaceId, suggestion.id, body);
     put(suggestion.appId, out.suggestion);
     settled[suggestion.id] = out.result;

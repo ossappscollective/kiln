@@ -5,8 +5,8 @@ import {
   DEFAULT_LOCALE,
   type FileChange,
   type Listing,
-  type LocaleText,
   type ListingStore,
+  type LocaleText,
   PLAY_FIELDS,
   type PlayField,
   type PlayListing,
@@ -181,9 +181,11 @@ export function checkListingRoot(path: string): string | undefined {
   const text = normalizeRoot(path);
   if (text === '') return 'Enter a folder path inside the repository.';
   if (text.length > 300) return 'The path is too long (at most 300 characters).';
-  if (text.startsWith('/')) return 'The path must be relative to the repository, without a leading slash.';
+  if (text.startsWith('/'))
+    return 'The path must be relative to the repository, without a leading slash.';
   // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are refused on purpose
-  if (/[\\\x00-\x1f\x7f]/.test(text)) return 'The path must not contain backslashes or control characters.';
+  if (/[\\\x00-\x1f\x7f]/.test(text))
+    return 'The path must not contain backslashes or control characters.';
   for (const segment of text.split('/')) {
     if (segment === '' || segment === '.' || segment === '..') {
       return 'The path must not contain empty, "." or ".." segments.';
@@ -195,7 +197,10 @@ export function checkListingRoot(path: string): string | undefined {
 
 /** A root as stored: surrounding space, a leading `./` and trailing slashes removed. */
 export function normalizeRoot(path: string): string {
-  return path.trim().replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+  return path
+    .trim()
+    .replace(/^(\.\/)+/, '')
+    .replace(/\/+$/, '');
 }
 
 const dirname = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
@@ -653,7 +658,10 @@ function unusedFolders(paths: readonly string[], used: ReadonlySet<string>): Unu
       if (locale !== undefined && isLocaleDir(locale) && CHANGELOG_NAME.test(name)) {
         consider('google_play', segs.slice(0, -3), locale);
       }
-    } else if (APP_STORE_FIELD_SET.has(name) && (isLocaleDir(parent) || parent === DEFAULT_LOCALE)) {
+    } else if (
+      APP_STORE_FIELD_SET.has(name) &&
+      (isLocaleDir(parent) || parent === DEFAULT_LOCALE)
+    ) {
       consider('app_store', segs.slice(0, -2), parent);
     } else if (PLAY_FIELD_SET.has(name) && isLocaleDir(parent)) {
       consider('google_play', segs.slice(0, -2), parent);
@@ -737,7 +745,8 @@ function storeDiagnostic(
       : '';
   let message: string;
   if (state === 'found') message = `${name} listing read from ${root}.`;
-  else if (state === 'not_used') message = `This target has no ${name} folder, so no ${name} listing is read.`;
+  else if (state === 'not_used')
+    message = `This target has no ${name} folder, so no ${name} listing is read.`;
   else if (explicit && state === 'missing') {
     message = `The ${name} folder ${root} that was chosen does not exist in the repository, so nothing was read. Check the spelling and the branch, or choose another folder.`;
   } else if (explicit) {
@@ -835,7 +844,12 @@ function snapshotOf(
   }
   for (const path of paths.sort()) {
     const m = /^(.*)\/changelogs\/([^/]+)\.txt$/.exec(path);
-    if (m && roots.googlePlay !== '' && m[1]?.startsWith(`${roots.googlePlay}/`) && !parsePath(path, roots)) {
+    if (
+      m &&
+      roots.googlePlay !== '' &&
+      m[1]?.startsWith(`${roots.googlePlay}/`) &&
+      !parsePath(path, roots)
+    ) {
       warnings.push(`Ignored ${path}: a changelog file is named after a version code, or default.`);
     }
   }
@@ -1099,7 +1113,9 @@ export function parseMetadataHints(
     const name = path.split('/').pop() ?? path;
     const code = stripRubyComments(source);
     if (name === 'Appfile') {
-      for (const m of code.matchAll(/^\s*(?:app_identifier|package_name)\s*\(?\s*(["'])([^"'#{}]+)\1/gm)) {
+      for (const m of code.matchAll(
+        /^\s*(?:app_identifier|package_name)\s*\(?\s*(["'])([^"'#{}]+)\1/gm,
+      )) {
         const id = m[2]?.trim();
         if (id && !hints.apps.includes(id)) hints.apps.push(id);
       }
@@ -1112,7 +1128,8 @@ export function parseMetadataHints(
     for (const m of code.matchAll(callArgument)) {
       const at = m.index ?? 0;
       const before = code[at - 1];
-      if (before === '"' || before === "'" || before === '.' || before === '@' || before === ':') continue;
+      if (before === '"' || before === "'" || before === '.' || before === '@' || before === ':')
+        continue;
       const store = name === 'Deliverfile' ? 'app_store' : enclosingStore(code, at);
       if (!store) continue;
       const value = evalRuby(readArgument(code, at + m[0].length), env);

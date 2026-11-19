@@ -1,9 +1,9 @@
 import {
   DEFAULT_REMINDER_LEAD_HOURS,
-  MAX_REMINDER_LEAD_HOURS,
-  REMINDER_STALE_DAYS,
   type DeadlineReminderKind,
   deadlineReminder,
+  MAX_REMINDER_LEAD_HOURS,
+  REMINDER_STALE_DAYS,
   rolloutStepReminderDue,
 } from '@mrm/core';
 import type { Database, Param } from '@mrm/db';
@@ -87,7 +87,9 @@ const PLAN_FROM = `FROM release_plans p JOIN apps a ON a.id = p.app_id AND a.wor
 
 function leadHoursOf(options: ReminderOptions): number {
   const hours = options.leadHours ?? DEFAULT_REMINDER_LEAD_HOURS;
-  return Number.isFinite(hours) ? Math.min(Math.max(Math.trunc(hours), 1), MAX_REMINDER_LEAD_HOURS) : DEFAULT_REMINDER_LEAD_HOURS;
+  return Number.isFinite(hours)
+    ? Math.min(Math.max(Math.trunc(hours), 1), MAX_REMINDER_LEAD_HOURS)
+    : DEFAULT_REMINDER_LEAD_HOURS;
 }
 
 type Row = Record<string, unknown>;
@@ -209,7 +211,10 @@ async function send(db: Database, c: Candidate, at: number): Promise<boolean> {
       );
       if (!step || step.status !== 'planned' || String(step.planned_at) !== c.dueKey) return false;
     } else {
-      const [plan] = await tx.query('SELECT target_date FROM release_plans WHERE id = ? AND workspace_id = ?', [c.planId, c.workspaceId]);
+      const [plan] = await tx.query(
+        'SELECT target_date FROM release_plans WHERE id = ? AND workspace_id = ?',
+        [c.planId, c.workspaceId],
+      );
       if (!plan || String(plan.target_date) !== c.dueKey) return false;
     }
     const params: Param[] = [c.planId, c.workspaceId, c.itemId, c.kind, c.dueKey, at];
@@ -220,12 +225,10 @@ async function send(db: Database, c: Candidate, at: number): Promise<boolean> {
     );
     if (added === 0) return false;
     // An older date of the same item is forgotten, so going back to it later arms it again.
-    await tx.execute('DELETE FROM plan_reminders WHERE plan_id = ? AND item_id = ? AND kind = ? AND due_key <> ?', [
-      c.planId,
-      c.itemId,
-      c.kind,
-      c.dueKey,
-    ]);
+    await tx.execute(
+      'DELETE FROM plan_reminders WHERE plan_id = ? AND item_id = ? AND kind = ? AND due_key <> ?',
+      [c.planId, c.itemId, c.kind, c.dueKey],
+    );
     await emitEvent(tx, {
       workspaceId: c.workspaceId,
       type: c.event,
@@ -238,7 +241,14 @@ async function send(db: Database, c: Candidate, at: number): Promise<boolean> {
       actor: REMINDER_ACTOR,
       action: 'plan.reminder',
       target: { type: 'release_plan', id: c.planId },
-      detail: { appId: c.appId, version: c.version, kind: c.kind, itemId: c.itemId, due: c.dueKey, event: c.event },
+      detail: {
+        appId: c.appId,
+        version: c.version,
+        kind: c.kind,
+        itemId: c.itemId,
+        due: c.dueKey,
+        event: c.event,
+      },
       at,
     });
     return true;
@@ -249,14 +259,27 @@ async function send(db: Database, c: Candidate, at: number): Promise<boolean> {
  * One pass over the open plans. `at` is the clock (epoch milliseconds). Never throws for one bad
  * reminder; a query failure propagates to the caller (the scheduler reports it).
  */
-export async function sendPlanReminders(db: Database, at: number, options: ReminderOptions = {}): Promise<ReminderSummary> {
+export async function sendPlanReminders(
+  db: Database,
+  at: number,
+  options: ReminderOptions = {},
+): Promise<ReminderSummary> {
   const report = options.onError ?? ((message, error) => console.error(message, error));
   const leadHours = leadHoursOf(options);
   const max = Math.max(1, Math.trunc(options.maxPerRun ?? DEFAULT_MAX_REMINDERS_PER_RUN));
-  const summary: ReminderSummary = { dueSoon: 0, overdue: 0, stepsDue: 0, failed: 0, capped: false };
+  const summary: ReminderSummary = {
+    dueSoon: 0,
+    overdue: 0,
+    stepsDue: 0,
+    failed: 0,
+    capped: false,
+  };
   let sent = 0;
 
-  const run = async (find: (limit: number) => Promise<Candidate[]>, count: (s: ReminderSummary) => void) => {
+  const run = async (
+    find: (limit: number) => Promise<Candidate[]>,
+    count: (s: ReminderSummary) => void,
+  ) => {
     const room = Math.max(max - sent, 0);
     // One extra row tells whether more are waiting (also when the limit is already used up).
     const found = await find(room + 1);

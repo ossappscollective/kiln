@@ -60,7 +60,10 @@ export const ASO_USER_AGENT = 'mobile-release-manager (self-hosted ASO read of p
 
 export const ASO_DEFAULT_TIMEOUT_MS = 10_000;
 
-const SOURCE_NAME: Record<AsoSource, string> = { apple_search: 'The iTunes Search API', play_public: 'Google Play' };
+const SOURCE_NAME: Record<AsoSource, string> = {
+  apple_search: 'The iTunes Search API',
+  play_public: 'Google Play',
+};
 export const sourceName = (source: AsoSource): string => SOURCE_NAME[source];
 
 export type CappedGet = { status: number; retryAfter: string | null; text: string };
@@ -93,7 +96,11 @@ export async function getCapped(options: {
       throw new AsoError(source, 'timeout', `${sourceName(source)} did not answer in time.`);
     }
     if (name === 'TooLargeError') {
-      throw new AsoError(source, 'too_large', `${sourceName(source)} answered with more data than expected.`);
+      throw new AsoError(
+        source,
+        'too_large',
+        `${sourceName(source)} answered with more data than expected.`,
+      );
     }
     throw new AsoError(source, 'network', `Could not reach ${sourceName(source)}.`);
   }
@@ -113,7 +120,11 @@ export async function getCapped(options: {
       total += value.byteLength;
       if (total > options.maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new AsoError(source, 'too_large', `${sourceName(source)} answered with more data than expected.`);
+        throw new AsoError(
+          source,
+          'too_large',
+          `${sourceName(source)} answered with more data than expected.`,
+        );
       }
       chunks.push(value);
     }
@@ -123,7 +134,9 @@ export async function getCapped(options: {
     throw new AsoError(
       source,
       name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'network',
-      name === 'TimeoutError' || name === 'AbortError' ? `${sourceName(source)} did not answer in time.` : `Could not reach ${sourceName(source)}.`,
+      name === 'TimeoutError' || name === 'AbortError'
+        ? `${sourceName(source)} did not answer in time.`
+        : `Could not reach ${sourceName(source)}.`,
     );
   }
   return { status: 200, retryAfter, text: Buffer.concat(chunks).toString('utf8') };
@@ -145,23 +158,49 @@ export function checkStatus(source: AsoSource, got: CappedGet): void {
     });
   }
   if (got.status >= 500) {
-    throw new AsoError(source, 'server', `${sourceName(source)} is not available right now.`, { status: got.status });
+    throw new AsoError(source, 'server', `${sourceName(source)} is not available right now.`, {
+      status: got.status,
+    });
   }
-  throw new AsoError(source, 'unexpected', `${sourceName(source)} answered with HTTP ${got.status}.`, { status: got.status });
+  throw new AsoError(
+    source,
+    'unexpected',
+    `${sourceName(source)} answered with HTTP ${got.status}.`,
+    { status: got.status },
+  );
 }
 
-const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
 
 /** Decodes the HTML entities that matter in a title or a description. Anything unknown is left as it is. */
 export function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-fA-F]{1,6}|#[0-9]{1,7}|[a-zA-Z]{2,6});/g, (whole, body: string) => {
-    if (body.charAt(0) === '#') {
-      const code = body.charAt(1).toLowerCase() === 'x' ? Number.parseInt(body.slice(2), 16) : Number.parseInt(body.slice(1), 10);
-      if (!Number.isFinite(code) || code < 32 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return whole;
-      return String.fromCodePoint(code);
-    }
-    return ENTITIES[body.toLowerCase()] ?? whole;
-  });
+  return text.replace(
+    /&(#x[0-9a-fA-F]{1,6}|#[0-9]{1,7}|[a-zA-Z]{2,6});/g,
+    (whole, body: string) => {
+      if (body.charAt(0) === '#') {
+        const code =
+          body.charAt(1).toLowerCase() === 'x'
+            ? Number.parseInt(body.slice(2), 16)
+            : Number.parseInt(body.slice(1), 10);
+        if (
+          !Number.isFinite(code) ||
+          code < 32 ||
+          code > 0x10ffff ||
+          (code >= 0xd800 && code <= 0xdfff)
+        )
+          return whole;
+        return String.fromCodePoint(code);
+      }
+      return ENTITIES[body.toLowerCase()] ?? whole;
+    },
+  );
 }
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is removed

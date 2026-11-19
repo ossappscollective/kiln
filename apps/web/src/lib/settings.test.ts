@@ -2,17 +2,17 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
-  KEYS,
-  type SettingsForm,
-  type SettingsResponse,
   canEdit,
   checkLibreUrl,
   forgetTranslationConfig,
   formFromSettings,
   isDirty,
+  KEYS,
   languageName,
   loadTranslationConfig,
   providerChoices,
+  type SettingsForm,
+  type SettingsResponse,
   settingsChanges,
   settingsErrorMessage,
   testOutcomeText,
@@ -60,7 +60,12 @@ test('validateForm: threshold, language, budget and address', () => {
   for (const bad of ['0', '5', '2.5', '', 'two', '-1']) {
     assert.ok(validateForm({ ...form, lowRatingThreshold: bad }).lowRatingThreshold, bad);
   }
-  for (const good of ['1', '4', ' 3 ']) assert.equal(validateForm({ ...form, lowRatingThreshold: good }).lowRatingThreshold, undefined, good);
+  for (const good of ['1', '4', ' 3 '])
+    assert.equal(
+      validateForm({ ...form, lowRatingThreshold: good }).lowRatingThreshold,
+      undefined,
+      good,
+    );
   assert.ok(validateForm({ ...form, targetLanguage: 'not a tag' }).targetLanguage);
   assert.equal(validateForm({ ...form, targetLanguage: 'pt_BR' }).targetLanguage, undefined);
   assert.ok(validateForm({ ...form, dailyCharBudget: '-5' }).dailyCharBudget);
@@ -68,22 +73,45 @@ test('validateForm: threshold, language, budget and address', () => {
   assert.equal(validateForm({ ...form, dailyCharBudget: '0' }).dailyCharBudget, undefined);
   // LibreTranslate with translation on needs an address.
   assert.ok(validateForm({ ...form, provider: 'libretranslate', enabled: true }).libreUrl);
-  assert.equal(validateForm({ ...form, provider: 'libretranslate', enabled: false }).libreUrl, undefined);
+  assert.equal(
+    validateForm({ ...form, provider: 'libretranslate', enabled: false }).libreUrl,
+    undefined,
+  );
 });
 
 test('analytics settings: on only when the value is true, ids are checked and saved in their clean form, and only those who may write them send them', () => {
-  const saved = { ...defaults, 'analytics.enabled': false, 'analytics.appleVendorNumber': '', 'analytics.playBucketId': '' };
-  const all = [...ALL, 'analytics.enabled', 'analytics.appleVendorNumber', 'analytics.playBucketId'];
+  const saved = {
+    ...defaults,
+    'analytics.enabled': false,
+    'analytics.appleVendorNumber': '',
+    'analytics.playBucketId': '',
+  };
+  const all = [
+    ...ALL,
+    'analytics.enabled',
+    'analytics.appleVendorNumber',
+    'analytics.playBucketId',
+  ];
   assert.equal(formFromSettings({ 'analytics.enabled': true }).analyticsEnabled, true);
   assert.equal(formFromSettings({ 'analytics.enabled': 'true' }).analyticsEnabled, false);
   const form = formFromSettings(saved);
   assert.deepEqual(validateForm(form), {});
   assert.ok(validateForm({ ...form, analyticsVendorNumber: 'abc' }).analyticsVendorNumber);
   assert.ok(validateForm({ ...form, analyticsBucketId: 'not a bucket!' }).analyticsBucketId);
-  assert.equal(validateForm({ ...form, analyticsVendorNumber: '12345678' }).analyticsVendorNumber, undefined);
-  assert.equal(validateForm({ ...form, analyticsBucketId: 'pubsite_prod_rev_01234567890123456789' }).analyticsBucketId, undefined);
+  assert.equal(
+    validateForm({ ...form, analyticsVendorNumber: '12345678' }).analyticsVendorNumber,
+    undefined,
+  );
+  assert.equal(
+    validateForm({ ...form, analyticsBucketId: 'pubsite_prod_rev_01234567890123456789' })
+      .analyticsBucketId,
+    undefined,
+  );
   const on = { ...form, analyticsEnabled: true, analyticsVendorNumber: ' 12345678 ' };
-  assert.deepEqual(settingsChanges(saved, on, all), { 'analytics.enabled': true, 'analytics.appleVendorNumber': '12345678' });
+  assert.deepEqual(settingsChanges(saved, on, all), {
+    'analytics.enabled': true,
+    'analytics.appleVendorNumber': '12345678',
+  });
   // without analytics.manage nothing about analytics is sent
   assert.deepEqual(settingsChanges(saved, on, ALL), {});
   assert.deepEqual(settingsChanges(saved, form, all), {});
@@ -95,19 +123,33 @@ test('checkLibreUrl: https, no credentials, no query; http only on this machine'
   assert.equal(checkLibreUrl('https://translate.example.com:5000/api'), undefined);
   assert.equal(checkLibreUrl('http://localhost:5000'), undefined);
   assert.equal(checkLibreUrl('http://127.0.0.1:5000'), undefined);
-  for (const bad of ['translate.example.com', 'http://translate.example.com', 'ftp://x.example.com', 'https://user:pw@x.example.com', 'https://x.example.com/?key=1', 'https://x.example.com/#a']) {
+  for (const bad of [
+    'translate.example.com',
+    'http://translate.example.com',
+    'ftp://x.example.com',
+    'https://user:pw@x.example.com',
+    'https://x.example.com/?key=1',
+    'https://x.example.com/#a',
+  ]) {
     assert.ok(checkLibreUrl(bad), bad);
   }
 });
 
 test('settingsChanges: only keys that differ and that the caller may write', () => {
-  const form: SettingsForm = { ...formFromSettings(defaults), lowRatingThreshold: '3', enabled: true, targetLanguage: 'pt_br' };
+  const form: SettingsForm = {
+    ...formFromSettings(defaults),
+    lowRatingThreshold: '3',
+    enabled: true,
+    targetLanguage: 'pt_br',
+  };
   assert.deepEqual(settingsChanges(defaults, form, ALL), {
     'reviews.lowRatingThreshold': 3,
     'translation.enabled': true,
     'translation.targetLanguage': 'pt-BR',
   });
-  assert.deepEqual(settingsChanges(defaults, form, ['reviews.lowRatingThreshold']), { 'reviews.lowRatingThreshold': 3 });
+  assert.deepEqual(settingsChanges(defaults, form, ['reviews.lowRatingThreshold']), {
+    'reviews.lowRatingThreshold': 3,
+  });
   assert.deepEqual(settingsChanges(defaults, form, []), {});
   assert.deepEqual(settingsChanges(defaults, formFromSettings(defaults), ALL), {});
   assert.equal(isDirty(defaults, form, ALL), true);
@@ -117,8 +159,14 @@ test('settingsChanges: only keys that differ and that the caller may write', () 
 });
 
 test('providers: Google is the default and every choice states who receives the text', () => {
-  assert.deepEqual(providerChoices.map((p) => p.id), ['google', 'deepl', 'azure', 'libretranslate']);
-  assert.deepEqual(providerChoices.filter((p) => p.isDefault).map((p) => p.id), ['google']);
+  assert.deepEqual(
+    providerChoices.map((p) => p.id),
+    ['google', 'deepl', 'azure', 'libretranslate'],
+  );
+  assert.deepEqual(
+    providerChoices.filter((p) => p.isDefault).map((p) => p.id),
+    ['google'],
+  );
   for (const choice of providerChoices) assert.ok(choice.privacy.length > 20, choice.id);
   assert.equal(providerChoices.find((p) => p.id === 'libretranslate')?.needsUrl, true);
   assert.equal(providerChoices.find((p) => p.id === 'libretranslate')?.credentialRequired, false);
@@ -134,7 +182,10 @@ test('languageName knows common codes and falls back to the code', () => {
 });
 
 test('usage text and fraction', () => {
-  assert.equal(usageText({ day: '2026-06-10', used: 12300, budget: 50000 }), '12,300 of 50,000 characters used today (UTC), 25%.');
+  assert.equal(
+    usageText({ day: '2026-06-10', used: 12300, budget: 50000 }),
+    '12,300 of 50,000 characters used today (UTC), 25%.',
+  );
   assert.match(usageText({ day: 'd', used: 5, budget: 0 }), /no daily limit/);
   assert.equal(usageFraction({ day: 'd', used: 25, budget: 50 }), 0.5);
   assert.equal(usageFraction({ day: 'd', used: 99, budget: 50 }), 1);
@@ -142,21 +193,40 @@ test('usage text and fraction', () => {
 });
 
 test('error and test messages are plain sentences', () => {
-  assert.match(settingsErrorMessage(new ApiError(403, 'forbidden', 'x'), 'save'), /owner or an admin/);
-  assert.match(settingsErrorMessage(new ApiError(403, 'forbidden', 'x'), 'load'), /does not include/);
-  const invalid = new ApiError(400, 'invalid_setting', 'A setting is not valid.', undefined, { issues: [{ path: 'translation.libretranslate.url', message: 'Use https.' }] });
+  assert.match(
+    settingsErrorMessage(new ApiError(403, 'forbidden', 'x'), 'save'),
+    /owner or an admin/,
+  );
+  assert.match(
+    settingsErrorMessage(new ApiError(403, 'forbidden', 'x'), 'load'),
+    /does not include/,
+  );
+  const invalid = new ApiError(400, 'invalid_setting', 'A setting is not valid.', undefined, {
+    issues: [{ path: 'translation.libretranslate.url', message: 'Use https.' }],
+  });
   assert.equal(settingsErrorMessage(invalid, 'save'), 'translation.libretranslate.url: Use https.');
   assert.equal(settingsErrorMessage(new Error('x')), 'Something went wrong. Try again.');
   assert.match(testOutcomeText({ ok: true, message: 'x' }), /translated a test word/);
-  assert.equal(testOutcomeText({ ok: false, message: 'The key was refused.' }), 'The key was refused.');
+  assert.equal(
+    testOutcomeText({ ok: false, message: 'The key was refused.' }),
+    'The key was refused.',
+  );
 });
 
 test('loadTranslationConfig asks once per workspace for 30 seconds, and null when settings are not readable', async () => {
   forgetTranslationConfig();
   let calls = 0;
-  const settings = (over: Record<string, unknown> = {}) => ({ values: { ...defaults, ...over } }) as unknown as SettingsResponse;
-  const api = { workspaceSettings: async () => (calls++, settings({ 'translation.enabled': true, 'translation.targetLanguage': 'de' })) };
-  const [a, b] = await Promise.all([loadTranslationConfig(api, 'w1', 1000), loadTranslationConfig(api, 'w1', 1001)]);
+  const settings = (over: Record<string, unknown> = {}) =>
+    ({ values: { ...defaults, ...over } }) as unknown as SettingsResponse;
+  const api = {
+    workspaceSettings: async () => (
+      calls++, settings({ 'translation.enabled': true, 'translation.targetLanguage': 'de' })
+    ),
+  };
+  const [a, b] = await Promise.all([
+    loadTranslationConfig(api, 'w1', 1000),
+    loadTranslationConfig(api, 'w1', 1001),
+  ]);
   assert.equal(calls, 1);
   assert.deepEqual(a, { enabled: true, mode: 'on_demand', target: 'de', provider: 'google' });
   assert.equal(a, b);
@@ -169,13 +239,23 @@ test('loadTranslationConfig asks once per workspace for 30 seconds, and null whe
   forgetTranslationConfig('w1');
   await loadTranslationConfig(api, 'w1', 1000);
   assert.equal(calls, 4);
-  const denied = { workspaceSettings: async () => { throw new ApiError(403, 'forbidden', 'no'); } };
+  const denied = {
+    workspaceSettings: async () => {
+      throw new ApiError(403, 'forbidden', 'no');
+    },
+  };
   assert.equal(await loadTranslationConfig(denied, 'w3', 1000), null);
   forgetTranslationConfig();
 });
 
 test('the release and reminder settings: defaults, limits and the keys they are saved under', () => {
-  const saved = { ...defaults, 'release.stalledAfterHours': 6, 'release.stalledRepeatHours': 24, 'reviews.unansweredReminderHours': 0, 'reviews.unansweredMaxRating': 5 };
+  const saved = {
+    ...defaults,
+    'release.stalledAfterHours': 6,
+    'release.stalledRepeatHours': 24,
+    'reviews.unansweredReminderHours': 0,
+    'reviews.unansweredMaxRating': 5,
+  };
   const form = formFromSettings(saved);
   assert.deepEqual(validateForm(form), {});
   for (const bad of ['', '-1', '721', '1.5', 'six']) {
@@ -183,14 +263,27 @@ test('the release and reminder settings: defaults, limits and the keys they are 
     assert.ok(validateForm({ ...form, stalledRepeatHours: bad }).stalledRepeatHours, bad);
     assert.ok(validateForm({ ...form, unansweredReminderHours: bad }).unansweredReminderHours, bad);
   }
-  for (const good of ['0', '720', ' 12 ']) assert.equal(validateForm({ ...form, stalledAfterHours: good }).stalledAfterHours, undefined, good);
-  for (const bad of ['0', '6', '', '2.5']) assert.ok(validateForm({ ...form, unansweredMaxRating: bad }).unansweredMaxRating, bad);
-  const changed = { ...form, stalledAfterHours: '12', unansweredReminderHours: '24', unansweredMaxRating: '2' };
+  for (const good of ['0', '720', ' 12 '])
+    assert.equal(
+      validateForm({ ...form, stalledAfterHours: good }).stalledAfterHours,
+      undefined,
+      good,
+    );
+  for (const bad of ['0', '6', '', '2.5'])
+    assert.ok(validateForm({ ...form, unansweredMaxRating: bad }).unansweredMaxRating, bad);
+  const changed = {
+    ...form,
+    stalledAfterHours: '12',
+    unansweredReminderHours: '24',
+    unansweredMaxRating: '2',
+  };
   assert.deepEqual(settingsChanges(saved, changed, Object.keys(saved)), {
     'release.stalledAfterHours': 12,
     'reviews.unansweredReminderHours': 24,
     'reviews.unansweredMaxRating': 2,
   });
-  assert.deepEqual(settingsChanges(saved, changed, ['reviews.unansweredMaxRating']), { 'reviews.unansweredMaxRating': 2 });
+  assert.deepEqual(settingsChanges(saved, changed, ['reviews.unansweredMaxRating']), {
+    'reviews.unansweredMaxRating': 2,
+  });
   assert.equal(KEYS.stalledRepeatHours, 'release.stalledRepeatHours');
 });

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { PullRequestFailedError } from '@mrm/connectors';
 import {
   type ActorType,
   type ChangeSet,
@@ -8,7 +9,6 @@ import {
   type ListingProblem,
   validateListing,
 } from '@mrm/core';
-import { PullRequestFailedError } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { listingChanges, type RepositoryListings } from './listing-sources.ts';
@@ -23,8 +23,8 @@ import {
   type Outcome,
   openConnectorForRepository,
   type RepoContext,
-  readRepositoryListing,
   type Repository,
+  readRepositoryListing,
   withTimeout,
 } from './repositories.ts';
 
@@ -65,7 +65,12 @@ export type LocalOutcome = {
    * `behind`: the branch on GitHub is behind the local branch, because a fix-up commit was added
    * after the push and not pushed yet (`POST .../push` pushes the latest commit).
    */
-  push: { status: 'not_requested' | 'pushed' | 'failed' | 'behind'; at?: number; code?: string; error?: string };
+  push: {
+    status: 'not_requested' | 'pushed' | 'failed' | 'behind';
+    at?: number;
+    code?: string;
+    error?: string;
+  };
   pr: {
     status: 'not_requested' | 'opened' | 'failed' | 'skipped';
     at?: number;
@@ -96,7 +101,10 @@ export type FixupRecord = {
 };
 
 /** What a change set was made from, enough to make it again (the store pull). Stored as `origin_json`. */
-export type ChangeSetOrigin = { v: 1; source: string; appId?: string; channel?: string } & Record<string, unknown>;
+export type ChangeSetOrigin = { v: 1; source: string; appId?: string; channel?: string } & Record<
+  string,
+  unknown
+>;
 
 export type ChangeSetView = {
   id: string;
@@ -135,7 +143,9 @@ const parseOutcomeJson = (row: Row): Record<string, unknown> | null => {
   if (row.outcome_json === null || row.outcome_json === undefined) return null;
   try {
     const parsed = JSON.parse(String(row.outcome_json)) as unknown;
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
@@ -157,13 +167,16 @@ export const parseOrigin = (row: Row): ChangeSetOrigin | null => {
   if (row.origin_json === null || row.origin_json === undefined) return null;
   try {
     const parsed = JSON.parse(String(row.origin_json)) as ChangeSetOrigin;
-    return typeof parsed === 'object' && parsed !== null && typeof parsed.source === 'string' ? parsed : null;
+    return typeof parsed === 'object' && parsed !== null && typeof parsed.source === 'string'
+      ? parsed
+      : null;
   } catch {
     return null;
   }
 };
 
-export const parseFiles = (row: Row): FileChange[] => JSON.parse(String(row.files_json)) as FileChange[];
+export const parseFiles = (row: Row): FileChange[] =>
+  JSON.parse(String(row.files_json)) as FileChange[];
 
 export function toView(row: Row, withContent: boolean): ChangeSetView {
   const files = parseFiles(row).map((f): ChangeSetFile => {
@@ -171,7 +184,13 @@ export function toView(row: Row, withContent: boolean): ChangeSetView {
     if (f.encoding === 'base64') {
       // Bytes, not text: never put base64 into a view. The size is enough to review.
       const text = f.after ?? f.before ?? '';
-      return { ...base, binary: true, bytes: Math.floor((text.length * 3) / 4) - (text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0) };
+      return {
+        ...base,
+        binary: true,
+        bytes:
+          Math.floor((text.length * 3) / 4) -
+          (text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0),
+      };
     }
     if (!withContent) return base;
     return {
@@ -214,7 +233,12 @@ const summariseOrigin = (origin: ChangeSetOrigin | null): ChangeSetView['origin'
     : null;
 
 export const rowOf = async (sql: Sql, workspaceId: string, id: string): Promise<Row | undefined> =>
-  (await sql.query('SELECT * FROM change_sets WHERE id = ? AND workspace_id = ?', [id, workspaceId]))[0];
+  (
+    await sql.query('SELECT * FROM change_sets WHERE id = ? AND workspace_id = ?', [
+      id,
+      workspaceId,
+    ])
+  )[0];
 
 export async function listChangeSets(
   sql: Sql,
@@ -289,7 +313,13 @@ export async function computeListingFiles(
 ): Promise<Outcome<{ files: FileChange[]; warnings: string[]; desired: Listing }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found');
-  const opened = await openConnectorForRepository(ctx, input.workspaceId, repository, actor, input.purpose);
+  const opened = await openConnectorForRepository(
+    ctx,
+    input.workspaceId,
+    repository,
+    actor,
+    input.purpose,
+  );
   if (!opened.ok) return opened;
   try {
     const read = await readRepositoryListing(
@@ -338,9 +368,7 @@ export async function createChangeSet(
     origin?: ChangeSetOrigin | (() => ChangeSetOrigin);
   },
   actor: Actor,
-): Promise<
-  Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings: string[] }>
-> {
+): Promise<Outcome<{ changeSet: ChangeSetView; problems: ListingProblem[]; warnings: string[] }>> {
   const computed = await computeListingFiles(
     ctx,
     {
@@ -368,7 +396,11 @@ export async function createChangeSet(
   } catch (error) {
     // The repository was disconnected while GitHub was being read.
     if (isForeignKeyViolation(error)) {
-      return failure(404, 'not_found', 'The repository was disconnected while this was being made.');
+      return failure(
+        404,
+        'not_found',
+        'The repository was disconnected while this was being made.',
+      );
     }
     throw error;
   }
@@ -395,16 +427,25 @@ export async function createFileChangeSet(
 ): Promise<Outcome<{ changeSet: ChangeSetView }>> {
   const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
   if (!repository) return failure(404, 'not_found');
-  if (input.files.length === 0) return failure(422, 'no_changes', 'There is nothing to put in a change set.');
+  if (input.files.length === 0)
+    return failure(422, 'no_changes', 'There is nothing to put in a change set.');
   const id = randomUUID();
   const now = ctx.now();
   try {
     await insertDraft(ctx, { id, now, files: input.files, input, actor, origin: input.origin });
   } catch (error) {
-    if (isForeignKeyViolation(error)) return failure(404, 'not_found', 'The repository was disconnected while this was being made.');
+    if (isForeignKeyViolation(error))
+      return failure(
+        404,
+        'not_found',
+        'The repository was disconnected while this was being made.',
+      );
     throw error;
   }
-  return { ok: true, changeSet: (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView };
+  return {
+    ok: true,
+    changeSet: (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView,
+  };
 }
 
 async function insertDraft(
@@ -467,7 +508,11 @@ export async function approveChangeSet(
     // A refresh can leave a change set with no file (the repository already has all of it).
     const current = await rowOf(tx, input.workspaceId, input.id);
     if (current && String(current.status) === 'draft' && parseFiles(current).length === 0) {
-      return failure(422, 'nothing_to_apply', 'Nothing left to apply: the repository already has this change. Discard the change set.');
+      return failure(
+        422,
+        'nothing_to_apply',
+        'Nothing left to apply: the repository already has this change. Discard the change set.',
+      );
     }
     const changed = await tx.execute(
       `UPDATE change_sets SET status = 'approved', approved_by = ?, approved_at = ?, updated_at = ?
@@ -488,7 +533,10 @@ export async function approveChangeSet(
     return { ok: true };
   });
   if (!result.ok) return result;
-  return { ok: true, changeSet: (await getChangeSet(ctx.db, input.workspaceId, input.id)) as ChangeSetView };
+  return {
+    ok: true,
+    changeSet: (await getChangeSet(ctx.db, input.workspaceId, input.id)) as ChangeSetView,
+  };
 }
 
 /**
@@ -531,7 +579,10 @@ export async function discardChangeSet(
     return { ok: true };
   });
   if (!result.ok) return result;
-  return { ok: true, changeSet: (await getChangeSet(ctx.db, input.workspaceId, input.id)) as ChangeSetView };
+  return {
+    ok: true,
+    changeSet: (await getChangeSet(ctx.db, input.workspaceId, input.id)) as ChangeSetView,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -562,7 +613,10 @@ export function neutraliseText(text: string): string {
   return text
     .replace(/[@#]/g, (c) => `${c}${ZWSP}`)
     .replace(/:\/\//g, `:/${ZWSP}/`)
-    .replace(/\b(clos(?:e[sd]?)|fix(?:e[sd])?|resolv(?:e[sd]?))\b/gi, (word) => `${word[0]}${ZWSP}${word.slice(1)}`);
+    .replace(
+      /\b(clos(?:e[sd]?)|fix(?:e[sd])?|resolv(?:e[sd]?))\b/gi,
+      (word) => `${word[0]}${ZWSP}${word.slice(1)}`,
+    );
 }
 
 /** One line of the summary as a quote, so it cannot start a heading, a list or a code block. */
@@ -603,7 +657,8 @@ export async function applyChangeSet(
   if (!row) return failure(404, 'not_found');
   if (claimed === 0) {
     const status = String(row.status);
-    if (status === 'applied') return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
+    if (status === 'applied')
+      return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
     if (status === 'applying') {
       return failure(409, 'apply_in_progress', 'This change set is being applied right now.');
     }
@@ -611,7 +666,10 @@ export async function applyChangeSet(
   }
 
   const files = parseFiles(row);
-  const createdBy = { type: String(row.created_by_type) as ActorType, id: String(row.created_by_id) };
+  const createdBy = {
+    type: String(row.created_by_type) as ActorType,
+    id: String(row.created_by_id),
+  };
   const summary = String(row.summary);
   const repository = (await getRepository(db, workspaceId, String(row.repository_id))) as
     | Repository
@@ -635,16 +693,19 @@ export async function applyChangeSet(
     await release(f);
     return withSet(f);
   }
-  const opened = await openConnectorForRepository(ctx, workspaceId, repository, actor, 'changeset.apply');
+  const opened = await openConnectorForRepository(
+    ctx,
+    workspaceId,
+    repository,
+    actor,
+    'changeset.apply',
+  );
   if (!opened.ok) {
     await release(opened);
     return withSet(opened);
   }
 
-  const failed = async (
-    f: Failure,
-    extra: { branch?: string; commitSha?: string } = {},
-  ) => {
+  const failed = async (f: Failure, extra: { branch?: string; commitSha?: string } = {}) => {
     await db.transaction(async (tx) => {
       const at = ctx.now();
       const changed = await tx.execute(

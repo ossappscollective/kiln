@@ -1,7 +1,7 @@
-import type { Review } from './reviews.ts';
-import { type ReviewFilter, listReviews } from './reviews.ts';
 import type { Sql } from '@mrm/db';
 import { clip } from './ai-task-types.ts';
+import type { Review } from './reviews.ts';
+import { listReviews, type ReviewFilter } from './reviews.ts';
 
 /**
  * Review data for AI tasks, minimised (docs/adr/0024-ai-features.md). What leaves the server about a review is only: a short alias
@@ -61,7 +61,12 @@ export const periodDays = (scope: unknown): number => {
   return Number.isInteger(n) && n >= 1 ? Math.min(n, MAX_PERIOD_DAYS) : DEFAULT_PERIOD_DAYS;
 };
 
-export const toAiReview = (r: Review, ref: string, titleChars: number, textChars: number): AiReview => ({
+export const toAiReview = (
+  r: Review,
+  ref: string,
+  titleChars: number,
+  textChars: number,
+): AiReview => ({
   id: r.id,
   ref,
   rating: r.rating,
@@ -80,11 +85,24 @@ export const toAiReview = (r: Review, ref: string, titleChars: number, textChars
  */
 export async function loadReviewsForAi(
   sql: Sql,
-  input: { workspaceId: string; appId: string; now: number; days: number; limit: number; titleChars: number; textChars: number; ratings?: number[]; skipIds?: Set<string> },
+  input: {
+    workspaceId: string;
+    appId: string;
+    now: number;
+    days: number;
+    limit: number;
+    titleChars: number;
+    textChars: number;
+    ratings?: number[];
+    skipIds?: Set<string>;
+  },
 ): Promise<LoadedReviews> {
   const to = input.now;
   const from = to - input.days * DAY_MS;
-  const filter: ReviewFilter = { since: from, ...(input.ratings ? { ratings: input.ratings } : {}) };
+  const filter: ReviewFilter = {
+    since: from,
+    ...(input.ratings ? { ratings: input.ratings } : {}),
+  };
   const [count] = await sql.query(
     `SELECT COUNT(*) AS n FROM app_reviews WHERE workspace_id = ? AND app_id = ? AND created_at >= ?${input.ratings ? ` AND rating IN (${input.ratings.map(() => '?').join(', ')})` : ''}`,
     [input.workspaceId, input.appId, from, ...(input.ratings ?? [])],
@@ -93,7 +111,11 @@ export async function loadReviewsForAi(
   let cursor: string | undefined;
   // Newest first; read pages until enough reviews with text were found (bounded: at most 5 pages of 100).
   for (let page = 0; page < 5 && reviews.length < input.limit; page += 1) {
-    const out = await listReviews(sql, input.workspaceId, input.appId, filter, { sort: 'newest', limit: 100, ...(cursor ? { cursor } : {}) });
+    const out = await listReviews(sql, input.workspaceId, input.appId, filter, {
+      sort: 'newest',
+      limit: 100,
+      ...(cursor ? { cursor } : {}),
+    });
     if ('error' in out) break;
     for (const r of out.reviews) {
       if (reviews.length >= input.limit) break;
@@ -108,13 +130,24 @@ export async function loadReviewsForAi(
 }
 
 /** The share of ids a model cited that were really in the data: returns the valid ones (distinct, in order) and how many were not. */
-export function checkRefs(cited: unknown, byRef: Map<string, AiReview>): { valid: AiReview[]; dropped: number } {
+export function checkRefs(
+  cited: unknown,
+  byRef: Map<string, AiReview>,
+): { valid: AiReview[]; dropped: number } {
   const valid: AiReview[] = [];
   const seen = new Set<string>();
   let dropped = 0;
-  const list = Array.isArray(cited) ? cited : typeof cited === 'string' ? cited.split(/[\s,;]+/) : [];
+  const list = Array.isArray(cited)
+    ? cited
+    : typeof cited === 'string'
+      ? cited.split(/[\s,;]+/)
+      : [];
   for (const raw of list) {
-    const key = String(raw).trim().toLowerCase().replace(/^review[ _-]?/, 'r').replace(/^#/, 'r');
+    const key = String(raw)
+      .trim()
+      .toLowerCase()
+      .replace(/^review[ _-]?/, 'r')
+      .replace(/^#/, 'r');
     if (key === '') continue;
     const normalized = /^\d+$/.test(key) ? `r${key}` : key;
     const found = byRef.get(normalized);
@@ -129,6 +162,7 @@ export function checkRefs(cited: unknown, byRef: Map<string, AiReview>): { valid
   return { valid, dropped };
 }
 
-export const refMap = (reviews: AiReview[]): Map<string, AiReview> => new Map(reviews.map((r) => [r.ref, r]));
+export const refMap = (reviews: AiReview[]): Map<string, AiReview> =>
+  new Map(reviews.map((r) => [r.ref, r]));
 
 export const round1 = (n: number): number => Math.round(n * 10) / 10;

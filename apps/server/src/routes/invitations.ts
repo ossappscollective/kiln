@@ -1,10 +1,10 @@
 import { type Action, can, invitableBy, invitableRoles } from '@mrm/core';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { type AppEnv, type Services, parseBody } from '../http.ts';
-import { SESSION_TTL_MS, memberRole, resolveSession } from '../services/accounts.ts';
+import { type AppEnv, parseBody, type Services } from '../http.ts';
+import { memberRole, resolveSession, SESSION_TTL_MS } from '../services/accounts.ts';
 import {
   acceptInvitation,
   createInvitation,
@@ -167,7 +167,12 @@ export function publicInvitationRoutes(services: Services) {
 
     let result: Awaited<ReturnType<typeof acceptInvitation>>;
     try {
-      result = await acceptInvitation(db, token, { signedIn, displayName, password }, { now: now(), cost });
+      result = await acceptInvitation(
+        db,
+        token,
+        { signedIn, displayName, password },
+        { now: now(), cost },
+      );
     } catch (error) {
       // Two invitations for one new address accepted at the same moment: the second finds the account.
       limiter.refund(key(token));
@@ -191,7 +196,8 @@ export function publicInvitationRoutes(services: Services) {
 
     limiter.reset(key(token));
     if (result.sessionToken) {
-      const proto = c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '');
+      const proto =
+        c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '');
       setCookie(c, SESSION_COOKIE, result.sessionToken, {
         httpOnly: true,
         sameSite: 'Lax',

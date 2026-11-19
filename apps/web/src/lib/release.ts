@@ -1,15 +1,15 @@
 import {
   type DueFlags,
+  formatPercent,
+  isPlanLocale,
   MAX_ROLLOUT_STEPS,
-  type Platform,
   type PlanPlatform,
+  type Platform,
   type RolloutComparison,
   type RolloutStepInput,
   type RolloutStepStatus,
   type RolloutSummary,
   type RolloutTemplate,
-  formatPercent,
-  isPlanLocale,
   releaseNotesLength,
   releaseNotesLimit,
   validateRolloutSteps,
@@ -49,7 +49,10 @@ const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
  * The app of the other platform that is the same product: the same identifier, else the same name.
  * `null` when there is none (or several names match, which is not a safe guess).
  */
-export function findSibling(apps: readonly AppSummary[], app: Pick<AppSummary, 'id' | 'platform' | 'identifier' | 'name'>): AppSummary | null {
+export function findSibling(
+  apps: readonly AppSummary[],
+  app: Pick<AppSummary, 'id' | 'platform' | 'identifier' | 'name'>,
+): AppSummary | null {
   const others = apps.filter((a) => a.platform !== app.platform && a.id !== app.id);
   const byIdentifier = others.filter((a) => sameText(a.identifier, app.identifier));
   if (byIdentifier.length === 1) return byIdentifier[0] as AppSummary;
@@ -63,7 +66,10 @@ export function findSibling(apps: readonly AppSummary[], app: Pick<AppSummary, '
  * platform the same identifier, else the same name, and only when that match is unique. An iOS and a
  * macOS record can share a bundle id (universal purchase), so the match is made platform by platform.
  */
-export function findSiblings(apps: readonly AppSummary[], app: Pick<AppSummary, 'id' | 'platform' | 'identifier' | 'name'>): AppSummary[] {
+export function findSiblings(
+  apps: readonly AppSummary[],
+  app: Pick<AppSummary, 'id' | 'platform' | 'identifier' | 'name'>,
+): AppSummary[] {
   const found: AppSummary[] = [];
   for (const platform of [...new Set(apps.map((a) => a.platform))]) {
     if (platform === app.platform) continue;
@@ -79,15 +85,27 @@ export function findSiblings(apps: readonly AppSummary[], app: Pick<AppSummary, 
 }
 
 /** The releases of one version, most public track first. */
-export function releasesOfVersion(releases: readonly ReleaseSummary[], version: string): ReleaseSummary[] {
+export function releasesOfVersion(
+  releases: readonly ReleaseSummary[],
+  version: string,
+): ReleaseSummary[] {
   return releases
     .filter((r) => r.version === version)
-    .sort((a, b) => (a.track ?? '').localeCompare(b.track ?? '') || compareVersions(b.build ?? '', a.build ?? ''));
+    .sort(
+      (a, b) =>
+        (a.track ?? '').localeCompare(b.track ?? '') ||
+        compareVersions(b.build ?? '', a.build ?? ''),
+    );
 }
 
 /** Versions of an app that the store reports, newest first, with no repeats. */
-export function knownVersions(releases: readonly ReleaseSummary[], planVersions: readonly string[] = []): string[] {
-  return [...new Set([...releases.map((r) => r.version), ...planVersions])].sort((a, b) => compareVersions(b, a));
+export function knownVersions(
+  releases: readonly ReleaseSummary[],
+  planVersions: readonly string[] = [],
+): string[] {
+  return [...new Set([...releases.map((r) => r.version), ...planVersions])].sort((a, b) =>
+    compareVersions(b, a),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -106,7 +124,9 @@ export type RolloutView = {
  * What to say about a release's rollout. Apple's phased release is not read yet (see
  * docs/phase-2.md), so an iOS release that is rolling out has no share to show and says so.
  */
-export function rolloutView(release: Pick<ReleaseSummary, 'platform' | 'status' | 'rolloutFraction'>): RolloutView {
+export function rolloutView(
+  release: Pick<ReleaseSummary, 'platform' | 'status' | 'rolloutFraction'>,
+): RolloutView {
   const ios = release.platform !== 'android';
   const title = ios ? 'Phased release' : 'Staged rollout';
   const fraction =
@@ -114,7 +134,11 @@ export function rolloutView(release: Pick<ReleaseSummary, 'platform' | 'status' 
       ? null
       : Math.min(1, Math.max(0, release.rolloutFraction));
   if (fraction !== null) {
-    return { title, fraction, text: `${percent(fraction)} of eligible users, as the store reports it.` };
+    return {
+      title,
+      fraction,
+      text: `${percent(fraction)} of eligible users, as the store reports it.`,
+    };
   }
   if (release.status === 'rolling_out' || release.status === 'halted') {
     return {
@@ -126,7 +150,13 @@ export function rolloutView(release: Pick<ReleaseSummary, 'platform' | 'status' 
     };
   }
   if (release.status === 'live') {
-    return { title, fraction: null, text: ios ? 'Live for everyone. No phased release is reported.' : 'Live for everyone. No staged rollout is reported.' };
+    return {
+      title,
+      fraction: null,
+      text: ios
+        ? 'Live for everyone. No phased release is reported.'
+        : 'Live for everyone. No staged rollout is reported.',
+    };
   }
   return { title, fraction: null, text: 'Not rolling out yet.' };
 }
@@ -143,13 +173,22 @@ function percent(fraction: number): string {
 export function formatTargetDate(date: string, locale?: string): string {
   const time = Date.parse(`${date}T00:00:00Z`);
   if (!Number.isFinite(time)) return date;
-  return new Date(time).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return new Date(time).toLocaleDateString(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 export type DueText = { text: string; tone: 'neutral' | 'warn' | 'bad' | 'ok' };
 
 /** "Due in 3 days", "Due today", "Overdue by 2 days". Neutral when there is nothing to warn about. */
-export function dueText(due: Pick<DueFlags, 'dueSoon' | 'overdue' | 'daysLeft'>, released = false): DueText | null {
+export function dueText(
+  due: Pick<DueFlags, 'dueSoon' | 'overdue' | 'daysLeft'>,
+  released = false,
+): DueText | null {
   if (due.daysLeft === null) return null;
   const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
   // Flags are cleared for a release that is out, which leaves a date in the past and no overdue flag.
@@ -181,7 +220,9 @@ export function noteCounter(text: string, platform: PlanPlatform): NoteCounter {
     limit,
     over,
     remaining: limit - count,
-    label: over ? `${count - limit} ${count - limit === 1 ? 'character' : 'characters'} over the limit of ${limit}` : `${count} of ${limit} characters`,
+    label: over
+      ? `${count - limit} ${count - limit === 1 ? 'character' : 'characters'} over the limit of ${limit}`
+      : `${count} of ${limit} characters`,
   };
 }
 
@@ -212,11 +253,16 @@ export const SUGGESTED_LOCALES: readonly string[] = [
 ];
 
 /** A locale as typed: trimmed, `_` is fine. Returns the code or a problem sentence. */
-export function checkLocale(input: string, existing: readonly string[]): { ok: true; locale: string } | { ok: false; message: string } {
+export function checkLocale(
+  input: string,
+  existing: readonly string[],
+): { ok: true; locale: string } | { ok: false; message: string } {
   const locale = input.trim();
   if (locale === '') return { ok: false, message: 'Enter a locale code such as en-US or de.' };
-  if (!isPlanLocale(locale)) return { ok: false, message: 'Use a locale code such as en-US, de or pt_BR, or default.' };
-  if (existing.some((e) => e.toLowerCase() === locale.toLowerCase())) return { ok: false, message: `${locale} is already on this plan.` };
+  if (!isPlanLocale(locale))
+    return { ok: false, message: 'Use a locale code such as en-US, de or pt_BR, or default.' };
+  if (existing.some((e) => e.toLowerCase() === locale.toLowerCase()))
+    return { ok: false, message: `${locale} is already on this plan.` };
   return { ok: true, locale };
 }
 
@@ -248,41 +294,67 @@ export type Chip = { label: string; tone: 'ok' | 'warn' | 'neutral' | 'info' | '
 export function stepChip(step: Pick<RolloutStep, 'status' | 'due'>): Chip {
   if (step.status === 'done') return { label: 'Done', tone: 'ok' };
   if (step.status === 'skipped') return { label: 'Skipped', tone: 'neutral' };
-  return step.due ? { label: 'Planned time has passed', tone: 'warn' } : { label: 'Planned', tone: 'info' };
+  return step.due
+    ? { label: 'Planned time has passed', tone: 'warn' }
+    : { label: 'Planned', tone: 'info' };
 }
 
 /** "Tue, 12 Jan 2027, 09:00" in the viewer's time zone; "No time set" without one. */
 export function formatPlannedAt(at: number | null, locale?: string): string {
   if (at === null) return 'No time set';
-  return new Date(at).toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(at).toLocaleString(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /** "Step 2 of 5 done (20%). Next: 50%." or "Not started: 5 steps planned." */
-export function rolloutHeadline(summary: Pick<RolloutSummary, 'kind' | 'total' | 'planned' | 'current' | 'next' | 'dueSteps'> | null): string {
+export function rolloutHeadline(
+  summary: Pick<
+    RolloutSummary,
+    'kind' | 'total' | 'planned' | 'current' | 'next' | 'dueSteps'
+  > | null,
+): string {
   if (summary === null) return 'No rollout planned.';
-  if (summary.kind === 'apple_phased') return 'Apple phased release over 7 days (fixed schedule, for information).';
+  if (summary.kind === 'apple_phased')
+    return 'Apple phased release over 7 days (fixed schedule, for information).';
   const steps = `${summary.total} ${summary.total === 1 ? 'step' : 'steps'}`;
-  if (summary.planned === 0) return summary.current ? `All ${steps} done or skipped.` : `${steps}, none open.`;
-  const head = summary.current ? `Step ${summary.current.index} of ${summary.total} done (${formatPercent(summary.current.percent)}).` : `Not started: ${steps} planned.`;
+  if (summary.planned === 0)
+    return summary.current ? `All ${steps} done or skipped.` : `${steps}, none open.`;
+  const head = summary.current
+    ? `Step ${summary.current.index} of ${summary.total} done (${formatPercent(summary.current.percent)}).`
+    : `Not started: ${steps} planned.`;
   return `${head} Next: ${summary.next ? formatPercent(summary.next.percent) : 'none'}.${summary.dueSteps > 0 ? ` ${summary.dueSteps} past its planned time.` : ''}`;
 }
 
 /** A short badge for boards and headers: "Rollout 2 of 5" or "Rollout step due". Null when there is nothing to say. */
 export function rolloutBadge(summary: RolloutSummary | null): Chip | null {
-  if (summary === null || summary.kind === 'apple_phased') return summary ? { label: 'Phased release planned', tone: 'info' } : null;
+  if (summary === null || summary.kind === 'apple_phased')
+    return summary ? { label: 'Phased release planned', tone: 'info' } : null;
   if (summary.dueSteps > 0) return { label: 'Rollout step due', tone: 'warn' };
   if (summary.planned === 0) return { label: 'Rollout plan complete', tone: 'ok' };
   return { label: `Rollout ${summary.done} of ${summary.total} done`, tone: 'neutral' };
 }
 
 /** How loud the comparison of the plan with the store should be. */
-export function comparisonTone(comparison: Pick<RolloutComparison, 'verdict' | 'mismatch' | 'halted'>): 'ok' | 'warn' | 'neutral' {
+export function comparisonTone(
+  comparison: Pick<RolloutComparison, 'verdict' | 'mismatch' | 'halted'>,
+): 'ok' | 'warn' | 'neutral' {
   if (comparison.mismatch || comparison.halted) return 'warn';
   return comparison.verdict === 'match' ? 'ok' : 'neutral';
 }
 
 export const comparisonLabel = (comparison: Pick<RolloutComparison, 'verdict'>): string =>
-  ({ match: 'Plan and store agree', store_ahead: 'Store is ahead of the plan', store_behind: 'Store is behind the plan', unknown: 'Cannot compare' })[comparison.verdict];
+  ({
+    match: 'Plan and store agree',
+    store_ahead: 'Store is ahead of the plan',
+    store_behind: 'Store is behind the plan',
+    unknown: 'Cannot compare',
+  })[comparison.verdict];
 
 // A step as it is edited: text fields, so a half typed value is not lost.
 
@@ -315,7 +387,11 @@ export function parseLocalInput(value: string): number | null {
   if (!m) return Number.NaN;
   const [y, mo, d, h, mi] = m.slice(1).map(Number) as [number, number, number, number, number];
   const date = new Date(y, mo - 1, d, h, mi);
-  const real = date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d && date.getHours() === h;
+  const real =
+    date.getFullYear() === y &&
+    date.getMonth() === mo - 1 &&
+    date.getDate() === d &&
+    date.getHours() === h;
   return real ? date.getTime() : Number.NaN;
 }
 
@@ -323,10 +399,24 @@ let draftCounter = 0;
 const draftKey = () => `d${++draftCounter}`;
 
 export const draftFromSteps = (steps: readonly RolloutStep[]): DraftStep[] =>
-  steps.map((s) => ({ key: draftKey(), id: s.id, percent: String(s.percent), plannedAt: localInputValue(s.plannedAt), note: s.note ?? '', status: s.status }));
+  steps.map((s) => ({
+    key: draftKey(),
+    id: s.id,
+    percent: String(s.percent),
+    plannedAt: localInputValue(s.plannedAt),
+    note: s.note ?? '',
+    status: s.status,
+  }));
 
 export const draftFromTemplate = (template: Pick<RolloutTemplate, 'steps'>): DraftStep[] =>
-  template.steps.map((s) => ({ key: draftKey(), id: null, percent: String(s.percent), plannedAt: '', note: s.note ?? '', status: 'planned' }));
+  template.steps.map((s) => ({
+    key: draftKey(),
+    id: null,
+    percent: String(s.percent),
+    plannedAt: '',
+    note: s.note ?? '',
+    status: 'planned',
+  }));
 
 /** A percent to offer for a new step: 10 for the first, then about halfway to 100 above the last one, at most 100. */
 export function suggestNextPercent(percents: readonly number[]): number {
@@ -339,12 +429,29 @@ export function suggestNextPercent(percents: readonly number[]): number {
 export function addDraftStep(draft: readonly DraftStep[]): DraftStep[] {
   if (draft.length >= MAX_ROLLOUT_STEPS) return [...draft];
   const percents = draft.map((d) => Number(d.percent)).filter((n) => Number.isInteger(n));
-  return [...draft, { key: draftKey(), id: null, percent: String(suggestNextPercent(percents)), plannedAt: '', note: '', status: 'planned' }];
+  return [
+    ...draft,
+    {
+      key: draftKey(),
+      id: null,
+      percent: String(suggestNextPercent(percents)),
+      plannedAt: '',
+      note: '',
+      status: 'planned',
+    },
+  ];
 }
 
 export type DraftResult =
-  | { ok: true; steps: { id?: string; percent: number; plannedAt: number | null; note: string | null }[] }
-  | { ok: false; /** A message per row key. */ rows: Record<string, string>; /** Problems about the list as a whole. */ general: string[] };
+  | {
+      ok: true;
+      steps: { id?: string; percent: number; plannedAt: number | null; note: string | null }[];
+    }
+  | {
+      ok: false /** A message per row key. */;
+      rows: Record<string, string> /** Problems about the list as a whole. */;
+      general: string[];
+    };
 
 /**
  * The steps to send for an edited list, or the problems to show. The list is put in order of
@@ -365,7 +472,15 @@ export function draftToBody(
     else if (plannedAt !== null && Number.isNaN(plannedAt)) rows[row.key] = 'A date and time.';
     else {
       const note = row.note.trim();
-      parsed.push({ row, input: { ...(row.id ? { id: row.id } : {}), percent, plannedAt, note: note === '' ? null : note } });
+      parsed.push({
+        row,
+        input: {
+          ...(row.id ? { id: row.id } : {}),
+          percent,
+          plannedAt,
+          note: note === '' ? null : note,
+        },
+      });
     }
   }
   if (Object.keys(rows).length > 0) return { ok: false, rows, general: [] };
@@ -406,7 +521,9 @@ export function planPlatformLabel(platform: PlanPlatform): string {
 }
 
 /** The plan platforms a new plan for this app can have: its own, or both. */
-export function planPlatformChoices(app: { platform: Platform }): { value: PlanPlatform; label: string }[] {
+export function planPlatformChoices(app: {
+  platform: Platform;
+}): { value: PlanPlatform; label: string }[] {
   return [
     { value: null, label: 'Both platforms (shared checklist)' },
     { value: app.platform, label: `${platformLabel(app.platform)} only` },
@@ -417,7 +534,10 @@ export function planPlatformChoices(app: { platform: Platform }): { value: PlanP
 // Errors
 
 /** A sentence for each thing the plans API can say. */
-export function planErrorMessage(error: unknown, fallback = 'Something went wrong. Try again.'): string {
+export function planErrorMessage(
+  error: unknown,
+  fallback = 'Something went wrong. Try again.',
+): string {
   if (!(error instanceof ApiError)) return fallback;
   const body = error.body ?? {};
   const message = typeof body.message === 'string' ? body.message.trim() : '';
@@ -445,7 +565,9 @@ export function planErrorMessage(error: unknown, fallback = 'Something went wron
     case 'step_changed':
       return message || fallback;
     case 'template_not_found':
-      return /rollout/i.test(message) ? message : 'That checklist template no longer exists. Reload and pick another.';
+      return /rollout/i.test(message)
+        ? message
+        : 'That checklist template no longer exists. Reload and pick another.';
     case 'not_found':
       return 'That no longer exists. It may have been deleted. Reload to see the current state.';
     case 'payload_too_large':

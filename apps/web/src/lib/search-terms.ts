@@ -1,6 +1,13 @@
-import { type SearchTermInsight, type SearchTermSort, type TermListing, daysBetween, isIsoDate, searchTermLimits } from '@mrm/core';
-import { ApiError } from './api.ts';
+import {
+  daysBetween,
+  isIsoDate,
+  type SearchTermInsight,
+  type SearchTermSort,
+  searchTermLimits,
+  type TermListing,
+} from '@mrm/core';
 import { analyticsErrorText, formatCountExact, formatDay, formatPercent } from './analytics.ts';
+import { ApiError } from './api.ts';
 
 /**
  * Google Play search terms in the web (docs/api/aso.md): the shapes of the two endpoints and the pure logic of the "Search terms" view
@@ -27,7 +34,12 @@ export type SearchTermsResponse = {
   listingLocale: string | null;
   listingReadAt: number | null;
   /** The latest import: null when nothing was imported. */
-  imported: { at: number; periodFrom: string | null; periodTo: string | null; imports: number } | null;
+  imported: {
+    at: number;
+    periodFrom: string | null;
+    periodTo: string | null;
+    imports: number;
+  } | null;
   /** Everything stored for the app, whatever this view asks for. */
   stored: { from: string; to: string; countries: string[]; rows: number } | null;
   terms: SearchTermInsight[];
@@ -37,12 +49,25 @@ export type SearchTermsResponse = {
   notes: SearchTermsNote[];
 };
 
-export type SearchTermsQuery = { from?: string; to?: string; country?: string; locale?: string; sort?: SearchTermSort; limit?: number };
+export type SearchTermsQuery = {
+  from?: string;
+  to?: string;
+  country?: string;
+  locale?: string;
+  sort?: SearchTermSort;
+  limit?: number;
+};
 
 export type SearchTermsPlan = {
   platform: 'android';
   report: { kind: 'play_search_terms'; label: string };
-  stats: { rowsRead: number; rowsUsed: number; rowsUnreadable: number; rowsFiltered: number; rowsOther: number };
+  stats: {
+    rowsRead: number;
+    rowsUsed: number;
+    rowsUnreadable: number;
+    rowsFiltered: number;
+    rowsOther: number;
+  };
   dateFrom: string | null;
   dateTo: string | null;
   /** The file had its own dates. When false, `period` is the one the person gave. */
@@ -55,12 +80,23 @@ export type SearchTermsPlan = {
   files: number;
   totals: { visitors: number | null; installs: number | null };
   other: { visitors: number | null; installs: number | null } | null;
-  top: { term: string; visitors: number | null; installs: number | null; conversion: number | null }[];
+  top: {
+    term: string;
+    visitors: number | null;
+    installs: number | null;
+    conversion: number | null;
+  }[];
   overlapsStored: number;
   notes: string[];
 };
 export type SearchTermsPreview = { plan: SearchTermsPlan; confirmHash: string };
-export type SearchTermsImported = { rows: number; written: number; unchanged: number; dateFrom: string | null; dateTo: string | null };
+export type SearchTermsImported = {
+  rows: number;
+  written: number;
+  unchanged: number;
+  dateFrom: string | null;
+  dateTo: string | null;
+};
 export type SearchTermsImportResult = { imported: SearchTermsImported };
 
 /** The days a file without dates covers, as the person typed them. */
@@ -72,7 +108,8 @@ export type ImportPeriod = { from: string; to: string };
 export function searchTermsQueryText(query: SearchTermsQuery): string {
   const params: string[] = [];
   const add = (key: string, value: string | number | undefined) => {
-    if (value !== undefined && value !== '') params.push(`${key}=${encodeURIComponent(String(value))}`);
+    if (value !== undefined && value !== '')
+      params.push(`${key}=${encodeURIComponent(String(value))}`);
   };
   add('from', query.from);
   add('to', query.to);
@@ -84,7 +121,8 @@ export function searchTermsQueryText(query: SearchTermsQuery): string {
 }
 
 /** `?from=&to=` of an import, or '' for a file that has its own dates. */
-export const importPeriodText = (period: ImportPeriod | null): string => (period ? `from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}` : '');
+export const importPeriodText = (period: ImportPeriod | null): string =>
+  period ? `from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}` : '';
 
 // ---------------------------------------------------------------------------------------------
 // What the view says
@@ -105,16 +143,33 @@ export const exportCaveat =
 export type ListingBadge = { text: string; tone: 'ok' | 'warn' | 'neutral'; title: string };
 
 const listingBadges: Record<TermListing, ListingBadge> = {
-  in_listing: { text: 'In listing', tone: 'ok', title: 'Every word of the term is in the stored listing text.' },
-  partly: { text: 'Partly in listing', tone: 'warn', title: 'Some words of the term are in the stored listing text, not all.' },
-  not_in_listing: { text: 'Not in listing', tone: 'warn', title: 'No word of the term is in the stored listing text.' },
-  unknown: { text: 'Listing unknown', tone: 'neutral', title: 'No listing text is stored for this language. Sync the app to read it.' },
+  in_listing: {
+    text: 'In listing',
+    tone: 'ok',
+    title: 'Every word of the term is in the stored listing text.',
+  },
+  partly: {
+    text: 'Partly in listing',
+    tone: 'warn',
+    title: 'Some words of the term are in the stored listing text, not all.',
+  },
+  not_in_listing: {
+    text: 'Not in listing',
+    tone: 'warn',
+    title: 'No word of the term is in the stored listing text.',
+  },
+  unknown: {
+    text: 'Listing unknown',
+    tone: 'neutral',
+    title: 'No listing text is stored for this language. Sync the app to read it.',
+  },
 };
 
 export const listingBadge = (listing: TermListing): ListingBadge => listingBadges[listing];
 
 /** "12.5%", or a dash when there is no rate. */
-export const conversionText = (conversion: number | null): string => (conversion === null ? '–' : formatPercent(conversion));
+export const conversionText = (conversion: number | null): string =>
+  conversion === null ? '–' : formatPercent(conversion);
 
 export const countText = (n: number | null): string => (n === null ? '–' : formatCountExact(n));
 
@@ -160,16 +215,29 @@ function periodText(from: string | null, to: string | null): string {
 }
 
 /** "Imported from a file on 12 Nov 2026, covering 1 Oct 2026 to 31 Oct 2026." Null when nothing was imported. */
-export function freshnessLine(view: Pick<SearchTermsResponse, 'imported' | 'stored'>, today: (ms: number) => string): string | null {
+export function freshnessLine(
+  view: Pick<SearchTermsResponse, 'imported' | 'stored'>,
+  today: (ms: number) => string,
+): string | null {
   if (!view.imported) return null;
-  const covers = view.imported.periodFrom !== null ? periodText(view.imported.periodFrom, view.imported.periodTo) : view.stored ? periodText(view.stored.from, view.stored.to) : 'the dates in the file';
+  const covers =
+    view.imported.periodFrom !== null
+      ? periodText(view.imported.periodFrom, view.imported.periodTo)
+      : view.stored
+        ? periodText(view.stored.from, view.stored.to)
+        : 'the dates in the file';
   return `Imported from a file on ${formatDay(today(view.imported.at), true)}, covering ${covers}.`;
 }
 
 /** The line over the table: the period shown and the number of terms. */
-export function periodLine(view: Pick<SearchTermsResponse, 'from' | 'to' | 'termCount' | 'terms' | 'country'>): string {
+export function periodLine(
+  view: Pick<SearchTermsResponse, 'from' | 'to' | 'termCount' | 'terms' | 'country'>,
+): string {
   const where = view.country ? ` in ${view.country.toUpperCase()}` : '';
-  const shown = view.terms.length < view.termCount ? `the top ${formatCountExact(view.terms.length)} of ${formatCountExact(view.termCount)} terms` : `${formatCountExact(view.termCount)} ${view.termCount === 1 ? 'term' : 'terms'}`;
+  const shown =
+    view.terms.length < view.termCount
+      ? `the top ${formatCountExact(view.terms.length)} of ${formatCountExact(view.termCount)} terms`
+      : `${formatCountExact(view.termCount)} ${view.termCount === 1 ? 'term' : 'terms'}`;
   return `${shown}${where}, ${periodText(view.from, view.to)}.`;
 }
 
@@ -179,14 +247,18 @@ export type TotalsLine = { text: string } | null;
 export function totalsLine(view: Pick<SearchTermsResponse, 'totals' | 'other'>): string | null {
   const one = (v: { visitors: number | null; installs: number | null }) => {
     const parts: string[] = [];
-    if (v.visitors !== null) parts.push(`${formatCountExact(v.visitors)} ${v.visitors === 1 ? 'visitor' : 'visitors'}`);
-    if (v.installs !== null) parts.push(`${formatCountExact(v.installs)} ${v.installs === 1 ? 'install' : 'installs'}`);
+    if (v.visitors !== null)
+      parts.push(`${formatCountExact(v.visitors)} ${v.visitors === 1 ? 'visitor' : 'visitors'}`);
+    if (v.installs !== null)
+      parts.push(`${formatCountExact(v.installs)} ${v.installs === 1 ? 'install' : 'installs'}`);
     return parts.join(', ');
   };
   const all = one(view.totals);
   if (all === '') return null;
   const other = view.other ? one(view.other) : '';
-  return other === '' ? `In the period: ${all}.` : `In the period: ${all}, of which ${other} are grouped by Google as "Other" and cannot be listed.`;
+  return other === ''
+    ? `In the period: ${all}.`
+    : `In the period: ${all}, of which ${other} are grouped by Google as "Other" and cannot be listed.`;
 }
 
 /** The day of a stored time, in UTC, for the freshness line. */
@@ -225,7 +297,8 @@ export function checkImportPeriod(from: string, to: string, today: string): stri
   if (!isIsoDate(from) || !isIsoDate(to)) return 'Give both days as year-month-day.';
   if (from > to) return 'The first day is after the last day.';
   if (to > today) return 'The last day is in the future.';
-  if (daysBetween(from, to) + 1 > searchTermLimits.maxPeriodDays) return `A period is at most ${searchTermLimits.maxPeriodDays} days.`;
+  if (daysBetween(from, to) + 1 > searchTermLimits.maxPeriodDays)
+    return `A period is at most ${searchTermLimits.maxPeriodDays} days.`;
   return '';
 }
 
@@ -235,7 +308,13 @@ export type SearchTermsFlow =
   | { phase: 'preview'; fileName: string; plan: SearchTermsPlan; confirmHash: string }
   | { phase: 'importing'; fileName: string; plan: SearchTermsPlan; confirmHash: string }
   | { phase: 'done'; fileName: string; result: SearchTermsImported }
-  | { phase: 'error'; fileName: string | null; during: 'preview' | 'import'; code: string; message: string };
+  | {
+      phase: 'error';
+      fileName: string | null;
+      during: 'preview' | 'import';
+      code: string;
+      message: string;
+    };
 
 export type SearchTermsFlowEvent =
   | { type: 'pick'; fileName: string }
@@ -249,7 +328,9 @@ export const idleFlow: SearchTermsFlow = { phase: 'idle' };
 
 /** Something to store and the hash of the preview. A file with nothing usable cannot be confirmed. */
 export const canConfirmTerms = (state: SearchTermsFlow): boolean =>
-  (state.phase === 'preview' || state.phase === 'importing') && state.confirmHash !== '' && state.plan.rows > 0;
+  (state.phase === 'preview' || state.phase === 'importing') &&
+  state.confirmHash !== '' &&
+  state.plan.rows > 0;
 
 /** One step of the import. An event that does not fit the state is ignored, so a late answer cannot jump a step. */
 export function flowStep(state: SearchTermsFlow, event: SearchTermsFlowEvent): SearchTermsFlow {
@@ -257,18 +338,43 @@ export function flowStep(state: SearchTermsFlow, event: SearchTermsFlowEvent): S
     case 'reset':
       return state.phase === 'importing' || state.phase === 'checking' ? state : idleFlow;
     case 'pick':
-      return state.phase === 'importing' || state.phase === 'checking' ? state : { phase: 'checking', fileName: event.fileName };
+      return state.phase === 'importing' || state.phase === 'checking'
+        ? state
+        : { phase: 'checking', fileName: event.fileName };
     case 'previewed':
-      return state.phase === 'checking' ? { phase: 'preview', fileName: state.fileName, plan: event.preview.plan, confirmHash: event.preview.confirmHash } : state;
+      return state.phase === 'checking'
+        ? {
+            phase: 'preview',
+            fileName: state.fileName,
+            plan: event.preview.plan,
+            confirmHash: event.preview.confirmHash,
+          }
+        : state;
     case 'confirm':
-      return state.phase === 'preview' && canConfirmTerms(state) ? { phase: 'importing', fileName: state.fileName, plan: state.plan, confirmHash: state.confirmHash } : state;
+      return state.phase === 'preview' && canConfirmTerms(state)
+        ? {
+            phase: 'importing',
+            fileName: state.fileName,
+            plan: state.plan,
+            confirmHash: state.confirmHash,
+          }
+        : state;
     case 'imported':
-      return state.phase === 'importing' ? { phase: 'done', fileName: state.fileName, result: event.result } : state;
+      return state.phase === 'importing'
+        ? { phase: 'done', fileName: state.fileName, result: event.result }
+        : state;
     case 'failed': {
       if (event.during === 'preview' && state.phase !== 'checking') return state;
       if (event.during === 'import' && state.phase !== 'importing') return state;
-      const fileName = state.phase === 'checking' || state.phase === 'importing' ? state.fileName : null;
-      return { phase: 'error', fileName, during: event.during, code: event.code, message: event.message };
+      const fileName =
+        state.phase === 'checking' || state.phase === 'importing' ? state.fileName : null;
+      return {
+        phase: 'error',
+        fileName,
+        during: event.during,
+        code: event.code,
+        message: event.message,
+      };
     }
     default:
       return state;
@@ -276,10 +382,14 @@ export function flowStep(state: SearchTermsFlow, event: SearchTermsFlowEvent): S
 }
 
 /** The code and sentence of a failure. */
-export const failure = (error: unknown): { code: string; message: string } => ({ code: error instanceof ApiError ? error.code : '', message: searchTermsErrorText(error) });
+export const failure = (error: unknown): { code: string; message: string } => ({
+  code: error instanceof ApiError ? error.code : '',
+  message: searchTermsErrorText(error),
+});
 
 /** The file needs a period typed by the person: a file with no date column. */
-export const needsPeriod = (state: SearchTermsFlow): boolean => state.phase === 'error' && state.during === 'preview' && state.code === 'period_required';
+export const needsPeriod = (state: SearchTermsFlow): boolean =>
+  state.phase === 'error' && state.during === 'preview' && state.code === 'period_required';
 
 export type PreviewFacts = {
   period: string;
@@ -297,31 +407,54 @@ export function previewFacts(plan: SearchTermsPlan): PreviewFacts {
   const s = plan.stats;
   const rows = [`${formatCountExact(s.rowsRead)} rows read, ${formatCountExact(s.rowsUsed)} used`];
   if (s.rowsOther > 0) rows.push(`${formatCountExact(s.rowsOther)} grouped by Google as "Other"`);
-  if (s.rowsFiltered > 0) rows.push(`${formatCountExact(s.rowsFiltered)} left out because they are not Google Play search`);
+  if (s.rowsFiltered > 0)
+    rows.push(
+      `${formatCountExact(s.rowsFiltered)} left out because they are not Google Play search`,
+    );
   if (s.rowsUnreadable > 0) rows.push(`${formatCountExact(s.rowsUnreadable)} could not be read`);
   const from = plan.hasDates ? plan.dateFrom : (plan.period?.from ?? null);
   const to = plan.hasDates ? plan.dateTo : (plan.period?.to ?? null);
-  const period = from === null || to === null ? 'No dates found' : `${periodText(from, to)}${plan.hasDates ? ` (${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'}, from the file)` : ' (typed by you)'}`;
+  const period =
+    from === null || to === null
+      ? 'No dates found'
+      : `${periodText(from, to)}${plan.hasDates ? ` (${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'}, from the file)` : ' (typed by you)'}`;
   const warnings: string[] = [];
-  if (plan.overlapsStored > 0) warnings.push('Part of this period is already stored from another file, so some days could be counted twice in the totals.');
+  if (plan.overlapsStored > 0)
+    warnings.push(
+      'Part of this period is already stored from another file, so some days could be counted twice in the totals.',
+    );
   return {
     period,
     rows,
     terms: `${formatCountExact(plan.terms)} ${plan.terms === 1 ? 'term' : 'terms'}`,
-    countries: plan.countries.length === 0 ? 'No country in the file' : plan.countries.map((c) => c.toUpperCase()).join(', '),
+    countries:
+      plan.countries.length === 0
+        ? 'No country in the file'
+        : plan.countries.map((c) => c.toUpperCase()).join(', '),
     totals: totalsLine({ totals: plan.totals, other: plan.other }),
-    top: plan.top.map((t) => ({ term: t.term, visitors: countText(t.visitors), installs: countText(t.installs), conversion: conversionText(t.conversion) })),
+    top: plan.top.map((t) => ({
+      term: t.term,
+      visitors: countText(t.visitors),
+      installs: countText(t.installs),
+      conversion: conversionText(t.conversion),
+    })),
     warnings,
-    willStore: plan.rows > 0 ? `${formatCountExact(plan.rows)} ${plan.rows === 1 ? 'row' : 'rows'} can be stored.` : 'Nothing in this file can be stored.',
+    willStore:
+      plan.rows > 0
+        ? `${formatCountExact(plan.rows)} ${plan.rows === 1 ? 'row' : 'rows'} can be stored.`
+        : 'Nothing in this file can be stored.',
   };
 }
 
 /** The line after a successful import. A repeat of the same file stores nothing, and says so. */
 export function importedLine(result: SearchTermsImported): string {
   if (result.written === 0) return 'Nothing new was stored: every row was already there.';
-  const parts = [`Stored ${formatCountExact(result.written)} ${result.written === 1 ? 'row' : 'rows'}`];
+  const parts = [
+    `Stored ${formatCountExact(result.written)} ${result.written === 1 ? 'row' : 'rows'}`,
+  ];
   if (result.unchanged > 0) parts.push(`${formatCountExact(result.unchanged)} were already there`);
-  const range = result.dateFrom && result.dateTo ? ` for ${periodText(result.dateFrom, result.dateTo)}` : '';
+  const range =
+    result.dateFrom && result.dateTo ? ` for ${periodText(result.dateFrom, result.dateTo)}` : '';
   return `${parts.join(', ')}${range}.`;
 }
 
@@ -329,7 +462,10 @@ export function importedLine(result: SearchTermsImported): string {
 // Tracking a term in one click
 
 /** The storefront and locale a one-click track uses: the view's country when it has one, else the tracked storefront with most keywords. */
-export function trackTarget(view: Pick<SearchTermsResponse, 'country' | 'locale'>, keywords: readonly { country: string; locale: string }[]): { country: string; locale: string } | null {
+export function trackTarget(
+  view: Pick<SearchTermsResponse, 'country' | 'locale'>,
+  keywords: readonly { country: string; locale: string }[],
+): { country: string; locale: string } | null {
   if (view.country) return { country: view.country, locale: view.locale };
   const counts: Record<string, number> = {};
   const order: string[] = [];
@@ -342,7 +478,8 @@ export function trackTarget(view: Pick<SearchTermsResponse, 'country' | 'locale'
     counts[id] = (counts[id] as number) + 1;
   }
   let best: string | null = null;
-  for (const id of order) if (best === null || (counts[id] as number) > (counts[best] as number)) best = id;
+  for (const id of order)
+    if (best === null || (counts[id] as number) > (counts[best] as number)) best = id;
   if (best === null) return null;
   const [country, locale] = best.split('|');
   return { country: country as string, locale: locale as string };

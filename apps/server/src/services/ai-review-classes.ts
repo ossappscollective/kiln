@@ -19,18 +19,30 @@ import type { Sql } from '@mrm/db';
  */
 
 /** The hash that says whether the text of a review is still the text that was tagged. */
-export const reviewTextHash = (review: { title: string | null; body: string; rating: number }): string =>
-  createHash('sha256').update(`${review.rating}\n${review.title ?? ''}\n${review.body}`, 'utf8').digest('hex');
+export const reviewTextHash = (review: {
+  title: string | null;
+  body: string;
+  rating: number;
+}): string =>
+  createHash('sha256')
+    .update(`${review.rating}\n${review.title ?? ''}\n${review.body}`, 'utf8')
+    .digest('hex');
 
-export type StoredTags = AiReviewTags & { taskVersion: number; textHash: string; createdAt: number };
+export type StoredTags = AiReviewTags & {
+  taskVersion: number;
+  textHash: string;
+  createdAt: number;
+};
 
-const asTopic = (v: string): AiReviewTopic => ((aiReviewTopics as readonly string[]).indexOf(v) !== -1 ? (v as AiReviewTopic) : 'other');
+const asTopic = (v: string): AiReviewTopic =>
+  (aiReviewTopics as readonly string[]).indexOf(v) !== -1 ? (v as AiReviewTopic) : 'other';
 
 function toTags(r: Record<string, unknown>): StoredTags {
   let topics: AiReviewTopic[] = [];
   try {
     const parsed: unknown = JSON.parse(String(r.topics));
-    if (Array.isArray(parsed)) topics = parsed.filter((t): t is string => typeof t === 'string').map(asTopic);
+    if (Array.isArray(parsed))
+      topics = parsed.filter((t): t is string => typeof t === 'string').map(asTopic);
   } catch {
     topics = [];
   }
@@ -39,8 +51,14 @@ function toTags(r: Record<string, unknown>): StoredTags {
   return {
     reviewId: String(r.review_id),
     topics,
-    sentiment: (aiSentiments as readonly string[]).indexOf(sentiment) !== -1 ? (sentiment as AiSentiment) : 'neutral',
-    severity: (aiSeverities as readonly string[]).indexOf(severity) !== -1 ? (severity as AiSeverity) : 'none',
+    sentiment:
+      (aiSentiments as readonly string[]).indexOf(sentiment) !== -1
+        ? (sentiment as AiSentiment)
+        : 'neutral',
+    severity:
+      (aiSeverities as readonly string[]).indexOf(severity) !== -1
+        ? (severity as AiSeverity)
+        : 'none',
     language: r.language === null || r.language === undefined ? null : String(r.language),
     needsReply: Number(r.needs_reply) === 1,
     taskVersion: Number(r.task_version),
@@ -49,11 +67,17 @@ function toTags(r: Record<string, unknown>): StoredTags {
   };
 }
 
-const COLUMNS = 'review_id, task_version, text_hash, topics, sentiment, severity, language, needs_reply, created_at';
+const COLUMNS =
+  'review_id, task_version, text_hash, topics, sentiment, severity, language, needs_reply, created_at';
 const MAX_IDS = 200;
 
 /** The stored tags of the given reviews of an app (at most 200 ids at a time). */
-export async function getReviewTags(sql: Sql, workspaceId: string, appId: string, reviewIds: string[]): Promise<Map<string, StoredTags>> {
+export async function getReviewTags(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  reviewIds: string[],
+): Promise<Map<string, StoredTags>> {
   const out = new Map<string, StoredTags>();
   const ids = [...new Set(reviewIds)].slice(0, MAX_IDS);
   if (ids.length === 0) return out;
@@ -71,10 +95,21 @@ export async function getReviewTags(sql: Sql, workspaceId: string, appId: string
 /** Stores (or replaces) the tags of reviews, with the hash of the text they were made from. */
 export async function saveReviewTags(
   sql: Sql,
-  input: { workspaceId: string; appId: string; taskVersion: number; provider: string; model: string; at: number; items: { tags: AiReviewTags; textHash: string }[] },
+  input: {
+    workspaceId: string;
+    appId: string;
+    taskVersion: number;
+    provider: string;
+    model: string;
+    at: number;
+    items: { tags: AiReviewTags; textHash: string }[];
+  },
 ): Promise<void> {
   for (const { tags, textHash } of input.items) {
-    await sql.execute('DELETE FROM review_classifications WHERE review_id = ? AND workspace_id = ?', [tags.reviewId, input.workspaceId]);
+    await sql.execute(
+      'DELETE FROM review_classifications WHERE review_id = ? AND workspace_id = ?',
+      [tags.reviewId, input.workspaceId],
+    );
     await sql.execute(
       `INSERT INTO review_classifications
          (review_id, workspace_id, app_id, task_version, text_hash, topics, sentiment, severity, language, needs_reply, provider, model, created_at)

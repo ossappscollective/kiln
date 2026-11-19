@@ -1,13 +1,11 @@
 import { type Action, can } from '@mrm/core';
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { Context, Next } from 'hono';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { type TestLimiter, createTestLimiter } from '../services/credential-tests.ts';
+import { createTestLimiter, type TestLimiter } from '../services/credential-tests.ts';
 import {
-  MAX_DELIVERIES_LIMIT,
-  type WebhookContext,
   createWebhook,
   createWebhookBody,
   deleteWebhook,
@@ -15,11 +13,13 @@ import {
   getWebhook,
   listDeliveries,
   listWebhooks,
+  MAX_DELIVERIES_LIMIT,
   redeliver,
   rotateWebhookSecret,
   sendTestEvent,
   updateWebhook,
   updateWebhookBody,
+  type WebhookContext,
 } from '../services/webhooks.ts';
 
 export type WebhookRoutesContext = WebhookContext & {
@@ -49,12 +49,20 @@ export function webhookRoutes(ctx: WebhookRoutesContext) {
   };
   const small = bodyLimit({
     maxSize: WEBHOOK_BODY_LIMIT,
-    onError: (c) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
+    onError: (c) =>
+      c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
   });
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
   const tooMany = (c: Context<AppEnv>, wait: number) => {
     c.header('Retry-After', String(wait));
-    return c.json({ error: 'rate_limited', message: `Too many requests. Try again in ${wait} seconds.`, retryAfterSeconds: wait }, 429);
+    return c.json(
+      {
+        error: 'rate_limited',
+        message: `Too many requests. Try again in ${wait} seconds.`,
+        retryAfterSeconds: wait,
+      },
+      429,
+    );
   };
 
   app.get('/:workspaceId/webhooks', needs('webhooks.read'), async (c) =>
@@ -79,7 +87,11 @@ export function webhookRoutes(ctx: WebhookRoutesContext) {
   app.patch('/:workspaceId/webhooks/:id', needs('webhooks.manage'), small, async (c) => {
     const body = await parseBody(c, updateWebhookBody);
     if (!body.ok) return body.response;
-    const done = await updateWebhook(ctx, { workspaceId: ws(c), id: param(c, 'id'), ...body.data }, actor(c));
+    const done = await updateWebhook(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id'), ...body.data },
+      actor(c),
+    );
     if (!done.ok) return c.json({ error: done.error, message: done.message }, done.status);
     return c.json({ webhook: done.endpoint });
   });
@@ -90,7 +102,11 @@ export function webhookRoutes(ctx: WebhookRoutesContext) {
   });
 
   app.post('/:workspaceId/webhooks/:id/rotate-secret', needs('webhooks.manage'), async (c) => {
-    const done = await rotateWebhookSecret(ctx, { workspaceId: ws(c), id: param(c, 'id') }, actor(c));
+    const done = await rotateWebhookSecret(
+      ctx,
+      { workspaceId: ws(c), id: param(c, 'id') },
+      actor(c),
+    );
     if (!done.ok) return notFound(c);
     c.header('Cache-Control', 'no-store');
     return c.json({ secret: done.secret });
@@ -108,21 +124,37 @@ export function webhookRoutes(ctx: WebhookRoutesContext) {
   app.get('/:workspaceId/webhooks/:id/deliveries', needs('webhooks.read'), async (c) => {
     const limit = queryInt(c.req.query('limit'), { fallback: 20, max: MAX_DELIVERIES_LIMIT });
     if (limit === undefined) {
-      return c.json({ error: 'invalid_request', issues: [{ path: 'limit', message: `Use a whole number from 1 to ${MAX_DELIVERIES_LIMIT}.` }] }, 400);
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [
+            { path: 'limit', message: `Use a whole number from 1 to ${MAX_DELIVERIES_LIMIT}.` },
+          ],
+        },
+        400,
+      );
     }
     if (!(await getWebhook(db, ws(c), param(c, 'id')))) return notFound(c);
     return c.json({ deliveries: await listDeliveries(db, ws(c), param(c, 'id'), limit) });
   });
 
-  app.post('/:workspaceId/webhooks/:id/deliveries/:deliveryId/redeliver', needs('webhooks.manage'), async (c) => {
-    const input = { workspaceId: ws(c), endpointId: param(c, 'id'), deliveryId: param(c, 'deliveryId') };
-    // An unknown endpoint or delivery is a 404 and costs no slot.
-    if (!(await deliveryExists(db, input))) return notFound(c);
-    const wait = limiter.take(ws(c));
-    if (wait > 0) return tooMany(c, wait);
-    const done = await redeliver(ctx, input, actor(c));
-    return done.ok ? c.json({ deliveryId: done.deliveryId }, 202) : notFound(c);
-  });
+  app.post(
+    '/:workspaceId/webhooks/:id/deliveries/:deliveryId/redeliver',
+    needs('webhooks.manage'),
+    async (c) => {
+      const input = {
+        workspaceId: ws(c),
+        endpointId: param(c, 'id'),
+        deliveryId: param(c, 'deliveryId'),
+      };
+      // An unknown endpoint or delivery is a 404 and costs no slot.
+      if (!(await deliveryExists(db, input))) return notFound(c);
+      const wait = limiter.take(ws(c));
+      if (wait > 0) return tooMany(c, wait);
+      const done = await redeliver(ctx, input, actor(c));
+      return done.ok ? c.json({ deliveryId: done.deliveryId }, 202) : notFound(c);
+    },
+  );
 
   return app;
 }

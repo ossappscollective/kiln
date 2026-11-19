@@ -2,67 +2,74 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Listing } from '@mrm/core';
 import { ApiError, messageFor } from './api.ts';
-import type { RepositorySummary } from './types.ts';
 import {
   actorLabel,
+  changelogCodes,
   changeSetActions,
+  changeSetStatuses,
+  changeSetStatusInfo,
+  checkListingRoot,
   checkLocalPathInput,
   choiceButtonLabel,
   choiceNote,
+  collapseDiff,
   connectChoices,
+  connectProblem,
   defaultChoice,
+  detectionPaths,
+  differsOnlyInLineEnds,
+  diffLines,
+  diffStats,
+  emptyListingDescription,
+  emptyTargetForm,
+  fieldUsage,
+  filesChangedLabel,
   githubUrl,
+  listingEdits,
+  listingForChangeSet,
+  listingIsEmpty,
+  listingReadNotice,
+  listingSourceBadge,
   localDisabledNotice,
   localReadSummary,
   localRootsHint,
   localStatusInfo,
-  repositoryName,
-  shortSha,
-  changeSetStatusInfo,
-  changeSetStatuses,
-  changelogCodes,
-  checkListingRoot,
-  collapseDiff,
-  connectProblem,
-  detectionPaths,
-  emptyListingDescription,
-  emptyTargetForm,
-  diffLines,
-  diffStats,
-  differsOnlyInLineEnds,
-  fieldUsage,
-  filesChangedLabel,
-  listingEdits,
-  listingIsEmpty,
-  listingReadNotice,
-  listingSourceBadge,
-  listingForChangeSet,
   parseRepositoryInput,
   platformsSummary,
+  projectKindBadge,
+  projectKindSummary,
+  readField,
+  repositoryName,
   selectionForRequest,
+  shortSha,
   showTargetBar,
+  sourceProblem,
+  splitLines,
+  storeLocales,
+  suggestSummary,
   targetFormFrom,
   targetFormProblems,
   targetInput,
   targetOptionLabel,
   targetRootsSummary,
   targetServerProblems,
-  projectKindBadge,
-  projectKindSummary,
-  readField,
-  sourceProblem,
-  splitLines,
-  storeLocales,
-  suggestSummary,
   writeField,
 } from './repositories.ts';
-import type { ProjectDetection, StoreSource } from './types.ts';
+import type { ProjectDetection, RepositorySummary, StoreSource } from './types.ts';
 
 // ---- connecting -------------------------------------------------------------------------------
 
 test('owner/name is read as it is', () => {
-  assert.deepEqual(parseRepositoryInput('acme/mobile-app'), { ok: true, owner: 'acme', repo: 'mobile-app' });
-  assert.deepEqual(parseRepositoryInput('  acme/app.v2  '), { ok: true, owner: 'acme', repo: 'app.v2' });
+  assert.deepEqual(parseRepositoryInput('acme/mobile-app'), {
+    ok: true,
+    owner: 'acme',
+    repo: 'mobile-app',
+  });
+  assert.deepEqual(parseRepositoryInput('  acme/app.v2  '), {
+    ok: true,
+    owner: 'acme',
+    repo: 'app.v2',
+  });
 });
 
 test('a GitHub address gives its owner and name', () => {
@@ -92,17 +99,27 @@ test('connect refusals land at the right field with what to check', () => {
   assert.match(forbidden.hint ?? '', /installed on acme/);
   assert.match(connectProblem(err('github_auth'), target).hint ?? '', /Credentials screen/);
   assert.match(connectProblem(err('github_not_found'), target).hint ?? '', /private repository/);
-  assert.deepEqual(connectProblem(err('github_unavailable', 'Try later.'), target), { field: 'form', message: 'Try later.' });
+  assert.deepEqual(connectProblem(err('github_unavailable', 'Try later.'), target), {
+    field: 'form',
+    message: 'Try later.',
+  });
 });
 
 test('API messages for repository errors are written for people', () => {
-  assert.equal(messageFor(422, { error: 'github_forbidden', message: 'No access to acme/app.' }), 'No access to acme/app.');
+  assert.equal(
+    messageFor(422, { error: 'github_forbidden', message: 'No access to acme/app.' }),
+    'No access to acme/app.',
+  );
   assert.match(messageFor(422, { error: 'github_forbidden' }), /does not have access/);
   assert.match(messageFor(409, { error: 'already_connected' }), /already connected/);
   assert.match(messageFor(409, { error: 'open_change_sets' }), /open change sets/);
   assert.match(messageFor(409, { error: 'invalid_state' }), /no longer in a state/);
   assert.match(messageFor(429, { error: 'rate_limited' }, 90), /2 minutes/);
-  const conflict = messageFor(409, { error: 'change_conflict', message: 'Files changed.', paths: ['a.txt', 'b.txt'] });
+  const conflict = messageFor(409, {
+    error: 'change_conflict',
+    message: 'Files changed.',
+    paths: ['a.txt', 'b.txt'],
+  });
   assert.match(conflict, /Files changed\. Changed files: a\.txt, b\.txt\./);
   assert.match(conflict, /Discard this change set/);
   const error = new ApiError(422, 'github_not_found', 'GitHub cannot find it.');
@@ -128,8 +145,11 @@ test('project kinds read as badges', () => {
 test('only an admin or owner approves and applies; a member discards only their own draft', () => {
   const mine = { type: 'user', id: 'u1' };
   const theirs = { type: 'user', id: 'u2' };
-  const at = (role: 'owner' | 'admin' | 'member' | 'viewer', status: Parameters<typeof changeSetActions>[0]['status'], by = mine) =>
-    changeSetActions({ role, status, createdBy: by, myId: 'u1' });
+  const at = (
+    role: 'owner' | 'admin' | 'member' | 'viewer',
+    status: Parameters<typeof changeSetActions>[0]['status'],
+    by = mine,
+  ) => changeSetActions({ role, status, createdBy: by, myId: 'u1' });
 
   assert.deepEqual(at('admin', 'draft', theirs), { approve: true, apply: false, discard: true });
   assert.deepEqual(at('owner', 'approved', theirs), { approve: false, apply: true, discard: true });
@@ -155,7 +175,14 @@ test('who did it reads as You, a name, or a kind of actor', () => {
 
 test('usage is counted in the unit the store uses', () => {
   const name = { maxLength: 30, unit: 'characters' as const };
-  assert.deepEqual(fieldUsage(name, 'Hello'), { count: 5, max: 30, unit: 'characters', over: false, under: false, text: '5 / 30 characters' });
+  assert.deepEqual(fieldUsage(name, 'Hello'), {
+    count: 5,
+    max: 30,
+    unit: 'characters',
+    over: false,
+    under: false,
+    text: '5 / 30 characters',
+  });
   assert.equal(fieldUsage(name, 'x'.repeat(31)).over, true);
   assert.equal(fieldUsage(name, 'x'.repeat(30)).over, false);
   // Counted as code points, not UTF-16 units: one emoji is one character.
@@ -248,7 +275,9 @@ test('a Play edit sends the whole Play listing including release notes', () => {
   const edited = writeField(original, 'google_play', 'en-US', 'changelog/12', 'Better');
   const listing = listingForChangeSet(original, edited);
   assert.equal(listing.appStore, undefined);
-  assert.deepEqual(listing.googlePlay?.changelogs, { 'en-US': { '12': 'Better', default: 'Notes', '103': 'More fixes' } });
+  assert.deepEqual(listing.googlePlay?.changelogs, {
+    'en-US': { '12': 'Better', default: 'Notes', '103': 'More fixes' },
+  });
 });
 
 test('the suggested summary names the count and the locales', () => {
@@ -258,8 +287,14 @@ test('the suggested summary names the count and the locales', () => {
   assert.equal(suggestSummary(one), 'Update 1 listing field in de');
   let edited = writeField(original, 'app_store', 'de', 'name', 'Neu');
   edited = writeField(edited, 'app_store', 'en-US', 'name', 'New');
-  assert.equal(suggestSummary(listingEdits(original, edited)), 'Update 2 listing fields in de, en-US');
-  const copyright = listingEdits(original, writeField(original, 'app_store', undefined, 'copyright', 'x'));
+  assert.equal(
+    suggestSummary(listingEdits(original, edited)),
+    'Update 2 listing fields in de, en-US',
+  );
+  const copyright = listingEdits(
+    original,
+    writeField(original, 'app_store', undefined, 'copyright', 'x'),
+  );
   assert.equal(suggestSummary(copyright), 'Update 1 listing field');
 });
 
@@ -358,7 +393,11 @@ const detection = (over: Partial<ProjectDetection> = {}): ProjectDetection => ({
   platforms: ['ios'],
   platformsInferred: ['android'],
   locales: { ios: ['en-US'], android: [] },
-  paths: { fastlaneDirs: ['fastlane'], fastfiles: ['fastlane/Fastfile'], iosMetadata: 'fastlane/metadata' },
+  paths: {
+    fastlaneDirs: ['fastlane'],
+    fastfiles: ['fastlane/Fastfile'],
+    iosMetadata: 'fastlane/metadata',
+  },
   evidence: [],
   warnings: [],
   ...over,
@@ -375,8 +414,14 @@ test('the scan shows only the paths it found', () => {
 
 test('platforms read as a sentence, with guesses marked', () => {
   assert.equal(platformsSummary(detection()), 'iOS and Android (likely)');
-  assert.equal(platformsSummary(detection({ platforms: ['ios', 'android'], platformsInferred: [] })), 'iOS and Android');
-  assert.equal(platformsSummary(detection({ platforms: ['android'], platformsInferred: [] })), 'Android');
+  assert.equal(
+    platformsSummary(detection({ platforms: ['ios', 'android'], platformsInferred: [] })),
+    'iOS and Android',
+  );
+  assert.equal(
+    platformsSummary(detection({ platforms: ['android'], platformsInferred: [] })),
+    'Android',
+  );
   assert.equal(platformsSummary(detection({ platforms: [], platformsInferred: [] })), 'None found');
 });
 
@@ -394,26 +439,45 @@ const source = (over: Partial<StoreSource> = {}): StoreSource => ({
 
 test('only a member and up reads the listing; a viewer gets a message, not a request', () => {
   assert.equal(listingReadNotice('viewer')?.includes('member'), true);
-  for (const role of ['member', 'admin', 'owner'] as const) assert.equal(listingReadNotice(role), null, role);
+  for (const role of ['member', 'admin', 'owner'] as const)
+    assert.equal(listingReadNotice(role), null, role);
 });
 
 test('the source badge names the Expo store config or fastlane', () => {
-  assert.deepEqual(listingSourceBadge('expo-store-config'), { label: 'Expo store config', tone: 'accent' });
+  assert.deepEqual(listingSourceBadge('expo-store-config'), {
+    label: 'Expo store config',
+    tone: 'accent',
+  });
   assert.equal(listingSourceBadge('fastlane').label, 'Fastlane');
 });
 
 test('a source that cannot be read is explained', () => {
-  const broken = source({ source: 'expo-store-config', path: 'store.config.json', error: 'store.config.json is not valid JSON: x' });
+  const broken = source({
+    source: 'expo-store-config',
+    path: 'store.config.json',
+    error: 'store.config.json is not valid JSON: x',
+  });
   assert.match(sourceProblem(broken) ?? '', /not valid JSON.*fixed in the repository/);
   assert.equal(sourceProblem(source()), null);
 });
 
 test('the listing is empty only when nothing was found and nothing is broken', () => {
   const none = { found: { appStore: false, googlePlay: false } };
-  const sources = { appStore: source(), googlePlay: source({ path: 'fastlane/metadata/android', found: false }) };
+  const sources = {
+    appStore: source(),
+    googlePlay: source({ path: 'fastlane/metadata/android', found: false }),
+  };
   assert.equal(listingIsEmpty({ ...none, sources }), true);
   assert.equal(listingIsEmpty({ found: { appStore: true, googlePlay: false }, sources }), false);
-  const broken = { ...sources, appStore: source({ source: 'expo-store-config', path: 'store.config.json', found: false, error: 'bad' }) };
+  const broken = {
+    ...sources,
+    appStore: source({
+      source: 'expo-store-config',
+      path: 'store.config.json',
+      found: false,
+      error: 'bad',
+    }),
+  };
   assert.equal(listingIsEmpty({ ...none, sources: broken }), false);
 });
 
@@ -440,7 +504,19 @@ test('a listing folder follows the repository path rules', () => {
   for (const ok of ['fastlane/metadata/ios', './fastlane/metadata/', 'metadata', 'a b/c.d']) {
     assert.equal(checkListingRoot(ok), undefined, ok);
   }
-  for (const bad of ['', '  ', '/etc', '../x', 'a/../b', 'a//b', 'a\\b', '.git/hooks', 'x/.GIT/y', 'a/./b', 'x'.repeat(301)]) {
+  for (const bad of [
+    '',
+    '  ',
+    '/etc',
+    '../x',
+    'a/../b',
+    'a//b',
+    'a\\b',
+    '.git/hooks',
+    'x/.GIT/y',
+    'a/./b',
+    'x'.repeat(301),
+  ]) {
     assert.notEqual(checkListingRoot(bad), undefined, JSON.stringify(bad));
   }
 });
@@ -452,23 +528,43 @@ test('the target form needs a name and at least one valid folder', () => {
   assert.ok(targetFormProblems({ ...form, appStoreRoot: '../x' }).appStoreRoot);
   assert.ok(targetFormProblems({ ...form, googlePlayRoot: '/abs' }).googlePlayRoot);
   assert.ok(targetFormProblems({ ...emptyTargetForm(), name: 'x' }).roots);
-  assert.deepEqual(targetInput({ name: ' Cards ', appId: ' ', appStoreRoot: ' a/ios ', googlePlayRoot: '' }), {
-    name: 'Cards',
-    appId: null,
-    appStoreRoot: 'a/ios',
-    googlePlayRoot: null,
-  });
   assert.deepEqual(
-    targetFormFrom({ label: 'Cards', app: null, roots: { appStore: null, googlePlay: 'a/android' } }),
+    targetInput({ name: ' Cards ', appId: ' ', appStoreRoot: ' a/ios ', googlePlayRoot: '' }),
+    {
+      name: 'Cards',
+      appId: null,
+      appStoreRoot: 'a/ios',
+      googlePlayRoot: null,
+    },
+  );
+  assert.deepEqual(
+    targetFormFrom({
+      label: 'Cards',
+      app: null,
+      roots: { appStore: null, googlePlay: 'a/android' },
+    }),
     { name: 'Cards', appId: '', appStoreRoot: '', googlePlayRoot: 'a/android' },
   );
 });
 
 test('a refused save is shown at the field it is about', () => {
-  const refused = (code: string, body: Record<string, unknown> = {}, message = 'm') => ({ code, message, body });
-  assert.deepEqual(targetServerProblems(refused('duplicate_name', {}, 'Taken.')), { name: 'Taken.' });
+  const refused = (code: string, body: Record<string, unknown> = {}, message = 'm') => ({
+    code,
+    message,
+    body,
+  });
+  assert.deepEqual(targetServerProblems(refused('duplicate_name', {}, 'Taken.')), {
+    name: 'Taken.',
+  });
   assert.deepEqual(
-    targetServerProblems(refused('invalid_target', { problems: [{ field: 'appStoreRoot', message: 'No ..' }, { field: 'name', message: 'Name?' }] })),
+    targetServerProblems(
+      refused('invalid_target', {
+        problems: [
+          { field: 'appStoreRoot', message: 'No ..' },
+          { field: 'name', message: 'Name?' },
+        ],
+      }),
+    ),
     { appStoreRoot: 'No ..', name: 'Name?' },
   );
   assert.deepEqual(targetServerProblems(refused('boom')), {});
@@ -477,25 +573,68 @@ test('a refused save is shown at the field it is about', () => {
 test('targets are labelled and summarized for the selector', () => {
   assert.equal(targetOptionLabel({ label: 'com.x', origin: 'detected' }), 'com.x');
   assert.equal(targetOptionLabel({ label: 'Mine', origin: 'custom' }), 'Mine (custom)');
-  assert.equal(targetRootsSummary({ appStore: 'a/ios', googlePlay: 'a/android' }), 'App Store: a/ios · Google Play: a/android');
-  assert.equal(targetRootsSummary({ appStore: null, googlePlay: 'a/android' }), 'Google Play: a/android');
+  assert.equal(
+    targetRootsSummary({ appStore: 'a/ios', googlePlay: 'a/android' }),
+    'App Store: a/ios · Google Play: a/android',
+  );
+  assert.equal(
+    targetRootsSummary({ appStore: null, googlePlay: 'a/android' }),
+    'Google Play: a/android',
+  );
   assert.equal(targetRootsSummary({ appStore: null, googlePlay: null }), 'no folders');
 });
 
 test('the target bar shows for several targets, a saved one, chosen folders, or a person who may add one', () => {
-  const one = { targets: [{ id: 'auto:default', origin: 'detected' as const, label: 'Default', app: null, roots: { appStore: 'a', googlePlay: null } }] };
-  assert.equal(showTargetBar({ ...one, selected: { id: 'auto:default', origin: 'default', label: 'Default' } }, false), false);
-  assert.equal(showTargetBar({ ...one, selected: { id: 'auto:default', origin: 'default', label: 'Default' } }, true), true);
+  const one = {
+    targets: [
+      {
+        id: 'auto:default',
+        origin: 'detected' as const,
+        label: 'Default',
+        app: null,
+        roots: { appStore: 'a', googlePlay: null },
+      },
+    ],
+  };
+  assert.equal(
+    showTargetBar(
+      { ...one, selected: { id: 'auto:default', origin: 'default', label: 'Default' } },
+      false,
+    ),
+    false,
+  );
+  assert.equal(
+    showTargetBar(
+      { ...one, selected: { id: 'auto:default', origin: 'default', label: 'Default' } },
+      true,
+    ),
+    true,
+  );
   assert.equal(showTargetBar({ targets: [...one.targets, ...one.targets] }, false), true);
-  assert.equal(showTargetBar({ ...one, selected: { id: null, origin: 'folders', label: 'Chosen folders' } }, false), true);
+  assert.equal(
+    showTargetBar(
+      { ...one, selected: { id: null, origin: 'folders', label: 'Chosen folders' } },
+      false,
+    ),
+    true,
+  );
   assert.equal(showTargetBar({}, false), false);
 });
 
 test('a change set is made in the target that was read, or in the folders that were chosen', () => {
   const roots = { appStore: 'a/ios', googlePlay: '' };
-  assert.deepEqual(selectionForRequest({ roots, selected: { id: 'auto:app:x', origin: 'detected', label: 'x' } }), { target: 'auto:app:x' });
-  assert.deepEqual(selectionForRequest({ roots, selected: { id: 'abc', origin: 'custom', label: 'x' } }), { target: 'abc' });
-  assert.deepEqual(selectionForRequest({ roots, selected: { id: null, origin: 'folders', label: 'x' } }), { roots });
+  assert.deepEqual(
+    selectionForRequest({ roots, selected: { id: 'auto:app:x', origin: 'detected', label: 'x' } }),
+    { target: 'auto:app:x' },
+  );
+  assert.deepEqual(
+    selectionForRequest({ roots, selected: { id: 'abc', origin: 'custom', label: 'x' } }),
+    { target: 'abc' },
+  );
+  assert.deepEqual(
+    selectionForRequest({ roots, selected: { id: null, origin: 'folders', label: 'x' } }),
+    { roots },
+  );
   assert.deepEqual(selectionForRequest({ roots }), { roots });
 });
 
@@ -505,14 +644,32 @@ test('a scan with several apps lists each one with its folders', () => {
     listing: {
       candidates: [],
       targets: [
-        { key: 'app:a', label: 'a', app: 'a', roots: { appStore: 'm/a/ios', googlePlay: 'm/a/android' } },
-        { key: 'app:b', label: 'b', app: 'b', roots: { appStore: null, googlePlay: 'm/b/android' } },
+        {
+          key: 'app:a',
+          label: 'a',
+          app: 'a',
+          roots: { appStore: 'm/a/ios', googlePlay: 'm/a/android' },
+        },
+        {
+          key: 'app:b',
+          label: 'b',
+          app: 'b',
+          roots: { appStore: null, googlePlay: 'm/b/android' },
+        },
       ],
     },
   } as unknown as ProjectDetection;
   const row = detectionPaths(detection).find((r) => r.label === 'Listing targets');
-  assert.deepEqual(row?.values, ['a: App Store: m/a/ios · Google Play: m/a/android', 'b: Google Play: m/b/android']);
-  assert.equal(detectionPaths({ ...detection, listing: undefined } as ProjectDetection).some((r) => r.label === 'Listing targets'), false);
+  assert.deepEqual(row?.values, [
+    'a: App Store: m/a/ios · Google Play: m/a/android',
+    'b: Google Play: m/b/android',
+  ]);
+  assert.equal(
+    detectionPaths({ ...detection, listing: undefined } as ProjectDetection).some(
+      (r) => r.label === 'Listing targets',
+    ),
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -533,7 +690,15 @@ const repo = (over: Partial<RepositorySummary> = {}): RepositorySummary => ({
   ...over,
 });
 const localOnly = (over: Partial<RepositorySummary> = {}) =>
-  repo({ id: 'l1', credentialId: null, owner: null, repo: null, name: 'oss-weather', localOnly: true, ...over });
+  repo({
+    id: 'l1',
+    credentialId: null,
+    owner: null,
+    repo: null,
+    name: 'oss-weather',
+    localOnly: true,
+    ...over,
+  });
 const checked = (over: Partial<Parameters<typeof connectChoices>[0]> = {}) => ({
   realPath: '/Volumes/dev/nativescript/oss-weather',
   remote: { host: 'github.com', owner: 'acme', repo: 'app', github: true },
@@ -549,7 +714,12 @@ test('a local-only repository is named by its folder and has no GitHub address t
 });
 
 test('apply is offered to an admin for an approved change set, for any repository: the dialog says what is possible', () => {
-  const base = { role: 'admin', status: 'approved', createdBy: { type: 'user', id: 'u2' }, myId: 'u1' } as const;
+  const base = {
+    role: 'admin',
+    status: 'approved',
+    createdBy: { type: 'user', id: 'u2' },
+    myId: 'u1',
+  } as const;
   assert.deepEqual(changeSetActions(base), { approve: false, apply: true, discard: true });
   assert.equal(changeSetActions({ ...base, role: 'member' }).apply, false);
   assert.equal(changeSetActions({ ...base, status: 'draft' }).apply, false);
@@ -557,9 +727,22 @@ test('apply is offered to an admin for an approved change set, for any repositor
 });
 
 test('a folder path is checked as text before it is sent: absolute, no .., no control characters', () => {
-  assert.deepEqual(checkLocalPathInput('  /Volumes/dev/nativescript/oss-weather \n'), { ok: true, path: '/Volumes/dev/nativescript/oss-weather' });
+  assert.deepEqual(checkLocalPathInput('  /Volumes/dev/nativescript/oss-weather \n'), {
+    ok: true,
+    path: '/Volumes/dev/nativescript/oss-weather',
+  });
   assert.deepEqual(checkLocalPathInput('C:\\code\\app'), { ok: true, path: 'C:\\code\\app' });
-  for (const bad of ['', '   ', 'dev/app', '~/dev/app', './app', '/a/../b', '/a/..', '/a\u0000b', `/${'x'.repeat(4100)}`]) {
+  for (const bad of [
+    '',
+    '   ',
+    'dev/app',
+    '~/dev/app',
+    './app',
+    '/a/../b',
+    '/a/..',
+    '/a\u0000b',
+    `/${'x'.repeat(4100)}`,
+  ]) {
     assert.equal(checkLocalPathInput(bad).ok, false, JSON.stringify(bad).slice(0, 30));
   }
   assert.match((checkLocalPathInput('~/x') as { message: string }).message, /absolute/);
@@ -581,19 +764,43 @@ test('the read summary says which commit and branch are read and what is left ou
     localReadSummary({ branch: 'main', sha, checkedOutBranch: 'main', dirtyCount: 0 }),
     'Reads commit abc1234 on branch main. The folder has no uncommitted changes.',
   );
-  assert.match(localReadSummary({ branch: 'main', sha, checkedOutBranch: 'dev', dirtyCount: 3 }), /has dev checked out; only committed work on main is read/);
-  assert.match(localReadSummary({ branch: 'main', sha, checkedOutBranch: null, dirtyCount: 3 }), /detached HEAD/);
+  assert.match(
+    localReadSummary({ branch: 'main', sha, checkedOutBranch: 'dev', dirtyCount: 3 }),
+    /has dev checked out; only committed work on main is read/,
+  );
+  assert.match(
+    localReadSummary({ branch: 'main', sha, checkedOutBranch: null, dirtyCount: 3 }),
+    /detached HEAD/,
+  );
   assert.match(localReadSummary({ branch: 'main', sha, dirtyCount: null }), /could not be counted/);
-  assert.equal(localReadSummary({ branch: 'main', sha: null }), 'Reads the latest commit on branch main. Uncommitted changes in the folder are never read.');
+  assert.equal(
+    localReadSummary({ branch: 'main', sha: null }),
+    'Reads the latest commit on branch main. Uncommitted changes in the folder are never read.',
+  );
 });
 
 test('the disabled notice names the setting and its value, or says why else', () => {
-  const off = localDisabledNotice({ enabled: false, envName: 'MRM_LOCAL_REPO_ROOTS', reason: 'no_roots' });
+  const off = localDisabledNotice({
+    enabled: false,
+    envName: 'MRM_LOCAL_REPO_ROOTS',
+    reason: 'no_roots',
+  });
   assert.equal(off.title, 'Local clones are not enabled');
   assert.match(off.body, /MRM_LOCAL_REPO_ROOTS=\/Volumes\/dev/);
   assert.equal(off.envName, 'MRM_LOCAL_REPO_ROOTS');
-  assert.match(localDisabledNotice({ enabled: false, envName: 'X', reason: 'reads_api' }).title, /MRM_READS=api/);
-  assert.match(localDisabledNotice({ enabled: false, envName: 'X', reason: 'git_missing', message: 'Install git.' }).body, /Install git/);
+  assert.match(
+    localDisabledNotice({ enabled: false, envName: 'X', reason: 'reads_api' }).title,
+    /MRM_READS=api/,
+  );
+  assert.match(
+    localDisabledNotice({
+      enabled: false,
+      envName: 'X',
+      reason: 'git_missing',
+      message: 'Install git.',
+    }).body,
+    /Install git/,
+  );
   assert.match(localRootsHint({ roots: ['/Volumes/dev'] }), /the allowed folder: \/Volumes\/dev/);
   assert.match(localRootsHint({ roots: ['/a', '/b'] }), /one of the allowed folders: \/a, \/b/);
   assert.match(localRootsHint(null), /allowed folder/);
@@ -601,7 +808,13 @@ test('the disabled notice names the setting and its value, or says why else', ()
 
 test('the status of a stored folder is a label and a tone, never colour alone', () => {
   assert.deepEqual(localStatusInfo('ok'), { label: 'Readable', tone: 'ok', ok: true });
-  for (const status of ['not_found', 'outside_roots', 'not_a_repository', 'git_missing', 'data_folder'] as const) {
+  for (const status of [
+    'not_found',
+    'outside_roots',
+    'not_a_repository',
+    'git_missing',
+    'data_folder',
+  ] as const) {
     const info = localStatusInfo(status);
     assert.equal(info.ok, false);
     assert.ok(info.label.length > 3);
@@ -625,8 +838,14 @@ test('a checked folder is offered to the repository its origin names first, then
   assert.equal(defaultChoice(choices)?.id, 'attach:r1');
   assert.equal(choiceButtonLabel(first), 'Attach to acme/app');
   assert.equal(choiceButtonLabel(choices[2]), 'Connect as local-only repository');
-  assert.match(choiceNote(first as never, checked().remote) ?? '', /origin points at this repository/);
-  assert.match(choiceNote(second as never, checked().remote) ?? '', /acme\/app, a different repository/);
+  assert.match(
+    choiceNote(first as never, checked().remote) ?? '',
+    /origin points at this repository/,
+  );
+  assert.match(
+    choiceNote(second as never, checked().remote) ?? '',
+    /acme\/app, a different repository/,
+  );
   assert.match(choiceNote(choices[2] as never, null) ?? '', /Pull requests are not available/);
 });
 
@@ -636,9 +855,15 @@ test('without a matching origin nothing is confirmed and local-only is the defau
   assert.equal(defaultChoice(noOrigin)?.id, 'local-only');
   const first = noOrigin[0];
   assert.ok(first?.kind === 'attach' && !first.needsConfirm && !first.recommended);
-  const gitlab = connectChoices(checked({ remote: { host: 'gitlab.com', owner: 'acme', repo: 'app', github: false } }), [app]);
+  const gitlab = connectChoices(
+    checked({ remote: { host: 'gitlab.com', owner: 'acme', repo: 'app', github: false } }),
+    [app],
+  );
   assert.ok(gitlab[0]?.kind === 'attach' && !gitlab[0].needsConfirm);
-  const upper = connectChoices(checked({ remote: { host: 'github.com', owner: 'ACME', repo: 'App', github: true } }), [app]);
+  const upper = connectChoices(
+    checked({ remote: { host: 'github.com', owner: 'ACME', repo: 'App', github: true } }),
+    [app],
+  );
   assert.ok(upper[0]?.kind === 'attach' && upper[0].recommended);
   assert.equal(defaultChoice([]), undefined);
   assert.equal(choiceButtonLabel(undefined), 'Choose what to do');
@@ -647,13 +872,31 @@ test('without a matching origin nothing is confirmed and local-only is the defau
 test('a folder that is already used offers nothing, except to the repository that has it', () => {
   const existing = { id: 'r1', name: 'acme/app', localOnly: false };
   assert.deepEqual(connectChoices(checked({ existing }), [repo()]), []);
-  const own = repo({ local: { path: '/Volumes/dev/nativescript/oss-weather', branch: 'main', name: 'x', headSha: null, lastReadAt: null, status: 'ok' } });
+  const own = repo({
+    local: {
+      path: '/Volumes/dev/nativescript/oss-weather',
+      branch: 'main',
+      name: 'x',
+      headSha: null,
+      lastReadAt: null,
+      status: 'ok',
+    },
+  });
   assert.equal(connectChoices(checked({ existing }), [own], own).length, 1);
   assert.deepEqual(connectChoices(checked({ existing }), [own], repo({ id: 'r9' })), []);
 });
 
 test('attaching from a repository’s own page offers only that repository, and says what it replaces', () => {
-  const withLocal = repo({ local: { path: '/Volumes/dev/old', branch: 'main', name: 'old', headSha: null, lastReadAt: null, status: 'ok' } });
+  const withLocal = repo({
+    local: {
+      path: '/Volumes/dev/old',
+      branch: 'main',
+      name: 'old',
+      headSha: null,
+      lastReadAt: null,
+      status: 'ok',
+    },
+  });
   const choices = connectChoices(checked(), [repo(), localOnly()], withLocal);
   assert.equal(choices.length, 1);
   const only = choices[0];
@@ -661,16 +904,40 @@ test('attaching from a repository’s own page offers only that repository, and 
   assert.equal(only.replaces, '/Volumes/dev/old');
   assert.match(choiceNote(only, null) ?? '', /Replaces its current local clone/);
   // A local-only repository is never a target.
-  assert.deepEqual(connectChoices(checked(), [localOnly()]).map((c) => c.id), ['local-only']);
+  assert.deepEqual(
+    connectChoices(checked(), [localOnly()]).map((c) => c.id),
+    ['local-only'],
+  );
 });
 
 test('the local clone error codes read as the server’s own message', () => {
   const m = (code: string, message: string) => messageFor(422, { error: code, message });
-  assert.equal(m('local_outside_roots', 'Not inside an allowed folder.'), 'Not inside an allowed folder.');
-  assert.equal(m('local_not_enabled', 'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev'), 'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev');
-  assert.match(messageFor(409, { error: 'local_only', message: 'Applying is not available yet.' }), /not available yet/);
-  assert.match(messageFor(409, { error: 'remote_mismatch', message: 'origin is acme/other' }), /origin is acme\/other/);
-  assert.equal(messageFor(409, { error: 'already_connected', message: 'That folder is already connected as x.' }), 'That folder is already connected as x.');
-  assert.equal(messageFor(409, { error: 'already_connected', message: 'acme/app is already connected.' }), 'That repository is already connected to this workspace.');
+  assert.equal(
+    m('local_outside_roots', 'Not inside an allowed folder.'),
+    'Not inside an allowed folder.',
+  );
+  assert.equal(
+    m('local_not_enabled', 'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev'),
+    'Set MRM_LOCAL_REPO_ROOTS=/Volumes/dev',
+  );
+  assert.match(
+    messageFor(409, { error: 'local_only', message: 'Applying is not available yet.' }),
+    /not available yet/,
+  );
+  assert.match(
+    messageFor(409, { error: 'remote_mismatch', message: 'origin is acme/other' }),
+    /origin is acme\/other/,
+  );
+  assert.equal(
+    messageFor(409, {
+      error: 'already_connected',
+      message: 'That folder is already connected as x.',
+    }),
+    'That folder is already connected as x.',
+  );
+  assert.equal(
+    messageFor(409, { error: 'already_connected', message: 'acme/app is already connected.' }),
+    'That repository is already connected to this workspace.',
+  );
   assert.match(messageFor(409, { error: 'local_only' }), /request failed|local/i);
 });

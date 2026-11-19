@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import type { ActorType, Listing, ListingProblem } from '@mrm/core';
-import { validateListing } from '@mrm/core';
 import {
   detectProject,
   GithubError,
@@ -11,13 +9,22 @@ import {
   type ListingDiagnostics,
   type ListingSnapshot,
   type ProjectDetection,
-  PullRequestFailedError,
+  type PullRequestFailedError,
   type RepoConnector,
   redactSecrets,
   secretStrings,
 } from '@mrm/connectors';
+import type { ActorType, Listing, ListingProblem } from '@mrm/core';
+import { validateListing } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
+import {
+  type CloneReads,
+  isCloneBacked,
+  LocalReadError,
+  type ReadFallback,
+  withCloneReads,
+} from './clone-reads.ts';
 import { useCredentialSecret } from './credentials.ts';
 import {
   type DetectedSources,
@@ -37,19 +44,12 @@ import {
   resolveSelection,
 } from './listing-targets.ts';
 import {
-  type CloneReads,
-  isCloneBacked,
-  LocalReadError,
-  type ReadFallback,
-  withCloneReads,
-} from './clone-reads.ts';
-import {
   LOCAL_ONLY_APPLY_MESSAGE,
-  type LocalWriteConfig,
   LOCAL_ONLY_MESSAGE,
+  type LocalStatus,
+  type LocalWriteConfig,
   localAvailability,
   localCloneId,
-  type LocalStatus,
   localStatus,
   openLocalConnector,
 } from './local-reads.ts';
@@ -317,7 +317,11 @@ export async function repositoryView(
     repo: repository.localOnly ? null : repo,
     local:
       local && state
-        ? { ...local, status: state.status, ...(state.message ? { statusMessage: state.message } : {}) }
+        ? {
+            ...local,
+            status: state.status,
+            ...(state.message ? { statusMessage: state.message } : {}),
+          }
         : null,
   };
 }
@@ -349,7 +353,11 @@ export async function getDetection(
 // ---------------------------------------------------------------------------------------------
 // Opening a connector from a stored credential
 
-export type Opened = { connector: RepoClient; secret: string; kind?: 'github_app' | 'github_token' };
+export type Opened = {
+  connector: RepoClient;
+  secret: string;
+  kind?: 'github_app' | 'github_token';
+};
 
 /**
  * The purposes whose reads may come from a clone. Everything else (connecting, applying a change
@@ -436,10 +444,10 @@ export async function openConnector(
       purpose === 'changeset.apply' ? LOCAL_ONLY_APPLY_MESSAGE : LOCAL_ONLY_MESSAGE,
     );
   }
-  const [cred] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
-    input.credentialId,
-    input.workspaceId,
-  ]);
+  const [cred] = await ctx.db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [input.credentialId, input.workspaceId],
+  );
   if (!cred) {
     return failure(
       422,
@@ -471,7 +479,8 @@ export async function openConnector(
       'The credential could not be decrypted. Enter its secret again.',
     );
   }
-  if (secret === undefined) return failure(422, 'credential_not_found', 'That credential does not exist.');
+  if (secret === undefined)
+    return failure(422, 'credential_not_found', 'That credential does not exist.');
   try {
     const api = ctx.connectorFactory(kind, secret, { owner: input.owner, repo: input.repo });
     const { repository, workspaceId } = input;
@@ -506,17 +515,12 @@ export async function openConnector(
     } catch (error) {
       // The clone could not even be set up. `auto` reads this request through the API.
       if (!reads.fallback) return githubFailure(error, secret);
-      await noteFallback(
-        ctx,
-        where,
-        actor,
-        {
-          operation: 'open',
-          kind: error instanceof GithubError ? error.kind : 'error',
-          reason: null,
-          message: error instanceof Error ? error.message : 'unknown error',
-        },
-      );
+      await noteFallback(ctx, where, actor, {
+        operation: 'open',
+        kind: error instanceof GithubError ? error.kind : 'error',
+        reason: null,
+        message: error instanceof Error ? error.message : 'unknown error',
+      });
       return { ok: true, connector: api, secret };
     }
   } catch (error) {
@@ -528,7 +532,11 @@ export async function openConnector(
 const recordedCommits = new Map<string, { sha: string; at: number }>();
 const RECORD_EVERY_MS = 60_000;
 
-function commitRecorder(ctx: RepoContext, workspaceId: string, repository: Repository): (sha: string) => Promise<void> {
+function commitRecorder(
+  ctx: RepoContext,
+  workspaceId: string,
+  repository: Repository,
+): (sha: string) => Promise<void> {
   return async (sha) => {
     const now = ctx.now();
     const seen = recordedCommits.get(repository.id);
@@ -546,7 +554,11 @@ function commitRecorder(ctx: RepoContext, workspaceId: string, repository: Repos
 }
 
 /** Reads from the repository's local folder: no credential, no GitHub, nothing but committed content. */
-async function openLocalFor(ctx: RepoContext, workspaceId: string, r: Repository): Promise<Outcome<Opened>> {
+async function openLocalFor(
+  ctx: RepoContext,
+  workspaceId: string,
+  r: Repository,
+): Promise<Outcome<Opened>> {
   if (!r.local) return failure(409, 'local_only', LOCAL_ONLY_MESSAGE);
   if (!ctx.reads) {
     const off = localAvailability(undefined);
@@ -577,11 +589,19 @@ const openFor = async (
   actor: Actor,
   purpose: string,
 ): Promise<Outcome<Opened>> => {
-  if (CLONE_READ_PURPOSES.has(purpose) && r.local && (r.localOnly || localAvailability(ctx.reads).enabled)) {
+  if (
+    CLONE_READ_PURPOSES.has(purpose) &&
+    r.local &&
+    (r.localOnly || localAvailability(ctx.reads).enabled)
+  ) {
     return openLocalFor(ctx, ws, r);
   }
   if (r.localOnly) {
-    return failure(409, 'local_only', purpose === 'changeset.apply' ? LOCAL_ONLY_APPLY_MESSAGE : LOCAL_ONLY_MESSAGE);
+    return failure(
+      409,
+      'local_only',
+      purpose === 'changeset.apply' ? LOCAL_ONLY_APPLY_MESSAGE : LOCAL_ONLY_MESSAGE,
+    );
   }
   return openConnector(
     ctx,
@@ -727,7 +747,11 @@ async function disconnect(
       action: 'repository.disconnect',
       target: { type: 'repository', id: input.id },
       detail: repository.localOnly
-        ? { localOnly: true, name: repository.name, ...(repository.local ? { path: repository.local.path } : {}) }
+        ? {
+            localOnly: true,
+            name: repository.name,
+            ...(repository.local ? { path: repository.local.path } : {}),
+          }
         : { owner: repository.owner, repo: repository.repo },
       at: ctx.now(),
     });
@@ -739,10 +763,15 @@ async function disconnect(
 // Scan and listing
 
 /** Where a scan read from, for the audit row: `clone`, or `api_fallback` with what failed. */
-function readsDetail(connector: { reads: { fallbacks: ReadFallback[]; origin?: 'local' } }): Record<string, unknown> {
+function readsDetail(connector: {
+  reads: { fallbacks: ReadFallback[]; origin?: 'local' };
+}): Record<string, unknown> {
   const [first] = connector.reads.fallbacks;
   return first
-    ? { reads: 'api_fallback', fallback: { operation: first.operation, kind: first.kind, reason: first.reason } }
+    ? {
+        reads: 'api_fallback',
+        fallback: { operation: first.operation, kind: first.kind, reason: first.reason },
+      }
     : { reads: connector.reads.origin ?? 'clone' };
 }
 
@@ -957,7 +986,9 @@ export function selectedTarget(
 ): SelectedTarget {
   const rootsGiven = selection?.roots !== undefined && Object.keys(selection.roots).length > 0;
   if (custom && !rootsGiven) return { id: custom.id, origin: 'custom', label: custom.name };
-  const auto = selection?.target?.startsWith('auto:') ? views.find((v) => v.id === selection.target) : undefined;
+  const auto = selection?.target?.startsWith('auto:')
+    ? views.find((v) => v.id === selection.target)
+    : undefined;
   if (auto && !rootsGiven) return { id: auto.id, origin: 'detected', label: auto.label };
   if (rootsGiven || custom) return { id: null, origin: 'folders', label: 'Chosen folders' };
   const same = views.find(

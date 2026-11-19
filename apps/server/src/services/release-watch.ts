@@ -1,4 +1,4 @@
-import { HOUR_MS, MAX_STALLED_AFTER_HOURS, evaluatePipeline } from '@mrm/core';
+import { evaluatePipeline, HOUR_MS, MAX_STALLED_AFTER_HOURS } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
@@ -63,10 +63,16 @@ type StallReminder = {
   repeat: boolean;
 };
 
-const idOf = (evidence: StallReminder['evidence'], kind: string) => evidence.find((e) => e.kind === kind)?.id ?? null;
+const idOf = (evidence: StallReminder['evidence'], kind: string) =>
+  evidence.find((e) => e.kind === kind)?.id ?? null;
 
 /** Sends one stall reminder. Returns false when another run already did (the compare-and-swap lost). */
-async function sendStall(db: Database, r: StallReminder, existing: Row | undefined, at: number): Promise<boolean> {
+async function sendStall(
+  db: Database,
+  r: StallReminder,
+  existing: Row | undefined,
+  at: number,
+): Promise<boolean> {
   return db.transaction(async (tx) => {
     let sentCount = 1;
     if (existing === undefined) {
@@ -125,21 +131,37 @@ async function sendStall(db: Database, r: StallReminder, existing: Row | undefin
       actor: RELEASE_WATCH_ACTOR,
       action: 'release.reminder',
       target: { type: 'app', id: r.appId },
-      detail: { platform: r.platform, step: r.step, episode: r.key, repeat: r.repeat, sentCount, event: 'release.stalled' },
+      detail: {
+        platform: r.platform,
+        step: r.step,
+        episode: r.key,
+        repeat: r.repeat,
+        sentCount,
+        event: 'release.stalled',
+      },
       at,
     });
     return true;
   });
 }
 
-async function stallRound(db: Database, workspaceId: string, at: number, summary: ReleaseWatchSummary, room: () => number, report: NonNullable<ReleaseWatchOptions['onError']>) {
+async function stallRound(
+  db: Database,
+  workspaceId: string,
+  at: number,
+  summary: ReleaseWatchSummary,
+  room: () => number,
+  report: NonNullable<ReleaseWatchOptions['onError']>,
+) {
   const loaded = await loadPipelineFacts(db, { workspaceId, now: at });
   const { stalledAfterHours, stalledRepeatHours } = loaded.settings;
   const rows = await db.query(
     'SELECT app_id, platform, episode_key, step, first_sent_at, last_sent_at, sent_count FROM release_stall_reminders WHERE workspace_id = ?',
     [workspaceId],
   );
-  const remembered = new Map(rows.map((r) => [`${String(r.app_id)}\u0000${String(r.platform)}`, r]));
+  const remembered = new Map(
+    rows.map((r) => [`${String(r.app_id)}\u0000${String(r.platform)}`, r]),
+  );
   const seen = new Set<string>();
   for (const facts of loaded.facts) {
     const mapKey = `${facts.appId}\u0000${facts.platform}`;
@@ -149,12 +171,10 @@ async function stallRound(db: Database, workspaceId: string, at: number, summary
     if (stall === null) {
       // The stall cleared (or the signal was turned off): forget the episode, so the next stall is a new one.
       if (existing !== undefined) {
-        summary.cleared += await db.execute('DELETE FROM release_stall_reminders WHERE app_id = ? AND platform = ? AND workspace_id = ? AND episode_key = ?', [
-          facts.appId,
-          facts.platform,
-          workspaceId,
-          String(existing.episode_key),
-        ]);
+        summary.cleared += await db.execute(
+          'DELETE FROM release_stall_reminders WHERE app_id = ? AND platform = ? AND workspace_id = ? AND episode_key = ?',
+          [facts.appId, facts.platform, workspaceId, String(existing.episode_key)],
+        );
       }
       continue;
     }
@@ -201,30 +221,52 @@ async function stallRound(db: Database, workspaceId: string, at: number, summary
   // Rows of apps that are gone are forgotten too.
   for (const [mapKey, row] of remembered) {
     if (seen.has(mapKey)) continue;
-    summary.cleared += await db.execute('DELETE FROM release_stall_reminders WHERE app_id = ? AND platform = ? AND workspace_id = ?', [
-      String(row.app_id),
-      String(row.platform),
-      workspaceId,
-    ]);
+    summary.cleared += await db.execute(
+      'DELETE FROM release_stall_reminders WHERE app_id = ? AND platform = ? AND workspace_id = ?',
+      [String(row.app_id), String(row.platform), workspaceId],
+    );
   }
 }
 
 /** The digest of one workspace, when it is due. Returns true when an event was sent. */
-async function unansweredDigest(db: Database, workspaceId: string, at: number, hours: number, maxRating: number): Promise<boolean> {
-  const waiting = await unansweredByApp(db, workspaceId, { maxRating, olderThan: at - hours * HOUR_MS });
+async function unansweredDigest(
+  db: Database,
+  workspaceId: string,
+  at: number,
+  hours: number,
+  maxRating: number,
+): Promise<boolean> {
+  const waiting = await unansweredByApp(db, workspaceId, {
+    maxRating,
+    olderThan: at - hours * HOUR_MS,
+  });
   if (waiting.size === 0) return false;
-  const [last] = await db.query('SELECT last_sent_at FROM review_unanswered_reminders WHERE workspace_id = ?', [workspaceId]);
+  const [last] = await db.query(
+    'SELECT last_sent_at FROM review_unanswered_reminders WHERE workspace_id = ?',
+    [workspaceId],
+  );
   if (last && at - Number(last.last_sent_at) < hours * HOUR_MS) return false;
   const names = new Map(
-    (await db.query('SELECT id, name, platform FROM apps WHERE workspace_id = ?', [workspaceId])).map((a) => [String(a.id), a]),
+    (
+      await db.query('SELECT id, name, platform FROM apps WHERE workspace_id = ?', [workspaceId])
+    ).map((a) => [String(a.id), a]),
   );
   const perApp = [...waiting]
     .filter(([appId]) => names.has(appId))
-    .map(([appId, v]) => ({ appId, appName: String(names.get(appId)?.name), platform: String(names.get(appId)?.platform), count: v.count, oldestAt: v.oldestAt }))
+    .map(([appId, v]) => ({
+      appId,
+      appName: String(names.get(appId)?.name),
+      platform: String(names.get(appId)?.platform),
+      count: v.count,
+      oldestAt: v.oldestAt,
+    }))
     .sort((a, b) => (a.oldestAt ?? 0) - (b.oldestAt ?? 0) || a.appId.localeCompare(b.appId));
   if (perApp.length === 0) return false;
   const count = perApp.reduce((n, a) => n + a.count, 0);
-  const oldestAt = perApp.reduce<number | null>((m, a) => (a.oldestAt === null ? m : m === null ? a.oldestAt : Math.min(m, a.oldestAt)), null);
+  const oldestAt = perApp.reduce<number | null>(
+    (m, a) => (a.oldestAt === null ? m : m === null ? a.oldestAt : Math.min(m, a.oldestAt)),
+    null,
+  );
   return db.transaction(async (tx) => {
     if (last === undefined) {
       const added = await tx.execute(
@@ -267,10 +309,21 @@ async function unansweredDigest(db: Database, workspaceId: string, at: number, h
 }
 
 /** One pass over every workspace. `at` is the clock (epoch milliseconds). */
-export async function sendReleaseWatch(db: Database, at: number, options: ReleaseWatchOptions = {}): Promise<ReleaseWatchSummary> {
+export async function sendReleaseWatch(
+  db: Database,
+  at: number,
+  options: ReleaseWatchOptions = {},
+): Promise<ReleaseWatchSummary> {
   const report = options.onError ?? ((message, error) => console.error(message, error));
   const max = Math.max(1, Math.trunc(options.maxPerRun ?? DEFAULT_MAX_WATCH_EVENTS_PER_RUN));
-  const summary: ReleaseWatchSummary = { stalled: 0, stalledRepeats: 0, cleared: 0, unansweredDigests: 0, failed: 0, capped: false };
+  const summary: ReleaseWatchSummary = {
+    stalled: 0,
+    stalledRepeats: 0,
+    cleared: 0,
+    unansweredDigests: 0,
+    failed: 0,
+    capped: false,
+  };
   const sent = () => summary.stalled + summary.stalledRepeats + summary.unansweredDigests;
   const workspaces = await db.query('SELECT id FROM workspaces ORDER BY id');
   for (const w of workspaces) {
@@ -283,10 +336,22 @@ export async function sendReleaseWatch(db: Database, at: number, options: Releas
     }
     try {
       const values = (await getSettings(db, workspaceId)).values;
-      const hours = Math.min(Number(values['reviews.unansweredReminderHours']), MAX_STALLED_AFTER_HOURS);
+      const hours = Math.min(
+        Number(values['reviews.unansweredReminderHours']),
+        MAX_STALLED_AFTER_HOURS,
+      );
       if (hours > 0) {
         if (sent() >= max) summary.capped = true;
-        else if (await unansweredDigest(db, workspaceId, at, hours, Number(values['reviews.unansweredMaxRating']))) summary.unansweredDigests++;
+        else if (
+          await unansweredDigest(
+            db,
+            workspaceId,
+            at,
+            hours,
+            Number(values['reviews.unansweredMaxRating']),
+          )
+        )
+          summary.unansweredDigests++;
       }
     } catch (error) {
       summary.failed++;

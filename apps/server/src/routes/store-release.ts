@@ -1,29 +1,29 @@
 import { type Action, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { requireStepUp } from '../services/step-up.ts';
 import { getApp } from '../services/apps.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
 import { type Failure, failure } from '../services/repositories.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import {
   type DraftConnectorFactory,
-  type StoreConnectContext,
   defaultDraftConnectorFactory,
   readEditableReleaseOf,
   readReleaseCandidatesOf,
+  type StoreConnectContext,
 } from '../services/store-draft.ts';
 import {
-  type ReleaseConnectorFactory,
-  type ReleaseContext,
   applyRelease,
   defaultReleaseConnectorFactory,
   getReleaseState,
   previewRelease,
+  type ReleaseConnectorFactory,
+  type ReleaseContext,
   releaseConfig,
   releaseDisabledFailure,
 } from '../services/store-release.ts';
@@ -70,14 +70,20 @@ const hash64 = /^[0-9a-f]{64}$/;
 const what = {
   version: z.string().min(1).max(40).optional(),
   track: z.string().min(1).max(100).optional(),
-  versionCodes: z.array(z.string().regex(/^[0-9]{1,10}$/, 'A version code is a whole number.')).min(1).max(20).optional(),
+  versionCodes: z
+    .array(z.string().regex(/^[0-9]{1,10}$/, 'A version code is a whole number.'))
+    .min(1)
+    .max(20)
+    .optional(),
   userFraction: z.number().gt(0).lte(1).optional(),
 };
 const previewBody = z.object(what).strict();
 const applyBody = z
   .object({
     ...what,
-    confirmHash: z.string().regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
+    confirmHash: z
+      .string()
+      .regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.'),
     confirmation: z.string().min(1).max(300),
   })
   .strict();
@@ -114,7 +120,10 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
   const throttled = (c: Context<AppEnv>): Failure | undefined => {
     const wait = limiter.take(ws(c));
     if (wait <= 0) return undefined;
-    return { ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
+    return {
+      ...failure(429, 'rate_limited', `Too many store reads. Try again in ${wait} seconds.`),
+      headers: { 'Retry-After': String(wait) },
+    };
   };
 
   // ----- reads: what a draft release is made of
@@ -124,7 +133,13 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const wait = throttled(c);
     if (wait) return respond(c, wait);
-    const done = await readReleaseCandidatesOf(reads, { workspaceId: ws(c), app, actor: actor(c), version: c.req.query('version') || undefined, track: c.req.query('track') || undefined });
+    const done = await readReleaseCandidatesOf(reads, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      version: c.req.query('version') || undefined,
+      track: c.req.query('track') || undefined,
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ candidates: done.read }) : respond(c, done);
   });
@@ -135,21 +150,46 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const issues: { path: string; message: string }[] = [];
     const platform = c.req.query('platform');
-    if (platform !== undefined && platform !== '' && platform !== 'ios' && platform !== 'macos' && platform !== 'android') {
+    if (
+      platform !== undefined &&
+      platform !== '' &&
+      platform !== 'ios' &&
+      platform !== 'macos' &&
+      platform !== 'android'
+    ) {
       issues.push({ path: 'platform', message: 'Use ios, macos or android.' });
     }
     const locale = c.req.query('locale');
-    if (locale !== undefined && locale !== '' && !/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8}){0,2}$/.test(locale)) {
+    if (
+      locale !== undefined &&
+      locale !== '' &&
+      !/^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8}){0,2}$/.test(locale)
+    ) {
       issues.push({ path: 'locale', message: 'Not a language code, for example en-US.' });
     }
     const limitRaw = c.req.query('limit');
-    const limit = limitRaw === undefined || limitRaw === '' ? undefined : /^[0-9]{1,4}$/.test(limitRaw) ? Number(limitRaw) : Number.NaN;
+    const limit =
+      limitRaw === undefined || limitRaw === ''
+        ? undefined
+        : /^[0-9]{1,4}$/.test(limitRaw)
+          ? Number(limitRaw)
+          : Number.NaN;
     if (limit !== undefined && !(limit >= 1 && limit <= MAX_NOTES_HISTORY_LIMIT)) {
-      issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_NOTES_HISTORY_LIMIT}.` });
+      issues.push({
+        path: 'limit',
+        message: `A whole number from 1 to ${MAX_NOTES_HISTORY_LIMIT}.`,
+      });
     }
     if (issues.length > 0) return c.json({ error: 'invalid_request', issues }, 400);
     if (platform !== undefined && platform !== '' && platform !== app.platform) {
-      return respond(c, failure(422, 'platform_mismatch', `This app is on ${app.platform}; the notes of ${platform} are not read for it.`));
+      return respond(
+        c,
+        failure(
+          422,
+          'platform_mismatch',
+          `This app is on ${app.platform}; the notes of ${platform} are not read for it.`,
+        ),
+      );
     }
     let retryAfter: number | undefined;
     const history = await notesHistory(reads, {
@@ -176,14 +216,21 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const wait = throttled(c);
     if (wait) return respond(c, wait);
-    const done = await readEditableReleaseOf(reads, { workspaceId: ws(c), app, actor: actor(c), track: c.req.query('track') || undefined });
+    const done = await readEditableReleaseOf(reads, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      track: c.req.query('track') || undefined,
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ editable: done.read }) : respond(c, done);
   });
 
   // ----- the irreversible step
 
-  routes.get('/:workspaceId/store-release/config', needs('apps.read'), (c) => c.json(releaseConfig(release)));
+  routes.get('/:workspaceId/store-release/config', needs('apps.read'), (c) =>
+    c.json(releaseConfig(release)),
+  );
 
   routes.get('/:workspaceId/apps/:id/store-release', needs('store.release'), async (c) => {
     const done = await getReleaseState(release, { workspaceId: ws(c), appId: param(c, 'id') });
@@ -195,7 +242,12 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     if (!release.releaseEnabled) return respond(c, releaseDisabledFailure());
     const body = await parseBody(c, previewBody);
     if (!body.ok) return body.response;
-    const done = await previewRelease(release, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
+    const done = await previewRelease(release, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...body.data,
+      actor: actor(c),
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
   });
@@ -203,11 +255,19 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
   // The only route that releases anything. One app per request: no bulk release.
   routes.post('/:workspaceId/apps/:id/store-release', needs('store.release'), async (c) => {
     if (!release.releaseEnabled) return respond(c, releaseDisabledFailure());
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.release', { id: param(c, 'id'), hashField: 'confirmHash' });
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.release', {
+      id: param(c, 'id'),
+      hashField: 'confirmHash',
+    });
     if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, applyBody);
     if (!body.ok) return body.response;
-    const done = await applyRelease(release, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
+    const done = await applyRelease(release, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...body.data,
+      actor: actor(c),
+    });
     return done.ok ? c.json({ result: done.result }) : respond(c, done);
   });
 

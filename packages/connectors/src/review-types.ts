@@ -155,7 +155,8 @@ export type ReplyProblem = 'empty' | 'too_long' | 'control_characters' | 'markup
 export const normalizeReplyText = (value: string): string => value.replace(/\r\n?/g, '\n').trim();
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-const REPLY_CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
+const REPLY_CONTROL =
+  /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
 /** Something that looks like an HTML tag. Google strips well formed tags, so the text would change. */
 const REPLY_MARKUP = /<\/?[A-Za-z!][^>]*>/;
 
@@ -177,14 +178,23 @@ export function checkReplyText(
     return {
       ok: false,
       problem: 'control_characters',
-      message: 'The reply has a character that is not allowed in plain text (only line breaks are).',
+      message:
+        'The reply has a character that is not allowed in plain text (only line breaks are).',
     };
   }
   if (REPLY_MARKUP.test(value)) {
-    return { ok: false, problem: 'markup', message: 'The reply looks like it contains HTML tags. Replies are plain text.' };
+    return {
+      ok: false,
+      problem: 'markup',
+      message: 'The reply looks like it contains HTML tags. Replies are plain text.',
+    };
   }
   if (value.length > limit) {
-    return { ok: false, problem: 'too_long', message: `The reply is ${value.length} characters; this store allows at most ${limit}.` };
+    return {
+      ok: false,
+      problem: 'too_long',
+      message: `The reply is ${value.length} characters; this store allows at most ${limit}.`,
+    };
   }
   return { ok: true, text: value };
 }

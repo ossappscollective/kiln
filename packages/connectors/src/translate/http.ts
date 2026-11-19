@@ -55,7 +55,10 @@ async function readCapped(response: Response, maxBytes: number): Promise<string 
   return new TextDecoder().decode(all);
 }
 
-export async function postJson(request: JsonRequest, options: TranslatorOptions): Promise<JsonReply> {
+export async function postJson(
+  request: JsonRequest,
+  options: TranslatorOptions,
+): Promise<JsonReply> {
   const send = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TRANSLATE_TIMEOUT_MS;
   const maxBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
@@ -67,7 +70,11 @@ export async function postJson(request: JsonRequest, options: TranslatorOptions)
   try {
     response = await send(request.url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json', ...request.headers },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        ...request.headers,
+      },
       body: JSON.stringify(request.body),
       // A redirect would carry the key to another address.
       redirect: 'manual',
@@ -77,8 +84,11 @@ export async function postJson(request: JsonRequest, options: TranslatorOptions)
   } catch (error) {
     if (error instanceof TranslateError) throw error;
     const name = error instanceof Error ? error.name : '';
-    if (signal.aborted || name === 'TimeoutError' || name === 'AbortError') throw new TranslateError('timeout');
-    throw new TranslateError('unavailable', { detail: error instanceof Error && error.message === 'blocked' ? 'blocked' : 'connection' });
+    if (signal.aborted || name === 'TimeoutError' || name === 'AbortError')
+      throw new TranslateError('timeout');
+    throw new TranslateError('unavailable', {
+      detail: error instanceof Error && error.message === 'blocked' ? 'blocked' : 'connection',
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -96,10 +106,15 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Seconds from a Retry-After header (a number of seconds; a date is converted), or the fallback. */
-export function retryAfterSeconds(header: string | null, fallback: number, now: number = Date.now()): number {
+export function retryAfterSeconds(
+  header: string | null,
+  fallback: number,
+  now: number = Date.now(),
+): number {
   if (header) {
     const seconds = Number(header);
-    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.max(Math.ceil(seconds), 1), 3600);
+    if (Number.isFinite(seconds) && seconds >= 0)
+      return Math.min(Math.max(Math.ceil(seconds), 1), 3600);
     const date = Date.parse(header);
     if (!Number.isNaN(date)) return Math.min(Math.max(Math.ceil((date - now) / 1000), 1), 3600);
   }

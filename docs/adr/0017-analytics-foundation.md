@@ -36,12 +36,12 @@ for every series, where it comes from, how late the store may still change it, a
    the Apple enable action. Reading what is stored and **importing a file** work whatever it says (they contact no store).
    `MRM_ANALYTICS_INTERVAL_MINUTES` (default 360, `0` off) only sets the interval of the scheduled job: with the setting off it queues nothing.
 5. **Apple, two ways in.**
-   - *Automatic:* one explicit, role-gated, two-step action creates an ONGOING `analyticsReportRequest` (the only store write of
+   - _Automatic:_ one explicit, role-gated, two-step action creates an ONGOING `analyticsReportRequest` (the only store write of
      analytics): `GET` shows the plan (what exists at Apple, what would be created, whether the key's role may create, a `confirmHash`),
      `POST` with the hash creates it. If what Apple has changed in between, nothing is sent (`409 plan_changed`). An optional
      `backfill` adds one ONE_TIME_SNAPSHOT (history from 2024-01-01; Apple allows one a month). A 403 is **`analytics_role_required`**
      (Apple lists the Admin role): the status says so, with the import as the alternative. Audited as `analytics.enable`, ids only.
-   - *By file:* `POST .../analytics/import/preview` then `POST .../analytics/import?confirmHash=` with the report file as the raw body
+   - _By file:_ `POST .../analytics/import/preview` then `POST .../analytics/import?confirmHash=` with the report file as the raw body
      (`.tsv`, `.csv` or the `.gz` as downloaded). Strict: 10 MiB as received, 64 MiB decompressed, 400,000 rows, 80 columns; columns are
      matched **by name** (the report name in the file name, else the header), never by position; unknown reports, missing columns, bad
      gzip, no usable row are fixed codes. The hash covers the normalised data, so the confirmed file must be the previewed one. An imported

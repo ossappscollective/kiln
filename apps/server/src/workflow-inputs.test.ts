@@ -44,7 +44,12 @@ test('reads the inputs of a workflow_dispatch trigger with their types and defau
   assert.equal(info.parsed, true);
   assert.equal(info.dispatchable, true);
   assert.deepEqual(info.inputs, [
-    { name: 'version', description: 'Marketing version, like 2.4.0', required: true, type: 'string' },
+    {
+      name: 'version',
+      description: 'Marketing version, like 2.4.0',
+      required: true,
+      type: 'string',
+    },
     {
       name: 'build_number',
       description: 'The build number to upload. Must be higher than the last one.',

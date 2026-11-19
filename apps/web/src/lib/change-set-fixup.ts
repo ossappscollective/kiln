@@ -4,7 +4,7 @@
  * RecomputeDialog.svelte only draw what they return. The server decides; this file keeps the
  * screens from offering what it will refuse, and puts the server's answers into words.
  */
-import { type Role, can } from '@mrm/core';
+import { can, type Role } from '@mrm/core';
 import type { ConflictReason, FileState, Resolution } from './change-set-refresh.ts';
 import type { ChangeSetView } from './types.ts';
 
@@ -51,15 +51,31 @@ export type FixupBody = {
 };
 
 /** What the server answers when files conflict (`409 refresh_conflicts` or `409 fixup_conflicts`); nothing was written. */
-export type FixupConflicts = { stage: 'repository' | 'branch'; files: FixupFile[]; conflicts: number };
+export type FixupConflicts = {
+  stage: 'repository' | 'branch';
+  files: FixupFile[];
+  conflicts: number;
+};
 
 export type FieldChange = 'store_changed' | 'unchanged' | 'added' | 'dropped';
-export type FieldDiff = { locale: string; repoLocale: string; field: string; change: FieldChange; reason?: string };
+export type FieldDiff = {
+  locale: string;
+  repoLocale: string;
+  field: string;
+  change: FieldChange;
+  reason?: string;
+};
 
 /** The parts of a pull-shaped answer the screens use. */
 export type RecomputeSummary = {
   diffFromPrevious: FieldDiff[];
-  changes?: { locale: string; field: string; label: string; before: string | null; after: string }[];
+  changes?: {
+    locale: string;
+    field: string;
+    label: string;
+    before: string | null;
+    after: string;
+  }[];
   skipped?: { locale: string; field?: string; reason: string; message: string }[];
   store?: { readAt: number | null; error: string | null; refreshed: boolean };
 };
@@ -97,7 +113,10 @@ export function isStorePull(changeSet: Pick<ChangeSetView, 'origin'>): boolean {
 }
 
 /** Recomputing a store pull that has no branch yet: the rights of a pull. */
-export function canRecompute(role: Role, changeSet: Pick<ChangeSetView, 'status' | 'branch' | 'origin'>): boolean {
+export function canRecompute(
+  role: Role,
+  changeSet: Pick<ChangeSetView, 'status' | 'branch' | 'origin'>,
+): boolean {
   return (
     can(role, 'changesets.write') &&
     can(role, 'listing.read') &&
@@ -111,15 +130,20 @@ export function canRecompute(role: Role, changeSet: Pick<ChangeSetView, 'status'
 export const canRefreshFromStore = (role: Role): boolean => can(role, 'apps.sync');
 
 /** A store pull whose branch exists can take the recomputed content in a fix up. */
-export function canFixupFromStore(role: Role, changeSet: Pick<ChangeSetView, 'status' | 'branch' | 'origin'>): boolean {
+export function canFixupFromStore(
+  role: Role,
+  changeSet: Pick<ChangeSetView, 'status' | 'branch' | 'origin'>,
+): boolean {
   return canFixup(role, changeSet) && isStorePull(changeSet) && can(role, 'listing.read');
 }
 
 /** A fix up of a commit in the local clone can push and open the pull request; one through GitHub cannot (it updates the PR). */
-export const isLocalCommit = (changeSet: Pick<ChangeSetView, 'outcome'>): boolean => changeSet.outcome !== null;
+export const isLocalCommit = (changeSet: Pick<ChangeSetView, 'outcome'>): boolean =>
+  changeSet.outcome !== null;
 
 /** The fixes added so far. */
-export const fixupCount = (changeSet: Pick<ChangeSetView, 'fixups'>): number => changeSet.fixups?.length ?? 0;
+export const fixupCount = (changeSet: Pick<ChangeSetView, 'fixups'>): number =>
+  changeSet.fixups?.length ?? 0;
 
 // ---------------------------------------------------------------------------------------------
 // Words
@@ -172,34 +196,63 @@ export const stageLabel: Record<'repository' | 'branch', string> = {
   branch: 'The branch has another change to this file in the same place.',
 };
 
-export const fixupChoiceInfo: Record<'repository' | 'branch', Record<Resolution, { label: string; description: string }>> = {
+export const fixupChoiceInfo: Record<
+  'repository' | 'branch',
+  Record<Resolution, { label: string; description: string }>
+> = {
   repository: {
     mine: { label: 'Keep mine', description: 'Overwrites what the repository has with your text.' },
-    theirs: { label: 'Keep theirs', description: "Drops your change; the branch gets the repository's text." },
+    theirs: {
+      label: 'Keep theirs',
+      description: "Drops your change; the branch gets the repository's text.",
+    },
   },
   branch: {
-    mine: { label: 'Keep mine', description: "Overwrites the branch's text with yours, in the new commit." },
-    theirs: { label: 'Keep the branch', description: "Leaves the branch's text as it is and adds nothing for this file." },
+    mine: {
+      label: 'Keep mine',
+      description: "Overwrites the branch's text with yours, in the new commit.",
+    },
+    theirs: {
+      label: 'Keep the branch',
+      description: "Leaves the branch's text as it is and adds nothing for this file.",
+    },
   },
 };
 
 /** The conflicts of a fix up, from an ApiError body, or undefined when it is something else. */
 export function fixupConflictsFrom(body: Record<string, unknown>): FixupConflicts | undefined {
   const stage: 'repository' | 'branch' | undefined =
-    body.error === 'refresh_conflicts' ? 'repository' : body.error === 'fixup_conflicts' ? 'branch' : undefined;
+    body.error === 'refresh_conflicts'
+      ? 'repository'
+      : body.error === 'fixup_conflicts'
+        ? 'branch'
+        : undefined;
   if (!stage || !Array.isArray(body.files)) return undefined;
-  const files = (body.files as FixupFile[]).map((f) => (f.outcome === 'conflict' && !f.stage ? { ...f, stage } : f));
-  return { stage, files, conflicts: Number(body.conflicts ?? files.filter((f) => f.outcome === 'conflict').length) };
+  const files = (body.files as FixupFile[]).map((f) =>
+    f.outcome === 'conflict' && !f.stage ? { ...f, stage } : f,
+  );
+  return {
+    stage,
+    files,
+    conflicts: Number(body.conflicts ?? files.filter((f) => f.outcome === 'conflict').length),
+  };
 }
 
 /** The unresolved conflicts, whichever comparison found them. */
-export const fixupPending = (files: readonly FixupFile[]): FixupFile[] => files.filter((f) => f.outcome === 'conflict');
+export const fixupPending = (files: readonly FixupFile[]): FixupFile[] =>
+  files.filter((f) => f.outcome === 'conflict');
 
 type Choices = Readonly<Record<string, Resolution | undefined>>;
 
 /** Every conflict has a choice (in the map of its own comparison). */
-export function allFixupChosen(files: readonly FixupFile[], repository: Choices, branch: Choices): boolean {
-  return fixupPending(files).every((f) => (f.stage === 'branch' ? branch : repository)[f.path] !== undefined);
+export function allFixupChosen(
+  files: readonly FixupFile[],
+  repository: Choices,
+  branch: Choices,
+): boolean {
+  return fixupPending(files).every(
+    (f) => (f.stage === 'branch' ? branch : repository)[f.path] !== undefined,
+  );
 }
 
 const only = (choices: Choices): Record<string, Resolution> => {
@@ -211,7 +264,12 @@ const only = (choices: Choices): Record<string, Resolution> => {
 export type FixupOptions = { push: boolean; openPr: boolean; local: boolean; recompute: boolean };
 
 /** The request body: only the choices that were made, and push and PR only where they mean something. */
-export function fixupBody(options: FixupOptions, repository: Choices, branch: Choices, dryRun: boolean): FixupBody {
+export function fixupBody(
+  options: FixupOptions,
+  repository: Choices,
+  branch: Choices,
+  dryRun: boolean,
+): FixupBody {
   const resolutions = only(repository);
   const branchResolutions = only(branch);
   return {
@@ -225,7 +283,9 @@ export function fixupBody(options: FixupOptions, repository: Choices, branch: Ch
 }
 
 /** What a preview (dry run) found, in one sentence. */
-export function fixupPreviewMessage(result: Pick<FixupResult, 'nothingToFix' | 'willCommit'>): string {
+export function fixupPreviewMessage(
+  result: Pick<FixupResult, 'nothingToFix' | 'willCommit'>,
+): string {
   if (result.nothingToFix) return 'Nothing to fix up: the branch already has everything.';
   const n = result.willCommit.length;
   return n === 0
@@ -234,7 +294,9 @@ export function fixupPreviewMessage(result: Pick<FixupResult, 'nothingToFix' | '
 }
 
 /** What to tell the person after a fix up. */
-export function fixupDoneMessage(result: Pick<FixupResult, 'nothingToFix' | 'commit' | 'branch' | 'pullRequest'>): string {
+export function fixupDoneMessage(
+  result: Pick<FixupResult, 'nothingToFix' | 'commit' | 'branch' | 'pullRequest'>,
+): string {
   if (result.nothingToFix) return 'Nothing to fix up: the branch already has everything.';
   const opened = result.pullRequest.state === 'opened' ? ' The pull request is open.' : '';
   if (!result.commit) return `The branch ${result.branch} is up to date.${opened}`;
@@ -251,7 +313,10 @@ export function behindNote(changeSet: Pick<ChangeSetView, 'outcome'>): string | 
 // ---------------------------------------------------------------------------------------------
 // Recompute
 
-export const fieldChangeInfo: Record<FieldChange, { label: string; tone: 'ok' | 'info' | 'warn' | 'neutral' }> = {
+export const fieldChangeInfo: Record<
+  FieldChange,
+  { label: string; tone: 'ok' | 'info' | 'warn' | 'neutral' }
+> = {
   store_changed: { label: 'Store text changed', tone: 'info' },
   unchanged: { label: 'Same as before', tone: 'neutral' },
   added: { label: 'New in the pull', tone: 'ok' },
@@ -275,13 +340,15 @@ export function droppedReason(reason: string | undefined): string {
 }
 
 /** A field's name for a list: `en-US subtitle`. */
-export const fieldName = (d: Pick<FieldDiff, 'repoLocale' | 'locale' | 'field'>): string => `${d.repoLocale || d.locale} ${d.field}`;
+export const fieldName = (d: Pick<FieldDiff, 'repoLocale' | 'locale' | 'field'>): string =>
+  `${d.repoLocale || d.locale} ${d.field}`;
 
 /** How many fields moved, in one sentence. */
 export function diffSummary(diff: readonly FieldDiff[]): string {
   const count = (change: FieldChange) => diff.filter((d) => d.change === change).length;
   const parts: string[] = [];
-  if (count('store_changed') > 0) parts.push(`${plural(count('store_changed'), 'field')} changed in the store`);
+  if (count('store_changed') > 0)
+    parts.push(`${plural(count('store_changed'), 'field')} changed in the store`);
   if (count('added') > 0) parts.push(`${count('added')} new`);
   if (count('dropped') > 0) parts.push(`${count('dropped')} left out`);
   if (parts.length === 0) return 'The store text is the same as when the pull was made.';
@@ -290,10 +357,15 @@ export function diffSummary(diff: readonly FieldDiff[]): string {
 
 /** What to tell the person after a recompute. */
 export function recomputeDoneMessage(
-  result: Pick<RecomputeResult, 'nothingLeft' | 'unchanged' | 'approvalCleared' | 'diffFromPrevious'>,
+  result: Pick<
+    RecomputeResult,
+    'nothingLeft' | 'unchanged' | 'approvalCleared' | 'diffFromPrevious'
+  >,
 ): string {
-  if (result.nothingLeft) return 'Nothing left to pull: the repository has everything the store has. Discard the change set.';
-  if (result.unchanged) return 'The store and the repository are as they were: the change set is unchanged.';
+  if (result.nothingLeft)
+    return 'Nothing left to pull: the repository has everything the store has. Discard the change set.';
+  if (result.unchanged)
+    return 'The store and the repository are as they were: the change set is unchanged.';
   const done = `Recomputed from the live store. ${diffSummary(result.diffFromPrevious)}`;
   return result.approvalCleared ? `${done} It is a draft again and needs approval.` : done;
 }

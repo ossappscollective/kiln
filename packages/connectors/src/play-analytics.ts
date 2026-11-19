@@ -1,6 +1,14 @@
-import { type AnalyticsMetric, analyticsLimits, addDays, normalizeBucketId } from '@mrm/core';
-import { type AnalyticsPoint, AnalyticsError, type ParseStats } from './analytics-types.ts';
-import { type Table, columnIndex, decodeTableText, openFileBytes, parseDay, parseNumber, parseTable } from './delimited.ts';
+import { type AnalyticsMetric, addDays, analyticsLimits, normalizeBucketId } from '@mrm/core';
+import { AnalyticsError, type AnalyticsPoint, type ParseStats } from './analytics-types.ts';
+import {
+  columnIndex,
+  decodeTableText,
+  openFileBytes,
+  parseDay,
+  parseNumber,
+  parseTable,
+  type Table,
+} from './delimited.ts';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import {
   DEVSTORAGE_READ_ONLY_SCOPE,
@@ -15,8 +23,8 @@ import {
   isRecord,
   type Json,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -104,7 +112,11 @@ function dateOf(value: unknown): string | undefined {
  * Rows of a `...MetricSet:query` answer as points. Field names are UNVERIFIED (see above). A row without a date, a metric this
  * server maps or a number is skipped. The `versionCode` dimension becomes the `app_version` dimension.
  */
-export function parseVitalsRows(json: unknown): { points: AnalyticsPoint[]; rows: number; skipped: number } {
+export function parseVitalsRows(json: unknown): {
+  points: AnalyticsPoint[];
+  rows: number;
+  skipped: number;
+} {
   const body = isRecord(json) ? json : {};
   const points: AnalyticsPoint[] = [];
   let skipped = 0;
@@ -119,27 +131,47 @@ export function parseVitalsRows(json: unknown): { points: AnalyticsPoint[]; rows
     for (const dim of records(row.dimensions)) {
       if (text(dim.dimension) === 'versionCode') {
         const raw = dim.stringValue ?? dim.int64Value;
-        version = typeof raw === 'string' || typeof raw === 'number' ? String(raw).slice(0, analyticsLimits.maxDimensionLength) : undefined;
+        version =
+          typeof raw === 'string' || typeof raw === 'number'
+            ? String(raw).slice(0, analyticsLimits.maxDimensionLength)
+            : undefined;
       }
     }
     for (const m of records(row.metrics)) {
       const metric = metricOf[text(m.metric) ?? ''];
       const decimal = isRecord(m.decimalValue) ? m.decimalValue.value : m.decimalValue;
-      const value = typeof decimal === 'number' ? decimal : parseNumber(typeof decimal === 'string' ? decimal : undefined);
+      const value =
+        typeof decimal === 'number'
+          ? decimal
+          : parseNumber(typeof decimal === 'string' ? decimal : undefined);
       if (!metric || value === undefined) {
         skipped++;
         continue;
       }
-      points.push({ date, metric, value, ...(version !== undefined ? { dimension: { type: 'app_version' as const, value: version } } : {}) });
+      points.push({
+        date,
+        metric,
+        value,
+        ...(version !== undefined
+          ? { dimension: { type: 'app_version' as const, value: version } }
+          : {}),
+      });
     }
   }
   return { points, rows: rows.length, skipped };
 }
 
 function makeHttp(options: PlayAnalyticsOptions): { http: StoreHttp; account: ServiceAccount } {
-  const account = typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+  const account =
+    typeof options.serviceAccount === 'string'
+      ? parseServiceAccount(options.serviceAccount)
+      : options.serviceAccount;
   if (!isPlayPackageName(options.packageName)) {
-    throw new StoreError('googleplay', 'invalid_input', `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`);
+    throw new StoreError(
+      'googleplay',
+      'invalid_input',
+      `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`,
+    );
   }
   return { http: new StoreHttp({ ...options, store: 'googleplay' }), account };
 }
@@ -172,7 +204,10 @@ export class PlayVitalsConnector implements PlayVitalsPort {
         const through = addDays(latestEnd, -1);
         if (dataThrough === null || through > dataThrough) dataThrough = through;
       }
-      const end = latestEnd !== undefined && latestEnd < addDays(input.to, 1) ? latestEnd : addDays(input.to, 1);
+      const end =
+        latestEnd !== undefined && latestEnd < addDays(input.to, 1)
+          ? latestEnd
+          : addDays(input.to, 1);
       if (end <= input.from) continue; // the store has no day in the range yet
       for (const dimensions of [[], ['versionCode']]) {
         const read = await this.#query(set, { from: input.from, endExclusive: end }, dimensions);
@@ -186,7 +221,11 @@ export class PlayVitalsConnector implements PlayVitalsPort {
   /** The exclusive end (YYYY-MM-DD, Pacific Time) of the newest DAILY data the metric set has, or undefined when it did not say. */
   async #freshness(set: string): Promise<string | undefined> {
     try {
-      const json = await this.#call('GET', `${this.#base}/v1beta1/apps/${enc(this.#package)}/${set}MetricSet`, `reading the freshness of ${set}`);
+      const json = await this.#call(
+        'GET',
+        `${this.#base}/v1beta1/apps/${enc(this.#package)}/${set}MetricSet`,
+        `reading the freshness of ${set}`,
+      );
       const info = isRecord(json.freshnessInfo) ? json.freshnessInfo : {};
       for (const f of records(info.freshnesses)) {
         if (text(f.aggregationPeriod) === 'DAILY') return dateOf(f.latestEndTime);
@@ -198,7 +237,11 @@ export class PlayVitalsConnector implements PlayVitalsPort {
     return undefined;
   }
 
-  async #query(set: string, range: { from: string; endExclusive: string }, dimensions: string[]): Promise<{ points: AnalyticsPoint[]; rows: number }> {
+  async #query(
+    set: string,
+    range: { from: string; endExclusive: string },
+    dimensions: string[],
+  ): Promise<{ points: AnalyticsPoint[]; rows: number }> {
     // DAILY needs the hours, minutes, seconds and nanos unset and the only supported time zone is America/Los_Angeles.
     const day = (iso: string) => ({
       year: Number(iso.slice(0, 4)),
@@ -215,7 +258,11 @@ export class PlayVitalsConnector implements PlayVitalsPort {
         `${this.#base}/v1beta1/apps/${enc(this.#package)}/${set}MetricSet:query`,
         `reading ${set} for ${this.#package}`,
         {
-          timelineSpec: { aggregationPeriod: 'DAILY', startTime: day(range.from), endTime: day(range.endExclusive) },
+          timelineSpec: {
+            aggregationPeriod: 'DAILY',
+            startTime: day(range.from),
+            endTime: day(range.endExclusive),
+          },
           metrics: [set],
           dimensions,
           pageSize: 1000,
@@ -234,18 +281,32 @@ export class PlayVitalsConnector implements PlayVitalsPort {
   async #call(method: 'GET' | 'POST', url: string, what: string, json?: unknown): Promise<Json> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
-      const reply = await this.#http.send(method, url, { headers: { authorization: `Bearer ${token}` }, ...(json !== undefined ? { json } : {}) });
+      const reply = await this.#http.send(method, url, {
+        headers: { authorization: `Bearer ${token}` },
+        ...(json !== undefined ? { json } : {}),
+      });
       if (reply.status === 401 && attempt === 0) {
         this.#tokens.invalidate();
         continue;
       }
       if (reply.status >= 200 && reply.status < 300) {
         if (reply.malformed || !isRecord(reply.json)) {
-          throw new StoreError('googleplay', 'unexpected', `Google answered ${what} with a response that could not be read.`, reply.status);
+          throw new StoreError(
+            'googleplay',
+            'unexpected',
+            `Google answered ${what} with a response that could not be read.`,
+            reply.status,
+          );
         }
         return reply.json;
       }
-      throw playAnalyticsError(reply, what, { packageName: this.#package, projectId: this.#projectId }, 'vitals', this.#http);
+      throw playAnalyticsError(
+        reply,
+        what,
+        { packageName: this.#package, projectId: this.#projectId },
+        'vitals',
+        this.#http,
+      );
     }
   }
 }
@@ -258,17 +319,26 @@ function playAnalyticsError(
   api: 'vitals' | 'storage',
   http: StoreHttp,
 ): Error {
-  const error = googleError(reply, what, { packageName: context.packageName, ...(context.projectId ? { projectId: context.projectId } : {}) });
+  const error = googleError(reply, what, {
+    packageName: context.packageName,
+    ...(context.projectId ? { projectId: context.projectId } : {}),
+  });
   if (error instanceof StoreRateLimitError) return error;
   if (api === 'vitals') {
-    if (error.kind === 'api_disabled') return new AnalyticsError('play_reporting_not_enabled', undefined, reply.status);
-    if (error.kind === 'forbidden') return new AnalyticsError('play_permission_missing', undefined, reply.status);
-    if (error.kind === 'not_found') return new AnalyticsError('play_app_not_found', undefined, reply.status);
+    if (error.kind === 'api_disabled')
+      return new AnalyticsError('play_reporting_not_enabled', undefined, reply.status);
+    if (error.kind === 'forbidden')
+      return new AnalyticsError('play_permission_missing', undefined, reply.status);
+    if (error.kind === 'not_found')
+      return new AnalyticsError('play_app_not_found', undefined, reply.status);
     // 400 INVALID_ARGUMENT: the query itself was refused (a fault of this server), never shown with Google's text.
-    if (reply.status === 400) return new AnalyticsError('play_vitals_bad_request', undefined, reply.status);
+    if (reply.status === 400)
+      return new AnalyticsError('play_vitals_bad_request', undefined, reply.status);
   } else {
-    if (error.kind === 'forbidden' || error.kind === 'api_disabled') return new AnalyticsError('bucket_forbidden', undefined, reply.status);
-    if (error.kind === 'not_found') return new AnalyticsError('bucket_not_found', undefined, reply.status);
+    if (error.kind === 'forbidden' || error.kind === 'api_disabled')
+      return new AnalyticsError('bucket_forbidden', undefined, reply.status);
+    if (error.kind === 'not_found')
+      return new AnalyticsError('bucket_not_found', undefined, reply.status);
   }
   return new StoreError('googleplay', error.kind, http.redact(error.message), error.status);
 }
@@ -276,7 +346,11 @@ function playAnalyticsError(
 // ---------------------------------------------------------------------------------------------
 // Cloud Storage reports
 
-type Mapping = { column: string[]; metric: AnalyticsMetric; /** `sum` adds rows of a day (a breakdown file), `last` keeps one value. */ combine: 'sum' | 'last' }[];
+type Mapping = {
+  column: string[];
+  metric: AnalyticsMetric /** `sum` adds rows of a day (a breakdown file), `last` keeps one value. */;
+  combine: 'sum' | 'last';
+}[];
 
 const installsMapping: Mapping = [
   { column: ['daily user installs'], metric: 'installs_user', combine: 'sum' },
@@ -290,19 +364,35 @@ const ratingsMapping: Mapping = [
 ];
 // Columns UNVERIFIED (the help page read does not list them): the likely names are accepted.
 const performanceMapping: Mapping = [
-  { column: ['store listing visitors', 'visitors', 'store listing visitor'], metric: 'store_listing_visitors', combine: 'sum' },
-  { column: ['store listing acquisitions', 'acquisitions', 'store listing acquisition'], metric: 'store_listing_acquisitions', combine: 'sum' },
+  {
+    column: ['store listing visitors', 'visitors', 'store listing visitor'],
+    metric: 'store_listing_visitors',
+    combine: 'sum',
+  },
+  {
+    column: ['store listing acquisitions', 'acquisitions', 'store listing acquisition'],
+    metric: 'store_listing_acquisitions',
+    combine: 'sum',
+  },
 ];
 
 /** Daily points of a Play CSV by header name. A column of the mapping that is absent is skipped; none present is `mapped: false`. */
-export function mapPlayTable(table: Table, mapping: Mapping): { points: AnalyticsPoint[]; mapped: boolean; stats: ParseStats } {
+export function mapPlayTable(
+  table: Table,
+  mapping: Mapping,
+): { points: AnalyticsPoint[]; mapped: boolean; stats: ParseStats } {
   const cols = columnIndex(table.header);
   const dateAt = cols.get('date');
   const usable = mapping.flatMap((m) => {
     const index = m.column.map((c) => cols.get(c)).find((i) => i !== undefined);
     return index === undefined ? [] : [{ ...m, index }];
   });
-  const stats: ParseStats = { rowsRead: table.rows.length, rowsUsed: 0, rowsUnreadable: 0, rowsFiltered: 0 };
+  const stats: ParseStats = {
+    rowsRead: table.rows.length,
+    rowsUsed: 0,
+    rowsUnreadable: 0,
+    rowsFiltered: 0,
+  };
   if (dateAt === undefined || usable.length === 0) return { points: [], mapped: false, stats };
   const acc = new Map<string, AnalyticsPoint>();
   for (const row of table.rows) {
@@ -324,15 +414,32 @@ export function mapPlayTable(table: Table, mapping: Mapping): { points: Analytic
     if (used) stats.rowsUsed++;
     else stats.rowsUnreadable++;
   }
-  const points = [...acc.values()].sort((a, b) => a.date.localeCompare(b.date) || a.metric.localeCompare(b.metric));
+  const points = [...acc.values()].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.metric.localeCompare(b.metric),
+  );
   return { points, mapped: true, stats };
 }
 
 type ReportKind = PlayReportFile['report'];
-const reportDefs: { report: ReportKind; dir: string; /** File suffixes in order of preference. */ suffixes: string[]; mapping: Mapping }[] = [
-  { report: 'installs', dir: 'installs', suffixes: ['overview', 'country'], mapping: installsMapping },
+const reportDefs: {
+  report: ReportKind;
+  dir: string /** File suffixes in order of preference. */;
+  suffixes: string[];
+  mapping: Mapping;
+}[] = [
+  {
+    report: 'installs',
+    dir: 'installs',
+    suffixes: ['overview', 'country'],
+    mapping: installsMapping,
+  },
   { report: 'ratings', dir: 'ratings', suffixes: ['overview'], mapping: ratingsMapping },
-  { report: 'store_performance', dir: 'store_performance', suffixes: ['country', 'overview', 'traffic_source'], mapping: performanceMapping },
+  {
+    report: 'store_performance',
+    dir: 'store_performance',
+    suffixes: ['country', 'overview', 'traffic_source'],
+    mapping: performanceMapping,
+  },
 ];
 
 /**
@@ -350,16 +457,28 @@ export function mapPlayConsoleFile(
   let rows = table.rows;
   let filtered = 0;
   if (packageAt !== undefined) {
-    rows = table.rows.filter((r) => (r[packageAt] ?? '').trim().toLowerCase() === packageName.toLowerCase() || (r[packageAt] ?? '').trim() === '');
+    rows = table.rows.filter(
+      (r) =>
+        (r[packageAt] ?? '').trim().toLowerCase() === packageName.toLowerCase() ||
+        (r[packageAt] ?? '').trim() === '',
+    );
     filtered = table.rows.length - rows.length;
   }
-  const matched = (mapping: Mapping) => mapping.filter((m) => m.column.some((c) => cols.has(c))).length;
-  const candidates = reportDefs.map((def) => ({ def, n: matched(def.mapping) })).filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+  const matched = (mapping: Mapping) =>
+    mapping.filter((m) => m.column.some((c) => cols.has(c))).length;
+  const candidates = reportDefs
+    .map((def) => ({ def, n: matched(def.mapping) }))
+    .filter((c) => c.n > 0)
+    .sort((a, b) => b.n - a.n);
   const best = candidates[0];
   if (!best) return undefined;
   const mapped = mapPlayTable({ ...table, rows }, best.def.mapping);
   if (!mapped.mapped) return undefined;
-  return { report: best.def.report, points: mapped.points, stats: { ...mapped.stats, rowsFiltered: mapped.stats.rowsFiltered + filtered } };
+  return {
+    report: best.def.report,
+    points: mapped.points,
+    stats: { ...mapped.stats, rowsFiltered: mapped.stats.rowsFiltered + filtered },
+  };
 }
 
 export class PlayReportsConnector implements PlayReportsPort {
@@ -383,12 +502,15 @@ export class PlayReportsConnector implements PlayReportsPort {
   }
 
   async hasPackage(): Promise<boolean> {
-    for (const def of reportDefs) if ((await this.#list(`stats/${def.dir}/${def.dir}_${this.#package}_`, 1)).length > 0) return true;
+    for (const def of reportDefs)
+      if ((await this.#list(`stats/${def.dir}/${def.dir}_${this.#package}_`, 1)).length > 0)
+        return true;
     return false;
   }
 
   async readMonth(month: string): Promise<PlayReportsResult> {
-    if (!/^\d{6}$/.test(month)) throw new StoreError('googleplay', 'invalid_input', 'Not a valid month.');
+    if (!/^\d{6}$/.test(month))
+      throw new StoreError('googleplay', 'invalid_input', 'Not a valid month.');
     const points: AnalyticsPoint[] = [];
     const files: PlayReportFile[] = [];
     const missing: PlayReportsResult['missing'] = [];
@@ -427,7 +549,11 @@ export class PlayReportsConnector implements PlayReportsPort {
       try {
         json = JSON.parse(new TextDecoder().decode(reply));
       } catch {
-        throw new StoreError('googleplay', 'unexpected', 'Google Cloud Storage answered a listing with a response that could not be read.');
+        throw new StoreError(
+          'googleplay',
+          'unexpected',
+          'Google Cloud Storage answered a listing with a response that could not be read.',
+        );
       }
       const body = isRecord(json) ? json : {};
       for (const item of records(body.items)) {
@@ -441,7 +567,11 @@ export class PlayReportsConnector implements PlayReportsPort {
   }
 
   async #download(name: string): Promise<Uint8Array> {
-    return this.#authed(`${this.#base}/storage/v1/b/${enc(this.#bucket)}/o/${enc(name)}?alt=media`, `reading a Play Console report of ${this.#package}`, true);
+    return this.#authed(
+      `${this.#base}/storage/v1/b/${enc(this.#bucket)}/o/${enc(name)}?alt=media`,
+      `reading a Play Console report of ${this.#package}`,
+      true,
+    );
   }
 
   async #authed(url: string, what: string, media = false): Promise<Uint8Array> {
@@ -455,7 +585,8 @@ export class PlayReportsConnector implements PlayReportsPort {
           accept: media ? '*/*' : 'application/json',
         });
       } catch (error) {
-        if (error instanceof StoreError && error.kind === 'too_large') throw new AnalyticsError('file_too_large');
+        if (error instanceof StoreError && error.kind === 'too_large')
+          throw new AnalyticsError('file_too_large');
         throw error;
       }
       if (reply.status === 401 && attempt === 0) {
@@ -471,9 +602,15 @@ export class PlayReportsConnector implements PlayReportsPort {
         malformed = true;
       }
       // A missing object is a missing report; a missing bucket is a wrong id. Cloud Storage uses the same status for both.
-      if (reply.status === 404 && media) throw new AnalyticsError('reports_not_found', undefined, 404);
-      throw playAnalyticsError({ status: reply.status, headers: reply.headers, json, malformed }, what, { packageName: this.#package, projectId: this.#projectId }, 'storage', this.#http);
+      if (reply.status === 404 && media)
+        throw new AnalyticsError('reports_not_found', undefined, 404);
+      throw playAnalyticsError(
+        { status: reply.status, headers: reply.headers, json, malformed },
+        what,
+        { packageName: this.#package, projectId: this.#projectId },
+        'storage',
+        this.#http,
+      );
     }
   }
 }
-

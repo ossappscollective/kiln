@@ -1,6 +1,6 @@
 import type { Platform, StagedChangesView } from '@mrm/core';
+import { appAddress, type PlatformScope } from './app-scope.ts';
 import { type AsoMover, type AsoSummary, asoViewHref, isBigDrop, moverText } from './aso.ts';
-import { type PlatformScope, appAddress } from './app-scope.ts';
 import type { IconName } from './icons.ts';
 import { platformLabel } from './portfolio.ts';
 import { type SummaryStall, unfinishedItem } from './release-pipeline.ts';
@@ -60,7 +60,8 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 export function newestBuild(builds: readonly AppBuild[]): AppBuild | null {
   let best: AppBuild | null = null;
   for (const b of builds) {
-    if (best === null || (b.uploadedAt ?? b.syncedAt) > (best.uploadedAt ?? best.syncedAt)) best = b;
+    if (best === null || (b.uploadedAt ?? b.syncedAt) > (best.uploadedAt ?? best.syncedAt))
+      best = b;
   }
   return best;
 }
@@ -68,11 +69,22 @@ export function newestBuild(builds: readonly AppBuild[]): AppBuild | null {
 /** True when the CI run of a build finished badly (failed, timed out, did not start). */
 export const ciFailed = (build: Pick<AppBuild, 'link'>): boolean => {
   const run = build.link?.run ?? null;
-  return run !== null && run.status === 'completed' && run.conclusion !== null && FAILED.has(run.conclusion);
+  return (
+    run !== null &&
+    run.status === 'completed' &&
+    run.conclusion !== null &&
+    FAILED.has(run.conclusion)
+  );
 };
 
 /** The staged items (texts and asset sets) that are not in the store draft yet, and not the same as the store. */
-export function stagedUnpushedCount(view: (Pick<StagedChangesView, 'text' | 'assets'> & { release?: readonly { pushed: boolean; localOnly: boolean }[] }) | null): number {
+export function stagedUnpushedCount(
+  view:
+    | (Pick<StagedChangesView, 'text' | 'assets'> & {
+        release?: readonly { pushed: boolean; localOnly: boolean }[];
+      })
+    | null,
+): number {
   if (view === null) return 0;
   return (
     view.text.filter((t) => !t.pushed && t.status !== 'unchanged').length +
@@ -89,7 +101,8 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
 
   for (const app of input.apps) {
     const who = several ? `${platformLabel(app.platform)}: ` : '';
-    const link = (section: Parameters<typeof appAddress>[1]) => appAddress(app.id, section, input.scope);
+    const link = (section: Parameters<typeof appAddress>[1]) =>
+      appAddress(app.id, section, input.scope);
 
     if ((app.lastSyncError ?? '').trim() !== '') {
       out.push({
@@ -103,7 +116,13 @@ export function attentionItems(input: AttentionInput): AttentionItem[] {
       });
     }
 
-    const left = unfinishedItem({ appId: app.id, platform: app.platform, scope: input.scope, several, stalled: input.unfinished?.[app.id] ?? null });
+    const left = unfinishedItem({
+      appId: app.id,
+      platform: app.platform,
+      scope: input.scope,
+      several,
+      stalled: input.unfinished?.[app.id] ?? null,
+    });
     if (left !== null) out.push(left);
 
     const newest = newestBuild(input.builds[app.id] ?? []);

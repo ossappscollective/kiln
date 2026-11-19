@@ -3,13 +3,13 @@ import {
   DEFAULT_TAG_PATTERNS,
   MAX_PATTERNS,
   type PatternKind,
+  type Platform,
   type PreviewRow,
   patternListProblems,
+  platformLabel,
   prefixProblem,
   previewPatterns,
   proposePattern,
-  type Platform,
-  platformLabel,
 } from '@mrm/core';
 import type { Tone } from './repositories.ts';
 import type {
@@ -56,14 +56,21 @@ export function runBadge(run: Pick<WorkflowRun, 'status' | 'conclusion'>): RunBa
     case 'in_progress':
       return { label: 'Running', tone: 'info', dot: true };
     case 'completed':
-      return (run.conclusion ? finished[run.conclusion] : undefined) ?? { label: 'Finished', tone: 'neutral', dot: false };
+      return (
+        (run.conclusion ? finished[run.conclusion] : undefined) ?? {
+          label: 'Finished',
+          tone: 'neutral',
+          dot: false,
+        }
+      );
     default:
       return { label: 'Unknown', tone: 'neutral', dot: false };
   }
 }
 
 /** True while any run is not finished: the cue to keep polling. */
-export const hasActiveRun = (runs: readonly Pick<WorkflowRun, 'active'>[]): boolean => runs.some((r) => r.active);
+export const hasActiveRun = (runs: readonly Pick<WorkflowRun, 'active'>[]): boolean =>
+  runs.some((r) => r.active);
 
 /** Where GitHub lists the run, when it is known. A pending run has no page yet. */
 export const runHref = (run: Pick<WorkflowRun, 'url'>): string | null => run.url;
@@ -78,14 +85,19 @@ export function runTitle(run: Pick<WorkflowRun, 'title' | 'workflow' | 'runNumbe
 }
 
 /** Runs that are still going first, then the newest. Does not change the array it is given. */
-export function sortRuns<T extends Pick<WorkflowRun, 'active' | 'startedAt' | 'id'>>(runs: readonly T[]): T[] {
+export function sortRuns<T extends Pick<WorkflowRun, 'active' | 'startedAt' | 'id'>>(
+  runs: readonly T[],
+): T[] {
   return [...runs].sort(
-    (a, b) => Number(b.active) - Number(a.active) || b.startedAt - a.startedAt || b.id.localeCompare(a.id),
+    (a, b) =>
+      Number(b.active) - Number(a.active) || b.startedAt - a.startedAt || b.id.localeCompare(a.id),
   );
 }
 
 /** How long a finished run took, as "3 min 20 s"; null while it is going or when times are odd. */
-export function runDuration(run: Pick<WorkflowRun, 'active' | 'startedAt' | 'updatedAt'>): string | null {
+export function runDuration(
+  run: Pick<WorkflowRun, 'active' | 'startedAt' | 'updatedAt'>,
+): string | null {
   if (run.active || run.updatedAt < run.startedAt) return null;
   const seconds = Math.round((run.updatedAt - run.startedAt) / 1000);
   if (!Number.isFinite(seconds) || seconds < 0) return null;
@@ -102,7 +114,8 @@ export const workflowKey = (workflow: Pick<CiWorkflow, 'id' | 'path'>): string =
   workflow.path.split('/').pop() || workflow.id;
 
 /** Only an active workflow can be started; GitHub lists disabled ones too. */
-export const canDispatchWorkflow = (workflow: Pick<CiWorkflow, 'state'>): boolean => workflow.state === 'active';
+export const canDispatchWorkflow = (workflow: Pick<CiWorkflow, 'state'>): boolean =>
+  workflow.state === 'active';
 
 // ---------------------------------------------------------------------------------------------
 // Polling cadence
@@ -125,14 +138,18 @@ export function initialInputValues(specs: readonly WorkflowInputSpec[]): InputVa
   for (const spec of specs) {
     if (spec.default !== undefined) values[spec.name] = spec.default;
     else if (spec.type === 'boolean') values[spec.name] = 'false';
-    else if (spec.type === 'choice' && spec.required && spec.options?.[0] !== undefined) values[spec.name] = spec.options[0];
+    else if (spec.type === 'choice' && spec.required && spec.options?.[0] !== undefined)
+      values[spec.name] = spec.options[0];
     else values[spec.name] = '';
   }
   return values;
 }
 
 /** One message per input that cannot be sent as it is. Empty means the form is fine. */
-export function inputProblems(specs: readonly WorkflowInputSpec[], values: Readonly<InputValues>): Record<string, string> {
+export function inputProblems(
+  specs: readonly WorkflowInputSpec[],
+  values: Readonly<InputValues>,
+): Record<string, string> {
   const problems: Record<string, string> = {};
   for (const spec of specs) {
     const value = (values[spec.name] ?? '').trim();
@@ -157,7 +174,10 @@ export function inputProblems(specs: readonly WorkflowInputSpec[], values: Reado
  * The inputs to send: every field that has a value. An empty optional field is left out, so the
  * workflow's own default applies. Values go as text, as GitHub takes them.
  */
-export function dispatchInputs(specs: readonly WorkflowInputSpec[], values: Readonly<InputValues>): InputValues {
+export function dispatchInputs(
+  specs: readonly WorkflowInputSpec[],
+  values: Readonly<InputValues>,
+): InputValues {
   const out: InputValues = {};
   for (const spec of specs) {
     const value = (values[spec.name] ?? '').trim();
@@ -191,7 +211,9 @@ export function parseFreeFormInputs(text: string): FreeFormInputs {
     const name = line.slice(0, at).trim();
     const value = line.slice(at + 1).trim();
     if (!INPUT_NAME.test(name)) {
-      problems.push(`Line ${lineNo}: "${name}" is not a valid input name (letters, digits, - and _).`);
+      problems.push(
+        `Line ${lineNo}: "${name}" is not a valid input name (letters, digits, - and _).`,
+      );
       continue;
     }
     if (name in inputs) {
@@ -218,7 +240,10 @@ export function dispatchSummary(input: {
   inputs: Readonly<InputValues>;
 }): string {
   const names = Object.keys(input.inputs);
-  const withInputs = names.length === 0 ? 'with no inputs' : `with ${names.length} input${names.length === 1 ? '' : 's'}`;
+  const withInputs =
+    names.length === 0
+      ? 'with no inputs'
+      : `with ${names.length} input${names.length === 1 ? '' : 's'}`;
   return `Run ${input.workflow} on ${input.ref} in ${input.repository} ${withInputs}.`;
 }
 
@@ -262,8 +287,9 @@ export function confidenceBadge(confidence: LinkConfidence): { label: string; to
 }
 
 /** Whether a link is worth a second look: a guess from times, or several runs that fit. */
-export const isUncertain = (link: { confidence: LinkConfidence; manual: boolean } | null): boolean =>
-  link !== null && !link.manual && link.confidence === 'low';
+export const isUncertain = (
+  link: { confidence: LinkConfidence; manual: boolean } | null,
+): boolean => link !== null && !link.manual && link.confidence === 'low';
 
 /** What a "Tag found" build says in the table: which tag, and what is missing. */
 export function tagFoundText(link: {
@@ -334,7 +360,9 @@ export function diagnosticsLines(d: BuildDiagnostics): string[] {
       else lines.push(`${d.releases.seen} GitHub release${d.releases.seen === 1 ? '' : 's'} read.`);
     }
     if (d.fitting > 0 && d.newestFit) {
-      lines.push(`${d.fitting} name${d.fitting === 1 ? '' : 's'} fit a pattern; the newest build number among them is ${d.newestFit.buildNumber} (${d.newestFit.name}).`);
+      lines.push(
+        `${d.fitting} name${d.fitting === 1 ? '' : 's'} fit a pattern; the newest build number among them is ${d.newestFit.buildNumber} (${d.newestFit.name}).`,
+      );
     } else if ((d.tags?.seen ?? 0) > 0) {
       lines.push('No tag or release name fits a pattern.');
     }
@@ -344,7 +372,9 @@ export function diagnosticsLines(d: BuildDiagnostics): string[] {
 }
 
 /** Where the patterns in use come from, in a few words. */
-export function conventionSourceLabel(patterns: Pick<BuildDiagnostics['patterns'], 'source'>): string {
+export function conventionSourceLabel(
+  patterns: Pick<BuildDiagnostics['patterns'], 'source'>,
+): string {
   if (patterns.source === 'app') return "this app's own patterns";
   if (patterns.source === 'repository') return "the repository's patterns";
   return 'the built-in patterns';
@@ -376,7 +406,12 @@ export function shouldAutoRematch(input: {
 // The "Build number conventions" dialog
 
 /** What the dialog edits: one pattern per line. */
-export type ConventionDraft = { tagText: string; releaseText: string; prefix: string; workflow: string };
+export type ConventionDraft = {
+  tagText: string;
+  releaseText: string;
+  prefix: string;
+  workflow: string;
+};
 
 /** One pattern per line; blank lines are dropped, the rest is kept as typed (apart from outer spaces). */
 export const parsePatternLines = (text: string): string[] =>
@@ -411,7 +446,12 @@ export const sameDraft = (a: ConventionDraft, b: ConventionDraft): boolean =>
 
 const WORKFLOW_NAME = /^[A-Za-z0-9][A-Za-z0-9 ._/()-]{0,199}$/;
 
-export type DraftProblems = { tags: string[]; releases: string[]; prefix: string | undefined; workflow: string | undefined };
+export type DraftProblems = {
+  tags: string[];
+  releases: string[];
+  prefix: string | undefined;
+  workflow: string | undefined;
+};
 
 /** The messages the server would refuse the draft with, so the person sees them before saving. */
 export function draftProblems(draft: ConventionDraft): DraftProblems {
@@ -422,7 +462,10 @@ export function draftProblems(draft: ConventionDraft): DraftProblems {
     tags: patternListProblems(values.tagPatterns, { ...options, kind: 'tag' }),
     releases: patternListProblems(values.releasePatterns, { ...options, kind: 'release' }),
     prefix,
-    workflow: values.workflow !== null && !WORKFLOW_NAME.test(values.workflow) ? 'A workflow file name such as release.yml.' : undefined,
+    workflow:
+      values.workflow !== null && !WORKFLOW_NAME.test(values.workflow)
+        ? 'A workflow file name such as release.yml.'
+        : undefined,
   };
 }
 
@@ -456,8 +499,10 @@ export function previewConventions(
 ): ConventionPreview {
   const values = draftValues(draft);
   const prefix = prefixProblem(values.prefix) ? '' : values.prefix;
-  const usedTagPatterns = values.tagPatterns.length > 0 ? values.tagPatterns : [...DEFAULT_TAG_PATTERNS];
-  const usedReleasePatterns = values.releasePatterns.length > 0 ? values.releasePatterns : [...DEFAULT_RELEASE_PATTERNS];
+  const usedTagPatterns =
+    values.tagPatterns.length > 0 ? values.tagPatterns : [...DEFAULT_TAG_PATTERNS];
+  const usedReleasePatterns =
+    values.releasePatterns.length > 0 ? values.releasePatterns : [...DEFAULT_RELEASE_PATTERNS];
   const tags = previewPatterns(
     names.tags.map((t) => t.name),
     usedTagPatterns,
@@ -468,15 +513,30 @@ export function previewConventions(
     usedReleasePatterns,
     { kind: 'release', prefix, platform },
   );
-  const fits = (rows: PreviewRow[]) => rows.filter((r) => r.matched && r.platformOk !== false).length;
-  return { tags, releases, tagFits: fits(tags), releaseFits: fits(releases), usedTagPatterns, usedReleasePatterns };
+  const fits = (rows: PreviewRow[]) =>
+    rows.filter((r) => r.matched && r.platformOk !== false).length;
+  return {
+    tags,
+    releases,
+    tagFits: fits(tags),
+    releaseFits: fits(releases),
+    usedTagPatterns,
+    usedReleasePatterns,
+  };
 }
 
-const sameNumber = (a: string, b: string) => /^\d+$/.test(a) && /^\d+$/.test(b) && Number(a) === Number(b);
+const sameNumber = (a: string, b: string) =>
+  /^\d+$/.test(a) && /^\d+$/.test(b) && Number(a) === Number(b);
 
 /** The preview rows that carry this build's number (and are not for the other platform). */
 export const rowsForBuild = (rows: readonly PreviewRow[], buildNumber: string): PreviewRow[] =>
-  rows.filter((r) => r.matched && r.platformOk !== false && r.fields !== undefined && sameNumber(r.fields.buildNumber, buildNumber));
+  rows.filter(
+    (r) =>
+      r.matched &&
+      r.platformOk !== false &&
+      r.fields !== undefined &&
+      sameNumber(r.fields.buildNumber, buildNumber),
+  );
 
 /** Short text for a preview row: what was read from the name. */
 export function previewReading(row: PreviewRow): string {
@@ -484,7 +544,12 @@ export function previewReading(row: PreviewRow): string {
   const f = row.fields;
   const parts = [`build ${f.buildNumber}`];
   if (f.version) parts.push(`version ${f.version}`);
-  if (f.platform) parts.push(f.platform === 'other' ? `platform ${f.platformWord ?? '?'} (not used)` : platformLabel(f.platform));
+  if (f.platform)
+    parts.push(
+      f.platform === 'other'
+        ? `platform ${f.platformWord ?? '?'} (not used)`
+        : platformLabel(f.platform),
+    );
   if (f.flavor) parts.push(f.flavor);
   if (row.platformOk === false) parts.push('other platform: not used for this app');
   return parts.join(' · ');
@@ -504,7 +569,11 @@ export function proposeFromExample(
 ): Proposal {
   const text = example.trim();
   if (text === '') return { ok: false, message: 'Paste or pick a tag or release name.' };
-  const proposal = proposePattern(text, { buildNumber: build.buildNumber, version: build.version, kind });
+  const proposal = proposePattern(text, {
+    buildNumber: build.buildNumber,
+    version: build.version,
+    kind,
+  });
   if (!proposal) return { ok: false, message: 'No build number was found in that name.' };
   return { ok: true, pattern: proposal.pattern };
 }
@@ -520,11 +589,13 @@ export function appendPattern(
   defaults: readonly string[] = [],
 ): { text: string; added: boolean; reason?: string } {
   const lines = parsePatternLines(text);
-  if (lines.includes(pattern)) return { text, added: false, reason: 'That pattern is already in the list.' };
+  if (lines.includes(pattern))
+    return { text, added: false, reason: 'That pattern is already in the list.' };
   if (lines.length === 0) {
     const next = [pattern, ...defaults.filter((d) => d !== pattern)].slice(0, MAX_PATTERNS);
     return { text: patternLines(next), added: true };
   }
-  if (lines.length >= MAX_PATTERNS) return { text, added: false, reason: `A list holds ${MAX_PATTERNS} patterns at most.` };
+  if (lines.length >= MAX_PATTERNS)
+    return { text, added: false, reason: `A list holds ${MAX_PATTERNS} patterns at most.` };
   return { text: patternLines([...lines, pattern]), added: true };
 }

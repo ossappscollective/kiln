@@ -45,9 +45,12 @@ type Bytes = Uint8Array;
 
 const u16be = (b: Bytes, i: number) => ((b[i] ?? 0) << 8) | (b[i + 1] ?? 0);
 const u16le = (b: Bytes, i: number) => (b[i] ?? 0) | ((b[i + 1] ?? 0) << 8);
-const u24le = (b: Bytes, i: number) => (b[i] ?? 0) | ((b[i + 1] ?? 0) << 8) | ((b[i + 2] ?? 0) << 16);
+const u24le = (b: Bytes, i: number) =>
+  (b[i] ?? 0) | ((b[i + 1] ?? 0) << 8) | ((b[i + 2] ?? 0) << 16);
 const u32be = (b: Bytes, i: number) =>
-  (((b[i] ?? 0) * 0x1000000) + (((b[i + 1] ?? 0) << 16) | ((b[i + 2] ?? 0) << 8) | (b[i + 3] ?? 0))) >>> 0;
+  ((b[i] ?? 0) * 0x1000000 +
+    (((b[i + 1] ?? 0) << 16) | ((b[i + 2] ?? 0) << 8) | (b[i + 3] ?? 0))) >>>
+  0;
 
 const ascii = (b: Bytes, i: number, text: string): boolean => {
   if (i < 0 || i + text.length > b.length) return false;
@@ -55,7 +58,10 @@ const ascii = (b: Bytes, i: number, text: string): boolean => {
   return true;
 };
 
-const bad = (reason: 'unknown_format' | 'truncated' | 'malformed'): ImageHeader => ({ ok: false, reason });
+const bad = (reason: 'unknown_format' | 'truncated' | 'malformed'): ImageHeader => ({
+  ok: false,
+  reason,
+});
 
 const sized = (
   format: ImageFormat,
@@ -70,7 +76,15 @@ const sized = (
 /** The format named by the first bytes, or null. Looks at 12 bytes at most. */
 export function sniffImageFormat(input: Bytes): ImageFormat | null {
   const b = input.length > 16 ? input.subarray(0, 16) : input;
-  if (b.length >= 8 && b[0] === 0x89 && ascii(b, 1, 'PNG') && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) {
+  if (
+    b.length >= 8 &&
+    b[0] === 0x89 &&
+    ascii(b, 1, 'PNG') &&
+    b[4] === 0x0d &&
+    b[5] === 0x0a &&
+    b[6] === 0x1a &&
+    b[7] === 0x0a
+  ) {
     return 'png';
   }
   if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
@@ -123,7 +137,8 @@ function readJpeg(b: Bytes): ImageHeader {
     if (pos + 2 > b.length) return bad('truncated');
     const length = u16be(b, pos);
     if (length < 2) return bad('malformed');
-    const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    const isFrame =
+      marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
     if (isFrame) {
       // length, precision, height, width, components
       if (pos + 7 > b.length) return bad('truncated');
@@ -136,7 +151,8 @@ function readJpeg(b: Bytes): ImageHeader {
 
 function readWebp(b: Bytes): ImageHeader {
   if (b.length < 20) return bad('truncated');
-  const chunk = b.length >= 16 ? String.fromCharCode(b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0) : '';
+  const chunk =
+    b.length >= 16 ? String.fromCharCode(b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0) : '';
   const data = 20;
   if (chunk === 'VP8X') {
     if (b.length < data + 10) return bad('truncated');
@@ -146,7 +162,11 @@ function readWebp(b: Bytes): ImageHeader {
   if (chunk === 'VP8L') {
     if (b.length < data + 5) return bad('truncated');
     if (b[data] !== 0x2f) return bad('malformed');
-    const bits = (b[data + 1] ?? 0) | ((b[data + 2] ?? 0) << 8) | ((b[data + 3] ?? 0) << 16) | ((b[data + 4] ?? 0) * 0x1000000);
+    const bits =
+      (b[data + 1] ?? 0) |
+      ((b[data + 2] ?? 0) << 8) |
+      ((b[data + 3] ?? 0) << 16) |
+      ((b[data + 4] ?? 0) * 0x1000000);
     const width = (bits & 0x3fff) + 1;
     const height = ((bits >>> 14) & 0x3fff) + 1;
     return sized('webp', width, height, ((bits >>> 28) & 1) === 1);
@@ -154,7 +174,8 @@ function readWebp(b: Bytes): ImageHeader {
   if (chunk === 'VP8 ') {
     // 3 byte frame tag, 3 byte start code, then 14 bit width and height (little endian).
     if (b.length < data + 10) return bad('truncated');
-    if (b[data + 3] !== 0x9d || b[data + 4] !== 0x01 || b[data + 5] !== 0x2a) return bad('malformed');
+    if (b[data + 3] !== 0x9d || b[data + 4] !== 0x01 || b[data + 5] !== 0x2a)
+      return bad('malformed');
     return sized('webp', u16le(b, data + 6) & 0x3fff, u16le(b, data + 8) & 0x3fff, false);
   }
   return bad('malformed');
@@ -171,7 +192,8 @@ function readGif(b: Bytes): ImageHeader {
  */
 export function readImageHeader(input: Bytes): ImageHeader {
   try {
-    const b = input.length > MAX_HEADER_SCAN_BYTES ? input.subarray(0, MAX_HEADER_SCAN_BYTES) : input;
+    const b =
+      input.length > MAX_HEADER_SCAN_BYTES ? input.subarray(0, MAX_HEADER_SCAN_BYTES) : input;
     switch (sniffImageFormat(b)) {
       case 'png':
         return readPng(b);

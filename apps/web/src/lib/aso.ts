@@ -1,7 +1,24 @@
-import { type Platform, type RankChange, type RankChangeKind, checkTerm, defaultLocaleFor, normalizeCountry, normalizeLocale } from '@mrm/core';
-import type { CoachAction, CoverageGap, FitFields, FitStatus, Idea, ListingFit, SuggestedCompetitor, TermAcrossMarkets } from '@mrm/core';
+import type {
+  CoachAction,
+  CoverageGap,
+  FitFields,
+  FitStatus,
+  Idea,
+  ListingFit,
+  SuggestedCompetitor,
+  TermAcrossMarkets,
+} from '@mrm/core';
+import {
+  checkTerm,
+  defaultLocaleFor,
+  normalizeCountry,
+  normalizeLocale,
+  type Platform,
+  type RankChange,
+  type RankChangeKind,
+} from '@mrm/core';
 import { ApiError } from './api.ts';
-import { type PlatformScope, appAddress, parseViewPath } from './app-scope.ts';
+import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import type { IconName } from './icons.ts';
 import { retrySeconds } from './portfolio.ts';
 
@@ -24,7 +41,13 @@ export type AsoConfig = {
   play: { enabled: boolean; unofficial: boolean; notice: string; howToEnable: string };
   schedule: { intervalMinutes: number };
   retentionDays: number;
-  limits: { maxKeywordsPerApp: number; maxCompetitorsPerApp: number; maxChecksPerRun: number; rankDepth: number; maxKeywordsPerRequest: number };
+  limits: {
+    maxKeywordsPerApp: number;
+    maxCompetitorsPerApp: number;
+    maxChecksPerRun: number;
+    rankDepth: number;
+    maxKeywordsPerRequest: number;
+  };
   rankMoveThreshold: number;
 };
 
@@ -53,21 +76,50 @@ export type AsoKeyword = {
   error: string | null;
 };
 
-export type AsoKeywordInput = { term: string; country?: string; locale?: string; tag?: string; notes?: string; priority?: number };
+export type AsoKeywordInput = {
+  term: string;
+  country?: string;
+  locale?: string;
+  tag?: string;
+  notes?: string;
+  priority?: number;
+};
 export type AsoAddSummary = { created: number; exists: number; invalid: number; limit: number };
 export type AsoAddResult = {
-  results: { index: number; status: 'created' | 'exists' | 'invalid' | 'limit'; keyword?: AsoKeyword; message?: string }[];
+  results: {
+    index: number;
+    status: 'created' | 'exists' | 'invalid' | 'limit';
+    keyword?: AsoKeyword;
+    message?: string;
+  }[];
   summary: AsoAddSummary;
 };
 
-export type AsoCheck = { id: string; checkedAt: number; rank: number | null; total: number; source: string };
+export type AsoCheck = {
+  id: string;
+  checkedAt: number;
+  rank: number | null;
+  total: number;
+  source: string;
+};
 export type AsoKeywordHistory = {
   keyword: AsoKeyword;
   checks: AsoCheck[];
-  trend: { direction: 'up' | 'down' | 'flat' | 'unknown'; delta: number | null; latest: number | null; best: number | null; worst: number | null; samples: number };
+  trend: {
+    direction: 'up' | 'down' | 'flat' | 'unknown';
+    delta: number | null;
+    latest: number | null;
+    best: number | null;
+    worst: number | null;
+    samples: number;
+  };
 };
 
-export type AsoChange = { field: string; from?: string | number | null; to?: string | number | null };
+export type AsoChange = {
+  field: string;
+  from?: string | number | null;
+  to?: string | number | null;
+};
 export type AsoSnapshot = {
   id: string;
   checkedAt: number;
@@ -105,7 +157,15 @@ export type AsoCompetitorHistory = {
 
 export type AsoRefreshResult = {
   at: number;
-  keywords: { due: number; checked: number; ranked: number; notRanked: number; failed: number; cached: number; moved: number };
+  keywords: {
+    due: number;
+    checked: number;
+    ranked: number;
+    notRanked: number;
+    failed: number;
+    cached: number;
+    moved: number;
+  };
   competitors: { due: number; checked: number; changed: number; notFound: number; failed: number };
   deferred: boolean;
   retryAfterSeconds?: number;
@@ -123,10 +183,27 @@ export type AsoState = {
 };
 export type AsoRefreshOutcome = { result: AsoRefreshResult; state: AsoState };
 
-export type AsoMover = { keywordId: string; term: string; country: string; locale: string; kind: string; from: number | null; to: number | null; delta: number | null };
+export type AsoMover = {
+  keywordId: string;
+  term: string;
+  country: string;
+  locale: string;
+  kind: string;
+  from: number | null;
+  to: number | null;
+  delta: number | null;
+};
 export type AsoSummary = {
   app: { id: string; platform: AsoPlatform; store: AsoStore };
-  keywords: { total: number; ranked: number; notRanked: number; unchecked: number; failing: number; top3: number; top10: number };
+  keywords: {
+    total: number;
+    ranked: number;
+    notRanked: number;
+    unchecked: number;
+    failing: number;
+    top3: number;
+    top10: number;
+  };
   movers: AsoMover[];
   competitors: { total: number; notFound: number; changedRecently: number };
   state: AsoState;
@@ -143,26 +220,62 @@ export type AsoFitView = {
 };
 export type AsoCoachResponse = {
   actions: CoachAction[];
-  basedOn: { keywords: number; competitors: number; listingLocales: number; lastCheckAt: number | null; listingReadAt: number | null };
+  basedOn: {
+    keywords: number;
+    competitors: number;
+    listingLocales: number;
+    lastCheckAt: number | null;
+    listingReadAt: number | null;
+  };
 };
-export type AsoFitResponse = { readAt: number | null; error: string | null; locales: AsoFitView[]; /** Every locale the stored listing has text for. Absent from an older server. */ listingLocales?: string[]; indexedFields: string[]; assumptions: string[] };
+export type AsoFitResponse = {
+  readAt: number | null;
+  error: string | null;
+  locales: AsoFitView[] /** Every locale the stored listing has text for. Absent from an older server. */;
+  listingLocales?: string[];
+  indexedFields: string[];
+  assumptions: string[];
+};
 export type AsoIdeasResponse = {
   locale: string;
   basedOn: { ownListing: boolean; competitors: number };
   ideas: Idea[];
   notes: string[];
 };
-export type AsoGapsResponse = { locale: string; competitors: number; gaps: CoverageGap[]; notes: string[] };
+export type AsoGapsResponse = {
+  locale: string;
+  competitors: number;
+  gaps: CoverageGap[];
+  notes: string[];
+};
 export type AsoSuggestion = SuggestedCompetitor & { country: string; name: string | null };
-export type AsoSuggestionsResponse = { suggestions: AsoSuggestion[]; basedOnKeywords: number; notes: string[] };
+export type AsoSuggestionsResponse = {
+  suggestions: AsoSuggestion[];
+  basedOnKeywords: number;
+  notes: string[];
+};
 /** The stored text of every locale of the listing (`GET /aso/listing-keywords`); the terms are worked out in the web with core `listingRows`. */
-export type AsoListingKeywordsResponse = { readAt: number | null; error: string | null; locales: { locale: string; fields: FitFields }[]; indexedFields: string[] };
+export type AsoListingKeywordsResponse = {
+  readAt: number | null;
+  error: string | null;
+  locales: { locale: string; fields: FitFields }[];
+  indexedFields: string[];
+};
 export type AsoMarketsResponse = { terms: TermAcrossMarkets[] };
 
 // ---------------------------------------------------------------------------------------------
 // Views of Keywords and Search terms in Insights (address backed: `?view=`)
 
-export type AsoView = 'keywords' | 'listing' | 'competitors' | 'ideas' | 'fit' | 'gaps' | 'markets' | 'terms' | 'rank';
+export type AsoView =
+  | 'keywords'
+  | 'listing'
+  | 'competitors'
+  | 'ideas'
+  | 'fit'
+  | 'gaps'
+  | 'markets'
+  | 'terms'
+  | 'rank';
 
 export const asoViews: { id: AsoView; label: string }[] = [
   { id: 'keywords', label: 'Keywords' },
@@ -177,10 +290,12 @@ export const asoViews: { id: AsoView; label: string }[] = [
 ];
 
 /** The views an app section offers: Search terms is for Google Play apps only (a Play Console file), so it is left out without one. */
-export const asoViewsFor = (androidInScope: boolean): { id: AsoView; label: string }[] => asoViews.filter((v) => v.id !== 'terms' || androidInScope);
+export const asoViewsFor = (androidInScope: boolean): { id: AsoView; label: string }[] =>
+  asoViews.filter((v) => v.id !== 'terms' || androidInScope);
 
 /** The view to draw: the one asked for when this section offers it, else Keywords. */
-export const availableAsoView = (view: AsoView, androidInScope: boolean): AsoView => (asoViewsFor(androidInScope).some((v) => v.id === view) ? view : 'keywords');
+export const availableAsoView = (view: AsoView, androidInScope: boolean): AsoView =>
+  asoViewsFor(androidInScope).some((v) => v.id === view) ? view : 'keywords';
 
 export const isAsoView = (value: string | null | undefined): value is AsoView =>
   value !== null && value !== undefined && asoViews.some((v) => v.id === value);
@@ -202,8 +317,16 @@ export const keywordMainViews: { id: AsoView; label: string }[] = [
 
 /** The keyword views behind "More", with one line each for the menu. Together with `keywordMainViews` and Search terms they are every ASO view. */
 export const keywordMoreViews: { id: AsoView; label: string; hint: string }[] = [
-  { id: 'listing', label: 'In your listing', hint: 'Where each keyword appears in your listing text.' },
-  { id: 'competitors', label: 'Competitors', hint: 'Apps you follow and the keywords they rank for.' },
+  {
+    id: 'listing',
+    label: 'In your listing',
+    hint: 'Where each keyword appears in your listing text.',
+  },
+  {
+    id: 'competitors',
+    label: 'Competitors',
+    hint: 'Apps you follow and the keywords they rank for.',
+  },
   { id: 'ideas', label: 'Ideas', hint: 'Terms taken from your listing and your competitors.' },
   { id: 'fit', label: 'Fit', hint: 'How well the live listing covers your keywords.' },
   { id: 'gaps', label: 'Gaps', hint: 'Terms competitors use that you do not.' },
@@ -211,7 +334,8 @@ export const keywordMoreViews: { id: AsoView; label: string; hint: string }[] = 
 ];
 
 /** Whether a keyword view is behind the "More" menu. */
-export const isMoreKeywordView = (view: AsoView): boolean => keywordMoreViews.some((v) => v.id === view);
+export const isMoreKeywordView = (view: AsoView): boolean =>
+  keywordMoreViews.some((v) => v.id === view);
 
 /** The same address with another sub-view (`?view=`). Keywords is written too: the default of Insights is Overview. Other query parts stay. */
 export function withAsoView(hash: string, view: AsoView): string {
@@ -224,8 +348,11 @@ export function withAsoView(hash: string, view: AsoView): string {
 }
 
 /** The address of a sub-view of Keywords (or of Search terms) in Insights of an app. */
-export const asoViewHref = (appId: string, view: AsoView = 'keywords', platform: PlatformScope | null = null): string =>
-  withAsoView(appAddress(appId, 'insights', platform), view);
+export const asoViewHref = (
+  appId: string,
+  view: AsoView = 'keywords',
+  platform: PlatformScope | null = null,
+): string => withAsoView(appAddress(appId, 'insights', platform), view);
 
 /** The workspace overview of all apps. */
 export const asoOverviewHref = '#/aso';
@@ -234,15 +361,18 @@ export const asoOverviewHref = '#/aso';
 // Errors
 
 const messages: Record<string, string> = {
-  play_unofficial_disabled: 'Google Play reading is switched off on this server. Nothing was requested.',
+  play_unofficial_disabled:
+    'Google Play reading is switched off on this server. Nothing was requested.',
   refresh_in_progress: 'A check of this app is already running. Try again in a moment.',
   already_followed: 'That app is already followed.',
   limit_reached: 'The limit of followed competitors is reached. Remove one first.',
   own_app: 'That is your own app. Follow another one.',
   invalid_external_id: 'That is not an App Store id, package name or store link.',
   invalid_country: 'That is not a two-letter storefront such as us.',
-  refresh_failed: 'The store could not be read just now. Nothing was recorded as not ranked. Try again later.',
-  source_unavailable: 'The store could not be read just now. Nothing was recorded. Try again later.',
+  refresh_failed:
+    'The store could not be read just now. Nothing was recorded as not ranked. Try again later.',
+  source_unavailable:
+    'The store could not be read just now. Nothing was recorded. Try again later.',
   source_failed: 'The store could not be read just now. Nothing was recorded. Try again later.',
   source_timeout: 'The store did not answer in time. Try again later.',
 };
@@ -258,12 +388,18 @@ export function waitText(seconds: number): string {
 }
 
 /** A sentence for an ASO call that failed. A limit says when to try again. */
-export function asoErrorMessage(error: unknown, fallback = 'That did not work. Try again.'): string {
+export function asoErrorMessage(
+  error: unknown,
+  fallback = 'That did not work. Try again.',
+): string {
   if (!(error instanceof ApiError)) return fallback;
-  if (error.status === 422 && error.code === 'not_found') return 'The store has no app with that id.';
+  if (error.status === 422 && error.code === 'not_found')
+    return 'The store has no app with that id.';
   if (error.status === 429) {
     const seconds = retrySeconds(error);
-    return seconds !== null ? `The limit was reached. Try again in ${waitText(seconds)}.` : 'The limit was reached. Try again in a minute.';
+    return seconds !== null
+      ? `The limit was reached. Try again in ${waitText(seconds)}.`
+      : 'The limit was reached. Try again in a minute.';
   }
   return messages[error.code] ?? error.message ?? fallback;
 }
@@ -277,8 +413,13 @@ export function refreshWaitSeconds(error: unknown): number | null {
 // Text for ranks
 
 /** The rank cell: "12", "50+" (not within the first 50), a dash for never checked. */
-export function rankText(k: Pick<AsoKeyword, 'state' | 'rank' | 'total'>): { text: string; title: string; muted: boolean } {
-  if (k.state === 'ranked' && k.rank !== null) return { text: String(k.rank), title: `Position ${k.rank} in the results`, muted: false };
+export function rankText(k: Pick<AsoKeyword, 'state' | 'rank' | 'total'>): {
+  text: string;
+  title: string;
+  muted: boolean;
+} {
+  if (k.state === 'ranked' && k.rank !== null)
+    return { text: String(k.rank), title: `Position ${k.rank} in the results`, muted: false };
   if (k.state === 'not_ranked') {
     const n = k.total ?? 50;
     return { text: `${n}+`, title: `Not within the first ${n} results`, muted: true };
@@ -286,7 +427,12 @@ export function rankText(k: Pick<AsoKeyword, 'state' | 'rank' | 'total'>): { tex
   return { text: '–', title: 'Not checked yet', muted: true };
 }
 
-export type ChangeInfo = { text: string; tone: 'ok' | 'bad' | 'neutral'; icon: IconName | null; title: string };
+export type ChangeInfo = {
+  text: string;
+  tone: 'ok' | 'bad' | 'neutral';
+  icon: IconName | null;
+  title: string;
+};
 
 /** "+3" (better), "-4" (worse), "New", "Entered", "Left", or a dash. Words and icons say it, not the colour. */
 export function changeInfo(change: RankChange | null, checked: boolean): ChangeInfo {
@@ -294,19 +440,49 @@ export function changeInfo(change: RankChange | null, checked: boolean): ChangeI
   const kind: RankChangeKind = change?.kind ?? 'first';
   switch (kind) {
     case 'up':
-      return { text: `+${change?.delta ?? 0}`, tone: 'ok', icon: 'arrow-up', title: `Up ${change?.delta ?? 0} places since the last check` };
+      return {
+        text: `+${change?.delta ?? 0}`,
+        tone: 'ok',
+        icon: 'arrow-up',
+        title: `Up ${change?.delta ?? 0} places since the last check`,
+      };
     case 'down':
-      return { text: `${change?.delta ?? 0}`, tone: 'bad', icon: 'arrow-down', title: `Down ${Math.abs(change?.delta ?? 0)} places since the last check` };
+      return {
+        text: `${change?.delta ?? 0}`,
+        tone: 'bad',
+        icon: 'arrow-down',
+        title: `Down ${Math.abs(change?.delta ?? 0)} places since the last check`,
+      };
     case 'entered':
-      return { text: 'Entered', tone: 'ok', icon: 'arrow-up', title: 'Was not in the results at the last check' };
+      return {
+        text: 'Entered',
+        tone: 'ok',
+        icon: 'arrow-up',
+        title: 'Was not in the results at the last check',
+      };
     case 'dropped':
-      return { text: 'Left', tone: 'bad', icon: 'arrow-down', title: 'Was in the results at the last check' };
+      return {
+        text: 'Left',
+        tone: 'bad',
+        icon: 'arrow-down',
+        title: 'Was in the results at the last check',
+      };
     case 'same':
       return { text: '0', tone: 'neutral', icon: null, title: 'No change since the last check' };
     case 'still_unranked':
-      return { text: '–', tone: 'neutral', icon: null, title: 'Not in the results at the last two checks' };
+      return {
+        text: '–',
+        tone: 'neutral',
+        icon: null,
+        title: 'Not in the results at the last two checks',
+      };
     default:
-      return { text: 'New', tone: 'neutral', icon: null, title: 'First check, nothing to compare with' };
+      return {
+        text: 'New',
+        tone: 'neutral',
+        icon: null,
+        title: 'First check, nothing to compare with',
+      };
   }
 }
 
@@ -326,38 +502,64 @@ export const keywordSorts: { id: KeywordSort; label: string }[] = [
   { id: 'checked', label: 'Last checked' },
 ];
 
-const rankOrder = (k: AsoKeyword): number => (k.state === 'ranked' && k.rank !== null ? k.rank : k.state === 'not_ranked' ? 10_000 : 20_000);
+const rankOrder = (k: AsoKeyword): number =>
+  k.state === 'ranked' && k.rank !== null ? k.rank : k.state === 'not_ranked' ? 10_000 : 20_000;
 
 export function sortKeywords<T extends AsoKeyword>(list: readonly T[], sort: KeywordSort): T[] {
   const out = list.slice();
-  const byTerm = (a: T, b: T) => a.term.localeCompare(b.term) || a.country.localeCompare(b.country) || a.platform.localeCompare(b.platform);
+  const byTerm = (a: T, b: T) =>
+    a.term.localeCompare(b.term) ||
+    a.country.localeCompare(b.country) ||
+    a.platform.localeCompare(b.platform);
   if (sort === 'term') out.sort(byTerm);
-  else if (sort === 'move') out.sort((a, b) => moveSize(b.change) - moveSize(a.change) || rankOrder(a) - rankOrder(b) || byTerm(a, b));
-  else if (sort === 'checked') out.sort((a, b) => (b.lastCheckedAt ?? 0) - (a.lastCheckedAt ?? 0) || byTerm(a, b));
+  else if (sort === 'move')
+    out.sort(
+      (a, b) =>
+        moveSize(b.change) - moveSize(a.change) || rankOrder(a) - rankOrder(b) || byTerm(a, b),
+    );
+  else if (sort === 'checked')
+    out.sort((a, b) => (b.lastCheckedAt ?? 0) - (a.lastCheckedAt ?? 0) || byTerm(a, b));
   else out.sort((a, b) => rankOrder(a) - rankOrder(b) || byTerm(a, b));
   return out;
 }
 
 /** "US · en-US". */
-export const marketText = (k: Pick<AsoKeyword, 'country' | 'locale'>): string => `${k.country.toUpperCase()} · ${k.locale}`;
+export const marketText = (k: Pick<AsoKeyword, 'country' | 'locale'>): string =>
+  `${k.country.toUpperCase()} · ${k.locale}`;
 
 /** Case insensitive match on the term, the tag and the market. */
 export function filterKeywords<T extends AsoKeyword>(list: readonly T[], query: string): T[] {
   const q = query.trim().toLowerCase();
   if (q === '') return list.slice();
-  return list.filter((k) => k.term.toLowerCase().indexOf(q) >= 0 || (k.tag ?? '').toLowerCase().indexOf(q) >= 0 || marketText(k).toLowerCase().indexOf(q) >= 0);
+  return list.filter(
+    (k) =>
+      k.term.toLowerCase().indexOf(q) >= 0 ||
+      (k.tag ?? '').toLowerCase().indexOf(q) >= 0 ||
+      marketText(k).toLowerCase().indexOf(q) >= 0,
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
 // Sparkline
 
-export type Spark = { path: string; width: number; height: number; last: { x: number; y: number } | null; samples: number };
+export type Spark = {
+  path: string;
+  width: number;
+  height: number;
+  last: { x: number; y: number } | null;
+  samples: number;
+};
 
 /**
  * A tiny line of a rank history (oldest first): rank 1 is at the top, "not ranked" counts as one past the
  * deepest result seen and sits at the bottom. One check is a dot, none is nothing.
  */
-export function sparkline(checks: readonly Pick<AsoCheck, 'rank' | 'total'>[], width = 72, height = 20, pad = 2): Spark {
+export function sparkline(
+  checks: readonly Pick<AsoCheck, 'rank' | 'total'>[],
+  width = 72,
+  height = 20,
+  pad = 2,
+): Spark {
   const n = checks.length;
   if (n === 0) return { path: '', width, height, last: null, samples: 0 };
   let deepest = 0;
@@ -430,7 +632,33 @@ export const localeForCountry = (country: string): string => defaultLocaleFor(co
 
 /** The storefronts the picker offers. Any two letters are accepted by the server. */
 export const commonCountries: string[] = [
-  'us', 'gb', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'se', 'no', 'dk', 'fi', 'pl', 'pt', 'br', 'mx', 'jp', 'kr', 'cn', 'in', 'tr', 'ru', 'ch', 'at', 'ie', 'nz',
+  'us',
+  'gb',
+  'ca',
+  'au',
+  'de',
+  'fr',
+  'es',
+  'it',
+  'nl',
+  'se',
+  'no',
+  'dk',
+  'fi',
+  'pl',
+  'pt',
+  'br',
+  'mx',
+  'jp',
+  'kr',
+  'cn',
+  'in',
+  'tr',
+  'ru',
+  'ch',
+  'at',
+  'ie',
+  'nz',
 ];
 
 /** One item per market and term, in the order the person typed them. */
@@ -457,7 +685,12 @@ export function chunk<T>(list: readonly T[], size: number): T[][] {
   return out;
 }
 
-export const emptyAddSummary = (): AsoAddSummary => ({ created: 0, exists: 0, invalid: 0, limit: 0 });
+export const emptyAddSummary = (): AsoAddSummary => ({
+  created: 0,
+  exists: 0,
+  invalid: 0,
+  limit: 0,
+});
 
 export function sumAddSummary(parts: readonly AsoAddSummary[]): AsoAddSummary {
   const total = emptyAddSummary();
@@ -474,7 +707,8 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 
 /** "Added 8 keywords. 2 already tracked, 1 not accepted, 3 over the limit of 50." */
 export function addSummaryText(s: AsoAddSummary, maxPerApp?: number): string {
-  const head = s.created > 0 ? `Added ${plural(s.created, 'keyword', 'keywords')}.` : 'Nothing was added.';
+  const head =
+    s.created > 0 ? `Added ${plural(s.created, 'keyword', 'keywords')}.` : 'Nothing was added.';
   const rest: string[] = [];
   if (s.exists > 0) rest.push(`${s.exists} already tracked`);
   if (s.invalid > 0) rest.push(`${s.invalid} not accepted`);
@@ -497,7 +731,9 @@ export function refreshText(result: AsoRefreshResult): string {
     const why: Record<string, string> = {
       cap: 'The rest is left for the next check.',
       time: 'It ran out of time; the rest is left for the next check.',
-      rate_limit: result.retryAfterSeconds ? `The store asked to slow down; try again in ${waitText(result.retryAfterSeconds)}.` : 'The store asked to slow down.',
+      rate_limit: result.retryAfterSeconds
+        ? `The store asked to slow down; try again in ${waitText(result.retryAfterSeconds)}.`
+        : 'The store asked to slow down.',
       unavailable: 'The store could not be read for the rest.',
       errors: 'It stopped after repeated errors.',
     };
@@ -508,7 +744,9 @@ export function refreshText(result: AsoRefreshResult): string {
 
 /** Seconds to wait after a run that stopped for a store's limit, or null. */
 export function resultWaitSeconds(result: AsoRefreshResult): number | null {
-  return result.stoppedBecause === 'rate_limit' && result.retryAfterSeconds ? result.retryAfterSeconds : null;
+  return result.stoppedBecause === 'rate_limit' && result.retryAfterSeconds
+    ? result.retryAfterSeconds
+    : null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -529,7 +767,8 @@ const fieldLabels: Record<string, string> = {
 
 export const fieldLabel = (field: string): string => fieldLabels[field] ?? field;
 
-const shown = (v: string | number | null | undefined): string => (v === null || v === undefined || v === '' ? 'none' : String(v));
+const shown = (v: string | number | null | undefined): string =>
+  v === null || v === undefined || v === '' ? 'none' : String(v);
 
 /** "Version 2.0 to 2.1", "Description changed". The values are public short texts, shown as plain text. */
 export function changeText(c: AsoChange): string {
@@ -547,45 +786,84 @@ const daysAgo = (at: number, now: number): string => {
 };
 
 /** The one line on a competitor card about the last change. */
-export function lastChangeText(h: Pick<AsoCompetitorHistory, 'diff'> | null, c: AsoCompetitor, now: number): string {
+export function lastChangeText(
+  h: Pick<AsoCompetitorHistory, 'diff'> | null,
+  c: AsoCompetitor,
+  now: number,
+): string {
   if (h?.diff && h.diff.changes.length > 0) {
     const more = h.diff.changes.length - 1;
     return `${changeText(h.diff.changes[0] as AsoChange)}${more > 0 ? ` and ${more} more` : ''}, ${daysAgo(h.diff.at, now)}`;
   }
   const latest = c.latest;
-  if (latest?.changes && latest.changes.length > 0) return `${changeText(latest.changes[0] as AsoChange)}, ${daysAgo(latest.checkedAt, now)}`;
+  if (latest?.changes && latest.changes.length > 0)
+    return `${changeText(latest.changes[0] as AsoChange)}, ${daysAgo(latest.checkedAt, now)}`;
   if (c.state === 'not_found') return 'No longer in the store';
   return latest ? 'No change seen since the first look' : 'Not looked at yet';
 }
 
 /** Stars with one decimal: "4.6". */
-export const ratingText = (rating: number | null | undefined): string => (rating === null || rating === undefined ? '–' : rating.toFixed(1));
+export const ratingText = (rating: number | null | undefined): string =>
+  rating === null || rating === undefined ? '–' : rating.toFixed(1);
 
-export const countText = (n: number | null | undefined): string => (n === null || n === undefined ? '–' : n.toLocaleString('en'));
+export const countText = (n: number | null | undefined): string =>
+  n === null || n === undefined ? '–' : n.toLocaleString('en');
 
 export type CompareRow = { label: string; ours: string; theirs: string[] };
-export type OurFacts = { version: string | null; rating: number | null; ratingCount: number | null };
+export type OurFacts = {
+  version: string | null;
+  rating: number | null;
+  ratingCount: number | null;
+};
 
 /** The side by side of our app and the followed ones. A value we do not hold is a dash, never a guess. */
 export function compareRows(ours: OurFacts, others: readonly AsoCompetitor[]): CompareRow[] {
-  const col = (f: (s: AsoSnapshot) => string): string[] => others.map((c) => (c.latest ? f(c.latest) : '–'));
+  const col = (f: (s: AsoSnapshot) => string): string[] =>
+    others.map((c) => (c.latest ? f(c.latest) : '–'));
   return [
     { label: 'Version', ours: ours.version ?? '–', theirs: col((s) => s.version ?? '–') },
     { label: 'Rating', ours: ratingText(ours.rating), theirs: col((s) => ratingText(s.rating)) },
-    { label: 'Ratings', ours: countText(ours.ratingCount), theirs: col((s) => countText(s.ratingCount)) },
+    {
+      label: 'Ratings',
+      ours: countText(ours.ratingCount),
+      theirs: col((s) => countText(s.ratingCount)),
+    },
     { label: 'Price', ours: '–', theirs: col((s) => s.price ?? '–') },
-    { label: 'Screenshots', ours: '–', theirs: col((s) => (s.screenshotCount === null ? '–' : String(s.screenshotCount))) },
+    {
+      label: 'Screenshots',
+      ours: '–',
+      theirs: col((s) => (s.screenshotCount === null ? '–' : String(s.screenshotCount))),
+    },
   ];
 }
 
 // ---------------------------------------------------------------------------------------------
 // Fit
 
-export const fitStatusInfo: Record<FitStatus, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral'; hint: string }> = {
-  strong: { label: 'Strong', tone: 'ok', hint: 'The phrase is in the name or subtitle (Android: title or short description).' },
-  covered: { label: 'Covered', tone: 'ok', hint: 'Every word is in the searched fields, but not as a phrase in the name or subtitle.' },
-  partial: { label: 'Partial', tone: 'warn', hint: 'Some of the words are in the searched fields.' },
-  description_only: { label: 'Description only', tone: 'warn', hint: 'Only in the description, which the App Store may not search. Unverified.' },
+export const fitStatusInfo: Record<
+  FitStatus,
+  { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral'; hint: string }
+> = {
+  strong: {
+    label: 'Strong',
+    tone: 'ok',
+    hint: 'The phrase is in the name or subtitle (Android: title or short description).',
+  },
+  covered: {
+    label: 'Covered',
+    tone: 'ok',
+    hint: 'Every word is in the searched fields, but not as a phrase in the name or subtitle.',
+  },
+  partial: {
+    label: 'Partial',
+    tone: 'warn',
+    hint: 'Some of the words are in the searched fields.',
+  },
+  description_only: {
+    label: 'Description only',
+    tone: 'warn',
+    hint: 'Only in the description, which the App Store may not search. Unverified.',
+  },
   missing: { label: 'Missing', tone: 'bad', hint: 'None of the words are in the searched fields.' },
 };
 
@@ -605,18 +883,28 @@ export const fitColumns: Record<AsoPlatform, string[]> = {
 };
 
 /** How full the iOS keyword field is, for the meter. */
-export function keywordMeter(bytes: number, max: number): { percent: number; tone: 'ok' | 'warn' | 'bad'; text: string } {
+export function keywordMeter(
+  bytes: number,
+  max: number,
+): { percent: number; tone: 'ok' | 'warn' | 'bad'; text: string } {
   const percent = max <= 0 ? 0 : Math.min(100, Math.round((bytes / max) * 100));
   const tone = bytes > max ? 'bad' : bytes >= max * 0.9 ? 'warn' : 'ok';
   const left = max - bytes;
-  return { percent, tone, text: `${bytes} of ${max} bytes, ${left < 0 ? `${-left} over` : `${left} left`}` };
+  return {
+    percent,
+    tone,
+    text: `${bytes} of ${max} bytes, ${left < 0 ? `${-left} over` : `${left} left`}`,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Ideas and gaps
 
 /** The storefront an idea of a locale most likely belongs to: a market already tracked in it, else the region of the locale, else ''. */
-export function countryForLocale(locale: string, keywords: readonly Pick<AsoKeyword, 'country' | 'locale'>[]): string {
+export function countryForLocale(
+  locale: string,
+  keywords: readonly Pick<AsoKeyword, 'country' | 'locale'>[],
+): string {
   const known = keywords.filter((k) => k.locale.toLowerCase() === locale.toLowerCase())[0];
   if (known) return known.country;
   const parts = locale.split('-');
@@ -628,7 +916,9 @@ export function countryForLocale(locale: string, keywords: readonly Pick<AsoKeyw
 export function localesOf(keywords: readonly Pick<AsoKeyword, 'locale'>[]): string[] {
   const counts: Record<string, number> = {};
   for (const k of keywords) counts[k.locale] = (counts[k.locale] ?? 0) + 1;
-  return Object.keys(counts).sort((a, b) => (counts[b] as number) - (counts[a] as number) || a.localeCompare(b));
+  return Object.keys(counts).sort(
+    (a, b) => (counts[b] as number) - (counts[a] as number) || a.localeCompare(b),
+  );
 }
 
 /** "6 times in 3 of 4 texts". */
@@ -644,7 +934,8 @@ export function ideaSourceText(basedOn: AsoIdeasResponse['basedOn']): string {
   return parts.length > 0 ? parts.join(' and ') : 'no texts yet';
 }
 
-export const ideaTexts = (basedOn: AsoIdeasResponse['basedOn']): number => basedOn.competitors + (basedOn.ownListing ? 1 : 0);
+export const ideaTexts = (basedOn: AsoIdeasResponse['basedOn']): number =>
+  basedOn.competitors + (basedOn.ownListing ? 1 : 0);
 
 // ---------------------------------------------------------------------------------------------
 // Markets
@@ -661,29 +952,54 @@ export type MatrixCell = { text: string; title: string; best: boolean; muted: bo
 /** One cell of the matrix: the best rank of the term in a country, "not ranked", or empty when it is not tracked there. */
 export function marketCell(term: TermAcrossMarkets, country: string): MatrixCell {
   const here = term.markets.filter((m) => m.country === country);
-  if (here.length === 0) return { text: '', title: 'Not tracked in this country', best: false, muted: true };
-  const ranked = here.filter((m) => m.state === 'ranked' && m.rank !== null).map((m) => m.rank as number);
+  if (here.length === 0)
+    return { text: '', title: 'Not tracked in this country', best: false, muted: true };
+  const ranked = here
+    .filter((m) => m.state === 'ranked' && m.rank !== null)
+    .map((m) => m.rank as number);
   const state = (m: (typeof here)[number]) =>
-    m.state === 'ranked' ? `position ${m.rank}` : m.state === 'not_ranked' ? 'not in the results' : m.state === 'unavailable' ? 'not readable' : 'not checked';
+    m.state === 'ranked'
+      ? `position ${m.rank}`
+      : m.state === 'not_ranked'
+        ? 'not in the results'
+        : m.state === 'unavailable'
+          ? 'not readable'
+          : 'not checked';
   const title = here.map((m) => `${m.locale}: ${state(m)}`).join('; ');
   if (ranked.length > 0) {
     const best = Math.min(...ranked);
-    return { text: String(best), title, best: term.bestRank !== null && best === term.bestRank, muted: false };
+    return {
+      text: String(best),
+      title,
+      best: term.bestRank !== null && best === term.bestRank,
+      muted: false,
+    };
   }
-  if (here.some((m) => m.state === 'not_ranked')) return { text: 'not ranked', title, best: false, muted: true };
+  if (here.some((m) => m.state === 'not_ranked'))
+    return { text: 'not ranked', title, best: false, muted: true };
   return { text: '–', title, best: false, muted: true };
 }
 
 // ---------------------------------------------------------------------------------------------
 // The overview of all apps, and "Needs attention"
 
-export type OverviewRow = { name: string; appId: string; platform: AsoPlatform; summary: AsoSummary };
+export type OverviewRow = {
+  name: string;
+  appId: string;
+  platform: AsoPlatform;
+  summary: AsoSummary;
+};
 export type OverviewMover = AsoMover & { name: string; appId: string; platform: AsoPlatform };
 
 /** The moves of all apps, the biggest first. Gains (up, entered) and drops (down, dropped) are kept apart. */
-export function overviewMovers(rows: readonly OverviewRow[], limit = 6): { gains: OverviewMover[]; drops: OverviewMover[] } {
+export function overviewMovers(
+  rows: readonly OverviewRow[],
+  limit = 6,
+): { gains: OverviewMover[]; drops: OverviewMover[] } {
   const all: OverviewMover[] = [];
-  for (const r of rows) for (const m of r.summary.movers) all.push({ ...m, name: r.name, appId: r.appId, platform: r.platform });
+  for (const r of rows)
+    for (const m of r.summary.movers)
+      all.push({ ...m, name: r.name, appId: r.appId, platform: r.platform });
   const size = (m: AsoMover) => (m.delta !== null ? Math.abs(m.delta) : 1000);
   all.sort((a, b) => size(b) - size(a) || a.term.localeCompare(b.term));
   return {
@@ -692,13 +1008,30 @@ export function overviewMovers(rows: readonly OverviewRow[], limit = 6): { gains
   };
 }
 
-export type OverviewStats = { apps: number; keywords: number; ranked: number; top10: number; competitors: number; competitorChanges: number; failing: number };
+export type OverviewStats = {
+  apps: number;
+  keywords: number;
+  ranked: number;
+  top10: number;
+  competitors: number;
+  competitorChanges: number;
+  failing: number;
+};
 
 /** An app with nothing tracked has nothing to show. */
-export const hasAsoData = (s: AsoSummary): boolean => s.keywords.total > 0 || s.competitors.total > 0;
+export const hasAsoData = (s: AsoSummary): boolean =>
+  s.keywords.total > 0 || s.competitors.total > 0;
 
 export function overviewStats(rows: readonly OverviewRow[]): OverviewStats {
-  const s: OverviewStats = { apps: 0, keywords: 0, ranked: 0, top10: 0, competitors: 0, competitorChanges: 0, failing: 0 };
+  const s: OverviewStats = {
+    apps: 0,
+    keywords: 0,
+    ranked: 0,
+    top10: 0,
+    competitors: 0,
+    competitorChanges: 0,
+    failing: 0,
+  };
   for (const r of rows) {
     if (!hasAsoData(r.summary)) continue;
     s.apps += 1;
@@ -716,16 +1049,24 @@ export function overviewStats(rows: readonly OverviewRow[]): OverviewStats {
 export const DEFAULT_RANK_THRESHOLD = 5;
 
 /** A drop worth showing: a move down of at least `threshold` places, or leaving the results from the top 10. */
-export function isBigDrop(m: Pick<AsoMover, 'kind' | 'from' | 'delta'>, threshold: number = DEFAULT_RANK_THRESHOLD): boolean {
+export function isBigDrop(
+  m: Pick<AsoMover, 'kind' | 'from' | 'delta'>,
+  threshold: number = DEFAULT_RANK_THRESHOLD,
+): boolean {
   if (m.kind === 'down') return Math.abs(m.delta ?? 0) >= threshold;
   if (m.kind === 'dropped') return (m.from ?? Number.POSITIVE_INFINITY) <= 10;
   return false;
 }
 
 export const moverText = (m: Pick<AsoMover, 'kind' | 'from' | 'to'>): string =>
-  m.kind === 'entered' ? `entered at ${m.to}` : m.kind === 'dropped' ? `left the results (was ${m.from})` : `${m.from} to ${m.to}`;
+  m.kind === 'entered'
+    ? `entered at ${m.to}`
+    : m.kind === 'dropped'
+      ? `left the results (was ${m.from})`
+      : `${m.from} to ${m.to}`;
 
-export const moverMarket = (m: Pick<AsoMover, 'country' | 'locale'>): string => `${m.country.toUpperCase()} · ${m.locale}`;
+export const moverMarket = (m: Pick<AsoMover, 'country' | 'locale'>): string =>
+  `${m.country.toUpperCase()} · ${m.locale}`;
 
 /** A threshold as typed: a whole number from 1 to 100, else null. */
 export function parseThreshold(text: string): number | null {
@@ -753,7 +1094,9 @@ export function configStates(config: AsoConfig | null, androidInScope: boolean):
   }
   if (config.schedule.intervalMinutes === 0) {
     short.push('automatic checks off');
-    items.push('Automatic checks are off on this server, so ranks change only when someone presses Check now.');
+    items.push(
+      'Automatic checks are off on this server, so ranks change only when someone presses Check now.',
+    );
   }
   if (short.length === 0) return null;
   const label = short.join(', ');
@@ -762,22 +1105,40 @@ export function configStates(config: AsoConfig | null, androidInScope: boolean):
 
 const checkErrors: Record<string, string> = {
   rate_limited: 'The store asked us to slow down. The rank shown is the last one read.',
-  unavailable_layout_changed: 'The store page could not be understood, so the rank shown is the last one read.',
+  unavailable_layout_changed:
+    'The store page could not be understood, so the rank shown is the last one read.',
   play_unofficial_disabled: 'Google Play reading is switched off, so this was not checked.',
   server: 'The server could not finish the check. The rank shown is the last one read.',
 };
 
 /** What a failed attempt means, for the InfoTip beside a rank. The rank itself is kept from the last success. */
-export const checkErrorText = (code: string): string => checkErrors[code] ?? `The last check failed (${code}). The rank shown is the last one read.`;
+export const checkErrorText = (code: string): string =>
+  checkErrors[code] ?? `The last check failed (${code}). The rank shown is the last one read.`;
 
 /** One cell of the fit table: is the keyword in this listing field, as a phrase or only some of its words. */
-export function fieldCell(k: { term: string; where: readonly { field: string; phrase: boolean; wordsPresent: number; occurrences: number }[] }, field: string): { mark: 'phrase' | 'words' | 'none'; text: string; title: string } {
+export function fieldCell(
+  k: {
+    term: string;
+    where: readonly { field: string; phrase: boolean; wordsPresent: number; occurrences: number }[];
+  },
+  field: string,
+): { mark: 'phrase' | 'words' | 'none'; text: string; title: string } {
   const m = k.where.filter((w) => w.field === field)[0];
   if (!m || m.wordsPresent === 0) return { mark: 'none', text: '', title: 'Not in this field' };
-  if (m.phrase) return { mark: 'phrase', text: m.occurrences > 1 ? `x${m.occurrences}` : '', title: 'The phrase is in this field' };
+  if (m.phrase)
+    return {
+      mark: 'phrase',
+      text: m.occurrences > 1 ? `x${m.occurrences}` : '',
+      title: 'The phrase is in this field',
+    };
   const checked = checkTerm(k.term);
   const n = checked.ok ? checked.words : m.wordsPresent;
-  return { mark: 'words', text: `${m.wordsPresent}/${n}`, title: `${m.wordsPresent} of ${n} words are in this field, not as a phrase` };
+  return {
+    mark: 'words',
+    text: `${m.wordsPresent}/${n}`,
+    title: `${m.wordsPresent} of ${n} words are in this field, not as a phrase`,
+  };
 }
 
-export const priorityLabel = (priority: number): string => (priority >= 3 ? 'High' : priority <= 1 ? 'Low' : 'Normal');
+export const priorityLabel = (priority: number): string =>
+  priority >= 3 ? 'High' : priority <= 1 ? 'Low' : 'Normal';

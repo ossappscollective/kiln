@@ -14,8 +14,8 @@
  * - A gap is a gap: a day with no number is `null`, never zero, and is not counted in a window.
  */
 
-import { type RankChangeKind, isBigMove, rankChange } from './aso.ts';
 import { addDays, dateToDay, daysBetween } from './analytics.ts';
+import { isBigMove, type RankChangeKind, rankChange } from './aso.ts';
 
 export const rankDownloadsLimits = {
   /** The most keywords drawn at once. */
@@ -103,7 +103,13 @@ export type MoveComparison = {
   settledNeededThrough: string | null;
 };
 
-export const rankDownloadsNoteCodes = ['correlation_not_proof', 'downloads_delay', 'time_zones', 'few_checks', 'other_causes'] as const;
+export const rankDownloadsNoteCodes = [
+  'correlation_not_proof',
+  'downloads_delay',
+  'time_zones',
+  'few_checks',
+  'other_causes',
+] as const;
 export type RankDownloadsNoteCode = (typeof rankDownloadsNoteCodes)[number];
 export type RankDownloadsNote = { code: RankDownloadsNoteCode; message: string };
 
@@ -146,13 +152,20 @@ export type RankDownloadsView = {
 export const rankDownloadsNoteMessages: Record<RankDownloadsNoteCode, string> = {
   correlation_not_proof:
     'Correlation, not proof: these numbers show what happened at the same time. They do not show that a rank move changed downloads.',
-  downloads_delay: 'The newest days of download numbers can still change, so they are shaded and not used in a comparison until they settle.',
-  time_zones: 'Ranks are put on UTC days. The stores count their own days (Apple and Play use Pacific Time for some reports), so a move can sit a day off.',
-  few_checks: 'Ranks are checked when a refresh runs, not every day. A move happened somewhere between two checks.',
-  other_causes: 'A release, a feature, a campaign, a holiday or a rating change can move downloads too. Two moves a few days apart share their days.',
+  downloads_delay:
+    'The newest days of download numbers can still change, so they are shaded and not used in a comparison until they settle.',
+  time_zones:
+    'Ranks are put on UTC days. The stores count their own days (Apple and Play use Pacific Time for some reports), so a move can sit a day off.',
+  few_checks:
+    'Ranks are checked when a refresh runs, not every day. A move happened somewhere between two checks.',
+  other_causes:
+    'A release, a feature, a campaign, a holiday or a rating change can move downloads too. Two moves a few days apart share their days.',
 };
 
-const note = (code: RankDownloadsNoteCode, message?: string): RankDownloadsNote => ({ code, message: message ?? rankDownloadsNoteMessages[code] });
+const note = (code: RankDownloadsNoteCode, message?: string): RankDownloadsNote => ({
+  code,
+  message: message ?? rankDownloadsNoteMessages[code],
+});
 
 /** Every day from `from` to `to` inclusive (at most `maxDays`). */
 export function daysOfRange(from: string, to: string): string[] {
@@ -179,14 +192,25 @@ export function dailyRanks(checks: readonly RankCheckIn[]): { day: string; sampl
 }
 
 /** The big moves of one keyword, in order, from its daily ranks (the move is dated by the later check). */
-export function rankMarkers(keywordId: string, daily: readonly { day: string; sample: DaySample }[], threshold: number, edgeTop?: number): RankMarker[] {
+export function rankMarkers(
+  keywordId: string,
+  daily: readonly { day: string; sample: DaySample }[],
+  threshold: number,
+  edgeTop?: number,
+): RankMarker[] {
   const out: RankMarker[] = [];
   for (let i = 1; i < daily.length; i += 1) {
     const prev = daily[i - 1] as { day: string; sample: DaySample };
     const cur = daily[i] as { day: string; sample: DaySample };
     const change = rankChange(prev.sample, cur.sample);
     if (!isBigMove(change, threshold, edgeTop)) continue;
-    if (change.kind !== 'up' && change.kind !== 'down' && change.kind !== 'entered' && change.kind !== 'dropped') continue;
+    if (
+      change.kind !== 'up' &&
+      change.kind !== 'down' &&
+      change.kind !== 'entered' &&
+      change.kind !== 'dropped'
+    )
+      continue;
     out.push({
       keywordId,
       day: cur.day,
@@ -218,7 +242,12 @@ const oneDecimal = (n: number) => Math.round(n * 10) / 10;
 export function compareMove(
   marker: RankMarker,
   values: Record<string, number | null>,
-  options: { settledThrough: string; windowDays?: number; minWindowDays?: number; others?: readonly RankMarker[] },
+  options: {
+    settledThrough: string;
+    windowDays?: number;
+    minWindowDays?: number;
+    others?: readonly RankMarker[];
+  },
 ): MoveComparison {
   const n = options.windowDays ?? rankDownloadsLimits.windowDays;
   const minDays = options.minWindowDays ?? rankDownloadsLimits.minWindowDays;
@@ -230,14 +259,19 @@ export function compareMove(
   const after = windowCount(values, afterFrom, afterTo);
   const others = options.others ?? [];
   const overlapsOtherMove = others.some(
-    (o) => !(o.keywordId === marker.keywordId && o.day === marker.day) && o.day >= before.from && o.day <= afterTo,
+    (o) =>
+      !(o.keywordId === marker.keywordId && o.day === marker.day) &&
+      o.day >= before.from &&
+      o.day <= afterTo,
   );
   const waiting = afterTo > options.settledThrough;
   let status: ComparisonStatus = 'ok';
   if (waiting) status = 'waiting';
   else if (before.days < minDays || after.days < minDays) status = 'too_few_days';
   const changePercent =
-    status === 'ok' && before.perDay !== null && before.perDay > 0 && after.perDay !== null ? oneDecimal(((after.perDay - before.perDay) / before.perDay) * 100) : null;
+    status === 'ok' && before.perDay !== null && before.perDay > 0 && after.perDay !== null
+      ? oneDecimal(((after.perDay - before.perDay) / before.perDay) * 100)
+      : null;
   return {
     marker,
     status,
@@ -286,16 +320,20 @@ export function buildRankVsDownloads(input: {
       rankDaySet[d.day] = true;
     }
     keywords.push({ id: k.id, term: k.term, samples, checkDays });
-    for (const m of rankMarkers(k.id, daily, input.threshold)) if (m.day >= input.from && m.day <= input.to) markers.push(m);
+    for (const m of rankMarkers(k.id, daily, input.threshold))
+      if (m.day >= input.from && m.day <= input.to) markers.push(m);
   }
-  markers.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.keywordId < b.keywordId ? -1 : 1));
+  markers.sort((a, b) =>
+    a.day < b.day ? -1 : a.day > b.day ? 1 : a.keywordId < b.keywordId ? -1 : 1,
+  );
 
   const lookup: Record<string, number | null> = {};
   let downloads: RankDownloadsView['downloads'] = null;
   let settledThrough = input.today;
   if (input.downloads) {
     const d = input.downloads;
-    for (const p of d.points) lookup[p.day] = p.value === null || !Number.isFinite(p.value) ? null : p.value;
+    for (const p of d.points)
+      lookup[p.day] = p.value === null || !Number.isFinite(p.value) ? null : p.value;
     settledThrough = addDays(input.today, -d.delayDays);
     const values = days.map((day) => (day in lookup ? (lookup[day] as number | null) : null));
     downloads = {
@@ -311,7 +349,8 @@ export function buildRankVsDownloads(input: {
 
   const rankDays = Object.keys(rankDaySet).length;
   const downloadDays = downloads ? downloads.days : 0;
-  const enough = rankDays >= rankDownloadsLimits.minDays && downloadDays >= rankDownloadsLimits.minDays;
+  const enough =
+    rankDays >= rankDownloadsLimits.minDays && downloadDays >= rankDownloadsLimits.minDays;
   let missing: RankDownloadsMissing | null = null;
   if (downloadDays === 0) missing = input.analyticsEnabled ? 'no_downloads' : 'turn_on_analytics';
   else if (rankDays === 0) missing = 'no_rank_checks';
@@ -324,8 +363,16 @@ export function buildRankVsDownloads(input: {
   if (enough) {
     notes.push(note('few_checks'), note('other_causes'), note('time_zones'));
     if (downloads) {
-      const lag = downloads.source === 'play' ? 'Play download files arrive 3 to 7 days late' : 'Apple download counts lag about 2 days';
-      notes.push(note('downloads_delay', `${lag}. The newest ${downloads.delayDays} days of numbers can still change, so they are shaded and not used in a comparison until they settle.`));
+      const lag =
+        downloads.source === 'play'
+          ? 'Play download files arrive 3 to 7 days late'
+          : 'Apple download counts lag about 2 days';
+      notes.push(
+        note(
+          'downloads_delay',
+          `${lag}. The newest ${downloads.delayDays} days of numbers can still change, so they are shaded and not used in a comparison until they settle.`,
+        ),
+      );
     }
   }
   return {
@@ -355,11 +402,15 @@ export function describeComparison(c: MoveComparison, term: string): string {
         : `moved from ${c.marker.from} to ${c.marker.to}`;
   const head = `"${term}" ${move} on ${c.marker.day}.`;
   const label = 'Correlation, not proof.';
-  if (c.status === 'waiting') return `${head} The days after it are not settled yet (needs numbers through ${c.settledNeededThrough}). ${label}`;
+  if (c.status === 'waiting')
+    return `${head} The days after it are not settled yet (needs numbers through ${c.settledNeededThrough}). ${label}`;
   if (c.status === 'too_few_days') {
     return `${head} Not enough days with numbers to compare (${c.before.days} before, ${c.after.days} after; at least ${rankDownloadsLimits.minWindowDays} each). ${label}`;
   }
   const avg = (w: WindowCount) => (w.perDay === null ? 'none' : String(oneDecimal(w.perDay)));
-  const pct = c.changePercent === null ? 'no change figure (no downloads before)' : `${c.changePercent > 0 ? '+' : ''}${c.changePercent}%`;
+  const pct =
+    c.changePercent === null
+      ? 'no change figure (no downloads before)'
+      : `${c.changePercent > 0 ? '+' : ''}${c.changePercent}%`;
   return `${head} Downloads per day, ${c.before.days} days before: ${avg(c.before)}; ${c.after.days} days after: ${avg(c.after)} (${pct}). ${label}`;
 }

@@ -11,7 +11,14 @@ import { ApiError } from './api.ts';
  * Failures other than 429 are never kept. Pure apart from the clock, which can be given. Written for the ES2017 web build.
  */
 export type ReadCache = {
-  read<T>(args: { workspaceId: string; group: string; key: string; load: () => Promise<T>; force?: boolean; ttlMs?: number }): Promise<T>;
+  read<T>(args: {
+    workspaceId: string;
+    group: string;
+    key: string;
+    load: () => Promise<T>;
+    force?: boolean;
+    ttlMs?: number;
+  }): Promise<T>;
   /** Forget what was kept for a workspace (after a change that makes it stale); all of it when `prefix` is empty. */
   forget(workspaceId: string, prefix?: string): void;
   /** Seconds left of the pause after a 429 for this workspace and group, or 0. */
@@ -55,7 +62,11 @@ export function createReadCache(now: () => number = Date.now): ReadCache {
         },
         (error: unknown) => {
           inflight.delete(id);
-          if (error instanceof ApiError && error.status === 429) pausedUntil.set(pauseKey(workspaceId, group), now() + (error.retryAfter && error.retryAfter > 0 ? error.retryAfter : 60) * 1000);
+          if (error instanceof ApiError && error.status === 429)
+            pausedUntil.set(
+              pauseKey(workspaceId, group),
+              now() + (error.retryAfter && error.retryAfter > 0 ? error.retryAfter : 60) * 1000,
+            );
           throw error;
         },
       );

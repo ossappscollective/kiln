@@ -34,20 +34,29 @@ export const MCP_WARNING =
 
 export const kindLabel: Record<McpToolKind, string> = {
   read: 'Read',
-  write: 'Change the workspace\'s own data',
+  write: "Change the workspace's own data",
   preview: 'Preview only (you confirm in the app)',
 };
 
 export const kindHelp: Record<McpToolKind, string> = {
   read: 'On for the read-only token.',
-  write: 'Needs a token that names the action, and a server switch where a store is involved. Never reaches a store.',
-  preview: 'Shows what a store action would do and gives a link. Needs a token that names the action and the server switch. Never applies.',
+  write:
+    'Needs a token that names the action, and a server switch where a store is involved. Never reaches a store.',
+  preview:
+    'Shows what a store action would do and gives a link. Needs a token that names the action and the server switch. Never applies.',
 };
 
 /** The tools by kind, in a stable order, with empty groups left out. */
-export function groupTools(tools: readonly McpTool[]): { kind: McpToolKind; label: string; help: string; tools: McpTool[] }[] {
+export function groupTools(
+  tools: readonly McpTool[],
+): { kind: McpToolKind; label: string; help: string; tools: McpTool[] }[] {
   return (['read', 'write', 'preview'] as const)
-    .map((kind) => ({ kind, label: kindLabel[kind], help: kindHelp[kind], tools: tools.filter((t) => t.kind === kind) }))
+    .map((kind) => ({
+      kind,
+      label: kindLabel[kind],
+      help: kindHelp[kind],
+      tools: tools.filter((t) => t.kind === kind),
+    }))
     .filter((g) => g.tools.length > 0);
 }
 
@@ -69,12 +78,24 @@ export function stateView(status: McpStatus): McpStateView {
       detail: `Set ${status.envName}=true in the server's environment and restart it. While it is off, ${status.endpoint} answers 404.`,
     };
   }
-  return { tone: 'ok', label: 'On', detail: `Assistants connect to ${status.endpoint} with an API token.` };
+  return {
+    tone: 'ok',
+    label: 'On',
+    detail: `Assistants connect to ${status.endpoint} with an API token.`,
+  };
 }
 
 /** The request body that creates the "MCP read-only" token. `now` is a parameter so tests are exact. */
-export function presetTokenInput(status: McpStatus, now: number = Date.now()): { name: string; role: 'viewer'; actions: string[]; expiresAt: number } {
-  return { name: status.preset.name, role: status.preset.role, actions: [...status.preset.actions], expiresAt: now + status.preset.expiresInDays * DAY };
+export function presetTokenInput(
+  status: McpStatus,
+  now: number = Date.now(),
+): { name: string; role: 'viewer'; actions: string[]; expiresAt: number } {
+  return {
+    name: status.preset.name,
+    role: status.preset.role,
+    actions: [...status.preset.actions],
+    expiresAt: now + status.preset.expiresInDays * DAY,
+  };
 }
 
 export type McpClient = 'claude-code' | 'claude-desktop' | 'cursor';
@@ -95,7 +116,8 @@ const SERVER_NAME = 'mobile-release-manager';
 const BRIDGE = '/path/to/mobile-release-manager/apps/server/src/mcp/stdio.ts';
 
 /** The address the assistants use for the HTTP transport. */
-export const mcpUrl = (origin: string, endpoint = '/mcp'): string => `${origin.replace(/\/+$/, '')}${endpoint}`;
+export const mcpUrl = (origin: string, endpoint = '/mcp'): string =>
+  `${origin.replace(/\/+$/, '')}${endpoint}`;
 
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
@@ -112,23 +134,45 @@ export function snippets(origin: string, token: string | null, endpoint = '/mcp'
   const stdioServer = { command: 'node', args: [BRIDGE], env: stdioEnv };
   return [
     {
-      client: 'claude-code', transport: 'http', title: 'Claude Code (HTTP)', where: 'Run in a terminal', language: 'sh',
+      client: 'claude-code',
+      transport: 'http',
+      title: 'Claude Code (HTTP)',
+      where: 'Run in a terminal',
+      language: 'sh',
       text: `claude mcp add --transport http ${SERVER_NAME} ${shellQuote(url)} --header ${shellQuote(`Authorization: Bearer ${secret}`)}`,
     },
     {
-      client: 'claude-code', transport: 'stdio', title: 'Claude Code (stdio)', where: 'Run in a terminal', language: 'sh',
+      client: 'claude-code',
+      transport: 'stdio',
+      title: 'Claude Code (stdio)',
+      where: 'Run in a terminal',
+      language: 'sh',
       text: `claude mcp add ${SERVER_NAME} --env MRM_URL=${shellQuote(base)} --env MRM_TOKEN=${shellQuote(secret)} -- node ${BRIDGE}`,
     },
     {
-      client: 'claude-desktop', transport: 'stdio', title: 'Claude Desktop (stdio)', where: 'claude_desktop_config.json, then restart Claude Desktop', language: 'json',
+      client: 'claude-desktop',
+      transport: 'stdio',
+      title: 'Claude Desktop (stdio)',
+      where: 'claude_desktop_config.json, then restart Claude Desktop',
+      language: 'json',
       text: json({ mcpServers: { [SERVER_NAME]: stdioServer } }),
     },
     {
-      client: 'cursor', transport: 'http', title: 'Cursor (HTTP)', where: '~/.cursor/mcp.json or .cursor/mcp.json', language: 'json',
-      text: json({ mcpServers: { [SERVER_NAME]: { url, headers: { Authorization: `Bearer ${secret}` } } } }),
+      client: 'cursor',
+      transport: 'http',
+      title: 'Cursor (HTTP)',
+      where: '~/.cursor/mcp.json or .cursor/mcp.json',
+      language: 'json',
+      text: json({
+        mcpServers: { [SERVER_NAME]: { url, headers: { Authorization: `Bearer ${secret}` } } },
+      }),
     },
     {
-      client: 'cursor', transport: 'stdio', title: 'Cursor (stdio)', where: '~/.cursor/mcp.json or .cursor/mcp.json', language: 'json',
+      client: 'cursor',
+      transport: 'stdio',
+      title: 'Cursor (stdio)',
+      where: '~/.cursor/mcp.json or .cursor/mcp.json',
+      language: 'json',
       text: json({ mcpServers: { [SERVER_NAME]: stdioServer } }),
     },
   ];

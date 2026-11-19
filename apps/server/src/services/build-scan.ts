@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CommitDetail, GitRelease, ReleaseList, TagList } from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { type ManagedApp, getApp, listAppReleases } from './apps.ts';
+import { getApp, listAppReleases, type ManagedApp } from './apps.ts';
 import {
   type EffectiveConventions,
   effectiveConventions,
@@ -10,26 +10,26 @@ import {
 } from './build-conventions.ts';
 import {
   type BuildMatcher,
-  type StoredBuild,
-  type StoredLink,
   buildKey,
   buildsFromReleases,
   listBuildLinks,
   loadRunRefs,
   matchBuilds,
   putBuildLink,
+  type StoredBuild,
+  type StoredLink,
 } from './build-links.ts';
 import {
   type CommitFacts,
   type CompiledConventions,
-  type ReleaseRef,
-  type TagCandidate,
-  type TagData,
-  type TagRef,
   compileConventions,
   explainNoCandidate,
   findCandidates,
+  type ReleaseRef,
   resolveTagLink,
+  type TagCandidate,
+  type TagData,
+  type TagRef,
 } from './build-tags.ts';
 import type { WorkflowRunView } from './ci-runs.ts';
 import { firstLine, runCountsForApp } from './ci-runs.ts';
@@ -117,7 +117,11 @@ const toReleaseRef = (r: GitRelease): ReleaseRef => ({
  * `{platform}` filled in: what a tag of this convention starts with. Used to ask GitHub for the
  * tags under that prefix when the tag list was cut short. Empty when nothing is known.
  */
-export function literalPrefixes(patterns: readonly string[], prefix: string, platforms: readonly Platform[]): string[] {
+export function literalPrefixes(
+  patterns: readonly string[],
+  prefix: string,
+  platforms: readonly Platform[],
+): string[] {
   const out = new Set<string>();
   for (const pattern of patterns) {
     const lead = (platformWord: string) => {
@@ -153,25 +157,38 @@ export async function readTagData(
 ): Promise<ReadTagData> {
   const { signal } = options;
   const listed = await client.listTags({ maxPages: TAG_PAGES, ...(signal ? { signal } : {}) });
-  const byName = new Map<string, TagRef>(listed.tags.map((t) => [t.name, { name: t.name, sha: t.sha }]));
+  const byName = new Map<string, TagRef>(
+    listed.tags.map((t) => [t.name, { name: t.name, sha: t.sha }]),
+  );
   const targeted: string[] = [];
   if (listed.truncated) {
     for (const prefix of (options.prefixes ?? []).slice(0, MAX_TARGETED_PREFIXES)) {
-      const more = await client.listMatchingTags(prefix, { limit: 1000, resolveLimit: 30, ...(signal ? { signal } : {}) });
+      const more = await client.listMatchingTags(prefix, {
+        limit: 1000,
+        resolveLimit: 30,
+        ...(signal ? { signal } : {}),
+      });
       targeted.push(prefix);
-      for (const t of more.tags) if (!byName.has(t.name)) byName.set(t.name, { name: t.name, sha: t.sha });
+      for (const t of more.tags)
+        if (!byName.has(t.name)) byName.set(t.name, { name: t.name, sha: t.sha });
     }
   }
   let releases: ReleaseRef[] = [];
   let releasesTruncated = false;
   let releasesError: string | null = null;
   try {
-    const read = await client.listReleases({ maxPages: RELEASE_PAGES, ...(signal ? { signal } : {}) });
+    const read = await client.listReleases({
+      maxPages: RELEASE_PAGES,
+      ...(signal ? { signal } : {}),
+    });
     releases = read.releases.map(toReleaseRef);
     releasesTruncated = read.truncated;
   } catch (error) {
     if (signal?.aborted) throw error;
-    releasesError = (error instanceof Error ? error.message : 'Could not read the releases.').slice(0, 200);
+    releasesError = (error instanceof Error ? error.message : 'Could not read the releases.').slice(
+      0,
+      200,
+    );
   }
   return {
     tags: [...byName.values()],
@@ -216,7 +233,12 @@ export type ScanSummary = {
   apps: Record<string, ScanApp>;
 };
 
-export type StoredScan = { scannedAt: number; ok: boolean; error: string | null; summary: ScanSummary };
+export type StoredScan = {
+  scannedAt: number;
+  ok: boolean;
+  error: string | null;
+  summary: ScanSummary;
+};
 
 const emptySummary = (): ScanSummary => ({
   tags: { seen: 0, truncated: false, pages: 0, targeted: [] },
@@ -227,7 +249,11 @@ const emptySummary = (): ScanSummary => ({
   apps: {},
 });
 
-export async function getScan(sql: Sql, workspaceId: string, repositoryId: string): Promise<StoredScan | undefined> {
+export async function getScan(
+  sql: Sql,
+  workspaceId: string,
+  repositoryId: string,
+): Promise<StoredScan | undefined> {
   const [row] = await sql.query(
     'SELECT scanned_at, ok, error, summary_json FROM build_scans WHERE workspace_id = ? AND repository_id = ?',
     [workspaceId, repositoryId],
@@ -236,7 +262,8 @@ export async function getScan(sql: Sql, workspaceId: string, repositoryId: strin
   let summary = emptySummary();
   try {
     const v: unknown = JSON.parse(String(row.summary_json));
-    if (v && typeof v === 'object' && !Array.isArray(v)) summary = { ...summary, ...(v as Partial<ScanSummary>) };
+    if (v && typeof v === 'object' && !Array.isArray(v))
+      summary = { ...summary, ...(v as Partial<ScanSummary>) };
   } catch {
     // keep the empty summary
   }
@@ -250,7 +277,14 @@ export async function getScan(sql: Sql, workspaceId: string, repositoryId: strin
 
 async function putScan(
   sql: Sql,
-  input: { workspaceId: string; repositoryId: string; ok: boolean; error: string | null; summary: ScanSummary; now: number },
+  input: {
+    workspaceId: string;
+    repositoryId: string;
+    ok: boolean;
+    error: string | null;
+    summary: ScanSummary;
+    now: number;
+  },
 ): Promise<void> {
   const values = [input.now, input.ok ? 1 : 0, input.error, JSON.stringify(input.summary)];
   const changed = await sql.execute(
@@ -291,7 +325,12 @@ function wantsTags(plan: AppPlan, build: StoredBuild): boolean {
 
 async function loadPlans(
   sql: Sql,
-  input: { workspaceId: string; repositoryId: string; runs: readonly WorkflowRunView[]; matchers: readonly BuildMatcher[] },
+  input: {
+    workspaceId: string;
+    repositoryId: string;
+    runs: readonly WorkflowRunView[];
+    matchers: readonly BuildMatcher[];
+  },
 ): Promise<AppPlan[]> {
   const apps = await sql.query(
     'SELECT id FROM apps WHERE workspace_id = ? AND repository_id = ? ORDER BY id',
@@ -305,7 +344,9 @@ async function loadPlans(
     const builds = buildsFromReleases(await listAppReleases(sql, input.workspaceId, app.id)).filter(
       (b) => b.platform === app.platform,
     );
-    const links = new Map((await listBuildLinks(sql, input.workspaceId, app.id)).map((l) => [buildKey(l), l]));
+    const links = new Map(
+      (await listBuildLinks(sql, input.workspaceId, app.id)).map((l) => [buildKey(l), l]),
+    );
     const effective = effectiveConventions(conventions, app.id);
     plans.push({
       app,
@@ -313,7 +354,13 @@ async function loadPlans(
       conventions: effective,
       compiled: compileConventions(effective),
       links,
-      settled: new Set(matchBuilds(builds, input.runs.filter((r) => runCountsForApp(r, app.id)), input.matchers).keys()),
+      settled: new Set(
+        matchBuilds(
+          builds,
+          input.runs.filter((r) => runCountsForApp(r, app.id)),
+          input.matchers,
+        ).keys(),
+      ),
     });
   }
   return plans;
@@ -355,14 +402,18 @@ export async function scanBuildTags(input: {
   const client = input.client;
 
   const runs = await loadRunRefs(db, workspaceId, repositoryId);
-  const plans = (await loadPlans(db, { workspaceId, repositoryId, runs, matchers: input.matchers })).filter(
-    (p) => input.onlyAppId === undefined || p.app.id === input.onlyAppId,
+  const plans = (
+    await loadPlans(db, { workspaceId, repositoryId, runs, matchers: input.matchers })
+  ).filter((p) => input.onlyAppId === undefined || p.app.id === input.onlyAppId);
+  const wanted = plans.flatMap((p) =>
+    p.builds.filter((b) => wantsTags(p, b)).map((b) => ({ plan: p, build: b })),
   );
-  const wanted = plans.flatMap((p) => p.builds.filter((b) => wantsTags(p, b)).map((b) => ({ plan: p, build: b })));
   if (wanted.length === 0) return { scanned: false, written: 0, error: null };
 
   const previous = await getScan(db, workspaceId, repositoryId);
-  const summary: ScanSummary = previous ? { ...previous.summary, apps: { ...previous.summary.apps } } : emptySummary();
+  const summary: ScanSummary = previous
+    ? { ...previous.summary, apps: { ...previous.summary.apps } }
+    : emptySummary();
   const cached = tagDataCache.get(repositoryId, now);
   let error: string | null = null;
 
@@ -372,7 +423,9 @@ export async function scanBuildTags(input: {
     else {
       const prefixes = [
         ...new Set(
-          plans.flatMap((p) => literalPrefixes(p.conventions.tagPatterns, p.conventions.prefix, [p.app.platform])),
+          plans.flatMap((p) =>
+            literalPrefixes(p.conventions.tagPatterns, p.conventions.prefix, [p.app.platform]),
+          ),
         ),
       ].slice(0, MAX_TARGETED_PREFIXES);
       data = await readTagData(client, { signal: input.signal, prefixes, now });
@@ -386,7 +439,15 @@ export async function scanBuildTags(input: {
     for (const plan of plans) {
       for (const link of plan.links.values()) {
         const e = link.evidence;
-        if (e) known.set(e.sha, { sha: e.sha, parents: e.parents, committedAt: e.committedAt, message: e.message, author: null, url: null });
+        if (e)
+          known.set(e.sha, {
+            sha: e.sha,
+            parents: e.parents,
+            committedAt: e.committedAt,
+            message: e.message,
+            author: null,
+            url: null,
+          });
       }
     }
     const candidatesOf = new Map<string, TagCandidate[]>();
@@ -404,7 +465,9 @@ export async function scanBuildTags(input: {
       }
     }
     const seen = new Set<string>();
-    const order = needed.sort((a, b) => b.buildNumber - a.buildNumber).filter((n) => (seen.has(n.sha) ? false : (seen.add(n.sha), true)));
+    const order = needed
+      .sort((a, b) => b.buildNumber - a.buildNumber)
+      .filter((n) => (seen.has(n.sha) ? false : (seen.add(n.sha), true)));
     for (const { sha } of order.slice(0, MAX_COMMIT_FETCHES)) {
       const detail = await client.getCommit(sha, input.signal);
       const facts = detail ? factsOfDetail(detail) : null;
@@ -425,7 +488,11 @@ export async function scanBuildTags(input: {
             const why = explainNoCandidate(build, tagData, plan.compiled);
             entry.reasons[key] = { code: why.code, message: why.message };
             entry.fitting = Math.max(entry.fitting, why.fitting);
-            if (why.newestFit && (!entry.newestFit || Number(why.newestFit.buildNumber) > Number(entry.newestFit.buildNumber))) {
+            if (
+              why.newestFit &&
+              (!entry.newestFit ||
+                Number(why.newestFit.buildNumber) > Number(entry.newestFit.buildNumber))
+            ) {
               entry.newestFit = why.newestFit;
             }
             continue;
@@ -437,7 +504,10 @@ export async function scanBuildTags(input: {
             workflow: plan.conventions.workflow,
           });
           if (!link) {
-            entry.reasons[key] = { code: 'tag_without_commit', message: 'A tag carries the number, but its commit could not be read.' };
+            entry.reasons[key] = {
+              code: 'tag_without_commit',
+              message: 'A tag carries the number, but its commit could not be read.',
+            };
             continue;
           }
           const had = plan.links.get(key);
@@ -479,16 +549,33 @@ export async function scanBuildTags(input: {
             evidence: link.evidence,
           });
           written++;
-          if (!link.run) entry.reasons[key] = { code: 'tag_without_run', message: link.evidence.noRunReason ?? 'No run found.' };
+          if (!link.run)
+            entry.reasons[key] = {
+              code: 'tag_without_run',
+              message: link.evidence.noRunReason ?? 'No run found.',
+            };
         }
         summary.apps[plan.app.id] = entry;
       }
       const newest = [...tagData.releases]
         .filter((r) => !r.draft)
-        .sort((a, b) => (b.publishedAt ?? b.createdAt ?? 0) - (a.publishedAt ?? a.createdAt ?? 0))[0];
-      summary.tags = { seen: tagData.tags.length, truncated: tagData.tagsTruncated, pages: tagData.tagPages, targeted: tagData.targeted };
-      summary.releases = { seen: tagData.releases.length, truncated: tagData.releasesTruncated, error: tagData.releasesError };
-      summary.newestRelease = newest ? { name: newest.name, tag: newest.tagName, at: newest.publishedAt ?? newest.createdAt } : null;
+        .sort(
+          (a, b) => (b.publishedAt ?? b.createdAt ?? 0) - (a.publishedAt ?? a.createdAt ?? 0),
+        )[0];
+      summary.tags = {
+        seen: tagData.tags.length,
+        truncated: tagData.tagsTruncated,
+        pages: tagData.tagPages,
+        targeted: tagData.targeted,
+      };
+      summary.releases = {
+        seen: tagData.releases.length,
+        truncated: tagData.releasesTruncated,
+        error: tagData.releasesError,
+      };
+      summary.newestRelease = newest
+        ? { name: newest.name, tag: newest.tagName, at: newest.publishedAt ?? newest.createdAt }
+        : null;
       summary.runsSeen = runs.length;
       summary.sampleTags = tagData.tags.slice(0, 8).map((t) => t.name);
       await putScan(tx, { workspaceId, repositoryId, ok: true, error: null, summary, now });
@@ -496,7 +583,9 @@ export async function scanBuildTags(input: {
     return { scanned: true, written, error: null };
   } catch (e) {
     error = input.describeError(e);
-    await putScan(db, { workspaceId, repositoryId, ok: false, error, summary, now }).catch(() => undefined);
+    await putScan(db, { workspaceId, repositoryId, ok: false, error, summary, now }).catch(
+      () => undefined,
+    );
     return { scanned: true, written: 0, error };
   }
 }

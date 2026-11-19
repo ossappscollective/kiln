@@ -1,6 +1,6 @@
-import { isRecord, num, records } from './store-http.ts';
-import { AsoError, type CappedGet, cleanPublicText, checkStatus, getCapped } from './aso-common.ts';
+import { AsoError, type CappedGet, checkStatus, cleanPublicText, getCapped } from './aso-common.ts';
 import { ITUNES_LOOKUP_URL } from './itunes-rating.ts';
+import { isRecord, num, records } from './store-http.ts';
 
 /**
  * Apple, from the public iTunes Search and Lookup APIs: where apps rank for a search term in a
@@ -71,22 +71,43 @@ export type AppleApp = {
 const text = (v: unknown, max = 300): string | undefined => cleanPublicText(v, max);
 
 function toApp(entry: Record<string, unknown>): AppleApp | undefined {
-  const id = typeof entry.trackId === 'number' && Number.isInteger(entry.trackId) ? String(entry.trackId) : typeof entry.trackId === 'string' && /^[0-9]{1,20}$/.test(entry.trackId) ? entry.trackId : undefined;
+  const id =
+    typeof entry.trackId === 'number' && Number.isInteger(entry.trackId)
+      ? String(entry.trackId)
+      : typeof entry.trackId === 'string' && /^[0-9]{1,20}$/.test(entry.trackId)
+        ? entry.trackId
+        : undefined;
   if (id === undefined) return undefined;
   const kind = typeof entry.kind === 'string' ? entry.kind : undefined;
   const wrapper = typeof entry.wrapperType === 'string' ? entry.wrapperType : undefined;
   // A search for software answers with software. Anything that says it is something else is not an app.
-  if ((kind !== undefined && kind !== 'software' && kind !== 'mac-software') || (wrapper !== undefined && wrapper !== 'software')) {
+  if (
+    (kind !== undefined && kind !== 'software' && kind !== 'mac-software') ||
+    (wrapper !== undefined && wrapper !== 'software')
+  ) {
     return undefined;
   }
   const rating = num(entry.averageUserRating);
   const count = num(entry.userRatingCount);
-  const price = text(entry.formattedPrice, 40) ?? (typeof entry.price === 'number' && Number.isFinite(entry.price) ? (entry.price === 0 ? 'Free' : String(entry.price)) : undefined);
-  const shots = [...(Array.isArray(entry.screenshotUrls) ? entry.screenshotUrls : []), ...(Array.isArray(entry.ipadScreenshotUrls) ? entry.ipadScreenshotUrls : [])]
+  const price =
+    text(entry.formattedPrice, 40) ??
+    (typeof entry.price === 'number' && Number.isFinite(entry.price)
+      ? entry.price === 0
+        ? 'Free'
+        : String(entry.price)
+      : undefined);
+  const shots = [
+    ...(Array.isArray(entry.screenshotUrls) ? entry.screenshotUrls : []),
+    ...(Array.isArray(entry.ipadScreenshotUrls) ? entry.ipadScreenshotUrls : []),
+  ]
     .filter((u): u is string => typeof u === 'string' && u.length <= 500)
     .slice(0, 40);
   const icon = text(entry.artworkUrl512, 500) ?? text(entry.artworkUrl100, 500);
-  const app: AppleApp = { trackId: id, name: text(entry.trackName, 200) ?? '', screenshotUrls: shots };
+  const app: AppleApp = {
+    trackId: id,
+    name: text(entry.trackName, 200) ?? '',
+    screenshotUrls: shots,
+  };
   const bundleId = text(entry.bundleId, 200);
   const version = text(entry.version, 50);
   const currency = text(entry.currency, 10);
@@ -97,8 +118,10 @@ function toApp(entry: Record<string, unknown>): AppleApp | undefined {
   if (version) app.version = version;
   if (price) app.price = price;
   if (currency) app.currency = currency;
-  if (rating !== undefined && Number.isFinite(rating) && rating >= 0 && rating <= 5) app.ratingMilli = Math.round(rating * 1000);
-  if (count !== undefined && Number.isInteger(count) && count >= 0 && count <= 1e10) app.ratingCount = count;
+  if (rating !== undefined && Number.isFinite(rating) && rating >= 0 && rating <= 5)
+    app.ratingMilli = Math.round(rating * 1000);
+  if (count !== undefined && Number.isInteger(count) && count >= 0 && count <= 1e10)
+    app.ratingCount = count;
   if (description) app.description = description;
   if (icon) app.iconUrl = icon;
   if (seller) app.sellerName = seller;
@@ -109,7 +132,11 @@ function toApp(entry: Record<string, unknown>): AppleApp | undefined {
 /** The apps of a search or lookup reply, in the order Apple sent them. Throws `unexpected` when there is no `results` list. */
 export function parseAppleApps(json: unknown): AppleApp[] {
   if (!isRecord(json) || !Array.isArray(json.results)) {
-    throw new AsoError('apple_search', 'unexpected', 'The iTunes Search API answered with something that is not a result list.');
+    throw new AsoError(
+      'apple_search',
+      'unexpected',
+      'The iTunes Search API answered with something that is not a result list.',
+    );
   }
   const out: AppleApp[] = [];
   const seen = new Set<string>();
@@ -127,7 +154,11 @@ function parseJson(got: CappedGet): unknown {
   try {
     return JSON.parse(got.text);
   } catch {
-    throw new AsoError('apple_search', 'unexpected', 'The iTunes Search API answered with a response that could not be read.');
+    throw new AsoError(
+      'apple_search',
+      'unexpected',
+      'The iTunes Search API answered with a response that could not be read.',
+    );
   }
 }
 
@@ -155,7 +186,9 @@ export type AppleSearchResult = {
 };
 
 /** The URL of a search. Pure, so tests and docs can show it. */
-export function appleSearchUrl(options: Pick<AppleSearchOptions, 'term' | 'country' | 'limit' | 'lang' | 'macos'>): string {
+export function appleSearchUrl(
+  options: Pick<AppleSearchOptions, 'term' | 'country' | 'limit' | 'lang' | 'macos'>,
+): string {
   const limit = options.limit ?? APPLE_SEARCH_DEFAULT_LIMIT;
   const params = [
     `term=${encodeURIComponent(options.term)}`,
@@ -172,14 +205,30 @@ export function appleSearchUrl(options: Pick<AppleSearchOptions, 'term' | 'count
 export async function searchApple(options: AppleSearchOptions): Promise<AppleSearchResult> {
   const term = options.term.trim();
   const limit = options.limit ?? APPLE_SEARCH_DEFAULT_LIMIT;
-  if (term === '' || term.length > 200) throw new AsoError('apple_search', 'invalid_input', 'The search term is empty or too long.');
-  if (!/^[A-Za-z]{2}$/.test(options.country)) throw new AsoError('apple_search', 'invalid_input', 'The storefront must be a two letter country code.');
+  if (term === '' || term.length > 200)
+    throw new AsoError('apple_search', 'invalid_input', 'The search term is empty or too long.');
+  if (!/^[A-Za-z]{2}$/.test(options.country))
+    throw new AsoError(
+      'apple_search',
+      'invalid_input',
+      'The storefront must be a two letter country code.',
+    );
   if (!Number.isInteger(limit) || limit < 1 || limit > APPLE_SEARCH_MAX_LIMIT) {
-    throw new AsoError('apple_search', 'invalid_input', `The limit must be a whole number from 1 to ${APPLE_SEARCH_MAX_LIMIT}.`);
+    throw new AsoError(
+      'apple_search',
+      'invalid_input',
+      `The limit must be a whole number from 1 to ${APPLE_SEARCH_MAX_LIMIT}.`,
+    );
   }
   const got = await getCapped({
     source: 'apple_search',
-    url: appleSearchUrl({ term, country: options.country, limit, ...(options.lang ? { lang: options.lang } : {}), ...(options.macos === true ? { macos: true } : {}) }),
+    url: appleSearchUrl({
+      term,
+      country: options.country,
+      limit,
+      ...(options.lang ? { lang: options.lang } : {}),
+      ...(options.macos === true ? { macos: true } : {}),
+    }),
     accept: 'application/json',
     maxBytes: MAX_BYTES,
     ...(options.fetch ? { fetch: options.fetch } : {}),
@@ -196,12 +245,24 @@ export function rankIn(ids: readonly string[], id: string): number | null {
   return index === -1 ? null : index + 1;
 }
 
-export type AppleLookupOptions = { id: string; country: string; /** The Mac listing of the app (`entity=macSoftware`, UNVERIFIED). */ macos?: boolean; fetch?: typeof fetch; timeoutMs?: number };
+export type AppleLookupOptions = {
+  id: string;
+  country: string /** The Mac listing of the app (`entity=macSoftware`, UNVERIFIED). */;
+  macos?: boolean;
+  fetch?: typeof fetch;
+  timeoutMs?: number;
+};
 
 /** The public data of one app in one storefront, or undefined when Apple has no such app there. Throws `AsoError`. */
 export async function lookupApple(options: AppleLookupOptions): Promise<AppleApp | undefined> {
-  if (!/^[0-9]{1,20}$/.test(options.id)) throw new AsoError('apple_search', 'invalid_input', 'The App Store id is not a number.');
-  if (!/^[A-Za-z]{2}$/.test(options.country)) throw new AsoError('apple_search', 'invalid_input', 'The storefront must be a two letter country code.');
+  if (!/^[0-9]{1,20}$/.test(options.id))
+    throw new AsoError('apple_search', 'invalid_input', 'The App Store id is not a number.');
+  if (!/^[A-Za-z]{2}$/.test(options.country))
+    throw new AsoError(
+      'apple_search',
+      'invalid_input',
+      'The storefront must be a two letter country code.',
+    );
   const got = await getCapped({
     source: 'apple_search',
     url: `${ITUNES_LOOKUP_URL}?id=${options.id}&country=${options.country.toLowerCase()}${options.macos === true ? `&entity=${APPLE_MAC_LOOKUP_ENTITY}` : ''}`,

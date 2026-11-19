@@ -24,7 +24,11 @@ test('a credential that was never tested says so', () => {
 });
 
 test('a passing test is Working with a relative time', () => {
-  const status = testStatus({ at: now - 5 * 60_000, ok: true, message: 'Connected.' }, now, 'en-US');
+  const status = testStatus(
+    { at: now - 5 * 60_000, ok: true, message: 'Connected.' },
+    now,
+    'en-US',
+  );
   assert.equal(status.state, 'working');
   assert.equal(status.label, 'Working');
   assert.equal(status.tone, 'ok');
@@ -33,7 +37,10 @@ test('a passing test is Working with a relative time', () => {
 });
 
 test('a failing test is Failed and carries the message in the tooltip', () => {
-  const status = testStatus({ at: now - 3 * 3_600_000, ok: false, message: 'The key was rejected.' }, now);
+  const status = testStatus(
+    { at: now - 3 * 3_600_000, ok: false, message: 'The key was rejected.' },
+    now,
+  );
   assert.equal(status.state, 'failed');
   assert.equal(status.tone, 'bad');
   assert.equal(status.when, '3 hours ago');
@@ -41,8 +48,17 @@ test('a failing test is Failed and carries the message in the tooltip', () => {
 });
 
 test('a result is trimmed, deduplicated and given a message when the provider sent none', () => {
-  const summary = summarizeTest({ ok: true, message: '  Connected.  ', details: [' Key valid ', 'Key valid', '', '   ', 'Access to 3 apps'] });
-  assert.deepEqual(summary, { ok: true, tone: 'ok', message: 'Connected.', details: ['Key valid', 'Access to 3 apps'] });
+  const summary = summarizeTest({
+    ok: true,
+    message: '  Connected.  ',
+    details: [' Key valid ', 'Key valid', '', '   ', 'Access to 3 apps'],
+  });
+  assert.deepEqual(summary, {
+    ok: true,
+    tone: 'ok',
+    message: 'Connected.',
+    details: ['Key valid', 'Access to 3 apps'],
+  });
   assert.equal(summarizeTest({ ok: false, message: '' }).message, 'The test failed.');
   assert.equal(summarizeTest({ ok: true, message: ' ' }).message, 'The connection works.');
   assert.deepEqual(summarizeTest({ ok: false, message: 'x' }).details, []);
@@ -57,25 +73,57 @@ test('a result with very long or too many details is capped', () => {
 });
 
 test('a malformed details field does not throw', () => {
-  const odd = { ok: true, message: 'ok', details: 'nope' } as unknown as Parameters<typeof summarizeTest>[0];
+  const odd = { ok: true, message: 'ok', details: 'nope' } as unknown as Parameters<
+    typeof summarizeTest
+  >[0];
   assert.deepEqual(summarizeTest(odd).details, []);
 });
 
 test('errors become sentences; API errors keep their own wording', () => {
-  assert.equal(testErrorMessage(new ApiError(429, 'rate_limited', 'Too many requests. Try again in 30 seconds.', 30)), 'Too many requests. Try again in 30 seconds.');
-  assert.equal(testErrorMessage(new ApiError(0, 'network', 'Cannot reach the server. Check that it is running.')), 'Cannot reach the server. Check that it is running.');
+  assert.equal(
+    testErrorMessage(
+      new ApiError(429, 'rate_limited', 'Too many requests. Try again in 30 seconds.', 30),
+    ),
+    'Too many requests. Try again in 30 seconds.',
+  );
+  assert.equal(
+    testErrorMessage(
+      new ApiError(0, 'network', 'Cannot reach the server. Check that it is running.'),
+    ),
+    'Cannot reach the server. Check that it is running.',
+  );
   assert.equal(testErrorMessage(new Error('boom')), 'Could not run the test. Try again.');
 });
 
 test('screen reader announcements name the credential and the outcome', () => {
-  assert.equal(announceTest('Acme key', { ok: true, message: 'Connected.' }), 'Acme key: test passed. Connected.');
-  assert.equal(announceTest('Acme key', { ok: false, message: 'Rejected.' }), 'Acme key: test failed. Rejected.');
+  assert.equal(
+    announceTest('Acme key', { ok: true, message: 'Connected.' }),
+    'Acme key: test passed. Connected.',
+  );
+  assert.equal(
+    announceTest('Acme key', { ok: false, message: 'Rejected.' }),
+    'Acme key: test failed. Rejected.',
+  );
 });
 
-const draft: CredentialGuide = { summary: 's', prerequisites: [], steps: [], permissions: [], troubleshooting: [], links: [], checkedOn: '' };
+const draft: CredentialGuide = {
+  summary: 's',
+  prerequisites: [],
+  steps: [],
+  permissions: [],
+  troubleshooting: [],
+  links: [],
+  checkedOn: '',
+};
 
 test('a draft guide has no sections to show', () => {
-  assert.deepEqual(guideSections(draft), { prerequisites: false, steps: false, permissions: false, troubleshooting: false, links: false });
+  assert.deepEqual(guideSections(draft), {
+    prerequisites: false,
+    steps: false,
+    permissions: false,
+    troubleshooting: false,
+    links: false,
+  });
 });
 
 test('a filled-in guide shows the sections that have content', () => {

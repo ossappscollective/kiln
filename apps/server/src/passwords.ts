@@ -25,10 +25,20 @@ function derive(password: string, salt: Buffer, cost: ScryptCost): Promise<Buffe
   });
 }
 
-export async function hashPassword(password: string, cost: ScryptCost = defaultCost): Promise<string> {
+export async function hashPassword(
+  password: string,
+  cost: ScryptCost = defaultCost,
+): Promise<string> {
   const salt = randomBytes(16);
   const key = await derive(password, salt, cost);
-  return ['scrypt', cost.N, cost.r, cost.p, salt.toString('base64url'), key.toString('base64url')].join('$');
+  return [
+    'scrypt',
+    cost.N,
+    cost.r,
+    cost.p,
+    salt.toString('base64url'),
+    key.toString('base64url'),
+  ].join('$');
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {

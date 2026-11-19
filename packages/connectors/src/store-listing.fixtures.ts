@@ -13,17 +13,42 @@ const link = (path: string) => ({ self: `${APPLE_BASE}${path}` });
 const version = (id: string, attributes: Record<string, unknown>) => ({
   type: 'appStoreVersions',
   id,
-  attributes: { copyright: '2026 Coffee Co', releaseType: 'MANUAL', downloadable: true, ...attributes },
+  attributes: {
+    copyright: '2026 Coffee Co',
+    releaseType: 'MANUAL',
+    downloadable: true,
+    ...attributes,
+  },
   links: link(`/v1/appStoreVersions/${id}`),
 });
 
 /** A live 2.0, an editable 2.1, an older replaced 1.9 and a macOS version that is ignored. */
 export const appleListingVersions = {
   data: [
-    version('v-live', { platform: 'IOS', versionString: '2.0', appVersionState: 'READY_FOR_DISTRIBUTION', createdDate: '2026-09-01T10:00:00-07:00' }),
-    version('v-next', { platform: 'IOS', versionString: '2.1', appVersionState: 'PREPARE_FOR_SUBMISSION', createdDate: '2026-11-01T10:00:00-07:00' }),
-    version('v-old', { platform: 'IOS', versionString: '1.9', appVersionState: 'REPLACED_WITH_NEW_VERSION', createdDate: '2026-06-01T10:00:00-07:00' }),
-    version('v-mac', { platform: 'MAC_OS', versionString: '9.9', appVersionState: 'PREPARE_FOR_SUBMISSION', createdDate: '2026-11-02T10:00:00-07:00' }),
+    version('v-live', {
+      platform: 'IOS',
+      versionString: '2.0',
+      appVersionState: 'READY_FOR_DISTRIBUTION',
+      createdDate: '2026-09-01T10:00:00-07:00',
+    }),
+    version('v-next', {
+      platform: 'IOS',
+      versionString: '2.1',
+      appVersionState: 'PREPARE_FOR_SUBMISSION',
+      createdDate: '2026-11-01T10:00:00-07:00',
+    }),
+    version('v-old', {
+      platform: 'IOS',
+      versionString: '1.9',
+      appVersionState: 'REPLACED_WITH_NEW_VERSION',
+      createdDate: '2026-06-01T10:00:00-07:00',
+    }),
+    version('v-mac', {
+      platform: 'MAC_OS',
+      versionString: '9.9',
+      appVersionState: 'PREPARE_FOR_SUBMISSION',
+      createdDate: '2026-11-02T10:00:00-07:00',
+    }),
   ],
   links: link('/v1/apps/100/appStoreVersions'),
   meta: { paging: { total: 4, limit: 200 } },
@@ -76,7 +101,13 @@ export const appleInfoLocalizationsLive = {
       privacyChoicesUrl: 'https://example.org/choices',
       privacyPolicyText: null,
     }),
-    infoLoc('il-de', { locale: 'de-DE', name: 'Kaffee', subtitle: null, privacyPolicyUrl: null, privacyPolicyText: null }),
+    infoLoc('il-de', {
+      locale: 'de-DE',
+      name: 'Kaffee',
+      subtitle: null,
+      privacyPolicyUrl: null,
+      privacyPolicyText: null,
+    }),
   ],
   links: link('/v1/appInfos/info-live/appInfoLocalizations'),
   meta: { paging: { total: 2, limit: 200 } },
@@ -84,7 +115,12 @@ export const appleInfoLocalizationsLive = {
 
 export const appleInfoLocalizationsNext = {
   data: [
-    infoLoc('il2-en', { locale: 'en-US', name: 'Coffee Pro', subtitle: 'Brew even better', privacyPolicyUrl: 'https://example.org/privacy' }),
+    infoLoc('il2-en', {
+      locale: 'en-US',
+      name: 'Coffee Pro',
+      subtitle: 'Brew even better',
+      privacyPolicyUrl: 'https://example.org/privacy',
+    }),
     infoLoc('il2-de', { locale: 'de-DE', name: 'Kaffee Pro', subtitle: 'Besser brühen' }),
   ],
   links: link('/v1/appInfos/info-next/appInfoLocalizations'),
@@ -109,7 +145,15 @@ export const appleVersionLocalizationsLive = {
       supportUrl: 'https://example.org/support',
       whatsNew: 'Bug fixes',
     }),
-    versionLoc('vl-de', { locale: 'de-DE', description: 'Die beste Kaffee-App.', keywords: 'kaffee', marketingUrl: null, promotionalText: null, supportUrl: 'https://example.org/hilfe', whatsNew: null }),
+    versionLoc('vl-de', {
+      locale: 'de-DE',
+      description: 'Die beste Kaffee-App.',
+      keywords: 'kaffee',
+      marketingUrl: null,
+      promotionalText: null,
+      supportUrl: 'https://example.org/hilfe',
+      whatsNew: null,
+    }),
   ],
   links: link('/v1/appStoreVersions/v-live/appStoreVersionLocalizations'),
   meta: { paging: { total: 2, limit: 200 } },
@@ -133,8 +177,19 @@ export const appleVersionLocalizationsNext = {
 export const googleListingsFull = {
   kind: 'androidpublisher#listingsListResponse',
   listings: [
-    { language: 'en-US', title: 'Coffee', shortDescription: 'Brew better', fullDescription: 'The best coffee app.', video: 'https://www.youtube.com/watch?v=abc' },
-    { language: 'de-DE', title: 'Kaffee', shortDescription: 'Besser brühen', fullDescription: 'Die beste Kaffee-App.' },
+    {
+      language: 'en-US',
+      title: 'Coffee',
+      shortDescription: 'Brew better',
+      fullDescription: 'The best coffee app.',
+      video: 'https://www.youtube.com/watch?v=abc',
+    },
+    {
+      language: 'de-DE',
+      title: 'Kaffee',
+      shortDescription: 'Besser brühen',
+      fullDescription: 'Die beste Kaffee-App.',
+    },
     { title: 'no language, skipped' },
   ],
 };

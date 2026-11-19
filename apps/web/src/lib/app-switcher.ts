@@ -1,7 +1,14 @@
 import type { Action, Platform } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
 import { canonicalAppHash, canonicalSection, sectionViews } from './app-nav.ts';
-import { type AppSection, appAddress, isPlatformScope, parseAppAddress, parseViewPath, visibleSections } from './app-scope.ts';
+import {
+  type AppSection,
+  appAddress,
+  isPlatformScope,
+  parseAppAddress,
+  parseViewPath,
+  visibleSections,
+} from './app-scope.ts';
 import type { PendingLine } from './pending.ts';
 
 /**
@@ -63,14 +70,18 @@ function score(text: string, token: string): number | null {
  * the list as it is. A word may match the name (best) or an identifier.
  */
 export function filterSwitcher(items: readonly SwitcherItem[], query: string): SwitcherItem[] {
-  const tokens = norm(query).split(/\s+/).filter((t) => t !== '');
+  const tokens = norm(query)
+    .split(/\s+/)
+    .filter((t) => t !== '');
   if (tokens.length === 0) return [...items];
   const ranked: { item: SwitcherItem; total: number; at: number }[] = [];
   items.forEach((item, at) => {
     let total = 0;
     for (const token of tokens) {
       const byName = score(item.name, token);
-      const byId = item.identifiers.map((id) => score(id, token)).filter((s): s is number => s !== null);
+      const byId = item.identifiers
+        .map((id) => score(id, token))
+        .filter((s): s is number => s !== null);
       const best = Math.min(byName ?? Infinity, ...byId.map((s) => s + 2));
       if (best === Infinity) return;
       total += best;
@@ -114,7 +125,8 @@ export function appSwitchHash(
   if (!here) return appAddress(target.key);
   const section: AppSection = canonicalSection(here.section);
   const open = visibleSections(allowed).some((s) => s.id === section);
-  if (!open || section === 'dashboard') return appAddress(target.key, 'dashboard', scopeFor(here.platform, target.platforms));
+  if (!open || section === 'dashboard')
+    return appAddress(target.key, 'dashboard', scopeFor(here.platform, target.platforms));
   const base = appAddress(target.key, section, scopeFor(here.platform, target.platforms));
   // An open release is a version of the old app: the list of the new one opens.
   const params = new URLSearchParams();

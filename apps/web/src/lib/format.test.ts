@@ -16,21 +16,65 @@ test('timeAgo steps from seconds to a date', () => {
 
 test('events read as sentences', () => {
   assert.equal(
-    describeEvent({ action: 'credential.create', actorType: 'user', actorName: 'Ada', detail: { label: 'Acme key', kind: 'github_token' } }),
+    describeEvent({
+      action: 'credential.create',
+      actorType: 'user',
+      actorName: 'Ada',
+      detail: { label: 'Acme key', kind: 'github_token' },
+    }),
     'Ada added a credential “Acme key”',
   );
-  assert.equal(describeEvent({ action: 'credential.delete', actorType: 'user', actorName: null, detail: null }), 'Someone deleted a credential');
-  assert.equal(describeEvent({ action: 'credential.use', actorType: 'system', actorName: null, detail: { purpose: 'repo scan' } }), 'System used a credential for repo scan');
-  assert.equal(describeEvent({ action: 'future.thing', actorType: 'assistant', actorName: null, detail: null }), 'Assistant future.thing');
+  assert.equal(
+    describeEvent({
+      action: 'credential.delete',
+      actorType: 'user',
+      actorName: null,
+      detail: null,
+    }),
+    'Someone deleted a credential',
+  );
+  assert.equal(
+    describeEvent({
+      action: 'credential.use',
+      actorType: 'system',
+      actorName: null,
+      detail: { purpose: 'repo scan' },
+    }),
+    'System used a credential for repo scan',
+  );
+  assert.equal(
+    describeEvent({
+      action: 'future.thing',
+      actorType: 'assistant',
+      actorName: null,
+      detail: null,
+    }),
+    'Assistant future.thing',
+  );
 });
 
 test('member and invitation events read as sentences', () => {
-  const ev = (action: string, detail: Record<string, unknown> | null, actorName: string | null = 'Ada') =>
-    describeEvent({ action, actorType: 'user', actorName, detail });
-  assert.equal(ev('invitation.create', { email: 'bob@example.com', role: 'member' }), 'Ada invited bob@example.com as member');
-  assert.equal(ev('invitation.accept', { role: 'viewer' }, 'Bob'), 'Bob joined the workspace as viewer from an invitation');
-  assert.equal(ev('invitation.revoke', { email: 'bob@example.com' }), 'Ada revoked the invitation for bob@example.com');
-  assert.equal(ev('member.role_change', { from: 'member', to: 'admin' }), 'Ada changed a member’s role from member to admin');
+  const ev = (
+    action: string,
+    detail: Record<string, unknown> | null,
+    actorName: string | null = 'Ada',
+  ) => describeEvent({ action, actorType: 'user', actorName, detail });
+  assert.equal(
+    ev('invitation.create', { email: 'bob@example.com', role: 'member' }),
+    'Ada invited bob@example.com as member',
+  );
+  assert.equal(
+    ev('invitation.accept', { role: 'viewer' }, 'Bob'),
+    'Bob joined the workspace as viewer from an invitation',
+  );
+  assert.equal(
+    ev('invitation.revoke', { email: 'bob@example.com' }),
+    'Ada revoked the invitation for bob@example.com',
+  );
+  assert.equal(
+    ev('member.role_change', { from: 'member', to: 'admin' }),
+    'Ada changed a member’s role from member to admin',
+  );
   assert.equal(ev('member.remove', { self: true }), 'Ada left the workspace');
   assert.equal(ev('member.remove', { self: false }), 'Ada removed a member from the workspace');
 });
@@ -51,7 +95,11 @@ test('groupByDay splits at local midnight and labels Today and Yesterday', async
   const groups = groupByDay(events, now, 'en-US');
   assert.deepEqual(
     groups.map((g) => [g.label, g.items.length]),
-    [['Today', 2], ['Yesterday', 1], ['Tue, Nov 10', 1]],
+    [
+      ['Today', 2],
+      ['Yesterday', 1],
+      ['Tue, Nov 10', 1],
+    ],
   );
   assert.equal(dayLabel(at(18, 0), now), 'Today');
   assert.equal(eventCategory('credential.create'), 'credential');
@@ -62,19 +110,45 @@ test('groupByDay splits at local midnight and labels Today and Yesterday', async
 
 test('token and webhook actions read as sentences, and a token is named as the actor', () => {
   assert.equal(
-    describeEvent({ action: 'token.create', actorType: 'user', actorName: 'Ada', detail: { name: 'CI', role: 'member' } }),
+    describeEvent({
+      action: 'token.create',
+      actorType: 'user',
+      actorName: 'Ada',
+      detail: { name: 'CI', role: 'member' },
+    }),
     'Ada made an API token “CI” (member)',
   );
-  assert.equal(describeEvent({ action: 'token.revoke', actorType: 'user', actorName: 'Ada', detail: { name: 'CI' } }), 'Ada revoked an API token “CI”');
   assert.equal(
-    describeEvent({ action: 'webhook.update', actorType: 'user', actorName: 'Ada', detail: { changed: ['url', 'enabled'] } }),
+    describeEvent({
+      action: 'token.revoke',
+      actorType: 'user',
+      actorName: 'Ada',
+      detail: { name: 'CI' },
+    }),
+    'Ada revoked an API token “CI”',
+  );
+  assert.equal(
+    describeEvent({
+      action: 'webhook.update',
+      actorType: 'user',
+      actorName: 'Ada',
+      detail: { changed: ['url', 'enabled'] },
+    }),
     'Ada changed a webhook (url, enabled)',
   );
   assert.equal(
-    describeEvent({ action: 'changeset.create', actorType: 'token', actorName: 'Release CI', detail: null }),
+    describeEvent({
+      action: 'changeset.create',
+      actorType: 'token',
+      actorName: 'Release CI',
+      detail: null,
+    }),
     'API token “Release CI” changeset.create',
   );
-  assert.equal(describeEvent({ action: 'x', actorType: 'system', actorName: null, detail: null }), 'System x');
+  assert.equal(
+    describeEvent({ action: 'x', actorType: 'system', actorName: null, detail: null }),
+    'System x',
+  );
   assert.equal(eventCategory('webhook.create'), 'webhook');
   assert.equal(categoryLabel('token'), 'API tokens');
   assert.deepEqual(eventVisual('webhook.create'), { icon: 'globe', tone: 'ok' });

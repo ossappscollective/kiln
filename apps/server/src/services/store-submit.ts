@@ -12,21 +12,27 @@ import {
 import {
   APP_STORE_FIELD_SPECS,
   type AssetFacts,
+  isApplePlatform,
+  isGooglePlatform,
   PLAY_FIELD_SPECS,
   type Platform,
   validateAssets,
-  isApplePlatform,
-  isGooglePlatform,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
+import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
-import { type PushRecord, deletePush, loadPush, manifestMismatches, requestOfManifest } from './store-draft-record.ts';
 import { mapStoreError } from './store-draft.ts';
+import {
+  deletePush,
+  loadPush,
+  manifestMismatches,
+  type PushRecord,
+  requestOfManifest,
+} from './store-draft-record.ts';
 
 /**
  * Submitting the store's DRAFT for review: the most consequential STORE WRITE of this server, and one it cannot take
@@ -82,8 +88,16 @@ export type SubmitConnectorFactory = (input: SubmitConnectorInput) => StoreSubmi
 
 export const defaultSubmitConnectorFactory: SubmitConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppleSubmitConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', platform: input.platform === 'macos' ? 'macos' : 'ios', fetch: input.fetch })
-    : new PlaySubmitConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
+    ? AppleSubmitConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        platform: input.platform === 'macos' ? 'macos' : 'ios',
+        fetch: input.fetch,
+      })
+    : new PlaySubmitConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      });
 
 export type SubmitContext = {
   db: Database;
@@ -100,18 +114,30 @@ export type SubmitContext = {
 // Failures
 
 export const submitDisabledFailure = (): Failure =>
-  failure(409, 'store_submit_disabled', `Submitting drafts for store review is switched off on this server. Set ${SUBMIT_ENV}=true to turn it on (see docs/deployment.md).`, {
-    envName: SUBMIT_ENV,
-  });
+  failure(
+    409,
+    'store_submit_disabled',
+    `Submitting drafts for store review is switched off on this server. Set ${SUBMIT_ENV}=true to turn it on (see docs/deployment.md).`,
+    {
+      envName: SUBMIT_ENV,
+    },
+  );
 
 class SubmitTimeout extends Error {}
 
 /** Runs `job` with a connector whose requests are aborted after the timeout. */
-async function withConnector<T>(ctx: SubmitContext, input: Omit<SubmitConnectorInput, 'fetch'>, job: (connector: StoreSubmitConnector) => Promise<T>): Promise<T> {
+async function withConnector<T>(
+  ctx: SubmitContext,
+  input: Omit<SubmitConnectorInput, 'fetch'>,
+  job: (connector: StoreSubmitConnector) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const baseFetch = globalThis.fetch;
   const guardedFetch: typeof fetch = (target, init) =>
-    baseFetch(target, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+    baseFetch(target, {
+      ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -133,11 +159,19 @@ async function withConnector<T>(ctx: SubmitContext, input: Omit<SubmitConnectorI
 
 type Claim = { appId: string; platform: Platform; at: number };
 
-async function takeClaim(ctx: SubmitContext, input: { workspaceId: string; app: ManagedApp; actor: Actor }): Promise<{ ok: true; claim: Claim } | Failure> {
+async function takeClaim(
+  ctx: SubmitContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+): Promise<{ ok: true; claim: Claim } | Failure> {
   const { db } = ctx;
   const ttl = ctx.claimTtlMs ?? DEFAULT_SUBMIT_CLAIM_TTL_MS;
   const claim: Claim = { appId: input.app.id, platform: input.app.platform, at: ctx.now() };
-  const busy = () => failure(409, 'write_in_progress', 'A submit for this app is in progress. Wait for it to finish.');
+  const busy = () =>
+    failure(
+      409,
+      'write_in_progress',
+      'A submit for this app is in progress. Wait for it to finish.',
+    );
   const insert = () =>
     db.execute(
       `INSERT INTO store_submit_claims (app_id, platform, workspace_id, action, status, claimed_by, claim_at)
@@ -145,7 +179,10 @@ async function takeClaim(ctx: SubmitContext, input: { workspaceId: string; app: 
       [claim.appId, claim.platform, input.workspaceId, input.actor.id, claim.at],
     );
   if ((await insert()) === 1) return { ok: true, claim };
-  const [existing] = await db.query('SELECT status, claim_at FROM store_submit_claims WHERE app_id = ? AND platform = ?', [claim.appId, claim.platform]);
+  const [existing] = await db.query(
+    'SELECT status, claim_at FROM store_submit_claims WHERE app_id = ? AND platform = ?',
+    [claim.appId, claim.platform],
+  );
   if (!existing) return (await insert()) === 1 ? { ok: true, claim } : busy();
   if (String(existing.status) === 'unknown') {
     return failure(
@@ -167,22 +204,44 @@ async function takeClaim(ctx: SubmitContext, input: { workspaceId: string; app: 
 }
 
 const releaseClaim = (sql: Sql, claim: Claim) =>
-  sql.execute("DELETE FROM store_submit_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [claim.appId, claim.platform, claim.at]);
+  sql.execute(
+    "DELETE FROM store_submit_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 const markUnknown = (sql: Sql, claim: Claim) =>
-  sql.execute("UPDATE store_submit_claims SET status = 'unknown' WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [claim.appId, claim.platform, claim.at]);
+  sql.execute(
+    "UPDATE store_submit_claims SET status = 'unknown' WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 /** A successful read of the store settles an unknown outcome: the person sees where things stand. */
 const clearUnknown = (sql: Sql, app: ManagedApp) =>
-  sql.execute("DELETE FROM store_submit_claims WHERE app_id = ? AND platform = ? AND status = 'unknown'", [app.id, app.platform]);
+  sql.execute(
+    "DELETE FROM store_submit_claims WHERE app_id = ? AND platform = ? AND status = 'unknown'",
+    [app.id, app.platform],
+  );
 
 type InFlight = { submit: 'writing' | 'unknown' | null; push: 'writing' | 'unknown' | null };
 
 /** The claims that bear on a submit: its own, and the draft push's (a push in flight changes what would be submitted). */
 async function inFlightOf(ctx: SubmitContext, app: ManagedApp): Promise<InFlight> {
   const now = ctx.now();
-  const own = (await ctx.db.query('SELECT status, claim_at FROM store_submit_claims WHERE app_id = ? AND platform = ?', [app.id, app.platform]))[0];
-  const push = (await ctx.db.query('SELECT status, claim_at FROM store_draft_claims WHERE app_id = ? AND platform = ?', [app.id, app.platform]))[0];
+  const own = (
+    await ctx.db.query(
+      'SELECT status, claim_at FROM store_submit_claims WHERE app_id = ? AND platform = ?',
+      [app.id, app.platform],
+    )
+  )[0];
+  const push = (
+    await ctx.db.query(
+      'SELECT status, claim_at FROM store_draft_claims WHERE app_id = ? AND platform = ?',
+      [app.id, app.platform],
+    )
+  )[0];
   const ttl = ctx.claimTtlMs ?? DEFAULT_SUBMIT_CLAIM_TTL_MS;
-  const pick = (row: Record<string, unknown> | undefined, limit: number): 'writing' | 'unknown' | null => {
+  const pick = (
+    row: Record<string, unknown> | undefined,
+    limit: number,
+  ): 'writing' | 'unknown' | null => {
     if (!row) return null;
     if (String(row.status) === 'unknown') return 'unknown';
     return now - Number(row.claim_at) < limit ? 'writing' : null;
@@ -195,21 +254,60 @@ async function inFlightOf(ctx: SubmitContext, app: ManagedApp): Promise<InFlight
 
 type Connection = { input: Omit<SubmitConnectorInput, 'fetch'>; secret: string };
 
-async function connect(ctx: SubmitContext, workspaceId: string, app: ManagedApp, actor: Actor): Promise<{ ok: true; connection: Connection } | Failure> {
-  const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
-  if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
-  if (String(credential.kind) !== credentialKindFor[app.platform]) return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
-  if (isApplePlatform(app.platform) && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
+async function connect(
+  ctx: SubmitContext,
+  workspaceId: string,
+  app: ManagedApp,
+  actor: Actor,
+): Promise<{ ok: true; connection: Connection } | Failure> {
+  const [credential] = await ctx.db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [app.credentialId, workspaceId],
+  );
+  if (!credential)
+    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+  if (String(credential.kind) !== credentialKindFor[app.platform])
+    return failure(
+      422,
+      'credential_kind',
+      "This app's credential is not the kind its platform needs.",
+    );
+  if (isApplePlatform(app.platform) && !app.storeAppId)
+    return failure(
+      422,
+      'app_not_synced',
+      'The App Store id of this app is not known yet. Sync the app first.',
+    );
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: SUBMIT_PURPOSE }, actor, ctx.now());
+    secret = await useCredentialSecret(
+      ctx.db,
+      ctx.masterKey,
+      { workspaceId, id: app.credentialId, purpose: SUBMIT_PURPOSE },
+      actor,
+      ctx.now(),
+    );
   } catch {
-    return failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.');
+    return failure(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+    );
   }
-  if (secret === undefined) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+  if (secret === undefined)
+    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   return {
     ok: true,
-    connection: { secret, input: { kind: credentialKindFor[app.platform], secret, identifier: app.identifier, storeAppId: app.storeAppId, platform: app.platform } },
+    connection: {
+      secret,
+      input: {
+        kind: credentialKindFor[app.platform],
+        secret,
+        identifier: app.identifier,
+        storeAppId: app.storeAppId,
+        platform: app.platform,
+      },
+    },
   };
 }
 
@@ -232,25 +330,50 @@ export type SubmitCheck = {
 
 export type SubmitChecks = { blocking: SubmitCheck[]; warnings: SubmitCheck[]; canSubmit: boolean };
 
-const isBlank = (value: string | null | undefined) => value === null || value === undefined || value.trim() === '';
+const isBlank = (value: string | null | undefined) =>
+  value === null || value === undefined || value.trim() === '';
 
 /** Checks against the state read from the store and the record of the push. Pure. */
-export function evaluateChecks(input: { app: Pick<ManagedApp, 'platform'>; record: PushRecord; state: SubmitState; inFlight: InFlight }): SubmitCheck[] {
+export function evaluateChecks(input: {
+  app: Pick<ManagedApp, 'platform'>;
+  record: PushRecord;
+  state: SubmitState;
+  inFlight: InFlight;
+}): SubmitCheck[] {
   const { app, record, state } = input;
   const out: SubmitCheck[] = [];
   const add = (check: SubmitCheck) => out.push(check);
   const ios = isApplePlatform(app.platform);
 
-  if (input.inFlight.push === 'writing') add({ code: 'push_in_progress', severity: 'blocking', message: 'A draft push for this app is in progress. Wait for it to finish.' });
+  if (input.inFlight.push === 'writing')
+    add({
+      code: 'push_in_progress',
+      severity: 'blocking',
+      message: 'A draft push for this app is in progress. Wait for it to finish.',
+    });
   if (input.inFlight.push === 'unknown') {
-    add({ code: 'push_outcome_unknown', severity: 'blocking', message: 'It is not known whether the last draft push reached the store. Preview the push again first (staged changes), then submit.' });
+    add({
+      code: 'push_outcome_unknown',
+      severity: 'blocking',
+      message:
+        'It is not known whether the last draft push reached the store. Preview the push again first (staged changes), then submit.',
+    });
   }
 
   if (state.alreadySubmitted) {
-    add({ code: 'already_submitted', severity: 'blocking', message: `The App Store version is already in review or past it (${state.version?.state ?? 'unknown state'}). It cannot be submitted again.` });
+    add({
+      code: 'already_submitted',
+      severity: 'blocking',
+      message: `The App Store version is already in review or past it (${state.version?.state ?? 'unknown state'}). It cannot be submitted again.`,
+    });
     return out;
   }
-  if (ios && state.version === null) add({ code: 'no_version', severity: 'blocking', message: 'There is no App Store version to submit.' });
+  if (ios && state.version === null)
+    add({
+      code: 'no_version',
+      severity: 'blocking',
+      message: 'There is no App Store version to submit.',
+    });
   if (ios && state.version && record.versionId !== null && record.versionId !== state.version.id) {
     add({
       code: 'version_changed',
@@ -271,13 +394,32 @@ export function evaluateChecks(input: { app: Pick<ManagedApp, 'platform'>; recor
             : `The version is set to release ${type === 'AFTER_APPROVAL' ? 'automatically after approval' : `by itself (${type})`}. This server submits only a version that is set to be released manually, because an approval must not release anything by itself. Change it in App Store Connect.`,
       });
     }
-    if (state.build === null) add({ code: 'no_build', severity: 'blocking', message: 'No build is attached to the version. Attach a processed build in App Store Connect.' });
-    else if (state.build.expired === true) add({ code: 'build_expired', severity: 'blocking', message: `Build ${state.build.version ?? state.build.id} has expired. Attach another build in App Store Connect.` });
+    if (state.build === null)
+      add({
+        code: 'no_build',
+        severity: 'blocking',
+        message:
+          'No build is attached to the version. Attach a processed build in App Store Connect.',
+      });
+    else if (state.build.expired === true)
+      add({
+        code: 'build_expired',
+        severity: 'blocking',
+        message: `Build ${state.build.version ?? state.build.id} has expired. Attach another build in App Store Connect.`,
+      });
     else if (state.build.processingState !== null && state.build.processingState !== 'VALID') {
-      add({ code: 'build_not_valid', severity: 'blocking', message: `Build ${state.build.version ?? state.build.id} is not ready (${state.build.processingState}).` });
+      add({
+        code: 'build_not_valid',
+        severity: 'blocking',
+        message: `Build ${state.build.version ?? state.build.id} is not ready (${state.build.processingState}).`,
+      });
     }
     if (state.openReviewSubmissions !== null && state.openReviewSubmissions > 0) {
-      add({ code: 'open_review_submission', severity: 'warning', message: `${state.openReviewSubmissions} review submission(s) of this app are open but not submitted. This server creates its own and leaves those alone.` });
+      add({
+        code: 'open_review_submission',
+        severity: 'warning',
+        message: `${state.openReviewSubmissions} review submission(s) of this app are open but not submitted. This server creates its own and leaves those alone.`,
+      });
     }
   }
 
@@ -285,22 +427,34 @@ export function evaluateChecks(input: { app: Pick<ManagedApp, 'platform'>; recor
     add({
       code: 'play_review_state_unknown',
       severity: 'warning',
-      message: 'Google Play does not show the review state through its API: this server cannot tell whether changes are already in review (Google refuses a second send while they are) and cannot confirm the send afterwards.',
+      message:
+        'Google Play does not show the review state through its API: this server cannot tell whether changes are already in review (Google refuses a second send while they are) and cannot confirm the send afterwards.',
     });
     add({
       code: 'play_pending_changes',
       severity: 'warning',
-      message: 'Everything held back for this app goes to review, not only what this server pushed: changes made in Play Console go with it. Google does not list them through the API.',
+      message:
+        'Everything held back for this app goes to review, not only what this server pushed: changes made in Play Console go with it. Google does not list them through the API.',
     });
-    const rolling = state.tracks.flatMap((t) => t.releases.filter((r) => r.status === 'inProgress').map(() => t.track));
+    const rolling = state.tracks.flatMap((t) =>
+      t.releases.filter((r) => r.status === 'inProgress').map(() => t.track),
+    );
     if (rolling.length > 0) {
-      add({ code: 'play_rollout_in_progress', severity: 'warning', message: `A staged rollout is in progress on ${[...new Set(rolling)].join(', ')}. Submitting does not change it.` });
+      add({
+        code: 'play_rollout_in_progress',
+        severity: 'warning',
+        message: `A staged rollout is in progress on ${[...new Set(rolling)].join(', ')}. Submitting does not change it.`,
+      });
     }
   }
 
   // The store's draft must still hold what was pushed.
   if (state.draft === null) {
-    add({ code: 'draft_unreadable', severity: 'blocking', message: 'The store’s draft could not be read.' });
+    add({
+      code: 'draft_unreadable',
+      severity: 'blocking',
+      message: 'The store’s draft could not be read.',
+    });
   } else {
     const differs = manifestMismatches(record.manifest, state.draft);
     for (const m of differs.slice(0, 30)) {
@@ -312,32 +466,77 @@ export function evaluateChecks(input: { app: Pick<ManagedApp, 'platform'>; recor
         item: m.item,
       });
     }
-    if (differs.length > 30) add({ code: 'draft_differs', severity: 'blocking', message: `${differs.length - 30} more pushed items differ.` });
+    if (differs.length > 30)
+      add({
+        code: 'draft_differs',
+        severity: 'blocking',
+        message: `${differs.length - 30} more pushed items differ.`,
+      });
   }
 
   // The listing as the store holds it.
-  if (state.locales.length === 0) add({ code: 'no_locales', severity: 'blocking', message: 'The store listing has no locale.' });
+  if (state.locales.length === 0)
+    add({ code: 'no_locales', severity: 'blocking', message: 'The store listing has no locale.' });
   let screenshots = 0;
   for (const locale of state.locales) {
-    const shots = locale.assets.filter((a) => a.kind === 'screenshot').reduce((n, a) => n + a.images.length, 0);
+    const shots = locale.assets
+      .filter((a) => a.kind === 'screenshot')
+      .reduce((n, a) => n + a.images.length, 0);
     screenshots += shots;
-    if (shots === 0) add({ code: 'locale_without_screenshots', severity: 'warning', message: `${locale.locale} has no screenshots.`, locale: locale.locale });
+    if (shots === 0)
+      add({
+        code: 'locale_without_screenshots',
+        severity: 'warning',
+        message: `${locale.locale} has no screenshots.`,
+        locale: locale.locale,
+      });
     for (const [field, value] of Object.entries(locale.text)) {
       if (!isBlank(value)) continue;
-      const spec = ios ? (APP_STORE_FIELD_SPECS as Record<string, { required: boolean; label: string; unverified: string[]; source: string }>)[field] : (PLAY_FIELD_SPECS as Record<string, { required: boolean; label: string; unverified: string[]; source: string }>)[field];
+      const spec = ios
+        ? (
+            APP_STORE_FIELD_SPECS as Record<
+              string,
+              { required: boolean; label: string; unverified: string[]; source: string }
+            >
+          )[field]
+        : (
+            PLAY_FIELD_SPECS as Record<
+              string,
+              { required: boolean; label: string; unverified: string[]; source: string }
+            >
+          )[field];
       if (!spec || !spec.required) continue;
       const verified = !spec.unverified.includes('required');
-      add({ code: 'missing_text', severity: verified ? 'blocking' : 'warning', message: `${spec.label} is empty in ${locale.locale}.${verified ? '' : ' UNVERIFIED: no official page confirms it is required.'}`, locale: locale.locale, item: field, source: spec.source, verified });
+      add({
+        code: 'missing_text',
+        severity: verified ? 'blocking' : 'warning',
+        message: `${spec.label} is empty in ${locale.locale}.${verified ? '' : ' UNVERIFIED: no official page confirms it is required.'}`,
+        locale: locale.locale,
+        item: field,
+        source: spec.source,
+        verified,
+      });
     }
     for (const set of locale.assets) {
       for (const image of set.images) {
         if (image.state !== null && !DRAFT_IMAGE_READY_STATES.includes(image.state)) {
-          add({ code: 'image_not_ready', severity: 'blocking', message: `A ${set.target} image in ${locale.locale} is ${image.state}, not processed.`, locale: locale.locale, item: set.target });
+          add({
+            code: 'image_not_ready',
+            severity: 'blocking',
+            message: `A ${set.target} image in ${locale.locale} is ${image.state}, not processed.`,
+            locale: locale.locale,
+            item: set.target,
+          });
         }
       }
     }
   }
-  if (state.locales.length > 0 && screenshots === 0) add({ code: 'no_screenshots', severity: 'blocking', message: 'The listing has no screenshots in any locale.' });
+  if (state.locales.length > 0 && screenshots === 0)
+    add({
+      code: 'no_screenshots',
+      severity: 'blocking',
+      message: 'The listing has no screenshots in any locale.',
+    });
 
   // The documented specs, held against what the store lists (sizes and counts; the bytes are not read).
   const facts: AssetFacts[] = [];
@@ -380,7 +579,11 @@ export function evaluateChecks(input: { app: Pick<ManagedApp, 'platform'>; recor
 
 const split = (items: SubmitCheck[]): SubmitChecks => {
   const blocking = items.filter((i) => i.severity === 'blocking');
-  return { blocking, warnings: items.filter((i) => i.severity === 'warning'), canSubmit: blocking.length === 0 };
+  return {
+    blocking,
+    warnings: items.filter((i) => i.severity === 'warning'),
+    canSubmit: blocking.length === 0,
+  };
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -389,21 +592,32 @@ const split = (items: SubmitCheck[]): SubmitChecks => {
 const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 
 /** What the person confirms: this app, the pushed draft, and the store exactly as it was read. */
-export function submitConfirmHash(input: { workspaceId: string; app: { id: string; platform: Platform }; record: PushRecord; state: SubmitState }): string {
+export function submitConfirmHash(input: {
+  workspaceId: string;
+  app: { id: string; platform: Platform };
+  record: PushRecord;
+  state: SubmitState;
+}): string {
   const body = JSON.stringify({
     v: 1,
     workspaceId: input.workspaceId,
     appId: input.app.id,
     platform: input.app.platform,
-    pushed: { confirmHash: input.record.confirmHash, versionId: input.record.versionId, items: sha(JSON.stringify(input.record.manifest)) },
+    pushed: {
+      confirmHash: input.record.confirmHash,
+      versionId: input.record.versionId,
+      items: sha(JSON.stringify(input.record.manifest)),
+    },
     store: submitKey(input.state),
   });
   return sha(body);
 }
 
 /** The text the person types to confirm. Needs no store read, so a wrong one is refused before anything else. */
-export const confirmationPhrase = (app: Pick<ManagedApp, 'identifier'>, record: Pick<PushRecord, 'versionString'>): string =>
-  `submit ${app.identifier}${record.versionString ? ` ${record.versionString}` : ''}`;
+export const confirmationPhrase = (
+  app: Pick<ManagedApp, 'identifier'>,
+  record: Pick<PushRecord, 'versionString'>,
+): string => `submit ${app.identifier}${record.versionString ? ` ${record.versionString}` : ''}`;
 
 // ---------------------------------------------------------------------------------------------
 // Config and state
@@ -435,14 +649,23 @@ export type SubmitStateView = {
   enabled: boolean;
   /** A successful draft push is recorded and not yet submitted. */
   pushed: boolean;
-  push: { pushedAt: number; pushedBy: string; versionString: string | null; texts: number; assetSets: number } | null;
+  push: {
+    pushedAt: number;
+    pushedBy: string;
+    versionString: string | null;
+    texts: number;
+    assetSets: number;
+  } | null;
   inFlight: { submit: boolean; push: boolean };
   /** An earlier submit or push whose outcome is unknown: preview again to settle it. */
   unknownOutcome: { submit: boolean; push: boolean };
 };
 
 /** `GET .../store-submit`: the database only, no store is contacted. */
-export async function getSubmitState(ctx: SubmitContext, input: { workspaceId: string; appId: string }): Promise<{ ok: true; state: SubmitStateView } | Failure> {
+export async function getSubmitState(
+  ctx: SubmitContext,
+  input: { workspaceId: string; appId: string },
+): Promise<{ ok: true; state: SubmitStateView } | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const record = await loadPush(ctx.db, app.id, app.platform);
@@ -452,7 +675,15 @@ export async function getSubmitState(ctx: SubmitContext, input: { workspaceId: s
     state: {
       enabled: ctx.submitEnabled,
       pushed: record !== undefined,
-      push: record ? { pushedAt: record.pushedAt, pushedBy: record.pushedBy, versionString: record.versionString, texts: record.manifest.text.length, assetSets: record.manifest.assets.length } : null,
+      push: record
+        ? {
+            pushedAt: record.pushedAt,
+            pushedBy: record.pushedBy,
+            versionString: record.versionString,
+            texts: record.manifest.text.length,
+            assetSets: record.manifest.assets.length,
+          }
+        : null,
       inFlight: { submit: inFlight.submit === 'writing', push: inFlight.push === 'writing' },
       unknownOutcome: { submit: inFlight.submit === 'unknown', push: inFlight.push === 'unknown' },
     },
@@ -465,11 +696,25 @@ export async function getSubmitState(ctx: SubmitContext, input: { workspaceId: s
 export type SubmitPreview = {
   app: { id: string; name: string; platform: Platform; store: string };
   /** App Store: the version that goes to review. Google Play: null (the changes of the app go to review). */
-  version: { id: string; versionString: string | null; state: string; releaseType: string | null } | null;
-  build: { id: string; version: string | null; processingState: string | null; expired: boolean | null } | null;
+  version: {
+    id: string;
+    versionString: string | null;
+    state: string;
+    releaseType: string | null;
+  } | null;
+  build: {
+    id: string;
+    version: string | null;
+    processingState: string | null;
+    expired: boolean | null;
+  } | null;
   /** What goes to review, per locale: counts of text fields that hold a value and the screenshot sets. */
   contents: {
-    locales: { locale: string; textFields: number; screenshotSets: { target: string; device: string | null; images: number }[] }[];
+    locales: {
+      locale: string;
+      textFields: number;
+      screenshotSets: { target: string; device: string | null; images: number }[];
+    }[];
     /** What this server pushed and the draft still holds. */
     pushed: { pushedAt: number; pushedBy: string; texts: number; assetSets: number };
     /** Google Play: changes outside this server's pushes go too, and are not listed by Google. */
@@ -504,7 +749,16 @@ const irreversibleOf = (platform: Platform, record: PushRecord): string[] =>
         'No track and no rollout is changed.',
       ];
 
-function previewOf(ctx: SubmitContext, input: { workspaceId: string; app: ManagedApp; record: PushRecord; state: SubmitState; inFlight: InFlight }): SubmitPreview {
+function previewOf(
+  ctx: SubmitContext,
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    record: PushRecord;
+    state: SubmitState;
+    inFlight: InFlight;
+  },
+): SubmitPreview {
   const { app, record, state } = input;
   const checks = split(evaluateChecks({ app, record, state, inFlight: input.inFlight }));
   const ready = checks.canSubmit;
@@ -516,9 +770,16 @@ function previewOf(ctx: SubmitContext, input: { workspaceId: string; app: Manage
       locales: state.locales.map((l) => ({
         locale: l.locale,
         textFields: Object.values(l.text).filter((v) => !isBlank(v)).length,
-        screenshotSets: l.assets.filter((a) => a.kind === 'screenshot').map((a) => ({ target: a.target, device: a.device, images: a.images.length })),
+        screenshotSets: l.assets
+          .filter((a) => a.kind === 'screenshot')
+          .map((a) => ({ target: a.target, device: a.device, images: a.images.length })),
       })),
-      pushed: { pushedAt: record.pushedAt, pushedBy: record.pushedBy, texts: record.manifest.text.length, assetSets: record.manifest.assets.length },
+      pushed: {
+        pushedAt: record.pushedAt,
+        pushedBy: record.pushedBy,
+        texts: record.manifest.text.length,
+        assetSets: record.manifest.assets.length,
+      },
       includesChangesNotPushedHere: isGooglePlatform(app.platform),
     },
     tracks: state.tracks,
@@ -526,19 +787,31 @@ function previewOf(ctx: SubmitContext, input: { workspaceId: string; app: Manage
     submits: true,
     releases: false,
     checks,
-    confirmHash: ready ? submitConfirmHash({ workspaceId: input.workspaceId, app, record, state }) : null,
+    confirmHash: ready
+      ? submitConfirmHash({ workspaceId: input.workspaceId, app, record, state })
+      : null,
     confirmation: ready
-      ? { phrase: confirmationPhrase(app, record), instruction: `Type "${confirmationPhrase(app, record)}" to confirm. This cannot be undone from here.` }
+      ? {
+          phrase: confirmationPhrase(app, record),
+          instruction: `Type "${confirmationPhrase(app, record)}" to confirm. This cannot be undone from here.`,
+        }
       : null,
     readAt: ctx.now(),
   };
 }
 
 const noPush = (): Failure =>
-  failure(409, 'nothing_pushed', 'No draft push of this app is recorded, so there is nothing to submit. Push the staged changes as a draft first (staged changes), then submit.');
+  failure(
+    409,
+    'nothing_pushed',
+    'No draft push of this app is recorded, so there is nothing to submit. Push the staged changes as a draft first (staged changes), then submit.',
+  );
 
 /** `POST .../store-submit/preview`: reads the store and shows what would go to review and what stands in the way. Writes nothing. */
-export async function previewSubmit(ctx: SubmitContext, input: { workspaceId: string; appId: string; actor: Actor }): Promise<{ ok: true; preview: SubmitPreview } | Failure> {
+export async function previewSubmit(
+  ctx: SubmitContext,
+  input: { workspaceId: string; appId: string; actor: Actor },
+): Promise<{ ok: true; preview: SubmitPreview } | Failure> {
   if (!ctx.submitEnabled) return submitDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
@@ -549,14 +822,20 @@ export async function previewSubmit(ctx: SubmitContext, input: { workspaceId: st
   const { connection } = connected;
   let state: SubmitState;
   try {
-    state = await withConnector(ctx, connection.input, (connector) => connector.readSubmitState(requestOfManifest(record.manifest)));
+    state = await withConnector(ctx, connection.input, (connector) =>
+      connector.readSubmitState(requestOfManifest(record.manifest)),
+    );
   } catch (error) {
-    if (error instanceof SubmitTimeout) return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+    if (error instanceof SubmitTimeout)
+      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
     return mapStoreError(error, connection.secret).failure;
   }
   await clearUnknown(ctx.db, app);
   const inFlight = await inFlightOf(ctx, app);
-  return { ok: true, preview: previewOf(ctx, { workspaceId: input.workspaceId, app, record, state, inFlight }) };
+  return {
+    ok: true,
+    preview: previewOf(ctx, { workspaceId: input.workspaceId, app, record, state, inFlight }),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -578,17 +857,32 @@ export type SubmitResult = {
   note: string;
 };
 
-const NOTE_IOS = 'The version is in the store’s review queue. It will not be released by this server: release it in App Store Connect after approval.';
-const NOTE_PLAY = 'The changes were sent to Google Play review. No track or rollout was changed. Follow the review in Play Console.';
+const NOTE_IOS =
+  'The version is in the store’s review queue. It will not be released by this server: release it in App Store Connect after approval.';
+const NOTE_PLAY =
+  'The changes were sent to Google Play review. No track or rollout was changed. Follow the review in Play Console.';
 
-async function auditFailed(ctx: SubmitContext, input: { workspaceId: string; actor: Actor; confirmHash: string }, app: ManagedApp, state: SubmitState | undefined, extra: Record<string, unknown>): Promise<void> {
+async function auditFailed(
+  ctx: SubmitContext,
+  input: { workspaceId: string; actor: Actor; confirmHash: string },
+  app: ManagedApp,
+  state: SubmitState | undefined,
+  extra: Record<string, unknown>,
+): Promise<void> {
   await recordAudit(ctx.db, {
     workspaceId: input.workspaceId,
     actor: input.actor,
     action: 'listing.submit_failed',
     target: { type: 'app', id: app.id },
     // Ids, counts and outcomes: never a text, a credential, a token or a store response.
-    detail: { appId: app.id, store: storeFor(app.platform), platform: app.platform, ...(state?.version ? { versionId: state.version.id } : {}), hash: input.confirmHash, ...extra },
+    detail: {
+      appId: app.id,
+      store: storeFor(app.platform),
+      platform: app.platform,
+      ...(state?.version ? { versionId: state.version.id } : {}),
+      hash: input.confirmHash,
+      ...extra,
+    },
     at: ctx.now(),
   });
 }
@@ -596,11 +890,23 @@ async function auditFailed(ctx: SubmitContext, input: { workspaceId: string; act
 async function succeed(
   ctx: SubmitContext,
   input: { workspaceId: string; actor: Actor; confirmHash: string },
-  s: { app: ManagedApp; claim: Claim; before: SubmitState; submissionId: string | null; submissionState: string | null; via: 'review_submission' | 'edit_commit'; reread: boolean; cause?: string },
+  s: {
+    app: ManagedApp;
+    claim: Claim;
+    before: SubmitState;
+    submissionId: string | null;
+    submissionState: string | null;
+    via: 'review_submission' | 'edit_commit';
+    reread: boolean;
+    cause?: string;
+  },
 ): Promise<{ ok: true; result: SubmitResult }> {
   const at = ctx.now();
   const store = storeFor(s.app.platform);
-  const version = s.before.version === null ? null : { id: s.before.version.id, versionString: s.before.version.versionString };
+  const version =
+    s.before.version === null
+      ? null
+      : { id: s.before.version.id, versionString: s.before.version.versionString };
   await ctx.db.transaction(async (tx) => {
     // What was pushed is now with the store's review: the record is spent.
     await deletePush(tx, s.app.id, s.app.platform);
@@ -664,7 +970,13 @@ async function succeed(
  */
 export async function applySubmit(
   ctx: SubmitContext,
-  input: { workspaceId: string; appId: string; confirmHash: string; confirmation: string; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    confirmHash: string;
+    confirmation: string;
+    actor: Actor;
+  },
 ): Promise<{ ok: true; result: SubmitResult } | Failure> {
   if (!ctx.submitEnabled) return submitDisabledFailure();
   const { db } = ctx;
@@ -674,12 +986,26 @@ export async function applySubmit(
   if (!record) return noPush();
   const phrase = confirmationPhrase(app, record);
   if (input.confirmation.trim() !== phrase) {
-    return failure(422, 'confirmation_mismatch', `The confirmation does not match. Type "${phrase}" exactly. Nothing was submitted.`, { phrase });
+    return failure(
+      422,
+      'confirmation_mismatch',
+      `The confirmation does not match. Type "${phrase}" exactly. Nothing was submitted.`,
+      { phrase },
+    );
   }
   const flights = await inFlightOf(ctx, app);
-  if (flights.push === 'writing') return failure(409, 'write_in_progress', 'A draft push for this app is in progress. Wait for it to finish.');
+  if (flights.push === 'writing')
+    return failure(
+      409,
+      'write_in_progress',
+      'A draft push for this app is in progress. Wait for it to finish.',
+    );
   if (flights.push === 'unknown') {
-    return failure(409, 'push_outcome_unknown', 'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then submit.');
+    return failure(
+      409,
+      'push_outcome_unknown',
+      'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then submit.',
+    );
   }
 
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
@@ -702,12 +1028,16 @@ export async function applySubmit(
       connector.submit({
         request: requestOfManifest(record.manifest),
         guard: (current) => {
-          const checks = split(evaluateChecks({ app, record, state: current, inFlight: { submit: null, push: null } }));
+          const checks = split(
+            evaluateChecks({ app, record, state: current, inFlight: { submit: null, push: null } }),
+          );
           if (!checks.canSubmit) {
             blocked = checks;
             return false;
           }
-          const same = submitConfirmHash({ workspaceId: input.workspaceId, app, record, state: current }) === input.confirmHash;
+          const same =
+            submitConfirmHash({ workspaceId: input.workspaceId, app, record, state: current }) ===
+            input.confirmHash;
           if (same) accepted = current;
           return same;
         },
@@ -716,15 +1046,38 @@ export async function applySubmit(
   } catch (error) {
     if (error instanceof SubmitDriftError) {
       if (blocked) {
-        await auditFailed(ctx, input, app, error.current, { code: 'blocked', outcome: 'refused', blocking: blocked.blocking.map((b) => b.code).slice(0, 20) });
+        await auditFailed(ctx, input, app, error.current, {
+          code: 'blocked',
+          outcome: 'refused',
+          blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
+        });
         await releaseClaim(db, claim);
-        return failure(409, 'blocked', 'Something stands in the way of submitting, so nothing was submitted. See `checks`.', { checks: blocked });
+        return failure(
+          409,
+          'blocked',
+          'Something stands in the way of submitting, so nothing was submitted. See `checks`.',
+          { checks: blocked },
+        );
       }
-      await auditFailed(ctx, input, app, error.current, { code: 'state_changed', outcome: 'refused' });
-      await releaseClaim(db, claim);
-      return failure(409, 'state_changed', 'The store changed since this was previewed, so nothing was submitted. Review the new preview and confirm it.', {
-        preview: previewOf(ctx, { workspaceId: input.workspaceId, app, record, state: error.current, inFlight: { submit: null, push: null } }),
+      await auditFailed(ctx, input, app, error.current, {
+        code: 'state_changed',
+        outcome: 'refused',
       });
+      await releaseClaim(db, claim);
+      return failure(
+        409,
+        'state_changed',
+        'The store changed since this was previewed, so nothing was submitted. Review the new preview and confirm it.',
+        {
+          preview: previewOf(ctx, {
+            workspaceId: input.workspaceId,
+            app,
+            record,
+            state: error.current,
+            inFlight: { submit: null, push: null },
+          }),
+        },
+      );
     }
     if (error instanceof SubmitOutcomeUnknownError || error instanceof SubmitTimeout) {
       unknown = { cause: error instanceof SubmitTimeout ? 'timeout' : 'network' };
@@ -737,7 +1090,15 @@ export async function applySubmit(
   }
 
   if (done) {
-    return succeed(ctx, input, { app, claim, before: done.before, submissionId: done.submissionId, submissionState: done.submissionState, via: done.via, reread: false });
+    return succeed(ctx, input, {
+      app,
+      claim,
+      before: done.before,
+      submissionId: done.submissionId,
+      submissionState: done.submissionState,
+      via: done.via,
+      reread: false,
+    });
   }
 
   // ----- an unknown outcome is checked, not sent again
@@ -754,13 +1115,19 @@ export async function applySubmit(
   }
   let current: SubmitState | undefined;
   try {
-    current = await withConnector(ctx, connection.input, (connector) => connector.readSubmitState(requestOfManifest(record.manifest)));
+    current = await withConnector(ctx, connection.input, (connector) =>
+      connector.readSubmitState(requestOfManifest(record.manifest)),
+    );
   } catch {
     current = undefined;
   }
   if (current === undefined) {
     await markUnknown(db, claim);
-    await auditFailed(ctx, input, app, accepted, { code: cause, outcome: 'unknown', readBack: 'failed' });
+    await auditFailed(ctx, input, app, accepted, {
+      code: cause,
+      outcome: 'unknown',
+      readBack: 'failed',
+    });
     return failure(
       409,
       'outcome_unknown',
@@ -768,9 +1135,23 @@ export async function applySubmit(
     );
   }
   if (current.alreadySubmitted && accepted !== undefined) {
-    return succeed(ctx, input, { app, claim, before: accepted, submissionId: null, submissionState: null, via: 'review_submission', reread: true, cause });
+    return succeed(ctx, input, {
+      app,
+      claim,
+      before: accepted,
+      submissionId: null,
+      submissionState: null,
+      via: 'review_submission',
+      reread: true,
+      cause,
+    });
   }
   await auditFailed(ctx, input, app, accepted, { code: 'not_applied', outcome: 'failed', cause });
   await releaseClaim(db, claim);
-  return failure(502, 'write_failed', 'The store did not answer, and reading it back shows the version was not submitted. Nothing was submitted as far as the store shows. Preview again to try again.', { outcome: 'not_applied' });
+  return failure(
+    502,
+    'write_failed',
+    'The store did not answer, and reading it back shows the version was not submitted. Nothing was submitted as far as the store shows. Preview again to try again.',
+    { outcome: 'not_applied' },
+  );
 }

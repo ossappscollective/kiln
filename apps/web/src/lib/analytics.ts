@@ -2,8 +2,6 @@ import {
   type AnalyticsErrorCode,
   type AnalyticsNextStep,
   type AnalyticsSetupCode,
-  type MetricAggregation,
-  type MetricUnit,
   addDays,
   analyticsErrorMessages,
   coverageNoteMessages,
@@ -11,6 +9,8 @@ import {
   daysBetween,
   isAnalyticsErrorCode,
   isIsoDate,
+  type MetricAggregation,
+  type MetricUnit,
   safeRatio,
 } from '@mrm/core';
 import { ApiError } from './api.ts';
@@ -77,7 +77,13 @@ export type SourceStatus = {
   source: string;
   label: string;
   state: SourceState;
-  setup: { code: string; nextStep: string; alternatives: string[]; optional: boolean; message: string } | null;
+  setup: {
+    code: string;
+    nextStep: string;
+    alternatives: string[];
+    optional: boolean;
+    message: string;
+  } | null;
   lastAttemptAt: number | null;
   lastOkAt: number | null;
   lastError: { code: string; message: string } | null;
@@ -103,7 +109,12 @@ export type AnalyticsStatus = {
   schedule: { intervalMinutes: number };
   apple: {
     mode: 'off' | 'ongoing' | 'import';
-    requests: { accessType: string; status: string; createdAt: number; lastCheckedAt: number | null }[];
+    requests: {
+      accessType: string;
+      status: string;
+      createdAt: number;
+      lastCheckedAt: number | null;
+    }[];
     vendorNumberSet: boolean;
   } | null;
   google: { bucketIdSet: boolean; bucketSource?: 'app' | 'account' | 'workspace' | null } | null;
@@ -122,7 +133,10 @@ export type SyncSourceResult = {
   transient?: boolean;
   setup?: string;
 };
-export type AnalyticsSyncResult = { sync: { at: number; pointsWritten: number; sources: SyncSourceResult[] }; status: AnalyticsStatus };
+export type AnalyticsSyncResult = {
+  sync: { at: number; pointsWritten: number; sources: SyncSourceResult[] };
+  status: AnalyticsStatus;
+};
 
 export type EnablePlan = {
   appId?: string;
@@ -133,7 +147,9 @@ export type EnablePlan = {
   notes: string[];
 };
 export type EnablePreview = { plan: EnablePlan; confirmHash: string; canCreate: boolean };
-export type EnableResult = { enabled: { appleMode: string; steps: { accessType: string; action: string }[] } };
+export type EnableResult = {
+  enabled: { appleMode: string; steps: { accessType: string; action: string }[] };
+};
 
 export type ImportMetric = { metric: string; label: string; days: number; total: number | null };
 export type ImportPlan = {
@@ -150,14 +166,25 @@ export type ImportPlan = {
   notes: unknown[];
 };
 export type ImportPreview = { plan: ImportPlan; confirmHash: string };
-export type ImportResult = { imported: { source: string; points: number; written: number; unchanged: number; dateFrom: string | null; dateTo: string | null } };
+export type ImportResult = {
+  imported: {
+    source: string;
+    points: number;
+    written: number;
+    unchanged: number;
+    dateFrom: string | null;
+    dateTo: string | null;
+  };
+};
 
 // ---------------------------------------------------------------------------------------------
 // The date range, kept in the address (`?range=7|28|90` or `?from=YYYY-MM-DD&to=YYYY-MM-DD`)
 
 export const PRESET_DAYS = [7, 28, 90] as const;
 export type PresetDays = (typeof PRESET_DAYS)[number];
-export type RangeChoice = { kind: 'preset'; days: PresetDays } | { kind: 'custom'; from: string; to: string };
+export type RangeChoice =
+  | { kind: 'preset'; days: PresetDays }
+  | { kind: 'custom'; from: string; to: string };
 export const DEFAULT_RANGE: RangeChoice = { kind: 'preset', days: 28 };
 /** The most days the API reads at a time. */
 export const MAX_RANGE_DAYS = 400;
@@ -173,7 +200,8 @@ export function parseRange(hash: string): RangeChoice {
   if (isPreset(preset)) return { kind: 'preset', days: preset };
   const from = query.get('from');
   const to = query.get('to');
-  if (isIsoDate(from) && isIsoDate(to) && from <= to && daysBetween(from, to) + 1 <= MAX_RANGE_DAYS) return { kind: 'custom', from, to };
+  if (isIsoDate(from) && isIsoDate(to) && from <= to && daysBetween(from, to) + 1 <= MAX_RANGE_DAYS)
+    return { kind: 'custom', from, to };
   return DEFAULT_RANGE;
 }
 
@@ -196,7 +224,9 @@ export function withRange(hash: string, choice: RangeChoice): string {
 }
 
 export const sameRange = (a: RangeChoice, b: RangeChoice): boolean =>
-  a.kind === 'preset' ? b.kind === 'preset' && a.days === b.days : b.kind === 'custom' && a.from === b.from && a.to === b.to;
+  a.kind === 'preset'
+    ? b.kind === 'preset' && a.days === b.days
+    : b.kind === 'custom' && a.from === b.from && a.to === b.to;
 
 /** The dates a choice means on `now` (UTC days, as the API counts). A preset ends yesterday, like the API's default. */
 export function resolveRange(choice: RangeChoice, now: number): ResolvedRange {
@@ -226,7 +256,9 @@ export function customRangeProblem(from: string, to: string, now: number): strin
 }
 
 export const rangeText = (choice: RangeChoice, range: ResolvedRange): string =>
-  choice.kind === 'preset' ? `Last ${choice.days} days` : `${formatDay(range.from, true)} to ${formatDay(range.to, true)}`;
+  choice.kind === 'preset'
+    ? `Last ${choice.days} days`
+    : `${formatDay(range.from, true)} to ${formatDay(range.to, true)}`;
 
 // ---------------------------------------------------------------------------------------------
 // Numbers and dates
@@ -255,7 +287,8 @@ export function formatCount(n: number): string {
   if (!Number.isFinite(n)) return '';
   const a = Math.abs(n);
   if (a < 10_000) return group(n);
-  const compact = (value: number, suffix: string): string => `${n < 0 ? '-' : ''}${(Math.round(value * 10) / 10).toString()}${suffix}`;
+  const compact = (value: number, suffix: string): string =>
+    `${n < 0 ? '-' : ''}${(Math.round(value * 10) / 10).toString()}${suffix}`;
   if (a < 1_000_000) return compact(a / 1_000, 'K');
   if (a < 1_000_000_000) return compact(a / 1_000_000, 'M');
   return compact(a / 1_000_000_000, 'B');
@@ -281,7 +314,12 @@ export function formatMoney(n: number, currency: string | null, exact = false): 
   const digits = exact || Math.abs(n) < 1_000 ? 2 : 0;
   if (currency && /^[A-Z]{3}$/.test(currency)) {
     try {
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      }).format(n);
     } catch {
       // fall through to the plain form
     }
@@ -290,7 +328,11 @@ export function formatMoney(n: number, currency: string | null, exact = false): 
 }
 
 /** A value for a chip or an axis: compact. */
-export function formatValue(unit: MetricUnit, value: number, currency: string | null = null): string {
+export function formatValue(
+  unit: MetricUnit,
+  value: number,
+  currency: string | null = null,
+): string {
   switch (unit) {
     case 'ratio':
       return formatPercent(value);
@@ -304,7 +346,11 @@ export function formatValue(unit: MetricUnit, value: number, currency: string | 
 }
 
 /** A value for a tooltip or a table: the exact number, with no rounding away of what the store gave. */
-export function formatExact(unit: MetricUnit, value: number, currency: string | null = null): string {
+export function formatExact(
+  unit: MetricUnit,
+  value: number,
+  currency: string | null = null,
+): string {
   switch (unit) {
     case 'ratio':
       return formatPercent(value, true);
@@ -323,8 +369,10 @@ export function formatExact(unit: MetricUnit, value: number, currency: string | 
 export const hasData = (series: AnalyticsSeries | null | undefined): series is AnalyticsSeries =>
   !!series && series.points.some((p) => p.value !== null);
 
-export const seriesOf = (overview: AnalyticsOverview | null | undefined, id: string): AnalyticsSeries | null =>
-  overview?.series.find((s) => s.id === id) ?? null;
+export const seriesOf = (
+  overview: AnalyticsOverview | null | undefined,
+  id: string,
+): AnalyticsSeries | null => overview?.series.find((s) => s.id === id) ?? null;
 
 /** The newest value that is not missing, or null. */
 export function lastValue(series: AnalyticsSeries | null | undefined): number | null {
@@ -355,9 +403,11 @@ export function runsWhere(flags: readonly boolean[]): Run[] {
 }
 
 /** The stretches of a line that have values. A line is drawn per run, so a gap is a gap and never a bridge or a zero. */
-export const presentRuns = (values: readonly (number | null)[]): Run[] => runsWhere(values.map((v) => v !== null));
+export const presentRuns = (values: readonly (number | null)[]): Run[] =>
+  runsWhere(values.map((v) => v !== null));
 /** The stretches with no value: drawn as a hatched band, not as zero. */
-export const missingRuns = (values: readonly (number | null)[]): Run[] => runsWhere(values.map((v) => v === null));
+export const missingRuns = (values: readonly (number | null)[]): Run[] =>
+  runsWhere(values.map((v) => v === null));
 
 /**
  * A ratio of two series computed here (not by the store), for example crashes per session. Null where either value is
@@ -372,13 +422,17 @@ export function deriveRatioSeries(input: {
   const { numerator: num, denominator: den } = input;
   const byDate = new Map<string, number | null>();
   for (const p of den.points) byDate.set(p.date, p.value);
-  const points: SeriesPoint[] = num.points.map((p) => ({ date: p.date, value: safeRatio(p.value, byDate.get(p.date) ?? null) }));
+  const points: SeriesPoint[] = num.points.map((p) => ({
+    date: p.date,
+    value: safeRatio(p.value, byDate.get(p.date) ?? null),
+  }));
   const days = points.filter((p) => p.value !== null);
   const first = days[0]?.date ?? null;
   const last = days[days.length - 1]?.date ?? null;
   const gapDays = first && last ? daysBetween(first, last) + 1 - days.length : 0;
   const codes: string[] = [];
-  for (const n of [...num.coverage.notes, ...den.coverage.notes]) if (n.code !== 'gaps' && n.code !== 'derived' && codes.indexOf(n.code) < 0) codes.push(n.code);
+  for (const n of [...num.coverage.notes, ...den.coverage.notes])
+    if (n.code !== 'gaps' && n.code !== 'derived' && codes.indexOf(n.code) < 0) codes.push(n.code);
   codes.push('derived');
   if (gapDays > 0) codes.push('gaps');
   return {
@@ -405,7 +459,8 @@ export function deriveRatioSeries(input: {
 }
 
 /** Whether a day may still be changed by the store: it is no more than `delayDays` behind today. */
-export const isProvisional = (day: string, today: string, delayDays: number): boolean => daysBetween(day, today) <= delayDays;
+export const isProvisional = (day: string, today: string, delayDays: number): boolean =>
+  daysBetween(day, today) <= delayDays;
 
 // ---------------------------------------------------------------------------------------------
 // The comparison with the previous period
@@ -425,37 +480,60 @@ function deltaOfValues(unit: MetricUnit, current: number, previous: number): Del
   if (unit === 'ratio') {
     const points = (current - previous) * 100;
     if (Math.abs(points) < 0.05) return { kind: 'flat' };
-    return { kind: 'change', direction: points > 0 ? 'up' : 'down', text: `${sign(points)}${Math.abs(points).toFixed(1)} pts` };
+    return {
+      kind: 'change',
+      direction: points > 0 ? 'up' : 'down',
+      text: `${sign(points)}${Math.abs(points).toFixed(1)} pts`,
+    };
   }
   if (unit === 'rating') {
     const diff = current - previous;
     if (Math.abs(diff) < 0.05) return { kind: 'flat' };
-    return { kind: 'change', direction: diff > 0 ? 'up' : 'down', text: `${sign(diff)}${Math.abs(diff).toFixed(2)}` };
+    return {
+      kind: 'change',
+      direction: diff > 0 ? 'up' : 'down',
+      text: `${sign(diff)}${Math.abs(diff).toFixed(2)}`,
+    };
   }
   if (previous === 0) return { kind: 'none', reason: 'no_previous' };
   const pct = ((current - previous) / Math.abs(previous)) * 100;
   if (Math.abs(pct) < 1) return { kind: 'flat' };
   const a = Math.abs(pct);
-  return { kind: 'change', direction: pct > 0 ? 'up' : 'down', text: `${sign(pct)}${a < 10 ? a.toFixed(1) : String(Math.round(a))}%` };
+  return {
+    kind: 'change',
+    direction: pct > 0 ? 'up' : 'down',
+    text: `${sign(pct)}${a < 10 ? a.toFixed(1) : String(Math.round(a))}%`,
+  };
 }
 
 /**
  * How this period compares with the previous one, from the totals the API gives (sum for counts and money, mean for rates).
  * Without enough days in either period the answer is "not enough data", never a percentage of a half-empty period.
  */
-export function periodDelta(current: AnalyticsSeries | null, previous: AnalyticsSeries | null, days: number): Delta {
+export function periodDelta(
+  current: AnalyticsSeries | null,
+  previous: AnalyticsSeries | null,
+  days: number,
+): Delta {
   if (!current || current.total === null) return { kind: 'none', reason: 'no_current' };
   if (!previous || previous.total === null) return { kind: 'none', reason: 'no_previous' };
   const need = current.aggregation === 'sum' ? Math.ceil(days * MIN_COVERAGE) : Math.min(3, days);
-  if (current.coverage.days < need || previous.coverage.days < need) return { kind: 'none', reason: 'not_enough_data' };
-  if (current.aggregation === 'sum' && Math.abs(current.coverage.days - previous.coverage.days) > days * MAX_COVERAGE_DIFFERENCE) {
+  if (current.coverage.days < need || previous.coverage.days < need)
+    return { kind: 'none', reason: 'not_enough_data' };
+  if (
+    current.aggregation === 'sum' &&
+    Math.abs(current.coverage.days - previous.coverage.days) > days * MAX_COVERAGE_DIFFERENCE
+  ) {
     return { kind: 'none', reason: 'not_enough_data' };
   }
   return deltaOfValues(current.unit, current.total, previous.total);
 }
 
 /** The newest value now against the newest value of the previous period (a rating, which is a level and not a sum). */
-export function levelDelta(current: AnalyticsSeries | null, previous: AnalyticsSeries | null): Delta {
+export function levelDelta(
+  current: AnalyticsSeries | null,
+  previous: AnalyticsSeries | null,
+): Delta {
   const now = lastValue(current);
   if (now === null || !current) return { kind: 'none', reason: 'no_current' };
   const before = lastValue(previous);
@@ -484,7 +562,8 @@ export function deltaLine(delta: Delta, days: number): string {
 
 /** The same for a screen reader: words and not a sign. */
 export function deltaSpoken(delta: Delta, days: number): string {
-  if (delta.kind === 'change') return `${delta.direction === 'up' ? 'Up' : 'Down'} ${delta.text.replace(/^[+-]/, '')} compared with the previous ${days} days`;
+  if (delta.kind === 'change')
+    return `${delta.direction === 'up' ? 'Up' : 'Down'} ${delta.text.replace(/^[+-]/, '')} compared with the previous ${days} days`;
   return deltaLine(delta, days);
 }
 
@@ -518,9 +597,13 @@ export function lagText(source: string, delayDays: number): string {
 }
 
 /** "Data up to Nov 17. Apple reports can lag up to 3 days." */
-export function freshnessLine(series: Pick<AnalyticsSeries, 'source' | 'delayDays' | 'coverage'>): string {
+export function freshnessLine(
+  series: Pick<AnalyticsSeries, 'source' | 'delayDays' | 'coverage'>,
+): string {
   const lag = lagText(series.source, series.delayDays);
-  return series.coverage.lastDay ? `Data up to ${formatDay(series.coverage.lastDay)}. ${lag}.` : `No data yet. ${lag}.`;
+  return series.coverage.lastDay
+    ? `Data up to ${formatDay(series.coverage.lastDay)}. ${lag}.`
+    : `No data yet. ${lag}.`;
 }
 
 /** The sentence of a coverage note, from the fixed vocabulary; an unknown code gets a generic one (the API's own text is not shown). */
@@ -535,7 +618,8 @@ export function noteText(note: AnalyticsNote): string {
 const apiSentences: Record<string, string> = {
   analytics_disabled: 'Analytics is off for this workspace. Turn it on first.',
   sync_in_progress: 'A sync of this app is already running. Try again in a moment.',
-  plan_changed: 'What exists at Apple changed since the preview. Review the new plan and confirm again.',
+  plan_changed:
+    'What exists at Apple changed since the preview. Review the new plan and confirm again.',
   confirm_mismatch: 'This is not the file that was checked. Choose the file again.',
   payload_too_large: 'The file is larger than 10 MiB.',
   import_not_supported: 'Importing a report file is only for iOS and macOS apps.',
@@ -551,16 +635,22 @@ export function analyticsErrorText(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Try again.';
   if (error.code === 'rate_limited') {
     const wait = error.retryAfter;
-    return wait ? `Too many analytics requests. Try again in ${wait} ${wait === 1 ? 'second' : 'seconds'}.` : 'Too many analytics requests. Try again in a minute.';
+    return wait
+      ? `Too many analytics requests. Try again in ${wait} ${wait === 1 ? 'second' : 'seconds'}.`
+      : 'Too many analytics requests. Try again in a minute.';
   }
   const own = apiSentences[error.code];
   if (own) return own;
-  if (isAnalyticsErrorCode(error.code)) return analyticsErrorMessages[error.code as AnalyticsErrorCode];
-  return error.status >= 500 ? 'The server had a problem. Try again.' : 'The analytics request failed. Try again.';
+  if (isAnalyticsErrorCode(error.code))
+    return analyticsErrorMessages[error.code as AnalyticsErrorCode];
+  return error.status >= 500
+    ? 'The server had a problem. Try again.'
+    : 'The analytics request failed. Try again.';
 }
 
 /** The code of an API error, or '' for anything else. */
-export const errorCodeOf = (error: unknown): string => (error instanceof ApiError ? error.code : '');
+export const errorCodeOf = (error: unknown): string =>
+  error instanceof ApiError ? error.code : '';
 
 /** A sentence for a stored error code (the last failed read of a source). */
 export const storedErrorText = (code: string): string =>
@@ -570,23 +660,36 @@ export const storedErrorText = (code: string): string =>
 // Setup needs and next steps (the fixed vocabularies of the status)
 
 export const setupText: Record<AnalyticsSetupCode, string> = {
-  turn_on_analytics: 'Analytics is off for this workspace. Nothing is requested from the stores until an owner or an admin turns it on.',
-  create_report_request: 'Apple makes analytics reports only after a report request exists for the app. Enabling it creates one request at Apple.',
+  turn_on_analytics:
+    'Analytics is off for this workspace. Nothing is requested from the stores until an owner or an admin turns it on.',
+  create_report_request:
+    'Apple makes analytics reports only after a report request exists for the app. Enabling it creates one request at Apple.',
   role_required:
     'The App Store Connect key may not create report requests (Apple lists the Admin role). Import a report file you download from App Store Connect, or ask an Apple admin.',
-  waiting_first_data: 'The request exists. Apple takes one to two days to produce the first reports.',
-  request_stopped: 'Apple stopped the request because nothing was read for a long time. Enable Apple analytics again.',
-  vendor_number_missing: 'Optional: add the Apple vendor number in the workspace settings to read daily units and proceeds.',
-  sales_forbidden: 'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
-  bucket_id_missing: 'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings.',
-  bucket_forbidden: 'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
-  reporting_api_not_enabled: 'In Google Cloud console, open the project of the service account, find Google Play Developer Reporting API and click Enable. Then sync again.',
-  play_permission_missing: 'In Play Console open Users and permissions, invite the service account email address and give it access to this app with View app quality information (read-only). Then sync again.',
+  waiting_first_data:
+    'The request exists. Apple takes one to two days to produce the first reports.',
+  request_stopped:
+    'Apple stopped the request because nothing was read for a long time. Enable Apple analytics again.',
+  vendor_number_missing:
+    'Optional: add the Apple vendor number in the workspace settings to read daily units and proceeds.',
+  sales_forbidden:
+    'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
+  bucket_id_missing:
+    'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings.',
+  bucket_forbidden:
+    'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
+  reporting_api_not_enabled:
+    'In Google Cloud console, open the project of the service account, find Google Play Developer Reporting API and click Enable. Then sync again.',
+  play_permission_missing:
+    'In Play Console open Users and permissions, invite the service account email address and give it access to this app with View app quality information (read-only). Then sync again.',
   credential_problem: 'The saved credential could not be used. Check it under Credentials.',
-  first_sync_pending: 'Everything is set up and nothing has been read yet. Sync now, or wait for the next scheduled sync.',
+  first_sync_pending:
+    'Everything is set up and nothing has been read yet. Sync now, or wait for the next scheduled sync.',
 };
 
-export const setupSentence = (code: string): string => (setupText as Record<string, string>)[code] ?? 'This source needs attention before it can deliver data.';
+export const setupSentence = (code: string): string =>
+  (setupText as Record<string, string>)[code] ??
+  'This source needs attention before it can deliver data.';
 
 export const nextStepLabels: Record<AnalyticsNextStep, string> = {
   turn_on_analytics: 'Turn on analytics',
@@ -628,16 +731,29 @@ export function stepAction(step: string): StepAction {
     case 'set_vendor_number':
       return { kind: 'link', label: `${label} in Settings`, target: 'settings', needs: 'none' };
     case 'fix_credential':
-      return { kind: 'link', label: `${label} under Credentials`, target: 'credentials', needs: 'none' };
+      return {
+        kind: 'link',
+        label: `${label} under Credentials`,
+        target: 'credentials',
+        needs: 'none',
+      };
     default:
       return { kind: 'text', label, needs: 'none' };
   }
 }
 
 /** Whether a person with or without `analytics.manage` gets a button for the step. A viewer gets the words, not a dead button. */
-export const stepAvailable = (action: StepAction, canManage: boolean): boolean => action.needs === 'none' || canManage;
+export const stepAvailable = (action: StepAction, canManage: boolean): boolean =>
+  action.needs === 'none' || canManage;
 
-export const stateInfo: Record<SourceState, { label: string; tone: 'neutral' | 'warn' | 'info' | 'bad' | 'ok'; icon: 'check-circle' | 'clock' | 'alert-triangle' | 'x-circle' | 'info' }> = {
+export const stateInfo: Record<
+  SourceState,
+  {
+    label: string;
+    tone: 'neutral' | 'warn' | 'info' | 'bad' | 'ok';
+    icon: 'check-circle' | 'clock' | 'alert-triangle' | 'x-circle' | 'info';
+  }
+> = {
   off: { label: 'Off', tone: 'neutral', icon: 'info' },
   needs_setup: { label: 'Needs setup', tone: 'warn', icon: 'alert-triangle' },
   waiting: { label: 'Waiting for the first data', tone: 'info', icon: 'clock' },
@@ -645,7 +761,8 @@ export const stateInfo: Record<SourceState, { label: string; tone: 'neutral' | '
   ready: { label: 'Ready', tone: 'ok', icon: 'check-circle' },
 };
 
-export const stateOf = (value: string): SourceState => (value in stateInfo ? (value as SourceState) : 'needs_setup');
+export const stateOf = (value: string): SourceState =>
+  value in stateInfo ? (value as SourceState) : 'needs_setup';
 
 // ---------------------------------------------------------------------------------------------
 // The Google Play reports bucket (docs/api/analytics.md): installs and ratings of an Android app come from monthly CSV files in ONE
@@ -666,7 +783,8 @@ export type PlayBucketView = {
 export type PlayBucketTestResult = { ok: boolean; code: string; message: string; months: string[] };
 
 /** Whether an Android app has vitals but nowhere to read installs from: the "Downloads need your Play reports bucket" state. */
-export const needsPlayBucket = (status: Pick<AnalyticsStatus, 'google'> | null): boolean => status !== null && status.google !== null && !status.google.bucketIdSet;
+export const needsPlayBucket = (status: Pick<AnalyticsStatus, 'google'> | null): boolean =>
+  status !== null && status.google !== null && !status.google.bucketIdSet;
 
 /** One line per source of an Android app: "Vitals: connected · Installs: not set up". */
 export function playSourceLine(status: AnalyticsStatus): string {
@@ -687,7 +805,10 @@ export function playSourceLine(status: AnalyticsStatus): string {
         return `${label}: needs setup`;
     }
   };
-  return [word('play_vitals', 'Vitals', true), word('play_reports', 'Installs', status.google?.bucketIdSet === true)].join(' · ');
+  return [
+    word('play_vitals', 'Vitals', true),
+    word('play_reports', 'Installs', status.google?.bucketIdSet === true),
+  ].join(' · ');
 }
 
 /** Where the bucket the app reads comes from, in words. */
@@ -696,7 +817,9 @@ export function bucketSourceText(view: Pick<PlayBucketView, 'source' | 'sharedWi
     case 'app':
       return 'Set for this app only.';
     case 'account':
-      return view.sharedWith > 1 ? `Shared by the ${view.sharedWith} Android apps of this Play account.` : 'Saved for this Play account.';
+      return view.sharedWith > 1
+        ? `Shared by the ${view.sharedWith} Android apps of this Play account.`
+        : 'Saved for this Play account.';
     case 'workspace':
       return 'Set in the workspace settings.';
     default:

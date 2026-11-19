@@ -1,6 +1,13 @@
-import { providerSource, providerTarget, detectedTag } from './languages.ts';
 import { isRecord, postJson, retryAfterSeconds, textAt } from './http.ts';
-import { TranslateError, type TranslateInput, type TranslateOutput, type TranslatedText, type Translator, type TranslatorOptions } from './types.ts';
+import { detectedTag, providerSource, providerTarget } from './languages.ts';
+import {
+  type TranslatedText,
+  TranslateError,
+  type TranslateInput,
+  type TranslateOutput,
+  type Translator,
+  type TranslatorOptions,
+} from './types.ts';
 
 /**
  * Google Cloud Translation, Basic edition (v2), with an API key.
@@ -35,16 +42,25 @@ export type GoogleOptions = TranslatorOptions & {
 
 function classify(status: number, json: unknown, retryAfter: string | null): TranslateError {
   const message = textAt(json, 'error', 'message');
-  const reason = isRecord(json) && isRecord(json.error) && Array.isArray(json.error.errors) && isRecord(json.error.errors[0]) ? textAt(json.error.errors[0], 'reason') : '';
+  const reason =
+    isRecord(json) &&
+    isRecord(json.error) &&
+    Array.isArray(json.error.errors) &&
+    isRecord(json.error.errors[0])
+      ? textAt(json.error.errors[0], 'reason')
+      : '';
   const lower = `${message} ${reason}`.toLowerCase();
   if (status === 429 || /user rate limit|ratelimitexceeded/.test(lower)) {
-    return new TranslateError('rate_limited', { retryAfterSeconds: retryAfterSeconds(retryAfter, 30) });
+    return new TranslateError('rate_limited', {
+      retryAfterSeconds: retryAfterSeconds(retryAfter, 30),
+    });
   }
   if (/daily limit|dailylimitexceeded|quota/.test(lower)) return new TranslateError('quota');
   if (status === 401 || status === 403) return new TranslateError('auth');
   if (status === 400) {
     if (/api key|api_key_invalid/.test(lower)) return new TranslateError('auth');
-    if (/language|invalid value|invalid target|invalid source/.test(lower)) return new TranslateError('unsupported_language');
+    if (/language|invalid value|invalid target|invalid source/.test(lower))
+      return new TranslateError('unsupported_language');
     return new TranslateError('unavailable');
   }
   if (status === 413) return new TranslateError('too_large');
@@ -59,7 +75,12 @@ export function createGoogleTranslator(options: GoogleOptions): Translator {
       const target = providerTarget('google', input.target);
       if (!target) throw new TranslateError('unsupported_language');
       const source = providerSource('google', input.source);
-      if (input.source !== undefined && input.source !== '' && input.source.toLowerCase() !== 'auto' && !source) {
+      if (
+        input.source !== undefined &&
+        input.source !== '' &&
+        input.source.toLowerCase() !== 'auto' &&
+        !source
+      ) {
         throw new TranslateError('unsupported_language');
       }
       const base = options.baseUrl ?? GOOGLE_V2_URL;
@@ -72,12 +93,20 @@ export function createGoogleTranslator(options: GoogleOptions): Translator {
         },
         options,
       );
-      if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
-      const list = isRecord(reply.json) && isRecord(reply.json.data) ? reply.json.data.translations : undefined;
-      if (!Array.isArray(list) || list.length !== input.texts.length) throw new TranslateError('unavailable');
+      if (reply.status < 200 || reply.status > 299)
+        throw classify(reply.status, reply.json, reply.retryAfter);
+      const list =
+        isRecord(reply.json) && isRecord(reply.json.data)
+          ? reply.json.data.translations
+          : undefined;
+      if (!Array.isArray(list) || list.length !== input.texts.length)
+        throw new TranslateError('unavailable');
       const results: TranslatedText[] = list.map((item) => {
-        if (!isRecord(item) || typeof item.translatedText !== 'string') throw new TranslateError('unavailable');
-        const detected = detectedTag(typeof item.detectedSourceLanguage === 'string' ? item.detectedSourceLanguage : undefined);
+        if (!isRecord(item) || typeof item.translatedText !== 'string')
+          throw new TranslateError('unavailable');
+        const detected = detectedTag(
+          typeof item.detectedSourceLanguage === 'string' ? item.detectedSourceLanguage : undefined,
+        );
         return { text: item.translatedText, ...(detected ? { detectedSource: detected } : {}) };
       });
       return { results };

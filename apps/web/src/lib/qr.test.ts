@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { QR_MAX_BYTES, codewordsOf, qrMatrix, qrPath } from './qr.ts';
+import { codewordsOf, QR_MAX_BYTES, qrMatrix, qrPath } from './qr.ts';
 
 // Checked structurally and by the algebra of the code (no decoder is available here): the finder patterns, the timing rows, the
 // format bits (BCH), and the Reed-Solomon codewords. A scan with a real phone is the last check (docs/research/test-builds.md).
@@ -31,7 +31,10 @@ test('the size follows the version, and the three finder patterns and the timing
 });
 
 test('the format information carries error correction level L and a mask, with a valid BCH code', () => {
-  for (const text of ['a', 'https://example.com/api/builds/dl/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB']) {
+  for (const text of [
+    'a',
+    'https://example.com/api/builds/dl/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB',
+  ]) {
     const m = qrMatrix(text) as boolean[][];
     const size = m.length;
     let first = 0;
@@ -75,7 +78,11 @@ test('the codewords hold the text (mode, length, bytes, padding) and check words
     assert.equal(value, 0, `zero at alpha^${k}`);
     root = mul(root, 2);
   }
-  assert.deepEqual(codewordsOf(Array.from(new TextEncoder().encode('hi')))?.words, coded.words, 'stable');
+  assert.deepEqual(
+    codewordsOf(Array.from(new TextEncoder().encode('hi')))?.words,
+    coded.words,
+    'stable',
+  );
 });
 
 test('several blocks are interleaved to the raw capacity of the version', () => {

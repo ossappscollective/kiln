@@ -66,7 +66,8 @@ function unquote(value: string): string {
       .slice(1, -1)
       .replace(/\\(["\\/nt])/g, (_, c: string) => (c === 'n' ? '\n' : c === 't' ? '\t' : c));
   }
-  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1).replace(/''/g, "'");
+  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'"))
+    return v.slice(1, -1).replace(/''/g, "'");
   return v;
 }
 
@@ -149,7 +150,11 @@ function blockScalar(r: Reader, base: number, indicator: string): string {
     const blank = line.raw.trim() === '';
     if (!blank && line.indent <= base) break;
     if (!blank) indent ??= line.indent;
-    body.push(blank ? '' : line.raw.slice(Math.min(indent ?? 0, line.raw.length - line.raw.trimStart().length)));
+    body.push(
+      blank
+        ? ''
+        : line.raw.slice(Math.min(indent ?? 0, line.raw.length - line.raw.trimStart().length)),
+    );
     r.i++;
   }
   while (body.length > 0 && body[body.length - 1] === '') body.pop();
@@ -203,7 +208,11 @@ function parseMap(r: Reader, base: number): { [key: string]: Y } {
       value = scalarOrFlow(entry.rest);
       // A plain scalar may continue on the following, more indented lines.
       if (typeof value === 'string' && !entry.rest.startsWith('"') && !entry.rest.startsWith("'")) {
-        for (let next = r.peek(); next && next.indent > base && !isItem(next.text); next = r.peek()) {
+        for (
+          let next = r.peek();
+          next && next.indent > base && !isItem(next.text);
+          next = r.peek()
+        ) {
           value = `${value} ${next.text}`;
           r.i++;
         }
@@ -216,8 +225,7 @@ function parseMap(r: Reader, base: number): { [key: string]: Y } {
 
 const TYPES: readonly string[] = ['string', 'boolean', 'choice', 'number', 'environment'];
 
-const asText = (v: Y | undefined): string | undefined =>
-  typeof v === 'string' ? v : undefined;
+const asText = (v: Y | undefined): string | undefined => (typeof v === 'string' ? v : undefined);
 
 function toSpec(name: string, node: Y | undefined): WorkflowInputSpec {
   const spec = isMap(node) ? node : {};
@@ -226,7 +234,11 @@ function toSpec(name: string, node: Y | undefined): WorkflowInputSpec {
     : undefined;
   const declared = asText(spec.type)?.trim();
   const type = (
-    declared && TYPES.includes(declared) ? declared : options && options.length > 0 ? 'choice' : 'string'
+    declared && TYPES.includes(declared)
+      ? declared
+      : options && options.length > 0
+        ? 'choice'
+        : 'string'
   ) as WorkflowInputType;
   const out: WorkflowInputSpec = {
     name,

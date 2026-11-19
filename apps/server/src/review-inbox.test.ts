@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { type ReviewsBoot, bootReviews } from './review-test-helpers.ts';
+import { bootReviews, type ReviewsBoot } from './review-test-helpers.ts';
 import { workspaceReviewsSummary } from './services/review-summary.ts';
 import { listWorkspaceReviews } from './services/reviews.ts';
 
-type Item = { id: string; rating: number; createdAt: number; status: string; app: { id: string; name: string; platform: string }; reply: { status: string } };
+type Item = {
+  id: string;
+  rating: number;
+  createdAt: number;
+  status: string;
+  app: { id: string; name: string; platform: string };
+  reply: { status: string };
+};
 const ids = (body: { reviews: Item[] }) => body.reviews.map((r) => r.id);
 
 /** Two iOS apps and one Android app with 12 reviews between them. */
@@ -13,18 +20,59 @@ async function populate(t: ReviewsBoot) {
   const b = await t.addApp('ios', 'Beta');
   const g = await t.addApp('android', 'Gamma');
   const r = {
-    a1: await t.seed(a, 'ios', 1, { rating: 1, body: 'Crashes on launch', territory: 'USA', appVersion: '1.0' }),
-    a2: await t.seed(a, 'ios', 2, { rating: 5, body: 'Love it 100%', territory: 'DEU', appVersion: '1.1', response: 'Thanks!' }),
-    a3: await t.seed(a, 'ios', 3, { rating: 2, body: 'Too slow', territory: 'USA', appVersion: '1.1', status: 'triaged' }),
+    a1: await t.seed(a, 'ios', 1, {
+      rating: 1,
+      body: 'Crashes on launch',
+      territory: 'USA',
+      appVersion: '1.0',
+    }),
+    a2: await t.seed(a, 'ios', 2, {
+      rating: 5,
+      body: 'Love it 100%',
+      territory: 'DEU',
+      appVersion: '1.1',
+      response: 'Thanks!',
+    }),
+    a3: await t.seed(a, 'ios', 3, {
+      rating: 2,
+      body: 'Too slow',
+      territory: 'USA',
+      appVersion: '1.1',
+      status: 'triaged',
+    }),
     b4: await t.seed(b, 'ios', 4, { rating: 3, body: 'Fine', territory: 'USA', appVersion: '2.0' }),
-    b5: await t.seed(b, 'ios', 5, { rating: 1, body: 'Cannot log in', territory: 'FRA', status: 'ignored' }),
-    g6: await t.seed(g, 'android', 6, { rating: 2, body: 'Battery drain', territory: 'US', language: 'en', appVersion: '3.1' }),
-    g7: await t.seed(g, 'android', 7, { rating: 4, body: 'Good', territory: 'DE', language: 'de', response: 'Danke' }),
-    g8: await t.seed(g, 'android', 8, { rating: 1, body: 'Crash again', territory: 'US', language: 'en', appVersion: '3.1' }),
+    b5: await t.seed(b, 'ios', 5, {
+      rating: 1,
+      body: 'Cannot log in',
+      territory: 'FRA',
+      status: 'ignored',
+    }),
+    g6: await t.seed(g, 'android', 6, {
+      rating: 2,
+      body: 'Battery drain',
+      territory: 'US',
+      language: 'en',
+      appVersion: '3.1',
+    }),
+    g7: await t.seed(g, 'android', 7, {
+      rating: 4,
+      body: 'Good',
+      territory: 'DE',
+      language: 'de',
+      response: 'Danke',
+    }),
+    g8: await t.seed(g, 'android', 8, {
+      rating: 1,
+      body: 'Crash again',
+      territory: 'US',
+      language: 'en',
+      appVersion: '3.1',
+    }),
   };
   return { a, b, g, r };
 }
-const get = (t: ReviewsBoot, query: string, cookie = t.owner) => t.call(cookie, 'GET', `/reviews${query}`);
+const get = (t: ReviewsBoot, query: string, cookie = t.owner) =>
+  t.call(cookie, 'GET', `/reviews${query}`);
 
 dbTest('inbox: every app of the workspace, newest first, each review with its app', async (db) => {
   const t = await bootReviews(db);
@@ -76,7 +124,11 @@ dbTest('inbox: assignee me, a member id and unassigned', async (db) => {
   const me = await t.userId();
   const mate = await t.addMember('member');
   void mate;
-  await db.execute('UPDATE app_reviews SET assignee_user_id = ? WHERE id IN (?, ?)', [me, r.a1, r.g6]);
+  await db.execute('UPDATE app_reviews SET assignee_user_id = ? WHERE id IN (?, ?)', [
+    me,
+    r.a1,
+    r.g6,
+  ]);
   const other = String((await db.query('SELECT id FROM users WHERE id <> ? LIMIT 1', [me]))[0]?.id);
   await db.execute('UPDATE app_reviews SET assignee_user_id = ? WHERE id = ?', [other, r.b4]);
   assert.deepEqual(ids((await get(t, '?assignee=me')).body), [r.g6, r.a1]);
@@ -86,33 +138,46 @@ dbTest('inbox: assignee me, a member id and unassigned', async (db) => {
   assert.equal((await get(t, `?assignee=me&unassigned=true`)).status, 400);
 });
 
-dbTest('inbox: sorts and keyset paging walk every review once, also with equal timestamps', async (db) => {
-  const t = await bootReviews(db);
-  const { r } = await populate(t);
-  // Equal sort keys: ties must break on the id, never skip or repeat.
-  await db.execute('UPDATE app_reviews SET created_at = 1700000000000, updated_at = 1700000000000 WHERE id IN (?, ?, ?)', [r.a1, r.b4, r.g6]);
-  for (const sort of ['newest', 'rating', 'updated']) {
-    const all = ids((await get(t, `?sort=${sort}&limit=100`)).body);
-    assert.equal(new Set(all).size, 8, sort);
-    const seen: string[] = [];
-    let cursor: string | null = null;
-    for (let page = 0; page < 10; page++) {
-      const res: { status: number; body: { reviews: Item[]; nextCursor: string | null } } = await get(t, `?sort=${sort}&limit=3${cursor ? `&cursor=${cursor}` : ''}`);
-      assert.equal(res.status, 200);
-      assert.ok(res.body.reviews.length <= 3);
-      seen.push(...ids(res.body));
-      cursor = res.body.nextCursor;
-      if (!cursor) break;
+dbTest(
+  'inbox: sorts and keyset paging walk every review once, also with equal timestamps',
+  async (db) => {
+    const t = await bootReviews(db);
+    const { r } = await populate(t);
+    // Equal sort keys: ties must break on the id, never skip or repeat.
+    await db.execute(
+      'UPDATE app_reviews SET created_at = 1700000000000, updated_at = 1700000000000 WHERE id IN (?, ?, ?)',
+      [r.a1, r.b4, r.g6],
+    );
+    for (const sort of ['newest', 'rating', 'updated']) {
+      const all = ids((await get(t, `?sort=${sort}&limit=100`)).body);
+      assert.equal(new Set(all).size, 8, sort);
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 10; page++) {
+        const res: { status: number; body: { reviews: Item[]; nextCursor: string | null } } =
+          await get(t, `?sort=${sort}&limit=3${cursor ? `&cursor=${cursor}` : ''}`);
+        assert.equal(res.status, 200);
+        assert.ok(res.body.reviews.length <= 3);
+        seen.push(...ids(res.body));
+        cursor = res.body.nextCursor;
+        if (!cursor) break;
+      }
+      assert.deepEqual(seen, all, `paging in ${sort} order`);
     }
-    assert.deepEqual(seen, all, `paging in ${sort} order`);
-  }
-  const byRating = (await get(t, '?sort=rating')).body.reviews.map((x: Item) => x.rating) as number[];
-  assert.deepEqual(byRating, [...byRating].sort((x, y) => x - y), 'lowest rating first');
-  // A cursor belongs to its sort.
-  const page = await get(t, '?sort=newest&limit=2');
-  assert.equal((await get(t, `?sort=rating&cursor=${page.body.nextCursor}`)).status, 400);
-  assert.equal((await get(t, '?cursor=garbage')).status, 400);
-});
+    const byRating = (await get(t, '?sort=rating')).body.reviews.map(
+      (x: Item) => x.rating,
+    ) as number[];
+    assert.deepEqual(
+      byRating,
+      [...byRating].sort((x, y) => x - y),
+      'lowest rating first',
+    );
+    // A cursor belongs to its sort.
+    const page = await get(t, '?sort=newest&limit=2');
+    assert.equal((await get(t, `?sort=rating&cursor=${page.body.nextCursor}`)).status, 400);
+    assert.equal((await get(t, '?cursor=garbage')).status, 400);
+  },
+);
 
 dbTest('inbox: bad input is a 400 with the field named', async (db) => {
   const t = await bootReviews(db);
@@ -133,7 +198,10 @@ dbTest('inbox: bad input is a 400 with the field named', async (db) => {
   ] as const) {
     const res = await get(t, query);
     assert.equal(res.status, 400, query);
-    assert.ok(res.body.issues.some((i: { path: string }) => i.path === path), `${query}: ${JSON.stringify(res.body.issues)}`);
+    assert.ok(
+      res.body.issues.some((i: { path: string }) => i.path === path),
+      `${query}: ${JSON.stringify(res.body.issues)}`,
+    );
   }
   assert.equal((await get(t, '?limit=100')).status, 200);
 });
@@ -164,25 +232,54 @@ dbTest('inbox: workspaces are isolated and non-members get 404', async (db) => {
 dbTest('inbox: a token limited to some apps sees only those, whatever it asks for', async (db) => {
   const t = await bootReviews(db);
   const { a, b, r } = await populate(t);
-  const minted = await t.call(t.owner, 'POST', '/tokens', { name: 'T', role: 'admin', actions: ['reviews.read'], appIds: [a] });
+  const minted = await t.call(t.owner, 'POST', '/tokens', {
+    name: 'T',
+    role: 'admin',
+    actions: ['reviews.read'],
+    appIds: [a],
+  });
   assert.equal(minted.status, 201, minted.text);
   const bearer = async (path: string) => {
-    const res = await t.app.request(`/api/workspaces/${t.workspaceId}${path}`, { headers: { authorization: `Bearer ${minted.body.token}` } });
-    return { status: res.status, body: (await res.json()) as { reviews: Item[]; apps: { app: { id: string } }[]; totals: { total: number } } };
+    const res = await t.app.request(`/api/workspaces/${t.workspaceId}${path}`, {
+      headers: { authorization: `Bearer ${minted.body.token}` },
+    });
+    return {
+      status: res.status,
+      body: (await res.json()) as {
+        reviews: Item[];
+        apps: { app: { id: string } }[];
+        totals: { total: number };
+      },
+    };
   };
   assert.deepEqual(ids((await bearer('/reviews')).body), [r.a3, r.a2, r.a1]);
   assert.deepEqual(ids((await bearer(`/reviews?appIds=${a},${b}`)).body), [r.a3, r.a2, r.a1]);
   assert.deepEqual(ids((await bearer(`/reviews?appIds=${b}`)).body), []);
   const summary = await bearer('/reviews/summary');
-  assert.deepEqual(summary.body.apps.map((x) => x.app.id), [a]);
+  assert.deepEqual(
+    summary.body.apps.map((x) => x.app.id),
+    [a],
+  );
   assert.equal(summary.body.totals.total, 3);
   // A token with no list sees everything.
-  const open = await t.call(t.owner, 'POST', '/tokens', { name: 'All', role: 'admin', actions: ['reviews.read'] });
-  const res = await t.app.request(`/api/workspaces/${t.workspaceId}/reviews`, { headers: { authorization: `Bearer ${open.body.token}` } });
+  const open = await t.call(t.owner, 'POST', '/tokens', {
+    name: 'All',
+    role: 'admin',
+    actions: ['reviews.read'],
+  });
+  const res = await t.app.request(`/api/workspaces/${t.workspaceId}/reviews`, {
+    headers: { authorization: `Bearer ${open.body.token}` },
+  });
   assert.equal(((await res.json()) as { reviews: unknown[] }).reviews.length, 8);
   // A token without reviews.read cannot read the inbox.
-  const none = await t.call(t.owner, 'POST', '/tokens', { name: 'None', role: 'admin', actions: ['apps.read'] });
-  const denied = await t.app.request(`/api/workspaces/${t.workspaceId}/reviews`, { headers: { authorization: `Bearer ${none.body.token}` } });
+  const none = await t.call(t.owner, 'POST', '/tokens', {
+    name: 'None',
+    role: 'admin',
+    actions: ['apps.read'],
+  });
+  const denied = await t.app.request(`/api/workspaces/${t.workspaceId}/reviews`, {
+    headers: { authorization: `Bearer ${none.body.token}` },
+  });
   assert.equal(denied.status, 403);
 });
 
@@ -203,17 +300,39 @@ dbTest('summary: counts per app and totals, with the basis, and no review text',
   assert.deepEqual([by[b].total, by[b].new, by[b].unanswered, by[b].lowRating], [2, 1, 1, 0]);
   assert.deepEqual([by[g].total, by[g].new, by[g].unanswered, by[g].lowRating], [3, 3, 2, 2]);
   const oldestOf = async (ids: string[]) =>
-    Number((await db.query(`SELECT MIN(created_at) AS m FROM app_reviews WHERE id IN (${ids.map(() => '?').join(', ')})`, ids))[0]?.m);
-  assert.deepEqual(res.body.totals, { total: 8, new: 6, unanswered: 5, unansweredOldestAt: await oldestOf([r.a1, r.a3, r.b4, r.g6, r.g8]), lowRating: 4, average: 2.38 });
+    Number(
+      (
+        await db.query(
+          `SELECT MIN(created_at) AS m FROM app_reviews WHERE id IN (${ids.map(() => '?').join(', ')})`,
+          ids,
+        )
+      )[0]?.m,
+    );
+  assert.deepEqual(res.body.totals, {
+    total: 8,
+    new: 6,
+    unanswered: 5,
+    unansweredOldestAt: await oldestOf([r.a1, r.a3, r.b4, r.g6, r.g8]),
+    lowRating: 4,
+    average: 2.38,
+  });
   assert.equal(res.body.unansweredMaxRating, 5);
   assert.equal(by[a].unansweredOldestAt, await oldestOf([r.a1, r.a3]));
-  assert.equal(by[b].unansweredOldestAt, await oldestOf([r.b4]), 'an ignored review is not unanswered');
+  assert.equal(
+    by[b].unansweredOldestAt,
+    await oldestOf([r.b4]),
+    'an ignored review is not unanswered',
+  );
   const empty = res.body.apps.find((x: { app: { name: string } }) => x.app.name === 'Empty');
   assert.deepEqual([empty.total, empty.average, empty.unansweredOldestAt], [0, null, null]);
   const text = JSON.stringify(res.body);
-  for (const word of ['Crashes on launch', 'Battery drain', 'Reviewer', 'Body of review']) assert.ok(!text.includes(word), word);
+  for (const word of ['Crashes on launch', 'Battery drain', 'Reviewer', 'Body of review'])
+    assert.ok(!text.includes(word), word);
   // The service agrees, and an empty app list matches nothing.
-  const none = await workspaceReviewsSummary(db, t.workspaceId, { appIds: [], lowRatingThreshold: 2 });
+  const none = await workspaceReviewsSummary(db, t.workspaceId, {
+    appIds: [],
+    lowRatingThreshold: 2,
+  });
   assert.equal(none.totals.total, 0);
   assert.equal(none.totals.average, null);
 });
@@ -223,7 +342,12 @@ dbTest('inbox queries run on the workspace first indexes (SQLite plan)', async (
   const t = await bootReviews(db);
   await populate(t);
   const plan = async (order: string, extra = '') =>
-    (await db.query(`EXPLAIN QUERY PLAN SELECT r.id FROM app_reviews r WHERE r.workspace_id = ?${extra} ORDER BY ${order} LIMIT 51`, [t.workspaceId]))
+    (
+      await db.query(
+        `EXPLAIN QUERY PLAN SELECT r.id FROM app_reviews r WHERE r.workspace_id = ?${extra} ORDER BY ${order} LIMIT 51`,
+        [t.workspaceId],
+      )
+    )
       .map((row) => String(row.detail))
       .join(' | ');
   const newest = await plan('r.created_at DESC, r.id DESC');
@@ -235,7 +359,12 @@ dbTest('inbox queries run on the workspace first indexes (SQLite plan)', async (
   const rating = await plan('r.rating ASC, r.created_at DESC, r.id DESC');
   assert.match(rating, /app_reviews_ws_rating_idx/, rating);
   // A single app uses the per app index, which also begins with the app.
-  const one = (await db.query('EXPLAIN QUERY PLAN SELECT id FROM app_reviews WHERE workspace_id = ? AND app_id = ? ORDER BY created_at DESC, id DESC LIMIT 51', [t.workspaceId, 'x']))
+  const one = (
+    await db.query(
+      'EXPLAIN QUERY PLAN SELECT id FROM app_reviews WHERE workspace_id = ? AND app_id = ? ORDER BY created_at DESC, id DESC LIMIT 51',
+      [t.workspaceId, 'x'],
+    )
+  )
     .map((row) => String(row.detail))
     .join(' | ');
   assert.match(one, /app_reviews_/, one);
@@ -244,17 +373,30 @@ dbTest('inbox queries run on the workspace first indexes (SQLite plan)', async (
   assert.ok(!('error' in page) && page.reviews.length === 2 && page.nextCursor);
 });
 
-dbTest('inbox: replies show as status on the cards, with the draft (lists include replyDraft)', async (db) => {
-  const t = await bootReviews(db);
-  const { a, r } = await populate(t);
-  await t.call(t.owner, 'PUT', `/apps/${a}/reviews/${r.a1}/reply-draft`, { text: 'SECRET-DRAFT-TEXT' });
-  const res = await get(t, `?appIds=${a}`);
-  const card = res.body.reviews.find((x: Item) => x.id === r.a1) as Item & { replyDraft?: { text: string } | null };
-  assert.equal(card.reply.status, 'draft');
-  assert.equal(card.replyDraft?.text, 'SECRET-DRAFT-TEXT', 'lists include the draft, so a card can show it');
-  const other = res.body.reviews.find((x: Item) => x.id === r.a2) as Item & { replyDraft?: unknown };
-  assert.equal(other.replyDraft, null);
-});
+dbTest(
+  'inbox: replies show as status on the cards, with the draft (lists include replyDraft)',
+  async (db) => {
+    const t = await bootReviews(db);
+    const { a, r } = await populate(t);
+    await t.call(t.owner, 'PUT', `/apps/${a}/reviews/${r.a1}/reply-draft`, {
+      text: 'SECRET-DRAFT-TEXT',
+    });
+    const res = await get(t, `?appIds=${a}`);
+    const card = res.body.reviews.find((x: Item) => x.id === r.a1) as Item & {
+      replyDraft?: { text: string } | null;
+    };
+    assert.equal(card.reply.status, 'draft');
+    assert.equal(
+      card.replyDraft?.text,
+      'SECRET-DRAFT-TEXT',
+      'lists include the draft, so a card can show it',
+    );
+    const other = res.body.reviews.find((x: Item) => x.id === r.a2) as Item & {
+      replyDraft?: unknown;
+    };
+    assert.equal(other.replyDraft, null);
+  },
+);
 
 dbTest('summary: maxRating narrows the unanswered numbers only, and is checked', async (db) => {
   const t = await bootReviews(db);
@@ -268,7 +410,12 @@ dbTest('summary: maxRating narrows the unanswered numbers only, and is checked',
   assert.equal(by[b].unansweredOldestAt, null);
   assert.equal(low.body.totals.unanswered, 4);
   assert.equal(low.body.totals.total, 8, 'the other numbers do not change');
-  for (const bad of ['0', '6', 'x', '1.5']) assert.equal((await t.call(t.owner, 'GET', `/reviews/summary?maxRating=${bad}`)).status, 400, bad);
+  for (const bad of ['0', '6', 'x', '1.5'])
+    assert.equal(
+      (await t.call(t.owner, 'GET', `/reviews/summary?maxRating=${bad}`)).status,
+      400,
+      bad,
+    );
 
   // The per app summary: the same figure under `unanswered`, with its oldest time and the rating it used.
   const one = await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary`);
@@ -276,9 +423,17 @@ dbTest('summary: maxRating narrows the unanswered numbers only, and is checked',
   assert.deepEqual(Object.keys(one.body.unanswered).sort(), ['count', 'maxRating', 'oldestAt']);
   assert.equal(one.body.unanswered.count, 2);
   assert.equal(one.body.unanswered.maxRating, 5);
-  const created = Number((await db.query('SELECT created_at FROM app_reviews WHERE id = ?', [r.a1]))[0]?.created_at);
+  const created = Number(
+    (await db.query('SELECT created_at FROM app_reviews WHERE id = ?', [r.a1]))[0]?.created_at,
+  );
   assert.equal(one.body.unanswered.oldestAt, created);
-  assert.equal((await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary?maxRating=1`)).body.unanswered.count, 1);
-  assert.equal((await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary?maxRating=9`)).status, 400);
+  assert.equal(
+    (await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary?maxRating=1`)).body.unanswered.count,
+    1,
+  );
+  assert.equal(
+    (await t.call(t.owner, 'GET', `/apps/${a}/reviews/summary?maxRating=9`)).status,
+    400,
+  );
   assert.ok(!JSON.stringify(one.body).includes('Crashes on launch'), 'no review text');
 });

@@ -20,7 +20,13 @@ export type AssetGroupDef = {
 };
 
 export const ASSET_GROUPS: readonly AssetGroupDef[] = [
-  { id: 'icon', label: 'Icon', kinds: ['icon', 'app_icon'], platform: null, hint: 'The app icon of the project and the store icon.' },
+  {
+    id: 'icon',
+    label: 'Icon',
+    kinds: ['icon', 'app_icon'],
+    platform: null,
+    hint: 'The app icon of the project and the store icon.',
+  },
   {
     id: 'play_graphics',
     label: 'Google Play graphics',
@@ -28,13 +34,21 @@ export const ASSET_GROUPS: readonly AssetGroupDef[] = [
     platform: 'android',
     hint: 'Feature graphic, promo graphic and TV banner (Android only).',
   },
-  { id: 'screenshots', label: 'Screenshots', kinds: ['screenshot', 'preview'], platform: null, hint: 'Screenshots and app previews, by locale and device.' },
+  {
+    id: 'screenshots',
+    label: 'Screenshots',
+    kinds: ['screenshot', 'preview'],
+    platform: null,
+    hint: 'Screenshots and app previews, by locale and device.',
+  },
 ];
 
 /** A tab id as a group id (anything unknown is the screenshots). */
-export const asGroupId = (id: string): AssetGroupId => (ASSET_GROUPS.some((g) => g.id === id) ? (id as AssetGroupId) : 'screenshots');
+export const asGroupId = (id: string): AssetGroupId =>
+  ASSET_GROUPS.some((g) => g.id === id) ? (id as AssetGroupId) : 'screenshots';
 
-export const groupDef = (id: AssetGroupId): AssetGroupDef => ASSET_GROUPS.filter((g) => g.id === id)[0] as AssetGroupDef;
+export const groupDef = (id: AssetGroupId): AssetGroupDef =>
+  ASSET_GROUPS.filter((g) => g.id === id)[0] as AssetGroupDef;
 
 export function groupOfKind(kind: AssetKind): AssetGroupId {
   for (const g of ASSET_GROUPS) if (g.kinds.indexOf(kind) >= 0) return g.id;
@@ -42,17 +56,27 @@ export function groupOfKind(kind: AssetKind): AssetGroupId {
 }
 
 /** Whether this app record's store has the group. A group that does not apply says why. */
-export function groupAvailability(id: AssetGroupId, platform: Platform): { available: boolean; reason: string | null } {
+export function groupAvailability(
+  id: AssetGroupId,
+  platform: Platform,
+): { available: boolean; reason: string | null } {
   const def = groupDef(id);
   if (def.platform !== null && def.platform !== platform) {
-    const where = (p: Platform) => (p === 'android' ? 'Google Play' : p === 'macos' ? 'the Mac App Store' : 'the App Store');
-    return { available: false, reason: `${def.label} exist on ${where(def.platform)} only. This record is on ${where(platform)}.` };
+    const where = (p: Platform) =>
+      p === 'android' ? 'Google Play' : p === 'macos' ? 'the Mac App Store' : 'the App Store';
+    return {
+      available: false,
+      reason: `${def.label} exist on ${where(def.platform)} only. This record is on ${where(platform)}.`,
+    };
   }
   return { available: true, reason: null };
 }
 
 /** The assets, sets and problems of one group, in the shape `groupAssets` and `filterOptions` take. */
-export function sliceIndex(index: Pick<AssetIndex, 'assets' | 'sets' | 'problems'>, id: AssetGroupId): Pick<AssetIndex, 'assets' | 'sets' | 'problems'> {
+export function sliceIndex(
+  index: Pick<AssetIndex, 'assets' | 'sets' | 'problems'>,
+  id: AssetGroupId,
+): Pick<AssetIndex, 'assets' | 'sets' | 'problems'> {
   const kinds = groupDef(id).kinds;
   const assets = index.assets.filter((a) => kinds.indexOf(a.kind) >= 0);
   const paths: Record<string, true> = {};
@@ -60,7 +84,9 @@ export function sliceIndex(index: Pick<AssetIndex, 'assets' | 'sets' | 'problems
   return {
     assets,
     sets: index.sets.filter((s) => kinds.indexOf(s.kind) >= 0),
-    problems: index.problems.filter((p) => (p.path ? paths[p.path] === true : p.kind !== undefined && kinds.indexOf(p.kind) >= 0)),
+    problems: index.problems.filter((p) =>
+      p.path ? paths[p.path] === true : p.kind !== undefined && kinds.indexOf(p.kind) >= 0,
+    ),
   };
 }
 
@@ -74,7 +100,10 @@ export type GroupSummary = {
   reason: string | null;
 };
 
-export function groupSummaries(index: Pick<AssetIndex, 'assets' | 'sets' | 'problems'>, platform: Platform): GroupSummary[] {
+export function groupSummaries(
+  index: Pick<AssetIndex, 'assets' | 'sets' | 'problems'>,
+  platform: Platform,
+): GroupSummary[] {
   return ASSET_GROUPS.map((g) => {
     const slice = sliceIndex(index, g.id);
     const a = groupAvailability(g.id, platform);
@@ -84,7 +113,15 @@ export function groupSummaries(index: Pick<AssetIndex, 'assets' | 'sets' | 'prob
       if (p.severity === 'error') errors += 1;
       else if (p.severity === 'warning') warnings += 1;
     }
-    return { id: g.id, label: g.label, files: slice.assets.length, errors, warnings, available: a.available, reason: a.reason };
+    return {
+      id: g.id,
+      label: g.label,
+      files: slice.assets.length,
+      errors,
+      warnings,
+      available: a.available,
+      reason: a.reason,
+    };
   });
 }
 
@@ -111,12 +148,21 @@ export type StoreStatus = {
  * counts the honest answer is "In repo", with the title saying it was not compared.
  */
 export function storeStatusOf(compare: StoreCompare): StoreStatus {
-  if (compare.state === 'same') return { id: 'in_both', label: 'In repo and store', tone: 'ok', title: compare.text };
-  if (compare.state === 'differs') return { id: 'differs', label: 'Differs from store', tone: 'warn', title: compare.text };
-  return { id: 'in_repo', label: 'In repo', tone: 'neutral', title: `In the repository. ${compare.text}.` };
+  if (compare.state === 'same')
+    return { id: 'in_both', label: 'In repo and store', tone: 'ok', title: compare.text };
+  if (compare.state === 'differs')
+    return { id: 'differs', label: 'Differs from store', tone: 'warn', title: compare.text };
+  return {
+    id: 'in_repo',
+    label: 'In repo',
+    tone: 'neutral',
+    title: `In the repository. ${compare.text}.`,
+  };
 }
 
 /** Files the store has that the repository does not (the store count is higher), or 0. */
 export function storeOnlyCount(compare: StoreCompare, repoCount: number): number {
-  return compare.state === 'differs' && compare.storeCount > repoCount ? compare.storeCount - repoCount : 0;
+  return compare.state === 'differs' && compare.storeCount > repoCount
+    ? compare.storeCount - repoCount
+    : 0;
 }

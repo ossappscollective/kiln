@@ -138,7 +138,10 @@ const schema = z.object({
       .string()
       .trim()
       .max(200)
-      .regex(/^[^\s<>@\u0000-\u001f\u007f]+@[^\s<>@\u0000-\u001f\u007f]+$/, 'must look like name@example.com')
+      .regex(
+        /^[^\s<>@\u0000-\u001f\u007f]+@[^\s<>@\u0000-\u001f\u007f]+$/,
+        'must look like name@example.com',
+      )
       .optional(),
   ),
   // Signing of the commits made in a local clone (docs/adr/0005-local-clone-reads.md, "Signing").
@@ -317,24 +320,35 @@ export const MAX_LOCAL_PATH_LENGTH = 4096;
  * (`/Volumes/dev/` is `/Volumes/dev`) and listed once. Whether a folder exists is checked when
  * it is used, not here: a drive that is not mounted yet must not stop the server from starting.
  */
-export function parseLocalRepoRoots(value: string | undefined, separator: string = delimiter): string[] {
+export function parseLocalRepoRoots(
+  value: string | undefined,
+  separator: string = delimiter,
+): string[] {
   const roots: string[] = [];
   for (const raw of (value ?? '').split(separator)) {
     const entry = raw.trim();
     if (entry === '') continue;
     const problem = (why: string) =>
-      new Error(`Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS ${why} (entries are separated by "${separator}").`);
+      new Error(
+        `Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS ${why} (entries are separated by "${separator}").`,
+      );
     if (entry.length > MAX_LOCAL_PATH_LENGTH) throw problem('has an entry that is too long');
     if (/[\u0000-\u001f\u007f]/.test(entry)) throw problem('has an entry with a control character');
     if (!isAbsolute(entry)) throw problem(`entry "${entry}" is not an absolute path`);
-    if (entry.split(/[\\/]+/).includes('..')) throw problem(`entry "${entry}" must not contain ".."`);
+    if (entry.split(/[\\/]+/).includes('..'))
+      throw problem(`entry "${entry}" must not contain ".."`);
     const normal = resolve(entry);
     if (parsePath(normal).root === normal) {
-      throw problem(`entry "${entry}" is the root of the file system; name the folder that holds your projects`);
+      throw problem(
+        `entry "${entry}" is the root of the file system; name the folder that holds your projects`,
+      );
     }
     if (!roots.includes(normal)) roots.push(normal);
   }
-  if (roots.length > MAX_LOCAL_REPO_ROOTS) throw new Error(`Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS has more than ${MAX_LOCAL_REPO_ROOTS} entries.`);
+  if (roots.length > MAX_LOCAL_REPO_ROOTS)
+    throw new Error(
+      `Invalid configuration:\n  MRM_LOCAL_REPO_ROOTS has more than ${MAX_LOCAL_REPO_ROOTS} entries.`,
+    );
   return roots;
 }
 
@@ -399,7 +413,10 @@ function findOnPath(names: readonly string[], pathEnv: string | undefined): stri
  *   once, here, and pinned: it is never looked up again and never taken from a repository.
  * Whether a passphrase-protected key is unlocked cannot be known here; signing says so when used.
  */
-export function parseGitSigning(env: Record<string, string | undefined>, platform: string = process.platform): GitSigning | undefined {
+export function parseGitSigning(
+  env: Record<string, string | undefined>,
+  platform: string = process.platform,
+): GitSigning | undefined {
   const get = (name: string): string | undefined => {
     const value = env[name];
     return value === undefined || value.trim() === '' ? undefined : value.trim();
@@ -415,8 +432,12 @@ export function parseGitSigning(env: Record<string, string | undefined>, platfor
   }
   const absolute = (name: string, value: string): void => {
     if (value.length > MAX_LOCAL_PATH_LENGTH) throw problem(`${name} is too long.`);
-    if (/[\u0000-\u001f\u007f]/.test(value)) throw problem(`${name} must not contain control characters.`);
-    if (!isAbsolute(value)) throw problem(`${name} must be an absolute path (starting with /). "~" and relative paths are not expanded.`);
+    if (/[\u0000-\u001f\u007f]/.test(value))
+      throw problem(`${name} must not contain control characters.`);
+    if (!isAbsolute(value))
+      throw problem(
+        `${name} must be an absolute path (starting with /). "~" and relative paths are not expanded.`,
+      );
     if (value.split(/[\\/]+/).includes('..')) throw problem(`${name} must not contain "..".`);
   };
 
@@ -437,7 +458,9 @@ export function parseGitSigning(env: Record<string, string | undefined>, platfor
     // The gpg wrapper script quotes the path: a quote would end the quoting.
     if (/['"]/.test(configured)) throw problem('MRM_GIT_SIGNING_PROGRAM must not contain quotes.');
     if (!isExecutable(configured)) {
-      throw problem('MRM_GIT_SIGNING_PROGRAM is not an executable file (check the path and its permissions).');
+      throw problem(
+        'MRM_GIT_SIGNING_PROGRAM is not an executable file (check the path and its permissions).',
+      );
     }
     program = configured;
   } else {
@@ -449,17 +472,24 @@ export function parseGitSigning(env: Record<string, string | undefined>, platfor
           : 'MRM_GIT_SIGN=gpg needs gpg, which was not found in PATH. Install GnuPG 2.1 or later, or set MRM_GIT_SIGNING_PROGRAM to the absolute path of gpg.',
       );
     }
-    if (/['"\u0000-\u001f]/.test(found)) throw problem('The signing program found in PATH has a quote in its path. Set MRM_GIT_SIGNING_PROGRAM to another one.');
+    if (/['"\u0000-\u001f]/.test(found))
+      throw problem(
+        'The signing program found in PATH has a quote in its path. Set MRM_GIT_SIGNING_PROGRAM to another one.',
+      );
     program = found;
   }
 
   if (format === 'gpg') {
     if (!GPG_KEY_PATTERN.test(key)) {
-      throw problem('MRM_GIT_SIGNING_KEY must be a gpg key id or fingerprint: hexadecimal, 8 to 64 characters (a user name or e-mail address is not accepted).');
+      throw problem(
+        'MRM_GIT_SIGNING_KEY must be a gpg key id or fingerprint: hexadecimal, 8 to 64 characters (a user name or e-mail address is not accepted).',
+      );
     }
     const home = get('MRM_GIT_GNUPGHOME');
     if (home === undefined) {
-      throw problem('MRM_GIT_GNUPGHOME is required when MRM_GIT_SIGN=gpg: the absolute path of the folder with the keyring (usually ~/.gnupg of the user that owns the key). The server does not use its own user\'s home folder.');
+      throw problem(
+        "MRM_GIT_GNUPGHOME is required when MRM_GIT_SIGN=gpg: the absolute path of the folder with the keyring (usually ~/.gnupg of the user that owns the key). The server does not use its own user's home folder.",
+      );
     }
     absolute('MRM_GIT_GNUPGHOME', home);
     let directory = false;
@@ -469,30 +499,43 @@ export function parseGitSigning(env: Record<string, string | undefined>, platfor
       // Reported below.
     }
     if (!directory) throw problem('MRM_GIT_GNUPGHOME is not a folder that exists.');
-    if (!canAccess(home, constants.R_OK | constants.X_OK)) throw problem('MRM_GIT_GNUPGHOME is not readable by the user the server runs as.');
+    if (!canAccess(home, constants.R_OK | constants.X_OK))
+      throw problem('MRM_GIT_GNUPGHOME is not readable by the user the server runs as.');
     return { format, key: key.replace(/^0x/i, ''), program, gnupgHome: home };
   }
 
   if (get('MRM_GIT_GNUPGHOME') !== undefined) {
-    throw problem('MRM_GIT_GNUPGHOME only applies with MRM_GIT_SIGN=gpg. Remove it, or change MRM_GIT_SIGN.');
+    throw problem(
+      'MRM_GIT_GNUPGHOME only applies with MRM_GIT_SIGN=gpg. Remove it, or change MRM_GIT_SIGN.',
+    );
   }
   absolute('MRM_GIT_SIGNING_KEY', key);
-  if (!isFile(key)) throw problem('MRM_GIT_SIGNING_KEY is not a file that exists (it must be a key file, not a folder).');
-  if (!canAccess(key, constants.R_OK)) throw problem('MRM_GIT_SIGNING_KEY is not readable by the user the server runs as.');
+  if (!isFile(key))
+    throw problem(
+      'MRM_GIT_SIGNING_KEY is not a file that exists (it must be a key file, not a folder).',
+    );
+  if (!canAccess(key, constants.R_OK))
+    throw problem('MRM_GIT_SIGNING_KEY is not readable by the user the server runs as.');
   const start = head(key, 64);
   if (start === undefined) throw problem('MRM_GIT_SIGNING_KEY could not be read.');
   if (key.endsWith('.pub')) {
-    if (!/^(?:ssh-|ecdsa-|sk-)/.test(start)) throw problem('MRM_GIT_SIGNING_KEY ends in .pub but is not an ssh public key.');
+    if (!/^(?:ssh-|ecdsa-|sk-)/.test(start))
+      throw problem('MRM_GIT_SIGNING_KEY ends in .pub but is not an ssh public key.');
     const sock = get('SSH_AUTH_SOCK');
     if (sock !== undefined) absolute('SSH_AUTH_SOCK', sock);
     return { format, key, program, ...(sock !== undefined ? { sshAuthSock: sock } : {}) };
   }
   if (/^(?:ssh-|ecdsa-|sk-)/.test(start)) {
-    throw problem('MRM_GIT_SIGNING_KEY is an ssh public key but its name does not end in .pub. Rename it, or point to the private key.');
+    throw problem(
+      'MRM_GIT_SIGNING_KEY is an ssh public key but its name does not end in .pub. Rename it, or point to the private key.',
+    );
   }
-  if (!/^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(start)) throw problem('MRM_GIT_SIGNING_KEY is not an ssh private key file.');
+  if (!/^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(start))
+    throw problem('MRM_GIT_SIGNING_KEY is not an ssh private key file.');
   if (platform !== 'win32' && (statSync(key).mode & 0o077) !== 0) {
-    throw problem('MRM_GIT_SIGNING_KEY is readable by other users (ssh refuses such a key). Run: chmod 600 on the key file.');
+    throw problem(
+      'MRM_GIT_SIGNING_KEY is readable by other users (ssh refuses such a key). Run: chmod 600 on the key file.',
+    );
   }
   return { format, key, program };
 }
@@ -503,13 +546,18 @@ const MIN_DISTINCT_CHARS = 12;
 
 /** Never includes the value in its message. */
 function checkLaunchSecret(secret: string | undefined): string {
-  const hint = 'MRM_LAUNCH_SECRET must be 32 random bytes as base64url (43 characters) or hex (64). Generate one with: openssl rand -hex 32';
+  const hint =
+    'MRM_LAUNCH_SECRET must be 32 random bytes as base64url (43 characters) or hex (64). Generate one with: openssl rand -hex 32';
   if (!secret?.trim()) {
-    throw new Error(`Invalid configuration:\n  MRM_LAUNCH_SECRET is required when MRM_MODE=single_user. ${hint}`);
+    throw new Error(
+      `Invalid configuration:\n  MRM_LAUNCH_SECRET is required when MRM_MODE=single_user. ${hint}`,
+    );
   }
   // A sanity check, not proof of entropy: it catches short, padded or repetitive values.
   if (!LAUNCH_SECRET_SHAPE.test(secret) || new Set(secret).size < MIN_DISTINCT_CHARS) {
-    throw new Error(`Invalid configuration:\n  MRM_LAUNCH_SECRET is too short or not random enough. ${hint}`);
+    throw new Error(
+      `Invalid configuration:\n  MRM_LAUNCH_SECRET is too short or not random enough. ${hint}`,
+    );
   }
   return secret;
 }
@@ -629,10 +677,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   const data = parsed.data;
   // Ignored in multi-user mode: nothing there consumes it.
-  const launchSecret = data.MRM_MODE === 'single_user' ? checkLaunchSecret(data.MRM_LAUNCH_SECRET) : undefined;
+  const launchSecret =
+    data.MRM_MODE === 'single_user' ? checkLaunchSecret(data.MRM_LAUNCH_SECRET) : undefined;
   const localRepoRoots = parseLocalRepoRoots(data.MRM_LOCAL_REPO_ROOTS);
   const gitSigning = parseGitSigning(env);
-  const allowedHosts = data.MRM_MODE === 'single_user' ? parseExtraHosts(data.MRM_ALLOWED_HOSTS) : [];
+  const allowedHosts =
+    data.MRM_MODE === 'single_user' ? parseExtraHosts(data.MRM_ALLOWED_HOSTS) : [];
   return {
     databaseUrl: data.DATABASE_URL,
     masterKey: parseMasterKey(env.MRM_MASTER_KEY),

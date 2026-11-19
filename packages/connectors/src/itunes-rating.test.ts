@@ -6,7 +6,10 @@ import * as rx from './reviews.fixtures.ts';
 
 type Seen = { url: string; init: RequestInit | undefined };
 
-function fakeFetch(respond: () => Response | Promise<Response>): { fetch: typeof fetch; seen: Seen[] } {
+function fakeFetch(respond: () => Response | Promise<Response>): {
+  fetch: typeof fetch;
+  seen: Seen[];
+} {
   const seen: Seen[] = [];
   return {
     seen,
@@ -17,7 +20,8 @@ function fakeFetch(respond: () => Response | Promise<Response>): { fetch: typeof
   };
 }
 
-const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'text/javascript' } });
+const json = (value: unknown, status = 200) =>
+  new Response(JSON.stringify(value), { status, headers: { 'content-type': 'text/javascript' } });
 
 test('one GET to the fixed host with a numeric id and a two letter country, no credential, no redirects', async () => {
   const { fetch, seen } = fakeFetch(() => json(rx.itunesLookup));
@@ -49,25 +53,49 @@ test('nothing from outside can change where the request goes', async () => {
     ['123', 'u/'],
     ['123', ''],
   ] as const) {
-    await assert.rejects(fetchRatingSummary({ appStoreId, country, fetch }), StoreError, `${appStoreId} ${country}`);
+    await assert.rejects(
+      fetchRatingSummary({ appStoreId, country, fetch }),
+      StoreError,
+      `${appStoreId} ${country}`,
+    );
   }
   assert.equal(seen.length, 0);
 });
 
 test('no result, no rating, junk and unknown fields give no summary and never throw', () => {
   assert.equal(parseRatingSummary({ resultCount: 0, results: [] }, '1', 'us'), undefined);
-  assert.equal(parseRatingSummary({ results: [{ trackId: 1, trackName: 'New app' }] }, '1', 'us'), undefined);
-  assert.equal(parseRatingSummary({ results: [{ trackId: 1, averageUserRating: 9, userRatingCount: -3 }] }, '1', 'us'), undefined);
-  assert.equal(parseRatingSummary({ results: [{ averageUserRating: '4.5', userRatingCount: '10' }] }, '1', 'us'), undefined);
+  assert.equal(
+    parseRatingSummary({ results: [{ trackId: 1, trackName: 'New app' }] }, '1', 'us'),
+    undefined,
+  );
+  assert.equal(
+    parseRatingSummary(
+      { results: [{ trackId: 1, averageUserRating: 9, userRatingCount: -3 }] },
+      '1',
+      'us',
+    ),
+    undefined,
+  );
+  assert.equal(
+    parseRatingSummary(
+      { results: [{ averageUserRating: '4.5', userRatingCount: '10' }] },
+      '1',
+      'us',
+    ),
+    undefined,
+  );
   for (const junk of [undefined, null, 1, 'x', [], {}, { results: 'x' }, { results: [null, 3] }]) {
     assert.doesNotThrow(() => parseRatingSummary(junk, '1', 'us'));
   }
-  assert.deepEqual(parseRatingSummary({ results: [{ averageUserRating: 4, userRatingCount: 3 }] }, '1', 'de'), {
-    appStoreId: '1',
-    country: 'DE',
-    averageRating: 4,
-    ratingCount: 3,
-  });
+  assert.deepEqual(
+    parseRatingSummary({ results: [{ averageUserRating: 4, userRatingCount: 3 }] }, '1', 'de'),
+    {
+      appStoreId: '1',
+      country: 'DE',
+      averageRating: 4,
+      ratingCount: 3,
+    },
+  );
 });
 
 test('errors: network, timeout, status, rate limit, too much data, bad JSON', async () => {
@@ -79,7 +107,12 @@ test('errors: network, timeout, status, rate limit, too much data, bad JSON', as
   ];
   for (const [respond, message, kind] of cases) {
     const { fetch } = fakeFetch(respond);
-    const error = await fetchRatingSummary({ appStoreId: '1', country: 'us', fetch, maxBytes: 1000 }).catch((e) => e);
+    const error = await fetchRatingSummary({
+      appStoreId: '1',
+      country: 'us',
+      fetch,
+      maxBytes: 1000,
+    }).catch((e) => e);
     assert.ok(error instanceof StoreError);
     assert.match(error.message, message);
     assert.equal(error.kind, kind);
@@ -87,7 +120,8 @@ test('errors: network, timeout, status, rate limit, too much data, bad JSON', as
   const limited = await fetchRatingSummary({
     appStoreId: '1',
     country: 'us',
-    fetch: fakeFetch(() => new Response('', { status: 429, headers: { 'retry-after': '30' } })).fetch,
+    fetch: fakeFetch(() => new Response('', { status: 429, headers: { 'retry-after': '30' } }))
+      .fetch,
   }).catch((e) => e);
   assert.ok(limited instanceof StoreRateLimitError);
   assert.equal(limited.retryAfterSeconds, 30);

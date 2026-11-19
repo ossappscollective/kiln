@@ -1,4 +1,4 @@
-import { type Raster, encodePng } from '../services/png-codec.ts';
+import { encodePng, type Raster } from '../services/png-codec.ts';
 import type { DemoApp } from './content.ts';
 
 /**
@@ -7,11 +7,20 @@ import type { DemoApp } from './content.ts';
  */
 
 type Rgb = [number, number, number];
-const mix = (a: Rgb, b: Rgb, t: number): Rgb => [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+const mix = (a: Rgb, b: Rgb, t: number): Rgb => [
+  Math.round(a[0] + (b[0] - a[0]) * t),
+  Math.round(a[1] + (b[1] - a[1]) * t),
+  Math.round(a[2] + (b[2] - a[2]) * t),
+];
 const darken = (c: Rgb, t: number): Rgb => mix(c, [0, 0, 0], t);
 
 function raster(width: number, height: number, alpha: boolean): Raster {
-  return { width, height, channels: alpha ? 4 : 3, data: new Uint8Array(width * height * (alpha ? 4 : 3)) };
+  return {
+    width,
+    height,
+    channels: alpha ? 4 : 3,
+    data: new Uint8Array(width * height * (alpha ? 4 : 3)),
+  };
 }
 
 function put(r: Raster, x: number, y: number, c: Rgb, a = 255) {
@@ -37,7 +46,9 @@ function rect(r: Raster, x0: number, y0: number, w: number, h: number, c: Rgb, r
 }
 
 function disc(r: Raster, cx: number, cy: number, rad: number, c: Rgb) {
-  for (let y = Math.floor(cy - rad); y <= cy + rad; y++) for (let x = Math.floor(cx - rad); x <= cx + rad; x++) if ((x - cx) ** 2 + (y - cy) ** 2 <= rad * rad) put(r, x, y, c);
+  for (let y = Math.floor(cy - rad); y <= cy + rad; y++)
+    for (let x = Math.floor(cx - rad); x <= cx + rad; x++)
+      if ((x - cx) ** 2 + (y - cy) ** 2 <= rad * rad) put(r, x, y, c);
 }
 
 function gradient(r: Raster, top: Rgb, bottom: Rgb) {
@@ -49,8 +60,24 @@ function gradient(r: Raster, top: Rgb, bottom: Rgb) {
 
 function glyph(r: Raster, kind: DemoApp['glyph'], cx: number, cy: number, size: number, c: Rgb) {
   if (kind === 'note') {
-    rect(r, Math.round(cx - size * 0.32), Math.round(cy - size * 0.4), Math.round(size * 0.64), Math.round(size * 0.8), c, Math.round(size * 0.08));
-    for (let i = 0; i < 3; i++) rect(r, Math.round(cx - size * 0.2), Math.round(cy - size * 0.2 + i * size * 0.2), Math.round(size * 0.4), Math.max(2, Math.round(size * 0.05)), [90, 90, 90]);
+    rect(
+      r,
+      Math.round(cx - size * 0.32),
+      Math.round(cy - size * 0.4),
+      Math.round(size * 0.64),
+      Math.round(size * 0.8),
+      c,
+      Math.round(size * 0.08),
+    );
+    for (let i = 0; i < 3; i++)
+      rect(
+        r,
+        Math.round(cx - size * 0.2),
+        Math.round(cy - size * 0.2 + i * size * 0.2),
+        Math.round(size * 0.4),
+        Math.max(2, Math.round(size * 0.05)),
+        [90, 90, 90],
+      );
   } else if (kind === 'sun') {
     disc(r, cx, cy, size * 0.22, c);
     for (let i = 0; i < 8; i++) {
@@ -60,7 +87,14 @@ function glyph(r: Raster, kind: DemoApp['glyph'], cx: number, cy: number, size: 
   } else {
     disc(r, cx, cy, size * 0.36, c);
     disc(r, cx, cy, size * 0.28, [60, 60, 60]);
-    rect(r, Math.round(cx - size * 0.02), Math.round(cy - size * 0.2), Math.max(2, Math.round(size * 0.04)), Math.round(size * 0.2), c);
+    rect(
+      r,
+      Math.round(cx - size * 0.02),
+      Math.round(cy - size * 0.2),
+      Math.max(2, Math.round(size * 0.04)),
+      Math.round(size * 0.2),
+      c,
+    );
   }
 }
 
@@ -78,7 +112,9 @@ export function iconPng(app: DemoApp, size: number, options: { alpha?: boolean }
     gradient(r, mix(app.color, [255, 255, 255], 0.25), darken(app.color, 0.15));
     glyph(r, app.glyph, size / 2, size / 2, size * 0.6, app.accent);
     // The alpha variant has transparent corners, which is what a store refuses on an iOS icon.
-    if (options.alpha) for (let y = 0; y < size / 16; y++) for (let x = 0; x < size / 16; x++) put(r, x, y, [0, 0, 0], 0);
+    if (options.alpha)
+      for (let y = 0; y < size / 16; y++)
+        for (let x = 0; x < size / 16; x++) put(r, x, y, [0, 0, 0], 0);
     return encodePng(r);
   });
 }
@@ -91,22 +127,54 @@ export function iconDataUrl(app: DemoApp): string {
 }
 
 /** A screenshot placeholder: gradient, a status bar, and a few cards. `index` varies the picture. */
-export function screenshotPng(app: DemoApp, width: number, height: number, index: number, options: { alpha?: boolean } = {}): Uint8Array {
+export function screenshotPng(
+  app: DemoApp,
+  width: number,
+  height: number,
+  index: number,
+  options: { alpha?: boolean } = {},
+): Uint8Array {
   return memo(`shot:${app.key}:${width}x${height}:${index}:${options.alpha ? 'a' : 'o'}`, () => {
     const r = raster(width, height, options.alpha === true);
     gradient(r, mix(app.color, [255, 255, 255], 0.55), mix(app.color, [255, 255, 255], 0.15));
     const pad = Math.round(Math.min(width, height) * 0.06);
-    rect(r, pad, pad, width - pad * 2, Math.round(height * 0.04), mix(app.color, [0, 0, 0], 0.35), Math.round(pad / 2));
+    rect(
+      r,
+      pad,
+      pad,
+      width - pad * 2,
+      Math.round(height * 0.04),
+      mix(app.color, [0, 0, 0], 0.35),
+      Math.round(pad / 2),
+    );
     const cards = 3 + (index % 3);
     const cardH = Math.round((height * 0.72) / cards - pad * 0.5);
     for (let i = 0; i < cards; i++) {
       const y = Math.round(height * 0.12) + i * (cardH + Math.round(pad * 0.5));
       rect(r, pad, y, width - pad * 2, cardH, [255, 255, 255], Math.round(pad / 2));
-      rect(r, pad * 2, y + Math.round(cardH * 0.25), Math.round((width - pad * 4) * (0.45 + ((i + index) % 4) * 0.12)), Math.max(4, Math.round(cardH * 0.12)), mix(app.color, [0, 0, 0], 0.25), 4);
-      rect(r, pad * 2, y + Math.round(cardH * 0.55), Math.round((width - pad * 4) * 0.7), Math.max(4, Math.round(cardH * 0.09)), [200, 205, 212], 4);
+      rect(
+        r,
+        pad * 2,
+        y + Math.round(cardH * 0.25),
+        Math.round((width - pad * 4) * (0.45 + ((i + index) % 4) * 0.12)),
+        Math.max(4, Math.round(cardH * 0.12)),
+        mix(app.color, [0, 0, 0], 0.25),
+        4,
+      );
+      rect(
+        r,
+        pad * 2,
+        y + Math.round(cardH * 0.55),
+        Math.round((width - pad * 4) * 0.7),
+        Math.max(4, Math.round(cardH * 0.09)),
+        [200, 205, 212],
+        4,
+      );
     }
     glyph(r, app.glyph, width / 2, height - pad * 3, Math.min(width, height) * 0.14, app.accent);
-    if (options.alpha) for (let y = 0; y < height / 40; y++) for (let x = 0; x < width; x++) put(r, x, y, [0, 0, 0], 0);
+    if (options.alpha)
+      for (let y = 0; y < height / 40; y++)
+        for (let x = 0; x < width; x++) put(r, x, y, [0, 0, 0], 0);
     return encodePng(r);
   });
 }

@@ -1,6 +1,6 @@
-import type { Api } from './api.ts';
-import type { InboxAlert } from './alerts.ts';
 import { showNotification } from './alert-notify.ts';
+import type { InboxAlert } from './alerts.ts';
+import type { Api } from './api.ts';
 
 /**
  * What the shell knows about alerts (docs/alerts.md): the unread count and the newest alerts for the bell, kept fresh by a slow poll
@@ -31,7 +31,8 @@ const readSeen = (): string[] => {
 };
 const writeSeen = (ids: string[]) => {
   try {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-MAX_SEEN)));
+    if (typeof localStorage !== 'undefined')
+      localStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-MAX_SEEN)));
   } catch {
     // Storage is full or blocked: a notification may repeat, nothing else.
   }
@@ -39,7 +40,9 @@ const writeSeen = (ids: string[]) => {
 
 async function notifyNew(alerts: InboxAlert[]): Promise<void> {
   const seen = readSeen();
-  const fresh = alerts.filter((a) => a.desktop && !a.read && a.lastAt >= startedAt && seen.indexOf(a.id) < 0);
+  const fresh = alerts.filter(
+    (a) => a.desktop && !a.read && a.lastAt >= startedAt && seen.indexOf(a.id) < 0,
+  );
   if (fresh.length === 0) return;
   const done = seen.slice();
   for (const a of fresh.slice(0, 3)) {
@@ -84,14 +87,16 @@ export const alertStore = {
     items = [];
     loaded = false;
     const tick = () => {
-      if (typeof document === 'undefined' || document.visibilityState === 'visible') void this.refresh(api, workspaceId);
+      if (typeof document === 'undefined' || document.visibilityState === 'visible')
+        void this.refresh(api, workspaceId);
     };
     tick();
     timer = setInterval(tick, POLL_MS);
     const onVisible = () => tick();
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
     return () => {
-      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+      if (typeof document !== 'undefined')
+        document.removeEventListener('visibilitychange', onVisible);
       this.stop();
     };
   },

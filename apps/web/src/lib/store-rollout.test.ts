@@ -2,20 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from './api.ts';
 import {
-  type PlayRolloutState,
-  type RolloutConfig,
-  type RolloutPreview,
   actionButtons,
   buildRequest,
   canConfirm,
   canRollout,
   classifyFailure,
-  confirmPhrase,
   confirmationMatches,
+  confirmPhrase,
   controlsAvailability,
   describeState,
   mayRetry,
+  type PlayRolloutState,
   parsePercent,
+  type RolloutConfig,
+  type RolloutPreview,
   rolloutTargets,
   stateQuery,
 } from './store-rollout.ts';
@@ -24,7 +24,10 @@ import type { ReleaseSummary } from './types.ts';
 const config: RolloutConfig = {
   enabled: true,
   envName: 'MRM_STORE_ROLLOUT_ENABLED',
-  actions: { android: ['set_fraction', 'halt', 'resume', 'complete'], ios: ['pause', 'resume', 'release_to_all'] },
+  actions: {
+    android: ['set_fraction', 'halt', 'resume', 'complete'],
+    ios: ['pause', 'resume', 'release_to_all'],
+  },
   irreversible: ['complete', 'release_to_all'],
   fraction: { exclusiveMin: 0, exclusiveMax: 1 },
 };
@@ -92,7 +95,13 @@ test('availability: loading, failed, off with the env name, ready', () => {
 test('targets: Play releases need a track and version codes; in-flight ones come first', () => {
   const list = [
     release({ id: '1', version: '2.3.0', versionCodes: ['230'], status: 'live' }),
-    release({ id: '2', version: '2.4.0', versionCodes: ['241', '240'], status: 'rolling_out', rolloutFraction: 0.1 }),
+    release({
+      id: '2',
+      version: '2.4.0',
+      versionCodes: ['241', '240'],
+      status: 'rolling_out',
+      rolloutFraction: 0.1,
+    }),
     release({ id: '3', version: '2.5.0', track: null, versionCodes: null, status: 'draft' }),
     release({ id: '4', version: '2.5.0', track: 'internal', versionCodes: [], status: 'draft' }),
     release({ id: '5', platform: 'ios', version: '9.9', track: null }),
@@ -105,13 +114,27 @@ test('targets: Play releases need a track and version codes; in-flight ones come
 });
 
 test('targets: an iOS version names the marketing version', () => {
-  const list = [release({ platform: 'ios', version: '3.1.0', track: null, versionCodes: null, rawState: 'READY_FOR_SALE' })];
+  const list = [
+    release({
+      platform: 'ios',
+      version: '3.1.0',
+      track: null,
+      versionCodes: null,
+      rawState: 'READY_FOR_SALE',
+    }),
+  ];
   const targets = rolloutTargets({ platform: 'ios' }, list);
-  assert.deepEqual(targets.map((t) => t.base), [{ version: '3.1.0' }]);
+  assert.deepEqual(
+    targets.map((t) => t.base),
+    [{ version: '3.1.0' }],
+  );
 });
 
 test('state query', () => {
-  assert.equal(stateQuery({ track: 'production', versionCodes: ['240', '241'] }), 'track=production&versionCodes=240,241');
+  assert.equal(
+    stateQuery({ track: 'production', versionCodes: ['240', '241'] }),
+    'track=production&versionCodes=240,241',
+  );
   assert.equal(stateQuery({ version: '2.4.0 beta' }), 'version=2.4.0%20beta');
 });
 
@@ -125,17 +148,24 @@ test('buttons: disabled with the server reason, irreversible marked, blocked win
     ],
   };
   const buttons = actionButtons(config, 'android', state, null);
-  assert.deepEqual(buttons.map((b) => [b.action, b.disabled]), [
-    ['set_fraction', false],
-    ['halt', false],
-    ['resume', true],
-    ['complete', false],
-  ]);
+  assert.deepEqual(
+    buttons.map((b) => [b.action, b.disabled]),
+    [
+      ['set_fraction', false],
+      ['halt', false],
+      ['resume', true],
+      ['complete', false],
+    ],
+  );
   assert.equal(buttons[2]?.reason, 'It is not halted.');
   assert.equal(buttons[3]?.irreversible, true);
   assert.equal(buttons[3]?.label, 'Release to 100%');
   assert.ok(actionButtons(config, 'android', null, null).every((b) => b.disabled));
-  assert.ok(actionButtons(config, 'android', state, 'Unknown outcome.').every((b) => b.disabled && b.reason === 'Unknown outcome.'));
+  assert.ok(
+    actionButtons(config, 'android', state, 'Unknown outcome.').every(
+      (b) => b.disabled && b.reason === 'Unknown outcome.',
+    ),
+  );
   assert.equal(actionButtons(config, 'ios', null, null)[1]?.label, 'Resume phased release');
 });
 
@@ -143,7 +173,8 @@ test('percent: a fraction above the current share, below 100, at most 4 decimals
   assert.deepEqual(parsePercent('25', 0.1), { ok: true, fraction: 0.25 });
   assert.deepEqual(parsePercent(' 12,5 % ', 0.1), { ok: true, fraction: 0.125 });
   assert.deepEqual(parsePercent('0.01', null), { ok: true, fraction: 0.0001 });
-  for (const bad of ['', 'abc', '0', '100', '150', '-5', '1.005']) assert.equal(parsePercent(bad, null).ok, false, bad);
+  for (const bad of ['', 'abc', '0', '100', '150', '-5', '1.005'])
+    assert.equal(parsePercent(bad, null).ok, false, bad);
   const down = parsePercent('10', 0.1);
   assert.equal(down.ok, false);
   assert.ok(!down.ok && down.message.includes('only raises'));
@@ -152,9 +183,21 @@ test('percent: a fraction above the current share, below 100, at most 4 decimals
 
 test('request: the share only goes with set_fraction and resume', () => {
   const base = { track: 'production', versionCodes: ['240'] };
-  assert.deepEqual(buildRequest(base, 'set_fraction', 0.25), { action: 'set_fraction', track: 'production', versionCodes: ['240'], userFraction: 0.25 });
-  assert.deepEqual(buildRequest(base, 'halt', 0.25), { action: 'halt', track: 'production', versionCodes: ['240'] });
-  assert.deepEqual(buildRequest({ version: '2.4.0' }, 'pause'), { action: 'pause', version: '2.4.0' });
+  assert.deepEqual(buildRequest(base, 'set_fraction', 0.25), {
+    action: 'set_fraction',
+    track: 'production',
+    versionCodes: ['240'],
+    userFraction: 0.25,
+  });
+  assert.deepEqual(buildRequest(base, 'halt', 0.25), {
+    action: 'halt',
+    track: 'production',
+    versionCodes: ['240'],
+  });
+  assert.deepEqual(buildRequest({ version: '2.4.0' }, 'pause'), {
+    action: 'pause',
+    version: '2.4.0',
+  });
 });
 
 test('describe a state for a person', () => {
@@ -173,7 +216,11 @@ test('describe a state for a person', () => {
     totalPauseDays: 0,
   };
   assert.equal(describeState(apple), '3.1.0 on the App Store: phased release active (day 3 of 7)');
-  assert.ok(describeState({ ...apple, phasedReleaseState: null, phasedReleaseId: null }).includes('no phased release'));
+  assert.ok(
+    describeState({ ...apple, phasedReleaseState: null, phasedReleaseId: null }).includes(
+      'no phased release',
+    ),
+  );
 });
 
 test('typed confirmation: the version, any case, needed only for irreversible changes, plus the acknowledgement', () => {
@@ -190,14 +237,25 @@ test('typed confirmation: the version, any case, needed only for irreversible ch
   assert.equal(canConfirm(preview({ irreversible: false }), '', false), false);
 });
 
-const err = (status: number, code: string, body: Record<string, unknown> = {}, retryAfter?: number) =>
-  new ApiError(status, code, `message for ${code}`, retryAfter, { error: code, ...body });
+const err = (
+  status: number,
+  code: string,
+  body: Record<string, unknown> = {},
+  retryAfter?: number,
+) => new ApiError(status, code, `message for ${code}`, retryAfter, { error: code, ...body });
 
 test('state_changed with a new proposal becomes the next preview with the new hash', () => {
   const now = play({ userFraction: 0.2 });
   const proposed = play({ status: 'completed', userFraction: null });
   const f = classifyFailure(
-    err(409, 'state_changed', { message: 'The store changed.', current: now, proposed, summary: 'New summary.', irreversible: true, confirmHash: 'b'.repeat(64) }),
+    err(409, 'state_changed', {
+      message: 'The store changed.',
+      current: now,
+      proposed,
+      summary: 'New summary.',
+      irreversible: true,
+      confirmHash: 'b'.repeat(64),
+    }),
     preview(),
   );
   assert.equal(f.kind, 'state_changed');
@@ -212,7 +270,14 @@ test('state_changed with a new proposal becomes the next preview with the new ha
 });
 
 test('state_changed that no longer fits has no next preview', () => {
-  const f = classifyFailure(err(409, 'state_changed', { current: play(), reason: 'not_allowed', problem: 'Already complete.' }), preview());
+  const f = classifyFailure(
+    err(409, 'state_changed', {
+      current: play(),
+      reason: 'not_allowed',
+      problem: 'Already complete.',
+    }),
+    preview(),
+  );
   assert.ok(f.kind === 'state_changed' && f.next === null && f.current !== null);
 });
 
@@ -232,7 +297,10 @@ test('a confirmed no, a write in progress, a disabled switch, changes in review'
   const busy = classifyFailure(err(409, 'write_in_progress'), preview());
   assert.equal(busy.kind, 'write_in_progress');
   assert.equal(mayRetry(busy), true);
-  assert.equal(classifyFailure(err(409, 'rollout_disabled', { envName: 'X' }), null).kind, 'disabled');
+  assert.equal(
+    classifyFailure(err(409, 'rollout_disabled', { envName: 'X' }), null).kind,
+    'disabled',
+  );
   const review = classifyFailure(err(409, 'changes_in_review'), null);
   assert.equal(review.kind, 'other');
   assert.ok(review.message.includes('never cancels'));

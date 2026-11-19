@@ -54,7 +54,8 @@ export const workspaceChords: readonly SectionChord[] = [
   { key: 'u', target: 'audit', label: 'Audit log' },
 ];
 
-export const chordsFor = (context: ShortcutContext): readonly SectionChord[] => (context === 'app' ? appChords : workspaceChords);
+export const chordsFor = (context: ShortcutContext): readonly SectionChord[] =>
+  context === 'app' ? appChords : workspaceChords;
 
 /** The two keys to press for a section ("g d"), or null when it has none. */
 export function chordHint(context: ShortcutContext, target: string): string | null {
@@ -63,7 +64,17 @@ export function chordHint(context: ShortcutContext, target: string): string | nu
 }
 
 /** The single keys other screens own (the reviews inbox). Listed so the registry can say they are taken. */
-export const reservedKeys: readonly string[] = ['j', 'k', 't', 'r', '/', 'ArrowDown', 'ArrowUp', 'Home', 'End'];
+export const reservedKeys: readonly string[] = [
+  'j',
+  'k',
+  't',
+  'r',
+  '/',
+  'ArrowDown',
+  'ArrowUp',
+  'Home',
+  'End',
+];
 
 export type ShortcutDef = { keys: string; label: string; group: 'Anywhere' | 'Go to' | 'Reviews' };
 
@@ -72,7 +83,9 @@ export function shortcutRegistry(context: ShortcutContext, mod = 'Ctrl'): Shortc
   return [
     { keys: `${mod} K`, label: 'Search apps and open one', group: 'Anywhere' },
     { keys: `${mod} 1 to 9`, label: 'Open the first nine apps', group: 'Anywhere' },
-    ...chordsFor(context).map((c): ShortcutDef => ({ keys: `${CHORD_LEADER} ${c.key}`, label: c.label, group: 'Go to' })),
+    ...chordsFor(context).map(
+      (c): ShortcutDef => ({ keys: `${CHORD_LEADER} ${c.key}`, label: c.label, group: 'Go to' }),
+    ),
     { keys: 'j k', label: 'Next and previous review', group: 'Reviews' },
     { keys: 't', label: 'Mark the review triaged', group: 'Reviews' },
     { keys: 'r', label: 'Reply to the review', group: 'Reviews' },
@@ -110,28 +123,47 @@ export type ShortcutStep = {
   consume: boolean;
 };
 
-const none = (state: ChordState = idleChord): ShortcutStep => ({ action: null, state, consume: false });
+const none = (state: ChordState = idleChord): ShortcutStep => ({
+  action: null,
+  state,
+  consume: false,
+});
 
 /** Whether a focus target is a field a person types into. Structural, so it needs no DOM in tests. */
-export function isTypingTarget(target: { tagName?: string; isContentEditable?: boolean } | null | undefined): boolean {
+export function isTypingTarget(
+  target: { tagName?: string; isContentEditable?: boolean } | null | undefined,
+): boolean {
   if (!target || typeof target.tagName !== 'string') return false;
   const tag = target.tagName.toUpperCase();
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true;
+  return (
+    tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true
+  );
 }
 
 /**
  * One key press. `state` is what the last call returned (`idleChord` at the start), `now` epoch ms.
  * Returns the action to take, the new state and whether the key is consumed.
  */
-export function stepShortcut(state: ChordState, input: KeyInput, now: number, context: ShortcutContext): ShortcutStep {
+export function stepShortcut(
+  state: ChordState,
+  input: KeyInput,
+  now: number,
+  context: ShortcutContext,
+): ShortcutStep {
   if (input.repeat) return none(state);
   const mod = input.metaKey === true || input.ctrlKey === true;
   const key = input.key;
 
   if (mod) {
     if (input.altKey || input.shiftKey || input.dialogOpen) return none();
-    if (key === 'k' || key === 'K') return { action: { type: 'open-switcher' }, state: idleChord, consume: true };
-    if (/^[1-9]$/.test(key)) return { action: { type: 'jump-app', index: Number(key) - 1 }, state: idleChord, consume: true };
+    if (key === 'k' || key === 'K')
+      return { action: { type: 'open-switcher' }, state: idleChord, consume: true };
+    if (/^[1-9]$/.test(key))
+      return {
+        action: { type: 'jump-app', index: Number(key) - 1 },
+        state: idleChord,
+        consume: true,
+      };
     return none();
   }
 
@@ -142,11 +174,13 @@ export function stepShortcut(state: ChordState, input: KeyInput, now: number, co
     if (key === 'Escape') return { action: { type: 'cancel' }, state: idleChord, consume: false };
     if (key === 'Shift') return none(state);
     const found = input.shiftKey ? undefined : chordsFor(context).find((c) => c.key === key);
-    if (found) return { action: { type: 'go', target: found.target }, state: idleChord, consume: true };
+    if (found)
+      return { action: { type: 'go', target: found.target }, state: idleChord, consume: true };
     // Not a chord: the key goes on to whoever owns it.
     return { action: { type: 'cancel' }, state: idleChord, consume: false };
   }
 
-  if (key === CHORD_LEADER && !input.shiftKey) return { action: { type: 'pending' }, state: { pendingAt: now }, consume: false };
+  if (key === CHORD_LEADER && !input.shiftKey)
+    return { action: { type: 'pending' }, state: { pendingAt: now }, consume: false };
   return none();
 }

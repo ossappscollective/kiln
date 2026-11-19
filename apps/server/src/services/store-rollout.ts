@@ -14,23 +14,23 @@ import {
   type PlayRolloutTarget,
   planAppleRollout,
   planPlayRollout,
-  redactSecrets,
+  type RolloutChange,
   RolloutDriftError,
   RolloutOutcomeUnknownError,
-  type RolloutChange,
   type RolloutPlan,
   type RolloutState,
   type RolloutTarget,
+  redactSecrets,
   rolloutKey,
-  sameRolloutState,
-  secretStrings,
   StoreError,
   StoreRateLimitError,
   type StoreRolloutConnector,
+  sameRolloutState,
+  secretStrings,
 } from '@mrm/connectors';
-import { type ActorType, type Platform, isApplePlatform } from '@mrm/core';
+import { type ActorType, isApplePlatform, type Platform } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
+import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
@@ -93,8 +93,16 @@ export type RolloutConnectorFactory = (input: RolloutConnectorInput) => StoreRol
 
 export const defaultRolloutConnectorFactory: RolloutConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppleRolloutConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', platform: input.platform === 'macos' ? 'macos' : 'ios', fetch: input.fetch })
-    : new PlayRolloutConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
+    ? AppleRolloutConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        platform: input.platform === 'macos' ? 'macos' : 'ios',
+        fetch: input.fetch,
+      })
+    : new PlayRolloutConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      });
 
 export type RolloutContext = {
   db: Database;
@@ -124,27 +132,52 @@ export type RolloutRequest = {
   userFraction?: number | undefined;
 };
 
-const invalid = (message: string, field: string): Failure => failure(422, 'invalid_rollout', message, { field });
+const invalid = (message: string, field: string): Failure =>
+  failure(422, 'invalid_rollout', message, { field });
 
 /** The target of a request for an app of this platform, or why not. Also used for the state read. */
 export function parseRolloutTarget(
   platform: Platform,
-  input: { track?: string | undefined; versionCodes?: string[] | undefined; version?: string | undefined },
+  input: {
+    track?: string | undefined;
+    versionCodes?: string[] | undefined;
+    version?: string | undefined;
+  },
 ): { ok: true; target: RolloutTarget } | Failure {
   if (platform === 'android') {
-    if (input.version !== undefined) return invalid('A Google Play release is named by track and versionCodes, not by version.', 'version');
-    if (input.track === undefined || !isPlayTrackName(input.track)) return invalid('A track is required, for example production.', 'track');
+    if (input.version !== undefined)
+      return invalid(
+        'A Google Play release is named by track and versionCodes, not by version.',
+        'version',
+      );
+    if (input.track === undefined || !isPlayTrackName(input.track))
+      return invalid('A track is required, for example production.', 'track');
     const codes = input.versionCodes;
-    if (codes === undefined || codes.length === 0 || codes.length > 50 || !codes.every(isVersionCode)) {
-      return invalid('versionCodes is required: one to fifty version codes (digits), exactly those of the release.', 'versionCodes');
+    if (
+      codes === undefined ||
+      codes.length === 0 ||
+      codes.length > 50 ||
+      !codes.every(isVersionCode)
+    ) {
+      return invalid(
+        'versionCodes is required: one to fifty version codes (digits), exactly those of the release.',
+        'versionCodes',
+      );
     }
-    const target: PlayRolloutTarget = { track: input.track, versionCodes: [...new Set(codes)].sort() };
+    const target: PlayRolloutTarget = {
+      track: input.track,
+      versionCodes: [...new Set(codes)].sort(),
+    };
     return { ok: true, target };
   }
   if (input.track !== undefined || input.versionCodes !== undefined) {
-    return invalid('An App Store version is named by version, not by track or versionCodes.', input.track !== undefined ? 'track' : 'versionCodes');
+    return invalid(
+      'An App Store version is named by version, not by track or versionCodes.',
+      input.track !== undefined ? 'track' : 'versionCodes',
+    );
   }
-  if (input.version === undefined || !isMarketingVersion(input.version)) return invalid('version is required, for example 2.4.0.', 'version');
+  if (input.version === undefined || !isMarketingVersion(input.version))
+    return invalid('version is required, for example 2.4.0.', 'version');
   const target: AppleRolloutTarget = { version: input.version };
   return { ok: true, target };
 }
@@ -158,23 +191,43 @@ export function parseRolloutRequest(
   if (!target.ok) return target;
   if (platform === 'android') {
     const action = PLAY_ROLLOUT_ACTIONS.find((a) => a === request.action);
-    if (!action) return invalid(`action must be one of ${PLAY_ROLLOUT_ACTIONS.join(', ')} for Google Play.`, 'action');
+    if (!action)
+      return invalid(
+        `action must be one of ${PLAY_ROLLOUT_ACTIONS.join(', ')} for Google Play.`,
+        'action',
+      );
     if (action === 'set_fraction' || action === 'resume') {
       if (request.userFraction === undefined) {
         return action === 'set_fraction'
-          ? invalid('userFraction is required: more than 0 and less than 1, for example 0.2.', 'userFraction')
+          ? invalid(
+              'userFraction is required: more than 0 and less than 1, for example 0.2.',
+              'userFraction',
+            )
           : { ok: true, target: target.target, change: { action } };
       }
       const fraction = normalizeFraction(request.userFraction);
-      if (fraction === undefined) return invalid('userFraction must be more than 0 and less than 1, for example 0.2. To reach everyone, use complete.', 'userFraction');
+      if (fraction === undefined)
+        return invalid(
+          'userFraction must be more than 0 and less than 1, for example 0.2. To reach everyone, use complete.',
+          'userFraction',
+        );
       return { ok: true, target: target.target, change: { action, userFraction: fraction } };
     }
-    if (request.userFraction !== undefined) return invalid(`userFraction does not apply to ${action}.`, 'userFraction');
+    if (request.userFraction !== undefined)
+      return invalid(`userFraction does not apply to ${action}.`, 'userFraction');
     return { ok: true, target: target.target, change: { action } };
   }
   const action = APPLE_ROLLOUT_ACTIONS.find((a) => a === request.action);
-  if (!action) return invalid(`action must be one of ${APPLE_ROLLOUT_ACTIONS.join(', ')} for the App Store.`, 'action');
-  if (request.userFraction !== undefined) return invalid('Apple decides the share of a phased release: it cannot be set.', 'userFraction');
+  if (!action)
+    return invalid(
+      `action must be one of ${APPLE_ROLLOUT_ACTIONS.join(', ')} for the App Store.`,
+      'action',
+    );
+  if (request.userFraction !== undefined)
+    return invalid(
+      'Apple decides the share of a phased release: it cannot be set.',
+      'userFraction',
+    );
   return { ok: true, target: target.target, change: { action } };
 }
 
@@ -231,19 +284,35 @@ const disabled = (): Failure =>
 /** The `409 rollout_disabled` answer, for routes that check the kill switch before anything else. */
 export const rolloutDisabledFailure = disabled;
 
-const clean = (text: string, secret: string) => redactSecrets(text, secret ? secretStrings(secret) : []).slice(0, 500);
+const clean = (text: string, secret: string) =>
+  redactSecrets(text, secret ? secretStrings(secret) : []).slice(0, 500);
 
 type Mapped = { failure: Failure; code: string };
 
 /** A store refusal as an answer to the person. Everything here means NOTHING was changed. `secret` is only used to redact. */
 function mapStoreError(error: unknown, secret: string): Mapped {
-  const make = (status: Failure['status'], code: string, message: string, extra: Record<string, unknown> = {}, headers?: Record<string, string>): Mapped => ({
+  const make = (
+    status: Failure['status'],
+    code: string,
+    message: string,
+    extra: Record<string, unknown> = {},
+    headers?: Record<string, string>,
+  ): Mapped => ({
     code,
-    failure: { ...failure(status, code, clean(message, secret), extra), ...(headers ? { headers } : {}) },
+    failure: {
+      ...failure(status, code, clean(message, secret), extra),
+      ...(headers ? { headers } : {}),
+    },
   });
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
-    return make(429, 'rate_limited', error.message, { retryAfterSeconds: wait }, { 'Retry-After': String(wait) });
+    return make(
+      429,
+      'rate_limited',
+      error.message,
+      { retryAfterSeconds: wait },
+      { 'Retry-After': String(wait) },
+    );
   }
   if (error instanceof StoreError) {
     switch (error.kind) {
@@ -266,10 +335,18 @@ function mapStoreError(error: unknown, secret: string): Mapped {
         return make(502, 'store_unavailable', `${error.message} Nothing was changed.`);
       default:
         // The store looked at the request and said no (a 4xx), so nothing was changed.
-        return make(error.status !== undefined && error.status >= 400 && error.status < 500 ? 422 : 502, 'store_rejected', error.message);
+        return make(
+          error.status !== undefined && error.status >= 400 && error.status < 500 ? 422 : 502,
+          'store_rejected',
+          error.message,
+        );
     }
   }
-  return make(502, 'write_failed', 'The change could not be made. Nothing was changed that this server knows of.');
+  return make(
+    502,
+    'write_failed',
+    'The change could not be made. Nothing was changed that this server knows of.',
+  );
 }
 
 class RolloutTimeout extends Error {}
@@ -322,10 +399,19 @@ async function takeClaim(
       [claim.appId, claim.platform, input.workspaceId, input.action, input.actor.id, claim.at],
     );
   if ((await insert()) === 1) return { ok: true, claim };
-  const [existing] = await db.query('SELECT status, claim_at FROM store_rollout_claims WHERE app_id = ? AND platform = ?', [claim.appId, claim.platform]);
+  const [existing] = await db.query(
+    'SELECT status, claim_at FROM store_rollout_claims WHERE app_id = ? AND platform = ?',
+    [claim.appId, claim.platform],
+  );
   if (!existing) {
     // Settled between the insert and the read.
-    return (await insert()) === 1 ? { ok: true, claim } : failure(409, 'write_in_progress', 'A rollout change for this app is in progress. Wait for it to finish.');
+    return (await insert()) === 1
+      ? { ok: true, claim }
+      : failure(
+          409,
+          'write_in_progress',
+          'A rollout change for this app is in progress. Wait for it to finish.',
+        );
   }
   if (String(existing.status) === 'unknown') {
     return failure(
@@ -336,35 +422,54 @@ async function takeClaim(
   }
   const startedAt = Number(existing.claim_at);
   if (claim.at - startedAt < ttl) {
-    return failure(409, 'write_in_progress', 'A rollout change for this app is in progress. Wait for it to finish.');
+    return failure(
+      409,
+      'write_in_progress',
+      'A rollout change for this app is in progress. Wait for it to finish.',
+    );
   }
   // A write that started long ago and never finished (a process died): its outcome is unknown, so it
   // is not trusted, but the re-read and the hash refuse a change that no longer fits the store's state.
   const taken = await db.execute(
     `UPDATE store_rollout_claims SET claim_at = ?, claimed_by = ?, action = ?, workspace_id = ?
       WHERE app_id = ? AND platform = ? AND status = 'writing' AND claim_at = ?`,
-    [claim.at, input.actor.id, input.action, input.workspaceId, claim.appId, claim.platform, startedAt],
+    [
+      claim.at,
+      input.actor.id,
+      input.action,
+      input.workspaceId,
+      claim.appId,
+      claim.platform,
+      startedAt,
+    ],
   );
-  return taken === 1 ? { ok: true, claim } : failure(409, 'write_in_progress', 'A rollout change for this app is in progress. Wait for it to finish.');
+  return taken === 1
+    ? { ok: true, claim }
+    : failure(
+        409,
+        'write_in_progress',
+        'A rollout change for this app is in progress. Wait for it to finish.',
+      );
 }
 
 const releaseClaim = (sql: Sql, claim: Claim) =>
-  sql.execute("DELETE FROM store_rollout_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [
-    claim.appId,
-    claim.platform,
-    claim.at,
-  ]);
+  sql.execute(
+    "DELETE FROM store_rollout_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 
 const markUnknown = (sql: Sql, claim: Claim) =>
-  sql.execute("UPDATE store_rollout_claims SET status = 'unknown' WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [
-    claim.appId,
-    claim.platform,
-    claim.at,
-  ]);
+  sql.execute(
+    "UPDATE store_rollout_claims SET status = 'unknown' WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 
 /** A successful read of the store settles an unknown outcome: the person sees where things stand. */
 const clearUnknown = (sql: Sql, app: ManagedApp) =>
-  sql.execute("DELETE FROM store_rollout_claims WHERE app_id = ? AND platform = ? AND status = 'unknown'", [app.id, app.platform]);
+  sql.execute(
+    "DELETE FROM store_rollout_claims WHERE app_id = ? AND platform = ? AND status = 'unknown'",
+    [app.id, app.platform],
+  );
 
 // ---------------------------------------------------------------------------------------------
 // Connection
@@ -372,22 +477,50 @@ const clearUnknown = (sql: Sql, app: ManagedApp) =>
 type Connection = { input: Omit<RolloutConnectorInput, 'fetch'>; secret: string };
 
 /** The credential of the app, decrypted for one use; or the failure to answer with (nothing was asked of the store). */
-async function connect(ctx: RolloutContext, workspaceId: string, app: ManagedApp, actor: Actor): Promise<{ ok: true; connection: Connection } | Failure> {
-  const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
-  if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+async function connect(
+  ctx: RolloutContext,
+  workspaceId: string,
+  app: ManagedApp,
+  actor: Actor,
+): Promise<{ ok: true; connection: Connection } | Failure> {
+  const [credential] = await ctx.db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [app.credentialId, workspaceId],
+  );
+  if (!credential)
+    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
-    return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
+    return failure(
+      422,
+      'credential_kind',
+      "This app's credential is not the kind its platform needs.",
+    );
   }
   if (isApplePlatform(app.platform) && !app.storeAppId) {
-    return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
+    return failure(
+      422,
+      'app_not_synced',
+      'The App Store id of this app is not known yet. Sync the app first.',
+    );
   }
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: ROLLOUT_PURPOSE }, actor, ctx.now());
+    secret = await useCredentialSecret(
+      ctx.db,
+      ctx.masterKey,
+      { workspaceId, id: app.credentialId, purpose: ROLLOUT_PURPOSE },
+      actor,
+      ctx.now(),
+    );
   } catch {
-    return failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.');
+    return failure(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+    );
   }
-  if (secret === undefined) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
+  if (secret === undefined)
+    return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   return {
     ok: true,
     connection: {
@@ -410,10 +543,13 @@ async function readLive(
   target: RolloutTarget,
 ): Promise<{ ok: true; state: RolloutState } | Failure> {
   try {
-    const state = await withConnector(ctx, connection.input, (connector) => connector.readState(target));
+    const state = await withConnector(ctx, connection.input, (connector) =>
+      connector.readState(target),
+    );
     return { ok: true, state };
   } catch (error) {
-    if (error instanceof RolloutTimeout) return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
+    if (error instanceof RolloutTimeout)
+      return failure(504, 'timeout', 'The store did not answer in time. Nothing was changed.');
     return mapStoreError(error, connection.secret).failure;
   }
 }
@@ -441,7 +577,12 @@ export const rolloutConfig = (ctx: Pick<RolloutContext, 'rolloutEnabled'>): Roll
 // ---------------------------------------------------------------------------------------------
 // State and preview
 
-export type AllowedAction = { action: string; allowed: boolean; reason?: string; irreversible: boolean };
+export type AllowedAction = {
+  action: string;
+  allowed: boolean;
+  reason?: string;
+  irreversible: boolean;
+};
 
 export type RolloutStateView = {
   app: { id: string; name: string; platform: Platform; store: string };
@@ -455,13 +596,19 @@ export type RolloutStateView = {
 const planFor = (state: RolloutState, change: RolloutChange): RolloutPlan =>
   state.store === 'googleplay'
     ? planPlayRollout(state as PlayRolloutState, change as Parameters<typeof planPlayRollout>[1])
-    : planAppleRollout(state as AppleRolloutState, change as Parameters<typeof planAppleRollout>[1]);
+    : planAppleRollout(
+        state as AppleRolloutState,
+        change as Parameters<typeof planAppleRollout>[1],
+      );
 
 function allowedActionsOf(state: RolloutState): AllowedAction[] {
   const probes: RolloutChange[] =
     state.store === 'googleplay'
       ? [
-          { action: 'set_fraction', userFraction: normalizeFraction(((state.userFraction ?? 0) + 1) / 2) ?? 0.5 },
+          {
+            action: 'set_fraction',
+            userFraction: normalizeFraction(((state.userFraction ?? 0) + 1) / 2) ?? 0.5,
+          },
           { action: 'halt' },
           { action: 'resume' },
           { action: 'complete' },
@@ -477,7 +624,10 @@ function allowedActionsOf(state: RolloutState): AllowedAction[] {
 
 type Loaded = { app: ManagedApp; connection: Connection };
 
-async function load(ctx: RolloutContext, input: { workspaceId: string; appId: string; actor: Actor }): Promise<({ ok: true } & Loaded) | Failure> {
+async function load(
+  ctx: RolloutContext,
+  input: { workspaceId: string; appId: string; actor: Actor },
+): Promise<({ ok: true } & Loaded) | Failure> {
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   const connected = await connect(ctx, input.workspaceId, app, input.actor);
@@ -488,7 +638,16 @@ async function load(ctx: RolloutContext, input: { workspaceId: string; appId: st
 /** `GET .../rollout/state`: where the release stands in the store, and what may be done from there. Changes nothing. */
 export async function readRolloutState(
   ctx: RolloutContext,
-  input: { workspaceId: string; appId: string; target: { track?: string | undefined; versionCodes?: string[] | undefined; version?: string | undefined }; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    target: {
+      track?: string | undefined;
+      versionCodes?: string[] | undefined;
+      version?: string | undefined;
+    };
+    actor: Actor;
+  },
 ): Promise<{ ok: true; state: RolloutStateView } | Failure> {
   if (!ctx.rolloutEnabled) return disabled();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
@@ -536,7 +695,9 @@ function warningsFor(state: RolloutState): string[] {
         'Google Play can take several hours to apply a change to a release.',
         'This server does not cancel a review that is in progress: if changes are in review the change is refused.',
       ]
-    : ['Apple decides the share per day (1, 2, 5, 10, 20, 50 and 100 percent over seven days): it cannot be set.'];
+    : [
+        'Apple decides the share per day (1, 2, 5, 10, 20, 50 and 100 percent over seven days): it cannot be set.',
+      ];
 }
 
 /** `POST .../rollout/preview`: reads the live state and proposes the change. Nothing is written. */
@@ -556,11 +717,16 @@ export async function previewRollout(
   await clearUnknown(ctx.db, app);
   const plan = planFor(read.state, parsed.change);
   if (!plan.ok) {
-    return failure(422, plan.code === 'invalid_fraction' ? 'invalid_rollout' : 'rollout_not_allowed', plan.message, {
-      reason: plan.code,
-      current: read.state,
-      allowedActions: allowedActionsOf(read.state),
-    });
+    return failure(
+      422,
+      plan.code === 'invalid_fraction' ? 'invalid_rollout' : 'rollout_not_allowed',
+      plan.message,
+      {
+        reason: plan.code,
+        current: read.state,
+        allowedActions: allowedActionsOf(read.state),
+      },
+    );
   }
   return {
     ok: true,
@@ -572,7 +738,13 @@ export async function previewRollout(
       proposed: plan.proposed,
       summary: plan.summary,
       irreversible: plan.irreversible,
-      confirmHash: rolloutConfirmHash({ workspaceId: input.workspaceId, app, target: parsed.target, change: parsed.change, current: read.state }),
+      confirmHash: rolloutConfirmHash({
+        workspaceId: input.workspaceId,
+        app,
+        target: parsed.target,
+        change: parsed.change,
+        current: read.state,
+      }),
       warnings: warningsFor(read.state),
       readAt: ctx.now(),
     },
@@ -595,7 +767,8 @@ export type RolloutResult = {
   note: string;
 };
 
-const NOTE = 'The stored copy of this app is refreshed by the next sync. Google Play can take several hours to apply a change.';
+const NOTE =
+  'The stored copy of this app is refreshed by the next sync. Google Play can take several hours to apply a change.';
 
 /**
  * `POST .../rollout/apply`: re-reads the store, checks it is still what `confirmHash` was made
@@ -603,7 +776,13 @@ const NOTE = 'The stored copy of this app is refreshed by the next sync. Google 
  */
 export async function applyRollout(
   ctx: RolloutContext,
-  input: { workspaceId: string; appId: string; request: RolloutRequest; confirmHash: string; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    request: RolloutRequest;
+    confirmHash: string;
+    actor: Actor;
+  },
 ): Promise<{ ok: true; result: RolloutResult } | Failure> {
   if (!ctx.rolloutEnabled) return disabled();
   const { db } = ctx;
@@ -612,9 +791,19 @@ export async function applyRollout(
   const parsed = parseRolloutRequest(app.platform, input.request);
   if (!parsed.ok) return parsed;
   const { target, change } = parsed;
-  const appView = { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) };
+  const appView = {
+    id: app.id,
+    name: app.name,
+    platform: app.platform,
+    store: storeFor(app.platform),
+  };
 
-  const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, action: change.action, actor: input.actor });
+  const taken = await takeClaim(ctx, {
+    workspaceId: input.workspaceId,
+    app,
+    action: change.action,
+    actor: input.actor,
+  });
   if (!taken.ok) return taken;
   const claim = taken.claim;
   // Anything that returns before the write is attempted gives the claim back.
@@ -647,7 +836,15 @@ export async function applyRollout(
     );
   } catch (error) {
     if (error instanceof RolloutDriftError) {
-      await audit(ctx, input, app, change, before ?? error.current, { code: 'state_changed', outcome: 'refused' }, 'failed');
+      await audit(
+        ctx,
+        input,
+        app,
+        change,
+        before ?? error.current,
+        { code: 'state_changed', outcome: 'refused' },
+        'failed',
+      );
       await releaseClaim(db, claim);
       const plan = planFor(error.current, change);
       return failure(
@@ -657,8 +854,17 @@ export async function applyRollout(
         {
           current: error.current,
           ...(plan.ok
-            ? { proposed: plan.proposed, summary: plan.summary, irreversible: plan.irreversible, confirmHash: hashOf(error.current) }
-            : { reason: plan.code, problem: plan.message, allowedActions: allowedActionsOf(error.current) }),
+            ? {
+                proposed: plan.proposed,
+                summary: plan.summary,
+                irreversible: plan.irreversible,
+                confirmHash: hashOf(error.current),
+              }
+            : {
+                reason: plan.code,
+                problem: plan.message,
+                allowedActions: allowedActionsOf(error.current),
+              }),
         },
       );
     }
@@ -667,14 +873,29 @@ export async function applyRollout(
     } else {
       const mapped = mapStoreError(error, connection.secret);
       // The guard may not have run (the store refused earlier): there is then no state to report.
-      await audit(ctx, input, app, change, before, { code: mapped.code, outcome: 'failed' }, 'failed');
+      await audit(
+        ctx,
+        input,
+        app,
+        change,
+        before,
+        { code: mapped.code, outcome: 'failed' },
+        'failed',
+      );
       await releaseClaim(db, claim);
       return mapped.failure;
     }
   }
 
   if (outcome) {
-    return succeed(ctx, input, { app: appView, change, claim, before: outcome.before, after: outcome.after, via: 'store' });
+    return succeed(ctx, input, {
+      app: appView,
+      change,
+      claim,
+      before: outcome.before,
+      after: outcome.after,
+      via: 'store',
+    });
   }
 
   // ----- an unknown outcome is checked, not sent again
@@ -682,7 +903,19 @@ export async function applyRollout(
   const readBack = await readLive(ctx, connection, target);
   if (!readBack.ok || accepted === undefined) {
     await markUnknown(db, claim);
-    await audit(ctx, input, app, change, accepted, { code: unknown ?? 'unknown', outcome: 'unknown', ...(readBack.ok ? {} : { readBack: 'failed' }) }, 'failed');
+    await audit(
+      ctx,
+      input,
+      app,
+      change,
+      accepted,
+      {
+        code: unknown ?? 'unknown',
+        outcome: 'unknown',
+        ...(readBack.ok ? {} : { readBack: 'failed' }),
+      },
+      'failed',
+    );
     return failure(
       409,
       'outcome_unknown',
@@ -693,12 +926,28 @@ export async function applyRollout(
   const proposed = plan.ok ? plan.proposed : undefined;
   const current = readBack.state;
   if (proposed && sameRolloutState(current, proposed)) {
-    return succeed(ctx, input, { app: appView, change, claim, before: accepted, after: current, via: 'reread', cause: unknown ?? 'unknown' });
+    return succeed(ctx, input, {
+      app: appView,
+      change,
+      claim,
+      before: accepted,
+      after: current,
+      via: 'reread',
+      cause: unknown ?? 'unknown',
+    });
   }
   if (sameRolloutState(current, accepted)) {
     if (isApplePlatform(app.platform)) {
       // Apple changes the state synchronously: the old state means the change was not applied.
-      await audit(ctx, input, app, change, accepted, { code: 'not_applied', outcome: 'failed', cause: unknown ?? 'unknown' }, 'failed');
+      await audit(
+        ctx,
+        input,
+        app,
+        change,
+        accepted,
+        { code: 'not_applied', outcome: 'failed', cause: unknown ?? 'unknown' },
+        'failed',
+      );
       await releaseClaim(db, claim);
       return failure(
         502,
@@ -709,7 +958,15 @@ export async function applyRollout(
     }
     // Google Play can be slow to show a committed change: the old state is not proof.
     await markUnknown(db, claim);
-    await audit(ctx, input, app, change, accepted, { code: 'not_visible', outcome: 'unknown', cause: unknown ?? 'unknown' }, 'failed');
+    await audit(
+      ctx,
+      input,
+      app,
+      change,
+      accepted,
+      { code: 'not_visible', outcome: 'unknown', cause: unknown ?? 'unknown' },
+      'failed',
+    );
     return failure(
       409,
       'outcome_unknown',
@@ -718,9 +975,22 @@ export async function applyRollout(
     );
   }
   // Neither the old state nor the asked one: somebody else changed it too. Nothing more is done.
-  await audit(ctx, input, app, change, accepted, { code: 'state_changed', outcome: 'diverged', cause: unknown ?? 'unknown' }, 'failed');
+  await audit(
+    ctx,
+    input,
+    app,
+    change,
+    accepted,
+    { code: 'state_changed', outcome: 'diverged', cause: unknown ?? 'unknown' },
+    'failed',
+  );
   await releaseClaim(db, claim);
-  return failure(409, 'state_changed', 'The store shows a state that is neither the old one nor the requested one. Nothing more was done. Review it and preview again.', { current });
+  return failure(
+    409,
+    'state_changed',
+    'The store shows a state that is neither the old one nor the requested one. Nothing more was done. Review it and preview again.',
+    { current },
+  );
 }
 
 async function audit(
@@ -743,7 +1013,10 @@ async function audit(
       store: storeFor(app.platform),
       platform: app.platform,
       action: change.action,
-      ...(change.action === 'set_fraction' || (change.action === 'resume' && 'userFraction' in change) ? { requestedUserFraction: (change as { userFraction?: number }).userFraction } : {}),
+      ...(change.action === 'set_fraction' ||
+      (change.action === 'resume' && 'userFraction' in change)
+        ? { requestedUserFraction: (change as { userFraction?: number }).userFraction }
+        : {}),
       ...(state ? { ...targetDetail(state), from: summary(state) } : {}),
       hash: input.confirmHash,
       ...extra,

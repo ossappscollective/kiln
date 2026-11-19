@@ -20,7 +20,15 @@ export const STALL_STALE_AFTER_MS = 14 * 24 * HOUR_MS;
 const RUN_BUILD_SLACK_MS = 5 * 60_000;
 
 /** The steps a release can stall at, most advanced first. */
-export const STALL_STEPS = ['approved', 'rejected', 'draft', 'build_ready', 'build_invalid', 'build_processing', 'ci_run'] as const;
+export const STALL_STEPS = [
+  'approved',
+  'rejected',
+  'draft',
+  'build_ready',
+  'build_invalid',
+  'build_processing',
+  'ci_run',
+] as const;
 export type StallStep = (typeof STALL_STEPS)[number];
 
 export type PipelineState =
@@ -122,8 +130,20 @@ export type PipelineStall = {
   evidence: PipelineEvidence[];
 };
 
-export type PipelineStepStatus = 'done' | 'current' | 'waiting' | 'failed' | 'stalled' | 'todo' | 'unknown';
-export type PipelineStepRow = { id: 'ci' | 'build' | 'prepare' | 'review' | 'release'; status: PipelineStepStatus; at: number | null; detail: string | null };
+export type PipelineStepStatus =
+  | 'done'
+  | 'current'
+  | 'waiting'
+  | 'failed'
+  | 'stalled'
+  | 'todo'
+  | 'unknown';
+export type PipelineStepRow = {
+  id: 'ci' | 'build' | 'prepare' | 'review' | 'release';
+  status: PipelineStepStatus;
+  at: number | null;
+  detail: string | null;
+};
 
 export type Pipeline = {
   appId: string;
@@ -165,9 +185,11 @@ const DRAFT_WORDS: Record<string, string> = {
   ready: 'Ready for review',
 };
 
-const runName = (r: PipelineRunFact) => (r.runNumber !== null ? `run #${r.runNumber}` : `run ${r.id}`);
+const runName = (r: PipelineRunFact) =>
+  r.runNumber !== null ? `run #${r.runNumber}` : `run ${r.id}`;
 const buildName = (b: PipelineBuildFact) => `build ${b.buildNumber}`;
-const versionName = (v: PipelineVersionFact) => (v.track ? `version ${v.version} (${v.track})` : `version ${v.version}`);
+const versionName = (v: PipelineVersionFact) =>
+  v.track ? `version ${v.version} (${v.track})` : `version ${v.version}`;
 const buildAt = (b: PipelineBuildFact) => b.uploadedAt ?? b.firstSeenAt;
 
 const runEvidence = (r: PipelineRunFact): PipelineEvidence => ({
@@ -193,7 +215,15 @@ const versionEvidence = (v: PipelineVersionFact): PipelineEvidence => ({
 // ---------------------------------------------------------------------------------------------
 // Evaluation
 
-const IN_FLIGHT: readonly ReleaseState[] = ['draft', 'build_chosen', 'ready', 'in_review', 'rejected', 'approved', 'propagating'];
+const IN_FLIGHT: readonly ReleaseState[] = [
+  'draft',
+  'build_chosen',
+  'ready',
+  'in_review',
+  'rejected',
+  'approved',
+  'propagating',
+];
 const DRAFT_FAMILY: readonly ReleaseState[] = ['draft', 'build_chosen', 'ready'];
 const FAILED_CONCLUSIONS = ['failure', 'timed_out', 'startup_failure'];
 
@@ -211,11 +241,19 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
   const stalledFor = (at: number) => !off && age(at) >= afterMs;
 
   const runs = f.runs;
-  const activeRun = newest(runs.filter((r) => r.active), (r) => r.startedAt);
+  const activeRun = newest(
+    runs.filter((r) => r.active),
+    (r) => r.startedAt,
+  );
   const lastRun = newest(runs, (r) => r.startedAt);
-  const lastSuccess = newest(runs.filter((r) => !r.active && r.conclusion === 'success'), (r) => r.updatedAt);
+  const lastSuccess = newest(
+    runs.filter((r) => !r.active && r.conclusion === 'success'),
+    (r) => r.updatedAt,
+  );
 
-  const inFlight = f.versions.filter((v) => v.status !== null && IN_FLIGHT.indexOf(v.status) !== -1);
+  const inFlight = f.versions.filter(
+    (v) => v.status !== null && IN_FLIGHT.indexOf(v.status) !== -1,
+  );
   const usedBuilds = new Set<string>();
   for (const v of f.versions) {
     if (v.build) {
@@ -225,7 +263,8 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
   }
   const builds = f.builds.filter((b) => b.expired !== true);
   let newestUsedAt = 0;
-  for (const b of builds) if (usedBuilds.has(b.buildNumber)) newestUsedAt = Math.max(newestUsedAt, buildAt(b));
+  for (const b of builds)
+    if (usedBuilds.has(b.buildNumber)) newestUsedAt = Math.max(newestUsedAt, buildAt(b));
   const unused = builds.filter((b) => !usedBuilds.has(b.buildNumber) && buildAt(b) > newestUsedAt);
   // A newer build of a version string that is already past "Prepare" cannot be attached to it: it is not a release left behind.
   const pastPrepare = new Set<string>();
@@ -233,9 +272,15 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
     if (v.status !== null && DRAFT_FAMILY.indexOf(v.status) === -1) pastPrepare.add(v.version);
   }
   const hasDraftFor = (version: string | null) =>
-    version !== null && f.versions.some((v) => v.version === version && v.status !== null && DRAFT_FAMILY.indexOf(v.status) !== -1);
-  const orphans = unused.filter((b) => !(b.version !== null && pastPrepare.has(b.version)) && !hasDraftFor(b.version));
-  const runOf = (b: PipelineBuildFact) => (b.runId ? runs.find((r) => r.id === b.runId) ?? null : null);
+    version !== null &&
+    f.versions.some(
+      (v) => v.version === version && v.status !== null && DRAFT_FAMILY.indexOf(v.status) !== -1,
+    );
+  const orphans = unused.filter(
+    (b) => !(b.version !== null && pastPrepare.has(b.version)) && !hasDraftFor(b.version),
+  );
+  const runOf = (b: PipelineBuildFact) =>
+    b.runId ? (runs.find((r) => r.id === b.runId) ?? null) : null;
   const buildByRun = (b: PipelineBuildFact): string => {
     const r = runOf(b);
     return r ? ` by ${runName(r)}` : '';
@@ -243,7 +288,14 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
 
   // ----- stalls -------------------------------------------------------------------------------
   const stalls: PipelineStall[] = [];
-  const add = (step: StallStep, anchor: string, since: number, message: string, label: string, evidence: PipelineEvidence[]) => {
+  const add = (
+    step: StallStep,
+    anchor: string,
+    since: number,
+    message: string,
+    label: string,
+    evidence: PipelineEvidence[],
+  ) => {
     stalls.push({
       step,
       key: `${step}:${anchor}`,
@@ -260,12 +312,28 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
   if (!off) {
     for (const v of inFlight) {
       if (v.status === 'approved' && stalledFor(v.since)) {
-        add('approved', `${v.version}${v.track ? `@${v.track}` : ''}`, v.since, `${capital(versionName(v))} was approved ${agoText(age(v.since))} ago and is waiting for you to release it.`, 'Approved, not released', [versionEvidence(v)]);
+        add(
+          'approved',
+          `${v.version}${v.track ? `@${v.track}` : ''}`,
+          v.since,
+          `${capital(versionName(v))} was approved ${agoText(age(v.since))} ago and is waiting for you to release it.`,
+          'Approved, not released',
+          [versionEvidence(v)],
+        );
       } else if (v.status === 'rejected' && stalledFor(v.since)) {
-        add('rejected', `${v.version}${v.track ? `@${v.track}` : ''}`, v.since, `${capital(versionName(v))} was rejected ${agoText(age(v.since))} ago and nothing has changed since.`, 'Rejected, not fixed', [versionEvidence(v)]);
+        add(
+          'rejected',
+          `${v.version}${v.track ? `@${v.track}` : ''}`,
+          v.since,
+          `${capital(versionName(v))} was rejected ${agoText(age(v.since))} ago and nothing has changed since.`,
+          'Rejected, not fixed',
+          [versionEvidence(v)],
+        );
       } else if (v.status !== null && DRAFT_FAMILY.indexOf(v.status) !== -1) {
         // "Something was built for it": a build of this version (or the attached one), or the codes of a Play draft.
-        const mine = builds.filter((b) => b.buildNumber === v.build || (v.track === null && b.version === v.version));
+        const mine = builds.filter(
+          (b) => b.buildNumber === v.build || (v.track === null && b.version === v.version),
+        );
         const attachedCodes = v.track !== null && (v.versionCodes ?? []).length > 0;
         const built = newest(mine, buildAt);
         if (built === null && !attachedCodes) continue;
@@ -274,8 +342,10 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
         if (activeRun) activityAt = Math.max(activityAt, activeRun.updatedAt, activeRun.startedAt);
         if (lastSuccess) activityAt = Math.max(activityAt, lastSuccess.updatedAt);
         if (!stalledFor(activityAt)) continue;
-        const where = v.track ? `the ${v.track} track` : DRAFT_WORDS[v.status] ?? v.rawState;
-        const subject = built ? `${capital(buildName(built))} was uploaded ${agoText(age(buildAt(built)))} ago${buildByRun(built)}; ` : '';
+        const where = v.track ? `the ${v.track} track` : (DRAFT_WORDS[v.status] ?? v.rawState);
+        const subject = built
+          ? `${capital(buildName(built))} was uploaded ${agoText(age(buildAt(built)))} ago${buildByRun(built)}; `
+          : '';
         const verb =
           v.track !== null
             ? `${versionName(v)} is still a draft release on ${where} and has not been started.`
@@ -288,16 +358,37 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
         else if (lastSuccess) evidence.push(runEvidence(lastSuccess));
         if (built) evidence.push(buildEvidence(built));
         evidence.push(versionEvidence(v));
-        add('draft', `${v.version}${v.track ? `@${v.track}` : ''}`, activityAt, `${subject}${subject === '' ? capital(verb) : verb}`, 'Prepared, not submitted', evidence);
+        add(
+          'draft',
+          `${v.version}${v.track ? `@${v.track}` : ''}`,
+          activityAt,
+          `${subject}${subject === '' ? capital(verb) : verb}`,
+          'Prepared, not submitted',
+          evidence,
+        );
       }
     }
     for (const b of orphans) {
       const at = buildAt(b);
       if (!stalledFor(at)) continue;
       if (b.state === 'processing') {
-        add('build_processing', b.buildNumber, at, `${capital(buildName(b))} was uploaded ${agoText(age(at))} ago and the store still shows it as processing.`, 'Build still processing', [buildEvidence(b)]);
+        add(
+          'build_processing',
+          b.buildNumber,
+          at,
+          `${capital(buildName(b))} was uploaded ${agoText(age(at))} ago and the store still shows it as processing.`,
+          'Build still processing',
+          [buildEvidence(b)],
+        );
       } else if (b.state === 'invalid') {
-        add('build_invalid', b.buildNumber, at, `${capital(buildName(b))} was uploaded ${agoText(age(at))} ago and failed processing${b.rawState ? ` (${b.rawState})` : ''}.`, 'Build failed processing', [buildEvidence(b)]);
+        add(
+          'build_invalid',
+          b.buildNumber,
+          at,
+          `${capital(buildName(b))} was uploaded ${agoText(age(at))} ago and failed processing${b.rawState ? ` (${b.rawState})` : ''}.`,
+          'Build failed processing',
+          [buildEvidence(b)],
+        );
       } else if (b.state === 'processed') {
         const r = runOf(b);
         const ev = r ? [runEvidence(r), buildEvidence(b)] : [buildEvidence(b)];
@@ -313,30 +404,69 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
     }
     // A successful release run with no build after it. The store must have been read after the run ended, else "no build" may
     // only mean "not looked yet".
-    if (lastSuccess && stalledFor(lastSuccess.updatedAt) && f.lastSyncedAt !== null && f.lastSyncedAt >= lastSuccess.updatedAt) {
-      const produced = builds.some((b) => buildAt(b) >= lastSuccess.startedAt - RUN_BUILD_SLACK_MS || b.runId === lastSuccess.id);
+    if (
+      lastSuccess &&
+      stalledFor(lastSuccess.updatedAt) &&
+      f.lastSyncedAt !== null &&
+      f.lastSyncedAt >= lastSuccess.updatedAt
+    ) {
+      const produced = builds.some(
+        (b) =>
+          buildAt(b) >= lastSuccess.startedAt - RUN_BUILD_SLACK_MS || b.runId === lastSuccess.id,
+      );
       const moved = f.versions.some((v) => v.since >= lastSuccess.startedAt);
       if (!produced && !moved) {
-        add('ci_run', lastSuccess.id, lastSuccess.updatedAt, `${capital(runName(lastSuccess))} (${lastSuccess.workflow}) succeeded ${agoText(age(lastSuccess.updatedAt))} ago, but no new build has appeared in the store.`, 'Run succeeded, no build', [runEvidence(lastSuccess)]);
+        add(
+          'ci_run',
+          lastSuccess.id,
+          lastSuccess.updatedAt,
+          `${capital(runName(lastSuccess))} (${lastSuccess.workflow}) succeeded ${agoText(age(lastSuccess.updatedAt))} ago, but no new build has appeared in the store.`,
+          'Run succeeded, no build',
+          [runEvidence(lastSuccess)],
+        );
       }
     }
   }
   const order = (s: PipelineStall) => STALL_STEPS.indexOf(s.step);
-  stalls.sort((a, b) => Number(a.stale) - Number(b.stale) || order(a) - order(b) || a.since - b.since || a.key.localeCompare(b.key));
+  stalls.sort(
+    (a, b) =>
+      Number(a.stale) - Number(b.stale) ||
+      order(a) - order(b) ||
+      a.since - b.since ||
+      a.key.localeCompare(b.key),
+  );
   const stalled = stalls[0] ?? null;
 
   // ----- state --------------------------------------------------------------------------------
-  const live = f.versions.filter((v) => v.status === 'live' || v.status === 'rolling_out' || v.status === 'halted');
-  const processing = newest(builds.filter((b) => b.state === 'processing'), buildAt);
-  const orphanReady = newest(orphans.filter((b) => b.state === 'processed'), buildAt);
-  const pick = (status: ReleaseState) => newest(inFlight.filter((v) => v.status === status), (v) => v.since);
+  const live = f.versions.filter(
+    (v) => v.status === 'live' || v.status === 'rolling_out' || v.status === 'halted',
+  );
+  const processing = newest(
+    builds.filter((b) => b.state === 'processing'),
+    buildAt,
+  );
+  const orphanReady = newest(
+    orphans.filter((b) => b.state === 'processed'),
+    buildAt,
+  );
+  const pick = (status: ReleaseState) =>
+    newest(
+      inFlight.filter((v) => v.status === status),
+      (v) => v.since,
+    );
   const approved = pick('approved');
   const inReview = pick('in_review');
   const rejected = pick('rejected');
   let draft: PipelineVersionFact | null = null;
   for (const s of DRAFT_FAMILY) draft = draft ?? pick(s);
-  const rolling = newest(live.filter((v) => v.status === 'rolling_out'), (v) => v.since);
-  const halted = newest(live.filter((v) => v.status === 'halted'), (v) => v.since);
+  const rolling = newest(
+    live.filter((v) => v.status === 'rolling_out'),
+    (v) => v.since,
+  );
+  const halted = newest(
+    live.filter((v) => v.status === 'halted'),
+    (v) => v.since,
+  );
 
   let state: PipelineState;
   let since: number | null = null;
@@ -349,18 +479,48 @@ export function evaluatePipeline(f: PipelineFacts): Pipeline {
   else if (activeRun) [state, since] = ['ci_running', activeRun.startedAt];
   else if (halted) [state, since] = ['halted', halted.since];
   else if (rolling) [state, since] = ['rolling_out', rolling.since];
-  else if (lastRun && !lastRun.active && lastRun.conclusion !== null && FAILED_CONCLUSIONS.indexOf(lastRun.conclusion) !== -1) [state, since] = ['ci_failed', lastRun.updatedAt];
+  else if (
+    lastRun &&
+    !lastRun.active &&
+    lastRun.conclusion !== null &&
+    FAILED_CONCLUSIONS.indexOf(lastRun.conclusion) !== -1
+  )
+    [state, since] = ['ci_failed', lastRun.updatedAt];
   else if (live.length > 0) [state, since] = ['live', newest(live, (v) => v.since)?.since ?? null];
-  else if (f.lastSyncedAt === null && runs.length === 0 && f.builds.length === 0 && f.versions.length === 0) [state, since] = ['unknown', null];
+  else if (
+    f.lastSyncedAt === null &&
+    runs.length === 0 &&
+    f.builds.length === 0 &&
+    f.versions.length === 0
+  )
+    [state, since] = ['unknown', null];
   else [state, since] = ['idle', null];
   // A run still going beside a version in Prepare is progress, not idleness; it shows in the steps and the summary.
 
   const waitingOn: Pipeline['waitingOn'] =
-    state === 'ci_running' ? 'ci' : state === 'build_processing' || state === 'in_review' || state === 'rolling_out' ? 'store' : state === 'draft' || state === 'build_ready' || state === 'approved' || state === 'rejected' || state === 'halted' || state === 'ci_failed' ? 'you' : null;
+    state === 'ci_running'
+      ? 'ci'
+      : state === 'build_processing' || state === 'in_review' || state === 'rolling_out'
+        ? 'store'
+        : state === 'draft' ||
+            state === 'build_ready' ||
+            state === 'approved' ||
+            state === 'rejected' ||
+            state === 'halted' ||
+            state === 'ci_failed'
+          ? 'you'
+          : null;
 
-  const latestVersion = approved ?? inReview ?? rejected ?? draft ?? rolling ?? halted ?? newest(live, (v) => v.since);
+  const latestVersion =
+    approved ?? inReview ?? rejected ?? draft ?? rolling ?? halted ?? newest(live, (v) => v.since);
   const latestBuild = newest(builds, buildAt);
-  const summary = summarize(state, { activeRun, lastRun, latestBuild, version: latestVersion, now });
+  const summary = summarize(state, {
+    activeRun,
+    lastRun,
+    latestBuild,
+    version: latestVersion,
+    now,
+  });
 
   return {
     appId: f.appId,
@@ -381,7 +541,13 @@ const capital = (s: string) => (s === '' ? s : s.charAt(0).toUpperCase() + s.sli
 
 function summarize(
   state: PipelineState,
-  x: { activeRun: PipelineRunFact | null; lastRun: PipelineRunFact | null; latestBuild: PipelineBuildFact | null; version: PipelineVersionFact | null; now: number },
+  x: {
+    activeRun: PipelineRunFact | null;
+    lastRun: PipelineRunFact | null;
+    latestBuild: PipelineBuildFact | null;
+    version: PipelineVersionFact | null;
+    now: number;
+  },
 ): string {
   const v = x.version ? versionName(x.version) : 'a version';
   switch (state) {
@@ -390,13 +556,19 @@ function summarize(
     case 'idle':
       return 'No release is in progress.';
     case 'ci_running':
-      return x.activeRun ? `${capital(runName(x.activeRun))} (${x.activeRun.workflow}) is running.` : 'A CI run is going.';
+      return x.activeRun
+        ? `${capital(runName(x.activeRun))} (${x.activeRun.workflow}) is running.`
+        : 'A CI run is going.';
     case 'ci_failed':
-      return x.lastRun ? `${capital(runName(x.lastRun))} (${x.lastRun.workflow}) ${x.lastRun.conclusion ?? 'failed'}.` : 'The last CI run failed.';
+      return x.lastRun
+        ? `${capital(runName(x.lastRun))} (${x.lastRun.workflow}) ${x.lastRun.conclusion ?? 'failed'}.`
+        : 'The last CI run failed.';
     case 'build_processing':
       return 'The store is processing a new build.';
     case 'build_ready':
-      return x.latestBuild ? `${capital(buildName(x.latestBuild))} is processed and no version has it yet.` : 'A processed build has no version yet.';
+      return x.latestBuild
+        ? `${capital(buildName(x.latestBuild))} is processed and no version has it yet.`
+        : 'A processed build has no version yet.';
     case 'draft':
       return `${capital(v)} is being prepared and has not been submitted.`;
     case 'in_review':
@@ -417,7 +589,12 @@ function summarize(
 function stepRows(
   state: PipelineState,
   stalled: PipelineStall | null,
-  x: { lastRun: PipelineRunFact | null; lastSuccess: PipelineRunFact | null; latestBuild: PipelineBuildFact | null; version: PipelineVersionFact | null },
+  x: {
+    lastRun: PipelineRunFact | null;
+    lastSuccess: PipelineRunFact | null;
+    latestBuild: PipelineBuildFact | null;
+    version: PipelineVersionFact | null;
+  },
 ): PipelineStepRow[] {
   const ids: PipelineStepRow['id'][] = ['ci', 'build', 'prepare', 'review', 'release'];
   // The step each state is at, and how it is at it.
@@ -437,14 +614,29 @@ function stepRows(
     live: [5, 'done'],
   };
   const here = at[state];
-  const stalledStep = stalled ? { approved: 4, rejected: 3, draft: 2, build_ready: 2, build_invalid: 1, build_processing: 1, ci_run: 1 }[stalled.step] : -1;
+  const stalledStep = stalled
+    ? {
+        approved: 4,
+        rejected: 3,
+        draft: 2,
+        build_ready: 2,
+        build_invalid: 1,
+        build_processing: 1,
+        ci_run: 1,
+      }[stalled.step]
+    : -1;
   return ids.map((id, i): PipelineStepRow => {
     let status: PipelineStepStatus;
     if (here === null) status = state === 'unknown' ? 'unknown' : 'todo';
     else if (i < here[0]) status = 'done';
     else if (i === here[0]) status = here[1];
     else status = 'todo';
-    if (stalled && i === stalledStep && (status === 'current' || status === 'waiting' || status === 'done' || status === 'failed')) status = 'stalled';
+    if (
+      stalled &&
+      i === stalledStep &&
+      (status === 'current' || status === 'waiting' || status === 'done' || status === 'failed')
+    )
+      status = 'stalled';
     let when: number | null = null;
     let detail: string | null = null;
     if (id === 'ci' && x.lastRun) {
@@ -454,7 +646,15 @@ function stepRows(
       when = buildAt(x.latestBuild);
       detail = `${buildName(x.latestBuild)}${x.latestBuild.rawState ? `, ${x.latestBuild.rawState}` : ''}`;
     } else if ((id === 'prepare' || id === 'review' || id === 'release') && x.version) {
-      const mine = id === 'prepare' ? state === 'draft' : id === 'review' ? state === 'in_review' || state === 'rejected' : state === 'approved' || state === 'rolling_out' || state === 'halted' || state === 'live';
+      const mine =
+        id === 'prepare'
+          ? state === 'draft'
+          : id === 'review'
+            ? state === 'in_review' || state === 'rejected'
+            : state === 'approved' ||
+              state === 'rolling_out' ||
+              state === 'halted' ||
+              state === 'live';
       if (mine) {
         when = x.version.since;
         detail = `${versionName(x.version)} ${x.version.rawState}`;

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { type Platform, RELEASE_STATES, type ReleaseState, isGooglePlatform } from '@mrm/core';
+import { isGooglePlatform, type Platform, RELEASE_STATES, type ReleaseState } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { type AppRelease, type ManagedApp, listAppReleases } from './apps.ts';
+import { type AppRelease, listAppReleases, type ManagedApp } from './apps.ts';
 import type { Confidence, LinkEvidence } from './build-tags.ts';
-import { RUN_COLUMNS, type WorkflowRunView, runCountsForApp, runViews } from './ci-runs.ts';
+import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './ci-runs.ts';
 
 /**
  * Links the builds a store reports to the CI run (and so the commit) that made them, through the
@@ -49,10 +49,23 @@ export type BuildMatcher = {
 const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 const ANY_KEYS = new Set(['buildnumber', 'build', 'buildno']);
 const IOS_KEYS = new Set(['iosbuildnumber', 'iosbuild', 'cfbundleversion', 'bundleversion']);
-const MACOS_KEYS = new Set(['macosbuildnumber', 'macosbuild', 'osxbuildnumber', 'osxbuild', 'cfbundleversion', 'bundleversion']);
-const ANDROID_KEYS = new Set(['versioncode', 'androidversioncode', 'androidbuildnumber', 'androidbuild']);
+const MACOS_KEYS = new Set([
+  'macosbuildnumber',
+  'macosbuild',
+  'osxbuildnumber',
+  'osxbuild',
+  'cfbundleversion',
+  'bundleversion',
+]);
+const ANDROID_KEYS = new Set([
+  'versioncode',
+  'androidversioncode',
+  'androidbuildnumber',
+  'androidbuild',
+]);
 
-const ownKeys = (platform: Platform): Set<string> => (platform === 'ios' ? IOS_KEYS : platform === 'macos' ? MACOS_KEYS : ANDROID_KEYS);
+const ownKeys = (platform: Platform): Set<string> =>
+  platform === 'ios' ? IOS_KEYS : platform === 'macos' ? MACOS_KEYS : ANDROID_KEYS;
 
 /**
  * The run was started from this tool (or any dispatch we recorded) with an input that names the
@@ -62,7 +75,8 @@ const ownKeys = (platform: Platform): Set<string> => (platform === 'ios' ? IOS_K
  */
 export const dispatchInputMatcher: BuildMatcher = {
   id: 'dispatch_input',
-  description: 'The run was dispatched with a build_number / version_code input equal to the build number.',
+  description:
+    'The run was dispatched with a build_number / version_code input equal to the build number.',
   match(build, run) {
     for (const [key, value] of Object.entries(run.inputs ?? {})) {
       const k = normalizeKey(key);
@@ -82,17 +96,26 @@ const TITLE_PATTERNS: { platform: Platform | 'any'; label: string; re: RegExp }[
   {
     platform: 'any',
     label: 'build N',
-    re: new RegExp(`${AFTER_PLATFORM}\\bbuild[\\s_-]?(?:number|no\\.?)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`, 'gi'),
+    re: new RegExp(
+      `${AFTER_PLATFORM}\\bbuild[\\s_-]?(?:number|no\\.?)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
+      'gi',
+    ),
   },
   {
     platform: 'ios',
     label: 'ios build N',
-    re: new RegExp(`\\bios[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`, 'gi'),
+    re: new RegExp(
+      `\\bios[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
+      'gi',
+    ),
   },
   {
     platform: 'macos',
     label: 'macos build N',
-    re: new RegExp(`\\b(?:macos|osx)[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`, 'gi'),
+    re: new RegExp(
+      `\\b(?:macos|osx)[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
+      'gi',
+    ),
   },
   {
     platform: 'android',
@@ -105,7 +128,10 @@ const TITLE_PATTERNS: { platform: Platform | 'any'; label: string; re: RegExp }[
   {
     platform: 'android',
     label: 'version code N',
-    re: new RegExp(`${AFTER_PLATFORM}\\bversion[\\s_-]*code\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`, 'gi'),
+    re: new RegExp(
+      `${AFTER_PLATFORM}\\bversion[\\s_-]*code\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
+      'gi',
+    ),
   },
   { platform: 'any', label: 'x.y.z (N)', re: /\b\d+\.\d+(?:\.\d+)*\s*\((\d{1,10})\)/g },
   { platform: 'any', label: 'x.y.z+N', re: /\b\d+\.\d+\.\d+\+(\d{1,10})\b/g },
@@ -120,7 +146,8 @@ const TITLE_PATTERNS: { platform: Platform | 'any'; label: string; re: RegExp }[
  */
 export const runTitleMatcher: BuildMatcher = {
   id: 'run_title',
-  description: 'The run title (run-name) says "build N", "versionCode N", "x.y.z (N)" or "x.y.z+N".',
+  description:
+    'The run title (run-name) says "build N", "versionCode N", "x.y.z (N)" or "x.y.z+N".',
   match(build, run) {
     const title = run.title?.trim();
     if (!title) return undefined;
@@ -230,7 +257,8 @@ export type StoredBuild = {
   syncedAt: number;
 };
 
-const rank = (status: ReleaseState | null) => (status === null ? -1 : RELEASE_STATES.indexOf(status));
+const rank = (status: ReleaseState | null) =>
+  status === null ? -1 : RELEASE_STATES.indexOf(status);
 
 const buildOrder = (a: StoredBuild, b: StoredBuild) =>
   a.platform.localeCompare(b.platform) ||
@@ -244,12 +272,11 @@ const buildOrder = (a: StoredBuild, b: StoredBuild) =>
 export function buildsFromReleases(releases: readonly AppRelease[]): StoredBuild[] {
   const byKey = new Map<string, StoredBuild>();
   for (const release of releases) {
-    const numbers =
-      isGooglePlatform(release.platform)
-        ? (release.versionCodes ?? release.build?.split(',') ?? [])
-        : release.build
-          ? [release.build]
-          : [];
+    const numbers = isGooglePlatform(release.platform)
+      ? (release.versionCodes ?? release.build?.split(',') ?? [])
+      : release.build
+        ? [release.build]
+        : [];
     for (const raw of numbers) {
       const buildNumber = raw.trim();
       if (!buildNumber) continue;
@@ -310,7 +337,10 @@ function parseEvidence(raw: unknown): LinkEvidence | null {
   if (typeof raw !== 'string') return null;
   try {
     const v: unknown = JSON.parse(raw);
-    return v && typeof v === 'object' && !Array.isArray(v) && typeof (v as LinkEvidence).tag === 'string'
+    return v &&
+      typeof v === 'object' &&
+      !Array.isArray(v) &&
+      typeof (v as LinkEvidence).tag === 'string'
       ? (v as LinkEvidence)
       : null;
   } catch {
@@ -400,7 +430,13 @@ export async function putBuildLink(sql: Sql, link: NewLink): Promise<void> {
 /** Removes a link. With `onlyManual`, an automatic one is left alone. Returns whether one existed. */
 export async function removeBuildLink(
   sql: Sql,
-  input: { workspaceId: string; appId: string; platform: Platform; buildNumber: string; onlyManual?: boolean },
+  input: {
+    workspaceId: string;
+    appId: string;
+    platform: Platform;
+    buildNumber: string;
+    onlyManual?: boolean;
+  },
 ): Promise<boolean> {
   const changed = await sql.execute(
     `DELETE FROM build_links
@@ -459,7 +495,12 @@ export async function relinkApp(
     const had = existing.get(key);
     const match = found.get(key);
     if (!match || had?.source === 'manual') continue;
-    if (had && had.runId === match.run.id && had.source === match.matcher && had.headSha === match.run.headSha) {
+    if (
+      had &&
+      had.runId === match.run.id &&
+      had.source === match.matcher &&
+      had.headSha === match.run.headSha
+    ) {
       continue;
     }
     await putBuildLink(sql, {
@@ -489,7 +530,8 @@ async function workspaceOf(sql: Sql, appId: string): Promise<string | undefined>
   return row ? String(row.workspace_id) : undefined;
 }
 
-const runUrlOf = (runs: readonly WorkflowRunView[], id: string) => runs.find((r) => r.id === id)?.url ?? null;
+const runUrlOf = (runs: readonly WorkflowRunView[], id: string) =>
+  runs.find((r) => r.id === id)?.url ?? null;
 
 // ---------------------------------------------------------------------------------------------
 // The response
@@ -534,7 +576,12 @@ export type BuildView = StoredBuild & {
 };
 
 /** `https://github.com/acme/app/actions/runs/1` and `acme/app` give `https://github.com/acme/app/commit/<sha>`. */
-export function commitUrl(runUrl: string | null, owner: string, repo: string, sha: string): string | null {
+export function commitUrl(
+  runUrl: string | null,
+  owner: string,
+  repo: string,
+  sha: string,
+): string | null {
   if (!runUrl) return null;
   try {
     return `${new URL(runUrl).origin}/${owner}/${repo}/commit/${sha}`;
@@ -559,7 +606,9 @@ export function buildViews(input: {
   /** Any stored run's address tells where this GitHub lives, for a commit link without a run. */
   const anyRunUrl = runs.find((r) => r.url)?.url ?? null;
   const stored = new Map(input.links.map((l) => [buildKey(l), l]));
-  const found = repository ? matchBuilds(input.builds, runs, input.matchers) : new Map<string, Match>();
+  const found = repository
+    ? matchBuilds(input.builds, runs, input.matchers)
+    : new Map<string, Match>();
 
   return input.builds.map((build): BuildView => {
     const key = buildKey(build);
@@ -650,7 +699,8 @@ export function buildViews(input: {
       commit: {
         sha,
         shortSha: sha.slice(0, 7),
-        message: (run && run.headSha === sha ? run.commitMessage : null) ?? evidence?.message ?? null,
+        message:
+          (run && run.headSha === sha ? run.commitMessage : null) ?? evidence?.message ?? null,
         url: repository ? commitUrl(url, repository.owner, repository.repo, sha) : null,
       },
     };

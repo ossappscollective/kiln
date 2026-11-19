@@ -1,16 +1,29 @@
 import { can } from '@mrm/core';
 import type { Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { type AppEnv, type Services, clientIp } from '../http.ts';
-import { type LoginLimiter, createLoginLimiter } from '../limiter.ts';
+import { type AppEnv, clientIp, type Services } from '../http.ts';
+import { createLoginLimiter, type LoginLimiter } from '../limiter.ts';
 import { memberRole } from '../services/accounts.ts';
 import { recordAudit, runAsToken } from '../services/audit.ts';
-import { type TestLimiter, createTestLimiter } from '../services/credential-tests.ts';
-import { type TokenPrincipal, authenticateToken } from '../services/tokens.ts';
+import { createTestLimiter, type TestLimiter } from '../services/credential-tests.ts';
+import { authenticateToken, type TokenPrincipal } from '../services/tokens.ts';
 import { FLAG_ENV, type McpFlags } from './flags.ts';
-import { ERROR_CODES, LATEST_PROTOCOL_VERSION, type JsonRpcResponse, RPC_MESSAGES, SUPPORTED_PROTOCOL_VERSIONS, rpcError } from './protocol.ts';
-import { type ServerContext, handleMessage } from './server.ts';
-import { type Dispatch, type DispatchResult, operationOf, readOnlyActions, tools } from './tools.ts';
+import {
+  ERROR_CODES,
+  type JsonRpcResponse,
+  LATEST_PROTOCOL_VERSION,
+  RPC_MESSAGES,
+  rpcError,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from './protocol.ts';
+import { handleMessage, type ServerContext } from './server.ts';
+import {
+  type Dispatch,
+  type DispatchResult,
+  operationOf,
+  readOnlyActions,
+  tools,
+} from './tools.ts';
 
 /**
  * `POST /mcp`, the MCP endpoint (docs/adr/0023-mcp-server.md, docs/api/mcp.md), and the admin status route for the Settings card.
@@ -56,7 +69,12 @@ export type MountOptions = {
   trustedOrigins?: string[] | undefined;
 };
 
-const json = (c: Context, status: 400 | 401 | 403 | 404 | 405 | 413 | 415 | 429, body: Record<string, unknown>, headers: Record<string, string> = {}) => {
+const json = (
+  c: Context,
+  status: 400 | 401 | 403 | 404 | 405 | 413 | 415 | 429,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) => {
   for (const [name, value] of Object.entries(headers)) c.header(name, value);
   c.header('Cache-Control', 'no-store');
   return c.json(body, status);
@@ -74,11 +92,24 @@ const safeOrigin = (value: string | undefined): string | undefined => {
 export function mountMcp(app: Hono<AppEnv>, options: MountOptions): void {
   const { services, flags } = options;
   const enabled = options.deps?.enabled === true;
-  const limiter = options.deps?.limiter ?? createTestLimiter({ limit: MCP_RATE_LIMIT, now: services.now });
-  const badTokens = options.deps?.badTokenLimiter ?? createLoginLimiter({ max: 60, windowMs: 5 * 60_000, now: services.now });
-  const trusted = new Set([safeOrigin(options.publicOrigin), ...(options.trustedOrigins ?? []).map(safeOrigin)].filter((o): o is string => o !== undefined));
+  const limiter =
+    options.deps?.limiter ?? createTestLimiter({ limit: MCP_RATE_LIMIT, now: services.now });
+  const badTokens =
+    options.deps?.badTokenLimiter ??
+    createLoginLimiter({ max: 60, windowMs: 5 * 60_000, now: services.now });
+  const trusted = new Set(
+    [safeOrigin(options.publicOrigin), ...(options.trustedOrigins ?? []).map(safeOrigin)].filter(
+      (o): o is string => o !== undefined,
+    ),
+  );
 
-  app.use('/mcp', bodyLimit({ maxSize: MCP_BODY_LIMIT, onError: (c) => json(c, 413, { error: 'payload_too_large' }) }));
+  app.use(
+    '/mcp',
+    bodyLimit({
+      maxSize: MCP_BODY_LIMIT,
+      onError: (c) => json(c, 413, { error: 'payload_too_large' }),
+    }),
+  );
 
   app.all('/mcp', async (c) => {
     if (!enabled) return json(c, 404, { error: 'not_found' });
@@ -87,28 +118,64 @@ export function mountMcp(app: Hono<AppEnv>, options: MountOptions): void {
     const origin = c.req.header('origin');
     if (origin !== undefined && !trusted.has(origin)) return json(c, 403, { error: 'bad_origin' });
 
-    if (c.req.method !== 'POST') return json(c, 405, { error: 'method_not_allowed', message: 'This server answers POST only (no server initiated stream, no sessions).' }, { Allow: 'POST' });
+    if (c.req.method !== 'POST')
+      return json(
+        c,
+        405,
+        {
+          error: 'method_not_allowed',
+          message: 'This server answers POST only (no server initiated stream, no sessions).',
+        },
+        { Allow: 'POST' },
+      );
 
     const presented = /^Bearer\s+(\S+)$/i.exec(c.req.header('authorization') ?? '')?.[1];
-    const unauthenticated = () => json(c, 401, { error: 'invalid_token', message: 'Send an API token as "Authorization: Bearer mrm_...".' }, { 'WWW-Authenticate': 'Bearer error="invalid_token"' });
+    const unauthenticated = () =>
+      json(
+        c,
+        401,
+        {
+          error: 'invalid_token',
+          message: 'Send an API token as "Authorization: Bearer mrm_...".',
+        },
+        { 'WWW-Authenticate': 'Bearer error="invalid_token"' },
+      );
     if (presented === undefined) return unauthenticated();
 
     const ip = clientIp(c, services.trustProxy);
     const blocked = ip ? badTokens.retryAfter(ip) : 0;
-    if (blocked > 0) return json(c, 429, { error: 'too_many_attempts' }, { 'Retry-After': String(blocked) });
+    if (blocked > 0)
+      return json(c, 429, { error: 'too_many_attempts' }, { 'Retry-After': String(blocked) });
     const principal = await authenticateToken(services.db, presented, services.now());
     if (!principal) {
       if (ip) badTokens.fail(ip);
       return unauthenticated();
     }
     const wait = limiter.take(principal.tokenId);
-    if (wait > 0) return json(c, 429, { error: 'rate_limited', message: 'Too many MCP requests for this token.', retryAfterSeconds: wait }, { 'Retry-After': String(wait) });
+    if (wait > 0)
+      return json(
+        c,
+        429,
+        {
+          error: 'rate_limited',
+          message: 'Too many MCP requests for this token.',
+          retryAfterSeconds: wait,
+        },
+        { 'Retry-After': String(wait) },
+      );
 
     const versionHeader = c.req.header('mcp-protocol-version');
-    if (versionHeader !== undefined && !(SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(versionHeader)) {
-      return json(c, 400, { error: 'unsupported_protocol_version', supported: [...SUPPORTED_PROTOCOL_VERSIONS] });
+    if (
+      versionHeader !== undefined &&
+      !(SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(versionHeader)
+    ) {
+      return json(c, 400, {
+        error: 'unsupported_protocol_version',
+        supported: [...SUPPORTED_PROTOCOL_VERSIONS],
+      });
     }
-    if (!(c.req.header('content-type') ?? '').toLowerCase().includes('json')) return json(c, 415, { error: 'unsupported_media_type', message: 'Send application/json.' });
+    if (!(c.req.header('content-type') ?? '').toLowerCase().includes('json'))
+      return json(c, 415, { error: 'unsupported_media_type', message: 'Send application/json.' });
 
     let message: unknown;
     try {
@@ -123,7 +190,9 @@ export function mountMcp(app: Hono<AppEnv>, options: MountOptions): void {
       principal,
       flags,
       dispatch: dispatcher(app, c.req.header('host'), requestOrigin, presented),
-      origin: options.publicOrigin ? (safeOrigin(options.publicOrigin) ?? requestOrigin) : requestOrigin,
+      origin: options.publicOrigin
+        ? (safeOrigin(options.publicOrigin) ?? requestOrigin)
+        : requestOrigin,
       version: options.version,
       protocolVersion: versionHeader,
       audit: async (entry) => {
@@ -133,7 +202,13 @@ export function mountMcp(app: Hono<AppEnv>, options: MountOptions): void {
             actor: { type: 'user', id: principal.user.id },
             action: 'mcp.tool_call',
             ...(entry.appId ? { target: { type: 'app', id: entry.appId } } : {}),
-            detail: { tool: entry.tool, kind: entry.kind, ok: entry.ok, ...(entry.code ? { code: entry.code } : {}), via: 'mcp' },
+            detail: {
+              tool: entry.tool,
+              kind: entry.kind,
+              ok: entry.ok,
+              ...(entry.code ? { code: entry.code } : {}),
+              via: 'mcp',
+            },
             at: services.now(),
           }),
         );
@@ -142,7 +217,8 @@ export function mountMcp(app: Hono<AppEnv>, options: MountOptions): void {
 
     c.header('Cache-Control', 'no-store');
     if (Array.isArray(message)) {
-      if (message.length === 0 || message.length > MAX_BATCH) return c.json(rpcError(null, ERROR_CODES.invalidRequest, RPC_MESSAGES.invalidRequest), 400);
+      if (message.length === 0 || message.length > MAX_BATCH)
+        return c.json(rpcError(null, ERROR_CODES.invalidRequest, RPC_MESSAGES.invalidRequest), 400);
       const answers: JsonRpcResponse[] = [];
       for (const item of message) {
         const answer = await handleMessage(ctx, item);
@@ -169,7 +245,10 @@ export function mcpStatus(enabled: boolean, flags: McpFlags) {
     endpoint: '/mcp',
     protocolVersion: LATEST_PROTOCOL_VERSION,
     envName: 'MRM_MCP_ENABLED',
-    switches: (Object.keys(FLAG_ENV) as (keyof McpFlags)[]).map((key) => ({ env: FLAG_ENV[key], enabled: flags[key] })),
+    switches: (Object.keys(FLAG_ENV) as (keyof McpFlags)[]).map((key) => ({
+      env: FLAG_ENV[key],
+      enabled: flags[key],
+    })),
     tools: tools
       .filter((t) => t.kind !== 'meta')
       .map((t) => {
@@ -179,12 +258,18 @@ export function mcpStatus(enabled: boolean, flags: McpFlags) {
           title: t.title,
           description: t.description,
           kind: t.kind as 'read' | 'write' | 'preview',
-          action: operation && typeof operation.access === 'object' ? operation.access.action : null,
+          action:
+            operation && typeof operation.access === 'object' ? operation.access.action : null,
           switch: t.flag ? FLAG_ENV[t.flag] : null,
           switchOn: t.flag ? flags[t.flag] : true,
         };
       }),
-    preset: { name: 'MCP read-only', role: 'viewer' as const, actions: readOnlyActions(), expiresInDays: 90 },
+    preset: {
+      name: 'MCP read-only',
+      role: 'viewer' as const,
+      actions: readOnlyActions(),
+      expiresInDays: 90,
+    },
   };
 }
 
@@ -192,7 +277,12 @@ export function mcpStatus(enabled: boolean, flags: McpFlags) {
  * Runs a request against the app itself, as the caller: the same bearer token, no cookie. Everything the API does for a token happens
  * (middleware, the operation allow-list, the role ceiling, app restriction, rate limit, audit attribution), because this IS an API call.
  */
-function dispatcher(app: Hono<AppEnv>, host: string | undefined, origin: string, token: string): Dispatch {
+function dispatcher(
+  app: Hono<AppEnv>,
+  host: string | undefined,
+  origin: string,
+  token: string,
+): Dispatch {
   return async ({ method, path, query, body }): Promise<DispatchResult> => {
     const url = new URL(path, origin);
     for (const [name, value] of Object.entries(query ?? {})) {
@@ -202,7 +292,11 @@ function dispatcher(app: Hono<AppEnv>, host: string | undefined, origin: string,
     const headers = new Headers({ authorization: `Bearer ${token}`, accept: 'application/json' });
     if (host) headers.set('host', host);
     if (body !== undefined) headers.set('content-type', 'application/json');
-    const request = new Request(url, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const request = new Request(url, {
+      method,
+      headers,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const response = await Promise.race([
@@ -212,7 +306,8 @@ function dispatcher(app: Hono<AppEnv>, host: string | undefined, origin: string,
         }),
       ]);
       const text = await response.text();
-      if (text.length > MAX_ROUTE_ANSWER) return { status: 413, body: { error: 'payload_too_large' } };
+      if (text.length > MAX_ROUTE_ANSWER)
+        return { status: 413, body: { error: 'payload_too_large' } };
       let parsed: unknown = {};
       try {
         parsed = text ? JSON.parse(text) : {};

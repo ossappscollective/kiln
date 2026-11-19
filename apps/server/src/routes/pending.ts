@@ -1,19 +1,43 @@
 import { type Action, can, canToken } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { requireStepUp } from '../services/step-up.ts';
-import { getPending, pendingSummary, PUBLISH_STEPS } from '../services/pending.ts';
-import type { Failure } from '../services/repositories.ts';
-import { type DraftConnectorFactory, type DraftContext, defaultDraftConnectorFactory } from '../services/store-draft.ts';
-import { type PublishContext, type PublishRights, type StepRequest, STEP_ACTION, applyPublish, previewPublish, publishConfig } from '../services/store-publish.ts';
-import { type ReleaseConnectorFactory, type ReleaseContext, defaultReleaseConnectorFactory } from '../services/store-release.ts';
-import { type RolloutConnectorFactory, type RolloutContext, defaultRolloutConnectorFactory } from '../services/store-rollout.ts';
-import { type SubmitConnectorFactory, type SubmitContext, defaultSubmitConnectorFactory } from '../services/store-submit.ts';
 import type { AssetsContext } from '../services/asset-repo.ts';
+import { getPending, PUBLISH_STEPS, pendingSummary } from '../services/pending.ts';
+import type { Failure } from '../services/repositories.ts';
+import { requireStepUp } from '../services/step-up.ts';
+import {
+  type DraftConnectorFactory,
+  type DraftContext,
+  defaultDraftConnectorFactory,
+} from '../services/store-draft.ts';
+import {
+  applyPublish,
+  type PublishContext,
+  type PublishRights,
+  previewPublish,
+  publishConfig,
+  STEP_ACTION,
+  type StepRequest,
+} from '../services/store-publish.ts';
+import {
+  defaultReleaseConnectorFactory,
+  type ReleaseConnectorFactory,
+  type ReleaseContext,
+} from '../services/store-release.ts';
+import {
+  defaultRolloutConnectorFactory,
+  type RolloutConnectorFactory,
+  type RolloutContext,
+} from '../services/store-rollout.ts';
+import {
+  defaultSubmitConnectorFactory,
+  type SubmitConnectorFactory,
+  type SubmitContext,
+} from '../services/store-submit.ts';
 
 /**
  * Everything an app has pending, and publishing it in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md).
@@ -37,10 +61,30 @@ export type PendingRoutesContext = {
     claimTtlMs?: number;
   };
   /** The same seams as the individual steps (fakes in tests), so the batch reaches the stores the way they do. */
-  draft?: { enabled?: boolean; connectorFactory?: DraftConnectorFactory; timeoutMs?: number; claimTtlMs?: number };
-  submit?: { enabled?: boolean; connectorFactory?: SubmitConnectorFactory; timeoutMs?: number; claimTtlMs?: number };
-  release?: { enabled?: boolean; connectorFactory?: ReleaseConnectorFactory; timeoutMs?: number; claimTtlMs?: number };
-  rollout?: { enabled?: boolean; connectorFactory?: RolloutConnectorFactory; timeoutMs?: number; claimTtlMs?: number };
+  draft?: {
+    enabled?: boolean;
+    connectorFactory?: DraftConnectorFactory;
+    timeoutMs?: number;
+    claimTtlMs?: number;
+  };
+  submit?: {
+    enabled?: boolean;
+    connectorFactory?: SubmitConnectorFactory;
+    timeoutMs?: number;
+    claimTtlMs?: number;
+  };
+  release?: {
+    enabled?: boolean;
+    connectorFactory?: ReleaseConnectorFactory;
+    timeoutMs?: number;
+    claimTtlMs?: number;
+  };
+  rollout?: {
+    enabled?: boolean;
+    connectorFactory?: RolloutConnectorFactory;
+    timeoutMs?: number;
+    claimTtlMs?: number;
+  };
 };
 
 const param = (c: Context<AppEnv>, name: string) => c.req.param(name) ?? '';
@@ -56,7 +100,11 @@ const hash64 = /^[0-9a-f]{64}$/;
 const releaseFields = {
   version: z.string().min(1).max(40).optional(),
   track: z.string().min(1).max(100).optional(),
-  versionCodes: z.array(z.string().regex(/^[0-9]{1,12}$/, 'A version code is a whole number.')).min(1).max(50).optional(),
+  versionCodes: z
+    .array(z.string().regex(/^[0-9]{1,12}$/, 'A version code is a whole number.'))
+    .min(1)
+    .max(50)
+    .optional(),
   userFraction: z.number().finite().optional(),
 };
 /** One step of a batch. Which fields apply is checked per step; a field a step does not take is `422 invalid_steps`. */
@@ -64,9 +112,14 @@ export const stepSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('push_draft') }).strict(),
   z.object({ type: z.literal('submit') }).strict(),
   z.object({ type: z.literal('release'), ...releaseFields }).strict(),
-  z.object({ type: z.literal('rollout'), action: z.string().min(1).max(40), ...releaseFields }).strict(),
+  z
+    .object({ type: z.literal('rollout'), action: z.string().min(1).max(40), ...releaseFields })
+    .strict(),
 ]);
-export const publishPreviewBody = z.object({ steps: z.array(stepSchema).min(1).max(4).optional() }).strict().optional();
+export const publishPreviewBody = z
+  .object({ steps: z.array(stepSchema).min(1).max(4).optional() })
+  .strict()
+  .optional();
 export const publishApplyBody = z
   .object({
     planHash: z.string().regex(hash64, 'The planHash of a preview, 64 hexadecimal characters.'),
@@ -143,22 +196,36 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
   const rightsOf = (c: Context<AppEnv>): PublishRights => {
     const role = c.get('role');
     const token = c.get('token');
-    const allowed = (action: Action) => can(role, action) && (token === undefined || canToken(token.ceiling, token.actions as Action[] | null, action));
-    return Object.fromEntries(PUBLISH_STEPS.map((step) => [step, allowed(STEP_ACTION[step])])) as PublishRights;
+    const allowed = (action: Action) =>
+      can(role, action) &&
+      (token === undefined || canToken(token.ceiling, token.actions as Action[] | null, action));
+    return Object.fromEntries(
+      PUBLISH_STEPS.map((step) => [step, allowed(STEP_ACTION[step])]),
+    ) as PublishRights;
   };
 
-  routes.get('/:workspaceId/store-publish/config', needs('apps.read'), (c) => c.json(publishConfig(publish)));
+  routes.get('/:workspaceId/store-publish/config', needs('apps.read'), (c) =>
+    c.json(publishConfig(publish)),
+  );
 
   // Stored state only: no store and no repository is read, so these are cheap and need no switch.
   routes.get('/:workspaceId/apps/:id/pending', needs('listing.read'), async (c) => {
-    const done = await getPending(db, { workspaceId: ws(c), appId: param(c, 'id'), now: ctx.now() });
+    const done = await getPending(db, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      now: ctx.now(),
+    });
     c.header('Cache-Control', 'no-store');
     return done.ok ? c.json({ pending: done.pending }) : respond(c, done);
   });
 
   routes.get('/:workspaceId/pending/summary', needs('listing.read'), async (c) => {
     const tokenApps = c.get('token')?.appIds ?? undefined;
-    const summary = await pendingSummary(db, { workspaceId: ws(c), ...(tokenApps ? { appIds: tokenApps as string[] } : {}), now: ctx.now() });
+    const summary = await pendingSummary(db, {
+      workspaceId: ws(c),
+      ...(tokenApps ? { appIds: tokenApps as string[] } : {}),
+      now: ctx.now(),
+    });
     c.header('Cache-Control', 'no-store');
     return c.json(summary);
   });
@@ -179,7 +246,10 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
 
   // The only route that runs several gated store steps. One app per request: no bulk publish.
   routes.post('/:workspaceId/apps/:id/publish', needs('store.publish'), async (c) => {
-    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.publish', { id: param(c, 'id'), hashField: 'planHash' });
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.publish', {
+      id: param(c, 'id'),
+      hashField: 'planHash',
+    });
     if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, publishApplyBody);
     if (!body.ok) return body.response;

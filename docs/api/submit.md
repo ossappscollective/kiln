@@ -8,7 +8,7 @@ Design and the arguments: [ADR 0010](../adr/0010-store-submit.md).
 - **It cannot be taken back from this server.** A submission is cancelled only in App Store Connect, a review
   is cancelled only in Play Console.
 - **It never releases anything.** Releasing is a separate step with its own switch and right ([releases-write](releases-write.md)). An App Store version stays unreleased after approval until somebody
-  releases it in App Store Connect; a version whose release type is not manual is *blocked*, not changed. Google
+  releases it in App Store Connect; a version whose release type is not manual is _blocked_, not changed. Google
   Play tracks are read, never written: a submit cannot start, raise or complete a rollout.
 - **Never run against a real store**: the connectors are tested with fakes only. See
   [UNVERIFIED](#unverified-check-with-a-real-account).
@@ -18,10 +18,10 @@ Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404, a membe
 
 ## Switch and right
 
-| Setting | Value |
-| --- | --- |
+| Setting                    | Value                                                                                                                                                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MRM_STORE_SUBMIT_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** `MRM_STORE_DRAFT_WRITE_ENABLED`: drafts on does not turn submitting on. See [deployment](../deployment.md#submitting-a-draft-for-store-review-a-store-write-off-by-default). |
-| `store.submit` | **admin and up** (owner, admin). Explicit-only on API tokens: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Not `store.push_draft`: being allowed to push is not being allowed to submit. |
+| `store.submit`             | **admin and up** (owner, admin). Explicit-only on API tokens: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Not `store.push_draft`: being allowed to push is not being allowed to submit. |
 
 ## The flow
 
@@ -82,7 +82,7 @@ to), `no_version`, `already_submitted`, `release_not_manual` (App Store only: th
 or its release type could not be read), `no_build`, `build_expired`, `build_not_valid`, `no_locales`,
 `no_screenshots`, `missing_text` (a field the listing specs mark as required and verified is empty),
 `image_not_ready` (an image that is not processed), `asset_spec` (a documented spec is broken: sizes and counts
-as the store lists them, `rule` and `source` are those of the spec; only a *verified* rule blocks),
+as the store lists them, `rule` and `source` are those of the spec; only a _verified_ rule blocks),
 `draft_unreadable`, `push_in_progress`, `push_outcome_unknown`.
 
 Warnings: `locale_without_screenshots`, `missing_text` / `asset_spec` for unverified rules, `open_review_submission`
@@ -106,23 +106,23 @@ previewed, nothing is written. Otherwise exactly one submit is sent. **It is nev
   `changesInReviewBehavior=ERROR_IF_IN_REVIEW` (a review in progress is never cancelled). No track, listing or image
   is written.
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 409 | `store_submit_disabled` | The kill switch is off. |
-| 409 | `nothing_pushed` | No successful draft push is recorded. |
-| 422 | `confirmation_mismatch` (`phrase`) | The typed text is not the phrase. Nothing was read or written. |
-| 409 | `blocked` (`checks`) | A blocking check stands on the fresh read. Nothing was submitted. |
-| 409 | `state_changed` (`preview`) | The store is not what was previewed (version, build, listing, draft, tracks). Nothing was submitted; confirm the new preview. |
-| 409 | `write_in_progress` | A submit, or a draft push, for this app is running. |
-| 409 | `push_outcome_unknown` | The last draft push has an unknown outcome. Preview that push again first. |
-| 409 | `outcome_unknown` | The submit's answer was lost and could not be settled (see below). Look in the console, then preview again. |
-| 502 | `write_failed` (`outcome: not_applied`) | App Store: the store did not answer, and reading it back shows the version was not submitted. |
-| 409 | `changes_in_review` | Google Play: changes are already in review; nothing was sent. |
-| 422 | `no_editable_version`, `store_auth`, `store_forbidden`, `store_not_found`, `store_rejected` | The store refused; the message is redacted. |
-| 429 | `rate_limited` | `Retry-After` is set. Never retried here. |
-| 502 | `store_unavailable` | Network or 5xx before anything was sent. |
-| 504 | `timeout` | A read did not answer in time. |
-| 422 | `credential_*`, `app_not_synced` | The credential is of the wrong kind, cannot be read, or the App Store id is unknown. |
+| Status | `error`                                                                                     | Meaning                                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 409    | `store_submit_disabled`                                                                     | The kill switch is off.                                                                                                       |
+| 409    | `nothing_pushed`                                                                            | No successful draft push is recorded.                                                                                         |
+| 422    | `confirmation_mismatch` (`phrase`)                                                          | The typed text is not the phrase. Nothing was read or written.                                                                |
+| 409    | `blocked` (`checks`)                                                                        | A blocking check stands on the fresh read. Nothing was submitted.                                                             |
+| 409    | `state_changed` (`preview`)                                                                 | The store is not what was previewed (version, build, listing, draft, tracks). Nothing was submitted; confirm the new preview. |
+| 409    | `write_in_progress`                                                                         | A submit, or a draft push, for this app is running.                                                                           |
+| 409    | `push_outcome_unknown`                                                                      | The last draft push has an unknown outcome. Preview that push again first.                                                    |
+| 409    | `outcome_unknown`                                                                           | The submit's answer was lost and could not be settled (see below). Look in the console, then preview again.                   |
+| 502    | `write_failed` (`outcome: not_applied`)                                                     | App Store: the store did not answer, and reading it back shows the version was not submitted.                                 |
+| 409    | `changes_in_review`                                                                         | Google Play: changes are already in review; nothing was sent.                                                                 |
+| 422    | `no_editable_version`, `store_auth`, `store_forbidden`, `store_not_found`, `store_rejected` | The store refused; the message is redacted.                                                                                   |
+| 429    | `rate_limited`                                                                              | `Retry-After` is set. Never retried here.                                                                                     |
+| 502    | `store_unavailable`                                                                         | Network or 5xx before anything was sent.                                                                                      |
+| 504    | `timeout`                                                                                   | A read did not answer in time.                                                                                                |
+| 422    | `credential_*`, `app_not_synced`                                                            | The credential is of the wrong kind, cannot be read, or the App Store id is unknown.                                          |
 
 ### An unknown outcome
 

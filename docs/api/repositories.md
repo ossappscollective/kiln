@@ -12,13 +12,13 @@ contents or secrets).
 
 ## Rights
 
-| Action | viewer | member | admin / owner |
-| --- | --- | --- | --- |
-| `repositories.read`: list and read stored repositories and change sets | yes | yes | yes |
-| `repositories.scan`: scan a repository, read its listing from GitHub | no | yes | yes |
-| `changesets.write`: create a draft, discard your own draft | no | yes | yes |
-| `repositories.write`: connect and disconnect repositories, attach, change and detach local clones, add, change and delete listing targets | no | no | yes |
-| `changesets.approve`: approve, apply (either mode) and push, discard anyone's | no | no | yes |
+| Action                                                                                                                                    | viewer | member | admin / owner |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ------------- |
+| `repositories.read`: list and read stored repositories and change sets                                                                    | yes    | yes    | yes           |
+| `repositories.scan`: scan a repository, read its listing from GitHub                                                                      | no     | yes    | yes           |
+| `changesets.write`: create a draft, discard your own draft                                                                                | no     | yes    | yes           |
+| `repositories.write`: connect and disconnect repositories, attach, change and detach local clones, add, change and delete listing targets | no     | no     | yes           |
+| `changesets.approve`: approve, apply (either mode) and push, discard anyone's                                                             | no     | no     | yes           |
 
 Only admins and owners can approve, so a creator who is an admin or owner may approve their own
 change set; a member never can. Approval and apply are recorded with the person who did them.
@@ -320,22 +320,22 @@ Wrong state: `409 { error: "invalid_state", status }`.
 Errors of `mode: "local_branch"` (nothing was written to the repository unless it says so; the
 change set stays `approved`):
 
-| When | HTTP | `error` |
-| --- | --- | --- |
-| `MRM_LOCAL_REPO_WRITE` is not `true` | 409 | `local_write_disabled` (with `envName`) |
-| no local clone attached | 409 | `no_local_checkout` |
-| `github_pr`, or `push` / `openPr`, on a local-only repository (no GitHub connection) | 409 | `local_only` |
-| the clone's `origin` is not the connected GitHub repository (push only) | 409 | `remote_mismatch` with `origin` and `repository` |
-| bad branch name; `openPr` without `push` | 422 / 422 | `invalid_branch` / `invalid_request` |
-| the branch already exists | 409 | `branch_exists` |
-| a file changed in the clone since the draft | 409 | `base_changed` with `paths` (discard and read again) |
-| nothing would change; a path the rules refuse; a symlink or submodule in the way; a file too large | 422 | `no_changes`, `invalid_file_path`, `path_conflict`, `unsupported_entry`, `too_large` |
-| the folder cannot be used (outside the roots, moved, not a repository, branch deleted, detached HEAD) | 422 | `local_` plus the code, `local_branch_missing` (see Local clones) |
-| `MRM_LOCAL_REPO_ROOTS` unset, or `MRM_READS=api`, or git missing | 409 | `local_not_enabled`, `local_reads_disabled`, `local_git_missing` |
-| git ran too long | 504 | `timeout` |
-| signing is on (`MRM_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed` |
-| another apply is running | 409 | `apply_in_progress` |
-| git failed in a way that was not expected | 502 | `local_git_failed` |
+| When                                                                                                  | HTTP                   | `error`                                                                              |
+| ----------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
+| `MRM_LOCAL_REPO_WRITE` is not `true`                                                                  | 409                    | `local_write_disabled` (with `envName`)                                              |
+| no local clone attached                                                                               | 409                    | `no_local_checkout`                                                                  |
+| `github_pr`, or `push` / `openPr`, on a local-only repository (no GitHub connection)                  | 409                    | `local_only`                                                                         |
+| the clone's `origin` is not the connected GitHub repository (push only)                               | 409                    | `remote_mismatch` with `origin` and `repository`                                     |
+| bad branch name; `openPr` without `push`                                                              | 422 / 422              | `invalid_branch` / `invalid_request`                                                 |
+| the branch already exists                                                                             | 409                    | `branch_exists`                                                                      |
+| a file changed in the clone since the draft                                                           | 409                    | `base_changed` with `paths` (discard and read again)                                 |
+| nothing would change; a path the rules refuse; a symlink or submodule in the way; a file too large    | 422                    | `no_changes`, `invalid_file_path`, `path_conflict`, `unsupported_entry`, `too_large` |
+| the folder cannot be used (outside the roots, moved, not a repository, branch deleted, detached HEAD) | 422                    | `local_` plus the code, `local_branch_missing` (see Local clones)                    |
+| `MRM_LOCAL_REPO_ROOTS` unset, or `MRM_READS=api`, or git missing                                      | 409                    | `local_not_enabled`, `local_reads_disabled`, `local_git_missing`                     |
+| git ran too long                                                                                      | 504                    | `timeout`                                                                            |
+| signing is on (`MRM_GIT_SIGN`) and failed: no key, key locked, program missing, no answer in time     | 502 (504 on a timeout) | `signing_failed` with `reason`: `timeout`, `locked`, `key`, `program` or `failed`    |
+| another apply is running                                                                              | 409                    | `apply_in_progress`                                                                  |
+| git failed in a way that was not expected                                                             | 502                    | `local_git_failed`                                                                   |
 
 **Signing.** With `MRM_GIT_SIGN=ssh` or `gpg` the server signs the commit with its own key (set at
 start, never read from the clone or the user's git config). A failure to sign is **not** answered by
@@ -355,16 +355,16 @@ does).
 Apply failures set `status: "failed"` with `error` text, except a rate limit, which puts it back
 to `approved` (nothing was written) so it can be retried:
 
-| GitHub | HTTP | `error` |
-| --- | --- | --- |
-| files changed since the draft | 409 | `change_conflict` with `paths` and a hint to refresh the change set (or discard and re-read) |
-| rate limit | 429 | `rate_limited`, `retryAfterSeconds`, `Retry-After` header |
-| branch exists, default branch, repo already matches | 409 | `branch_exists`, `default_branch`, `no_changes` |
-| refused input, blocked path (`.github/`), not text | 422 | `github_invalid` |
-| credential refused, no access, repository gone | 422 | `github_auth`, `github_forbidden`, `github_not_found`; credential deleted: `credential_not_found` |
-| branch made, PR failed | 502 | `pull_request_failed`, `branch` and `commitSha` kept on the change set |
-| GitHub down, network | 502 | `github_unavailable` |
-| timeout | 504 | `timeout`; the change set stays `applying` (see below) |
+| GitHub                                              | HTTP | `error`                                                                                           |
+| --------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------- |
+| files changed since the draft                       | 409  | `change_conflict` with `paths` and a hint to refresh the change set (or discard and re-read)      |
+| rate limit                                          | 429  | `rate_limited`, `retryAfterSeconds`, `Retry-After` header                                         |
+| branch exists, default branch, repo already matches | 409  | `branch_exists`, `default_branch`, `no_changes`                                                   |
+| refused input, blocked path (`.github/`), not text  | 422  | `github_invalid`                                                                                  |
+| credential refused, no access, repository gone      | 422  | `github_auth`, `github_forbidden`, `github_not_found`; credential deleted: `credential_not_found` |
+| branch made, PR failed                              | 502  | `pull_request_failed`, `branch` and `commitSha` kept on the change set                            |
+| GitHub down, network                                | 502  | `github_unavailable`                                                                              |
+| timeout                                             | 504  | `timeout`; the change set stays `applying` (see below)                                            |
 
 **Timeout of apply.** After the timeout the server aborts the connector: no further request is
 sent and the one in flight is cancelled (the pull request step is finished once a branch exists,
@@ -393,12 +393,12 @@ A change set stores, per file, `before` (the text it was made from, the **base**
 text it proposes, **ours**). A refresh reads each file again (**theirs**: from the local clone or
 the GitHub API, like a scan, with the stored credential) and compares:
 
-| State | Meaning | Refresh does |
-| --- | --- | --- |
-| `same` | the repository still has `before` | nothing; the file stays |
-| `already_applied` | the repository already has `after` (or the merge equals it) | drops the file from the set |
-| `changed` | the repository changed the file, elsewhere than we did | a three-way merge; the clean result becomes the new `after` and the repository's text the new `before` |
-| `conflict` | both changed the same place | reported, nothing changed, until the person chooses |
+| State             | Meaning                                                     | Refresh does                                                                                           |
+| ----------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `same`            | the repository still has `before`                           | nothing; the file stays                                                                                |
+| `already_applied` | the repository already has `after` (or the merge equals it) | drops the file from the set                                                                            |
+| `changed`         | the repository changed the file, elsewhere than we did      | a three-way merge; the clean result becomes the new `after` and the repository's text the new `before` |
+| `conflict`        | both changed the same place                                 | reported, nothing changed, until the person chooses                                                    |
 
 The merge (`services/text-merge.ts`) is a line based diff3 with no dependency and is deterministic.
 Lines keep their terminators, so CRLF stays CRLF. Two edits that touch or overlap the same lines
@@ -453,7 +453,11 @@ only; `422` for a GitHub pull request), `dryRun` (work everything out, write not
 the content from the live store listing, store pulls only; needs `listing.read`).
 
 ```json
-{ "branchResolutions": { "fastlane/metadata/en-US/description.txt": "mine" }, "push": true, "dryRun": false }
+{
+  "branchResolutions": { "fastlane/metadata/en-US/description.txt": "mine" },
+  "push": true,
+  "dryRun": false
+}
 ```
 
 Answer `200`: `{ changeSet, mode, branch, nothingToFix, files, refreshedFrom, tip, willCommit, commit?,

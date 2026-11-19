@@ -1,8 +1,8 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import {
-  type Resolver,
   checkWebhookUrl,
+  type Resolver,
   resolveAllowed,
   sameAddress,
 } from './webhook-transport.ts';
@@ -66,7 +66,14 @@ export type SafeGetOptions = {
 
 export type SafeGetResult =
   | { ok: true; status: number; body: Uint8Array; contentType: string | null; finalUrl: string }
-  | { ok: false; kind: 'blocked' | 'dns' | 'timeout' | 'network' | 'status' | 'too_large' | 'redirect'; message: string; transient: boolean; status?: number; /** The Retry-After header of a refusal, as sent. */ retryAfter?: string };
+  | {
+      ok: false;
+      kind: 'blocked' | 'dns' | 'timeout' | 'network' | 'status' | 'too_large' | 'redirect';
+      message: string;
+      transient: boolean;
+      status?: number /** The Retry-After header of a refusal, as sent. */;
+      retryAfter?: string;
+    };
 
 export const SAFE_GET_TIMEOUT_MS = 10_000;
 
@@ -114,7 +121,14 @@ export const realExchange: Exchange = (request) =>
       if (Number.isFinite(declared) && declared > request.maxBytes) {
         res.destroy();
         req.destroy();
-        return done(() => resolve({ status: res.statusCode ?? 0, headers: {}, body: new Uint8Array(0), overflow: true }));
+        return done(() =>
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: {},
+            body: new Uint8Array(0),
+            overflow: true,
+          }),
+        );
       }
       const chunks: Buffer[] = [];
       let size = 0;
@@ -123,7 +137,14 @@ export const realExchange: Exchange = (request) =>
         headers[name.toLowerCase()] = Array.isArray(value) ? value[0] : value;
       }
       const finish = (overflow: boolean) =>
-        done(() => resolve({ status: res.statusCode ?? 0, headers, body: new Uint8Array(Buffer.concat(chunks)), overflow }));
+        done(() =>
+          resolve({
+            status: res.statusCode ?? 0,
+            headers,
+            body: new Uint8Array(Buffer.concat(chunks)),
+            overflow,
+          }),
+        );
       res.on('data', (chunk: Buffer) => {
         size += chunk.length;
         if (size > request.maxBytes) {
@@ -159,16 +180,27 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
     let current = rawUrl;
     for (let hop = 0; hop <= maxRedirects; hop += 1) {
       const check = checkWebhookUrl(current, options.allowPrivate ? { allowPrivate: true } : {});
-      if (!check.ok) return { ok: false, kind: 'blocked', message: check.message, transient: false };
+      if (!check.ok)
+        return { ok: false, kind: 'blocked', message: check.message, transient: false };
       if (!options.allowHost(check.hostname)) {
-        return { ok: false, kind: hop === 0 ? 'blocked' : 'redirect', message: 'That host is not allowed.', transient: false };
+        return {
+          ok: false,
+          kind: hop === 0 ? 'blocked' : 'redirect',
+          message: 'That host is not allowed.',
+          transient: false,
+        };
       }
       const resolved = await resolveAllowed(check, {
         ...(options.allowPrivate ? { allowPrivate: true } : {}),
         ...(options.resolve ? { resolve: options.resolve } : {}),
       });
       if (!resolved.ok) {
-        return { ok: false, kind: resolved.transient ? 'dns' : 'blocked', message: resolved.message, transient: resolved.transient };
+        return {
+          ok: false,
+          kind: resolved.transient ? 'dns' : 'blocked',
+          message: resolved.message,
+          transient: resolved.transient,
+        };
       }
       if (controller.signal.aborted) {
         return { ok: false, kind: 'timeout', message: 'The request was stopped.', transient: true };
@@ -181,32 +213,66 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           family: resolved.family,
           secure: check.url.protocol === 'https:',
           ...(check.literal ? {} : { servername: check.hostname }),
-          headers: { accept: options.accept ?? '*/*', 'accept-encoding': 'identity', 'user-agent': options.userAgent ?? 'mobile-release-manager' },
+          headers: {
+            accept: options.accept ?? '*/*',
+            'accept-encoding': 'identity',
+            'user-agent': options.userAgent ?? 'mobile-release-manager',
+          },
           maxBytes: options.maxBytes,
           signal: controller.signal,
         });
       } catch {
         if (controller.signal.aborted) {
-          return { ok: false, kind: 'timeout', message: `No answer within ${Math.round(timeoutMs / 1000)} seconds.`, transient: true };
+          return {
+            ok: false,
+            kind: 'timeout',
+            message: `No answer within ${Math.round(timeoutMs / 1000)} seconds.`,
+            transient: true,
+          };
         }
         return { ok: false, kind: 'network', message: 'The connection failed.', transient: true };
       }
       if (REDIRECTS.has(res.status)) {
         const location = res.headers.location;
-        if (!location) return { ok: false, kind: 'redirect', message: 'A redirect without a location.', transient: false, status: res.status };
+        if (!location)
+          return {
+            ok: false,
+            kind: 'redirect',
+            message: 'A redirect without a location.',
+            transient: false,
+            status: res.status,
+          };
         let next: URL;
         try {
           next = new URL(location, check.url);
         } catch {
-          return { ok: false, kind: 'redirect', message: 'A redirect to an invalid URL.', transient: false, status: res.status };
+          return {
+            ok: false,
+            kind: 'redirect',
+            message: 'A redirect to an invalid URL.',
+            transient: false,
+            status: res.status,
+          };
         }
         if (check.url.protocol === 'https:' && next.protocol !== 'https:') {
-          return { ok: false, kind: 'redirect', message: 'A redirect from https to plain http.', transient: false, status: res.status };
+          return {
+            ok: false,
+            kind: 'redirect',
+            message: 'A redirect from https to plain http.',
+            transient: false,
+            status: res.status,
+          };
         }
         current = next.toString();
         continue;
       }
-      if (res.overflow) return { ok: false, kind: 'too_large', message: `The answer is larger than ${options.maxBytes} bytes.`, transient: false };
+      if (res.overflow)
+        return {
+          ok: false,
+          kind: 'too_large',
+          message: `The answer is larger than ${options.maxBytes} bytes.`,
+          transient: false,
+        };
       if (res.status !== 200) {
         return {
           ok: false,
@@ -214,10 +280,18 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           message: `The server answered ${res.status}.`,
           transient: res.status >= 500 || res.status === 429,
           status: res.status,
-          ...(res.headers['retry-after'] ? { retryAfter: res.headers['retry-after'].slice(0, 100) } : {}),
+          ...(res.headers['retry-after']
+            ? { retryAfter: res.headers['retry-after'].slice(0, 100) }
+            : {}),
         };
       }
-      return { ok: true, status: 200, body: res.body, contentType: res.headers['content-type'] ?? null, finalUrl: check.url.toString() };
+      return {
+        ok: true,
+        status: 200,
+        body: res.body,
+        contentType: res.headers['content-type'] ?? null,
+        finalUrl: check.url.toString(),
+      };
     }
     return { ok: false, kind: 'redirect', message: 'Too many redirects.', transient: false };
   } finally {

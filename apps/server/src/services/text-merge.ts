@@ -34,7 +34,11 @@ export function splitLines(text: string): string[] {
 type Hunk = { bs: number; be: number; xs: number; xe: number };
 
 /** Index pairs of equal lines (ascending), or undefined when the diff has more than `maxEdits` edits. */
-function matchingLines(a: readonly string[], b: readonly string[], maxEdits: number): [number, number][] | undefined {
+function matchingLines(
+  a: readonly string[],
+  b: readonly string[],
+  maxEdits: number,
+): [number, number][] | undefined {
   let prefix = 0;
   while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
   let suffix = 0;
@@ -129,7 +133,11 @@ function myers(
 }
 
 /** The stretches of base that a side changed, in order: base lines [bs, be) became side lines [xs, xe). */
-function hunksOf(pairs: readonly [number, number][], baseLength: number, sideLength: number): Hunk[] {
+function hunksOf(
+  pairs: readonly [number, number][],
+  baseLength: number,
+  sideLength: number,
+): Hunk[] {
   const hunks: Hunk[] = [];
   let bi = 0;
   let xi = 0;
@@ -138,7 +146,8 @@ function hunksOf(pairs: readonly [number, number][], baseLength: number, sideLen
     bi = i + 1;
     xi = j + 1;
   }
-  if (baseLength > bi || sideLength > xi) hunks.push({ bs: bi, be: baseLength, xs: xi, xe: sideLength });
+  if (baseLength > bi || sideLength > xi)
+    hunks.push({ bs: bi, be: baseLength, xs: xi, xe: sideLength });
   return hunks;
 }
 
@@ -154,7 +163,12 @@ const sameLines = (a: readonly string[], b: readonly string[]): boolean =>
  * Merges `ours` and `theirs`, which both come from `base`. A side that did not change gives way
  * to the other, and the same change on both sides is made once.
  */
-export function mergeText(base: string, ours: string, theirs: string, options: MergeOptions = {}): MergeResult {
+export function mergeText(
+  base: string,
+  ours: string,
+  theirs: string,
+  options: MergeOptions = {},
+): MergeResult {
   if (ours === theirs) return { ok: true, text: ours };
   if (base === ours) return { ok: true, text: theirs };
   if (base === theirs) return { ok: true, text: ours };

@@ -1,6 +1,6 @@
 import { type Platform, sortPlatforms } from '@mrm/core';
-import { findSiblings } from './release.ts';
 import { sortApps } from './portfolio.ts';
+import { findSiblings } from './release.ts';
 import type { AppSummary } from './types.ts';
 
 /**
@@ -27,7 +27,15 @@ const make = (members: AppSummary[]): AppGroup => {
   const platforms = sortPlatforms(members.map((m) => m.platform));
   const ordered = platforms.map((p) => of(p) as AppSummary);
   const first = ordered[0] as AppSummary;
-  return { key: first.id, name: first.name, ios: of('ios'), macos: of('macos'), android: of('android'), members: ordered, platforms };
+  return {
+    key: first.id,
+    name: first.name,
+    ios: of('ios'),
+    macos: of('macos'),
+    android: of('android'),
+    members: ordered,
+    platforms,
+  };
 };
 
 /** Joins apps into groups, sorted by name. A record with no safe partner is a group of one. */

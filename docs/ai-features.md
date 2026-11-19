@@ -11,16 +11,16 @@ is **not drawn at all** while it is off, or for a role that may not use it.
 
 ## Where things are
 
-| Where | What | Task |
-| --- | --- | --- |
-| App, Reviews, under the rating summary | **Summarise**, **What to fix next**, **Tag reviews** and a period (7, 30, 90 days). The reports open in a tray of that app; tags show as small labels on each review | `review_summary`, `fix_next`, `review_classify` |
-| A review, "Reply" | **Draft reply** (existing). The tone and voice come from the app's AI context | `review_reply_draft` |
-| Insights, ASO, overview | **ASO health report** per app with data | `aso_health` |
-| Insights, ASO, Ideas | **Suggest keywords** (existing) and **Ideas from reviews** | `keyword_ideas`, `keyword_ideas_reviews` |
-| Insights, ASO, Store listing, under the terms of an app | **Audit this language**, **Suggest variants**, **Translate into this language** (from another stored language), with an optional goal | `listing_audit`, `listing_variants`, `listing_translate` |
-| Listing, a field of a language | **Improve** (existing) | `listing_improve` |
-| App settings, "AI assistant" | The **AI context** of the app (admins edit, members read) | none |
-| Workspace settings, "AI assistant" | Provider, model, key, token budget, **soft warning**, **prices and cost cap**, usage by task | none |
+| Where                                                   | What                                                                                                                                                                 | Task                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| App, Reviews, under the rating summary                  | **Summarise**, **What to fix next**, **Tag reviews** and a period (7, 30, 90 days). The reports open in a tray of that app; tags show as small labels on each review | `review_summary`, `fix_next`, `review_classify`          |
+| A review, "Reply"                                       | **Draft reply** (existing). The tone and voice come from the app's AI context                                                                                        | `review_reply_draft`                                     |
+| Insights, ASO, overview                                 | **ASO health report** per app with data                                                                                                                              | `aso_health`                                             |
+| Insights, ASO, Ideas                                    | **Suggest keywords** (existing) and **Ideas from reviews**                                                                                                           | `keyword_ideas`, `keyword_ideas_reviews`                 |
+| Insights, ASO, Store listing, under the terms of an app | **Audit this language**, **Suggest variants**, **Translate into this language** (from another stored language), with an optional goal                                | `listing_audit`, `listing_variants`, `listing_translate` |
+| Listing, a field of a language                          | **Improve** (existing)                                                                                                                                               | `listing_improve`                                        |
+| App settings, "AI assistant"                            | The **AI context** of the app (admins edit, members read)                                                                                                            | none                                                     |
+| Workspace settings, "AI assistant"                      | Provider, model, key, token budget, **soft warning**, **prices and cost cap**, usage by task                                                                         | none                                                     |
 
 The first time a person runs a task in a session, a small popover says who receives the data and lists what is sent and what never is.
 **Show exactly what will be sent** in it reads the real data of this run from our own database (`POST /ai/tasks/{id}/preview`: nothing goes

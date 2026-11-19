@@ -1,17 +1,17 @@
 import { AnalyticsError } from '@mrm/connectors';
 import {
   type ActorType,
-  type PlayBucketSource,
-  type PlayBucketTestCode,
   isApplePlatform,
   normalizeBucketId,
+  type PlayBucketSource,
+  type PlayBucketTestCode,
   playBucketTestMessages,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type AnalyticsContext, classifyAnalyticsError } from './analytics-sync.ts';
 import { resolvePlayBucket } from './analytics-store.ts';
-import { getApp } from './apps.ts';
+import { type AnalyticsContext, classifyAnalyticsError } from './analytics-sync.ts';
 import type { ManagedApp } from './apps.ts';
+import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { type Failure, failure } from './repositories.ts';
@@ -44,10 +44,17 @@ export type PlayBucketView = {
   sharedWith: number;
 };
 
-export async function getPlayBucket(db: Database, workspaceId: string, app: ManagedApp): Promise<PlayBucketView> {
+export async function getPlayBucket(
+  db: Database,
+  workspaceId: string,
+  app: ManagedApp,
+): Promise<PlayBucketView> {
   const settings = (await getSettings(db, workspaceId)).values;
   const found = await resolvePlayBucket(db, { workspaceId, app, settings });
-  const [count] = await db.query("SELECT COUNT(*) AS n FROM apps WHERE workspace_id = ? AND credential_id = ? AND platform = 'android'", [workspaceId, app.credentialId]);
+  const [count] = await db.query(
+    "SELECT COUNT(*) AS n FROM apps WHERE workspace_id = ? AND credential_id = ? AND platform = 'android'",
+    [workspaceId, app.credentialId],
+  );
   return { ...found, credentialId: app.credentialId, sharedWith: Number(count?.n ?? 0) };
 }
 
@@ -60,14 +67,21 @@ export type SetBucketInput = {
   scope: 'account' | 'app';
 };
 
-const notAndroid = () => failure(422, 'not_an_android_app', 'The Play reports bucket is for Android apps.');
+const notAndroid = () =>
+  failure(422, 'not_an_android_app', 'The Play reports bucket is for Android apps.');
 
-export async function setPlayBucket(db: Database, now: () => number, input: SetBucketInput, actor: Actor): Promise<{ ok: true; view: PlayBucketView } | Failure> {
+export async function setPlayBucket(
+  db: Database,
+  now: () => number,
+  input: SetBucketInput,
+  actor: Actor,
+): Promise<{ ok: true; view: PlayBucketView } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
   if (isApplePlatform(app.platform)) return notAndroid();
   const id = input.bucket === null ? null : normalizeBucketId(input.bucket);
-  if (input.bucket !== null && id === undefined) return failure(422, 'bucket_invalid', playBucketTestMessages.bucket_invalid);
+  if (input.bucket !== null && id === undefined)
+    return failure(422, 'bucket_invalid', playBucketTestMessages.bucket_invalid);
   const at = now();
   await db.transaction(async (tx) => {
     if (input.scope === 'app') {
@@ -89,14 +103,24 @@ export async function setPlayBucket(db: Database, now: () => number, input: SetB
       action: 'analytics.play_bucket_set',
       target: { type: 'app', id: app.id },
       // Ids and what was done. The bucket id itself is not written to the log.
-      detail: { appId: app.id, credentialId: app.credentialId, scope: input.scope, cleared: id === null },
+      detail: {
+        appId: app.id,
+        credentialId: app.credentialId,
+        scope: input.scope,
+        cleared: id === null,
+      },
       at,
     });
   });
   return { ok: true, view: await getPlayBucket(db, input.workspaceId, app) };
 }
 
-export type BucketTestResult = { ok: boolean; code: PlayBucketTestCode; message: string; months: string[] };
+export type BucketTestResult = {
+  ok: boolean;
+  code: PlayBucketTestCode;
+  message: string;
+  months: string[];
+};
 
 const monthOf = (ms: number, back: number): string => {
   const d = new Date(ms);
@@ -133,14 +157,25 @@ export async function testPlayBucket(
   }
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId: input.workspaceId, id: app.credentialId, purpose: 'analytics.bucket_test' }, actor, ctx.now());
+    secret = await useCredentialSecret(
+      ctx.db,
+      ctx.masterKey,
+      { workspaceId: input.workspaceId, id: app.credentialId, purpose: 'analytics.bucket_test' },
+      actor,
+      ctx.now(),
+    );
   } catch {
     return { ok: true, result: done('credential_problem') };
   }
   if (secret === undefined) return { ok: true, result: done('credential_problem') };
   const months = [monthOf(ctx.now(), 1), monthOf(ctx.now(), 0)];
   try {
-    const port = ctx.connectors.playReports({ secret, packageName: app.identifier, bucketId, fetch: globalThis.fetch });
+    const port = ctx.connectors.playReports({
+      secret,
+      packageName: app.identifier,
+      bucketId,
+      fetch: globalThis.fetch,
+    });
     let found = 0;
     for (const month of months) {
       try {
@@ -150,7 +185,8 @@ export async function testPlayBucket(
         throw error;
       }
     }
-    if (found === 0 && port.hasPackage && !(await port.hasPackage())) return { ok: true, result: done('package_not_found', months) };
+    if (found === 0 && port.hasPackage && !(await port.hasPackage()))
+      return { ok: true, result: done('package_not_found', months) };
     return { ok: true, result: done(found > 0 ? 'ok' : 'no_reports_yet', months) };
   } catch (error) {
     const code = error instanceof AnalyticsError ? error.code : classifyAnalyticsError(error).code;

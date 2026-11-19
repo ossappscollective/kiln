@@ -1,20 +1,39 @@
-import { ASSET_KINDS, ASSET_SYNC_LIMITS, type Action, type AssetKind, FIX_KINDS, type FixKind, can, sniffImageFormat } from '@mrm/core';
+import {
+  type Action,
+  ASSET_KINDS,
+  ASSET_SYNC_LIMITS,
+  type AssetKind,
+  can,
+  FIX_KINDS,
+  type FixKind,
+  sniffImageFormat,
+} from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { getApp } from '../services/apps.ts';
 import { buildAssetDiff } from '../services/asset-diff.ts';
 import { pullStoreImages } from '../services/asset-pull.ts';
-import { type TestLimiter, createTestLimiter } from '../services/credential-tests.ts';
+import { createTestLimiter, type TestLimiter } from '../services/credential-tests.ts';
 import { parseHexColour } from '../services/image-fix.ts';
-import { type Failure, type RepoContext, failure } from '../services/repositories.ts';
+import { type Failure, failure, type RepoContext } from '../services/repositories.ts';
 import { getBlob } from '../services/staged-asset-blobs.ts';
-import { fixFile, inspectForSlot, removeFromSet, stageUpload, stagedSetsToRepo } from '../services/staged-asset-ops.ts';
+import {
+  fixFile,
+  inspectForSlot,
+  removeFromSet,
+  stagedSetsToRepo,
+  stageUpload,
+} from '../services/staged-asset-ops.ts';
 import type { StagedContext } from '../services/staged-changes.ts';
-import { type DraftConnectorFactory, type DraftContext, defaultDraftConnectorFactory } from '../services/store-draft.ts';
+import {
+  type DraftConnectorFactory,
+  type DraftContext,
+  defaultDraftConnectorFactory,
+} from '../services/store-draft.ts';
 import type { StoreImageNet } from '../services/store-image-net.ts';
 import { getStoreImages, storeThumbnail, thumbSizeOf } from '../services/store-images.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './assets.ts';
@@ -55,10 +74,19 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 const asBody = (bytes: Uint8Array) => bytes as unknown as ConstructorParameters<typeof Response>[0];
 
 /** The request body as bytes, at most `max`: refused by `Content-Length` first, then while it is read. */
-export async function readBodyCapped(req: Request, max: number): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; status: 400 | 413; message: string }> {
+export async function readBodyCapped(
+  req: Request,
+  max: number,
+): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; status: 400 | 413; message: string }> {
   const declared = Number(req.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > max) return { ok: false, status: 413, message: `The file is larger than ${Math.floor(max / (1024 * 1024))} MB.` };
-  if (!req.body) return { ok: false, status: 400, message: 'The request has no body: send the image bytes.' };
+  if (Number.isFinite(declared) && declared > max)
+    return {
+      ok: false,
+      status: 413,
+      message: `The file is larger than ${Math.floor(max / (1024 * 1024))} MB.`,
+    };
+  if (!req.body)
+    return { ok: false, status: 400, message: 'The request has no body: send the image bytes.' };
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -68,11 +96,16 @@ export async function readBodyCapped(req: Request, max: number): Promise<{ ok: t
     total += value.length;
     if (total > max) {
       await reader.cancel().catch(() => undefined);
-      return { ok: false, status: 413, message: `The file is larger than ${Math.floor(max / (1024 * 1024))} MB.` };
+      return {
+        ok: false,
+        status: 413,
+        message: `The file is larger than ${Math.floor(max / (1024 * 1024))} MB.`,
+      };
     }
     chunks.push(value);
   }
-  if (total === 0) return { ok: false, status: 400, message: 'The request has no body: send the image bytes.' };
+  if (total === 0)
+    return { ok: false, status: 400, message: 'The request has no body: send the image bytes.' };
   const bytes = new Uint8Array(total);
   let at = 0;
   for (const chunk of chunks) {
@@ -102,7 +135,9 @@ const fixBody = z
     background: z.string().max(9).optional(),
   })
   .strict();
-const toRepoBody = z.object({ sets: z.array(z.string().min(3).max(200)).max(200).optional() }).strict();
+const toRepoBody = z
+  .object({ sets: z.array(z.string().min(3).max(200)).max(200).optional() })
+  .strict();
 
 export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   const { db } = ctx;
@@ -137,11 +172,19 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   const gate = (c: Context<AppEnv>) => (): Failure | undefined => {
     const wait = ctx.limiter.take(ws(c));
     if (wait <= 0) return undefined;
-    return { ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
+    return {
+      ...failure(429, 'rate_limited', `Too many repository reads. Try again in ${wait} seconds.`),
+      headers: { 'Retry-After': String(wait) },
+    };
   };
   const uploadGate = (c: Context<AppEnv>): Failure | undefined => {
     const wait = uploads.take(ws(c));
-    return wait <= 0 ? undefined : { ...failure(429, 'rate_limited', `Too many uploads. Try again in ${wait} seconds.`), headers: { 'Retry-After': String(wait) } };
+    return wait <= 0
+      ? undefined
+      : {
+          ...failure(429, 'rate_limited', `Too many uploads. Try again in ${wait} seconds.`),
+          headers: { 'Retry-After': String(wait) },
+        };
   };
   const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
   const slotQuery = (c: Context<AppEnv>) => {
@@ -150,9 +193,13 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const device = c.req.query('device');
     const issues: { path: string; message: string }[] = [];
     if (!kind.success) issues.push({ path: 'kind', message: 'A kind of graphic.' });
-    if (locale.length < 2 || locale.length > 35) issues.push({ path: 'locale', message: 'A store locale code such as en-US.' });
-    if (device !== undefined && (device.length < 1 || device.length > 60)) issues.push({ path: 'device', message: 'A display or device id.' });
-    return issues.length > 0 || !kind.success ? { issues } : { slot: { locale, kind: kind.data as string, device: device ?? null } };
+    if (locale.length < 2 || locale.length > 35)
+      issues.push({ path: 'locale', message: 'A store locale code such as en-US.' });
+    if (device !== undefined && (device.length < 1 || device.length > 60))
+      issues.push({ path: 'device', message: 'A display or device id.' });
+    return issues.length > 0 || !kind.success
+      ? { issues }
+      : { slot: { locale, kind: kind.data as string, device: device ?? null } };
   };
 
   // ---- Reading the store ------------------------------------------------------------------------
@@ -160,7 +207,12 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   routes.get('/:workspaceId/apps/:id/assets/store', needs('listing.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    const done = await getStoreImages(store, { workspaceId: ws(c), app, actor: actor(c), fresh: c.req.query('fresh') === '1' });
+    const done = await getStoreImages(store, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      fresh: c.req.query('fresh') === '1',
+    });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json({ store: done.view, cached: done.cached });
@@ -169,7 +221,13 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
   routes.get('/:workspaceId/apps/:id/assets/diff', needs('listing.read'), async (c) => {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    const done = await buildAssetDiff(sync, { workspaceId: ws(c), app, actor: actor(c), fresh: c.req.query('fresh') === '1', gate: gate(c) });
+    const done = await buildAssetDiff(sync, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      fresh: c.req.query('fresh') === '1',
+      gate: gate(c),
+    });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
     return c.json({ diff: done.diff, cachedStore: done.cachedStore });
@@ -179,17 +237,30 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     const ref = c.req.query('ref') ?? '';
-    if (!REF.test(ref)) return c.json({ error: 'invalid_request', issues: [{ path: 'ref', message: 'The ref of an image of the comparison.' }] }, 400);
+    if (!REF.test(ref))
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'ref', message: 'The ref of an image of the comparison.' }],
+        },
+        400,
+      );
     const size = thumbSizeOf(c.req.query('size'));
     // The ref names the image and its checksum, so the same ref is the same picture: a cheap 304.
     const etag = `"t-${ref}-${size}"`;
     const cache = 'private, max-age=3600';
     if (matchesEtag(c.req.header('If-None-Match'), etag)) {
-      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' } });
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' },
+      });
     }
     const done = await storeThumbnail(store, { workspaceId: ws(c), appId: app.id, ref, size });
     if (!done.ok) return respond(c, done);
-    return new Response(asBody(done.bytes), { status: 200, headers: safeImageHeaders(IMAGE_TYPES[done.format], etag, done.bytes.length, cache) });
+    return new Response(asBody(done.bytes), {
+      status: 200,
+      headers: safeImageHeaders(IMAGE_TYPES[done.format], etag, done.bytes.length, cache),
+    });
   });
 
   // ---- Pull ---------------------------------------------------------------------------------------
@@ -199,7 +270,13 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     if (!body.ok) return body.response;
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
-    const done = await pullStoreImages(sync, { workspaceId: ws(c), app, actor: actor(c), ...body.data, gate: gate(c) });
+    const done = await pullStoreImages(sync, {
+      workspaceId: ws(c),
+      app,
+      actor: actor(c),
+      ...body.data,
+      gate: gate(c),
+    });
     return done.ok ? c.json({ pull: done.report }) : respond(c, done);
   });
 
@@ -211,51 +288,138 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const limited = uploadGate(c);
     if (limited) return respond(c, limited);
     const body = await readBodyCapped(c.req.raw, ASSET_SYNC_LIMITS.maxUploadBytes);
-    if (!body.ok) return c.json({ error: body.status === 413 ? 'too_large' : 'invalid_request', message: body.message }, body.status);
-    const done = await inspectForSlot(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...q.slot, actor: actor(c), name: c.req.query('name'), bytes: body.bytes });
+    if (!body.ok)
+      return c.json(
+        { error: body.status === 413 ? 'too_large' : 'invalid_request', message: body.message },
+        body.status,
+      );
+    const done = await inspectForSlot(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...q.slot,
+      actor: actor(c),
+      name: c.req.query('name'),
+      bytes: body.bytes,
+    });
     return done.ok ? c.json({ inspected: done.inspected }) : respond(c, done);
   });
 
-  routes.put('/:workspaceId/apps/:id/staged/assets/upload', needs('changesets.write'), async (c) => {
-    const q = slotQuery(c);
-    if (!q.slot) return c.json({ error: 'invalid_request', issues: q.issues }, 400);
-    const mode = c.req.query('mode') ?? 'add';
-    const positionRaw = c.req.query('position');
-    const position = positionRaw === undefined ? undefined : Number(positionRaw);
-    if (mode !== 'add' && mode !== 'replace') return c.json({ error: 'invalid_request', issues: [{ path: 'mode', message: 'add or replace.' }] }, 400);
-    if (position !== undefined && !Number.isInteger(position)) return c.json({ error: 'invalid_request', issues: [{ path: 'position', message: 'A whole number, from 1.' }] }, 400);
-    const fixRaw = c.req.query('fix');
-    const fix = fixRaw === undefined ? undefined : FIX_KINDS.find((k) => k === fixRaw);
-    if (fixRaw !== undefined && fix === undefined) return c.json({ error: 'invalid_request', issues: [{ path: 'fix', message: FIX_KINDS.join(', ') }] }, 400);
-    const bgRaw = c.req.query('background');
-    const background = bgRaw === undefined ? undefined : parseHexColour(bgRaw);
-    if (bgRaw !== undefined && background === undefined) return c.json({ error: 'invalid_request', issues: [{ path: 'background', message: 'A colour such as #ffffff.' }] }, 400);
-    const limited = uploadGate(c);
-    if (limited) return respond(c, limited);
-    const body = await readBodyCapped(c.req.raw, ASSET_SYNC_LIMITS.maxUploadBytes);
-    if (!body.ok) return c.json({ error: body.status === 413 ? 'too_large' : 'invalid_request', message: body.message }, body.status);
-    const done = await stageUpload(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...q.slot, actor: actor(c), gate: gate(c), mode, position, name: c.req.query('name'), bytes: body.bytes, fix, background });
-    return done.ok ? c.json({ staged: done.staged, position: done.position }) : respond(c, done);
-  });
+  routes.put(
+    '/:workspaceId/apps/:id/staged/assets/upload',
+    needs('changesets.write'),
+    async (c) => {
+      const q = slotQuery(c);
+      if (!q.slot) return c.json({ error: 'invalid_request', issues: q.issues }, 400);
+      const mode = c.req.query('mode') ?? 'add';
+      const positionRaw = c.req.query('position');
+      const position = positionRaw === undefined ? undefined : Number(positionRaw);
+      if (mode !== 'add' && mode !== 'replace')
+        return c.json(
+          { error: 'invalid_request', issues: [{ path: 'mode', message: 'add or replace.' }] },
+          400,
+        );
+      if (position !== undefined && !Number.isInteger(position))
+        return c.json(
+          {
+            error: 'invalid_request',
+            issues: [{ path: 'position', message: 'A whole number, from 1.' }],
+          },
+          400,
+        );
+      const fixRaw = c.req.query('fix');
+      const fix = fixRaw === undefined ? undefined : FIX_KINDS.find((k) => k === fixRaw);
+      if (fixRaw !== undefined && fix === undefined)
+        return c.json(
+          { error: 'invalid_request', issues: [{ path: 'fix', message: FIX_KINDS.join(', ') }] },
+          400,
+        );
+      const bgRaw = c.req.query('background');
+      const background = bgRaw === undefined ? undefined : parseHexColour(bgRaw);
+      if (bgRaw !== undefined && background === undefined)
+        return c.json(
+          {
+            error: 'invalid_request',
+            issues: [{ path: 'background', message: 'A colour such as #ffffff.' }],
+          },
+          400,
+        );
+      const limited = uploadGate(c);
+      if (limited) return respond(c, limited);
+      const body = await readBodyCapped(c.req.raw, ASSET_SYNC_LIMITS.maxUploadBytes);
+      if (!body.ok)
+        return c.json(
+          { error: body.status === 413 ? 'too_large' : 'invalid_request', message: body.message },
+          body.status,
+        );
+      const done = await stageUpload(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ...q.slot,
+        actor: actor(c),
+        gate: gate(c),
+        mode,
+        position,
+        name: c.req.query('name'),
+        bytes: body.bytes,
+        fix,
+        background,
+      });
+      return done.ok ? c.json({ staged: done.staged, position: done.position }) : respond(c, done);
+    },
+  );
 
-  routes.delete('/:workspaceId/apps/:id/staged/assets/file', needs('changesets.write'), async (c) => {
-    const q = slotQuery(c);
-    if (!q.slot) return c.json({ error: 'invalid_request', issues: q.issues }, 400);
-    const position = Number(c.req.query('position'));
-    if (!Number.isInteger(position) || position < 1) return c.json({ error: 'invalid_request', issues: [{ path: 'position', message: 'A whole number, from 1.' }] }, 400);
-    const done = await removeFromSet(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...q.slot, actor: actor(c), gate: gate(c), position });
-    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
-  });
+  routes.delete(
+    '/:workspaceId/apps/:id/staged/assets/file',
+    needs('changesets.write'),
+    async (c) => {
+      const q = slotQuery(c);
+      if (!q.slot) return c.json({ error: 'invalid_request', issues: q.issues }, 400);
+      const position = Number(c.req.query('position'));
+      if (!Number.isInteger(position) || position < 1)
+        return c.json(
+          {
+            error: 'invalid_request',
+            issues: [{ path: 'position', message: 'A whole number, from 1.' }],
+          },
+          400,
+        );
+      const done = await removeFromSet(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        ...q.slot,
+        actor: actor(c),
+        gate: gate(c),
+        position,
+      });
+      return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+    },
+  );
 
   routes.post('/:workspaceId/apps/:id/staged/assets/fix', needs('changesets.write'), async (c) => {
     const body = await parseBody(c, fixBody);
     if (!body.ok) return body.response;
-    const colour = body.data.background === undefined ? undefined : parseHexColour(body.data.background);
-    if (body.data.background !== undefined && colour === undefined) return c.json({ error: 'invalid_request', issues: [{ path: 'background', message: 'A colour such as #ffffff.' }] }, 400);
+    const colour =
+      body.data.background === undefined ? undefined : parseHexColour(body.data.background);
+    if (body.data.background !== undefined && colour === undefined)
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'background', message: 'A colour such as #ffffff.' }],
+        },
+        400,
+      );
     const limited = uploadGate(c);
     if (limited) return respond(c, limited);
     const { background: _background, device, ...rest } = body.data;
-    const done = await fixFile(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...rest, device: device ?? null, actor: actor(c), gate: gate(c), background: colour });
+    const done = await fixFile(staged, {
+      workspaceId: ws(c),
+      appId: param(c, 'id'),
+      ...rest,
+      device: device ?? null,
+      actor: actor(c),
+      gate: gate(c),
+      background: colour,
+    });
     return done.ok ? c.json({ staged: done.staged, summary: done.summary }) : respond(c, done);
   });
 
@@ -263,24 +427,47 @@ export function assetSyncRoutes(ctx: AssetSyncRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     const oid = c.req.query('oid') ?? '';
-    if (!OID.test(oid)) return c.json({ error: 'invalid_request', issues: [{ path: 'oid', message: 'The blob id of a staged upload.' }] }, 400);
+    if (!OID.test(oid))
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'oid', message: 'The blob id of a staged upload.' }],
+        },
+        400,
+      );
     const etag = `"${oid}"`;
     const cache = 'private, max-age=31536000, immutable';
     if (matchesEtag(c.req.header('If-None-Match'), etag)) {
-      return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' } });
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' },
+      });
     }
     const blob = await getBlob(db, ws(c), app.id, oid);
     const format = blob ? sniffImageFormat(blob.bytes) : null;
     if (!blob || (format !== 'png' && format !== 'jpeg')) return notFound(c);
-    return new Response(asBody(blob.bytes), { status: 200, headers: safeImageHeaders(IMAGE_TYPES[format], etag, blob.bytes.length, cache) });
+    return new Response(asBody(blob.bytes), {
+      status: 200,
+      headers: safeImageHeaders(IMAGE_TYPES[format], etag, blob.bytes.length, cache),
+    });
   });
 
-  routes.post('/:workspaceId/apps/:id/staged/assets/to-repo', needs('changesets.write'), async (c) => {
-    const body = await parseBody(c, toRepoBody);
-    if (!body.ok) return body.response;
-    const done = await stagedSetsToRepo(staged, { workspaceId: ws(c), appId: param(c, 'id'), sets: body.data.sets, actor: actor(c), gate: gate(c) });
-    return done.ok ? c.json({ result: done.result }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/staged/assets/to-repo',
+    needs('changesets.write'),
+    async (c) => {
+      const body = await parseBody(c, toRepoBody);
+      if (!body.ok) return body.response;
+      const done = await stagedSetsToRepo(staged, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        sets: body.data.sets,
+        actor: actor(c),
+        gate: gate(c),
+      });
+      return done.ok ? c.json({ result: done.result }) : respond(c, done);
+    },
+  );
 
   return routes;
 }

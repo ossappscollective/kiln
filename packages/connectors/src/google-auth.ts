@@ -25,7 +25,8 @@ export type ServiceAccount = {
 export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 export const ANDROID_PUBLISHER_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
 /** Play Developer Reporting API (Android vitals). Confirmed on the `query` and `anomalies.list` reference pages. */
-export const PLAY_DEVELOPER_REPORTING_SCOPE = 'https://www.googleapis.com/auth/playdeveloperreporting';
+export const PLAY_DEVELOPER_REPORTING_SCOPE =
+  'https://www.googleapis.com/auth/playdeveloperreporting';
 /** Cloud Storage, read only: the monthly Play Console CSV reports. Google names it for programmatic access to those reports. */
 export const DEVSTORAGE_READ_ONLY_SCOPE = 'https://www.googleapis.com/auth/devstorage.read_only';
 const REFRESH_MARGIN_MS = 60_000;

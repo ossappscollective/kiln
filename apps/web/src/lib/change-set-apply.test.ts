@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  type ApplyContext,
   APPLY_LOCAL_EXPLANATION,
+  type ApplyContext,
   applyBlocker,
   applyBody,
   applyDoneMessage,
@@ -25,14 +25,24 @@ import {
 import type { ChangeSetView, LocalOutcome } from './types.ts';
 
 const ON = { enabled: true, envName: 'MRM_LOCAL_REPO_WRITE' };
-const OFF = { enabled: false, envName: 'MRM_LOCAL_REPO_WRITE', message: 'Writing to local clones is not enabled. Set MRM_LOCAL_REPO_WRITE=true and restart the server.' };
+const OFF = {
+  enabled: false,
+  envName: 'MRM_LOCAL_REPO_WRITE',
+  message:
+    'Writing to local clones is not enabled. Set MRM_LOCAL_REPO_WRITE=true and restart the server.',
+};
 const github: ApplyContext = { localOnly: false, hasLocalClone: true, write: ON };
 const localOnly: ApplyContext = { localOnly: true, hasLocalClone: true, write: ON };
 
 test('a GitHub repository is applied as a pull request by default; a local-only one as a local commit', () => {
   assert.equal(defaultApplyMode(github), 'github_pr');
   assert.equal(defaultApplyMode(localOnly), 'local_branch');
-  assert.deepEqual(initialChoice(github, 'mrm/x'), { mode: 'github_pr', branch: 'mrm/x', push: false, openPr: false });
+  assert.deepEqual(initialChoice(github, 'mrm/x'), {
+    mode: 'github_pr',
+    branch: 'mrm/x',
+    push: false,
+    openPr: false,
+  });
 });
 
 test('the pull request is not available without a GitHub connection, with a reason', () => {
@@ -44,11 +54,20 @@ test('the pull request is not available without a GitHub connection, with a reas
 
 test('a local commit needs a clone, a known setting and writing switched on; each says why', () => {
   assert.equal(localBranchAvailability(github).available, true);
-  assert.match(localBranchAvailability({ ...github, hasLocalClone: false }).reason ?? '', /No local clone is attached/);
-  assert.match(localBranchAvailability({ ...github, write: null }).reason ?? '', /Reload/);
-  assert.match(localBranchAvailability({ ...github, write: OFF }).reason ?? '', /MRM_LOCAL_REPO_WRITE=true/);
   assert.match(
-    localBranchAvailability({ ...github, write: { enabled: false, envName: 'MRM_LOCAL_REPO_WRITE' } }).reason ?? '',
+    localBranchAvailability({ ...github, hasLocalClone: false }).reason ?? '',
+    /No local clone is attached/,
+  );
+  assert.match(localBranchAvailability({ ...github, write: null }).reason ?? '', /Reload/);
+  assert.match(
+    localBranchAvailability({ ...github, write: OFF }).reason ?? '',
+    /MRM_LOCAL_REPO_WRITE=true/,
+  );
+  assert.match(
+    localBranchAvailability({
+      ...github,
+      write: { enabled: false, envName: 'MRM_LOCAL_REPO_WRITE' },
+    }).reason ?? '',
     /MRM_LOCAL_REPO_WRITE=true/,
   );
 });
@@ -66,32 +85,71 @@ test('a choice is normalised: no push for a pull request or a local-only reposit
   const choice = { mode: 'local_branch', branch: 'b', push: true, openPr: true } as const;
   assert.deepEqual(normalizeChoice(choice, github), choice);
   assert.deepEqual(normalizeChoice(choice, localOnly), { ...choice, push: false, openPr: false });
-  assert.deepEqual(normalizeChoice(choice, { ...github, write: OFF }), { ...choice, push: false, openPr: false });
-  assert.deepEqual(normalizeChoice({ ...choice, push: false }, github), { ...choice, push: false, openPr: false });
-  assert.deepEqual(normalizeChoice({ ...choice, mode: 'github_pr' }, github), { ...choice, mode: 'github_pr', push: false, openPr: false });
+  assert.deepEqual(normalizeChoice(choice, { ...github, write: OFF }), {
+    ...choice,
+    push: false,
+    openPr: false,
+  });
+  assert.deepEqual(normalizeChoice({ ...choice, push: false }, github), {
+    ...choice,
+    push: false,
+    openPr: false,
+  });
+  assert.deepEqual(normalizeChoice({ ...choice, mode: 'github_pr' }, github), {
+    ...choice,
+    mode: 'github_pr',
+    push: false,
+    openPr: false,
+  });
 });
 
 test('what stops Apply is told in words: the mode is impossible, or the branch name is wrong', () => {
-  assert.equal(applyBlocker({ mode: 'github_pr', branch: '', push: false, openPr: false }, github), null);
-  assert.match(applyBlocker({ mode: 'github_pr', branch: '', push: false, openPr: false }, localOnly) ?? '', /no GitHub connection/);
-  assert.match(applyBlocker({ mode: 'local_branch', branch: '', push: false, openPr: false }, { ...localOnly, write: OFF }) ?? '', /not enabled/);
-  assert.equal(applyBlocker({ mode: 'local_branch', branch: '', push: false, openPr: false }, localOnly), null);
-  assert.match(applyBlocker({ mode: 'local_branch', branch: 'a b', push: false, openPr: false }, localOnly) ?? '', /letters, digits/);
+  assert.equal(
+    applyBlocker({ mode: 'github_pr', branch: '', push: false, openPr: false }, github),
+    null,
+  );
+  assert.match(
+    applyBlocker({ mode: 'github_pr', branch: '', push: false, openPr: false }, localOnly) ?? '',
+    /no GitHub connection/,
+  );
+  assert.match(
+    applyBlocker(
+      { mode: 'local_branch', branch: '', push: false, openPr: false },
+      { ...localOnly, write: OFF },
+    ) ?? '',
+    /not enabled/,
+  );
+  assert.equal(
+    applyBlocker({ mode: 'local_branch', branch: '', push: false, openPr: false }, localOnly),
+    null,
+  );
+  assert.match(
+    applyBlocker({ mode: 'local_branch', branch: 'a b', push: false, openPr: false }, localOnly) ??
+      '',
+    /letters, digits/,
+  );
 });
 
 test('the default branch is mrm/ + a slug of the summary + the start of the id, as the server makes it', () => {
-  assert.equal(defaultBranchName('1234abcd-0000-4000-8000-000000000000', 'Update the subtitle'), 'mrm/update-the-subtitle-1234abcd');
-  assert.equal(defaultBranchName('abcdef12-0', '  Ünïcode — & symbols!! '), 'mrm/u-ni-code-symbols-abcdef12');
+  assert.equal(
+    defaultBranchName('1234abcd-0000-4000-8000-000000000000', 'Update the subtitle'),
+    'mrm/update-the-subtitle-1234abcd',
+  );
+  assert.equal(
+    defaultBranchName('abcdef12-0', '  Ünïcode — & symbols!! '),
+    'mrm/u-ni-code-symbols-abcdef12',
+  );
   assert.equal(defaultBranchName('abcdef12', '日本語'), 'mrm/update-abcdef12');
   const long = defaultBranchName('abcdef12', 'x'.repeat(100));
   assert.equal(long, `mrm/${'x'.repeat(40)}-abcdef12`);
   assert.equal(branchNameProblem(long), null);
 });
 
-test('branch names: blank is the default; the rules are the server\'s', () => {
+test("branch names: blank is the default; the rules are the server's", () => {
   assert.equal(branchNameProblem(''), null);
   assert.equal(branchNameProblem('   '), null);
-  for (const ok of ['mrm/update-1', 'release_1.2', 'a', 'feature/x.y-z', 'A/B']) assert.equal(branchNameProblem(ok), null, ok);
+  for (const ok of ['mrm/update-1', 'release_1.2', 'a', 'feature/x.y-z', 'A/B'])
+    assert.equal(branchNameProblem(ok), null, ok);
   for (const bad of [
     ' lead',
     'trail ',
@@ -123,20 +181,30 @@ test('branch names: blank is the default; the rules are the server\'s', () => {
 test('the request: nothing for a pull request; for a local commit only what differs from the default', () => {
   const d = 'mrm/default-1';
   assert.equal(applyBody({ mode: 'github_pr', branch: d, push: true, openPr: true }, d), undefined);
-  assert.deepEqual(applyBody({ mode: 'local_branch', branch: d, push: false, openPr: false }, d), { mode: 'local_branch' });
-  assert.deepEqual(applyBody({ mode: 'local_branch', branch: '  ', push: false, openPr: false }, d), { mode: 'local_branch' });
-  assert.deepEqual(applyBody({ mode: 'local_branch', branch: 'mine', push: true, openPr: false }, d), {
+  assert.deepEqual(applyBody({ mode: 'local_branch', branch: d, push: false, openPr: false }, d), {
     mode: 'local_branch',
-    branch: 'mine',
-    push: true,
   });
+  assert.deepEqual(
+    applyBody({ mode: 'local_branch', branch: '  ', push: false, openPr: false }, d),
+    { mode: 'local_branch' },
+  );
+  assert.deepEqual(
+    applyBody({ mode: 'local_branch', branch: 'mine', push: true, openPr: false }, d),
+    {
+      mode: 'local_branch',
+      branch: 'mine',
+      push: true,
+    },
+  );
   assert.deepEqual(applyBody({ mode: 'local_branch', branch: d, push: true, openPr: true }, d), {
     mode: 'local_branch',
     push: true,
     openPr: true,
   });
   // A pull request without a push is never sent.
-  assert.deepEqual(applyBody({ mode: 'local_branch', branch: d, push: false, openPr: true }, d), { mode: 'local_branch' });
+  assert.deepEqual(applyBody({ mode: 'local_branch', branch: d, push: false, openPr: true }, d), {
+    mode: 'local_branch',
+  });
 });
 
 test('the hint to look at the commit is git switch with the branch', () => {
@@ -163,32 +231,78 @@ test('the steps of a commit: each has its own status and tone, and a failure car
       ['pr', 'neutral', 'No pull request'],
     ],
   );
-  const done = outcomeSteps(outcome({ push: { status: 'pushed' }, pr: { status: 'opened', url: 'https://github.com/a/b/pull/1', number: 1 } }));
-  assert.deepEqual(done.map((s) => s.tone), ['ok', 'ok', 'ok']);
-  const failedPush = outcomeSteps(outcome({ push: { status: 'failed', error: 'GitHub declined the push.' }, pr: { status: 'skipped' } }));
+  const done = outcomeSteps(
+    outcome({
+      push: { status: 'pushed' },
+      pr: { status: 'opened', url: 'https://github.com/a/b/pull/1', number: 1 },
+    }),
+  );
+  assert.deepEqual(
+    done.map((s) => s.tone),
+    ['ok', 'ok', 'ok'],
+  );
+  const failedPush = outcomeSteps(
+    outcome({
+      push: { status: 'failed', error: 'GitHub declined the push.' },
+      pr: { status: 'skipped' },
+    }),
+  );
   assert.equal(failedPush[1]?.tone, 'bad');
   assert.equal(failedPush[1]?.detail, 'GitHub declined the push.');
   assert.equal(failedPush[2]?.tone, 'warn');
-  const failedPr = outcomeSteps(outcome({ push: { status: 'pushed' }, pr: { status: 'failed', error: 'Validation failed.' } }));
+  const failedPr = outcomeSteps(
+    outcome({ push: { status: 'pushed' }, pr: { status: 'failed', error: 'Validation failed.' } }),
+  );
   assert.equal(failedPr[2]?.tone, 'bad');
   assert.equal(failedPr[2]?.detail, 'Validation failed.');
 });
 
-const applied = (o: LocalOutcome | null): Pick<ChangeSetView, 'status' | 'outcome'> => ({ status: 'applied', outcome: o });
+const applied = (o: LocalOutcome | null): Pick<ChangeSetView, 'status' | 'outcome'> => ({
+  status: 'applied',
+  outcome: o,
+});
 
 test('retries: push (or retry it), then the pull request; nothing once done, for a viewer, a member, local-only or writing off', () => {
-  assert.deepEqual(retryOptions(applied(outcome()), github, 'admin').map((o) => [o.id, o.openPr]), [
-    ['push', false],
-    ['push_pr', true],
-  ]);
-  const failed = retryOptions(applied(outcome({ push: { status: 'failed' }, pr: { status: 'skipped' } })), github, 'owner');
-  assert.deepEqual(failed.map((o) => o.label), ['Retry the push', 'Retry the push and open a pull request']);
+  assert.deepEqual(
+    retryOptions(applied(outcome()), github, 'admin').map((o) => [o.id, o.openPr]),
+    [
+      ['push', false],
+      ['push_pr', true],
+    ],
+  );
+  const failed = retryOptions(
+    applied(outcome({ push: { status: 'failed' }, pr: { status: 'skipped' } })),
+    github,
+    'owner',
+  );
+  assert.deepEqual(
+    failed.map((o) => o.label),
+    ['Retry the push', 'Retry the push and open a pull request'],
+  );
   const pushed = retryOptions(applied(outcome({ push: { status: 'pushed' } })), github, 'admin');
-  assert.deepEqual(pushed.map((o) => [o.id, o.label, o.openPr]), [['pr', 'Open a pull request', true]]);
-  const prFailed = retryOptions(applied(outcome({ push: { status: 'pushed' }, pr: { status: 'failed' } })), github, 'admin');
-  assert.deepEqual(prFailed.map((o) => o.label), ['Retry the pull request']);
-  assert.deepEqual(retryOptions(applied(outcome({ push: { status: 'pushed' }, pr: { status: 'opened' } })), github, 'admin'), []);
-  for (const role of ['member', 'viewer'] as const) assert.deepEqual(retryOptions(applied(outcome()), github, role), []);
+  assert.deepEqual(
+    pushed.map((o) => [o.id, o.label, o.openPr]),
+    [['pr', 'Open a pull request', true]],
+  );
+  const prFailed = retryOptions(
+    applied(outcome({ push: { status: 'pushed' }, pr: { status: 'failed' } })),
+    github,
+    'admin',
+  );
+  assert.deepEqual(
+    prFailed.map((o) => o.label),
+    ['Retry the pull request'],
+  );
+  assert.deepEqual(
+    retryOptions(
+      applied(outcome({ push: { status: 'pushed' }, pr: { status: 'opened' } })),
+      github,
+      'admin',
+    ),
+    [],
+  );
+  for (const role of ['member', 'viewer'] as const)
+    assert.deepEqual(retryOptions(applied(outcome()), github, role), []);
   assert.deepEqual(retryOptions(applied(outcome()), localOnly, 'admin'), []);
   assert.deepEqual(retryOptions(applied(outcome()), { ...github, write: OFF }, 'admin'), []);
   assert.deepEqual(retryOptions(applied(null), github, 'admin'), []);
@@ -198,15 +312,30 @@ test('retries: push (or retry it), then the pull request; nothing once done, for
 test('the message after Apply says what happened to each step', () => {
   assert.equal(applyDoneMessage({ outcome: null }, undefined), 'Pull request opened.');
   assert.equal(applyDoneMessage({ outcome: null }, true), 'This change set was already applied.');
-  assert.match(applyDoneMessage({ outcome: outcome() }, undefined), /Committed to mrm\/x in the local clone/);
-  assert.match(applyDoneMessage({ outcome: outcome({ push: { status: 'pushed' } }) }, undefined), /Committed and pushed mrm\/x/);
-  assert.match(applyDoneMessage({ outcome: outcome({ push: { status: 'failed' } }) }, undefined), /push failed.*commit is kept/);
   assert.match(
-    applyDoneMessage({ outcome: outcome({ push: { status: 'pushed' }, pr: { status: 'failed' } }) }, undefined),
+    applyDoneMessage({ outcome: outcome() }, undefined),
+    /Committed to mrm\/x in the local clone/,
+  );
+  assert.match(
+    applyDoneMessage({ outcome: outcome({ push: { status: 'pushed' } }) }, undefined),
+    /Committed and pushed mrm\/x/,
+  );
+  assert.match(
+    applyDoneMessage({ outcome: outcome({ push: { status: 'failed' } }) }, undefined),
+    /push failed.*commit is kept/,
+  );
+  assert.match(
+    applyDoneMessage(
+      { outcome: outcome({ push: { status: 'pushed' }, pr: { status: 'failed' } }) },
+      undefined,
+    ),
     /pull request was not opened/,
   );
   assert.equal(
-    applyDoneMessage({ outcome: outcome({ push: { status: 'pushed' }, pr: { status: 'opened' } }) }, undefined),
+    applyDoneMessage(
+      { outcome: outcome({ push: { status: 'pushed' }, pr: { status: 'opened' } }) },
+      undefined,
+    ),
     'Committed, pushed and opened a pull request.',
   );
 });
@@ -218,16 +347,26 @@ test('the local-only note says what apply does, and how to turn writing on when 
   const off = localOnlyNotice(OFF);
   assert.match(off.text, /MRM_LOCAL_REPO_WRITE=true/);
   assert.match(localOnlyNotice(null).text, /MRM_LOCAL_REPO_WRITE=true/);
-  for (const note of [on, off]) assert.doesNotMatch(`${note.title} ${note.text}`, /not available yet|cannot be applied yet/);
+  for (const note of [on, off])
+    assert.doesNotMatch(`${note.title} ${note.text}`, /not available yet|cannot be applied yet/);
 });
 
 // ----- signing -----------------------------------------------------------------------------------
 
 test('the Apply dialog says whether the commit will be signed, and how; nothing when the server did not say', () => {
-  assert.deepEqual(signingNote({ enabled: true, format: 'ssh' }), { signed: true, text: 'The commit will be signed (ssh).' });
-  assert.equal(signingNote({ enabled: true, format: 'gpg' })?.text, 'The commit will be signed (gpg).');
+  assert.deepEqual(signingNote({ enabled: true, format: 'ssh' }), {
+    signed: true,
+    text: 'The commit will be signed (ssh).',
+  });
+  assert.equal(
+    signingNote({ enabled: true, format: 'gpg' })?.text,
+    'The commit will be signed (gpg).',
+  );
   assert.equal(signingNote({ enabled: true })?.text, 'The commit will be signed.');
-  assert.deepEqual(signingNote({ enabled: false }), { signed: false, text: 'Commits are not signed (set MRM_GIT_SIGN to enable).' });
+  assert.deepEqual(signingNote({ enabled: false }), {
+    signed: false,
+    text: 'Commits are not signed (set MRM_GIT_SIGN to enable).',
+  });
   assert.equal(signingNote(null), null);
   assert.equal(signingNote(undefined), null, 'an older server has no signing field');
 });
@@ -242,7 +381,11 @@ test('a signed outcome has a badge and a tip that says Verified depends on the G
   assert.equal(signed?.label, 'Signed (ssh)');
   assert.match(signed?.tip ?? '', /Verified/);
   assert.match(signed?.tip ?? '', /signing key/);
-  assert.match(signed?.tip ?? '', /not checked here/, 'it does not claim the signature was verified');
+  assert.match(
+    signed?.tip ?? '',
+    /not checked here/,
+    'it does not claim the signature was verified',
+  );
   const gpg = outcomeSignature({ signature: { status: 'signed', format: 'gpg' } });
   assert.equal(gpg?.label, 'Signed (gpg)');
   assert.match(gpg?.tip ?? '', /GPG key/);

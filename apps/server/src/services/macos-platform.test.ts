@@ -21,22 +21,42 @@ test('a Mac screenshot belongs to macOS only, an iPhone one to iOS only, and Goo
   assert.equal(fileFitsPlatform('macos', { kind: 'icon', device: null }), true);
 });
 
-dbTest('the reviews of an App Store Connect app belong to its iOS record, never to the macOS record', async (db) => {
-  await migrate(db);
-  await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'Acme', 1)");
-  const app = (id: string, platform: string, storeAppId: string | null, created: number) =>
-    db.execute(
-      `INSERT INTO apps (id, workspace_id, name, platform, identifier, store_app_id, credential_id, created_at)
+dbTest(
+  'the reviews of an App Store Connect app belong to its iOS record, never to the macOS record',
+  async (db) => {
+    await migrate(db);
+    await db.execute("INSERT INTO workspaces (id, name, created_at) VALUES ('w1', 'Acme', 1)");
+    const app = (id: string, platform: string, storeAppId: string | null, created: number) =>
+      db.execute(
+        `INSERT INTO apps (id, workspace_id, name, platform, identifier, store_app_id, credential_id, created_at)
        VALUES (?, 'w1', 'Trail', ?, ?, ?, 'c1', ?)`,
-      [id, platform, `com.acme.${id}`, storeAppId, created],
+        [id, platform, `com.acme.${id}`, storeAppId, created],
+      );
+    await app('ios1', 'ios', '555', 1);
+    await app('mac1', 'macos', '555', 2);
+    await app('mac2', 'macos', '777', 3);
+    await app('mac3', 'macos', null, 4);
+    assert.equal(
+      await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'macos', storeAppId: '555' }),
+      'ios1',
     );
-  await app('ios1', 'ios', '555', 1);
-  await app('mac1', 'macos', '555', 2);
-  await app('mac2', 'macos', '777', 3);
-  await app('mac3', 'macos', null, 4);
-  assert.equal(await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'macos', storeAppId: '555' }), 'ios1');
-  assert.equal(await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'macos', storeAppId: '777' }), null, 'a macOS-only app keeps its own');
-  assert.equal(await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'macos', storeAppId: null }), null);
-  assert.equal(await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'ios', storeAppId: '555' }), null);
-  assert.equal(await reviewsOwnedByOtherRecord(db, 'w2', { platform: 'macos', storeAppId: '555' }), null, 'never across workspaces');
-});
+    assert.equal(
+      await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'macos', storeAppId: '777' }),
+      null,
+      'a macOS-only app keeps its own',
+    );
+    assert.equal(
+      await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'macos', storeAppId: null }),
+      null,
+    );
+    assert.equal(
+      await reviewsOwnedByOtherRecord(db, 'w1', { platform: 'ios', storeAppId: '555' }),
+      null,
+    );
+    assert.equal(
+      await reviewsOwnedByOtherRecord(db, 'w2', { platform: 'macos', storeAppId: '555' }),
+      null,
+      'never across workspaces',
+    );
+  },
+);

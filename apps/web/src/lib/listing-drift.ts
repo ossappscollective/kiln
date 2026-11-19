@@ -1,32 +1,55 @@
 import { countBytes, countCharacters } from '@mrm/core';
-import { type BadgeTone } from './portfolio.ts';
-import type { DriftField, DriftLocale, DriftStatus, ListingDrift, ListingHistoryEntry, ListingValueSource } from './types.ts';
+import type { BadgeTone } from './portfolio.ts';
+import type {
+  DriftField,
+  DriftLocale,
+  DriftStatus,
+  ListingDrift,
+  ListingHistoryEntry,
+  ListingValueSource,
+} from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Status labels. The words carry the meaning; the tone only supports it.
 
-export const DRIFT_ORDER: readonly DriftStatus[] = ['diverged', 'repo-ahead', 'store-ahead', 'missing-in-one', 'identical'];
+export const DRIFT_ORDER: readonly DriftStatus[] = [
+  'diverged',
+  'repo-ahead',
+  'store-ahead',
+  'missing-in-one',
+  'identical',
+];
 
 type StatusInfo = { label: string; tone: BadgeTone; explain: string };
 
 const STATUS: Record<DriftStatus, StatusInfo> = {
-  identical: { label: 'Identical', tone: 'ok', explain: 'The repository and the live store have the same value.' },
+  identical: {
+    label: 'Identical',
+    tone: 'ok',
+    explain: 'The repository and the live store have the same value.',
+  },
   'repo-ahead': {
     label: 'Repository ahead',
     tone: 'info',
-    explain: 'The repository changed since the store had this value. It has not reached the store yet.',
+    explain:
+      'The repository changed since the store had this value. It has not reached the store yet.',
   },
   'store-ahead': {
     label: 'Store ahead',
     tone: 'warn',
-    explain: 'The store changed since the repository had this value. Someone edited it in the store console.',
+    explain:
+      'The store changed since the repository had this value. Someone edited it in the store console.',
   },
   diverged: {
     label: 'Diverged',
     tone: 'bad',
     explain: 'Both sides changed, or the history cannot tell which one is newer.',
   },
-  'missing-in-one': { label: 'Missing on one side', tone: 'neutral', explain: 'Only one of the repository and the store has a value.' },
+  'missing-in-one': {
+    label: 'Missing on one side',
+    tone: 'neutral',
+    explain: 'Only one of the repository and the store has a value.',
+  },
 };
 
 export const statusLabel = (status: DriftStatus): string => STATUS[status].label;
@@ -46,10 +69,19 @@ export function statusDetail(field: Pick<DriftField, 'status' | 'missingIn'>): s
 // ---------------------------------------------------------------------------------------------
 // Character counts
 
-export type Usage = { count: number; limit: number | null; unit: 'characters' | 'bytes'; over: boolean };
+export type Usage = {
+  count: number;
+  limit: number | null;
+  unit: 'characters' | 'bytes';
+  over: boolean;
+};
 
 /** The size of a value against the field's limit, counted as the store counts it. */
-export function usage(value: string | null, limit: number | null, unit: 'characters' | 'bytes'): Usage {
+export function usage(
+  value: string | null,
+  limit: number | null,
+  unit: 'characters' | 'bytes',
+): Usage {
   const count = value === null ? 0 : unit === 'bytes' ? countBytes(value) : countCharacters(value);
   return { count, limit, unit, over: limit !== null && count > limit };
 }
@@ -69,7 +101,8 @@ export type DiffPart = { kind: 'same' | 'del' | 'ins'; text: string };
 export const DIFF_TOKEN_CAP = 1500;
 
 /** Whitespace, words (with inner apostrophes and hyphens) and single punctuation marks. */
-const tokenize = (text: string): string[] => text.match(/\s+|[\p{L}\p{N}_]+(?:['’-][\p{L}\p{N}_]+)*|[^\s]/gu) ?? [];
+const tokenize = (text: string): string[] =>
+  text.match(/\s+|[\p{L}\p{N}_]+(?:['’-][\p{L}\p{N}_]+)*|[^\s]/gu) ?? [];
 
 function merge(parts: DiffPart[]): DiffPart[] {
   const out: DiffPart[] = [];
@@ -94,13 +127,23 @@ export function diffWords(from: string, to: string): DiffPart[] {
   let head = 0;
   while (head < a.length && head < b.length && a[head] === b[head]) head++;
   let tail = 0;
-  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
+  while (
+    tail < a.length - head &&
+    tail < b.length - head &&
+    a[a.length - 1 - tail] === b[b.length - 1 - tail]
+  )
+    tail++;
   const midA = a.slice(head, a.length - tail);
   const midB = b.slice(head, b.length - tail);
   const prefix: DiffPart = { kind: 'same', text: a.slice(0, head).join('') };
   const suffix: DiffPart = { kind: 'same', text: a.slice(a.length - tail).join('') };
   if (midA.length > DIFF_TOKEN_CAP || midB.length > DIFF_TOKEN_CAP) {
-    return merge([prefix, { kind: 'del', text: midA.join('') }, { kind: 'ins', text: midB.join('') }, suffix]);
+    return merge([
+      prefix,
+      { kind: 'del', text: midA.join('') },
+      { kind: 'ins', text: midB.join('') },
+      suffix,
+    ]);
   }
   // Longest common subsequence over the differing middle.
   const w = midB.length + 1;
@@ -135,7 +178,12 @@ export function diffWords(from: string, to: string): DiffPart[] {
 // ---------------------------------------------------------------------------------------------
 // Which two columns to compare when a field differs
 
-export type Comparison = { from: 'repo' | 'live'; to: 'repo' | 'live'; fromValue: string; toValue: string };
+export type Comparison = {
+  from: 'repo' | 'live';
+  to: 'repo' | 'live';
+  fromValue: string;
+  toValue: string;
+};
 
 /**
  * The pair the inline diff shows: the repository's value against the live store value, when both
@@ -156,7 +204,11 @@ export type DriftFilter = { status: DriftStatus | 'all' | 'differing'; query: st
 export const defaultFilter = (): DriftFilter => ({ status: 'all', query: '' });
 
 const matchesStatus = (field: DriftField, status: DriftFilter['status']): boolean =>
-  status === 'all' ? true : status === 'differing' ? field.status !== 'identical' : field.status === status;
+  status === 'all'
+    ? true
+    : status === 'differing'
+      ? field.status !== 'identical'
+      : field.status === status;
 
 /** The locales that remain after filtering; a locale with no matching field is dropped. */
 export function filterLocales(locales: readonly DriftLocale[], filter: DriftFilter): DriftLocale[] {
@@ -167,8 +219,8 @@ export function filterLocales(locales: readonly DriftLocale[], filter: DriftFilt
     const fields = locale.fields.filter((field) => {
       if (!matchesStatus(field, filter.status)) return false;
       if (query === '' || localeMatches) return true;
-      return [field.label, field.field, field.repo.value, field.live.value, field.db.value].some((text) =>
-        (text ?? '').toLowerCase().includes(query),
+      return [field.label, field.field, field.repo.value, field.live.value, field.db.value].some(
+        (text) => (text ?? '').toLowerCase().includes(query),
       );
     });
     if (fields.length > 0) out.push({ locale: locale.locale, fields });
@@ -180,7 +232,10 @@ export function filterLocales(locales: readonly DriftLocale[], filter: DriftFilt
 export function localeName(code: string): string {
   if (code === 'default') return 'Default (fallback for locales without their own)';
   // `Intl.DisplayNames` is missing from the TypeScript library level this project compiles with.
-  type DisplayNames = new (locales: string[], options: { type: 'language' }) => { of(code: string): string | undefined };
+  type DisplayNames = new (
+    locales: string[],
+    options: { type: 'language' },
+  ) => { of(code: string): string | undefined };
   const DisplayNames = (Intl as unknown as { DisplayNames?: DisplayNames }).DisplayNames;
   if (!DisplayNames) return code;
   try {
@@ -192,7 +247,8 @@ export function localeName(code: string): string {
 }
 
 /** How many fields differ (are not identical) in a locale. */
-export const differingCount = (locale: DriftLocale): number => locale.fields.filter((f) => f.status !== 'identical').length;
+export const differingCount = (locale: DriftLocale): number =>
+  locale.fields.filter((f) => f.status !== 'identical').length;
 
 /** "3 differ" or "All identical", for a locale heading. */
 export function localeSummary(locale: DriftLocale): string {
@@ -233,9 +289,12 @@ export function shortRef(source: ListingValueSource, ref: string | null): string
 }
 
 /** "Store · live · 2.1.0", "Repository · 3fa9c1b", "Change set · 1b2c3d4e…". */
-export function describeSource(entry: Pick<ListingHistoryEntry, 'source' | 'sourceRef' | 'channel'>): string {
+export function describeSource(
+  entry: Pick<ListingHistoryEntry, 'source' | 'sourceRef' | 'channel'>,
+): string {
   const parts: string[] = [sourceLabel(entry.source)];
-  if (entry.source === 'store' && entry.channel !== '') parts.push(entry.channel === 'editable' ? 'editable version' : 'live version');
+  if (entry.source === 'store' && entry.channel !== '')
+    parts.push(entry.channel === 'editable' ? 'editable version' : 'live version');
   const ref = shortRef(entry.source, entry.sourceRef);
   if (ref) parts.push(ref);
   return parts.join(' · ');
@@ -266,7 +325,11 @@ export function historySteps(entries: readonly ListingHistoryEntry[]): HistorySt
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i] as ListingHistoryEntry;
     const stream = `${entry.locale}\u0000${entry.field}\u0000${entry.source}\u0000${entry.channel}`;
-    out.push({ entry, previous: next.has(stream) ? next.get(stream) : undefined, removed: entry.value === null });
+    out.push({
+      entry,
+      previous: next.has(stream) ? next.get(stream) : undefined,
+      removed: entry.value === null,
+    });
     next.set(stream, entry.value);
   }
   return out.reverse();

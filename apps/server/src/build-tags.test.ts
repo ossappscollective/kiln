@@ -8,10 +8,10 @@ import {
   explainNoCandidate,
   findCandidates,
   matchCommitToRun,
-  RUN_WINDOW_SLACK,
-  resolveTagLink,
   type ReleaseRef,
+  RUN_WINDOW_SLACK,
   type RunFacts,
+  resolveTagLink,
   type TagData,
 } from './services/build-tags.ts';
 
@@ -25,7 +25,14 @@ const H = sha('a'); // the commit the run started from (before the bump)
 const BUMP_IOS = sha('b');
 const BUMP_ANDROID = sha('c');
 
-const conventions = (over: Partial<{ tagPatterns: string[]; releasePatterns: string[]; prefix: string; workflow: string | null }> = {}) =>
+const conventions = (
+  over: Partial<{
+    tagPatterns: string[];
+    releasePatterns: string[];
+    prefix: string;
+    workflow: string | null;
+  }> = {},
+) =>
   compileConventions({
     tagPatterns: [...DEFAULT_TAG_PATTERNS],
     releasePatterns: [...DEFAULT_RELEASE_PATTERNS],
@@ -85,7 +92,10 @@ test('the maintainer layout: each platform finds its own tag for the same number
   assert.equal(first?.versionMatch, true);
   assert.equal(first?.pattern, '{prefix}{platform}/{flavor}/{version}/{buildNumber}');
   assert.deepEqual(rest, []);
-  assert.deepEqual(findCandidates(android, data(), c).map((x) => x.tag), ['android/github/1.4.0/312', 'android/playstore/1.4.0/312']);
+  assert.deepEqual(
+    findCandidates(android, data(), c).map((x) => x.tag),
+    ['android/github/1.4.0/312', 'android/playstore/1.4.0/312'],
+  );
 });
 
 test('a tag for the other platform is never a candidate', () => {
@@ -97,54 +107,134 @@ test('a tag for the other platform is never a candidate', () => {
 });
 
 test('a tag with another version is a candidate, after the ones whose version agrees', () => {
-  const tags = { tags: [{ name: 'ios/appstore/1.4.1/312', sha: sha('3') }, { name: 'ios/appstore/1.4.0/312', sha: sha('4') }], releases: [] };
+  const tags = {
+    tags: [
+      { name: 'ios/appstore/1.4.1/312', sha: sha('3') },
+      { name: 'ios/appstore/1.4.0/312', sha: sha('4') },
+    ],
+    releases: [],
+  };
   const found = findCandidates(ios, tags, conventions());
-  assert.deepEqual(found.map((x) => [x.tag, x.versionMatch]), [['ios/appstore/1.4.0/312', true], ['ios/appstore/1.4.1/312', false]]);
+  assert.deepEqual(
+    found.map((x) => [x.tag, x.versionMatch]),
+    [
+      ['ios/appstore/1.4.0/312', true],
+      ['ios/appstore/1.4.1/312', false],
+    ],
+  );
 });
 
 test('names without a platform fit both platforms; a number is compared as a whole', () => {
-  const tags = { tags: [{ name: 'v1.4.0+312', sha: sha('3') }, { name: 'v1.4.0+3120', sha: sha('4') }, { name: 'build-31', sha: sha('5') }], releases: [] };
-  assert.deepEqual(findCandidates(ios, tags, conventions()).map((x) => x.tag), ['v1.4.0+312']);
-  assert.deepEqual(findCandidates(android, tags, conventions()).map((x) => x.tag), ['v1.4.0+312']);
+  const tags = {
+    tags: [
+      { name: 'v1.4.0+312', sha: sha('3') },
+      { name: 'v1.4.0+3120', sha: sha('4') },
+      { name: 'build-31', sha: sha('5') },
+    ],
+    releases: [],
+  };
+  assert.deepEqual(
+    findCandidates(ios, tags, conventions()).map((x) => x.tag),
+    ['v1.4.0+312'],
+  );
+  assert.deepEqual(
+    findCandidates(android, tags, conventions()).map((x) => x.tag),
+    ['v1.4.0+312'],
+  );
   // Leading zeros do not make a different number.
-  assert.deepEqual(findCandidates(ios, { tags: [{ name: 'build-0312', sha: sha('6') }], releases: [] }, conventions()).length, 1);
+  assert.deepEqual(
+    findCandidates(
+      ios,
+      { tags: [{ name: 'build-0312', sha: sha('6') }], releases: [] },
+      conventions(),
+    ).length,
+    1,
+  );
 });
 
 test('a release name carries the number too: "<app>(<platform>): v<version> Build <n>"', () => {
-  const rel = release({ tagName: 'ios/production/1.4.0/312', name: 'Trail Notes(ios): v1.4.0 Build 312' });
+  const rel = release({
+    tagName: 'ios/production/1.4.0/312',
+    name: 'Trail Notes(ios): v1.4.0 Build 312',
+  });
   // The tag is in the list: the release only adds its name and time.
-  const withTag = findCandidates(ios, data({ tags: [{ name: 'ios/production/1.4.0/312', sha: BUMP_IOS }], releases: [rel] }), conventions());
+  const withTag = findCandidates(
+    ios,
+    data({ tags: [{ name: 'ios/production/1.4.0/312', sha: BUMP_IOS }], releases: [rel] }),
+    conventions(),
+  );
   assert.equal(withTag.length, 1);
   assert.equal(withTag[0]?.kind, 'tag');
   assert.equal(withTag[0]?.releaseName, 'Trail Notes(ios): v1.4.0 Build 312');
   assert.equal(withTag[0]?.releaseAt, T0 + 5 * MIN);
   // The tag was not read (a long tag list): the release's own tag name still fits.
-  const noTag = findCandidates(ios, data({ tags: [], releases: [{ ...rel, targetCommitish: BUMP_IOS }] }), conventions());
+  const noTag = findCandidates(
+    ios,
+    data({ tags: [], releases: [{ ...rel, targetCommitish: BUMP_IOS }] }),
+    conventions(),
+  );
   assert.equal(noTag[0]?.sha, BUMP_IOS);
   // A tag name that fits no pattern: the release name is what carries the number.
-  const odd = release({ tagName: 'weird-tag', name: 'Trail Notes(ios): v1.4.0 Build 312', targetCommitish: BUMP_IOS });
+  const odd = release({
+    tagName: 'weird-tag',
+    name: 'Trail Notes(ios): v1.4.0 Build 312',
+    targetCommitish: BUMP_IOS,
+  });
   const byName = findCandidates(ios, data({ tags: [], releases: [odd] }), conventions());
   assert.equal(byName[0]?.kind, 'release');
   assert.equal(byName[0]?.tag, 'weird-tag');
   assert.equal(byName[0]?.sha, BUMP_IOS);
   // A release for the other platform, and a draft, are skipped.
   const other = release({ tagName: 'weird-2', name: 'Trail Notes(android): v1.4.0 Build 312' });
-  const draft = release({ tagName: 'weird-3', name: 'Trail Notes(ios): v1.4.0 Build 312', draft: true });
-  assert.deepEqual(findCandidates(ios, data({ tags: [], releases: [other, draft] }), conventions()), []);
+  const draft = release({
+    tagName: 'weird-3',
+    name: 'Trail Notes(ios): v1.4.0 Build 312',
+    draft: true,
+  });
+  assert.deepEqual(
+    findCandidates(ios, data({ tags: [], releases: [other, draft] }), conventions()),
+    [],
+  );
 });
 
 test('a branch name as target is not a commit', () => {
-  const odd = release({ tagName: 'weird-tag', name: 'Trail Notes(ios): v1.4.0 Build 312', targetCommitish: 'main' });
-  assert.equal(findCandidates(ios, data({ tags: [], releases: [odd] }), conventions())[0]?.sha, null);
+  const odd = release({
+    tagName: 'weird-tag',
+    name: 'Trail Notes(ios): v1.4.0 Build 312',
+    targetCommitish: 'main',
+  });
+  assert.equal(
+    findCandidates(ios, data({ tags: [], releases: [odd] }), conventions())[0]?.sha,
+    null,
+  );
 });
 
 test('why nothing was found, in the order a person would check', () => {
   const c = conventions();
   assert.equal(explainNoCandidate(ios, { tags: [], releases: [] }, c).code, 'no_tags');
-  const none = explainNoCandidate(ios, { tags: [{ name: 'nightly', sha: sha('1') }, { name: 'latest', sha: sha('2') }], releases: [] }, c);
+  const none = explainNoCandidate(
+    ios,
+    {
+      tags: [
+        { name: 'nightly', sha: sha('1') },
+        { name: 'latest', sha: sha('2') },
+      ],
+      releases: [],
+    },
+    c,
+  );
   assert.equal(none.code, 'no_pattern_fit');
   assert.match(none.message, /nightly/);
-  const old = explainNoCandidate(ios, data({ tags: [{ name: 'ios/appstore/1.3.0/300', sha: sha('1') }, { name: 'ios/appstore/1.3.5/305', sha: sha('2') }] }), c);
+  const old = explainNoCandidate(
+    ios,
+    data({
+      tags: [
+        { name: 'ios/appstore/1.3.0/300', sha: sha('1') },
+        { name: 'ios/appstore/1.3.5/305', sha: sha('2') },
+      ],
+    }),
+    c,
+  );
   assert.equal(old.code, 'number_not_found');
   assert.deepEqual(old.newestFit, { name: 'ios/appstore/1.3.5/305', buildNumber: '305' });
   assert.match(old.message, /highest for ios is 305/);
@@ -152,12 +242,35 @@ test('why nothing was found, in the order a person would check', () => {
 });
 
 test('a prefix keeps the apps of a monorepo apart', () => {
-  const tags = { tags: [{ name: 'scanner-ios/appstore/1.4.0/312', sha: sha('1') }, { name: 'wallet-ios/appstore/1.4.0/312', sha: sha('2') }], releases: [] };
-  assert.deepEqual(findCandidates(ios, tags, conventions({ prefix: 'scanner-' })).map((x) => x.sha), [sha('1')]);
-  assert.deepEqual(findCandidates(ios, tags, conventions({ prefix: 'wallet-' })).map((x) => x.sha), [sha('2')]);
-  assert.deepEqual(findCandidates(ios, tags, conventions()), [], 'no prefix: neither fits the default patterns');
+  const tags = {
+    tags: [
+      { name: 'scanner-ios/appstore/1.4.0/312', sha: sha('1') },
+      { name: 'wallet-ios/appstore/1.4.0/312', sha: sha('2') },
+    ],
+    releases: [],
+  };
+  assert.deepEqual(
+    findCandidates(ios, tags, conventions({ prefix: 'scanner-' })).map((x) => x.sha),
+    [sha('1')],
+  );
+  assert.deepEqual(
+    findCandidates(ios, tags, conventions({ prefix: 'wallet-' })).map((x) => x.sha),
+    [sha('2')],
+  );
+  assert.deepEqual(
+    findCandidates(ios, tags, conventions()),
+    [],
+    'no prefix: neither fits the default patterns',
+  );
   // A team that names its pattern itself.
-  assert.equal(findCandidates(ios, tags, conventions({ tagPatterns: ['wallet-{platform}/{flavor}/{version}/{buildNumber}'] })).length, 1);
+  assert.equal(
+    findCandidates(
+      ios,
+      tags,
+      conventions({ tagPatterns: ['wallet-{platform}/{flavor}/{version}/{buildNumber}'] }),
+    ).length,
+    1,
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -166,7 +279,11 @@ test('a prefix keeps the apps of a monorepo apart', () => {
 const at = (minutes: number) => T0 + minutes * MIN;
 
 test('the bump commit is a child of the run head and was made during the run: high', () => {
-  const found = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' }, runs: [runFacts('1')], workflow: null });
+  const found = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' },
+    runs: [runFacts('1')],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.equal(found.run.id, '1');
   assert.equal(found.confidence, 'high');
@@ -176,28 +293,51 @@ test('the bump commit is a child of the run head and was made during the run: hi
 
 test('the second platform job commits on top of the first: no parent link, the time window decides', () => {
   // android's bump commit has the iOS bump as its parent, not the run head.
-  const found = matchCommitToRun({ commit: { sha: BUMP_ANDROID, parents: [BUMP_IOS], at: at(11), atSource: 'commit' }, runs: [runFacts('1')], workflow: null });
+  const found = matchCommitToRun({
+    commit: { sha: BUMP_ANDROID, parents: [BUMP_IOS], at: at(11), atSource: 'commit' },
+    runs: [runFacts('1')],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.equal(found.confidence, 'medium');
   assert.match(found.reason, /while the run ran/);
 });
 
 test('a parent link alone (the commit time outside the window) is medium', () => {
-  const found = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [H], at: at(300), atSource: 'commit' }, runs: [runFacts('1')], workflow: null });
+  const found = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [H], at: at(300), atSource: 'commit' },
+    runs: [runFacts('1')],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.equal(found.confidence, 'medium');
 });
 
 test('a tag on the run head itself (the lane tags what it built) links to that run', () => {
-  const found = matchCommitToRun({ commit: { sha: H, parents: [sha('9')], at: at(-30), atSource: 'commit' }, runs: [runFacts('1')], workflow: null });
+  const found = matchCommitToRun({
+    commit: { sha: H, parents: [sha('9')], at: at(-30), atSource: 'commit' },
+    runs: [runFacts('1')],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.equal(found.run.id, '1');
   assert.match(found.reason, /is the run's commit/);
 });
 
 test('the run a push of the bump commit triggers is not taken for the release run', () => {
-  const ci = runFacts('2', { workflow: 'CI', workflowPath: '.github/workflows/ci.yml', headSha: BUMP_IOS, event: 'push', startedAt: at(8) + 3_000, updatedAt: at(12) });
-  const found = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' }, runs: [ci, runFacts('1')], workflow: null });
+  const ci = runFacts('2', {
+    workflow: 'CI',
+    workflowPath: '.github/workflows/ci.yml',
+    headSha: BUMP_IOS,
+    event: 'push',
+    startedAt: at(8) + 3_000,
+    updatedAt: at(12),
+  });
+  const found = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' },
+    runs: [ci, runFacts('1')],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.equal(found.run.id, '1', 'the workflow named release wins over CI');
   assert.equal(found.candidates, 1);
@@ -213,7 +353,12 @@ test('the run a push of the bump commit triggers is not taken for the release ru
 });
 
 test('a configured release workflow decides, by file name, path or name', () => {
-  const other = runFacts('2', { workflow: 'Nightly', workflowPath: '.github/workflows/nightly.yml', startedAt: at(1), updatedAt: at(20) });
+  const other = runFacts('2', {
+    workflow: 'Nightly',
+    workflowPath: '.github/workflows/nightly.yml',
+    startedAt: at(1),
+    updatedAt: at(20),
+  });
   const commit = { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' as const };
   for (const workflow of ['release.yml', '.github/workflows/release.yml', 'Release', 'release']) {
     const found = matchCommitToRun({ commit, runs: [other, runFacts('1')], workflow });
@@ -240,47 +385,93 @@ test('several release runs: the one whose window holds the time wins, medium; wh
   assert.equal(both.confidence, 'low');
   assert.equal(both.candidates, 2);
   // ... unless the parent tells them apart.
-  const related = matchCommitToRun({ commit: { ...commit, parents: [H] }, runs: [mine, runFacts('3', { headSha: sha('8'), startedAt: at(2), updatedAt: at(14) })], workflow: null });
+  const related = matchCommitToRun({
+    commit: { ...commit, parents: [H] },
+    runs: [mine, runFacts('3', { headSha: sha('8'), startedAt: at(2), updatedAt: at(14) })],
+    workflow: null,
+  });
   assert.ok('run' in related);
   assert.equal(related.run.id, '2');
   assert.equal(related.confidence, 'medium');
 });
 
 test('a run that is still going has no end: a commit after its last update still falls inside', () => {
-  const going = runFacts('1', { status: 'in_progress', conclusion: null, active: true, updatedAt: at(2) });
-  const found = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [], at: at(40), atSource: 'commit' }, runs: [going], workflow: null });
+  const going = runFacts('1', {
+    status: 'in_progress',
+    conclusion: null,
+    active: true,
+    updatedAt: at(2),
+  });
+  const found = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [], at: at(40), atSource: 'commit' },
+    runs: [going],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.match(found.reason, /to now\)/);
 });
 
 test('the window slack is small before the start and a minute after the end', () => {
   const run = runFacts('1', { headSha: sha('5') });
-  const at0 = (ms: number) => matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [], at: ms, atSource: 'commit' }, runs: [run], workflow: null });
+  const at0 = (ms: number) =>
+    matchCommitToRun({
+      commit: { sha: BUMP_IOS, parents: [], at: ms, atSource: 'commit' },
+      runs: [run],
+      workflow: null,
+    });
   assert.ok('run' in at0(T0 - RUN_WINDOW_SLACK.beforeMs + 1));
-  assert.ok('reason' in at0(T0 - RUN_WINDOW_SLACK.beforeMs - 1) && !('run' in at0(T0 - RUN_WINDOW_SLACK.beforeMs - 1)));
+  assert.ok(
+    'reason' in at0(T0 - RUN_WINDOW_SLACK.beforeMs - 1) &&
+      !('run' in at0(T0 - RUN_WINDOW_SLACK.beforeMs - 1)),
+  );
   assert.ok('run' in at0(T0 + 15 * MIN + RUN_WINDOW_SLACK.afterMs - 1));
   assert.ok(!('run' in at0(T0 + 15 * MIN + RUN_WINDOW_SLACK.afterMs + 1)));
   // The slack is a parameter.
-  const wide = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [], at: T0 - 5 * MIN, atSource: 'commit' }, runs: [run], workflow: null, slack: { beforeMs: 10 * MIN, afterMs: 0 } });
+  const wide = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [], at: T0 - 5 * MIN, atSource: 'commit' },
+    runs: [run],
+    workflow: null,
+    slack: { beforeMs: 10 * MIN, afterMs: 0 },
+  });
   assert.ok('run' in wide);
 });
 
 test('no run: the reason says what was looked at', () => {
-  const none = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' }, runs: [], workflow: null });
+  const none = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' },
+    runs: [],
+    workflow: null,
+  });
   assert.ok(!('run' in none));
   assert.match(none.reason, /No CI run is stored/);
-  const elsewhere = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [H], at: at(900), atSource: 'commit' }, runs: [runFacts('1', { headSha: sha('7') })], workflow: null });
+  const elsewhere = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [H], at: at(900), atSource: 'commit' },
+    runs: [runFacts('1', { headSha: sha('7') })],
+    workflow: null,
+  });
   assert.ok(!('run' in elsewhere));
   assert.match(elsewhere.reason, /No stored run has bbbbbbb or its parent/);
-  const unknownTime = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [], at: null, atSource: null }, runs: [runFacts('1', { headSha: sha('7') })], workflow: null });
+  const unknownTime = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [], at: null, atSource: null },
+    runs: [runFacts('1', { headSha: sha('7') })],
+    workflow: null,
+  });
   assert.match((unknownTime as { reason: string }).reason, /commit time is not known/);
   // A pending dispatch and a run without a commit never count.
-  const pending = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' }, runs: [runFacts('p', { status: 'pending' }), runFacts('q', { headSha: null })], workflow: null });
+  const pending = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [H], at: at(8), atSource: 'commit' },
+    runs: [runFacts('p', { status: 'pending' }), runFacts('q', { headSha: null })],
+    workflow: null,
+  });
   assert.ok(!('run' in pending));
 });
 
 test('the release time stands in for the commit time when the commit could not be read', () => {
-  const found = matchCommitToRun({ commit: { sha: BUMP_IOS, parents: [], at: at(5), atSource: 'release' }, runs: [runFacts('1', { headSha: sha('5') })], workflow: null });
+  const found = matchCommitToRun({
+    commit: { sha: BUMP_IOS, parents: [], at: at(5), atSource: 'release' },
+    runs: [runFacts('1', { headSha: sha('5') })],
+    workflow: null,
+  });
   assert.ok('run' in found);
   assert.match(found.reason, /the release was made at/);
 });
@@ -326,13 +517,27 @@ test('resolveTagLink: a tag whose run is not known is still a link ("tag found")
   assert.equal(link.run, null);
   assert.equal(link.evidence.runId, null);
   assert.match(link.evidence.noRunReason ?? '', /No CI run is stored/);
-  assert.equal(link.evidence.confidence, 'high', 'the tag itself is exact: only the run is missing');
+  assert.equal(
+    link.evidence.confidence,
+    'high',
+    'the tag itself is exact: only the run is missing',
+  );
   assert.match(link.evidence.reason, /No run found/);
 });
 
 test('resolveTagLink: the candidate that leads to a run beats an earlier one that does not; a version difference lowers confidence', () => {
   const two = [
-    ...findCandidates(ios, { tags: [{ name: 'ios/appstore/1.4.0/312', sha: sha('d') }, { name: 'ios/beta/1.4.0/312', sha: BUMP_IOS }], releases: [] }, conventions()),
+    ...findCandidates(
+      ios,
+      {
+        tags: [
+          { name: 'ios/appstore/1.4.0/312', sha: sha('d') },
+          { name: 'ios/beta/1.4.0/312', sha: BUMP_IOS },
+        ],
+        releases: [],
+      },
+      conventions(),
+    ),
   ];
   const link = resolveTagLink({
     candidates: two,
@@ -342,12 +547,19 @@ test('resolveTagLink: the candidate that leads to a run beats an earlier one tha
   });
   assert.equal(link?.evidence.tag, 'ios/beta/1.4.0/312');
   const mismatch = resolveTagLink({
-    candidates: findCandidates(ios, { tags: [{ name: 'ios/appstore/1.4.1/312', sha: BUMP_IOS }], releases: [] }, conventions()),
+    candidates: findCandidates(
+      ios,
+      { tags: [{ name: 'ios/appstore/1.4.1/312', sha: BUMP_IOS }], releases: [] },
+      conventions(),
+    ),
     factsOf: () => facts(BUMP_IOS, [H], at(8)),
     runs: [runFacts('1')],
     workflow: null,
   });
   assert.equal(mismatch?.evidence.confidence, 'medium');
   assert.match(mismatch?.evidence.reason ?? '', /version 1\.4\.1 differs/);
-  assert.equal(resolveTagLink({ candidates: [], factsOf: () => undefined, runs: [], workflow: null }), undefined);
+  assert.equal(
+    resolveTagLink({ candidates: [], factsOf: () => undefined, runs: [], workflow: null }),
+    undefined,
+  );
 });

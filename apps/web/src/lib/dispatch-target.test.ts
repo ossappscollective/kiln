@@ -3,36 +3,65 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { DISPATCH_DIALOG_PROPS, dispatchLinkableApps, dispatchPreselection, dispatchTarget } from './dispatch-target.ts';
+import {
+  DISPATCH_DIALOG_PROPS,
+  dispatchLinkableApps,
+  dispatchPreselection,
+  dispatchTarget,
+} from './dispatch-target.ts';
 import type { AppSummary, CiWorkflow, RepositorySummary } from './types.ts';
 
 const repository = { id: 'r1', defaultBranch: 'main' } as RepositorySummary;
-const workflow = { id: 1, name: 'Build', path: '.github/workflows/build.yml' } as unknown as CiWorkflow;
-const app = (id: string, platform: 'ios' | 'android', repositoryId: string | null) => ({ id, platform, repositoryId, name: id, identifier: id }) as unknown as AppSummary;
+const workflow = {
+  id: 1,
+  name: 'Build',
+  path: '.github/workflows/build.yml',
+} as unknown as CiWorkflow;
+const app = (id: string, platform: 'ios' | 'android', repositoryId: string | null) =>
+  ({ id, platform, repositoryId, name: id, identifier: id }) as unknown as AppSummary;
 const apps = [app('a', 'ios', 'r1'), app('b', 'android', 'r1'), app('c', 'ios', 'r2')];
 
 test('every entry point builds the same target shape', () => {
   const fromRepositoryPage = dispatchTarget({ repository, workflow });
   const fromWorkflowsPage = dispatchTarget({ repository, workflow, platforms: ['ios'] });
-  assert.deepEqual(Object.keys(fromRepositoryPage).sort(), Object.keys({ ...fromWorkflowsPage }).sort());
+  assert.deepEqual(
+    Object.keys(fromRepositoryPage).sort(),
+    Object.keys({ ...fromWorkflowsPage }).sort(),
+  );
   assert.equal(fromRepositoryPage.appId, '');
 });
 
 test('the apps to pick from are all the apps of the repository, so several can be chosen anywhere', () => {
-  assert.deepEqual(dispatchLinkableApps(apps, 'r1').map((a) => a.id), ['a', 'b']);
+  assert.deepEqual(
+    dispatchLinkableApps(apps, 'r1').map((a) => a.id),
+    ['a', 'b'],
+  );
 });
 
 test('preselection: the named app, the one platform match, or none (none means every app of the repository)', () => {
-  assert.deepEqual(dispatchPreselection(apps, dispatchTarget({ repository, workflow, appId: 'b' })), ['b']);
-  assert.deepEqual(dispatchPreselection(apps, dispatchTarget({ repository, workflow, platforms: ['ios'] })), ['a']);
+  assert.deepEqual(
+    dispatchPreselection(apps, dispatchTarget({ repository, workflow, appId: 'b' })),
+    ['b'],
+  );
+  assert.deepEqual(
+    dispatchPreselection(apps, dispatchTarget({ repository, workflow, platforms: ['ios'] })),
+    ['a'],
+  );
   assert.deepEqual(dispatchPreselection(apps, dispatchTarget({ repository, workflow })), []);
-  assert.deepEqual(dispatchPreselection(apps, dispatchTarget({ repository, workflow, appId: 'c' })), []);
+  assert.deepEqual(
+    dispatchPreselection(apps, dispatchTarget({ repository, workflow, appId: 'c' })),
+    [],
+  );
 });
 
 function svelteFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
-    return statSync(path).isDirectory() ? svelteFiles(path) : path.endsWith('.svelte') ? [path] : [];
+    return statSync(path).isDirectory()
+      ? svelteFiles(path)
+      : path.endsWith('.svelte')
+        ? [path]
+        : [];
   });
 }
 

@@ -2,20 +2,35 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AppleSubmitConnector } from './appstore-submit.ts';
 import { StoreError } from './errors.ts';
-import { type DraftReadRequest, DraftOutcomeUnknownError } from './store-draft-types.ts';
-import { SubmitDriftError, SubmitOutcomeUnknownError, sameSubmitState, submitKey } from './store-submit-types.ts';
 import * as fx from './store.fixtures.ts';
 import { FakeAppleDraftApi, sha256 } from './store-draft.fixtures.ts';
+import { DraftOutcomeUnknownError, type DraftReadRequest } from './store-draft-types.ts';
+import {
+  SubmitDriftError,
+  SubmitOutcomeUnknownError,
+  sameSubmitState,
+  submitKey,
+} from './store-submit-types.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.appleKeyPem();
 const APP = '10746822401';
 const REQUEST: DraftReadRequest = {
   text: [{ locale: 'en-US', field: 'description' }],
-  assets: [{ locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', target: 'APP_IPHONE_65', width: 1242, height: 2688 }],
+  assets: [
+    {
+      locale: 'en-US',
+      kind: 'screenshot',
+      device: 'iphone_6_5',
+      target: 'APP_IPHONE_65',
+      width: 1242,
+      height: 2688,
+    },
+  ],
 };
 const accept = () => true;
-const reply = (status: number, body: unknown = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const reply = (status: number, body: unknown = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 function setup(configure?: (api: FakeAppleDraftApi) => void) {
   const api = new FakeAppleDraftApi();
@@ -34,7 +49,8 @@ function assertNoSecrets(error: unknown) {
   assert.ok(error instanceof Error);
   const text = `${error.message} ${error.stack ?? ''} ${JSON.stringify((error as StoreError).details ?? [])}`;
   assert.ok(!text.includes('PRIVATE KEY'));
-  for (const line of key.privateKey.split('\n')) if (line && !line.startsWith('-----')) assert.ok(!text.includes(line));
+  for (const line of key.privateKey.split('\n'))
+    if (line && !line.startsWith('-----')) assert.ok(!text.includes(line));
   assert.ok(!/eyJ[A-Za-z0-9_-]{8,}\./.test(text), 'no JWT');
 }
 
@@ -45,18 +61,33 @@ test('readSubmitState shows the version, its build, release type, every locale a
   const { api, connector } = setup((a) => {
     const v = a.versions.find((x) => x.id === 'v-next');
     if (v) v.releaseType = 'MANUAL';
-    a.addPlacements('loc-en', 'IPHONE_65_PROFILE', [{ name: 'a.png', bytes: new Uint8Array([1, 2, 3]) }]);
+    a.addPlacements('loc-en', 'IPHONE_65_PROFILE', [
+      { name: 'a.png', bytes: new Uint8Array([1, 2, 3]) },
+    ]);
   });
   const state = await connector.readSubmitState(REQUEST);
-  assert.deepEqual(state.version, { id: 'v-next', versionString: '2.1', state: 'PREPARE_FOR_SUBMISSION', releaseType: 'MANUAL' });
-  assert.deepEqual(state.build, { id: 'b-1', version: '57', processingState: 'VALID', expired: false });
+  assert.deepEqual(state.version, {
+    id: 'v-next',
+    versionString: '2.1',
+    state: 'PREPARE_FOR_SUBMISSION',
+    releaseType: 'MANUAL',
+  });
+  assert.deepEqual(state.build, {
+    id: 'b-1',
+    version: '57',
+    processingState: 'VALID',
+    expired: false,
+  });
   assert.equal(state.alreadySubmitted, false);
   assert.equal(state.openReviewSubmissions, 0);
   assert.deepEqual(state.tracks, []);
   assert.equal(state.locales[0]?.locale, 'en-US');
   assert.equal(state.locales[0]?.text.description, 'Old description');
   assert.equal(state.locales[0]?.text.promotional_text, null);
-  assert.deepEqual(state.locales[0]?.assets.map((a) => [a.kind, a.device, a.target, a.images.length]), [['screenshot', null, 'IPHONE_65_PROFILE', 1]]);
+  assert.deepEqual(
+    state.locales[0]?.assets.map((a) => [a.kind, a.device, a.target, a.images.length]),
+    [['screenshot', null, 'IPHONE_65_PROFILE', 1]],
+  );
   assert.equal(state.draft?.text[0]?.value, 'Old description');
   assert.equal(state.draft?.assets[0]?.placementGroup, 'IPHONE_65_PROFILE');
   assert.deepEqual(api.writes(), []);
@@ -69,7 +100,10 @@ test('a version without a build reads as null, not as an error', async () => {
 
 test('a version that is already in review is reported as submitted and its draft is not read', async () => {
   const { connector } = setup((a) => {
-    a.versions = [{ id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION' }, { id: 'v-next', versionString: '2.1', state: 'WAITING_FOR_REVIEW' }];
+    a.versions = [
+      { id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION' },
+      { id: 'v-next', versionString: '2.1', state: 'WAITING_FOR_REVIEW' },
+    ];
   });
   const state = await connector.readSubmitState(REQUEST);
   assert.equal(state.alreadySubmitted, true);
@@ -81,16 +115,31 @@ test('no version to submit, or two editable ones, is refused rather than guessed
   const none = setup((a) => {
     a.versions = [{ id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION' }];
   });
-  await assert.rejects(none.connector.readSubmitState(REQUEST), (e: unknown) => e instanceof StoreError && e.kind === 'no_editable_version');
-  const two = setup((a) => a.versions.push({ id: 'v-x', versionString: '2.2', state: 'PREPARE_FOR_SUBMISSION' }));
-  await assert.rejects(two.connector.readSubmitState(REQUEST), (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input');
+  await assert.rejects(
+    none.connector.readSubmitState(REQUEST),
+    (e: unknown) => e instanceof StoreError && e.kind === 'no_editable_version',
+  );
+  const two = setup((a) =>
+    a.versions.push({ id: 'v-x', versionString: '2.2', state: 'PREPARE_FOR_SUBMISSION' }),
+  );
+  await assert.rejects(
+    two.connector.readSubmitState(REQUEST),
+    (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
+  );
 });
 
 test('unsubmitted review submissions are counted, and a read that fails is "unknown", not an error', async () => {
-  const counted = setup((a) => a.submissions.set('sub-old', { state: 'READY_FOR_REVIEW', versions: [] }));
+  const counted = setup((a) =>
+    a.submissions.set('sub-old', { state: 'READY_FOR_REVIEW', versions: [] }),
+  );
   assert.equal((await counted.connector.readSubmitState(REQUEST)).openReviewSubmissions, 1);
   const unknown = setup((a) => {
-    a.hook = (s) => (/reviewSubmissions$/.test(s.path) && s.method === 'GET' ? reply(400, { errors: [{ status: '400', code: 'PARAMETER_ERROR.INVALID', title: 'filter' }] }) : undefined);
+    a.hook = (s) =>
+      /reviewSubmissions$/.test(s.path) && s.method === 'GET'
+        ? reply(400, {
+            errors: [{ status: '400', code: 'PARAMETER_ERROR.INVALID', title: 'filter' }],
+          })
+        : undefined;
   });
   assert.equal((await unknown.connector.readSubmitState(REQUEST)).openReviewSubmissions, null);
 });
@@ -102,9 +151,17 @@ test('submit: create the review submission, add the version, then submitted: tru
   assert.match(result.submissionId ?? '', /^sub-/);
   assert.equal(result.submissionState, 'WAITING_FOR_REVIEW');
   assert.equal(result.before.version?.id, 'v-next');
-  assert.deepEqual(api.writes().map((w) => w.replace(/sub-\d+/, 'sub')), [...SUBMIT_WRITES, 'PATCH /v1/reviewSubmissions/sub']);
-  const [create, item, patch] = api.seen.filter((s) => s.method !== 'GET').map((s) => s.body as { data: Record<string, unknown> });
-  assert.deepEqual(create?.data, { type: 'reviewSubmissions', relationships: { app: { data: { type: 'apps', id: APP } } } });
+  assert.deepEqual(
+    api.writes().map((w) => w.replace(/sub-\d+/, 'sub')),
+    [...SUBMIT_WRITES, 'PATCH /v1/reviewSubmissions/sub'],
+  );
+  const [create, item, patch] = api.seen
+    .filter((s) => s.method !== 'GET')
+    .map((s) => s.body as { data: Record<string, unknown> });
+  assert.deepEqual(create?.data, {
+    type: 'reviewSubmissions',
+    relationships: { app: { data: { type: 'apps', id: APP } } },
+  });
   assert.deepEqual(item?.data, {
     type: 'reviewSubmissionItems',
     relationships: {
@@ -112,10 +169,19 @@ test('submit: create the review submission, add the version, then submitted: tru
       appStoreVersion: { data: { type: 'appStoreVersions', id: 'v-next' } },
     },
   });
-  assert.deepEqual(patch?.data, { type: 'reviewSubmissions', id: result.submissionId, attributes: { submitted: true } });
+  assert.deepEqual(patch?.data, {
+    type: 'reviewSubmissions',
+    id: result.submissionId,
+    attributes: { submitted: true },
+  });
   // The release type is never touched, no draft is written, no version is created.
   for (const s of api.seen.filter((x) => x.method !== 'GET')) {
-    assert.ok(!/appStoreVersions|appStoreVersionLocalizations|appAssetLibrary|phasedRelease|appStoreVersionReleaseRequests/i.test(s.path), `unexpected ${s.method} ${s.path}`);
+    assert.ok(
+      !/appStoreVersions|appStoreVersionLocalizations|appAssetLibrary|phasedRelease|appStoreVersionReleaseRequests/i.test(
+        s.path,
+      ),
+      `unexpected ${s.method} ${s.path}`,
+    );
   }
   assert.equal(api.versions.find((v) => v.id === 'v-next')?.state, 'WAITING_FOR_REVIEW');
   // The read afterwards sees the version in review.
@@ -144,14 +210,32 @@ test('a version already in review is never submitted again', async () => {
   const { api, connector } = setup((a) => {
     a.versions = [{ id: 'v-next', versionString: '2.1', state: 'IN_REVIEW' }];
   });
-  await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => e instanceof StoreError && /already in review/.test(e.message));
+  await assert.rejects(
+    connector.submit({ request: REQUEST, guard: accept }),
+    (e: unknown) => e instanceof StoreError && /already in review/.test(e.message),
+  );
   assert.deepEqual(api.writes(), []);
 });
 
 test('a refusal before the last request says nothing was submitted and is no unknown outcome', async () => {
-  for (const [path, label] of [['/v1/reviewSubmissions', 'create'], ['/v1/reviewSubmissionItems', 'item']] as const) {
+  for (const [path, label] of [
+    ['/v1/reviewSubmissions', 'create'],
+    ['/v1/reviewSubmissionItems', 'item'],
+  ] as const) {
     const { api, connector } = setup((a) => {
-      a.hook = (s) => (s.method === 'POST' && s.path === path ? reply(409, { errors: [{ status: '409', code: 'STATE_ERROR', title: 'Not allowed', detail: 'The version has no build.' }] }) : undefined);
+      a.hook = (s) =>
+        s.method === 'POST' && s.path === path
+          ? reply(409, {
+              errors: [
+                {
+                  status: '409',
+                  code: 'STATE_ERROR',
+                  title: 'Not allowed',
+                  detail: 'The version has no build.',
+                },
+              ],
+            })
+          : undefined;
     });
     await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
       assert.ok(e instanceof StoreError, label);
@@ -160,16 +244,24 @@ test('a refusal before the last request says nothing was submitted and is no unk
       assertNoSecrets(e);
       return true;
     });
-    assert.ok(!api.writes().some((w) => w.startsWith('PATCH')), `${label}: never reached the last request`);
+    assert.ok(
+      !api.writes().some((w) => w.startsWith('PATCH')),
+      `${label}: never reached the last request`,
+    );
   }
 });
 
 test('a lost answer before the last request is a plain failure that mentions the unsubmitted submission', async () => {
   const { api, connector } = setup((a) => {
-    a.hook = (s) => (s.method === 'POST' && s.path === '/v1/reviewSubmissionItems' ? reply(503) : undefined);
+    a.hook = (s) =>
+      s.method === 'POST' && s.path === '/v1/reviewSubmissionItems' ? reply(503) : undefined;
   });
   await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
-    assert.ok(e instanceof StoreError && !(e instanceof SubmitOutcomeUnknownError) && !(e instanceof DraftOutcomeUnknownError));
+    assert.ok(
+      e instanceof StoreError &&
+        !(e instanceof SubmitOutcomeUnknownError) &&
+        !(e instanceof DraftOutcomeUnknownError),
+    );
     assert.match(e.message, /unsubmitted review submission/);
     return true;
   });
@@ -178,7 +270,19 @@ test('a lost answer before the last request is a plain failure that mentions the
 
 test('the last request refused: nothing was submitted, and it is not an unknown outcome', async () => {
   const { connector } = setup((a) => {
-    a.hook = (s) => (s.method === 'PATCH' ? reply(409, { errors: [{ status: '409', code: 'STATE_ERROR', title: 'Missing metadata', detail: 'Complete the metadata.' }] }) : undefined);
+    a.hook = (s) =>
+      s.method === 'PATCH'
+        ? reply(409, {
+            errors: [
+              {
+                status: '409',
+                code: 'STATE_ERROR',
+                title: 'Missing metadata',
+                detail: 'Complete the metadata.',
+              },
+            ],
+          })
+        : undefined;
   });
   await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
     assert.ok(e instanceof StoreError && !(e instanceof SubmitOutcomeUnknownError));
@@ -193,7 +297,9 @@ test('a 5xx or a cut connection on the last request is an unknown outcome and is
     const { api, connector } = setup((a) => {
       a.hook = (s) => {
         if (s.method !== 'PATCH') return undefined;
-        return mode === '5xx' ? reply(503, { errors: [{ status: '503', code: 'UNAVAILABLE', title: 'x' }] }) : new TypeError('socket hang up');
+        return mode === '5xx'
+          ? reply(503, { errors: [{ status: '503', code: 'UNAVAILABLE', title: 'x' }] })
+          : new TypeError('socket hang up');
       };
     });
     await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
@@ -207,15 +313,33 @@ test('a 5xx or a cut connection on the last request is an unknown outcome and is
 
 test('a 429 is not waited out or retried', async () => {
   const { api, connector } = setup((a) => {
-    a.hook = (s) => (s.method === 'POST' && s.path === '/v1/reviewSubmissions' ? new Response('{}', { status: 429, headers: { 'retry-after': '1' } }) : undefined);
+    a.hook = (s) =>
+      s.method === 'POST' && s.path === '/v1/reviewSubmissions'
+        ? new Response('{}', { status: 429, headers: { 'retry-after': '1' } })
+        : undefined;
   });
-  await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => e instanceof StoreError && e.kind === 'rate_limited');
+  await assert.rejects(
+    connector.submit({ request: REQUEST, guard: accept }),
+    (e: unknown) => e instanceof StoreError && e.kind === 'rate_limited',
+  );
   assert.equal(api.seen.filter((s) => s.method === 'POST').length, 1);
 });
 
 test('a 403 message never carries the key', async () => {
   const { connector } = setup((a) => {
-    a.hook = (s) => (s.method === 'PATCH' ? reply(403, { errors: [{ status: '403', code: 'FORBIDDEN_ERROR', title: 'Forbidden', detail: `no ${key.privateKey}` }] }) : undefined);
+    a.hook = (s) =>
+      s.method === 'PATCH'
+        ? reply(403, {
+            errors: [
+              {
+                status: '403',
+                code: 'FORBIDDEN_ERROR',
+                title: 'Forbidden',
+                detail: `no ${key.privateKey}`,
+              },
+            ],
+          })
+        : undefined;
   });
   await assert.rejects(connector.submit({ request: REQUEST, guard: accept }), (e: unknown) => {
     assert.ok(e instanceof StoreError && e.kind === 'forbidden');
@@ -228,22 +352,47 @@ test('submitKey changes with the listing, the build, the release type and the dr
   const { api, connector } = setup();
   const first = await connector.readSubmitState(REQUEST);
   assert.ok(sameSubmitState(first, await connector.readSubmitState(REQUEST)));
-  assert.ok(sameSubmitState(first, await connector.readSubmitState({ ...REQUEST, text: [...REQUEST.text].reverse() })));
+  assert.ok(
+    sameSubmitState(
+      first,
+      await connector.readSubmitState({ ...REQUEST, text: [...REQUEST.text].reverse() }),
+    ),
+  );
   const loc = api.locs.get('loc-en');
   if (loc) loc.attributes.promotionalText = 'Edited in App Store Connect';
-  assert.ok(!sameSubmitState(first, await connector.readSubmitState(REQUEST)), 'a text outside the pushed items counts');
+  assert.ok(
+    !sameSubmitState(first, await connector.readSubmitState(REQUEST)),
+    'a text outside the pushed items counts',
+  );
   const second = await connector.readSubmitState(REQUEST);
   api.builds.set('v-next', { id: 'b-2', version: '58', processingState: 'VALID', expired: false });
-  assert.ok(!sameSubmitState(second, await connector.readSubmitState(REQUEST)), 'a new build counts');
+  assert.ok(
+    !sameSubmitState(second, await connector.readSubmitState(REQUEST)),
+    'a new build counts',
+  );
   const third = await connector.readSubmitState(REQUEST);
   const v = api.versions.find((x) => x.id === 'v-next');
   if (v) v.releaseType = 'AFTER_APPROVAL';
-  assert.ok(!sameSubmitState(third, await connector.readSubmitState(REQUEST)), 'the release type counts');
+  assert.ok(
+    !sameSubmitState(third, await connector.readSubmitState(REQUEST)),
+    'the release type counts',
+  );
   // The listing part of the key holds hashes of texts, never the text (the key is only ever hashed itself).
   assert.ok(!JSON.stringify(submitKey(third).locales).includes('Old description'));
-  assert.ok(JSON.stringify(submitKey(third).locales).includes(sha256(new TextEncoder().encode('Old description'))));
+  assert.ok(
+    JSON.stringify(submitKey(third).locales).includes(
+      sha256(new TextEncoder().encode('Old description')),
+    ),
+  );
 });
 
 test('a bad App Store id is refused when the connector is built', () => {
-  assert.throws(() => new AppleSubmitConnector({ credential: { keyId: fx.KEY_ID, issuerId: fx.ISSUER_ID, privateKey: key.privateKey }, appStoreId: '12; DROP' }), /not a number/);
+  assert.throws(
+    () =>
+      new AppleSubmitConnector({
+        credential: { keyId: fx.KEY_ID, issuerId: fx.ISSUER_ID, privateKey: key.privateKey },
+        appStoreId: '12; DROP',
+      }),
+    /not a number/,
+  );
 });

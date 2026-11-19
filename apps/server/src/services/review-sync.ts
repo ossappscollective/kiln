@@ -7,23 +7,27 @@ import {
   PlayReviewsConnector,
   type RatingSummary,
   redactSecrets,
-  secretStrings,
   StoreError,
   StoreRateLimitError,
   type StoreReview,
   type StoreReviewConnector,
+  secretStrings,
 } from '@mrm/connectors';
-import { type ActorType, type Platform, isApplePlatform, isGooglePlatform } from '@mrm/core';
+import { type ActorType, isApplePlatform, isGooglePlatform, type Platform } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
-import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
+import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
-import { type AutoTranslateSummary, type TranslationContext, autoTranslateNewReviews } from './translation.ts';
+import { parseResponse, type StoreKey } from './reviews.ts';
+import {
+  type AutoTranslateSummary,
+  autoTranslateNewReviews,
+  type TranslationContext,
+} from './translation.ts';
 import { lowRatingThresholdFor } from './workspace-settings.ts';
-import { type StoreKey, parseResponse } from './reviews.ts';
 
 /**
  * Reads the customer reviews of an app from its store (read only) into `app_reviews`.
@@ -75,7 +79,8 @@ export const reviewBackoffMs = (failures: number): number =>
   Math.min(MIN_BACKOFF_MS * 2 ** Math.max(0, failures - 1), MAX_BACKOFF_MS);
 
 /** The store behind a platform. */
-export const storeFor = (platform: Platform): StoreKey => (isApplePlatform(platform) ? 'appstoreconnect' : 'googleplay');
+export const storeFor = (platform: Platform): StoreKey =>
+  isApplePlatform(platform) ? 'appstoreconnect' : 'googleplay';
 
 // ---------------------------------------------------------------------------------------------
 // Connectors
@@ -96,11 +101,22 @@ export type ReviewConnectorFactory = (input: ReviewConnectorInput) => StoreRevie
 
 export const defaultReviewConnectorFactory: ReviewConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppStoreReviewsConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', fetch: input.fetch })
-    : new PlayReviewsConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
+    ? AppStoreReviewsConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        fetch: input.fetch,
+      })
+    : new PlayReviewsConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      });
 
 /** The optional store-wide rating (public iTunes lookup). Replaced by a fake in tests. */
-export type RatingFetcher = (input: { appStoreId: string; country: string; platform?: 'ios' | 'macos' }) => Promise<RatingSummary | undefined>;
+export type RatingFetcher = (input: {
+  appStoreId: string;
+  country: string;
+  platform?: 'ios' | 'macos';
+}) => Promise<RatingSummary | undefined>;
 
 export const defaultRatingFetcher: RatingFetcher = (input) => fetchRatingSummary(input);
 
@@ -122,7 +138,10 @@ export type ReviewsContext = {
    * Seams of the optional automatic translation after a sync (workspace setting `translation.mode`
    * = auto). Tests replace the network; production passes `allowPrivateUrls` from the config.
    */
-  translation?: Pick<TranslationContext, 'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'>;
+  translation?: Pick<
+    TranslationContext,
+    'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'
+  >;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -166,7 +185,12 @@ export type ReviewSyncState = {
   lastResult: ReviewSyncResult | null;
 };
 
-export async function getSyncState(sql: Sql, workspaceId: string, appId: string, store: StoreKey): Promise<ReviewSyncState> {
+export async function getSyncState(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  store: StoreKey,
+): Promise<ReviewSyncState> {
   const [row] = await sql.query(
     `SELECT cursor, last_attempt_at, last_success_at, last_error, consecutive_failures, backoff_until,
             last_gap_at, last_result
@@ -186,7 +210,8 @@ export async function getSyncState(sql: Sql, workspaceId: string, appId: string,
     store,
     lastAttemptAt: n(row?.last_attempt_at),
     lastSuccessAt: n(row?.last_success_at),
-    lastError: row?.last_error === null || row?.last_error === undefined ? null : String(row.last_error),
+    lastError:
+      row?.last_error === null || row?.last_error === undefined ? null : String(row.last_error),
     consecutiveFailures: Number(row?.consecutive_failures ?? 0),
     backoffUntil: n(row?.backoff_until),
     lastGapAt: n(row?.last_gap_at),
@@ -201,7 +226,9 @@ function parseCursor(raw: unknown): Cursor | undefined {
   if (typeof raw !== 'string' || raw === '') return undefined;
   try {
     const v = JSON.parse(raw) as Partial<Cursor>;
-    return typeof v.c === 'string' ? { c: v.c, s: typeof v.s === 'number' ? v.s : null } : undefined;
+    return typeof v.c === 'string'
+      ? { c: v.c, s: typeof v.s === 'number' ? v.s : null }
+      : undefined;
   } catch {
     return undefined;
   }
@@ -212,10 +239,16 @@ function parseCursor(raw: unknown): Cursor | undefined {
 
 class SyncTimeout extends Error {}
 
-type Classified = { failure: Failure; message: string; transient: boolean; retryAfterSeconds?: number };
+type Classified = {
+  failure: Failure;
+  message: string;
+  transient: boolean;
+  retryAfterSeconds?: number;
+};
 
 function classify(error: unknown, secret: string): Classified {
-  const clean = (text: string) => redactSecrets(text, secret ? secretStrings(secret) : []).slice(0, MAX_ERROR_LENGTH);
+  const clean = (text: string) =>
+    redactSecrets(text, secret ? secretStrings(secret) : []).slice(0, MAX_ERROR_LENGTH);
   const make = (
     status: Failure['status'],
     code: string,
@@ -226,16 +259,29 @@ function classify(error: unknown, secret: string): Classified {
   ): Classified => {
     const safe = clean(message);
     return {
-      failure: { ok: false, status, body: { error: code, message: safe, ...extra }, ...(headers ? { headers } : {}) },
+      failure: {
+        ok: false,
+        status,
+        body: { error: code, message: safe, ...extra },
+        ...(headers ? { headers } : {}),
+      },
       message: safe,
       transient,
     };
   };
-  if (error instanceof SyncTimeout) return make(504, 'timeout', 'The store did not answer in time. Try again.', true);
+  if (error instanceof SyncTimeout)
+    return make(504, 'timeout', 'The store did not answer in time. Try again.', true);
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
     return {
-      ...make(429, 'rate_limited', error.message, true, { retryAfterSeconds: wait }, { 'Retry-After': String(wait) }),
+      ...make(
+        429,
+        'rate_limited',
+        error.message,
+        true,
+        { retryAfterSeconds: wait },
+        { 'Retry-After': String(wait) },
+      ),
       retryAfterSeconds: wait,
     };
   }
@@ -259,7 +305,12 @@ function classify(error: unknown, secret: string): Classified {
     }
   }
   // Not ours to explain, and the text may echo what was sent. Nothing of it is kept.
-  return make(502, 'sync_failed', 'The review sync could not be completed. Try again in a moment.', false);
+  return make(
+    502,
+    'sync_failed',
+    'The review sync could not be completed. Try again in a moment.',
+    false,
+  );
 }
 
 async function recordFailure(
@@ -272,7 +323,10 @@ async function recordFailure(
   const at = ctx.now();
   const store = storeFor(app.platform);
   await ctx.db.transaction(async (tx) => {
-    const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [app.id, app.workspaceId]);
+    const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [
+      app.id,
+      app.workspaceId,
+    ]);
     if (!still) return;
     const [row] = await tx.query(
       'SELECT consecutive_failures, failure_notified_at FROM review_sync_state WHERE app_id = ? AND store = ?',
@@ -304,7 +358,13 @@ async function recordFailure(
         workspaceId: app.workspaceId,
         type: 'review.sync_failed',
         subject: { appId: app.id },
-        payload: { appId: app.id, store, code: String(c.failure.body.error), transient: c.transient, failures },
+        payload: {
+          appId: app.id,
+          store,
+          code: String(c.failure.body.error),
+          transient: c.transient,
+          failures,
+        },
         at,
       });
     }
@@ -350,7 +410,10 @@ export async function syncReviews(
   if (!found) return { ...failure(404, 'not_found'), transient: false };
   const app: RunApp = { ...found, workspaceId: input.workspaceId };
   if (running.has(app.id)) {
-    return { ...failure(409, 'sync_in_progress', 'The reviews of this app are already being read.'), transient: false };
+    return {
+      ...failure(409, 'sync_in_progress', 'The reviews of this app are already being read.'),
+      transient: false,
+    };
   }
   running.add(app.id);
   try {
@@ -396,24 +459,40 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
 
   if (await reviewsOwnedByOtherRecord(db, workspaceId, app)) {
     return {
-      ...failure(409, 'reviews_shared', 'The customer reviews of an App Store Connect app are shared by its iOS and macOS entries. They are read once, for the iOS entry.'),
+      ...failure(
+        409,
+        'reviews_shared',
+        'The customer reviews of an App Store Connect app are shared by its iOS and macOS entries. They are read once, for the iOS entry.',
+      ),
       transient: false,
     } as ReviewSyncFailure;
   }
 
-  const [credential] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
-    app.credentialId,
-    workspaceId,
-  ]);
+  const [credential] = await db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [app.credentialId, workspaceId],
+  );
   if (!credential) {
-    return plain(422, 'credential_not_found', 'The credential of this app no longer exists. Add the app again with a new credential.');
+    return plain(
+      422,
+      'credential_not_found',
+      'The credential of this app no longer exists. Add the app again with a new credential.',
+    );
   }
   const kind = String(credential.kind);
   if (kind !== credentialKindFor[app.platform]) {
-    return plain(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
+    return plain(
+      422,
+      'credential_kind',
+      "This app's credential is not the kind its platform needs.",
+    );
   }
   if (isApplePlatform(app.platform) && !app.storeAppId) {
-    return plain(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first, then read its reviews.');
+    return plain(
+      422,
+      'app_not_synced',
+      'The App Store id of this app is not known yet. Sync the app first, then read its reviews.',
+    );
   }
   let secret: string | undefined;
   try {
@@ -425,28 +504,37 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       ctx.now(),
     );
   } catch {
-    return plain(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.');
+    return plain(
+      422,
+      'credential_unreadable',
+      'The credential could not be decrypted. Enter its secret again.',
+    );
   }
-  if (secret === undefined) return plain(422, 'credential_not_found', 'The credential of this app no longer exists.');
+  if (secret === undefined)
+    return plain(422, 'credential_not_found', 'The credential of this app no longer exists.');
 
   const before = await getSyncState(db, workspaceId, app.id, store);
-  const [stateRow] = await db.query('SELECT cursor FROM review_sync_state WHERE app_id = ? AND store = ?', [app.id, store]);
+  const [stateRow] = await db.query(
+    'SELECT cursor FROM review_sync_state WHERE app_id = ? AND store = ?',
+    [app.id, store],
+  );
   const saved = parseCursor(stateRow?.cursor);
   const startedAt = ctx.now();
   const baseline = before.lastSuccessAt === null;
 
   // What to ask for. Play ignores `since` on purpose (a developer reply does not change the user
   // comment's time, and the whole window is a handful of requests).
-  const since =
-    isGooglePlatform(app.platform)
-      ? undefined
-      : saved
-        ? (saved.s ?? undefined)
-        : before.lastSuccessAt !== null
-          ? before.lastSuccessAt - APPLE_OVERLAP_MS
-          : undefined;
+  const since = isGooglePlatform(app.platform)
+    ? undefined
+    : saved
+      ? (saved.s ?? undefined)
+      : before.lastSuccessAt !== null
+        ? before.lastSuccessAt - APPLE_OVERLAP_MS
+        : undefined;
   const gap =
-    isGooglePlatform(app.platform) && before.lastSuccessAt !== null && startedAt - before.lastSuccessAt > PLAY_REVIEW_WINDOW_MS
+    isGooglePlatform(app.platform) &&
+    before.lastSuccessAt !== null &&
+    startedAt - before.lastSuccessAt > PLAY_REVIEW_WINDOW_MS
       ? { from: before.lastSuccessAt, to: startedAt }
       : null;
 
@@ -491,7 +579,11 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
 
   const at = ctx.now();
   // The workspace setting, read once per sync: a change applies from the next read on.
-  const threshold = await lowRatingThresholdFor(db, workspaceId, ctx.lowRatingThreshold ?? LOW_RATING_THRESHOLD);
+  const threshold = await lowRatingThresholdFor(
+    db,
+    workspaceId,
+    ctx.lowRatingThreshold ?? LOW_RATING_THRESHOLD,
+  );
   const warnings = [...read.warnings];
   if (gap) {
     const missedUntil = gap.to - PLAY_REVIEW_WINDOW_MS;
@@ -501,7 +593,10 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   }
   const done = await db.transaction(async (tx) => {
     // The app may have been deleted while the store was being read.
-    const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [app.id, workspaceId]);
+    const [still] = await tx.query('SELECT id FROM apps WHERE id = ? AND workspace_id = ?', [
+      app.id,
+      workspaceId,
+    ]);
     if (!still) return undefined;
     const wanted = new Map<string, StoreReview>();
     for (const review of read.reviews) wanted.set(review.storeReviewId, review);
@@ -525,7 +620,11 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
     let lowSeen = 0;
     const addedIds: string[] = [];
     const untouched: string[] = [];
-    const notify = async (id: string, review: StoreReview, source: 'new' | 'edited'): Promise<number | null> => {
+    const notify = async (
+      id: string,
+      review: StoreReview,
+      source: 'new' | 'edited',
+    ): Promise<number | null> => {
       lowSeen++;
       if (baseline || events >= MAX_LOW_RATING_EVENTS_PER_SYNC) return at;
       events++;
@@ -534,7 +633,15 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
         type: 'review.new_low_rating',
         subject: { appId: app.id },
         // Ids and the rating only: never the text or the display name.
-        payload: { reviewId: id, storeReviewId: review.storeReviewId, appId: app.id, store, rating: review.rating, threshold, source },
+        payload: {
+          reviewId: id,
+          storeReviewId: review.storeReviewId,
+          appId: app.id,
+          store,
+          rating: review.rating,
+          threshold,
+          source,
+        },
         at,
       });
       return at;
@@ -593,7 +700,13 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       const oldResponse = responseJson(
         (() => {
           const parsed = parseResponse(old.developer_response);
-          return parsed ? { body: parsed.body, ...(parsed.at !== null ? { at: parsed.at } : {}), ...(parsed.state !== null ? { state: parsed.state } : {}) } : undefined;
+          return parsed
+            ? {
+                body: parsed.body,
+                ...(parsed.at !== null ? { at: parsed.at } : {}),
+                ...(parsed.state !== null ? { state: parsed.state } : {}),
+              }
+            : undefined;
         })(),
       );
       const responseChanged = oldResponse !== response;
@@ -641,10 +754,15 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
     }
     for (let i = 0; i < untouched.length; i += 200) {
       const chunk = untouched.slice(i, i + 200);
-      await tx.execute(`UPDATE app_reviews SET fetched_at = ? WHERE id IN (${chunk.map(() => '?').join(', ')})`, [at, ...chunk]);
+      await tx.execute(
+        `UPDATE app_reviews SET fetched_at = ? WHERE id IN (${chunk.map(() => '?').join(', ')})`,
+        [at, ...chunk],
+      );
     }
     if (lowSeen > events && !baseline) {
-      warnings.push(`${lowSeen - events} low ratings were recorded without an event (more than ${MAX_LOW_RATING_EVENTS_PER_SYNC} in one read).`);
+      warnings.push(
+        `${lowSeen - events} low ratings were recorded without an event (more than ${MAX_LOW_RATING_EVENTS_PER_SYNC} in one read).`,
+      );
     }
     const result: ReviewSyncResult = {
       at,
@@ -661,7 +779,9 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       lowRatingThreshold: threshold,
       ratingSummary: 'off',
     };
-    const cursor: Param = read.nextCursor ? JSON.stringify({ c: read.nextCursor, s: since ?? null } satisfies Cursor) : null;
+    const cursor: Param = read.nextCursor
+      ? JSON.stringify({ c: read.nextCursor, s: since ?? null } satisfies Cursor)
+      : null;
     await tx.execute(
       `INSERT INTO review_sync_state
          (app_id, store, workspace_id, cursor, last_attempt_at, last_success_at, last_error,
@@ -681,7 +801,18 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       action: 'reviews.sync',
       target: { type: 'app', id: app.id },
       // Counts only: no review text, no names.
-      detail: { ok: true, store, fetched: result.fetched, added, updated, responses, complete: result.complete, gap: gap !== null, baseline, ...trigger },
+      detail: {
+        ok: true,
+        store,
+        fetched: result.fetched,
+        added,
+        updated,
+        responses,
+        complete: result.complete,
+        gap: gap !== null,
+        baseline,
+        ...trigger,
+      },
       at,
     });
     return { result, addedIds };
@@ -717,10 +848,15 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       ])
       .catch(() => 0);
   }
-  return { ok: true as const, sync: outcome, state: await getSyncState(db, workspaceId, app.id, store) };
+  return {
+    ok: true as const,
+    sync: outcome,
+    state: await getSyncState(db, workspaceId, app.id, store),
+  };
 }
 
-const milli = (v: number | undefined): number | null => (v === undefined ? null : Math.round(v * 1000));
+const milli = (v: number | undefined): number | null =>
+  v === undefined ? null : Math.round(v * 1000);
 
 /** Stores the store-wide rating when it differs from the last one stored for the storefront. */
 async function recordRatingSummary(
@@ -731,7 +867,11 @@ async function recordRatingSummary(
 ): Promise<ReviewSyncResult['ratingSummary']> {
   let summary: RatingSummary | undefined;
   try {
-    summary = await fetcher({ appStoreId, country: RATING_COUNTRY, ...(app.platform === 'macos' ? { platform: 'macos' as const } : {}) });
+    summary = await fetcher({
+      appStoreId,
+      country: RATING_COUNTRY,
+      ...(app.platform === 'macos' ? { platform: 'macos' as const } : {}),
+    });
   } catch {
     return 'unavailable';
   }
@@ -762,7 +902,17 @@ async function recordRatingSummary(
       `INSERT INTO app_rating_summaries
          (id, workspace_id, app_id, store, territory, average_milli, rating_count, current_average_milli, current_count, observed_at)
        VALUES (?, ?, ?, 'appstoreconnect', ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), app.workspaceId, app.id, summary.country, next.average, next.count, next.currentAverage, next.currentCount, ctx.now()],
+      [
+        randomUUID(),
+        app.workspaceId,
+        app.id,
+        summary.country,
+        next.average,
+        next.count,
+        next.currentAverage,
+        next.currentCount,
+        ctx.now(),
+      ],
     );
     return 'stored';
   } catch {
@@ -773,14 +923,22 @@ async function recordRatingSummary(
 // ---------------------------------------------------------------------------------------------
 // As a job
 
-export type ReviewSyncPayload = { workspaceId: string; appId: string; credentialId?: string; requestedBy: string };
+export type ReviewSyncPayload = {
+  workspaceId: string;
+  appId: string;
+  credentialId?: string;
+  requestedBy: string;
+};
 
 export function enqueueReviewSync(
   ctx: Pick<ReviewsContext, 'db' | 'now'>,
   payload: ReviewSyncPayload,
   options: { runAt?: number } = {},
 ): Promise<string> {
-  return enqueue(ctx.db, REVIEW_SYNC_QUEUE, payload, { now: ctx.now(), ...(options.runAt !== undefined ? { runAt: options.runAt } : {}) });
+  return enqueue(ctx.db, REVIEW_SYNC_QUEUE, payload, {
+    now: ctx.now(),
+    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}),
+  });
 }
 
 const isPayload = (value: unknown): value is ReviewSyncPayload =>

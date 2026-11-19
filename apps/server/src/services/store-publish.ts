@@ -1,17 +1,50 @@
 import { createHash } from 'node:crypto';
 import { isApplePlatform, isGooglePlatform, type Platform } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ManagedApp, getApp } from './apps.ts';
+import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
-import { type PendingItem, PUBLISH_STEPS, type PublishStep, loadPendingFacts, pendingItemsOf, totalsOf } from './pending.ts';
+import {
+  loadPendingFacts,
+  type PendingItem,
+  PUBLISH_STEPS,
+  type PublishStep,
+  pendingItemsOf,
+  totalsOf,
+} from './pending.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
-import { DRAFT_ENV, type DraftContext, type DraftPreview, applyDraftPush, previewDraftPush } from './store-draft.ts';
+import {
+  applyDraftPush,
+  DRAFT_ENV,
+  type DraftContext,
+  type DraftPreview,
+  previewDraftPush,
+} from './store-draft.ts';
 import { loadPush } from './store-draft-record.ts';
-import { RELEASE_ENV, type ReleaseContext, type ReleaseInput, applyRelease, confirmationPhraseOf, previewRelease, requestOfInput } from './store-release.ts';
-import { ROLLOUT_ENV, type RolloutContext, type RolloutRequest, applyRollout, previewRollout } from './store-rollout.ts';
-import { SUBMIT_ENV, type SubmitContext, applySubmit, confirmationPhrase, previewSubmit } from './store-submit.ts';
+import {
+  applyRelease,
+  confirmationPhraseOf,
+  previewRelease,
+  RELEASE_ENV,
+  type ReleaseContext,
+  type ReleaseInput,
+  requestOfInput,
+} from './store-release.ts';
+import {
+  applyRollout,
+  previewRollout,
+  ROLLOUT_ENV,
+  type RolloutContext,
+  type RolloutRequest,
+} from './store-rollout.ts';
+import {
+  applySubmit,
+  confirmationPhrase,
+  previewSubmit,
+  SUBMIT_ENV,
+  type SubmitContext,
+} from './store-submit.ts';
 
 /**
  * The BATCH PUBLISH of an app: one plan, ONE final confirmation, several gated store steps in order
@@ -46,8 +79,18 @@ export const PUBLISH_ACTION = 'store.publish';
 /** A batch of up to four steps, each with its own timeout (a draft push alone may take four minutes). */
 export const DEFAULT_PUBLISH_CLAIM_TTL_MS = 900_000;
 
-export const STEP_ACTION = { push_draft: 'store.push_draft', submit: 'store.submit', release: 'store.release', rollout: 'releases.rollout' } as const;
-export const STEP_ENV = { push_draft: DRAFT_ENV, submit: SUBMIT_ENV, release: RELEASE_ENV, rollout: ROLLOUT_ENV } as const;
+export const STEP_ACTION = {
+  push_draft: 'store.push_draft',
+  submit: 'store.submit',
+  release: 'store.release',
+  rollout: 'releases.rollout',
+} as const;
+export const STEP_ENV = {
+  push_draft: DRAFT_ENV,
+  submit: SUBMIT_ENV,
+  release: RELEASE_ENV,
+  rollout: ROLLOUT_ENV,
+} as const;
 const STEP_LABEL = {
   push_draft: 'Push the staged changes to the store as a draft',
   submit: 'Submit the draft for store review',
@@ -55,7 +98,12 @@ const STEP_LABEL = {
   rollout: 'Change the rollout',
 } as const;
 /** Steps that cannot be taken back, or change what live users receive: they need the typed phrase. */
-const IRREVERSIBLE: Record<PublishStep, boolean> = { push_draft: false, submit: true, release: true, rollout: true };
+const IRREVERSIBLE: Record<PublishStep, boolean> = {
+  push_draft: false,
+  submit: true,
+  release: true,
+  rollout: true,
+};
 
 export type PublishContext = {
   db: Database;
@@ -95,22 +143,32 @@ const FIELDS: Record<PublishStep, readonly (keyof StepRequest)[]> = {
   rollout: ['action', 'version', 'track', 'versionCodes', 'userFraction'],
 };
 
-const invalidSteps = (message: string, extra: Record<string, unknown> = {}): Failure => failure(422, 'invalid_steps', message, extra);
+const invalidSteps = (message: string, extra: Record<string, unknown> = {}): Failure =>
+  failure(422, 'invalid_steps', message, extra);
 
 /** One step of each kind, only the fields that kind takes, in the order they run. */
-export function normalizeSteps(requests: readonly StepRequest[]): { ok: true; steps: StepRequest[] } | Failure {
+export function normalizeSteps(
+  requests: readonly StepRequest[],
+): { ok: true; steps: StepRequest[] } | Failure {
   const seen = new Set<PublishStep>();
   const out: StepRequest[] = [];
   for (const r of requests) {
-    if (!PUBLISH_STEPS.includes(r.type)) return invalidSteps(`type must be one of ${PUBLISH_STEPS.join(', ')}.`);
-    if (seen.has(r.type)) return invalidSteps(`There can be one ${r.type} step in a batch.`, { type: r.type });
+    if (!PUBLISH_STEPS.includes(r.type))
+      return invalidSteps(`type must be one of ${PUBLISH_STEPS.join(', ')}.`);
+    if (seen.has(r.type))
+      return invalidSteps(`There can be one ${r.type} step in a batch.`, { type: r.type });
     seen.add(r.type);
     const allowed = FIELDS[r.type];
     for (const key of Object.keys(r) as (keyof StepRequest)[]) {
       if (key === 'type' || r[key] === undefined) continue;
-      if (!allowed.includes(key)) return invalidSteps(`A ${r.type} step does not take ${key}.`, { type: r.type, field: key });
+      if (!allowed.includes(key))
+        return invalidSteps(`A ${r.type} step does not take ${key}.`, { type: r.type, field: key });
     }
-    if (r.type === 'rollout' && (r.action === undefined || r.action === '')) return invalidSteps('A rollout step needs the action to take.', { type: r.type, field: 'action' });
+    if (r.type === 'rollout' && (r.action === undefined || r.action === ''))
+      return invalidSteps('A rollout step needs the action to take.', {
+        type: r.type,
+        field: 'action',
+      });
     const clean: StepRequest = { type: r.type };
     for (const key of allowed) {
       const v = r[key];
@@ -126,14 +184,27 @@ export function normalizeSteps(requests: readonly StepRequest[]): { ok: true; st
 const needsPhrase = (types: readonly PublishStep[]) => types.some((t) => IRREVERSIBLE[t]);
 
 /** The text a person types once for the whole batch. Needs no store read, so a wrong one is refused before anything else. */
-export const publishPhrase = (app: Pick<ManagedApp, 'name'>, steps: number): string => `publish ${app.name} ${steps} ${steps === 1 ? 'step' : 'steps'}`;
+export const publishPhrase = (app: Pick<ManagedApp, 'name'>, steps: number): string =>
+  `publish ${app.name} ${steps} ${steps === 1 ? 'step' : 'steps'}`;
 
 // ---------------------------------------------------------------------------------------------
 // The plan
 
-export type PlanProblem = { code: string; severity: 'error' | 'warning'; message: string; item?: string };
+export type PlanProblem = {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  item?: string;
+};
 
-export type Availability = 'available' | 'feature_disabled' | 'forbidden' | 'nothing_to_do' | 'blocked' | 'needs_input' | 'not_requested';
+export type Availability =
+  | 'available'
+  | 'feature_disabled'
+  | 'forbidden'
+  | 'nothing_to_do'
+  | 'blocked'
+  | 'needs_input'
+  | 'not_requested';
 
 export type PlanStep = {
   type: PublishStep;
@@ -191,23 +262,66 @@ const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest
 type Check = { code: string; message: string; item?: string | undefined };
 
 const problemsFromChecks = (checks: { blocking: Check[]; warnings: Check[] }): PlanProblem[] => [
-  ...checks.blocking.slice(0, 30).map((c): PlanProblem => ({ code: c.code, severity: 'error', message: c.message, ...(c.item !== undefined ? { item: c.item } : {}) })),
-  ...checks.warnings.slice(0, 30).map((c): PlanProblem => ({ code: c.code, severity: 'warning', message: c.message, ...(c.item !== undefined ? { item: c.item } : {}) })),
+  ...checks.blocking
+    .slice(0, 30)
+    .map(
+      (c): PlanProblem => ({
+        code: c.code,
+        severity: 'error',
+        message: c.message,
+        ...(c.item !== undefined ? { item: c.item } : {}),
+      }),
+    ),
+  ...checks.warnings
+    .slice(0, 30)
+    .map(
+      (c): PlanProblem => ({
+        code: c.code,
+        severity: 'warning',
+        message: c.message,
+        ...(c.item !== undefined ? { item: c.item } : {}),
+      }),
+    ),
 ];
 
-const messageOf = (f: Failure): string => (typeof f.body.message === 'string' ? f.body.message : f.body.error);
+const messageOf = (f: Failure): string =>
+  typeof f.body.message === 'string' ? f.body.message : f.body.error;
 
 const problemOfFailure = (f: Failure): PlanProblem[] => {
-  const listed = Array.isArray(f.body.problems) ? (f.body.problems as { code?: unknown; message?: unknown; item?: unknown }[]) : [];
+  const listed = Array.isArray(f.body.problems)
+    ? (f.body.problems as { code?: unknown; message?: unknown; item?: unknown }[])
+    : [];
   if (listed.length > 0) {
-    return listed.slice(0, 30).map((p) => ({ code: String(p.code ?? f.body.error), severity: 'error' as const, message: String(p.message ?? ''), ...(p.item !== undefined ? { item: String(p.item) } : {}) }));
+    return listed
+      .slice(0, 30)
+      .map((p) => ({
+        code: String(p.code ?? f.body.error),
+        severity: 'error' as const,
+        message: String(p.message ?? ''),
+        ...(p.item !== undefined ? { item: String(p.item) } : {}),
+      }));
   }
   return [{ code: f.body.error, severity: 'error', message: messageOf(f) }];
 };
 
-type Evaluation = Pick<PlanStep, 'availability' | 'reason' | 'deferred' | 'summary' | 'preview' | 'confirmHash' | 'stepPhrase' | 'problems'>;
+type Evaluation = Pick<
+  PlanStep,
+  | 'availability'
+  | 'reason'
+  | 'deferred'
+  | 'summary'
+  | 'preview'
+  | 'confirmHash'
+  | 'stepPhrase'
+  | 'problems'
+>;
 
-const unavailable = (availability: Exclude<Availability, 'available'>, reason: string, problems: PlanProblem[] = [], preview: unknown = null): Evaluation => ({
+const unavailable = (
+  availability: Exclude<Availability, 'available'>,
+  reason: string,
+  problems: PlanProblem[] = [],
+  preview: unknown = null,
+): Evaluation => ({
   availability,
   reason,
   deferred: false,
@@ -219,16 +333,26 @@ const unavailable = (availability: Exclude<Availability, 'available'>, reason: s
 });
 
 /** What the push promises the submit that follows it: the items its record will hold, counted like the record counts them. */
-async function recordAfterPush(sql: Sql, app: ManagedApp, push: DraftPreview): Promise<{ texts: number; assetSets: number; versionString: string | null }> {
+async function recordAfterPush(
+  sql: Sql,
+  app: ManagedApp,
+  push: DraftPreview,
+): Promise<{ texts: number; assetSets: number; versionString: string | null }> {
   const record = await loadPush(sql, app.id, app.platform);
-  const sameVersion = record !== undefined && (record.versionId ?? null) === (push.version?.id ?? null);
+  const sameVersion =
+    record !== undefined && (record.versionId ?? null) === (push.version?.id ?? null);
   const texts = new Set<string>(push.text.map((t) => `${t.locale}|${t.field}`));
   const sets = new Set<string>(push.assets.map((a) => `${a.locale}|${a.slotKey}`));
   if (sameVersion && record) {
     for (const t of record.manifest.text) texts.add(`${t.locale}|${t.field}`);
     for (const a of record.manifest.assets) sets.add(`${a.locale}|${a.key}`);
   }
-  return { texts: texts.size, assetSets: sets.size, versionString: push.version?.versionString ?? (sameVersion ? (record?.versionString ?? null) : null) };
+  return {
+    texts: texts.size,
+    assetSets: sets.size,
+    versionString:
+      push.version?.versionString ?? (sameVersion ? (record?.versionString ?? null) : null),
+  };
 }
 
 const RELEASE_DEFERRABLE = ['no_draft_release', 'version_codes_not_uploaded'];
@@ -241,12 +365,23 @@ type Done = Partial<Record<PublishStep, PlanStep>>;
  */
 export async function buildPlan(
   ctx: PublishContext,
-  input: { workspaceId: string; app: ManagedApp; actor: Actor; steps?: readonly StepRequest[] | undefined; rights: PublishRights },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    actor: Actor;
+    steps?: readonly StepRequest[] | undefined;
+    rights: PublishRights;
+  },
 ): Promise<PublishPlan> {
   const { app, workspaceId, actor } = input;
   const explicit = input.steps !== undefined;
   const requests = new Map<PublishStep, StepRequest>((input.steps ?? []).map((s) => [s.type, s]));
-  const enabled: Record<PublishStep, boolean> = { push_draft: ctx.draft.draftEnabled, submit: ctx.submit.submitEnabled, release: ctx.release.releaseEnabled, rollout: ctx.rollout.rolloutEnabled };
+  const enabled: Record<PublishStep, boolean> = {
+    push_draft: ctx.draft.draftEnabled,
+    submit: ctx.submit.submitEnabled,
+    release: ctx.release.releaseEnabled,
+    rollout: ctx.rollout.rolloutEnabled,
+  };
   const facts = await loadPendingFacts(ctx.db, { workspaceId, appId: app.id, now: ctx.now() });
   const approvedStored = (facts.releases.get(app.id) ?? []).some((r) => r.status === 'approved');
   const dueStored = (facts.steps.get(app.id) ?? []).length > 0;
@@ -257,12 +392,25 @@ export async function buildPlan(
   const evalPush = async (): Promise<Evaluation> => {
     const p = await previewDraftPush(ctx.draft, { workspaceId, appId: app.id, actor });
     if (!p.ok) {
-      if (p.body.error === 'nothing_staged') return unavailable('nothing_to_do', 'Nothing is staged for this app.');
+      if (p.body.error === 'nothing_staged')
+        return unavailable('nothing_to_do', 'Nothing is staged for this app.');
       return unavailable('blocked', messageOf(p), problemOfFailure(p));
     }
     const pre = p.preview;
-    if (pre.summary.nothingToDo) return unavailable('nothing_to_do', "The store's draft already holds everything that is staged.", [], pre);
-    if (pre.checks.blocking.length > 0) return unavailable('blocked', 'The store says some staged release fields cannot be written.', problemsFromChecks(pre.checks), pre);
+    if (pre.summary.nothingToDo)
+      return unavailable(
+        'nothing_to_do',
+        "The store's draft already holds everything that is staged.",
+        [],
+        pre,
+      );
+    if (pre.checks.blocking.length > 0)
+      return unavailable(
+        'blocked',
+        'The store says some staged release fields cannot be written.',
+        problemsFromChecks(pre.checks),
+        pre,
+      );
     pushPreview = pre;
     return {
       availability: 'available',
@@ -291,25 +439,50 @@ export async function buildPlan(
         availability: 'available',
         reason: null,
         deferred: true,
-        summary: { versionString: after.versionString, texts: after.texts, assetSets: after.assetSets },
+        summary: {
+          versionString: after.versionString,
+          texts: after.texts,
+          assetSets: after.assetSets,
+        },
         preview: null,
         confirmHash: null,
         stepPhrase: confirmationPhrase(app, { versionString: after.versionString }),
-        problems: [{ code: 'previewed_after_push', severity: 'warning', message: 'The submit is previewed again after the draft was pushed, and runs only if it matches this summary.' }],
+        problems: [
+          {
+            code: 'previewed_after_push',
+            severity: 'warning',
+            message:
+              'The submit is previewed again after the draft was pushed, and runs only if it matches this summary.',
+          },
+        ],
       };
     }
     const p = await previewSubmit(ctx.submit, { workspaceId, appId: app.id, actor });
     if (!p.ok) {
-      if (p.body.error === 'nothing_pushed') return unavailable('nothing_to_do', 'No draft push is recorded, so there is nothing to submit.');
+      if (p.body.error === 'nothing_pushed')
+        return unavailable(
+          'nothing_to_do',
+          'No draft push is recorded, so there is nothing to submit.',
+        );
       return unavailable('blocked', messageOf(p), problemOfFailure(p));
     }
     const pre = p.preview;
-    if (!pre.checks.canSubmit) return unavailable('blocked', 'Something stands in the way of submitting.', problemsFromChecks(pre.checks), pre);
+    if (!pre.checks.canSubmit)
+      return unavailable(
+        'blocked',
+        'Something stands in the way of submitting.',
+        problemsFromChecks(pre.checks),
+        pre,
+      );
     return {
       availability: 'available',
       reason: null,
       deferred: false,
-      summary: { versionString: pre.version?.versionString ?? null, texts: pre.contents.pushed.texts, assetSets: pre.contents.pushed.assetSets },
+      summary: {
+        versionString: pre.version?.versionString ?? null,
+        texts: pre.contents.pushed.texts,
+        assetSets: pre.contents.pushed.assetSets,
+      },
       preview: pre,
       confirmHash: pre.confirmHash,
       stepPhrase: pre.confirmation?.phrase ?? null,
@@ -318,15 +491,28 @@ export async function buildPlan(
   };
 
   const evalRelease = async (request: StepRequest | undefined): Promise<Evaluation> => {
-    const what: ReleaseInput = { version: request?.version, track: request?.track, versionCodes: request?.versionCodes, userFraction: request?.userFraction };
+    const what: ReleaseInput = {
+      version: request?.version,
+      track: request?.track,
+      versionCodes: request?.versionCodes,
+      userFraction: request?.userFraction,
+    };
     const asked = requestOfInput(app, what);
     if (!asked.ok) {
       const code = asked.body.error;
       const message = messageOf(asked);
       // A release that names no track or share is not an error: it only needs input from the person.
-      return unavailable(code === 'track_required' || code === 'user_fraction_required' ? 'needs_input' : 'blocked', message, [{ code, severity: 'error', message }]);
+      return unavailable(
+        code === 'track_required' || code === 'user_fraction_required' ? 'needs_input' : 'blocked',
+        message,
+        [{ code, severity: 'error', message }],
+      );
     }
-    if (!explicit && isApplePlatform(app.platform) && !approvedStored) return unavailable('nothing_to_do', 'No approved version is waiting for release (as of the last store sync).');
+    if (!explicit && isApplePlatform(app.platform) && !approvedStored)
+      return unavailable(
+        'nothing_to_do',
+        'No approved version is waiting for release (as of the last store sync).',
+      );
     const p = await previewRelease(ctx.release, { workspaceId, appId: app.id, actor, ...what });
     if (!p.ok) return unavailable('blocked', messageOf(p), problemOfFailure(p));
     const pre = p.preview;
@@ -336,20 +522,38 @@ export async function buildPlan(
     if (!pre.checks.canRelease) {
       const tolerated = afterPush && blockingCodes.every((c) => RELEASE_DEFERRABLE.includes(c));
       if (!tolerated) {
-        const nothing = blockingCodes.length > 0 && blockingCodes.every((c) => c === 'not_releasable' || c === 'no_draft_release');
-        return unavailable(nothing ? 'nothing_to_do' : 'blocked', nothing ? 'Nothing is waiting to be released.' : 'Something stands in the way of releasing.', problemsFromChecks(pre.checks), pre);
+        const nothing =
+          blockingCodes.length > 0 &&
+          blockingCodes.every((c) => c === 'not_releasable' || c === 'no_draft_release');
+        return unavailable(
+          nothing ? 'nothing_to_do' : 'blocked',
+          nothing
+            ? 'Nothing is waiting to be released.'
+            : 'Something stands in the way of releasing.',
+          problemsFromChecks(pre.checks),
+          pre,
+        );
       }
       return {
         availability: 'available',
         reason: null,
         deferred: true,
-        summary: { track: asked.request.track ?? null, userFraction: asked.request.userFraction ?? null, audience: pre.audience.kind },
+        summary: {
+          track: asked.request.track ?? null,
+          userFraction: asked.request.userFraction ?? null,
+          audience: pre.audience.kind,
+        },
         preview: pre,
         confirmHash: null,
         stepPhrase: confirmationPhraseOf(app, asked.request, undefined),
         problems: [
           ...problemsFromChecks({ blocking: [], warnings: pre.checks.warnings }),
-          { code: 'previewed_after_push', severity: 'warning', message: 'The draft release does not exist yet: this step is previewed again after the draft was pushed, and runs only if it matches this summary.' },
+          {
+            code: 'previewed_after_push',
+            severity: 'warning',
+            message:
+              'The draft release does not exist yet: this step is previewed again after the draft was pushed, and runs only if it matches this summary.',
+          },
         ],
       };
     }
@@ -363,7 +567,16 @@ export async function buildPlan(
       stepPhrase: pre.confirmation?.phrase ?? null,
       problems: [
         ...problemsFromChecks({ blocking: [], warnings: pre.checks.warnings }),
-        ...(afterPush ? [{ code: 'previewed_after_push', severity: 'warning' as const, message: 'This release is previewed again after the draft was pushed, and runs only if it matches this summary.' }] : []),
+        ...(afterPush
+          ? [
+              {
+                code: 'previewed_after_push',
+                severity: 'warning' as const,
+                message:
+                  'This release is previewed again after the draft was pushed, and runs only if it matches this summary.',
+              },
+            ]
+          : []),
       ],
     };
   };
@@ -371,26 +584,55 @@ export async function buildPlan(
   const evalRollout = async (request: StepRequest | undefined): Promise<Evaluation> => {
     if (request === undefined) {
       return dueStored
-        ? unavailable('needs_input', 'A rollout step of a release plan is due. Name the change to make (action, and the track and version codes or the version).')
+        ? unavailable(
+            'needs_input',
+            'A rollout step of a release plan is due. Name the change to make (action, and the track and version codes or the version).',
+          )
         : unavailable('nothing_to_do', 'No rollout change was asked for.');
     }
     if (done.release?.included) {
-      return unavailable('blocked', 'A rollout cannot be changed in the same batch that starts a release: the release changes what the rollout would act on. Publish the release first, then change the rollout.', [
-        { code: 'rollout_after_release', severity: 'error', message: 'Start the release first, then change its rollout in a second publish.' },
-      ]);
+      return unavailable(
+        'blocked',
+        'A rollout cannot be changed in the same batch that starts a release: the release changes what the rollout would act on. Publish the release first, then change the rollout.',
+        [
+          {
+            code: 'rollout_after_release',
+            severity: 'error',
+            message: 'Start the release first, then change its rollout in a second publish.',
+          },
+        ],
+      );
     }
-    const rolloutRequest: RolloutRequest = { action: request.action ?? '', track: request.track, versionCodes: request.versionCodes, version: request.version, userFraction: request.userFraction };
-    const p = await previewRollout(ctx.rollout, { workspaceId, appId: app.id, request: rolloutRequest, actor });
+    const rolloutRequest: RolloutRequest = {
+      action: request.action ?? '',
+      track: request.track,
+      versionCodes: request.versionCodes,
+      version: request.version,
+      userFraction: request.userFraction,
+    };
+    const p = await previewRollout(ctx.rollout, {
+      workspaceId,
+      appId: app.id,
+      request: rolloutRequest,
+      actor,
+    });
     if (!p.ok) return unavailable('blocked', messageOf(p), problemOfFailure(p));
     return {
       availability: 'available',
       reason: null,
       deferred: false,
-      summary: { action: p.preview.action, target: p.preview.target, irreversibleInStore: p.preview.irreversible, description: p.preview.summary },
+      summary: {
+        action: p.preview.action,
+        target: p.preview.target,
+        irreversibleInStore: p.preview.irreversible,
+        description: p.preview.summary,
+      },
       preview: p.preview,
       confirmHash: p.preview.confirmHash,
       stepPhrase: null,
-      problems: p.preview.warnings.map((message): PlanProblem => ({ code: 'rollout_note', severity: 'warning', message })),
+      problems: p.preview.warnings.map(
+        (message): PlanProblem => ({ code: 'rollout_note', severity: 'warning', message }),
+      ),
     };
   };
 
@@ -398,11 +640,18 @@ export async function buildPlan(
   for (const type of PUBLISH_STEPS) {
     const request = requests.get(type);
     const requested = explicit && request !== undefined;
-    const requires = { action: STEP_ACTION[type], envName: STEP_ENV[type], enabled: enabled[type], allowed: input.rights[type] };
+    const requires = {
+      action: STEP_ACTION[type],
+      envName: STEP_ENV[type],
+      enabled: enabled[type],
+      allowed: input.rights[type],
+    };
     let ev: Evaluation;
     if (explicit && !requested) ev = unavailable('not_requested', 'Not part of this batch.');
-    else if (!requires.enabled) ev = unavailable('feature_disabled', `${requires.envName} is off on this server.`);
-    else if (!requires.allowed) ev = unavailable('forbidden', `Your role, or this token, does not allow ${requires.action}.`);
+    else if (!requires.enabled)
+      ev = unavailable('feature_disabled', `${requires.envName} is off on this server.`);
+    else if (!requires.allowed)
+      ev = unavailable('forbidden', `Your role, or this token, does not allow ${requires.action}.`);
     else if (type === 'push_draft') ev = await evalPush();
     else if (type === 'submit') ev = await evalSubmit();
     else if (type === 'release') ev = await evalRelease(request);
@@ -412,7 +661,12 @@ export async function buildPlan(
       type,
       platform: app.platform,
       order: PUBLISH_STEPS.indexOf(type) + 1,
-      label: type === 'release' ? (isGooglePlatform(app.platform) ? 'Start the Google Play draft release' : 'Release the approved version') : STEP_LABEL[type],
+      label:
+        type === 'release'
+          ? isGooglePlatform(app.platform)
+            ? 'Start the Google Play draft release'
+            : 'Release the approved version'
+          : STEP_LABEL[type],
       requested,
       included,
       availability: ev.availability,
@@ -435,7 +689,9 @@ export async function buildPlan(
   const irreversibleSteps = included.filter((s) => s.irreversible).map((s) => s.type);
   const warnings: string[] = [];
   if (isGooglePlatform(app.platform) && done.submit?.included && done.release?.included) {
-    warnings.push('Google Play refuses to start a release while changes are in review (changes_in_review). Submitting first sends changes to review, so the release step may be refused; the batch stops there and reports it.');
+    warnings.push(
+      'Google Play refuses to start a release while changes are in review (changes_in_review). Submitting first sends changes to review, so the release step may be refused; the batch stops there and reports it.',
+    );
   }
   const blockedRequested = explicit && steps.some((s) => s.requested && !s.included);
   const confirmable = included.length > 0 && !blockedRequested;
@@ -448,7 +704,14 @@ export async function buildPlan(
           workspaceId,
           appId: app.id,
           platform: app.platform,
-          steps: included.map((s) => ({ type: s.type, deferred: s.deferred, request: s.request, summary: s.summary, phrase: s.stepPhrase, confirmHash: s.deferred ? null : s.confirmHash })),
+          steps: included.map((s) => ({
+            type: s.type,
+            deferred: s.deferred,
+            request: s.request,
+            summary: s.summary,
+            phrase: s.stepPhrase,
+            confirmHash: s.deferred ? null : s.confirmHash,
+          })),
         }),
       )
     : null;
@@ -470,7 +733,16 @@ export async function buildPlan(
 }
 
 /** What a release will do, as the plan promises it and the deferred preview must keep. */
-function releaseSummary(app: Pick<ManagedApp, 'platform'>, pre: { version: { versionString: string | null } | null; track: string | null; release: { versionCodes: string[] } | null; audience: { kind: string } }, userFraction: number | undefined): Record<string, unknown> {
+function releaseSummary(
+  app: Pick<ManagedApp, 'platform'>,
+  pre: {
+    version: { versionString: string | null } | null;
+    track: string | null;
+    release: { versionCodes: string[] } | null;
+    audience: { kind: string };
+  },
+  userFraction: number | undefined,
+): Record<string, unknown> {
   return isApplePlatform(app.platform)
     ? { version: pre.version?.versionString ?? null, audience: pre.audience.kind }
     : { track: pre.track, userFraction: userFraction ?? null, audience: pre.audience.kind };
@@ -485,28 +757,58 @@ export type PublishConfig = {
   action: 'store.publish';
   minimumRole: 'admin';
   /** The batch adds no right and no switch: every step keeps its own. */
-  steps: Record<PublishStep, { action: string; envName: string; enabled: boolean; irreversible: boolean }>;
+  steps: Record<
+    PublishStep,
+    { action: string; envName: string; enabled: boolean; irreversible: boolean }
+  >;
   phrase: string;
   note: string;
 };
 
-export const publishConfig = (ctx: Pick<PublishContext, 'publishEnabled' | 'draft' | 'submit' | 'release' | 'rollout'>): PublishConfig => ({
+export const publishConfig = (
+  ctx: Pick<PublishContext, 'publishEnabled' | 'draft' | 'submit' | 'release' | 'rollout'>,
+): PublishConfig => ({
   enabled: ctx.publishEnabled,
   envName: PUBLISH_ENV,
   action: PUBLISH_ACTION,
   minimumRole: 'admin',
   steps: {
-    push_draft: { action: STEP_ACTION.push_draft, envName: STEP_ENV.push_draft, enabled: ctx.draft.draftEnabled, irreversible: false },
-    submit: { action: STEP_ACTION.submit, envName: STEP_ENV.submit, enabled: ctx.submit.submitEnabled, irreversible: true },
-    release: { action: STEP_ACTION.release, envName: STEP_ENV.release, enabled: ctx.release.releaseEnabled, irreversible: true },
-    rollout: { action: STEP_ACTION.rollout, envName: STEP_ENV.rollout, enabled: ctx.rollout.rolloutEnabled, irreversible: true },
+    push_draft: {
+      action: STEP_ACTION.push_draft,
+      envName: STEP_ENV.push_draft,
+      enabled: ctx.draft.draftEnabled,
+      irreversible: false,
+    },
+    submit: {
+      action: STEP_ACTION.submit,
+      envName: STEP_ENV.submit,
+      enabled: ctx.submit.submitEnabled,
+      irreversible: true,
+    },
+    release: {
+      action: STEP_ACTION.release,
+      envName: STEP_ENV.release,
+      enabled: ctx.release.releaseEnabled,
+      irreversible: true,
+    },
+    rollout: {
+      action: STEP_ACTION.rollout,
+      envName: STEP_ENV.rollout,
+      enabled: ctx.rollout.rolloutEnabled,
+      irreversible: true,
+    },
   },
   phrase: 'publish <app name> <n> steps',
   note: 'The batch publish runs the same gated steps as the individual routes, in order, with one confirmation. It turns no step on and replaces no right: each step needs its own switch and role right (docs/api/pending.md).',
 });
 
 export const publishDisabledFailure = (): Failure =>
-  failure(409, 'publish_batch_disabled', `Publishing several steps at once is switched off on this server. Set ${PUBLISH_ENV}=true to turn it on (see docs/deployment.md). The individual steps keep their own switches.`, { envName: PUBLISH_ENV });
+  failure(
+    409,
+    'publish_batch_disabled',
+    `Publishing several steps at once is switched off on this server. Set ${PUBLISH_ENV}=true to turn it on (see docs/deployment.md). The individual steps keep their own switches.`,
+    { envName: PUBLISH_ENV },
+  );
 
 // ---------------------------------------------------------------------------------------------
 // Preview
@@ -514,7 +816,13 @@ export const publishDisabledFailure = (): Failure =>
 /** `POST .../publish/preview`: the plan. Reads the stores through the steps' own previews; writes nothing. */
 export async function previewPublish(
   ctx: PublishContext,
-  input: { workspaceId: string; appId: string; steps?: readonly StepRequest[] | undefined; rights: PublishRights; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    steps?: readonly StepRequest[] | undefined;
+    rights: PublishRights;
+    actor: Actor;
+  },
 ): Promise<{ ok: true; plan: PublishPlan } | Failure> {
   if (!ctx.publishEnabled) return publishDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
@@ -525,7 +833,16 @@ export async function previewPublish(
     if (!normalized.ok) return normalized;
     steps = normalized.steps;
   }
-  return { ok: true, plan: await buildPlan(ctx, { workspaceId: input.workspaceId, app, actor: input.actor, steps, rights: input.rights }) };
+  return {
+    ok: true,
+    plan: await buildPlan(ctx, {
+      workspaceId: input.workspaceId,
+      app,
+      actor: input.actor,
+      steps,
+      rights: input.rights,
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -533,11 +850,19 @@ export async function previewPublish(
 
 type Claim = { appId: string; platform: Platform; at: number };
 
-async function takeClaim(ctx: PublishContext, input: { workspaceId: string; app: ManagedApp; actor: Actor }): Promise<{ ok: true; claim: Claim } | Failure> {
+async function takeClaim(
+  ctx: PublishContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+): Promise<{ ok: true; claim: Claim } | Failure> {
   const { db } = ctx;
   const ttl = ctx.claimTtlMs ?? DEFAULT_PUBLISH_CLAIM_TTL_MS;
   const claim: Claim = { appId: input.app.id, platform: input.app.platform, at: ctx.now() };
-  const busy = () => failure(409, 'publish_in_progress', 'A publish of this app is in progress. Wait for it to finish.');
+  const busy = () =>
+    failure(
+      409,
+      'publish_in_progress',
+      'A publish of this app is in progress. Wait for it to finish.',
+    );
   const insert = () =>
     db.execute(
       `INSERT INTO store_publish_claims (app_id, platform, workspace_id, action, status, claimed_by, claim_at)
@@ -545,7 +870,10 @@ async function takeClaim(ctx: PublishContext, input: { workspaceId: string; app:
       [claim.appId, claim.platform, input.workspaceId, input.actor.id, claim.at],
     );
   if ((await insert()) === 1) return { ok: true, claim };
-  const [existing] = await db.query('SELECT claim_at FROM store_publish_claims WHERE app_id = ? AND platform = ?', [claim.appId, claim.platform]);
+  const [existing] = await db.query(
+    'SELECT claim_at FROM store_publish_claims WHERE app_id = ? AND platform = ?',
+    [claim.appId, claim.platform],
+  );
   if (!existing) return (await insert()) === 1 ? { ok: true, claim } : busy();
   const startedAt = Number(existing.claim_at);
   if (claim.at - startedAt < ttl) return busy();
@@ -559,7 +887,10 @@ async function takeClaim(ctx: PublishContext, input: { workspaceId: string; app:
 }
 
 const releaseClaim = (sql: Sql, claim: Claim) =>
-  sql.execute("DELETE FROM store_publish_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'", [claim.appId, claim.platform, claim.at]);
+  sql.execute(
+    "DELETE FROM store_publish_claims WHERE app_id = ? AND platform = ? AND claim_at = ? AND status = 'writing'",
+    [claim.appId, claim.platform, claim.at],
+  );
 
 // ---------------------------------------------------------------------------------------------
 // Apply
@@ -631,16 +962,42 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
  * Runs one step of an accepted plan. A deferred step is previewed now (after the earlier steps applied) and runs only when what it
  * shows is what the plan promised; the batch supplies the phrase the plan promised for the step, never another one.
  */
-async function runStep(ctx: PublishContext, input: { workspaceId: string; app: ManagedApp; actor: Actor }, step: PlanStep): Promise<StepResult> {
+async function runStep(
+  ctx: PublishContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+  step: PlanStep,
+): Promise<StepResult> {
   const { workspaceId, actor, app } = input;
   const type = step.type;
-  const skip = (reason: 'plan_drifted' | 'blocked' | 'preview_failed', message: string, extra: { code?: string; checks?: string[] } = {}): StepResult => ({ type, status: 'skipped', reason, message, ...extra });
-  const drifted = () => skip('plan_drifted', 'This step no longer matches what the plan promised, so nothing was written. Review the new plan and publish again.');
+  const skip = (
+    reason: 'plan_drifted' | 'blocked' | 'preview_failed',
+    message: string,
+    extra: { code?: string; checks?: string[] } = {},
+  ): StepResult => ({ type, status: 'skipped', reason, message, ...extra });
+  const drifted = () =>
+    skip(
+      'plan_drifted',
+      'This step no longer matches what the plan promised, so nothing was written. Review the new plan and publish again.',
+    );
   const reqOf = step.request ?? { type };
 
   if (type === 'push_draft') {
-    const r = await applyDraftPush(ctx.draft, { workspaceId, appId: app.id, confirmHash: step.confirmHash ?? '', actor });
-    return r.ok ? { type, status: 'applied', confirmedByReread: Boolean((r.result as { confirmedByReread?: boolean }).confirmedByReread), result: r.result } : failedStep(type, r);
+    const r = await applyDraftPush(ctx.draft, {
+      workspaceId,
+      appId: app.id,
+      confirmHash: step.confirmHash ?? '',
+      actor,
+    });
+    return r.ok
+      ? {
+          type,
+          status: 'applied',
+          confirmedByReread: Boolean(
+            (r.result as { confirmedByReread?: boolean }).confirmedByReread,
+          ),
+          result: r.result,
+        }
+      : failedStep(type, r);
   }
 
   if (type === 'submit') {
@@ -651,20 +1008,51 @@ async function runStep(ctx: PublishContext, input: { workspaceId: string; app: M
       if (!p.ok) return skip('preview_failed', messageOf(p), { code: p.body.error });
       const pre = p.preview;
       if (!pre.checks.canSubmit || pre.confirmHash === null || pre.confirmation === null) {
-        return skip('blocked', 'Something stands in the way of submitting now that the draft was pushed, so nothing was submitted.', { checks: pre.checks.blocking.map((c) => c.code).slice(0, 20) });
+        return skip(
+          'blocked',
+          'Something stands in the way of submitting now that the draft was pushed, so nothing was submitted.',
+          { checks: pre.checks.blocking.map((c) => c.code).slice(0, 20) },
+        );
       }
-      const promised = step.summary as { versionString: string | null; texts: number; assetSets: number };
-      const same = (pre.version?.versionString ?? null) === promised.versionString && pre.contents.pushed.texts === promised.texts && pre.contents.pushed.assetSets === promised.assetSets;
+      const promised = step.summary as {
+        versionString: string | null;
+        texts: number;
+        assetSets: number;
+      };
+      const same =
+        (pre.version?.versionString ?? null) === promised.versionString &&
+        pre.contents.pushed.texts === promised.texts &&
+        pre.contents.pushed.assetSets === promised.assetSets;
       if (!same || pre.confirmation.phrase !== step.stepPhrase) return drifted();
       confirmHash = pre.confirmHash;
       phrase = pre.confirmation.phrase;
     }
-    const r = await applySubmit(ctx.submit, { workspaceId, appId: app.id, confirmHash, confirmation: phrase, actor });
-    return r.ok ? { type, status: 'applied', confirmedByReread: Boolean((r.result as { confirmedByReread?: boolean }).confirmedByReread), result: r.result } : failedStep(type, r);
+    const r = await applySubmit(ctx.submit, {
+      workspaceId,
+      appId: app.id,
+      confirmHash,
+      confirmation: phrase,
+      actor,
+    });
+    return r.ok
+      ? {
+          type,
+          status: 'applied',
+          confirmedByReread: Boolean(
+            (r.result as { confirmedByReread?: boolean }).confirmedByReread,
+          ),
+          result: r.result,
+        }
+      : failedStep(type, r);
   }
 
   if (type === 'release') {
-    const what: ReleaseInput = { version: reqOf.version, track: reqOf.track, versionCodes: reqOf.versionCodes, userFraction: reqOf.userFraction };
+    const what: ReleaseInput = {
+      version: reqOf.version,
+      track: reqOf.track,
+      versionCodes: reqOf.versionCodes,
+      userFraction: reqOf.userFraction,
+    };
     let confirmHash = step.confirmHash ?? '';
     let phrase = step.stepPhrase ?? '';
     if (step.deferred) {
@@ -672,19 +1060,62 @@ async function runStep(ctx: PublishContext, input: { workspaceId: string; app: M
       if (!p.ok) return skip('preview_failed', messageOf(p), { code: p.body.error });
       const pre = p.preview;
       if (!pre.checks.canRelease || pre.confirmHash === null || pre.confirmation === null) {
-        return skip('blocked', 'Something stands in the way of releasing now that the draft was pushed, so nothing was released.', { checks: pre.checks.blocking.map((c) => c.code).slice(0, 20) });
+        return skip(
+          'blocked',
+          'Something stands in the way of releasing now that the draft was pushed, so nothing was released.',
+          { checks: pre.checks.blocking.map((c) => c.code).slice(0, 20) },
+        );
       }
-      if (pre.confirmation.phrase !== step.stepPhrase || !sameJson(releaseSummary(app, pre, reqOf.userFraction), step.summary)) return drifted();
+      if (
+        pre.confirmation.phrase !== step.stepPhrase ||
+        !sameJson(releaseSummary(app, pre, reqOf.userFraction), step.summary)
+      )
+        return drifted();
       confirmHash = pre.confirmHash;
       phrase = pre.confirmation.phrase;
     }
-    const r = await applyRelease(ctx.release, { workspaceId, appId: app.id, ...what, confirmHash, confirmation: phrase, actor });
-    return r.ok ? { type, status: 'applied', confirmedByReread: Boolean((r.result as { confirmedByReread?: boolean }).confirmedByReread), result: r.result } : failedStep(type, r);
+    const r = await applyRelease(ctx.release, {
+      workspaceId,
+      appId: app.id,
+      ...what,
+      confirmHash,
+      confirmation: phrase,
+      actor,
+    });
+    return r.ok
+      ? {
+          type,
+          status: 'applied',
+          confirmedByReread: Boolean(
+            (r.result as { confirmedByReread?: boolean }).confirmedByReread,
+          ),
+          result: r.result,
+        }
+      : failedStep(type, r);
   }
 
-  const request: RolloutRequest = { action: reqOf.action ?? '', track: reqOf.track, versionCodes: reqOf.versionCodes, version: reqOf.version, userFraction: reqOf.userFraction };
-  const r = await applyRollout(ctx.rollout, { workspaceId, appId: app.id, request, confirmHash: step.confirmHash ?? '', actor });
-  return r.ok ? { type, status: 'applied', confirmedByReread: Boolean((r.result as { confirmedByReread?: boolean }).confirmedByReread), result: r.result } : failedStep(type, r);
+  const request: RolloutRequest = {
+    action: reqOf.action ?? '',
+    track: reqOf.track,
+    versionCodes: reqOf.versionCodes,
+    version: reqOf.version,
+    userFraction: reqOf.userFraction,
+  };
+  const r = await applyRollout(ctx.rollout, {
+    workspaceId,
+    appId: app.id,
+    request,
+    confirmHash: step.confirmHash ?? '',
+    actor,
+  });
+  return r.ok
+    ? {
+        type,
+        status: 'applied',
+        confirmedByReread: Boolean((r.result as { confirmedByReread?: boolean }).confirmedByReread),
+        result: r.result,
+      }
+    : failedStep(type, r);
 }
 
 /**
@@ -694,7 +1125,15 @@ async function runStep(ctx: PublishContext, input: { workspaceId: string; app: M
  */
 export async function applyPublish(
   ctx: PublishContext,
-  input: { workspaceId: string; appId: string; planHash: string; phrase?: string | undefined; steps: readonly StepRequest[]; rights: PublishRights; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    planHash: string;
+    phrase?: string | undefined;
+    steps: readonly StepRequest[];
+    rights: PublishRights;
+    actor: Actor;
+  },
 ): Promise<{ ok: true; result: PublishResult } | Failure> {
   if (!ctx.publishEnabled) return publishDisabledFailure();
   const { db } = ctx;
@@ -709,44 +1148,97 @@ export async function applyPublish(
   // Each step keeps its own right and its own switch: the batch checks them all before anything else.
   const missing = types.filter((t) => !input.rights[t]);
   if (missing.length > 0) {
-    return failure(403, 'forbidden', `This batch includes steps you are not allowed to run: ${missing.map((t) => STEP_ACTION[t]).join(', ')}. Nothing was done.`, { missing: missing.map((t) => ({ step: t, action: STEP_ACTION[t] })) });
+    return failure(
+      403,
+      'forbidden',
+      `This batch includes steps you are not allowed to run: ${missing.map((t) => STEP_ACTION[t]).join(', ')}. Nothing was done.`,
+      { missing: missing.map((t) => ({ step: t, action: STEP_ACTION[t] })) },
+    );
   }
-  const switches: Record<PublishStep, boolean> = { push_draft: ctx.draft.draftEnabled, submit: ctx.submit.submitEnabled, release: ctx.release.releaseEnabled, rollout: ctx.rollout.rolloutEnabled };
+  const switches: Record<PublishStep, boolean> = {
+    push_draft: ctx.draft.draftEnabled,
+    submit: ctx.submit.submitEnabled,
+    release: ctx.release.releaseEnabled,
+    rollout: ctx.rollout.rolloutEnabled,
+  };
   const off = types.filter((t) => !switches[t]);
   if (off.length > 0) {
-    return failure(409, 'step_disabled', `This batch includes steps that are switched off on this server: ${off.map((t) => STEP_ENV[t]).join(', ')}. Nothing was done.`, { disabled: off.map((t) => ({ step: t, envName: STEP_ENV[t] })) });
+    return failure(
+      409,
+      'step_disabled',
+      `This batch includes steps that are switched off on this server: ${off.map((t) => STEP_ENV[t]).join(', ')}. Nothing was done.`,
+      { disabled: off.map((t) => ({ step: t, envName: STEP_ENV[t] })) },
+    );
   }
   // The typed phrase needs no store read, so a wrong one is refused before anything is read.
   const phrase = publishPhrase(app, requested.length);
   if (needsPhrase(types) && (input.phrase ?? '').trim() !== phrase) {
-    return failure(422, 'confirmation_mismatch', `The confirmation does not match. Type "${phrase}" exactly. Nothing was published.`, { phrase });
+    return failure(
+      422,
+      'confirmation_mismatch',
+      `The confirmation does not match. Type "${phrase}" exactly. Nothing was published.`,
+      { phrase },
+    );
   }
 
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
   if (!taken.ok) return taken;
   const claim = taken.claim;
   try {
-    const plan = await buildPlan(ctx, { workspaceId: input.workspaceId, app, actor: input.actor, steps: requested, rights: input.rights });
+    const plan = await buildPlan(ctx, {
+      workspaceId: input.workspaceId,
+      app,
+      actor: input.actor,
+      steps: requested,
+      rights: input.rights,
+    });
     if (!plan.confirmable || plan.planHash === null) {
-      return failure(409, 'plan_blocked', 'Something stands in the way of one of the steps, so nothing was published. Review the new plan.', { plan });
+      return failure(
+        409,
+        'plan_blocked',
+        'Something stands in the way of one of the steps, so nothing was published. Review the new plan.',
+        { plan },
+      );
     }
     if (plan.planHash !== input.planHash) {
-      return failure(409, 'plan_changed', 'The plan is not the one that was previewed (the staged changes or the store changed), so nothing was published. Review the new plan and confirm it.', { plan });
+      return failure(
+        409,
+        'plan_changed',
+        'The plan is not the one that was previewed (the staged changes or the store changed), so nothing was published. Review the new plan and confirm it.',
+        { plan },
+      );
     }
 
     const results: StepResult[] = [];
     let stopped: PublishStep | null = null;
     for (const step of plan.steps.filter((s) => s.included)) {
       if (stopped !== null) {
-        results.push({ type: step.type, status: 'skipped', reason: 'previous_step_not_applied', message: `Not run: ${stopped} was not applied.` });
+        results.push({
+          type: step.type,
+          status: 'skipped',
+          reason: 'previous_step_not_applied',
+          message: `Not run: ${stopped} was not applied.`,
+        });
         continue;
       }
       let result: StepResult;
       try {
-        result = await runStep(ctx, { workspaceId: input.workspaceId, app, actor: input.actor }, step);
+        result = await runStep(
+          ctx,
+          { workspaceId: input.workspaceId, app, actor: input.actor },
+          step,
+        );
       } catch {
         // Not knowing is not "no": never retried, and the person is told to look.
-        result = { type: step.type, status: 'failed', error: 'step_error', httpStatus: 502, outcome: 'unknown', message: 'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.' };
+        result = {
+          type: step.type,
+          status: 'failed',
+          error: 'step_error',
+          httpStatus: 502,
+          outcome: 'unknown',
+          message:
+            'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.',
+        };
       }
       results.push(result);
       if (result.status !== 'applied') stopped = step.type;
@@ -774,7 +1266,17 @@ export async function applyPublish(
           actor: input.actor,
           action: 'pending.published',
           target: { type: 'app', id: app.id },
-          detail: { appId: app.id, store, platform: app.platform, hash: plan.planHash, outcome: completed ? 'completed' : applied > 0 ? 'partial' : 'failed', applied, skipped, failed: failedCount, steps: stepsOut },
+          detail: {
+            appId: app.id,
+            store,
+            platform: app.platform,
+            hash: plan.planHash,
+            outcome: completed ? 'completed' : applied > 0 ? 'partial' : 'failed',
+            applied,
+            skipped,
+            failed: failedCount,
+            steps: stepsOut,
+          },
           at,
         });
         if (applied > 0) {
@@ -782,13 +1284,27 @@ export async function applyPublish(
             workspaceId: input.workspaceId,
             type: 'pending.published',
             subject: { appId: app.id },
-            payload: { appId: app.id, store, platform: app.platform, planHash: plan.planHash, completed, applied, skipped, failed: failedCount, steps: stepsOut },
+            payload: {
+              appId: app.id,
+              store,
+              platform: app.platform,
+              planHash: plan.planHash,
+              completed,
+              applied,
+              skipped,
+              failed: failedCount,
+              steps: stepsOut,
+            },
             at,
           });
         }
       });
     }
-    const items: PendingItem[] = await pendingItemsOf(db, { workspaceId: input.workspaceId, app, now: at });
+    const items: PendingItem[] = await pendingItemsOf(db, {
+      workspaceId: input.workspaceId,
+      app,
+      now: at,
+    });
     const totals = totalsOf(items);
     return {
       ok: true,

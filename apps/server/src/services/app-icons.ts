@@ -1,16 +1,16 @@
 import { createHash } from 'node:crypto';
 import { type AssetKind, readImageHeader } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import type { AssetIndexView } from './asset-index.ts';
-import { openAssets } from './asset-repo.ts';
 import {
+  getAppIcon,
   type IconMediaType,
   type IconRow,
   type IconSource,
-  getAppIcon,
   putAppIcon,
 } from './app-icon-store.ts';
 import type { ManagedApp } from './apps.ts';
+import type { AssetIndexView } from './asset-index.ts';
+import { openAssets } from './asset-repo.ts';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
 import type { RepoContext } from './repositories.ts';
 import { type Exchange, type SafeGetResult, safeGet } from './safe-fetch.ts';
@@ -79,12 +79,18 @@ export type IconsContext = {
 // Choosing and checking images
 
 const ALLOWED: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp']);
-const MEDIA: Record<string, IconMediaType> = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' };
+const MEDIA: Record<string, IconMediaType> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+};
 
 const KIND_RANK: Partial<Record<AssetKind, number>> = { icon: 0, app_icon: 1 };
 
 /** The best icon file of an asset index, or undefined. Pure. */
-export function pickRepositoryIcon(view: Pick<AssetIndexView, 'assets'>): { path: string; oid: string } | undefined {
+export function pickRepositoryIcon(
+  view: Pick<AssetIndexView, 'assets'>,
+): { path: string; oid: string } | undefined {
   const candidates = view.assets.filter(
     (a) =>
       (a.kind === 'icon' || a.kind === 'app_icon') &&
@@ -112,18 +118,34 @@ export function pickRepositoryIcon(view: Pick<AssetIndexView, 'assets'>): { path
 export type CheckedImage = { mediaType: IconMediaType; width: number; height: number };
 
 /** Whether bytes are an icon we keep: png, jpeg or webp by their content, square, big enough, small enough. */
-export function checkIconBytes(bytes: Uint8Array): { ok: true; image: CheckedImage } | { ok: false; message: string } {
+export function checkIconBytes(
+  bytes: Uint8Array,
+): { ok: true; image: CheckedImage } | { ok: false; message: string } {
   if (bytes.length === 0) return { ok: false, message: 'The image is empty.' };
-  if (bytes.length > ICON_MAX_BYTES) return { ok: false, message: 'The image is larger than 256 KB.' };
+  if (bytes.length > ICON_MAX_BYTES)
+    return { ok: false, message: 'The image is larger than 256 KB.' };
   const header = readImageHeader(bytes);
   if (!header.ok) return { ok: false, message: 'The file is not a readable image.' };
-  if (!ALLOWED.has(header.format)) return { ok: false, message: `A ${header.format} image is not used as an icon (png, jpeg or webp only).` };
+  if (!ALLOWED.has(header.format))
+    return {
+      ok: false,
+      message: `A ${header.format} image is not used as an icon (png, jpeg or webp only).`,
+    };
   if (header.width !== header.height) return { ok: false, message: 'The image is not square.' };
-  if (header.width < MIN_ICON_SIDE) return { ok: false, message: `The image is smaller than ${MIN_ICON_SIDE} pixels.` };
-  return { ok: true, image: { mediaType: MEDIA[header.format] as IconMediaType, width: header.width, height: header.height } };
+  if (header.width < MIN_ICON_SIDE)
+    return { ok: false, message: `The image is smaller than ${MIN_ICON_SIDE} pixels.` };
+  return {
+    ok: true,
+    image: {
+      mediaType: MEDIA[header.format] as IconMediaType,
+      width: header.width,
+      height: header.height,
+    },
+  };
 }
 
-const etagOf = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex').slice(0, 32);
+const etagOf = (bytes: Uint8Array): string =>
+  createHash('sha256').update(bytes).digest('hex').slice(0, 32);
 
 // ---------------------------------------------------------------------------------------------
 // When to look
@@ -134,7 +156,10 @@ export function lookDue(row: IconRow | undefined, now: number): boolean {
   if (row.backoffUntil !== null && row.backoffUntil > now) return false;
   if (!row.data) return true;
   if (row.source === 'repository') return now - row.checkedAt >= REPO_RECHECK_MS;
-  return now - row.checkedAt >= REMOTE_RECHECK_REPO_MS || (row.fetchedAt !== null && now - row.fetchedAt >= REMOTE_REFRESH_MS);
+  return (
+    now - row.checkedAt >= REMOTE_RECHECK_REPO_MS ||
+    (row.fetchedAt !== null && now - row.fetchedAt >= REMOTE_REFRESH_MS)
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -151,7 +176,12 @@ export type AppIcons = {
    */
   serve(workspaceId: string, app: ManagedApp, actor: Actor): Promise<IconRow | undefined>;
   /** Looks now if due, or `force`. Resolves with the row. */
-  refresh(workspaceId: string, app: ManagedApp, actor: Actor, options?: { force?: boolean }): Promise<IconRow | undefined>;
+  refresh(
+    workspaceId: string,
+    app: ManagedApp,
+    actor: Actor,
+    options?: { force?: boolean },
+  ): Promise<IconRow | undefined>;
   /** Resolves when no look is running (tests). */
   idle(): Promise<void>;
 };
@@ -161,7 +191,12 @@ export function createAppIcons(ctx: IconsContext): AppIcons {
   const everyone = createTestLimiter({ limit: 15, now: ctx.now });
   const inflight = new Map<string, Promise<IconRow | undefined>>();
 
-  const get = (url: string, allowHost: (host: string) => boolean, maxBytes: number, accept: string): Promise<SafeGetResult> =>
+  const get = (
+    url: string,
+    allowHost: (host: string) => boolean,
+    maxBytes: number,
+    accept: string,
+  ): Promise<SafeGetResult> =>
     safeGet(url, {
       allowHost,
       maxBytes,
@@ -173,26 +208,53 @@ export function createAppIcons(ctx: IconsContext): AppIcons {
     });
 
   /** The repository step. */
-  async function fromRepository(workspaceId: string, app: ManagedApp, actor: Actor, existing: IconRow | undefined): Promise<Step> {
+  async function fromRepository(
+    workspaceId: string,
+    app: ManagedApp,
+    actor: Actor,
+    existing: IconRow | undefined,
+  ): Promise<Step> {
     if (!app.repositoryId) return {};
-    const opened = await openAssets({ repo: ctx.repo }, { workspaceId, app, scope: 'icons' }, actor);
-    if (!opened.ok) return { error: String(opened.body.message ?? opened.body.error ?? 'The repository could not be read.') };
+    const opened = await openAssets(
+      { repo: ctx.repo },
+      { workspaceId, app, scope: 'icons' },
+      actor,
+    );
+    if (!opened.ok)
+      return {
+        error: String(
+          opened.body.message ?? opened.body.error ?? 'The repository could not be read.',
+        ),
+      };
     const { handle } = opened;
     if (handle.view.status !== 'ok') return {};
     const pick = pickRepositoryIcon(handle.view);
     if (!pick) return {};
-    if (existing?.data && existing.source === 'repository' && existing.sourceId === pick.oid) return { unchanged: true };
+    if (existing?.data && existing.source === 'repository' && existing.sourceId === pick.oid)
+      return { unchanged: true };
     const file = await handle.readFile(pick.path);
     if (!file.ok) return { error: file.message };
     const checked = checkIconBytes(file.bytes);
     if (!checked.ok) return { error: `${pick.path}: ${checked.message}` };
-    return { found: { source: 'repository', sourceId: pick.oid, bytes: file.bytes, image: checked.image } };
+    return {
+      found: { source: 'repository', sourceId: pick.oid, bytes: file.bytes, image: checked.image },
+    };
   }
 
   /** The App Store step (iOS apps with their numeric App Store id). */
-  async function fromAppStore(workspaceId: string, app: ManagedApp, existing: IconRow | undefined, now: number): Promise<Step> {
+  async function fromAppStore(
+    workspaceId: string,
+    app: ManagedApp,
+    existing: IconRow | undefined,
+    now: number,
+  ): Promise<Step> {
     if (app.platform !== 'ios' || !app.storeAppId || !TRACK_ID.test(app.storeAppId)) return {};
-    if (existing?.data && existing.source === 'app_store' && existing.fetchedAt !== null && now - existing.fetchedAt < REMOTE_REFRESH_MS) {
+    if (
+      existing?.data &&
+      existing.source === 'app_store' &&
+      existing.fetchedAt !== null &&
+      now - existing.fetchedAt < REMOTE_REFRESH_MS
+    ) {
       return { unchanged: true };
     }
     if (limiter.take(workspaceId) > 0 || everyone.take('itunes') > 0) return { deferred: true };
@@ -208,7 +270,10 @@ export function createAppIcons(ctx: IconsContext): AppIcons {
       const body = JSON.parse(new TextDecoder().decode(lookup.body)) as { results?: unknown };
       const results = Array.isArray(body.results) ? body.results : [];
       const item = results.find(
-        (r): r is Record<string, unknown> => typeof r === 'object' && r !== null && String((r as Record<string, unknown>).trackId) === app.storeAppId,
+        (r): r is Record<string, unknown> =>
+          typeof r === 'object' &&
+          r !== null &&
+          String((r as Record<string, unknown>).trackId) === app.storeAppId,
       );
       // artworkUrl512 is what the lookup returns in practice; the official page documents artworkUrl100 and artworkUrl60.
       const candidate = item?.artworkUrl512 ?? item?.artworkUrl100;
@@ -217,14 +282,30 @@ export function createAppIcons(ctx: IconsContext): AppIcons {
       return { error: 'The App Store lookup answered something that is not JSON.' };
     }
     if (!artwork) return {};
-    const image = await get(artwork, (host) => MZSTATIC.test(host), ICON_MAX_BYTES, 'image/png,image/jpeg,image/webp');
+    const image = await get(
+      artwork,
+      (host) => MZSTATIC.test(host),
+      ICON_MAX_BYTES,
+      'image/png,image/jpeg,image/webp',
+    );
     if (!image.ok) return { error: `The App Store artwork could not be fetched: ${image.message}` };
     const checked = checkIconBytes(image.body);
     if (!checked.ok) return { error: `The App Store artwork: ${checked.message}` };
-    return { found: { source: 'app_store', sourceId: new URL(image.finalUrl).hostname, bytes: image.body, image: checked.image } };
+    return {
+      found: {
+        source: 'app_store',
+        sourceId: new URL(image.finalUrl).hostname,
+        bytes: image.body,
+        image: checked.image,
+      },
+    };
   }
 
-  async function look(workspaceId: string, app: ManagedApp, actor: Actor): Promise<IconRow | undefined> {
+  async function look(
+    workspaceId: string,
+    app: ManagedApp,
+    actor: Actor,
+  ): Promise<IconRow | undefined> {
     const now = ctx.now();
     const existing = await getAppIcon(ctx.db, workspaceId, app.id);
     const row = (patch: Partial<IconRow>): IconRow => ({
@@ -292,7 +373,12 @@ export function createAppIcons(ctx: IconsContext): AppIcons {
         return existing;
       } else if (error) {
         const failures = (existing?.failures ?? 0) + 1;
-        next = row({ ...keep(), failures, backoffUntil: now + failureBackoffMs(failures), lastError: error.slice(0, 300) });
+        next = row({
+          ...keep(),
+          failures,
+          backoffUntil: now + failureBackoffMs(failures),
+          lastError: error.slice(0, 300),
+        });
       } else {
         // Nothing anywhere: no icon (an icon that was held and is not there any more goes too).
         next = row({ backoffUntil: now + EMPTY_BACKOFF_MS });
@@ -303,13 +389,22 @@ export function createAppIcons(ctx: IconsContext): AppIcons {
       // The database or something unexpected: remember a failure when we can, and never throw.
       const failures = (existing?.failures ?? 0) + 1;
       const message = cause instanceof Error ? cause.message.slice(0, 200) : 'unexpected';
-      const next = row({ ...keep(), failures, backoffUntil: now + failureBackoffMs(failures), lastError: message });
+      const next = row({
+        ...keep(),
+        failures,
+        backoffUntil: now + failureBackoffMs(failures),
+        lastError: message,
+      });
       await putAppIcon(ctx.db, next).catch(() => undefined);
       return next;
     }
   }
 
-  const run = (workspaceId: string, app: ManagedApp, actor: Actor): Promise<IconRow | undefined> => {
+  const run = (
+    workspaceId: string,
+    app: ManagedApp,
+    actor: Actor,
+  ): Promise<IconRow | undefined> => {
     const key = `${workspaceId}/${app.id}`;
     const running = inflight.get(key);
     if (running) return running;

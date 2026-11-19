@@ -38,14 +38,19 @@ export async function stepsToChanges(input: {
     if (step.op === 'delete') {
       const old = await readOld(step.path, step.oid);
       if (!old) {
-        out.failures.push(`${nameOf(step.path)} could not be read from the repository at the commit that was indexed, so it was not removed.`);
+        out.failures.push(
+          `${nameOf(step.path)} could not be read from the repository at the commit that was indexed, so it was not removed.`,
+        );
         continue;
       }
       out.changes.push({ path: step.path, before: b64(old), encoding: 'base64' });
       out.deleted++;
       continue;
     }
-    const bytes = step.from.kind === 'new' ? input.newBytes(step.from.index) : await readOld(step.from.path, step.oid);
+    const bytes =
+      step.from.kind === 'new'
+        ? input.newBytes(step.from.index)
+        : await readOld(step.from.path, step.oid);
     if (!bytes) {
       out.failures.push(`${nameOf(step.path)} could not be prepared.`);
       continue;
@@ -54,12 +59,19 @@ export async function stepsToChanges(input: {
     if (step.replacesOid !== null) {
       const old = await readOld(step.path, step.replacesOid);
       if (!old) {
-        out.failures.push(`${nameOf(step.path)} changed in the repository since it was indexed, so it was not replaced.`);
+        out.failures.push(
+          `${nameOf(step.path)} changed in the repository since it was indexed, so it was not replaced.`,
+        );
         continue;
       }
       before = b64(old);
     }
-    out.changes.push({ path: step.path, ...(before !== undefined ? { before } : {}), after: b64(bytes), encoding: 'base64' });
+    out.changes.push({
+      path: step.path,
+      ...(before !== undefined ? { before } : {}),
+      after: b64(bytes),
+      encoding: 'base64',
+    });
     out.written++;
   }
   return out;

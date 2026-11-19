@@ -1,5 +1,5 @@
-import type { Platform } from '@mrm/core';
 import { EXPO_LOCALES, isLocaleDir } from '@mrm/connectors';
+import type { Platform } from '@mrm/core';
 
 /**
  * Locale codes between the store and the repository, as pure functions.
@@ -20,7 +20,8 @@ import { EXPO_LOCALES, isLocaleDir } from '@mrm/connectors';
  */
 
 /** The key two codes are compared by: lower case, `-` as separator. */
-export const canonicalLocale = (code: string): string => code.trim().replace(/_/g, '-').toLowerCase();
+export const canonicalLocale = (code: string): string =>
+  code.trim().replace(/_/g, '-').toLowerCase();
 
 /**
  * Groups of canonical codes that name the same language in the two stores. Every group is
@@ -91,7 +92,9 @@ export function matchRepoLocale(storeLocale: string, repoLocales: readonly strin
   return { kind: 'none' };
 }
 
-export type NewLocale = { ok: true; repoLocale: string } | { ok: false; reason: 'invalid' | 'unsupported' };
+export type NewLocale =
+  | { ok: true; repoLocale: string }
+  | { ok: false; reason: 'invalid' | 'unsupported' };
 
 /**
  * The folder (or Expo `apple.info` key) to create for a store locale the repository does not have.

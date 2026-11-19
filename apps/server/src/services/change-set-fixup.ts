@@ -1,6 +1,31 @@
-import { BranchMissingError, BranchMovedError, DefaultBranchError, GithubError, type PullRequestInfo } from '@mrm/connectors';
+import {
+  BranchMissingError,
+  BranchMovedError,
+  DefaultBranchError,
+  GithubError,
+  type PullRequestInfo,
+} from '@mrm/connectors';
 import type { ActorType, FileChange } from '@mrm/core';
 import { recordAudit } from './audit.ts';
+import {
+  commitFailure,
+  failedStep,
+  identityFor,
+  PUBLISH_CLAIM_TTL_MS,
+  preflight,
+  publish,
+  releasePublishClaim,
+  savePublished,
+} from './change-set-local.ts';
+import {
+  type ConflictReason,
+  evaluateFile,
+  type FileState,
+  REFRESH_PURPOSE,
+  type Resolution,
+  readCurrent,
+  resolveConflict,
+} from './change-set-refresh.ts';
 import {
   type ChangeSetOrigin,
   type ChangeSetView,
@@ -14,25 +39,6 @@ import {
   pullRequestBody,
   rowOf,
 } from './change-sets.ts';
-import {
-  commitFailure,
-  failedStep,
-  identityFor,
-  preflight,
-  PUBLISH_CLAIM_TTL_MS,
-  publish,
-  releasePublishClaim,
-  savePublished,
-} from './change-set-local.ts';
-import {
-  type ConflictReason,
-  evaluateFile,
-  type FileState,
-  readCurrent,
-  REFRESH_PURPOSE,
-  resolveConflict,
-  type Resolution,
-} from './change-set-refresh.ts';
 import { fixupBranchCommit, readBranchFiles } from './local-git.ts';
 
 import {
@@ -141,9 +147,24 @@ const text = (value: string | undefined): string | null => (value === undefined 
 // The pure part: one file against the branch
 
 export type BranchPlan =
-  | { kind: 'keep'; final: string | undefined; why: 'same' | 'nothing_new' | 'merged_in_place' | 'chose_theirs' }
-  | { kind: 'write'; content: string | undefined; final: string | undefined; why: 'clean' | 'merged' | 'chose_mine' }
-  | { kind: 'conflict'; reason: ConflictReason; base: string | undefined; ours: string | undefined; theirs: string | undefined };
+  | {
+      kind: 'keep';
+      final: string | undefined;
+      why: 'same' | 'nothing_new' | 'merged_in_place' | 'chose_theirs';
+    }
+  | {
+      kind: 'write';
+      content: string | undefined;
+      final: string | undefined;
+      why: 'clean' | 'merged' | 'chose_mine';
+    }
+  | {
+      kind: 'conflict';
+      reason: ConflictReason;
+      base: string | undefined;
+      ours: string | undefined;
+      theirs: string | undefined;
+    };
 
 /**
  * What to do with one file on the branch. `committed` is the text this tool last wrote there
@@ -162,21 +183,39 @@ export function planBranchFile(
   if (desired === committed) return { kind: 'keep', final: tip, why: 'nothing_new' };
   // Nobody touched it on the branch since we wrote it.
   if (tip === committed) return { kind: 'write', content: desired, final: desired, why: 'clean' };
-  const evaluation = evaluateFile({ path, ...(committed !== undefined ? { before: committed } : {}), ...(desired !== undefined ? { after: desired } : {}) }, tip);
+  const evaluation = evaluateFile(
+    {
+      path,
+      ...(committed !== undefined ? { before: committed } : {}),
+      ...(desired !== undefined ? { after: desired } : {}),
+    },
+    tip,
+  );
   switch (evaluation.state) {
     case 'same':
       return { kind: 'write', content: desired, final: desired, why: 'clean' };
     case 'already_applied':
       return { kind: 'keep', final: tip, why: 'merged_in_place' };
     case 'changed':
-      return { kind: 'write', content: evaluation.file.after, final: evaluation.file.after, why: 'merged' };
+      return {
+        kind: 'write',
+        content: evaluation.file.after,
+        final: evaluation.file.after,
+        why: 'merged',
+      };
     case 'conflict':
-      if (choice === 'mine') return { kind: 'write', content: desired, final: desired, why: 'chose_mine' };
+      if (choice === 'mine')
+        return { kind: 'write', content: desired, final: desired, why: 'chose_mine' };
       if (choice === 'theirs') return { kind: 'keep', final: tip, why: 'chose_theirs' };
-      return { kind: 'conflict', reason: evaluation.reason, base: committed, ours: desired, theirs: tip };
+      return {
+        kind: 'conflict',
+        reason: evaluation.reason,
+        base: committed,
+        ours: desired,
+        theirs: tip,
+      };
   }
 }
-
 
 /** The commit message of a fix-up: the summary, then the files. Never a secret. */
 export function fixupMessageFor(
@@ -186,7 +225,8 @@ export function fixupMessageFor(
   neutralise: boolean,
 ): string {
   const line = summary.replace(/\s+/g, ' ').trim();
-  const label = (c: { content?: string | undefined; existed: boolean }) => (c.content === undefined ? 'deleted' : c.existed ? 'modified' : 'added');
+  const label = (c: { content?: string | undefined; existed: boolean }) =>
+    c.content === undefined ? 'deleted' : c.existed ? 'modified' : 'added';
   const shown = changes.slice(0, 50).map((c) => `- ${c.path} (${label(c)})`);
   if (changes.length > 50) shown.push(`- and ${changes.length - 50} more`);
   return [
@@ -221,7 +261,11 @@ export async function fixupChangeSet(
   if (!FIXABLE.includes(status)) return invalidState(status, 'applied or failed');
   const branch = row.branch ? String(row.branch) : undefined;
   if (!branch) {
-    return failure(409, 'no_branch', 'This change set has no branch to fix up. Refresh it (or recompute it) instead.');
+    return failure(
+      409,
+      'no_branch',
+      'This change set has no branch to fix up. Refresh it (or recompute it) instead.',
+    );
   }
   const localOutcome = parseOutcome(row);
   const mode: FixupResult['mode'] = localOutcome ? 'local_branch' : 'github_pr';
@@ -230,7 +274,11 @@ export async function fixupChangeSet(
   const push = input.push === true;
   const openPr = input.openPr === true;
   if (mode === 'github_pr' && (push || openPr)) {
-    return failure(422, 'invalid_request', '"push" and "openPr" apply to a change set applied as a local commit only. A pull request through GitHub is updated by the new commit.');
+    return failure(
+      422,
+      'invalid_request',
+      '"push" and "openPr" apply to a change set applied as a local commit only. A pull request through GitHub is updated by the new commit.',
+    );
   }
   if (mode === 'local_branch') {
     const refused = await preflight(ctx, repository, { push, openPr });
@@ -239,17 +287,27 @@ export async function fixupChangeSet(
   const summary = String(row.summary);
   const stored = parseFiles(row);
   if (stored.some((f) => f.encoding === 'base64')) {
-    return failure(422, 'binary_change_set', 'This change set holds images, which are applied as they are. A fix-up works on text files only: discard it and make the change again.');
+    return failure(
+      422,
+      'binary_change_set',
+      'This change set holds images, which are applied as they are. A fix-up works on text files only: discard it and make the change again.',
+    );
   }
   const known = new Set(stored.map((f) => f.path));
   const unknown = Object.keys(input.resolutions ?? {}).filter((p) => !known.has(p));
   if (unknown.length > 0) {
-    return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', { paths: unknown.slice(0, 50) });
+    return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', {
+      paths: unknown.slice(0, 50),
+    });
   }
-  const universe = [...new Set([...stored.map((f) => f.path), ...(input.desired?.files ?? []).map((f) => f.path)])];
+  const universe = [
+    ...new Set([...stored.map((f) => f.path), ...(input.desired?.files ?? []).map((f) => f.path)]),
+  ];
   const stray = Object.keys(input.branchResolutions ?? {}).filter((p) => !universe.includes(p));
   if (stray.length > 0) {
-    return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', { paths: stray.slice(0, 50) });
+    return failure(422, 'unknown_path', 'A choice names a file that is not in this change set.', {
+      paths: stray.slice(0, 50),
+    });
   }
 
   // The claim (a push, a fix-up and another fix-up exclude each other). A dry run takes none.
@@ -263,11 +321,20 @@ export async function fixupChangeSet(
       [claimedAt, id, workspaceId, claimedAt - PUBLISH_CLAIM_TTL_MS],
     );
     if (claimed === 0) {
-      return failure(409, 'fixup_in_progress', 'This change set is being pushed or fixed up right now.');
+      return failure(
+        409,
+        'fixup_in_progress',
+        'This change set is being pushed or fixed up right now.',
+      );
     }
   }
   try {
-    return await run(ctx, { ...input, dryRun }, { row, status, branch, mode, repository, localOutcome, summary, stored, universe }, actor);
+    return await run(
+      ctx,
+      { ...input, dryRun },
+      { row, status, branch, mode, repository, localOutcome, summary, stored, universe },
+      actor,
+    );
   } catch (error) {
     if (!dryRun) await releasePublishClaim(ctx, workspaceId, id);
     throw error;
@@ -298,7 +365,8 @@ async function run(
   const { row, status, branch, mode, repository, localOutcome, summary, stored, universe } = loaded;
   const push = input.push === true;
   const openPr = input.openPr === true;
-  const release = () => (input.dryRun ? Promise.resolve() : releasePublishClaim(ctx, workspaceId, id));
+  const release = () =>
+    input.dryRun ? Promise.resolve() : releasePublishClaim(ctx, workspaceId, id);
   const refuse = async (f: Failure): Promise<Failure> => {
     await release();
     return { ...f, body: { ...f.body, changeSet: await getChangeSet(db, workspaceId, id) } };
@@ -310,7 +378,13 @@ async function run(
       actor,
       action: 'changeset.fixup_failed',
       target: { type: 'change_set', id },
-      detail: { repositoryId: repository.id, mode, branch, reason: f.body.error, files: universe.length },
+      detail: {
+        repositoryId: repository.id,
+        mode,
+        branch,
+        reason: f.body.error,
+        files: universe.length,
+      },
       at: ctx.now(),
     }).catch(() => undefined);
   };
@@ -320,11 +394,23 @@ async function run(
   };
 
   // Stage 1: the repository now.
-  const read = await readCurrent(ctx, { workspaceId, repositoryId: repository.id, paths: universe, purpose: REFRESH_PURPOSE }, actor);
+  const read = await readCurrent(
+    ctx,
+    { workspaceId, repositoryId: repository.id, paths: universe, purpose: REFRESH_PURPOSE },
+    actor,
+  );
   if (!read.ok) return stop(read, false);
   const current = read.current;
 
-  type Item = { path: string; desired: string | undefined; base: string | undefined; committed: string | undefined; entry?: FileChange; state: FixupFile['state']; leavesSet: boolean };
+  type Item = {
+    path: string;
+    desired: string | undefined;
+    base: string | undefined;
+    committed: string | undefined;
+    entry?: FileChange;
+    state: FixupFile['state'];
+    leavesSet: boolean;
+  };
   const items: Item[] = [];
   const files: FixupFile[] = [];
   let repoConflicts = 0;
@@ -336,8 +422,25 @@ async function run(
       const old = storedByPath.get(path);
       const next = wanted.get(path);
       const committed = old ? old.after : theirs;
-      if (next) items.push({ path, desired: next.after, base: next.before, committed, entry: next, state: 'recomputed', leavesSet: false });
-      else items.push({ path, desired: theirs, base: theirs, committed, state: 'removed', leavesSet: true });
+      if (next)
+        items.push({
+          path,
+          desired: next.after,
+          base: next.before,
+          committed,
+          entry: next,
+          state: 'recomputed',
+          leavesSet: false,
+        });
+      else
+        items.push({
+          path,
+          desired: theirs,
+          base: theirs,
+          committed,
+          state: 'removed',
+          leavesSet: true,
+        });
     }
   } else {
     for (const file of stored) {
@@ -346,21 +449,54 @@ async function run(
       const base = { path: file.path, committed: file.after };
       switch (evaluation.state) {
         case 'same':
-          items.push({ ...base, desired: file.after, base: theirs, entry: file, state: 'same', leavesSet: false });
+          items.push({
+            ...base,
+            desired: file.after,
+            base: theirs,
+            entry: file,
+            state: 'same',
+            leavesSet: false,
+          });
           break;
         case 'already_applied':
-          items.push({ ...base, desired: theirs, base: theirs, state: 'already_applied', leavesSet: true });
+          items.push({
+            ...base,
+            desired: theirs,
+            base: theirs,
+            state: 'already_applied',
+            leavesSet: true,
+          });
           break;
         case 'changed':
-          items.push({ ...base, desired: evaluation.file.after, base: theirs, entry: evaluation.file, state: 'changed', leavesSet: false });
+          items.push({
+            ...base,
+            desired: evaluation.file.after,
+            base: theirs,
+            entry: evaluation.file,
+            state: 'changed',
+            leavesSet: false,
+          });
           break;
         case 'conflict': {
           const choice = input.resolutions?.[file.path];
           if (choice === 'mine') {
             const mine = resolveConflict(file, theirs, 'mine');
-            items.push({ ...base, desired: file.after, base: theirs, ...(mine ? { entry: mine } : {}), state: 'conflict', leavesSet: false });
+            items.push({
+              ...base,
+              desired: file.after,
+              base: theirs,
+              ...(mine ? { entry: mine } : {}),
+              state: 'conflict',
+              leavesSet: false,
+            });
           } else if (choice === 'theirs') {
-            items.push({ ...base, desired: theirs, base: theirs, state: 'conflict', leavesSet: true });
+            items.push({
+              ...base,
+              desired: theirs,
+              base: theirs,
+              state: 'conflict',
+              leavesSet: true,
+            });
           } else {
             repoConflicts++;
             files.push({
@@ -395,10 +531,21 @@ async function run(
   let branchNow: Branch;
   let opened: Opened | undefined;
   let pr: PullRequestInfo | undefined;
-  const knownNumber = mode === 'local_branch' ? localOutcome?.pr.number : row.pr_number === null || row.pr_number === undefined ? undefined : Number(row.pr_number);
+  const knownNumber =
+    mode === 'local_branch'
+      ? localOutcome?.pr.number
+      : row.pr_number === null || row.pr_number === undefined
+        ? undefined
+        : Number(row.pr_number);
   const needsConnector = mode === 'github_pr' || push || openPr || knownNumber !== undefined;
   if (needsConnector) {
-    const connector = await openConnectorForRepository(ctx, workspaceId, repository, actor, 'changeset.fixup');
+    const connector = await openConnectorForRepository(
+      ctx,
+      workspaceId,
+      repository,
+      actor,
+      'changeset.fixup',
+    );
     if (!connector.ok) return stop(connector, false);
     opened = connector;
   }
@@ -407,19 +554,43 @@ async function run(
     if (opened && typeof opened.connector.findPullRequest === 'function') {
       const finder = opened.connector.findPullRequest.bind(opened.connector);
       pr = await withTimeout(
-        finder(knownNumber !== undefined ? { number: knownNumber, signal: controller.signal } : { branch, signal: controller.signal }),
+        finder(
+          knownNumber !== undefined
+            ? { number: knownNumber, signal: controller.signal }
+            : { branch, signal: controller.signal },
+        ),
         ctx.timeoutMs,
         () => controller.abort(),
       );
     }
     if (mode === 'github_pr') {
       const connector = (opened as Opened).connector;
-      if (typeof connector.commitOnBranch !== 'function' || typeof connector.branchTip !== 'function') {
-        return stop(failure(422, 'fixup_unsupported', 'This connector cannot add a commit to an existing branch.'), false);
+      if (
+        typeof connector.commitOnBranch !== 'function' ||
+        typeof connector.branchTip !== 'function'
+      ) {
+        return stop(
+          failure(
+            422,
+            'fixup_unsupported',
+            'This connector cannot add a commit to an existing branch.',
+          ),
+          false,
+        );
       }
-      const tip = await withTimeout(connector.branchTip(branch, controller.signal), ctx.timeoutMs, () => controller.abort());
+      const tip = await withTimeout(
+        connector.branchTip(branch, controller.signal),
+        ctx.timeoutMs,
+        () => controller.abort(),
+      );
       if (tip === undefined) {
-        return stop(failure(409, 'branch_missing', `The branch ${branch} does not exist on GitHub any more. Discard this change set and create a new one.`));
+        return stop(
+          failure(
+            409,
+            'branch_missing',
+            `The branch ${branch} does not exist on GitHub any more. Discard this change set and create a new one.`,
+          ),
+        );
       }
       const texts = new Map<string, string | undefined>();
       for (let i = 0; i < universe.length; i += 8) {
@@ -445,7 +616,14 @@ async function run(
     }
   } catch (error) {
     if (isTimeoutError(error)) {
-      return stop(failure(504, 'timeout', `GitHub did not answer within ${Math.round(ctx.timeoutMs / 1000)} seconds. Nothing was changed.`), false);
+      return stop(
+        failure(
+          504,
+          'timeout',
+          `GitHub did not answer within ${Math.round(ctx.timeoutMs / 1000)} seconds. Nothing was changed.`,
+        ),
+        false,
+      );
     }
     let f: Failure;
     try {
@@ -500,7 +678,12 @@ async function run(
     } else {
       outFiles.push({
         ...common,
-        outcome: plan.why === 'chose_theirs' ? 'kept_theirs' : plan.why === 'same' || plan.why === 'nothing_new' ? 'unchanged' : 'kept_branch',
+        outcome:
+          plan.why === 'chose_theirs'
+            ? 'kept_theirs'
+            : plan.why === 'same' || plan.why === 'nothing_new'
+              ? 'unchanged'
+              : 'kept_branch',
       });
     }
   }
@@ -512,25 +695,44 @@ async function run(
         409,
         'fixup_conflicts',
         `${branchConflicts === 1 ? 'One file was' : `${branchConflicts} files were`} also changed on the branch ${branch}, in the same place. Choose for each: keep your text (overwriting the branch's) or keep the branch's. Nothing was changed.`,
-        { files: outFiles, conflicts: branchConflicts, refreshedFrom: current.ref, tip: branchNow.tip },
+        {
+          files: outFiles,
+          conflicts: branchConflicts,
+          refreshedFrom: current.ref,
+          tip: branchNow.tip,
+        },
       ),
     };
   }
 
   // What is left to do besides the commit.
   const hasPr = pr !== undefined && pr.state === 'open';
-  const prWork = mode === 'github_pr' && !hasPr && (status === 'failed' || row.pr_url === null || row.pr_url === undefined);
+  const prWork =
+    mode === 'github_pr' &&
+    !hasPr &&
+    (status === 'failed' || row.pr_url === null || row.pr_url === undefined);
   // A failed set whose pull request exists after all (found by its head branch) is applied.
   const statusWork = mode === 'github_pr' && status === 'failed' && hasPr;
   const publishWork =
     mode === 'local_branch' &&
     localOutcome !== null &&
     push &&
-    (changes.length > 0 || localOutcome.push.status !== 'pushed' || (openPr && localOutcome.pr.status !== 'opened'));
-  const base = { mode, branch, files: allFiles, refreshedFrom: current.ref, tip: branchNow.tip, willCommit: changes.map((c) => c.path) } as const;
+    (changes.length > 0 ||
+      localOutcome.push.status !== 'pushed' ||
+      (openPr && localOutcome.pr.status !== 'opened'));
+  const base = {
+    mode,
+    branch,
+    files: allFiles,
+    refreshedFrom: current.ref,
+    tip: branchNow.tip,
+    willCommit: changes.map((c) => c.path),
+  } as const;
   const view = async () => (await getChangeSet(db, workspaceId, id)) as ChangeSetView;
   const prState = (): FixupResult['pullRequest'] =>
-    hasPr && pr ? { state: 'open', number: pr.number, ...(pr.url ? { url: pr.url } : {}) } : { state: 'none' };
+    hasPr && pr
+      ? { state: 'open', number: pr.number, ...(pr.url ? { url: pr.url } : {}) }
+      : { state: 'none' };
 
   if (input.dryRun) {
     return {
@@ -538,7 +740,12 @@ async function run(
       result: {
         ...base,
         changeSet: await view(),
-        nothingToFix: changes.length === 0 && !prWork && !publishWork && !statusWork && branchConflicts + repoConflicts === 0,
+        nothingToFix:
+          changes.length === 0 &&
+          !prWork &&
+          !publishWork &&
+          !statusWork &&
+          branchConflicts + repoConflicts === 0,
         pullRequest: prState(),
         dryRun: true,
         conflicts: branchConflicts + repoConflicts,
@@ -547,7 +754,10 @@ async function run(
   }
   if (changes.length === 0 && !prWork && !publishWork && !statusWork) {
     await release();
-    return { ok: true, result: { ...base, changeSet: await view(), nothingToFix: true, pullRequest: prState() } };
+    return {
+      ok: true,
+      result: { ...base, changeSet: await view(), nothingToFix: true, pullRequest: prState() },
+    };
   }
 
   // The new content of the change set: what the branch will hold for the files that stay in it.
@@ -564,7 +774,9 @@ async function run(
   }
 
   // The commit.
-  let committed: { sha: string; parent: string; files: number; signature?: { format: 'ssh' | 'gpg' } } | undefined;
+  let committed:
+    | { sha: string; parent: string; files: number; signature?: { format: 'ssh' | 'gpg' } }
+    | undefined;
   const writtenAt = ctx.now();
   if (changes.length > 0) {
     const message = fixupMessageFor(id, summary, changes, !repository.localOnly);
@@ -577,7 +789,10 @@ async function run(
           roots: ctx.reads?.local ?? { roots: [], excluded: [] },
           branch,
           expectedTip: branchNow.tip,
-          changes: changes.map((c) => ({ path: c.path, ...(c.content !== undefined ? { content: c.content } : {}) })),
+          changes: changes.map((c) => ({
+            path: c.path,
+            ...(c.content !== undefined ? { content: c.content } : {}),
+          })),
           message,
           author: await identityFor(ctx, actor),
           now: writtenAt,
@@ -591,20 +806,38 @@ async function run(
       if (!made.ok) {
         if (made.code === 'no_changes') {
           await release();
-          return { ok: true, result: { ...base, changeSet: await view(), nothingToFix: true, pullRequest: prState() } };
+          return {
+            ok: true,
+            result: {
+              ...base,
+              changeSet: await view(),
+              nothingToFix: true,
+              pullRequest: prState(),
+            },
+          };
         }
         return stop(commitFailure(made));
       }
-      committed = { sha: made.commit, parent: made.parent, files: made.changed, ...(made.signature ? { signature: made.signature } : {}) };
+      committed = {
+        sha: made.commit,
+        parent: made.parent,
+        files: made.changed,
+        ...(made.signature ? { signature: made.signature } : {}),
+      };
     } else {
-      const connector = (opened as Opened).connector as Required<Pick<Opened['connector'], 'commitOnBranch'>>;
+      const connector = (opened as Opened).connector as Required<
+        Pick<Opened['connector'], 'commitOnBranch'>
+      >;
       const abort = new AbortController();
       try {
         const result = await withTimeout(
           connector.commitOnBranch({
             branch,
             expectedTip: branchNow.tip,
-            changes: changes.map((c) => ({ path: c.path, ...(c.content !== undefined ? { content: c.content } : {}) })),
+            changes: changes.map((c) => ({
+              path: c.path,
+              ...(c.content !== undefined ? { content: c.content } : {}),
+            })),
             message,
             signal: abort.signal,
           }),
@@ -614,10 +847,22 @@ async function run(
         committed = { sha: result.commit, parent: result.parent, files: result.changed };
       } catch (error) {
         if (error instanceof BranchMovedError) {
-          return stop(failure(409, 'branch_moved', `The branch ${branch} moved while this was being prepared. Nothing was changed; look at it again and retry.`));
+          return stop(
+            failure(
+              409,
+              'branch_moved',
+              `The branch ${branch} moved while this was being prepared. Nothing was changed; look at it again and retry.`,
+            ),
+          );
         }
         if (error instanceof BranchMissingError) {
-          return stop(failure(409, 'branch_missing', `The branch ${branch} does not exist on GitHub any more. Discard this change set and create a new one.`));
+          return stop(
+            failure(
+              409,
+              'branch_missing',
+              `The branch ${branch} does not exist on GitHub any more. Discard this change set and create a new one.`,
+            ),
+          );
         }
         if (error instanceof DefaultBranchError) {
           return stop(failure(409, 'default_branch', error.message));
@@ -664,11 +909,18 @@ async function run(
           }),
           ctx.timeoutMs,
         );
-        prNow = { ...(made.number !== undefined ? { number: made.number } : {}), ...(made.url ? { url: made.url } : {}) };
+        prNow = {
+          ...(made.number !== undefined ? { number: made.number } : {}),
+          ...(made.url ? { url: made.url } : {}),
+        };
       } catch (error) {
         try {
           prFailure = isTimeoutError(error)
-            ? failure(504, 'timeout', 'GitHub did not answer in time. The pull request may exist: check GitHub before trying again.')
+            ? failure(
+                504,
+                'timeout',
+                'GitHub did not answer in time. The pull request may exist: check GitHub before trying again.',
+              )
             : githubFailure(error, opened?.secret);
         } catch (unknown) {
           await release();
@@ -676,7 +928,11 @@ async function run(
         }
       }
     } else {
-      prFailure = failure(422, 'pr_unsupported', 'This connector cannot open a pull request for an existing branch.');
+      prFailure = failure(
+        422,
+        'pr_unsupported',
+        'This connector cannot open a pull request for an existing branch.',
+      );
     }
   }
 
@@ -684,17 +940,29 @@ async function run(
   const at = ctx.now();
   const signed = committed?.signature;
   const record: FixupRecord | undefined = committed
-    ? { at, commit: committed.sha, parent: committed.parent, files: committed.files, pushed: false, ...(signed ? { signature: { status: 'signed', format: signed.format } } : {}) }
+    ? {
+        at,
+        commit: committed.sha,
+        parent: committed.parent,
+        files: committed.files,
+        pushed: false,
+        ...(signed ? { signature: { status: 'signed', format: signed.format } } : {}),
+      }
     : undefined;
   let nextOutcome: LocalOutcome | undefined;
-  let outcomeJson: string | null = row.outcome_json === null || row.outcome_json === undefined ? null : String(row.outcome_json);
+  let outcomeJson: string | null =
+    row.outcome_json === null || row.outcome_json === undefined ? null : String(row.outcome_json);
   if (mode === 'local_branch' && localOutcome) {
     nextOutcome = structuredClone(localOutcome);
     if (committed && record) {
       nextOutcome.commit = { branch, sha: committed.sha, at };
       if (signed) nextOutcome.signature = { status: 'signed', format: signed.format };
       else delete nextOutcome.signature;
-      if (nextOutcome.push.status === 'pushed') nextOutcome.push = { status: 'behind', ...(nextOutcome.push.at !== undefined ? { at: nextOutcome.push.at } : {}) };
+      if (nextOutcome.push.status === 'pushed')
+        nextOutcome.push = {
+          status: 'behind',
+          ...(nextOutcome.push.at !== undefined ? { at: nextOutcome.push.at } : {}),
+        };
       nextOutcome.fixups = [...(nextOutcome.fixups ?? []), record];
     }
     outcomeJson = JSON.stringify(nextOutcome);
@@ -708,12 +976,27 @@ async function run(
     }
     outcomeJson = JSON.stringify({ mode: 'github_pr', fixups: [...fixups, record] });
   }
-  const filesJson = changes.length > 0 || kept.length !== stored.length || JSON.stringify(kept) !== JSON.stringify(stored) ? JSON.stringify(kept) : null;
+  const filesJson =
+    changes.length > 0 ||
+    kept.length !== stored.length ||
+    JSON.stringify(kept) !== JSON.stringify(stored)
+      ? JSON.stringify(kept)
+      : null;
   const holdClaim = mode === 'local_branch' && publishWork;
-  const finalStatus = mode === 'github_pr' && status === 'failed' && prFailure === undefined && (prWork || statusWork) ? 'applied' : status;
+  const finalStatus =
+    mode === 'github_pr' && status === 'failed' && prFailure === undefined && (prWork || statusWork)
+      ? 'applied'
+      : status;
   const prUrl = prNow?.url ?? (hasPr && pr?.url ? pr.url : undefined);
   const prNumber = prNow?.number ?? (hasPr ? pr?.number : undefined);
-  const error = mode === 'github_pr' && prFailure ? stepMessage(String(prFailure.body.message ?? prFailure.body.error)) : finalStatus === 'applied' ? null : row.error === null || row.error === undefined ? null : String(row.error);
+  const error =
+    mode === 'github_pr' && prFailure
+      ? stepMessage(String(prFailure.body.message ?? prFailure.body.error))
+      : finalStatus === 'applied'
+        ? null
+        : row.error === null || row.error === undefined
+          ? null
+          : String(row.error);
   const wrote = await db.transaction(async (tx): Promise<boolean> => {
     const changed = await tx.execute(
       `UPDATE change_sets
@@ -765,7 +1048,12 @@ async function run(
         actor,
         action: 'changeset.pr_open',
         target: { type: 'change_set', id },
-        detail: { repositoryId: repository.id, branch, prNumber: prNow.number ?? null, prUrl: prNow.url ?? null },
+        detail: {
+          repositoryId: repository.id,
+          branch,
+          prNumber: prNow.number ?? null,
+          prUrl: prNow.url ?? null,
+        },
         at,
       });
     }
@@ -775,7 +1063,11 @@ async function run(
     // Discarded (or otherwise changed) while the commit was made: the commit is on the branch.
     await release();
     return {
-      ...failure(409, 'changed_meanwhile', `This change set was changed while it was being fixed up.${committed ? ` The commit ${committed.sha.slice(0, 8)} was already added to ${branch}.` : ''} Look again.`),
+      ...failure(
+        409,
+        'changed_meanwhile',
+        `This change set was changed while it was being fixed up.${committed ? ` The commit ${committed.sha.slice(0, 8)} was already added to ${branch}.` : ''} Look again.`,
+      ),
     };
   }
 
@@ -797,12 +1089,25 @@ async function run(
       if (result.failed?.step === 'push' && result.failed.code === 'push_rejected') {
         const message =
           'The branch on GitHub has commits this clone does not have (or other history), so the new commit was not pushed. Nothing was forced. Look at the branch on GitHub, or create a new change set.';
-        result.outcome.push = { status: 'failed', at: result.outcome.push.at ?? ctx.now(), code: 'remote_diverged', error: message };
+        result.outcome.push = {
+          status: 'failed',
+          at: result.outcome.push.at ?? ctx.now(),
+          code: 'remote_diverged',
+          error: message,
+        };
         result.failed = { step: 'push', code: 'remote_diverged', message };
       }
       const last = result.outcome.fixups?.[result.outcome.fixups.length - 1];
-      if (last && committed && last.commit === committed.sha) last.pushed = result.outcome.push.status === 'pushed';
-      await savePublished(ctx, { workspaceId, repositoryId: repository.id, id, before: nextOutcome, result, actor });
+      if (last && committed && last.commit === committed.sha)
+        last.pushed = result.outcome.push.status === 'pushed';
+      await savePublished(ctx, {
+        workspaceId,
+        repositoryId: repository.id,
+        id,
+        before: nextOutcome,
+        result,
+        actor,
+      });
       if (result.outcome.pr.status === 'opened') {
         publishedPr = {
           state: 'opened',
@@ -812,9 +1117,18 @@ async function run(
       }
       if (result.failed) {
         const changeSet = await view();
-        failedPublish = result.failed.code === 'remote_diverged'
-          ? { ...failure(409, 'remote_diverged', result.failed.message, { step: 'push' }), body: { error: 'remote_diverged', message: result.failed.message, step: 'push', changeSet } }
-          : failedStep(result.failed, changeSet);
+        failedPublish =
+          result.failed.code === 'remote_diverged'
+            ? {
+                ...failure(409, 'remote_diverged', result.failed.message, { step: 'push' }),
+                body: {
+                  error: 'remote_diverged',
+                  message: result.failed.message,
+                  step: 'push',
+                  changeSet,
+                },
+              }
+            : failedStep(result.failed, changeSet);
       }
     } catch (error) {
       await releasePublishClaim(ctx, workspaceId, id);
@@ -826,7 +1140,11 @@ async function run(
     return { ...prFailure, body: { ...prFailure.body, changeSet: await view(), branch } };
   }
   const pullRequest: FixupResult['pullRequest'] = prNow
-    ? { state: 'opened', ...(prNow.number !== undefined ? { number: prNow.number } : {}), ...(prNow.url ? { url: prNow.url } : {}) }
+    ? {
+        state: 'opened',
+        ...(prNow.number !== undefined ? { number: prNow.number } : {}),
+        ...(prNow.url ? { url: prNow.url } : {}),
+      }
     : (publishedPr ?? prState());
   return {
     ok: true,
@@ -834,9 +1152,17 @@ async function run(
       ...base,
       changeSet: await view(),
       nothingToFix: false,
-      ...(committed ? { commit: { sha: committed.sha, parent: committed.parent, files: committed.files, signed: signed !== undefined } } : {}),
+      ...(committed
+        ? {
+            commit: {
+              sha: committed.sha,
+              parent: committed.parent,
+              files: committed.files,
+              signed: signed !== undefined,
+            },
+          }
+        : {}),
       pullRequest,
     },
   };
 }
-

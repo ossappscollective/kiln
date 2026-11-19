@@ -73,14 +73,21 @@ export function elapsedText(ms: number): string {
 }
 
 /** How long a run has gone (ticking against `now`) or went (a finished run). */
-export function runElapsedMs(run: Pick<WorkflowRun, 'active' | 'startedAt' | 'updatedAt'>, now: number): number {
+export function runElapsedMs(
+  run: Pick<WorkflowRun, 'active' | 'startedAt' | 'updatedAt'>,
+  now: number,
+): number {
   return Math.max(0, (run.active ? now : run.updatedAt) - run.startedAt);
 }
 
 /** Runs in progress first, then queued ones, each newest first. Does not change its argument. */
-export function sortActive<T extends Pick<WorkflowRun, 'status' | 'startedAt' | 'id'>>(runs: readonly T[]): T[] {
+export function sortActive<T extends Pick<WorkflowRun, 'status' | 'startedAt' | 'id'>>(
+  runs: readonly T[],
+): T[] {
   const rank = (r: Pick<WorkflowRun, 'status'>) => (r.status === 'in_progress' ? 0 : 1);
-  return [...runs].sort((a, b) => rank(a) - rank(b) || b.startedAt - a.startedAt || b.id.localeCompare(a.id));
+  return [...runs].sort(
+    (a, b) => rank(a) - rank(b) || b.startedAt - a.startedAt || b.id.localeCompare(a.id),
+  );
 }
 
 export type ProgressInfo = {
@@ -103,10 +110,16 @@ export function progressInfo(run: Pick<ActiveRun, 'status' | 'progress'>): Progr
     case 'in_progress': {
       const p = run.progress;
       if (!p) return { percent: null, label: 'In progress' };
-      const where = [p.job, p.step].filter((x): x is string => typeof x === 'string' && x !== '').join(' · ');
-      const jobs = p.jobsTotal > 1 ? `job ${Math.min(p.jobsDone + 1, p.jobsTotal)} of ${p.jobsTotal}` : '';
+      const where = [p.job, p.step]
+        .filter((x): x is string => typeof x === 'string' && x !== '')
+        .join(' · ');
+      const jobs =
+        p.jobsTotal > 1 ? `job ${Math.min(p.jobsDone + 1, p.jobsTotal)} of ${p.jobsTotal}` : '';
       const label = [where, jobs].filter((x) => x !== '').join(' · ');
-      return { percent: Math.round(Math.min(1, Math.max(0, p.fraction)) * 100), label: label || 'In progress' };
+      return {
+        percent: Math.round(Math.min(1, Math.max(0, p.fraction)) * 100),
+        label: label || 'In progress',
+      };
     }
     default:
       return { percent: null, label: '' };
@@ -117,19 +130,26 @@ export function progressInfo(run: Pick<ActiveRun, 'status' | 'progress'>): Progr
 // One app
 
 /** The apps a run was started for. `appIds` when the server sends it, else the one `appId`; empty for none. */
-export function runAppIds(run: Pick<WorkflowRun, 'appId'> & { appIds?: readonly string[] }): string[] {
+export function runAppIds(
+  run: Pick<WorkflowRun, 'appId'> & { appIds?: readonly string[] },
+): string[] {
   if (run.appIds !== undefined) return [...run.appIds];
   return run.appId === null ? [] : [run.appId];
 }
 
 /** The names of the apps a run was started for, in the order of `apps`. Empty when it was started for none. */
-export function runAppNames(run: Pick<WorkflowRun, 'appId'> & { appIds?: readonly string[] }, apps: readonly { id: string; name: string }[]): string[] {
+export function runAppNames(
+  run: Pick<WorkflowRun, 'appId'> & { appIds?: readonly string[] },
+  apps: readonly { id: string; name: string }[],
+): string[] {
   const ids = runAppIds(run);
   return apps.filter((a) => ids.indexOf(a.id) >= 0).map((a) => a.name);
 }
 
 const workflowMatches = (run: Pick<WorkflowRun, 'workflow' | 'workflowPath'>, wanted: string) =>
-  run.workflowPath === wanted || run.workflowPath?.split('/').pop() === wanted || run.workflow === wanted;
+  run.workflowPath === wanted ||
+  run.workflowPath?.split('/').pop() === wanted ||
+  run.workflow === wanted;
 
 export type AppRunTarget = {
   id: string;
@@ -150,7 +170,10 @@ export type ScopedRuns = {
  * to one of the apps are shown alone; when none is, all the runs of the apps' repositories are shown
  * and `linked` is false, so the screen can say they are the repository's. Never guessed from names.
  */
-export function scopeRunsToApps(runs: readonly ActiveRun[], targets: readonly AppRunTarget[]): ScopedRuns {
+export function scopeRunsToApps(
+  runs: readonly ActiveRun[],
+  targets: readonly AppRunTarget[],
+): ScopedRuns {
   const repos = new Set<string>();
   for (const t of targets) if (t.repositoryId) repos.add(t.repositoryId);
   const inRepos = runs.filter((r) => repos.has(r.repositoryId));
@@ -158,7 +181,8 @@ export function scopeRunsToApps(runs: readonly ActiveRun[], targets: readonly Ap
     targets.some(
       (t) =>
         t.repositoryId === r.repositoryId &&
-        (runAppIds(r).indexOf(t.id) >= 0 || (runAppIds(r).length === 0 && t.workflow !== null && workflowMatches(r, t.workflow))),
+        (runAppIds(r).indexOf(t.id) >= 0 ||
+          (runAppIds(r).length === 0 && t.workflow !== null && workflowMatches(r, t.workflow))),
     ),
   );
   return tied.length > 0 ? { runs: tied, linked: true } : { runs: inRepos, linked: false };
@@ -168,12 +192,18 @@ export function scopeRunsToApps(runs: readonly ActiveRun[], targets: readonly Ap
 // Finished, and what could not be read
 
 const FAILED = ['failure', 'timed_out', 'startup_failure'];
-export const isFailedRun = (run: Pick<WorkflowRun, 'conclusion'>): boolean => FAILED.indexOf(run.conclusion ?? '') >= 0;
+export const isFailedRun = (run: Pick<WorkflowRun, 'conclusion'>): boolean =>
+  FAILED.indexOf(run.conclusion ?? '') >= 0;
 
 /** Failed runs first, then the others, each newest first. Does not change its argument. */
-export function failedFirst<T extends Pick<WorkflowRun, 'conclusion' | 'updatedAt' | 'id'>>(runs: readonly T[]): T[] {
+export function failedFirst<T extends Pick<WorkflowRun, 'conclusion' | 'updatedAt' | 'id'>>(
+  runs: readonly T[],
+): T[] {
   return [...runs].sort(
-    (a, b) => Number(isFailedRun(b)) - Number(isFailedRun(a)) || b.updatedAt - a.updatedAt || b.id.localeCompare(a.id),
+    (a, b) =>
+      Number(isFailedRun(b)) - Number(isFailedRun(a)) ||
+      b.updatedAt - a.updatedAt ||
+      b.id.localeCompare(a.id),
   );
 }
 
@@ -200,7 +230,8 @@ export function finishedCounts(runs: readonly Pick<WorkflowRun, 'conclusion'>[])
 export type ProblemPill = { tone: 'warn' | 'info'; label: string; lines: string[] };
 
 const reasonText: Record<ActiveRunsProblem['reason'], string> = {
-  no_access: 'the GitHub connection cannot read Actions runs (check the token or app permission "Actions: read")',
+  no_access:
+    'the GitHub connection cannot read Actions runs (check the token or app permission "Actions: read")',
   unsupported: 'this connection cannot read workflow runs',
   rate_limited: 'GitHub asked for a pause; it is tried again by itself',
   unavailable: 'GitHub did not answer; it is tried again by itself',
@@ -234,7 +265,11 @@ export const endsFeed = (error: unknown): boolean => {
 // ---------------------------------------------------------------------------------------------
 // Jobs and steps (the run drawer)
 
-export type StateVisual = { icon: 'check-circle' | 'x-circle' | 'refresh' | 'clock' | 'minus' | 'alert-triangle'; tone: 'ok' | 'bad' | 'info' | 'warn' | 'neutral'; label: string };
+export type StateVisual = {
+  icon: 'check-circle' | 'x-circle' | 'refresh' | 'clock' | 'minus' | 'alert-triangle';
+  tone: 'ok' | 'bad' | 'info' | 'warn' | 'neutral';
+  label: string;
+};
 
 /** The icon, tone and words for a job or a step. The words always say the state. */
 export function stateVisual(status: string, conclusion: string | null): StateVisual {
@@ -242,8 +277,10 @@ export function stateVisual(status: string, conclusion: string | null): StateVis
     if (conclusion === 'success') return { icon: 'check-circle', tone: 'ok', label: 'Succeeded' };
     if (conclusion === 'skipped') return { icon: 'minus', tone: 'neutral', label: 'Skipped' };
     if (conclusion === 'cancelled') return { icon: 'minus', tone: 'neutral', label: 'Cancelled' };
-    if (conclusion === 'action_required') return { icon: 'alert-triangle', tone: 'warn', label: 'Needs approval' };
-    if (conclusion === 'neutral') return { icon: 'check-circle', tone: 'neutral', label: 'Finished' };
+    if (conclusion === 'action_required')
+      return { icon: 'alert-triangle', tone: 'warn', label: 'Needs approval' };
+    if (conclusion === 'neutral')
+      return { icon: 'check-circle', tone: 'neutral', label: 'Finished' };
     return { icon: 'x-circle', tone: 'bad', label: 'Failed' };
   }
   if (status === 'in_progress') return { icon: 'refresh', tone: 'info', label: 'Running' };
@@ -251,7 +288,10 @@ export function stateVisual(status: string, conclusion: string | null): StateVis
 }
 
 /** Milliseconds a job or step has taken (against `now` while it goes); null when it has not started. */
-export function spanMs(item: { startedAt: number | null; completedAt: number | null }, now: number): number | null {
+export function spanMs(
+  item: { startedAt: number | null; completedAt: number | null },
+  now: number,
+): number | null {
   if (item.startedAt === null) return null;
   return Math.max(0, (item.completedAt ?? now) - item.startedAt);
 }

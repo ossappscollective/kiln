@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
-  AiError,
   type AiClient,
-  type CreateAiClientInput,
+  AiError,
   aiErrorMessage,
+  type CreateAiClientInput,
   createAiClient,
 } from '@mrm/connectors';
 import {
@@ -11,18 +11,23 @@ import {
   type ActorType,
   type AiErrorKind,
   type AiProvider,
-  type Role,
   aiLimits,
   aiProviderInfo,
   aiProviders,
   can,
   isAiProvider,
+  type Role,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
-import { type GuardedFetch, type PostExchange, checkTranslateUrl, createGuardedFetch } from './translate-net.ts';
-import { type Resolver, checkWebhookUrl, resolveAllowed } from './webhook-transport.ts';
+import {
+  checkTranslateUrl,
+  createGuardedFetch,
+  type GuardedFetch,
+  type PostExchange,
+} from './translate-net.ts';
+import { checkWebhookUrl, type Resolver, resolveAllowed } from './webhook-transport.ts';
 
 /**
  * The AI configuration of a workspace and the failure vocabulary of the AI routes (docs/api/ai.md,
@@ -53,24 +58,43 @@ export const aiFail = (
   message: string,
   extra: Record<string, unknown> = {},
   headers?: Record<string, string>,
-): AiFailure => ({ ok: false, status, body: { error, message, ...extra }, ...(headers ? { headers } : {}) });
+): AiFailure => ({
+  ok: false,
+  status,
+  body: { error, message, ...extra },
+  ...(headers ? { headers } : {}),
+});
 
 export const NOT_ENABLED = {
-  server: 'AI assistance is switched off on this server. The operator can turn it on with MRM_AI_ENABLED=true.',
-  workspace: 'AI assistance is turned off for this workspace. An admin can turn it on in the AI settings.',
+  server:
+    'AI assistance is switched off on this server. The operator can turn it on with MRM_AI_ENABLED=true.',
+  workspace:
+    'AI assistance is turned off for this workspace. An admin can turn it on in the AI settings.',
 } as const;
 
 const NOT_CONFIGURED = {
   no_model: 'No model has been chosen. An admin can set it in the AI settings.',
-  no_credential: 'No key for the AI provider has been added yet. An admin can add one under Credentials.',
-  no_url: 'The address of the model server has not been set. An admin can set it in the AI settings.',
-  credential_unreadable: 'The key of the AI provider could not be decrypted. An admin must enter it again.',
-  bad_url: 'The address of the model server is not allowed by this server. An admin can change it in the AI settings.',
+  no_credential:
+    'No key for the AI provider has been added yet. An admin can add one under Credentials.',
+  no_url:
+    'The address of the model server has not been set. An admin can set it in the AI settings.',
+  credential_unreadable:
+    'The key of the AI provider could not be decrypted. An admin must enter it again.',
+  bad_url:
+    'The address of the model server is not allowed by this server. An admin can change it in the AI settings.',
 } as const;
 export type AiNotConfiguredReason = keyof typeof NOT_CONFIGURED;
 
-export const aiNotConfigured = (reason: AiNotConfiguredReason, provider?: AiProvider, extra: Record<string, unknown> = {}): AiFailure =>
-  aiFail(422, 'ai_not_configured', NOT_CONFIGURED[reason], { reason, ...(provider ? { provider } : {}), ...extra });
+export const aiNotConfigured = (
+  reason: AiNotConfiguredReason,
+  provider?: AiProvider,
+  extra: Record<string, unknown> = {},
+): AiFailure =>
+  aiFail(422, 'ai_not_configured', NOT_CONFIGURED[reason], {
+    reason,
+    ...(provider ? { provider } : {}),
+    ...extra,
+  });
 
 /**
  * Why an address of a model server is refused, as a FIXED code a screen can explain (the policy itself is not weakened by naming it):
@@ -83,17 +107,22 @@ export type AddressHint = 'private_address_blocked' | 'plain_http_not_allowed';
 export const ADDRESS_HINT_MESSAGES: Record<AddressHint, string> = {
   private_address_blocked:
     'This server only talks to public addresses. To use a model on this machine or your network, the person who runs this server sets MRM_AI_ALLOW_PRIVATE_URLS=true and restarts it.',
-  plain_http_not_allowed: 'Plain http is accepted only for localhost, and only when MRM_AI_ALLOW_PRIVATE_URLS=true. Use an https address for any other server.',
+  plain_http_not_allowed:
+    'Plain http is accepted only for localhost, and only when MRM_AI_ALLOW_PRIVATE_URLS=true. Use an https address for any other server.',
 };
 
 /**
  * Explains a refused address. Never loosens anything: it only asks "would this pass if private addresses were allowed?". Cheap checks first; the
  * name is resolved only when the text of the address passes both ways (a name can point at a private address).
  */
-export async function addressHint(raw: string, ctx: { allowPrivateUrls?: boolean; resolve?: Resolver }): Promise<AddressHint | undefined> {
+export async function addressHint(
+  raw: string,
+  ctx: { allowPrivateUrls?: boolean; resolve?: Resolver },
+): Promise<AddressHint | undefined> {
   const text = raw.trim();
   const relaxed = checkWebhookUrl(text, { allowPrivate: true });
-  if (!relaxed.ok) return /^Plain http/.test(relaxed.message) ? 'plain_http_not_allowed' : undefined;
+  if (!relaxed.ok)
+    return /^Plain http/.test(relaxed.message) ? 'plain_http_not_allowed' : undefined;
   if (ctx.allowPrivateUrls) return undefined;
   const strict = checkWebhookUrl(text, {});
   if (!strict.ok) return 'private_address_blocked';
@@ -118,14 +147,23 @@ export function failureForAiError(error: AiError, provider: AiProvider): AiFailu
       return aiFail(422, 'ai_auth', message, { provider });
     case 'rate_limited': {
       const wait = error.retryAfterSeconds ?? 30;
-      return aiFail(429, 'ai_rate_limited', message, { provider, retryAfterSeconds: wait, ...hint }, { 'Retry-After': String(wait) });
+      return aiFail(
+        429,
+        'ai_rate_limited',
+        message,
+        { provider, retryAfterSeconds: wait, ...hint },
+        { 'Retry-After': String(wait) },
+      );
     }
     case 'too_large':
       return aiFail(422, 'ai_too_large', message, { provider });
     case 'invalid_output':
       return aiFail(502, 'ai_invalid_output', message, { provider, ...hint });
     case 'unavailable':
-      return aiFail(error.detail === 'timeout' ? 504 : 502, 'ai_unavailable', message, { provider, ...hint });
+      return aiFail(error.detail === 'timeout' ? 504 : 502, 'ai_unavailable', message, {
+        provider,
+        ...hint,
+      });
   }
 }
 
@@ -163,7 +201,9 @@ const bad = (message: string): Parsed<never> => ({ ok: false, message });
 const integerIn =
   (min: number, max: number) =>
   (raw: unknown): Parsed<number> =>
-    typeof raw === 'number' && Number.isInteger(raw) && raw >= min && raw <= max ? ok(raw) : bad(`Use a whole number from ${min} to ${max}.`);
+    typeof raw === 'number' && Number.isInteger(raw) && raw >= min && raw <= max
+      ? ok(raw)
+      : bad(`Use a whole number from ${min} to ${max}.`);
 
 type Definition<T> = {
   doc: string;
@@ -193,7 +233,9 @@ export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValu
       const value = raw.trim();
       if (value === '') return ok('');
       if (value.length > aiLimits.maxModelChars || !MODEL.test(value)) {
-        return bad(`A model name has at most ${aiLimits.maxModelChars} characters: letters, digits and . _ : / @ + -`);
+        return bad(
+          `A model name has at most ${aiLimits.maxModelChars} characters: letters, digits and . _ : / @ + -`,
+        );
       }
       return ok(value);
     },
@@ -235,7 +277,7 @@ export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValu
     parse: integerIn(aiLimits.minMaxInputTokens, aiLimits.maxMaxInputTokens),
   },
   softWarnPercent: {
-    doc: 'A warning (never a stop) is shown when this month\'s usage reaches this percentage of the token budget or of the cost cap. 0 turns the warning off. Default 80.',
+    doc: "A warning (never a stop) is shown when this month's usage reaches this percentage of the token budget or of the cost cap. 0 turns the warning off. Default 80.",
     default: 80,
     parse: integerIn(0, 100),
   },
@@ -257,10 +299,12 @@ export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValu
 };
 
 export const aiConfigKeys = Object.keys(aiSettingDefinitions) as AiConfigKey[];
-export const isAiConfigKey = (value: string): value is AiConfigKey => Object.prototype.hasOwnProperty.call(aiSettingDefinitions, value);
+export const isAiConfigKey = (value: string): value is AiConfigKey =>
+  Object.hasOwn(aiSettingDefinitions, value);
 
 const STORE_PREFIX = 'ai.';
-const def = (key: AiConfigKey): Definition<unknown> => aiSettingDefinitions[key] as unknown as Definition<unknown>;
+const def = (key: AiConfigKey): Definition<unknown> =>
+  aiSettingDefinitions[key] as unknown as Definition<unknown>;
 
 export const defaultAiConfig = (): AiConfigValues => {
   const out: Record<string, unknown> = {};
@@ -272,7 +316,10 @@ export type AiConfig = { values: AiConfigValues; overridden: AiConfigKey[] };
 
 /** Reads the AI configuration. A stored value that no longer validates is ignored (the default applies). */
 export async function readAiConfig(sql: Sql, workspaceId: string): Promise<AiConfig> {
-  const rows = await sql.query("SELECT key, value_json FROM workspace_settings WHERE workspace_id = ? AND key LIKE 'ai.%'", [workspaceId]);
+  const rows = await sql.query(
+    "SELECT key, value_json FROM workspace_settings WHERE workspace_id = ? AND key LIKE 'ai.%'",
+    [workspaceId],
+  );
   const values = defaultAiConfig() as unknown as Record<string, unknown>;
   const overridden: AiConfigKey[] = [];
   for (const row of rows) {
@@ -296,7 +343,15 @@ export type AiConfigChange = { key: AiConfigKey; from: unknown; to: unknown };
 
 export type UpdateAiConfigResult =
   | { ok: true; changes: AiConfigChange[]; config: AiConfig }
-  | { ok: false; status: 400 | 403; body: { error: string; message: string; issues?: { path: string; message: string; code?: AddressHint }[] } };
+  | {
+      ok: false;
+      status: 400 | 403;
+      body: {
+        error: string;
+        message: string;
+        issues?: { path: string; message: string; code?: AddressHint }[];
+      };
+    };
 
 /**
  * A partial update: each key to a new value, or null to go back to the default. All or nothing. Unknown keys
@@ -315,11 +370,20 @@ export async function updateAiConfig(
     return {
       ok: false,
       status: 400,
-      body: { error: 'unknown_setting', message: `Unknown AI setting: ${unknown.join(', ')}.`, issues: unknown.map((path) => ({ path, message: 'Not an AI setting.' })) },
+      body: {
+        error: 'unknown_setting',
+        message: `Unknown AI setting: ${unknown.join(', ')}.`,
+        issues: unknown.map((path) => ({ path, message: 'Not an AI setting.' })),
+      },
     };
   }
   const manage: Action = 'ai.manage';
-  if (!can(input.role, manage)) return { ok: false, status: 403, body: { error: 'forbidden', message: 'Only an admin may change the AI settings.' } };
+  if (!can(input.role, manage))
+    return {
+      ok: false,
+      status: 403,
+      body: { error: 'forbidden', message: 'Only an admin may change the AI settings.' },
+    };
   const issues: { path: string; message: string; code?: AddressHint }[] = [];
   const next = new Map<AiConfigKey, unknown>();
   for (const [rawKey, raw] of entries) {
@@ -332,11 +396,21 @@ export async function updateAiConfig(
     const refusal = parsed.ok ? await def(key).verify?.(parsed.value, ctx) : parsed.message;
     if (!parsed.ok || refusal) {
       // A refused address gets a fixed code and a sentence that says what to do (the policy is not weakened by saying so).
-      const hint = key === 'baseUrl' && typeof raw === 'string' ? await addressHint(raw, ctx) : undefined;
-      issues.push({ path: key, message: hint ? ADDRESS_HINT_MESSAGES[hint] : (refusal ?? ''), ...(hint ? { code: hint } : {}) });
+      const hint =
+        key === 'baseUrl' && typeof raw === 'string' ? await addressHint(raw, ctx) : undefined;
+      issues.push({
+        path: key,
+        message: hint ? ADDRESS_HINT_MESSAGES[hint] : (refusal ?? ''),
+        ...(hint ? { code: hint } : {}),
+      });
     } else next.set(key, parsed.value);
   }
-  if (issues.length > 0) return { ok: false, status: 400, body: { error: 'invalid_setting', message: 'An AI setting is not valid.', issues } };
+  if (issues.length > 0)
+    return {
+      ok: false,
+      status: 400,
+      body: { error: 'invalid_setting', message: 'An AI setting is not valid.', issues },
+    };
 
   return db.transaction(async (tx): Promise<UpdateAiConfigResult> => {
     const before = await readAiConfig(tx, input.workspaceId);
@@ -347,7 +421,10 @@ export async function updateAiConfig(
       const storeKey = `${STORE_PREFIX}${key}`;
       if (value === null) {
         if (!has) continue;
-        await tx.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [input.workspaceId, storeKey]);
+        await tx.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
+          input.workspaceId,
+          storeKey,
+        ]);
         changes.push({ key, from, to: aiSettingDefinitions[key].default });
         continue;
       }
@@ -400,16 +477,23 @@ export type AiContext = {
 };
 
 /** The oldest credential of the provider's kind in the workspace: the one AI uses. */
-export async function aiCredentialId(sql: Sql, workspaceId: string, provider: AiProvider): Promise<string | undefined> {
-  const [row] = await sql.query('SELECT id FROM credentials WHERE workspace_id = ? AND kind = ? ORDER BY created_at, id LIMIT 1', [
-    workspaceId,
-    aiProviderInfo[provider].credentialKind,
-  ]);
+export async function aiCredentialId(
+  sql: Sql,
+  workspaceId: string,
+  provider: AiProvider,
+): Promise<string | undefined> {
+  const [row] = await sql.query(
+    'SELECT id FROM credentials WHERE workspace_id = ? AND kind = ? ORDER BY created_at, id LIMIT 1',
+    [workspaceId, aiProviderInfo[provider].credentialKind],
+  );
   return row ? String(row.id) : undefined;
 }
 
 /** What is missing for the provider to be used, or undefined when nothing is. Reads no secret. */
-export function configGap(config: AiConfigValues, credentialPresent: boolean): AiNotConfiguredReason | undefined {
+export function configGap(
+  config: AiConfigValues,
+  credentialPresent: boolean,
+): AiNotConfiguredReason | undefined {
   const info = aiProviderInfo[config.provider];
   if (config.model === '') return 'no_model';
   if (info.needsUrl && config.baseUrl === '') return 'no_url';
@@ -427,7 +511,10 @@ export type Availability = {
 };
 
 /** Whether AI can be used right now in a workspace, and why not. The server switch is checked first, then the workspace's, then the set up. */
-export async function aiAvailability(ctx: Pick<AiContext, 'db' | 'enabled'>, workspaceId: string): Promise<Availability> {
+export async function aiAvailability(
+  ctx: Pick<AiContext, 'db' | 'enabled'>,
+  workspaceId: string,
+): Promise<Availability> {
   const config = await readAiConfig(ctx.db, workspaceId);
   const credentialId = await aiCredentialId(ctx.db, workspaceId, config.values.provider);
   if (!ctx.enabled) return { state: 'off_server', config, credentialId };
@@ -462,11 +549,18 @@ export async function buildAiClient(
   let secret: string | undefined;
   if (availability.credentialId) {
     try {
-      secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: availability.credentialId, purpose: 'ai' }, actor, ctx.now());
+      secret = await useCredentialSecret(
+        ctx.db,
+        ctx.masterKey,
+        { workspaceId, id: availability.credentialId, purpose: 'ai' },
+        actor,
+        ctx.now(),
+      );
     } catch {
       return aiNotConfigured('credential_unreadable', provider);
     }
-    if (secret === undefined && info.credentialRequired) return aiNotConfigured('no_credential', provider);
+    if (secret === undefined && info.credentialRequired)
+      return aiNotConfigured('no_credential', provider);
   }
   try {
     const timeout = ctx.timeoutMs !== undefined ? { timeoutMs: ctx.timeoutMs } : {};
@@ -485,13 +579,27 @@ export async function buildAiClient(
         timeoutMs: ctx.timeoutMs ?? 60_000,
         maxBytes: 4 * 1024 * 1024,
       });
-      const input: CreateAiClientInput = { provider, model, secret, baseUrl: check.url, options: { fetch: guard.fetch, ...timeout } };
+      const input: CreateAiClientInput = {
+        provider,
+        model,
+        secret,
+        baseUrl: check.url,
+        options: { fetch: guard.fetch, ...timeout },
+      };
       return { client: (ctx.clientFactory ?? createAiClient)(input), guard };
     }
-    const input: CreateAiClientInput = { provider, model, secret, options: { ...(ctx.fetch ? { fetch: ctx.fetch } : {}), ...timeout } };
+    const input: CreateAiClientInput = {
+      provider,
+      model,
+      secret,
+      options: { ...(ctx.fetch ? { fetch: ctx.fetch } : {}), ...timeout },
+    };
     return { client: (ctx.clientFactory ?? createAiClient)(input) };
   } catch (error) {
-    return failureForAiError(error instanceof AiError ? error : new AiError('unavailable'), provider);
+    return failureForAiError(
+      error instanceof AiError ? error : new AiError('unavailable'),
+      provider,
+    );
   }
 }
 
@@ -499,15 +607,26 @@ export async function buildAiClient(
  * The fixed `reason` of a call the guarded fetch refused before sending it: `private_address_blocked` or `plain_http_not_allowed` when
  * that is why, else `address_not_allowed`. Undefined when the guard refused nothing.
  */
-export async function guardReason(ctx: Pick<AiContext, 'allowPrivateUrls' | 'resolve'>, baseUrl: string, guard: GuardedFetch | undefined): Promise<string | undefined> {
+export async function guardReason(
+  ctx: Pick<AiContext, 'allowPrivateUrls' | 'resolve'>,
+  baseUrl: string,
+  guard: GuardedFetch | undefined,
+): Promise<string | undefined> {
   if (!guard?.blocked()) return undefined;
   return (await addressHint(baseUrl, ctx)) ?? 'address_not_allowed';
 }
 
 /** Adds the fixed hint about a refused address to a failure, when the guard refused the request. */
-export async function withGuardHint(failure: AiFailure, guard: GuardedFetch | undefined, ctx: Pick<AiContext, 'allowPrivateUrls' | 'resolve'>, baseUrl: string): Promise<AiFailure> {
+export async function withGuardHint(
+  failure: AiFailure,
+  guard: GuardedFetch | undefined,
+  ctx: Pick<AiContext, 'allowPrivateUrls' | 'resolve'>,
+  baseUrl: string,
+): Promise<AiFailure> {
   const reason = await guardReason(ctx, baseUrl, guard);
-  return reason ? { ...failure, body: { ...failure.body, reason, detail: guard?.blocked() } } : failure;
+  return reason
+    ? { ...failure, body: { ...failure.body, reason, detail: guard?.blocked() } }
+    : failure;
 }
 
 export const newId = (): string => randomUUID();

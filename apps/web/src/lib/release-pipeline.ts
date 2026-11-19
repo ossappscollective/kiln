@@ -1,7 +1,14 @@
-import { type Pipeline, type PipelineStepRow, type PipelineStepStatus, type Platform, type StallStep, platformLabel } from '@mrm/core';
+import {
+  type Pipeline,
+  type PipelineStepRow,
+  type PipelineStepStatus,
+  type Platform,
+  platformLabel,
+  type StallStep,
+} from '@mrm/core';
 import type { AttentionItem } from './app-attention.ts';
 import type { PlatformScope } from './app-scope.ts';
-import { type StepId, releaseStepHref } from './release-stepper.ts';
+import { releaseStepHref, type StepId } from './release-stepper.ts';
 
 /**
  * Where the release of an app stands between "a CI run succeeded" and "it is live", and whether it was left unfinished
@@ -15,7 +22,15 @@ import { type StepId, releaseStepHref } from './release-stepper.ts';
 
 export type StallEvidence = { kind: 'run' | 'build' | 'version'; id: string; at: number | null };
 
-export type SummaryStall = { step: StallStep; label: string; message: string; hours: number; since: number; stale: boolean; evidence: StallEvidence[] };
+export type SummaryStall = {
+  step: StallStep;
+  label: string;
+  message: string;
+  hours: number;
+  since: number;
+  stale: boolean;
+  evidence: StallEvidence[];
+};
 
 export type PipelineSummaryApp = {
   app: { id: string; name: string; platform: Platform; store: string };
@@ -34,7 +49,12 @@ export type PipelineSummary = {
   generatedAt: number;
 };
 
-export type AppPipeline = { app: { id: string; name: string; platform: Platform; store: string }; pipeline: Pipeline; lastSyncedAt: number | null; generatedAt: number };
+export type AppPipeline = {
+  app: { id: string; name: string; platform: Platform; store: string };
+  pipeline: Pipeline;
+  lastSyncedAt: number | null;
+  generatedAt: number;
+};
 
 // ---------------------------------------------------------------------------------------------
 // Who has to act
@@ -93,7 +113,13 @@ export function stallVersion(evidence: readonly StallEvidence[]): string | null 
 // ---------------------------------------------------------------------------------------------
 // The strip
 
-export const STRIP_LABELS: Readonly<Record<PipelineStepRow['id'], string>> = { ci: 'CI', build: 'Build', prepare: 'Prepare', review: 'Review', release: 'Release' };
+export const STRIP_LABELS: Readonly<Record<PipelineStepRow['id'], string>> = {
+  ci: 'CI',
+  build: 'Build',
+  prepare: 'Prepare',
+  review: 'Review',
+  release: 'Release',
+};
 
 const STATUS_WORDS: Readonly<Record<PipelineStepStatus, string>> = {
   done: 'Done',
@@ -105,7 +131,14 @@ const STATUS_WORDS: Readonly<Record<PipelineStepStatus, string>> = {
   unknown: 'Not known',
 };
 
-export type StripStep = { id: PipelineStepRow['id']; label: string; status: PipelineStepStatus; word: string; detail: string | null; current: boolean };
+export type StripStep = {
+  id: PipelineStepRow['id'];
+  label: string;
+  status: PipelineStepStatus;
+  word: string;
+  detail: string | null;
+  current: boolean;
+};
 
 export type StripModel = {
   steps: StripStep[];
@@ -119,7 +152,9 @@ export type StripModel = {
 const ACTIVE: readonly PipelineStepStatus[] = ['current', 'waiting', 'stalled', 'failed'];
 
 /** The five steps of the strip, the one that matters now marked, and who is expected to act. */
-export function stripModel(pipeline: Pick<Pipeline, 'steps' | 'waitingOn' | 'summary' | 'state'>): StripModel {
+export function stripModel(
+  pipeline: Pick<Pipeline, 'steps' | 'waitingOn' | 'summary' | 'state'>,
+): StripModel {
   let mark = pipeline.steps.findIndex((s) => ACTIVE.indexOf(s.status) >= 0);
   if (mark < 0) {
     // Nothing is active: the first step after the last one that is done.
@@ -130,7 +165,14 @@ export function stripModel(pipeline: Pick<Pipeline, 'steps' | 'waitingOn' | 'sum
     mark = lastDone + 1 < pipeline.steps.length ? lastDone + 1 : -1;
   }
   return {
-    steps: pipeline.steps.map((s, i) => ({ id: s.id, label: STRIP_LABELS[s.id], status: s.status, word: STATUS_WORDS[s.status], detail: s.detail, current: i === mark })),
+    steps: pipeline.steps.map((s, i) => ({
+      id: s.id,
+      label: STRIP_LABELS[s.id],
+      status: s.status,
+      word: STATUS_WORDS[s.status],
+      detail: s.detail,
+      current: i === mark,
+    })),
     waiting: waitingOf(pipeline.waitingOn),
     summary: pipeline.summary,
     step: stepForState(pipeline.state),
@@ -139,7 +181,8 @@ export function stripModel(pipeline: Pick<Pipeline, 'steps' | 'waitingOn' | 'sum
 
 /** States in which a release is on its way: the strip is drawn. Idle, unknown and live draw nothing (quiet by default). */
 const QUIET_STATES = ['idle', 'unknown', 'live'];
-export const stripVisible = (pipeline: Pick<Pipeline, 'state'>): boolean => QUIET_STATES.indexOf(pipeline.state) < 0;
+export const stripVisible = (pipeline: Pick<Pipeline, 'state'>): boolean =>
+  QUIET_STATES.indexOf(pipeline.state) < 0;
 
 // ---------------------------------------------------------------------------------------------
 // "Release left unfinished"
@@ -187,7 +230,9 @@ export const stalledApps = (summary: Pick<PipelineSummary, 'apps'> | null): Pipe
   summary === null ? [] : summary.apps.filter((a) => a.stalled !== null && !a.stalled.stale);
 
 /** The summary line of each app by its id. */
-export function summaryByApp(summary: Pick<PipelineSummary, 'apps'> | null): Record<string, PipelineSummaryApp | undefined> {
+export function summaryByApp(
+  summary: Pick<PipelineSummary, 'apps'> | null,
+): Record<string, PipelineSummaryApp | undefined> {
   const out: Record<string, PipelineSummaryApp | undefined> = {};
   if (summary !== null) for (const a of summary.apps) out[a.app.id] = a;
   return out;

@@ -1,5 +1,10 @@
 /** One item of the breadcrumb in the top bar. The last item is the current page and has no link. */
-export type Crumb = { label: string; href: string | null; current: boolean; kind: 'workspace' | 'section' | 'app' | 'page' };
+export type Crumb = {
+  label: string;
+  href: string | null;
+  current: boolean;
+  kind: 'workspace' | 'section' | 'app' | 'page';
+};
 
 /**
  * The breadcrumb: workspace, then the section (a link when an app is open), then the app and, when given, the page of the app
@@ -16,7 +21,8 @@ export function breadcrumbItems(input: {
 }): Crumb[] {
   const items: Crumb[] = [];
   const workspace = (input.workspace ?? '').trim();
-  if (workspace !== '') items.push({ label: workspace, href: null, current: false, kind: 'workspace' });
+  if (workspace !== '')
+    items.push({ label: workspace, href: null, current: false, kind: 'workspace' });
   if (input.section && input.section.label.trim() !== '') {
     items.push({
       label: input.section.label,
@@ -28,20 +34,33 @@ export function breadcrumbItems(input: {
   const page = (input.page ?? '').trim();
   if (input.appOpen) {
     const withPage = page !== '';
-    items.push({ label: (input.appName ?? '').trim() || 'App', href: withPage ? (input.appHref ?? null) : null, current: !withPage, kind: 'app' });
+    items.push({
+      label: (input.appName ?? '').trim() || 'App',
+      href: withPage ? (input.appHref ?? null) : null,
+      current: !withPage,
+      kind: 'app',
+    });
     if (withPage) items.push({ label: page, href: null, current: true, kind: 'page' });
   }
   return items;
 }
 
 /** What the top bar draws: whole crumbs and, when space is tight, one "more" item whose menu holds the crumbs left out. */
-export type ShownCrumb = Crumb | { kind: 'more'; label: string; href: null; current: false; menu: Crumb[] };
+export type ShownCrumb =
+  | Crumb
+  | { kind: 'more'; label: string; href: null; current: false; menu: Crumb[] };
 
 /** The room a list of crumbs takes, in characters: the labels and a separator between neighbours. A "more" item counts as 1. */
 const widthOf = (items: readonly ShownCrumb[]): number =>
   items.reduce((sum, c) => sum + (c.kind === 'more' ? 1 : c.label.length) + 3, -3);
 
-const more = (menu: Crumb[]): ShownCrumb => ({ kind: 'more', label: 'More of the path', href: null, current: false, menu });
+const more = (menu: Crumb[]): ShownCrumb => ({
+  kind: 'more',
+  label: 'More of the path',
+  href: null,
+  current: false,
+  menu,
+});
 
 /**
  * Fits the breadcrumb into `maxChars` characters (the Shell turns the width of the bar into characters) WITHOUT cutting any label:
@@ -55,7 +74,10 @@ const more = (menu: Crumb[]): ShownCrumb => ({ kind: 'more', label: 'More of the
 export function fitCrumbs(items: readonly Crumb[], maxChars: number): ShownCrumb[] {
   if (items.length <= 1 || widthOf(items) <= maxChars) return [...items];
   const last = items[items.length - 1] as Crumb;
-  const slim = items.length > 3 && items.some((c) => c.kind === 'section') ? items.filter((c) => c.kind !== 'section' || c === last) : [...items];
+  const slim =
+    items.length > 3 && items.some((c) => c.kind === 'section')
+      ? items.filter((c) => c.kind !== 'section' || c === last)
+      : [...items];
   if (widthOf(slim) <= maxChars) return slim;
   const first = slim[0] as Crumb;
   const links = (list: Crumb[]) => list.filter((c) => c.href !== null);
@@ -70,4 +92,5 @@ export function fitCrumbs(items: readonly Crumb[], maxChars: number): ShownCrumb
 }
 
 /** How many characters fit in `pixels` of bar, at about `charPx` a character (the separators are counted by `fitCrumbs`). Never below 8. */
-export const charsFor = (pixels: number, charPx = 7.4): number => Math.max(8, Math.floor(pixels / charPx));
+export const charsFor = (pixels: number, charPx = 7.4): number =>
+  Math.max(8, Math.floor(pixels / charPx));

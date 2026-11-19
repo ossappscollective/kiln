@@ -47,21 +47,35 @@ const CRC_TABLE = (() => {
 
 export function crc32(bytes: Uint8Array, start = 0, end = bytes.length): number {
   let c = 0xffffffff;
-  for (let i = start; i < end; i++) c = (CRC_TABLE[(c ^ (bytes[i] as number)) & 0xff] as number) ^ (c >>> 8);
+  for (let i = start; i < end; i++)
+    c = (CRC_TABLE[(c ^ (bytes[i] as number)) & 0xff] as number) ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
-const u32 = (b: Uint8Array, i: number): number => (((b[i] as number) << 24) | ((b[i + 1] as number) << 16) | ((b[i + 2] as number) << 8) | (b[i + 3] as number)) >>> 0;
+const u32 = (b: Uint8Array, i: number): number =>
+  (((b[i] as number) << 24) |
+    ((b[i + 1] as number) << 16) |
+    ((b[i + 2] as number) << 8) |
+    (b[i + 3] as number)) >>>
+  0;
 
 const KEEP = new Set(['sRGB', 'iCCP', 'gAMA', 'cHRM', 'pHYs']);
 const BAD = (message: string): DecodeResult => ({ ok: false, code: 'corrupt', message });
 
 /** Samples per pixel of a colour type. */
 const SAMPLES: Readonly<Record<number, number>> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
-const DEPTHS: Readonly<Record<number, readonly number[]>> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
+const DEPTHS: Readonly<Record<number, readonly number[]>> = {
+  0: [1, 2, 4, 8, 16],
+  2: [8, 16],
+  3: [1, 2, 4, 8],
+  4: [8, 16],
+  6: [8, 16],
+};
 
 export function decodePng(input: Uint8Array): DecodeResult {
-  for (let i = 0; i < 8; i++) if (input[i] !== SIGNATURE[i]) return { ok: false, code: 'not_png', message: 'The file is not a PNG.' };
+  for (let i = 0; i < 8; i++)
+    if (input[i] !== SIGNATURE[i])
+      return { ok: false, code: 'not_png', message: 'The file is not a PNG.' };
   let pos = 8;
   let width = 0;
   let height = 0;
@@ -77,11 +91,17 @@ export function decodePng(input: Uint8Array): DecodeResult {
   let sawEnd = false;
   while (pos + 12 <= input.length && !sawEnd) {
     const length = u32(input, pos);
-    const type = String.fromCharCode(input[pos + 4] as number, input[pos + 5] as number, input[pos + 6] as number, input[pos + 7] as number);
+    const type = String.fromCharCode(
+      input[pos + 4] as number,
+      input[pos + 5] as number,
+      input[pos + 6] as number,
+      input[pos + 7] as number,
+    );
     const dataStart = pos + 8;
     const dataEnd = dataStart + length;
     if (length > 0x7fffffff || dataEnd + 4 > input.length) return BAD('The PNG is cut off.');
-    if (crc32(input, pos + 4, dataEnd) !== u32(input, dataEnd)) return BAD(`The ${type} chunk of the PNG is damaged (bad checksum).`);
+    if (crc32(input, pos + 4, dataEnd) !== u32(input, dataEnd))
+      return BAD(`The ${type} chunk of the PNG is damaged (bad checksum).`);
     const data = input.subarray(dataStart, dataEnd);
     if (!sawIhdr) {
       if (type !== 'IHDR' || length !== 13) return BAD('The PNG does not start with its header.');
@@ -89,14 +109,36 @@ export function decodePng(input: Uint8Array): DecodeResult {
       height = u32(data, 4);
       depth = data[8] as number;
       colour = data[9] as number;
-      if (data[10] !== 0 || data[11] !== 0) return { ok: false, code: 'unsupported', message: 'This PNG uses a compression or filter method that does not exist.' };
-      if (data[12] === 1) return { ok: false, code: 'unsupported', message: 'Interlaced (Adam7) PNG files are not supported here. Export the image again without interlacing.' };
+      if (data[10] !== 0 || data[11] !== 0)
+        return {
+          ok: false,
+          code: 'unsupported',
+          message: 'This PNG uses a compression or filter method that does not exist.',
+        };
+      if (data[12] === 1)
+        return {
+          ok: false,
+          code: 'unsupported',
+          message:
+            'Interlaced (Adam7) PNG files are not supported here. Export the image again without interlacing.',
+        };
       if (data[12] !== 0) return BAD('The PNG header is damaged.');
       const allowed = DEPTHS[colour];
-      if (!allowed || allowed.indexOf(depth) === -1) return BAD('The PNG header names a colour type or bit depth that does not exist.');
-      if (depth === 16) return { ok: false, code: 'unsupported', message: 'A 16 bit PNG is not supported here. Export it as 8 bit.' };
+      if (!allowed || allowed.indexOf(depth) === -1)
+        return BAD('The PNG header names a colour type or bit depth that does not exist.');
+      if (depth === 16)
+        return {
+          ok: false,
+          code: 'unsupported',
+          message: 'A 16 bit PNG is not supported here. Export it as 8 bit.',
+        };
       if (width < 1 || height < 1) return BAD('The PNG has no pixels.');
-      if (width * height > MAX_PIXELS) return { ok: false, code: 'too_large', message: `The image is ${width} x ${height} px; at most ${MAX_PIXELS / 1_000_000} million pixels are handled here.` };
+      if (width * height > MAX_PIXELS)
+        return {
+          ok: false,
+          code: 'too_large',
+          message: `The image is ${width} x ${height} px; at most ${MAX_PIXELS / 1_000_000} million pixels are handled here.`,
+        };
       sawIhdr = true;
     } else if (type === 'PLTE') {
       palette = data;
@@ -105,7 +147,8 @@ export function decodePng(input: Uint8Array): DecodeResult {
     } else if (type === 'IDAT') {
       sawIdat = true;
       idatBytes += length;
-      if (idatBytes > 64 * 1024 * 1024) return { ok: false, code: 'too_large', message: 'The image data is larger than 64 MB.' };
+      if (idatBytes > 64 * 1024 * 1024)
+        return { ok: false, code: 'too_large', message: 'The image data is larger than 64 MB.' };
       idat.push(data);
     } else if (type === 'IEND') {
       sawEnd = true;
@@ -115,7 +158,11 @@ export function decodePng(input: Uint8Array): DecodeResult {
     pos = dataEnd + 4;
   }
   if (!sawIhdr || !sawIdat) return BAD('The PNG holds no image data.');
-  if (colour === 3 && (palette === null || palette.length === 0 || palette.length % 3 !== 0 || palette.length > 768)) return BAD('The PNG palette is missing or damaged.');
+  if (
+    colour === 3 &&
+    (palette === null || palette.length === 0 || palette.length % 3 !== 0 || palette.length > 768)
+  )
+    return BAD('The PNG palette is missing or damaged.');
 
   const samples = SAMPLES[colour] as number;
   const bitsPerPixel = samples * depth;
@@ -189,7 +236,8 @@ export function decodePng(input: Uint8Array): DecodeResult {
     return (byte >> (8 - depth - (bit & 7))) & maxSample;
   };
   const key = trns !== null && (colour === 0 || colour === 2) ? trns : null;
-  const transparent = colour === 4 || colour === 6 || (colour === 3 && trns !== null) || key !== null;
+  const transparent =
+    colour === 4 || colour === 6 || (colour === 3 && trns !== null) || key !== null;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const o = (y * width + x) * 4;
@@ -197,7 +245,8 @@ export function decodePng(input: Uint8Array): DecodeResult {
         const g = sample(y, x);
         const v = Math.round(g * scale);
         rgba[o] = rgba[o + 1] = rgba[o + 2] = v;
-        rgba[o + 3] = key !== null && g === (((key[0] as number) << 8) | (key[1] as number)) ? 0 : 255;
+        rgba[o + 3] =
+          key !== null && g === (((key[0] as number) << 8) | (key[1] as number)) ? 0 : 255;
       } else if (colour === 2) {
         const r = sample(y, x * 3);
         const g = sample(y, x * 3 + 1);
@@ -208,7 +257,7 @@ export function decodePng(input: Uint8Array): DecodeResult {
         rgba[o + 3] = key !== null && key[1] === r && key[3] === g && key[5] === b ? 0 : 255;
       } else if (colour === 3) {
         const i = sample(y, x);
-        const p = (palette as Uint8Array);
+        const p = palette as Uint8Array;
         if (i * 3 + 2 >= p.length) return BAD('A pixel of the PNG points outside its palette.');
         rgba[o] = p[i * 3] as number;
         rgba[o + 1] = p[i * 3 + 1] as number;
@@ -226,7 +275,11 @@ export function decodePng(input: Uint8Array): DecodeResult {
       }
     }
   }
-  return { ok: true, raster: { width, height, channels: 4, data: rgba }, meta: { keep, hadAlpha: transparent } };
+  return {
+    ok: true,
+    raster: { width, height, channels: 4, data: rgba },
+    meta: { keep, hadAlpha: transparent },
+  };
 }
 
 /** Whether any pixel of an RGBA raster is not fully opaque. */
@@ -248,7 +301,8 @@ export function flatten(r: Raster, background: readonly [number, number, number]
     const a = r.data[i * 4 + 3] as number;
     for (let c = 0; c < 3; c++) {
       const v = r.data[i * 4 + c] as number;
-      out[i * 3 + c] = a === 255 ? v : Math.round((v * a + (background[c] as number) * (255 - a)) / 255);
+      out[i * 3 + c] =
+        a === 255 ? v : Math.round((v * a + (background[c] as number) * (255 - a)) / 255);
     }
   }
   return { width: r.width, height: r.height, channels: 3, data: out };
@@ -287,7 +341,11 @@ function weights(dst: number, from: number, span: number, srcLen: number): Weigh
       const lo = Math.max(0, Math.min(srcLen - 1, Math.floor(centre)));
       const hi = Math.min(srcLen - 1, lo + 1);
       const t = Math.min(1, Math.max(0, centre - lo));
-      out.push(hi === lo ? { start: lo, w: Float32Array.of(1) } : { start: lo, w: Float32Array.of(1 - t, t) });
+      out.push(
+        hi === lo
+          ? { start: lo, w: Float32Array.of(1) }
+          : { start: lo, w: Float32Array.of(1 - t, t) },
+      );
     }
   }
   return out;
@@ -297,7 +355,12 @@ function weights(dst: number, from: number, span: number, srcLen: number): Weigh
  * Scales the window (`x`, `y`, `w`, `h`) of the raster to `width` x `height`. Separable, in floating point; images with
  * alpha are resampled premultiplied so a transparent pixel's colour does not bleed.
  */
-export function resample(r: Raster, win: { x: number; y: number; w: number; h: number }, width: number, height: number): Raster {
+export function resample(
+  r: Raster,
+  win: { x: number; y: number; w: number; h: number },
+  width: number,
+  height: number,
+): Raster {
   const ch = r.channels;
   const premul = ch === 4;
   const wx = weights(width, win.x, win.w, r.width);
@@ -320,7 +383,8 @@ export function resample(r: Raster, win: { x: number; y: number; w: number; h: n
           row[x * 4 + 2] = (row[x * 4 + 2] as number) + (r.data[o + 2] as number) * a * wk;
           row[x * 4 + 3] = (row[x * 4 + 3] as number) + (r.data[o + 3] as number) * wk;
         } else {
-          for (let c = 0; c < ch; c++) row[x * ch + c] = (row[x * ch + c] as number) + (r.data[o + c] as number) * wk;
+          for (let c = 0; c < ch; c++)
+            row[x * ch + c] = (row[x * ch + c] as number) + (r.data[o + c] as number) * wk;
         }
       }
     }
@@ -341,7 +405,8 @@ export function resample(r: Raster, win: { x: number; y: number; w: number; h: n
       if (premul) {
         const a = acc[x * 4 + 3] as number;
         const alpha = a / 255;
-        for (let c = 0; c < 3; c++) out[o + c] = alpha > 0 ? clamp((acc[x * 4 + c] as number) / alpha) : 0;
+        for (let c = 0; c < 3; c++)
+          out[o + c] = alpha > 0 ? clamp((acc[x * 4 + c] as number) / alpha) : 0;
         out[o + 3] = clamp(a);
       } else {
         for (let c = 0; c < ch; c++) out[o + c] = clamp(acc[x * ch + c] as number);
@@ -421,7 +486,13 @@ export function encodePng(r: Raster, keep: readonly Uint8Array[] = []): Uint8Arr
   header[8] = 8;
   header[9] = r.channels === 4 ? 6 : 2;
   const idat = deflateSync(filterRows(r), { level: 9 });
-  const parts: Uint8Array[] = [Uint8Array.from(SIGNATURE), chunk('IHDR', header), ...keep, chunk('IDAT', idat), chunk('IEND', new Uint8Array(0))];
+  const parts: Uint8Array[] = [
+    Uint8Array.from(SIGNATURE),
+    chunk('IHDR', header),
+    ...keep,
+    chunk('IDAT', idat),
+    chunk('IEND', new Uint8Array(0)),
+  ];
   const total = parts.reduce((n, p) => n + p.length, 0);
   const out = new Uint8Array(total);
   let at = 0;

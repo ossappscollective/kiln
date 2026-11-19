@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { type Role, isRole } from '@mrm/core';
+import { isRole, type Role } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { type ScryptCost, hashPassword, verifyPassword } from '../passwords.ts';
+import { hashPassword, type ScryptCost, verifyPassword } from '../passwords.ts';
 import { recordAudit } from './audit.ts';
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -55,11 +55,10 @@ export async function registerFirstUser(
       input.workspaceName.trim(),
       options.now,
     ]);
-    await tx.execute('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)', [
-      workspaceId,
-      user.id,
-      'owner',
-    ]);
+    await tx.execute(
+      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)',
+      [workspaceId, user.id, 'owner'],
+    );
     await recordAudit(tx, {
       workspaceId,
       actor: { type: 'user', id: user.id },
@@ -112,11 +111,10 @@ export async function ensureLocalUser(
       'My workspace',
       options.now,
     ]);
-    await tx.execute('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)', [
-      workspaceId,
-      user.id,
-      'owner',
-    ]);
+    await tx.execute(
+      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)',
+      [workspaceId, user.id, 'owner'],
+    );
     await recordAudit(tx, {
       workspaceId,
       actor: { type: 'user', id: user.id },
@@ -156,12 +154,10 @@ export async function createSession(
 ): Promise<{ token: string; expiresAt: number }> {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = now + SESSION_TTL_MS;
-  await sql.execute('INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [
-    tokenHash(token),
-    userId,
-    now,
-    expiresAt,
-  ]);
+  await sql.execute(
+    'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+    [tokenHash(token), userId, now, expiresAt],
+  );
   return { token, expiresAt };
 }
 

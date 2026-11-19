@@ -1,24 +1,24 @@
 import {
-  DEFAULT_STALLED_AFTER_HOURS,
-  MAX_STALLED_AFTER_HOURS,
   type Action,
   type ActorType,
-  type Role,
-  type TranslationMode,
-  type TranslationProvider,
   can,
+  DEFAULT_STALLED_AFTER_HOURS,
   isTranslationMode,
   isTranslationProvider,
+  MAX_STALLED_AFTER_HOURS,
   normalizeBucketId,
   normalizeLanguageTag,
   normalizeVendorNumber,
+  type Role,
+  type TranslationMode,
+  type TranslationProvider,
   translationModes,
   translationProviders,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { checkTranslateUrl } from './translate-net.ts';
-import { type Resolver, checkWebhookUrl, resolveAllowed } from './webhook-transport.ts';
+import { checkWebhookUrl, type Resolver, resolveAllowed } from './webhook-transport.ts';
 
 /**
  * Workspace settings: a small typed registry of the keys a workspace can change, and their storage
@@ -107,7 +107,8 @@ export const settingDefinitions = {
     doc: 'Turns review translation on. While off, nothing is sent to a translation provider.',
     default: false,
     writeAction: 'settings.write',
-    parse: (raw: unknown): Parsed<boolean> => (typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.')),
+    parse: (raw: unknown): Parsed<boolean> =>
+      typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.'),
   } satisfies Definition<boolean>,
   'translation.provider': {
     doc: `The translation provider: ${translationProviders.join(', ')}. Each needs a credential of its own kind in the vault (LibreTranslate only when its server asks for a key).`,
@@ -164,7 +165,8 @@ export const settingDefinitions = {
     doc: 'Turns analytics on (docs/api/analytics.md): scheduled and manual syncs of store analytics (Apple Analytics Reports, Sales and Trends, Google Play vitals and reports) and the explicit "enable analytics" action. While off, nothing is requested from a store; reading what is stored and importing a report file still work.',
     default: false,
     writeAction: 'analytics.manage',
-    parse: (raw: unknown): Parsed<boolean> => (typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.')),
+    parse: (raw: unknown): Parsed<boolean> =>
+      typeof raw === 'boolean' ? ok(raw) : bad('Use true or false.'),
   } satisfies Definition<boolean>,
   'analytics.appleVendorNumber': {
     doc: 'Your Apple vendor number (digits, shown in App Store Connect under Payments and Financial Reports). Optional: with it the daily Sales and Trends summary (units and proceeds per currency) is read. Empty means no Sales and Trends.',
@@ -185,7 +187,11 @@ export const settingDefinitions = {
       if (typeof raw !== 'string') return bad('Use the bucket id as text.');
       if (raw.trim() === '') return ok('');
       const value = normalizeBucketId(raw);
-      return value ? ok(value) : bad('Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).');
+      return value
+        ? ok(value)
+        : bad(
+            'Use a bucket id such as pubsite_prod_rev_01234567890123456789 (or the gs:// address).',
+          );
     },
   } satisfies Definition<string>,
 };
@@ -193,7 +199,7 @@ export const settingDefinitions = {
 export type SettingKey = keyof typeof settingDefinitions;
 export const settingKeys = Object.keys(settingDefinitions) as SettingKey[];
 export const isSettingKey = (value: string): value is SettingKey =>
-  Object.prototype.hasOwnProperty.call(settingDefinitions, value);
+  Object.hasOwn(settingDefinitions, value);
 
 export type SettingValue = number | boolean | string;
 export type SettingValues = Record<SettingKey, SettingValue>;
@@ -216,7 +222,10 @@ export type WorkspaceSettings = {
 
 /** Reads a workspace's settings. A stored value that no longer validates is ignored (the default applies). */
 export async function getSettings(sql: Sql, workspaceId: string): Promise<WorkspaceSettings> {
-  const rows = await sql.query('SELECT key, value_json FROM workspace_settings WHERE workspace_id = ?', [workspaceId]);
+  const rows = await sql.query(
+    'SELECT key, value_json FROM workspace_settings WHERE workspace_id = ?',
+    [workspaceId],
+  );
   const values = defaultSettings();
   const overridden: SettingKey[] = [];
   for (const row of rows) {
@@ -240,7 +249,11 @@ export async function getSettings(sql: Sql, workspaceId: string): Promise<Worksp
  * The low rating threshold of a workspace. `fallback` is used when the workspace has not set one
  * (the server's own default, which tests can change).
  */
-export async function lowRatingThresholdFor(sql: Sql, workspaceId: string, fallback?: number): Promise<number> {
+export async function lowRatingThresholdFor(
+  sql: Sql,
+  workspaceId: string,
+  fallback?: number,
+): Promise<number> {
   const settings = await getSettings(sql, workspaceId);
   if (settings.overridden.includes('reviews.lowRatingThreshold')) {
     return settings.values['reviews.lowRatingThreshold'] as number;
@@ -272,7 +285,11 @@ export type SettingChange = { key: SettingKey; from: SettingValue; to: SettingVa
 
 export type UpdateResult =
   | { ok: true; changes: SettingChange[]; settings: WorkspaceSettings }
-  | { ok: false; status: 400 | 403; body: { error: string; message: string; issues?: { path: string; message: string }[] } };
+  | {
+      ok: false;
+      status: 400 | 403;
+      body: { error: string; message: string; issues?: { path: string; message: string }[] };
+    };
 
 /**
  * A partial update: each key to a new value, or null to go back to the default. All or nothing: one
@@ -299,9 +316,15 @@ export async function updateSettings(
       },
     };
   }
-  const forbidden = entries.map(([key]) => key as SettingKey).filter((key) => !can(input.role, definition(key).writeAction));
+  const forbidden = entries
+    .map(([key]) => key as SettingKey)
+    .filter((key) => !can(input.role, definition(key).writeAction));
   if (forbidden.length > 0) {
-    return { ok: false, status: 403, body: { error: 'forbidden', message: `You may not change: ${forbidden.join(', ')}.` } };
+    return {
+      ok: false,
+      status: 403,
+      body: { error: 'forbidden', message: `You may not change: ${forbidden.join(', ')}.` },
+    };
   }
   const issues: { path: string; message: string }[] = [];
   const next = new Map<SettingKey, SettingValue | null>();
@@ -321,7 +344,11 @@ export async function updateSettings(
     else next.set(key, parsed.value);
   }
   if (issues.length > 0) {
-    return { ok: false, status: 400, body: { error: 'invalid_setting', message: 'A setting is not valid.', issues } };
+    return {
+      ok: false,
+      status: 400,
+      body: { error: 'invalid_setting', message: 'A setting is not valid.', issues },
+    };
   }
 
   return db.transaction(async (tx): Promise<UpdateResult> => {
@@ -332,7 +359,10 @@ export async function updateSettings(
       const from = before.values[key];
       if (value === null) {
         if (!has) continue;
-        await tx.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [input.workspaceId, key]);
+        await tx.execute('DELETE FROM workspace_settings WHERE workspace_id = ? AND key = ?', [
+          input.workspaceId,
+          key,
+        ]);
         changes.push({ key, from, to: definition(key).default });
         continue;
       }

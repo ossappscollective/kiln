@@ -3,14 +3,22 @@ import { test } from 'node:test';
 import { warningCountOf, warningGroups } from './listing-warnings.ts';
 
 test('no problems, no groups', () => {
-  const groups = warningGroups([{ appId: 'a', platform: 'iOS', storeError: null, warnings: undefined, repoError: null }]);
+  const groups = warningGroups([
+    { appId: 'a', platform: 'iOS', storeError: null, warnings: undefined, repoError: null },
+  ]);
   assert.deepEqual(groups, []);
   assert.equal(warningCountOf(groups), 0);
 });
 
 test('a store error, warnings and a repository error are three groups', () => {
   const groups = warningGroups([
-    { appId: 'a', platform: 'Android', storeError: 'Play failed', warnings: ['Icon of zh-CN could not be read', 'Icon of zh-CN could not be read'], repoError: 'No access' },
+    {
+      appId: 'a',
+      platform: 'Android',
+      storeError: 'Play failed',
+      warnings: ['Icon of zh-CN could not be read', 'Icon of zh-CN could not be read'],
+      repoError: 'No access',
+    },
   ]);
   assert.deepEqual(
     groups.map((g) => g.id),

@@ -6,11 +6,11 @@ taken back). Design and the arguments: [ADR 0014](../adr/0014-release-management
 
 There are three parts, each with its own gate:
 
-| Part | What it does | Gate |
-| --- | --- | --- |
-| [Reads](#reads-what-a-draft-is-made-of) | Lists processed builds / uploaded version codes, and shows the release fields the store holds. | `listing.read`. No switch: they change nothing. |
-| [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them. | `changesets.write` to stage; `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
-| [Release](#release-irreversible) | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `MRM_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase. |
+| Part                                                              | What it does                                                                                       | Gate                                                                                                                        |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [Reads](#reads-what-a-draft-is-made-of)                           | Lists processed builds / uploaded version codes, and shows the release fields the store holds.     | `listing.read`. No switch: they change nothing.                                                                             |
+| [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them.                              | `changesets.write` to stage; `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
+| [Release](#release-irreversible)                                  | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `MRM_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase.                                      |
 
 **Never run against a real store**: the connectors are tested with fakes only. Read [UNVERIFIED](#unverified-check-with-a-real-account)
 before turning anything on.
@@ -39,19 +39,19 @@ Needs `listing.read`. Returns `{ candidates }`:
 says whether it can be chosen for the draft now, `severity` is `ok`, `warning` (it can be chosen, read the message) or `blocked`,
 `code` is a machine reason and `message` a plain sentence built from build numbers, versions and states only. Codes:
 
-| `code` | `severity` | Meaning |
-| --- | --- | --- |
-| `ok` | `ok` | Processed, not expired, belongs to the version being prepared (Google Play: not in a release of the track yet). |
-| `processing` | `blocked` | Apple is still processing the build. |
-| `failed`, `invalid` | `blocked` | Apple could not process it / marked it invalid: upload a new build. |
-| `state_unknown` | `blocked` | Apple did not say, or said a state this server does not know. |
-| `expired` | `blocked` | The build expired. Wins over the processing state. |
-| `wrong_version` | `blocked` | The build belongs to another marketing version than the one being prepared. |
-| `no_editable_version` | `blocked` | The build is processed but no version is in "Prepare for Submission". |
-| `already_attached` | `ok` (`eligible` false) | It is the build of the version already. |
-| `export_compliance_missing` | `warning` | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later. |
-| `already_in_draft` | `ok` (`eligible` false) | Google Play: the draft release of the track holds the code already. |
-| `already_live` | `blocked` | Google Play: a release of the track that is live or rolling out holds the code. |
+| `code`                      | `severity`              | Meaning                                                                                                         |
+| --------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ok`                        | `ok`                    | Processed, not expired, belongs to the version being prepared (Google Play: not in a release of the track yet). |
+| `processing`                | `blocked`               | Apple is still processing the build.                                                                            |
+| `failed`, `invalid`         | `blocked`               | Apple could not process it / marked it invalid: upload a new build.                                             |
+| `state_unknown`             | `blocked`               | Apple did not say, or said a state this server does not know.                                                   |
+| `expired`                   | `blocked`               | The build expired. Wins over the processing state.                                                              |
+| `wrong_version`             | `blocked`               | The build belongs to another marketing version than the one being prepared.                                     |
+| `no_editable_version`       | `blocked`               | The build is processed but no version is in "Prepare for Submission".                                           |
+| `already_attached`          | `ok` (`eligible` false) | It is the build of the version already.                                                                         |
+| `export_compliance_missing` | `warning`               | Apple holds no export compliance answer for it; it can be chosen, App Store Connect may ask later.              |
+| `already_in_draft`          | `ok` (`eligible` false) | Google Play: the draft release of the track holds the code already.                                             |
+| `already_live`              | `blocked`               | Google Play: a release of the track that is live or rolling out holds the code.                                 |
 
 New codes may be added: a client should fall back to `severity`. `selectable` and `reason` stay for older clients and ignore
 the version.
@@ -108,20 +108,20 @@ which now has `release[]`, `totals.release` and `pushable.releaseFields`). The v
 what is pushed, and checked on its own. An empty value is refused (`422 empty_value`: this server does not clear a store field;
 remove the item instead).
 
-| Platform | `field` | Value (canonical form) |
-| --- | --- | --- |
-| App Store, macOS | `build` | The id of a processed build from `release/candidates`. |
-| | `version_string` | Marketing version: numbers separated by dots, up to three parts (`2.4.0`). |
-| | `release_type` | `MANUAL`, `AFTER_APPROVAL` or `SCHEDULED` (upper cased). |
-| | `earliest_release_date` | A future ISO 8601 date and time, normalized to UTC (`2026-12-01T10:00:00Z`). |
-| | `copyright` | Text (`2026 Acme Inc.`). |
-| | `phased_release` | `on` or `off` (a boolean is accepted). |
-| | *what's new* | **Not here**: it is the existing listing field `release_notes` (`PUT .../staged/text`), per locale. |
-| Google Play | `track` | The track of the draft release (`production`, `beta`, ...). **Required** when anything else of the release is staged. |
-| | `release_name` | A name only you see. |
-| | `version_codes` | Unique, ascending, comma separated (`240,241`); an array or `240, 241` is accepted. |
-| | `release_notes` | Per language: send `locale` (`en-US`). |
-| | `user_fraction` | The **intended** share (`0.1` or `10%`). **Kept here only**: Google cannot hold a share in a draft, so it is never written to the store. The release step needs an explicit share of its own. |
+| Platform         | `field`                 | Value (canonical form)                                                                                                                                                                        |
+| ---------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App Store, macOS | `build`                 | The id of a processed build from `release/candidates`.                                                                                                                                        |
+|                  | `version_string`        | Marketing version: numbers separated by dots, up to three parts (`2.4.0`).                                                                                                                    |
+|                  | `release_type`          | `MANUAL`, `AFTER_APPROVAL` or `SCHEDULED` (upper cased).                                                                                                                                      |
+|                  | `earliest_release_date` | A future ISO 8601 date and time, normalized to UTC (`2026-12-01T10:00:00Z`).                                                                                                                  |
+|                  | `copyright`             | Text (`2026 Acme Inc.`).                                                                                                                                                                      |
+|                  | `phased_release`        | `on` or `off` (a boolean is accepted).                                                                                                                                                        |
+|                  | _what's new_            | **Not here**: it is the existing listing field `release_notes` (`PUT .../staged/text`), per locale.                                                                                           |
+| Google Play      | `track`                 | The track of the draft release (`production`, `beta`, ...). **Required** when anything else of the release is staged.                                                                         |
+|                  | `release_name`          | A name only you see.                                                                                                                                                                          |
+|                  | `version_codes`         | Unique, ascending, comma separated (`240,241`); an array or `240, 241` is accepted.                                                                                                           |
+|                  | `release_notes`         | Per language: send `locale` (`en-US`).                                                                                                                                                        |
+|                  | `user_fraction`         | The **intended** share (`0.1` or `10%`). **Kept here only**: Google cannot hold a share in a draft, so it is never written to the store. The release step needs an explicit share of its own. |
 
 Errors: `422 field_not_stageable` (not a field of this platform), `422 invalid_locale`, `422 empty_value`,
 `422 invalid_staged` (with the first error `code`), `422 too_many_items`, `400 invalid_request`.
@@ -171,10 +171,10 @@ Makes an approved App Store version available, or starts a Google Play draft rel
 
 ### Switch and right
 
-| Setting | Value |
-| --- | --- |
-| `MRM_STORE_RELEASE_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** the draft and submit switches. See [deployment](../deployment.md#releasing-a-store-write-off-by-default). |
-| `store.release` | **admin and up** (owner, admin). **Explicit-only on API tokens**: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Neither `store.push_draft` nor `store.submit` implies it. |
+| Setting                     | Value                                                                                                                                                                                                                                   |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MRM_STORE_RELEASE_ENABLED` | Default `false`; only `true` and `false`; blank is off. **Independent of** the draft and submit switches. See [deployment](../deployment.md#releasing-a-store-write-off-by-default).                                                    |
+| `store.release`             | **admin and up** (owner, admin). **Explicit-only on API tokens**: the token's `actions` must name it (a token with no list never gets it) and the role ceiling still applies. Neither `store.push_draft` nor `store.submit` implies it. |
 
 While the switch is off, preview and release answer `409 store_release_disabled` after the rights check and no connector is
 built; the config and state routes still work.

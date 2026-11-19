@@ -18,7 +18,7 @@ but it overwrites what is in the store's draft, which someone else may be editin
 ## Decision
 
 1. **Staging writes nothing to a store.** A staged change set per app (and so per platform) holds
-   *items*: a listing text (locale, field, value) or an asset set (locale, slot, ordered files).
+   _items_: a listing text (locale, field, value) or an asset set (locale, slot, ordered files).
    Sources: **repo** (a file of the connected repository at a commit), **local** (a typed text) and
    **store** (a text from the last read of the store). Staging uses `changesets.write`, viewing uses
    `listing.read`; the stored items are rows of `staged_changes` (migration 23).
@@ -28,7 +28,7 @@ but it overwrites what is in the store's draft, which someone else may be editin
    checked again, the format sniffed (PNG or JPEG), and the caps applied (8 MiB per file, 100 files and
    64 MiB per push). A file that changed or vanished is `asset_changed`, never a silent substitution.
 3. **Pushing a draft is a different action from submitting.** `POST .../staged/push` writes to the store's
-   *editable draft* only. It never submits for review, never sends for review, never releases, never
+   _editable draft_ only. It never submits for review, never sends for review, never releases, never
    publishes, and the result says `draft: true, submitted: false`. A successful push records what it wrote
    (hashes and ids, `store_draft_pushes`, migration 24) so that the separate submit step of
    [ADR 0010](0010-store-submit.md) can check the store against it.

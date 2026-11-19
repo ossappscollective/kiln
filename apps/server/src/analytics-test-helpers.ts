@@ -13,7 +13,7 @@ import {
   type PlayVitalsPort,
   type PlayVitalsResult,
 } from '@mrm/connectors';
-import { type Platform, addDays, dateToDay } from '@mrm/core';
+import { addDays, dateToDay, type Platform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import type { AnalyticsConnectorFactory } from './services/analytics-sync.ts';
@@ -22,8 +22,15 @@ import type { AnalyticsConnectorFactory } from './services/analytics-sync.ts';
 
 const KEY_LINE = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTOPSECRETKEYBODY';
 const PEM = `-----BEGIN PRIVATE KEY-----\n${KEY_LINE}\n-----END PRIVATE KEY-----`;
-export const ASC_SECRET = JSON.stringify({ keyId: 'ABC123DEFG', issuerId: 'issuer-1', privateKey: PEM });
-export const PLAY_SECRET = JSON.stringify({ client_email: 'bot@proj.iam.gserviceaccount.com', private_key: PEM });
+export const ASC_SECRET = JSON.stringify({
+  keyId: 'ABC123DEFG',
+  issuerId: 'issuer-1',
+  privateKey: PEM,
+});
+export const PLAY_SECRET = JSON.stringify({
+  client_email: 'bot@proj.iam.gserviceaccount.com',
+  private_key: PEM,
+});
 export const STORE_APP_ID = '1234567890';
 export const BUCKET = 'pubsite_prod_rev_01234567890123456789';
 /** What a pre-signed segment link looks like. It must never reach a response, an audit row or a stored row. */
@@ -36,31 +43,223 @@ export const gz = (value: string): Uint8Array => new Uint8Array(gzipSync(Buffer.
 
 export const discoveryTsv = (a: string, b = a): string =>
   tsv([
-    ['Date', 'Event', 'Page Type', 'Source Type', 'Engagement Type', 'Device', 'Platform Version', 'Territory', 'Counts', 'Unique Counts'],
-    [a, 'Impression', 'Today tab', 'App Store Browse', 'Get', 'iPhone', '18.1', 'US', '1200', '900'],
-    [a, 'Impression', 'Search result', 'App Store Search', 'Get', 'iPhone', '18.1', 'US', '3400', '2500'],
-    [a, 'Impression', 'Search result', 'App Store Search', 'Get', 'iPad', '18.1', 'DE', '600', '450'],
-    [a, 'Page view', 'Product page view', 'App Store Search', 'Open', 'iPhone', '18.1', 'US', '700', '520'],
-    [b, 'Impression', 'Search result', 'App Store Search', 'Get', 'iPhone', '18.1', 'US', '3500', '2600'],
-    [b, 'Page view', 'Product page view', 'App Store Search', 'Open', 'iPhone', '18.1', 'US', '720', '530'],
+    [
+      'Date',
+      'Event',
+      'Page Type',
+      'Source Type',
+      'Engagement Type',
+      'Device',
+      'Platform Version',
+      'Territory',
+      'Counts',
+      'Unique Counts',
+    ],
+    [
+      a,
+      'Impression',
+      'Today tab',
+      'App Store Browse',
+      'Get',
+      'iPhone',
+      '18.1',
+      'US',
+      '1200',
+      '900',
+    ],
+    [
+      a,
+      'Impression',
+      'Search result',
+      'App Store Search',
+      'Get',
+      'iPhone',
+      '18.1',
+      'US',
+      '3400',
+      '2500',
+    ],
+    [
+      a,
+      'Impression',
+      'Search result',
+      'App Store Search',
+      'Get',
+      'iPad',
+      '18.1',
+      'DE',
+      '600',
+      '450',
+    ],
+    [
+      a,
+      'Page view',
+      'Product page view',
+      'App Store Search',
+      'Open',
+      'iPhone',
+      '18.1',
+      'US',
+      '700',
+      '520',
+    ],
+    [
+      b,
+      'Impression',
+      'Search result',
+      'App Store Search',
+      'Get',
+      'iPhone',
+      '18.1',
+      'US',
+      '3500',
+      '2600',
+    ],
+    [
+      b,
+      'Page view',
+      'Product page view',
+      'App Store Search',
+      'Open',
+      'iPhone',
+      '18.1',
+      'US',
+      '720',
+      '530',
+    ],
   ]);
 
 export const downloadsTsv = (a: string, counts = '40'): string =>
   tsv([
-    ['Date', 'App Name', 'App Apple Identifier', 'Download Type', 'App Version', 'Device', 'Platform Version', 'Source Type', 'Source Info', 'Campaign', 'Page Type', 'Page Title', 'Pre-Order', 'Territory', 'Counts'],
-    [a, 'Coffee', STORE_APP_ID, 'First-time Download', '2.4.0', 'iPhone', '18.1', 'App Store Search', '', '', 'Product page view', '', 'No', 'US', counts],
-    [a, 'Coffee', STORE_APP_ID, 'Redownload', '2.4.0', 'iPhone', '18.1', 'App Store Search', '', '', 'Product page view', '', 'No', 'US', '12'],
-    [a, 'Coffee', STORE_APP_ID, 'Auto-update', '2.4.0', 'iPhone', '18.1', 'App Store Search', '', '', 'Product page view', '', 'No', 'US', '900'],
+    [
+      'Date',
+      'App Name',
+      'App Apple Identifier',
+      'Download Type',
+      'App Version',
+      'Device',
+      'Platform Version',
+      'Source Type',
+      'Source Info',
+      'Campaign',
+      'Page Type',
+      'Page Title',
+      'Pre-Order',
+      'Territory',
+      'Counts',
+    ],
+    [
+      a,
+      'Coffee',
+      STORE_APP_ID,
+      'First-time Download',
+      '2.4.0',
+      'iPhone',
+      '18.1',
+      'App Store Search',
+      '',
+      '',
+      'Product page view',
+      '',
+      'No',
+      'US',
+      counts,
+    ],
+    [
+      a,
+      'Coffee',
+      STORE_APP_ID,
+      'Redownload',
+      '2.4.0',
+      'iPhone',
+      '18.1',
+      'App Store Search',
+      '',
+      '',
+      'Product page view',
+      '',
+      'No',
+      'US',
+      '12',
+    ],
+    [
+      a,
+      'Coffee',
+      STORE_APP_ID,
+      'Auto-update',
+      '2.4.0',
+      'iPhone',
+      '18.1',
+      'App Store Search',
+      '',
+      '',
+      'Product page view',
+      '',
+      'No',
+      'US',
+      '900',
+    ],
   ]);
 
 export const SALES_HEADER = [
-  'Provider', 'Provider Country', 'SKU', 'Developer', 'Title', 'Version', 'Product Type Identifier', 'Units', 'Developer Proceeds', 'Begin Date',
-  'End Date', 'Customer Currency', 'Country Code', 'Currency of Proceeds', 'Apple Identifier', 'Customer Price', 'Promo Code', 'Parent Identifier',
-  'Subscription', 'Period', 'Category', 'CMB', 'Device', 'Supported Platforms',
+  'Provider',
+  'Provider Country',
+  'SKU',
+  'Developer',
+  'Title',
+  'Version',
+  'Product Type Identifier',
+  'Units',
+  'Developer Proceeds',
+  'Begin Date',
+  'End Date',
+  'Customer Currency',
+  'Country Code',
+  'Currency of Proceeds',
+  'Apple Identifier',
+  'Customer Price',
+  'Promo Code',
+  'Parent Identifier',
+  'Subscription',
+  'Period',
+  'Category',
+  'CMB',
+  'Device',
+  'Supported Platforms',
 ];
 export const salesTsv = (mmddyyyy: string): string => {
-  const row = (type: string, units: string, proceeds: string, country: string, currency: string, id: string) => [
-    'APPLE', 'US', 'coffee-sku', 'Acme', 'Coffee', '2.4.0', type, units, proceeds, mmddyyyy, mmddyyyy, currency, country, currency, id, proceeds, '', '', '', '', 'Food', '', 'iPhone', 'iOS',
+  const row = (
+    type: string,
+    units: string,
+    proceeds: string,
+    country: string,
+    currency: string,
+    id: string,
+  ) => [
+    'APPLE',
+    'US',
+    'coffee-sku',
+    'Acme',
+    'Coffee',
+    '2.4.0',
+    type,
+    units,
+    proceeds,
+    mmddyyyy,
+    mmddyyyy,
+    currency,
+    country,
+    currency,
+    id,
+    proceeds,
+    '',
+    '',
+    '',
+    '',
+    'Food',
+    '',
+    'iPhone',
+    'iOS',
   ];
   return tsv([
     SALES_HEADER,
@@ -70,7 +269,8 @@ export const salesTsv = (mmddyyyy: string): string => {
     row('1', '99', '1.00', 'US', 'USD', '5550001'),
   ]);
 };
-export const mdy = (day: string): string => `${day.slice(5, 7)}/${day.slice(8, 10)}/${day.slice(0, 4)}`;
+export const mdy = (day: string): string =>
+  `${day.slice(5, 7)}/${day.slice(8, 10)}/${day.slice(0, 4)}`;
 
 // ---- Fakes -----------------------------------------------------------------------------------------------------------
 
@@ -93,7 +293,10 @@ export class FakeApple implements AppleAnalyticsPort {
     if (this.listError) throw this.listError;
     return this.requests;
   }
-  async createRequest(appStoreId: string, accessType: AppleAccessType): Promise<AppleReportRequest> {
+  async createRequest(
+    appStoreId: string,
+    accessType: AppleAccessType,
+  ): Promise<AppleReportRequest> {
     if (this.createError) throw this.createError;
     this.created.push({ appStoreId, accessType });
     const request = { id: `req-${++this.#n}`, accessType, stoppedDueToInactivity: false };
@@ -106,7 +309,9 @@ export class FakeApple implements AppleAnalyticsPort {
   async listInstances(reportId: string): Promise<AppleInstanceRef[]> {
     return this.instances.get(reportId) ?? [];
   }
-  async readInstance(instanceId: string): Promise<{ texts: string[]; segments: number; bytes: number }> {
+  async readInstance(
+    instanceId: string,
+  ): Promise<{ texts: string[]; segments: number; bytes: number }> {
     this.reads.push(instanceId);
     const got = this.texts.get(instanceId);
     if (got instanceof Error) throw got;
@@ -120,10 +325,19 @@ export class FakeApple implements AppleAnalyticsPort {
     return got ?? null;
   }
   /** An ongoing request whose DAILY report instances are given (id -> table text). */
-  setUp(reportName: string, instanceId: string, processingDate: string, text: string, requestId = 'req-ongoing', reportId = `rep-${reportName}`) {
-    if (!this.requests.some((r) => r.id === requestId)) this.requests.push({ id: requestId, accessType: 'ONGOING', stoppedDueToInactivity: false });
+  setUp(
+    reportName: string,
+    instanceId: string,
+    processingDate: string,
+    text: string,
+    requestId = 'req-ongoing',
+    reportId = `rep-${reportName}`,
+  ) {
+    if (!this.requests.some((r) => r.id === requestId))
+      this.requests.push({ id: requestId, accessType: 'ONGOING', stoppedDueToInactivity: false });
     const reports = this.reports.get(requestId) ?? [];
-    if (!reports.some((r) => r.id === reportId)) reports.push({ id: reportId, name: reportName, category: 'APP_STORE_ENGAGEMENT' });
+    if (!reports.some((r) => r.id === reportId))
+      reports.push({ id: reportId, name: reportName, category: 'APP_STORE_ENGAGEMENT' });
     this.reports.set(requestId, reports);
     const instances = this.instances.get(reportId) ?? [];
     instances.push({ id: instanceId, granularity: 'DAILY', processingDate });
@@ -160,25 +374,52 @@ export class FakeReports implements PlayReportsPort {
     if (!points) throw new AnalyticsError('reports_not_found');
     return {
       points,
-      files: [{ report: 'installs', name: `stats/installs/installs_com.acme.app1_${month}_overview.csv` }],
+      files: [
+        { report: 'installs', name: `stats/installs/installs_com.acme.app1_${month}_overview.csv` },
+      ],
       missing: [],
       unmapped: [],
-      stats: { rowsRead: points.length, rowsUsed: points.length, rowsUnreadable: 0, rowsFiltered: 0 },
+      stats: {
+        rowsRead: points.length,
+        rowsUsed: points.length,
+        rowsUnreadable: 0,
+        rowsFiltered: 0,
+      },
     };
   }
 }
 
-export type BuiltInput = { kind: 'apple' | 'vitals' | 'reports'; secret: string; packageName?: string; bucketId?: string };
+export type BuiltInput = {
+  kind: 'apple' | 'vitals' | 'reports';
+  secret: string;
+  packageName?: string;
+  bucketId?: string;
+};
 
-export async function bootAnalytics(db: Database, extra: { limiter?: ReturnType<typeof import('./services/credential-tests.ts').createTestLimiter> } = {}) {
+export async function bootAnalytics(
+  db: Database,
+  extra: {
+    limiter?: ReturnType<typeof import('./services/credential-tests.ts').createTestLimiter>;
+  } = {},
+) {
   const apple = new FakeApple();
   const vitals = new FakeVitals();
   const reports = new FakeReports();
   const built: BuiltInput[] = [];
   const connectors: AnalyticsConnectorFactory = {
     apple: (input) => (built.push({ kind: 'apple', secret: input.secret }), apple),
-    playVitals: (input) => (built.push({ kind: 'vitals', secret: input.secret, packageName: input.packageName }), vitals),
-    playReports: (input) => (built.push({ kind: 'reports', secret: input.secret, packageName: input.packageName, bucketId: input.bucketId }), reports),
+    playVitals: (input) => (
+      built.push({ kind: 'vitals', secret: input.secret, packageName: input.packageName }), vitals
+    ),
+    playReports: (input) => (
+      built.push({
+        kind: 'reports',
+        secret: input.secret,
+        packageName: input.packageName,
+        bucketId: input.bucketId,
+      }),
+      reports
+    ),
   };
   // The fixed point of the clock is "today"; every table the tests make is dated relative to it.
   const masterKey = randomBytes(32);
@@ -189,7 +430,11 @@ export async function bootAnalytics(db: Database, extra: { limiter?: ReturnType<
   const t = await bootRepoApp(db, undefined, {
     masterKey,
     now,
-    analytics: { connectors, intervalMinutes: 360, ...(extra.limiter ? { limiter: extra.limiter } : {}) },
+    analytics: {
+      connectors,
+      intervalMinutes: 360,
+      ...(extra.limiter ? { limiter: extra.limiter } : {}),
+    },
   });
   const iosCredential = await t.addCredential('app_store_connect', ASC_SECRET);
   const playCredential = await t.addCredential('google_play', PLAY_SECRET);
@@ -203,13 +448,20 @@ export async function bootAnalytics(db: Database, extra: { limiter?: ReturnType<
       name: name ?? `App ${appCount}`,
     });
     const id = res.body.app.id as string;
-    if (platform !== 'android') await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', [STORE_APP_ID, id]);
+    if (platform !== 'android')
+      await db.execute('UPDATE apps SET store_app_id = ? WHERE id = ?', [STORE_APP_ID, id]);
     return id;
   };
-  const setSettings = (values: Record<string, unknown>, cookie = t.owner) => t.call(cookie, 'PUT', '/settings', values);
+  const setSettings = (values: Record<string, unknown>, cookie = t.owner) =>
+    t.call(cookie, 'PUT', '/settings', values);
   const enable = () => setSettings({ 'analytics.enabled': true });
   /** A request with the file as the raw body. */
-  const upload = async (cookie: string, path: string, body: Uint8Array | string, workspace = t.workspaceId) => {
+  const upload = async (
+    cookie: string,
+    path: string,
+    body: Uint8Array | string,
+    workspace = t.workspaceId,
+  ) => {
     const res = await t.app.request(`/api/workspaces/${workspace}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/octet-stream', cookie },
@@ -220,26 +472,74 @@ export async function bootAnalytics(db: Database, extra: { limiter?: ReturnType<
     // biome-ignore lint/suspicious/noExplicitAny: test responses are inspected loosely
     return { status: res.status, text, body: (text ? JSON.parse(text) : null) as any };
   };
-  const rows = async (sql = 'SELECT COUNT(*) AS n FROM analytics_daily', params: (string | number)[] = []) => db.query(sql, params);
+  const rows = async (
+    sql = 'SELECT COUNT(*) AS n FROM analytics_daily',
+    params: (string | number)[] = [],
+  ) => db.query(sql, params);
   const events = async (type = 'analytics.synced') =>
     // biome-ignore lint/suspicious/noExplicitAny: test responses are inspected loosely
-    (await t.call(t.owner, 'GET', `/events?since=0&limit=200&type=${type}`)).body.events as { type: string; payload: Record<string, any> }[];
+    (await t.call(t.owner, 'GET', `/events?since=0&limit=200&type=${type}`)).body.events as {
+      type: string;
+      payload: Record<string, any>;
+    }[];
   /** A token (made by the owner's session) and a request made with it. */
-  const makeToken = async (input: { role?: string; actions?: string[]; appIds?: string[] } = {}) => {
-    const res = await t.call(t.owner, 'POST', '/tokens', { name: 'Analytics test', role: 'admin', ...input });
+  const makeToken = async (
+    input: { role?: string; actions?: string[]; appIds?: string[] } = {},
+  ) => {
+    const res = await t.call(t.owner, 'POST', '/tokens', {
+      name: 'Analytics test',
+      role: 'admin',
+      ...input,
+    });
     return res.body?.token as string;
   };
-  const bearer = async (token: string, method: string, path: string, body?: unknown | Uint8Array) => {
+  const bearer = async (
+    token: string,
+    method: string,
+    path: string,
+    body?: unknown | Uint8Array,
+  ) => {
     const raw = body instanceof Uint8Array;
     const res = await t.app.request(`/api/workspaces/${t.workspaceId}${path}`, {
       method,
-      headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': raw ? 'application/octet-stream' : 'application/json' }) },
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(body === undefined
+          ? {}
+          : { 'content-type': raw ? 'application/octet-stream' : 'application/json' }),
+      },
       ...(body === undefined ? {} : { body: raw ? Buffer.from(body) : JSON.stringify(body) }),
     });
     const text = await res.text();
     // biome-ignore lint/suspicious/noExplicitAny: test responses are inspected loosely
-    return { status: res.status, headers: res.headers, text, body: (text ? JSON.parse(text) : null) as any };
+    return {
+      status: res.status,
+      headers: res.headers,
+      text,
+      body: (text ? JSON.parse(text) : null) as any,
+    };
   };
-  return { ...t, masterKey, connectors, apple, vitals, reports, built, now, today, day, addApp, setSettings, enable, upload, rows, events, makeToken, bearer, iosCredential, playCredential };
+  return {
+    ...t,
+    masterKey,
+    connectors,
+    apple,
+    vitals,
+    reports,
+    built,
+    now,
+    today,
+    day,
+    addApp,
+    setSettings,
+    enable,
+    upload,
+    rows,
+    events,
+    makeToken,
+    bearer,
+    iosCredential,
+    playCredential,
+  };
 }
 export type AnalyticsBoot = Awaited<ReturnType<typeof bootAnalytics>>;

@@ -20,7 +20,8 @@ export function requestChangeSetReview(intent: ChangeSetReviewIntent): void {
 }
 
 /** The intent that is waiting, without clearing it. */
-export const peekChangeSetReview = (): ChangeSetReviewIntent | null => (pending ? { ...pending } : null);
+export const peekChangeSetReview = (): ChangeSetReviewIntent | null =>
+  pending ? { ...pending } : null;
 
 /** The intent that is waiting, cleared. Null when there is none. */
 export function takeChangeSetReview(): ChangeSetReviewIntent | null {

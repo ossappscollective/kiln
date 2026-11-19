@@ -2,16 +2,16 @@ import type { CiJob } from '@mrm/connectors';
 import type { ActorType } from '@mrm/core';
 import {
   type CiContext,
-  MIN_REFRESH_MS,
   cachedRunJobs,
   lastRefreshAttempt,
   lastRefreshSuccess,
+  MIN_REFRESH_MS,
   readRunJobs,
   refreshRuns,
   runActor,
 } from './ci.ts';
-import { ACTIVE_STATUSES, type WorkflowRunView, listWorkspaceRuns } from './ci-runs.ts';
-import { type Failure, type Repository, listRepositories } from './repositories.ts';
+import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './ci-runs.ts';
+import { type Failure, listRepositories, type Repository } from './repositories.ts';
 
 type Actor = { type: ActorType; id: string };
 
@@ -177,7 +177,11 @@ export type ActiveInput = {
   appIds?: readonly string[] | null | undefined;
 };
 
-async function appRepositories(ctx: CiContext, workspaceId: string, appIds: readonly string[]): Promise<Set<string>> {
+async function appRepositories(
+  ctx: CiContext,
+  workspaceId: string,
+  appIds: readonly string[],
+): Promise<Set<string>> {
   if (appIds.length === 0) return new Set();
   const rows = await ctx.db.query(
     `SELECT repository_id FROM apps WHERE workspace_id = ? AND repository_id IS NOT NULL AND id IN (${appIds.map(() => '?').join(', ')})`,
@@ -186,20 +190,33 @@ async function appRepositories(ctx: CiContext, workspaceId: string, appIds: read
   return new Set(rows.map((r) => String(r.repository_id)));
 }
 
-export async function listActiveRuns(ctx: CiContext, input: ActiveInput, actor: Actor): Promise<ActiveRuns> {
+export async function listActiveRuns(
+  ctx: CiContext,
+  input: ActiveInput,
+  actor: Actor,
+): Promise<ActiveRuns> {
   const { workspaceId } = input;
   const all = (await listRepositories(ctx.db, workspaceId)).filter((r) => !r.localOnly);
-  const allowedRepos = input.appIds ? await appRepositories(ctx, workspaceId, input.appIds) : undefined;
+  const allowedRepos = input.appIds
+    ? await appRepositories(ctx, workspaceId, input.appIds)
+    : undefined;
   const wanted = input.repositoryIds ? new Set(input.repositoryIds) : undefined;
   const repositories = all
-    .filter((r) => (wanted === undefined || wanted.has(r.id)) && (allowedRepos === undefined || allowedRepos.has(r.id)))
+    .filter(
+      (r) =>
+        (wanted === undefined || wanted.has(r.id)) &&
+        (allowedRepos === undefined || allowedRepos.has(r.id)),
+    )
     .slice(0, 100);
 
   const key = [
     workspaceId,
     input.canScan ? 'scan' : 'read',
     input.appIds ? [...input.appIds].sort().join(',') : '*',
-    repositories.map((r) => r.id).sort().join(','),
+    repositories
+      .map((r) => r.id)
+      .sort()
+      .join(','),
   ].join('|');
   const hit = answers.get(key);
   if (hit && ctx.now() - hit.at < ACTIVE_CACHE_TTL_MS) return { ...hit.value, cached: true };
@@ -218,8 +235,13 @@ export async function listActiveRuns(ctx: CiContext, input: ActiveInput, actor: 
   return { ...value, cached: false };
 }
 
-async function inBatches<T>(items: readonly T[], size: number, work: (item: T) => Promise<void>): Promise<void> {
-  for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(work));
+async function inBatches<T>(
+  items: readonly T[],
+  size: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += size)
+    await Promise.all(items.slice(i, i + size).map(work));
 }
 
 async function compute(
@@ -246,7 +268,9 @@ async function compute(
       .filter((r) => {
         if ((trouble.get(r.id)?.until ?? 0) > at) return false;
         const last = lastRefreshAttempt(r.id);
-        return last === undefined || at - last >= (going.has(r.id) ? MIN_REFRESH_MS : IDLE_REFRESH_MS);
+        return (
+          last === undefined || at - last >= (going.has(r.id) ? MIN_REFRESH_MS : IDLE_REFRESH_MS)
+        );
       })
       .sort((a, b) => (lastRefreshAttempt(a.id) ?? 0) - (lastRefreshAttempt(b.id) ?? 0))
       .slice(0, MAX_REPOS_PER_ROUND);
@@ -259,7 +283,9 @@ async function compute(
 
   // 2. Read what is stored.
   const now = ctx.now();
-  const rows = await listWorkspaceRuns(ctx.db, workspaceId, ids, { finishedSince: now - RECENT_WINDOW_MS });
+  const rows = await listWorkspaceRuns(ctx.db, workspaceId, ids, {
+    finishedSince: now - RECENT_WINDOW_MS,
+  });
   const visible = (r: WorkflowRunView) =>
     input.appIds === undefined ||
     input.appIds === null ||
@@ -281,7 +307,11 @@ async function compute(
       progress.set(mine, cached ? summarizeJobs(cached.jobs, cached.readAt) : null);
       return;
     }
-    const read = await readRunJobs(ctx, { workspaceId, repository, runId: run.id, active: true }, actor);
+    const read = await readRunJobs(
+      ctx,
+      { workspaceId, repository, runId: run.id, active: true },
+      actor,
+    );
     if (read.ok) progress.set(mine, summarizeJobs(read.jobs.jobs, read.jobs.readAt));
     else if (read.status === 429) limited = true;
   });

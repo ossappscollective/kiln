@@ -1,10 +1,9 @@
-import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { type AppEnv, type Services, clientIp, parseBody } from '../http.ts';
+import { type AppEnv, clientIp, parseBody, type Services } from '../http.ts';
 import {
-  SESSION_TTL_MS,
   countUsers,
   createSession,
   endSession,
@@ -13,11 +12,12 @@ import {
   normalizeEmail,
   registerFirstUser,
   resolveSession,
+  SESSION_TTL_MS,
   verifyLogin,
 } from '../services/accounts.ts';
 import { mailConfigured } from '../services/mailer.ts';
-import { LOCAL_USER_EMAIL } from '../single-user.ts';
 import { createLoginChallenge, loginMethods, loginNeed } from '../services/two-factor.ts';
+import { LOCAL_USER_EMAIL } from '../single-user.ts';
 
 export const SESSION_COOKIE = 'mrm_session';
 
@@ -69,8 +69,13 @@ export function authRoutes(services: Services) {
   app.get('/status', async (c) => {
     const token = getCookie(c, SESSION_COOKIE);
     const user = token ? await resolveSession(db, token, now()) : undefined;
-    if (singleUser) return c.json({ mode: 'single_user', setupRequired: false, user: user ?? null });
-    return c.json({ mode: 'multi', setupRequired: (await countUsers(db)) === 0, user: user ?? null });
+    if (singleUser)
+      return c.json({ mode: 'single_user', setupRequired: false, user: user ?? null });
+    return c.json({
+      mode: 'multi',
+      setupRequired: (await countUsers(db)) === 0,
+      user: user ?? null,
+    });
   });
 
   // Single-user mode only: trades the launch secret for a session cookie, once.
@@ -140,7 +145,12 @@ export function authRoutes(services: Services) {
       if (ip) ipLimiter.refund(ip);
       const challenge = await createLoginChallenge(db, user.id, need, now());
       c.header('Cache-Control', 'no-store');
-      return c.json({ twoFactorRequired: true, enrollmentRequired: need === 'enroll', challenge, methods: await loginMethods(db, user.id, need, await mailConfigured()) });
+      return c.json({
+        twoFactorRequired: true,
+        enrollmentRequired: need === 'enroll',
+        challenge,
+        methods: await loginMethods(db, user.id, need, await mailConfigured()),
+      });
     }
     limiter.reset(key);
     // A success must not wipe the address's failures (one valid login would reset the count for a

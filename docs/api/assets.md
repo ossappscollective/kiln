@@ -18,11 +18,11 @@ Everything is under `/api/workspaces/{workspaceId}/apps/{id}`. A non-member gets
 without the right gets 403. An API token may hold the rights like any other action. The routes are
 in the [OpenAPI description](openapi.md) (tag `assets`).
 
-| Route | Right | Returns |
-| --- | --- | --- |
-| `GET /assets` | `listing.read` (every role) | The index (below) |
-| `GET /assets/file?path=&commit=` | `listing.read` | The bytes of one indexed image |
-| `GET /icon` | `apps.read` | The icon of the app, or 404 |
+| Route                            | Right                       | Returns                        |
+| -------------------------------- | --------------------------- | ------------------------------ |
+| `GET /assets`                    | `listing.read` (every role) | The index (below)              |
+| `GET /assets/file?path=&commit=` | `listing.read`              | The bytes of one indexed image |
+| `GET /icon`                      | `apps.read`                 | The icon of the app, or 404    |
 
 The apps JSON (`GET /apps`, `GET /apps/{id}`) gained two hints: `hasIcon` (boolean) and `iconUrl`
 (the icon route with `?v=<etag>` when the server holds one, the plain route when a look is due, and
@@ -59,11 +59,11 @@ the checks; the type comes from the bytes, never from the file name.
 Only the first bytes of an image are read (64 KB; 1 MiB for a JPEG whose size marker is further in)
 to learn its size, format and whether it has an alpha channel. The index is limited by the source:
 
-| Source | Images opened | Bytes pulled |
-| --- | --- | --- |
-| Local clone (fast) | 2000 | 4 GiB |
-| Clone of the GitHub repository | 150 | 48 MiB |
-| GitHub over the REST API (slower) | 60 | 24 MiB |
+| Source                            | Images opened | Bytes pulled |
+| --------------------------------- | ------------- | ------------ |
+| Local clone (fast)                | 2000          | 4 GiB        |
+| Clone of the GitHub repository    | 150           | 48 MiB       |
+| GitHub over the REST API (slower) | 60            | 24 MiB       |
 
 When a limit is reached the index says `partial` with the reasons; the remaining files are listed
 without their size. App previews (video) are never opened.
@@ -92,18 +92,18 @@ screenshot in a device's set is checked against the pixel sizes that device take
 
 All routes are under `/api/workspaces/{workspaceId}/apps/{id}`. Nothing here writes to a store.
 
-| Route | Right | What it does |
-| --- | --- | --- |
-| `GET /assets/store[?fresh=1]` | `listing.read` | What the store holds now: per locale, kind and device the images with an opaque `ref`, size, checksum (when the store gives one) and state. A read of the store (App Store Connect: the version's screenshot sets; Google Play: `edits.images.list` per type). Reused for 60 seconds; 12 reads a minute per workspace. |
-| `GET /assets/diff[?fresh=1]` | `listing.read` | The repository against the store: per set and position `identical`, `likely_same`, `differs`, `only_repo` or `only_store`, with both sides' size and checksum. |
-| `GET /assets/store/thumb?ref=&size=` | `listing.read` | A thumbnail of one store image through the server (160, 320 or 640 px wide). `ETag` from the ref, `private` cache, an LRU of 24 MiB; `404 ref_expired` once the ref is older than 15 minutes (read the store again). |
-| `POST /assets/pull` | `changesets.write` | Downloads store images into a **draft change set** (body: `sets`, `files`, `prune`). |
-| `POST /assets/inspect?locale=&kind=&device=&name=` | `changesets.write` | The raw bytes of a file in the body: what it is and what is wrong with it for that set, with the fixes that apply. Stages nothing. |
-| `PUT /staged/assets/upload?...` | `changesets.write` | Stages the raw bytes of a file as an add or a replace. |
-| `DELETE /staged/assets/file?locale=&kind=&device=&position=` | `changesets.write` | Removes a file from the staged set. |
-| `POST /staged/assets/fix` | `changesets.write` | Makes a corrected file of a staged file (`remove_alpha`, `resize`, `rename_extension`) and stages it. |
-| `GET /staged/assets/blob?oid=` | `listing.read` | The bytes of an uploaded or fixed staged file (same safe headers as `/assets/file`). |
-| `POST /staged/assets/to-repo` | `changesets.write` | Makes a draft change set that writes the staged sets into the repository. |
+| Route                                                        | Right              | What it does                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /assets/store[?fresh=1]`                                | `listing.read`     | What the store holds now: per locale, kind and device the images with an opaque `ref`, size, checksum (when the store gives one) and state. A read of the store (App Store Connect: the version's screenshot sets; Google Play: `edits.images.list` per type). Reused for 60 seconds; 12 reads a minute per workspace. |
+| `GET /assets/diff[?fresh=1]`                                 | `listing.read`     | The repository against the store: per set and position `identical`, `likely_same`, `differs`, `only_repo` or `only_store`, with both sides' size and checksum.                                                                                                                                                         |
+| `GET /assets/store/thumb?ref=&size=`                         | `listing.read`     | A thumbnail of one store image through the server (160, 320 or 640 px wide). `ETag` from the ref, `private` cache, an LRU of 24 MiB; `404 ref_expired` once the ref is older than 15 minutes (read the store again).                                                                                                   |
+| `POST /assets/pull`                                          | `changesets.write` | Downloads store images into a **draft change set** (body: `sets`, `files`, `prune`).                                                                                                                                                                                                                                   |
+| `POST /assets/inspect?locale=&kind=&device=&name=`           | `changesets.write` | The raw bytes of a file in the body: what it is and what is wrong with it for that set, with the fixes that apply. Stages nothing.                                                                                                                                                                                     |
+| `PUT /staged/assets/upload?...`                              | `changesets.write` | Stages the raw bytes of a file as an add or a replace.                                                                                                                                                                                                                                                                 |
+| `DELETE /staged/assets/file?locale=&kind=&device=&position=` | `changesets.write` | Removes a file from the staged set.                                                                                                                                                                                                                                                                                    |
+| `POST /staged/assets/fix`                                    | `changesets.write` | Makes a corrected file of a staged file (`remove_alpha`, `resize`, `rename_extension`) and stages it.                                                                                                                                                                                                                  |
+| `GET /staged/assets/blob?oid=`                               | `listing.read`     | The bytes of an uploaded or fixed staged file (same safe headers as `/assets/file`).                                                                                                                                                                                                                                   |
+| `POST /staged/assets/to-repo`                                | `changesets.write` | Makes a draft change set that writes the staged sets into the repository.                                                                                                                                                                                                                                              |
 
 **Keys.** A set is `platform/locale/slotKey` (`ios/en-US/screenshot:iphone_6_9`), an image is the set plus
 `#position`. `platform` is the first part so that macOS can be added later (a value of `ASSET_PLATFORMS`, a connector

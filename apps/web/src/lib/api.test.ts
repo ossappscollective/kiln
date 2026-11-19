@@ -15,7 +15,10 @@ function fake(respond: (call: Call) => Response | Promise<Response>) {
 }
 
 const jsonResponse = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', ...headers },
+  });
 
 test('sends JSON with the right method and path, and returns the parsed body', async () => {
   const { calls, fetchImpl } = fake(() => jsonResponse({ user: { id: 'u' } }));
@@ -43,13 +46,16 @@ test('ids are escaped in paths', async () => {
 
 test('an error response becomes an ApiError with a sentence for the person', async () => {
   const { fetchImpl } = fake(() => jsonResponse({ error: 'invalid_credentials' }, 401));
-  await assert.rejects(createApi({ fetch: fetchImpl }).login({ email: 'a', password: 'b' }), (e: unknown) => {
-    assert.ok(e instanceof ApiError);
-    assert.equal(e.status, 401);
-    assert.equal(e.code, 'invalid_credentials');
-    assert.equal(e.message, 'The email or password is wrong.');
-    return true;
-  });
+  await assert.rejects(
+    createApi({ fetch: fetchImpl }).login({ email: 'a', password: 'b' }),
+    (e: unknown) => {
+      assert.ok(e instanceof ApiError);
+      assert.equal(e.status, 401);
+      assert.equal(e.code, 'invalid_credentials');
+      assert.equal(e.message, 'The email or password is wrong.');
+      return true;
+    },
+  );
 });
 
 test('a 401 outside sign-in tells the app the session ended, but a failed sign-in does not', async () => {
@@ -63,12 +69,21 @@ test('a 401 outside sign-in tells the app the session ended, but a failed sign-i
 });
 
 test('rate limiting reports the wait in minutes', async () => {
-  const { fetchImpl } = fake(() => jsonResponse({ error: 'too_many_attempts' }, 429, { 'retry-after': '600' }));
-  await assert.rejects(createApi({ fetch: fetchImpl }).login({ email: 'a', password: 'b' }), /10 minutes/);
+  const { fetchImpl } = fake(() =>
+    jsonResponse({ error: 'too_many_attempts' }, 429, { 'retry-after': '600' }),
+  );
+  await assert.rejects(
+    createApi({ fetch: fetchImpl }).login({ email: 'a', password: 'b' }),
+    /10 minutes/,
+  );
 });
 
 test('an unreachable server gets its own message', async () => {
-  const api = createApi({ fetch: (async () => { throw new TypeError('fetch failed'); }) as typeof fetch });
+  const api = createApi({
+    fetch: (async () => {
+      throw new TypeError('fetch failed');
+    }) as typeof fetch,
+  });
   await assert.rejects(api.status(), (e: unknown) => e instanceof ApiError && e.code === 'network');
 });
 
@@ -78,17 +93,34 @@ test('a non-JSON error body still produces a message', async () => {
 });
 
 test('validation issues and secret problems come through', () => {
-  assert.equal(messageFor(400, { error: 'invalid_request', issues: [{ path: 'password', message: 'Use at least 12 characters' }] }), 'password: Use at least 12 characters');
-  assert.equal(messageFor(400, { error: 'invalid_secret', message: 'Fill in: Key ID.' }), 'Fill in: Key ID.');
+  assert.equal(
+    messageFor(400, {
+      error: 'invalid_request',
+      issues: [{ path: 'password', message: 'Use at least 12 characters' }],
+    }),
+    'password: Use at least 12 characters',
+  );
+  assert.equal(
+    messageFor(400, { error: 'invalid_secret', message: 'Fill in: Key ID.' }),
+    'Fill in: Key ID.',
+  );
 });
 
 test('testing a typed secret posts it to the test endpoint and returns the verdict', async () => {
-  const { calls, fetchImpl } = fake(() => jsonResponse({ ok: true, message: 'Connected.', details: ['Key is valid'] }));
-  const result = await createApi({ fetch: fetchImpl }).testSecret('w/1', { kind: 'github_token', secret: 's3cret' });
+  const { calls, fetchImpl } = fake(() =>
+    jsonResponse({ ok: true, message: 'Connected.', details: ['Key is valid'] }),
+  );
+  const result = await createApi({ fetch: fetchImpl }).testSecret('w/1', {
+    kind: 'github_token',
+    secret: 's3cret',
+  });
   assert.deepEqual(result, { ok: true, message: 'Connected.', details: ['Key is valid'] });
   assert.equal(calls[0]?.path, '/api/workspaces/w%2F1/credentials/test');
   assert.equal(calls[0]?.init?.method, 'POST');
-  assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), { kind: 'github_token', secret: 's3cret' });
+  assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), {
+    kind: 'github_token',
+    secret: 's3cret',
+  });
 });
 
 test('testing a saved credential posts without a body and escapes the id', async () => {
@@ -101,7 +133,9 @@ test('testing a saved credential posts without a body and escapes the id', async
 });
 
 test('a rate-limited test reports the wait and keeps retryAfter', async () => {
-  const { fetchImpl } = fake(() => jsonResponse({ error: 'rate_limited' }, 429, { 'retry-after': '30' }));
+  const { fetchImpl } = fake(() =>
+    jsonResponse({ error: 'rate_limited' }, 429, { 'retry-after': '30' }),
+  );
   await assert.rejects(createApi({ fetch: fetchImpl }).testCredential('w1', 'c1'), (e: unknown) => {
     assert.ok(e instanceof ApiError);
     assert.equal(e.status, 429);
@@ -112,14 +146,22 @@ test('a rate-limited test reports the wait and keeps retryAfter', async () => {
 });
 
 test('an invalid secret surfaces the server message', async () => {
-  const { fetchImpl } = fake(() => jsonResponse({ error: 'invalid_secret', message: 'Fill in: Key ID.' }, 400));
-  await assert.rejects(createApi({ fetch: fetchImpl }).testSecret('w1', { kind: 'app_store_connect', secret: '{}' }), /Fill in: Key ID\./);
+  const { fetchImpl } = fake(() =>
+    jsonResponse({ error: 'invalid_secret', message: 'Fill in: Key ID.' }, 400),
+  );
+  await assert.rejects(
+    createApi({ fetch: fetchImpl }).testSecret('w1', { kind: 'app_store_connect', secret: '{}' }),
+    /Fill in: Key ID\./,
+  );
 });
 
 test('member and invitation calls use the right method, path and body', async () => {
   const { calls, fetchImpl } = fake((call) =>
     call.init?.method === 'GET' || call.init?.method === 'POST'
-      ? jsonResponse({ members: [], invitations: [], invitation: { id: 'i1' }, token: 't' }, call.init?.method === 'POST' ? 201 : 200)
+      ? jsonResponse(
+          { members: [], invitations: [], invitation: { id: 'i1' }, token: 't' },
+          call.init?.method === 'POST' ? 201 : 200,
+        )
       : new Response(null, { status: 204 }),
   );
   const api = createApi({ fetch: fetchImpl });
@@ -146,14 +188,19 @@ test('member and invitation calls use the right method, path and body', async ()
 });
 
 test('the invitation token is escaped in the path', async () => {
-  const { calls, fetchImpl } = fake(() => jsonResponse({ workspaceName: 'Acme', email: 'a@b.co', role: 'member', valid: true }));
+  const { calls, fetchImpl } = fake(() =>
+    jsonResponse({ workspaceName: 'Acme', email: 'a@b.co', role: 'member', valid: true }),
+  );
   const api = createApi({ fetch: fetchImpl });
   assert.equal((await api.invitation('a/b')).workspaceName, 'Acme');
   await api.acceptInvitation('a/b', { displayName: 'Bob', password: 'pw' });
   await api.acceptInvitation('a/b');
   assert.equal(calls[0]?.path, '/api/invitations/a%2Fb');
   assert.equal(calls[1]?.path, '/api/invitations/a%2Fb/accept');
-  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), { displayName: 'Bob', password: 'pw' });
+  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
+    displayName: 'Bob',
+    password: 'pw',
+  });
   assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), {});
 });
 
@@ -175,8 +222,13 @@ test('a rejected invitation request says what to do', async () => {
       return true;
     });
   }
-  const { fetchImpl } = fake(() => jsonResponse({ error: 'last_owner', message: 'Make someone else an owner first.' }, 409));
-  await assert.rejects(createApi({ fetch: fetchImpl }).removeMember('w', 'u'), /Make someone else an owner first\./);
+  const { fetchImpl } = fake(() =>
+    jsonResponse({ error: 'last_owner', message: 'Make someone else an owner first.' }, 409),
+  );
+  await assert.rejects(
+    createApi({ fetch: fetchImpl }).removeMember('w', 'u'),
+    /Make someone else an owner first\./,
+  );
 });
 
 test('listing calls only read, with the filter in the query string', async () => {
@@ -185,14 +237,22 @@ test('listing calls only read, with the filter in the query string', async () =>
   await api.appListingLive('w', 'a/1');
   await api.appListingDrift('w', 'a/1');
   await api.appListingHistory('w', 'a/1');
-  await api.appListingHistory('w', 'a/1', { locale: 'en-US', field: 'name', cursor: '10:x', limit: 25 });
+  await api.appListingHistory('w', 'a/1', {
+    locale: 'en-US',
+    field: 'name',
+    cursor: '10:x',
+    limit: 25,
+  });
   assert.deepEqual(
     calls.map((c) => [c.init?.method, c.path]),
     [
       ['GET', '/api/workspaces/w/apps/a%2F1/listing/live'],
       ['GET', '/api/workspaces/w/apps/a%2F1/listing/drift'],
       ['GET', '/api/workspaces/w/apps/a%2F1/listing/history'],
-      ['GET', '/api/workspaces/w/apps/a%2F1/listing/history?locale=en-US&field=name&cursor=10%3Ax&limit=25'],
+      [
+        'GET',
+        '/api/workspaces/w/apps/a%2F1/listing/history?locale=en-US&field=name&cursor=10%3Ax&limit=25',
+      ],
     ],
   );
 });
@@ -207,7 +267,13 @@ test('reading the repository listing is a POST that has no body, and a missing l
 });
 
 test('the refresh and clone codes have a message', () => {
-  for (const error of ['base_changed', 'refresh_conflicts', 'nothing_to_apply', 'changed_meanwhile', 'clone_busy']) {
+  for (const error of [
+    'base_changed',
+    'refresh_conflicts',
+    'nothing_to_apply',
+    'changed_meanwhile',
+    'clone_busy',
+  ]) {
     const message = messageFor(409, { error });
     assert.ok(message.length > 20, error);
     assert.notEqual(message, error);
@@ -221,7 +287,13 @@ test('the staged-changes calls use the documented routes, and the push sends onl
   await api.storeDraftConfig('w1');
   await api.appStaged('w1', 'a/1');
   await api.stageText('w1', 'a1', { locale: 'en-US', field: 'description', from: 'repo' });
-  await api.stageAssets('w1', 'a1', { locale: 'en-US', kind: 'screenshot', device: 'iphone_6_5', from: 'repo', paths: ['x.png'] });
+  await api.stageAssets('w1', 'a1', {
+    locale: 'en-US',
+    kind: 'screenshot',
+    device: 'iphone_6_5',
+    from: 'repo',
+    paths: ['x.png'],
+  });
   await api.unstageItem('w1', 'a1', 'en-US/screenshot:iphone_6_5');
   await api.clearStaged('w1', 'a1');
   await api.previewStagedPush('w1', 'a1');

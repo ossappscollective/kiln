@@ -1,7 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import type { ChangeSet } from '@mrm/core';
-import type { OpenPullRequestOptions, OpenPullRequestResult, ProposalResult, ProposeOptions } from '@mrm/connectors';
+import type {
+  OpenPullRequestOptions,
+  OpenPullRequestResult,
+  ProposalResult,
+  ProposeOptions,
+} from '@mrm/connectors';
 import { ChangeConflictError } from '@mrm/connectors';
+import type { ChangeSet } from '@mrm/core';
 import { type Database, migrate } from '@mrm/db';
 import { createApp } from './app.ts';
 import type { ConnectorFactory, RepoClient } from './services/repositories.ts';
@@ -97,7 +102,11 @@ export class FakeRepo implements RepoClient {
     const number = ++this.#pr;
     return { url: `https://github.com/acme/app/pull/${number}`, number };
   }
-  async dispatchWorkflow(_workflow?: string, _ref?: string, _inputs?: Record<string, string>): Promise<any> {
+  async dispatchWorkflow(
+    _workflow?: string,
+    _ref?: string,
+    _inputs?: Record<string, string>,
+  ): Promise<any> {
     throw new Error('not used');
   }
   async listWorkflowRuns(): Promise<never> {
@@ -178,11 +187,10 @@ export async function bootRepoApp(db: Database, repo = new FakeRepo(), overrides
       'INSERT INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, 0)',
       [id, `${id}@x.io`, role],
     );
-    await db.execute('INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)', [
-      workspace,
-      id,
-      role,
-    ]);
+    await db.execute(
+      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)',
+      [workspace, id, role],
+    );
     const { token } = await createSession(db, id, Date.now());
     return `mrm_session=${token}`;
   };
@@ -193,7 +201,13 @@ export async function bootRepoApp(db: Database, repo = new FakeRepo(), overrides
     cookie = owner,
     workspace = workspaceId,
   ) => {
-    const res = await call(cookie, 'POST', '/credentials', { kind, label: 'GitHub', secret }, workspace);
+    const res = await call(
+      cookie,
+      'POST',
+      '/credentials',
+      { kind, label: 'GitHub', secret },
+      workspace,
+    );
     return res.body.credential.id as string;
   };
 
@@ -222,14 +236,31 @@ export async function bootRepoApp(db: Database, repo = new FakeRepo(), overrides
   };
 
   const auditActions = async () =>
-    (await db.query('SELECT action, actor_type, actor_id, target_id, detail FROM audit_events ORDER BY created_at, id'))
-      .map((r) => ({
-        action: String(r.action),
-        actorType: String(r.actor_type),
-        actorId: String(r.actor_id),
-        targetId: r.target_id as string | null,
-        detail: String(r.detail ?? ''),
-      }));
+    (
+      await db.query(
+        'SELECT action, actor_type, actor_id, target_id, detail FROM audit_events ORDER BY created_at, id',
+      )
+    ).map((r) => ({
+      action: String(r.action),
+      actorType: String(r.actor_type),
+      actorId: String(r.actor_id),
+      targetId: r.target_id as string | null,
+      detail: String(r.detail ?? ''),
+    }));
 
-  return { app, db, repo, built, owner, workspaceId, call, addMember, addCredential, connect, draft, texts, auditActions };
+  return {
+    app,
+    db,
+    repo,
+    built,
+    owner,
+    workspaceId,
+    call,
+    addMember,
+    addCredential,
+    connect,
+    draft,
+    texts,
+    auditActions,
+  };
 }

@@ -4,13 +4,13 @@ Everything an app has pending in one place, and one final step that publishes it
 Not run against a real store: see [not verified](../adr/0015-pending-and-batch-publish.md#not-verified-unverified). Mounted under
 `/api/workspaces/{workspaceId}`; all of it is in `GET /api/openapi.json`.
 
-| Route | Needs | Does |
-| --- | --- | --- |
-| `GET /apps/{id}/pending` | `listing.read` | The pending items of the app. Stored state only. |
-| `GET /pending/summary` | `listing.read` | Which apps have something pending. Stored state only. |
-| `GET /store-publish/config` | `apps.read` | The switch, the action, the phrase and each step's switch. |
-| `POST /apps/{id}/publish/preview` | `store.publish` | The plan. Reads the stores through the steps' previews. Writes nothing. |
-| `POST /apps/{id}/publish` | `store.publish` + each step's right | Runs the plan's steps in order. |
+| Route                             | Needs                               | Does                                                                    |
+| --------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| `GET /apps/{id}/pending`          | `listing.read`                      | The pending items of the app. Stored state only.                        |
+| `GET /pending/summary`            | `listing.read`                      | Which apps have something pending. Stored state only.                   |
+| `GET /store-publish/config`       | `apps.read`                         | The switch, the action, the phrase and each step's switch.              |
+| `POST /apps/{id}/publish/preview` | `store.publish`                     | The plan. Reads the stores through the steps' previews. Writes nothing. |
+| `POST /apps/{id}/publish`         | `store.publish` + each step's right | Runs the plan's steps in order.                                         |
 
 ## Pending view (read only)
 
@@ -20,14 +20,42 @@ there is no ETag (no summary in this API has one).
 ### `GET /apps/{id}/pending`
 
 ```json
-{ "pending": {
-  "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
-  "platforms": [ { "platform": "ios", "store": "appstoreconnect", "totals": { "items": 2, "actionable": 2, "blocking": 0 }, "items": [
-    { "kind": "listing_text", "platform": "ios", "id": "listing_text", "label": "2 listing text changes in 2 languages",
-      "state": "staged", "problems": [], "nextStep": "push_draft", "counts": { "changes": 2, "locales": 2, "invalid": 0 },
-      "refs": [ { "id": "…", "locale": "en-US", "field": "description" } ], "truncated": false, "since": 1700000000000 } ] } ],
-  "totals": { "items": 2, "actionable": 2, "blocking": 0, "platforms": ["ios"], "nextSteps": ["push_draft", "release"] },
-  "lastSyncedAt": 1700000000000, "generatedAt": 1700000000000 } }
+{
+  "pending": {
+    "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
+    "platforms": [
+      {
+        "platform": "ios",
+        "store": "appstoreconnect",
+        "totals": { "items": 2, "actionable": 2, "blocking": 0 },
+        "items": [
+          {
+            "kind": "listing_text",
+            "platform": "ios",
+            "id": "listing_text",
+            "label": "2 listing text changes in 2 languages",
+            "state": "staged",
+            "problems": [],
+            "nextStep": "push_draft",
+            "counts": { "changes": 2, "locales": 2, "invalid": 0 },
+            "refs": [{ "id": "…", "locale": "en-US", "field": "description" }],
+            "truncated": false,
+            "since": 1700000000000
+          }
+        ]
+      }
+    ],
+    "totals": {
+      "items": 2,
+      "actionable": 2,
+      "blocking": 0,
+      "platforms": ["ios"],
+      "nextSteps": ["push_draft", "release"]
+    },
+    "lastSyncedAt": 1700000000000,
+    "generatedAt": 1700000000000
+  }
+}
 ```
 
 - `kind`: `listing_text` (all staged text changes of the app, one item), `asset_set` (one per staged set), `release_field`
@@ -43,9 +71,22 @@ there is no ETag (no summary in this API has one).
 ### `GET /pending/summary`
 
 ```json
-{ "apps": [ { "appId": "…", "id": "…", "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
-              "count": 2, "blocking": 0, "waiting": 1, "kinds": ["listing_text", "in_review"], "nextSteps": ["push_draft"] } ],
-  "totals": { "apps": 1, "count": 2, "blocking": 0 }, "generatedAt": 1700000000000 }
+{
+  "apps": [
+    {
+      "appId": "…",
+      "id": "…",
+      "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
+      "count": 2,
+      "blocking": 0,
+      "waiting": 1,
+      "kinds": ["listing_text", "in_review"],
+      "nextSteps": ["push_draft"]
+    }
+  ],
+  "totals": { "apps": 1, "count": 2, "blocking": 0 },
+  "generatedAt": 1700000000000
+}
 ```
 
 Only apps with something pending or in review are listed (an app that is not listed has nothing); sorted with blocking first, then
@@ -59,9 +100,9 @@ own switch (`MRM_STORE_DRAFT_WRITE_ENABLED`, `MRM_STORE_SUBMIT_ENABLED`, `MRM_ST
 `MRM_STORE_ROLLOUT_ENABLED`) and its own role right. While the batch is off, preview and publish answer `409 publish_batch_disabled`
 after the rights check; no store is reached.
 
-| Right | Who |
-| --- | --- |
-| `store.publish` | **admin and up** (owner, admin). **Explicit-only on API tokens.** |
+| Right                                                                   | Who                                                                                                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `store.publish`                                                         | **admin and up** (owner, admin). **Explicit-only on API tokens.**                                                   |
 | `store.push_draft`, `store.submit`, `store.release`, `releases.rollout` | the step's own right, unchanged. A token needs each one it includes **in its actions**, as well as `store.publish`. |
 
 ### `POST /apps/{id}/publish/preview`
@@ -74,20 +115,50 @@ and the same target fields as [rollout](rollout.md). One step of each type at mo
 needs input, so it is only included when named).
 
 ```json
-{ "plan": {
-  "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
-  "steps": [ {
-    "type": "push_draft", "platform": "ios", "order": 1, "label": "Push the staged changes to the store as a draft",
-    "requested": true, "included": true, "availability": "available", "reason": null,
-    "requires": { "action": "store.push_draft", "envName": "MRM_STORE_DRAFT_WRITE_ENABLED", "enabled": true, "allowed": true },
-    "irreversible": false, "deferred": false, "summary": { "textChanged": 1, "assetSetsChanged": 1 },
-    "request": { "type": "push_draft" }, "preview": { "…": "the preview of POST …/staged/push/preview" },
-    "confirmHash": "…", "stepPhrase": null, "problems": [] } ],
-  "publishSteps": [ { "type": "push_draft" }, { "type": "submit" } ],
-  "included": 2, "irreversible": true, "irreversibleSteps": ["submit"], "warnings": [],
-  "confirmable": true, "planHash": "…64 hex…", "confirmationRequired": true,
-  "confirmation": { "phrase": "publish Weather 2 steps", "instruction": "Type … to publish these 2 steps. …" },
-  "readAt": 1700000000000 } }
+{
+  "plan": {
+    "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
+    "steps": [
+      {
+        "type": "push_draft",
+        "platform": "ios",
+        "order": 1,
+        "label": "Push the staged changes to the store as a draft",
+        "requested": true,
+        "included": true,
+        "availability": "available",
+        "reason": null,
+        "requires": {
+          "action": "store.push_draft",
+          "envName": "MRM_STORE_DRAFT_WRITE_ENABLED",
+          "enabled": true,
+          "allowed": true
+        },
+        "irreversible": false,
+        "deferred": false,
+        "summary": { "textChanged": 1, "assetSetsChanged": 1 },
+        "request": { "type": "push_draft" },
+        "preview": { "…": "the preview of POST …/staged/push/preview" },
+        "confirmHash": "…",
+        "stepPhrase": null,
+        "problems": []
+      }
+    ],
+    "publishSteps": [{ "type": "push_draft" }, { "type": "submit" }],
+    "included": 2,
+    "irreversible": true,
+    "irreversibleSteps": ["submit"],
+    "warnings": [],
+    "confirmable": true,
+    "planHash": "…64 hex…",
+    "confirmationRequired": true,
+    "confirmation": {
+      "phrase": "publish Weather 2 steps",
+      "instruction": "Type … to publish these 2 steps. …"
+    },
+    "readAt": 1700000000000
+  }
+}
 ```
 
 - `availability`: `available`, `feature_disabled` (the step's own switch is off), `forbidden` (the caller or token lacks the
@@ -112,12 +183,28 @@ expected), the lock (`409 publish_in_progress`), then the plan is rebuilt from t
 another hash is `409 plan_changed` (both carry the new `plan`). Then the steps run in order.
 
 ```json
-{ "result": {
-  "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" }, "planHash": "…",
-  "completed": false, "applied": 1, "skipped": 1, "failed": 0, "stoppedAt": "submit",
-  "steps": [ { "type": "push_draft", "status": "applied", "confirmedByReread": false, "result": { "…": "the result of POST …/staged/push" } },
-             { "type": "submit", "status": "skipped", "reason": "plan_drifted", "message": "…" } ],
-  "pending": { "items": 1, "actionable": 1, "blocking": 0 }, "publishedAt": 1700000000000 } }
+{
+  "result": {
+    "app": { "id": "…", "name": "Weather", "platform": "ios", "store": "appstoreconnect" },
+    "planHash": "…",
+    "completed": false,
+    "applied": 1,
+    "skipped": 1,
+    "failed": 0,
+    "stoppedAt": "submit",
+    "steps": [
+      {
+        "type": "push_draft",
+        "status": "applied",
+        "confirmedByReread": false,
+        "result": { "…": "the result of POST …/staged/push" }
+      },
+      { "type": "submit", "status": "skipped", "reason": "plan_drifted", "message": "…" }
+    ],
+    "pending": { "items": 1, "actionable": 1, "blocking": 0 },
+    "publishedAt": 1700000000000
+  }
+}
 ```
 
 - `status`: `applied` (`result` is what the individual route returns), `skipped` (`reason`: `previous_step_not_applied`,

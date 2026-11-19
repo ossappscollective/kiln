@@ -48,7 +48,12 @@ export type SubmitLocale = {
   assets: SubmitAssetSet[];
 };
 
-export type SubmitTrackRelease = { name: string | null; status: string; userFraction: number | null; versionCodes: string[] };
+export type SubmitTrackRelease = {
+  name: string | null;
+  status: string;
+  userFraction: number | null;
+  versionCodes: string[];
+};
 export type SubmitTrack = { track: string; releases: SubmitTrackRelease[] };
 
 /** Everything a submit is decided on, read from the store at one moment. */
@@ -56,9 +61,19 @@ export type SubmitState = {
   store: StoreName;
   platform: Platform;
   /** App Store: the version that would go to review. Google Play: null. */
-  version: { id: string; versionString: string | null; state: string; releaseType: string | null } | null;
+  version: {
+    id: string;
+    versionString: string | null;
+    state: string;
+    releaseType: string | null;
+  } | null;
   /** App Store: the build attached to the version (null: none). Google Play: null. */
-  build: { id: string; version: string | null; processingState: string | null; expired: boolean | null } | null;
+  build: {
+    id: string;
+    version: string | null;
+    processingState: string | null;
+    expired: boolean | null;
+  } | null;
   /** App Store: the version is already in a review submission or past it. Google Play: always false (Play shows no review state). */
   alreadySubmitted: boolean;
   /** App Store: unsubmitted review submissions found for the app (null: could not tell). Google Play: null. */
@@ -134,29 +149,45 @@ const sha = (value: string): string => createHash('sha256').update(value, 'utf8'
 export function submitKey(state: SubmitState): Record<string, unknown> {
   return {
     store: state.store,
-    version: state.version === null ? null : [state.version.id, state.version.state, state.version.releaseType],
-    build: state.build === null ? null : [state.build.id, state.build.version, state.build.processingState, state.build.expired],
+    version:
+      state.version === null
+        ? null
+        : [state.version.id, state.version.state, state.version.releaseType],
+    build:
+      state.build === null
+        ? null
+        : [state.build.id, state.build.version, state.build.processingState, state.build.expired],
     alreadySubmitted: state.alreadySubmitted,
     openReviewSubmissions: state.openReviewSubmissions,
     tracks: [...state.tracks]
       .sort((a, b) => a.track.localeCompare(b.track))
-      .map((t) => [t.track, t.releases.map((r) => [r.name, r.status, r.userFraction, [...r.versionCodes].sort()])]),
+      .map((t) => [
+        t.track,
+        t.releases.map((r) => [r.name, r.status, r.userFraction, [...r.versionCodes].sort()]),
+      ]),
     locales: [...state.locales]
       .sort((a, b) => a.locale.localeCompare(b.locale))
       .map((l) => [
         l.locale,
         Object.keys(l.text)
           .sort()
-          .map((f) => [f, l.text[f] === null || l.text[f] === undefined ? null : sha(l.text[f] as string)]),
+          .map((f) => [
+            f,
+            l.text[f] === null || l.text[f] === undefined ? null : sha(l.text[f] as string),
+          ]),
         [...l.assets]
           .sort((a, b) => a.target.localeCompare(b.target))
-          .map((a) => [a.target, a.images.map((i) => [i.id, i.checksum, i.state, i.width, i.height])]),
+          .map((a) => [
+            a.target,
+            a.images.map((i) => [i.id, i.checksum, i.state, i.width, i.height]),
+          ]),
       ]),
     draft: state.draft === null ? null : draftKey(state.draft),
   };
 }
 
-export const sameSubmitState = (a: SubmitState, b: SubmitState): boolean => JSON.stringify(submitKey(a)) === JSON.stringify(submitKey(b));
+export const sameSubmitState = (a: SubmitState, b: SubmitState): boolean =>
+  JSON.stringify(submitKey(a)) === JSON.stringify(submitKey(b));
 
 /** App Store version states that mean the version is in review, or past it (UNVERIFIED list: Apple's page names none). */
 export const APPLE_SUBMITTED_VERSION_STATES: readonly string[] = [

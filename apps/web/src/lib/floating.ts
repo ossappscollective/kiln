@@ -47,7 +47,10 @@ export function floating(node: HTMLElement, params: FloatingParams) {
     const where = placePopover({
       anchor: rect,
       viewport,
-      size: { width: node.offsetWidth, height: node.scrollHeight + (node.offsetHeight - node.clientHeight) },
+      size: {
+        width: node.offsetWidth,
+        height: node.scrollHeight + (node.offsetHeight - node.clientHeight),
+      },
       align: current.align,
       prefer: current.prefer,
       gap: current.gap,

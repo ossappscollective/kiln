@@ -1,5 +1,9 @@
 import type { Api } from './api.ts';
-import { type StoreReleaseConfig, type StoreReleaseState, classifyReleaseFailure } from './store-release.ts';
+import {
+  classifyReleaseFailure,
+  type StoreReleaseConfig,
+  type StoreReleaseState,
+} from './store-release.ts';
 
 /**
  * What the screens know about releasing: the server's switch (once per workspace) and, per app, whether a release,
@@ -39,13 +43,15 @@ export const releaseStore = {
   /** A release answered with an unknown outcome: the line asks for a new preview until a read says otherwise. */
   markUnknown(appId: string): void {
     const current = states[appId];
-    if (current) states[appId] = { ...current, unknownOutcome: { ...current.unknownOutcome, release: true } };
+    if (current)
+      states[appId] = { ...current, unknownOutcome: { ...current.unknownOutcome, release: true } };
   },
   /** The release went through: nothing is unknown any more (the next read confirms it). */
   markReleased(appId: string): void {
     generations[appId] = (generations[appId] ?? 0) + 1;
     const current = states[appId];
-    if (current) states[appId] = { ...current, unknownOutcome: { ...current.unknownOutcome, release: false } };
+    if (current)
+      states[appId] = { ...current, unknownOutcome: { ...current.unknownOutcome, release: false } };
   },
   config(workspaceId: string): StoreReleaseConfig | null {
     return configs[workspaceId] ?? null;
@@ -54,7 +60,8 @@ export const releaseStore = {
     return configFailed[workspaceId] === true;
   },
   async loadConfig(api: Api, workspaceId: string, force = false): Promise<void> {
-    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined)) return;
+    if (configLoading[workspaceId] === true || (!force && configs[workspaceId] !== undefined))
+      return;
     configLoading[workspaceId] = true;
     try {
       configs[workspaceId] = await api.storeReleaseConfig(workspaceId);

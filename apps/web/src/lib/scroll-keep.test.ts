@@ -11,10 +11,18 @@ test('the route path ignores the query and the fragment', () => {
 
 test('a query-only change never resets the scroll', () => {
   const base = '#/portfolio/7/builds';
-  for (const next of ['#/portfolio/7/builds?view=workflows', '#/portfolio/7/builds?view=tests&platform=ios', '#/portfolio/7/builds?version=1.2', '#/portfolio/7/builds?locale=de-DE']) {
+  for (const next of [
+    '#/portfolio/7/builds?view=workflows',
+    '#/portfolio/7/builds?view=tests&platform=ios',
+    '#/portfolio/7/builds?version=1.2',
+    '#/portfolio/7/builds?locale=de-DE',
+  ]) {
     assert.equal(shouldResetScroll(base, next), false, next);
   }
-  assert.equal(shouldResetScroll('#/portfolio/7/insights?view=keywords', '#/portfolio/7/insights?view=rank'), false);
+  assert.equal(
+    shouldResetScroll('#/portfolio/7/insights?view=keywords', '#/portfolio/7/insights?view=rank'),
+    false,
+  );
   assert.equal(shouldResetScroll('#/reviews?rating=1', '#/reviews?rating=2&q=a'), false);
   assert.equal(shouldResetScroll('#/portfolio/7/reviews', '#/portfolio/7/reviews'), false);
 });

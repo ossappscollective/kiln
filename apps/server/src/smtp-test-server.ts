@@ -22,10 +22,29 @@ export function testCert(): TestCert | null {
   try {
     execFileSync(
       'openssl',
-      ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'), '-out', join(dir, 'c.pem'), '-days', '2', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'],
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        join(dir, 'k.pem'),
+        '-out',
+        join(dir, 'c.pem'),
+        '-days',
+        '2',
+        '-subj',
+        '/CN=localhost',
+        '-addext',
+        'subjectAltName=DNS:localhost,IP:127.0.0.1',
+      ],
       { stdio: 'ignore' },
     );
-    cached = { key: readFileSync(join(dir, 'k.pem'), 'utf8'), cert: readFileSync(join(dir, 'c.pem'), 'utf8') };
+    cached = {
+      key: readFileSync(join(dir, 'k.pem'), 'utf8'),
+      cert: readFileSync(join(dir, 'c.pem'), 'utf8'),
+    };
   } catch {
     cached = null;
   } finally {
@@ -34,7 +53,14 @@ export function testCert(): TestCert | null {
   return cached;
 }
 
-export type Received = { from: string; to: string[]; data: string; raw: string; tls: boolean; user: string | undefined };
+export type Received = {
+  from: string;
+  to: string[];
+  data: string;
+  raw: string;
+  tls: boolean;
+  user: string | undefined;
+};
 
 export type FakeSmtpOptions = {
   cert?: TestCert;
@@ -75,7 +101,9 @@ export async function startFakeSmtp(options: FakeSmtpOptions = {}): Promise<Fake
   const commands: string[] = [];
   const state = { connections: 0 };
   const sockets = new Set<net.Socket>();
-  const secureContext = options.cert ? tls.createSecureContext({ key: options.cert.key, cert: options.cert.cert }) : undefined;
+  const secureContext = options.cert
+    ? tls.createSecureContext({ key: options.cert.key, cert: options.cert.cert })
+    : undefined;
 
   const serve = (socket: net.Socket, secure: boolean, greet: boolean) => {
     sockets.add(socket);
@@ -143,7 +171,8 @@ export async function startFakeSmtp(options: FakeSmtpOptions = {}): Promise<Fake
           const caps = ['fake', '8BITMIME'];
           if (options.size) caps.push(`SIZE ${options.size}`);
           if (options.starttls && !secure) caps.push('STARTTLS');
-          if (authOffered()) caps.push(`AUTH ${(options.auth?.mechanisms ?? ['PLAIN', 'LOGIN']).join(' ')}`);
+          if (authOffered())
+            caps.push(`AUTH ${(options.auth?.mechanisms ?? ['PLAIN', 'LOGIN']).join(' ')}`);
           caps.forEach((c, i) => write(`250${i === caps.length - 1 ? ' ' : '-'}${c}`));
         } else if (upper === 'STARTTLS') {
           if (!secureContext) {
@@ -198,15 +227,16 @@ export async function startFakeSmtp(options: FakeSmtpOptions = {}): Promise<Fake
     });
   };
 
-  const server = options.implicitTls && options.cert
-    ? tls.createServer({ key: options.cert.key, cert: options.cert.cert }, (s) => {
-        state.connections++;
-        serve(s, true, true);
-      })
-    : net.createServer((s) => {
-        state.connections++;
-        serve(s, false, true);
-      });
+  const server =
+    options.implicitTls && options.cert
+      ? tls.createServer({ key: options.cert.key, cert: options.cert.cert }, (s) => {
+          state.connections++;
+          serve(s, true, true);
+        })
+      : net.createServer((s) => {
+          state.connections++;
+          serve(s, false, true);
+        });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as net.AddressInfo).port;
   return {

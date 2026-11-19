@@ -19,19 +19,35 @@ const json = (body: unknown, status = 200) =>
 const empty = () => new Response(null, { status: 204 });
 
 test('token calls use the token endpoints, with ids escaped', async () => {
-  const { calls, api } = fake((call) => (call.init?.method === 'DELETE' ? empty() : json({ tokens: [], token: 'mrm_x', summary: {} }, call.init?.method === 'POST' ? 201 : 200)));
+  const { calls, api } = fake((call) =>
+    call.init?.method === 'DELETE'
+      ? empty()
+      : json({ tokens: [], token: 'mrm_x', summary: {} }, call.init?.method === 'POST' ? 201 : 200),
+  );
   await api.apiTokens('w/1');
   await api.createApiToken('w/1', { name: 'CI', role: 'member', expiresAt: 5 });
   await api.revokeApiToken('w/1', 't 1');
   assert.deepEqual(
     calls.map((c) => `${c.init?.method ?? 'GET'} ${c.path}`),
-    ['GET /api/workspaces/w%2F1/tokens', 'POST /api/workspaces/w%2F1/tokens', 'DELETE /api/workspaces/w%2F1/tokens/t%201'],
+    [
+      'GET /api/workspaces/w%2F1/tokens',
+      'POST /api/workspaces/w%2F1/tokens',
+      'DELETE /api/workspaces/w%2F1/tokens/t%201',
+    ],
   );
-  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), { name: 'CI', role: 'member', expiresAt: 5 });
+  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
+    name: 'CI',
+    role: 'member',
+    expiresAt: 5,
+  });
 });
 
 test('webhook calls use the webhook endpoints', async () => {
-  const { calls, api } = fake((call) => (call.init?.method === 'DELETE' ? empty() : json({ webhooks: [], deliveries: [], deliveryId: 'd', secret: 's', webhook: {} })));
+  const { calls, api } = fake((call) =>
+    call.init?.method === 'DELETE'
+      ? empty()
+      : json({ webhooks: [], deliveries: [], deliveryId: 'd', secret: 's', webhook: {} }),
+  );
   await api.webhooks('w1');
   await api.createWebhook('w1', { url: 'https://h.example.com/x', eventTypes: ['*'] });
   await api.updateWebhook('w1', 'a/b', { enabled: false });
@@ -57,16 +73,33 @@ test('webhook calls use the webhook endpoints', async () => {
 });
 
 test('errors of the automation endpoints read as sentences a person can act on', async () => {
-  assert.equal(messageFor(400, { error: 'role_above_yours' }), 'A token cannot have a higher role than you.');
-  assert.equal(messageFor(400, { error: 'invalid_url', message: 'Use an https URL.' }), 'Use an https URL.');
-  assert.equal(messageFor(400, { error: 'invalid_url' }), 'That address cannot be used for a webhook.');
+  assert.equal(
+    messageFor(400, { error: 'role_above_yours' }),
+    'A token cannot have a higher role than you.',
+  );
+  assert.equal(
+    messageFor(400, { error: 'invalid_url', message: 'Use an https URL.' }),
+    'Use an https URL.',
+  );
+  assert.equal(
+    messageFor(400, { error: 'invalid_url' }),
+    'That address cannot be used for a webhook.',
+  );
   assert.match(messageFor(409, { error: 'too_many_webhooks' }), /too many webhooks/);
   assert.match(messageFor(409, { error: 'too_many_tokens' }), /too many active tokens/);
   assert.match(messageFor(400, { error: 'unknown_app' }), /not in this workspace/);
 
-  const { api } = fake(() => json({ error: 'invalid_url', message: 'That address is not allowed. Use a public https URL.' }, 400));
+  const { api } = fake(() =>
+    json(
+      { error: 'invalid_url', message: 'That address is not allowed. Use a public https URL.' },
+      400,
+    ),
+  );
   await assert.rejects(
     () => api.createWebhook('w1', { url: 'https://10.0.0.1/x', eventTypes: ['*'] }),
-    (error: unknown) => error instanceof ApiError && error.code === 'invalid_url' && /not allowed/.test(error.message),
+    (error: unknown) =>
+      error instanceof ApiError &&
+      error.code === 'invalid_url' &&
+      /not allowed/.test(error.message),
   );
 });

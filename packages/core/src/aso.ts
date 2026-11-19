@@ -30,8 +30,7 @@ export const MAX_NOTES_CHARACTERS = 500;
 // punctuation and symbols, CJK and full-width punctuation, variation selectors and surrogates
 // (emoji outside the BMP). Digits and letters of every script are not in it. An apostrophe is
 // removed first, so `don't` is one word. UNVERIFIED how the stores treat these characters.
-const SEPARATORS =
-  /[\s\u0000-/:-@[-`{-¿×÷ -⁯←-⯿　-〿＀-／：-＠［-｀｛-･︀-️\ud800-\udfff]+/;
+const SEPARATORS = /[\s\u0000-/:-@[-`{-¿×÷ -⁯←-⯿　-〿＀-／：-＠［-｀｛-･︀-️\ud800-\udfff]+/;
 const APOSTROPHES = /['’‘ʼ`]/g;
 const MARKS = /[̀-ͯ]/g;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is refused
@@ -53,7 +52,9 @@ export function foldedWords(text: string): string[] {
   return words(text).map(foldWord);
 }
 
-export type TermCheck = { ok: true; term: string; key: string; words: number } | { ok: false; reason: string };
+export type TermCheck =
+  | { ok: true; term: string; key: string; words: number }
+  | { ok: false; reason: string };
 
 /**
  * A keyword as a person types it. `term` is what is shown (white space collapsed, case kept); `key`
@@ -69,14 +70,18 @@ export function checkTerm(raw: unknown): TermCheck {
     return { ok: false, reason: `A keyword has at most ${MAX_TERM_CHARACTERS} characters.` };
   }
   const parts = foldedWords(term);
-  if (parts.length === 0) return { ok: false, reason: 'A keyword needs at least one letter or digit.' };
-  if (parts.length > MAX_TERM_WORDS) return { ok: false, reason: `A keyword has at most ${MAX_TERM_WORDS} words.` };
+  if (parts.length === 0)
+    return { ok: false, reason: 'A keyword needs at least one letter or digit.' };
+  if (parts.length > MAX_TERM_WORDS)
+    return { ok: false, reason: `A keyword has at most ${MAX_TERM_WORDS} words.` };
   return { ok: true, term, key: parts.join(' '), words: parts.length };
 }
 
 /** A storefront: two letters, lower case. */
 export function normalizeCountry(raw: unknown): string | undefined {
-  return typeof raw === 'string' && /^[A-Za-z]{2}$/.test(raw.trim()) ? raw.trim().toLowerCase() : undefined;
+  return typeof raw === 'string' && /^[A-Za-z]{2}$/.test(raw.trim())
+    ? raw.trim().toLowerCase()
+    : undefined;
 }
 
 /** A language tag such as `en`, `en-US`, `pt-BR`, `zh-Hans-CN`; `_` reads as `-`. */
@@ -98,16 +103,61 @@ export function normalizeLocale(raw: unknown): string | undefined {
       return undefined;
     }
   }
-  return [language.toLowerCase(), script, region].filter((p): p is string => p !== undefined).join('-');
+  return [language.toLowerCase(), script, region]
+    .filter((p): p is string => p !== undefined)
+    .join('-');
 }
 
 const COUNTRY_LOCALE: Record<string, string> = {
-  us: 'en-US', gb: 'en-GB', au: 'en-AU', ca: 'en-CA', ie: 'en-IE', nz: 'en-NZ', in: 'en-IN', za: 'en-ZA', sg: 'en-SG',
-  de: 'de-DE', at: 'de-AT', ch: 'de-CH', fr: 'fr-FR', be: 'nl-BE', nl: 'nl-NL', es: 'es-ES', mx: 'es-MX', ar: 'es-AR',
-  co: 'es-CO', cl: 'es-CL', it: 'it-IT', pt: 'pt-PT', br: 'pt-BR', se: 'sv-SE', no: 'nb-NO', dk: 'da-DK', fi: 'fi-FI',
-  pl: 'pl-PL', cz: 'cs-CZ', hu: 'hu-HU', ro: 'ro-RO', gr: 'el-GR', tr: 'tr-TR', ru: 'ru-RU', ua: 'uk-UA', il: 'he-IL',
-  sa: 'ar-SA', ae: 'ar-AE', eg: 'ar-EG', jp: 'ja-JP', kr: 'ko-KR', cn: 'zh-Hans-CN', tw: 'zh-Hant-TW', hk: 'zh-Hant-HK',
-  th: 'th-TH', vn: 'vi-VN', id: 'id-ID', my: 'ms-MY', ph: 'en-PH',
+  us: 'en-US',
+  gb: 'en-GB',
+  au: 'en-AU',
+  ca: 'en-CA',
+  ie: 'en-IE',
+  nz: 'en-NZ',
+  in: 'en-IN',
+  za: 'en-ZA',
+  sg: 'en-SG',
+  de: 'de-DE',
+  at: 'de-AT',
+  ch: 'de-CH',
+  fr: 'fr-FR',
+  be: 'nl-BE',
+  nl: 'nl-NL',
+  es: 'es-ES',
+  mx: 'es-MX',
+  ar: 'es-AR',
+  co: 'es-CO',
+  cl: 'es-CL',
+  it: 'it-IT',
+  pt: 'pt-PT',
+  br: 'pt-BR',
+  se: 'sv-SE',
+  no: 'nb-NO',
+  dk: 'da-DK',
+  fi: 'fi-FI',
+  pl: 'pl-PL',
+  cz: 'cs-CZ',
+  hu: 'hu-HU',
+  ro: 'ro-RO',
+  gr: 'el-GR',
+  tr: 'tr-TR',
+  ru: 'ru-RU',
+  ua: 'uk-UA',
+  il: 'he-IL',
+  sa: 'ar-SA',
+  ae: 'ar-AE',
+  eg: 'ar-EG',
+  jp: 'ja-JP',
+  kr: 'ko-KR',
+  cn: 'zh-Hans-CN',
+  tw: 'zh-Hant-TW',
+  hk: 'zh-Hant-HK',
+  th: 'th-TH',
+  vn: 'vi-VN',
+  id: 'id-ID',
+  my: 'ms-MY',
+  ph: 'en-PH',
 };
 
 /** The listing locale a storefront most likely uses, for a keyword added without one. `en` for a country not in the list. */
@@ -146,7 +196,14 @@ export function languageOf(locale: string): string {
 /** One rank check: `rank` is the 1-based position, null when the app is not in the first `total` results. */
 export type RankPoint = { rank: number | null; total: number };
 
-export type RankChangeKind = 'first' | 'same' | 'up' | 'down' | 'entered' | 'dropped' | 'still_unranked';
+export type RankChangeKind =
+  | 'first'
+  | 'same'
+  | 'up'
+  | 'down'
+  | 'entered'
+  | 'dropped'
+  | 'still_unranked';
 export type RankChange = {
   kind: RankChangeKind;
   /** Places gained (positive) or lost (negative) when both checks ranked; undefined otherwise. */
@@ -175,8 +232,13 @@ export function rankChange(previous: RankPoint | undefined, current: RankPoint):
  * way. Entering or leaving the results: only when the ranked position is within `edgeTop` (an app
  * that flickers at position 48 and 51 is not news). The first check and "same" never are.
  */
-export function isBigMove(change: RankChange, threshold: number, edgeTop: number = DEFAULT_EDGE_TOP): boolean {
-  if (change.kind === 'up' || change.kind === 'down') return Math.abs(change.delta ?? 0) >= threshold;
+export function isBigMove(
+  change: RankChange,
+  threshold: number,
+  edgeTop: number = DEFAULT_EDGE_TOP,
+): boolean {
+  if (change.kind === 'up' || change.kind === 'down')
+    return Math.abs(change.delta ?? 0) >= threshold;
   if (change.kind === 'entered') return (change.to ?? Number.POSITIVE_INFINITY) <= edgeTop;
   if (change.kind === 'dropped') return (change.from ?? Number.POSITIVE_INFINITY) <= edgeTop;
   return false;
@@ -331,7 +393,8 @@ const byteLength = (s: string) => encoder.encode(s).length;
 
 /** English plural folding only for English: `trackers` matches `tracker`. */
 export function stem(word: string, language: string): string {
-  if (language === 'en' && word.length > 3 && word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
+  if (language === 'en' && word.length > 3 && word.endsWith('s') && !word.endsWith('ss'))
+    return word.slice(0, -1);
   return word;
 }
 
@@ -355,7 +418,12 @@ function countPhrase(haystack: readonly string[], needle: readonly string[]): nu
 }
 
 /** How one keyword sits in the fields of one locale. */
-export function fitKeyword(platform: AsoPlatform, locale: string, fields: FitFields, keyword: FitKeyword): KeywordFit {
+export function fitKeyword(
+  platform: AsoPlatform,
+  locale: string,
+  fields: FitFields,
+  keyword: FitKeyword,
+): KeywordFit {
   const language = languageOf(locale);
   const needle = matchWords(keyword.term, language);
   const unique = Array.from(new Set(needle));
@@ -395,7 +463,13 @@ export function fitKeyword(platform: AsoPlatform, locale: string, fields: FitFie
   };
 }
 
-const STATUS_ORDER: Record<FitStatus, number> = { missing: 0, description_only: 1, partial: 2, covered: 3, strong: 4 };
+const STATUS_ORDER: Record<FitStatus, number> = {
+  missing: 0,
+  description_only: 1,
+  partial: 2,
+  covered: 3,
+  strong: 4,
+};
 
 export type ListingFit = {
   platform: AsoPlatform;
@@ -415,10 +489,15 @@ export function analyzeKeywordField(
 ): KeywordFieldReport {
   const max = options.maxBytes ?? APP_STORE_KEYWORD_BYTES;
   const language = options.language ?? 'en';
-  const terms = value.split(',').map((t) => t.trim()).filter((t) => t !== '');
+  const terms = value
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t !== '');
   const seen = new Set<string>();
   const duplicates: string[] = [];
-  const known = new Set<string>(matchWords(options.title, language).concat(matchWords(options.subtitle, language)));
+  const known = new Set<string>(
+    matchWords(options.title, language).concat(matchWords(options.subtitle, language)),
+  );
   const inTitleOrSubtitle: string[] = [];
   const keep: string[] = [];
   for (const term of terms) {
@@ -466,7 +545,13 @@ export function listingFit(input: {
 }): ListingFit {
   const { platform, locale, fields } = input;
   const keywords = input.keywords.map((k) => fitKeyword(platform, locale, fields, k));
-  const counts: Record<FitStatus, number> = { strong: 0, covered: 0, partial: 0, description_only: 0, missing: 0 };
+  const counts: Record<FitStatus, number> = {
+    strong: 0,
+    covered: 0,
+    partial: 0,
+    description_only: 0,
+    missing: 0,
+  };
   for (const k of keywords) counts[k.status] += 1;
   const rankOf = new Map<string, number | null | undefined>();
   for (const k of input.keywords) rankOf.set(k.id, k.rank);
@@ -516,7 +601,8 @@ const STOP: Record<string, string> = {
 };
 
 const stopSets: Record<string, Set<string>> = {};
-for (const language of Object.keys(STOP)) stopSets[language] = new Set((STOP[language] as string).split(' '));
+for (const language of Object.keys(STOP))
+  stopSets[language] = new Set((STOP[language] as string).split(' '));
 
 /** The languages that have a stop word list. Others are mined without one (only length and digits are filtered). */
 export const STOPWORD_LANGUAGES: readonly string[] = Object.keys(STOP);
@@ -577,7 +663,13 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
     const check = checkTerm(term);
     if (check.ok) excluded.add(check.key);
   }
-  type Entry = { words: string[]; display: string; occurrences: number; score: number; sources: Set<string> };
+  type Entry = {
+    words: string[];
+    display: string;
+    occurrences: number;
+    score: number;
+    sources: Set<string>;
+  };
   const entries = new Map<string, Entry>();
   for (const source of sources.slice(0, MAX_SOURCES)) {
     const weight = source.weight ?? 1;
@@ -593,7 +685,13 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
         const key = folded.slice(i, i + n).join(' ');
         let entry = entries.get(key);
         if (!entry) {
-          entry = { words: folded.slice(i, i + n), display: tokens.slice(i, i + n).join(' '), occurrences: 0, score: 0, sources: new Set() };
+          entry = {
+            words: folded.slice(i, i + n),
+            display: tokens.slice(i, i + n).join(' '),
+            occurrences: 0,
+            score: 0,
+            sources: new Set(),
+          };
           entries.set(key, entry);
         }
         entry.occurrences += 1;
@@ -603,7 +701,10 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
     }
   }
   const kept = Array.from(entries.entries())
-    .filter(([key, e]) => e.occurrences >= minOccurrences && e.sources.size >= minSources && !excluded.has(key))
+    .filter(
+      ([key, e]) =>
+        e.occurrences >= minOccurrences && e.sources.size >= minSources && !excluded.has(key),
+    )
     .map(([key, e]) => ({ key, ...e }));
   // A phrase swallows the shorter ones inside it that occur no more often than it does:
   // "task manager" present everywhere makes "task" and "manager" add nothing.
@@ -611,11 +712,18 @@ export function mineIdeas(sources: readonly IdeaSource[], options: MineOptions =
   const result = kept.filter(
     (e) =>
       !longer.some(
-        (l) => l.words.length > e.words.length && l.occurrences >= e.occurrences && (' ' + l.key + ' ').indexOf(' ' + e.key + ' ') !== -1,
+        (l) =>
+          l.words.length > e.words.length &&
+          l.occurrences >= e.occurrences &&
+          (' ' + l.key + ' ').indexOf(' ' + e.key + ' ') !== -1,
       ),
   );
   result.sort(
-    (a, b) => b.score - a.score || b.sources.size - a.sources.size || b.words.length - a.words.length || a.key.localeCompare(b.key),
+    (a, b) =>
+      b.score - a.score ||
+      b.sources.size - a.sources.size ||
+      b.words.length - a.words.length ||
+      a.key.localeCompare(b.key),
   );
   return result.slice(0, limit).map((e) => ({
     term: e.display,
@@ -696,7 +804,11 @@ export function diffCompetitor(
   text('title');
   text('subtitle');
   text('price');
-  if (previous.descriptionHash != null && next.descriptionHash != null && previous.descriptionHash !== next.descriptionHash) {
+  if (
+    previous.descriptionHash != null &&
+    next.descriptionHash != null &&
+    previous.descriptionHash !== next.descriptionHash
+  ) {
     changes.push({ field: 'description' });
     notable = true;
   }
@@ -705,13 +817,21 @@ export function diffCompetitor(
     notable = true;
   }
   if (!same(previous.screenshotCount, next.screenshotCount) && next.screenshotCount !== undefined) {
-    changes.push({ field: 'screenshots', from: previous.screenshotCount ?? null, to: next.screenshotCount ?? null });
+    changes.push({
+      field: 'screenshots',
+      from: previous.screenshotCount ?? null,
+      to: next.screenshotCount ?? null,
+    });
     notable = true;
   }
   if (previous.ratingMilli != null && next.ratingMilli != null) {
     const d = Math.abs(next.ratingMilli - previous.ratingMilli);
     if (d >= RATING_CHANGE_MILLI) {
-      changes.push({ field: 'rating', from: previous.ratingMilli / 1000, to: next.ratingMilli / 1000 });
+      changes.push({
+        field: 'rating',
+        from: previous.ratingMilli / 1000,
+        to: next.ratingMilli / 1000,
+      });
       if (d >= RATING_NOTABLE_MILLI) notable = true;
     }
   }
@@ -745,7 +865,8 @@ export function decideSnapshot(
   if (!previous) return { store: true, kind: 'first', changes: [], notable: false };
   const { changes, notable } = diffCompetitor(previous, next);
   if (changes.length > 0) return { store: true, kind: 'change', changes, notable };
-  if (now - previous.checkedAt >= heartbeatMs) return { store: true, kind: 'heartbeat', changes: [], notable: false };
+  if (now - previous.checkedAt >= heartbeatMs)
+    return { store: true, kind: 'heartbeat', changes: [], notable: false };
   return { store: false, kind: 'none', changes: [], notable: false };
 }
 
@@ -765,7 +886,13 @@ export type SuggestedCompetitor = {
  */
 export function suggestCompetitors(
   results: readonly { keywordId: string; ids: readonly string[] }[],
-  options: { ownId?: string; exclude?: readonly string[]; topN?: number; minKeywords?: number; limit?: number } = {},
+  options: {
+    ownId?: string;
+    exclude?: readonly string[];
+    topN?: number;
+    minKeywords?: number;
+    limit?: number;
+  } = {},
 ): SuggestedCompetitor[] {
   const topN = options.topN ?? 10;
   const minKeywords = options.minKeywords ?? 2;
@@ -798,14 +925,24 @@ export function suggestCompetitors(
       keywordIds: entry.keywordIds,
     });
   });
-  out.sort((a, b) => b.keywordCount - a.keywordCount || a.averageRank - b.averageRank || a.externalId.localeCompare(b.externalId));
+  out.sort(
+    (a, b) =>
+      b.keywordCount - a.keywordCount ||
+      a.averageRank - b.averageRank ||
+      a.externalId.localeCompare(b.externalId),
+  );
   return out.slice(0, options.limit ?? 20);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Coverage gaps: what competitors use that we do not
 
-export type CompetitorText = { id: string; title?: string; subtitle?: string; description?: string };
+export type CompetitorText = {
+  id: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+};
 
 export type CoverageGap = {
   term: string;
@@ -842,9 +979,16 @@ export function coverageGaps(input: {
     text: [c.title, c.subtitle].filter((x): x is string => typeof x === 'string').join('. '),
     weight: 2,
   }));
-  for (const idea of mineIdeas(headings, { language, minOccurrences: 1, minSources: 2, maxWords: 2, limit: 40 })) {
+  for (const idea of mineIdeas(headings, {
+    language,
+    minOccurrences: 1,
+    minSources: 2,
+    maxWords: 2,
+    limit: 40,
+  })) {
     const check = checkTerm(idea.term);
-    if (check.ok && !candidates.has(check.key)) candidates.set(check.key, { term: idea.term, origin: 'idea' });
+    if (check.ok && !candidates.has(check.key))
+      candidates.set(check.key, { term: idea.term, origin: 'idea' });
   }
   const gaps: CoverageGap[] = [];
   candidates.forEach(({ term, origin }) => {
@@ -852,9 +996,13 @@ export function coverageGaps(input: {
     const inTitle: string[] = [];
     const inDescription: string[] = [];
     for (const c of input.competitors) {
-      const head = matchWords([c.title, c.subtitle].filter((x): x is string => typeof x === 'string').join('. '), language);
+      const head = matchWords(
+        [c.title, c.subtitle].filter((x): x is string => typeof x === 'string').join('. '),
+        language,
+      );
       if (countPhrase(head, needle) > 0) inTitle.push(c.id);
-      else if (c.description && countPhrase(matchWords(c.description, language), needle) > 0) inDescription.push(c.id);
+      else if (c.description && countPhrase(matchWords(c.description, language), needle) > 0)
+        inDescription.push(c.id);
     }
     if (inTitle.length === 0 && inDescription.length === 0) return;
     const ours = fitKeyword(input.platform, input.locale, input.ours, { id: term, term });
@@ -888,7 +1036,14 @@ export type MarketKeyword = {
 export type TermAcrossMarkets = {
   key: string;
   term: string;
-  markets: { country: string; locale: string; id: string; rank: number | null; state: MarketKeyword['state']; checkedAt: number | null }[];
+  markets: {
+    country: string;
+    locale: string;
+    id: string;
+    rank: number | null;
+    state: MarketKeyword['state'];
+    checkedAt: number | null;
+  }[];
   /** The best (lowest) rank over the markets, or null when it ranks nowhere. */
   bestRank: number | null;
 };
@@ -902,11 +1057,22 @@ export function termsAcrossMarkets(items: readonly MarketKeyword[]): TermAcrossM
       row = { key: item.key, term: item.term, markets: [], bestRank: null };
       rows.set(item.key, row);
     }
-    row.markets.push({ country: item.country, locale: item.locale, id: item.id, rank: item.rank, state: item.state, checkedAt: item.checkedAt });
-    if (item.rank !== null && (row.bestRank === null || item.rank < row.bestRank)) row.bestRank = item.rank;
+    row.markets.push({
+      country: item.country,
+      locale: item.locale,
+      id: item.id,
+      rank: item.rank,
+      state: item.state,
+      checkedAt: item.checkedAt,
+    });
+    if (item.rank !== null && (row.bestRank === null || item.rank < row.bestRank))
+      row.bestRank = item.rank;
   }
   const out = Array.from(rows.values());
-  for (const row of out) row.markets.sort((a, b) => a.country.localeCompare(b.country) || a.locale.localeCompare(b.locale));
+  for (const row of out)
+    row.markets.sort(
+      (a, b) => a.country.localeCompare(b.country) || a.locale.localeCompare(b.locale),
+    );
   out.sort((a, b) => a.term.localeCompare(b.term));
   return out;
 }

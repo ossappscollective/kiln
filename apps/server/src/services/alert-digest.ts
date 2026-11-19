@@ -13,8 +13,12 @@ import { queueEmailJob } from './alerts.ts';
 export type DigestSummary = { due: number; sent: number };
 const MAX_ITEMS = 100;
 
-export function renderDigest(items: readonly { title: string; severity: string; count: number }[]): { subject: string; text: string } {
-  const lines = items.map((i) => `- [${i.severity}] ${i.title}${i.count > 1 ? ` (${i.count} times)` : ''}`);
+export function renderDigest(
+  items: readonly { title: string; severity: string; count: number }[],
+): { subject: string; text: string } {
+  const lines = items.map(
+    (i) => `- [${i.severity}] ${i.title}${i.count > 1 ? ` (${i.count} times)` : ''}`,
+  );
   return {
     subject: `Alert digest: ${items.length} alert${items.length === 1 ? '' : 's'}`,
     text: [
@@ -35,7 +39,13 @@ export async function sendDueDigests(db: Database, at: number): Promise<DigestSu
   );
   for (const row of people) {
     const s = toUserSettings(row);
-    if (!digestDue({ mode: s.digest, hour: s.digestHour, timezone: s.timezone, lastAt: s.lastDigestAt }, at)) continue;
+    if (
+      !digestDue(
+        { mode: s.digest, hour: s.digestHour, timezone: s.timezone, lastAt: s.lastDigestAt },
+        at,
+      )
+    )
+      continue;
     summary.due++;
     const workspaceId = String(row.workspace_id);
     const userId = String(row.user_id);
@@ -47,7 +57,13 @@ export async function sendDueDigests(db: Database, at: number): Promise<DigestSu
         [workspaceId, userId, MAX_ITEMS],
       );
       if (pending.length > 0) {
-        const mail = renderDigest(pending.map((p) => ({ title: String(p.title), severity: String(p.severity), count: Number(p.count) })));
+        const mail = renderDigest(
+          pending.map((p) => ({
+            title: String(p.title),
+            severity: String(p.severity),
+            count: Number(p.count),
+          })),
+        );
         const id = randomUUID();
         await tx.execute(
           `INSERT INTO alert_deliveries
@@ -63,7 +79,10 @@ export async function sendDueDigests(db: Database, at: number): Promise<DigestSu
         await queueEmailJob(tx, id, at);
         summary.sent++;
       }
-      await tx.execute('UPDATE alert_user_settings SET last_digest_at = ? WHERE workspace_id = ? AND user_id = ?', [at, workspaceId, userId]);
+      await tx.execute(
+        'UPDATE alert_user_settings SET last_digest_at = ? WHERE workspace_id = ? AND user_id = ?',
+        [at, workspaceId, userId],
+      );
     });
   }
   return summary;

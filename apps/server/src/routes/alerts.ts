@@ -1,18 +1,19 @@
 import { type Action, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
+import { memberRole } from '../services/accounts.ts';
 import { alertChannels, alertSeverities, alertTypeIds } from '../services/alert-catalog.ts';
 import {
-  DEFAULT_INBOX_LIMIT,
-  MAX_DELIVERIES_LIMIT,
-  MAX_INBOX_LIMIT,
   catalogEntries,
+  DEFAULT_INBOX_LIMIT,
   listDeliveries,
   listInbox,
+  MAX_DELIVERIES_LIMIT,
+  MAX_INBOX_LIMIT,
   markRead,
   sendTestAlert,
   unreadCount,
@@ -30,14 +31,18 @@ import {
   setRule,
 } from '../services/alert-prefs.ts';
 import { digestModes } from '../services/alert-time.ts';
-import { memberRole } from '../services/accounts.ts';
-import { type TestLimiter, createTestLimiter } from '../services/credential-tests.ts';
+import { createTestLimiter, type TestLimiter } from '../services/credential-tests.ts';
 
 /** Bodies, exported for the operations registry (services/api-operations-alerts.ts). */
 export const markReadBody = z
-  .object({ ids: z.array(z.string().min(1).max(100)).max(100).optional(), all: z.boolean().optional() })
+  .object({
+    ids: z.array(z.string().min(1).max(100)).max(100).optional(),
+    all: z.boolean().optional(),
+  })
   .strict()
-  .refine((b) => (b.ids !== undefined) !== (b.all === true), { message: 'Give either ids or all: true.' });
+  .refine((b) => (b.ids !== undefined) !== (b.all === true), {
+    message: 'Give either ids or all: true.',
+  });
 export const settingsBody = z
   .object({
     minSeverity: z.enum(alertSeverities).optional(),
@@ -49,14 +54,25 @@ export const settingsBody = z
   })
   .strict();
 export const preferenceBody = z
-  .object({ appId: z.string().min(1).max(100).nullable().optional(), channels: z.array(z.enum(alertChannels)).max(4).nullable() })
+  .object({
+    appId: z.string().min(1).max(100).nullable().optional(),
+    channels: z.array(z.enum(alertChannels)).max(4).nullable(),
+  })
   .strict();
 export const muteBody = z
   .object({
     appId: z.string().min(1).max(100).nullable().optional(),
-    alertType: z.enum(alertTypeIds as unknown as [string, ...string[]]).nullable().optional(),
+    alertType: z
+      .enum(alertTypeIds as unknown as [string, ...string[]])
+      .nullable()
+      .optional(),
     /** Hours from now; leave out to mute until it is turned back on. */
-    hours: z.number().int().min(1).max(24 * 366).optional(),
+    hours: z
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 366)
+      .optional(),
   })
   .strict();
 export const ruleBody = z
@@ -101,12 +117,19 @@ export function alertRoutes(ctx: AlertRoutesContext) {
   };
   const small = bodyLimit({
     maxSize: ALERT_BODY_LIMIT,
-    onError: (c) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
+    onError: (c) =>
+      c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
   });
   const failure = (c: Context<AppEnv>, f: { status: 400 | 404; error: string; message?: string }) =>
     c.json({ error: f.error, ...(f.message ? { message: f.message } : {}) }, f.status);
   const badQuery = (c: Context<AppEnv>, path: string, max: number) =>
-    c.json({ error: 'invalid_request', issues: [{ path, message: `Use a whole number from 1 to ${max}.` }] }, 400);
+    c.json(
+      {
+        error: 'invalid_request',
+        issues: [{ path, message: `Use a whole number from 1 to ${max}.` }],
+      },
+      400,
+    );
 
   // ----- what exists -------------------------------------------------------------------------------------
   app.get('/:workspaceId/alerts/catalog', needs('alerts.read'), async (c) => {
@@ -123,11 +146,26 @@ export function alertRoutes(ctx: AlertRoutesContext) {
 
   // ----- the inbox ---------------------------------------------------------------------------------------------
   app.get('/:workspaceId/alerts/inbox', needs('alerts.read'), async (c) => {
-    const limit = queryInt(c.req.query('limit'), { fallback: DEFAULT_INBOX_LIMIT, max: MAX_INBOX_LIMIT });
+    const limit = queryInt(c.req.query('limit'), {
+      fallback: DEFAULT_INBOX_LIMIT,
+      max: MAX_INBOX_LIMIT,
+    });
     if (limit === undefined) return badQuery(c, 'limit', MAX_INBOX_LIMIT);
     const beforeRaw = c.req.query('before');
-    const before = beforeRaw === undefined || beforeRaw === '' ? undefined : /^[0-9]{1,15}$/.test(beforeRaw) ? Number(beforeRaw) : null;
-    if (before === null) return c.json({ error: 'invalid_request', issues: [{ path: 'before', message: 'Use an epoch milliseconds number.' }] }, 400);
+    const before =
+      beforeRaw === undefined || beforeRaw === ''
+        ? undefined
+        : /^[0-9]{1,15}$/.test(beforeRaw)
+          ? Number(beforeRaw)
+          : null;
+    if (before === null)
+      return c.json(
+        {
+          error: 'invalid_request',
+          issues: [{ path: 'before', message: 'Use an epoch milliseconds number.' }],
+        },
+        400,
+      );
     const result = await listInbox(db, {
       workspaceId: ws(c),
       userId: uid(c),
@@ -148,7 +186,12 @@ export function alertRoutes(ctx: AlertRoutesContext) {
   app.post('/:workspaceId/alerts/inbox/read', needs('alerts.read'), small, async (c) => {
     const body = await parseBody(c, markReadBody);
     if (!body.ok) return body.response;
-    const marked = await markRead(db, { workspaceId: ws(c), userId: uid(c), ...body.data, at: ctx.now() });
+    const marked = await markRead(db, {
+      workspaceId: ws(c),
+      userId: uid(c),
+      ...body.data,
+      at: ctx.now(),
+    });
     return c.json({ marked, unreadCount: await unreadCount(db, ws(c), uid(c)) });
   });
 
@@ -165,22 +208,31 @@ export function alertRoutes(ctx: AlertRoutesContext) {
   app.put('/:workspaceId/alerts/settings', needs('alerts.write'), small, async (c) => {
     const body = await parseBody(c, settingsBody);
     if (!body.ok) return body.response;
-    const done = await saveUserSettings(ctx, { workspaceId: ws(c), userId: uid(c), settings: body.data as never });
+    const done = await saveUserSettings(ctx, {
+      workspaceId: ws(c),
+      userId: uid(c),
+      settings: body.data as never,
+    });
     return done.ok ? c.json({ settings: done.settings }) : failure(c, done);
   });
 
-  app.put('/:workspaceId/alerts/preferences/:alertType', needs('alerts.write'), small, async (c) => {
-    const body = await parseBody(c, preferenceBody);
-    if (!body.ok) return body.response;
-    const done = await setPreference(ctx, {
-      workspaceId: ws(c),
-      userId: uid(c),
-      alertType: param(c, 'alertType'),
-      appId: body.data.appId ?? null,
-      channels: body.data.channels,
-    });
-    return done.ok ? c.json({ preference: done.preference }) : failure(c, done);
-  });
+  app.put(
+    '/:workspaceId/alerts/preferences/:alertType',
+    needs('alerts.write'),
+    small,
+    async (c) => {
+      const body = await parseBody(c, preferenceBody);
+      if (!body.ok) return body.response;
+      const done = await setPreference(ctx, {
+        workspaceId: ws(c),
+        userId: uid(c),
+        alertType: param(c, 'alertType'),
+        appId: body.data.appId ?? null,
+        channels: body.data.channels,
+      });
+      return done.ok ? c.json({ preference: done.preference }) : failure(c, done);
+    },
+  );
 
   app.post('/:workspaceId/alerts/mutes', needs('alerts.write'), small, async (c) => {
     const body = await parseBody(c, muteBody);
@@ -204,12 +256,20 @@ export function alertRoutes(ctx: AlertRoutesContext) {
   app.put('/:workspaceId/alerts/rules/:alertType', needs('alerts.manage'), small, async (c) => {
     const body = await parseBody(c, ruleBody);
     if (!body.ok) return body.response;
-    const done = await setRule(ctx, { workspaceId: ws(c), alertType: param(c, 'alertType'), rule: body.data }, { type: 'user', id: uid(c) });
+    const done = await setRule(
+      ctx,
+      { workspaceId: ws(c), alertType: param(c, 'alertType'), rule: body.data },
+      { type: 'user', id: uid(c) },
+    );
     return done.ok ? c.json({ rule: done.rule }) : failure(c, done);
   });
 
   app.delete('/:workspaceId/alerts/rules/:alertType', needs('alerts.manage'), async (c) => {
-    const done = await resetRule(ctx, { workspaceId: ws(c), alertType: param(c, 'alertType') }, { type: 'user', id: uid(c) });
+    const done = await resetRule(
+      ctx,
+      { workspaceId: ws(c), alertType: param(c, 'alertType') },
+      { type: 'user', id: uid(c) },
+    );
     return done.ok ? c.json({ rule: done.rule }) : failure(c, done);
   });
 
@@ -218,9 +278,14 @@ export function alertRoutes(ctx: AlertRoutesContext) {
     const limit = queryInt(c.req.query('limit'), { fallback: 30, max: MAX_DELIVERIES_LIMIT });
     if (limit === undefined) return badQuery(c, 'limit', MAX_DELIVERIES_LIMIT);
     const workspaceWide = c.req.query('scope') === 'workspace';
-    if (workspaceWide && !can(c.get('role'), 'alerts.manage')) return c.json({ error: 'forbidden' }, 403);
+    if (workspaceWide && !can(c.get('role'), 'alerts.manage'))
+      return c.json({ error: 'forbidden' }, 403);
     return c.json({
-      deliveries: await listDeliveries(db, { workspaceId: ws(c), limit, ...(workspaceWide ? {} : { userId: uid(c) }) }),
+      deliveries: await listDeliveries(db, {
+        workspaceId: ws(c),
+        limit,
+        ...(workspaceWide ? {} : { userId: uid(c) }),
+      }),
     });
   });
 
@@ -231,10 +296,26 @@ export function alertRoutes(ctx: AlertRoutesContext) {
     const wait = limiter.take(ws(c));
     if (wait > 0) {
       c.header('Retry-After', String(wait));
-      return c.json({ error: 'rate_limited', message: `Too many tests. Try again in ${wait} seconds.`, retryAfterSeconds: wait }, 429);
+      return c.json(
+        {
+          error: 'rate_limited',
+          message: `Too many tests. Try again in ${wait} seconds.`,
+          retryAfterSeconds: wait,
+        },
+        429,
+      );
     }
-    const done = await sendTestAlert(ctx, { workspaceId: ws(c), userId: uid(c), role: c.get('role'), channel: body.data.channel });
-    if (!done.ok) return c.json({ error: done.error, ...(done.message ? { message: done.message } : {}) }, done.status);
+    const done = await sendTestAlert(ctx, {
+      workspaceId: ws(c),
+      userId: uid(c),
+      role: c.get('role'),
+      channel: body.data.channel,
+    });
+    if (!done.ok)
+      return c.json(
+        { error: done.error, ...(done.message ? { message: done.message } : {}) },
+        done.status,
+      );
     return c.json({ alertId: done.alertId, deliveries: done.deliveries }, 202);
   });
 

@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount } from './google-auth.ts';
 import { GooglePlayConnector } from './googleplay.ts';
-import { StoreHttp } from './store-http.ts';
 import * as fx from './store.fixtures.ts';
+import { StoreHttp } from './store-http.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.googleKeyPem();
@@ -105,7 +105,9 @@ const tokenFailures: [keyof typeof fx.googleTokenErrors, string, RegExp][] = [
 for (const [name, kind, pattern] of tokenFailures) {
   test(`token exchange failure: ${name} is ${kind}`, async () => {
     const { fake, connector } = setup();
-    fake.clear('POST', TOKEN_PATH).on({ method: 'POST', match: TOKEN_PATH, status: 400, json: fx.googleTokenErrors[name] });
+    fake
+      .clear('POST', TOKEN_PATH)
+      .on({ method: 'POST', match: TOKEN_PATH, status: 400, json: fx.googleTokenErrors[name] });
     await assert.rejects(connector.checkToken(), (e: unknown) => {
       assert.ok(e instanceof StoreError);
       assert.equal(e.kind, kind);
@@ -136,13 +138,17 @@ test('a token response without access_token, or a malformed one, is unexpected',
   for (const route of [{ json: { token_type: 'Bearer' } }, { raw: '<html>' }]) {
     const { fake, connector } = setup();
     fake.clear('POST', TOKEN_PATH).on({ method: 'POST', match: TOKEN_PATH, ...route });
-    await assert.rejects(connector.checkToken(), (e: unknown) => e instanceof StoreError && e.kind === 'unexpected');
+    await assert.rejects(
+      connector.checkToken(),
+      (e: unknown) => e instanceof StoreError && e.kind === 'unexpected',
+    );
   }
 });
 
 test('the key is checked when the connector is built, without echoing it', () => {
   const json = JSON.parse(fx.serviceAccountJson(key.privateKey));
-  json.private_key = '-----BEGIN PRIVATE KEY-----\nbm90IGEga2V5IGF0IGFsbA==\n-----END PRIVATE KEY-----\n';
+  json.private_key =
+    '-----BEGIN PRIVATE KEY-----\nbm90IGEga2V5IGF0IGFsbA==\n-----END PRIVATE KEY-----\n';
   assert.throws(
     () => new GooglePlayConnector({ serviceAccount: JSON.stringify(json), packages: [] }),
     (e: unknown) => {
@@ -152,19 +158,37 @@ test('the key is checked when the connector is built, without echoing it', () =>
       return true;
     },
   );
-  assert.throws(() => parseServiceAccount('nope'), (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input');
+  assert.throws(
+    () => parseServiceAccount('nope'),
+    (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
+  );
   const ec = fx.appleKeyPem().privateKey;
   const wrongType = JSON.stringify({ ...json, private_key: ec });
   assert.throws(
-    () => new GoogleTokenProvider(parseServiceAccount(wrongType), new StoreHttp({ store: 'googleplay' })),
+    () =>
+      new GoogleTokenProvider(
+        parseServiceAccount(wrongType),
+        new StoreHttp({ store: 'googleplay' }),
+      ),
     (e: unknown) => e instanceof StoreError && /not an RSA key/.test(e.message),
   );
 });
 
 test('package names are validated before they reach a URL', () => {
-  for (const bad of ['', 'nodots', '../etc/passwd', 'com.example/../x', 'com.example.1abc', 'a b.c']) {
+  for (const bad of [
+    '',
+    'nodots',
+    '../etc/passwd',
+    'com.example/../x',
+    'com.example.1abc',
+    'a b.c',
+  ]) {
     assert.throws(
-      () => new GooglePlayConnector({ serviceAccount: fx.serviceAccountJson(key.privateKey), packages: [bad] }),
+      () =>
+        new GooglePlayConnector({
+          serviceAccount: fx.serviceAccountJson(key.privateKey),
+          packages: [bad],
+        }),
       (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
       bad,
     );
@@ -178,17 +202,33 @@ test('an edit is opened, read, and deleted again, and never committed', async ()
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: `${EDIT}/tracks`, json: fx.googleTracks });
   await connector.listTracks(PKG);
-  const sequence = fake.calls.filter((c) => c.url.host !== 'oauth2.googleapis.com').map((c) => `${c.method} ${c.url.pathname}`);
+  const sequence = fake.calls
+    .filter((c) => c.url.host !== 'oauth2.googleapis.com')
+    .map((c) => `${c.method} ${c.url.pathname}`);
   assert.deepEqual(sequence, [`POST ${EDITS}`, `GET ${EDIT}/tracks`, `DELETE ${EDIT}`]);
-  assert.ok(fake.calls.every((c) => !c.url.pathname.includes(':commit')), 'no commit');
-  assert.ok(fake.calls.every((c) => c.method === 'GET' || c.method === 'DELETE' || c.url.pathname === EDITS || c.url.host === 'oauth2.googleapis.com'));
+  assert.ok(
+    fake.calls.every((c) => !c.url.pathname.includes(':commit')),
+    'no commit',
+  );
+  assert.ok(
+    fake.calls.every(
+      (c) =>
+        c.method === 'GET' ||
+        c.method === 'DELETE' ||
+        c.url.pathname === EDITS ||
+        c.url.host === 'oauth2.googleapis.com',
+    ),
+  );
   assert.equal(auth(fake.calls[1] as fx.Call), `Bearer ${fx.ACCESS_TOKEN}`);
 });
 
 test('the edit is deleted even when the read fails', async () => {
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: `${EDIT}/tracks`, status: 500, raw: 'oops' });
-  await assert.rejects(connector.listTracks(PKG), (e: unknown) => e instanceof StoreError && e.kind === 'server');
+  await assert.rejects(
+    connector.listTracks(PKG),
+    (e: unknown) => e instanceof StoreError && e.kind === 'server',
+  );
   assert.equal(fake.called('DELETE', EDIT).length, 1);
 });
 
@@ -204,7 +244,14 @@ test('listVersions maps each release on each track', async () => {
   fake.on({ method: 'GET', match: `${EDIT}/tracks`, json: fx.googleTracks });
   const versions = await connector.listVersions(PKG);
   assert.deepEqual(
-    versions.map((v) => [v.track, v.versionString, v.rawState, v.lifecycleState, v.rolloutFraction, v.versionCodes?.join('+')]),
+    versions.map((v) => [
+      v.track,
+      v.versionString,
+      v.rawState,
+      v.lifecycleState,
+      v.rolloutFraction,
+      v.versionCodes?.join('+'),
+    ]),
     [
       ['internal', '2.1.0 (211)', 'completed', 'live', undefined, '211'],
       ['beta', '2.1.0 (211)', 'draft', 'draft', undefined, '211'],
@@ -304,7 +351,10 @@ test('an edit that is invalidated mid-read is retried once with a new edit', asy
 test('an edit that keeps being invalidated gives up', async () => {
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: `${EDIT}/tracks`, status: 404, json: fx.google404Edit });
-  await assert.rejects(connector.listTracks(PKG), (e: unknown) => e instanceof StoreError && e.kind === 'edit_invalid');
+  await assert.rejects(
+    connector.listTracks(PKG),
+    (e: unknown) => e instanceof StoreError && e.kind === 'edit_invalid',
+  );
   assert.equal(fake.called('POST', EDITS).length, 2);
 });
 
@@ -320,7 +370,10 @@ test('a 401 on a cached token mints a new token once and retries', async () => {
 // ---------------------------------------------------------------------------------------------
 // Errors
 
-async function failure(route: Partial<fx.Route> & { status: number }, run: (c: GooglePlayConnector) => Promise<unknown>) {
+async function failure(
+  route: Partial<fx.Route> & { status: number },
+  run: (c: GooglePlayConnector) => Promise<unknown>,
+) {
   const { fake, connector } = setup();
   fake.clear('POST', EDITS).on({ method: 'POST', match: EDITS, ...route });
   let caught: unknown;
@@ -363,28 +416,64 @@ test('404 package not found is not_found', async () => {
 test('429 is waited out by Retry-After, then a rate limit error', async () => {
   const waits: number[] = [];
   const { fake, connector } = setup([PKG], { sleep: async (ms) => void waits.push(ms) });
-  fake.clear('POST', EDITS)
-    .on({ method: 'POST', match: EDITS, status: 429, json: fx.google429Quota, headers: { 'retry-after': '4' }, times: 1 })
+  fake
+    .clear('POST', EDITS)
+    .on({
+      method: 'POST',
+      match: EDITS,
+      status: 429,
+      json: fx.google429Quota,
+      headers: { 'retry-after': '4' },
+      times: 1,
+    })
     .on({ method: 'POST', match: EDITS, json: fx.googleEdit });
   await connector.probeEdit(PKG);
   assert.deepEqual(waits, [4000]);
-  fake.clear('POST', EDITS).on({ method: 'POST', match: EDITS, status: 429, json: fx.google429Quota, headers: { 'retry-after': '90' } });
-  await assert.rejects(connector.probeEdit(PKG), (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 90);
+  fake
+    .clear('POST', EDITS)
+    .on({
+      method: 'POST',
+      match: EDITS,
+      status: 429,
+      json: fx.google429Quota,
+      headers: { 'retry-after': '90' },
+    });
+  await assert.rejects(
+    connector.probeEdit(PKG),
+    (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 90,
+  );
 });
 
 test('a quota error sent as 403 is a rate limit error', async () => {
   const e = await failure(
-    { status: 403, json: { error: { code: 403, message: 'Quota exceeded', errors: [{ reason: 'rateLimitExceeded' }] } } },
+    {
+      status: 403,
+      json: {
+        error: { code: 403, message: 'Quota exceeded', errors: [{ reason: 'rateLimitExceeded' }] },
+      },
+    },
     (c) => c.probeEdit(PKG),
   );
   assert.ok(e instanceof StoreRateLimitError);
 });
 
 test('5xx, malformed JSON and a network failure are typed', async () => {
-  assert.equal((await failure({ status: 503, raw: 'down' }, (c) => c.probeEdit(PKG))).kind, 'server');
-  assert.equal((await failure({ status: 200, raw: '{"id":' }, (c) => c.probeEdit(PKG))).kind, 'unexpected');
-  assert.equal((await failure({ status: 200, json: {} }, (c) => c.probeEdit(PKG))).kind, 'unexpected');
-  const net = await failure({ status: 200, throws: new Error(`ECONNRESET ${fx.ACCESS_TOKEN}`) }, (c) => c.probeEdit(PKG));
+  assert.equal(
+    (await failure({ status: 503, raw: 'down' }, (c) => c.probeEdit(PKG))).kind,
+    'server',
+  );
+  assert.equal(
+    (await failure({ status: 200, raw: '{"id":' }, (c) => c.probeEdit(PKG))).kind,
+    'unexpected',
+  );
+  assert.equal(
+    (await failure({ status: 200, json: {} }, (c) => c.probeEdit(PKG))).kind,
+    'unexpected',
+  );
+  const net = await failure(
+    { status: 200, throws: new Error(`ECONNRESET ${fx.ACCESS_TOKEN}`) },
+    (c) => c.probeEdit(PKG),
+  );
   assert.equal(net.kind, 'network');
 });
 
@@ -400,10 +489,21 @@ test('Google error text that echoes the token is redacted', async () => {
 test('verifyCredentials checks the token and an edit for each configured package', async () => {
   const { fake, connector } = setup([PKG, 'com.example.tea']);
   fake
-    .on({ method: 'POST', match: '/androidpublisher/v3/applications/com.example.tea/edits', json: { id: 'e2' } })
-    .on({ method: 'DELETE', match: '/androidpublisher/v3/applications/com.example.tea/edits/e2', json: {} });
+    .on({
+      method: 'POST',
+      match: '/androidpublisher/v3/applications/com.example.tea/edits',
+      json: { id: 'e2' },
+    })
+    .on({
+      method: 'DELETE',
+      match: '/androidpublisher/v3/applications/com.example.tea/edits/e2',
+      json: {},
+    });
   await connector.verifyCredentials();
   assert.equal(fake.called('POST', EDITS).length, 1);
-  assert.equal(fake.called('POST', '/androidpublisher/v3/applications/com.example.tea/edits').length, 1);
+  assert.equal(
+    fake.called('POST', '/androidpublisher/v3/applications/com.example.tea/edits').length,
+    1,
+  );
   assert.equal(connector.platform, 'android');
 });

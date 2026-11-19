@@ -44,7 +44,7 @@ function assertNoSecrets(error: unknown, fake: fx.FakeFetch) {
   assert.ok(!/eyJ[A-Za-z0-9_-]{8,}\./.test(text), 'no JWT');
 }
 
-test('the JWT follows Apple\'s rules: ES256, kid, iss, aud, lifetime under 20 minutes', async () => {
+test("the JWT follows Apple's rules: ES256, kid, iss, aud, lifetime under 20 minutes", async () => {
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: '/v1/apps?limit=1', json: fx.appleAppsOne });
   await connector.verifyCredentials();
@@ -62,7 +62,12 @@ test('the JWT follows Apple\'s rules: ES256, kid, iss, aud, lifetime under 20 mi
   // The signature is raw r||s (64 bytes), not DER, and verifies with the public key.
   assert.equal(jwt.signature.length, 64);
   assert.ok(
-    verify('sha256', Buffer.from(jwt.signingInput), { key: key.publicKey, dsaEncoding: 'ieee-p1363' }, jwt.signature),
+    verify(
+      'sha256',
+      Buffer.from(jwt.signingInput),
+      { key: key.publicKey, dsaEncoding: 'ieee-p1363' },
+      jwt.signature,
+    ),
   );
   assert.equal(fake.calls[0]?.method, 'GET');
 });
@@ -84,14 +89,21 @@ test('verifyCredentials reads one app only (GET /v1/apps?limit=1) and reports th
   const { fake, connector } = setup();
   fake.on({ method: 'GET', match: '/v1/apps?limit=1', json: fx.appleAppsOne });
   assert.deepEqual(await connector.checkAccess(), { appCount: 431 });
-  assert.deepEqual(fake.calls.map((c) => c.method), ['GET']);
+  assert.deepEqual(
+    fake.calls.map((c) => c.method),
+    ['GET'],
+  );
 });
 
 test('listApps follows links.next across pages', async () => {
   const { fake, connector } = setup();
   fake
     .on({ method: 'GET', match: '/v1/apps?limit=200', json: fx.appleAppsPage1 })
-    .on({ method: 'GET', match: '/v1/apps?cursor=AoJ4g7mg6o4DKzEwNzQ2ODIxOTc2.ANrJC88&limit=2', json: fx.appleAppsPage2 });
+    .on({
+      method: 'GET',
+      match: '/v1/apps?cursor=AoJ4g7mg6o4DKzEwNzQ2ODIxOTc2.ANrJC88&limit=2',
+      json: fx.appleAppsPage2,
+    });
   const apps = await connector.listApps();
   assert.deepEqual(
     apps.map((a) => [a.storeId, a.name, a.bundleId, a.platform]),
@@ -138,7 +150,11 @@ test('paging stops at maxPages', async () => {
 
 test('listVersions reads appVersionState, falls back to appStoreState, skips other platforms', async () => {
   const { fake, connector } = setup();
-  fake.on({ method: 'GET', match: '/v1/apps/10746822401/appStoreVersions?limit=200', json: fx.appleVersions });
+  fake.on({
+    method: 'GET',
+    match: '/v1/apps/10746822401/appStoreVersions?limit=200',
+    json: fx.appleVersions,
+  });
   const versions = await connector.listVersions('10746822401');
   assert.deepEqual(
     versions.map((v) => [v.storeId, v.versionString, v.rawState, v.lifecycleState]),
@@ -158,12 +174,19 @@ test('listBuilds joins the marketing version and maps processing states', async 
   const { fake, connector } = setup();
   fake.on({
     method: 'GET',
-    match: '/v1/builds?filter[app]=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate',
+    match:
+      '/v1/builds?filter[app]=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate',
     json: fx.appleBuilds,
   });
   const builds = await connector.listBuilds('10746822401');
   assert.deepEqual(
-    builds.map((b) => [b.storeId, b.buildNumber, b.versionString, b.processing, b.rawProcessingState]),
+    builds.map((b) => [
+      b.storeId,
+      b.buildNumber,
+      b.versionString,
+      b.processing,
+      b.rawProcessingState,
+    ]),
     [
       ['b-valid', '210', '2.1', 'processed', 'VALID'],
       ['b-processing', '211', '2.1', 'processing', 'PROCESSING'],
@@ -186,12 +209,19 @@ const BUILDS_EXPECTED = [
   ['b-future', '202', '2.0', 'processing', 'SOMETHING_NEW'],
   ['b-nopre', '7', undefined, 'processed', 'VALID'],
 ];
-const BUILDS_PRIMARY = '/v1/builds?filter[app]=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate';
+const BUILDS_PRIMARY =
+  '/v1/builds?filter[app]=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate';
 const BUILDS_MINIMAL = '/v1/apps/10746822401/builds?limit=200';
 const PRERELEASE_PATH =
   '/v1/preReleaseVersions?filter[app]=10746822401&include=builds&limit=200&limit[builds]=50';
 const summarize = (builds: Awaited<ReturnType<AppStoreConnectConnector['listBuilds']>>) =>
-  builds.map((b) => [b.storeId, b.buildNumber, b.versionString, b.processing, b.rawProcessingState]);
+  builds.map((b) => [
+    b.storeId,
+    b.buildNumber,
+    b.versionString,
+    b.processing,
+    b.rawProcessingState,
+  ]);
 
 test('listBuilds: when Apple rejects sort, the message names the parameter and a minimal query is retried', async () => {
   const { fake, connector } = setup();
@@ -216,7 +246,12 @@ test('listBuilds: the rejected parameter is in the error message and in details 
   const { fake, connector } = setup();
   fake
     .on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort })
-    .on({ method: 'GET', match: BUILDS_MINIMAL, status: 400, json: fx.appleParameterError('limit') });
+    .on({
+      method: 'GET',
+      match: BUILDS_MINIMAL,
+      status: 400,
+      json: fx.appleParameterError('limit'),
+    });
   let caught: unknown;
   try {
     await connector.listBuilds('10746822401');
@@ -228,9 +263,15 @@ test('listBuilds: the rejected parameter is in the error message and in details 
   assert.equal(caught.status, 400);
   assert.equal(caught.kind, 'unexpected');
   assert.match(caught.message, /listing the builds of app 10746822401 with HTTP 400/);
-  assert.match(caught.message, /PARAMETER_ERROR\.ILLEGAL: A given parameter is not allowed for this request/);
+  assert.match(
+    caught.message,
+    /PARAMETER_ERROR\.ILLEGAL: A given parameter is not allowed for this request/,
+  );
   assert.match(caught.message, /parameter: limit/);
-  assert.deepEqual(caught.details?.map((d) => [d.code, d.parameter]), [['PARAMETER_ERROR.ILLEGAL', 'limit']]);
+  assert.deepEqual(
+    caught.details?.map((d) => [d.code, d.parameter]),
+    [['PARAMETER_ERROR.ILLEGAL', 'limit']],
+  );
   // Only the two builds requests were made: no second retry loop.
   assert.equal(fake.calls.length, 2);
 });
@@ -259,7 +300,13 @@ test('the structured details are redacted like the message', async () => {
   assert.ok(entry);
   entry.detail = `echoed ${line}`;
   const e = await failure(
-    (f) => f.on({ method: 'GET', match: '/v1/apps/10746822401/appStoreVersions?limit=200', status: 400, json: body }),
+    (f) =>
+      f.on({
+        method: 'GET',
+        match: '/v1/apps/10746822401/appStoreVersions?limit=200',
+        status: 400,
+        json: body,
+      }),
     (c) => c.listVersions('10746822401'),
   );
   assert.ok(!JSON.stringify(e.details).includes(line));
@@ -283,7 +330,12 @@ test('the fallback still returns builds when the pre-release versions are reject
   fake
     .on({ method: 'GET', match: BUILDS_PRIMARY, status: 400, json: fx.apple400Sort })
     .on({ method: 'GET', match: BUILDS_MINIMAL, json: fx.appleBuildsMinimal })
-    .on({ method: 'GET', match: PRERELEASE_PATH, status: 400, json: fx.appleParameterError('include') });
+    .on({
+      method: 'GET',
+      match: PRERELEASE_PATH,
+      status: 400,
+      json: fx.appleParameterError('include'),
+    });
   const builds = await connector.listBuilds('10746822401');
   // Without versions, and without a platform to filter on: every build is kept, none has a version.
   assert.equal(builds.length, 7);
@@ -307,7 +359,8 @@ test('listBuilds follows links.next and keeps the versions that arrive with each
     })
     .on({
       method: 'GET',
-      match: '/v1/builds?cursor=AoJ4g7mg6o4&filter%5Bapp%5D=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate',
+      match:
+        '/v1/builds?cursor=AoJ4g7mg6o4&filter%5Bapp%5D=10746822401&include=preReleaseVersion&limit=200&sort=-uploadedDate',
       json: { data: rest, included: fx.appleBuilds.included.slice(1) },
     });
   const builds = await connector.listBuilds('10746822401');
@@ -319,15 +372,46 @@ test('only parameters that Apple documents for each endpoint are sent, and limit
   // From the "Query Parameters" of each page (see docs/spikes/store-api-conventions.md).
   const documented: Record<string, { params: string[]; sort?: string[]; include?: string[] }> = {
     '/v1/apps': {
-      params: ['limit', 'sort', 'include', 'filter[bundleId]', 'filter[id]', 'filter[name]', 'filter[sku]'],
+      params: [
+        'limit',
+        'sort',
+        'include',
+        'filter[bundleId]',
+        'filter[id]',
+        'filter[name]',
+        'filter[sku]',
+      ],
       sort: ['name', '-name', 'bundleId', '-bundleId', 'sku', '-sku'],
     },
     '/v1/apps/10746822401/appStoreVersions': {
-      params: ['limit', 'include', 'filter[platform]', 'filter[appVersionState]', 'filter[id]', 'filter[versionString]'],
+      params: [
+        'limit',
+        'include',
+        'filter[platform]',
+        'filter[appVersionState]',
+        'filter[id]',
+        'filter[versionString]',
+      ],
     },
     '/v1/builds': {
-      params: ['limit', 'sort', 'include', 'filter[app]', 'filter[id]', 'filter[version]', 'filter[expired]', 'filter[processingState]'],
-      sort: ['version', '-version', 'uploadedDate', '-uploadedDate', 'preReleaseVersion', '-preReleaseVersion'],
+      params: [
+        'limit',
+        'sort',
+        'include',
+        'filter[app]',
+        'filter[id]',
+        'filter[version]',
+        'filter[expired]',
+        'filter[processingState]',
+      ],
+      sort: [
+        'version',
+        '-version',
+        'uploadedDate',
+        '-uploadedDate',
+        'preReleaseVersion',
+        '-preReleaseVersion',
+      ],
       include: ['preReleaseVersion', 'app', 'appStoreVersion', 'buildBetaDetail'],
     },
     '/v1/preReleaseVersions': {
@@ -360,17 +444,23 @@ test('only parameters that Apple documents for each endpoint are sent, and limit
     const rule = documented[call.url.pathname];
     assert.ok(rule, `no documented endpoint ${call.url.pathname}`);
     for (const [name, value] of call.url.searchParams) {
-      assert.ok(rule.params.includes(name), `${call.url.pathname}: ${name} is not a documented parameter`);
-      if (name === 'sort') assert.ok(rule.sort?.includes(value), `${call.url.pathname}: sort=${value}`);
-      if (name === 'include') assert.ok(rule.include?.includes(value), `${call.url.pathname}: include=${value}`);
+      assert.ok(
+        rule.params.includes(name),
+        `${call.url.pathname}: ${name} is not a documented parameter`,
+      );
+      if (name === 'sort')
+        assert.ok(rule.sort?.includes(value), `${call.url.pathname}: sort=${value}`);
+      if (name === 'include')
+        assert.ok(rule.include?.includes(value), `${call.url.pathname}: include=${value}`);
       if (name === 'limit') assert.ok(Number(value) >= 1 && Number(value) <= 200, `limit=${value}`);
-      if (name === 'limit[builds]') assert.ok(Number(value) >= 1 && Number(value) <= 50, `limit[builds]=${value}`);
+      if (name === 'limit[builds]')
+        assert.ok(Number(value) >= 1 && Number(value) <= 50, `limit[builds]=${value}`);
     }
   }
   assert.deepEqual(fake.unexpected, []);
 });
 
-test('pageSize above Apple\'s maximum is clamped to 200', async () => {
+test("pageSize above Apple's maximum is clamped to 200", async () => {
   const fake = new fx.FakeFetch().on({ method: 'GET', match: /.*/, json: { data: [] } });
   const connector = new AppStoreConnectConnector({
     credential: { keyId: fx.KEY_ID, issuerId: fx.ISSUER_ID, privateKey: key.privateKey },
@@ -393,7 +483,10 @@ test('the app id is encoded into the path', async () => {
 // ---------------------------------------------------------------------------------------------
 // Errors
 
-async function failure(setupRoute: (fake: fx.FakeFetch) => void, run: (c: AppStoreConnectConnector) => Promise<unknown>) {
+async function failure(
+  setupRoute: (fake: fx.FakeFetch) => void,
+  run: (c: AppStoreConnectConnector) => Promise<unknown>,
+) {
   const { fake, connector } = setup();
   setupRoute(fake);
   let caught: unknown;
@@ -418,7 +511,7 @@ test('401 is an auth error that says what to check', async () => {
   assert.match(e.message, /Issuer ID/);
 });
 
-test('401 with a clock far from Apple\'s is reported as clock skew, with the size of it', async () => {
+test("401 with a clock far from Apple's is reported as clock skew, with the size of it", async () => {
   const e = await failure(
     (f) =>
       f.on({
@@ -435,7 +528,7 @@ test('401 with a clock far from Apple\'s is reported as clock skew, with the siz
   assert.match(e.message, /NTP/);
 });
 
-test('401 with a clock close to Apple\'s is not clock skew', async () => {
+test("401 with a clock close to Apple's is not clock skew", async () => {
   const e = await failure(
     (f) =>
       f.on({
@@ -496,7 +589,12 @@ test('a 200 that is not JSON is an unexpected error, not a crash', async () => {
 
 test('a network failure is a network error that does not echo the cause', async () => {
   const e = await failure(
-    (f) => f.on({ method: 'GET', match: /.*/, throws: new Error('connect ECONNREFUSED Bearer secret-token-value-123456') }),
+    (f) =>
+      f.on({
+        method: 'GET',
+        match: /.*/,
+        throws: new Error('connect ECONNREFUSED Bearer secret-token-value-123456'),
+      }),
     (c) => c.listApps(),
   );
   assert.equal(e.kind, 'network');
@@ -507,7 +605,14 @@ test('429 is waited out using Retry-After, then succeeds', async () => {
   const waits: number[] = [];
   const { fake, connector } = setup({ sleep: async (ms) => void waits.push(ms) });
   fake
-    .on({ method: 'GET', match: '/v1/apps?limit=1', status: 429, json: fx.apple429, headers: { 'retry-after': '3' }, times: 1 })
+    .on({
+      method: 'GET',
+      match: '/v1/apps?limit=1',
+      status: 429,
+      json: fx.apple429,
+      headers: { 'retry-after': '3' },
+      times: 1,
+    })
     .on({ method: 'GET', match: '/v1/apps?limit=1', json: fx.appleAppsOne });
   assert.deepEqual(await connector.checkAccess(), { appCount: 431 });
   assert.deepEqual(waits, [3000]);
@@ -517,7 +622,13 @@ test('429 is waited out using Retry-After, then succeeds', async () => {
 test('a persistent 429 gives up with StoreRateLimitError and the wait', async () => {
   const waits: number[] = [];
   const { fake, connector } = setup({ sleep: async (ms) => void waits.push(ms) });
-  fake.on({ method: 'GET', match: '/v1/apps?limit=1', status: 429, json: fx.apple429, headers: { 'retry-after': '2' } });
+  fake.on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    status: 429,
+    json: fx.apple429,
+    headers: { 'retry-after': '2' },
+  });
   await assert.rejects(connector.checkAccess(), (e: unknown) => {
     assert.ok(e instanceof StoreRateLimitError);
     assert.equal(e.retryAfterSeconds, 2);
@@ -531,13 +642,26 @@ test('a persistent 429 gives up with StoreRateLimitError and the wait', async ()
 test('a long Retry-After, or none, is not waited out', async () => {
   const waits: number[] = [];
   const { fake, connector } = setup({ sleep: async (ms) => void waits.push(ms) });
-  fake.on({ method: 'GET', match: '/v1/apps?limit=1', status: 429, json: fx.apple429, headers: { 'retry-after': '120' }, times: 1 });
-  await assert.rejects(connector.checkAccess(), (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 120);
+  fake.on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    status: 429,
+    json: fx.apple429,
+    headers: { 'retry-after': '120' },
+    times: 1,
+  });
+  await assert.rejects(
+    connector.checkAccess(),
+    (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 120,
+  );
   assert.equal(fake.calls.length, 1);
   // Apple documents no Retry-After (only a rolling hour): assume 60 seconds, and do not wait.
   const second = setup();
   second.fake.on({ method: 'GET', match: '/v1/apps?limit=1', status: 429, json: fx.apple429 });
-  await assert.rejects(second.connector.checkAccess(), (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 60);
+  await assert.rejects(
+    second.connector.checkAccess(),
+    (e: unknown) => e instanceof StoreRateLimitError && e.retryAfterSeconds === 60,
+  );
   assert.deepEqual(waits, []);
 });
 
@@ -548,7 +672,14 @@ test('error text from Apple that echoes the token is redacted', async () => {
     match: /.*/,
     status: 400,
     json: {
-      errors: [{ status: '400', code: 'PARAMETER_ERROR', title: 'echo: Bearer abcdefghijklmnopqrstuvwxyz0123456789', detail: 'x' }],
+      errors: [
+        {
+          status: '400',
+          code: 'PARAMETER_ERROR',
+          title: 'echo: Bearer abcdefghijklmnopqrstuvwxyz0123456789',
+          detail: 'x',
+        },
+      ],
     },
   });
   // A hostile body: the title has a bearer token shape in it.
@@ -568,16 +699,26 @@ test('the connector can be built from the stored secret', async () => {
     issuerId: fx.ISSUER_ID,
     privateKey: key.privateKey,
   });
-  const fake = new fx.FakeFetch().on({ method: 'GET', match: '/v1/apps?limit=1', json: fx.appleAppsOne });
+  const fake = new fx.FakeFetch().on({
+    method: 'GET',
+    match: '/v1/apps?limit=1',
+    json: fx.appleAppsOne,
+  });
   const connector = AppStoreConnectConnector.fromSecret(secret, { fetch: fake.fetch });
   await connector.verifyCredentials();
   assert.equal(connector.platform, 'ios');
 });
 
 test('malformed secrets and keys are invalid_input, and never echo the key', () => {
-  assert.throws(() => parseAppStoreConnectSecret('not json'), (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input');
   assert.throws(
-    () => parseAppStoreConnectSecret(JSON.stringify({ keyId: fx.KEY_ID, issuerId: '', privateKey: key.privateKey })),
+    () => parseAppStoreConnectSecret('not json'),
+    (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
+  );
+  assert.throws(
+    () =>
+      parseAppStoreConnectSecret(
+        JSON.stringify({ keyId: fx.KEY_ID, issuerId: '', privateKey: key.privateKey }),
+      ),
     (e: unknown) => e instanceof StoreError && /Issuer ID/.test(e.message),
   );
   const broken = key.privateKey.replace(/.{20}$/m, 'garbage');
@@ -593,9 +734,17 @@ test('malformed secrets and keys are invalid_input, and never echo the key', () 
   );
   // An RSA key is not a P-256 key.
   const rsa = fx.googleKeyPem().privateKey;
-  assert.throws(() => loadAppleSigningKey(rsa), (e: unknown) => e instanceof StoreError && /P-256/.test(e.message));
+  assert.throws(
+    () => loadAppleSigningKey(rsa),
+    (e: unknown) => e instanceof StoreError && /P-256/.test(e.message),
+  );
   // A P-384 key is not a P-256 key either.
-  const p384 = generateKeyPairSync('ec', { namedCurve: 'secp384r1' }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
-  assert.throws(() => loadAppleSigningKey(p384), (e: unknown) => e instanceof StoreError && /P-256/.test(e.message));
+  const p384 = generateKeyPairSync('ec', { namedCurve: 'secp384r1' })
+    .privateKey.export({ type: 'pkcs8', format: 'pem' })
+    .toString();
+  assert.throws(
+    () => loadAppleSigningKey(p384),
+    (e: unknown) => e instanceof StoreError && /P-256/.test(e.message),
+  );
   assert.ok(createPrivateKey(key.privateKey));
 });

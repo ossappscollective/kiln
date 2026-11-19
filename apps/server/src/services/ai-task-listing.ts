@@ -1,22 +1,30 @@
 import type { JsonSchema } from '@mrm/connectors';
 import {
-  APP_STORE_FIELD_SPECS,
   type AiFlag,
   type AiListingField,
   type AiListingProposal,
-  PLAY_FIELD_SPECS,
-  STAGEABLE_TEXT_FIELDS,
+  APP_STORE_FIELD_SPECS,
   aiLimits,
   countBytes,
   countCharacters,
   isApplePlatform,
   isStageableTextField,
   normalizeLocale,
+  PLAY_FIELD_SPECS,
   type Platform,
+  STAGEABLE_TEXT_FIELDS,
 } from '@mrm/core';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
-import { type PreparedRun, type ReadyTask, checkScope, cleanGoal, cleanReason, cleanText, clip } from './ai-task-types.ts';
+import {
+  checkScope,
+  cleanGoal,
+  cleanReason,
+  cleanText,
+  clip,
+  type PreparedRun,
+  type ReadyTask,
+} from './ai-task-types.ts';
 import { listKeywords } from './aso.ts';
 import { normalizeListingValue } from './listing-drift.ts';
 
@@ -41,10 +49,20 @@ const IMPROVABLE: Record<'apple' | 'play', readonly string[]> = {
   play: ['title', 'short_description', 'full_description'],
 };
 /** Fields that are one line: a line break in them is white space. */
-export const SINGLE_LINE: readonly string[] = ['keywords', 'title', 'short_description', 'name', 'subtitle'];
-const CONTEXT_FIELDS: Record<'apple' | 'play', readonly string[]> = { apple: ['name', 'subtitle'], play: [] };
+export const SINGLE_LINE: readonly string[] = [
+  'keywords',
+  'title',
+  'short_description',
+  'name',
+  'subtitle',
+];
+const CONTEXT_FIELDS: Record<'apple' | 'play', readonly string[]> = {
+  apple: ['name', 'subtitle'],
+  play: [],
+};
 
-export const improvableFields = (platform: Platform): readonly string[] => IMPROVABLE[isApplePlatform(platform) ? 'apple' : 'play'];
+export const improvableFields = (platform: Platform): readonly string[] =>
+  IMPROVABLE[isApplePlatform(platform) ? 'apple' : 'play'];
 
 const SYSTEM = `You help an app developer improve the text of their own store listing.
 
@@ -70,8 +88,16 @@ const schemaFor = (fields: readonly string[]): JsonSchema => ({
         type: 'object',
         properties: {
           field: { type: 'string', enum: [...fields], description: 'The field this text is for.' },
-          text: { type: 'string', maxLength: 8000, description: 'The improved text, within the limit of the field.' },
-          reason: { type: 'string', maxLength: 400, description: 'One sentence, at most 200 characters.' },
+          text: {
+            type: 'string',
+            maxLength: 8000,
+            description: 'The improved text, within the limit of the field.',
+          },
+          reason: {
+            type: 'string',
+            maxLength: 400,
+            description: 'One sentence, at most 200 characters.',
+          },
         },
         required: ['field', 'text', 'reason'],
         additionalProperties: false,
@@ -82,10 +108,16 @@ const schemaFor = (fields: readonly string[]): JsonSchema => ({
   additionalProperties: false,
 });
 
-type FieldFacts = { field: string; limit: number | null; unit: 'characters' | 'bytes'; current: string | null };
+type FieldFacts = {
+  field: string;
+  limit: number | null;
+  unit: 'characters' | 'bytes';
+  current: string | null;
+};
 type Facts = { platform: Platform; locale: string; fields: FieldFacts[] };
 
-export const measure = (unit: 'characters' | 'bytes', value: string): number => (unit === 'bytes' ? countBytes(value) : countCharacters(value));
+export const measure = (unit: 'characters' | 'bytes', value: string): number =>
+  unit === 'bytes' ? countBytes(value) : countCharacters(value);
 
 /** A keywords text as the stores want it: entries trimmed, empty and repeated ones dropped, joined with a comma. */
 export function normalizeKeywords(text: string): string[] {
@@ -125,9 +157,22 @@ export const listingImproveTask: ReadyTask = {
     ],
   },
   scope: [
-    { name: 'locale', required: true, description: 'The language of the listing text, such as en-US.' },
-    { name: 'fields', required: false, description: 'The fields to improve. Default: all that can be pushed (App Store: description, keywords, promotional_text; Google Play: title, short_description, full_description).' },
-    { name: 'goal', required: false, description: `What you want, in your own words, at most ${aiLimits.maxGoalChars} characters.` },
+    {
+      name: 'locale',
+      required: true,
+      description: 'The language of the listing text, such as en-US.',
+    },
+    {
+      name: 'fields',
+      required: false,
+      description:
+        'The fields to improve. Default: all that can be pushed (App Store: description, keywords, promotional_text; Google Play: title, short_description, full_description).',
+    },
+    {
+      name: 'goal',
+      required: false,
+      description: `What you want, in your own words, at most ${aiLimits.maxGoalChars} characters.`,
+    },
   ],
   system: SYSTEM,
   schema: schemaFor(IMPROVABLE.apple),
@@ -138,27 +183,49 @@ export const listingImproveTask: ReadyTask = {
     const bad = checkScope(listingImproveTask, scope);
     if (bad) return bad;
     const locale = normalizeLocale(scope.locale);
-    if (!locale) return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', { issues: [{ path: 'locale', message: 'A language tag such as en-US.' }] });
+    if (!locale)
+      return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', {
+        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }],
+      });
     const allowed = improvableFields(ctx.app.platform);
     let chosen: string[] = [...allowed];
     if (scope.fields !== undefined) {
-      if (!Array.isArray(scope.fields) || scope.fields.length === 0 || scope.fields.some((f) => typeof f !== 'string')) {
-        return aiFail(400, 'invalid_request', 'Name the fields as a list of text.', { issues: [{ path: 'fields', message: 'A list of field names.' }] });
+      if (
+        !Array.isArray(scope.fields) ||
+        scope.fields.length === 0 ||
+        scope.fields.some((f) => typeof f !== 'string')
+      ) {
+        return aiFail(400, 'invalid_request', 'Name the fields as a list of text.', {
+          issues: [{ path: 'fields', message: 'A list of field names.' }],
+        });
       }
       const named = [...new Set(scope.fields as string[])];
       const unknown = named.filter((f) => !allowed.includes(f));
       if (unknown.length > 0) {
         return aiFail(400, 'invalid_request', 'A field cannot be improved here.', {
-          issues: unknown.map((path) => ({ path: `fields.${path}`, message: `Not a field this task improves. Allowed: ${allowed.join(', ')}.` })),
+          issues: unknown.map((path) => ({
+            path: `fields.${path}`,
+            message: `Not a field this task improves. Allowed: ${allowed.join(', ')}.`,
+          })),
         });
       }
       chosen = allowed.filter((f) => named.includes(f));
     }
     const texts = await loadLocaleTexts(ctx, locale);
     if (!texts) {
-      return aiFail(422, 'no_listing_text', 'No listing text is stored for this language yet. Sync the app or read the repository first.', { field: 'locale' });
+      return aiFail(
+        422,
+        'no_listing_text',
+        'No listing text is stored for this language yet. Sync the app or read the repository first.',
+        { field: 'locale' },
+      );
     }
-    const specs = (isApplePlatform(ctx.app.platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS) as Record<string, { label: string; maxLength?: number; unit: 'characters' | 'bytes' } | undefined>;
+    const specs = (
+      isApplePlatform(ctx.app.platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS
+    ) as Record<
+      string,
+      { label: string; maxLength?: number; unit: 'characters' | 'bytes' } | undefined
+    >;
     const fields: FieldFacts[] = chosen.map((field) => ({
       field,
       limit: specs[field]?.maxLength ?? null,
@@ -170,7 +237,9 @@ export const listingImproveTask: ReadyTask = {
       const value = texts.values.get(field);
       if (value !== undefined) context[field] = clip(value, 200);
     }
-    const tracked = (await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { locale: texts.locale })).slice(0, 50);
+    const tracked = (
+      await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { locale: texts.locale })
+    ).slice(0, 50);
     const goal = cleanGoal(scope.goal, aiLimits.maxGoalChars);
     const input = {
       task: 'listing_improve',
@@ -189,19 +258,27 @@ export const listingImproveTask: ReadyTask = {
       ...(goal ? { developerGoal: goal } : {}),
     };
     const facts: Facts = { platform: ctx.app.platform, locale: texts.locale, fields };
-    return { input, scope: { locale: texts.locale, fields: chosen, ...(goal ? { goal: true } : {}) }, schema: schemaFor(chosen), facts };
+    return {
+      input,
+      scope: { locale: texts.locale, fields: chosen, ...(goal ? { goal: true } : {}) },
+      schema: schemaFor(chosen),
+      facts,
+    };
   },
 
   propose(output, run): AiListingProposal {
     const facts = run.facts as Facts;
-    const answers = (output as { fields: { field: string; text: string; reason: string }[] }).fields;
+    const answers = (output as { fields: { field: string; text: string; reason: string }[] })
+      .fields;
     const seen = new Set<string>();
     const fields: AiListingField[] = [];
     for (const answer of answers) {
       const spec = facts.fields.find((f) => f.field === answer.field);
       if (!spec) continue;
       const flags: AiFlag[] = [];
-      const cleaned = cleanText(String(answer.text), { multiline: SINGLE_LINE.indexOf(spec.field) === -1 });
+      const cleaned = cleanText(String(answer.text), {
+        multiline: SINGLE_LINE.indexOf(spec.field) === -1,
+      });
       if (cleaned.changed) flags.push('cleaned');
       let text = normalizeListingValue(cleaned.text);
       let unit = spec.unit;
@@ -228,13 +305,24 @@ export const listingImproveTask: ReadyTask = {
       seen.add(spec.field);
       if (text === '') refuse('empty');
       if (spec.limit !== null && length > spec.limit) refuse('over_limit');
-      if (spec.current !== null && normalizeListingValue(spec.current) === text) refuse('unchanged');
+      if (spec.current !== null && normalizeListingValue(spec.current) === text)
+        refuse('unchanged');
       if (!isStageableTextField(facts.platform, spec.field)) refuse('not_stageable');
       unit = spec.unit;
-      fields.push({ field: spec.field, text, reason: cleanReason(answer.reason), length, limit: spec.limit, unit, acceptable, flags });
+      fields.push({
+        field: spec.field,
+        text,
+        reason: cleanReason(answer.reason),
+        length,
+        limit: spec.limit,
+        unit,
+        acceptable,
+        flags,
+      });
     }
     return { kind: 'listing_text', locale: facts.locale, fields };
   },
 };
 
-export const listingStageableFields = (platform: Platform): readonly string[] => STAGEABLE_TEXT_FIELDS[platform];
+export const listingStageableFields = (platform: Platform): readonly string[] =>
+  STAGEABLE_TEXT_FIELDS[platform];

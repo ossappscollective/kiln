@@ -10,15 +10,15 @@ a member without the right answers 403. Errors are `{ "error": "<code>", "messag
 
 ## Roles and rules
 
-| Action | Who |
-| --- | --- |
-| See the member list (`members.read`) | owner, admin, member |
-| Invite, revoke, change roles, remove others (`members.manage`) | owner, admin |
-| Invite an `admin` | owner only |
-| Invite an `owner` | nobody (the role is not accepted) |
-| Change roles / remove | owners: anyone. Admins: members and viewers only, to member or viewer |
-| Remove yourself | anyone, except the last owner |
-| Demote or remove the last owner | nobody: 409 `last_owner` |
+| Action                                                         | Who                                                                   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| See the member list (`members.read`)                           | owner, admin, member                                                  |
+| Invite, revoke, change roles, remove others (`members.manage`) | owner, admin                                                          |
+| Invite an `admin`                                              | owner only                                                            |
+| Invite an `owner`                                              | nobody (the role is not accepted)                                     |
+| Change roles / remove                                          | owners: anyone. Admins: members and viewers only, to member or viewer |
+| Remove yourself                                                | anyone, except the last owner                                         |
+| Demote or remove the last owner                                | nobody: 409 `last_owner`                                              |
 
 The rules live in `packages/core/src/members.ts`; the UI uses the same functions.
 

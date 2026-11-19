@@ -1,11 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import {
+  redactSecrets,
+  type StoreConnector,
+  StoreError,
+  type StoreListing,
+  StoreRateLimitError,
+  secretStrings,
+} from '@mrm/connectors';
+import {
   type ActorType,
   compareAgeRating,
   compareCategories,
   compareDetails,
   compareMedia,
   comparePrivacy,
+  isGooglePlatform,
   type ListingSectionName,
   type ListingSections,
   type Platform,
@@ -15,25 +24,16 @@ import {
   sectionFromText,
   sectionOfField,
   sectionToText,
-  isGooglePlatform,
 } from '@mrm/core';
-import {
-  redactSecrets,
-  secretStrings,
-  StoreError,
-  StoreRateLimitError,
-  type StoreConnector,
-  type StoreListing,
-} from '@mrm/connectors';
 import type { Database, Sql } from '@mrm/db';
 import {
   ABSENT_HASH,
   classifyDrift,
+  DEFAULT_FALLBACK_LOCALE,
   type DriftField,
   type DriftLocale,
   type DriftSide,
   type DriftSummary,
-  DEFAULT_FALLBACK_LOCALE,
   emptySide,
   fieldKey,
   fieldSpec,
@@ -95,7 +95,9 @@ function parseWarnings(raw: unknown): string[] {
   if (typeof raw !== 'string') return [];
   try {
     const value: unknown = JSON.parse(raw);
-    return Array.isArray(value) ? value.filter((w): w is string => typeof w === 'string').slice(0, MAX_WARNINGS) : [];
+    return Array.isArray(value)
+      ? value.filter((w): w is string => typeof w === 'string').slice(0, MAX_WARNINGS)
+      : [];
   } catch {
     return [];
   }
@@ -157,7 +159,11 @@ export async function updateListingStatus(
 }
 
 /** Removes everything the listing history holds for an app (when the app is deleted). */
-export async function deleteListingData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
+export async function deleteListingData(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<void> {
   await sql.execute('DELETE FROM listing_snapshots WHERE app_id = ? AND workspace_id = ?', [
     appId,
     workspaceId,
@@ -230,7 +236,8 @@ async function streamHashes(
     [meta.workspaceId, meta.app.id, meta.source, meta.channel, SECTION_LOCALE],
   );
   const latest = new Map<string, string>();
-  for (const r of rows) latest.set(fieldKey(String(r.locale), String(r.field)), String(r.value_hash));
+  for (const r of rows)
+    latest.set(fieldKey(String(r.locale), String(r.field)), String(r.value_hash));
   return latest;
 }
 
@@ -357,7 +364,8 @@ class ListingTimeout extends Error {}
 function describeFailure(error: unknown, secret: string): string {
   const clean = (text: string) =>
     redactSecrets(text, secret ? secretStrings(secret) : []).slice(0, MAX_ERROR_LENGTH);
-  if (error instanceof ListingTimeout) return 'The store did not answer in time while reading the listing.';
+  if (error instanceof ListingTimeout)
+    return 'The store did not answer in time while reading the listing.';
   if (error instanceof StoreRateLimitError) return clean(error.message);
   if (error instanceof StoreError) return clean(error.message);
   return 'The listing could not be read. Try again in a moment.';
@@ -489,7 +497,12 @@ export async function syncListing(
       }
       const warnings = read.warnings
         .slice(0, MAX_WARNINGS)
-        .map((w) => redactSecrets(w, input.secret ? secretStrings(input.secret) : []).slice(0, MAX_WARNING_LENGTH));
+        .map((w) =>
+          redactSecrets(w, input.secret ? secretStrings(input.secret) : []).slice(
+            0,
+            MAX_WARNING_LENGTH,
+          ),
+        );
       await updateListingStatus(tx, workspaceId, app.id, {
         listing_read_at: at,
         listing_error: null,
@@ -568,13 +581,17 @@ async function loadValues(
 }
 
 /** The newest row of each field among the rows the predicate keeps (the input is oldest first). */
-function newestPer(rows: readonly IndexRow[], keep: (r: IndexRow) => boolean): Map<string, IndexRow> {
+function newestPer(
+  rows: readonly IndexRow[],
+  keep: (r: IndexRow) => boolean,
+): Map<string, IndexRow> {
   const latest = new Map<string, IndexRow>();
   for (const r of rows) if (keep(r)) latest.set(fieldKey(r.locale, r.field), r);
   return latest;
 }
 
-const isPresent = (r: IndexRow | undefined): r is IndexRow => r !== undefined && r.hash !== ABSENT_HASH;
+const isPresent = (r: IndexRow | undefined): r is IndexRow =>
+  r !== undefined && r.hash !== ABSENT_HASH;
 
 // ---------------------------------------------------------------------------------------------
 // Sections (categories, age rating, privacy, media, details, release notes)
@@ -607,7 +624,12 @@ async function loadSections(
     }
     const value = sectionFromText(name, str(r.value));
     // A stored text that is not a section any more (a newer server wrote it) reads as not read.
-    latest.set(key, value === undefined ? null : { value, observedAt: Number(r.observed_at), sourceRef: str(r.source_ref) });
+    latest.set(
+      key,
+      value === undefined
+        ? null
+        : { value, observedAt: Number(r.observed_at), sourceRef: str(r.source_ref) },
+    );
   }
   const present = new Map<string, SectionRow>();
   for (const [key, row] of latest) if (row) present.set(key, row);
@@ -624,7 +646,14 @@ function sectionsOf(
   channel: string,
 ): ListingSections {
   const out: Record<string, unknown> = {};
-  for (const name of ['categories', 'ageRating', 'privacy', 'media', 'details', 'releaseNotes'] as const) {
+  for (const name of [
+    'categories',
+    'ageRating',
+    'privacy',
+    'media',
+    'details',
+    'releaseNotes',
+  ] as const) {
     const row = all.get(sectionKey(source, channel, name));
     if (row) out[name] = row.value;
   }
@@ -706,7 +735,9 @@ export async function getLiveListing(
   ]);
   const channels: { name: 'live' | 'editable'; rows: IndexRow[] }[] = [];
   for (const name of ['live', 'editable'] as const) {
-    const rows = [...newestPer(index, (r) => r.source === 'store' && r.channel === name).values()].filter(isPresent);
+    const rows = [
+      ...newestPer(index, (r) => r.source === 'store' && r.channel === name).values(),
+    ].filter(isPresent);
     if (rows.length > 0) channels.push({ name, rows });
   }
   const values = await loadValues(
@@ -796,7 +827,10 @@ export function compareSection(
   const r = repo === null ? undefined : repo;
   switch (name) {
     case 'categories':
-      return compareCategories(s as ListingSections['categories'], r as ListingSections['categories']);
+      return compareCategories(
+        s as ListingSections['categories'],
+        r as ListingSections['categories'],
+      );
     case 'ageRating':
       return compareAgeRating(s as ListingSections['ageRating'], r as ListingSections['ageRating']);
     case 'privacy':
@@ -810,7 +844,9 @@ export function compareSection(
         ? { status: 'not-read', details: [] }
         : {
             status: 'not-comparable',
-            details: ['Release notes of the tracks are shown as the store has them; the repository\'s changelogs are not compared.'],
+            details: [
+              "Release notes of the tracks are shown as the store has them; the repository's changelogs are not compared.",
+            ],
           };
   }
 }
@@ -869,7 +905,14 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
     if (isPresent(r) && r.locale !== DEFAULT_FALLBACK_LOCALE) locales.add(r.locale);
   }
 
-  type Picked = { locale: string; field: string; repo?: IndexRow; db?: IndexRow; live?: IndexRow; repoKey: string };
+  type Picked = {
+    locale: string;
+    field: string;
+    repo?: IndexRow;
+    db?: IndexRow;
+    live?: IndexRow;
+    repoKey: string;
+  };
   const picked: Picked[] = [];
   for (const locale of [...locales].sort((a, b) => a.localeCompare(b))) {
     for (const field of listingFieldsFor(platform)) {
@@ -1046,6 +1089,7 @@ export async function getHistory(
       observedAt: Number(r.observed_at),
       actor: r.actor_type ? { type: String(r.actor_type), id: String(r.actor_id ?? '') } : null,
     })),
-    nextCursor: rows.length > options.limit && last ? `${Number(last.observed_at)}:${String(last.id)}` : null,
+    nextCursor:
+      rows.length > options.limit && last ? `${Number(last.observed_at)}:${String(last.id)}` : null,
   };
 }

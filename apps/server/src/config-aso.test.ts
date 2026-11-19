@@ -22,7 +22,12 @@ test('ASO is off by default, Google Play is off, and the limits are conservative
 });
 
 test('blank values mean the default', () => {
-  const c = load({ MRM_ASO_INTERVAL_MINUTES: '', MRM_ASO_PLAY_UNOFFICIAL_ENABLED: '', MRM_ASO_RETENTION_DAYS: '', MRM_ASO_CACHE_MINUTES: '' });
+  const c = load({
+    MRM_ASO_INTERVAL_MINUTES: '',
+    MRM_ASO_PLAY_UNOFFICIAL_ENABLED: '',
+    MRM_ASO_RETENTION_DAYS: '',
+    MRM_ASO_CACHE_MINUTES: '',
+  });
   assert.equal(c.asoIntervalMinutes, 0);
   assert.equal(c.asoPlayUnofficialEnabled, false);
   assert.equal(c.asoRetentionDays, 365);
@@ -42,7 +47,11 @@ test('Google Play is only on for exactly true', () => {
   assert.equal(load({ MRM_ASO_PLAY_UNOFFICIAL_ENABLED: 'true' }).asoPlayUnofficialEnabled, true);
   assert.equal(load({ MRM_ASO_PLAY_UNOFFICIAL_ENABLED: 'false' }).asoPlayUnofficialEnabled, false);
   for (const bad of ['1', 'yes', 'TRUE', 'on']) {
-    assert.throws(() => load({ MRM_ASO_PLAY_UNOFFICIAL_ENABLED: bad }), /MRM_ASO_PLAY_UNOFFICIAL_ENABLED/, bad);
+    assert.throws(
+      () => load({ MRM_ASO_PLAY_UNOFFICIAL_ENABLED: bad }),
+      /MRM_ASO_PLAY_UNOFFICIAL_ENABLED/,
+      bad,
+    );
   }
 });
 
@@ -65,5 +74,6 @@ test('the other ASO values are checked against their ranges', () => {
     ['MRM_ASO_PLAY_CALLS_PER_MINUTE', '0'],
     ['MRM_ASO_HEARTBEAT_DAYS', '91'],
   ];
-  for (const [name, value] of bad) assert.throws(() => load({ [name]: value }), new RegExp(name), `${name}=${value}`);
+  for (const [name, value] of bad)
+    assert.throws(() => load({ [name]: value }), new RegExp(name), `${name}=${value}`);
 });

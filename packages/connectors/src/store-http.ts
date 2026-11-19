@@ -1,4 +1,4 @@
-import { redactSecrets, type StoreName, StoreError, StoreRateLimitError } from './errors.ts';
+import { redactSecrets, StoreError, type StoreName, StoreRateLimitError } from './errors.ts';
 
 /**
  * The HTTP plumbing both store connectors share: one injected `fetch`, a timeout, JSON that may
@@ -179,7 +179,12 @@ export class StoreHttp {
     const declared = Number(response.headers.get('content-length'));
     if (ok && Number.isFinite(declared) && declared > cap) {
       await response.body?.cancel().catch(() => undefined);
-      throw new StoreError(this.store, 'too_large', `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`, response.status);
+      throw new StoreError(
+        this.store,
+        'too_large',
+        `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`,
+        response.status,
+      );
     }
     const chunks: Uint8Array[] = [];
     let total = 0;
@@ -193,7 +198,12 @@ export class StoreHttp {
           if (total > cap) {
             await reader.cancel().catch(() => undefined);
             if (ok) {
-              throw new StoreError(this.store, 'too_large', `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`, response.status);
+              throw new StoreError(
+                this.store,
+                'too_large',
+                `The file from ${hostOf(url)} is larger than the limit of ${cap} bytes.`,
+                response.status,
+              );
             }
             // An error document longer than the cap: keep what fits.
             chunks.push(value.subarray(0, value.byteLength - (total - cap)));
@@ -221,9 +231,17 @@ export class StoreHttp {
   }
 
   /** One `fetch` with the timeout and the same plain error messages as `send`. */
-  async #fetchOnce(method: string, url: string, headers: Record<string, string>): Promise<Response> {
+  async #fetchOnce(
+    method: string,
+    url: string,
+    headers: Record<string, string>,
+  ): Promise<Response> {
     try {
-      return await this.#fetch(url, { method, headers, signal: AbortSignal.timeout(this.#timeoutMs) });
+      return await this.#fetch(url, {
+        method,
+        headers,
+        signal: AbortSignal.timeout(this.#timeoutMs),
+      });
     } catch (error) {
       const name = error instanceof Error ? error.name : '';
       const timedOut = name === 'TimeoutError' || name === 'AbortError';
@@ -260,7 +278,9 @@ export class StoreHttp {
       response = await this.#fetch(url, {
         method,
         headers,
-        ...(body !== undefined ? { body: body as unknown as ConstructorParameters<typeof Response>[0] } : {}),
+        ...(body !== undefined
+          ? { body: body as unknown as ConstructorParameters<typeof Response>[0] }
+          : {}),
         signal: AbortSignal.timeout(this.#timeoutMs),
       });
     } catch (error) {

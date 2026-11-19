@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import {
   BRANCH,
   git,
-  scratch,
-  setup,
   SSH_KEYGEN,
   SUBTITLE,
+  scratch,
+  setup,
   snapshot,
   sshKey,
   sshVerifies,
@@ -16,9 +16,9 @@ import {
 import {
   createBranchCommit,
   fixupBranchCommit,
+  type GitSigning,
   parseWorktreeBranches,
   readBranchFiles,
-  type GitSigning,
 } from './services/local-git.ts';
 
 /**
@@ -64,7 +64,8 @@ const fix = (s: Setup, tip: string, over: Partial<Parameters<typeof fixupBranchC
   });
 
 test('parseWorktreeBranches reads the branch lines of the porcelain output', () => {
-  const out = 'worktree /a\nHEAD abc\nbranch refs/heads/main\n\nworktree /b\nHEAD def\nbranch refs/heads/mrm/x\n\nworktree /c\nHEAD 123\ndetached\n';
+  const out =
+    'worktree /a\nHEAD abc\nbranch refs/heads/main\n\nworktree /b\nHEAD def\nbranch refs/heads/mrm/x\n\nworktree /c\nHEAD 123\ndetached\n';
   assert.deepEqual(parseWorktreeBranches(out), ['main', 'mrm/x']);
 });
 
@@ -83,15 +84,26 @@ test('a fix up is one commit on the old tip; the ref moves forward with the old 
   assert.equal(git(s.dir, 'diff', '--name-only', tip, done.commit), PATH);
   assert.equal(git(s.dir, 'log', '-1', '--format=%an <%ae>', done.commit), 'Ada <ada@example.com>');
   const after = snapshot(s.dir);
-  assert.deepEqual({ ...after, refs: '' }, { ...before, refs: '' }, 'status, HEAD, index, config, hooks and files are byte-identical');
+  assert.deepEqual(
+    { ...after, refs: '' },
+    { ...before, refs: '' },
+    'status, HEAD, index, config, hooks and files are byte-identical',
+  );
   const writes = s.wrapper.calls().filter((c) => /update-ref/.test(c.args));
   assert.ok(writes.at(-1)?.args.endsWith(` ${done.commit} ${tip}`), 'update-ref <ref> <new> <old>');
-  assert.equal(s.wrapper.calls().some((c) => /--force|reset|checkout|rebase|--amend|push/.test(c.args)), false);
+  assert.equal(
+    s.wrapper.calls().some((c) => /--force|reset|checkout|rebase|--amend|push/.test(c.args)),
+    false,
+  );
   // A second fix up needs the new tip.
   const stale = await fix(s, tip, { changes: [{ path: PATH, content: 'Third\n' }] });
   assert.equal(stale.ok, false);
   if (!stale.ok) assert.equal(stale.code, 'branch_moved');
-  assert.equal(git(s.dir, 'rev-parse', `refs/heads/${BRANCH}`), done.commit, 'the ref was not touched');
+  assert.equal(
+    git(s.dir, 'rev-parse', `refs/heads/${BRANCH}`),
+    done.commit,
+    'the ref was not touched',
+  );
 });
 
 test('branch_moved: the tip is not the one that was read; nothing is written, not even an object for the ref', async () => {
@@ -111,7 +123,13 @@ test('a branch that is checked out (HEAD or a linked worktree) or being rebased 
   const head = await fix(s, tip);
   assert.equal(head.ok, false);
   if (!head.ok) assert.equal(head.code, 'branch_checked_out');
-  const read = await readBranchFiles({ gitPath: s.wrapper.path, path: s.dir, roots: s.roots, branch: BRANCH, paths: [PATH] });
+  const read = await readBranchFiles({
+    gitPath: s.wrapper.path,
+    path: s.dir,
+    roots: s.roots,
+    branch: BRANCH,
+    paths: [PATH],
+  });
   assert.equal(read.ok, false);
   git(s.dir, 'checkout', '-q', 'main');
   const wt = join(scratch(), 'wt');
@@ -152,11 +170,25 @@ test('refused: the default branch of the clone is another branch, but a bad name
 
 test('a file can be added and deleted by a fix up, and a text file is read back byte for byte', async () => {
   const { s, tip } = await withBranch();
-  const done = await fix(s, tip, { changes: [{ path: 'fastlane/metadata/en-US/keywords.txt', content: 'a,b\r\nc\n' }, { path: 'fastlane/metadata/de-DE/subtitle.txt' }] });
+  const done = await fix(s, tip, {
+    changes: [
+      { path: 'fastlane/metadata/en-US/keywords.txt', content: 'a,b\r\nc\n' },
+      { path: 'fastlane/metadata/de-DE/subtitle.txt' },
+    ],
+  });
   assert.equal(done.ok, true, JSON.stringify(done));
   if (!done.ok) return;
-  assert.equal(git(s.dir, 'ls-tree', '--name-only', done.commit, 'fastlane/metadata/de-DE/subtitle.txt'), '');
-  const read = await readBranchFiles({ gitPath: s.wrapper.path, path: s.dir, roots: s.roots, branch: BRANCH, paths: ['fastlane/metadata/en-US/keywords.txt', 'fastlane/metadata/de-DE/subtitle.txt'] });
+  assert.equal(
+    git(s.dir, 'ls-tree', '--name-only', done.commit, 'fastlane/metadata/de-DE/subtitle.txt'),
+    '',
+  );
+  const read = await readBranchFiles({
+    gitPath: s.wrapper.path,
+    path: s.dir,
+    roots: s.roots,
+    branch: BRANCH,
+    paths: ['fastlane/metadata/en-US/keywords.txt', 'fastlane/metadata/de-DE/subtitle.txt'],
+  });
   assert.equal(read.ok, true);
   if (!read.ok) return;
   assert.equal(read.tip, done.commit);
@@ -172,23 +204,45 @@ test('no hook fires and a hostile config runs nothing', async () => {
   writeFileSync(join(s.dir, '.gitattributes'), '* filter=evil\n');
   git(s.dir, 'add', '.gitattributes');
   git(s.dir, 'commit', '-q', '-m', 'attrs');
-  for (const name of ['pre-commit', 'post-commit', 'commit-msg', 'reference-transaction', 'pre-push', 'post-index-change']) {
+  for (const name of [
+    'pre-commit',
+    'post-commit',
+    'commit-msg',
+    'reference-transaction',
+    'pre-push',
+    'post-index-change',
+  ]) {
     writeFileSync(join(hooksDir, name), `#!/bin/sh\n${touch}\n`);
     chmodSync(join(hooksDir, name), 0o755);
   }
-  for (const [key, value] of [['core.fsmonitor', touch], ['filter.evil.clean', touch], ['filter.evil.smudge', touch], ['filter.evil.required', 'true'], ['core.editor', touch], ['gpg.program', touch], ['commit.gpgsign', 'true']]) {
+  for (const [key, value] of [
+    ['core.fsmonitor', touch],
+    ['filter.evil.clean', touch],
+    ['filter.evil.smudge', touch],
+    ['filter.evil.required', 'true'],
+    ['core.editor', touch],
+    ['gpg.program', touch],
+    ['commit.gpgsign', 'true'],
+  ]) {
     git(s.dir, 'config', key as string, value as string);
   }
   const done = await fix(s, tip);
   assert.equal(done.ok, true, JSON.stringify(done));
   assert.equal(existsSync(marker), false, 'nothing from the repository ran');
-  if (done.ok) assert.equal(git(s.dir, 'cat-file', '-p', done.commit).includes('gpgsig'), false, 'the repository config cannot make it sign');
+  if (done.ok)
+    assert.equal(
+      git(s.dir, 'cat-file', '-p', done.commit).includes('gpgsig'),
+      false,
+      'the repository config cannot make it sign',
+    );
 });
 
 const NO_SSH = SSH_KEYGEN ? undefined : 'ssh-keygen is not installed';
 const sshSigning = (key: string, program: string): GitSigning => ({ format: 'ssh', key, program });
 
-test('signing: with the server key the fix up commit is signed; a failing signer leaves the ref where it was', { skip: NO_SSH }, async () => {
+test('signing: with the server key the fix up commit is signed; a failing signer leaves the ref where it was', {
+  skip: NO_SSH,
+}, async () => {
   const { s, tip } = await withBranch();
   const k = sshKey();
   const done = await fix(s, tip, { signing: sshSigning(k.key, SSH_KEYGEN ?? '') });
@@ -197,16 +251,29 @@ test('signing: with the server key the fix up commit is signed; a failing signer
   assert.deepEqual(done.signature, { format: 'ssh' });
   assert.equal(sshVerifies(s.dir, done.commit, k.signers), true);
   assert.equal(git(s.dir, 'rev-parse', `${done.commit}^`), tip);
-  const broken = await fix(s, done.commit, { changes: [{ path: PATH, content: 'Again\n' }], signing: sshSigning(join(s.base, 'no-such-key'), SSH_KEYGEN ?? '') });
+  const broken = await fix(s, done.commit, {
+    changes: [{ path: PATH, content: 'Again\n' }],
+    signing: sshSigning(join(s.base, 'no-such-key'), SSH_KEYGEN ?? ''),
+  });
   assert.equal(broken.ok, false);
   if (!broken.ok) assert.equal(broken.code, 'signing_failed');
-  assert.equal(git(s.dir, 'rev-parse', `refs/heads/${BRANCH}`), done.commit, 'unsigned commits are never written when signing was asked for');
+  assert.equal(
+    git(s.dir, 'rev-parse', `refs/heads/${BRANCH}`),
+    done.commit,
+    'unsigned commits are never written when signing was asked for',
+  );
 });
 
 test('the repository text is read from the branch, not from the working tree', async () => {
   const { s } = await withBranch();
   writeFileSync(join(s.dir, PATH), 'working tree edit\n');
-  const read = await readBranchFiles({ gitPath: s.wrapper.path, path: s.dir, roots: s.roots, branch: BRANCH, paths: [PATH] });
+  const read = await readBranchFiles({
+    gitPath: s.wrapper.path,
+    path: s.dir,
+    roots: s.roots,
+    branch: BRANCH,
+    paths: [PATH],
+  });
   assert.equal(read.ok, true);
   if (read.ok) assert.equal(read.texts.get(PATH), 'New subtitle\n');
 });

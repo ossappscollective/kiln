@@ -1,4 +1,4 @@
-import { type Role, can } from '@mrm/core';
+import { can, type Role } from '@mrm/core';
 import { ApiError } from './api.ts';
 import type { Review, ReviewStore } from './reviews.ts';
 
@@ -15,7 +15,8 @@ import type { Review, ReviewStore } from './reviews.ts';
 export const REPLY_ENV = 'MRM_REVIEW_REPLY_ENABLED';
 
 /** The sentence the confirmation must show, word for word. */
-export const PUBLIC_WARNING = 'This will be published publicly in the store and cannot be recalled by this tool.';
+export const PUBLIC_WARNING =
+  'This will be published publicly in the store and cannot be recalled by this tool.';
 
 export type ReplyStatus = 'draft' | 'sending' | 'sent' | 'failed' | 'unknown';
 
@@ -52,7 +53,14 @@ export type ReplyConfig = {
   templates: { max: number; placeholders: string[] };
 };
 
-export type ReplyTemplate = { id: string; name: string; body: string; createdBy: string; createdAt: number; updatedAt: number };
+export type ReplyTemplate = {
+  id: string;
+  name: string;
+  body: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+};
 
 export type SendReplyResult = { reply: ReplyDraft; review: Review; confirmedByReread: boolean };
 
@@ -63,23 +71,40 @@ export type SendReplyResult = { reply: ReplyDraft; review: Review; confirmedByRe
 export const normalizeReplyText = (value: string): string => value.replace(/\r\n?/g, '\n').trim();
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-const CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
+const CONTROL =
+  /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
 const MARKUP = /<\/?[A-Za-z!][^>]*>/;
 
 export type ReplyProblem = 'empty' | 'too_long' | 'control_characters' | 'markup';
 
 /** The same plain-text rules as the server, to explain a problem before a request. The server decides. */
-export function checkReply(text: string, limit: number): { ok: true } | { ok: false; problem: ReplyProblem; message: string } {
+export function checkReply(
+  text: string,
+  limit: number,
+): { ok: true } | { ok: false; problem: ReplyProblem; message: string } {
   const value = normalizeReplyText(text);
   if (value === '') return { ok: false, problem: 'empty', message: 'The reply is empty.' };
   if (CONTROL.test(value)) {
-    return { ok: false, problem: 'control_characters', message: 'The reply has a character that is not allowed in plain text (only line breaks are).' };
+    return {
+      ok: false,
+      problem: 'control_characters',
+      message:
+        'The reply has a character that is not allowed in plain text (only line breaks are).',
+    };
   }
   if (MARKUP.test(value)) {
-    return { ok: false, problem: 'markup', message: 'The reply looks like it contains HTML tags. Replies are plain text.' };
+    return {
+      ok: false,
+      problem: 'markup',
+      message: 'The reply looks like it contains HTML tags. Replies are plain text.',
+    };
   }
   if (value.length > limit) {
-    return { ok: false, problem: 'too_long', message: `The reply is ${value.length} characters; this store allows at most ${limit}.` };
+    return {
+      ok: false,
+      problem: 'too_long',
+      message: `The reply is ${value.length} characters; this store allows at most ${limit}.`,
+    };
   }
   return { ok: true };
 }
@@ -100,11 +125,14 @@ export function lengthState(text: string, limit: number): LengthState {
   const remaining = limit - count;
   const over = remaining < 0;
   const tone = over ? 'bad' : remaining <= Math.max(10, Math.floor(limit * 0.1)) ? 'warn' : 'ok';
-  const label = over ? `${-remaining} over the limit of ${limit}` : `${count} of ${limit} characters`;
+  const label = over
+    ? `${-remaining} over the limit of ${limit}`
+    : `${count} of ${limit} characters`;
   return { count, limit, remaining, over, tone, label };
 }
 
-export const limitFor = (config: Pick<ReplyConfig, 'limits'>, store: ReviewStore): number => config.limits[store];
+export const limitFor = (config: Pick<ReplyConfig, 'limits'>, store: ReviewStore): number =>
+  config.limits[store];
 
 /** The draft box text when the person edits: has it changed from what is saved? */
 export const draftChanged = (saved: ReplyDraft | null | undefined, text: string): boolean =>
@@ -126,7 +154,10 @@ export type ReplyAvailability = {
 
 export const REPLY_OFF_TEXT = `Replying is switched off on this server. Someone who runs it sets ${REPLY_ENV}=true and restarts it (see docs/deployment.md).`;
 
-export function replyAvailability(config: Pick<ReplyConfig, 'enabled' | 'envName'> | null, role: Role): ReplyAvailability {
+export function replyAvailability(
+  config: Pick<ReplyConfig, 'enabled' | 'envName'> | null,
+  role: Role,
+): ReplyAvailability {
   if (!config) return { canDraft: false, canSend: false, reason: null, state: 'loading' };
   if (!config.enabled) {
     return {
@@ -138,8 +169,20 @@ export function replyAvailability(config: Pick<ReplyConfig, 'enabled' | 'envName
   }
   const canDraft = can(role, 'reviews.triage');
   const canSend = can(role, 'reviews.reply');
-  if (!canDraft) return { canDraft, canSend: false, reason: 'You can read reviews. A member can write reply drafts and an admin can send them.', state: 'rights' };
-  if (!canSend) return { canDraft, canSend, reason: 'You can write a draft. Only an admin or owner can send a reply to the store.', state: 'rights' };
+  if (!canDraft)
+    return {
+      canDraft,
+      canSend: false,
+      reason: 'You can read reviews. A member can write reply drafts and an admin can send them.',
+      state: 'rights',
+    };
+  if (!canSend)
+    return {
+      canDraft,
+      canSend,
+      reason: 'You can write a draft. Only an admin or owner can send a reply to the store.',
+      state: 'rights',
+    };
   return { canDraft, canSend, reason: null, state: 'ready' };
 }
 
@@ -157,11 +200,22 @@ export const replyStatusLabels: Record<ReplyStatus, string> = {
 export const replyStatusLabel = (status: ReplyState['status']): string =>
   status === 'none' ? 'No reply' : (replyStatusLabels[status] ?? status);
 
-export const replyStatusTone = (status: ReplyState['status']): 'neutral' | 'info' | 'ok' | 'warn' | 'bad' =>
-  status === 'sent' ? 'ok' : status === 'failed' ? 'bad' : status === 'unknown' ? 'warn' : status === 'sending' ? 'info' : 'neutral';
+export const replyStatusTone = (
+  status: ReplyState['status'],
+): 'neutral' | 'info' | 'ok' | 'warn' | 'bad' =>
+  status === 'sent'
+    ? 'ok'
+    : status === 'failed'
+      ? 'bad'
+      : status === 'unknown'
+        ? 'warn'
+        : status === 'sending'
+          ? 'info'
+          : 'neutral';
 
 /** A draft that is being sent, or whose outcome is not known, may not be edited or deleted. */
-export const isLocked = (status: ReplyState['status']): boolean => status === 'sending' || status === 'unknown';
+export const isLocked = (status: ReplyState['status']): boolean =>
+  status === 'sending' || status === 'unknown';
 
 /** What the draft's status means for the person, one sentence. */
 export function statusExplanation(draft: Pick<ReplyDraft, 'status' | 'errorCode'>): string | null {
@@ -192,7 +246,10 @@ export type ConfirmFacts = {
   warning: string;
 };
 
-const storeNames: Record<ReviewStore, string> = { appstoreconnect: 'App Store', googleplay: 'Google Play' };
+const storeNames: Record<ReviewStore, string> = {
+  appstoreconnect: 'App Store',
+  googleplay: 'Google Play',
+};
 
 /**
  * What the confirmation shows: the store, the app, the review (who wrote it, what rating) and the
@@ -205,14 +262,19 @@ export function confirmFacts(input: {
   draft: Pick<ReplyDraft, 'text' | 'length' | 'limit'>;
   replacing: boolean;
 }): ConfirmFacts {
-  const author = input.review.authorName && input.review.authorName.trim() !== '' ? input.review.authorName : 'an anonymous reviewer';
+  const author =
+    input.review.authorName && input.review.authorName.trim() !== ''
+      ? input.review.authorName
+      : 'an anonymous reviewer';
   return {
     rows: [
       { label: 'Store', value: storeNames[input.store] ?? input.store },
       { label: 'App', value: input.appName },
       { label: 'Review', value: `${input.review.rating} out of 5 stars by ${author}` },
       { label: 'Length', value: `${input.draft.length} of ${input.draft.limit} characters` },
-      ...(input.replacing ? [{ label: 'Replaces', value: 'The reply that is already published for this review' }] : []),
+      ...(input.replacing
+        ? [{ label: 'Replaces', value: 'The reply that is already published for this review' }]
+        : []),
     ],
     text: input.draft.text,
     count: input.draft.length,
@@ -245,14 +307,20 @@ export function canSendDraft(input: {
 // Errors
 
 /** A message for a failed reply request. A store's own message is kept: it says what the store said. */
-export function replyErrorMessage(error: unknown, action: 'draft' | 'send' | 'template' | 'translate' = 'send'): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Nothing was changed in the store as far as this tool knows. Reload the review to see its state.';
+export function replyErrorMessage(
+  error: unknown,
+  action: 'draft' | 'send' | 'template' | 'translate' = 'send',
+): string {
+  if (!(error instanceof ApiError))
+    return 'Something went wrong. Nothing was changed in the store as far as this tool knows. Reload the review to see its state.';
   const server = typeof error.body.message === 'string' ? error.body.message : '';
   switch (error.code) {
     case 'reply_disabled':
       return REPLY_OFF_TEXT;
     case 'forbidden':
-      return action === 'send' ? 'Only an admin or owner can send replies.' : 'Only a member or above can write reply drafts.';
+      return action === 'send'
+        ? 'Only an admin or owner can send replies.'
+        : 'Only a member or above can write reply drafts.';
     case 'not_found':
       return 'This review no longer exists.';
     case 'stale_draft':
@@ -264,7 +332,9 @@ export function replyErrorMessage(error: unknown, action: 'draft' | 'send' | 'te
     case 'outcome_unknown':
       return 'The store did not confirm the reply and it could not be checked. Nothing was sent again. Look at the review in the store, then send again to check.';
     case 'send_failed':
-      return `The reply was not published. ${server} The draft is kept.`.replace(/\s+/g, ' ').trim();
+      return `The reply was not published. ${server} The draft is kept.`
+        .replace(/\s+/g, ' ')
+        .trim();
     case 'invalid_reply':
     case 'invalid_template':
       return server || error.message;
@@ -298,7 +368,15 @@ export function replyErrorMessage(error: unknown, action: 'draft' | 'send' | 'te
 
 /** Whether a failure leaves the state of the reply uncertain, so the review should be loaded again. */
 export const needsReload = (error: unknown): boolean =>
-  error instanceof ApiError && ['stale_draft', 'already_sent', 'send_in_progress', 'outcome_unknown', 'send_failed', 'not_found'].includes(error.code);
+  error instanceof ApiError &&
+  [
+    'stale_draft',
+    'already_sent',
+    'send_in_progress',
+    'outcome_unknown',
+    'send_failed',
+    'not_found',
+  ].includes(error.code);
 
 // ---------------------------------------------------------------------------------------------
 // Templates
@@ -313,13 +391,25 @@ export function insertTemplateText(current: string, body: string): string {
  * A preview of a template with its placeholders filled the way the server does: plain, one line,
  * at most 60 characters, "there" for a missing name. The server renders again when the draft is saved.
  */
-export function previewTemplate(body: string, values: { author: string | null; app: string }): string {
+export function previewTemplate(
+  body: string,
+  values: { author: string | null; app: string },
+): string {
   const plain = (value: string | null, fallback: string): string => {
     // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-    const cleaned = (value ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff<>{}]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).trim();
+    const cleaned = (value ?? '')
+      .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff<>{}]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60)
+      .trim();
     return cleaned === '' ? fallback : cleaned;
   };
   return body.replace(/\{\{\s*([A-Za-z_]+)\s*\}\}/g, (whole, name: string) =>
-    name === 'author' ? plain(values.author, 'there') : name === 'app' ? plain(values.app, 'our app') : whole,
+    name === 'author'
+      ? plain(values.author, 'there')
+      : name === 'app'
+        ? plain(values.app, 'our app')
+        : whole,
   );
 }

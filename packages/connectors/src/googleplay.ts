@@ -1,10 +1,6 @@
 import type { ListingSections, LocaleText, MediaSet, PlayField } from '@mrm/core';
-import {
-  GoogleTokenProvider,
-  parseServiceAccount,
-  type ServiceAccount,
-} from './google-auth.ts';
 import { StoreError, StoreRateLimitError } from './errors.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { mapPlayTrackRelease } from './mappings.ts';
 import {
   enc,
@@ -12,8 +8,8 @@ import {
   type Json,
   num,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -115,7 +111,8 @@ function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
 /** The same queue for the writer of rollouts (play-rollout.ts), which must not interleave with a read's edit. */
 export const serializedPlayEdits = serialized;
 
-const DISABLED = /has not been used in project|it is disabled|accessNotConfigured|SERVICE_DISABLED/i;
+const DISABLED =
+  /has not been used in project|it is disabled|accessNotConfigured|SERVICE_DISABLED/i;
 const RATE_REASONS = /rateLimitExceeded|userRateLimitExceeded|quotaExceeded|RATE_LIMIT_EXCEEDED/i;
 
 /** Google's error body as short facts: message, reasons (`errors[].reason`, `details[].reason`). */
@@ -391,7 +388,10 @@ export class GooglePlayConnector implements StoreConnector {
    * there is no `categories` section for Android. A failing optional part is a warning and the
    * section is left out ("not read"); only a rate limit, a bad credential or the network stop the read.
    */
-  async readListing(appStoreId: string, options: ReadStoreListingOptions = {}): Promise<StoreListing> {
+  async readListing(
+    appStoreId: string,
+    options: ReadStoreListingOptions = {},
+  ): Promise<StoreListing> {
     return this.withEdit(appStoreId, async (edit) => {
       const body = await this.#editGet(appStoreId, edit, '/listings', 'reading the listings');
       const warnings: string[] = [];
@@ -414,7 +414,12 @@ export class GooglePlayConnector implements StoreConnector {
       if (options.extended === true) {
         let defaultLanguage: string | undefined;
         try {
-          const details = await this.#editGet(appStoreId, edit, '/details', 'reading the app details');
+          const details = await this.#editGet(
+            appStoreId,
+            edit,
+            '/details',
+            'reading the app details',
+          );
           sections.details = playDetails(details);
           defaultLanguage = sections.details.defaultLanguage;
         } catch (error) {
@@ -429,11 +434,18 @@ export class GooglePlayConnector implements StoreConnector {
         const languages = Object.keys(locales).sort((a, b) =>
           a === defaultLanguage ? -1 : b === defaultLanguage ? 1 : a < b ? -1 : a > b ? 1 : 0,
         );
-        const media = await this.#readImages(appStoreId, edit, languages.slice(0, MAX_IMAGE_LANGUAGES), warnings);
+        const media = await this.#readImages(
+          appStoreId,
+          edit,
+          languages.slice(0, MAX_IMAGE_LANGUAGES),
+          warnings,
+        );
         if (media) {
           if (languages.length > MAX_IMAGE_LANGUAGES) {
             media.truncated = true;
-            warnings.push(`Images were read for ${MAX_IMAGE_LANGUAGES} of ${languages.length} languages.`);
+            warnings.push(
+              `Images were read for ${MAX_IMAGE_LANGUAGES} of ${languages.length} languages.`,
+            );
           }
           sections.media = media;
         }
@@ -479,8 +491,10 @@ export class GooglePlayConnector implements StoreConnector {
           );
         screenshots[language] = [];
         graphics[language] = [];
-        for (const type of PLAY_SCREENSHOT_TYPES) (screenshots[language] as MediaSet[]).push(await read(type));
-        for (const type of PLAY_GRAPHIC_TYPES) (graphics[language] as MediaSet[]).push(await read(type));
+        for (const type of PLAY_SCREENSHOT_TYPES)
+          (screenshots[language] as MediaSet[]).push(await read(type));
+        for (const type of PLAY_GRAPHIC_TYPES)
+          (graphics[language] as MediaSet[]).push(await read(type));
       }
     } catch (error) {
       warnings.push(sectionWarning(error, 'The store listing images'));

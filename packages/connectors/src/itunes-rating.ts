@@ -59,7 +59,9 @@ export type FetchRatingSummaryOptions = {
 
 const average = (value: unknown): number | undefined => {
   const n = num(value);
-  return n !== undefined && Number.isFinite(n) && n >= 0 && n <= 5 ? Math.round(n * 1000) / 1000 : undefined;
+  return n !== undefined && Number.isFinite(n) && n >= 0 && n <= 5
+    ? Math.round(n * 1000) / 1000
+    : undefined;
 };
 const count = (value: unknown): number | undefined => {
   const n = num(value);
@@ -67,12 +69,19 @@ const count = (value: unknown): number | undefined => {
 };
 
 /** The rating fields of a lookup reply, or undefined when the reply has no result or no rating at all. */
-export function parseRatingSummary(json: unknown, appStoreId: string, country: string, platform: 'ios' | 'macos' = 'ios'): RatingSummary | undefined {
+export function parseRatingSummary(
+  json: unknown,
+  appStoreId: string,
+  country: string,
+  platform: 'ios' | 'macos' = 'ios',
+): RatingSummary | undefined {
   const results = isRecord(json) ? records(json.results) : [];
   // Only the entry for this app: a lookup by id answers with that id, nothing else is trusted. For macOS, the
   // entry that says it is Mac software is the one (a universal purchase app has the same id on both stores).
   const mine = results.filter((r) => String(r.trackId ?? '') === appStoreId);
-  const entry = (platform === 'macos' ? (mine.find((r) => r.kind === 'mac-software') ?? mine[0]) : mine[0]) ?? (platform === 'macos' ? undefined : results[0]);
+  const entry =
+    (platform === 'macos' ? (mine.find((r) => r.kind === 'mac-software') ?? mine[0]) : mine[0]) ??
+    (platform === 'macos' ? undefined : results[0]);
   if (!entry) return undefined;
   const averageRating = average(entry.averageUserRating);
   const ratingCount = count(entry.userRatingCount);
@@ -101,7 +110,11 @@ async function readCapped(response: Response, maxBytes: number): Promise<string>
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel().catch(() => undefined);
-      throw new StoreError('appstoreconnect', 'unexpected', 'The iTunes lookup answered with more data than expected.');
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        'The iTunes lookup answered with more data than expected.',
+      );
     }
     chunks.push(value);
   }
@@ -112,12 +125,22 @@ async function readCapped(response: Response, maxBytes: number): Promise<string>
  * Reads the store-wide rating of an app in one storefront. Returns undefined when Apple has no
  * result or sent no rating (a new app has none yet). Throws a `StoreError` when the call fails.
  */
-export async function fetchRatingSummary(options: FetchRatingSummaryOptions): Promise<RatingSummary | undefined> {
+export async function fetchRatingSummary(
+  options: FetchRatingSummaryOptions,
+): Promise<RatingSummary | undefined> {
   if (!/^[0-9]{1,20}$/.test(options.appStoreId)) {
-    throw new StoreError('appstoreconnect', 'invalid_input', 'The App Store id of the app is missing or not a number.');
+    throw new StoreError(
+      'appstoreconnect',
+      'invalid_input',
+      'The App Store id of the app is missing or not a number.',
+    );
   }
   if (!/^[A-Za-z]{2}$/.test(options.country)) {
-    throw new StoreError('appstoreconnect', 'invalid_input', 'The storefront must be a two letter country code.');
+    throw new StoreError(
+      'appstoreconnect',
+      'invalid_input',
+      'The storefront must be a two letter country code.',
+    );
   }
   const macos = options.platform === 'macos';
   const url = `${ITUNES_LOOKUP_URL}?id=${options.appStoreId}&country=${options.country.toLowerCase()}${macos ? '&entity=macSoftware' : ''}`;
@@ -142,7 +165,11 @@ export async function fetchRatingSummary(options: FetchRatingSummaryOptions): Pr
   }
   if (response.status === 403 || response.status === 429) {
     await response.body?.cancel().catch(() => undefined);
-    throw new StoreRateLimitError('appstoreconnect', parseRetryAfter(response.headers.get('retry-after'), Date.now()) ?? 60, response.status);
+    throw new StoreRateLimitError(
+      'appstoreconnect',
+      parseRetryAfter(response.headers.get('retry-after'), Date.now()) ?? 60,
+      response.status,
+    );
   }
   if (response.status < 200 || response.status >= 300) {
     await response.body?.cancel().catch(() => undefined);
@@ -158,7 +185,11 @@ export async function fetchRatingSummary(options: FetchRatingSummaryOptions): Pr
     json = JSON.parse(await readCapped(response, options.maxBytes ?? DEFAULT_MAX_BYTES));
   } catch (error) {
     if (error instanceof StoreError) throw error;
-    throw new StoreError('appstoreconnect', 'unexpected', 'The iTunes lookup answered with a response that could not be read.');
+    throw new StoreError(
+      'appstoreconnect',
+      'unexpected',
+      'The iTunes lookup answered with a response that could not be read.',
+    );
   }
   return parseRatingSummary(json, options.appStoreId, options.country, options.platform ?? 'ios');
 }

@@ -1,7 +1,7 @@
 import { PLATFORM_META } from '@mrm/core';
 import {
-  AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { appleError } from './appstoreconnect.ts';
@@ -12,10 +12,10 @@ import {
   type AppleRolloutTarget,
   isMarketingVersion,
   planAppleRollout,
-  RolloutDriftError,
-  RolloutOutcomeUnknownError,
   type RolloutApplyInput,
   type RolloutApplyResult,
+  RolloutDriftError,
+  RolloutOutcomeUnknownError,
   type RolloutState,
   type RolloutTarget,
   type StoreRolloutConnector,
@@ -26,8 +26,8 @@ import {
   type Json,
   num,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   text,
 } from './store-http.ts';
@@ -94,7 +94,8 @@ export type AppleRolloutConnectorOptions = Omit<StoreHttpOptions, 'store'> & {
 const DEFAULT_BASE = 'https://api.appstoreconnect.apple.com';
 const MAX_ERROR_DETAILS = 5;
 
-const stateOf = (value: string | undefined): string | null => (value === undefined ? null : value.trim().toUpperCase());
+const stateOf = (value: string | undefined): string | null =>
+  value === undefined ? null : value.trim().toUpperCase();
 const dateMs = (value: unknown): number | null => {
   if (typeof value !== 'string') return null;
   const ms = Date.parse(value);
@@ -147,7 +148,11 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
     this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
     this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
-    this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
+    this.#writeHttp = new StoreHttp({
+      ...options,
+      store: 'appstoreconnect',
+      maxRateLimitRetries: 0,
+    });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? 200;
     this.#pageSize = Number.isFinite(wanted) ? Math.min(200, Math.max(1, Math.trunc(wanted))) : 200;
@@ -164,12 +169,22 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
   }
 
   /** Builds a connector from the stored secret (core `buildSecret` JSON for `app_store_connect`). */
-  static fromSecret(secret: string, options: Omit<AppleRolloutConnectorOptions, 'credential'>): AppleRolloutConnector {
-    return new AppleRolloutConnector({ ...options, credential: parseAppStoreConnectSecret(secret) });
+  static fromSecret(
+    secret: string,
+    options: Omit<AppleRolloutConnectorOptions, 'credential'>,
+  ): AppleRolloutConnector {
+    return new AppleRolloutConnector({
+      ...options,
+      credential: parseAppStoreConnectSecret(secret),
+    });
   }
 
   #target(target: RolloutTarget): AppleRolloutTarget {
-    if (!('version' in target) || typeof target.version !== 'string' || !isMarketingVersion(target.version)) {
+    if (
+      !('version' in target) ||
+      typeof target.version !== 'string' ||
+      !isMarketingVersion(target.version)
+    ) {
       throw new StoreError('appstoreconnect', 'invalid_input', 'Not a valid App Store version.');
     }
     return { version: target.version };
@@ -190,8 +205,20 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
   async applyChange(input: RolloutApplyInput): Promise<RolloutApplyResult> {
     const wanted = this.#target(input.target);
     const change = input.change as AppleRolloutChange;
-    const state = change.action === 'pause' ? 'PAUSED' : change.action === 'resume' ? 'ACTIVE' : change.action === 'release_to_all' ? 'COMPLETE' : undefined;
-    if (state === undefined) throw new StoreError('appstoreconnect', 'invalid_input', 'Not a rollout change App Store Connect knows.');
+    const state =
+      change.action === 'pause'
+        ? 'PAUSED'
+        : change.action === 'resume'
+          ? 'ACTIVE'
+          : change.action === 'release_to_all'
+            ? 'COMPLETE'
+            : undefined;
+    if (state === undefined)
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        'Not a rollout change App Store Connect knows.',
+      );
     const version = await this.#findVersion(wanted.version);
     const phased = await this.#readPhased(version.id);
     const before = this.#state(wanted.version, version, phased);
@@ -203,7 +230,13 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
       'PATCH',
       `${this.#base}/v1/appStoreVersionPhasedReleases/${enc(phasedId)}`,
       `changing the phased release of version ${wanted.version}`,
-      { data: { type: 'appStoreVersionPhasedReleases', id: phasedId, attributes: { phasedReleaseState: state } } },
+      {
+        data: {
+          type: 'appStoreVersionPhasedReleases',
+          id: phasedId,
+          attributes: { phasedReleaseState: state },
+        },
+      },
     );
     // What Apple answered, when it said, else what was asked.
     const answered = isRecord(reply.json) ? parseApplePhasedRelease(reply.json.data) : undefined;
@@ -211,8 +244,12 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
     const after: AppleRolloutState = {
       ...proposed,
       ...(answered?.state ? { phasedReleaseState: answered.state } : {}),
-      ...(answered?.currentDayNumber !== null && answered?.currentDayNumber !== undefined ? { currentDayNumber: answered.currentDayNumber } : {}),
-      ...(answered?.totalPauseDays !== null && answered?.totalPauseDays !== undefined ? { totalPauseDays: answered.totalPauseDays } : {}),
+      ...(answered?.currentDayNumber !== null && answered?.currentDayNumber !== undefined
+        ? { currentDayNumber: answered.currentDayNumber }
+        : {}),
+      ...(answered?.totalPauseDays !== null && answered?.totalPauseDays !== undefined
+        ? { totalPauseDays: answered.totalPauseDays }
+        : {}),
     };
     return { before, after };
   }
@@ -241,7 +278,8 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
   /** The iOS version with this marketing version string. More than one is refused: never guess which. */
   async #findVersion(version: string): Promise<{ id: string; state: string | null }> {
     const what = `looking up version ${version}`;
-    let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
+    let url: string | undefined =
+      `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
     const matches: { id: string; state: string | null }[] = [];
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
@@ -256,16 +294,27 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
       url = next === undefined ? undefined : this.#checkNext(next, what);
     }
     if (matches.length === 0) {
-      throw new StoreError('appstoreconnect', 'not_found', `App Store Connect has no ${this.#label} version ${version} for this app.`, 404);
+      throw new StoreError(
+        'appstoreconnect',
+        'not_found',
+        `App Store Connect has no ${this.#label} version ${version} for this app.`,
+        404,
+      );
     }
     if (matches.length > 1) {
-      throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect lists more than one ${this.#label} version ${version}; this server will not guess which one to change.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'invalid_input',
+        `App Store Connect lists more than one ${this.#label} version ${version}; this server will not guess which one to change.`,
+      );
     }
     return matches[0] as { id: string; state: string | null };
   }
 
   /** The phased release of a version, or undefined when it has none (a 404, or `data: null`). */
-  async #readPhased(versionId: string): Promise<ReturnType<typeof parseApplePhasedRelease> | undefined> {
+  async #readPhased(
+    versionId: string,
+  ): Promise<ReturnType<typeof parseApplePhasedRelease> | undefined> {
     try {
       const { json } = await this.#get(
         `${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionPhasedRelease`,
@@ -283,7 +332,8 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
   #fail(reply: StoreReply, what: string): StoreError {
     if (reply.status === 401) this.#tokens.invalidate();
     const error = appleError(reply, this.#http.now(), what);
-    const redact = (value: string | undefined) => (value === undefined ? undefined : this.#http.redact(value));
+    const redact = (value: string | undefined) =>
+      value === undefined ? undefined : this.#http.redact(value);
     const details = (error.details ?? []).slice(0, MAX_ERROR_DETAILS).map((d) => {
       const fields = {
         code: redact(d.code),
@@ -292,18 +342,33 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
         parameter: redact(d.parameter),
         pointer: redact(d.pointer),
       };
-      return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as StoreErrorDetail;
+      return Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined),
+      ) as StoreErrorDetail;
     });
-    return new StoreError('appstoreconnect', error.kind, this.#http.redact(error.message), error.status, details);
+    return new StoreError(
+      'appstoreconnect',
+      error.kind,
+      this.#http.redact(error.message),
+      error.status,
+      details,
+    );
   }
 
   async #get(url: string, what: string): Promise<{ json: Json }> {
     const token = this.#tokens.token();
     this.#http.known.add(token);
-    const reply = await this.#http.send('GET', url, { headers: { authorization: `Bearer ${token}` } });
+    const reply = await this.#http.send('GET', url, {
+      headers: { authorization: `Bearer ${token}` },
+    });
     if (reply.status >= 200 && reply.status < 300) {
       if (reply.malformed || !isRecord(reply.json)) {
-        throw new StoreError('appstoreconnect', 'unexpected', `App Store Connect answered ${what} with a response that could not be read.`, reply.status);
+        throw new StoreError(
+          'appstoreconnect',
+          'unexpected',
+          `App Store Connect answered ${what} with a response that could not be read.`,
+          reply.status,
+        );
       }
       return { json: reply.json };
     }
@@ -317,7 +382,10 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
     this.#writeHttp.known.add(token);
     let reply: StoreReply;
     try {
-      reply = await this.#writeHttp.send(method, url, { headers: { authorization: `Bearer ${token}` }, json });
+      reply = await this.#writeHttp.send(method, url, {
+        headers: { authorization: `Bearer ${token}` },
+        json,
+      });
     } catch (error) {
       if (error instanceof StoreError && error.kind === 'network') {
         throw new RolloutOutcomeUnknownError(
@@ -347,7 +415,13 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
       );
     }
     if (reply.status === 405) {
-      throw new StoreError('appstoreconnect', 'unsupported', 'Apple answered 405 (not allowed) to a phased release change. The key may not be allowed to do this (UNVERIFIED).', 405, error.details);
+      throw new StoreError(
+        'appstoreconnect',
+        'unsupported',
+        'Apple answered 405 (not allowed) to a phased release change. The key may not be allowed to do this (UNVERIFIED).',
+        405,
+        error.details,
+      );
     }
     throw error;
   }
@@ -358,10 +432,18 @@ export class AppleRolloutConnector implements StoreRolloutConnector {
     try {
       target = new URL(next, this.#base);
     } catch {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link that could not be read while ${what}.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link that could not be read while ${what}.`,
+      );
     }
     if (target.origin !== new URL(this.#base).origin) {
-      throw new StoreError('appstoreconnect', 'unexpected', `Apple sent a paging link to another host while ${what}. It was not followed.`);
+      throw new StoreError(
+        'appstoreconnect',
+        'unexpected',
+        `Apple sent a paging link to another host while ${what}. It was not followed.`,
+      );
     }
     return target.toString();
   }

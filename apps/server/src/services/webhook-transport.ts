@@ -74,7 +74,9 @@ export function expandIpv6(text: string): number[] | undefined {
   if (halves.length === 1 ? head.length !== 8 : missing < 1) return undefined;
   const groups = [...head, ...Array(halves.length === 2 ? missing : 0).fill('0'), ...rest];
   if (groups.length !== 8) return undefined;
-  const nums = groups.map((g) => (/^[0-9a-fA-F]{1,4}$/.test(g) ? Number.parseInt(g, 16) : Number.NaN));
+  const nums = groups.map((g) =>
+    /^[0-9a-fA-F]{1,4}$/.test(g) ? Number.parseInt(g, 16) : Number.NaN,
+  );
   return nums.every((n) => Number.isInteger(n)) ? nums : undefined;
 }
 
@@ -84,7 +86,8 @@ function classify6(g: number[]): AddressClass {
   const zeros = (n: number) => g.slice(0, n).every((x) => x === 0);
   if (zeros(5) && g5 === 0xffff) return embedded(g6, g7); // ::ffff:a.b.c.d (IPv4-mapped)
   if (zeros(5) && g5 === 0) return g6 === 0 && g7 === 1 ? 'private' : 'blocked'; // ::1 loopback; :: and IPv4-compatible
-  if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) return embedded(g6, g7); // NAT64
+  if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0)
+    return embedded(g6, g7); // NAT64
   if (g0 === 0x64 && g1 === 0xff9b) return 'blocked'; // local-use NAT64 (64:ff9b:1::/48)
   if (g0 === 0x2002) return embedded(g1, g2); // 6to4: the IPv4 address is in bits 16..47
   if (g0 === 0x2001 && g1 === 0) return 'blocked'; // Teredo
@@ -128,7 +131,11 @@ export type UrlCheck =
 const LOCAL_NAME = /(^|\.)(localhost|local|internal|localdomain|home\.arpa)$/i;
 
 function isLoopbackLiteral(host: string): boolean {
-  return host === 'localhost' || host.endsWith('.localhost') || (isIP(host) !== 0 && classifyAddress(host) === 'private' && /^(127\.|::1$)/.test(host));
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    (isIP(host) !== 0 && classifyAddress(host) === 'private' && /^(127\.|::1$)/.test(host))
+  );
 }
 
 /** Checks a webhook URL without touching the network. */
@@ -140,7 +147,8 @@ export function checkWebhookUrl(raw: string, options: { allowPrivate?: boolean }
   } catch {
     return { ok: false, message: 'That is not a valid URL.' };
   }
-  if (url.username || url.password) return { ok: false, message: 'The URL must not contain a user name or password.' };
+  if (url.username || url.password)
+    return { ok: false, message: 'The URL must not contain a user name or password.' };
   // URL#hostname keeps the brackets of an IPv6 literal.
   const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (!hostname) return { ok: false, message: 'The URL has no host.' };
@@ -160,7 +168,10 @@ export function checkWebhookUrl(raw: string, options: { allowPrivate?: boolean }
   }
   if (!options.allowPrivate) {
     if (LOCAL_NAME.test(hostname) || (!literal && !hostname.includes('.'))) {
-      return { ok: false, message: 'That host name points inside a network. Use a public https URL.' };
+      return {
+        ok: false,
+        message: 'That host name points inside a network. Use a public https URL.',
+      };
     }
   }
   if (literal) {
@@ -200,17 +211,29 @@ export async function resolveAllowed(
       return { ok: false, message: 'The host name could not be resolved.', transient: true };
     }
   }
-  if (answers.length === 0) return { ok: false, message: 'The host name has no address.', transient: true };
+  if (answers.length === 0)
+    return { ok: false, message: 'The host name has no address.', transient: true };
   for (const { address } of answers) {
     const cls = classifyAddress(address);
     if (cls === 'blocked' || (cls === 'private' && !options.allowPrivate)) {
-      return { ok: false, message: 'The host name resolves to an address that is not allowed.', transient: false };
+      return {
+        ok: false,
+        message: 'The host name resolves to an address that is not allowed.',
+        transient: false,
+      };
     }
   }
   const first = answers[0];
   if (!first) return { ok: false, message: 'The host name has no address.', transient: true };
-  const others = answers.slice(1, 4).map((a) => ({ address: a.address, family: (a.family === 6 ? 6 : 4) as 4 | 6 }));
-  return { ok: true, address: first.address, family: first.family === 6 ? 6 : 4, ...(others.length > 0 ? { others } : {}) };
+  const others = answers
+    .slice(1, 4)
+    .map((a) => ({ address: a.address, family: (a.family === 6 ? 6 : 4) as 4 | 6 }));
+  return {
+    ok: true,
+    address: first.address,
+    family: first.family === 6 ? 6 : 4,
+    ...(others.length > 0 ? { others } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -230,7 +253,12 @@ export type SendOptions = {
 
 export type SendResult =
   | { ok: true; status: number; body: string }
-  | { ok: false; kind: 'blocked' | 'dns' | 'timeout' | 'network'; message: string; transient: boolean };
+  | {
+      ok: false;
+      kind: 'blocked' | 'dns' | 'timeout' | 'network';
+      message: string;
+      transient: boolean;
+    };
 
 /** Equal addresses, whatever the spelling (an IPv4-mapped IPv6 form counts as its IPv4 address). */
 export function sameAddress(a: string, b: string): boolean {
@@ -288,7 +316,12 @@ export async function sendPinned(
     });
     const timer = setTimeout(() => {
       req.destroy();
-      finish({ ok: false, kind: 'timeout', message: `No answer within ${Math.round(timeoutMs / 1000)} seconds.`, transient: true });
+      finish({
+        ok: false,
+        kind: 'timeout',
+        message: `No answer within ${Math.round(timeoutMs / 1000)} seconds.`,
+        transient: true,
+      });
     }, timeoutMs);
     timer.unref?.();
 
@@ -298,7 +331,12 @@ export async function sendPinned(
         const peer = socket.remoteAddress;
         if (peer && !sameAddress(peer, resolved.address)) {
           req.destroy();
-          finish({ ok: false, kind: 'blocked', message: 'The connection went to an unexpected address.', transient: false });
+          finish({
+            ok: false,
+            kind: 'blocked',
+            message: 'The connection went to an unexpected address.',
+            transient: false,
+          });
         }
       };
       socket.once(secure ? 'secureConnect' : 'connect', verify);
@@ -313,10 +351,19 @@ export async function sendPinned(
         } else {
           // Enough: do not keep reading what a server wants to pour in.
           res.destroy();
-          finish({ ok: true, status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') });
+          finish({
+            ok: true,
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+          });
         }
       });
-      const done = () => finish({ ok: true, status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') });
+      const done = () =>
+        finish({
+          ok: true,
+          status: res.statusCode ?? 0,
+          body: Buffer.concat(chunks).toString('utf8'),
+        });
       res.on('end', done);
       res.on('close', done);
       res.on('error', done);
@@ -332,7 +379,8 @@ export async function sendPinned(
 /** A response body made safe to store and show: printable text, shortened, secrets removed. */
 export function cleanResponseBody(body: string, secrets: string[] = []): string {
   let text = body.slice(0, KEPT_RESPONSE_CHARS * 2);
-  for (const secret of secrets) if (secret.length >= 8) text = text.split(secret).join('[redacted]');
+  for (const secret of secrets)
+    if (secret.length >= 8) text = text.split(secret).join('[redacted]');
   text = text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
   return text.slice(0, KEPT_RESPONSE_CHARS);
 }

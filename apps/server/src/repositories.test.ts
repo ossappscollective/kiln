@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { GithubError, GithubRateLimitError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { FakeRepo, TOKEN, bootRepoApp } from './repo-test-helpers.ts';
+import { bootRepoApp, FakeRepo, TOKEN } from './repo-test-helpers.ts';
 
 dbTest('connect, scan and read the listing of a fastlane repository', async (db) => {
   const t = await bootRepoApp(db);
@@ -56,7 +56,10 @@ dbTest('only github credentials of this workspace can connect a repository', asy
   const t = await bootRepoApp(db);
   const store = await t.addCredential(
     'google_play',
-    JSON.stringify({ client_email: 'a@b.c', private_key: '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----' }),
+    JSON.stringify({
+      client_email: 'a@b.c',
+      private_key: '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----',
+    }),
   );
   const wrongKind = await t.call(t.owner, 'POST', '/repositories', {
     credentialId: store,
@@ -99,16 +102,32 @@ dbTest('connect validates names and reports what GitHub said', async (db) => {
   });
   assert.equal(bad.status, 400);
 
-  repo.defaultBranchError = new GithubError('not_found', 'GitHub says acme/app was not found.', 404);
-  const missing = await t.call(t.owner, 'POST', '/repositories', { credentialId, owner: 'acme', repo: 'app' });
+  repo.defaultBranchError = new GithubError(
+    'not_found',
+    'GitHub says acme/app was not found.',
+    404,
+  );
+  const missing = await t.call(t.owner, 'POST', '/repositories', {
+    credentialId,
+    owner: 'acme',
+    repo: 'app',
+  });
   assert.equal(missing.status, 422);
   assert.equal(missing.body.error, 'github_not_found');
 
   repo.defaultBranchError = new GithubError('auth', 'Bad credentials.', 401);
-  assert.equal((await t.call(t.owner, 'POST', '/repositories', { credentialId, owner: 'acme', repo: 'app' })).body.error, 'github_auth');
+  assert.equal(
+    (await t.call(t.owner, 'POST', '/repositories', { credentialId, owner: 'acme', repo: 'app' }))
+      .body.error,
+    'github_auth',
+  );
 
   repo.defaultBranchError = new GithubRateLimitError(403, 'primary', 42);
-  const limited = await t.call(t.owner, 'POST', '/repositories', { credentialId, owner: 'acme', repo: 'app' });
+  const limited = await t.call(t.owner, 'POST', '/repositories', {
+    credentialId,
+    owner: 'acme',
+    repo: 'app',
+  });
   assert.equal(limited.status, 429);
   assert.equal(limited.headers.get('retry-after'), '42');
   assert.equal(limited.body.retryAfterSeconds, 42);
@@ -216,7 +235,8 @@ dbTest('another workspace cannot see or use a repository: 404 everywhere', async
     assert.equal(res.status, 404, `${method} ${path}`);
   }
   assert.equal(
-    (await out('POST', `/repositories/${repositoryId}/change-sets`, { summary: 'x', listing: {} })).status,
+    (await out('POST', `/repositories/${repositoryId}/change-sets`, { summary: 'x', listing: {} }))
+      .status,
     404,
   );
   assert.equal((await out('GET', '/change-sets')).body.changeSets.length, 0);
@@ -225,58 +245,77 @@ dbTest('another workspace cannot see or use a repository: 404 everywhere', async
   assert.equal((await out('GET', `/change-sets/${id}`, undefined, t.workspaceId)).status, 404);
 });
 
-dbTest('disconnect meeting a change set created at the same moment is a 409, not a 500, and deletes nothing', async (db) => {
-  const t = await bootRepoApp(db);
-  const { repositoryId } = await t.connect();
-  const { disconnectRepository } = await import('./services/repositories.ts');
+dbTest(
+  'disconnect meeting a change set created at the same moment is a 409, not a 500, and deletes nothing',
+  async (db) => {
+    const t = await bootRepoApp(db);
+    const { repositoryId } = await t.connect();
+    const { disconnectRepository } = await import('./services/repositories.ts');
 
-  // A database whose transaction lets another request slip in a draft right after the
-  // "any open change sets?" check, which is the window a real second request would use.
-  const racy: typeof db = {
-    ...db,
-    transaction: (fn) =>
-      db.transaction((tx) =>
-        fn({
-          ...tx,
-          async query(statement, params) {
-            const rows = await tx.query(statement, params);
-            if (/FROM change_sets/.test(statement) && /status IN/.test(statement)) {
-              await tx.execute(
-                `INSERT INTO change_sets (id, workspace_id, repository_id, summary, status, created_by_type,
+    // A database whose transaction lets another request slip in a draft right after the
+    // "any open change sets?" check, which is the window a real second request would use.
+    const racy: typeof db = {
+      ...db,
+      transaction: (fn) =>
+        db.transaction((tx) =>
+          fn({
+            ...tx,
+            async query(statement, params) {
+              const rows = await tx.query(statement, params);
+              if (/FROM change_sets/.test(statement) && /status IN/.test(statement)) {
+                await tx.execute(
+                  `INSERT INTO change_sets (id, workspace_id, repository_id, summary, status, created_by_type,
                    created_by_id, files_json, created_at, updated_at)
                  VALUES ('raced', ?, ?, 'raced', 'draft', 'user', 'u', '[]', 1, 1)`,
-                [t.workspaceId, repositoryId],
-              );
-            }
-            return rows;
-          },
-        } as typeof tx),
-      ),
-  };
-  const ctx = { db: racy, masterKey: Buffer.alloc(32), now: () => 1, connectorFactory: () => t.repo, timeoutMs: 1000 };
-  const result = await disconnectRepository(ctx, { workspaceId: t.workspaceId, id: repositoryId }, { type: 'user', id: 'u' });
-  assert.equal(result.ok, false);
-  assert.equal((result as { status: number }).status, 409);
-  assert.equal((result as { body: { error: string } }).body.error, 'open_change_sets');
-  // Rolled back: the repository and the new change set are both still there.
-  assert.equal((await t.call(t.owner, 'GET', `/repositories/${repositoryId}`)).status, 200);
-  const [row] = await db.query("SELECT COUNT(*) AS n FROM change_sets WHERE id = 'raced'");
-  assert.equal(Number(row?.n), 0, 'the simulated draft was inside the rolled back transaction');
-});
+                  [t.workspaceId, repositoryId],
+                );
+              }
+              return rows;
+            },
+          } as typeof tx),
+        ),
+    };
+    const ctx = {
+      db: racy,
+      masterKey: Buffer.alloc(32),
+      now: () => 1,
+      connectorFactory: () => t.repo,
+      timeoutMs: 1000,
+    };
+    const result = await disconnectRepository(
+      ctx,
+      { workspaceId: t.workspaceId, id: repositoryId },
+      { type: 'user', id: 'u' },
+    );
+    assert.equal(result.ok, false);
+    assert.equal((result as { status: number }).status, 409);
+    assert.equal((result as { body: { error: string } }).body.error, 'open_change_sets');
+    // Rolled back: the repository and the new change set are both still there.
+    assert.equal((await t.call(t.owner, 'GET', `/repositories/${repositoryId}`)).status, 200);
+    const [row] = await db.query("SELECT COUNT(*) AS n FROM change_sets WHERE id = 'raced'");
+    assert.equal(Number(row?.n), 0, 'the simulated draft was inside the rolled back transaction');
+  },
+);
 
-dbTest('a repository disconnected while a change set is being made gives 404, not 500', async (db) => {
-  const repo = new FakeRepo();
-  const t = await bootRepoApp(db, repo);
-  const { repositoryId } = await t.connect();
-  const read = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
-  const listing = read.body.listing;
-  listing.appStore.locales['en-US'].subtitle = 'Changed';
+dbTest(
+  'a repository disconnected while a change set is being made gives 404, not 500',
+  async (db) => {
+    const repo = new FakeRepo();
+    const t = await bootRepoApp(db, repo);
+    const { repositoryId } = await t.connect();
+    const read = await t.call(t.owner, 'GET', `/repositories/${repositoryId}/listing`);
+    const listing = read.body.listing;
+    listing.appStore.locales['en-US'].subtitle = 'Changed';
 
-  repo.listDelayMs = 60; // GitHub is slow to answer; the repository goes away meanwhile
-  const creating = t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, { summary: 'X', listing });
-  await new Promise((r) => setTimeout(r, 20));
-  assert.equal((await t.call(t.owner, 'DELETE', `/repositories/${repositoryId}`)).status, 204);
-  const res = await creating;
-  assert.equal(res.status, 404);
-  assert.equal(res.body.error, 'not_found');
-});
+    repo.listDelayMs = 60; // GitHub is slow to answer; the repository goes away meanwhile
+    const creating = t.call(t.owner, 'POST', `/repositories/${repositoryId}/change-sets`, {
+      summary: 'X',
+      listing,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal((await t.call(t.owner, 'DELETE', `/repositories/${repositoryId}`)).status, 204);
+    const res = await creating;
+    assert.equal(res.status, 404);
+    assert.equal(res.body.error, 'not_found');
+  },
+);

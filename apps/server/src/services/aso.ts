@@ -5,25 +5,25 @@ import {
   type AsoPlatform,
   type CompetitorChange,
   type CompetitorState,
-  type RankChange,
-  DEFAULT_EDGE_TOP,
-  MAX_NOTES_CHARACTERS,
-  MAX_TAG_CHARACTERS,
   checkTerm,
+  DEFAULT_EDGE_TOP,
   decideSnapshot,
   defaultLocaleFor,
+  isApplePlatform,
   isBigMove,
+  isGooglePlatform,
+  MAX_NOTES_CHARACTERS,
+  MAX_TAG_CHARACTERS,
   normalizeCountry,
   normalizeLocale,
+  type RankChange,
   rankChange,
   rankTrend,
-  isApplePlatform,
-  isGooglePlatform,
 } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
+import { getApp, type ManagedApp } from './apps.ts';
 import type { AsoSources, PublicApp } from './aso-net.ts';
-import { type ManagedApp, getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
@@ -96,7 +96,8 @@ export type AsoContext = {
   maxRunMs?: number;
 };
 
-export const platformStore = (platform: AsoPlatform): 'app_store' | 'google_play' => (isApplePlatform(platform) ? 'app_store' : 'google_play');
+export const platformStore = (platform: AsoPlatform): 'app_store' | 'google_play' =>
+  isApplePlatform(platform) ? 'app_store' : 'google_play';
 
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -111,12 +112,17 @@ export function asoFailure(error: unknown): Failure {
     switch (error.kind) {
       case 'rate_limited': {
         const wait = error.retryAfterSeconds ?? 60;
-        return { ...failure(429, 'rate_limited', error.message, { retryAfterSeconds: wait }), headers: { 'Retry-After': String(wait) } };
+        return {
+          ...failure(429, 'rate_limited', error.message, { retryAfterSeconds: wait }),
+          headers: { 'Retry-After': String(wait) },
+        };
       }
       case 'unavailable':
         return error.reason === 'disabled'
           ? playDisabledFailure()
-          : failure(502, 'source_unavailable', error.message, { reason: error.reason ?? 'unknown' });
+          : failure(502, 'source_unavailable', error.message, {
+              reason: error.reason ?? 'unknown',
+            });
       case 'timeout':
         return failure(504, 'source_timeout', error.message);
       case 'invalid_input':
@@ -129,11 +135,16 @@ export function asoFailure(error: unknown): Failure {
 }
 
 export const playDisabledFailure = (): Failure =>
-  failure(409, 'play_unofficial_disabled', 'Reading Google Play pages is switched off. The operator can turn it on with MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true (read the warning in docs/api/aso.md first).');
+  failure(
+    409,
+    'play_unofficial_disabled',
+    'Reading Google Play pages is switched off. The operator can turn it on with MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true (read the warning in docs/api/aso.md first).',
+  );
 
 /** The short code kept on a keyword or competitor when its last look failed. */
 export function asoErrorCode(error: unknown): string {
-  if (error instanceof AsoError) return error.kind === 'unavailable' ? `unavailable_${error.reason ?? 'unknown'}` : error.kind;
+  if (error instanceof AsoError)
+    return error.kind === 'unavailable' ? `unavailable_${error.reason ?? 'unknown'}` : error.kind;
   return 'failed';
 }
 
@@ -174,7 +185,8 @@ export type AsoKeyword = {
 const KEYWORD_COLUMNS = `id, app_id, platform, country, locale, term, term_key, tag, notes, priority, created_by, created_at,
   updated_at, last_checked_at, last_state, last_rank_pos, last_total, prev_state, prev_rank_pos, last_error`;
 
-const asState = (v: unknown): KeywordState | null => (v === 'ranked' || v === 'not_ranked' ? v : null);
+const asState = (v: unknown): KeywordState | null =>
+  v === 'ranked' || v === 'not_ranked' ? v : null;
 
 export function toKeyword(r: Row): AsoKeyword {
   const state = asState(r.last_state);
@@ -237,8 +249,16 @@ export async function listKeywords(
   return rows.map(toKeyword);
 }
 
-export async function getKeyword(sql: Sql, workspaceId: string, appId: string, id: string): Promise<AsoKeyword | undefined> {
-  const [row] = await sql.query(`SELECT ${KEYWORD_COLUMNS} FROM aso_keywords WHERE id = ? AND app_id = ? AND workspace_id = ?`, [id, appId, workspaceId]);
+export async function getKeyword(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  id: string,
+): Promise<AsoKeyword | undefined> {
+  const [row] = await sql.query(
+    `SELECT ${KEYWORD_COLUMNS} FROM aso_keywords WHERE id = ? AND app_id = ? AND workspace_id = ?`,
+    [id, appId, workspaceId],
+  );
   return row ? toKeyword(row) : undefined;
 }
 
@@ -261,7 +281,11 @@ export type KeywordResult =
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f‪-‮⁦-⁩]/;
 
 /** A tag or a note: plain text, no control characters (a note may have line breaks). */
-function cleanFreeText(value: string | null | undefined, max: number, multiline: boolean): { ok: true; value: string | null } | { ok: false; message: string } {
+function cleanFreeText(
+  value: string | null | undefined,
+  max: number,
+  multiline: boolean,
+): { ok: true; value: string | null } | { ok: false; message: string } {
   if (value === undefined || value === null) return { ok: true, value: null };
   const text = multiline ? value.trim() : value.replace(/\s+/g, ' ').trim();
   if (text === '') return { ok: true, value: null };
@@ -278,7 +302,10 @@ export async function addKeywords(
   const { workspaceId, app } = input;
   const at = ctx.now();
   return ctx.db.transaction(async (tx) => {
-    const [counted] = await tx.query('SELECT COUNT(*) AS n FROM aso_keywords WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]);
+    const [counted] = await tx.query(
+      'SELECT COUNT(*) AS n FROM aso_keywords WHERE app_id = ? AND workspace_id = ?',
+      [app.id, workspaceId],
+    );
     let count = Number(counted?.n ?? 0);
     const results: KeywordResult[] = [];
     const created: string[] = [];
@@ -291,23 +318,42 @@ export async function addKeywords(
       }
       const country = item.country === undefined ? 'us' : normalizeCountry(item.country);
       if (!country) {
-        results.push({ index, status: 'invalid', message: 'The country is two letters, such as us or de.' });
+        results.push({
+          index,
+          status: 'invalid',
+          message: 'The country is two letters, such as us or de.',
+        });
         continue;
       }
-      const locale = item.locale === undefined ? defaultLocaleFor(country) : normalizeLocale(item.locale);
+      const locale =
+        item.locale === undefined ? defaultLocaleFor(country) : normalizeLocale(item.locale);
       if (!locale) {
-        results.push({ index, status: 'invalid', message: 'The locale is a language tag such as en-US or pt-BR.' });
+        results.push({
+          index,
+          status: 'invalid',
+          message: 'The locale is a language tag such as en-US or pt-BR.',
+        });
         continue;
       }
       const priority = item.priority ?? 2;
       if (!Number.isInteger(priority) || priority < 1 || priority > 3) {
-        results.push({ index, status: 'invalid', message: 'The priority is 1 (low), 2 (normal) or 3 (high).' });
+        results.push({
+          index,
+          status: 'invalid',
+          message: 'The priority is 1 (low), 2 (normal) or 3 (high).',
+        });
         continue;
       }
       const tag = cleanFreeText(item.tag, MAX_TAG_CHARACTERS, false);
       const notes = cleanFreeText(item.notes, MAX_NOTES_CHARACTERS, true);
       if (!tag.ok || !notes.ok) {
-        results.push({ index, status: 'invalid', message: !tag.ok ? `Tag: ${tag.message}` : `Notes: ${(notes as { message: string }).message}` });
+        results.push({
+          index,
+          status: 'invalid',
+          message: !tag.ok
+            ? `Tag: ${tag.message}`
+            : `Notes: ${(notes as { message: string }).message}`,
+        });
         continue;
       }
       const [existing] = await tx.query(
@@ -319,7 +365,11 @@ export async function addKeywords(
         continue;
       }
       if (count >= ctx.limits.maxKeywordsPerApp) {
-        results.push({ index, status: 'limit', message: `An app tracks at most ${ctx.limits.maxKeywordsPerApp} keywords (MRM_ASO_MAX_KEYWORDS_PER_APP).` });
+        results.push({
+          index,
+          status: 'limit',
+          message: `An app tracks at most ${ctx.limits.maxKeywordsPerApp} keywords (MRM_ASO_MAX_KEYWORDS_PER_APP).`,
+        });
         continue;
       }
       const id = randomUUID();
@@ -327,11 +377,28 @@ export async function addKeywords(
         `INSERT INTO aso_keywords
            (id, workspace_id, app_id, platform, country, locale, term, term_key, tag, notes, priority, created_by, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, workspaceId, app.id, app.platform, country, locale, term.term, term.key, tag.value, notes.value, priority, input.actor.id, at, at],
+        [
+          id,
+          workspaceId,
+          app.id,
+          app.platform,
+          country,
+          locale,
+          term.term,
+          term.key,
+          tag.value,
+          notes.value,
+          priority,
+          input.actor.id,
+          at,
+          at,
+        ],
       );
       count += 1;
       created.push(id);
-      const row = (await tx.query(`SELECT ${KEYWORD_COLUMNS} FROM aso_keywords WHERE id = ?`, [id]))[0] as Row;
+      const row = (
+        await tx.query(`SELECT ${KEYWORD_COLUMNS} FROM aso_keywords WHERE id = ?`, [id])
+      )[0] as Row;
       results.push({ index, status: 'created', keyword: toKeyword(row) });
     }
     if (created.length > 0) {
@@ -351,7 +418,15 @@ export async function addKeywords(
 
 export async function updateKeyword(
   ctx: AsoContext,
-  input: { workspaceId: string; appId: string; id: string; actor: Actor; tag?: string | null; notes?: string | null; priority?: number },
+  input: {
+    workspaceId: string;
+    appId: string;
+    id: string;
+    actor: Actor;
+    tag?: string | null;
+    notes?: string | null;
+    priority?: number;
+  },
 ): Promise<{ ok: true; keyword: AsoKeyword } | Failure> {
   const existing = await getKeyword(ctx.db, input.workspaceId, input.appId, input.id);
   if (!existing) return failure(404, 'not_found');
@@ -383,7 +458,10 @@ export async function updateKeyword(
   if (sets.length === 0) return { ok: true, keyword: existing };
   const at = ctx.now();
   await ctx.db.transaction(async (tx) => {
-    await tx.execute(`UPDATE aso_keywords SET ${sets.join(', ')}, updated_at = ? WHERE id = ? AND workspace_id = ?`, [...params, at, input.id, input.workspaceId]);
+    await tx.execute(
+      `UPDATE aso_keywords SET ${sets.join(', ')}, updated_at = ? WHERE id = ? AND workspace_id = ?`,
+      [...params, at, input.id, input.workspaceId],
+    );
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -393,7 +471,10 @@ export async function updateKeyword(
       at,
     });
   });
-  return { ok: true, keyword: (await getKeyword(ctx.db, input.workspaceId, input.appId, input.id)) as AsoKeyword };
+  return {
+    ok: true,
+    keyword: (await getKeyword(ctx.db, input.workspaceId, input.appId, input.id)) as AsoKeyword,
+  };
 }
 
 export async function deleteKeyword(
@@ -403,8 +484,14 @@ export async function deleteKeyword(
   return ctx.db.transaction(async (tx) => {
     const existing = await getKeyword(tx, input.workspaceId, input.appId, input.id);
     if (!existing) return false;
-    await tx.execute('DELETE FROM aso_rank_checks WHERE keyword_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-    await tx.execute('DELETE FROM aso_keywords WHERE id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute('DELETE FROM aso_rank_checks WHERE keyword_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM aso_keywords WHERE id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -417,7 +504,13 @@ export async function deleteKeyword(
   });
 }
 
-export type RankCheckView = { id: string; checkedAt: number; rank: number | null; total: number; source: string };
+export type RankCheckView = {
+  id: string;
+  checkedAt: number;
+  rank: number | null;
+  total: number;
+  source: string;
+};
 
 export const DEFAULT_HISTORY_LIMIT = 100;
 export const MAX_HISTORY_LIMIT = 1000;
@@ -435,7 +528,13 @@ export async function keywordHistory(
     [input.keywordId, input.appId, input.workspaceId, input.since ?? 0, limit],
   );
   const checks: RankCheckView[] = rows
-    .map((r) => ({ id: String(r.id), checkedAt: Number(r.checked_at), rank: num(r.rank_pos), total: Number(r.total), source: String(r.source) }))
+    .map((r) => ({
+      id: String(r.id),
+      checkedAt: Number(r.checked_at),
+      rank: num(r.rank_pos),
+      total: Number(r.total),
+      source: String(r.source),
+    }))
     .reverse();
   return { checks, trend: rankTrend(checks.map((c) => ({ rank: c.rank, total: c.total }))) };
 }
@@ -531,7 +630,10 @@ async function latestSnapshotRow(sql: Sql, competitorId: string): Promise<Row | 
 
 async function toCompetitor(sql: Sql, r: Row): Promise<AsoCompetitor> {
   const latest = await latestSnapshotRow(sql, String(r.id));
-  const state = r.last_state === 'ok' || r.last_state === 'not_found' || r.last_state === 'unavailable' ? r.last_state : null;
+  const state =
+    r.last_state === 'ok' || r.last_state === 'not_found' || r.last_state === 'unavailable'
+      ? r.last_state
+      : null;
   return {
     id: String(r.id),
     appId: String(r.app_id),
@@ -548,17 +650,33 @@ async function toCompetitor(sql: Sql, r: Row): Promise<AsoCompetitor> {
   };
 }
 
-const COMPETITOR_COLUMNS = 'id, app_id, store, external_id, country, name, added_by, added_at, last_checked_at, last_state, last_error';
+const COMPETITOR_COLUMNS =
+  'id, app_id, store, external_id, country, name, added_by, added_at, last_checked_at, last_state, last_error';
 
-export async function listCompetitors(sql: Sql, workspaceId: string, appId: string): Promise<AsoCompetitor[]> {
-  const rows = await sql.query(`SELECT ${COMPETITOR_COLUMNS} FROM aso_competitors WHERE workspace_id = ? AND app_id = ? ORDER BY added_at, id`, [workspaceId, appId]);
+export async function listCompetitors(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AsoCompetitor[]> {
+  const rows = await sql.query(
+    `SELECT ${COMPETITOR_COLUMNS} FROM aso_competitors WHERE workspace_id = ? AND app_id = ? ORDER BY added_at, id`,
+    [workspaceId, appId],
+  );
   const out: AsoCompetitor[] = [];
   for (const row of rows) out.push(await toCompetitor(sql, row));
   return out;
 }
 
-export async function getCompetitor(sql: Sql, workspaceId: string, appId: string, id: string): Promise<AsoCompetitor | undefined> {
-  const [row] = await sql.query(`SELECT ${COMPETITOR_COLUMNS} FROM aso_competitors WHERE id = ? AND app_id = ? AND workspace_id = ?`, [id, appId, workspaceId]);
+export async function getCompetitor(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  id: string,
+): Promise<AsoCompetitor | undefined> {
+  const [row] = await sql.query(
+    `SELECT ${COMPETITOR_COLUMNS} FROM aso_competitors WHERE id = ? AND app_id = ? AND workspace_id = ?`,
+    [id, appId, workspaceId],
+  );
   return row ? toCompetitor(sql, row) : undefined;
 }
 
@@ -575,7 +693,10 @@ export function normalizeExternalId(platform: AsoPlatform, raw: string): string 
 }
 
 /** A competitor's public data as the state the diff compares, plus the short fields that are stored. */
-export function competitorStateOf(app: PublicApp): { state: CompetitorState; excerpt: string | null } {
+export function competitorStateOf(app: PublicApp): {
+  state: CompetitorState;
+  excerpt: string | null;
+} {
   const description = app.description ?? '';
   const title = app.name || null;
   const media = [app.iconUrl ?? '', ...(app.screenshotUrls ?? [])].join('\n');
@@ -598,7 +719,15 @@ export function competitorStateOf(app: PublicApp): { state: CompetitorState; exc
 
 async function insertSnapshot(
   tx: Sql,
-  input: { workspaceId: string; appId: string; competitorId: string; at: number; kind: string; app: PublicApp; changes: CompetitorChange[] },
+  input: {
+    workspaceId: string;
+    appId: string;
+    competitorId: string;
+    at: number;
+    kind: string;
+    app: PublicApp;
+    changes: CompetitorChange[];
+  },
 ): Promise<void> {
   const { state, excerpt } = competitorStateOf(input.app);
   await tx.execute(
@@ -633,28 +762,57 @@ async function insertSnapshot(
 /** Follows an app of the store as a competitor: looks it up once (so the name is real and the first snapshot exists). */
 export async function addCompetitor(
   ctx: AsoContext,
-  input: { workspaceId: string; app: ManagedApp; actor: Actor; externalId: string; country?: string },
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    actor: Actor;
+    externalId: string;
+    country?: string;
+  },
 ): Promise<{ ok: true; competitor: AsoCompetitor } | Failure> {
   const { workspaceId, app } = input;
   const externalId = normalizeExternalId(app.platform, input.externalId);
   if (!externalId) {
-    return failure(422, 'invalid_external_id', isApplePlatform(app.platform) ? 'Use the numeric App Store id (a number, id123 or an apps.apple.com address).' : 'Use the Android package name (such as com.example.app) or its play.google.com address.');
+    return failure(
+      422,
+      'invalid_external_id',
+      isApplePlatform(app.platform)
+        ? 'Use the numeric App Store id (a number, id123 or an apps.apple.com address).'
+        : 'Use the Android package name (such as com.example.app) or its play.google.com address.',
+    );
   }
   const country = input.country === undefined ? 'us' : normalizeCountry(input.country);
-  if (!country) return failure(422, 'invalid_country', 'The country is two letters, such as us or de.');
+  if (!country)
+    return failure(422, 'invalid_country', 'The country is two letters, such as us or de.');
   if (externalId === (isApplePlatform(app.platform) ? app.storeAppId : app.identifier)) {
     return failure(422, 'own_app', 'That is this app itself.');
   }
   const store = platformStore(app.platform);
-  const [counted] = await ctx.db.query('SELECT COUNT(*) AS n FROM aso_competitors WHERE app_id = ? AND workspace_id = ?', [app.id, workspaceId]);
-  const [dup] = await ctx.db.query('SELECT id FROM aso_competitors WHERE app_id = ? AND store = ? AND external_id = ? AND country = ?', [app.id, store, externalId, country]);
-  if (dup) return failure(409, 'already_followed', 'This competitor is already followed in that country.');
+  const [counted] = await ctx.db.query(
+    'SELECT COUNT(*) AS n FROM aso_competitors WHERE app_id = ? AND workspace_id = ?',
+    [app.id, workspaceId],
+  );
+  const [dup] = await ctx.db.query(
+    'SELECT id FROM aso_competitors WHERE app_id = ? AND store = ? AND external_id = ? AND country = ?',
+    [app.id, store, externalId, country],
+  );
+  if (dup)
+    return failure(409, 'already_followed', 'This competitor is already followed in that country.');
   if (Number(counted?.n ?? 0) >= ctx.limits.maxCompetitorsPerApp) {
-    return failure(409, 'limit_reached', `An app follows at most ${ctx.limits.maxCompetitorsPerApp} competitors (MRM_ASO_MAX_COMPETITORS_PER_APP).`);
+    return failure(
+      409,
+      'limit_reached',
+      `An app follows at most ${ctx.limits.maxCompetitorsPerApp} competitors (MRM_ASO_MAX_COMPETITORS_PER_APP).`,
+    );
   }
   let found: PublicApp | undefined;
   try {
-    found = await ctx.sources.lookup({ platform: app.platform, id: externalId, country, locale: defaultLocaleFor(country) });
+    found = await ctx.sources.lookup({
+      platform: app.platform,
+      id: externalId,
+      country,
+      locale: defaultLocaleFor(country),
+    });
   } catch (error) {
     return asoFailure(error);
   }
@@ -666,9 +824,28 @@ export async function addCompetitor(
       await tx.execute(
         `INSERT INTO aso_competitors (id, workspace_id, app_id, store, external_id, country, name, added_by, added_at, last_checked_at, last_state)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok')`,
-        [id, workspaceId, app.id, store, externalId, country, (found as PublicApp).name.slice(0, 200) || externalId, input.actor.id, at, at],
+        [
+          id,
+          workspaceId,
+          app.id,
+          store,
+          externalId,
+          country,
+          (found as PublicApp).name.slice(0, 200) || externalId,
+          input.actor.id,
+          at,
+          at,
+        ],
       );
-      await insertSnapshot(tx, { workspaceId, appId: app.id, competitorId: id, at, kind: 'first', app: found as PublicApp, changes: [] });
+      await insertSnapshot(tx, {
+        workspaceId,
+        appId: app.id,
+        competitorId: id,
+        at,
+        kind: 'first',
+        app: found as PublicApp,
+        changes: [],
+      });
       await recordAudit(tx, {
         workspaceId,
         actor: input.actor,
@@ -682,7 +859,10 @@ export async function addCompetitor(
     // The unique index: somebody added it a moment ago.
     return failure(409, 'already_followed', 'This competitor is already followed in that country.');
   }
-  return { ok: true, competitor: (await getCompetitor(ctx.db, workspaceId, app.id, id)) as AsoCompetitor };
+  return {
+    ok: true,
+    competitor: (await getCompetitor(ctx.db, workspaceId, app.id, id)) as AsoCompetitor,
+  };
 }
 
 export async function removeCompetitor(
@@ -692,8 +872,14 @@ export async function removeCompetitor(
   return ctx.db.transaction(async (tx) => {
     const existing = await getCompetitor(tx, input.workspaceId, input.appId, input.id);
     if (!existing) return false;
-    await tx.execute('DELETE FROM aso_competitor_snapshots WHERE competitor_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-    await tx.execute('DELETE FROM aso_competitors WHERE id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute(
+      'DELETE FROM aso_competitor_snapshots WHERE competitor_id = ? AND workspace_id = ?',
+      [input.id, input.workspaceId],
+    );
+    await tx.execute('DELETE FROM aso_competitors WHERE id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -719,10 +905,17 @@ export async function competitorHistory(
   );
   const snapshots = rows.map(toSnapshot);
   // The latest CHANGE: the newest snapshot that recorded differences, with the one before it.
-  const index = snapshots.findIndex((s) => s.kind === 'change' && s.changes !== null && s.changes.length > 0);
+  const index = snapshots.findIndex(
+    (s) => s.kind === 'change' && s.changes !== null && s.changes.length > 0,
+  );
   const diff =
     index >= 0
-      ? { from: snapshots[index + 1]?.id ?? null, to: (snapshots[index] as CompetitorSnapshotView).id, at: (snapshots[index] as CompetitorSnapshotView).checkedAt, changes: (snapshots[index] as CompetitorSnapshotView).changes as CompetitorChange[] }
+      ? {
+          from: snapshots[index + 1]?.id ?? null,
+          to: (snapshots[index] as CompetitorSnapshotView).id,
+          at: (snapshots[index] as CompetitorSnapshotView).checkedAt,
+          changes: (snapshots[index] as CompetitorSnapshotView).changes as CompetitorChange[],
+        }
       : null;
   return { snapshots, diff };
 }
@@ -732,7 +925,15 @@ export async function competitorHistory(
 
 export type AsoRefreshResult = {
   at: number;
-  keywords: { due: number; checked: number; ranked: number; notRanked: number; failed: number; cached: number; moved: number };
+  keywords: {
+    due: number;
+    checked: number;
+    ranked: number;
+    notRanked: number;
+    failed: number;
+    cached: number;
+    moved: number;
+  };
   competitors: { due: number; checked: number; changed: number; notFound: number; failed: number };
   /** Work is left for a later refresh. */
   deferred: boolean;
@@ -752,7 +953,11 @@ export type AsoAppState = {
   lastResult: AsoRefreshResult | null;
 };
 
-export async function getAsoState(sql: Sql, workspaceId: string, appId: string): Promise<AsoAppState> {
+export async function getAsoState(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<AsoAppState> {
   const [row] = await sql.query(
     'SELECT last_attempt_at, last_success_at, last_error, consecutive_failures, backoff_until, last_result FROM aso_app_state WHERE app_id = ? AND workspace_id = ?',
     [appId, workspaceId],
@@ -775,9 +980,16 @@ export async function getAsoState(sql: Sql, workspaceId: string, appId: string):
   };
 }
 
-export const asoBackoffMs = (failures: number): number => Math.min(MIN_BACKOFF_MS * 2 ** Math.max(0, failures - 1), MAX_BACKOFF_MS);
+export const asoBackoffMs = (failures: number): number =>
+  Math.min(MIN_BACKOFF_MS * 2 ** Math.max(0, failures - 1), MAX_BACKOFF_MS);
 
-async function claim(db: Sql, workspaceId: string, appId: string, now: number, by: string): Promise<boolean> {
+async function claim(
+  db: Sql,
+  workspaceId: string,
+  appId: string,
+  now: number,
+  by: string,
+): Promise<boolean> {
   const changed = await db.execute(
     `INSERT INTO aso_app_state (app_id, workspace_id, claimed_at, claimed_by) VALUES (?, ?, ?, ?)
      ON CONFLICT (app_id) DO UPDATE SET claimed_at = excluded.claimed_at, claimed_by = excluded.claimed_by
@@ -810,9 +1022,16 @@ export async function refreshApp(
 ): Promise<{ ok: true; result: AsoRefreshResult; state: AsoAppState } | AsoRefreshFailure> {
   const app = await getApp(ctx.db, input.workspaceId, input.id);
   if (!app) return { ...failure(404, 'not_found'), transient: false };
-  if (isGooglePlatform(app.platform) && !ctx.sources.playEnabled) return { ...playDisabledFailure(), transient: false };
-  if (running.has(app.id) || !(await claim(ctx.db, input.workspaceId, app.id, ctx.now(), actor.id))) {
-    return { ...failure(409, 'refresh_in_progress', 'This app is being refreshed right now.'), transient: true };
+  if (isGooglePlatform(app.platform) && !ctx.sources.playEnabled)
+    return { ...playDisabledFailure(), transient: false };
+  if (
+    running.has(app.id) ||
+    !(await claim(ctx.db, input.workspaceId, app.id, ctx.now(), actor.id))
+  ) {
+    return {
+      ...failure(409, 'refresh_in_progress', 'This app is being refreshed right now.'),
+      transient: true,
+    };
   }
   running.add(app.id);
   try {
@@ -820,13 +1039,25 @@ export async function refreshApp(
   } catch {
     // Nothing may escape: a bug here must not stop the scheduler or the worker.
     await release(ctx, input.workspaceId, app.id, 'failed').catch(() => undefined);
-    return { ...failure(502, 'refresh_failed', 'The ASO refresh could not be completed. Try again in a moment.'), transient: true };
+    return {
+      ...failure(
+        502,
+        'refresh_failed',
+        'The ASO refresh could not be completed. Try again in a moment.',
+      ),
+      transient: true,
+    };
   } finally {
     running.delete(app.id);
   }
 }
 
-async function release(ctx: AsoContext, workspaceId: string, appId: string, error: string): Promise<void> {
+async function release(
+  ctx: AsoContext,
+  workspaceId: string,
+  appId: string,
+  error: string,
+): Promise<void> {
   const at = ctx.now();
   await ctx.db.execute(
     `UPDATE aso_app_state SET claimed_at = NULL, claimed_by = NULL, last_attempt_at = ?, last_error = ?,
@@ -845,7 +1076,10 @@ async function run(
 ): Promise<{ ok: true; result: AsoRefreshResult; state: AsoAppState } | AsoRefreshFailure> {
   const startedAt = ctx.now();
   const scope = options.scope ?? 'all';
-  const dueBefore = options.force || ctx.limits.intervalMs <= 0 ? Number.POSITIVE_INFINITY : startedAt - ctx.limits.intervalMs;
+  const dueBefore =
+    options.force || ctx.limits.intervalMs <= 0
+      ? Number.POSITIVE_INFINITY
+      : startedAt - ctx.limits.intervalMs;
   const before = await getAsoState(ctx.db, workspaceId, app.id);
   const threshold = await rankMoveThresholdFor(ctx.db, workspaceId);
   const maxRunMs = ctx.maxRunMs ?? DEFAULT_ASO_RUN_MS;
@@ -992,7 +1226,10 @@ async function run(
         }
         addError(code);
         result.competitors.failed += 1;
-        await ctx.db.execute('UPDATE aso_competitors SET last_state = ?, last_error = ? WHERE id = ?', ['unavailable', code, id]);
+        await ctx.db.execute(
+          'UPDATE aso_competitors SET last_state = ?, last_error = ? WHERE id = ?',
+          ['unavailable', code, id],
+        );
         if (error instanceof AsoError && error.kind === 'unavailable') {
           result.deferred = true;
           stop = 'unavailable';
@@ -1011,12 +1248,18 @@ async function run(
   if (stop) result.stoppedBecause = stop;
   if (retryAfter !== undefined) result.retryAfterSeconds = retryAfter;
   if (result.keywords.failed > 0 && result.errors.includes('app_not_synced')) {
-    result.warnings.push('The App Store id of this app is not known yet. Sync the app first, then check its keywords.');
+    result.warnings.push(
+      'The App Store id of this app is not known yet. Sync the app first, then check its keywords.',
+    );
   }
 
   // A run that tried and got nothing is a failure (the scheduler backs off); a run that only hit our
   // own limit, or had nothing to do, is not.
-  const failed = attempted > 0 && succeeded === 0 && result.errors.length > 0 && !(stop === 'rate_limit' && !storeLimited);
+  const failed =
+    attempted > 0 &&
+    succeeded === 0 &&
+    result.errors.length > 0 &&
+    !(stop === 'rate_limit' && !storeLimited);
   const at = ctx.now();
   const failures = failed ? before.consecutiveFailures + 1 : 0;
   const wait = failed ? Math.max(asoBackoffMs(failures), (retryAfter ?? 0) * 1000) : 0;
@@ -1029,7 +1272,16 @@ async function run(
          last_success_at = COALESCE(excluded.last_success_at, aso_app_state.last_success_at),
          last_error = excluded.last_error, consecutive_failures = excluded.consecutive_failures,
          backoff_until = excluded.backoff_until, claimed_at = NULL, claimed_by = NULL, last_result = excluded.last_result`,
-      [app.id, workspaceId, at, succeeded > 0 ? at : null, failed ? (result.errors[0] ?? 'failed').slice(0, MAX_ERROR_LENGTH) : null, failures, failed ? at + wait : null, JSON.stringify(result)],
+      [
+        app.id,
+        workspaceId,
+        at,
+        succeeded > 0 ? at : null,
+        failed ? (result.errors[0] ?? 'failed').slice(0, MAX_ERROR_LENGTH) : null,
+        failures,
+        failed ? at + wait : null,
+        JSON.stringify(result),
+      ],
     );
     await recordAudit(tx, {
       workspaceId,
@@ -1051,16 +1303,30 @@ async function run(
     });
   });
   if (failed) {
-    const failure502 = failure(502, 'refresh_failed', 'No store check could be made. The reasons are in the result.', { result });
+    const failure502 = failure(
+      502,
+      'refresh_failed',
+      'No store check could be made. The reasons are in the result.',
+      { result },
+    );
     return { ...failure502, transient: result.errors.some((e) => !e.startsWith('unavailable_')) };
   }
   return { ok: true, result, state: await getAsoState(ctx.db, workspaceId, app.id) };
 }
 
-async function markKeywordFailed(ctx: AsoContext, workspaceId: string, id: string, code: string): Promise<void> {
+async function markKeywordFailed(
+  ctx: AsoContext,
+  workspaceId: string,
+  id: string,
+  code: string,
+): Promise<void> {
   // Only the reason is kept. `last_checked_at` stays the last SUCCESSFUL check; the app level backoff
   // (aso_app_state) is what keeps a failing source from being asked again at once.
-  await ctx.db.execute('UPDATE aso_keywords SET last_error = ? WHERE id = ? AND workspace_id = ?', [code, id, workspaceId]);
+  await ctx.db.execute('UPDATE aso_keywords SET last_error = ? WHERE id = ? AND workspace_id = ?', [
+    code,
+    id,
+    workspaceId,
+  ]);
 }
 
 async function recordRank(
@@ -1068,18 +1334,41 @@ async function recordRank(
   workspaceId: string,
   app: ManagedApp,
   keyword: AsoKeyword,
-  check: { rank: number | null; total: number; source: string; top: { id: string; name?: string }[]; threshold: number },
+  check: {
+    rank: number | null;
+    total: number;
+    source: string;
+    top: { id: string; name?: string }[];
+    threshold: number;
+  },
 ): Promise<boolean> {
   const at = ctx.now();
   const state: KeywordState = check.rank === null ? 'not_ranked' : 'ranked';
   const change =
-    keyword.state !== null ? rankChange({ rank: keyword.rank, total: keyword.total ?? check.total }, { rank: check.rank, total: check.total }) : null;
+    keyword.state !== null
+      ? rankChange(
+          { rank: keyword.rank, total: keyword.total ?? check.total },
+          { rank: check.rank, total: check.total },
+        )
+      : null;
   const big = change !== null && isBigMove(change, check.threshold, DEFAULT_EDGE_TOP);
   await ctx.db.transaction(async (tx) => {
     await tx.execute(
       `INSERT INTO aso_rank_checks (id, workspace_id, keyword_id, app_id, checked_at, rank_pos, total, source, top_results)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), workspaceId, keyword.id, app.id, at, check.rank, check.total, check.source, JSON.stringify(check.top.map((h) => (h.name ? { id: h.id, name: h.name.slice(0, 100) } : { id: h.id })))],
+      [
+        randomUUID(),
+        workspaceId,
+        keyword.id,
+        app.id,
+        at,
+        check.rank,
+        check.total,
+        check.source,
+        JSON.stringify(
+          check.top.map((h) => (h.name ? { id: h.id, name: h.name.slice(0, 100) } : { id: h.id })),
+        ),
+      ],
     );
     await tx.execute(
       `UPDATE aso_keywords SET
@@ -1122,15 +1411,31 @@ async function recordCompetitorCheck(
   const at = ctx.now();
   const competitorId = String(row.id);
   if (!found) {
-    await ctx.db.execute("UPDATE aso_competitors SET last_checked_at = ?, last_state = 'not_found', last_error = NULL WHERE id = ?", [at, competitorId]);
+    await ctx.db.execute(
+      "UPDATE aso_competitors SET last_checked_at = ?, last_state = 'not_found', last_error = NULL WHERE id = ?",
+      [at, competitorId],
+    );
     return { changed: false };
   }
   const { state } = competitorStateOf(found);
   const latest = await latestSnapshotRow(ctx.db, competitorId);
-  const decision = decideSnapshot(latest ? stateOfSnapshot(latest) : undefined, state, at, ctx.limits.heartbeatMs);
+  const decision = decideSnapshot(
+    latest ? stateOfSnapshot(latest) : undefined,
+    state,
+    at,
+    ctx.limits.heartbeatMs,
+  );
   await ctx.db.transaction(async (tx) => {
     if (decision.store) {
-      await insertSnapshot(tx, { workspaceId, appId: app.id, competitorId, at, kind: decision.kind, app: found, changes: decision.changes });
+      await insertSnapshot(tx, {
+        workspaceId,
+        appId: app.id,
+        competitorId,
+        at,
+        kind: decision.kind,
+        app: found,
+        changes: decision.changes,
+      });
     }
     await tx.execute(
       "UPDATE aso_competitors SET last_checked_at = ?, last_state = 'ok', last_error = NULL, name = ? WHERE id = ?",
@@ -1159,14 +1464,23 @@ async function recordCompetitorCheck(
 // ---------------------------------------------------------------------------------------------
 // As a job
 
-export type AsoRefreshPayload = { workspaceId: string; appId: string; requestedBy: string; force?: boolean; scope?: 'all' | 'keywords' | 'competitors' };
+export type AsoRefreshPayload = {
+  workspaceId: string;
+  appId: string;
+  requestedBy: string;
+  force?: boolean;
+  scope?: 'all' | 'keywords' | 'competitors';
+};
 
 export function enqueueAsoRefresh(
   ctx: Pick<AsoContext, 'db' | 'now'>,
   payload: AsoRefreshPayload,
   options: { runAt?: number } = {},
 ): Promise<string> {
-  return enqueue(ctx.db, ASO_REFRESH_QUEUE, payload, { now: ctx.now(), ...(options.runAt !== undefined ? { runAt: options.runAt } : {}) });
+  return enqueue(ctx.db, ASO_REFRESH_QUEUE, payload, {
+    now: ctx.now(),
+    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}),
+  });
 }
 
 const isPayload = (value: unknown): value is AsoRefreshPayload =>
@@ -1185,7 +1499,10 @@ export function createAsoRefreshHandler(ctx: AsoContext): JobHandler {
       { workspaceId: payload.workspaceId, id: payload.appId },
       { type: 'system', id: ASO_REFRESH_QUEUE },
       { trigger: 'job', requestedBy: payload.requestedBy },
-      { ...(payload.force ? { force: true } : {}), ...(payload.scope ? { scope: payload.scope } : {}) },
+      {
+        ...(payload.force ? { force: true } : {}),
+        ...(payload.scope ? { scope: payload.scope } : {}),
+      },
     ).catch(() => undefined);
   };
 }

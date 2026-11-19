@@ -1,6 +1,6 @@
 import {
+  isApplePlatform,
   LEGACY_AGE_ANSWER,
-  normalizeCategory,
   type ListingAgeRating,
   type ListingCategories,
   type ListingDetails,
@@ -10,12 +10,12 @@ import {
   type ListingSectionName,
   type ListingSections,
   type MediaSet,
+  normalizeCategory,
   type Platform,
   type SectionStatus,
-  isApplePlatform,
 } from '@mrm/core';
-import { type BadgeTone } from './portfolio.ts';
 import { timeAgo } from './format.ts';
+import type { BadgeTone } from './portfolio.ts';
 import type { ListingSchedule, SectionDrift } from './types.ts';
 
 /**
@@ -38,21 +38,45 @@ export const PLAY_LIMITS_NOTE =
 type StatusInfo = { label: string; tone: BadgeTone; explain: string };
 
 const STATUS: Record<SectionStatus, StatusInfo> = {
-  identical: { label: 'Identical', tone: 'ok', explain: 'The repository and the store say the same.' },
-  differs: { label: 'Differs', tone: 'warn', explain: 'The repository and the store disagree. See the rows marked as different.' },
-  'missing-in-repo': { label: 'Not in the repository', tone: 'neutral', explain: 'The store has a value and the repository files say nothing about it.' },
-  'missing-in-store': { label: 'Not in the store', tone: 'neutral', explain: 'The repository has a value and the store has nothing.' },
+  identical: {
+    label: 'Identical',
+    tone: 'ok',
+    explain: 'The repository and the store say the same.',
+  },
+  differs: {
+    label: 'Differs',
+    tone: 'warn',
+    explain: 'The repository and the store disagree. See the rows marked as different.',
+  },
+  'missing-in-repo': {
+    label: 'Not in the repository',
+    tone: 'neutral',
+    explain: 'The store has a value and the repository files say nothing about it.',
+  },
+  'missing-in-store': {
+    label: 'Not in the store',
+    tone: 'neutral',
+    explain: 'The repository has a value and the store has nothing.',
+  },
   'not-comparable': {
     label: 'Not comparable',
     tone: 'neutral',
-    explain: 'The repository cannot say this faithfully (or has not been read), so the store value is shown without a comparison.',
+    explain:
+      'The repository cannot say this faithfully (or has not been read), so the store value is shown without a comparison.',
   },
-  'not-read': { label: 'Not read yet', tone: 'neutral', explain: 'This has not been read from the store yet.' },
+  'not-read': {
+    label: 'Not read yet',
+    tone: 'neutral',
+    explain: 'This has not been read from the store yet.',
+  },
 };
 
-export const sectionStatusLabel = (status: SectionStatus): string => STATUS[status]?.label ?? status;
-export const sectionStatusTone = (status: SectionStatus): BadgeTone => STATUS[status]?.tone ?? 'neutral';
-export const sectionStatusExplanation = (status: SectionStatus): string => STATUS[status]?.explain ?? '';
+export const sectionStatusLabel = (status: SectionStatus): string =>
+  STATUS[status]?.label ?? status;
+export const sectionStatusTone = (status: SectionStatus): BadgeTone =>
+  STATUS[status]?.tone ?? 'neutral';
+export const sectionStatusExplanation = (status: SectionStatus): string =>
+  STATUS[status]?.explain ?? '';
 
 export const SECTION_TITLES: Record<ListingSectionName, string> = {
   categories: 'Categories',
@@ -123,9 +147,14 @@ const answerText = (value: string | boolean | undefined): string | null => {
 export function deviceLabel(type: string): string {
   const phone = /^(?:APP_)?IPHONE_(\d)(\d)$/.exec(type);
   if (phone) return `iPhone ${phone[1]}.${phone[2]}"`;
-  const pad = /^(?:APP_)?IPAD_(?:PRO_)?(?:\d?GEN_)?(\d{2,3})$/.exec(type) ?? /^(?:APP_)?IPAD_PRO(?:_\dGEN)?_(\d{2,3})$/.exec(type);
+  const pad =
+    /^(?:APP_)?IPAD_(?:PRO_)?(?:\d?GEN_)?(\d{2,3})$/.exec(type) ??
+    /^(?:APP_)?IPAD_PRO(?:_\dGEN)?_(\d{2,3})$/.exec(type);
   if (pad) {
-    const size = (pad[1] ?? '').length === 3 ? `${(pad[1] ?? '').slice(0, 2)}.${(pad[1] ?? '').slice(2)}` : (pad[1] ?? '');
+    const size =
+      (pad[1] ?? '').length === 3
+        ? `${(pad[1] ?? '').slice(0, 2)}.${(pad[1] ?? '').slice(2)}`
+        : (pad[1] ?? '');
     return `iPad Pro ${size}"`;
   }
   const play: Record<string, string> = {
@@ -160,7 +189,13 @@ export type ValueRow = {
   raw?: string;
 };
 
-const row = (label: string, store: string | null, repo: string | null, differs = false, raw?: string): ValueRow => ({
+const row = (
+  label: string,
+  store: string | null,
+  repo: string | null,
+  differs = false,
+  raw?: string,
+): ValueRow => ({
   label,
   store,
   repo,
@@ -171,15 +206,19 @@ const row = (label: string, store: string | null, repo: string | null, differs =
 const sameCategory = (a: string | undefined, b: string | undefined): boolean =>
   (a === undefined ? '' : normalizeCategory(a)) === (b === undefined ? '' : normalizeCategory(b));
 
-export function categoryRows(store: ListingCategories | undefined, repo: ListingCategories | undefined): ValueRow[] {
-  const get = (c: ListingCategories | undefined) => [
-    ['Primary category', c?.primary],
-    ['Secondary category', c?.secondary],
-    ['Primary subcategory 1', c?.primarySubcategories?.[0]],
-    ['Primary subcategory 2', c?.primarySubcategories?.[1]],
-    ['Secondary subcategory 1', c?.secondarySubcategories?.[0]],
-    ['Secondary subcategory 2', c?.secondarySubcategories?.[1]],
-  ] as const;
+export function categoryRows(
+  store: ListingCategories | undefined,
+  repo: ListingCategories | undefined,
+): ValueRow[] {
+  const get = (c: ListingCategories | undefined) =>
+    [
+      ['Primary category', c?.primary],
+      ['Secondary category', c?.secondary],
+      ['Primary subcategory 1', c?.primarySubcategories?.[0]],
+      ['Primary subcategory 2', c?.primarySubcategories?.[1]],
+      ['Secondary subcategory 1', c?.secondarySubcategories?.[0]],
+      ['Secondary subcategory 2', c?.secondarySubcategories?.[1]],
+    ] as const;
   const a = get(store);
   const b = get(repo);
   const rows: ValueRow[] = [];
@@ -188,7 +227,13 @@ export function categoryRows(store: ListingCategories | undefined, repo: Listing
     const r = (b[i] as readonly [string, string | undefined])[1];
     if (s === undefined && r === undefined) continue;
     rows.push(
-      row(label, s === undefined ? null : humanize(s), r === undefined ? null : humanize(r), repo !== undefined && s !== undefined && r !== undefined && !sameCategory(s, r), s),
+      row(
+        label,
+        s === undefined ? null : humanize(s),
+        r === undefined ? null : humanize(r),
+        repo !== undefined && s !== undefined && r !== undefined && !sameCategory(s, r),
+        s,
+      ),
     );
   }
   return rows;
@@ -197,11 +242,16 @@ export function categoryRows(store: ListingCategories | undefined, repo: Listing
 const legacy = (value: string | boolean | undefined): string | boolean | undefined =>
   typeof value === 'string' ? (LEGACY_AGE_ANSWER[value] ?? value) : value;
 
-export function ageRatingRows(store: ListingAgeRating | undefined, repo: ListingAgeRating | undefined): ValueRow[] {
+export function ageRatingRows(
+  store: ListingAgeRating | undefined,
+  repo: ListingAgeRating | undefined,
+): ValueRow[] {
   const rows: ValueRow[] = [];
   const label = ageRatingLabel(store?.rating);
   if (label !== null) rows.push(row('Rating', label, null, false, store?.rating));
-  const keys = [...new Set([...Object.keys(store?.answers ?? {}), ...Object.keys(repo?.answers ?? {})])].sort();
+  const keys = [
+    ...new Set([...Object.keys(store?.answers ?? {}), ...Object.keys(repo?.answers ?? {})]),
+  ].sort();
   for (const key of keys) {
     const s = store?.answers[key];
     const r = repo?.answers[key];
@@ -211,16 +261,29 @@ export function ageRatingRows(store: ListingAgeRating | undefined, repo: Listing
   return rows;
 }
 
-export function privacyRows(store: ListingPrivacy | undefined, repo: ListingPrivacy | undefined): ValueRow[] {
-  const locales = [...new Set([...Object.keys(store?.choicesUrls ?? {}), ...Object.keys(repo?.choicesUrls ?? {})])].sort();
+export function privacyRows(
+  store: ListingPrivacy | undefined,
+  repo: ListingPrivacy | undefined,
+): ValueRow[] {
+  const locales = [
+    ...new Set([...Object.keys(store?.choicesUrls ?? {}), ...Object.keys(repo?.choicesUrls ?? {})]),
+  ].sort();
   return locales.map((locale) => {
     const s = store?.choicesUrls[locale];
     const r = repo?.choicesUrls[locale];
-    return row(locale, s ?? null, r ?? null, s !== undefined && r !== undefined && s.trim() !== r.trim());
+    return row(
+      locale,
+      s ?? null,
+      r ?? null,
+      s !== undefined && r !== undefined && s.trim() !== r.trim(),
+    );
   });
 }
 
-export function detailRows(store: ListingDetails | undefined, repo: ListingDetails | undefined): ValueRow[] {
+export function detailRows(
+  store: ListingDetails | undefined,
+  repo: ListingDetails | undefined,
+): ValueRow[] {
   const fields = [
     ['copyright', 'Copyright'],
     ['defaultLanguage', 'Default language'],
@@ -232,13 +295,19 @@ export function detailRows(store: ListingDetails | undefined, repo: ListingDetai
     const s = store?.[key];
     const r = repo?.[key];
     if (s === undefined && r === undefined) continue;
-    rows.push(row(label, s ?? null, r ?? null, s !== undefined && r !== undefined && s.trim() !== r.trim()));
+    rows.push(
+      row(label, s ?? null, r ?? null, s !== undefined && r !== undefined && s.trim() !== r.trim()),
+    );
   }
   return rows;
 }
 
 /** Rows for the sections that are a list of values. `media` and `releaseNotes` have their own shapes. */
-export function valueRows(sectionName: ListingSectionName, store: unknown, repo: unknown): ValueRow[] {
+export function valueRows(
+  sectionName: ListingSectionName,
+  store: unknown,
+  repo: unknown,
+): ValueRow[] {
   const s = (store ?? undefined) as ListingSections[ListingSectionName] | undefined;
   const r = (repo ?? undefined) as ListingSections[ListingSectionName] | undefined;
   switch (sectionName) {
@@ -272,7 +341,8 @@ export type MediaRow = {
   differs: boolean;
 };
 
-const setsOf = (map: Record<string, MediaSet[]> | undefined, locale: string): MediaSet[] => map?.[locale] ?? [];
+const setsOf = (map: Record<string, MediaSet[]> | undefined, locale: string): MediaSet[] =>
+  map?.[locale] ?? [];
 const total = (sets: readonly MediaSet[]) => sets.reduce((sum, set) => sum + set.count, 0);
 
 /**
@@ -302,12 +372,23 @@ export function mediaRows(
   // difference: a count is only marked as different when both sides have some media.
   const everything = (m: ListingMedia | undefined) =>
     Object.values(m?.screenshots ?? {}).reduce((n, sets) => n + total(sets), 0) +
-    (!isApplePlatform(platform) ? Object.values(m?.graphics ?? {}).reduce((n, sets) => n + total(sets), 0) : 0);
+    (!isApplePlatform(platform)
+      ? Object.values(m?.graphics ?? {}).reduce((n, sets) => n + total(sets), 0)
+      : 0);
   const bothHave = everything(store) > 0 && everything(repo) > 0;
   for (const locale of locales) {
     if (isApplePlatform(platform)) {
       for (const set of setsOf(store?.screenshots, locale)) {
-        rows.push({ locale, kind: 'Screenshots', device: deviceLabel(set.type), type: set.type, store: set.count, repo: null, compared: false, differs: false });
+        rows.push({
+          locale,
+          kind: 'Screenshots',
+          device: deviceLabel(set.type),
+          type: set.type,
+          store: set.count,
+          repo: null,
+          compared: false,
+          differs: false,
+        });
       }
       const s = total(setsOf(store?.screenshots, locale));
       const r = repoKnown ? total(setsOf(repo?.screenshots, locale)) : null;
@@ -325,19 +406,41 @@ export function mediaRows(
         });
       }
       for (const set of setsOf(store?.previews, locale)) {
-        rows.push({ locale, kind: 'Previews', device: deviceLabel(set.type), type: set.type, store: set.count, repo: null, compared: false, differs: false });
+        rows.push({
+          locale,
+          kind: 'Previews',
+          device: deviceLabel(set.type),
+          type: set.type,
+          store: set.count,
+          repo: null,
+          compared: false,
+          differs: false,
+        });
       }
     } else {
-      const types = new Map<string, { kind: 'Screenshots' | 'Graphics'; s: number | null; r: number | null }>();
-      for (const set of setsOf(store?.screenshots, locale)) types.set(`S:${set.type}`, { kind: 'Screenshots', s: set.count, r: repoKnown ? 0 : null });
-      for (const set of setsOf(store?.graphics, locale)) types.set(`G:${set.type}`, { kind: 'Graphics', s: set.count, r: repoKnown ? 0 : null });
+      const types = new Map<
+        string,
+        { kind: 'Screenshots' | 'Graphics'; s: number | null; r: number | null }
+      >();
+      for (const set of setsOf(store?.screenshots, locale))
+        types.set(`S:${set.type}`, { kind: 'Screenshots', s: set.count, r: repoKnown ? 0 : null });
+      for (const set of setsOf(store?.graphics, locale))
+        types.set(`G:${set.type}`, { kind: 'Graphics', s: set.count, r: repoKnown ? 0 : null });
       for (const set of setsOf(repo?.screenshots, locale)) {
-        const cur = types.get(`S:${set.type}`) ?? { kind: 'Screenshots' as const, s: store === undefined ? null : 0, r: 0 };
+        const cur = types.get(`S:${set.type}`) ?? {
+          kind: 'Screenshots' as const,
+          s: store === undefined ? null : 0,
+          r: 0,
+        };
         cur.r = set.count;
         types.set(`S:${set.type}`, cur);
       }
       for (const set of setsOf(repo?.graphics, locale)) {
-        const cur = types.get(`G:${set.type}`) ?? { kind: 'Graphics' as const, s: store === undefined ? null : 0, r: 0 };
+        const cur = types.get(`G:${set.type}`) ?? {
+          kind: 'Graphics' as const,
+          s: store === undefined ? null : 0,
+          r: 0,
+        };
         cur.r = set.count;
         types.set(`G:${set.type}`, cur);
       }
@@ -362,23 +465,36 @@ export function mediaRows(
 /** "12 screenshots and 3 previews in 4 locales", for the header of the media block. */
 export function mediaSummary(store: ListingMedia | undefined): string {
   if (store === undefined) return 'Not read yet';
-  const sum = (map: Record<string, MediaSet[]> | undefined) => Object.values(map ?? {}).reduce((n, sets) => n + total(sets), 0);
+  const sum = (map: Record<string, MediaSet[]> | undefined) =>
+    Object.values(map ?? {}).reduce((n, sets) => n + total(sets), 0);
   const screenshots = sum(store.screenshots);
   const previews = sum(store.previews);
   const graphics = sum(store.graphics);
-  const locales = new Set([...Object.keys(store.screenshots), ...Object.keys(store.previews ?? {}), ...Object.keys(store.graphics ?? {})]);
+  const locales = new Set([
+    ...Object.keys(store.screenshots),
+    ...Object.keys(store.previews ?? {}),
+    ...Object.keys(store.graphics ?? {}),
+  ]);
   const parts = [`${screenshots} ${screenshots === 1 ? 'screenshot' : 'screenshots'}`];
-  if (store.previews !== undefined) parts.push(`${previews} ${previews === 1 ? 'preview' : 'previews'}`);
-  if (store.graphics !== undefined) parts.push(`${graphics} ${graphics === 1 ? 'graphic' : 'graphics'}`);
+  if (store.previews !== undefined)
+    parts.push(`${previews} ${previews === 1 ? 'preview' : 'previews'}`);
+  if (store.graphics !== undefined)
+    parts.push(`${graphics} ${graphics === 1 ? 'graphic' : 'graphics'}`);
   const where = `${locales.size} ${locales.size === 1 ? 'locale' : 'locales'}`;
   const text = `${parts.join(', ')} in ${where}`;
-  return store.truncated === true ? `${text} (some locales were left out to stay within the read limits)` : text;
+  return store.truncated === true
+    ? `${text} (some locales were left out to stay within the read limits)`
+    : text;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Release notes (Google Play)
 
-export type ReleaseNoteRow = { track: string; meta: string; notes: { language: string; text: string }[] };
+export type ReleaseNoteRow = {
+  track: string;
+  meta: string;
+  notes: { language: string; text: string }[];
+};
 
 const NOTE_CAP = 400;
 
@@ -429,13 +545,18 @@ export function intervalText(minutes: number): string {
 
 export function scheduleView(schedule: ListingSchedule | undefined, now: number): ScheduleView {
   if (schedule === undefined) {
-    return { state: 'unknown', headline: 'Scheduled reads: unknown', detail: 'This server does not report whether the listing is read on a schedule.' };
+    return {
+      state: 'unknown',
+      headline: 'Scheduled reads: unknown',
+      detail: 'This server does not report whether the listing is read on a schedule.',
+    };
   }
   if (!schedule.enabled) {
     return {
       state: 'off',
       headline: 'Scheduled reads are off',
-      detail: 'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (MRM_LISTING_INTERVAL_MINUTES).',
+      detail:
+        'The listing is read when the app is synced or refreshed from the store. The server owner can turn scheduled reads on (MRM_LISTING_INTERVAL_MINUTES).',
     };
   }
   const every = `Read automatically every ${intervalText(schedule.intervalMinutes)}`;

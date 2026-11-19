@@ -18,10 +18,25 @@ export const channelLabels: Record<AlertChannel, string> = {
   webhook: 'Webhook',
 };
 
-export const severityLabels: Record<AlertSeverity, string> = { info: 'Info', warning: 'Warning', critical: 'Critical' };
-export const severityTone: Record<AlertSeverity, 'info' | 'warn' | 'bad'> = { info: 'info', warning: 'warn', critical: 'bad' };
+export const severityLabels: Record<AlertSeverity, string> = {
+  info: 'Info',
+  warning: 'Warning',
+  critical: 'Critical',
+};
+export const severityTone: Record<AlertSeverity, 'info' | 'warn' | 'bad'> = {
+  info: 'info',
+  warning: 'warn',
+  critical: 'bad',
+};
 
-export type CatalogParam = { key: string; label: string; unit: string; default: number; min: number; max: number };
+export type CatalogParam = {
+  key: string;
+  label: string;
+  unit: string;
+  default: number;
+  min: number;
+  max: number;
+};
 
 export type RuleView = {
   alertType: string;
@@ -67,7 +82,12 @@ export type InboxAlert = {
   desktop: boolean;
 };
 
-export type AlertInboxPage = { alerts: InboxAlert[]; unreadCount: number; hasMore: boolean; now: number };
+export type AlertInboxPage = {
+  alerts: InboxAlert[];
+  unreadCount: number;
+  hasMore: boolean;
+  now: number;
+};
 
 export type UserSettings = {
   minSeverity: AlertSeverity;
@@ -79,7 +99,13 @@ export type UserSettings = {
   lastDigestAt: number | null;
 };
 export type Preference = { alertType: string; appId: string | null; channels: AlertChannel[] };
-export type Mute = { id: string; appId: string | null; alertType: string | null; until: number | null; createdAt: number };
+export type Mute = {
+  id: string;
+  appId: string | null;
+  alertType: string | null;
+  until: number | null;
+  createdAt: number;
+};
 export type SettingsPage = { settings: UserSettings; preferences: Preference[]; mutes: Mute[] };
 
 export type Delivery = {
@@ -104,7 +130,8 @@ export type AlertTestResult = { alertId: string; deliveries: Delivery[] };
 export const outcomeLabels: Record<string, string> = {
   ok: 'Delivered.',
   queued_for_client: 'Waiting for the app to show it as a desktop notification.',
-  queued_for_endpoints: 'Sent to your webhook endpoints; each has its own delivery log under Webhooks.',
+  queued_for_endpoints:
+    'Sent to your webhook endpoints; each has its own delivery log under Webhooks.',
   in_digest: 'Held for your digest.',
   digest_sent: 'Sent in a digest.',
   quiet_hours: 'Held back by quiet hours.',
@@ -122,7 +149,8 @@ export const outcomeLabels: Record<string, string> = {
   smtp_timeout: 'The mail server did not answer in time.',
 };
 
-export const describeOutcome = (outcome: string): string => outcomeLabels[outcome] || 'Unknown result.';
+export const describeOutcome = (outcome: string): string =>
+  outcomeLabels[outcome] || 'Unknown result.';
 
 export const statusLabels: Record<string, string> = {
   queued: 'Queued',
@@ -133,7 +161,13 @@ export const statusLabels: Record<string, string> = {
   deferred: 'Held',
 };
 export const statusTone = (status: string): 'ok' | 'bad' | 'warn' | 'neutral' =>
-  status === 'sent' ? 'ok' : status === 'failed' ? 'bad' : status === 'retrying' ? 'warn' : 'neutral';
+  status === 'sent'
+    ? 'ok'
+    : status === 'failed'
+      ? 'bad'
+      : status === 'retrying'
+        ? 'warn'
+        : 'neutral';
 
 // ----- the matrix ----------------------------------------------------------------------------------------------
 
@@ -145,15 +179,23 @@ export function effectiveChannels(
   appId: string | null,
 ): PersonalChannel[] {
   const mine = prefs.filter((p) => p.alertType === alertType);
-  const own = (appId !== null ? mine.filter((p) => p.appId === appId)[0] : undefined) || mine.filter((p) => p.appId === null)[0];
+  const own =
+    (appId !== null ? mine.filter((p) => p.appId === appId)[0] : undefined) ||
+    mine.filter((p) => p.appId === null)[0];
   const base = (own ? own.channels : entry.rule.channels).filter(
     (c): c is PersonalChannel => c !== 'webhook' && entry.allowedChannels.indexOf(c) >= 0,
   );
-  return base.indexOf('desktop') >= 0 && base.indexOf('in_app') < 0 ? ['in_app'].concat(base) as PersonalChannel[] : base;
+  return base.indexOf('desktop') >= 0 && base.indexOf('in_app') < 0
+    ? (['in_app'].concat(base) as PersonalChannel[])
+    : base;
 }
 
 /** The channels after turning one on or off. The desktop notification is shown from the inbox, so it needs the inbox. */
-export function toggleChannel(current: PersonalChannel[], channel: PersonalChannel, on: boolean): PersonalChannel[] {
+export function toggleChannel(
+  current: PersonalChannel[],
+  channel: PersonalChannel,
+  on: boolean,
+): PersonalChannel[] {
   let next = current.filter((c) => c !== channel);
   if (on) next = next.concat([channel]);
   if (channel === 'in_app' && !on) next = next.filter((c) => c !== 'desktop');
@@ -180,7 +222,11 @@ export function matrixGroups(catalog: CatalogEntry[]): MatrixGroup[] {
 
 // ----- the inbox -------------------------------------------------------------------------------------------------
 
-export type InboxGroup = { id: 'attention' | 'info' | 'resolved'; title: string; alerts: InboxAlert[] };
+export type InboxGroup = {
+  id: 'attention' | 'info' | 'resolved';
+  title: string;
+  alerts: InboxAlert[];
+};
 
 /** Open critical and warning alerts first, then information, then what ended by itself. Empty groups are left out. */
 export function groupInbox(alerts: InboxAlert[]): InboxGroup[] {
@@ -212,7 +258,9 @@ export function timeToMinutes(value: string): number | null {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
-export function quietSummary(s: Pick<UserSettings, 'quietStart' | 'quietEnd' | 'timezone'>): string {
+export function quietSummary(
+  s: Pick<UserSettings, 'quietStart' | 'quietEnd' | 'timezone'>,
+): string {
   if (s.quietStart === null || s.quietEnd === null) return 'No quiet hours';
   return `Quiet from ${minutesToTime(s.quietStart)} to ${minutesToTime(s.quietEnd)} (${s.timezone || 'UTC'}); critical alerts still come through`;
 }
@@ -225,7 +273,11 @@ export const snoozeChoices: { hours: number | null; label: string }[] = [
   { hours: null, label: 'Until I turn it back on' },
 ];
 
-export function muteLabel(m: Mute, appName: (id: string) => string, typeLabel: (id: string) => string): string {
+export function muteLabel(
+  m: Mute,
+  appName: (id: string) => string,
+  typeLabel: (id: string) => string,
+): string {
   const what = m.alertType ? typeLabel(m.alertType) : 'All alerts';
   const where = m.appId ? ` for ${appName(m.appId)}` : '';
   return `${what}${where}`;
@@ -240,6 +292,16 @@ export function browserTimeZone(): string {
 }
 
 /** What an admin changes for a type, as the body of `PUT /alerts/rules/:type`, from the form's values. */
-export function ruleBody(form: { enabled: boolean; channels: AlertChannel[]; maxPerHour: number; params: Record<string, number> }) {
-  return { enabled: form.enabled, channels: form.channels, maxPerHour: form.maxPerHour, params: form.params };
+export function ruleBody(form: {
+  enabled: boolean;
+  channels: AlertChannel[];
+  maxPerHour: number;
+  params: Record<string, number>;
+}) {
+  return {
+    enabled: form.enabled,
+    channels: form.channels,
+    maxPerHour: form.maxPerHour,
+    params: form.params,
+  };
 }

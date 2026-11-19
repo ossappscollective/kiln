@@ -1,81 +1,90 @@
 import { serveStatic } from '@hono/node-server/serve-static';
+import { aiLimits } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { secureHeaders } from 'hono/secure-headers';
 import { type BearerOptions, requireAuth } from './bearer.ts';
 import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { type McpDeps, mountMcp } from './mcp/routes.ts';
-import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
-import { appRoutes } from './routes/apps.ts';
 import { aiRoutes } from './routes/ai.ts';
+import { alertRoutes } from './routes/alerts.ts';
 import { analyticsImportPath, analyticsRoutes } from './routes/analytics.ts';
+import { appRoutes } from './routes/apps.ts';
 import { asoRoutes } from './routes/aso.ts';
+import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
+import { assetRoutes } from './routes/assets.ts';
+import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { buildsRoutes, publicBuildsRoutes } from './routes/builds.ts';
-import { internalSharingRoutes } from './routes/internal-sharing.ts';
+import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
 import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
+import { createEventStreamHub, type EventStreamHub, eventRoutes } from './routes/events.ts';
+import { internalSharingRoutes } from './routes/internal-sharing.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
-import { assetRoutes } from './routes/assets.ts';
-import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
-import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
 import { listingRoutes } from './routes/listing.ts';
-import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
+import {
+  loginSecondFactorRoutes,
+  type MailDeps,
+  mailAndTwoFactorRoutes,
+  setUpMail,
+} from './routes/mail-mount.ts';
 import { memberRoutes } from './routes/members.ts';
-import { planRoutes } from './routes/plans.ts';
 import { type PendingRoutesContext, pendingRoutes } from './routes/pending.ts';
+import { planRoutes } from './routes/plans.ts';
 import { releasePipelineRoutes } from './routes/release-pipeline.ts';
-import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
+import { repositoryRoutes } from './routes/repositories.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
+import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
+import { settingsRoutes } from './routes/settings.ts';
 import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
+import { stepUpRoutes } from './routes/step-up.ts';
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-release.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
-import { settingsRoutes } from './routes/settings.ts';
-import { stepUpRoutes } from './routes/step-up.ts';
-import { type MailDeps, loginSecondFactorRoutes, mailAndTwoFactorRoutes, setUpMail } from './routes/mail-mount.ts';
-import { enableStepUpAutoApprove } from './services/step-up.ts';
-import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
-import { alertRoutes } from './routes/alerts.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
+import type { AiContext } from './services/ai-config.ts';
+import { createConcurrencyGate } from './services/ai-usage.ts';
+import {
+  type AnalyticsConnectorFactory,
+  DEFAULT_ANALYTICS_TIMEOUT_MS,
+  defaultAnalyticsConnectors,
+} from './services/analytics-sync.ts';
+import { operations } from './services/api-operations.ts';
+import { createAppIcons, type IconsContext } from './services/app-icons.ts';
 import {
   DEFAULT_SYNC_TIMEOUT_MS,
-  type StoreConnectorFactory,
   defaultStoreConnectorFactory,
+  type StoreConnectorFactory,
 } from './services/apps.ts';
+import { type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
+import { type AsoSources, createAsoSources } from './services/aso-net.ts';
 import { type BuildsSettings, createBuildsContext } from './services/builds.ts';
 import { type CiContext, createCiContext } from './services/ci.ts';
 import {
   type CloneUpkeep,
+  createCloneUpkeep,
   DEFAULT_CLONE_IDLE_DAYS,
   DEFAULT_CLONE_MAX_BYTES,
-  createCloneUpkeep,
 } from './services/clone-upkeep.ts';
-import { operations } from './services/api-operations.ts';
-import { type AiContext } from './services/ai-config.ts';
-import { createConcurrencyGate } from './services/ai-usage.ts';
-import { aiLimits } from '@mrm/core';
-import { defaultReplyConnectorFactory } from './services/review-replies.ts';
-import { DEFAULT_ANALYTICS_TIMEOUT_MS, type AnalyticsConnectorFactory, defaultAnalyticsConnectors } from './services/analytics-sync.ts';
-import { type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
-import { type AsoSources, createAsoSources } from './services/aso-net.ts';
-import { createAppIcons, type IconsContext } from './services/app-icons.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
+import type { LocalWriteConfig } from './services/local-reads.ts';
+import { buildOpenApiDocument } from './services/openapi.ts';
+import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
+import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
+import { defaultReplyConnectorFactory } from './services/review-replies.ts';
 import {
   DEFAULT_REVIEW_TIMEOUT_MS,
+  defaultReviewConnectorFactory,
   type RatingFetcher,
   type ReviewConnectorFactory,
-  defaultReviewConnectorFactory,
 } from './services/review-sync.ts';
-import { buildOpenApiDocument } from './services/openapi.ts';
-import { type TranslationContext, createTranslateDraft } from './services/translation.ts';
-import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
-import type { LocalWriteConfig } from './services/local-reads.ts';
-import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
+import { enableStepUpAutoApprove } from './services/step-up.ts';
+import { createTranslateDraft, type TranslationContext } from './services/translation.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
 
 /** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */
@@ -210,7 +219,10 @@ export type AppDeps = {
    * Two way sync of graphics (docs/api/assets.md): `net` is the exchange and address check of the downloads from a store's CDN
    * (fakes in tests), the limiters are per workspace (store reads, CDN fetches, uploads). All optional.
    */
-  assetSync?: Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'>;
+  assetSync?: Pick<
+    AssetSyncRoutesContext,
+    'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'
+  >;
   /**
    * Customer reviews (docs/api/reviews.md), read-only. `connectorFactory` builds the App Store
    * Connect / Google Play reviews connector (overridable for tests), `ratingFetcher` the store-wide
@@ -268,21 +280,34 @@ export type AppDeps = {
    * tests; index.ts builds one and shares it with the worker, so the cache and the rate limits are shared);
    * `limits` are the MRM_ASO_* values; `limiter` is the per workspace budget of refreshes and lookups (default 10 a minute).
    */
-  aso?: { sources?: AsoSources; limits?: Partial<AsoLimits>; limiter?: TestLimiter; maxRunMs?: number };
+  aso?: {
+    sources?: AsoSources;
+    limits?: Partial<AsoLimits>;
+    limiter?: TestLimiter;
+    maxRunMs?: number;
+  };
   /**
    * Analytics (docs/api/analytics.md): daily metrics read from the stores into a normalised store. `connectors` builds the Apple
    * Analytics Reports / Sales and Trends and Google Play vitals / reports readers from a stored credential (fakes in tests),
    * `timeoutMs` is the longest one source may take (default 120 seconds), `limiter` the per workspace budget of syncs, previews and
    * imports a minute (default 10), `intervalMinutes` is MRM_ANALYTICS_INTERVAL_MINUTES, shown by the status.
    */
-  analytics?: { connectors?: AnalyticsConnectorFactory; timeoutMs?: number; limiter?: TestLimiter; intervalMinutes?: number };
+  analytics?: {
+    connectors?: AnalyticsConnectorFactory;
+    timeoutMs?: number;
+    limiter?: TestLimiter;
+    intervalMinutes?: number;
+  };
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
    * address); `fetch`, `resolve`, `exchange` and `timeoutMs` replace the network in tests;
    * `limiter` is the per workspace budget of translation requests (default 20 a minute).
    */
-  translation?: Pick<TranslationContext, 'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'> & {
+  translation?: Pick<
+    TranslationContext,
+    'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'
+  > & {
     limiter?: TestLimiter;
   };
   /**
@@ -334,7 +359,9 @@ export function createApp(deps: AppDeps) {
   app.use('/api/invitations/*', bodyLimit({ maxSize: PUBLIC_BODY_LIMIT, onError: tooLarge }));
   // The analytics import takes a report file as the request body: its routes have their own limit (10 MiB), everything else keeps 1 MiB.
   const apiLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: tooLarge });
-  app.use('/api/*', (c, next) => (analyticsImportPath.test(c.req.path) ? next() : apiLimit(c, next)));
+  app.use('/api/*', (c, next) =>
+    analyticsImportPath.test(c.req.path) ? next() : apiLimit(c, next),
+  );
 
   app.use('/api/*', sameOrigin(deps.trustedOrigins));
 
@@ -368,7 +395,10 @@ export function createApp(deps: AppDeps) {
     ...(deps.translation?.exchange ? { exchange: deps.translation.exchange } : {}),
     ...(deps.translation?.timeoutMs !== undefined ? { timeoutMs: deps.translation.timeoutMs } : {}),
   };
-  app.route('/api/workspaces', credentialTestRoutes(services, { ...deps.credentialTests, translate: translationSeams }));
+  app.route(
+    '/api/workspaces',
+    credentialTestRoutes(services, { ...deps.credentialTests, translate: translationSeams }),
+  );
   app.route('/api/workspaces', workspaceRoutes(services));
   app.route('/api/workspaces', memberRoutes(services));
   app.route('/api/workspaces', workspaceInvitationRoutes(services));
@@ -421,7 +451,14 @@ export function createApp(deps: AppDeps) {
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
   app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
   app.route('/api/workspaces', mailAndTwoFactorRoutes(mail, services));
-  app.route('/api/workspaces', stepUpRoutes({ services, ...(deps.publicOrigin ? { publicOrigin: deps.publicOrigin } : {}), ...(deps.trustedOrigins ? { trustedOrigins: deps.trustedOrigins } : {}) }));
+  app.route(
+    '/api/workspaces',
+    stepUpRoutes({
+      services,
+      ...(deps.publicOrigin ? { publicOrigin: deps.publicOrigin } : {}),
+      ...(deps.trustedOrigins ? { trustedOrigins: deps.trustedOrigins } : {}),
+    }),
+  );
   // Workspace settings (any member reads, admins write) and the translation of stored reviews.
   app.route(
     '/api/workspaces',
@@ -485,10 +522,16 @@ export function createApp(deps: AppDeps) {
       masterKey: services.masterKey,
       now: services.now,
       connectorFactory: deps.reviews?.connectorFactory ?? defaultReviewConnectorFactory,
-      ...(deps.reviews?.ratingFetcher !== undefined ? { ratingFetcher: deps.reviews.ratingFetcher } : {}),
+      ...(deps.reviews?.ratingFetcher !== undefined
+        ? { ratingFetcher: deps.reviews.ratingFetcher }
+        : {}),
       timeoutMs: deps.reviews?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS,
-      ...(deps.reviews?.lowRatingThreshold !== undefined ? { lowRatingThreshold: deps.reviews.lowRatingThreshold } : {}),
-      ...(deps.reviews?.retentionDays !== undefined ? { retentionDays: deps.reviews.retentionDays } : {}),
+      ...(deps.reviews?.lowRatingThreshold !== undefined
+        ? { lowRatingThreshold: deps.reviews.lowRatingThreshold }
+        : {}),
+      ...(deps.reviews?.retentionDays !== undefined
+        ? { retentionDays: deps.reviews.retentionDays }
+        : {}),
       // Reply drafts can be translated with the workspace's translation provider, unless a test supplies its own.
       ...(deps.reviews?.reply
         ? {
@@ -496,7 +539,12 @@ export function createApp(deps: AppDeps) {
               ...deps.reviews.reply,
               translateDraft:
                 deps.reviews.reply.translateDraft ??
-                createTranslateDraft({ db: services.db, masterKey: services.masterKey, now: services.now, ...translationSeams }),
+                createTranslateDraft({
+                  db: services.db,
+                  masterKey: services.masterKey,
+                  now: services.now,
+                  ...translationSeams,
+                }),
             },
           }
         : {}),
@@ -634,7 +682,18 @@ export function createApp(deps: AppDeps) {
       db: services.db,
       masterKey: services.masterKey,
       now: services.now,
-      ...(deps.storeDraft ? { draft: { ...(deps.storeDraft.connectorFactory ? { connectorFactory: deps.storeDraft.connectorFactory } : {}), ...(deps.storeDraft.timeoutMs !== undefined ? { timeoutMs: deps.storeDraft.timeoutMs } : {}) } } : {}),
+      ...(deps.storeDraft
+        ? {
+            draft: {
+              ...(deps.storeDraft.connectorFactory
+                ? { connectorFactory: deps.storeDraft.connectorFactory }
+                : {}),
+              ...(deps.storeDraft.timeoutMs !== undefined
+                ? { timeoutMs: deps.storeDraft.timeoutMs }
+                : {}),
+            },
+          }
+        : {}),
       ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
     }),
   );
@@ -677,10 +736,12 @@ export function createApp(deps: AppDeps) {
         masterKey: services.masterKey,
         now: services.now,
         replyEnabled: deps.reviews?.reply?.enabled ?? false,
-        replyConnectorFactory: deps.reviews?.reply?.connectorFactory ?? defaultReplyConnectorFactory,
+        replyConnectorFactory:
+          deps.reviews?.reply?.connectorFactory ?? defaultReplyConnectorFactory,
       },
       gate: createConcurrencyGate(aiLimits.maxConcurrentPerWorkspace),
-      limiter: deps.ai?.limiter ?? createTestLimiter({ now: services.now, limit: aiLimits.runsPerMinute }),
+      limiter:
+        deps.ai?.limiter ?? createTestLimiter({ now: services.now, limit: aiLimits.runsPerMinute }),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.
@@ -728,9 +789,10 @@ export function createApp(deps: AppDeps) {
   app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404));
 
   if (deps.webDist) {
-    const root = deps.webDist.startsWith('.') || deps.webDist.startsWith('/')
-      ? deps.webDist
-      : `./${deps.webDist}`;
+    const root =
+      deps.webDist.startsWith('.') || deps.webDist.startsWith('/')
+        ? deps.webDist
+        : `./${deps.webDist}`;
     app.use('/*', serveStatic({ root }));
     // Single-page app: unknown paths load the shell and the client router takes over.
     app.get('*', serveStatic({ path: `${root}/index.html` }));

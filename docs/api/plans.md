@@ -14,10 +14,10 @@ milliseconds; a target date is a calendar day written `YYYY-MM-DD`. Every change
 
 ## Rights
 
-| Action | viewer | member | admin / owner |
-| --- | --- | --- | --- |
-| `plans.read`: read plans, checklists, release notes and templates | yes | yes | yes |
-| `plans.write`: create, change and delete plans, checklists, notes and templates | no | yes | yes |
+| Action                                                                          | viewer | member | admin / owner |
+| ------------------------------------------------------------------------------- | ------ | ------ | ------------- |
+| `plans.read`: read plans, checklists, release notes and templates               | yes    | yes    | yes           |
+| `plans.write`: create, change and delete plans, checklists, notes and templates | no     | yes    | yes           |
 
 Why: a plan is coordination data that mirrors what everyone who can read the portfolio already
 sees, nothing in it is a secret, nothing in it reaches a store, and every change is audited. So
@@ -56,8 +56,12 @@ their own plans; the web release page shows them side by side.
       "ready": false,
       "required": { "total": 8, "done": 5, "open": 3 },
       "notes": {
-        "limit": 500, "locales": 2, "filled": 1,
-        "missing": ["de-DE"], "tooLong": [], "complete": false
+        "limit": 500,
+        "locales": 2,
+        "filled": 1,
+        "missing": ["de-DE"],
+        "tooLong": [],
+        "complete": false
       },
       "reasons": ["3 required items are not done.", "Release notes are missing for de-DE."]
     },
@@ -65,9 +69,13 @@ their own plans; the web release page shows them side by side.
     "rollout": null,
     "items": [
       {
-        "id": "i-1", "position": 0, "text": "Privacy policy URL is set and opens",
-        "required": true, "done": true,
-        "doneBy": { "id": "u-2", "name": "Sam" }, "doneAt": 1799583000000
+        "id": "i-1",
+        "position": 0,
+        "text": "Privacy policy URL is set and opens",
+        "required": true,
+        "done": true,
+        "doneBy": { "id": "u-2", "name": "Sam" },
+        "doneAt": 1799583000000
       }
     ],
     "releaseNotes": [
@@ -96,20 +104,25 @@ their own plans; the web release page shows them side by side.
 
 ## Plans
 
-| Method and path | Right | Purpose |
-| --- | --- | --- |
-| `GET /plans` | read | Every plan of the workspace (summaries), soonest target date first, plans without one last. For the dashboard. |
-| `GET /apps/:id/plans` | read | The plans of one app (summaries) |
-| `POST /apps/:id/plans` | write | Create a plan, `201 { plan }` |
-| `GET /apps/:id/plans/:planId` | read | One plan with its items and release notes |
-| `PATCH /apps/:id/plans/:planId` | write | Change the date, the blocked flag or the notes |
-| `DELETE /apps/:id/plans/:planId` | write | Delete a plan with its items and notes, `204` |
+| Method and path                  | Right | Purpose                                                                                                        |
+| -------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------- |
+| `GET /plans`                     | read  | Every plan of the workspace (summaries), soonest target date first, plans without one last. For the dashboard. |
+| `GET /apps/:id/plans`            | read  | The plans of one app (summaries)                                                                               |
+| `POST /apps/:id/plans`           | write | Create a plan, `201 { plan }`                                                                                  |
+| `GET /apps/:id/plans/:planId`    | read  | One plan with its items and release notes                                                                      |
+| `PATCH /apps/:id/plans/:planId`  | write | Change the date, the blocked flag or the notes                                                                 |
+| `DELETE /apps/:id/plans/:planId` | write | Delete a plan with its items and notes, `204`                                                                  |
 
 Create body:
 
 ```json
-{ "version": "2.4.0", "platform": null, "targetDate": "2027-01-15", "notes": "Holiday launch",
-  "templateId": "builtin:first-ios" }
+{
+  "version": "2.4.0",
+  "platform": null,
+  "targetDate": "2027-01-15",
+  "notes": "Holiday launch",
+  "templateId": "builtin:first-ios"
+}
 ```
 
 Only `version` is required. `version` is 1 to 64 characters: a letter or digit, then letters, digits
@@ -132,13 +145,13 @@ most 500 characters, the notes at most 4000.
 Items keep an order (`position`, 0 first). At most 100 per plan (`422 too_many_items`). Text is one
 line, 1 to 300 characters.
 
-| Method and path | Purpose |
-| --- | --- |
-| `POST /apps/:id/plans/:planId/items` | Add at the end: `{ "text": "…", "required": true }` (`required` defaults to false). `201 { plan, itemId }` |
-| `PATCH …/items/:itemId` | Change `text`, `required` or `done`. Ticking records the user and the time; ticking an item that is already done keeps the first person and time; `done: false` clears them |
-| `DELETE …/items/:itemId` | Remove an item |
-| `PUT …/items/order` | `{ "order": ["i-3", "i-1", "i-2"] }`: every item id of the plan exactly once, else `422 order_mismatch` (reload and retry) |
-| `POST …/apply-template` | `{ "templateId": "…" }`: appends the template's items the checklist does not have yet (same text). `200 { plan, added, skipped }` |
+| Method and path                      | Purpose                                                                                                                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /apps/:id/plans/:planId/items` | Add at the end: `{ "text": "…", "required": true }` (`required` defaults to false). `201 { plan, itemId }`                                                                  |
+| `PATCH …/items/:itemId`              | Change `text`, `required` or `done`. Ticking records the user and the time; ticking an item that is already done keeps the first person and time; `done: false` clears them |
+| `DELETE …/items/:itemId`             | Remove an item                                                                                                                                                              |
+| `PUT …/items/order`                  | `{ "order": ["i-3", "i-1", "i-2"] }`: every item id of the plan exactly once, else `422 order_mismatch` (reload and retry)                                                  |
+| `POST …/apply-template`              | `{ "templateId": "…" }`: appends the template's items the checklist does not have yet (same text). `200 { plan, added, skipped }`                                           |
 
 Every one of them answers `{ "plan": … }` (the whole updated plan) unless noted.
 
@@ -146,10 +159,10 @@ Every one of them answers `{ "plan": … }` (the whole updated plan) unless note
 
 One text per locale, drafts kept in our database (nothing is sent to a store).
 
-| Method and path | Purpose |
-| --- | --- |
+| Method and path                             | Purpose                                                                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `PUT /apps/:id/plans/:planId/notes/:locale` | `{ "text": "…" }`: adds the locale or replaces its text. An empty text adds the locale as "expected, not written yet" |
-| `DELETE …/notes/:locale` | Remove the locale and its text |
+| `DELETE …/notes/:locale`                    | Remove the locale and its text                                                                                        |
 
 A locale is `default` or a code such as `en-US`, `de`, `pt_BR` (`400` otherwise); at most 80 per
 plan (`422 too_many_locales`). The text is checked against the store limit, counted in Unicode code
@@ -158,8 +171,13 @@ plan on Android** (Play release notes) and **500 for a plan on both platforms** 
 The limits come from `@mrm/core` (`releaseNotesLimit`, built on the listing rules). Too long gives:
 
 ```json
-{ "error": "notes_too_long", "message": "Release notes for en-US are 501 characters. Google Play allows 500.",
-  "locale": "en-US", "limit": 500, "actual": 501 }
+{
+  "error": "notes_too_long",
+  "message": "Release notes for en-US are 501 characters. Google Play allows 500.",
+  "locale": "en-US",
+  "limit": 500,
+  "actual": 501
+}
 ```
 
 (status `422`, and nothing is saved).
@@ -172,14 +190,14 @@ own planning data. Nothing here starts, changes, pauses or stops a rollout in Ap
 Google Play, and nothing is read back into it by itself**: marking a step done only records that a
 person says so. The web UI says this on the card.
 
-| Method and path | Right | Purpose |
-| --- | --- | --- |
-| `GET /apps/:id/plans/:planId/rollout` | read | The rollout plan, with what the store last reported beside it |
-| `PUT /apps/:id/plans/:planId/rollout` | write | Set the plan (replaces the list of steps, or switches to Apple's phased release) |
-| `DELETE /apps/:id/plans/:planId/rollout` | write | Remove the rollout plan and its steps |
-| `POST …/rollout/steps/:stepId/complete` | write | Mark a step done. Optional body `{ "fromStore": true }`, see below |
-| `POST …/rollout/steps/:stepId/skip` | write | Skip an open step |
-| `POST …/rollout/steps/:stepId/reopen` | write | Put a done or skipped step back to planned |
+| Method and path                          | Right | Purpose                                                                          |
+| ---------------------------------------- | ----- | -------------------------------------------------------------------------------- |
+| `GET /apps/:id/plans/:planId/rollout`    | read  | The rollout plan, with what the store last reported beside it                    |
+| `PUT /apps/:id/plans/:planId/rollout`    | write | Set the plan (replaces the list of steps, or switches to Apple's phased release) |
+| `DELETE /apps/:id/plans/:planId/rollout` | write | Remove the rollout plan and its steps                                            |
+| `POST …/rollout/steps/:stepId/complete`  | write | Mark a step done. Optional body `{ "fromStore": true }`, see below               |
+| `POST …/rollout/steps/:stepId/skip`      | write | Skip an open step                                                                |
+| `POST …/rollout/steps/:stepId/reopen`    | write | Put a done or skipped step back to planned                                       |
 
 Every one answers `{ "rollout": … }`. The plan itself (`GET .../plans/:planId` and the lists) carries
 only a short `rollout` summary (`kind`, `total`, `done`, `skipped`, `planned`, `planPercent`,
@@ -192,23 +210,63 @@ only a short `rollout` summary (`kind`, `total`, `done`, `skipped`, `planned`, `
     "kind": "steps",
     "template": "builtin:play-default",
     "steps": [
-      { "id": "s-1", "position": 1, "percent": 5, "plannedAt": 1799668800000, "note": "watch crash rate",
-        "status": "done", "doneAt": 1799669000000, "doneBy": { "id": "u-2", "name": "Sam" },
-        "doneSource": "manual", "due": false },
-      { "id": "s-2", "position": 2, "percent": 20, "plannedAt": 1799755200000, "note": null,
-        "status": "planned", "doneAt": null, "doneBy": null, "doneSource": null, "due": false }
+      {
+        "id": "s-1",
+        "position": 1,
+        "percent": 5,
+        "plannedAt": 1799668800000,
+        "note": "watch crash rate",
+        "status": "done",
+        "doneAt": 1799669000000,
+        "doneBy": { "id": "u-2", "name": "Sam" },
+        "doneSource": "manual",
+        "due": false
+      },
+      {
+        "id": "s-2",
+        "position": 2,
+        "percent": 20,
+        "plannedAt": 1799755200000,
+        "note": null,
+        "status": "planned",
+        "doneAt": null,
+        "doneBy": null,
+        "doneSource": null,
+        "due": false
+      }
     ],
     "apple": null,
-    "summary": { "kind": "steps", "total": 2, "done": 1, "skipped": 0, "planned": 1, "planPercent": 5,
-                 "current": { "index": 1, "percent": 5 },
-                 "next": { "id": "s-2", "index": 2, "percent": 20, "plannedAt": 1799755200000 },
-                 "dueSteps": 0, "nextPlannedAt": 1799755200000 },
-    "store": { "platform": "android", "status": "rolling_out", "rawState": "inProgress", "fraction": 0.2,
-               "syncedAt": 1799670000000, "percent": 20, "inferred": false },
-    "comparison": { "verdict": "store_ahead", "mismatch": true, "planPercent": 5,
-                    "planStep": { "index": 1, "total": 2, "percent": 5 }, "storePercent": 20, "halted": false,
-                    "confirmStepId": "s-2",
-                    "message": "Store says 20%, ahead of the plan: the plan has step 1 of 2 (5%) done. You can confirm the next step from the store." }
+    "summary": {
+      "kind": "steps",
+      "total": 2,
+      "done": 1,
+      "skipped": 0,
+      "planned": 1,
+      "planPercent": 5,
+      "current": { "index": 1, "percent": 5 },
+      "next": { "id": "s-2", "index": 2, "percent": 20, "plannedAt": 1799755200000 },
+      "dueSteps": 0,
+      "nextPlannedAt": 1799755200000
+    },
+    "store": {
+      "platform": "android",
+      "status": "rolling_out",
+      "rawState": "inProgress",
+      "fraction": 0.2,
+      "syncedAt": 1799670000000,
+      "percent": 20,
+      "inferred": false
+    },
+    "comparison": {
+      "verdict": "store_ahead",
+      "mismatch": true,
+      "planPercent": 5,
+      "planStep": { "index": 1, "total": 2, "percent": 5 },
+      "storePercent": 20,
+      "halted": false,
+      "confirmStepId": "s-2",
+      "message": "Store says 20%, ahead of the plan: the plan has step 1 of 2 (5%) done. You can confirm the next step from the store."
+    }
   }
 }
 ```
@@ -267,20 +325,36 @@ only a short `rollout` summary (`kind`, `total`, `done`, `skipped`, `planned`, `
 
 ## Checklist templates
 
-| Method and path | Purpose |
-| --- | --- |
-| `GET /checklist-templates` | The templates that ship with the product, then the workspace's own by name |
-| `POST /checklist-templates` | `{ "name": "Hotfix", "items": [{ "text": "Smoke test", "required": true }] }`, `201 { template }` |
-| `PATCH /checklist-templates/:templateId` | Change `name` and/or `items` |
-| `DELETE /checklist-templates/:templateId` | `204`. Plans that used it keep their items |
+| Method and path                           | Purpose                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /checklist-templates`                | The templates that ship with the product, then the workspace's own by name                        |
+| `POST /checklist-templates`               | `{ "name": "Hotfix", "items": [{ "text": "Smoke test", "required": true }] }`, `201 { template }` |
+| `PATCH /checklist-templates/:templateId`  | Change `name` and/or `items`                                                                      |
+| `DELETE /checklist-templates/:templateId` | `204`. Plans that used it keep their items                                                        |
 
 ```json
-{ "templates": [
-  { "id": "builtin:first-ios", "name": "First iOS release", "description": "…", "builtin": true,
-    "items": [{ "text": "Privacy policy URL is set and opens", "required": true }], "createdAt": null, "updatedAt": null },
-  { "id": "7d2c…", "name": "Hotfix", "description": null, "builtin": false,
-    "items": [{ "text": "Smoke test", "required": true }], "createdAt": 1799583000000, "updatedAt": 1799583000000 }
-] }
+{
+  "templates": [
+    {
+      "id": "builtin:first-ios",
+      "name": "First iOS release",
+      "description": "…",
+      "builtin": true,
+      "items": [{ "text": "Privacy policy URL is set and opens", "required": true }],
+      "createdAt": null,
+      "updatedAt": null
+    },
+    {
+      "id": "7d2c…",
+      "name": "Hotfix",
+      "description": null,
+      "builtin": false,
+      "items": [{ "text": "Smoke test", "required": true }],
+      "createdAt": 1799583000000,
+      "updatedAt": 1799583000000
+    }
+  ]
+}
 ```
 
 - **Shipped templates** are `builtin:first-ios`, `builtin:first-android` and

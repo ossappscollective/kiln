@@ -2,9 +2,16 @@ import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 
 import type { Database, Sql } from '@mrm/db';
 import { decryptSecret, encryptSecret } from '@mrm/vault';
 import { recordAudit } from './audit.ts';
-import type { MailErrorCode, MailHint, Mailer } from './mailer.ts';
 import { plainAddress } from './mail-mime.ts';
-import { base32Decode, base32Encode, checkTotp, newTotpSecret, normalizeTotpCode, otpauthUri } from './totp.ts';
+import type { MailErrorCode, Mailer, MailHint } from './mailer.ts';
+import {
+  base32Decode,
+  base32Encode,
+  checkTotp,
+  newTotpSecret,
+  normalizeTotpCode,
+  otpauthUri,
+} from './totp.ts';
 
 /**
  * Two-factor authentication (docs/adr/0021-two-factor-and-smtp.md): an authenticator app (TOTP) and a code by email, as ways to
@@ -44,10 +51,13 @@ const totpAad = (userId: string) => `totp:${userId}`;
 export async function totpStatus(sql: Sql, userId: string): Promise<TotpStatus> {
   const [row] = await sql.query('SELECT confirmed_at FROM user_totp WHERE user_id = ?', [userId]);
   if (!row) return { state: 'none', confirmedAt: null };
-  return row.confirmed_at === null ? { state: 'pending', confirmedAt: null } : { state: 'active', confirmedAt: Number(row.confirmed_at) };
+  return row.confirmed_at === null
+    ? { state: 'pending', confirmedAt: null }
+    : { state: 'active', confirmedAt: Number(row.confirmed_at) };
 }
 
-export const hasActiveTotp = async (sql: Sql, userId: string) => (await totpStatus(sql, userId)).state === 'active';
+export const hasActiveTotp = async (sql: Sql, userId: string) =>
+  (await totpStatus(sql, userId)).state === 'active';
 
 /** Starts enrolling: a fresh secret replaces any unconfirmed one. Refused (undefined) while one is active: remove it first. */
 export async function beginTotp(
@@ -57,33 +67,58 @@ export async function beginTotp(
 ): Promise<{ secret: string; uri: string } | undefined> {
   const secret = newTotpSecret();
   const stored = await db.transaction(async (tx) => {
-    const [row] = await tx.query('SELECT confirmed_at FROM user_totp WHERE user_id = ?', [input.userId]);
+    const [row] = await tx.query('SELECT confirmed_at FROM user_totp WHERE user_id = ?', [
+      input.userId,
+    ]);
     if (row && row.confirmed_at !== null) return false;
     await tx.execute('DELETE FROM user_totp WHERE user_id = ?', [input.userId]);
-    await tx.execute('INSERT INTO user_totp (user_id, secret_enc, confirmed_at, last_step, created_at) VALUES (?, ?, NULL, NULL, ?)', [
-      input.userId,
-      encryptSecret(base32Encode(secret), input.masterKey, totpAad(input.userId)),
-      now,
-    ]);
+    await tx.execute(
+      'INSERT INTO user_totp (user_id, secret_enc, confirmed_at, last_step, created_at) VALUES (?, ?, NULL, NULL, ?)',
+      [
+        input.userId,
+        encryptSecret(base32Encode(secret), input.masterKey, totpAad(input.userId)),
+        now,
+      ],
+    );
     return true;
   });
   if (!stored) return undefined;
-  return { secret: base32Encode(secret), uri: otpauthUri({ issuer: input.issuer ?? 'Mobile Release Manager', account: input.account, secret }) };
+  return {
+    secret: base32Encode(secret),
+    uri: otpauthUri({
+      issuer: input.issuer ?? 'Mobile Release Manager',
+      account: input.account,
+      secret,
+    }),
+  };
 }
 
-async function loadSecret(sql: Sql, masterKey: Buffer, userId: string): Promise<{ secret: Buffer; confirmed: boolean; lastStep: number | null } | undefined> {
-  const [row] = await sql.query('SELECT secret_enc, confirmed_at, last_step FROM user_totp WHERE user_id = ?', [userId]);
+async function loadSecret(
+  sql: Sql,
+  masterKey: Buffer,
+  userId: string,
+): Promise<{ secret: Buffer; confirmed: boolean; lastStep: number | null } | undefined> {
+  const [row] = await sql.query(
+    'SELECT secret_enc, confirmed_at, last_step FROM user_totp WHERE user_id = ?',
+    [userId],
+  );
   if (!row) return undefined;
   try {
     const secret = base32Decode(decryptSecret(String(row.secret_enc), masterKey, totpAad(userId)));
     if (!secret || secret.length === 0) return undefined;
-    return { secret, confirmed: row.confirmed_at !== null, lastStep: row.last_step === null ? null : Number(row.last_step) };
+    return {
+      secret,
+      confirmed: row.confirmed_at !== null,
+      lastStep: row.last_step === null ? null : Number(row.last_step),
+    };
   } catch {
     return undefined;
   }
 }
 
-export type CodeResult = { ok: true } | { ok: false; reason: 'invalid' | 'replay' | 'malformed' | 'not_enrolled' };
+export type CodeResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid' | 'replay' | 'malformed' | 'not_enrolled' };
 
 /**
  * Checks a typed code. `want` is 'pending' while enrolling (the first code confirms the secret) and 'active' afterwards. A code is
@@ -95,13 +130,20 @@ export async function checkTotpCode(
   now: number,
 ): Promise<CodeResult> {
   const row = await loadSecret(db, input.masterKey, input.userId);
-  if (!row || row.confirmed !== (input.want === 'active')) return { ok: false, reason: 'not_enrolled' };
+  if (!row || row.confirmed !== (input.want === 'active'))
+    return { ok: false, reason: 'not_enrolled' };
   const checked = checkTotp(row.secret, input.code, now, row.lastStep);
   if (!checked.ok) return { ok: false, reason: checked.reason };
   const moved =
     input.want === 'pending'
-      ? await db.execute('UPDATE user_totp SET confirmed_at = ?, last_step = ? WHERE user_id = ? AND confirmed_at IS NULL', [now, checked.step, input.userId])
-      : await db.execute('UPDATE user_totp SET last_step = ? WHERE user_id = ? AND confirmed_at IS NOT NULL AND (last_step IS NULL OR last_step < ?)', [checked.step, input.userId, checked.step]);
+      ? await db.execute(
+          'UPDATE user_totp SET confirmed_at = ?, last_step = ? WHERE user_id = ? AND confirmed_at IS NULL',
+          [now, checked.step, input.userId],
+        )
+      : await db.execute(
+          'UPDATE user_totp SET last_step = ? WHERE user_id = ? AND confirmed_at IS NOT NULL AND (last_step IS NULL OR last_step < ?)',
+          [checked.step, input.userId, checked.step],
+        );
   return moved === 1 ? { ok: true } : { ok: false, reason: 'replay' };
 }
 
@@ -115,8 +157,15 @@ export async function removeTotp(db: Database, userId: string): Promise<boolean>
 export type MailRow = { email: string; verifiedAt: number | null };
 
 export async function userMail(sql: Sql, userId: string): Promise<MailRow | undefined> {
-  const [row] = await sql.query('SELECT email, verified_at FROM user_mail WHERE user_id = ?', [userId]);
-  return row ? { email: String(row.email), verifiedAt: row.verified_at === null ? null : Number(row.verified_at) } : undefined;
+  const [row] = await sql.query('SELECT email, verified_at FROM user_mail WHERE user_id = ?', [
+    userId,
+  ]);
+  return row
+    ? {
+        email: String(row.email),
+        verifiedAt: row.verified_at === null ? null : Number(row.verified_at),
+      }
+    : undefined;
 }
 
 /**
@@ -129,7 +178,11 @@ export async function activeEmail(sql: Sql, userId: string): Promise<string | un
     [userId],
   );
   if (!row || row.verified_at === null) return undefined;
-  if (row.password_hash !== null && String(row.account_email).toLowerCase() !== String(row.email).toLowerCase()) return undefined;
+  if (
+    row.password_hash !== null &&
+    String(row.account_email).toLowerCase() !== String(row.email).toLowerCase()
+  )
+    return undefined;
   return String(row.email);
 }
 
@@ -140,7 +193,10 @@ export const maskEmail = (email: string): string => {
 };
 
 export async function removeMail(db: Database, userId: string, now: number): Promise<boolean> {
-  await db.execute('UPDATE mail_codes SET used_at = ? WHERE user_id = ? AND used_at IS NULL', [now, userId]);
+  await db.execute('UPDATE mail_codes SET used_at = ? WHERE user_id = ? AND used_at IS NULL', [
+    now,
+    userId,
+  ]);
   return (await db.execute('DELETE FROM user_mail WHERE user_id = ?', [userId])) === 1;
 }
 
@@ -149,25 +205,46 @@ export async function removeMail(db: Database, userId: string, now: number): Pro
 
 export type MailPurpose = 'verify_email' | 'step_up' | 'login';
 
-const macKey = (masterKey: Buffer) => createHmac('sha256', masterKey).update('mrm-mail-code-v1').digest();
-const codeMac = (masterKey: Buffer, id: string, code: string) => createHmac('sha256', macKey(masterKey)).update(`${id}:${code}`).digest('hex');
+const macKey = (masterKey: Buffer) =>
+  createHmac('sha256', masterKey).update('mrm-mail-code-v1').digest();
+const codeMac = (masterKey: Buffer, id: string, code: string) =>
+  createHmac('sha256', macKey(masterKey)).update(`${id}:${code}`).digest('hex');
 
 export type SendFailure =
   | { ok: false; error: 'mail_not_configured' }
   | { ok: false; error: 'rate_limited'; retryAfterSeconds: number }
   | { ok: false; error: 'mail_failed'; code: MailErrorCode; hint?: MailHint }
   | { ok: false; error: 'busy' };
-export type SendResult = { ok: true; expiresAt: number; resendAfterSeconds: number; to: string } | SendFailure;
+export type SendResult =
+  | { ok: true; expiresAt: number; resendAfterSeconds: number; to: string }
+  | SendFailure;
 
 const sending = new Set<string>();
 
-async function mailLimit(sql: Sql, userId: string, workspaceId: string | undefined, now: number): Promise<number> {
-  const [last] = await sql.query('SELECT MAX(created_at) AS at FROM mail_codes WHERE user_id = ?', [userId]);
-  if (last?.at != null && now - Number(last.at) < MAIL_RESEND_COOLDOWN_MS) return Math.ceil((MAIL_RESEND_COOLDOWN_MS - (now - Number(last.at))) / 1000);
+async function mailLimit(
+  sql: Sql,
+  userId: string,
+  workspaceId: string | undefined,
+  now: number,
+): Promise<number> {
+  const [last] = await sql.query('SELECT MAX(created_at) AS at FROM mail_codes WHERE user_id = ?', [
+    userId,
+  ]);
+  if (last?.at != null && now - Number(last.at) < MAIL_RESEND_COOLDOWN_MS)
+    return Math.ceil((MAIL_RESEND_COOLDOWN_MS - (now - Number(last.at))) / 1000);
   const since = now - HOUR;
-  const wait = async (sqlText: string, params: (string | number)[], cap: number): Promise<number> => {
-    const [n] = await sql.query(`SELECT COUNT(*) AS n, MIN(created_at) AS first FROM mail_codes WHERE ${sqlText}`, params);
-    return Number(n?.n ?? 0) >= cap && n?.first != null ? Math.max(1, Math.ceil((Number(n.first) + HOUR - now) / 1000)) : 0;
+  const wait = async (
+    sqlText: string,
+    params: (string | number)[],
+    cap: number,
+  ): Promise<number> => {
+    const [n] = await sql.query(
+      `SELECT COUNT(*) AS n, MIN(created_at) AS first FROM mail_codes WHERE ${sqlText}`,
+      params,
+    );
+    return Number(n?.n ?? 0) >= cap && n?.first != null
+      ? Math.max(1, Math.ceil((Number(n.first) + HOUR - now) / 1000))
+      : 0;
   };
   const perUser = await wait('user_id = ? AND created_at > ?', [userId, since], MAIL_USER_PER_HOUR);
   if (perUser > 0) return perUser;
@@ -176,9 +253,17 @@ async function mailLimit(sql: Sql, userId: string, workspaceId: string | undefin
     : wait('workspace_id IS NULL AND created_at > ?', [since], MAIL_INSTANCE_PER_HOUR);
 }
 
-export const codeMessage = (purpose: MailPurpose, code: string): { subject: string; text: string } => {
+export const codeMessage = (
+  purpose: MailPurpose,
+  code: string,
+): { subject: string; text: string } => {
   const minutes = EMAIL_CODE_TTL_MS / 60_000;
-  const what = purpose === 'verify_email' ? 'verify your email address' : purpose === 'login' ? 'finish signing in' : 'confirm an action';
+  const what =
+    purpose === 'verify_email'
+      ? 'verify your email address'
+      : purpose === 'login'
+        ? 'finish signing in'
+        : 'confirm an action';
   return {
     subject: `${code} is your Mobile Release Manager code`,
     text: [
@@ -196,7 +281,16 @@ export const codeMessage = (purpose: MailPurpose, code: string): { subject: stri
 export async function issueMailCode(
   db: Database,
   deps: { masterKey: Buffer; mailer: Mailer },
-  input: { userId: string; purpose: MailPurpose; email: string; workspaceId?: string; binding?: string; action?: string; targetId?: string; targetHash?: string },
+  input: {
+    userId: string;
+    purpose: MailPurpose;
+    email: string;
+    workspaceId?: string;
+    binding?: string;
+    action?: string;
+    targetId?: string;
+    targetHash?: string;
+  },
   now: number,
 ): Promise<SendResult> {
   if (!(await deps.mailer.configured())) return { ok: false, error: 'mail_not_configured' };
@@ -208,21 +302,51 @@ export async function issueMailCode(
     const id = randomBytes(16).toString('hex');
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     await db.transaction(async (tx) => {
-      await tx.execute('UPDATE mail_codes SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL', [now, input.userId, input.purpose]);
+      await tx.execute(
+        'UPDATE mail_codes SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL',
+        [now, input.userId, input.purpose],
+      );
       await tx.execute(
         `INSERT INTO mail_codes (id, user_id, purpose, workspace_id, binding, action, target_id, target_hash, email, code_mac, attempts, created_at, expires_at, used_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL)`,
-        [id, input.userId, input.purpose, nullIfUndefined(input.workspaceId), nullIfUndefined(input.binding), nullIfUndefined(input.action), nullIfUndefined(input.targetId), nullIfUndefined(input.targetHash), input.email, codeMac(deps.masterKey, id, code), now, now + EMAIL_CODE_TTL_MS],
+        [
+          id,
+          input.userId,
+          input.purpose,
+          nullIfUndefined(input.workspaceId),
+          nullIfUndefined(input.binding),
+          nullIfUndefined(input.action),
+          nullIfUndefined(input.targetId),
+          nullIfUndefined(input.targetHash),
+          input.email,
+          codeMac(deps.masterKey, id, code),
+          now,
+          now + EMAIL_CODE_TTL_MS,
+        ],
       );
     });
     const message = codeMessage(input.purpose, code);
-    const sent = await deps.mailer.send({ to: input.email, subject: message.subject, text: message.text });
+    const sent = await deps.mailer.send({
+      to: input.email,
+      subject: message.subject,
+      text: message.text,
+    });
     if (!sent.ok) {
       // The code never left: it is closed (and still counts toward the hourly cap, so a broken server cannot be hammered).
       await db.execute('UPDATE mail_codes SET used_at = ? WHERE id = ?', [now, id]);
-      return { ok: false, error: 'mail_failed', code: sent.code, ...(sent.hint ? { hint: sent.hint } : {}) };
+      return {
+        ok: false,
+        error: 'mail_failed',
+        code: sent.code,
+        ...(sent.hint ? { hint: sent.hint } : {}),
+      };
     }
-    return { ok: true, expiresAt: now + EMAIL_CODE_TTL_MS, resendAfterSeconds: MAIL_RESEND_COOLDOWN_MS / 1000, to: maskEmail(input.email) };
+    return {
+      ok: true,
+      expiresAt: now + EMAIL_CODE_TTL_MS,
+      resendAfterSeconds: MAIL_RESEND_COOLDOWN_MS / 1000,
+      to: maskEmail(input.email),
+    };
   } finally {
     sending.delete(input.userId);
   }
@@ -238,16 +362,25 @@ export type MailCodeMatch = {
   targetId?: string | null;
   targetHash?: string | null;
 };
-export type MailCodeResult = { ok: true; email: string } | { ok: false; reason: 'invalid' | 'missing' | 'too_many_attempts' | 'malformed' };
+export type MailCodeResult =
+  | { ok: true; email: string }
+  | { ok: false; reason: 'invalid' | 'missing' | 'too_many_attempts' | 'malformed' };
 
-const same = (stored: unknown, wanted: string | null | undefined) => (stored === null || stored === undefined ? null : String(stored)) === (wanted ?? null);
+const same = (stored: unknown, wanted: string | null | undefined) =>
+  (stored === null || stored === undefined ? null : String(stored)) === (wanted ?? null);
 
 /**
  * Checks a typed code against the NEWEST open code of the person for this purpose, which must have been made for exactly this
  * session, workspace, action and target. The attempt is counted BEFORE the comparison and in the same statement that checks the
  * limit, so parallel guesses cannot exceed five; the right code is spent by one conditional UPDATE.
  */
-export async function checkMailCode(db: Database, masterKey: Buffer, match: MailCodeMatch, typed: string, now: number): Promise<MailCodeResult> {
+export async function checkMailCode(
+  db: Database,
+  masterKey: Buffer,
+  match: MailCodeMatch,
+  typed: string,
+  now: number,
+): Promise<MailCodeResult> {
   const code = normalizeTotpCode(typed);
   const [row] = await db.query(
     'SELECT id, email, binding, workspace_id, action, target_id, target_hash, code_mac, expires_at FROM mail_codes WHERE user_id = ? AND purpose = ? AND used_at IS NULL ORDER BY created_at DESC LIMIT 1',
@@ -255,25 +388,39 @@ export async function checkMailCode(db: Database, masterKey: Buffer, match: Mail
   );
   if (!row || Number(row.expires_at) <= now) return { ok: false, reason: 'missing' };
   // Whatever the caller names must match what the code was made for (step-up names all of them; signing in names the challenge).
-  if (match.binding !== undefined && !same(row.binding, match.binding)) return { ok: false, reason: 'missing' };
-  if (match.workspaceId !== undefined && !same(row.workspace_id, match.workspaceId)) return { ok: false, reason: 'missing' };
-  if (match.action !== undefined && !same(row.action, match.action)) return { ok: false, reason: 'missing' };
-  if (match.targetId !== undefined && !same(row.target_id, match.targetId)) return { ok: false, reason: 'missing' };
-  if (match.targetHash !== undefined && !same(row.target_hash, match.targetHash)) return { ok: false, reason: 'missing' };
-  const counted = await db.execute('UPDATE mail_codes SET attempts = attempts + 1 WHERE id = ? AND used_at IS NULL AND attempts < ?', [String(row.id), EMAIL_CODE_MAX_ATTEMPTS]);
+  if (match.binding !== undefined && !same(row.binding, match.binding))
+    return { ok: false, reason: 'missing' };
+  if (match.workspaceId !== undefined && !same(row.workspace_id, match.workspaceId))
+    return { ok: false, reason: 'missing' };
+  if (match.action !== undefined && !same(row.action, match.action))
+    return { ok: false, reason: 'missing' };
+  if (match.targetId !== undefined && !same(row.target_id, match.targetId))
+    return { ok: false, reason: 'missing' };
+  if (match.targetHash !== undefined && !same(row.target_hash, match.targetHash))
+    return { ok: false, reason: 'missing' };
+  const counted = await db.execute(
+    'UPDATE mail_codes SET attempts = attempts + 1 WHERE id = ? AND used_at IS NULL AND attempts < ?',
+    [String(row.id), EMAIL_CODE_MAX_ATTEMPTS],
+  );
   if (counted !== 1) return { ok: false, reason: 'too_many_attempts' };
   if (code === undefined) return { ok: false, reason: 'malformed' };
   const expected = Buffer.from(String(row.code_mac), 'hex');
   const given = Buffer.from(codeMac(masterKey, String(row.id), code), 'hex');
-  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return { ok: false, reason: 'invalid' };
-  const spent = await db.execute('UPDATE mail_codes SET used_at = ? WHERE id = ? AND used_at IS NULL', [now, String(row.id)]);
+  if (expected.length !== given.length || !timingSafeEqual(expected, given))
+    return { ok: false, reason: 'invalid' };
+  const spent = await db.execute(
+    'UPDATE mail_codes SET used_at = ? WHERE id = ? AND used_at IS NULL',
+    [now, String(row.id)],
+  );
   return spent === 1 ? { ok: true, email: String(row.email) } : { ok: false, reason: 'missing' };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Verifying the address
 
-export type BeginEmailResult = SendResult | { ok: false; error: 'email_required' | 'invalid_email' | 'already_verified' };
+export type BeginEmailResult =
+  | SendResult
+  | { ok: false; error: 'email_required' | 'invalid_email' | 'already_verified' };
 
 /**
  * Sends a code to the address that is being verified. On a server with accounts the address is the account email (nothing else can be
@@ -285,31 +432,64 @@ export async function beginEmailVerification(
   input: { userId: string; workspaceId?: string; requested?: string },
   now: number,
 ): Promise<BeginEmailResult> {
-  const [user] = await db.query('SELECT email, password_hash FROM users WHERE id = ?', [input.userId]);
+  const [user] = await db.query('SELECT email, password_hash FROM users WHERE id = ?', [
+    input.userId,
+  ]);
   if (!user) return { ok: false, error: 'invalid_email' };
   let email: string;
   if (user.password_hash !== null) email = String(user.email);
   else {
-    if (input.requested === undefined || input.requested.trim() === '') return { ok: false, error: 'email_required' };
+    if (input.requested === undefined || input.requested.trim() === '')
+      return { ok: false, error: 'email_required' };
     const plain = plainAddress(input.requested);
     if (!plain) return { ok: false, error: 'invalid_email' };
     email = plain.toLowerCase();
   }
   const existing = await userMail(db, input.userId);
-  if (existing?.verifiedAt !== null && existing !== undefined && existing.email.toLowerCase() === email.toLowerCase()) return { ok: false, error: 'already_verified' };
+  if (
+    existing?.verifiedAt !== null &&
+    existing !== undefined &&
+    existing.email.toLowerCase() === email.toLowerCase()
+  )
+    return { ok: false, error: 'already_verified' };
   if (!(await deps.mailer.configured())) return { ok: false, error: 'mail_not_configured' };
   await db.execute(
     `INSERT INTO user_mail (user_id, email, verified_at, created_at) VALUES (?, ?, NULL, ?)
      ON CONFLICT (user_id) DO UPDATE SET email = excluded.email, verified_at = NULL`,
     [input.userId, email, now],
   );
-  return issueMailCode(db, deps, { userId: input.userId, purpose: 'verify_email', email, ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}) }, now);
+  return issueMailCode(
+    db,
+    deps,
+    {
+      userId: input.userId,
+      purpose: 'verify_email',
+      email,
+      ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+    },
+    now,
+  );
 }
 
-export async function confirmEmailVerification(db: Database, masterKey: Buffer, userId: string, typed: string, now: number): Promise<MailCodeResult> {
-  const checked = await checkMailCode(db, masterKey, { userId, purpose: 'verify_email' }, typed, now);
+export async function confirmEmailVerification(
+  db: Database,
+  masterKey: Buffer,
+  userId: string,
+  typed: string,
+  now: number,
+): Promise<MailCodeResult> {
+  const checked = await checkMailCode(
+    db,
+    masterKey,
+    { userId, purpose: 'verify_email' },
+    typed,
+    now,
+  );
   if (!checked.ok) return checked;
-  const marked = await db.execute('UPDATE user_mail SET verified_at = ? WHERE user_id = ? AND lower(email) = lower(?)', [now, userId, checked.email]);
+  const marked = await db.execute(
+    'UPDATE user_mail SET verified_at = ? WHERE user_id = ? AND lower(email) = lower(?)',
+    [now, userId, checked.email],
+  );
   return marked === 1 ? checked : { ok: false, reason: 'missing' };
 }
 
@@ -325,7 +505,14 @@ export async function twoFactorStatus(sql: Sql, userId: string): Promise<TwoFact
   const mail = await userMail(sql, userId);
   return {
     totp: await totpStatus(sql, userId),
-    email: mail ? { address: mail.email, verified: mail.verifiedAt !== null, verifiedAt: mail.verifiedAt, usable: (await activeEmail(sql, userId)) !== undefined } : null,
+    email: mail
+      ? {
+          address: mail.email,
+          verified: mail.verifiedAt !== null,
+          verifiedAt: mail.verifiedAt,
+          usable: (await activeEmail(sql, userId)) !== undefined,
+        }
+      : null,
   };
 }
 
@@ -340,11 +527,15 @@ export async function resetTwoFactor(db: Database, userId: string, now: number):
 
 export const loginModes = ['off', 'optional', 'admins', 'all'] as const;
 export type LoginMode = (typeof loginModes)[number];
-export const isLoginMode = (v: unknown): v is LoginMode => typeof v === 'string' && (loginModes as readonly string[]).includes(v);
+export const isLoginMode = (v: unknown): v is LoginMode =>
+  typeof v === 'string' && (loginModes as readonly string[]).includes(v);
 const POLICY_KEY = 'security.twoFactor';
 
 export async function getLoginMode(sql: Sql, workspaceId: string): Promise<LoginMode> {
-  const [row] = await sql.query('SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?', [workspaceId, POLICY_KEY]);
+  const [row] = await sql.query(
+    'SELECT value_json FROM workspace_settings WHERE workspace_id = ? AND key = ?',
+    [workspaceId, POLICY_KEY],
+  );
   if (!row) return 'off';
   try {
     const raw = JSON.parse(String(row.value_json)) as { mode?: unknown };
@@ -354,7 +545,11 @@ export async function getLoginMode(sql: Sql, workspaceId: string): Promise<Login
   }
 }
 
-export async function setLoginMode(db: Database, input: { workspaceId: string; userId: string; mode: LoginMode }, now: number): Promise<{ from: LoginMode; to: LoginMode }> {
+export async function setLoginMode(
+  db: Database,
+  input: { workspaceId: string; userId: string; mode: LoginMode },
+  now: number,
+): Promise<{ from: LoginMode; to: LoginMode }> {
   return db.transaction(async (tx) => {
     const from = await getLoginMode(tx, input.workspaceId);
     await tx.execute(
@@ -362,7 +557,14 @@ export async function setLoginMode(db: Database, input: { workspaceId: string; u
        ON CONFLICT (workspace_id, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
       [input.workspaceId, POLICY_KEY, JSON.stringify({ mode: input.mode }), now, input.userId],
     );
-    await recordAudit(tx, { workspaceId: input.workspaceId, actor: { type: 'user', id: input.userId }, action: 'two_factor.policy_changed', target: { type: 'workspace', id: input.workspaceId }, detail: { from, to: input.mode }, at: now });
+    await recordAudit(tx, {
+      workspaceId: input.workspaceId,
+      actor: { type: 'user', id: input.userId },
+      action: 'two_factor.policy_changed',
+      target: { type: 'workspace', id: input.workspaceId },
+      detail: { from, to: input.mode },
+      at: now,
+    });
     return { from, to: input.mode };
   });
 }
@@ -388,7 +590,10 @@ export type LoginNeed = 'none' | 'verify' | 'enroll';
  * so a stolen password cannot add a second factor of its own to an account that already has one.
  */
 export async function loginNeed(sql: Sql, userId: string): Promise<LoginNeed> {
-  const rows = await sql.query('SELECT workspace_id, role FROM workspace_members WHERE user_id = ?', [userId]);
+  const rows = await sql.query(
+    'SELECT workspace_id, role FROM workspace_members WHERE user_id = ?',
+    [userId],
+  );
   let active = false;
   let required = false;
   for (const row of rows) {
@@ -396,7 +601,8 @@ export async function loginNeed(sql: Sql, userId: string): Promise<LoginNeed> {
     if (mode === 'off') continue;
     active = true;
     const role = String(row.role);
-    if (mode === 'all' || (mode === 'admins' && (role === 'owner' || role === 'admin'))) required = true;
+    if (mode === 'all' || (mode === 'admins' && (role === 'owner' || role === 'admin')))
+      required = true;
   }
   if (!active) return 'none';
   const status = await twoFactorStatus(sql, userId);
@@ -405,10 +611,24 @@ export async function loginNeed(sql: Sql, userId: string): Promise<LoginNeed> {
 }
 
 /** Writes an audit row for every workspace the person belongs to (signing in happens before any workspace is chosen). */
-export async function auditForUser(db: Database, userId: string, action: string, detail: Record<string, unknown>, now: number): Promise<void> {
-  const rows = await db.query('SELECT workspace_id FROM workspace_members WHERE user_id = ?', [userId]);
+export async function auditForUser(
+  db: Database,
+  userId: string,
+  action: string,
+  detail: Record<string, unknown>,
+  now: number,
+): Promise<void> {
+  const rows = await db.query('SELECT workspace_id FROM workspace_members WHERE user_id = ?', [
+    userId,
+  ]);
   for (const row of rows) {
-    await recordAudit(db, { workspaceId: String(row.workspace_id), actor: { type: 'user', id: userId }, action, detail, at: now });
+    await recordAudit(db, {
+      workspaceId: String(row.workspace_id),
+      actor: { type: 'user', id: userId },
+      action,
+      detail,
+      at: now,
+    });
   }
 }
 
@@ -418,28 +638,50 @@ export async function auditForUser(db: Database, userId: string, action: string,
 export type ChallengeKind = 'verify' | 'enroll';
 
 /** A token the browser holds for five minutes. Only its SHA-256 is stored. */
-export async function createLoginChallenge(db: Database, userId: string, kind: ChallengeKind, now: number): Promise<string> {
+export async function createLoginChallenge(
+  db: Database,
+  userId: string,
+  kind: ChallengeKind,
+  now: number,
+): Promise<string> {
   await db.execute('DELETE FROM login_challenges WHERE expires_at <= ?', [now]);
   // Signing in again replaces an older open challenge of the same person.
   await db.execute('DELETE FROM login_challenges WHERE user_id = ?', [userId]);
   const token = `lgc_${randomBytes(32).toString('base64url')}`;
-  await db.execute('INSERT INTO login_challenges (id, user_id, kind, attempts, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)', [sha256hex(token), userId, kind, now, now + LOGIN_CHALLENGE_TTL_MS]);
+  await db.execute(
+    'INSERT INTO login_challenges (id, user_id, kind, attempts, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)',
+    [sha256hex(token), userId, kind, now, now + LOGIN_CHALLENGE_TTL_MS],
+  );
   return token;
 }
 
 export type LoginChallenge = { id: string; userId: string; kind: ChallengeKind };
 
-export async function loadLoginChallenge(sql: Sql, token: string, now: number): Promise<LoginChallenge | undefined> {
-  if (typeof token !== 'string' || !token.startsWith('lgc_') || token.length > 100) return undefined;
+export async function loadLoginChallenge(
+  sql: Sql,
+  token: string,
+  now: number,
+): Promise<LoginChallenge | undefined> {
+  if (typeof token !== 'string' || !token.startsWith('lgc_') || token.length > 100)
+    return undefined;
   const id = sha256hex(token);
-  const [row] = await sql.query('SELECT user_id, kind, attempts, expires_at FROM login_challenges WHERE id = ?', [id]);
-  if (!row || Number(row.expires_at) <= now || Number(row.attempts) >= LOGIN_CHALLENGE_MAX_ATTEMPTS) return undefined;
+  const [row] = await sql.query(
+    'SELECT user_id, kind, attempts, expires_at FROM login_challenges WHERE id = ?',
+    [id],
+  );
+  if (!row || Number(row.expires_at) <= now || Number(row.attempts) >= LOGIN_CHALLENGE_MAX_ATTEMPTS)
+    return undefined;
   return { id, userId: String(row.user_id), kind: row.kind === 'enroll' ? 'enroll' : 'verify' };
 }
 
 /** Counts one second-factor attempt. False when the challenge has used its five (it then cannot be used at all). */
 export async function countChallengeAttempt(db: Database, id: string): Promise<boolean> {
-  return (await db.execute('UPDATE login_challenges SET attempts = attempts + 1 WHERE id = ? AND attempts < ?', [id, LOGIN_CHALLENGE_MAX_ATTEMPTS])) === 1;
+  return (
+    (await db.execute(
+      'UPDATE login_challenges SET attempts = attempts + 1 WHERE id = ? AND attempts < ?',
+      [id, LOGIN_CHALLENGE_MAX_ATTEMPTS],
+    )) === 1
+  );
 }
 
 /** Spends the challenge (single use). True for the one request that deletes it. */
@@ -457,12 +699,20 @@ export type LoginMethod = 'totp' | 'email' | 'recovery';
  * the address is verified) and a recovery code if they still have one. For an enrolment (the policy requires a factor and they have none)
  * it is the ways they can SET ONE UP: the app always, email when a mail server is set up.
  */
-export async function loginMethods(sql: Sql, userId: string, need: ChallengeKind, mailConfigured: boolean): Promise<LoginMethod[]> {
+export async function loginMethods(
+  sql: Sql,
+  userId: string,
+  need: ChallengeKind,
+  mailConfigured: boolean,
+): Promise<LoginMethod[]> {
   if (need === 'enroll') return mailConfigured ? ['totp', 'email'] : ['totp'];
   const methods: LoginMethod[] = [];
   if ((await totpStatus(sql, userId)).state === 'active') methods.push('totp');
   if (mailConfigured && (await activeEmail(sql, userId)) !== undefined) methods.push('email');
-  const [left] = await sql.query('SELECT COUNT(*) AS n FROM step_up_recovery_codes WHERE user_id = ? AND used_at IS NULL', [userId]);
+  const [left] = await sql.query(
+    'SELECT COUNT(*) AS n FROM step_up_recovery_codes WHERE user_id = ? AND used_at IS NULL',
+    [userId],
+  );
   if (Number(left?.n ?? 0) > 0) methods.push('recovery');
   return methods;
 }

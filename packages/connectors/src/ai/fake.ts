@@ -1,5 +1,16 @@
 import { validateJson } from './schema.ts';
-import { AiError, type AiClient, type AiCompleteRequest, type AiCompleteResult, type AiModelInfo, type AiProviderId, type AiUsage, guessTokens, normalizeModels, userMessageOf } from './types.ts';
+import {
+  type AiClient,
+  type AiCompleteRequest,
+  type AiCompleteResult,
+  AiError,
+  type AiModelInfo,
+  type AiProviderId,
+  type AiUsage,
+  guessTokens,
+  normalizeModels,
+  userMessageOf,
+} from './types.ts';
 
 /**
  * A scripted AI client for tests: no network, no model. It plays the answers it was given and goes through the
@@ -65,7 +76,8 @@ export function createFakeAiClient(options: FakeAiOptions): FakeAiClient {
         inputTokens: guessTokens(request.system) + guessTokens(userMessageOf(request)),
         outputTokens: guessTokens(JSON.stringify(answer.output ?? {})),
       };
-      if (validateJson(request.schema, answer.output).length > 0) throw new AiError('invalid_output', { detail: 'schema', usage });
+      if (validateJson(request.schema, answer.output).length > 0)
+        throw new AiError('invalid_output', { detail: 'schema', usage });
       return { output: answer.output, usage, model: answer.model ?? model };
     },
   };

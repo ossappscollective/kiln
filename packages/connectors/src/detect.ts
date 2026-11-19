@@ -121,7 +121,10 @@ const withoutComments = (source: string) =>
     .filter((line) => !/^\s*#/.test(line))
     .join('\n');
 
-export async function detectProject(files: string[], readFile: ReadFile): Promise<ProjectDetection> {
+export async function detectProject(
+  files: string[],
+  readFile: ReadFile,
+): Promise<ProjectDetection> {
   // Each file is read once, and the files that are always read start together.
   const reads = new Map<string, Promise<string | undefined>>();
   const read: ReadFile = (path) => {
@@ -152,7 +155,9 @@ export async function detectProject(files: string[], readFile: ReadFile): Promis
     if (m) fastlaneDirs.add(`${m[1] ?? ''}fastlane`);
   }
   const prefetch = [
-    ...[...fastlaneDirs].sort().flatMap((dir) => ['Fastfile', 'Appfile', 'Deliverfile'].map((n) => `${dir}/${n}`)),
+    ...[...fastlaneDirs]
+      .sort()
+      .flatMap((dir) => ['Fastfile', 'Appfile', 'Deliverfile'].map((n) => `${dir}/${n}`)),
     ...['Fastfile', 'Gemfile', 'package.json', 'app.json', 'eas.json'],
   ].filter((path) => have.has(path));
   await Promise.all(prefetch.map((path) => read(path)));

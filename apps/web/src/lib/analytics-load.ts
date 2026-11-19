@@ -1,5 +1,12 @@
-import { type AnalyticsOverview, type AnalyticsStatus, type ResolvedRange, previousRange, resolveRange, DEFAULT_RANGE } from './analytics.ts';
-import { type Strip, buildStrip, hasStoredData } from './analytics-view.ts';
+import {
+  type AnalyticsOverview,
+  type AnalyticsStatus,
+  DEFAULT_RANGE,
+  previousRange,
+  type ResolvedRange,
+  resolveRange,
+} from './analytics.ts';
+import { buildStrip, hasStoredData, type Strip } from './analytics-view.ts';
 import type { Api } from './api.ts';
 
 /**
@@ -21,9 +28,20 @@ export async function loadOverviews(
 ): Promise<Loaded> {
   const before = previousRange(range);
   const [current, previous] = await Promise.all([
-    api.analyticsOverview(workspaceId, app.id, { platform: app.platform, from: range.from, to: range.to, granularity: 'day', breakdown: 'app_version' }),
+    api.analyticsOverview(workspaceId, app.id, {
+      platform: app.platform,
+      from: range.from,
+      to: range.to,
+      granularity: 'day',
+      breakdown: 'app_version',
+    }),
     api
-      .analyticsOverview(workspaceId, app.id, { platform: app.platform, from: before.from, to: before.to, granularity: 'day' })
+      .analyticsOverview(workspaceId, app.id, {
+        platform: app.platform,
+        from: before.from,
+        to: before.to,
+        granularity: 'day',
+      })
       .then((o): AnalyticsOverview | null => o)
       .catch(() => null),
   ]);
@@ -34,12 +52,22 @@ export async function loadOverviews(
  * The "Last 28 days" strip of the dashboard: nothing (null) when analytics is off, has no data, or a read fails. One status read,
  * then one overview read only when there is data to show.
  */
-export async function loadStrip(api: AnalyticsReads, workspaceId: string, app: { id: string; platform: string }, now: number): Promise<Strip | null> {
+export async function loadStrip(
+  api: AnalyticsReads,
+  workspaceId: string,
+  app: { id: string; platform: string },
+  now: number,
+): Promise<Strip | null> {
   try {
     const status: AnalyticsStatus = await api.analyticsStatus(workspaceId, app.id);
     if (!status.enabled || !hasStoredData(status)) return null;
     const range = resolveRange(DEFAULT_RANGE, now);
-    const overview = await api.analyticsOverview(workspaceId, app.id, { platform: app.platform, from: range.from, to: range.to, granularity: 'day' });
+    const overview = await api.analyticsOverview(workspaceId, app.id, {
+      platform: app.platform,
+      from: range.from,
+      to: range.to,
+      granularity: 'day',
+    });
     return buildStrip(overview);
   } catch {
     return null;

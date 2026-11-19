@@ -1,10 +1,10 @@
 import type { ActorType, FileChange } from '@mrm/core';
 import { recordAudit } from './audit.ts';
 import {
-  type ApplyResult,
   APPLY_CLAIM_TTL_MS,
-  changeOf,
+  type ApplyResult,
   type ChangeSetView,
+  changeOf,
   getChangeSet,
   invalidState,
   type LocalOutcome,
@@ -17,9 +17,9 @@ import {
 } from './change-sets.ts';
 import {
   type BranchCommitOutcome,
+  type CommitIdentity,
   checkNewBranchName,
   cleanIdentity,
-  type CommitIdentity,
   createBranchCommit,
   inspectLocalRepo,
   type PushOutcome,
@@ -88,7 +88,12 @@ export function localBranchNameFor(id: string, summary: string): string {
  * person typed, so the summary is neutralised as it is for a pull request; a local-only
  * repository keeps the text as typed.
  */
-export function commitMessageFor(id: string, summary: string, files: FileChange[], neutralise: boolean): string {
+export function commitMessageFor(
+  id: string,
+  summary: string,
+  files: FileChange[],
+  neutralise: boolean,
+): string {
   const line = summary.replace(/\s+/g, ' ').trim();
   const shown = files.slice(0, 50).map((f) => `- ${f.path} (${changeOf(f)})`);
   if (files.length > 50) shown.push(`- and ${files.length - 50} more`);
@@ -114,7 +119,12 @@ const LOCAL_PATH_CODES = new Set([
 ]);
 
 /** A failed commit as a response a person can act on. */
-export function commitFailure(outcome: { code: string; message: string; paths?: string[] | undefined; reason?: string | undefined }): Failure {
+export function commitFailure(outcome: {
+  code: string;
+  message: string;
+  paths?: string[] | undefined;
+  reason?: string | undefined;
+}): Failure {
   const extra = outcome.paths ? { paths: outcome.paths } : {};
   switch (outcome.code) {
     case 'base_changed':
@@ -129,7 +139,9 @@ export function commitFailure(outcome: { code: string; message: string; paths?: 
     case 'timeout':
       return failure(504, 'timeout', outcome.message);
     case 'signing_failed':
-      return failure(outcome.reason === 'timeout' ? 504 : 502, 'signing_failed', outcome.message, { reason: outcome.reason ?? 'failed' });
+      return failure(outcome.reason === 'timeout' ? 504 : 502, 'signing_failed', outcome.message, {
+        reason: outcome.reason ?? 'failed',
+      });
     case 'branch_not_found':
       return failure(422, 'local_branch_missing', outcome.message);
     case 'no_changes':
@@ -140,7 +152,13 @@ export function commitFailure(outcome: { code: string; message: string; paths?: 
     case 'invalid_branch':
       return failure(422, outcome.code, outcome.message, extra);
     default:
-      return failure(422, LOCAL_PATH_CODES.has(outcome.code) || outcome.code.startsWith('git_') ? `local_${outcome.code}` : outcome.code, outcome.message);
+      return failure(
+        422,
+        LOCAL_PATH_CODES.has(outcome.code) || outcome.code.startsWith('git_')
+          ? `local_${outcome.code}`
+          : outcome.code,
+        outcome.message,
+      );
   }
 }
 
@@ -149,7 +167,11 @@ const unavailable = (ctx: RepoContext): Failure | undefined => {
   if (available.enabled) return undefined;
   return failure(
     409,
-    available.reason === 'no_roots' ? 'local_not_enabled' : available.reason === 'reads_api' ? 'local_reads_disabled' : 'local_git_missing',
+    available.reason === 'no_roots'
+      ? 'local_not_enabled'
+      : available.reason === 'reads_api'
+        ? 'local_reads_disabled'
+        : 'local_git_missing',
     available.message,
   );
 };
@@ -165,9 +187,14 @@ export async function preflight(
   want: { branch?: string | undefined; push: boolean; openPr: boolean },
 ): Promise<Failure | undefined> {
   const write = localWriteAvailability(ctx.localWrite);
-  if (!write.enabled) return failure(409, 'local_write_disabled', write.message, { envName: WRITE_ENV_NAME });
+  if (!write.enabled)
+    return failure(409, 'local_write_disabled', write.message, { envName: WRITE_ENV_NAME });
   if (!repository.local) {
-    return failure(409, 'no_local_checkout', 'This repository has no local clone. Attach one (Local clone on the repository page) to commit to it.');
+    return failure(
+      409,
+      'no_local_checkout',
+      'This repository has no local clone. Attach one (Local clone on the repository page) to commit to it.',
+    );
   }
   const off = unavailable(ctx);
   if (off) return off;
@@ -176,13 +203,24 @@ export async function preflight(
     if (!named.ok) return failure(422, 'invalid_branch', named.message);
   }
   if (want.openPr && !want.push) {
-    return failure(422, 'invalid_request', 'A pull request needs the branch on GitHub: turn on "push" as well.');
+    return failure(
+      422,
+      'invalid_request',
+      'A pull request needs the branch on GitHub: turn on "push" as well.',
+    );
   }
   if (!want.push) return undefined;
   if (repository.localOnly) {
-    return failure(409, 'local_only', 'A local-only repository has no GitHub connection, so there is nothing to push to.');
+    return failure(
+      409,
+      'local_only',
+      'A local-only repository has no GitHub connection, so there is nothing to push to.',
+    );
   }
-  const check = await validateLocalPath(repository.local.path, ctx.reads?.local ?? { roots: [], excluded: [] });
+  const check = await validateLocalPath(
+    repository.local.path,
+    ctx.reads?.local ?? { roots: [], excluded: [] },
+  );
   if (!check.ok) return failure(422, `local_${check.code}`, check.message);
   const inspected = await inspectLocalRepo({
     gitPath: ctx.reads?.gitPath ?? 'git',
@@ -190,16 +228,28 @@ export async function preflight(
     worktree: check.worktree,
     skipStatus: true,
   });
-  if (!inspected.ok) return failure(inspected.code === 'git_missing' ? 409 : 422, `local_${inspected.code}`, inspected.message);
+  if (!inspected.ok)
+    return failure(
+      inspected.code === 'git_missing' ? 409 : 422,
+      `local_${inspected.code}`,
+      inspected.message,
+    );
   const remote = inspected.inspection.remote;
-  if (!remote?.github || remote.owner.toLowerCase() !== repository.owner.toLowerCase() || remote.repo.toLowerCase() !== repository.repo.toLowerCase()) {
+  if (
+    !remote?.github ||
+    remote.owner.toLowerCase() !== repository.owner.toLowerCase() ||
+    remote.repo.toLowerCase() !== repository.repo.toLowerCase()
+  ) {
     return failure(
       409,
       'remote_mismatch',
       remote?.github
         ? `The local clone's origin is ${remote.owner}/${remote.repo}, not ${repository.owner}/${repository.repo}, so the branch is not pushed. Commit without pushing, or attach the right clone.`
         : `The local clone has no GitHub origin for ${repository.owner}/${repository.repo}, so the branch is not pushed. Add the remote, or commit without pushing.`,
-      { origin: remote ? `${remote.owner}/${remote.repo}` : null, repository: `${repository.owner}/${repository.repo}` },
+      {
+        origin: remote ? `${remote.owner}/${remote.repo}` : null,
+        repository: `${repository.owner}/${repository.repo}`,
+      },
     );
   }
   return undefined;
@@ -210,7 +260,9 @@ export async function identityFor(ctx: RepoContext, actor: Actor): Promise<Commi
   let name = ctx.localWrite?.authorName;
   let email = ctx.localWrite?.authorEmail;
   if ((!name || !email) && actor.type === 'user') {
-    const [row] = await ctx.db.query('SELECT display_name, email FROM users WHERE id = ?', [actor.id]);
+    const [row] = await ctx.db.query('SELECT display_name, email FROM users WHERE id = ?', [
+      actor.id,
+    ]);
     if (row) {
       name ||= String(row.display_name);
       email ||= String(row.email);
@@ -241,7 +293,10 @@ export async function publish(
     openPr: boolean;
     opened: Opened;
   },
-): Promise<{ outcome: LocalOutcome; failed?: { step: 'push' | 'pr'; code: string; message: string } }> {
+): Promise<{
+  outcome: LocalOutcome;
+  failed?: { step: 'push' | 'pr'; code: string; message: string };
+}> {
   const { repository, opened } = args;
   const next: LocalOutcome = structuredClone(args.outcome);
   next.requested = { push: true, openPr: args.openPr || next.requested.openPr };
@@ -254,7 +309,11 @@ export async function publish(
       const minted = cloneToken(opened.kind ?? 'github_token', opened.secret, opened.connector);
       const token = typeof minted === 'function' ? await minted() : minted;
       if (token === undefined || token === '') {
-        result = { ok: false, code: 'push_auth', message: 'This credential cannot give git a token, so the branch cannot be pushed.' };
+        result = {
+          ok: false,
+          code: 'push_auth',
+          message: 'This credential cannot give git a token, so the branch cannot be pushed.',
+        };
       } else {
         const test = ctx.localWrite?.push;
         result = await pushBranchCommit({
@@ -263,7 +322,9 @@ export async function publish(
           roots: ctx.reads?.local ?? { roots: [], excluded: [] },
           commit: next.commit.sha,
           branch,
-          url: test?.url ? test.url(repository.owner, repository.repo) : `https://github.com/${repository.owner}/${repository.repo}.git`,
+          url: test?.url
+            ? test.url(repository.owner, repository.repo)
+            : `https://github.com/${repository.owner}/${repository.repo}.git`,
           token,
           ...(test?.protocol ? { protocol: test.protocol } : {}),
           timeoutMs: Math.min(ctx.timeoutMs, test?.timeoutMs ?? 60_000),
@@ -289,7 +350,11 @@ export async function publish(
 
   if (args.openPr && next.pr.status !== 'opened') {
     if (failed) {
-      next.pr = { status: 'skipped', code: 'push_failed', error: 'Not opened: the branch is not on GitHub yet.' };
+      next.pr = {
+        status: 'skipped',
+        code: 'push_failed',
+        error: 'Not opened: the branch is not on GitHub yet.',
+      };
     } else {
       const connector = opened.connector;
       const controller = new AbortController();
@@ -361,9 +426,20 @@ export async function savePublished(
       `UPDATE change_sets
           SET outcome_json = ?, pr_url = ?, pr_number = ?, updated_at = ?, publish_claim_at = NULL
         WHERE id = ? AND workspace_id = ? AND status = 'applied'`,
-      [JSON.stringify(outcome), outcome.pr.url ?? null, outcome.pr.number ?? null, at, args.id, args.workspaceId],
+      [
+        JSON.stringify(outcome),
+        outcome.pr.url ?? null,
+        outcome.pr.number ?? null,
+        at,
+        args.id,
+        args.workspaceId,
+      ],
     );
-    const base = { repositoryId: args.repositoryId, branch: outcome.commit.branch, commitSha: outcome.commit.sha };
+    const base = {
+      repositoryId: args.repositoryId,
+      branch: outcome.commit.branch,
+      commitSha: outcome.commit.sha,
+    };
     const audit = (action: string, detail: Record<string, unknown>) =>
       recordAudit(tx, {
         workspaceId: args.workspaceId,
@@ -373,12 +449,16 @@ export async function savePublished(
         detail: { ...base, ...detail },
         at,
       });
-    if (before.push.status !== 'pushed' && outcome.push.status === 'pushed') await audit('changeset.push', {});
+    if (before.push.status !== 'pushed' && outcome.push.status === 'pushed')
+      await audit('changeset.push', {});
     if (outcome.push.status === 'failed' && before.push.at !== outcome.push.at) {
       await audit('changeset.push_failed', { code: outcome.push.code });
     }
     if (before.pr.status !== 'opened' && outcome.pr.status === 'opened') {
-      await audit('changeset.pr_open', { prNumber: outcome.pr.number ?? null, prUrl: outcome.pr.url ?? null });
+      await audit('changeset.pr_open', {
+        prNumber: outcome.pr.number ?? null,
+        prUrl: outcome.pr.url ?? null,
+      });
     }
     if (outcome.pr.status === 'failed' && before.pr.at !== outcome.pr.at) {
       await audit('changeset.pr_failed', { code: outcome.pr.code });
@@ -389,7 +469,10 @@ export async function savePublished(
 /** Releases the publish claim without a result (an unexpected error). */
 export const releasePublishClaim = (ctx: RepoContext, workspaceId: string, id: string) =>
   ctx.db
-    .execute('UPDATE change_sets SET publish_claim_at = NULL WHERE id = ? AND workspace_id = ?', [id, workspaceId])
+    .execute('UPDATE change_sets SET publish_claim_at = NULL WHERE id = ? AND workspace_id = ?', [
+      id,
+      workspaceId,
+    ])
     .catch(() => undefined);
 
 export const failedStep = (
@@ -418,7 +501,11 @@ export async function publishLocalCommit(
   const outcome = parseOutcome(row);
   if (String(row.status) !== 'applied') return invalidState(String(row.status), 'applied');
   if (!outcome) {
-    return failure(409, 'not_local_commit', 'This change set was applied as a pull request through GitHub: there is no local commit to push.');
+    return failure(
+      409,
+      'not_local_commit',
+      'This change set was applied as a pull request through GitHub: there is no local commit to push.',
+    );
   }
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
   if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
@@ -435,9 +522,16 @@ export async function publishLocalCommit(
         AND (publish_claim_at IS NULL OR publish_claim_at < ?)`,
     [now, id, workspaceId, now - PUBLISH_CLAIM_TTL_MS],
   );
-  if (claimed === 0) return failure(409, 'publish_in_progress', 'This change set is being pushed right now.');
+  if (claimed === 0)
+    return failure(409, 'publish_in_progress', 'This change set is being pushed right now.');
   try {
-    const opened = await openConnectorForRepository(ctx, workspaceId, repository, actor, 'changeset.push');
+    const opened = await openConnectorForRepository(
+      ctx,
+      workspaceId,
+      repository,
+      actor,
+      'changeset.push',
+    );
     if (!opened.ok) {
       await releasePublishClaim(ctx, workspaceId, id);
       return opened;
@@ -452,7 +546,14 @@ export async function publishLocalCommit(
       openPr: input.openPr,
       opened,
     });
-    await savePublished(ctx, { workspaceId, repositoryId: repository.id, id, before: outcome, result, actor });
+    await savePublished(ctx, {
+      workspaceId,
+      repositoryId: repository.id,
+      id,
+      before: outcome,
+      result,
+      actor,
+    });
     const changeSet = (await getChangeSet(db, workspaceId, id)) as ChangeSetView;
     return result.failed ? failedStep(result.failed, changeSet) : { ok: true, changeSet };
   } catch (error) {
@@ -479,7 +580,8 @@ export async function applyChangeSetLocally(
   const { workspaceId, id } = input;
   const row = await rowOf(db, workspaceId, id);
   if (!row) return failure(404, 'not_found');
-  if (String(row.status) === 'applied') return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
+  if (String(row.status) === 'applied')
+    return { ok: true, changeSet: toView(row, true), alreadyApplied: true };
   const repository = await getRepository(db, workspaceId, String(row.repository_id));
   if (!repository) return failure(404, 'not_found', 'The repository of this change set is gone.');
   const refused = await preflight(ctx, repository, input);
@@ -495,8 +597,10 @@ export async function applyChangeSetLocally(
   if (claimed === 0) {
     const fresh = await rowOf(db, workspaceId, id);
     const status = String(fresh?.status ?? row.status);
-    if (status === 'applied' && fresh) return { ok: true, changeSet: toView(fresh, true), alreadyApplied: true };
-    if (status === 'applying') return failure(409, 'apply_in_progress', 'This change set is being applied right now.');
+    if (status === 'applied' && fresh)
+      return { ok: true, changeSet: toView(fresh, true), alreadyApplied: true };
+    if (status === 'applying')
+      return failure(409, 'apply_in_progress', 'This change set is being applied right now.');
     return invalidState(status, 'approved');
   }
 
@@ -513,7 +617,13 @@ export async function applyChangeSetLocally(
   const wantsPublish = input.push || input.openPr;
   let opened: Opened | undefined;
   if (wantsPublish) {
-    const connector = await openConnectorForRepository(ctx, workspaceId, repository, actor, 'changeset.push');
+    const connector = await openConnectorForRepository(
+      ctx,
+      workspaceId,
+      repository,
+      actor,
+      'changeset.push',
+    );
     if (!connector.ok) return release(connector);
     opened = connector;
   }
@@ -537,7 +647,9 @@ export async function applyChangeSetLocally(
       ...(ctx.localWrite?.signing ? { signing: ctx.localWrite.signing } : {}),
     });
   } catch (error) {
-    await release(failure(502, 'local_git_failed', 'Committing to the local clone failed unexpectedly.'));
+    await release(
+      failure(502, 'local_git_failed', 'Committing to the local clone failed unexpectedly.'),
+    );
     throw error;
   }
   if (!committed.ok) return release(commitFailure(committed));
@@ -548,7 +660,9 @@ export async function applyChangeSetLocally(
     base: { branch: repository.local?.branch ?? repository.defaultBranch, commit: committed.base },
     commit: { branch, sha: committed.commit, at },
     requested: { push: input.push, openPr: input.openPr },
-    ...(committed.signature ? { signature: { status: 'signed' as const, format: committed.signature.format } } : {}),
+    ...(committed.signature
+      ? { signature: { status: 'signed' as const, format: committed.signature.format } }
+      : {}),
     push: { status: 'not_requested' },
     pr: { status: 'not_requested' },
   };
@@ -560,7 +674,16 @@ export async function applyChangeSetLocally(
           SET status = 'applied', branch = ?, commit_sha = ?, pr_url = NULL, pr_number = NULL, outcome_json = ?,
               error = NULL, applied_at = ?, updated_at = ?, publish_claim_at = ?
         WHERE id = ? AND workspace_id = ?`,
-      [branch, committed.commit, JSON.stringify(outcome), at, at, wantsPublish ? at : null, id, workspaceId],
+      [
+        branch,
+        committed.commit,
+        JSON.stringify(outcome),
+        at,
+        at,
+        wantsPublish ? at : null,
+        id,
+        workspaceId,
+      ],
     );
     await recordAudit(tx, {
       workspaceId,
@@ -597,7 +720,14 @@ export async function applyChangeSetLocally(
         openPr: input.openPr,
         opened,
       });
-      await savePublished(ctx, { workspaceId, repositoryId: repository.id, id, before: outcome, result, actor });
+      await savePublished(ctx, {
+        workspaceId,
+        repositoryId: repository.id,
+        id,
+        before: outcome,
+        result,
+        actor,
+      });
     } catch (error) {
       await releasePublishClaim(ctx, workspaceId, id);
       throw error;

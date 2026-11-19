@@ -36,12 +36,19 @@ test('what is returned cannot change the waiting intent', () => {
 });
 
 test('an intent resolves to its repository once the list has loaded, or to "missing" when it is gone', () => {
-  const list = [{ id: 'r1', name: 'one' }, { id: 'r2', name: 'two' }];
+  const list = [
+    { id: 'r1', name: 'one' },
+    { id: 'r2', name: 'two' },
+  ];
   assert.equal(resolveChangeSetReview(null, list), null);
   assert.deepEqual(resolveChangeSetReview({ repositoryId: 'r2', changeSetId: 'c9' }, list), {
     repository: { id: 'r2', name: 'two' },
     changeSetId: 'c9',
   });
-  assert.deepEqual(resolveChangeSetReview({ repositoryId: 'gone', changeSetId: 'c9' }, list), { missing: true });
-  assert.deepEqual(resolveChangeSetReview({ repositoryId: 'r1', changeSetId: 'c1' }, []), { missing: true });
+  assert.deepEqual(resolveChangeSetReview({ repositoryId: 'gone', changeSetId: 'c9' }, list), {
+    missing: true,
+  });
+  assert.deepEqual(resolveChangeSetReview({ repositoryId: 'r1', changeSetId: 'c1' }, []), {
+    missing: true,
+  });
 });

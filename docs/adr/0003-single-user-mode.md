@@ -60,14 +60,14 @@ sessions; single-user mode only changes how the one session starts.
 
 ## Threat model
 
-| Threat | What stops it |
-| --- | --- |
-| A web page does `fetch('http://localhost:PORT/...')` or posts a form (CSRF) | The cookie is `SameSite=Lax`; writes also need a matching `Origin` (existing check); a page cannot start a session without the secret; responses are not CORS-readable |
-| A web page rebinds its domain to 127.0.0.1 | `Host` allowlist rejects its name before any route or static file runs |
-| Another user on the same machine | Loopback bind plus a secret they cannot read: it is in the child's environment (owner-only on Linux and macOS), not argv, not a file, not logged. The database and master key live in the app's data folder with the user's permissions |
-| Another local process of the same user | **Out of scope.** It can read the data folder, the master key and the child's environment, and attach to the process. A desktop app cannot defend against its own user's other programs |
-| Guessing the secret | 256 bits; failed attempts do not spend it, and online guessing at that size is infeasible |
-| Replaying a captured launch URL | Single-use. After the shell uses it, it does nothing |
+| Threat                                                                      | What stops it                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A web page does `fetch('http://localhost:PORT/...')` or posts a form (CSRF) | The cookie is `SameSite=Lax`; writes also need a matching `Origin` (existing check); a page cannot start a session without the secret; responses are not CORS-readable                                                                  |
+| A web page rebinds its domain to 127.0.0.1                                  | `Host` allowlist rejects its name before any route or static file runs                                                                                                                                                                  |
+| Another user on the same machine                                            | Loopback bind plus a secret they cannot read: it is in the child's environment (owner-only on Linux and macOS), not argv, not a file, not logged. The database and master key live in the app's data folder with the user's permissions |
+| Another local process of the same user                                      | **Out of scope.** It can read the data folder, the master key and the child's environment, and attach to the process. A desktop app cannot defend against its own user's other programs                                                 |
+| Guessing the secret                                                         | 256 bits; failed attempts do not spend it, and online guessing at that size is infeasible                                                                                                                                               |
+| Replaying a captured launch URL                                             | Single-use. After the shell uses it, it does nothing                                                                                                                                                                                    |
 
 Explicitly out of scope:
 

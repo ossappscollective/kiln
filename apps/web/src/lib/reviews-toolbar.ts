@@ -1,4 +1,10 @@
-import type { InboxFilters, ReviewFilters, ReviewStatus, StoredSummary, WeekBucket } from './reviews.ts';
+import type {
+  InboxFilters,
+  ReviewFilters,
+  ReviewStatus,
+  StoredSummary,
+  WeekBucket,
+} from './reviews.ts';
 import { averageText, statusLabels, statusOrder } from './reviews.ts';
 
 /**
@@ -43,7 +49,10 @@ export function statusChips(
 }
 
 /** The statuses filtered by after a chip is pressed: that one, or none when it was the only one on. */
-export function statusesAfterChip(active: readonly ReviewStatus[], pressed: ReviewStatus): ReviewStatus[] {
+export function statusesAfterChip(
+  active: readonly ReviewStatus[],
+  pressed: ReviewStatus,
+): ReviewStatus[] {
   return active.length === 1 && active[0] === pressed ? [] : [pressed];
 }
 
@@ -106,7 +115,10 @@ export function trendWord(weeks: readonly WeekBucket[]): TrendWord | null {
 /** The slim line: "4.3 average, 42 stored reviews, rating rising". Always the same order; the trend only when it can be said. */
 export function statsLine(stored: Pick<StoredSummary, 'count' | 'average' | 'weeks'>): string {
   if (stored.count === 0) return 'No stored reviews yet';
-  const parts = [`${averageText(stored.average)} average`, `${stored.count} stored ${stored.count === 1 ? 'review' : 'reviews'}`];
+  const parts = [
+    `${averageText(stored.average)} average`,
+    `${stored.count} stored ${stored.count === 1 ? 'review' : 'reviews'}`,
+  ];
   const trend = trendWord(stored.weeks);
   if (trend !== null) parts.push(`rating ${trend}`);
   return parts.join(', ');

@@ -21,7 +21,12 @@ export function fakeMail() {
 export async function bootAlerts(db: Database, overrides: Parameters<typeof bootRepoApp>[2] = {}) {
   const t = await bootRepoApp(db, undefined, overrides);
   const mail = fakeMail();
-  const handler = createAlertDeliveryHandler({ db, now: Date.now, sendMail: mail.send, maxAttempts: 3 });
+  const handler = createAlertDeliveryHandler({
+    db,
+    now: Date.now,
+    sendMail: mail.send,
+    maxAttempts: 3,
+  });
   const [owner] = await db.query("SELECT user_id FROM workspace_members WHERE role = 'owner'");
   const ownerId = String(owner?.user_id);
   const addApp = async (id = 'app1', name = 'Moon Diary') => {
@@ -46,13 +51,32 @@ export async function bootAlerts(db: Database, overrides: Parameters<typeof boot
     }
     return ran;
   };
-  const emit = (type: Parameters<typeof emitEvent>[1]['type'], payload: Record<string, unknown>, appId?: string, at = Date.now()) =>
-    emitEvent(db, { workspaceId: t.workspaceId, type, subject: appId ? { appId } : {}, payload, at });
+  const emit = (
+    type: Parameters<typeof emitEvent>[1]['type'],
+    payload: Record<string, unknown>,
+    appId?: string,
+    at = Date.now(),
+  ) =>
+    emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type,
+      subject: appId ? { appId } : {},
+      payload,
+      at,
+    });
   const rejected = (appId: string, version = '2.0', at = Date.now()) =>
-    emit('app.release.status_changed', { version, track: '', build: '7', from: 'in_review', to: 'rejected' }, appId, at);
-  const alerts = async () => db.query('SELECT * FROM alerts WHERE is_test = 0 ORDER BY first_at, id');
-  const inbox = async (userId = ownerId) => db.query('SELECT * FROM alert_inbox WHERE user_id = ?', [userId]);
-  const log = async (where = '1 = 1') => db.query(`SELECT * FROM alert_deliveries WHERE ${where} ORDER BY created_at, id`);
+    emit(
+      'app.release.status_changed',
+      { version, track: '', build: '7', from: 'in_review', to: 'rejected' },
+      appId,
+      at,
+    );
+  const alerts = async () =>
+    db.query('SELECT * FROM alerts WHERE is_test = 0 ORDER BY first_at, id');
+  const inbox = async (userId = ownerId) =>
+    db.query('SELECT * FROM alert_inbox WHERE user_id = ?', [userId]);
+  const log = async (where = '1 = 1') =>
+    db.query(`SELECT * FROM alert_deliveries WHERE ${where} ORDER BY created_at, id`);
   return { ...t, mail, handler, ownerId, addApp, runMail, emit, rejected, alerts, inbox, log };
 }
 export type AlertBoot = Awaited<ReturnType<typeof bootAlerts>>;

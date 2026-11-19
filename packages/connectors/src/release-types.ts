@@ -121,7 +121,13 @@ export type ReleaseCandidates =
 
 export type ReleaseNoteRead = { locale: string; text: string };
 
-export type PlayReleaseRead = { name: string | null; status: string; userFraction: number | null; versionCodes: string[]; notes: ReleaseNoteRead[] };
+export type PlayReleaseRead = {
+  name: string | null;
+  status: string;
+  userFraction: number | null;
+  versionCodes: string[];
+  notes: ReleaseNoteRead[];
+};
 
 export type EditableRelease =
   | {
@@ -132,7 +138,12 @@ export type EditableRelease =
       /** ISO 8601 as Apple reports it, or null. */
       earliestReleaseDate: string | null;
       copyright: string | null;
-      build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null;
+      build: {
+        id: string;
+        buildNumber: string | null;
+        processingState: string | null;
+        expired: boolean | null;
+      } | null;
       /** The phased release of the version: null means the version has none (off). */
       phasedRelease: { id: string; state: string | null } | null;
       /** The "what's new" of each locale (a listing field: stage it with the listing texts). */
@@ -205,7 +216,9 @@ export interface StoreNotesHistoryReader {
 }
 
 export const isStoreNotesHistoryReader = (value: unknown): value is StoreNotesHistoryReader =>
-  typeof value === 'object' && value !== null && typeof (value as { readNotesHistory?: unknown }).readNotesHistory === 'function';
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { readNotesHistory?: unknown }).readNotesHistory === 'function';
 
 // ---------------------------------------------------------------------------------------------
 // The release itself
@@ -236,12 +249,22 @@ export type ReleaseState =
       store: 'appstoreconnect';
       platform: Platform;
       /** The version that would be released (null: none is in a state that can be released and none matched). */
-      version: { id: string; versionString: string | null; state: string; releaseType: string | null } | null;
+      version: {
+        id: string;
+        versionString: string | null;
+        state: string;
+        releaseType: string | null;
+      } | null;
       /** The version is in `PENDING_DEVELOPER_RELEASE`: Apple approved it and it waits for the release. */
       releasable: boolean;
       /** More than one version waits: the person must name the marketing version. */
       ambiguous: boolean;
-      build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null;
+      build: {
+        id: string;
+        buildNumber: string | null;
+        processingState: string | null;
+        expired: boolean | null;
+      } | null;
       /** The phased release of the version (null: none, so everybody gets it at once). */
       phasedRelease: { id: string; state: string | null } | null;
       /** The states of this platform's other versions, so a refusal can say what the store holds. */
@@ -321,26 +344,55 @@ export function releaseKey(state: ReleaseState): Record<string, unknown> {
   if (state.store === 'appstoreconnect') {
     return {
       store: state.store,
-      version: state.version === null ? null : [state.version.id, state.version.versionString, state.version.state, state.version.releaseType],
+      version:
+        state.version === null
+          ? null
+          : [
+              state.version.id,
+              state.version.versionString,
+              state.version.state,
+              state.version.releaseType,
+            ],
       releasable: state.releasable,
       ambiguous: state.ambiguous,
-      build: state.build === null ? null : [state.build.id, state.build.buildNumber, state.build.processingState, state.build.expired],
-      phased: state.phasedRelease === null ? null : [state.phasedRelease.id, state.phasedRelease.state],
-      versions: [...state.versions].map((v) => [v.versionString, v.state]).sort((a, b) => (`${a[0]}\u0000${a[1]}` < `${b[0]}\u0000${b[1]}` ? -1 : 1)),
+      build:
+        state.build === null
+          ? null
+          : [
+              state.build.id,
+              state.build.buildNumber,
+              state.build.processingState,
+              state.build.expired,
+            ],
+      phased:
+        state.phasedRelease === null ? null : [state.phasedRelease.id, state.phasedRelease.state],
+      versions: [...state.versions]
+        .map((v) => [v.versionString, v.state])
+        .sort((a, b) => (`${a[0]}\u0000${a[1]}` < `${b[0]}\u0000${b[1]}` ? -1 : 1)),
     };
   }
-  const one = (r: PlayReleaseState) => [r.name, r.status, r.userFraction, [...r.versionCodes].sort(), r.notes];
+  const one = (r: PlayReleaseState) => [
+    r.name,
+    r.status,
+    r.userFraction,
+    [...r.versionCodes].sort(),
+    r.notes,
+  ];
   return {
     store: state.store,
     track: state.track,
     release: state.release === null ? null : one(state.release),
     ambiguous: state.ambiguous,
-    others: [...state.others].map(one).sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)),
+    others: [...state.others]
+      .map(one)
+      .sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)),
     missing: [...state.missingCodes].sort(),
   };
 }
 
-export const sameReleaseState = (a: ReleaseState, b: ReleaseState): boolean => JSON.stringify(releaseKey(a)) === JSON.stringify(releaseKey(b));
+export const sameReleaseState = (a: ReleaseState, b: ReleaseState): boolean =>
+  JSON.stringify(releaseKey(a)) === JSON.stringify(releaseKey(b));
 
 /** Hash of the part of a state a person confirms. */
-export const releaseStateHash = (state: ReleaseState): string => sha(JSON.stringify(releaseKey(state)));
+export const releaseStateHash = (state: ReleaseState): string =>
+  sha(JSON.stringify(releaseKey(state)));

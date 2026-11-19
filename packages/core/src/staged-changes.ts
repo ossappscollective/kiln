@@ -1,6 +1,11 @@
 import { isApplePlatform, type Platform } from './platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from './release-fields.ts';
-import { type AssetKind, type AssetStore, deviceFitsPlatform, PLAY_DEVICES } from './store-asset-specs.ts';
+import {
+  type AssetKind,
+  type AssetStore,
+  deviceFitsPlatform,
+  PLAY_DEVICES,
+} from './store-asset-specs.ts';
 
 /**
  * Staged store changes (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md): the
@@ -63,9 +68,23 @@ export const PUSHABLE_IMAGE_FORMATS: readonly string[] = ['png', 'jpeg'];
  * - Google Play: every field of `edits.listings` (title, short and full description, video).
  */
 export const STAGEABLE_TEXT_FIELDS: Readonly<Record<Platform, readonly string[]>> = {
-  ios: ['description', 'keywords', 'promotional_text', 'release_notes', 'marketing_url', 'support_url'],
+  ios: [
+    'description',
+    'keywords',
+    'promotional_text',
+    'release_notes',
+    'marketing_url',
+    'support_url',
+  ],
   // The same version localization fields; a macOS version has its own, written to the macOS version only.
-  macos: ['description', 'keywords', 'promotional_text', 'release_notes', 'marketing_url', 'support_url'],
+  macos: [
+    'description',
+    'keywords',
+    'promotional_text',
+    'release_notes',
+    'marketing_url',
+    'support_url',
+  ],
   android: ['title', 'short_description', 'full_description', 'video'],
 };
 
@@ -96,7 +115,8 @@ export const isStageableTextField = (platform: Platform, field: string): boolean
 /** One set of graphics in a locale: screenshots of one device class, or a single Play graphic. */
 export type AssetSlot = { kind: AssetKind; device: string | null };
 
-export const slotKey = (slot: AssetSlot): string => (slot.device === null ? slot.kind : `${slot.kind}:${slot.device}`);
+export const slotKey = (slot: AssetSlot): string =>
+  slot.device === null ? slot.kind : `${slot.kind}:${slot.device}`;
 
 export function parseSlotKey(key: string): AssetSlot | undefined {
   const at = key.indexOf(':');
@@ -138,7 +158,11 @@ const IPHONE_67_SIZES: readonly (readonly number[])[] = [
 ];
 
 /** The `screenshotDisplayType` for a device class and pixel size, or undefined when this server has no name for it. */
-export function appleDisplayType(device: string, width: number | null, height: number | null): string | undefined {
+export function appleDisplayType(
+  device: string,
+  width: number | null,
+  height: number | null,
+): string | undefined {
   if (device === 'iphone_6_9') {
     if (width === null || height === null) return undefined;
     for (let i = 0; i < IPHONE_67_SIZES.length; i++) {
@@ -181,24 +205,39 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
               : 'This kind of graphic does not exist on the App Store.',
       };
     }
-    if (slot.device === null || (APPLE_DISPLAY_TYPES[slot.device] === undefined && slot.device !== 'iphone_6_9')) {
-      return { ok: false, reason: 'This display size has no known App Store Connect screenshot display type.' };
+    if (
+      slot.device === null ||
+      (APPLE_DISPLAY_TYPES[slot.device] === undefined && slot.device !== 'iphone_6_9')
+    ) {
+      return {
+        ok: false,
+        reason: 'This display size has no known App Store Connect screenshot display type.',
+      };
     }
     if (!deviceFitsPlatform(platform, slot.device)) {
       return {
         ok: false,
-        reason: platform === 'macos' ? 'A macOS version takes Mac screenshots only (the Mac display).' : 'The Mac display belongs to the macOS version of the app, not the iOS one.',
+        reason:
+          platform === 'macos'
+            ? 'A macOS version takes Mac screenshots only (the Mac display).'
+            : 'The Mac display belongs to the macOS version of the app, not the iOS one.',
       };
     }
     return { ok: true };
   }
   if (slot.kind === 'promo_graphic') {
-    return { ok: false, reason: 'Google Play has no image type for the promo graphic in the Developer API (AppImageType).' };
+    return {
+      ok: false,
+      reason:
+        'Google Play has no image type for the promo graphic in the Developer API (AppImageType).',
+    };
   }
   if (slot.kind === 'preview' || slot.kind === 'app_icon') {
     return { ok: false, reason: 'This kind of graphic is not a Google Play listing image.' };
   }
-  return playImageType(slot) === undefined ? { ok: false, reason: 'Not a Google Play image type.' } : { ok: true };
+  return playImageType(slot) === undefined
+    ? { ok: false, reason: 'Not a Google Play image type.' }
+    : { ok: true };
 }
 
 /** The most files one set can hold (a push replaces the whole set), from the stores' documented limits. */
@@ -207,7 +246,8 @@ export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
   return 1;
 }
 
-export const assetStoreOf = (platform: Platform): AssetStore => (isApplePlatform(platform) ? 'app_store' : 'google_play');
+export const assetStoreOf = (platform: Platform): AssetStore =>
+  isApplePlatform(platform) ? 'app_store' : 'google_play';
 
 // ---------------------------------------------------------------------------------------------
 // What the API shows
@@ -288,7 +328,15 @@ export type StagedChangesView = {
   app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
   text: StagedTextView[];
   assets: StagedAssetView[];
-  totals: { text: number; assetSets: number; assetFiles: number; errors: number; warnings: number; changed: number; /** Staged release fields. Present from the server. */ release?: number };
+  totals: {
+    text: number;
+    assetSets: number;
+    assetFiles: number;
+    errors: number;
+    warnings: number;
+    changed: number /** Staged release fields. Present from the server. */;
+    release?: number;
+  };
   /** False when any item has an error: a push is refused while there are some. */
   valid: boolean;
   /**
@@ -297,6 +345,9 @@ export type StagedChangesView = {
    */
   release?: StagedReleaseFieldView[];
   /** What a push can write for this platform (so a screen can say why something cannot be staged). */
-  pushable: { textFields: string[]; /** Release fields that can be staged (see `PUT .../staged/release-fields`). */ releaseFields?: ReleaseFieldId[] };
+  pushable: {
+    textFields: string[] /** Release fields that can be staged (see `PUT .../staged/release-fields`). */;
+    releaseFields?: ReleaseFieldId[];
+  };
   limits: typeof STAGED_LIMITS;
 };

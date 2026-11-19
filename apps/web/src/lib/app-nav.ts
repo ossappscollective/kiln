@@ -1,6 +1,6 @@
 import type { Action } from '@mrm/core';
-import { isAsoView } from './aso.ts';
 import { type AppSection, appAddress, parseAppAddress, parseViewPath } from './app-scope.ts';
+import { isAsoView } from './aso.ts';
 import type { IconName } from './icons.ts';
 
 /**
@@ -30,7 +30,8 @@ export const primaryNav: readonly NavEntry[] = [
 ];
 
 /** The entries a person may open, in order. */
-export const visibleNav = (allowed: (action: Action) => boolean): NavEntry[] => primaryNav.filter((e) => allowed(e.requires));
+export const visibleNav = (allowed: (action: Action) => boolean): NavEntry[] =>
+  primaryNav.filter((e) => allowed(e.requires));
 
 /** The entry of the left panel that a page belongs to (an old page belongs to the page that replaced it); null for none (pending, settings). */
 export function navEntryOf(section: AppSection): AppSection | null {
@@ -78,7 +79,12 @@ export function workspaceRail(views: readonly RailItem[]): WorkspaceRail {
 // ---------------------------------------------------------------------------------------------
 // Views inside a page
 
-export type SectionView = { id: string; label: string; requires?: Action; /** Only drawn when a Google Play app is in scope (Search terms comes from a Play Console file). */ androidOnly?: boolean };
+export type SectionView = {
+  id: string;
+  label: string;
+  requires?: Action /** Only drawn when a Google Play app is in scope (Search terms comes from a Play Console file). */;
+  androidOnly?: boolean;
+};
 
 /** The pages that hold several old pages as views; a page opens on its first view. */
 export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionView[]>>> = {
@@ -101,11 +107,22 @@ export const sectionViews: Readonly<Partial<Record<AppSection, readonly SectionV
 /** What the views of a page may depend on besides the role: whether a Google Play app is in scope (default: yes). */
 export type ViewContext = { androidInScope?: boolean };
 
-const openViews = (section: AppSection, allowed: (action: Action) => boolean, context: ViewContext): SectionView[] =>
-  (sectionViews[section] ?? []).filter((v) => (!v.requires || allowed(v.requires)) && (!v.androidOnly || context.androidInScope !== false));
+const openViews = (
+  section: AppSection,
+  allowed: (action: Action) => boolean,
+  context: ViewContext,
+): SectionView[] =>
+  (sectionViews[section] ?? []).filter(
+    (v) =>
+      (!v.requires || allowed(v.requires)) && (!v.androidOnly || context.androidInScope !== false),
+  );
 
 /** The views of a page a person may open; empty for a page with no views, or with only one (nothing to switch). */
-export function viewsFor(section: AppSection, allowed: (action: Action) => boolean, context: ViewContext = {}): SectionView[] {
+export function viewsFor(
+  section: AppSection,
+  allowed: (action: Action) => boolean,
+  context: ViewContext = {},
+): SectionView[] {
   const list = openViews(section, allowed, context);
   return list.length > 1 ? list : [];
 }
@@ -115,7 +132,9 @@ export function viewsFor(section: AppSection, allowed: (action: Action) => boole
  * `overview` are Overview; `terms` is Search terms; `aso` and every ASO sub-view (`keywords`, `rank`, `fit`, ...) are Keywords, which
  * keeps its own sub-views inside; anything else is Overview.
  */
-export function insightsViewOf(asked: string | null | undefined): 'overview' | 'keywords' | 'terms' {
+export function insightsViewOf(
+  asked: string | null | undefined,
+): 'overview' | 'keywords' | 'terms' {
   if (asked === 'terms') return 'terms';
   return asked === 'aso' || isAsoView(asked) ? 'keywords' : 'overview';
 }
@@ -143,11 +162,20 @@ export function viewOf(section: AppSection, hash: string): string {
  * The view to draw: the one the address names when the role may open it, else the first one the role may open; '' for a page without views.
  * Search terms in an address for an app with no Google Play record falls back to Keywords.
  */
-export function resolveView(section: AppSection, hash: string, allowed: (action: Action) => boolean, context: ViewContext = {}): string {
+export function resolveView(
+  section: AppSection,
+  hash: string,
+  allowed: (action: Action) => boolean,
+  context: ViewContext = {},
+): string {
   const list = openViews(section, allowed, context);
   if (list.length === 0) return '';
   const asked = viewOf(section, hash);
-  return list.find((v) => v.id === asked)?.id ?? (asked === 'terms' ? list.find((v) => v.id === 'keywords') : undefined)?.id ?? (list[0] as SectionView).id;
+  return (
+    list.find((v) => v.id === asked)?.id ??
+    (asked === 'terms' ? list.find((v) => v.id === 'keywords') : undefined)?.id ??
+    (list[0] as SectionView).id
+  );
 }
 
 const setQuery = (hash: string, change: (params: URLSearchParams) => void): string => {
@@ -171,7 +199,8 @@ export function withView(hash: string, section: AppSection, view: string): strin
 }
 
 /** A keyword sub-view inside Insights (`?view=rank`, `?view=fit`, ...). Keywords itself is written `keywords`: the default of Insights is Overview. */
-export const withInsightsAsoView = (hash: string, view: string): string => setQuery(hash, (params) => params.set('view', view));
+export const withInsightsAsoView = (hash: string, view: string): string =>
+  setQuery(hash, (params) => params.set('view', view));
 
 // ---------------------------------------------------------------------------------------------
 // The old addresses
@@ -221,7 +250,8 @@ export function canonicalAppHash(hash: string): string | null {
 }
 
 /** The page an address lands on: an old page reads as the page that replaced it. */
-export const canonicalSection = (section: AppSection): AppSection => REDIRECTS[section]?.section ?? section;
+export const canonicalSection = (section: AppSection): AppSection =>
+  REDIRECTS[section]?.section ?? section;
 
 // ---------------------------------------------------------------------------------------------
 // The slim page header
@@ -246,4 +276,5 @@ const TITLES: Readonly<Record<AppSection, string>> = {
 export const pageTitle = (section: AppSection): string => TITLES[section];
 
 /** Whether the platform control is drawn: not for an app with one platform (nothing to choose) and not on the settings page (they are about the whole app). */
-export const showsScope = (section: AppSection, platformCount: number): boolean => platformCount > 1 && section !== 'settings';
+export const showsScope = (section: AppSection, platformCount: number): boolean =>
+  platformCount > 1 && section !== 'settings';

@@ -1,24 +1,42 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {
+  GithubError,
+  type StoreApp,
+  type StoreBuild,
+  type StoreConnector,
+  type StoreVersion,
+} from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
-import { GithubError, type StoreApp, type StoreBuild, type StoreConnector, type StoreVersion } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import { createEventStreamHub } from './routes/events.ts';
-import { type StoreConnectorFactory } from './services/apps.ts';
-import { emitEvent, eventFromAudit, listEvents, pruneEvents, redactPayload, releaseStatusChanges } from './services/events.ts';
+import type { StoreConnectorFactory } from './services/apps.ts';
+import {
+  emitEvent,
+  eventFromAudit,
+  listEvents,
+  pruneEvents,
+  redactPayload,
+  releaseStatusChanges,
+} from './services/events.ts';
 import { seedWorkspace } from './testkit.ts';
 
 type Boot = Awaited<ReturnType<typeof bootRepoApp>>;
 type Options = NonNullable<Parameters<typeof bootRepoApp>[2]>;
-const boot = (db: Parameters<typeof bootRepoApp>[0], overrides: Options = {}, repo?: Parameters<typeof bootRepoApp>[1]) =>
-  bootRepoApp(db, repo, overrides);
+const boot = (
+  db: Parameters<typeof bootRepoApp>[0],
+  overrides: Options = {},
+  repo?: Parameters<typeof bootRepoApp>[1],
+) => bootRepoApp(db, repo, overrides);
 
 // biome-ignore lint/suspicious/noExplicitAny: test responses are inspected loosely
 const json = async (res: Response) => (await res.json()) as Record<string, any>;
 
 const bearer = (t: Boot, token: string, path: string, workspace = t.workspaceId) =>
-  t.app.request(`/api/workspaces/${workspace}${path}`, { headers: { authorization: `Bearer ${token}` } });
+  t.app.request(`/api/workspaces/${workspace}${path}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
 
 async function makeToken(t: Boot, input: Record<string, unknown> = {}) {
   const res = await t.call(t.owner, 'POST', '/tokens', { name: 'CI', role: 'admin', ...input });
@@ -59,61 +77,116 @@ test('redactPayload drops secret-looking keys, functions and undefined, at any d
     prUrl: 'https://github.com/a/b/pull/1',
     bad: Number.POSITIVE_INFINITY,
   });
-  assert.deepEqual(out, { ok: 1, nested: { fine: [{ keep: 'k' }] }, prUrl: 'https://github.com/a/b/pull/1', bad: null });
+  assert.deepEqual(out, {
+    ok: 1,
+    nested: { fine: [{ keep: 'k' }] },
+    prUrl: 'https://github.com/a/b/pull/1',
+    bad: null,
+  });
 });
 
-dbTest('an oversized payload is replaced by a marker, and secrets never reach the table', async (db) => {
-  const t = await boot(db);
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { blob: 'x'.repeat(40_000) } });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { accessToken: 'sekrit', a: 1 } });
-  const rows = await db.query('SELECT payload FROM events ORDER BY id');
-  assert.deepEqual(JSON.parse(String(rows[0]?.payload)), { truncated: true });
-  assert.deepEqual(JSON.parse(String(rows[1]?.payload)), { a: 1 });
-});
+dbTest(
+  'an oversized payload is replaced by a marker, and secrets never reach the table',
+  async (db) => {
+    const t = await boot(db);
+    await emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type: 'app.synced',
+      payload: { blob: 'x'.repeat(40_000) },
+    });
+    await emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type: 'app.synced',
+      payload: { accessToken: 'sekrit', a: 1 },
+    });
+    const rows = await db.query('SELECT payload FROM events ORDER BY id');
+    assert.deepEqual(JSON.parse(String(rows[0]?.payload)), { truncated: true });
+    assert.deepEqual(JSON.parse(String(rows[1]?.payload)), { a: 1 });
+  },
+);
 
-dbTest('listEvents pages by id, filters by type and app, and keeps workspaces apart', async (db) => {
-  const t = await boot(db);
-  const other = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
-  for (let i = 1; i <= 5; i++) {
-    await emitEvent(db, { workspaceId: t.workspaceId, type: i % 2 ? 'app.synced' : 'changeset.created', subject: i % 2 ? { appId: `a${i}` } : {}, payload: { i } });
-  }
-  await emitEvent(db, { workspaceId: other.workspaceId, type: 'app.synced', payload: { i: 99 } });
+dbTest(
+  'listEvents pages by id, filters by type and app, and keeps workspaces apart',
+  async (db) => {
+    const t = await boot(db);
+    const other = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
+    for (let i = 1; i <= 5; i++) {
+      await emitEvent(db, {
+        workspaceId: t.workspaceId,
+        type: i % 2 ? 'app.synced' : 'changeset.created',
+        subject: i % 2 ? { appId: `a${i}` } : {},
+        payload: { i },
+      });
+    }
+    await emitEvent(db, { workspaceId: other.workspaceId, type: 'app.synced', payload: { i: 99 } });
 
-  const all = await listEvents(db, t.workspaceId, { since: 0 });
-  assert.equal(all.events.length, 5);
-  assert.equal(all.hasMore, false);
-  assert.ok(all.events.every((e) => e.workspaceId === t.workspaceId));
-  const firstPage = await listEvents(db, t.workspaceId, { since: 0, limit: 2 });
-  assert.equal(firstPage.hasMore, true);
-  const next = await listEvents(db, t.workspaceId, { since: firstPage.events[1]?.id, limit: 2 });
-  assert.deepEqual(next.events.map((e) => e.payload.i), [3, 4]);
-  // No cursor: the newest, oldest first.
-  assert.deepEqual((await listEvents(db, t.workspaceId, { limit: 2 })).events.map((e) => e.payload.i), [4, 5]);
-  assert.deepEqual(types((await listEvents(db, t.workspaceId, { since: 0, types: ['changeset.created'] })).events), ['changeset.created', 'changeset.created']);
-  assert.deepEqual((await listEvents(db, t.workspaceId, { since: 0, appIds: ['a3', 'a5'] })).events.map((e) => e.payload.i), [3, 5]);
-  assert.deepEqual((await listEvents(db, t.workspaceId, { since: 0, appIds: [] })).events, []);
-  assert.equal(await pruneEvents(db, Date.now() + 91 * 24 * 3600_000), 6);
-});
+    const all = await listEvents(db, t.workspaceId, { since: 0 });
+    assert.equal(all.events.length, 5);
+    assert.equal(all.hasMore, false);
+    assert.ok(all.events.every((e) => e.workspaceId === t.workspaceId));
+    const firstPage = await listEvents(db, t.workspaceId, { since: 0, limit: 2 });
+    assert.equal(firstPage.hasMore, true);
+    const next = await listEvents(db, t.workspaceId, { since: firstPage.events[1]?.id, limit: 2 });
+    assert.deepEqual(
+      next.events.map((e) => e.payload.i),
+      [3, 4],
+    );
+    // No cursor: the newest, oldest first.
+    assert.deepEqual(
+      (await listEvents(db, t.workspaceId, { limit: 2 })).events.map((e) => e.payload.i),
+      [4, 5],
+    );
+    assert.deepEqual(
+      types(
+        (await listEvents(db, t.workspaceId, { since: 0, types: ['changeset.created'] })).events,
+      ),
+      ['changeset.created', 'changeset.created'],
+    );
+    assert.deepEqual(
+      (await listEvents(db, t.workspaceId, { since: 0, appIds: ['a3', 'a5'] })).events.map(
+        (e) => e.payload.i,
+      ),
+      [3, 5],
+    );
+    assert.deepEqual((await listEvents(db, t.workspaceId, { since: 0, appIds: [] })).events, []);
+    assert.equal(await pruneEvents(db, Date.now() + 91 * 24 * 3600_000), 6);
+  },
+);
 
 // ----- the endpoint ---------------------------------------------------------------------------
 
 dbTest('GET /events: cursor paging, filters, validation, rights and isolation', async (db) => {
   const t = await boot(db);
-  for (let i = 1; i <= 4; i++) await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', subject: { appId: 'a' }, payload: { i } });
+  for (let i = 1; i <= 4; i++)
+    await emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type: 'app.synced',
+      subject: { appId: 'a' },
+      payload: { i },
+    });
   await emitEvent(db, { workspaceId: t.workspaceId, type: 'changeset.created', payload: { i: 5 } });
 
   const page = await t.call(t.owner, 'GET', '/events?since=0&limit=2');
   assert.equal(page.status, 200);
-  assert.deepEqual(page.body.events.map((e: { payload: { i: number } }) => e.payload.i), [1, 2]);
+  assert.deepEqual(
+    page.body.events.map((e: { payload: { i: number } }) => e.payload.i),
+    [1, 2],
+  );
   assert.equal(page.body.hasMore, true);
   assert.equal(page.body.nextCursor, page.body.events[1].id);
   const rest = await t.call(t.owner, 'GET', `/events?since=${page.body.nextCursor}&limit=10`);
-  assert.deepEqual(rest.body.events.map((e: { payload: { i: number } }) => e.payload.i), [3, 4, 5]);
+  assert.deepEqual(
+    rest.body.events.map((e: { payload: { i: number } }) => e.payload.i),
+    [3, 4, 5],
+  );
   assert.equal(rest.body.hasMore, false);
   // Nothing new: the cursor stays where it was.
   const none = await t.call(t.owner, 'GET', `/events?since=${rest.body.nextCursor}`);
   assert.deepEqual(none.body, { events: [], hasMore: false, nextCursor: rest.body.nextCursor });
-  assert.deepEqual(types((await t.call(t.owner, 'GET', '/events?type=changeset.created')).body.events), ['changeset.created']);
+  assert.deepEqual(
+    types((await t.call(t.owner, 'GET', '/events?type=changeset.created')).body.events),
+    ['changeset.created'],
+  );
   assert.equal((await t.call(t.owner, 'GET', '/events?type=nope')).status, 400);
   for (const bad of ['since=abc', 'since=-1', 'limit=0', 'limit=201', 'limit=x']) {
     assert.equal((await t.call(t.owner, 'GET', `/events?${bad}`)).status, 400, bad);
@@ -123,30 +196,51 @@ dbTest('GET /events: cursor paging, filters, validation, rights and isolation', 
 
   // Another workspace sees none of it, and a non-member gets 404.
   const other = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
-  assert.deepEqual((await t.call(other.cookie, 'GET', '/events?since=0', undefined, other.workspaceId)).body.events, []);
+  assert.deepEqual(
+    (await t.call(other.cookie, 'GET', '/events?since=0', undefined, other.workspaceId)).body
+      .events,
+    [],
+  );
   assert.equal((await t.call(other.cookie, 'GET', '/events?since=0')).status, 404);
 });
 
-dbTest('who sees which events: an event is visible to those who may read what it is about', async (db) => {
-  const t = await boot(db);
-  const viewer = await t.addMember('viewer');
-  const member = await t.addMember('member');
-  for (const type of ['app.synced', 'changeset.created', 'credential.test_failed'] as const) {
-    await emitEvent(db, { workspaceId: t.workspaceId, type });
-  }
-  assert.deepEqual(types((await t.call(t.owner, 'GET', '/events?since=0')).body.events), ['app.synced', 'changeset.created', 'credential.test_failed']);
-  assert.deepEqual(types((await t.call(member, 'GET', '/events?since=0')).body.events), ['app.synced', 'changeset.created', 'credential.test_failed']);
-  // A viewer reads apps and repositories but not credentials.
-  assert.deepEqual(types((await t.call(viewer, 'GET', '/events?since=0')).body.events), ['app.synced', 'changeset.created']);
-  assert.deepEqual((await t.call(viewer, 'GET', '/events?since=0&type=credential.test_failed')).body.events, []);
-  // Same for a token with the viewer ceiling, even though its creator is the owner.
-  const viewerToken = await makeToken(t, { role: 'viewer' });
-  const viaToken = await json(await bearer(t, viewerToken, '/events?since=0'));
-  assert.deepEqual(types(viaToken.events), ['app.synced', 'changeset.created']);
-  // A token whose action list leaves out events.read gets nothing at all.
-  const noEvents = await makeToken(t, { actions: ['apps.read'] });
-  assert.equal((await bearer(t, noEvents, '/events')).status, 403);
-});
+dbTest(
+  'who sees which events: an event is visible to those who may read what it is about',
+  async (db) => {
+    const t = await boot(db);
+    const viewer = await t.addMember('viewer');
+    const member = await t.addMember('member');
+    for (const type of ['app.synced', 'changeset.created', 'credential.test_failed'] as const) {
+      await emitEvent(db, { workspaceId: t.workspaceId, type });
+    }
+    assert.deepEqual(types((await t.call(t.owner, 'GET', '/events?since=0')).body.events), [
+      'app.synced',
+      'changeset.created',
+      'credential.test_failed',
+    ]);
+    assert.deepEqual(types((await t.call(member, 'GET', '/events?since=0')).body.events), [
+      'app.synced',
+      'changeset.created',
+      'credential.test_failed',
+    ]);
+    // A viewer reads apps and repositories but not credentials.
+    assert.deepEqual(types((await t.call(viewer, 'GET', '/events?since=0')).body.events), [
+      'app.synced',
+      'changeset.created',
+    ]);
+    assert.deepEqual(
+      (await t.call(viewer, 'GET', '/events?since=0&type=credential.test_failed')).body.events,
+      [],
+    );
+    // Same for a token with the viewer ceiling, even though its creator is the owner.
+    const viewerToken = await makeToken(t, { role: 'viewer' });
+    const viaToken = await json(await bearer(t, viewerToken, '/events?since=0'));
+    assert.deepEqual(types(viaToken.events), ['app.synced', 'changeset.created']);
+    // A token whose action list leaves out events.read gets nothing at all.
+    const noEvents = await makeToken(t, { actions: ['apps.read'] });
+    assert.equal((await bearer(t, noEvents, '/events')).status, 403);
+  },
+);
 
 dbTest('an app restricted token sees only events about its apps', async (db) => {
   const t = await boot(db);
@@ -156,12 +250,25 @@ dbTest('an app restricted token sees only events about its apps', async (db) => 
       [id, t.workspaceId, id, `com.x.${id}`],
     );
   }
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', subject: { appId: 'a1' }, payload: { n: 1 } });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', subject: { appId: 'a2' }, payload: { n: 2 } });
+  await emitEvent(db, {
+    workspaceId: t.workspaceId,
+    type: 'app.synced',
+    subject: { appId: 'a1' },
+    payload: { n: 1 },
+  });
+  await emitEvent(db, {
+    workspaceId: t.workspaceId,
+    type: 'app.synced',
+    subject: { appId: 'a2' },
+    payload: { n: 2 },
+  });
   await emitEvent(db, { workspaceId: t.workspaceId, type: 'changeset.created', payload: { n: 3 } });
   const token = await makeToken(t, { appIds: ['a1'] });
   const seen = await json(await bearer(t, token, '/events?since=0'));
-  assert.deepEqual(seen.events.map((e: { payload: { n: number } }) => e.payload.n), [1]);
+  assert.deepEqual(
+    seen.events.map((e: { payload: { n: number } }) => e.payload.n),
+    [1],
+  );
   const all = await json(await bearer(t, await makeToken(t), '/events?since=0'));
   // Making the tokens above wrote a token.created event each (alerts need it); the three emitted here are the rest.
   assert.equal(all.events.filter((e: { type: string }) => e.type !== 'token.created').length, 3);
@@ -176,7 +283,11 @@ const ASC_SECRET = JSON.stringify({
   privateKey: `-----BEGIN PRIVATE KEY-----\n${KEY_LINE}\n-----END PRIVATE KEY-----`,
 });
 
-const version = (versionString: string, rawState: string, lifecycleState?: StoreVersion['lifecycleState']): StoreVersion => ({
+const version = (
+  versionString: string,
+  rawState: string,
+  lifecycleState?: StoreVersion['lifecycleState'],
+): StoreVersion => ({
   storeId: `v-${versionString}`,
   appStoreId: '1234567890',
   platform: 'ios',
@@ -200,53 +311,68 @@ class FakeStore implements StoreConnector {
   }
 }
 
-dbTest('a sync emits app.synced, and app.release.status_changed when a status moved', async (db) => {
-  const store = new FakeStore();
-  const factory: StoreConnectorFactory = () => store;
-  const t = await boot(db, { appSync: { connectorFactory: factory } });
-  const credentialId = await t.addCredential('app_store_connect', ASC_SECRET);
-  const created = await t.call(t.owner, 'POST', '/apps', { platform: 'ios', identifier: 'com.acme.app', credentialId });
-  const appId = created.body.app.id as string;
-  const events = async () => (await t.call(t.owner, 'GET', '/events?since=0&limit=100')).body.events as {
-    type: string;
-    subject: { appId?: string; releaseId?: string };
-    payload: Record<string, unknown>;
-  }[];
+dbTest(
+  'a sync emits app.synced, and app.release.status_changed when a status moved',
+  async (db) => {
+    const store = new FakeStore();
+    const factory: StoreConnectorFactory = () => store;
+    const t = await boot(db, { appSync: { connectorFactory: factory } });
+    const credentialId = await t.addCredential('app_store_connect', ASC_SECRET);
+    const created = await t.call(t.owner, 'POST', '/apps', {
+      platform: 'ios',
+      identifier: 'com.acme.app',
+      credentialId,
+    });
+    const appId = created.body.app.id as string;
+    const events = async () =>
+      (await t.call(t.owner, 'GET', '/events?since=0&limit=100')).body.events as {
+        type: string;
+        subject: { appId?: string; releaseId?: string };
+        payload: Record<string, unknown>;
+      }[];
 
-  // First sync: a quiet baseline. Only app.synced.
-  store.versions = [version('1.0', 'WAITING_FOR_REVIEW', 'in_review')];
-  assert.equal((await t.call(t.owner, 'POST', `/apps/${appId}/sync`)).status, 200);
-  let seen = await events();
-  assert.deepEqual(types(seen), ['app.synced']);
-  assert.deepEqual(seen[0]?.subject, { appId });
-  assert.equal(seen[0]?.payload.found, 1);
-  assert.equal(seen[0]?.payload.added, 1);
-  assert.equal(seen[0]?.payload.statusChanges, 0);
-  assert.equal(seen[0]?.payload.trigger, 'request');
+    // First sync: a quiet baseline. Only app.synced.
+    store.versions = [version('1.0', 'WAITING_FOR_REVIEW', 'in_review')];
+    assert.equal((await t.call(t.owner, 'POST', `/apps/${appId}/sync`)).status, 200);
+    let seen = await events();
+    assert.deepEqual(types(seen), ['app.synced']);
+    assert.deepEqual(seen[0]?.subject, { appId });
+    assert.equal(seen[0]?.payload.found, 1);
+    assert.equal(seen[0]?.payload.added, 1);
+    assert.equal(seen[0]?.payload.statusChanges, 0);
+    assert.equal(seen[0]?.payload.trigger, 'request');
 
-  // Same data again: synced, nothing changed.
-  await t.call(t.owner, 'POST', `/apps/${appId}/sync`);
-  seen = await events();
-  assert.deepEqual(types(seen), ['app.synced', 'app.synced']);
+    // Same data again: synced, nothing changed.
+    await t.call(t.owner, 'POST', `/apps/${appId}/sync`);
+    seen = await events();
+    assert.deepEqual(types(seen), ['app.synced', 'app.synced']);
 
-  // The status moves, and a new version appears.
-  store.versions = [version('1.0', 'PENDING_DEVELOPER_RELEASE', 'approved'), version('1.1', 'PREPARE_FOR_SUBMISSION', 'draft')];
-  await t.call(t.owner, 'POST', `/apps/${appId}/sync`);
-  seen = await events();
-  assert.deepEqual(types(seen).slice(2), ['app.release.status_changed', 'app.release.status_changed', 'app.synced']);
-  const changed = seen.filter((e) => e.type === 'app.release.status_changed');
-  const moved = changed.find((e) => e.payload.version === '1.0');
-  assert.equal(moved?.payload.from, 'in_review');
-  assert.equal(moved?.payload.to, 'approved');
-  assert.ok(moved?.subject.releaseId, 'an existing release has an id');
-  const added = changed.find((e) => e.payload.version === '1.1');
-  assert.equal(added?.payload.from, null);
-  assert.equal(added?.payload.to, 'draft');
-  assert.equal(added?.subject.releaseId, undefined);
-  assert.equal(seen.at(-1)?.payload.statusChanges, 2);
-  // No event holds anything that looks like a credential.
-  assert.equal(JSON.stringify(seen).includes(KEY_LINE), false);
-});
+    // The status moves, and a new version appears.
+    store.versions = [
+      version('1.0', 'PENDING_DEVELOPER_RELEASE', 'approved'),
+      version('1.1', 'PREPARE_FOR_SUBMISSION', 'draft'),
+    ];
+    await t.call(t.owner, 'POST', `/apps/${appId}/sync`);
+    seen = await events();
+    assert.deepEqual(types(seen).slice(2), [
+      'app.release.status_changed',
+      'app.release.status_changed',
+      'app.synced',
+    ]);
+    const changed = seen.filter((e) => e.type === 'app.release.status_changed');
+    const moved = changed.find((e) => e.payload.version === '1.0');
+    assert.equal(moved?.payload.from, 'in_review');
+    assert.equal(moved?.payload.to, 'approved');
+    assert.ok(moved?.subject.releaseId, 'an existing release has an id');
+    const added = changed.find((e) => e.payload.version === '1.1');
+    assert.equal(added?.payload.from, null);
+    assert.equal(added?.payload.to, 'draft');
+    assert.equal(added?.subject.releaseId, undefined);
+    assert.equal(seen.at(-1)?.payload.statusChanges, 2);
+    // No event holds anything that looks like a credential.
+    assert.equal(JSON.stringify(seen).includes(KEY_LINE), false);
+  },
+);
 
 test('releaseStatusChanges: baseline, move, new, removed and unchanged', () => {
   const before = new Map<string, Record<string, unknown>>([
@@ -254,7 +380,12 @@ test('releaseStatusChanges: baseline, move, new, removed and unchanged', () => {
     ['t\u00002.0', { id: 'r2', status: null }],
     ['t\u00003.0', { id: 'r3', status: 'live' }],
   ]);
-  const release = (v: string, status: string | null) => ({ version: v, track: 't', build: null, status });
+  const release = (v: string, status: string | null) => ({
+    version: v,
+    track: 't',
+    build: null,
+    status,
+  });
   const after = new Map([
     ['t\u00001.0', release('1.0', 'approved')],
     ['t\u00002.0', release('2.0', 'draft')],
@@ -265,10 +396,17 @@ test('releaseStatusChanges: baseline, move, new, removed and unchanged', () => {
   const changes = releaseStatusChanges(before, after, true);
   assert.deepEqual(
     changes.map((c) => [c.version, c.from, c.to, c.releaseId]),
-    [['1.0', 'in_review', 'approved', 'r1'], ['2.0', null, 'draft', 'r2'], ['4.0', null, 'draft', null]],
+    [
+      ['1.0', 'in_review', 'approved', 'r1'],
+      ['2.0', null, 'draft', 'r2'],
+      ['4.0', null, 'draft', null],
+    ],
   );
   // Not baselined: existing releases still report moves, new ones stay quiet.
-  assert.deepEqual(releaseStatusChanges(before, after, false).map((c) => c.version), ['1.0', '2.0']);
+  assert.deepEqual(
+    releaseStatusChanges(before, after, false).map((c) => c.version),
+    ['1.0', '2.0'],
+  );
 });
 
 dbTest('change sets emit created, approved, applied and failed, naming who did it', async (db) => {
@@ -289,8 +427,12 @@ dbTest('change sets emit created, approved, applied and failed, naming who did i
     payload: Record<string, any>;
   }[];
   assert.deepEqual(types(events), [
-    'changeset.created', 'changeset.approved', 'changeset.applied',
-    'changeset.created', 'changeset.approved', 'changeset.failed',
+    'changeset.created',
+    'changeset.approved',
+    'changeset.applied',
+    'changeset.created',
+    'changeset.approved',
+    'changeset.failed',
   ]);
   assert.equal(events[0]?.subject.repositoryId, repositoryId);
   assert.equal(events[0]?.payload.changeSetId, first.id);
@@ -304,34 +446,67 @@ dbTest('change sets emit created, approved, applied and failed, naming who did i
   assert.equal(JSON.stringify(events).includes('"files":['), false);
 });
 
-dbTest('a failed credential test emits credential.test_failed; a passing one does not', async (db) => {
-  const verdict = { ok: false };
-  const t = await boot(db, {
-    credentialTests: {
-      verifiers: () => async () => ({ ok: verdict.ok, message: 'Nope: ghp_SECRETTOKEN1234567890abcdef' }),
-    },
-  });
-  const credentialId = await t.addCredential();
-  assert.equal((await t.call(t.owner, 'POST', `/credentials/${credentialId}/test`)).status, 200);
-  verdict.ok = true;
-  await t.call(t.owner, 'POST', `/credentials/${credentialId}/test`);
-  verdict.ok = false;
-  await t.call(t.owner, 'POST', '/credentials/test', { kind: 'github_token', secret: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' });
-  const events = (await t.call(t.owner, 'GET', '/events?since=0')).body.events as { type: string; payload: Record<string, unknown> }[];
-  assert.deepEqual(types(events), ['credential.test_failed', 'credential.test_failed']);
-  assert.equal(events[0]?.payload.credentialId, credentialId);
-  assert.equal(events[0]?.payload.saved, true);
-  assert.equal(events[1]?.payload.credentialId, null);
-  assert.equal(events[1]?.payload.kind, 'github_token');
-  assert.equal(JSON.stringify(events).includes('ghp_'), false, 'the test message is not forwarded');
-});
+dbTest(
+  'a failed credential test emits credential.test_failed; a passing one does not',
+  async (db) => {
+    const verdict = { ok: false };
+    const t = await boot(db, {
+      credentialTests: {
+        verifiers: () => async () => ({
+          ok: verdict.ok,
+          message: 'Nope: ghp_SECRETTOKEN1234567890abcdef',
+        }),
+      },
+    });
+    const credentialId = await t.addCredential();
+    assert.equal((await t.call(t.owner, 'POST', `/credentials/${credentialId}/test`)).status, 200);
+    verdict.ok = true;
+    await t.call(t.owner, 'POST', `/credentials/${credentialId}/test`);
+    verdict.ok = false;
+    await t.call(t.owner, 'POST', '/credentials/test', {
+      kind: 'github_token',
+      secret: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
+    });
+    const events = (await t.call(t.owner, 'GET', '/events?since=0')).body.events as {
+      type: string;
+      payload: Record<string, unknown>;
+    }[];
+    assert.deepEqual(types(events), ['credential.test_failed', 'credential.test_failed']);
+    assert.equal(events[0]?.payload.credentialId, credentialId);
+    assert.equal(events[0]?.payload.saved, true);
+    assert.equal(events[1]?.payload.credentialId, null);
+    assert.equal(events[1]?.payload.kind, 'github_token');
+    assert.equal(
+      JSON.stringify(events).includes('ghp_'),
+      false,
+      'the test message is not forwarded',
+    );
+  },
+);
 
 test('eventFromAudit maps only the audited actions it knows', () => {
   const base = { workspaceId: 'w', actor: { type: 'user', id: 'u' }, at: 5 };
   assert.equal(eventFromAudit({ ...base, action: 'app.create' }), undefined);
-  assert.equal(eventFromAudit({ ...base, action: 'credential.test', detail: { ok: true } }), undefined);
-  assert.equal(eventFromAudit({ ...base, action: 'changeset.discard', target: { type: 'change_set', id: 'c' } }), undefined);
-  assert.equal(eventFromAudit({ ...base, action: 'changeset.apply_timeout', target: { type: 'change_set', id: 'c' } })?.type, 'changeset.failed');
+  assert.equal(
+    eventFromAudit({ ...base, action: 'credential.test', detail: { ok: true } }),
+    undefined,
+  );
+  assert.equal(
+    eventFromAudit({
+      ...base,
+      action: 'changeset.discard',
+      target: { type: 'change_set', id: 'c' },
+    }),
+    undefined,
+  );
+  assert.equal(
+    eventFromAudit({
+      ...base,
+      action: 'changeset.apply_timeout',
+      target: { type: 'change_set', id: 'c' },
+    })?.type,
+    'changeset.failed',
+  );
 });
 
 // ----- the live stream ------------------------------------------------------------------------
@@ -399,7 +574,11 @@ const stream = (t: Boot, headers: Record<string, string>, query = '', workspace 
 dbTest('the stream says ready, then delivers new events with their id and type', async (db) => {
   const hub = createEventStreamHub({ pollMs: 20, heartbeatMs: 60_000 });
   const t = await boot(db, { eventStreams: hub });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { before: true } });
+  await emitEvent(db, {
+    workspaceId: t.workspaceId,
+    type: 'app.synced',
+    payload: { before: true },
+  });
   const res = await stream(t, { cookie: t.owner });
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type') ?? '', /text\/event-stream/);
@@ -408,7 +587,11 @@ dbTest('the stream says ready, then delivers new events with their id and type',
   try {
     await r.until((s) => s.includes('event: ready'));
     // Without a cursor the stream starts at "now": the earlier event is not replayed.
-    const created = await emitEvent(db, { workspaceId: t.workspaceId, type: 'changeset.created', payload: { n: 1 } });
+    const created = await emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type: 'changeset.created',
+      payload: { n: 1 },
+    });
     await r.until((s) => s.includes('event: changeset.created'));
     const got = frames(r.text).find((f) => f.event === 'changeset.created');
     assert.equal(got?.id, String(created.id));
@@ -422,25 +605,46 @@ dbTest('the stream says ready, then delivers new events with their id and type',
   assert.equal(hub.size, 0, 'the stream is given back when the client goes');
 });
 
-dbTest('Last-Event-ID and ?since= resume without gaps or repeats; type filters apply', async (db) => {
-  const hub = createEventStreamHub({ pollMs: 20, heartbeatMs: 60_000 });
-  const t = await boot(db, { eventStreams: hub });
-  const a = await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 1 } });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'changeset.created', payload: { n: 2 } });
-  await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 3 } });
+dbTest(
+  'Last-Event-ID and ?since= resume without gaps or repeats; type filters apply',
+  async (db) => {
+    const hub = createEventStreamHub({ pollMs: 20, heartbeatMs: 60_000 });
+    const t = await boot(db, { eventStreams: hub });
+    const a = await emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type: 'app.synced',
+      payload: { n: 1 },
+    });
+    await emitEvent(db, {
+      workspaceId: t.workspaceId,
+      type: 'changeset.created',
+      payload: { n: 2 },
+    });
+    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { n: 3 } });
 
-  const viaHeader = reader(await stream(t, { cookie: t.owner, 'last-event-id': String(a.id) }));
-  const viaQuery = reader(await stream(t, { cookie: t.owner }, `?since=${a.id}&type=app.synced`));
-  try {
-    await viaHeader.until((s) => s.includes('"n":3'));
-    assert.deepEqual(frames(viaHeader.text).filter((f) => f.id).map((f) => JSON.parse(f.data ?? '{}').payload.n), [2, 3]);
-    await viaQuery.until((s) => s.includes('"n":3'));
-    assert.deepEqual(frames(viaQuery.text).filter((f) => f.id).map((f) => JSON.parse(f.data ?? '{}').payload.n), [3]);
-  } finally {
-    await viaHeader.stop();
-    await viaQuery.stop();
-  }
-});
+    const viaHeader = reader(await stream(t, { cookie: t.owner, 'last-event-id': String(a.id) }));
+    const viaQuery = reader(await stream(t, { cookie: t.owner }, `?since=${a.id}&type=app.synced`));
+    try {
+      await viaHeader.until((s) => s.includes('"n":3'));
+      assert.deepEqual(
+        frames(viaHeader.text)
+          .filter((f) => f.id)
+          .map((f) => JSON.parse(f.data ?? '{}').payload.n),
+        [2, 3],
+      );
+      await viaQuery.until((s) => s.includes('"n":3'));
+      assert.deepEqual(
+        frames(viaQuery.text)
+          .filter((f) => f.id)
+          .map((f) => JSON.parse(f.data ?? '{}').payload.n),
+        [3],
+      );
+    } finally {
+      await viaHeader.stop();
+      await viaQuery.stop();
+    }
+  },
+);
 
 dbTest('the stream refuses bad input, outsiders and anonymous callers', async (db) => {
   const t = await boot(db);
@@ -452,23 +656,38 @@ dbTest('the stream refuses bad input, outsiders and anonymous callers', async (d
   assert.equal((await stream(t, { cookie: other.cookie })).status, 404);
 });
 
-dbTest('another workspace never reaches the stream, and a viewer never sees credential events', async (db) => {
-  const hub = createEventStreamHub({ pollMs: 20, heartbeatMs: 60_000 });
-  const t = await boot(db, { eventStreams: hub });
-  const viewer = await t.addMember('viewer');
-  const other = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
-  const r = reader(await stream(t, { cookie: viewer }));
-  try {
-    await r.until((s) => s.includes('event: ready'));
-    await emitEvent(db, { workspaceId: other.workspaceId, type: 'app.synced', payload: { leak: true } });
-    await emitEvent(db, { workspaceId: t.workspaceId, type: 'credential.test_failed', payload: { leak: 'credential' } });
-    await emitEvent(db, { workspaceId: t.workspaceId, type: 'app.synced', payload: { mine: true } });
-    await r.until((s) => s.includes('"mine":true'));
-    assert.equal(r.text.includes('leak'), false);
-  } finally {
-    await r.stop();
-  }
-});
+dbTest(
+  'another workspace never reaches the stream, and a viewer never sees credential events',
+  async (db) => {
+    const hub = createEventStreamHub({ pollMs: 20, heartbeatMs: 60_000 });
+    const t = await boot(db, { eventStreams: hub });
+    const viewer = await t.addMember('viewer');
+    const other = await seedWorkspace(db, 'Other', 'o@x.io', Date.now());
+    const r = reader(await stream(t, { cookie: viewer }));
+    try {
+      await r.until((s) => s.includes('event: ready'));
+      await emitEvent(db, {
+        workspaceId: other.workspaceId,
+        type: 'app.synced',
+        payload: { leak: true },
+      });
+      await emitEvent(db, {
+        workspaceId: t.workspaceId,
+        type: 'credential.test_failed',
+        payload: { leak: 'credential' },
+      });
+      await emitEvent(db, {
+        workspaceId: t.workspaceId,
+        type: 'app.synced',
+        payload: { mine: true },
+      });
+      await r.until((s) => s.includes('"mine":true'));
+      assert.equal(r.text.includes('leak'), false);
+    } finally {
+      await r.stop();
+    }
+  },
+);
 
 dbTest('a person may hold only a few streams; the cap frees up when one closes', async (db) => {
   const hub = createEventStreamHub({ pollMs: 20, heartbeatMs: 60_000, maxPerUser: 2 });
@@ -559,5 +778,9 @@ test('the web screen offers exactly the event types the server emits', async () 
   const { eventTypes } = await import('./services/event-types.ts');
   const source = await readFile(new URL('../../web/src/lib/webhooks.ts', import.meta.url), 'utf8');
   const offered = [...source.matchAll(/\{ type: '([a-z._]+)', label:/g)].map((m) => m[1]);
-  assert.deepEqual([...offered].sort(), [...eventTypes].sort(), 'update webhookEventChoices in apps/web/src/lib/webhooks.ts');
+  assert.deepEqual(
+    [...offered].sort(),
+    [...eventTypes].sort(),
+    'update webhookEventChoices in apps/web/src/lib/webhooks.ts',
+  );
 });

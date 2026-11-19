@@ -8,37 +8,196 @@ import { gzipSync } from 'node:zlib';
 
 export const tsv = (rows: string[][]): string => `${rows.map((r) => r.join('\t')).join('\n')}\n`;
 export const csv = (rows: string[][]): string => `${rows.map((r) => r.join(',')).join('\r\n')}\r\n`;
-export const gz = (value: string | Uint8Array): Uint8Array => new Uint8Array(gzipSync(typeof value === 'string' ? Buffer.from(value) : value));
+export const gz = (value: string | Uint8Array): Uint8Array =>
+  new Uint8Array(gzipSync(typeof value === 'string' ? Buffer.from(value) : value));
 
 /** UTF-16 little endian with a byte order mark, as Google's BigQuery note says some exports are. */
-export const utf16le = (value: string): Uint8Array => new Uint8Array(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(value, 'utf16le')]));
-export const utf16leNoBom = (value: string): Uint8Array => new Uint8Array(Buffer.from(value, 'utf16le'));
+export const utf16le = (value: string): Uint8Array =>
+  new Uint8Array(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(value, 'utf16le')]));
+export const utf16leNoBom = (value: string): Uint8Array =>
+  new Uint8Array(Buffer.from(value, 'utf16le'));
 
 export const APPLE_APP_ID = '1234567890';
 
 // ---- Apple Analytics Reports -----------------------------------------------------------------
 
-export const DISCOVERY_HEADER = ['Date', 'Event', 'Page Type', 'Source Type', 'Engagement Type', 'Device', 'Platform Version', 'Territory', 'Counts', 'Unique Counts'];
+export const DISCOVERY_HEADER = [
+  'Date',
+  'Event',
+  'Page Type',
+  'Source Type',
+  'Engagement Type',
+  'Device',
+  'Platform Version',
+  'Territory',
+  'Counts',
+  'Unique Counts',
+];
 export const DISCOVERY_TSV = tsv([
   DISCOVERY_HEADER,
-  ['2026-11-10', 'Impression', 'Today tab', 'App Store Browse', 'Get', 'iPhone', '18.1', 'US', '1200', '900'],
-  ['2026-11-10', 'Impression', 'Search result', 'App Store Search', 'Get', 'iPhone', '18.1', 'US', '3400', '2500'],
-  ['2026-11-10', 'Impression', 'Search result', 'App Store Search', 'Get', 'iPad', '18.1', 'DE', '600', '450'],
-  ['2026-11-10', 'Impression', 'Search result', 'App Store Search', 'Get', 'Mac', '15.1', 'US', '50', '40'],
-  ['2026-11-10', 'Page view', 'Product page view', 'App Store Search', 'Open', 'iPhone', '18.1', 'US', '700', '520'],
-  ['2026-11-10', 'Page view', 'Product page view', 'Web Referrer', 'Open', 'iPhone', '18.1', 'DE', '80', '70'],
-  ['2026-11-10', 'Page view', 'Store sheet', 'Web Referrer', 'Open', 'iPhone', '18.1', 'DE', '30', '20'],
-  ['2026-11-10', 'Tap', 'Product page view', 'App Store Search', 'Get', 'iPhone', '18.1', 'US', '10', '10'],
-  ['2026-11-11', 'Impression', 'Search result', 'App Store Search', 'Get', 'iPhone', '18.1', 'US', '3500', '2600'],
-  ['2026-11-11', 'Page view', 'Product page view', 'App Store Search', 'Open', 'iPhone', '18.1', 'US', '720', '530'],
+  [
+    '2026-11-10',
+    'Impression',
+    'Today tab',
+    'App Store Browse',
+    'Get',
+    'iPhone',
+    '18.1',
+    'US',
+    '1200',
+    '900',
+  ],
+  [
+    '2026-11-10',
+    'Impression',
+    'Search result',
+    'App Store Search',
+    'Get',
+    'iPhone',
+    '18.1',
+    'US',
+    '3400',
+    '2500',
+  ],
+  [
+    '2026-11-10',
+    'Impression',
+    'Search result',
+    'App Store Search',
+    'Get',
+    'iPad',
+    '18.1',
+    'DE',
+    '600',
+    '450',
+  ],
+  [
+    '2026-11-10',
+    'Impression',
+    'Search result',
+    'App Store Search',
+    'Get',
+    'Mac',
+    '15.1',
+    'US',
+    '50',
+    '40',
+  ],
+  [
+    '2026-11-10',
+    'Page view',
+    'Product page view',
+    'App Store Search',
+    'Open',
+    'iPhone',
+    '18.1',
+    'US',
+    '700',
+    '520',
+  ],
+  [
+    '2026-11-10',
+    'Page view',
+    'Product page view',
+    'Web Referrer',
+    'Open',
+    'iPhone',
+    '18.1',
+    'DE',
+    '80',
+    '70',
+  ],
+  [
+    '2026-11-10',
+    'Page view',
+    'Store sheet',
+    'Web Referrer',
+    'Open',
+    'iPhone',
+    '18.1',
+    'DE',
+    '30',
+    '20',
+  ],
+  [
+    '2026-11-10',
+    'Tap',
+    'Product page view',
+    'App Store Search',
+    'Get',
+    'iPhone',
+    '18.1',
+    'US',
+    '10',
+    '10',
+  ],
+  [
+    '2026-11-11',
+    'Impression',
+    'Search result',
+    'App Store Search',
+    'Get',
+    'iPhone',
+    '18.1',
+    'US',
+    '3500',
+    '2600',
+  ],
+  [
+    '2026-11-11',
+    'Page view',
+    'Product page view',
+    'App Store Search',
+    'Open',
+    'iPhone',
+    '18.1',
+    'US',
+    '720',
+    '530',
+  ],
 ]);
 
 export const DOWNLOADS_HEADER = [
-  'Date', 'App Name', 'App Apple Identifier', 'Download Type', 'App Version', 'Device', 'Platform Version', 'Source Type', 'Source Info',
-  'Campaign', 'Page Type', 'Page Title', 'Pre-Order', 'Territory', 'Counts',
+  'Date',
+  'App Name',
+  'App Apple Identifier',
+  'Download Type',
+  'App Version',
+  'Device',
+  'Platform Version',
+  'Source Type',
+  'Source Info',
+  'Campaign',
+  'Page Type',
+  'Page Title',
+  'Pre-Order',
+  'Territory',
+  'Counts',
 ];
-const dl = (date: string, type: string, version: string, device: string, source: string, territory: string, counts: string) => [
-  date, 'Coffee', APPLE_APP_ID, type, version, device, '18.1', source, '', '', 'Product page view', '', 'No', territory, counts,
+const dl = (
+  date: string,
+  type: string,
+  version: string,
+  device: string,
+  source: string,
+  territory: string,
+  counts: string,
+) => [
+  date,
+  'Coffee',
+  APPLE_APP_ID,
+  type,
+  version,
+  device,
+  '18.1',
+  source,
+  '',
+  '',
+  'Product page view',
+  '',
+  'No',
+  territory,
+  counts,
 ];
 export const DOWNLOADS_TSV = tsv([
   DOWNLOADS_HEADER,
@@ -52,14 +211,33 @@ export const DOWNLOADS_TSV = tsv([
 ]);
 
 export const SESSIONS_TSV = tsv([
-  ['Date', 'App Name', 'App Apple Identifier', 'App Version', 'Device', 'Platform Version', 'Sessions', 'Total Session Duration', 'Unique Devices'],
+  [
+    'Date',
+    'App Name',
+    'App Apple Identifier',
+    'App Version',
+    'Device',
+    'Platform Version',
+    'Sessions',
+    'Total Session Duration',
+    'Unique Devices',
+  ],
   ['2026-11-10', 'Coffee', APPLE_APP_ID, '2.4.0', 'iPhone', '18.1', '5200', '312000', '800'],
   ['2026-11-10', 'Coffee', APPLE_APP_ID, '2.4.1', 'iPhone', '18.1', '1800', '98000', '300'],
   ['2026-11-11', 'Coffee', APPLE_APP_ID, '2.4.1', 'iPhone', '18.1', '2600', '150000', '420'],
 ]);
 
 export const CRASHES_TSV = tsv([
-  ['Date', 'App Name', 'App Apple Identifier', 'App Version', 'Device', 'Platform Version', 'Crashes', 'Unique Devices'],
+  [
+    'Date',
+    'App Name',
+    'App Apple Identifier',
+    'App Version',
+    'Device',
+    'Platform Version',
+    'Crashes',
+    'Unique Devices',
+  ],
   ['2026-11-10', 'Coffee', APPLE_APP_ID, '2.4.0', 'iPhone', '18.1', '14', '9'],
   ['2026-11-10', 'Coffee', APPLE_APP_ID, '2.4.1', 'iPhone', '18.1', '3', '2'],
   ['2026-11-11', 'Coffee', APPLE_APP_ID, '2.4.1', 'iPhone', '18.1', '5', '4'],
@@ -73,7 +251,11 @@ export const requestJson = (id = REQUEST_ID, accessType = 'ONGOING', stopped = f
   id,
   attributes: { accessType, stoppedDueToInactivity: stopped },
 });
-export const reportJson = (id: string, name: string, category = 'APP_STORE_ENGAGEMENT') => ({ type: 'analyticsReports', id, attributes: { name, category } });
+export const reportJson = (id: string, name: string, category = 'APP_STORE_ENGAGEMENT') => ({
+  type: 'analyticsReports',
+  id,
+  attributes: { name, category },
+});
 export const instanceJson = (id: string, processingDate: string, granularity = 'DAILY') => ({
   type: 'analyticsReportInstances',
   id,
@@ -85,17 +267,71 @@ export const segmentJson = (id: string, url: string, sizeInBytes = 1000) => ({
   attributes: { url, checksum: 'sha256-not-checked', sizeInBytes },
 });
 /** A pre-signed link as object storage hands them out; the query is the secret. */
-export const SEGMENT_URL = 'https://analytics-segments.example-storage.test/reports/seg-1.csv.gz?X-Amz-Signature=SECRETSIGNATURE0123456789&X-Amz-Expires=300';
+export const SEGMENT_URL =
+  'https://analytics-segments.example-storage.test/reports/seg-1.csv.gz?X-Amz-Signature=SECRETSIGNATURE0123456789&X-Amz-Expires=300';
 
 // ---- Apple Sales and Trends ------------------------------------------------------------------
 
 export const SALES_HEADER = [
-  'Provider', 'Provider Country', 'SKU', 'Developer', 'Title', 'Version', 'Product Type Identifier', 'Units', 'Developer Proceeds',
-  'Begin Date', 'End Date', 'Customer Currency', 'Country Code', 'Currency of Proceeds', 'Apple Identifier', 'Customer Price',
-  'Promo Code', 'Parent Identifier', 'Subscription', 'Period', 'Category', 'CMB', 'Device', 'Supported Platforms',
+  'Provider',
+  'Provider Country',
+  'SKU',
+  'Developer',
+  'Title',
+  'Version',
+  'Product Type Identifier',
+  'Units',
+  'Developer Proceeds',
+  'Begin Date',
+  'End Date',
+  'Customer Currency',
+  'Country Code',
+  'Currency of Proceeds',
+  'Apple Identifier',
+  'Customer Price',
+  'Promo Code',
+  'Parent Identifier',
+  'Subscription',
+  'Period',
+  'Category',
+  'CMB',
+  'Device',
+  'Supported Platforms',
 ];
-const sale = (type: string, units: string, proceeds: string, date: string, country: string, currency: string, id: string, device = 'iPhone') => [
-  'APPLE', 'US', 'coffee-sku', 'Acme', 'Coffee', '2.4.0', type, units, proceeds, date, date, currency, country, currency, id, proceeds, '', '', '', '', 'Food', '', device, 'iOS',
+const sale = (
+  type: string,
+  units: string,
+  proceeds: string,
+  date: string,
+  country: string,
+  currency: string,
+  id: string,
+  device = 'iPhone',
+) => [
+  'APPLE',
+  'US',
+  'coffee-sku',
+  'Acme',
+  'Coffee',
+  '2.4.0',
+  type,
+  units,
+  proceeds,
+  date,
+  date,
+  currency,
+  country,
+  currency,
+  id,
+  proceeds,
+  '',
+  '',
+  '',
+  '',
+  'Food',
+  '',
+  device,
+  'iOS',
 ];
 export const SALES_TSV = tsv([
   SALES_HEADER,
@@ -110,14 +346,25 @@ export const SALES_TSV = tsv([
 
 // ---- Google Play Developer Reporting API -----------------------------------------------------
 
-const day = (iso: string) => ({ year: Number(iso.slice(0, 4)), month: Number(iso.slice(5, 7)), day: Number(iso.slice(8, 10)), timeZone: { id: 'America/Los_Angeles' } });
+const day = (iso: string) => ({
+  year: Number(iso.slice(0, 4)),
+  month: Number(iso.slice(5, 7)),
+  day: Number(iso.slice(8, 10)),
+  timeZone: { id: 'America/Los_Angeles' },
+});
 export const vitalsRow = (date: string, metric: string, value: string, versionCode?: string) => ({
   aggregationPeriod: 'DAILY',
   startTime: day(date),
   metrics: [{ metric, decimalValue: { value } }],
-  dimensions: versionCode === undefined ? [] : [{ dimension: 'versionCode', int64Value: versionCode }],
+  dimensions:
+    versionCode === undefined ? [] : [{ dimension: 'versionCode', int64Value: versionCode }],
 });
-export const crashRateTotals = { rows: [vitalsRow('2026-11-10', 'crashRate', '0.0123'), vitalsRow('2026-11-11', 'crashRate', '0.0101')] };
+export const crashRateTotals = {
+  rows: [
+    vitalsRow('2026-11-10', 'crashRate', '0.0123'),
+    vitalsRow('2026-11-11', 'crashRate', '0.0101'),
+  ],
+};
 export const crashRateByVersion = {
   rows: [
     vitalsRow('2026-11-10', 'crashRate', '0.02', '241'),
@@ -127,14 +374,29 @@ export const crashRateByVersion = {
 };
 export const anrRateTotals = { rows: [vitalsRow('2026-11-10', 'anrRate', '0.0031')] };
 export const anrRateByVersion = { rows: [vitalsRow('2026-11-10', 'anrRate', '0.005', '241')] };
-export const freshness = { name: 'apps/x/crashRateMetricSet', freshnessInfo: { freshnesses: [{ aggregationPeriod: 'DAILY', latestEndTime: day('2026-11-12') }] } };
+export const freshness = {
+  name: 'apps/x/crashRateMetricSet',
+  freshnessInfo: {
+    freshnesses: [{ aggregationPeriod: 'DAILY', latestEndTime: day('2026-11-12') }],
+  },
+};
 
 // ---- Google Play Cloud Storage reports -------------------------------------------------------
 
 export const PACKAGE = 'com.example.coffee';
 export const BUCKET = 'pubsite_prod_rev_01234567890123456789';
 export const INSTALLS_CSV = csv([
-  ['Date', 'Package Name', 'Daily Device Installs', 'Daily Device Uninstalls', 'Daily Device Upgrades', 'Total User Installs', 'Daily User Installs', 'Daily User Uninstalls', 'Active Device Installs'],
+  [
+    'Date',
+    'Package Name',
+    'Daily Device Installs',
+    'Daily Device Uninstalls',
+    'Daily Device Upgrades',
+    'Total User Installs',
+    'Daily User Installs',
+    'Daily User Uninstalls',
+    'Active Device Installs',
+  ],
   ['2026-11-10', PACKAGE, '120', '30', '400', '9000', '110', '25', '7000'],
   ['2026-11-11', PACKAGE, '130', '28', '420', '9110', '121', '22', '7100'],
 ]);
@@ -154,8 +416,19 @@ export const PERFORMANCE_CSV = csv([
 // ---- A fake fetch that answers bytes and decides by predicate --------------------------------
 
 export type Call = { method: string; url: URL; headers: Headers; body: string | undefined };
-export type Answer = { status?: number; json?: unknown; bytes?: Uint8Array; headers?: Record<string, string>; throws?: Error };
-export type Route = { method: string; test: (url: URL) => boolean; answer: Answer | ((n: number, call: Call) => Answer); used?: number };
+export type Answer = {
+  status?: number;
+  json?: unknown;
+  bytes?: Uint8Array;
+  headers?: Record<string, string>;
+  throws?: Error;
+};
+export type Route = {
+  method: string;
+  test: (url: URL) => boolean;
+  answer: Answer | ((n: number, call: Call) => Answer);
+  used?: number;
+};
 
 export class RouteFetch {
   readonly calls: Call[] = [];
@@ -163,7 +436,11 @@ export class RouteFetch {
   readonly routes: Route[] = [];
 
   /** `test`: a function, a RegExp over `host + path + search`, or a string equal to the path (or `host + path`). */
-  on(method: string, test: string | RegExp | ((url: URL) => boolean), answer: Route['answer']): this {
+  on(
+    method: string,
+    test: string | RegExp | ((url: URL) => boolean),
+    answer: Route['answer'],
+  ): this {
     const fn =
       typeof test === 'function'
         ? test
@@ -177,7 +454,12 @@ export class RouteFetch {
   fetch: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
     const method = init?.method ?? 'GET';
-    const call: Call = { method, url, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined };
+    const call: Call = {
+      method,
+      url,
+      headers: new Headers(init?.headers),
+      body: typeof init?.body === 'string' ? init.body : undefined,
+    };
     this.calls.push(call);
     const route = this.routes.find((r) => r.method === method && r.test(url));
     if (!route) {
@@ -185,12 +467,16 @@ export class RouteFetch {
       return new Response('{"error":"no route"}', { status: 599 });
     }
     route.used = (route.used ?? 0) + 1;
-    const answer = typeof route.answer === 'function' ? route.answer(route.used, call) : route.answer;
+    const answer =
+      typeof route.answer === 'function' ? route.answer(route.used, call) : route.answer;
     if (answer.throws) throw answer.throws;
     const body = answer.bytes ?? (answer.json === undefined ? '' : JSON.stringify(answer.json));
     return new Response(body as ConstructorParameters<typeof Response>[0], {
       status: answer.status ?? 200,
-      headers: { ...(answer.bytes ? {} : { 'content-type': 'application/json' }), ...answer.headers },
+      headers: {
+        ...(answer.bytes ? {} : { 'content-type': 'application/json' }),
+        ...answer.headers,
+      },
     });
   };
 }

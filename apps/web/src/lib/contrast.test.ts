@@ -23,7 +23,10 @@ for (const theme of themeNames) {
   });
 }
 
-const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  '',
+);
 
 /** The body of the first rule whose selector is exactly `selector`, searched from `from`. */
 function ruleBody(selector: string, from = 0): string {
@@ -40,7 +43,8 @@ function ruleBody(selector: string, from = 0): string {
 
 function hexTokens(body: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const m of body.matchAll(/^\s*--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6});/gm)) out[m[1] as string] = (m[2] as string).toLowerCase();
+  for (const m of body.matchAll(/^\s*--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6});/gm))
+    out[m[1] as string] = (m[2] as string).toLowerCase();
   return out;
 }
 
@@ -52,7 +56,10 @@ const blocks: Array<[string, string, 'light' | 'dark']> = [
 
 for (const [name, selector, theme] of blocks) {
   test(`app.css mirrors the ${name} tokens in tokens.ts`, () => {
-    const from = selector === ':root:not([data-theme=\'light\'])' ? css.indexOf('prefers-color-scheme: dark') : 0;
+    const from =
+      selector === ":root:not([data-theme='light'])"
+        ? css.indexOf('prefers-color-scheme: dark')
+        : 0;
     assert.deepEqual(hexTokens(ruleBody(selector, from)), palette[theme]);
   });
 }

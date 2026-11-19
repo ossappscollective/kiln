@@ -2,20 +2,26 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   APPLE_VERSION_LOCALIZATION_ATTRIBUTES,
-  PLAY_LISTING_MEMBERS,
-  STAGEABLE_TEXT_FIELDS,
   appleDisplayType,
   assetSlotSupport,
   isStageableTextField,
+  PLAY_LISTING_MEMBERS,
   parseSlotKey,
   playImageType,
+  STAGEABLE_TEXT_FIELDS,
   slotKey,
   slotMaxFiles,
 } from './staged-changes.ts';
 
 test('only the version localization fields of the App Store are stageable; Play has all four', () => {
-  assert.deepEqual([...STAGEABLE_TEXT_FIELDS.ios].sort(), Object.keys(APPLE_VERSION_LOCALIZATION_ATTRIBUTES).sort());
-  assert.deepEqual([...STAGEABLE_TEXT_FIELDS.android].sort(), Object.keys(PLAY_LISTING_MEMBERS).sort());
+  assert.deepEqual(
+    [...STAGEABLE_TEXT_FIELDS.ios].sort(),
+    Object.keys(APPLE_VERSION_LOCALIZATION_ATTRIBUTES).sort(),
+  );
+  assert.deepEqual(
+    [...STAGEABLE_TEXT_FIELDS.android].sort(),
+    Object.keys(PLAY_LISTING_MEMBERS).sort(),
+  );
   for (const field of ['name', 'subtitle', 'privacy_url', 'apple_tv_privacy_policy', 'copyright']) {
     assert.equal(isStageableTextField('ios', field), false, field);
   }
@@ -27,7 +33,10 @@ test('only the version localization fields of the App Store are stageable; Play 
 test('slot keys round trip and refuse nonsense', () => {
   assert.equal(slotKey({ kind: 'screenshot', device: 'phone' }), 'screenshot:phone');
   assert.equal(slotKey({ kind: 'icon', device: null }), 'icon');
-  assert.deepEqual(parseSlotKey('screenshot:iphone_6_5'), { kind: 'screenshot', device: 'iphone_6_5' });
+  assert.deepEqual(parseSlotKey('screenshot:iphone_6_5'), {
+    kind: 'screenshot',
+    device: 'iphone_6_5',
+  });
   assert.deepEqual(parseSlotKey('feature_graphic'), { kind: 'feature_graphic', device: null });
   assert.equal(parseSlotKey('screenshot'), undefined, 'a screenshot set needs a device');
   assert.equal(parseSlotKey('icon:phone'), undefined, 'a graphic has no device');
@@ -50,14 +59,22 @@ test('Google Play image types are the AppImageType values; the promo graphic has
 test('App Store: only screenshots of a known display can be pushed; previews and the app icon cannot', () => {
   assert.equal(assetSlotSupport('ios', { kind: 'screenshot', device: 'iphone_6_5' }).ok, true);
   assert.equal(assetSlotSupport('ios', { kind: 'screenshot', device: 'iphone_6_9' }).ok, true);
-  assert.equal(assetSlotSupport('ios', { kind: 'screenshot', device: 'watch' }).ok, false, 'no display type name known');
+  assert.equal(
+    assetSlotSupport('ios', { kind: 'screenshot', device: 'watch' }).ok,
+    false,
+    'no display type name known',
+  );
   for (const kind of ['preview', 'app_icon', 'icon', 'feature_graphic'] as const) {
     assert.equal(assetSlotSupport('ios', { kind, device: null }).ok, false, kind);
   }
   assert.equal(appleDisplayType('iphone_6_5', 1242, 2688), 'APP_IPHONE_65');
   assert.equal(appleDisplayType('iphone_6_9', 1290, 2796), 'APP_IPHONE_67');
   assert.equal(appleDisplayType('iphone_6_9', 1320, 2868), 'APP_IPHONE_69');
-  assert.equal(appleDisplayType('iphone_6_9', null, null), undefined, 'the 6.9 inch name depends on the size');
+  assert.equal(
+    appleDisplayType('iphone_6_9', null, null),
+    undefined,
+    'the 6.9 inch name depends on the size',
+  );
   assert.equal(appleDisplayType('nope', 1, 1), undefined);
 });
 

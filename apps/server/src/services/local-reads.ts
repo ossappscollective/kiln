@@ -50,7 +50,8 @@ export function localAvailability(reads: CloneReads | undefined): LocalAvailabil
       enabled: false,
       reason: 'reads_api',
       envName: ENV_NAME,
-      message: 'MRM_READS=api means git is never run, so local clones cannot be read. Set MRM_READS=auto or clone to use them.',
+      message:
+        'MRM_READS=api means git is never run, so local clones cannot be read. Set MRM_READS=auto or clone to use them.',
     };
   }
   if (!reads?.active) {
@@ -58,7 +59,8 @@ export function localAvailability(reads: CloneReads | undefined): LocalAvailabil
       enabled: false,
       reason: 'git_missing',
       envName: ENV_NAME,
-      message: 'git is not available on the server, so local clones cannot be read. Install git or set MRM_GIT_PATH.',
+      message:
+        'git is not available on the server, so local clones cannot be read. Install git or set MRM_GIT_PATH.',
     };
   }
   return { enabled: true, roots: [...roots] };
@@ -67,12 +69,7 @@ export function localAvailability(reads: CloneReads | undefined): LocalAvailabil
 /** The pool and clone-folder id of a repository's local reader, apart from its GitHub clone. */
 export const localCloneId = (repositoryId: string): string => `${repositoryId}-local`;
 
-export type LocalStatus =
-  | 'ok'
-  | 'not_enabled'
-  | 'reads_api'
-  | 'git_missing'
-  | LocalPathProblemCode;
+export type LocalStatus = 'ok' | 'not_enabled' | 'reads_api' | 'git_missing' | LocalPathProblemCode;
 
 /** Whether the stored folder can be read now. File system checks only: git is not run. */
 export async function localStatus(
@@ -81,8 +78,7 @@ export async function localStatus(
 ): Promise<{ status: LocalStatus; message?: string }> {
   const available = localAvailability(reads);
   if (!available.enabled) {
-    const status: LocalStatus =
-      available.reason === 'no_roots' ? 'not_enabled' : available.reason;
+    const status: LocalStatus = available.reason === 'no_roots' ? 'not_enabled' : available.reason;
     return { status, message: available.message };
   }
   const check = await validateLocalPath(path, reads?.local ?? NO_LOCAL);
@@ -120,7 +116,9 @@ export type LocalWriteAvailability =
   | { enabled: true }
   | { enabled: false; envName: typeof WRITE_ENV_NAME; message: string };
 
-export function localWriteAvailability(write: LocalWriteConfig | undefined): LocalWriteAvailability {
+export function localWriteAvailability(
+  write: LocalWriteConfig | undefined,
+): LocalWriteAvailability {
   if (write?.enabled) return { enabled: true };
   return {
     enabled: false,
@@ -149,9 +147,14 @@ export function translateLocalError(error: unknown, branch: string): unknown {
   if (error instanceof LocalReadError) return error;
   if (error instanceof GitCloneError) {
     if (error.reason === 'git_missing') {
-      return new LocalReadError('local_git_missing', 'The git program was not found on the server (MRM_GIT_PATH).', 409);
+      return new LocalReadError(
+        'local_git_missing',
+        'The git program was not found on the server (MRM_GIT_PATH).',
+        409,
+      );
     }
-    if (error.kind === 'forbidden') return new LocalReadError('dubious_ownership', DUBIOUS_OWNERSHIP_MESSAGE);
+    if (error.kind === 'forbidden')
+      return new LocalReadError('dubious_ownership', DUBIOUS_OWNERSHIP_MESSAGE);
     if (error.kind === 'not_found' && error.reason === 'ref_missing') {
       return new LocalReadError(
         'local_branch_missing',
@@ -159,7 +162,10 @@ export function translateLocalError(error: unknown, branch: string): unknown {
       );
     }
     if (error.kind === 'not_found') {
-      return new LocalReadError('local_missing', 'The local repository folder could not be found any more.');
+      return new LocalReadError(
+        'local_missing',
+        'The local repository folder could not be found any more.',
+      );
     }
   }
   return error;
@@ -175,7 +181,10 @@ export type LocalOpenInput = {
   /** The repository's default branch: a read at that name is a read of `branch` (see below). */
   defaultBranch: string;
   /** The GitHub connector for an attached clone; undefined for a local-only repository. */
-  api?: RepoConnector & { defaultBranch(): Promise<string>; resolveCommit?(ref?: string, signal?: AbortSignal): Promise<string> };
+  api?: RepoConnector & {
+    defaultBranch(): Promise<string>;
+    resolveCommit?(ref?: string, signal?: AbortSignal): Promise<string>;
+  };
   /** Called with the commit a read resolved. Must not throw. */
   onCommit?: (sha: string) => void | Promise<void>;
 };
@@ -201,7 +210,12 @@ export async function openLocalConnector(input: LocalOpenInput): Promise<LocalOp
     return {
       ok: false,
       status: 409,
-      code: available.reason === 'no_roots' ? 'local_not_enabled' : available.reason === 'reads_api' ? 'local_reads_disabled' : 'local_git_missing',
+      code:
+        available.reason === 'no_roots'
+          ? 'local_not_enabled'
+          : available.reason === 'reads_api'
+            ? 'local_reads_disabled'
+            : 'local_git_missing',
       message: available.message,
     };
   }
@@ -233,7 +247,8 @@ export async function openLocalConnector(input: LocalOpenInput): Promise<LocalOp
     }
   };
   const blobs = (): BlobReads => {
-    if (!isBlobReads(inner)) throw new GitCloneError('unexpected', 'This reader cannot read binary files.', 'not_managed');
+    if (!isBlobReads(inner))
+      throw new GitCloneError('unexpected', 'This reader cannot read binary files.', 'not_managed');
     return inner;
   };
   const reader: CloneReader = {
@@ -256,8 +271,16 @@ export async function openLocalConnector(input: LocalOpenInput): Promise<LocalOp
     remove: () => inner.remove(),
     listBlobEntries: (ref, options) => guard(() => blobs().listBlobEntries(map(ref), options)),
     readBlobHeads: (paths, options) =>
-      guard(() => blobs().readBlobHeads(paths, options.ref === undefined ? options : { ...options, ref: map(options.ref) })),
+      guard(() =>
+        blobs().readBlobHeads(
+          paths,
+          options.ref === undefined ? options : { ...options, ref: map(options.ref) },
+        ),
+      ),
   };
-  const connector = withCloneReads(input.api ?? localOnlyStub(), reader, { fallback: false, origin: 'local' });
+  const connector = withCloneReads(input.api ?? localOnlyStub(), reader, {
+    fallback: false,
+    origin: 'local',
+  });
   return { ok: true, connector };
 }

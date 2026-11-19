@@ -1,12 +1,13 @@
 import { type Action, can } from '@mrm/core';
 import type { Database } from '@mrm/db';
+import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
 import { type AppsContext, getApp, syncApp } from '../services/apps.ts';
+import type { TestLimiter } from '../services/credential-tests.ts';
 import { isListingField } from '../services/listing-drift.ts';
 import {
   getDrift,
@@ -18,7 +19,6 @@ import {
 } from '../services/listing-live.ts';
 import { pullStoreListing } from '../services/listing-pull.ts';
 import { recordAppliedChangeSets, refreshRepoListing } from '../services/listing-repo.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
 import type { Failure, RepoContext } from '../services/repositories.ts';
 
 export type ListingRoutesContext = {
@@ -73,7 +73,10 @@ const pullBody = z
       .optional(),
     refresh: z.boolean().optional(),
     target: z.string().min(1).max(200).optional(),
-    roots: z.object({ appStore: folderText.optional(), googlePlay: folderText.optional() }).strict().optional(),
+    roots: z
+      .object({ appStore: folderText.optional(), googlePlay: folderText.optional() })
+      .strict()
+      .optional(),
   })
   .default({});
 
@@ -130,43 +133,52 @@ export function listingRoutes(ctx: ListingRoutesContext) {
       issues.push({ path: 'limit', message: `A whole number from 1 to ${HISTORY_MAX_LIMIT}.` });
     }
     const rawCursor = c.req.query('cursor');
-    const cursor = rawCursor === undefined || rawCursor === '' ? undefined : parseHistoryCursor(rawCursor);
+    const cursor =
+      rawCursor === undefined || rawCursor === '' ? undefined : parseHistoryCursor(rawCursor);
     if (rawCursor !== undefined && rawCursor !== '' && cursor === undefined) {
       issues.push({ path: 'cursor', message: 'Use the nextCursor of the previous page.' });
     }
-    if (issues.length > 0 || limit === undefined) return c.json({ error: 'invalid_request', issues }, 400);
+    if (issues.length > 0 || limit === undefined)
+      return c.json({ error: 'invalid_request', issues }, 400);
     await recordAppliedChangeSets(db, ws(c), app, ctx.now()).catch(() => 0);
     return c.json(await getHistory(db, ws(c), app, { locale, field, limit, cursor }));
   });
 
   // Reads the linked repository on GitHub and records its listing. Needs the right to read
   // repository listings from GitHub (member and up), and shares the rate limit of store reads.
-  routes.post('/:workspaceId/apps/:id/listing/repo-refresh', needs('repositories.scan'), async (c) => {
-    const app = await getApp(db, ws(c), param(c, 'id'));
-    if (!app) return notFound(c);
-    if (!app.repositoryId) {
-      return c.json(
-        { error: 'no_repository', message: 'This app is not linked to a repository. Link one to compare it.' },
-        422,
-      );
-    }
-    const wait = ctx.limiter.take(ws(c));
-    if (wait > 0) {
-      c.header('Retry-After', String(wait));
-      return c.json(
-        {
-          error: 'rate_limited',
-          message: `Too many repository reads. Try again in ${wait} seconds.`,
-          retryAfterSeconds: wait,
-        },
-        429,
-      );
-    }
-    const done = await refreshRepoListing(ctx.repo, { workspaceId: ws(c), app }, actor(c));
-    if (!done.ok) return respond(c, done);
-    const { ok: _ok, ...result } = done;
-    return c.json(result);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/listing/repo-refresh',
+    needs('repositories.scan'),
+    async (c) => {
+      const app = await getApp(db, ws(c), param(c, 'id'));
+      if (!app) return notFound(c);
+      if (!app.repositoryId) {
+        return c.json(
+          {
+            error: 'no_repository',
+            message: 'This app is not linked to a repository. Link one to compare it.',
+          },
+          422,
+        );
+      }
+      const wait = ctx.limiter.take(ws(c));
+      if (wait > 0) {
+        c.header('Retry-After', String(wait));
+        return c.json(
+          {
+            error: 'rate_limited',
+            message: `Too many repository reads. Try again in ${wait} seconds.`,
+            retryAfterSeconds: wait,
+          },
+          429,
+        );
+      }
+      const done = await refreshRepoListing(ctx.repo, { workspaceId: ws(c), app }, actor(c));
+      if (!done.ok) return respond(c, done);
+      const { ok: _ok, ...result } = done;
+      return c.json(result);
+    },
+  );
 
   // Turns the live store listing into a draft change set on the linked repository: the store's
   // values applied to the repository's own listing files. Reads GitHub (and, with `refresh`, the
@@ -177,7 +189,8 @@ export function listingRoutes(ctx: ListingRoutesContext) {
     needs('changesets.write'),
     bodyLimit({
       maxSize: PULL_BODY_LIMIT,
-      onError: (c) => c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
+      onError: (c) =>
+        c.json({ error: 'payload_too_large', message: 'The request body is too large.' }, 413),
     }),
     async (c) => {
       const body = await parseBody(c, pullBody);
@@ -186,7 +199,10 @@ export function listingRoutes(ctx: ListingRoutesContext) {
       if (!app) return notFound(c);
       if (!app.repositoryId) {
         return c.json(
-          { error: 'no_repository', message: 'This app is not linked to a repository. Link one to pull into it.' },
+          {
+            error: 'no_repository',
+            message: 'This app is not linked to a repository. Link one to pull into it.',
+          },
           422,
         );
       }
@@ -194,7 +210,10 @@ export function listingRoutes(ctx: ListingRoutesContext) {
       // A store read uses the app's credential: the right to sync, as the sync route needs.
       if (refresh && !can(c.get('role'), 'apps.sync')) return c.json({ error: 'forbidden' }, 403);
       if (refresh && !ctx.sync) {
-        return c.json({ error: 'refresh_unavailable', message: 'This server cannot read the store.' }, 422);
+        return c.json(
+          { error: 'refresh_unavailable', message: 'This server cannot read the store.' },
+          422,
+        );
       }
       const limited = (limiter: TestLimiter, what: string) => {
         const wait = limiter.take(ws(c));
@@ -233,7 +252,11 @@ export function listingRoutes(ctx: ListingRoutesContext) {
                 refresh: async (): Promise<Failure | undefined> => {
                   const store = limited(sync.limiter, 'store reads');
                   if (store) return store;
-                  const synced = await syncApp(sync.apps, { workspaceId: ws(c), id: app.id }, actor(c));
+                  const synced = await syncApp(
+                    sync.apps,
+                    { workspaceId: ws(c), id: app.id },
+                    actor(c),
+                  );
                   if (synced.ok) return undefined;
                   const { transient: _transient, ...failed } = synced;
                   return failed;

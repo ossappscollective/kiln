@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { StoreError, StoreRateLimitError } from './errors.ts';
 import { AppStoreReviewsConnector, parseAppleReplyResult } from './appstore-reviews.ts';
-import { parsePlayReplyResult, PlayReviewsConnector } from './play-reviews.ts';
+import { StoreError, StoreRateLimitError } from './errors.ts';
+import { PlayReviewsConnector, parsePlayReplyResult } from './play-reviews.ts';
 import {
   APPLE_REPLY_LIMIT,
   checkReplyText,
@@ -113,7 +113,11 @@ test('apple: replyToReview posts the JSON:API body once and reads the response r
       data: {
         type: 'customerReviewResponses',
         id: 'resp-new',
-        attributes: { responseBody: 'Thanks!', lastModifiedDate: '2026-11-18T04:00:00-08:00', state: 'PENDING_PUBLISH' },
+        attributes: {
+          responseBody: 'Thanks!',
+          lastModifiedDate: '2026-11-18T04:00:00-08:00',
+          state: 'PENDING_PUBLISH',
+        },
       },
     },
   });
@@ -150,30 +154,45 @@ test('apple: an odd 2xx body still counts as sent, and the parser never throws',
 test('apple: invalid input never reaches the network', async () => {
   const { fake, connector } = apple();
   for (const text of ['', '   ', 'a'.repeat(APPLE_REPLY_LIMIT + 1), 'bad\u0000text', '<i>x</i>']) {
-    await assert.rejects(connector.replyToReview({ reviewId: APPLE_REVIEW, text }), (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input');
+    await assert.rejects(
+      connector.replyToReview({ reviewId: APPLE_REVIEW, text }),
+      (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
+    );
   }
-  await assert.rejects(connector.replyToReview({ reviewId: '../customerReviews', text: 'Hi' }), StoreError);
+  await assert.rejects(
+    connector.replyToReview({ reviewId: '../customerReviews', text: 'Hi' }),
+    StoreError,
+  );
   await assert.rejects(connector.replyToReview({ reviewId: 'a b', text: 'Hi' }), StoreError);
   assert.equal(fake.calls.length, 0);
 });
 
 test('apple: a timeout is an unknown outcome and the POST is not repeated', async () => {
   const { connector } = apple({ fetch: hangingFetch, timeoutMs: 20 });
-  await assert.rejects(connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), (e: unknown) => {
-    assert.ok(e instanceof ReplyOutcomeUnknownError);
-    assert.match(e.message, /not known whether/);
-    return true;
-  });
+  await assert.rejects(
+    connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+    (e: unknown) => {
+      assert.ok(e instanceof ReplyOutcomeUnknownError);
+      assert.match(e.message, /not known whether/);
+      return true;
+    },
+  );
   const { fake, connector: second } = apple();
   fake.on({ method: 'POST', match: APPLE_POST, throws: new Error('connection reset') });
-  await assert.rejects(second.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), ReplyOutcomeUnknownError);
+  await assert.rejects(
+    second.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+    ReplyOutcomeUnknownError,
+  );
   assert.equal(fake.calls.length, 1, 'one attempt, no retry');
 });
 
 test('apple: a 5xx is an unknown outcome, a 4xx is a refusal that published nothing', async () => {
   const { fake, connector } = apple();
   fake.on({ method: 'POST', match: APPLE_POST, status: 503, json: {} });
-  await assert.rejects(connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), ReplyOutcomeUnknownError);
+  await assert.rejects(
+    connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+    ReplyOutcomeUnknownError,
+  );
   assert.equal(fake.calls.length, 1);
 
   const refused = apple();
@@ -181,14 +200,26 @@ test('apple: a 5xx is an unknown outcome, a 4xx is a refusal that published noth
     method: 'POST',
     match: APPLE_POST,
     status: 409,
-    json: { errors: [{ code: 'ENTITY_ERROR.ATTRIBUTE.INVALID', title: 'Invalid', detail: 'responseBody is too long', source: { pointer: '/data/attributes/responseBody' } }] },
+    json: {
+      errors: [
+        {
+          code: 'ENTITY_ERROR.ATTRIBUTE.INVALID',
+          title: 'Invalid',
+          detail: 'responseBody is too long',
+          source: { pointer: '/data/attributes/responseBody' },
+        },
+      ],
+    },
   });
-  await assert.rejects(refused.connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), (e: unknown) => {
-    assert.ok(e instanceof StoreError && !(e instanceof ReplyOutcomeUnknownError));
-    assert.equal(e.status, 409);
-    assert.equal(e.details?.[0]?.pointer, '/data/attributes/responseBody');
-    return true;
-  });
+  await assert.rejects(
+    refused.connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+    (e: unknown) => {
+      assert.ok(e instanceof StoreError && !(e instanceof ReplyOutcomeUnknownError));
+      assert.equal(e.status, 409);
+      assert.equal(e.details?.[0]?.pointer, '/data/attributes/responseBody');
+      return true;
+    },
+  );
 });
 
 test('apple: 403 names the role, 405 is unsupported, 401 is auth, 404 is not_found', async () => {
@@ -200,33 +231,58 @@ test('apple: 403 names the role, 405 is unsupported, 401 is auth, 404 is not_fou
   ];
   for (const [status, kind] of kinds) {
     const { fake, connector } = apple();
-    fake.on({ method: 'POST', match: APPLE_POST, status, json: { errors: [{ code: 'FORBIDDEN_ERROR', title: 'x' }] } });
-    await assert.rejects(connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), (e: unknown) => {
-      assert.ok(e instanceof StoreError);
-      assert.equal(e.kind, kind, String(status));
-      if (status === 403) assert.match(e.message, /Admin/);
-      return true;
+    fake.on({
+      method: 'POST',
+      match: APPLE_POST,
+      status,
+      json: { errors: [{ code: 'FORBIDDEN_ERROR', title: 'x' }] },
     });
+    await assert.rejects(
+      connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+      (e: unknown) => {
+        assert.ok(e instanceof StoreError);
+        assert.equal(e.kind, kind, String(status));
+        if (status === 403) assert.match(e.message, /Admin/);
+        return true;
+      },
+    );
     assert.equal(fake.calls.length, 1);
   }
 });
 
 test('apple: a 429 is not waited out or retried for a write', async () => {
   const { fake, connector } = apple();
-  fake.on({ method: 'POST', match: APPLE_POST, status: 429, json: rx.appleErrors.rateLimited, headers: { 'retry-after': '1' } });
-  await assert.rejects(connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), StoreRateLimitError);
+  fake.on({
+    method: 'POST',
+    match: APPLE_POST,
+    status: 429,
+    json: rx.appleErrors.rateLimited,
+    headers: { 'retry-after': '1' },
+  });
+  await assert.rejects(
+    connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+    StoreRateLimitError,
+  );
   assert.equal(fake.calls.length, 1);
 });
 
 test('apple: no error message carries the token or the key', async () => {
   const { fake, connector } = apple();
-  fake.on({ method: 'POST', match: APPLE_POST, status: 400, json: { errors: [{ code: 'X', title: 'bad', detail: `see ${appleKey.privateKey}` }] } });
-  await assert.rejects(connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }), (e: unknown) => {
-    const message = JSON.stringify([(e as Error).message, (e as StoreError).details]);
-    assert.ok(!message.includes('BEGIN PRIVATE KEY'));
-    assert.ok(!/eyJ[A-Za-z0-9_-]{8,}\./.test(message));
-    return true;
+  fake.on({
+    method: 'POST',
+    match: APPLE_POST,
+    status: 400,
+    json: { errors: [{ code: 'X', title: 'bad', detail: `see ${appleKey.privateKey}` }] },
   });
+  await assert.rejects(
+    connector.replyToReview({ reviewId: APPLE_REVIEW, text: 'Thanks' }),
+    (e: unknown) => {
+      const message = JSON.stringify([(e as Error).message, (e as StoreError).details]);
+      assert.ok(!message.includes('BEGIN PRIVATE KEY'));
+      assert.ok(!/eyJ[A-Za-z0-9_-]{8,}\./.test(message));
+      return true;
+    },
+  );
 });
 
 test('apple: deleteReviewResponse sends DELETE to the response resource; 204 is success', async () => {
@@ -238,14 +294,29 @@ test('apple: deleteReviewResponse sends DELETE to the response resource; 204 is 
     },
   });
   await connector.deleteReviewResponse({ responseId: 'resp-1' });
-  assert.deepEqual(seen, [{ method: 'DELETE', url: 'https://api.appstoreconnect.apple.com/v1/customerReviewResponses/resp-1' }]);
+  assert.deepEqual(seen, [
+    {
+      method: 'DELETE',
+      url: 'https://api.appstoreconnect.apple.com/v1/customerReviewResponses/resp-1',
+    },
+  ]);
   await assert.rejects(connector.deleteReviewResponse({ responseId: '../x' }), StoreError);
   const { fake: other, connector: unknownOutcome } = apple();
-  other.on({ method: 'DELETE', match: '/v1/customerReviewResponses/resp-1', throws: new Error('reset') });
-  await assert.rejects(unknownOutcome.deleteReviewResponse({ responseId: 'resp-1' }), ReplyOutcomeUnknownError);
+  other.on({
+    method: 'DELETE',
+    match: '/v1/customerReviewResponses/resp-1',
+    throws: new Error('reset'),
+  });
+  await assert.rejects(
+    unknownOutcome.deleteReviewResponse({ responseId: 'resp-1' }),
+    ReplyOutcomeUnknownError,
+  );
   const { fake: gone, connector: missing } = apple();
   gone.on({ method: 'DELETE', match: '/v1/customerReviewResponses/resp-9', status: 404, json: {} });
-  await assert.rejects(missing.deleteReviewResponse({ responseId: 'resp-9' }), (e: unknown) => e instanceof StoreError && e.kind === 'not_found');
+  await assert.rejects(
+    missing.deleteReviewResponse({ responseId: 'resp-9' }),
+    (e: unknown) => e instanceof StoreError && e.kind === 'not_found',
+  );
 });
 
 test('apple: getReview reads one review with its response; 404 is undefined; a bad id never reaches a URL', async () => {
@@ -262,7 +333,12 @@ test('apple: getReview reads one review with its response; 404 is undefined; a b
   assert.equal(review?.rating, 1);
   assert.equal(review?.developerResponse?.body, 'Sorry');
   assert.equal(review?.developerResponse?.state, 'PENDING_PUBLISH');
-  fake.on({ method: 'GET', match: '/v1/customerReviews/gone?include=response', status: 404, json: {} });
+  fake.on({
+    method: 'GET',
+    match: '/v1/customerReviews/gone?include=response',
+    status: 404,
+    json: {},
+  });
   assert.equal(await connector.getReview('gone'), undefined);
   await assert.rejects(connector.getReview('../x'), StoreError);
 });
@@ -275,7 +351,9 @@ test('play: replyToReview posts {replyText} to reviews/{id}:reply once and parse
   fake.on({
     method: 'POST',
     match: PLAY_REPLY,
-    json: { result: { replyText: 'Thanks!', lastEdited: rx.playTimestamp('2026-11-18T12:00:00Z') } },
+    json: {
+      result: { replyText: 'Thanks!', lastEdited: rx.playTimestamp('2026-11-18T12:00:00Z') },
+    },
   });
   const result = await connector.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks!' });
   assert.deepEqual(result, { repliedAt: Date.parse('2026-11-18T12:00:00Z') });
@@ -295,7 +373,10 @@ test('play: the 350 character limit and the other input rules are checked before
   await connector.replyToReview({ reviewId: PLAY_REVIEW, text: 'a'.repeat(350) });
   const before = fake.calls.length;
   for (const text of ['a'.repeat(351), '', '  ', 'x\u0007y', '<b>x</b>']) {
-    await assert.rejects(connector.replyToReview({ reviewId: PLAY_REVIEW, text }), (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input');
+    await assert.rejects(
+      connector.replyToReview({ reviewId: PLAY_REVIEW, text }),
+      (e: unknown) => e instanceof StoreError && e.kind === 'invalid_input',
+    );
   }
   await assert.rejects(connector.replyToReview({ reviewId: '../x', text: 'Hi' }), StoreError);
   await assert.rejects(connector.replyToReview({ reviewId: 'a/b', text: 'Hi' }), StoreError);
@@ -303,11 +384,21 @@ test('play: the 350 character limit and the other input rules are checked before
 });
 
 test('play: a timeout or a cut connection is an unknown outcome, and nothing is retried', async () => {
-  const { connector } = play({ fetch: (input, init) => (String(input).endsWith('/token') ? tokenOnly.fetch(input, init) : hangingFetch(input, init)), timeoutMs: 20 });
-  await assert.rejects(connector.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks' }), ReplyOutcomeUnknownError);
+  const { connector } = play({
+    fetch: (input, init) =>
+      String(input).endsWith('/token') ? tokenOnly.fetch(input, init) : hangingFetch(input, init),
+    timeoutMs: 20,
+  });
+  await assert.rejects(
+    connector.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks' }),
+    ReplyOutcomeUnknownError,
+  );
   const { fake, connector: second } = play();
   fake.on({ method: 'POST', match: PLAY_REPLY, throws: new Error('reset') });
-  await assert.rejects(second.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks' }), ReplyOutcomeUnknownError);
+  await assert.rejects(
+    second.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks' }),
+    ReplyOutcomeUnknownError,
+  );
   assert.equal(fake.calls.filter((c) => c.url.pathname.endsWith(':reply')).length, 1);
 });
 
@@ -326,7 +417,9 @@ test('play: a 5xx is unknown; 400, 403, 404 are refusals; a quota answer is a ra
   const unknown = await run(503, {});
   assert.ok(unknown.error instanceof ReplyOutcomeUnknownError);
   assert.equal(unknown.replies, 1);
-  const bad = await run(400, { error: { code: 400, message: 'Bad Reply Request: replyText too long' } });
+  const bad = await run(400, {
+    error: { code: 400, message: 'Bad Reply Request: replyText too long' },
+  });
   assert.ok(bad.error instanceof StoreError && !(bad.error instanceof ReplyOutcomeUnknownError));
   assert.equal((bad.error as StoreError).status, 400);
   const forbidden = await run(403, rx.playErrors.forbidden);
@@ -347,5 +440,8 @@ test('play: a 401 mints a new token once, then sends; a second 401 is an auth er
   assert.equal(fake.calls.filter((c) => c.url.pathname.endsWith(':reply')).length, 2);
   const { fake: bad, connector: failing } = play();
   bad.on({ method: 'POST', match: PLAY_REPLY, status: 401, json: {} });
-  await assert.rejects(failing.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks' }), (e: unknown) => e instanceof StoreError && e.kind === 'auth');
+  await assert.rejects(
+    failing.replyToReview({ reviewId: PLAY_REVIEW, text: 'Thanks' }),
+    (e: unknown) => e instanceof StoreError && e.kind === 'auth',
+  );
 });

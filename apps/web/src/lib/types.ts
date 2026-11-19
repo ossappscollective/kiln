@@ -221,7 +221,10 @@ export type ProjectDetection = {
   warnings: string[];
 };
 
-export type RepositoryDetail = { repository: RepositorySummary; detection: ProjectDetection | null };
+export type RepositoryDetail = {
+  repository: RepositorySummary;
+  detection: ProjectDetection | null;
+};
 
 /** Where a store's listing is read from: the Expo store.config.json, or the fastlane folders. */
 export type ListingSourceKind = 'expo-store-config' | 'fastlane';
@@ -319,7 +322,11 @@ export type RepositoryListing = {
   /** Every place the listing can be read from, detected and saved. Absent from an older server. */
   targets?: ListingTargetView[];
   /** Which of them was read. */
-  selected?: { id: string | null; origin: 'custom' | 'detected' | 'folders' | 'default'; label: string };
+  selected?: {
+    id: string | null;
+    origin: 'custom' | 'detected' | 'folders' | 'default';
+    label: string;
+  };
   candidates?: ListingCandidate[];
   diagnostics?: { appStore: StoreDiagnostic; googlePlay: StoreDiagnostic };
 };
@@ -344,7 +351,12 @@ export type LocalOutcome = {
   /** Present when the commit was signed with the server's key. Signed, not verified. */
   signature?: { status: 'signed'; format: 'ssh' | 'gpg' };
   /** `behind`: a fix up added a commit after the branch was pushed, so the remote is behind the local branch. */
-  push: { status: 'not_requested' | 'pushed' | 'failed' | 'behind'; at?: number; code?: string; error?: string };
+  push: {
+    status: 'not_requested' | 'pushed' | 'failed' | 'behind';
+    at?: number;
+    code?: string;
+    error?: string;
+  };
   pr: {
     status: 'not_requested' | 'opened' | 'failed' | 'skipped';
     at?: number;
@@ -568,7 +580,11 @@ export type RolloutView = {
   kind: RolloutKind | null;
   template: string | null;
   steps: RolloutStep[];
-  apple: { startsAt: number | null; schedule: { day: number; percent: number; date: string | null }[]; note: string } | null;
+  apple: {
+    startsAt: number | null;
+    schedule: { day: number; percent: number; date: string | null }[];
+    note: string;
+  } | null;
   summary: RolloutSummary | null;
   store: StoreRollout | null;
   comparison: RolloutComparison | null;
@@ -576,7 +592,11 @@ export type RolloutView = {
 
 /** What `PUT .../rollout` takes. Times are epoch milliseconds or ISO 8601 strings. */
 export type RolloutBody =
-  | { kind: 'steps'; template?: string; steps: { id?: string; percent: number; plannedAt?: number | null; note?: string | null }[] }
+  | {
+      kind: 'steps';
+      template?: string;
+      steps: { id?: string; percent: number; plannedAt?: number | null; note?: string | null }[];
+    }
   | { kind: 'apple_phased'; template?: string; startsAt?: number | null };
 
 export type ChecklistTemplate = {
@@ -608,7 +628,12 @@ export type PlanChanges = {
 // ---------------------------------------------------------------------------------------------
 // Store listing: live values, drift and history (docs/api/listing.md). Read-only toward the stores.
 
-export type DriftStatus = 'identical' | 'repo-ahead' | 'store-ahead' | 'diverged' | 'missing-in-one';
+export type DriftStatus =
+  | 'identical'
+  | 'repo-ahead'
+  | 'store-ahead'
+  | 'diverged'
+  | 'missing-in-one';
 
 export type ListingValueSource = 'store' | 'repo' | 'change_set';
 
@@ -821,7 +846,10 @@ export type ActiveRun = WorkflowRun & {
 };
 
 /** Why GitHub could not be read for a repository: a short fixed reason, never GitHub's text. */
-export type ActiveRunsProblem = { repositoryId: string; reason: 'no_access' | 'rate_limited' | 'unavailable' | 'unsupported' };
+export type ActiveRunsProblem = {
+  repositoryId: string;
+  reason: 'no_access' | 'rate_limited' | 'unavailable' | 'unsupported';
+};
 
 export type ActiveRuns = {
   runs: ActiveRun[];
@@ -1137,7 +1165,11 @@ export type PullSkip = {
   message: string;
 };
 
-export type PullLocaleMapping = { locale: string; repoLocale: string; how: 'exact' | 'normalized' | 'equivalent' | 'new' };
+export type PullLocaleMapping = {
+  locale: string;
+  repoLocale: string;
+  how: 'exact' | 'normalized' | 'equivalent' | 'new';
+};
 
 export type PullTarget = {
   repositoryId: string;
@@ -1147,7 +1179,11 @@ export type PullTarget = {
   source: ListingSourceKind;
   /** The Expo store config file, or the fastlane metadata folder. */
   path: string;
-  selected: { id: string | null; origin: 'custom' | 'detected' | 'folders' | 'default'; label: string };
+  selected: {
+    id: string | null;
+    origin: 'custom' | 'detected' | 'folders' | 'default';
+    label: string;
+  };
 };
 
 export type PullResult = {
@@ -1232,18 +1268,40 @@ export type AssetIndex = {
   /** The commit that was read; the file URLs carry it. */
   commit: string | null;
   readAt: number | null;
-  target: { id: string | null; label: string; roots: { appStore: string | null; googlePlay: string | null } } | null;
+  target: {
+    id: string | null;
+    label: string;
+    roots: { appStore: string | null; googlePlay: string | null };
+  } | null;
   folders: { screenshots: string[]; previews: string[]; androidImages: string | null };
-  limits: { maxFiles: number; maxTransferBytes: number; headBytes: number; maxFileBytes: number; maxServedBytes: number };
+  limits: {
+    maxFiles: number;
+    maxTransferBytes: number;
+    headBytes: number;
+    maxFileBytes: number;
+    maxServedBytes: number;
+  };
   partial: { partial: boolean; reasons: string[]; skipped: number };
-  totals: { assets: number; read: number; bytes: number; errors: number; warnings: number; infos: number; locales: number };
+  totals: {
+    assets: number;
+    read: number;
+    bytes: number;
+    errors: number;
+    warnings: number;
+    infos: number;
+    locales: number;
+  };
   locales: string[];
   devices: { id: string; label: string }[];
   sets: AssetSet[];
   assets: AssetItem[];
   problems: AssetProblem[];
   notes: string[];
-  specs: { basis: string; sources: Record<string, string>; unverified: { id: string; text: string }[] };
+  specs: {
+    basis: string;
+    sources: Record<string, string>;
+    unverified: { id: string; text: string }[];
+  };
   storeSide: AssetStoreSide | null;
   /** The index came from the cache of the server. */
   cached?: boolean;

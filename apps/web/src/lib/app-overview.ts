@@ -1,7 +1,7 @@
-import { type ReleaseState, platformLabel } from '@mrm/core';
+import { platformLabel, type ReleaseState } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
-import { type PendingLine, type PendingSummary, lineFor } from './pending.ts';
-import { type ReleaseLoad, latestRelease } from './portfolio.ts';
+import { lineFor, type PendingLine, type PendingSummary } from './pending.ts';
+import { latestRelease, type ReleaseLoad } from './portfolio.ts';
 import { type PipelineSummaryApp, unfinishedItem } from './release-pipeline.ts';
 import type { SummaryApp } from './reviews.ts';
 import type { AppSummary, ReleaseSummary } from './types.ts';
@@ -36,13 +36,27 @@ export type OverviewRow = {
 };
 
 /** Most urgent first. */
-const urgency: ReleaseState[] = ['rejected', 'halted', 'in_review', 'propagating', 'rolling_out', 'approved', 'ready', 'build_chosen', 'draft', 'live'];
+const urgency: ReleaseState[] = [
+  'rejected',
+  'halted',
+  'in_review',
+  'propagating',
+  'rolling_out',
+  'approved',
+  'ready',
+  'build_chosen',
+  'draft',
+  'live',
+];
 const rank = (r: ReleaseSummary) => {
   const i = r.status === null ? -1 : urgency.indexOf(r.status);
   return i < 0 ? urgency.length : i;
 };
 
-const cell = (app: AppSummary | null, releases: Record<string, ReleaseLoad | undefined>): PlatformCell | null => {
+const cell = (
+  app: AppSummary | null,
+  releases: Record<string, ReleaseLoad | undefined>,
+): PlatformCell | null => {
   if (!app) return null;
   const load = releases[app.id];
   if (!load || load.state === 'loading') return { state: 'loading' };
@@ -62,10 +76,13 @@ export function buildOverviewRows(
     const macos = cell(group.macos, releases);
     const android = cell(group.android, releases);
     const latests: ReleaseSummary[] = [];
-    for (const c of [ios, macos, android]) if (c && c.state === 'ready' && c.latest) latests.push(c.latest);
+    for (const c of [ios, macos, android])
+      if (c && c.state === 'ready' && c.latest) latests.push(c.latest);
     const attention = [...latests].sort((a, b) => rank(a) - rank(b))[0] ?? null;
     const synced = group.members.map((m) => m.lastSyncedAt);
-    const mine = reviewApps ? reviewApps.filter((r) => group.members.some((m) => m.id === r.app.id)) : null;
+    const mine = reviewApps
+      ? reviewApps.filter((r) => group.members.some((m) => m.id === r.app.id))
+      : null;
     const rated = (mine ?? []).filter((r) => r.average !== null && r.total > 0);
     const ratingCount = rated.reduce((sum, r) => sum + r.total, 0);
     return {
@@ -76,11 +93,20 @@ export function buildOverviewRows(
       attention,
       syncFailed: group.members.some((m) => (m.lastSyncError ?? '').trim() !== ''),
       syncedAt: synced.some((s) => s === null) ? null : Math.min(...(synced as number[])),
-      rating: ratingCount > 0 ? rated.reduce((sum, r) => sum + (r.average as number) * r.total, 0) / ratingCount : null,
+      rating:
+        ratingCount > 0
+          ? rated.reduce((sum, r) => sum + (r.average as number) * r.total, 0) / ratingCount
+          : null,
       ratingCount,
       newReviews: mine ? mine.reduce((sum, r) => sum + r.new, 0) : null,
-      unfinished: (pipelineApps ?? []).filter((p) => p.stalled !== null && !p.stalled.stale && group.members.some((m) => m.id === p.app.id)),
-      pending: lineFor(pendingSummary, group.members.map((m) => m.id)),
+      unfinished: (pipelineApps ?? []).filter(
+        (p) =>
+          p.stalled !== null && !p.stalled.stale && group.members.some((m) => m.id === p.app.id),
+      ),
+      pending: lineFor(
+        pendingSummary,
+        group.members.map((m) => m.id),
+      ),
     };
   });
 }
@@ -98,13 +124,21 @@ export type OverviewStats = {
 
 export function overviewStats(rows: readonly OverviewRow[]): OverviewStats {
   const count = (states: ReleaseState[]) =>
-    rows.filter((r) => r.attention !== null && r.attention.status !== null && states.includes(r.attention.status)).length;
+    rows.filter(
+      (r) =>
+        r.attention !== null && r.attention.status !== null && states.includes(r.attention.status),
+    ).length;
   const known = rows.filter((r) => r.newReviews !== null);
   return {
     apps: rows.length,
     inReview: count(['in_review']),
     rollingOut: count(['rolling_out', 'propagating']),
-    problems: rows.filter((r) => r.syncFailed || (r.attention !== null && (r.attention.status === 'rejected' || r.attention.status === 'halted'))).length,
+    problems: rows.filter(
+      (r) =>
+        r.syncFailed ||
+        (r.attention !== null &&
+          (r.attention.status === 'rejected' || r.attention.status === 'halted')),
+    ).length,
     unfinished: rows.filter((r) => r.unfinished.length > 0).length,
     newReviews: known.length === 0 ? null : known.reduce((sum, r) => sum + (r.newReviews ?? 0), 0),
   };
@@ -139,13 +173,25 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
   if (row.attention) primary = { kind: 'release', release: row.attention };
   else if (row.syncFailed) primary = { kind: 'sync-failed' };
   else if (loading) primary = { kind: 'loading' };
-  else primary = { kind: 'none', text: row.group.members.every((m) => m.lastSyncedAt === null) ? 'Not synced yet' : 'No releases' };
+  else
+    primary = {
+      kind: 'none',
+      text: row.group.members.every((m) => m.lastSyncedAt === null)
+        ? 'Not synced yet'
+        : 'No releases',
+    };
 
   const several = row.group.members.length > 1;
   const items = row.unfinished
     .map((left) => ({
       left,
-      item: unfinishedItem({ appId: left.app.id, platform: left.app.platform, scope: left.app.platform, several: false, stalled: left.stalled }),
+      item: unfinishedItem({
+        appId: left.app.id,
+        platform: left.app.platform,
+        scope: left.app.platform,
+        several: false,
+        stalled: left.stalled,
+      }),
     }))
     .filter((x) => x.item !== null);
   let unfinished: RowStatus['unfinished'] = null;
@@ -163,7 +209,9 @@ export function rowStatus(row: OverviewRow, loading: boolean): RowStatus {
         : {
             count: items.length,
             text: `${items.length} releases left unfinished`,
-            title: items.map((x) => `${who(x.left.app.platform)}: ${x.item?.detail ?? ''}`).join('\n'),
+            title: items
+              .map((x) => `${who(x.left.app.platform)}: ${x.item?.detail ?? ''}`)
+              .join('\n'),
             href: first.item?.href ?? null,
           };
   }

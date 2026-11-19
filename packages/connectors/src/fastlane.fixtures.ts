@@ -28,7 +28,8 @@ function playFolder(root: string, locales: PlayLocale[], name: string): RepoFile
     const dir = `${root}/${l.locale}`;
     files[`${dir}/title.txt`] = `${name}\n`;
     files[`${dir}/short_description.txt`] = `${name}: short text (${l.locale}).\n`;
-    if (l.full !== false) files[`${dir}/full_description.txt`] = `${name}: longer text (${l.locale}).\n`;
+    if (l.full !== false)
+      files[`${dir}/full_description.txt`] = `${name}: longer text (${l.locale}).\n`;
     if (l.video) files[`${dir}/video.txt`] = 'https://example.com/video\n';
     files[`${dir}/images/icon.png`] = 'binary';
     files[`${dir}/images/featureGraphic.png`] = 'binary';
@@ -70,7 +71,8 @@ function appleFolder(root: string, locales: string[], name: string, full = true)
   return files;
 }
 
-const PACKAGE_JSON = '{ "name": "example-app", "dependencies": { "@nativescript/core": "^8.0.0" } }\n';
+const PACKAGE_JSON =
+  '{ "name": "example-app", "dependencies": { "@nativescript/core": "^8.0.0" } }\n';
 const APPFILE = [
   'app_identifier(ENV["APP_ID"])',
   'package_name(ENV["APP_ID"])',
@@ -118,7 +120,9 @@ const FASTFILE_JOINED = [
  * Layout a): one app, `fastlane/metadata/ios/<locale>/...` and `fastlane/metadata/android/<locale>/...`.
  * The iOS root is `fastlane/metadata/ios`, not `fastlane/metadata`.
  */
-export function weatherApp(options: { enChangelogs?: number; frChangelogs?: number } = {}): RepoFiles {
+export function weatherApp(
+  options: { enChangelogs?: number; frChangelogs?: number } = {},
+): RepoFiles {
   const { enChangelogs = 145, frChangelogs = 141 } = options;
   return {
     'package.json': PACKAGE_JSON,
@@ -145,7 +149,9 @@ export const SCAN_APP = 'com.example.documentscanner';
  * Layout b): a monorepo with several apps, one metadata folder per app id:
  * `fastlane/metadata/<app id>/ios/<locale>/...` and `fastlane/metadata/<app id>/android/<locale>/...`.
  */
-export function scannerMonorepo(options: { cardChangelogs?: number; scanChangelogs?: number } = {}): RepoFiles {
+export function scannerMonorepo(
+  options: { cardChangelogs?: number; scanChangelogs?: number } = {},
+): RepoFiles {
   const { cardChangelogs = 81, scanChangelogs = 155 } = options;
   return {
     'package.json': PACKAGE_JSON,

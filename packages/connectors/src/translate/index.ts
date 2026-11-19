@@ -1,22 +1,31 @@
-import { type TranslationProvider, isTranslationProvider } from '@mrm/core';
+import { isTranslationProvider, type TranslationProvider } from '@mrm/core';
 import { createAzureTranslator } from './azure.ts';
 import { createDeeplTranslator } from './deepl.ts';
 import { createGoogleTranslator } from './google.ts';
 import { createLibreTranslateTranslator } from './libretranslate.ts';
-import { TranslateError, type TranslateErrorKind, type Translator, type TranslatorOptions, translateErrorMessage } from './types.ts';
+import {
+  TranslateError,
+  type TranslateErrorKind,
+  type Translator,
+  type TranslatorOptions,
+  translateErrorMessage,
+} from './types.ts';
 
-export * from './types.ts';
-export * from './languages.ts';
 export { AZURE_TRANSLATOR_URL, createAzureTranslator } from './azure.ts';
-export { DEEPL_FREE_URL, DEEPL_PRO_URL, createDeeplTranslator, deeplBaseUrl } from './deepl.ts';
-export { GOOGLE_V2_URL, createGoogleTranslator } from './google.ts';
+export { createDeeplTranslator, DEEPL_FREE_URL, DEEPL_PRO_URL, deeplBaseUrl } from './deepl.ts';
+export { createGoogleTranslator, GOOGLE_V2_URL } from './google.ts';
+export * from './languages.ts';
 export { createLibreTranslateTranslator } from './libretranslate.ts';
+export * from './types.ts';
 
 /**
  * What a stored translation credential holds: `{ "apiKey": "...", "region"?: "..." }`. A bare string is
  * accepted as the key too, so a hand-made secret still works. Never log the result.
  */
-export function parseTranslateSecret(secret: string | undefined): { apiKey: string; region: string } {
+export function parseTranslateSecret(secret: string | undefined): {
+  apiKey: string;
+  region: string;
+} {
   if (!secret) return { apiKey: '', region: '' };
   try {
     const parsed: unknown = JSON.parse(secret);
@@ -60,7 +69,13 @@ export function createTranslator(input: CreateTranslatorInput): Translator {
 
 export type TranslateProbe =
   | { ok: true; provider: TranslationProvider }
-  | { ok: false; provider: TranslationProvider; kind: TranslateErrorKind; message: string; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      provider: TranslationProvider;
+      kind: TranslateErrorKind;
+      message: string;
+      retryAfterSeconds?: number;
+    };
 
 /** The fixed word translated by a connection test. */
 export const PROBE_TEXT = 'Hello';
@@ -69,8 +84,14 @@ export const PROBE_TEXT = 'Hello';
 export async function probeTranslator(translator: Translator): Promise<TranslateProbe> {
   try {
     const out = await translator.translate({ texts: [PROBE_TEXT], target: 'fr' });
-    if (out.results.length === 1 && out.results[0]?.text.trim()) return { ok: true, provider: translator.provider };
-    return { ok: false, provider: translator.provider, kind: 'unavailable', message: translateErrorMessage('unavailable') };
+    if (out.results.length === 1 && out.results[0]?.text.trim())
+      return { ok: true, provider: translator.provider };
+    return {
+      ok: false,
+      provider: translator.provider,
+      kind: 'unavailable',
+      message: translateErrorMessage('unavailable'),
+    };
   } catch (error) {
     const kind = error instanceof TranslateError ? error.kind : 'unavailable';
     return {
@@ -78,7 +99,9 @@ export async function probeTranslator(translator: Translator): Promise<Translate
       provider: translator.provider,
       kind,
       message: translateErrorMessage(kind),
-      ...(error instanceof TranslateError && error.retryAfterSeconds !== undefined ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
+      ...(error instanceof TranslateError && error.retryAfterSeconds !== undefined
+        ? { retryAfterSeconds: error.retryAfterSeconds }
+        : {}),
     };
   }
 }
@@ -88,12 +111,23 @@ export const isTranslateProviderId = isTranslationProvider;
 /** Connection test of a stored credential, for the vault's "test connection" (see services/credential-tests.ts). */
 const verify =
   (provider: Exclude<TranslationProvider, 'libretranslate'>) =>
-  async (secret: string, options: { fetch?: typeof fetch } = {}): Promise<{ ok: boolean; message: string }> => {
+  async (
+    secret: string,
+    options: { fetch?: typeof fetch } = {},
+  ): Promise<{ ok: boolean; message: string }> => {
     let translator: Translator;
     try {
-      translator = createTranslator({ provider, secret, options: { ...(options.fetch ? { fetch: options.fetch } : {}), timeoutMs: 8000 } });
+      translator = createTranslator({
+        provider,
+        secret,
+        options: { ...(options.fetch ? { fetch: options.fetch } : {}), timeoutMs: 8000 },
+      });
     } catch (error) {
-      return { ok: false, message: error instanceof TranslateError ? error.message : translateErrorMessage('not_configured') };
+      return {
+        ok: false,
+        message:
+          error instanceof TranslateError ? error.message : translateErrorMessage('not_configured'),
+      };
     }
     const probe = await probeTranslator(translator);
     return probe.ok

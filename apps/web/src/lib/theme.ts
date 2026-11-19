@@ -30,7 +30,10 @@ export function readThemePref(storage: Reader | undefined = defaultStorage()): T
 }
 
 /** Saves the preference. A private window can refuse storage; the choice then lasts one visit. */
-export function saveThemePref(pref: ThemePref, storage: Writer | undefined = defaultStorage()): void {
+export function saveThemePref(
+  pref: ThemePref,
+  storage: Writer | undefined = defaultStorage(),
+): void {
   try {
     if (pref === 'auto') storage?.removeItem(THEME_KEY);
     else storage?.setItem(THEME_KEY, pref);
@@ -40,7 +43,10 @@ export function saveThemePref(pref: ThemePref, storage: Writer | undefined = def
 }
 
 /** Sets or clears `data-theme` on the root element. `auto` leaves the choice to the system. */
-export function applyThemePref(pref: ThemePref, root: { setAttribute(n: string, v: string): void; removeAttribute(n: string): void }): void {
+export function applyThemePref(
+  pref: ThemePref,
+  root: { setAttribute(n: string, v: string): void; removeAttribute(n: string): void },
+): void {
   if (pref === 'auto') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', pref);
 }

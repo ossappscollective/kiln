@@ -1,9 +1,9 @@
-import { type JsonSchema, checkReplyText, normalizeReplyText } from '@mrm/connectors';
+import { checkReplyText, type JsonSchema, normalizeReplyText } from '@mrm/connectors';
 import { type AiFlag, type AiReplyProposal, aiLimits } from '@mrm/core';
-import { type AiFailure, aiFail } from './ai-config.ts';
-import { type PreparedRun, type ReadyTask, checkScope, cleanGoal, clip } from './ai-task-types.ts';
 import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';
+import { type AiFailure, aiFail } from './ai-config.ts';
 import { redactPersonal } from './ai-task-data.ts';
+import { checkScope, cleanGoal, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
 import { replyLimitFor } from './review-replies.ts';
 import { getReview, type StoreKey } from './reviews.ts';
 
@@ -44,7 +44,11 @@ Rules:
 const SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    reply: { type: 'string', maxLength: 5000, description: 'The draft reply, plain text, within the limit.' },
+    reply: {
+      type: 'string',
+      maxLength: 5000,
+      description: 'The draft reply, plain text, within the limit.',
+    },
   },
   required: ['reply'],
   additionalProperties: false,
@@ -81,10 +85,27 @@ export const reviewReplyTask: ReadyTask = {
     ],
   },
   scope: [
-    { name: 'reviewId', required: true, description: 'The review to answer (its id in this tool, not the store id).' },
-    { name: 'tone', required: false, description: 'friendly (default), neutral or apologetic.', values: [...TONES] },
-    { name: 'replyLanguage', required: false, description: 'The language of the reply, such as de. Default: the language of the review.' },
-    { name: 'goal', required: false, description: `What the reply should do, in your own words, at most ${aiLimits.maxGoalChars} characters.` },
+    {
+      name: 'reviewId',
+      required: true,
+      description: 'The review to answer (its id in this tool, not the store id).',
+    },
+    {
+      name: 'tone',
+      required: false,
+      description: 'friendly (default), neutral or apologetic.',
+      values: [...TONES],
+    },
+    {
+      name: 'replyLanguage',
+      required: false,
+      description: 'The language of the reply, such as de. Default: the language of the review.',
+    },
+    {
+      name: 'goal',
+      required: false,
+      description: `What the reply should do, in your own words, at most ${aiLimits.maxGoalChars} characters.`,
+    },
   ],
   system: SYSTEM,
   schema: SCHEMA,
@@ -98,7 +119,12 @@ export const reviewReplyTask: ReadyTask = {
     const review = await getReview(ctx.db, ctx.workspaceId, ctx.app.id, reviewId);
     if (!review) return aiFail(404, 'not_found', 'There is no such review in this app.');
     // The app's own tone (its AI context) wins over the default: the default is only used when the app has none.
-    const tone = scope.tone === undefined ? (ctx.context.tone !== '' ? 'as in appContext' : 'friendly') : String(scope.tone);
+    const tone =
+      scope.tone === undefined
+        ? ctx.context.tone !== ''
+          ? 'as in appContext'
+          : 'friendly'
+        : String(scope.tone);
     let replyLanguage: string | undefined;
     if (scope.replyLanguage !== undefined) {
       const tag = String(scope.replyLanguage).trim();
@@ -121,13 +147,28 @@ export const reviewReplyTask: ReadyTask = {
       tone,
       limit: { characters: limit },
       review: {
-        ...(review.title ? { title: wrapReviewText(clip(redactPersonal(review.title, review.authorName), TITLE_CHARS)) } : {}),
+        ...(review.title
+          ? {
+              title: wrapReviewText(
+                clip(redactPersonal(review.title, review.authorName), TITLE_CHARS),
+              ),
+            }
+          : {}),
         text: wrapReviewText(redactPersonal(review.body, review.authorName)),
       },
       ...(goal ? { developerGoal: goal } : {}),
     };
     const facts: Facts = { reviewId: review.id, store: review.store, limit };
-    return { input, scope: { reviewId: review.id, tone, ...(replyLanguage ? { replyLanguage } : {}), ...(goal ? { goal: true } : {}) }, facts };
+    return {
+      input,
+      scope: {
+        reviewId: review.id,
+        tone,
+        ...(replyLanguage ? { replyLanguage } : {}),
+        ...(goal ? { goal: true } : {}),
+      },
+      facts,
+    };
   },
 
   propose(output, run): AiReplyProposal {
@@ -162,7 +203,10 @@ export const reviewReplyTask: ReadyTask = {
     if (looksLikePromise(text)) flags.push('risky_promise');
     // Control characters make the text unacceptable; what is stored for reading has them removed, so a person can still see the gist.
     // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-    const shown = text.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, '');
+    const shown = text.replace(
+      /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g,
+      '',
+    );
     return {
       kind: 'reply_draft',
       reviewId: facts.reviewId,

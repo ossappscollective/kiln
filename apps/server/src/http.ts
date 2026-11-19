@@ -118,7 +118,10 @@ export function clientIp(c: Context, trustProxy = false): string | undefined {
  * A query parameter as a whole number from 1 to `max`. Absent or empty gives `fallback`; anything
  * else (1.5, 0, -3, abc, 1e3, 0x10, a number above `max`) gives undefined, for a 400.
  */
-export function queryInt(raw: string | undefined, options: { fallback: number; max: number }): number | undefined {
+export function queryInt(
+  raw: string | undefined,
+  options: { fallback: number; max: number },
+): number | undefined {
   if (raw === undefined || raw === '') return options.fallback;
   if (!/^[0-9]{1,9}$/.test(raw)) return undefined;
   const n = Number(raw);

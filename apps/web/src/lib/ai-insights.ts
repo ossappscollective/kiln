@@ -5,8 +5,8 @@ import {
   type AiInsightProposal,
   type AiPeriod,
   type AiReviewTags,
-  type AiSeverity,
   type AiSentiment,
+  type AiSeverity,
   aiContextLimits,
   emptyAiAppContext,
   normalizeAiAppContext,
@@ -33,7 +33,8 @@ export const insightTitle = (proposal: AiInsightProposal): string => {
   }
 };
 
-export const periodText = (period: Pick<AiPeriod, 'days'>): string => (period.days === 1 ? 'last day' : `last ${period.days} days`);
+export const periodText = (period: Pick<AiPeriod, 'days'>): string =>
+  period.days === 1 ? 'last day' : `last ${period.days} days`;
 
 // ---------------------------------------------------------------------------------------------
 // Words for the fixed vocabularies
@@ -62,9 +63,17 @@ export const topicLabel = (topic: string): string => TOPIC_LABELS[topic] ?? topi
 export type Tone = 'ok' | 'warn' | 'bad' | 'info';
 
 export const sentimentTone = (sentiment: AiSentiment | string): Tone =>
-  sentiment === 'positive' ? 'ok' : sentiment === 'negative' ? 'bad' : sentiment === 'mixed' ? 'warn' : 'info';
-export const severityTone = (severity: AiSeverity | string): Tone => (severity === 'high' ? 'bad' : severity === 'medium' ? 'warn' : 'info');
-export const impactTone = (impact: string): Tone => (impact === 'high' ? 'bad' : impact === 'medium' ? 'warn' : 'info');
+  sentiment === 'positive'
+    ? 'ok'
+    : sentiment === 'negative'
+      ? 'bad'
+      : sentiment === 'mixed'
+        ? 'warn'
+        : 'info';
+export const severityTone = (severity: AiSeverity | string): Tone =>
+  severity === 'high' ? 'bad' : severity === 'medium' ? 'warn' : 'info';
+export const impactTone = (impact: string): Tone =>
+  impact === 'high' ? 'bad' : impact === 'medium' ? 'warn' : 'info';
 
 const AREA_LABELS: Record<AiHealthArea, string> = {
   keywords: 'Keywords',
@@ -76,27 +85,47 @@ const AREA_LABELS: Record<AiHealthArea, string> = {
 };
 export const healthAreaLabel = (area: string): string => AREA_LABELS[area as AiHealthArea] ?? area;
 
-const THEME_LABELS: Record<string, string> = { issue: 'Problem', praise: 'Praise', request: 'Request', other: 'Other' };
+const THEME_LABELS: Record<string, string> = {
+  issue: 'Problem',
+  praise: 'Praise',
+  request: 'Request',
+  other: 'Other',
+};
 export const themeKindLabel = (kind: string): string => THEME_LABELS[kind] ?? kind;
-export const themeKindTone = (kind: string): Tone => (kind === 'issue' ? 'bad' : kind === 'praise' ? 'ok' : 'info');
+export const themeKindTone = (kind: string): Tone =>
+  kind === 'issue' ? 'bad' : kind === 'praise' ? 'ok' : 'info';
 
 /** "3 reviews" with the right number word. */
 export const reviewsText = (n: number): string => `${n} ${n === 1 ? 'review' : 'reviews'}`;
 
 /** Shares of the three star groups as whole percents of the analysed reviews (they can add to 99 or 101: they are rounded). */
-export function sentimentShares(sentiment: { positive: number; neutral: number; negative: number }): { positive: number; neutral: number; negative: number } {
+export function sentimentShares(sentiment: {
+  positive: number;
+  neutral: number;
+  negative: number;
+}): { positive: number; neutral: number; negative: number } {
   const total = sentiment.positive + sentiment.neutral + sentiment.negative;
   if (total <= 0) return { positive: 0, neutral: 0, negative: 0 };
   const pct = (n: number): number => Math.round((n / total) * 100);
-  return { positive: pct(sentiment.positive), neutral: pct(sentiment.neutral), negative: pct(sentiment.negative) };
+  return {
+    positive: pct(sentiment.positive),
+    neutral: pct(sentiment.neutral),
+    negative: pct(sentiment.negative),
+  };
 }
 
 /** "Based on 38 of 112 reviews" or "Based on 112 reviews". */
 export const basedOnText = (analysed: number, reviewCount: number): string =>
-  analysed < reviewCount ? `Based on the newest ${analysed} of ${reviewsText(reviewCount)}.` : `Based on ${reviewsText(reviewCount)}.`;
+  analysed < reviewCount
+    ? `Based on the newest ${analysed} of ${reviewsText(reviewCount)}.`
+    : `Based on ${reviewsText(reviewCount)}.`;
 
 /** The one line of a tag set under a review: "Crash, Login · negative · high severity". */
-export function tagLine(tags: Pick<AiReviewTags, 'topics' | 'sentiment' | 'severity'> | { topics: string[]; sentiment: string; severity: string }): string {
+export function tagLine(
+  tags:
+    | Pick<AiReviewTags, 'topics' | 'sentiment' | 'severity'>
+    | { topics: string[]; sentiment: string; severity: string },
+): string {
   const topics = tags.topics.map(topicLabel).join(', ');
   const parts = [topics, tags.sentiment];
   if (tags.severity !== 'none') parts.push(`${tags.severity} severity`);
@@ -111,17 +140,26 @@ export function auditFieldText(f: AiAuditField): string {
   return `${f.length} of ${f.limit} ${unit}${f.percent === null ? '' : ` (${Math.round(f.percent)}%)`}`;
 }
 
-export const rankText = (rank: number | null): string => (rank === null ? 'Not ranked' : `Rank ${rank}`);
+export const rankText = (rank: number | null): string =>
+  rank === null ? 'Not ranked' : `Rank ${rank}`;
 
 /** The notes of a report: sentences the server wrote (a sample, a dropped reference). Plain text. */
-export const reportNotes = (proposal: AiInsightProposal): string[] => proposal.notes.filter((n) => n.trim() !== '');
+export const reportNotes = (proposal: AiInsightProposal): string[] =>
+  proposal.notes.filter((n) => n.trim() !== '');
 
 /** "Based on 14 keywords (9 with a rank), 3 coach steps, 2 competitors." from the counts the server made. */
-export function healthBasis(b: { keywords: number; ranked: number; coachSteps: number; competitors: number; analyticsSeries: number }): string {
+export function healthBasis(b: {
+  keywords: number;
+  ranked: number;
+  coachSteps: number;
+  competitors: number;
+  analyticsSeries: number;
+}): string {
   const bits: string[] = [];
   bits.push(`${b.keywords} ${b.keywords === 1 ? 'keyword' : 'keywords'} (${b.ranked} with a rank)`);
   if (b.coachSteps > 0) bits.push(`${b.coachSteps} coach ${b.coachSteps === 1 ? 'step' : 'steps'}`);
-  if (b.competitors > 0) bits.push(`${b.competitors} ${b.competitors === 1 ? 'competitor' : 'competitors'}`);
+  if (b.competitors > 0)
+    bits.push(`${b.competitors} ${b.competitors === 1 ? 'competitor' : 'competitors'}`);
   if (b.analyticsSeries > 0) bits.push('store analytics');
   return `Based on ${bits.join(', ')}.`;
 }
@@ -149,15 +187,23 @@ export function centsInput(cents: number): string {
   if (cents <= 0) return '0';
   const whole = Math.floor(cents / 100);
   const rest = cents % 100;
-  return rest === 0 ? String(whole) : `${whole}.${rest < 10 ? `0${rest}` : String(rest).replace(/0$/, '')}`;
+  return rest === 0
+    ? String(whole)
+    : `${whole}.${rest < 10 ? `0${rest}` : String(rest).replace(/0$/, '')}`;
 }
 
 /** The line of the settings card that says what the month cost so far, with the caveat that it is an estimate. */
-export function costLine(usage: { estimatedCostCents?: number; costCapCents?: number; pricesSet?: boolean }): string | null {
+export function costLine(usage: {
+  estimatedCostCents?: number;
+  costCapCents?: number;
+  pricesSet?: boolean;
+}): string | null {
   if (!usage.pricesSet) return null;
   const cost = usage.estimatedCostCents ?? 0;
   const cap = usage.costCapCents ?? 0;
-  return cap > 0 ? `About ${centsText(cost)} of ${centsText(cap)} this month (an estimate from the prices you entered).` : `About ${centsText(cost)} this month (an estimate from the prices you entered).`;
+  return cap > 0
+    ? `About ${centsText(cost)} of ${centsText(cap)} this month (an estimate from the prices you entered).`
+    : `About ${centsText(cost)} this month (an estimate from the prices you entered).`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -219,7 +265,9 @@ export function formToContext(form: AiContextForm): AiAppContext {
 export type AiContextErrors = Partial<Record<keyof AiContextForm, string>>;
 
 /** The checks the server makes, so the sentence shows next to the field before a save. Returns the cleaned context when it is fine. */
-export function validateContextForm(form: AiContextForm): { ok: true; value: AiAppContext } | { ok: false; errors: AiContextErrors } {
+export function validateContextForm(
+  form: AiContextForm,
+): { ok: true; value: AiAppContext } | { ok: false; errors: AiContextErrors } {
   const result = normalizeAiAppContext(formToContext(form));
   if (result.ok) return { ok: true, value: result.value };
   const errors: AiContextErrors = {};
@@ -247,7 +295,10 @@ export const contextLimits = aiContextLimits;
 export const PREVIEW_CHARS = 6000;
 
 /** The exact data of a run as text (JSON, indented), cut at `max` characters. `cut` says whether something was left out of the view. */
-export function previewText(input: unknown, max: number = PREVIEW_CHARS): { text: string; cut: boolean } {
+export function previewText(
+  input: unknown,
+  max: number = PREVIEW_CHARS,
+): { text: string; cut: boolean } {
   let text = '';
   try {
     text = JSON.stringify(input, null, 2) ?? '';
@@ -259,7 +310,12 @@ export function previewText(input: unknown, max: number = PREVIEW_CHARS): { text
 }
 
 /** One sentence of numbers for a preview: the estimated size and where it would go. */
-export function previewFacts(p: { estimatedInputTokens: number; maxOutputTokens: number; includesAppContext: boolean; model: string }): string {
+export function previewFacts(p: {
+  estimatedInputTokens: number;
+  maxOutputTokens: number;
+  includesAppContext: boolean;
+  model: string;
+}): string {
   const tokens = p.estimatedInputTokens.toLocaleString('en');
   const back = p.maxOutputTokens.toLocaleString('en');
   return `About ${tokens} tokens go out and at most ${back} come back (model ${p.model}). ${p.includesAppContext ? 'What you wrote about this app is included.' : 'What you wrote about this app is not included.'}`;

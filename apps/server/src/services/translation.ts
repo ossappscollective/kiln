@@ -1,27 +1,27 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  type TranslateErrorKind,
-  TranslateError,
-  type Translator,
   createTranslator,
   probeTranslator,
+  TranslateError,
+  type TranslateErrorKind,
+  type Translator,
   translateErrorMessage,
 } from '@mrm/connectors';
 import {
   type ActorType,
-  type TranslationProvider,
   normalizeLanguageTag,
   sameLanguage,
+  type TranslationProvider,
   translationLimits,
   translationProviderInfo,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
-import { type GuardedFetch, type PostExchange, createGuardedFetch } from './translate-net.ts';
+import { createGuardedFetch, type GuardedFetch, type PostExchange } from './translate-net.ts';
 import { getUsage, refundChars, reserveChars } from './translation-usage.ts';
-import { getSettings } from './workspace-settings.ts';
 import type { Resolver } from './webhook-transport.ts';
+import { getSettings } from './workspace-settings.ts';
 
 /**
  * Translation of review text (and, for other features, any text) through the workspace's provider.
@@ -100,22 +100,37 @@ const fail = (
   message: string,
   extra: Record<string, unknown> = {},
   headers?: Record<string, string>,
-): TranslationFailure => ({ ok: false, status, body: { error, message, ...extra }, ...(headers ? { headers } : {}) });
+): TranslationFailure => ({
+  ok: false,
+  status,
+  body: { error, message, ...extra },
+  ...(headers ? { headers } : {}),
+});
 
 const NOT_CONFIGURED = {
   disabled: 'Translation is turned off for this workspace. An admin can turn it on in Settings.',
-  no_credential: 'No credential for the translation provider has been added yet. An admin can add one under Credentials.',
+  no_credential:
+    'No credential for the translation provider has been added yet. An admin can add one under Credentials.',
   no_url: 'The LibreTranslate address has not been set. An admin can set it in Settings.',
-  credential_unreadable: 'The translation credential could not be decrypted. An admin must enter its key again.',
-  bad_url: 'The LibreTranslate address is not allowed by this server. An admin can change it in Settings.',
+  credential_unreadable:
+    'The translation credential could not be decrypted. An admin must enter its key again.',
+  bad_url:
+    'The LibreTranslate address is not allowed by this server. An admin can change it in Settings.',
 } as const;
 type NotConfiguredReason = keyof typeof NOT_CONFIGURED;
 
 const notConfigured = (reason: NotConfiguredReason, provider?: TranslationProvider) =>
-  fail(422, 'translation_not_configured', NOT_CONFIGURED[reason], { reason, ...(provider ? { provider } : {}) });
+  fail(422, 'translation_not_configured', NOT_CONFIGURED[reason], {
+    reason,
+    ...(provider ? { provider } : {}),
+  });
 
 /** The failure for a provider error. Fixed sentences only. */
-export function failureForKind(kind: TranslateErrorKind, provider: TranslationProvider, retryAfterSeconds?: number): TranslationFailure {
+export function failureForKind(
+  kind: TranslateErrorKind,
+  provider: TranslationProvider,
+  retryAfterSeconds?: number,
+): TranslationFailure {
   const message = translateErrorMessage(kind);
   switch (kind) {
     case 'not_configured':
@@ -126,7 +141,13 @@ export function failureForKind(kind: TranslateErrorKind, provider: TranslationPr
       return fail(422, 'translation_quota', message, { provider });
     case 'rate_limited': {
       const wait = retryAfterSeconds ?? 30;
-      return fail(429, 'translation_rate_limited', message, { provider, retryAfterSeconds: wait }, { 'Retry-After': String(wait) });
+      return fail(
+        429,
+        'translation_rate_limited',
+        message,
+        { provider, retryAfterSeconds: wait },
+        { 'Retry-After': String(wait) },
+      );
     }
     case 'unsupported_language':
       return fail(422, 'translation_unsupported_language', message, { provider });
@@ -152,11 +173,15 @@ type Resolved = {
 };
 
 /** The oldest credential of a kind in the workspace: the one translation uses. */
-export async function translationCredentialId(sql: Sql, workspaceId: string, provider: TranslationProvider): Promise<string | undefined> {
-  const [row] = await sql.query('SELECT id FROM credentials WHERE workspace_id = ? AND kind = ? ORDER BY created_at, id LIMIT 1', [
-    workspaceId,
-    translationProviderInfo[provider].credentialKind,
-  ]);
+export async function translationCredentialId(
+  sql: Sql,
+  workspaceId: string,
+  provider: TranslationProvider,
+): Promise<string | undefined> {
+  const [row] = await sql.query(
+    'SELECT id FROM credentials WHERE workspace_id = ? AND kind = ? ORDER BY created_at, id LIMIT 1',
+    [workspaceId, translationProviderInfo[provider].credentialKind],
+  );
   return row ? String(row.id) : undefined;
 }
 
@@ -167,11 +192,21 @@ async function resolveProvider(
 ): Promise<Resolved | TranslationFailure> {
   const settings = (await getSettings(ctx.db, workspaceId)).values;
   const provider = settings['translation.provider'] as TranslationProvider;
-  if (options.requireEnabled !== false && (settings['translation.enabled'] !== true || settings['translation.mode'] === 'off')) {
+  if (
+    options.requireEnabled !== false &&
+    (settings['translation.enabled'] !== true || settings['translation.mode'] === 'off')
+  ) {
     return notConfigured('disabled', provider);
   }
-  const target = normalizeLanguageTag(options.target ?? String(settings['translation.targetLanguage']));
-  if (!target) return fail(400, 'translation_unsupported_language', 'The target language is not a language tag.');
+  const target = normalizeLanguageTag(
+    options.target ?? String(settings['translation.targetLanguage']),
+  );
+  if (!target)
+    return fail(
+      400,
+      'translation_unsupported_language',
+      'The target language is not a language tag.',
+    );
   const info = translationProviderInfo[provider];
   const url = String(settings['translation.libretranslate.url']);
   if (info.needsUrl && url === '') return notConfigured('no_url', provider);
@@ -196,7 +231,8 @@ async function resolveProvider(
         } catch {
           return notConfigured('credential_unreadable', provider);
         }
-        if (secret === undefined && info.credentialRequired) return notConfigured('no_credential', provider);
+        if (secret === undefined && info.credentialRequired)
+          return notConfigured('no_credential', provider);
       }
       try {
         if (provider === 'libretranslate') {
@@ -206,17 +242,34 @@ async function resolveProvider(
             ...(ctx.exchange ? { exchange: ctx.exchange } : {}),
             ...(ctx.timeoutMs !== undefined ? { timeoutMs: ctx.timeoutMs } : {}),
           });
-          return { translator: createTranslator({ provider, secret, baseUrl: url, options: { fetch: guard.fetch, ...(ctx.timeoutMs !== undefined ? { timeoutMs: ctx.timeoutMs } : {}) } }), guard };
+          return {
+            translator: createTranslator({
+              provider,
+              secret,
+              baseUrl: url,
+              options: {
+                fetch: guard.fetch,
+                ...(ctx.timeoutMs !== undefined ? { timeoutMs: ctx.timeoutMs } : {}),
+              },
+            }),
+            guard,
+          };
         }
         return {
           translator: createTranslator({
             provider,
             secret,
-            options: { ...(ctx.fetch ? { fetch: ctx.fetch } : {}), ...(ctx.timeoutMs !== undefined ? { timeoutMs: ctx.timeoutMs } : {}) },
+            options: {
+              ...(ctx.fetch ? { fetch: ctx.fetch } : {}),
+              ...(ctx.timeoutMs !== undefined ? { timeoutMs: ctx.timeoutMs } : {}),
+            },
           }),
         };
       } catch (error) {
-        return failureForKind(error instanceof TranslateError ? error.kind : 'unavailable', provider);
+        return failureForKind(
+          error instanceof TranslateError ? error.kind : 'unavailable',
+          provider,
+        );
       }
     },
   };
@@ -242,20 +295,35 @@ export async function translateText(
   }
   let total = 0;
   for (const text of texts) {
-    if (typeof text !== 'string') return fail(400, 'invalid_request', 'Each text must be a string.');
+    if (typeof text !== 'string')
+      return fail(400, 'invalid_request', 'Each text must be a string.');
     if (text.length > limits.maxTextChars) {
-      return fail(400, 'translation_too_large', `A text may have at most ${limits.maxTextChars} characters.`);
+      return fail(
+        400,
+        'translation_too_large',
+        `A text may have at most ${limits.maxTextChars} characters.`,
+      );
     }
     total += text.length;
   }
   if (total > limits.maxRequestChars) {
-    return fail(400, 'translation_too_large', `At most ${limits.maxRequestChars} characters per call.`);
+    return fail(
+      400,
+      'translation_too_large',
+      `At most ${limits.maxRequestChars} characters per call.`,
+    );
   }
-  if (input.cache && input.cache.length !== texts.length) return fail(400, 'invalid_request', 'The cache keys do not match the texts.');
+  if (input.cache && input.cache.length !== texts.length)
+    return fail(400, 'invalid_request', 'The cache keys do not match the texts.');
   let source: string | undefined;
   if (input.source !== undefined && input.source !== '' && input.source.toLowerCase() !== 'auto') {
     source = normalizeLanguageTag(input.source);
-    if (!source) return fail(400, 'translation_unsupported_language', 'The source language is not a language tag.');
+    if (!source)
+      return fail(
+        400,
+        'translation_unsupported_language',
+        'The source language is not a language tag.',
+      );
   }
 
   const resolved = await resolveProvider(ctx, workspaceId, { target: input.target, actor });
@@ -273,7 +341,9 @@ export async function translateText(
       results[i] = { text, detectedSource: source };
     } else {
       const key = input.cache?.[i];
-      const hit = key ? await readCache(ctx.db, workspaceId, key, target, provider, sha256(text)) : undefined;
+      const hit = key
+        ? await readCache(ctx.db, workspaceId, key, target, provider, sha256(text))
+        : undefined;
       if (hit) {
         results[i] = hit;
         hits += 1;
@@ -283,18 +353,35 @@ export async function translateText(
     }
   }
   if (misses.length === 0) {
-    return { ok: true, provider, target, results: results as TranslatedItem[], cached: hits > 0, chars: 0 };
+    return {
+      ok: true,
+      provider,
+      target,
+      results: results as TranslatedItem[],
+      cached: hits > 0,
+      chars: 0,
+    };
   }
 
   const chars = misses.reduce((sum, i) => sum + (texts[i] as string).length, 0);
   const at = ctx.now();
-  const reservation = await reserveChars(ctx.db, { workspaceId, at, chars, budget: resolved.budget });
+  const reservation = await reserveChars(ctx.db, {
+    workspaceId,
+    at,
+    chars,
+    budget: resolved.budget,
+  });
   if (!reservation.ok) {
-    return fail(429, 'translation_budget', 'The daily translation budget of this workspace is used up. It resets at 00:00 UTC.', {
-      budget: reservation.budget,
-      used: reservation.used,
-      provider,
-    });
+    return fail(
+      429,
+      'translation_budget',
+      'The daily translation budget of this workspace is used up. It resets at 00:00 UTC.',
+      {
+        budget: reservation.budget,
+        used: reservation.used,
+        provider,
+      },
+    );
   }
   const refund = () => refundChars(ctx.db, { workspaceId, at, chars }).catch(() => undefined);
 
@@ -311,14 +398,20 @@ export async function translateText(
       ...(source !== undefined ? { source } : {}),
     });
     translated = out.results;
-    if (translated.length !== misses.length) throw new TranslateError('unavailable', { detail: 'count_mismatch' });
+    if (translated.length !== misses.length)
+      throw new TranslateError('unavailable', { detail: 'count_mismatch' });
   } catch (error) {
     await refund();
     const kind: TranslateErrorKind = error instanceof TranslateError ? error.kind : 'unavailable';
     const blocked = built.guard?.blocked();
-    const out = failureForKind(kind, provider, error instanceof TranslateError ? error.retryAfterSeconds : undefined);
+    const out = failureForKind(
+      kind,
+      provider,
+      error instanceof TranslateError ? error.retryAfterSeconds : undefined,
+    );
     // A refused address says so (a fixed sentence about the rule, never the address).
-    if (blocked) return { ...out, body: { ...out.body, reason: 'address_not_allowed', detail: blocked } };
+    if (blocked)
+      return { ...out, body: { ...out.body, reason: 'address_not_allowed', detail: blocked } };
     // A fixed hint such as http_404 or connection, so a broken setup can be told apart (never provider text).
     const hint = error instanceof TranslateError ? error.detail : undefined;
     return hint ? { ...out, body: { ...out.body, reason: hint } } : out;
@@ -330,7 +423,17 @@ export async function translateText(
   if (input.cache) {
     const toStore = misses.filter((i) => input.cache?.[i]);
     if (toStore.length > 0) {
-      await db_store(ctx, workspaceId, toStore.map((i) => ({ key: input.cache?.[i] as CacheKey, text: texts[i] as string, item: results[i] as TranslatedItem })), target, provider).catch(() => undefined);
+      await db_store(
+        ctx,
+        workspaceId,
+        toStore.map((i) => ({
+          key: input.cache?.[i] as CacheKey,
+          text: texts[i] as string,
+          item: results[i] as TranslatedItem,
+        })),
+        target,
+        provider,
+      ).catch(() => undefined);
     }
   }
   return { ok: true, provider, target, results: results as TranslatedItem[], cached: false, chars };
@@ -353,7 +456,10 @@ async function readCache(
     [workspaceId, key.reviewId, key.field, target, provider, hash],
   );
   if (!row) return undefined;
-  return { text: String(row.translated_text), ...(row.detected_source ? { detectedSource: String(row.detected_source) } : {}) };
+  return {
+    text: String(row.translated_text),
+    ...(row.detected_source ? { detectedSource: String(row.detected_source) } : {}),
+  };
 }
 
 async function db_store(
@@ -377,15 +483,34 @@ async function db_store(
            (id, workspace_id, app_id, review_id, field, target_lang, provider, source_hash, translated_text, detected_source, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (review_id, field, target_lang, provider, source_hash) DO NOTHING`,
-        [randomUUID(), workspaceId, key.appId, key.reviewId, key.field, target, provider, hash, item.text, item.detectedSource ?? null, at],
+        [
+          randomUUID(),
+          workspaceId,
+          key.appId,
+          key.reviewId,
+          key.field,
+          target,
+          provider,
+          hash,
+          item.text,
+          item.detectedSource ?? null,
+          at,
+        ],
       );
     }
   });
 }
 
 /** Removes every stored translation of an app (called when the app is deleted). */
-export async function deleteTranslationData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
-  await sql.execute('DELETE FROM review_translations WHERE app_id = ? AND workspace_id = ?', [appId, workspaceId]);
+export async function deleteTranslationData(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+): Promise<void> {
+  await sql.execute('DELETE FROM review_translations WHERE app_id = ? AND workspace_id = ?', [
+    appId,
+    workspaceId,
+  ]);
 }
 
 /** Translations whose review no longer exists (pruned by retention, or its app deleted). Bounded. */
@@ -425,13 +550,23 @@ export type TranslateReviewsSuccess = {
   stats: { reviews: number; fromCache: number; chars: number };
 };
 
-async function loadReviews(sql: Sql, workspaceId: string, appId: string, ids: string[]): Promise<ReviewRow[]> {
+async function loadReviews(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  ids: string[],
+): Promise<ReviewRow[]> {
   const rows = await sql.query(
     `SELECT id, title, body, language FROM app_reviews
       WHERE workspace_id = ? AND app_id = ? AND id IN (${ids.map(() => '?').join(', ')})`,
     [workspaceId, appId, ...ids],
   );
-  return rows.map((r) => ({ id: String(r.id), title: r.title === null ? null : String(r.title), body: String(r.body), language: r.language === null ? null : String(r.language) }));
+  return rows.map((r) => ({
+    id: String(r.id),
+    title: r.title === null ? null : String(r.title),
+    body: String(r.body),
+    language: r.language === null ? null : String(r.language),
+  }));
 }
 
 type Piece = { reviewId: string; field: 'title' | 'body'; text: string };
@@ -457,7 +592,10 @@ export async function translateReviews(
   const notFound = ids.filter((id) => !found.has(id));
 
   // Resolve once up front, so the answer names the provider and target even if every review is skipped.
-  const probe = await resolveProvider(ctx, workspaceId, { target: options.target, actor: options.actor ?? SYSTEM_ACTOR });
+  const probe = await resolveProvider(ctx, workspaceId, {
+    target: options.target,
+    actor: options.actor ?? SYSTEM_ACTOR,
+  });
   if ('ok' in probe) return probe;
   const { provider, target } = probe;
 
@@ -487,7 +625,10 @@ export async function translateReviews(
   let current: Piece[] = [];
   let size = 0;
   for (const piece of pieces) {
-    if (current.length >= translationLimits.maxTexts || size + piece.text.length > translationLimits.maxRequestChars) {
+    if (
+      current.length >= translationLimits.maxTexts ||
+      size + piece.text.length > translationLimits.maxRequestChars
+    ) {
       chunks.push(current);
       current = [];
       size = 0;
@@ -513,11 +654,13 @@ export async function translateReviews(
       const item = res.results[n] as TranslatedItem;
       entry[piece.field] = item.text;
       if (item.detectedSource && piece.field === 'body') entry.detectedSource = item.detectedSource;
-      else if (item.detectedSource && !entry.detectedSource) entry.detectedSource = item.detectedSource;
+      else if (item.detectedSource && !entry.detectedSource)
+        entry.detectedSource = item.detectedSource;
       if (res.chars > 0) entry.cached = false;
     });
   }
-  for (const entry of out.values()) if (entry.cached && !entry.title && !entry.body) entry.cached = false;
+  for (const entry of out.values())
+    if (entry.cached && !entry.title && !entry.body) entry.cached = false;
   fromCache = [...out.values()].filter((e) => e.cached).length;
   return {
     ok: true,
@@ -533,7 +676,20 @@ export async function translateReviews(
 /** The audit entry of a review translation request: counts and the provider, never text. */
 export async function auditReviewTranslation(
   sql: Sql,
-  input: { workspaceId: string; appId: string; actor: TranslationActor; at: number; trigger: 'request' | 'auto'; ok: boolean; provider?: string; target?: string; reviews?: number; fromCache?: number; chars?: number; code?: string },
+  input: {
+    workspaceId: string;
+    appId: string;
+    actor: TranslationActor;
+    at: number;
+    trigger: 'request' | 'auto';
+    ok: boolean;
+    provider?: string;
+    target?: string;
+    reviews?: number;
+    fromCache?: number;
+    chars?: number;
+    code?: string;
+  },
 ): Promise<void> {
   await recordAudit(sql, {
     workspaceId: input.workspaceId,
@@ -583,32 +739,82 @@ export async function autoTranslateNewReviews(
   try {
     if (newReviewIds.length === 0) return undefined;
     const settings = (await getSettings(ctx.db, workspaceId)).values;
-    if (settings['translation.enabled'] !== true || settings['translation.mode'] !== 'auto') return undefined;
+    if (settings['translation.enabled'] !== true || settings['translation.mode'] !== 'auto')
+      return undefined;
     const cap = translationLimits.maxAutoPerSync;
     const rows = (await loadReviewsByRecency(ctx.db, workspaceId, appId, newReviewIds))
-      .filter((r) => !r.language || !sameLanguage(r.language, String(settings['translation.targetLanguage'])))
+      .filter(
+        (r) =>
+          !r.language || !sameLanguage(r.language, String(settings['translation.targetLanguage'])),
+      )
       .slice(0, cap);
-    const summary: AutoTranslateSummary = { mode: 'auto', attempted: rows.length, translated: 0, fromCache: 0, chars: 0 };
+    const summary: AutoTranslateSummary = {
+      mode: 'auto',
+      attempted: rows.length,
+      translated: 0,
+      fromCache: 0,
+      chars: 0,
+    };
     if (rows.length === 0) return summary;
     const actor: TranslationActor = { type: 'system', id: 'review.sync' };
-    const res = await translateReviews(ctx, workspaceId, appId, rows.map((r) => r.id), { actor });
+    const res = await translateReviews(
+      ctx,
+      workspaceId,
+      appId,
+      rows.map((r) => r.id),
+      { actor },
+    );
     const at = ctx.now();
     if (!res.ok) {
       summary.error = String(res.body.error);
-      await auditReviewTranslation(ctx.db, { workspaceId, appId, actor, at, trigger: 'auto', ok: false, code: summary.error }).catch(() => undefined);
+      await auditReviewTranslation(ctx.db, {
+        workspaceId,
+        appId,
+        actor,
+        at,
+        trigger: 'auto',
+        ok: false,
+        code: summary.error,
+      }).catch(() => undefined);
       return summary;
     }
-    summary.translated = res.translations.filter((t) => t.title !== undefined || t.body !== undefined).length;
+    summary.translated = res.translations.filter(
+      (t) => t.title !== undefined || t.body !== undefined,
+    ).length;
     summary.fromCache = res.stats.fromCache;
     summary.chars = res.stats.chars;
-    await auditReviewTranslation(ctx.db, { workspaceId, appId, actor, at, trigger: 'auto', ok: true, provider: res.provider, target: res.target, reviews: res.stats.reviews, fromCache: res.stats.fromCache, chars: res.stats.chars }).catch(() => undefined);
+    await auditReviewTranslation(ctx.db, {
+      workspaceId,
+      appId,
+      actor,
+      at,
+      trigger: 'auto',
+      ok: true,
+      provider: res.provider,
+      target: res.target,
+      reviews: res.stats.reviews,
+      fromCache: res.stats.fromCache,
+      chars: res.stats.chars,
+    }).catch(() => undefined);
     return summary;
   } catch {
-    return { mode: 'auto', attempted: 0, translated: 0, fromCache: 0, chars: 0, error: 'translation_unavailable' };
+    return {
+      mode: 'auto',
+      attempted: 0,
+      translated: 0,
+      fromCache: 0,
+      chars: 0,
+      error: 'translation_unavailable',
+    };
   }
 }
 
-async function loadReviewsByRecency(sql: Sql, workspaceId: string, appId: string, ids: string[]): Promise<ReviewRow[]> {
+async function loadReviewsByRecency(
+  sql: Sql,
+  workspaceId: string,
+  appId: string,
+  ids: string[],
+): Promise<ReviewRow[]> {
   const rows: ReviewRow[] = [];
   for (let i = 0; i < ids.length; i += 200) {
     rows.push(...(await loadReviews(sql, workspaceId, appId, ids.slice(i, i + 200))));
@@ -629,7 +835,12 @@ async function loadReviewsByRecency(sql: Sql, workspaceId: string, appId: string
 // ---------------------------------------------------------------------------------------------
 // Tests of the configured provider
 
-export type TranslationTestOutcome = { ok: boolean; message: string; provider?: TranslationProvider; reason?: string };
+export type TranslationTestOutcome = {
+  ok: boolean;
+  message: string;
+  provider?: TranslationProvider;
+  reason?: string;
+};
 
 /** Translates one fixed word with the workspace's provider. Says ok or a fixed sentence; counts nothing against the budget. */
 export async function testTranslation(
@@ -638,9 +849,17 @@ export async function testTranslation(
   actor: TranslationActor,
 ): Promise<TranslationTestOutcome> {
   const resolved = await resolveProvider(ctx, workspaceId, { requireEnabled: false, actor });
-  if ('ok' in resolved) return { ok: false, message: resolved.body.message, ...(typeof resolved.body.reason === 'string' ? { reason: resolved.body.reason } : {}) };
+  if ('ok' in resolved)
+    return {
+      ok: false,
+      message: resolved.body.message,
+      ...(typeof resolved.body.reason === 'string' ? { reason: resolved.body.reason } : {}),
+    };
   const built = await resolved.build();
-  const outcome = 'ok' in built ? { ok: false as const, message: built.body.message } : await probe(built.translator, built.guard);
+  const outcome =
+    'ok' in built
+      ? { ok: false as const, message: built.body.message }
+      : await probe(built.translator, built.guard);
   await recordAudit(ctx.db, {
     workspaceId,
     actor,
@@ -651,11 +870,18 @@ export async function testTranslation(
   return { ...outcome, provider: resolved.provider };
 }
 
-async function probe(translator: Translator, guard?: GuardedFetch): Promise<{ ok: boolean; message: string; reason?: string }> {
+async function probe(
+  translator: Translator,
+  guard?: GuardedFetch,
+): Promise<{ ok: boolean; message: string; reason?: string }> {
   const result = await probeTranslator(translator);
   if (result.ok) return { ok: true, message: 'The provider translated a test word.' };
   const blocked = guard?.blocked();
-  return { ok: false, message: result.message, ...(blocked ? { reason: 'address_not_allowed', detail: blocked } : {}) } as { ok: boolean; message: string; reason?: string };
+  return {
+    ok: false,
+    message: result.message,
+    ...(blocked ? { reason: 'address_not_allowed', detail: blocked } : {}),
+  } as { ok: boolean; message: string; reason?: string };
 }
 
 /**
@@ -670,7 +896,11 @@ export async function testLibreTranslateSecret(
   const settings = (await getSettings(ctx.db, workspaceId)).values;
   const url = String(settings['translation.libretranslate.url']);
   if (url === '') {
-    return { ok: false, message: 'Set the LibreTranslate address under Settings, Translation first. The key is tested against that address.' };
+    return {
+      ok: false,
+      message:
+        'Set the LibreTranslate address under Settings, Translation first. The key is tested against that address.',
+    };
   }
   const guard = createGuardedFetch({
     ...(ctx.allowPrivateUrls ? { allowPrivate: true } : {}),
@@ -680,18 +910,36 @@ export async function testLibreTranslateSecret(
   });
   let translator: Translator;
   try {
-    translator = createTranslator({ provider: 'libretranslate', secret, baseUrl: url, options: { fetch: guard.fetch, timeoutMs: 8000 } });
+    translator = createTranslator({
+      provider: 'libretranslate',
+      secret,
+      baseUrl: url,
+      options: { fetch: guard.fetch, timeoutMs: 8000 },
+    });
   } catch {
     return { ok: false, message: translateErrorMessage('not_configured') };
   }
   const result = await probe(translator, guard);
-  return { ok: result.ok, message: result.ok ? 'The key works with the saved address: a test word was translated.' : result.message };
+  return {
+    ok: result.ok,
+    message: result.ok
+      ? 'The key works with the saved address: a test word was translated.'
+      : result.message,
+  };
 }
 
 /** Today's usage and the budget, for the Settings screen. */
-export async function translationUsageToday(sql: Sql, workspaceId: string, now: number): Promise<{ used: number; budget: number; day: string }> {
+export async function translationUsageToday(
+  sql: Sql,
+  workspaceId: string,
+  now: number,
+): Promise<{ used: number; budget: number; day: string }> {
   const settings = (await getSettings(sql, workspaceId)).values;
-  return { used: await getUsage(sql, workspaceId, now), budget: Number(settings['translation.dailyCharBudget']), day: new Date(now).toISOString().slice(0, 10) };
+  return {
+    used: await getUsage(sql, workspaceId, now),
+    budget: Number(settings['translation.dailyCharBudget']),
+    day: new Date(now).toISOString().slice(0, 10),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------

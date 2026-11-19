@@ -23,5 +23,9 @@ test('MRM_AI_ENABLED and MRM_AI_ALLOW_PRIVATE_URLS accept only true and false', 
       assert.throws(() => load({ [name]: bad }), new RegExp(name), `${name}=${bad}`);
     }
   }
-  assert.equal(load({ MRM_AI_ALLOW_PRIVATE_URLS: 'true' }).aiEnabled, false, 'the two are independent');
+  assert.equal(
+    load({ MRM_AI_ALLOW_PRIVATE_URLS: 'true' }).aiEnabled,
+    false,
+    'the two are independent',
+  );
 });

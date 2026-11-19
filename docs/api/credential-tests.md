@@ -34,7 +34,11 @@ and nothing is stored: the answer is about the old secret and must not appear ne
 `200`, always, when the test ran, whether or not it passed:
 
 ```json
-{ "ok": false, "message": "The installation ID does not belong to this app. ...", "details": ["App: Release Bot"] }
+{
+  "ok": false,
+  "message": "The installation ID does not belong to this app. ...",
+  "details": ["App: Release Bot"]
+}
 ```
 
 - `message` is a sentence a person can act on. `details` are short extra facts (account, scopes,

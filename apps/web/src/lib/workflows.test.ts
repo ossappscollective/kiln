@@ -9,8 +9,8 @@ import {
   matchesStatus,
   nameTokens,
   platformHints,
-  readProblemLabel,
   rankWorkflows,
+  readProblemLabel,
   rowsOf,
   runBlockedReason,
   runHints,
@@ -54,7 +54,13 @@ const run = (id: string, workflowFile: string, extra: Partial<WorkflowRun> = {})
 });
 
 test('nameTokens splits words, paths and camel case', () => {
-  assert.deepEqual(nameTokens('.github/workflows/iOS-Release.yml'), ['github', 'workflows', 'ios', 'release', 'yml']);
+  assert.deepEqual(nameTokens('.github/workflows/iOS-Release.yml'), [
+    'github',
+    'workflows',
+    'ios',
+    'release',
+    'yml',
+  ]);
   assert.deepEqual(nameTokens('buildAndroid'), ['build', 'android']);
 });
 
@@ -113,18 +119,30 @@ test('rankWorkflows puts the configured, then used, then named ones first; disab
 });
 
 test('rankWorkflows without context falls back to name hints and keeps order stable', () => {
-  const ranked = rankWorkflows([wf('1', 'Zeta', 'z.yml'), wf('2', 'Alpha', 'a.yml'), wf('3', 'Release', 'r.yml')]);
-  assert.deepEqual(ranked.map((e) => e.workflow.id), ['3', '2', '1']);
+  const ranked = rankWorkflows([
+    wf('1', 'Zeta', 'z.yml'),
+    wf('2', 'Alpha', 'a.yml'),
+    wf('3', 'Release', 'r.yml'),
+  ]);
+  assert.deepEqual(
+    ranked.map((e) => e.workflow.id),
+    ['3', '2', '1'],
+  );
 });
 
 test('splitRelevant folds the unmarked ones only when there are many and some are marked', () => {
   const few = rankWorkflows([wf('1', 'Build', 'b.yml'), wf('2', 'Lint', 'l.yml')]);
   assert.equal(splitRelevant(few).rest.length, 0);
-  const many = rankWorkflows([wf('0', 'Build', 'b.yml'), ...Array.from({ length: 9 }, (_, i) => wf(`o${i}`, `Other ${i}`, `o${i}.yml`)) ]);
+  const many = rankWorkflows([
+    wf('0', 'Build', 'b.yml'),
+    ...Array.from({ length: 9 }, (_, i) => wf(`o${i}`, `Other ${i}`, `o${i}.yml`)),
+  ]);
   const split = splitRelevant(many);
   assert.equal(split.shown.length, 1);
   assert.equal(split.rest.length, 9);
-  const unmarked = rankWorkflows(Array.from({ length: 12 }, (_, i) => wf(`o${i}`, `Other ${i}`, `o${i}.yml`)));
+  const unmarked = rankWorkflows(
+    Array.from({ length: 12 }, (_, i) => wf(`o${i}`, `Other ${i}`, `o${i}.yml`)),
+  );
   assert.equal(splitRelevant(unmarked).shown.length, 12);
 });
 
@@ -136,12 +154,23 @@ test('filterByPlatform keeps generic items, hides the other platform, and never 
   ];
   const hints = (i: (typeof items)[number]) => i.h;
   const ios = filterByPlatform(items, hints, ['ios'], ['ios', 'android']);
-  assert.deepEqual(ios.shown.map((i) => i.n), ['ios', 'any']);
-  assert.deepEqual(ios.hidden.map((i) => i.n), ['android']);
+  assert.deepEqual(
+    ios.shown.map((i) => i.n),
+    ['ios', 'any'],
+  );
+  assert.deepEqual(
+    ios.hidden.map((i) => i.n),
+    ['android'],
+  );
   assert.equal(ios.fellBack, false);
   const both = filterByPlatform(items, hints, ['ios', 'android'], ['ios', 'android']);
   assert.equal(both.shown.length, 3);
-  const onlyAndroid = filterByPlatform([items[0] as (typeof items)[number]], hints, ['android'], ['ios', 'android']);
+  const onlyAndroid = filterByPlatform(
+    [items[0] as (typeof items)[number]],
+    hints,
+    ['android'],
+    ['ios', 'android'],
+  );
   assert.equal(onlyAndroid.shown.length, 1);
   assert.equal(onlyAndroid.fellBack, true);
   const empty = filterByPlatform([], hints, ['ios'], ['ios', 'android']);
@@ -152,14 +181,31 @@ test('filterByPlatform keeps generic items, hides the other platform, and never 
 
 test('scopeNote says what was left out, or that nothing matched', () => {
   assert.equal(scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 0, fellBack: false }), '');
-  assert.equal(scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 1, fellBack: false }), '1 workflow for other platforms is hidden.');
-  assert.equal(scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 3, fellBack: false }), '3 workflows for other platforms are hidden.');
-  assert.match(scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 0, fellBack: true }), /No workflows are named for iOS/);
+  assert.equal(
+    scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 1, fellBack: false }),
+    '1 workflow for other platforms is hidden.',
+  );
+  assert.equal(
+    scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 3, fellBack: false }),
+    '3 workflows for other platforms are hidden.',
+  );
+  assert.match(
+    scopeNote({ noun: 'workflow', scopeLabel: 'iOS', hidden: 0, fellBack: true }),
+    /No workflows are named for iOS/,
+  );
 });
 
 test('lastRuns picks the newest run of each workflow', () => {
-  const list = [wf('1', 'iOS', 'ios.yml'), wf('2', 'Android', 'android.yml'), wf('3', 'Never', 'never.yml')];
-  const runs = [run('a', 'ios.yml', { startedAt: 10 }), run('b', 'ios.yml', { startedAt: 30 }), run('c', 'android.yml', { startedAt: 20 })];
+  const list = [
+    wf('1', 'iOS', 'ios.yml'),
+    wf('2', 'Android', 'android.yml'),
+    wf('3', 'Never', 'never.yml'),
+  ];
+  const runs = [
+    run('a', 'ios.yml', { startedAt: 10 }),
+    run('b', 'ios.yml', { startedAt: 30 }),
+    run('c', 'android.yml', { startedAt: 20 }),
+  ];
   const last = lastRuns(list, runs);
   assert.equal(last['1']?.id, 'b');
   assert.equal(last['2']?.id, 'c');
@@ -167,7 +213,11 @@ test('lastRuns picks the newest run of each workflow', () => {
 });
 
 test('workflowsFromRuns lists each workflow once and cannot be started', () => {
-  const found = workflowsFromRuns([run('a', 'ios.yml'), run('b', 'ios.yml'), run('c', 'android.yml')]);
+  const found = workflowsFromRuns([
+    run('a', 'ios.yml'),
+    run('b', 'ios.yml'),
+    run('c', 'android.yml'),
+  ]);
   assert.equal(found.length, 2);
   assert.ok(found.every((w) => w.state === 'unknown'));
   assert.ok(runBlockedReason(found[0] as CiWorkflow, true)?.includes('unknown'));
@@ -176,7 +226,10 @@ test('workflowsFromRuns lists each workflow once and cannot be started', () => {
 test('runBlockedReason names the role or the state', () => {
   assert.equal(runBlockedReason({ state: 'active' }, true), null);
   assert.match(runBlockedReason({ state: 'active' }, false) ?? '', /member or admin/);
-  assert.equal(runBlockedReason({ state: 'disabled_manually' }, true), 'This workflow is disabled manually on GitHub.');
+  assert.equal(
+    runBlockedReason({ state: 'disabled_manually' }, true),
+    'This workflow is disabled manually on GitHub.',
+  );
 });
 
 test('suggestAppId picks only what is not a guess', () => {
@@ -195,16 +248,35 @@ test('status filters and rows for the workspace list', () => {
   const r1 = { id: 'r1', owner: 'acme', repo: 'app', name: 'acme/app', defaultBranch: 'main' };
   const r2 = { id: 'r2', owner: 'acme', repo: 'web', name: 'acme/web', defaultBranch: 'main' };
   const rows = [
-    ...rowsOf(r2, rankWorkflows([wf('9', 'Deploy', 'deploy.yml')]), [run('z', 'deploy.yml', { status: 'in_progress', conclusion: null, active: true })]),
+    ...rowsOf(r2, rankWorkflows([wf('9', 'Deploy', 'deploy.yml')]), [
+      run('z', 'deploy.yml', { status: 'in_progress', conclusion: null, active: true }),
+    ]),
     ...rowsOf(r1, rankWorkflows([wf('1', 'iOS release', 'ios.yml'), wf('2', 'Lint', 'lint.yml')]), [
       run('a', 'ios.yml', { conclusion: 'failure' }),
     ]),
   ];
-  assert.deepEqual(sortRows(rows).map((r) => r.entry.workflow.id), ['9', '1', '2']);
-  assert.deepEqual(filterRows(rows, { repositoryId: 'r1', status: 'all' }).map((r) => r.entry.workflow.id).sort(), ['1', '2']);
-  assert.deepEqual(filterRows(rows, { repositoryId: '', status: 'running' }).map((r) => r.entry.workflow.id), ['9']);
-  assert.deepEqual(filterRows(rows, { repositoryId: '', status: 'failed' }).map((r) => r.entry.workflow.id), ['1']);
-  assert.deepEqual(filterRows(rows, { repositoryId: '', status: 'never' }).map((r) => r.entry.workflow.id), ['2']);
+  assert.deepEqual(
+    sortRows(rows).map((r) => r.entry.workflow.id),
+    ['9', '1', '2'],
+  );
+  assert.deepEqual(
+    filterRows(rows, { repositoryId: 'r1', status: 'all' })
+      .map((r) => r.entry.workflow.id)
+      .sort(),
+    ['1', '2'],
+  );
+  assert.deepEqual(
+    filterRows(rows, { repositoryId: '', status: 'running' }).map((r) => r.entry.workflow.id),
+    ['9'],
+  );
+  assert.deepEqual(
+    filterRows(rows, { repositoryId: '', status: 'failed' }).map((r) => r.entry.workflow.id),
+    ['1'],
+  );
+  assert.deepEqual(
+    filterRows(rows, { repositoryId: '', status: 'never' }).map((r) => r.entry.workflow.id),
+    ['2'],
+  );
   assert.equal(matchesStatus(null, 'succeeded'), false);
   assert.equal(matchesStatus(run('s', 'a.yml'), 'succeeded'), true);
 });

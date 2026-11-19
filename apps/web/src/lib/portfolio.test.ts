@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import { ApiError, createApi } from './api.ts';
 import {
   type AppDraft,
-  type BatchResult,
   addProblem,
   appErrorMessage,
   appFromError,
   appHref,
   appLabel,
+  type BatchResult,
   batchSummary,
   buildImportItems,
   candidateKey,
@@ -17,15 +17,15 @@ import {
   compareVersions,
   credentialsFor,
   describeError,
+  discoverableCredentials,
   discoverFailureMessage,
   discoverSummaryText,
-  discoverableCredentials,
   formatRollout,
   groupReleases,
+  importedApps,
   importItemMessage,
   importScopeNote,
   importSummaryText,
-  importedApps,
   latestByPlatform,
   latestRelease,
   lifecyclePath,
@@ -152,9 +152,17 @@ test('groups are per platform and track, iOS first, production before testing tr
   ]);
   assert.deepEqual(
     groups.map((g) => g.title),
-    ['iOS · App Store', 'Android · Production', 'Android · Internal testing', 'Android · zeta-wear'],
+    [
+      'iOS · App Store',
+      'Android · Production',
+      'Android · Internal testing',
+      'Android · zeta-wear',
+    ],
   );
-  assert.deepEqual(groups[0]?.releases.map((r) => r.version), ['1.2.0', '1.0.0']);
+  assert.deepEqual(
+    groups[0]?.releases.map((r) => r.version),
+    ['1.2.0', '1.0.0'],
+  );
   assert.equal(groups[1]?.latest.version, '1.1.0');
   assert.deepEqual(groupReleases([]), []);
 });
@@ -189,7 +197,15 @@ test('rollout fractions read as percentages', () => {
 });
 
 test('the lifecycle path follows the state machine of each platform', () => {
-  assert.deepEqual(lifecyclePath('ios'), ['draft', 'build_chosen', 'ready', 'in_review', 'approved', 'rolling_out', 'live']);
+  assert.deepEqual(lifecyclePath('ios'), [
+    'draft',
+    'build_chosen',
+    'ready',
+    'in_review',
+    'approved',
+    'rolling_out',
+    'live',
+  ]);
   assert.deepEqual(lifecyclePath('android'), [
     'draft',
     'build_chosen',
@@ -229,7 +245,10 @@ test('a rejected release sits on the review step and a halted one on the rollout
 });
 
 test('an android release can be propagating, an ios one has no such step', () => {
-  assert.equal(timeline('android', 'propagating').find((s) => s.position === 'current')?.state, 'propagating');
+  assert.equal(
+    timeline('android', 'propagating').find((s) => s.position === 'current')?.state,
+    'propagating',
+  );
   assert.deepEqual(timeline('ios', 'propagating'), []);
   assert.deepEqual(timeline('ios', null), []);
 });
@@ -241,19 +260,34 @@ test('apps sort by name without regard to case, then platform', () => {
     app({ id: '3', name: 'acme', platform: 'ios' }),
     app({ id: '4', name: 'Beta' }),
   ]);
-  assert.deepEqual(sorted.map((a) => a.id), ['3', '2', '4', '1']);
+  assert.deepEqual(
+    sorted.map((a) => a.id),
+    ['3', '2', '4', '1'],
+  );
 });
 
 test('the sync column says never, when, and what went wrong', () => {
-  assert.deepEqual(syncInfo(app({}), now), { kind: 'never', label: 'Never synced', error: null, attempt: null });
-  assert.deepEqual(syncInfo(app({ lastSyncedAt: now - 5 * 60_000, lastSyncAttemptAt: now - 5 * 60_000 }), now), {
-    kind: 'ok',
-    label: 'Synced 5 minutes ago',
+  assert.deepEqual(syncInfo(app({}), now), {
+    kind: 'never',
+    label: 'Never synced',
     error: null,
     attempt: null,
   });
+  assert.deepEqual(
+    syncInfo(app({ lastSyncedAt: now - 5 * 60_000, lastSyncAttemptAt: now - 5 * 60_000 }), now),
+    {
+      kind: 'ok',
+      label: 'Synced 5 minutes ago',
+      error: null,
+      attempt: null,
+    },
+  );
   const failed = syncInfo(
-    app({ lastSyncedAt: now - 3 * 3_600_000, lastSyncAttemptAt: now - 60_000, lastSyncError: 'The store rejected the key.' }),
+    app({
+      lastSyncedAt: now - 3 * 3_600_000,
+      lastSyncAttemptAt: now - 60_000,
+      lastSyncError: 'The store rejected the key.',
+    }),
     now,
   );
   assert.equal(failed.kind, 'failed');
@@ -272,11 +306,22 @@ test('sync results read as one sentence', () => {
     syncSummaryText('Acme', base),
     'Synced Acme: 3 releases, 1 added, 1 updated. 1 with a state that has no normalized status.',
   );
-  assert.equal(syncSummaryText('Acme', { ...base, found: 1, added: 0, updated: 0, unmapped: 0 }), 'Synced Acme: 1 release, no changes.');
-  assert.equal(syncSummaryText('Acme', { ...base, found: 0, added: 0, updated: 0, removed: 2 }), 'Synced Acme. The store reported no releases.');
+  assert.equal(
+    syncSummaryText('Acme', { ...base, found: 1, added: 0, updated: 0, unmapped: 0 }),
+    'Synced Acme: 1 release, no changes.',
+  );
+  assert.equal(
+    syncSummaryText('Acme', { ...base, found: 0, added: 0, updated: 0, removed: 2 }),
+    'Synced Acme. The store reported no releases.',
+  );
 });
 
-function apiError(status: number, code: string, body: Record<string, unknown> = {}, retryAfter?: number) {
+function apiError(
+  status: number,
+  code: string,
+  body: Record<string, unknown> = {},
+  retryAfter?: number,
+) {
   return new ApiError(status, code, 'raw message', retryAfter, { error: code, ...body });
 }
 
@@ -313,7 +358,12 @@ test('the credential message depends on whether you are adding or syncing', () =
   const error = apiError(422, 'credential_not_found');
   assert.match(appErrorMessage(error, 'add'), /Pick another/);
   assert.match(appErrorMessage(error, 'sync'), /was deleted/);
-  assert.equal(appErrorMessage(apiError(422, 'credential_kind', { message: 'iOS needs an App Store Connect credential.' })), 'iOS needs an App Store Connect credential.');
+  assert.equal(
+    appErrorMessage(
+      apiError(422, 'credential_kind', { message: 'iOS needs an App Store Connect credential.' }),
+    ),
+    'iOS needs an App Store Connect credential.',
+  );
 });
 
 test('a rate limit says who limited it and how long to wait', () => {
@@ -322,17 +372,29 @@ test('a rate limit says who limited it and how long to wait', () => {
   const store = apiError(429, 'rate_limited', { app: { id: 'a1' } }, 90);
   assert.match(appErrorMessage(store, 'sync'), /store asked us to slow down.*2 minutes/);
   assert.match(appErrorMessage(apiError(429, 'rate_limited')), /a minute/);
-  assert.match(appErrorMessage(apiError(429, 'rate_limited', { retryAfterSeconds: 1 })), /1 second\./);
+  assert.match(
+    appErrorMessage(apiError(429, 'rate_limited', { retryAfterSeconds: 1 })),
+    /1 second\./,
+  );
 });
 
 test('sync failures are classified so a batch knows whether to go on', () => {
   assert.equal(classifySyncError(apiError(409, 'sync_in_progress')).kind, 'busy');
   assert.equal(classifySyncError(apiError(429, 'rate_limited', {}, 20)).kind, 'limited');
   assert.equal(classifySyncError(apiError(429, 'rate_limited', {}, 20)).retryAfterSeconds, 20);
-  assert.equal(classifySyncError(apiError(429, 'rate_limited', { app: { id: 'a1' } })).kind, 'failed');
-  assert.equal(classifySyncError(apiError(422, 'store_auth', { app: { id: 'a1' } })).kind, 'failed');
+  assert.equal(
+    classifySyncError(apiError(429, 'rate_limited', { app: { id: 'a1' } })).kind,
+    'failed',
+  );
+  assert.equal(
+    classifySyncError(apiError(422, 'store_auth', { app: { id: 'a1' } })).kind,
+    'failed',
+  );
   assert.equal(classifySyncError(apiError(504, 'timeout')).kind, 'failed');
-  assert.equal(classifySyncError(new ApiError(0, 'network', 'Cannot reach the server.')).kind, 'abort');
+  assert.equal(
+    classifySyncError(new ApiError(0, 'network', 'Cannot reach the server.')).kind,
+    'abort',
+  );
   assert.equal(classifySyncError(apiError(401, 'unauthenticated')).kind, 'abort');
   assert.equal(classifySyncError(new TypeError('boom')).kind, 'failed');
 });
@@ -400,17 +462,32 @@ test('credentials are filtered by the kind the platform needs', () => {
     { id: '2', kind: 'google_play' },
     { id: '3', kind: 'github_token' },
   ];
-  assert.deepEqual(credentialsFor('ios', all).map((c) => c.id), ['1']);
-  assert.deepEqual(credentialsFor('android', all).map((c) => c.id), ['2']);
+  assert.deepEqual(
+    credentialsFor('ios', all).map((c) => c.id),
+    ['1'],
+  );
+  assert.deepEqual(
+    credentialsFor('android', all).map((c) => c.id),
+    ['2'],
+  );
 });
 
 test('a valid draft becomes the request, leaving out what is empty', () => {
   const result = validateDraft(draft({ identifier: '  com.acme.app ' }));
-  assert.deepEqual(result, { ok: true, input: { platform: 'ios', identifier: 'com.acme.app', credentialId: 'c1' } });
+  assert.deepEqual(result, {
+    ok: true,
+    input: { platform: 'ios', identifier: 'com.acme.app', credentialId: 'c1' },
+  });
   const full = validateDraft(draft({ name: ' Acme Mobile ', repositoryId: 'r1' }));
   assert.deepEqual(full, {
     ok: true,
-    input: { platform: 'ios', identifier: 'com.acme.app', credentialId: 'c1', name: 'Acme Mobile', repositoryId: 'r1' },
+    input: {
+      platform: 'ios',
+      identifier: 'com.acme.app',
+      credentialId: 'c1',
+      name: 'Acme Mobile',
+      repositoryId: 'r1',
+    },
   });
 });
 
@@ -423,7 +500,10 @@ test('a draft with mistakes says which field and why', () => {
   }
   assert.equal(validateDraft(draft({ identifier: 'com acme' })).ok, false);
   assert.equal(validateDraft(draft({ platform: 'android', identifier: 'acme' })).ok, false);
-  assert.equal(validateDraft(draft({ platform: 'android', identifier: 'com.acme.app_2' })).ok, true);
+  assert.equal(
+    validateDraft(draft({ platform: 'android', identifier: 'com.acme.app_2' })).ok,
+    true,
+  );
   assert.equal(validateDraft(draft({ platform: 'android', identifier: 'com.1acme' })).ok, false);
   assert.equal(validateDraft(draft({ identifier: `a.${'b'.repeat(160)}` })).ok, false);
   const longName = validateDraft(draft({ name: 'x'.repeat(101) }));
@@ -435,13 +515,24 @@ test('a draft with mistakes says which field and why', () => {
 test('a refusal from the create call is shown beside its field', () => {
   assert.equal(addProblem(apiError(409, 'already_exists')).field, 'identifier');
   assert.equal(addProblem(apiError(422, 'credential_not_found')).field, 'credentialId');
-  assert.equal(addProblem(apiError(422, 'credential_kind', { message: 'Wrong kind.' })).message, 'Wrong kind.');
+  assert.equal(
+    addProblem(apiError(422, 'credential_kind', { message: 'Wrong kind.' })).message,
+    'Wrong kind.',
+  );
   assert.equal(addProblem(apiError(422, 'repository_not_found')).field, 'repositoryId');
   assert.deepEqual(
-    addProblem(apiError(400, 'invalid_request', { issues: [{ path: 'identifier', message: 'Not a valid package name.' }] })),
+    addProblem(
+      apiError(400, 'invalid_request', {
+        issues: [{ path: 'identifier', message: 'Not a valid package name.' }],
+      }),
+    ),
     { field: 'identifier', message: 'Not a valid package name.' },
   );
-  assert.equal(addProblem(apiError(400, 'invalid_request', { issues: [{ path: 'other', message: 'x' }] })).field, 'form');
+  assert.equal(
+    addProblem(apiError(400, 'invalid_request', { issues: [{ path: 'other', message: 'x' }] }))
+      .field,
+    'form',
+  );
   assert.equal(addProblem(apiError(500, 'weird')).field, 'form');
 });
 
@@ -464,15 +555,29 @@ test('runLimited runs every item and never more than the limit at once', async (
 });
 
 test('a batch is summarised in one sentence', () => {
-  const result = (status: BatchResult['status']): BatchResult => ({ appId: status, name: status, status, message: '' });
+  const result = (status: BatchResult['status']): BatchResult => ({
+    appId: status,
+    name: status,
+    status,
+    message: '',
+  });
   assert.equal(batchSummary([result('ok'), result('ok')]), 'Synced 2 of 2 apps.');
   assert.equal(batchSummary([result('ok')]), 'Synced 1 of 1 app.');
   assert.equal(
-    batchSummary([result('ok'), result('failed'), result('busy'), result('skipped'), result('skipped')]),
+    batchSummary([
+      result('ok'),
+      result('failed'),
+      result('busy'),
+      result('skipped'),
+      result('skipped'),
+    ]),
     'Synced 1 of 5 apps. 1 failed, 1 already syncing, 2 not run.',
   );
   assert.equal(notRunMessage(null), 'Not run: you stopped the sync.');
-  assert.match(notRunMessage(classifySyncError(apiError(429, 'rate_limited', {}, 30))), /^Not run: This workspace has run too many syncs/);
+  assert.match(
+    notRunMessage(classifySyncError(apiError(429, 'rate_limited', {}, 30))),
+    /^Not run: This workspace has run too many syncs/,
+  );
 });
 
 test('describeError words ApiErrors and hides anything else', () => {
@@ -480,12 +585,23 @@ test('describeError words ApiErrors and hides anything else', () => {
   assert.equal(describeError(new TypeError('boom')), 'Something went wrong. Try again.');
 });
 
-function fakeFetch(status: number, body: unknown, calls: Array<{ url: string; method: string; body?: string }> = []) {
+function fakeFetch(
+  status: number,
+  body: unknown,
+  calls: Array<{ url: string; method: string; body?: string }> = [],
+) {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(input), method: init?.method ?? 'GET', body: init?.body as string | undefined });
+    calls.push({
+      url: String(input),
+      method: init?.method ?? 'GET',
+      body: init?.body as string | undefined,
+    });
     return new Response(body === undefined ? null : JSON.stringify(body), {
       status,
-      headers: { 'content-type': 'application/json', ...(status === 429 ? { 'retry-after': '12' } : {}) },
+      headers: {
+        'content-type': 'application/json',
+        ...(status === 429 ? { 'retry-after': '12' } : {}),
+      },
     });
   };
 }
@@ -506,7 +622,10 @@ test('the apps endpoints use the documented paths', async () => {
       'POST /api/workspaces/w%201/apps',
     ],
   );
-  assert.equal(calls[3]?.body, '{"platform":"ios","identifier":"com.acme.app","credentialId":"c1"}');
+  assert.equal(
+    calls[3]?.body,
+    '{"platform":"ios","identifier":"com.acme.app","credentialId":"c1"}',
+  );
   const deleting = createApi({ fetch: fakeFetch(204, undefined, calls) });
   assert.equal(await deleting.deleteApp('w1', 'a1'), undefined);
   assert.equal(calls[4]?.method, 'DELETE');
@@ -515,7 +634,11 @@ test('the apps endpoints use the documented paths', async () => {
 test('a failed sync keeps the error body, with the app, on the ApiError', async () => {
   const sent = app({ id: 'a1', lastSyncError: 'The store rejected the key.' });
   const api = createApi({
-    fetch: fakeFetch(422, { error: 'store_auth', message: 'The store rejected the key.', app: sent }),
+    fetch: fakeFetch(422, {
+      error: 'store_auth',
+      message: 'The store rejected the key.',
+      app: sent,
+    }),
   });
   const outcome = await syncApp(api, 'w1', 'a1');
   assert.equal(outcome.ok, false);
@@ -527,7 +650,11 @@ test('a failed sync keeps the error body, with the app, on the ApiError', async 
 
 test('a rate limit from the workspace stops a batch and carries the wait', async () => {
   const api = createApi({
-    fetch: fakeFetch(429, { error: 'rate_limited', message: 'Too many syncs.', retryAfterSeconds: 12 }),
+    fetch: fakeFetch(429, {
+      error: 'rate_limited',
+      message: 'Too many syncs.',
+      retryAfterSeconds: 12,
+    }),
   });
   const outcome = await syncApp(api, 'w1', 'a1');
   assert.equal(outcome.ok, false);
@@ -555,7 +682,9 @@ function candidate(partial: Partial<DiscoverCandidate>): DiscoverCandidate {
 
 test('the discovery and import endpoints use the documented paths and bodies', async () => {
   const calls: Array<{ url: string; method: string; body?: string }> = [];
-  const api = createApi({ fetch: fakeFetch(200, { candidates: [], failures: [], results: [], summary: {} }, calls) });
+  const api = createApi({
+    fetch: fakeFetch(200, { candidates: [], failures: [], results: [], summary: {} }, calls),
+  });
   await api.discoverApps('w 1', { credentialId: 'c1', packages: ['com.acme.app'] });
   await api.importApps('w 1', {
     credentialId: 'c1',
@@ -586,19 +715,29 @@ test('only App Store Connect and Google Play credentials can find apps', () => {
 });
 
 test('a pasted package list is split, deduplicated and checked line by line', () => {
-  const list = parsePackageList('com.acme.app\n\n  com.acme.other  \r\ncom.acme.app\nnodots\ncom.x.y, com.x.z\n1bad.pkg');
+  const list = parsePackageList(
+    'com.acme.app\n\n  com.acme.other  \r\ncom.acme.app\nnodots\ncom.x.y, com.x.z\n1bad.pkg',
+  );
   assert.deepEqual(list.packages, ['com.acme.app', 'com.acme.other', 'com.x.y', 'com.x.z']);
   assert.equal(list.duplicates, 1);
   assert.deepEqual(list.invalid, [
     { line: 5, value: 'nodots' },
     { line: 7, value: '1bad.pkg' },
   ]);
-  assert.match(packageListProblem(list), /^Line 5 is not a package name: “nodots” \(and 1 more\)\./);
+  assert.match(
+    packageListProblem(list),
+    /^Line 5 is not a package name: “nodots” \(and 1 more\)\./,
+  );
   assert.equal(packageListProblem(parsePackageList('com.acme.app')), '');
   assert.match(packageListProblem(parsePackageList('  \n')), /at least one package name/);
   const many = Array.from({ length: 51 }, (_, i) => `com.acme.app${i}`).join('\n');
   assert.match(packageListProblem(parsePackageList(many)), /at most 50 packages.*51/);
-  assert.equal(packageListProblem(parsePackageList(Array.from({ length: 50 }, (_, i) => `a.b${i}`).join('\n'))), '');
+  assert.equal(
+    packageListProblem(
+      parsePackageList(Array.from({ length: 50 }, (_, i) => `a.b${i}`).join('\n')),
+    ),
+    '',
+  );
   // Package names are case sensitive.
   assert.deepEqual(parsePackageList('com.Acme.app\ncom.acme.app').packages.length, 2);
   // A very long entry is shortened in the message and never accepted.
@@ -609,7 +748,10 @@ test('a pasted package list is split, deduplicated and checked line by line', ()
 
 test('candidates are selected by platform and identifier, bundle ids without case', () => {
   assert.equal(candidateKey({ platform: 'ios', identifier: 'COM.Acme.App' }), 'ios:com.acme.app');
-  assert.equal(candidateKey({ platform: 'android', identifier: 'com.Acme.app' }), 'android:com.Acme.app');
+  assert.equal(
+    candidateKey({ platform: 'android', identifier: 'com.Acme.app' }),
+    'android:com.Acme.app',
+  );
   const added = candidate({ identifier: 'com.acme.old', alreadyAdded: true, appId: 'a9' });
   const fresh = candidate({});
   assert.deepEqual(selectableCandidates([added, fresh]), [fresh]);
@@ -622,12 +764,18 @@ test('candidates are selected by platform and identifier, bundle ids without cas
 
 test('the discovery summary counts what was found, verified and already added', () => {
   const ios = [candidate({}), candidate({ identifier: 'com.acme.b', alreadyAdded: true })];
-  assert.equal(discoverSummaryText({ kind: 'app_store_connect', candidates: ios, failures: [] }), 'Found 2 apps. 1 already added.');
+  assert.equal(
+    discoverSummaryText({ kind: 'app_store_connect', candidates: ios, failures: [] }),
+    'Found 2 apps. 1 already added.',
+  );
   assert.equal(
     discoverSummaryText({ kind: 'app_store_connect', candidates: [candidate({})], failures: [] }),
     'Found 1 app.',
   );
-  assert.equal(discoverSummaryText({ kind: 'app_store_connect', candidates: [], failures: [] }), 'This key can see no apps.');
+  assert.equal(
+    discoverSummaryText({ kind: 'app_store_connect', candidates: [], failures: [] }),
+    'This key can see no apps.',
+  );
   assert.equal(
     discoverSummaryText({
       kind: 'google_play',
@@ -639,15 +787,29 @@ test('the discovery summary counts what was found, verified and already added', 
 });
 
 test('every per-package error code of discovery has advice a person can act on', () => {
-  for (const code of ['store_not_found', 'store_forbidden', 'store_auth', 'rate_limited', 'timeout', 'store_unavailable', 'discover_failed']) {
+  for (const code of [
+    'store_not_found',
+    'store_forbidden',
+    'store_auth',
+    'rate_limited',
+    'timeout',
+    'store_unavailable',
+    'discover_failed',
+  ]) {
     const text = discoverFailureMessage({ error: code, message: 'raw server text' });
     assert.ok(text.length > 30, code);
     assert.ok(!text.includes('raw server text'), code);
   }
   assert.match(discoverFailureMessage({ error: 'store_forbidden', message: '' }), /Play Console/);
   // An unknown code shows what the server said, or a plain fallback.
-  assert.equal(discoverFailureMessage({ error: 'new_code', message: ' Something specific. ' }), 'Something specific.');
-  assert.equal(discoverFailureMessage({ error: 'new_code', message: '' }), 'This package could not be verified.');
+  assert.equal(
+    discoverFailureMessage({ error: 'new_code', message: ' Something specific. ' }),
+    'Something specific.',
+  );
+  assert.equal(
+    discoverFailureMessage({ error: 'new_code', message: '' }),
+    'This package could not be verified.',
+  );
 });
 
 test('the discovery and import error codes read well in the add dialog', () => {
@@ -655,26 +817,58 @@ test('the discovery and import error codes read well in the add dialog', () => {
     ({ status, code, message: 'raw', body }) as const;
   assert.match(appErrorMessage(error('packages_required'), 'discover'), /package names/);
   assert.match(appErrorMessage(error('discover_failed', {}, 502), 'discover'), /could not be read/);
-  assert.match(appErrorMessage(error('credential_not_found'), 'discover'), /no longer exists\. Pick another/);
-  assert.match(appErrorMessage(error('credential_not_found'), 'import'), /no longer exists\. Pick another/);
-  assert.equal(appErrorMessage(error('credential_kind', { message: 'Server says so.' }), 'discover'), 'Server says so.');
-  assert.match(appErrorMessage(error('rate_limited', { retryAfterSeconds: 30 }, 429), 'discover'), /too often.*30 seconds/);
+  assert.match(
+    appErrorMessage(error('credential_not_found'), 'discover'),
+    /no longer exists\. Pick another/,
+  );
+  assert.match(
+    appErrorMessage(error('credential_not_found'), 'import'),
+    /no longer exists\. Pick another/,
+  );
+  assert.equal(
+    appErrorMessage(error('credential_kind', { message: 'Server says so.' }), 'discover'),
+    'Server says so.',
+  );
+  assert.match(
+    appErrorMessage(error('rate_limited', { retryAfterSeconds: 30 }, 429), 'discover'),
+    /too often.*30 seconds/,
+  );
   // A sync keeps its own wording.
-  assert.match(appErrorMessage(error('rate_limited', { retryAfterSeconds: 30 }, 429), 'sync'), /too many syncs/);
+  assert.match(
+    appErrorMessage(error('rate_limited', { retryAfterSeconds: 30 }, 429), 'sync'),
+    /too many syncs/,
+  );
   assert.match(appErrorMessage(error('store_forbidden'), 'discover'), /no access/);
-  assert.equal(appErrorMessage(error('timeout', {}, 504), 'discover'), 'The store did not answer in time. Try again.');
+  assert.equal(
+    appErrorMessage(error('timeout', {}, 504), 'discover'),
+    'The store did not answer in time. Try again.',
+  );
 });
 
 test('import items carry the store id and name of the selected, addable candidates only', () => {
   const a = candidate({ storeId: '1', identifier: 'com.acme.a', name: ' Alpha ' });
   const b = candidate({ storeId: '2', identifier: 'com.acme.b', name: 'Beta' });
   const old = candidate({ storeId: '3', identifier: 'com.acme.old', alreadyAdded: true });
-  const droid = candidate({ platform: 'android', storeId: 'com.acme.d', identifier: 'com.acme.d', name: '' });
+  const droid = candidate({
+    platform: 'android',
+    storeId: 'com.acme.d',
+    identifier: 'com.acme.d',
+    name: '',
+  });
   const selected = new Set([candidateKey(a), candidateKey(old), candidateKey(droid)]);
   assert.deepEqual(
-    buildImportItems([a, b, old, droid], selected, { [candidateKey(a)]: 'r1', [candidateKey(droid)]: '' }),
+    buildImportItems([a, b, old, droid], selected, {
+      [candidateKey(a)]: 'r1',
+      [candidateKey(droid)]: '',
+    }),
     [
-      { platform: 'ios', identifier: 'com.acme.a', storeAppId: '1', name: 'Alpha', repositoryId: 'r1' },
+      {
+        platform: 'ios',
+        identifier: 'com.acme.a',
+        storeAppId: '1',
+        name: 'Alpha',
+        repositoryId: 'r1',
+      },
       { platform: 'android', identifier: 'com.acme.d', storeAppId: 'com.acme.d' },
     ],
   );
@@ -685,22 +879,59 @@ test('long lists are split into requests the server accepts, and the answers are
   assert.deepEqual(chunk([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
   assert.deepEqual(chunk([], 50), []);
   const part = (identifier: string, status: 'created' | 'skipped' | 'failed'): ImportResult => ({
-    results: [{ platform: 'ios', identifier, status, ...(status === 'created' ? { app: app({ id: identifier }) } : {}) }],
-    summary: { created: status === 'created' ? 1 : 0, skipped: status === 'skipped' ? 1 : 0, failed: status === 'failed' ? 1 : 0 },
+    results: [
+      {
+        platform: 'ios',
+        identifier,
+        status,
+        ...(status === 'created' ? { app: app({ id: identifier }) } : {}),
+      },
+    ],
+    summary: {
+      created: status === 'created' ? 1 : 0,
+      skipped: status === 'skipped' ? 1 : 0,
+      failed: status === 'failed' ? 1 : 0,
+    },
   });
-  const merged = mergeImports([part('a', 'created'), part('b', 'skipped'), part('c', 'failed'), part('d', 'created')]);
+  const merged = mergeImports([
+    part('a', 'created'),
+    part('b', 'skipped'),
+    part('c', 'failed'),
+    part('d', 'created'),
+  ]);
   assert.deepEqual(merged.summary, { created: 2, skipped: 1, failed: 1 });
-  assert.deepEqual(merged.results.map((r) => r.identifier), ['a', 'b', 'c', 'd']);
-  assert.deepEqual(importedApps(merged).map((a) => a.id), ['a', 'd']);
+  assert.deepEqual(
+    merged.results.map((r) => r.identifier),
+    ['a', 'b', 'c', 'd'],
+  );
+  assert.deepEqual(
+    importedApps(merged).map((a) => a.id),
+    ['a', 'd'],
+  );
 });
 
 test('the import summary and the per-item messages are plain sentences', () => {
   assert.equal(importSummaryText({ created: 3, skipped: 0, failed: 0 }), 'Added 3 apps.');
-  assert.equal(importSummaryText({ created: 1, skipped: 1, failed: 2 }), 'Added 1 app. 1 was already added, 2 could not be added.');
-  assert.equal(importSummaryText({ created: 0, skipped: 2, failed: 0 }), 'No app was added. 2 were already added.');
-  assert.equal(importItemMessage({ status: 'skipped', error: 'already_exists' }), 'Already in this workspace.');
-  assert.match(importItemMessage({ status: 'failed', error: 'repository_not_found' }), /repository is not connected/);
-  assert.equal(importItemMessage({ status: 'failed', error: 'credential_kind', message: 'Wrong kind.' }), 'Wrong kind.');
+  assert.equal(
+    importSummaryText({ created: 1, skipped: 1, failed: 2 }),
+    'Added 1 app. 1 was already added, 2 could not be added.',
+  );
+  assert.equal(
+    importSummaryText({ created: 0, skipped: 2, failed: 0 }),
+    'No app was added. 2 were already added.',
+  );
+  assert.equal(
+    importItemMessage({ status: 'skipped', error: 'already_exists' }),
+    'Already in this workspace.',
+  );
+  assert.match(
+    importItemMessage({ status: 'failed', error: 'repository_not_found' }),
+    /repository is not connected/,
+  );
+  assert.equal(
+    importItemMessage({ status: 'failed', error: 'credential_kind', message: 'Wrong kind.' }),
+    'Wrong kind.',
+  );
   assert.equal(importItemMessage({ status: 'created' }), '');
 });
 
@@ -709,15 +940,28 @@ test('syncing the imported apps goes one by one, reports progress, and stops on 
   const fine = {
     async syncApp(_w: string, id: string) {
       seen.push(id);
-      return { app: app({ id }), releases: [], sync: { at: now, found: 1, added: 1, updated: 0, removed: 0, unmapped: 0 } };
+      return {
+        app: app({ id }),
+        releases: [],
+        sync: { at: now, found: 1, added: 1, updated: 0, removed: 0, unmapped: 0 },
+      };
     },
   };
   const progress: string[] = [];
-  const done = await syncApps(fine, 'w1', [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], (results, current) =>
-    progress.push(`${current}|${results.map((r) => r.status).join(',')}`),
+  const done = await syncApps(
+    fine,
+    'w1',
+    [
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' },
+    ],
+    (results, current) => progress.push(`${current}|${results.map((r) => r.status).join(',')}`),
   );
   assert.deepEqual(seen, ['a', 'b']);
-  assert.deepEqual(done.map((r) => r.status), ['ok', 'ok']);
+  assert.deepEqual(
+    done.map((r) => r.status),
+    ['ok', 'ok'],
+  );
   assert.deepEqual(progress, ['A|running,pending', '|ok,pending', 'B|ok,running', '|ok,ok']);
   assert.equal(batchSummary(done), 'Synced 2 of 2 apps.');
 
@@ -736,7 +980,10 @@ test('syncing the imported apps goes one by one, reports progress, and stops on 
     { id: 'c', name: 'C' },
     { id: 'd', name: 'D' },
   ]);
-  assert.deepEqual(stopped.map((r) => r.status), ['failed', 'busy', 'failed', 'skipped']);
+  assert.deepEqual(
+    stopped.map((r) => r.status),
+    ['failed', 'busy', 'failed', 'skipped'],
+  );
   assert.deepEqual(calls, ['a', 'b', 'c'], 'nothing is sent after the limit');
   assert.match(stopped[3]?.message ?? '', /^Not run: .*20 seconds/);
 });
@@ -744,8 +991,18 @@ test('syncing the imported apps goes one by one, reports progress, and stops on 
 // ---------------------------------------------------------------------------------------------
 // The same identifier on iOS and Android (a bundle id equal to a package name) is two apps.
 
-const sameIos = candidate({ platform: 'ios', storeId: '1499117252', identifier: 'com.acme.same', name: 'Same' });
-const sameDroid = candidate({ platform: 'android', storeId: 'com.acme.same', identifier: 'com.acme.same', name: 'Same' });
+const sameIos = candidate({
+  platform: 'ios',
+  storeId: '1499117252',
+  identifier: 'com.acme.same',
+  name: 'Same',
+});
+const sameDroid = candidate({
+  platform: 'android',
+  storeId: 'com.acme.same',
+  identifier: 'com.acme.same',
+  name: 'Same',
+});
 
 test('the selection key includes the platform, so one identifier on two platforms is two entries', () => {
   assert.notEqual(candidateKey(sameIos), candidateKey(sameDroid));
@@ -756,7 +1013,10 @@ test('the selection key includes the platform, so one identifier on two platform
   assert.equal(one.has(candidateKey(sameDroid)), false);
   const both = withSelection(one, candidateKey(sameDroid), true);
   assert.equal(both.size, 2);
-  assert.deepEqual([...withSelection(both, candidateKey(sameIos), false)], [candidateKey(sameDroid)]);
+  assert.deepEqual(
+    [...withSelection(both, candidateKey(sameIos), false)],
+    [candidateKey(sameDroid)],
+  );
   // A list that holds both keeps both items, in order, each with its own store id.
   assert.deepEqual(buildImportItems([sameIos, sameDroid], both), [
     { platform: 'ios', identifier: 'com.acme.same', storeAppId: '1499117252', name: 'Same' },
@@ -780,19 +1040,44 @@ test('already added is decided per candidate: the other platform stays selectabl
     'Checked 1 package: 1 verified. 1 already added.',
   );
   // Chunking never merges or drops items: both land in some piece.
-  const pieces = chunk(buildImportItems([sameIos, sameDroid], new Set([candidateKey(sameIos), candidateKey(sameDroid)])), 1);
-  assert.deepEqual(pieces.map((p) => p.map((i) => i.platform)), [['ios'], ['android']]);
+  const pieces = chunk(
+    buildImportItems(
+      [sameIos, sameDroid],
+      new Set([candidateKey(sameIos), candidateKey(sameDroid)]),
+    ),
+    1,
+  );
+  assert.deepEqual(
+    pieces.map((p) => p.map((i) => i.platform)),
+    [['ios'], ['android']],
+  );
 });
 
 test('merged imports and the summary keep both apps and name the platform', () => {
   const part = (platform: 'ios' | 'android', id: string): ImportResult => ({
-    results: [{ platform, identifier: 'com.acme.same', status: 'created', app: app({ id, platform, identifier: 'com.acme.same' }) }],
+    results: [
+      {
+        platform,
+        identifier: 'com.acme.same',
+        status: 'created',
+        app: app({ id, platform, identifier: 'com.acme.same' }),
+      },
+    ],
     summary: { created: 1, skipped: 0, failed: 0 },
   });
   const merged = mergeImports([part('ios', 'a1'), part('android', 'a2')]);
   assert.deepEqual(merged.summary, { created: 2, skipped: 0, failed: 0 });
-  assert.deepEqual(importedApps(merged).map((a) => [a.id, a.platform]), [['a1', 'ios'], ['a2', 'android']]);
-  assert.equal(importSummaryText(merged.summary, merged.results), 'Added 1 Android app and 1 iOS app.');
+  assert.deepEqual(
+    importedApps(merged).map((a) => [a.id, a.platform]),
+    [
+      ['a1', 'ios'],
+      ['a2', 'android'],
+    ],
+  );
+  assert.equal(
+    importSummaryText(merged.summary, merged.results),
+    'Added 1 Android app and 1 iOS app.',
+  );
   const iosOnly = mergeImports([part('ios', 'a1')]);
   assert.equal(importSummaryText(iosOnly.summary, iosOnly.results), 'Added 1 iOS app.');
   assert.equal(
@@ -812,31 +1097,53 @@ test('labels and notes tell the platforms apart', () => {
   assert.equal(appLabel({ name: 'Same', platform: 'android' }), 'Same (Android)');
   assert.equal(platformCount('ios', 1), '1 iOS app');
   assert.equal(platformCount('android', 2), '2 Android apps');
-  assert.match(importScopeNote('ios'), /iOS and macOS apps only.*Android app with the same identifier.*Google Play credential/);
+  assert.match(
+    importScopeNote('ios'),
+    /iOS and macOS apps only.*Android app with the same identifier.*Google Play credential/,
+  );
   assert.equal(importScopeNote('macos'), importScopeNote('ios'));
-  assert.match(importScopeNote('android'), /Android apps only.*iOS or macOS app with the same identifier.*App Store Connect credential/);
+  assert.match(
+    importScopeNote('android'),
+    /Android apps only.*iOS or macOS app with the same identifier.*App Store Connect credential/,
+  );
 });
 
 test('sync results name the platform, so two apps with one name are not confused', async () => {
   const api = {
     async syncApp(_w: string, id: string) {
       if (id === 'a2') throw new ApiError(422, 'store_auth', 'raw');
-      return { app: app({ id }), releases: [], sync: { at: now, found: 1, added: 1, updated: 0, removed: 0, unmapped: 0 } };
+      return {
+        app: app({ id }),
+        releases: [],
+        sync: { at: now, found: 1, added: 1, updated: 0, removed: 0, unmapped: 0 },
+      };
     },
   };
   const seen: string[] = [];
   const results = await syncApps(
     api,
     'w1',
-    [app({ id: 'a1', name: 'Same', platform: 'ios' }), app({ id: 'a2', name: 'Same', platform: 'android' })],
+    [
+      app({ id: 'a1', name: 'Same', platform: 'ios' }),
+      app({ id: 'a2', name: 'Same', platform: 'android' }),
+    ],
     (_r, current) => {
       if (current) seen.push(current);
     },
   );
-  assert.deepEqual(results.map((r) => [r.appId, r.name, r.status]), [
-    ['a1', 'Same (iOS)', 'ok'],
-    ['a2', 'Same (Android)', 'failed'],
-  ]);
+  assert.deepEqual(
+    results.map((r) => [r.appId, r.name, r.status]),
+    [
+      ['a1', 'Same (iOS)', 'ok'],
+      ['a2', 'Same (Android)', 'failed'],
+    ],
+  );
   assert.deepEqual(seen, ['Same (iOS)', 'Same (Android)']);
-  assert.deepEqual(sortApps([app({ id: 'a2', name: 'Same', platform: 'android' }), app({ id: 'a1', name: 'Same', platform: 'ios' })]).map((a) => a.platform), ['ios', 'android']);
+  assert.deepEqual(
+    sortApps([
+      app({ id: 'a2', name: 'Same', platform: 'android' }),
+      app({ id: 'a1', name: 'Same', platform: 'ios' }),
+    ]).map((a) => a.platform),
+    ['ios', 'android'],
+  );
 });

@@ -1,6 +1,13 @@
-import { type MoveComparison, type RankDownloadsMissing, type RankDownloadsView, type RankMarker, type RankSeries, rankDownloadsLimits } from '@mrm/core';
-import { type Box, type Geometry, niceTicks, plot } from './analytics-chart.ts';
+import {
+  type MoveComparison,
+  type RankDownloadsMissing,
+  type RankDownloadsView,
+  type RankMarker,
+  type RankSeries,
+  rankDownloadsLimits,
+} from '@mrm/core';
 import { formatCountExact, formatDay } from './analytics.ts';
+import { type Box, type Geometry, niceTicks, plot } from './analytics-chart.ts';
 
 /**
  * Rank versus downloads in the web (docs/api/aso.md): the shape of `GET /aso/rank-vs-downloads` and the pure logic of the view. The numbers
@@ -11,7 +18,14 @@ import { formatCountExact, formatDay } from './analytics.ts';
  * says that a rank move changed downloads.
  */
 
-export type RankKeywordChoice = { id: string; term: string; locale: string; priority: number; checks: number; lastCheckedAt: number | null };
+export type RankKeywordChoice = {
+  id: string;
+  term: string;
+  locale: string;
+  priority: number;
+  checks: number;
+  lastCheckedAt: number | null;
+};
 
 export type RankVsDownloadsResponse = RankDownloadsView & {
   appId: string;
@@ -39,17 +53,27 @@ export const DEFAULT_DAYS = 90;
 export const MAX_DRAWN = 3;
 export const dashes: string[] = ['', '7 4', '2 4'];
 
-export function queryText(query: { country?: string; keywords?: readonly string[]; from?: string; to?: string }): string {
+export function queryText(query: {
+  country?: string;
+  keywords?: readonly string[];
+  from?: string;
+  to?: string;
+}): string {
   const params: string[] = [];
   if (query.country) params.push(`country=${encodeURIComponent(query.country)}`);
-  if (query.keywords && query.keywords.length > 0) params.push(`keywords=${query.keywords.map(encodeURIComponent).join(',')}`);
+  if (query.keywords && query.keywords.length > 0)
+    params.push(`keywords=${query.keywords.map(encodeURIComponent).join(',')}`);
   if (query.from) params.push(`from=${encodeURIComponent(query.from)}`);
   if (query.to) params.push(`to=${encodeURIComponent(query.to)}`);
   return params.length === 0 ? '' : `?${params.join('&')}`;
 }
 
 /** The ids to draw after a person ticks or unticks one: at most `MAX_DRAWN`, the oldest choice dropped when a fourth is ticked. */
-export function toggleKeyword(selected: readonly string[], id: string, limit = MAX_DRAWN): string[] {
+export function toggleKeyword(
+  selected: readonly string[],
+  id: string,
+  limit = MAX_DRAWN,
+): string[] {
   if (selected.indexOf(id) >= 0) return selected.filter((s) => s !== id);
   const next = selected.concat(id);
   return next.length > limit ? next.slice(next.length - limit) : next;
@@ -66,17 +90,34 @@ export type Gate =
   /** Hidden: something is missing, said plainly. */
   | { kind: 'missing'; text: string; action: 'analytics' | 'keywords' | 'refresh' | 'none' };
 
-const missingText: Record<RankDownloadsMissing, { text: string; action: 'analytics' | 'keywords' | 'refresh' | 'none' }> = {
+const missingText: Record<
+  RankDownloadsMissing,
+  { text: string; action: 'analytics' | 'keywords' | 'refresh' | 'none' }
+> = {
   turn_on_analytics: { text: 'Turn on Analytics to see downloads.', action: 'analytics' },
-  no_downloads: { text: 'No download numbers are stored for this app and period yet. Sync or import them in Analytics.', action: 'analytics' },
-  no_rank_checks: { text: 'No rank checks of these keywords in this period. Check the keywords first.', action: 'refresh' },
+  no_downloads: {
+    text: 'No download numbers are stored for this app and period yet. Sync or import them in Analytics.',
+    action: 'analytics',
+  },
+  no_rank_checks: {
+    text: 'No rank checks of these keywords in this period. Check the keywords first.',
+    action: 'refresh',
+  },
 };
 
 /** Whether to draw, and what to say when not. Fewer than 14 days of either series hides the chart and the comparisons. */
-export function gateOf(view: Pick<RankVsDownloadsResponse, 'enough' | 'missing' | 'coverage' | 'available' | 'selected'>): Gate {
-  if (view.available.length === 0) return { kind: 'missing', text: 'No keywords are tracked for this storefront. Track some to compare their rank with downloads.', action: 'keywords' };
+export function gateOf(
+  view: Pick<RankVsDownloadsResponse, 'enough' | 'missing' | 'coverage' | 'available' | 'selected'>,
+): Gate {
+  if (view.available.length === 0)
+    return {
+      kind: 'missing',
+      text: 'No keywords are tracked for this storefront. Track some to compare their rank with downloads.',
+      action: 'keywords',
+    };
   if (view.missing) return { kind: 'missing', ...missingText[view.missing] };
-  if (view.selected.length === 0) return { kind: 'missing', text: 'Choose a keyword to draw.', action: 'none' };
+  if (view.selected.length === 0)
+    return { kind: 'missing', text: 'Choose a keyword to draw.', action: 'none' };
   if (!view.enough) {
     const c = view.coverage;
     return {
@@ -91,7 +132,10 @@ export function gateOf(view: Pick<RankVsDownloadsResponse, 'enough' | 'missing' 
 export function delayLine(view: Pick<RankVsDownloadsResponse, 'downloads'>): string | null {
   const d = view.downloads;
   if (!d) return null;
-  const lag = d.source === 'apple' ? 'Apple reports downloads about 2 days late' : 'Play files reach this server 3 to 7 days late';
+  const lag =
+    d.source === 'apple'
+      ? 'Apple reports downloads about 2 days late'
+      : 'Play files reach this server 3 to 7 days late';
   return `${lag}. The shaded days at the right edge may still change, and a move is not compared until the days after it have settled (through ${formatDay(d.settledThrough, true)}).`;
 }
 
@@ -164,12 +208,20 @@ function outLevel(series: readonly RankSeries[]): { out: number; anyOut: boolean
 
 /** The words of a marker: "coffee timer: 30 to 5 on 2026-10-12". */
 export function markerText(m: RankMarker, term: string): string {
-  const move = m.kind === 'entered' ? `entered the results at ${m.to}` : m.kind === 'dropped' ? `left the results (was ${m.from})` : `${m.from} to ${m.to}`;
+  const move =
+    m.kind === 'entered'
+      ? `entered the results at ${m.to}`
+      : m.kind === 'dropped'
+        ? `left the results (was ${m.from})`
+        : `${m.from} to ${m.to}`;
   return `${term}: ${move} on ${formatDay(m.day, true)}`;
 }
 
 /** The inverted rank panel: rank 1 at the top, "not ranked" at the bottom, a gap where there was no check, a marker where a big move showed. */
-export function rankPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' | 'markers' | 'selected'>, box: Box): RankGeometry {
+export function rankPanel(
+  view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' | 'markers' | 'selected'>,
+  box: Box,
+): RankGeometry {
   const n = Math.max(1, view.days.length);
   const plotW = Math.max(1, box.width - box.left - box.right);
   const plotH = Math.max(1, box.height - box.top - box.bottom);
@@ -177,10 +229,13 @@ export function rankPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords
   const xCenter = (i: number): number => box.left + (i + 0.5) * slot;
   const { out, anyOut, total } = outLevel(view.keywords);
   let best = Number.POSITIVE_INFINITY;
-  for (const s of view.keywords) for (const sample of s.samples) if (sample && sample.rank !== null) best = Math.min(best, sample.rank);
+  for (const s of view.keywords)
+    for (const sample of s.samples)
+      if (sample && sample.rank !== null) best = Math.min(best, sample.rank);
   const top = Number.isFinite(best) ? Math.min(best, 1) : 1;
   const bottom = Math.max(top + 1, anyOut ? out : maxRank(view.keywords));
-  const y = (rank: number): number => box.top + plotH * ((Math.min(bottom, Math.max(top, rank)) - top) / (bottom - top));
+  const y = (rank: number): number =>
+    box.top + plotH * ((Math.min(bottom, Math.max(top, rank)) - top) / (bottom - top));
 
   // Rank 1 is always labelled at the top; the other ticks are clean numbers that keep clear of it.
   const ticks: RankGeometry['ticks'] = [{ value: top, y: y(top), label: String(top) }];
@@ -201,7 +256,12 @@ export function rankPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords
         current = null;
         return;
       }
-      const p = { x: r1(xCenter(i)), y: r1(y(sample.rank === null ? out : sample.rank)), i, rank: sample.rank };
+      const p = {
+        x: r1(xCenter(i)),
+        y: r1(y(sample.rank === null ? out : sample.rank)),
+        i,
+        rank: sample.rank,
+      };
       if (!current) {
         current = { d: '', points: [] };
         runs.push(current);
@@ -210,7 +270,13 @@ export function rankPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords
       current.d += `${current.points.length === 1 ? 'M' : 'L'}${p.x},${p.y}`;
     });
     const lastRun = runs[runs.length - 1];
-    return { id: s.id, term: s.term, pattern: pattern % dashes.length, runs, last: lastRun ? (lastRun.points[lastRun.points.length - 1] ?? null) : null };
+    return {
+      id: s.id,
+      term: s.term,
+      pattern: pattern % dashes.length,
+      runs,
+      last: lastRun ? (lastRun.points[lastRun.points.length - 1] ?? null) : null,
+    };
   });
 
   const markers: MarkerShape[] = [];
@@ -241,7 +307,9 @@ export function rankPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords
 
 function maxRank(series: readonly RankSeries[]): number {
   let deepest = 1;
-  for (const s of series) for (const sample of s.samples) if (sample && sample.rank !== null) deepest = Math.max(deepest, sample.rank);
+  for (const s of series)
+    for (const sample of s.samples)
+      if (sample && sample.rank !== null) deepest = Math.max(deepest, sample.rank);
   return deepest;
 }
 
@@ -252,7 +320,10 @@ export function firstUnsettled(days: readonly string[], settledThrough: string):
 }
 
 /** The downloads panel: columns from zero, hatched days with no number, a wash on days the store may still change. */
-export function downloadsPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'downloads'>, box: Box): Geometry | null {
+export function downloadsPanel(
+  view: Pick<RankVsDownloadsResponse, 'days' | 'downloads'>,
+  box: Box,
+): Geometry | null {
   const d = view.downloads;
   if (!d) return null;
   const from = firstUnsettled(view.days, d.settledThrough);
@@ -267,16 +338,27 @@ export function downloadsPanel(view: Pick<RankVsDownloadsResponse, 'days' | 'dow
 }
 
 /** The day under a horizontal position (inside the plot), or null outside it. */
-export function dayIndexAt(geo: Pick<RankGeometry, 'box' | 'slot' | 'count'>, x: number): number | null {
+export function dayIndexAt(
+  geo: Pick<RankGeometry, 'box' | 'slot' | 'count'>,
+  x: number,
+): number | null {
   const rel = x - geo.box.left;
   if (rel < 0 || rel > geo.slot * geo.count) return null;
   return Math.max(0, Math.min(geo.count - 1, Math.floor(rel / geo.slot)));
 }
 
-export type Tip = { heading: string; downloads: string; provisional: boolean; ranks: { id: string; term: string; pattern: number; text: string }[] };
+export type Tip = {
+  heading: string;
+  downloads: string;
+  provisional: boolean;
+  ranks: { id: string; term: string; pattern: number; text: string }[];
+};
 
 /** What the tooltip of one day lists: each keyword's rank (or "no check") and the downloads. */
-export function tipFor(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' | 'downloads'>, i: number): Tip | null {
+export function tipFor(
+  view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' | 'downloads'>,
+  i: number,
+): Tip | null {
   const day = view.days[i];
   if (day === undefined) return null;
   const d = view.downloads;
@@ -289,14 +371,20 @@ export function tipFor(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' |
     provisional,
     ranks: view.keywords.map((s, pattern) => {
       const sample = s.samples[i];
-      const text = !sample ? 'No check' : sample.rank === null ? `Not in the first ${sample.total}` : `Rank ${sample.rank}`;
+      const text = !sample
+        ? 'No check'
+        : sample.rank === null
+          ? `Not in the first ${sample.total}`
+          : `Rank ${sample.rank}`;
       return { id: s.id, term: s.term, pattern: pattern % dashes.length, text };
     }),
   };
 }
 
 /** The name a screen reader gets for the chart: what it shows and the span. */
-export function chartName(view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' | 'downloads'>): string {
+export function chartName(
+  view: Pick<RankVsDownloadsResponse, 'days' | 'keywords' | 'downloads'>,
+): string {
   const first = view.days[0];
   const last = view.days[view.days.length - 1];
   const terms = view.keywords.map((k) => k.term).join(', ');
@@ -328,7 +416,12 @@ const avg = (n: number | null): string => (n === null ? 'none' : String(Math.rou
 /** A plain sentence per comparison. No causal wording; the days compared are in the label. */
 export function whatChanged(c: MoveComparison, term: string): WhatChanged {
   const m = c.marker;
-  const move = m.kind === 'entered' ? `entered the results at ${m.to}` : m.kind === 'dropped' ? `left the results (was ${m.from})` : `moved from ${m.from} to ${m.to}`;
+  const move =
+    m.kind === 'entered'
+      ? `entered the results at ${m.to}`
+      : m.kind === 'dropped'
+        ? `left the results (was ${m.from})`
+        : `moved from ${m.from} to ${m.to}`;
   const head = `${term} ${move} on ${formatDay(m.day, true)}`;
   let detail: string;
   let label: string;
@@ -339,7 +432,10 @@ export function whatChanged(c: MoveComparison, term: string): WhatChanged {
     detail = `Not enough days with a download number: ${c.before.days} before and ${c.after.days} after (at least ${rankDownloadsLimits.minWindowDays} each).`;
     label = `Correlation, not proof. ${c.before.days} days before and ${c.after.days} days after had numbers.`;
   } else {
-    const pct = c.changePercent === null ? 'no change figure, there were no downloads before' : `${c.changePercent > 0 ? '+' : ''}${c.changePercent}%`;
+    const pct =
+      c.changePercent === null
+        ? 'no change figure, there were no downloads before'
+        : `${c.changePercent > 0 ? '+' : ''}${c.changePercent}%`;
     detail = `Downloads per day: ${avg(c.before.perDay)} in the ${c.before.days} days before, ${avg(c.after.perDay)} in the ${c.after.days} days after (${pct}).`;
     label = `Correlation, not proof. Compared ${c.before.days} days before with ${c.after.days} days after.`;
   }
@@ -350,10 +446,22 @@ export function whatChanged(c: MoveComparison, term: string): WhatChanged {
     label,
     percent: c.status === 'ok' ? c.changePercent : null,
     status: c.status,
-    overlap: c.overlapsOtherMove ? 'Another rank move falls in these days, so the two share them.' : null,
-    gap: c.checkGapDays > 1 ? `The ranks were checked ${c.checkGapDays} days apart, so the move happened on one of those days.` : null,
+    overlap: c.overlapsOtherMove
+      ? 'Another rank move falls in these days, so the two share them.'
+      : null,
+    gap:
+      c.checkGapDays > 1
+        ? `The ranks were checked ${c.checkGapDays} days apart, so the move happened on one of those days.`
+        : null,
   };
 }
 
-export const whatChangedList = (view: Pick<RankVsDownloadsResponse, 'comparisons' | 'keywords'>): WhatChanged[] =>
-  view.comparisons.map((c) => whatChanged(c, view.keywords.filter((k) => k.id === c.marker.keywordId)[0]?.term ?? 'A keyword'));
+export const whatChangedList = (
+  view: Pick<RankVsDownloadsResponse, 'comparisons' | 'keywords'>,
+): WhatChanged[] =>
+  view.comparisons.map((c) =>
+    whatChanged(
+      c,
+      view.keywords.filter((k) => k.id === c.marker.keywordId)[0]?.term ?? 'A keyword',
+    ),
+  );

@@ -49,22 +49,42 @@ test('platforms map to a store and a platform glyph', () => {
   assert.equal(storeForPlatform('IOS').store, 'app_store');
   assert.equal(storeForPlatform('macos').store, 'mac_app_store');
   assert.equal(storeForPlatform('macos').label, 'Mac App Store');
-  assert.deepEqual([platformById('macos').label, platformById('macos').icon], ['macOS', 'platform-macos']);
+  assert.deepEqual(
+    [platformById('macos').label, platformById('macos').icon],
+    ['macOS', 'platform-macos'],
+  );
   assert.equal(platformById('MacOS').platform, 'macos');
   assert.equal(storeForPlatform('windows').store, 'generic');
   assert.equal(storeForPlatform(null).store, 'generic');
   assert.deepEqual([platformById('ios').label, platformById('ios').icon], ['iOS', 'platform-ios']);
-  assert.deepEqual([platformById('android').label, platformById('android').icon], ['Android', 'platform-android']);
+  assert.deepEqual(
+    [platformById('android').label, platformById('android').icon],
+    ['Android', 'platform-android'],
+  );
   assert.equal(platformById('Android').platform, 'android');
   assert.equal(platformById('tizen').platform, 'unknown');
   assert.equal(platformById(undefined).icon, 'smartphone');
 });
 
 test('repository hosts: GitHub by name, anything else a neutral Git host', () => {
-  for (const host of ['github.com', 'GitHub.com', 'www.github.com', ' github.com ', 'api.github.com']) {
+  for (const host of [
+    'github.com',
+    'GitHub.com',
+    'www.github.com',
+    ' github.com ',
+    'api.github.com',
+  ]) {
     assert.equal(storeForRepositoryHost(host).store, 'github', host);
   }
-  for (const host of ['gitlab.com', 'notgithub.com', 'github.com.evil.example', 'bitbucket.org', '', null, undefined]) {
+  for (const host of [
+    'gitlab.com',
+    'notgithub.com',
+    'github.com.evil.example',
+    'bitbucket.org',
+    '',
+    null,
+    undefined,
+  ]) {
     assert.equal(storeForRepositoryHost(host).store, 'git', String(host));
   }
 });
@@ -85,16 +105,38 @@ test('an unknown store id is the neutral generic store', () => {
 
 test('badge variants: icon-only names the glyph, chip and full show text', () => {
   const play = storeInfo.google_play;
-  assert.deepEqual(storeBadgeText(play, 'icon'), { visible: '', name: 'Google Play Console', iconNeedsTitle: true });
-  assert.deepEqual(storeBadgeText(play, 'chip'), { visible: 'Google Play', name: 'Google Play', iconNeedsTitle: false });
-  assert.deepEqual(storeBadgeText(play, 'full'), { visible: 'Google Play Console', name: 'Google Play Console', iconNeedsTitle: false });
+  assert.deepEqual(storeBadgeText(play, 'icon'), {
+    visible: '',
+    name: 'Google Play Console',
+    iconNeedsTitle: true,
+  });
+  assert.deepEqual(storeBadgeText(play, 'chip'), {
+    visible: 'Google Play',
+    name: 'Google Play',
+    iconNeedsTitle: false,
+  });
+  assert.deepEqual(storeBadgeText(play, 'full'), {
+    visible: 'Google Play Console',
+    name: 'Google Play Console',
+    iconNeedsTitle: false,
+  });
   assert.equal(storeBadgeText(storeInfo.app_store, 'full').visible, 'App Store Connect');
-  for (const id of storeIds) for (const variant of ['icon', 'chip', 'full'] as const) assert.ok(storeBadgeText(storeInfo[id], variant).name.length > 0);
+  for (const id of storeIds)
+    for (const variant of ['icon', 'chip', 'full'] as const)
+      assert.ok(storeBadgeText(storeInfo[id], variant).name.length > 0);
 });
 
 test('platform badge text: the label is hidden visually but kept as the name', () => {
-  assert.deepEqual(platformBadgeText(platformInfo.ios, true), { visible: 'iOS', name: 'iOS', iconNeedsTitle: false });
-  assert.deepEqual(platformBadgeText(platformInfo.android, false), { visible: '', name: 'Android', iconNeedsTitle: false });
+  assert.deepEqual(platformBadgeText(platformInfo.ios, true), {
+    visible: 'iOS',
+    name: 'iOS',
+    iconNeedsTitle: false,
+  });
+  assert.deepEqual(platformBadgeText(platformInfo.android, false), {
+    visible: '',
+    name: 'Android',
+    iconNeedsTitle: false,
+  });
 });
 
 test('only the App Store and Google Play use a tint; the rest stay neutral', () => {

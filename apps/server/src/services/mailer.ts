@@ -49,10 +49,12 @@ export type MailResult = { ok: true } | { ok: false; code: MailErrorCode; hint?:
 
 /** One plain sentence per code, for the UI and the API. Never includes anything a mail server said. */
 export const MAIL_ERROR_MESSAGES: Record<MailErrorCode, string> = {
-  smtp_not_configured: 'No mail server is set up. An admin can add one in Settings, Mail, or the person who runs this server sets MRM_SMTP_HOST.',
+  smtp_not_configured:
+    'No mail server is set up. An admin can add one in Settings, Mail, or the person who runs this server sets MRM_SMTP_HOST.',
   smtp_connection_failed: 'The mail server could not be reached. Check the host name and the port.',
   smtp_auth_failed: 'The mail server refused the user name or password.',
-  smtp_tls_failed: 'A secure connection to the mail server could not be made. Check the security setting and the server certificate.',
+  smtp_tls_failed:
+    'A secure connection to the mail server could not be made. Check the security setting and the server certificate.',
   smtp_rejected: 'The mail server did not accept the message.',
   smtp_timeout: 'The mail server did not answer in time.',
 };
@@ -123,10 +125,20 @@ export function createFakeMailer(options: { now?: () => number } = {}): FakeMail
       if (!fake.isConfigured) return { ok: false, code: 'smtp_not_configured' };
       if (fake.failWith) return { ok: false, code: fake.failWith };
       const to = (Array.isArray(input.to) ? input.to : [input.to]).map((a) => a.trim());
-      if (to.length === 0 || to.length > 20 || to.some((a) => !/^[^\s@<>",;\\]+@[^\s@<>",;\\]+$/.test(a))) {
+      if (
+        to.length === 0 ||
+        to.length > 20 ||
+        to.some((a) => !/^[^\s@<>",;\\]+@[^\s@<>",;\\]+$/.test(a))
+      ) {
         return { ok: false, code: 'smtp_rejected', hint: 'invalid_address' };
       }
-      fake.sent.push({ to, subject: input.subject, text: input.text, ...(input.html === undefined ? {} : { html: input.html }), at: now() });
+      fake.sent.push({
+        to,
+        subject: input.subject,
+        text: input.text,
+        ...(input.html === undefined ? {} : { html: input.html }),
+        at: now(),
+      });
       return { ok: true };
     },
     last: () => fake.sent[fake.sent.length - 1],

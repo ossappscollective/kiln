@@ -34,13 +34,13 @@ gets `401`. Times are epoch milliseconds.
 
 ## Rights
 
-| Action | viewer | member | admin / owner |
-| --- | --- | --- | --- |
-| `listing.read`: `GET .../listing/live`, `.../listing/drift`, `.../listing/history` | yes | yes | yes |
-| `repositories.scan`: `POST .../listing/repo-refresh` | no | yes | yes |
-| `listing.read` and `changesets.write`: `POST .../listing/pull` (a draft; approving it still needs `changesets.approve`) | no | yes | yes |
-| `apps.sync` as well, only with `refresh: true` in that pull | no | yes | yes |
-| `apps.sync`: refresh the store side (`POST /apps/:id/sync`) | no | yes | yes |
+| Action                                                                                                                  | viewer | member | admin / owner |
+| ----------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ------------- |
+| `listing.read`: `GET .../listing/live`, `.../listing/drift`, `.../listing/history`                                      | yes    | yes    | yes           |
+| `repositories.scan`: `POST .../listing/repo-refresh`                                                                    | no     | yes    | yes           |
+| `listing.read` and `changesets.write`: `POST .../listing/pull` (a draft; approving it still needs `changesets.approve`) | no     | yes    | yes           |
+| `apps.sync` as well, only with `refresh: true` in that pull                                                             | no     | yes    | yes           |
+| `apps.sync`: refresh the store side (`POST /apps/:id/sync`)                                                             | no     | yes    | yes           |
 
 Why viewers read it: the values are the public texts of a store page, plus the repository's copy of
 them; they hold no secret, and viewers already read the portfolio. No response contains a credential,
@@ -55,11 +55,11 @@ The sync's own `credential.use` covers the store read.
 Every value has a **source**, and a new snapshot row is stored **only when the value changed**
 (compared by hash), so a history has no repeats however often the app is synced.
 
-| `source` | When it is recorded | `sourceRef` | `channel` |
-| --- | --- | --- | --- |
-| `store` | each app sync (best effort) | the store version string, or `null` | `live` or `editable` |
-| `repo` | `POST .../listing/repo-refresh` | the commit sha that was read | `default` |
-| `change_set` | a change set of this app that was applied (found on the next read of drift or history, once per change set) | the change set id | `default` |
+| `source`     | When it is recorded                                                                                         | `sourceRef`                         | `channel`            |
+| ------------ | ----------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------- |
+| `store`      | each app sync (best effort)                                                                                 | the store version string, or `null` | `live` or `editable` |
+| `repo`       | `POST .../listing/repo-refresh`                                                                             | the commit sha that was read        | `default`            |
+| `change_set` | a change set of this app that was applied (found on the next read of drift or history, once per change set) | the change set id                   | `default`            |
 
 - **Channels (App Store).** Apple keeps the live version and the next version apart. The `live`
   channel is the version that is on sale; the `editable` channel is a version a person can still
@@ -79,18 +79,18 @@ Every value has a **source**, and a new snapshot row is stored **only when the v
 The values map into the listing model of `@mrm/core` (the same fields and limits as the listing
 editor and the repository listing). A field a store does not have is simply never present.
 
-| Field | App Store | Google Play |
-| --- | --- | --- |
-| `name` / `title` | `name` (app info) | `title` |
-| `subtitle` | `subtitle` (app info) | none |
-| `short_description` | none | `shortDescription` |
-| `description` / `full_description` | `description` (version) | `fullDescription` |
-| `keywords` | `keywords` (version) | none |
-| `promotional_text` | `promotionalText` (version) | none |
-| `release_notes` | `whatsNew` (version) | none (release notes belong to a track release, not read here) |
-| `marketing_url`, `support_url` | version | none |
-| `privacy_url`, `apple_tv_privacy_policy` | `privacyPolicyUrl`, `privacyPolicyText` (app info) | none |
-| `video` | none | `video` |
+| Field                                    | App Store                                          | Google Play                                                   |
+| ---------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| `name` / `title`                         | `name` (app info)                                  | `title`                                                       |
+| `subtitle`                               | `subtitle` (app info)                              | none                                                          |
+| `short_description`                      | none                                               | `shortDescription`                                            |
+| `description` / `full_description`       | `description` (version)                            | `fullDescription`                                             |
+| `keywords`                               | `keywords` (version)                               | none                                                          |
+| `promotional_text`                       | `promotionalText` (version)                        | none                                                          |
+| `release_notes`                          | `whatsNew` (version)                               | none (release notes belong to a track release, not read here) |
+| `marketing_url`, `support_url`           | version                                            | none                                                          |
+| `privacy_url`, `apple_tv_privacy_policy` | `privacyPolicyUrl`, `privacyPolicyText` (app info) | none                                                          |
+| `video`                                  | none                                               | `video`                                                       |
 
 Not read: in-app purchase and subscription texts, Apple's phased release, and anything not named under
 "Sections beyond the texts". Play's `changelogs` model field stays empty; Play release notes are the
@@ -104,14 +104,14 @@ and compared with the repository by `GET .../listing/drift` (`sections`). They a
 never pulled into the repository** (`POST .../listing/pull` takes text fields only; asking for a
 section name there is a `422 invalid_field`).
 
-| Section | App Store (App Store Connect API) | Google Play (Play Developer API) |
-| --- | --- | --- |
-| `categories` | `primaryCategory`, `secondaryCategory`, `primarySubcategoryOne/Two`, `secondarySubcategoryOne/Two` of the live app info, as the category ids (`GAMES`, `GAMES_CARD`) | **Not in the API.** None of the Play resources has an app category; it is set in Play Console only, so there is no section |
-| `ageRating` | `ageRatingDeclaration` of the app info (its answers, such as `violenceCartoonOrFantasy: "NONE"`) and the label `AppInfo.appStoreAgeRating` | **Not read.** None of the `edits` resources this tool reads has one (as far as the reference pages say); the content rating questionnaire is answered in Play Console |
-| `privacy` | `privacyChoicesUrl` per locale (`appInfoLocalizations`). The privacy **policy** URL is the text field `privacy_url` | none |
-| `details` | `copyright` of the version | `edits.details`: default language, contact email and website. The contact **phone number is not read** |
-| `media` | screenshot sets and preview sets per locale and device type: **counts, file names and delivery states only** | `edits.images.list` per language and image type: **ids and counts only** (screenshots, icon, feature graphic, TV banner) |
-| `releaseNotes` | none (`release_notes` is the text field `whatsNew`) | the release notes of the current release of each track, per language (`edits.tracks`) |
+| Section        | App Store (App Store Connect API)                                                                                                                                    | Google Play (Play Developer API)                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `categories`   | `primaryCategory`, `secondaryCategory`, `primarySubcategoryOne/Two`, `secondarySubcategoryOne/Two` of the live app info, as the category ids (`GAMES`, `GAMES_CARD`) | **Not in the API.** None of the Play resources has an app category; it is set in Play Console only, so there is no section                                            |
+| `ageRating`    | `ageRatingDeclaration` of the app info (its answers, such as `violenceCartoonOrFantasy: "NONE"`) and the label `AppInfo.appStoreAgeRating`                           | **Not read.** None of the `edits` resources this tool reads has one (as far as the reference pages say); the content rating questionnaire is answered in Play Console |
+| `privacy`      | `privacyChoicesUrl` per locale (`appInfoLocalizations`). The privacy **policy** URL is the text field `privacy_url`                                                  | none                                                                                                                                                                  |
+| `details`      | `copyright` of the version                                                                                                                                           | `edits.details`: default language, contact email and website. The contact **phone number is not read**                                                                |
+| `media`        | screenshot sets and preview sets per locale and device type: **counts, file names and delivery states only**                                                         | `edits.images.list` per language and image type: **ids and counts only** (screenshots, icon, feature graphic, TV banner)                                              |
+| `releaseNotes` | none (`release_notes` is the text field `whatsNew`)                                                                                                                  | the release notes of the current release of each track, per language (`edits.tracks`)                                                                                 |
 
 Where each comes from (all `GET`; Google Play inside the same read-only edit that is deleted, never
 committed):
@@ -141,12 +141,12 @@ committed):
   [`edits.tracks`](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks). No
   `upload`, no `deleteall`, no `commit`.
 
-**Not read, not empty.** A section that is **absent** from a response was *not read*: the store could
+**Not read, not empty.** A section that is **absent** from a response was _not read_: the store could
 not say, the call failed (see `warnings`), the optional read was not asked for, or it has never been
 read. A section that is **present, even with no content** (`{ "choicesUrls": {} }`), was read and the
 store has nothing there. A read that does not have a section never erases what is known; a read
 that has an empty one records that it is empty. The same rule applies to the repository side: a
-section the repository's files cannot express is *not read* there, and the comparison says
+section the repository's files cannot express is _not read_ there, and the comparison says
 `not-comparable` instead of guessing.
 
 **Upgrading is quiet.** Sections are stored as extra rows of the snapshot table (locale `_app`, field
@@ -164,20 +164,20 @@ the network stop the read; any other failure of an optional section is a warning
 **UNVERIFIED.** No real store response was recorded. The parsers follow the reference pages and
 hand-written fixtures and are tolerant (an unknown member is ignored, a wrong type is skipped). Not
 verified: that Apple sends the relationship linkage for what `include` names (the categories rely on
-it; without linkage the section stays *not read*), the exact values of `appStoreAgeRating`, whether the
+it; without linkage the section stays _not read_), the exact values of `appStoreAgeRating`, whether the
 deprecated screenshot sets endpoint still answers, and what Apple answers to an `include` it does not
 accept (the read then falls back to the plain app info list and warns).
 
 ### Comparing with the repository
 
-| Section | Repository side | Compared as |
-| --- | --- | --- |
-| `categories` | fastlane `deliver` files in the metadata folder (`primary_category.txt`, `secondary_category.txt`, `primary_first_sub_category.txt`, ...), or Expo `apple.categories` | names; `Food & Drink`, `FOOD_AND_DRINK` and `MZGenre.FOOD_AND_DRINK` are one category |
-| `ageRating` | Expo `apple.advisory` (the API's own names); for fastlane a file named `app_rating_config.json` next to or above the metadata folder (fastlane's docs name no fixed file name) | key by key, only for keys both sides have; fastlane's legacy `0`, `1`, `2` read as `NONE`, `INFREQUENT_OR_MILD`, `FREQUENT_OR_INTENSE`. No comparable key: `not-comparable` |
-| `privacy` | Expo `apple.info.<locale>.privacyChoicesUrl`. fastlane has no file for it | URL per locale |
-| `details` | `copyright.txt` (fastlane) or `apple.copyright` (Expo) | the copyright text. Google Play: not comparable |
-| `media` | fastlane: image files counted from the **paths** (`screenshots/<locale>/...`, `<locale>/images/<type>/...`); Expo has no media fields | **counts only**, never content: App Store per-locale totals (fastlane cannot say the device type without reading the image), Google Play per image type. No image file is ever read |
-| `releaseNotes` | none | `not-comparable`: shown as the store has them |
+| Section        | Repository side                                                                                                                                                                | Compared as                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `categories`   | fastlane `deliver` files in the metadata folder (`primary_category.txt`, `secondary_category.txt`, `primary_first_sub_category.txt`, ...), or Expo `apple.categories`          | names; `Food & Drink`, `FOOD_AND_DRINK` and `MZGenre.FOOD_AND_DRINK` are one category                                                                                               |
+| `ageRating`    | Expo `apple.advisory` (the API's own names); for fastlane a file named `app_rating_config.json` next to or above the metadata folder (fastlane's docs name no fixed file name) | key by key, only for keys both sides have; fastlane's legacy `0`, `1`, `2` read as `NONE`, `INFREQUENT_OR_MILD`, `FREQUENT_OR_INTENSE`. No comparable key: `not-comparable`         |
+| `privacy`      | Expo `apple.info.<locale>.privacyChoicesUrl`. fastlane has no file for it                                                                                                      | URL per locale                                                                                                                                                                      |
+| `details`      | `copyright.txt` (fastlane) or `apple.copyright` (Expo)                                                                                                                         | the copyright text. Google Play: not comparable                                                                                                                                     |
+| `media`        | fastlane: image files counted from the **paths** (`screenshots/<locale>/...`, `<locale>/images/<type>/...`); Expo has no media fields                                          | **counts only**, never content: App Store per-locale totals (fastlane cannot say the device type without reading the image), Google Play per image type. No image file is ever read |
+| `releaseNotes` | none                                                                                                                                                                           | `not-comparable`: shown as the store has them                                                                                                                                       |
 
 Statuses of a section: `identical`, `differs`, `missing-in-repo` (the store has something, the
 repository says nothing), `missing-in-store`, `not-comparable` (the repository cannot say this
@@ -188,13 +188,13 @@ faithfully, or was not read) and `not-read` (the store side has not been read). 
 
 Per locale and field, the repository's value and the live store value are compared:
 
-| Status | Meaning |
-| --- | --- |
-| `identical` | Both have the same value (or neither has one). |
-| `repo-ahead` | They differ, and the store still shows a value the repository once had: the repository changed after they last agreed. It has not reached the store yet. |
-| `store-ahead` | They differ, and the repository still holds a value the store once had: the store changed after they last agreed (someone edited it in the console). |
-| `diverged` | They differ, and neither holds the value they last agreed on, or they never agreed. |
-| `missing-in-one` | Only one side has a value. `missingIn` is `"repo"` or `"store"`, the side without it. |
+| Status           | Meaning                                                                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identical`      | Both have the same value (or neither has one).                                                                                                           |
+| `repo-ahead`     | They differ, and the store still shows a value the repository once had: the repository changed after they last agreed. It has not reached the store yet. |
+| `store-ahead`    | They differ, and the repository still holds a value the store once had: the store changed after they last agreed (someone edited it in the console).     |
+| `diverged`       | They differ, and neither holds the value they last agreed on, or they never agreed.                                                                      |
+| `missing-in-one` | Only one side has a value. `missingIn` is `"repo"` or `"store"`, the side without it.                                                                    |
 
 The direction comes from the recorded history, not from one comparison: the last value both sides had
 is the newest repository value the store has shown. A history that starts after the two already
@@ -218,8 +218,18 @@ the last look.
   "platform": "ios",
   "channel": "live",
   "store": { "readAt": 1790000000000, "error": null },
-  "repo": { "readAt": 1789990000000, "ref": "3fa9c1b2d4e5f60718293a4b5c6d7e8f90a1b2c3", "error": null },
-  "summary": { "identical": 11, "repo-ahead": 1, "store-ahead": 0, "diverged": 1, "missing-in-one": 2 },
+  "repo": {
+    "readAt": 1789990000000,
+    "ref": "3fa9c1b2d4e5f60718293a4b5c6d7e8f90a1b2c3",
+    "error": null
+  },
+  "summary": {
+    "identical": 11,
+    "repo-ahead": 1,
+    "store-ahead": 0,
+    "diverged": 1,
+    "missing-in-one": 2
+  },
   "locales": [
     {
       "locale": "en-US",
@@ -231,9 +241,24 @@ the last look.
           "limit": 30,
           "unit": "characters",
           "status": "repo-ahead",
-          "repo": { "value": "Fast trips", "observedAt": 1789990000000, "sourceRef": "3fa9c1b…", "source": "repo" },
-          "db": { "value": "Quick rides", "observedAt": 1789000000000, "sourceRef": "2.0.0", "source": "store" },
-          "live": { "value": "Quick rides", "observedAt": 1789000000000, "sourceRef": "2.0.0", "source": "store" },
+          "repo": {
+            "value": "Fast trips",
+            "observedAt": 1789990000000,
+            "sourceRef": "3fa9c1b…",
+            "source": "repo"
+          },
+          "db": {
+            "value": "Quick rides",
+            "observedAt": 1789000000000,
+            "sourceRef": "2.0.0",
+            "source": "store"
+          },
+          "live": {
+            "value": "Quick rides",
+            "observedAt": 1789000000000,
+            "sourceRef": "2.0.0",
+            "source": "store"
+          },
           "problems": { "repo": [], "live": [] }
         }
       ]
@@ -286,7 +311,13 @@ The live store values as recorded by the last sync, per channel, without the com
   "readAt": 1790000000000,
   "error": null,
   "warnings": ["Age rating declaration could not be read (HTTP 403)."],
-  "schedule": { "enabled": true, "intervalMinutes": 360, "lastAttemptAt": 1790000000000, "failures": 0, "nextReadAt": 1790021600000 },
+  "schedule": {
+    "enabled": true,
+    "intervalMinutes": 360,
+    "lastAttemptAt": 1790000000000,
+    "failures": 0,
+    "nextReadAt": 1790021600000
+  },
   "channels": [
     {
       "channel": "live",
@@ -297,7 +328,12 @@ The live store values as recorded by the last sync, per channel, without the com
         "categories": { "primary": "PRODUCTIVITY", "secondary": "BUSINESS" },
         "privacy": { "choicesUrls": { "en-US": "https://acme.example/choices" } },
         "details": { "copyright": "2026 Acme" },
-        "media": { "screenshots": { "en-US": [{ "type": "APP_IPHONE_67", "count": 3, "names": ["a.png", "b.png", "c.png"] }] }, "previews": {} }
+        "media": {
+          "screenshots": {
+            "en-US": [{ "type": "APP_IPHONE_67", "count": 3, "names": ["a.png", "b.png", "c.png"] }]
+          },
+          "previews": {}
+        }
       }
     },
     {
@@ -314,8 +350,8 @@ The live store values as recorded by the last sync, per channel, without the com
 
 - `warnings` (additive) is what the connector noticed in the **last successful read**: an optional
   section it could not read, a limit it hit, an Apple state it does not know. Redacted, at most 20 of
-  at most 400 characters; a read without warnings clears them. A section named in a warning is *not
-  read* (absent from `sections`), never shown as empty.
+  at most 400 characters; a read without warnings clears them. A section named in a warning is _not
+  read_ (absent from `sections`), never shown as empty.
 - `schedule` (additive) is the state of the scheduled read of this app: `enabled` and
   `intervalMinutes` (the server setting; `0` when off), `lastAttemptAt` (the later of the last
   attempt and the last successful read; `null` when never), `failures` (reads in a row that failed;
@@ -374,7 +410,13 @@ per minute with repository reads (default 10).
 Response `200`:
 
 ```json
-{ "ref": "3fa9c1b2d4e5f60718293a4b5c6d7e8f90a1b2c3", "found": true, "changed": 3, "removed": 0, "unchanged": 19 }
+{
+  "ref": "3fa9c1b2d4e5f60718293a4b5c6d7e8f90a1b2c3",
+  "found": true,
+  "changed": 3,
+  "removed": 0,
+  "unchanged": 19
+}
 ```
 
 `found: false` means the repository has no listing for this app's store; nothing is recorded and
@@ -404,15 +446,15 @@ the channel and whether the store was refreshed first.
 
 Body, all optional:
 
-| Field | Meaning |
-| --- | --- |
-| `items` | `[{ "locale": "en-US", "field": "subtitle" }]`: exactly these fields (the locale as the store has it, as the drift view shows it). A field the repository has no value for yet is pulled when it is named here. |
-| `locales`, `fields` | Narrow to these store locales and/or these field ids. Combined with `items`, both apply. Without `items`, `locales` and `fields`, every field that can be pulled is. |
-| `addLocales` | `true` also creates locales the repository has no folder (or Expo key) for. Default `false`: those are skipped with `locale_not_in_repo`. |
-| `channel` | `live` or `editable`. Default: `live`, or `editable` for an app with no live version. |
-| `summary` | One line, up to 200 characters. Default: "Pull the App Store listing of Acme into the repository". |
-| `refresh` | `true` runs the read-only store sync first, so the pull is of the store as it is now. It counts toward the app sync limit (10 a minute per workspace). Default: use the last read. |
-| `target`, `roots` | Which listing target or folders, exactly as for `GET /repositories/:id/listing`. Without them the saved target of this app, else the detected one, else the default; with several possible places and no choice the answer is `422 target_required`. |
+| Field               | Meaning                                                                                                                                                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `items`             | `[{ "locale": "en-US", "field": "subtitle" }]`: exactly these fields (the locale as the store has it, as the drift view shows it). A field the repository has no value for yet is pulled when it is named here.                                      |
+| `locales`, `fields` | Narrow to these store locales and/or these field ids. Combined with `items`, both apply. Without `items`, `locales` and `fields`, every field that can be pulled is.                                                                                 |
+| `addLocales`        | `true` also creates locales the repository has no folder (or Expo key) for. Default `false`: those are skipped with `locale_not_in_repo`.                                                                                                            |
+| `channel`           | `live` or `editable`. Default: `live`, or `editable` for an app with no live version.                                                                                                                                                                |
+| `summary`           | One line, up to 200 characters. Default: "Pull the App Store listing of Acme into the repository".                                                                                                                                                   |
+| `refresh`           | `true` runs the read-only store sync first, so the pull is of the store as it is now. It counts toward the app sync limit (10 a minute per workspace). Default: use the last read.                                                                   |
+| `target`, `roots`   | Which listing target or folders, exactly as for `GET /repositories/:id/listing`. Without them the saved target of this app, else the detected one, else the default; with several possible places and no choice the answer is `422 target_required`. |
 
 ```json
 {
@@ -438,25 +480,52 @@ Response `201` with a draft (a person reviews it next):
 ```json
 {
   "changeSet": {
-    "id": "c1f0…", "repositoryId": "9a2b…", "summary": "Pull the store listing after the console edit",
-    "status": "draft", "createdBy": { "type": "user", "id": "u1…" },
-    "branch": null, "prUrl": null, "filesChanged": 2,
-    "files": [{ "path": "fastlane/metadata/en-US/subtitle.txt", "change": "modified", "before": "Quick rides", "after": "Fast trips" }]
+    "id": "c1f0…",
+    "repositoryId": "9a2b…",
+    "summary": "Pull the store listing after the console edit",
+    "status": "draft",
+    "createdBy": { "type": "user", "id": "u1…" },
+    "branch": null,
+    "prUrl": null,
+    "filesChanged": 2,
+    "files": [
+      {
+        "path": "fastlane/metadata/en-US/subtitle.txt",
+        "change": "modified",
+        "before": "Quick rides",
+        "after": "Fast trips"
+      }
+    ]
   },
   "channel": "live",
   "store": { "readAt": 1790000000000, "error": null, "refreshed": true },
   "target": {
-    "repositoryId": "9a2b…", "repository": "acme/trips", "branch": "main",
-    "source": "fastlane", "path": "fastlane/metadata",
+    "repositoryId": "9a2b…",
+    "repository": "acme/trips",
+    "branch": "main",
+    "source": "fastlane",
+    "path": "fastlane/metadata",
     "selected": { "id": null, "origin": "detected", "label": "fastlane/metadata" }
   },
   "changes": [
-    { "locale": "en-US", "repoLocale": "en-US", "field": "subtitle", "label": "Subtitle",
-      "status": "store-ahead", "before": "Quick rides", "after": "Fast trips", "newLocale": false }
+    {
+      "locale": "en-US",
+      "repoLocale": "en-US",
+      "field": "subtitle",
+      "label": "Subtitle",
+      "status": "store-ahead",
+      "before": "Quick rides",
+      "after": "Fast trips",
+      "newLocale": false
+    }
   ],
   "skipped": [
-    { "locale": "de-DE", "field": "description", "reason": "over_limit",
-      "message": "Description is 4120 characters; the limit is 4000. It was not pulled and was not shortened." }
+    {
+      "locale": "de-DE",
+      "field": "description",
+      "reason": "over_limit",
+      "message": "Description is 4120 characters; the limit is 4000. It was not pulled and was not shortened."
+    }
   ],
   "problems": [],
   "locales": [{ "locale": "en-US", "repoLocale": "en-US", "how": "exact" }],
@@ -535,26 +604,26 @@ reads the listing) or refreshed from the store. It runs where the background wor
 
 ## Errors
 
-| Status | `error` | When |
-| --- | --- | --- |
-| 400 | `invalid_request` | `history`: a bad `locale`, `field`, `limit` or `cursor`. `issues` lists them as `{ path, message }`. |
-| 401 | `unauthenticated` | No session. |
-| 403 | `forbidden` | A member without the right. |
-| 404 | `not_found` | Not a member, or no such app in this workspace. |
-| 400 | `invalid_request` | `pull`: a bad body (a locale code, more than the allowed number of items, a summary of more than one line). |
-| 413 | `payload_too_large` | `pull`: a body over 64 KB. |
-| 422 | `no_repository` | `repo-refresh` or `pull` for an app that is not linked to a repository (or whose repository was disconnected). |
-| 422 | `invalid_field` | `pull`: a field that the app's store does not have. |
-| 422 | `no_store_listing` | `pull`: no listing was read from the store yet (or not that `channel`). `channels` lists what exists. Sync the app, or pull with `refresh`. |
-| 422 | `target_required` | `pull`: the repository has several places this listing could be; `candidates` lists them. Send `target` or `roots`. |
-| 422 | `no_target_folder` | `pull`: the chosen listing target has no folder for this store. |
-| 422 | `store_config_invalid` | `pull`: the Expo `store.config.json` cannot be read (`path` says which); fix it in the repository. |
-| 422 | `outside_target` | `pull`: a file would fall outside the chosen target's folders; nothing is created. |
-| 422 | `refresh_unavailable` | `pull` with `refresh` on a server that cannot read the store. |
-| 403 | `forbidden` | Also: `pull` with `refresh: true` without `apps.sync`. |
-| 422 | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid` | `repo-refresh` or `pull`: GitHub refused or the repository could not be read ([repositories](repositories.md)). |
-| 429 | `rate_limited` | `repo-refresh` or `pull` too often (they share the repository read limit); `pull` with `refresh` also the app sync limit. `Retry-After` and `retryAfterSeconds` say when. |
-| 504 | `timeout` | `repo-refresh` or `pull`: GitHub did not answer in time. |
+| Status | `error`                                                                 | When                                                                                                                                                                      |
+| ------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `invalid_request`                                                       | `history`: a bad `locale`, `field`, `limit` or `cursor`. `issues` lists them as `{ path, message }`.                                                                      |
+| 401    | `unauthenticated`                                                       | No session.                                                                                                                                                               |
+| 403    | `forbidden`                                                             | A member without the right.                                                                                                                                               |
+| 404    | `not_found`                                                             | Not a member, or no such app in this workspace.                                                                                                                           |
+| 400    | `invalid_request`                                                       | `pull`: a bad body (a locale code, more than the allowed number of items, a summary of more than one line).                                                               |
+| 413    | `payload_too_large`                                                     | `pull`: a body over 64 KB.                                                                                                                                                |
+| 422    | `no_repository`                                                         | `repo-refresh` or `pull` for an app that is not linked to a repository (or whose repository was disconnected).                                                            |
+| 422    | `invalid_field`                                                         | `pull`: a field that the app's store does not have.                                                                                                                       |
+| 422    | `no_store_listing`                                                      | `pull`: no listing was read from the store yet (or not that `channel`). `channels` lists what exists. Sync the app, or pull with `refresh`.                               |
+| 422    | `target_required`                                                       | `pull`: the repository has several places this listing could be; `candidates` lists them. Send `target` or `roots`.                                                       |
+| 422    | `no_target_folder`                                                      | `pull`: the chosen listing target has no folder for this store.                                                                                                           |
+| 422    | `store_config_invalid`                                                  | `pull`: the Expo `store.config.json` cannot be read (`path` says which); fix it in the repository.                                                                        |
+| 422    | `outside_target`                                                        | `pull`: a file would fall outside the chosen target's folders; nothing is created.                                                                                        |
+| 422    | `refresh_unavailable`                                                   | `pull` with `refresh` on a server that cannot read the store.                                                                                                             |
+| 403    | `forbidden`                                                             | Also: `pull` with `refresh: true` without `apps.sync`.                                                                                                                    |
+| 422    | `github_auth`, `github_forbidden`, `github_not_found`, `github_invalid` | `repo-refresh` or `pull`: GitHub refused or the repository could not be read ([repositories](repositories.md)).                                                           |
+| 429    | `rate_limited`                                                          | `repo-refresh` or `pull` too often (they share the repository read limit); `pull` with `refresh` also the app sync limit. `Retry-After` and `retryAfterSeconds` say when. |
+| 504    | `timeout`                                                               | `repo-refresh` or `pull`: GitHub did not answer in time.                                                                                                                  |
 
 Errors reading the **store** are not HTTP errors here: they are `store.error` in the drift response
 (and `error` in `live`), with the last good values still shown. The message is one redacted sentence,

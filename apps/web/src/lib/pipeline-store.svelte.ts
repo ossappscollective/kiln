@@ -1,7 +1,7 @@
 import type { Api } from './api.ts';
 import { readCache } from './read-cache.ts';
-import { stagingError } from './staged.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
+import { stagingError } from './staged.ts';
 
 /**
  * What the screens know about the release pipeline (docs/api/release-pipeline.md): the workspace summary (one line per app,
@@ -45,7 +45,13 @@ export const pipelineStore = {
     const mine = (appGeneration[appId] = (appGeneration[appId] ?? 0) + 1);
     try {
       // The same key as the release stepper's read, so a page that shows both asks once.
-      const out = await readCache.read({ workspaceId, group: 'pipeline', key: `pipeline/${appId}`, force, load: () => api.releasePipeline(workspaceId, appId) });
+      const out = await readCache.read({
+        workspaceId,
+        group: 'pipeline',
+        key: `pipeline/${appId}`,
+        force,
+        load: () => api.releasePipeline(workspaceId, appId),
+      });
       if (mine === appGeneration[appId]) apps[appId] = out;
       return '';
     } catch (e) {

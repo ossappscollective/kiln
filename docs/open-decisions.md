@@ -93,12 +93,12 @@ linked document and remove it from this list.
 Current mapping (table in `packages/connectors/src/mappings.ts`); each is a judgment call, not a
 documented fact. The Apple enum values themselves come partly from a secondary source.
 
-| Apple state | Today | Question |
-| --- | --- | --- |
-| `PROCESSING_FOR_DISTRIBUTION` (and the older `PROCESSING_FOR_APP_STORE`) | `rolling_out` | iOS has no `propagating`; alternative is `approved` |
-| `DEVELOPER_REJECTED` | `draft` | Submission withdrawn by the developer; is `draft` right? |
-| `WAITING_FOR_EXPORT_COMPLIANCE` | unmapped (`status: null`) | Needs a person; which lifecycle state, if any? |
-| Versions on non-iOS platforms (macOS, tvOS, visionOS) | skipped | Right for the product? `Platform` is only `ios` or `android` |
+| Apple state                                                              | Today                     | Question                                                     |
+| ------------------------------------------------------------------------ | ------------------------- | ------------------------------------------------------------ |
+| `PROCESSING_FOR_DISTRIBUTION` (and the older `PROCESSING_FOR_APP_STORE`) | `rolling_out`             | iOS has no `propagating`; alternative is `approved`          |
+| `DEVELOPER_REJECTED`                                                     | `draft`                   | Submission withdrawn by the developer; is `draft` right?     |
+| `WAITING_FOR_EXPORT_COMPLIANCE`                                          | unmapped (`status: null`) | Needs a person; which lifecycle state, if any?               |
+| Versions on non-iOS platforms (macOS, tvOS, visionOS)                    | skipped                   | Right for the product? `Platform` is only `ios` or `android` |
 
 Also unmapped on purpose: `REPLACED_WITH_NEW_VERSION`, `REMOVED_FROM_SALE`,
 `DEVELOPER_REMOVED_FROM_SALE`, `PENDING_CONTRACT`, `ACCEPTED`, `PREORDER_READY_FOR_SALE`,

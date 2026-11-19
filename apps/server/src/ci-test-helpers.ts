@@ -13,8 +13,8 @@ import type {
   ListWorkflowRunsOptions,
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
-import { bootRepoApp } from './repo-test-helpers.ts';
 import type { AppDeps } from './app.ts';
+import { bootRepoApp } from './repo-test-helpers.ts';
 import { type CiClient, clearCiCaches, createCiContext } from './services/ci.ts';
 import { clearActiveCaches } from './services/ci-active.ts';
 
@@ -31,7 +31,13 @@ export const workflow = (path: string, name: string, id = path.length * 1000): C
   state: 'active',
 });
 
-export const job = (id: string, name: string, status: string, steps: [string, string][] = [], extra: Partial<CiJob> = {}): CiJob => ({
+export const job = (
+  id: string,
+  name: string,
+  status: string,
+  steps: [string, string][] = [],
+  extra: Partial<CiJob> = {},
+): CiJob => ({
   id,
   name,
   status,
@@ -88,8 +94,19 @@ export class FakeCi implements CiClient {
     truncated: false,
     url: 'https://github.com/acme/app/compare/a...b',
     commits: [
-      { sha: SHA_2, message: 'First change\n\nbody', author: 'Ada', date: 1_800_000_000_000, url: 'https://github.com/acme/app/commit/2' },
-      { sha: SHA_3, message: 'Second change', author: 'Grace', url: 'https://github.com/acme/app/commit/3' },
+      {
+        sha: SHA_2,
+        message: 'First change\n\nbody',
+        author: 'Ada',
+        date: 1_800_000_000_000,
+        url: 'https://github.com/acme/app/commit/2',
+      },
+      {
+        sha: SHA_3,
+        message: 'Second change',
+        author: 'Grace',
+        url: 'https://github.com/acme/app/commit/3',
+      },
     ],
   };
   dispatchResult: DispatchResult = {};
@@ -164,14 +181,19 @@ export class FakeCi implements CiClient {
     if (error) throw error;
     return this.runs.slice(0, options.limit ?? 30);
   }
-  async listCiRunsPage(options: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined } = {}): Promise<CiRunPage> {
+  async listCiRunsPage(
+    options: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined } = {},
+  ): Promise<CiRunPage> {
     const runs = await this.listCiRuns(options);
     if (!this.etagging) return { runs, notModified: false };
     const etag = `W/"${Buffer.from(JSON.stringify(runs)).toString('base64').slice(-24)}${runs.length}"`;
     if (options.etag === etag) return { runs: [], notModified: true, etag };
     return { runs, notModified: false, etag };
   }
-  async listRunJobs(runId: string, options: { signal?: AbortSignal; etag?: string | undefined } = {}): Promise<CiJobList> {
+  async listRunJobs(
+    runId: string,
+    options: { signal?: AbortSignal; etag?: string | undefined } = {},
+  ): Promise<CiJobList> {
     this.calls.push({ name: 'listRunJobs', args: [runId, options.etag] });
     this.signals.push(options.signal);
     const error = this.errors.jobs.shift();
@@ -200,7 +222,12 @@ export class FakeCi implements CiClient {
   async listMatchingTags(prefix: string, options: { signal?: AbortSignal } = {}) {
     this.calls.push({ name: 'listMatchingTags', args: [prefix] });
     this.signals.push(options.signal);
-    return { tags: this.tags.filter((t) => t.name.startsWith(prefix)), truncated: false, pages: 1, unresolved: 0 };
+    return {
+      tags: this.tags.filter((t) => t.name.startsWith(prefix)),
+      truncated: false,
+      pages: 1,
+      unresolved: 0,
+    };
   }
   async getCommit(ref: string, signal?: AbortSignal) {
     this.calls.push({ name: 'getCommit', args: [ref] });
@@ -225,12 +252,21 @@ export class FakeCi implements CiClient {
 }
 
 /** The server with a fake GitHub and one connected repository (acme/app, with a token credential). */
-export async function bootCi(db: Database, ci: NonNullable<AppDeps['ci']> = {}, overrides: Partial<AppDeps> = {}) {
+export async function bootCi(
+  db: Database,
+  ci: NonNullable<AppDeps['ci']> = {},
+  overrides: Partial<AppDeps> = {},
+) {
   clearCiCaches();
   clearActiveCaches();
   const fake = new FakeCi();
   const masterKey = randomBytes(32);
-  const t = await bootRepoApp(db, undefined, { masterKey, connectorFactory: () => fake, ci, ...overrides });
+  const t = await bootRepoApp(db, undefined, {
+    masterKey,
+    connectorFactory: () => fake,
+    ci,
+    ...overrides,
+  });
   const { repositoryId, credentialId } = await t.connect();
   const base = `/repositories/${repositoryId}`;
 
@@ -244,7 +280,14 @@ export async function bootCi(db: Database, ci: NonNullable<AppDeps['ci']> = {}, 
   /** An app of this workspace linked to the repository, with its releases (version, build, details). */
   const seedApp = async (
     platform: 'ios' | 'android',
-    releases: { version: string; build: string | null; track?: string; codes?: string[]; status?: string; uploadedAt?: number }[],
+    releases: {
+      version: string;
+      build: string | null;
+      track?: string;
+      codes?: string[];
+      status?: string;
+      uploadedAt?: number;
+    }[],
     options: { repositoryId?: string | null; identifier?: string } = {},
   ) => {
     const id = `app-${platform}-${Math.random().toString(16).slice(2, 8)}`;

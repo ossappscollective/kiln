@@ -1,37 +1,37 @@
 import { randomUUID } from 'node:crypto';
 import {
-  type ActorType,
-  type Platform,
-  type ReleaseState,
-  isApplePlatform,
-  isGooglePlatform,
-  platformLabel,
-} from '@mrm/core';
-import {
   AppStoreConnectConnector,
   GooglePlayConnector,
   isPlayPackageName,
   redactSecrets,
-  secretStrings,
-  StoreError,
-  StoreRateLimitError,
   type StoreBuild,
   type StoreConnector,
+  StoreError,
+  StoreRateLimitError,
   type StoreVersion,
+  secretStrings,
 } from '@mrm/connectors';
+import {
+  type ActorType,
+  isApplePlatform,
+  isGooglePlatform,
+  type Platform,
+  platformLabel,
+  type ReleaseState,
+} from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { deleteAnalyticsData } from './analytics-store.ts';
-import { deleteAsoData } from './aso-data.ts';
-import { deleteAiData } from './ai-suggestions.ts';
-import { recordAudit } from './audit.ts';
-import { recordSyncEvents, releaseStatusChanges } from './events.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { recordAppliedChangeSets } from './listing-repo.ts';
-import { deleteListingData, syncListing } from './listing-live.ts';
-import { deleteAppIcon } from './app-icon-store.ts';
-import { deleteReviewData } from './reviews.ts';
-import { type Failure, type Outcome, failure } from './repositories.ts';
 import { enqueue, type JobHandler } from '../jobs.ts';
+import { deleteAiData } from './ai-suggestions.ts';
+import { deleteAnalyticsData } from './analytics-store.ts';
+import { deleteAppIcon } from './app-icon-store.ts';
+import { deleteAsoData } from './aso-data.ts';
+import { recordAudit } from './audit.ts';
+import { useCredentialSecret } from './credentials.ts';
+import { recordSyncEvents, releaseStatusChanges } from './events.ts';
+import { deleteListingData, syncListing } from './listing-live.ts';
+import { recordAppliedChangeSets } from './listing-repo.ts';
+import { type Failure, failure, type Outcome } from './repositories.ts';
+import { deleteReviewData } from './reviews.ts';
 
 type Actor = { type: ActorType; id: string };
 type Row = Record<string, unknown>;
@@ -67,7 +67,10 @@ export type StoreConnectorFactory = (input: StoreConnectorInput) => StoreConnect
 
 export const defaultStoreConnectorFactory: StoreConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppStoreConnectConnector.fromSecret(input.secret, { fetch: input.fetch, platform: input.platform === 'macos' ? 'macos' : 'ios' })
+    ? AppStoreConnectConnector.fromSecret(input.secret, {
+        fetch: input.fetch,
+        platform: input.platform === 'macos' ? 'macos' : 'ios',
+      })
     : new GooglePlayConnector({
         serviceAccount: input.secret,
         packages: [input.identifier],
@@ -148,11 +151,18 @@ const toApp = (r: Row): ManagedApp => ({
 function iconHint(r: Row): { hasIcon: boolean; iconUrl: string | null } {
   const base = `/api/workspaces/${String(r.workspace_id)}/apps/${String(r.id)}/icon`;
   if (r.icon_has !== null && r.icon_has !== undefined && Number(r.icon_has) === 1) {
-    return { hasIcon: true, iconUrl: r.icon_etag ? `${base}?v=${encodeURIComponent(String(r.icon_etag))}` : base };
+    return {
+      hasIcon: true,
+      iconUrl: r.icon_etag ? `${base}?v=${encodeURIComponent(String(r.icon_etag))}` : base,
+    };
   }
   // No row: a look has not happened yet. A row without an image: look again only when its backoff is over.
-  const waiting = r.icon_backoff !== null && r.icon_backoff !== undefined && Number(r.icon_backoff) > Date.now();
-  return { hasIcon: false, iconUrl: r.icon_checked === null || r.icon_checked === undefined || !waiting ? base : null };
+  const waiting =
+    r.icon_backoff !== null && r.icon_backoff !== undefined && Number(r.icon_backoff) > Date.now();
+  return {
+    hasIcon: false,
+    iconUrl: r.icon_checked === null || r.icon_checked === undefined || !waiting ? base : null,
+  };
 }
 
 type Details = { versionCodes?: string[]; rolloutFraction?: number };
@@ -285,22 +295,25 @@ export async function registerApp(
       [input.repositoryId, input.workspaceId],
     );
     if (!repository) {
-      return failure(422, 'repository_not_found', 'That repository is not connected in this workspace.');
+      return failure(
+        422,
+        'repository_not_found',
+        'That repository is not connected in this workspace.',
+      );
     }
   }
 
   // Apple bundle ids are not case sensitive; Play package names are.
   const taken = async () => {
-    const rows =
-      isApplePlatform(input.platform)
-        ? await db.query(
-            'SELECT id FROM apps WHERE workspace_id = ? AND platform = ? AND lower(identifier) = ?',
-            [input.workspaceId, input.platform, input.identifier.toLowerCase()],
-          )
-        : await db.query(
-            'SELECT id FROM apps WHERE workspace_id = ? AND platform = ? AND identifier = ?',
-            [input.workspaceId, input.platform, input.identifier],
-          );
+    const rows = isApplePlatform(input.platform)
+      ? await db.query(
+          'SELECT id FROM apps WHERE workspace_id = ? AND platform = ? AND lower(identifier) = ?',
+          [input.workspaceId, input.platform, input.identifier.toLowerCase()],
+        )
+      : await db.query(
+          'SELECT id FROM apps WHERE workspace_id = ? AND platform = ? AND identifier = ?',
+          [input.workspaceId, input.platform, input.identifier],
+        );
     return rows.length > 0;
   };
   const duplicate = () =>
@@ -399,9 +412,18 @@ export async function deleteApp(
       input.workspaceId,
     ]);
     // The release pipeline's own rows: the builds seen, the stall reminder, and the app's share of CI runs.
-    await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-    await tx.execute('DELETE FROM release_stall_reminders WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
-    await tx.execute('DELETE FROM ci_run_apps WHERE app_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
+    await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM release_stall_reminders WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM ci_run_apps WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
     await tx.execute('DELETE FROM apps WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
@@ -439,7 +461,12 @@ function classify(error: unknown, secret: string): Classified {
   ): Classified => {
     const safe = clean(message);
     return {
-      failure: { ok: false, status, body: { error: code, message: safe, ...extra }, ...(headers ? { headers } : {}) },
+      failure: {
+        ok: false,
+        status,
+        body: { error: code, message: safe, ...extra },
+        ...(headers ? { headers } : {}),
+      },
       message: safe,
       transient,
     };
@@ -449,9 +476,16 @@ function classify(error: unknown, secret: string): Classified {
   }
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
-    return make(429, 'rate_limited', error.message, true, { retryAfterSeconds: wait }, {
-      'Retry-After': String(wait),
-    });
+    return make(
+      429,
+      'rate_limited',
+      error.message,
+      true,
+      { retryAfterSeconds: wait },
+      {
+        'Retry-After': String(wait),
+      },
+    );
   }
   if (error instanceof StoreError) {
     switch (error.kind) {
@@ -497,7 +531,10 @@ export const MAX_BUILDS_SEEN = 200;
 
 function seenFromAppleBuilds(builds: readonly StoreBuild[]): BuildSeen[] {
   return [...builds]
-    .sort((a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber))
+    .sort(
+      (a, b) =>
+        (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0) || Number(b.buildNumber) - Number(a.buildNumber),
+    )
     .slice(0, MAX_BUILDS_SEEN)
     .map((b) => ({
       buildNumber: b.buildNumber,
@@ -516,11 +553,21 @@ function seenFromPlayVersions(versions: readonly StoreVersion[]): BuildSeen[] {
     for (const code of v.versionCodes ?? []) {
       // The newest-looking release that holds the code names it; Google does not say when a code was uploaded.
       if (!out.has(code)) {
-        out.set(code, { buildNumber: code, storeId: null, version: v.versionString, state: 'processed', rawState: v.rawState, expired: null, uploadedAt: null });
+        out.set(code, {
+          buildNumber: code,
+          storeId: null,
+          version: v.versionString,
+          state: 'processed',
+          rawState: v.rawState,
+          expired: null,
+          uploadedAt: null,
+        });
       }
     }
   }
-  return [...out.values()].sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber)).slice(0, MAX_BUILDS_SEEN);
+  return [...out.values()]
+    .sort((a, b) => Number(b.buildNumber) - Number(a.buildNumber))
+    .slice(0, MAX_BUILDS_SEEN);
 }
 
 type ReleaseInput = {
@@ -615,7 +662,13 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
 /** Replaces the builds of an app with what the store showed; a build seen before keeps its `first_seen_at`. */
 async function writeBuildsSeen(
   tx: Sql,
-  input: { appId: string; workspaceId: string; platform: Platform; builds: readonly BuildSeen[]; at: number },
+  input: {
+    appId: string;
+    workspaceId: string;
+    platform: Platform;
+    builds: readonly BuildSeen[];
+    at: number;
+  },
 ): Promise<void> {
   const keep = new Set<string>();
   for (const b of input.builds) {
@@ -646,10 +699,16 @@ async function writeBuildsSeen(
       ],
     );
   }
-  const stored = await tx.query('SELECT build_number FROM app_builds WHERE app_id = ? AND platform = ?', [input.appId, input.platform]);
+  const stored = await tx.query(
+    'SELECT build_number FROM app_builds WHERE app_id = ? AND platform = ?',
+    [input.appId, input.platform],
+  );
   for (const row of stored) {
     if (!keep.has(String(row.build_number))) {
-      await tx.execute('DELETE FROM app_builds WHERE app_id = ? AND platform = ? AND build_number = ?', [input.appId, input.platform, String(row.build_number)]);
+      await tx.execute(
+        'DELETE FROM app_builds WHERE app_id = ? AND platform = ? AND build_number = ?',
+        [input.appId, input.platform, String(row.build_number)],
+      );
     }
   }
 }
@@ -710,10 +769,7 @@ export async function syncApp(
   input: { workspaceId: string; id: string },
   actor: Actor,
   trigger: SyncTrigger = { trigger: 'request' },
-): Promise<
-  | { ok: true; app: ManagedApp; releases: AppRelease[]; sync: SyncSummary }
-  | SyncFailure
-> {
+): Promise<{ ok: true; app: ManagedApp; releases: AppRelease[]; sync: SyncSummary } | SyncFailure> {
   const { db } = ctx;
   const { workspaceId } = input;
   const app = await getApp(db, workspaceId, input.id);
@@ -760,7 +816,11 @@ async function runSync(
   }
   const kind = String(credential.kind);
   if (kind !== credentialKindFor[app.platform]) {
-    return plain(422, 'credential_kind', 'This app\'s credential is not the kind its platform needs.');
+    return plain(
+      422,
+      'credential_kind',
+      "This app's credential is not the kind its platform needs.",
+    );
   }
   let secret: string | undefined;
   try {
@@ -827,7 +887,8 @@ async function runSync(
     if (!still) return undefined;
     // One row per version and track: if the store repeats one, the last wins.
     const wanted = new Map<string, ReleaseInput>();
-    for (const release of read.releases) wanted.set(`${release.track}\u0000${release.version}`, release);
+    for (const release of read.releases)
+      wanted.set(`${release.track}\u0000${release.version}`, release);
     const existing = new Map<string, Row>();
     const rows = await tx.query(
       'SELECT id, version, track, build, status, raw_state, details_json, store_updated_at, status_since, synced_at FROM app_releases WHERE app_id = ?',
@@ -900,10 +961,19 @@ async function runSync(
     }
     for (const [key, old] of existing) {
       if (wanted.has(key)) continue;
-      await tx.execute('DELETE FROM app_releases WHERE id = ? AND app_id = ?', [String(old.id), app.id]);
+      await tx.execute('DELETE FROM app_releases WHERE id = ? AND app_id = ?', [
+        String(old.id),
+        app.id,
+      ]);
       removed++;
     }
-    await writeBuildsSeen(tx, { appId: app.id, workspaceId, platform: app.platform, builds: read.builds, at });
+    await writeBuildsSeen(tx, {
+      appId: app.id,
+      workspaceId,
+      platform: app.platform,
+      builds: read.builds,
+      at,
+    });
     await tx.execute(
       `UPDATE apps SET store_app_id = ?, last_synced_at = ?, last_sync_attempt_at = ?,
               last_sync_error = NULL
@@ -1042,7 +1112,9 @@ async function existingApps(sql: Sql, workspaceId: string): Promise<Map<string, 
   const rows = await sql.query('SELECT id, platform, identifier FROM apps WHERE workspace_id = ?', [
     workspaceId,
   ]);
-  return new Map(rows.map((r) => [identityKey(String(r.platform), String(r.identifier)), String(r.id)]));
+  return new Map(
+    rows.map((r) => [identityKey(String(r.platform), String(r.identifier)), String(r.id)]),
+  );
 }
 
 /** Looks up the credential's kind. Not found, and another workspace's, are the same. */
@@ -1075,7 +1147,10 @@ async function discoverableCredential(
 
 /** A clean one-line name of at most 100 characters, or the identifier. */
 const cleanName = (name: string, identifier: string): string =>
-  name.replace(/[\r\n]+/g, ' ').trim().slice(0, 100) || identifier;
+  name
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+    .slice(0, 100) || identifier;
 
 /**
  * Finds the apps behind a credential, read-only, and marks the ones the workspace already has.
@@ -1157,7 +1232,12 @@ export async function discoverApps(
   });
   timedOut.catch(() => undefined);
   const read = async (identifier: string) => {
-    const connector = ctx.connectorFactory({ kind, secret: secret as string, identifier, fetch: guardedFetch });
+    const connector = ctx.connectorFactory({
+      kind,
+      secret: secret as string,
+      identifier,
+      fetch: guardedFetch,
+    });
     const work = connector.listApps(kind === 'app_store_connect' ? { withPlatforms: true } : {});
     // The race may lose to the timeout; the abandoned read must not become an unhandled rejection.
     work.catch(() => undefined);
@@ -1216,7 +1296,9 @@ export async function discoverApps(
         }
         if (candidates.length >= MAX_CANDIDATES) break;
       }
-      candidates.sort((a, b) => a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier));
+      candidates.sort(
+        (a, b) => a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier),
+      );
     } else {
       let stop: { error: string; message: string } | undefined;
       for (const name of packages) {
@@ -1244,7 +1326,9 @@ export async function discoverApps(
             error instanceof SyncTimeout ||
             error instanceof StoreRateLimitError ||
             (error instanceof StoreError &&
-              (error.kind === 'auth' || error.kind === 'clock_skew' || error.kind === 'api_disabled'));
+              (error.kind === 'auth' ||
+                error.kind === 'clock_skew' ||
+                error.kind === 'api_disabled'));
           if (global) stop = { error: code, message };
         }
       }
@@ -1292,7 +1376,9 @@ export async function importApps(
   if (!found.ok) return found;
   const kindPlatforms: readonly Platform[] = DISCOVERABLE[found.kind];
 
-  const repositoryIds = [...new Set(input.items.flatMap((i) => (i.repositoryId ? [i.repositoryId] : [])))];
+  const repositoryIds = [
+    ...new Set(input.items.flatMap((i) => (i.repositoryId ? [i.repositoryId] : []))),
+  ];
   const knownRepositories = new Set<string>();
   for (const id of repositoryIds) {
     const [row] = await db.query('SELECT id FROM repositories WHERE id = ? AND workspace_id = ?', [
@@ -1314,10 +1400,9 @@ export async function importApps(
             ...base,
             status: 'failed',
             error: 'credential_kind',
-            message:
-              isApplePlatform(item.platform)
-                ? `${platformLabel(item.platform)} apps need an App Store Connect API key credential.`
-                : 'An Android app needs a Google Play service account credential.',
+            message: isApplePlatform(item.platform)
+              ? `${platformLabel(item.platform)} apps need an App Store Connect API key credential.`
+              : 'An Android app needs a Google Play service account credential.',
           });
           continue;
         }
@@ -1392,7 +1477,8 @@ export async function importApps(
     // whole transaction was rolled back). Once more: that app is now seen as existing.
     results = await run();
   }
-  const count = (status: ImportResult['status']) => results.filter((r) => r.status === status).length;
+  const count = (status: ImportResult['status']) =>
+    results.filter((r) => r.status === status).length;
   return {
     ok: true,
     results,

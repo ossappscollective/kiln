@@ -147,7 +147,12 @@ const text = (v: unknown): string | undefined =>
 const count = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.trunc(v) : undefined;
 const strings = (v: unknown, max = MAX_ITEMS): string[] | undefined =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, max).map((s) => s.slice(0, MAX_TEXT)) : undefined;
+  Array.isArray(v)
+    ? v
+        .filter((x): x is string => typeof x === 'string')
+        .slice(0, max)
+        .map((s) => s.slice(0, MAX_TEXT))
+    : undefined;
 
 function cleanSets(v: unknown): MediaSet[] {
   if (!Array.isArray(v)) return [];
@@ -236,7 +241,12 @@ export function cleanSection<N extends ListingSectionName>(
       }
       case 'details': {
         const out: ListingDetails = {};
-        for (const key of ['copyright', 'defaultLanguage', 'contactEmail', 'contactWebsite'] as const) {
+        for (const key of [
+          'copyright',
+          'defaultLanguage',
+          'contactEmail',
+          'contactWebsite',
+        ] as const) {
           const v = text(value[key]);
           if (v !== undefined) out[key] = v;
         }
@@ -318,7 +328,10 @@ export type SectionCompare = {
   details: string[];
 };
 
-const done = (status: SectionStatus, details: string[] = []): SectionCompare => ({ status, details });
+const done = (status: SectionStatus, details: string[] = []): SectionCompare => ({
+  status,
+  details,
+});
 
 /**
  * What two category texts are compared as: upper case, `&` as AND, everything but letters and
@@ -357,7 +370,9 @@ export function compareCategories(
 ): SectionCompare {
   if (store === undefined) return done('not-read');
   if (repo === undefined) {
-    return done('not-comparable', ['The repository has not been read, or its source cannot hold categories.']);
+    return done('not-comparable', [
+      'The repository has not been read, or its source cannot hold categories.',
+    ]);
   }
   if (!hasCategories(store) && !hasCategories(repo)) return done('identical');
   if (!hasCategories(repo)) return done('missing-in-repo');
@@ -368,7 +383,9 @@ export function compareCategories(
   for (let i = 0; i < a.length; i++) {
     const [label, s] = a[i] as [string, string | undefined];
     const r = (b[i] as [string, string | undefined])[1];
-    const same = (s === undefined ? '' : normalizeCategory(s)) === (r === undefined ? '' : normalizeCategory(r));
+    const same =
+      (s === undefined ? '' : normalizeCategory(s)) ===
+      (r === undefined ? '' : normalizeCategory(r));
     if (!same) details.push(`${label}: store ${s ?? 'none'}, repository ${r ?? 'none'}`);
   }
   return details.length === 0 ? done('identical') : done('differs', details);
@@ -393,7 +410,9 @@ export function compareAgeRating(
 ): SectionCompare {
   if (store === undefined) return done('not-read');
   if (repo === undefined) {
-    return done('not-comparable', ['The repository has not been read, or its source cannot hold an age rating.']);
+    return done('not-comparable', [
+      'The repository has not been read, or its source cannot hold an age rating.',
+    ]);
   }
   const repoKeys = Object.keys(repo.answers);
   if (repoKeys.length === 0) {
@@ -415,10 +434,13 @@ export function compareAgeRating(
   }
   if (compared === 0) {
     return done('not-comparable', [
-      'None of the repository\'s age rating keys is one the store reports, so they cannot be compared.',
+      "None of the repository's age rating keys is one the store reports, so they cannot be compared.",
     ]);
   }
-  const notes = unknown > 0 ? [`${unknown} repository key(s) are not reported by the store and were not compared.`] : [];
+  const notes =
+    unknown > 0
+      ? [`${unknown} repository key(s) are not reported by the store and were not compared.`]
+      : [];
   return details.length === 0 ? done('identical', notes) : done('differs', [...details, ...notes]);
 }
 
@@ -428,9 +450,13 @@ export function comparePrivacy(
 ): SectionCompare {
   if (store === undefined) return done('not-read');
   if (repo === undefined) {
-    return done('not-comparable', ['The repository has not been read, or its source cannot hold a privacy choices URL.']);
+    return done('not-comparable', [
+      'The repository has not been read, or its source cannot hold a privacy choices URL.',
+    ]);
   }
-  const locales = [...new Set([...Object.keys(store.choicesUrls), ...Object.keys(repo.choicesUrls)])].sort();
+  const locales = [
+    ...new Set([...Object.keys(store.choicesUrls), ...Object.keys(repo.choicesUrls)]),
+  ].sort();
   if (locales.length === 0) return done('identical');
   if (Object.keys(repo.choicesUrls).length === 0) return done('missing-in-repo');
   if (Object.keys(store.choicesUrls).length === 0) return done('missing-in-store');
@@ -456,14 +482,20 @@ export function compareDetails(
   if (s === '' && r === '') return done('identical');
   if (r === '') return done('missing-in-repo');
   if (s === '') return done('missing-in-store');
-  return s === r ? done('identical') : done('differs', [`copyright: store "${s}", repository "${r}"`]);
+  return s === r
+    ? done('identical')
+    : done('differs', [`copyright: store "${s}", repository "${r}"`]);
 }
 
 const countsByLocale = (map: Record<string, MediaSet[]> | undefined, perType: boolean) => {
   const out = new Map<string, number>();
   for (const [locale, sets] of Object.entries(map ?? {})) {
     if (perType) for (const set of sets) out.set(`${locale} ${set.type}`, set.count);
-    else out.set(locale, sets.reduce((sum, set) => sum + set.count, 0));
+    else
+      out.set(
+        locale,
+        sets.reduce((sum, set) => sum + set.count, 0),
+      );
   }
   return out;
 };
@@ -482,7 +514,9 @@ export function compareMedia(
 ): SectionCompare {
   if (store === undefined) return done('not-read');
   if (repo === undefined) {
-    return done('not-comparable', ['The repository has not been read, or its source cannot hold screenshots.']);
+    return done('not-comparable', [
+      'The repository has not been read, or its source cannot hold screenshots.',
+    ]);
   }
   const perType = isGooglePlatform(platform);
   const merge = (m: ListingMedia) => {
@@ -503,7 +537,9 @@ export function compareMedia(
     if (a !== b) details.push(`${key}: store ${a}, repository ${b}`);
   }
   const notes: string[] = [];
-  if (!perType) notes.push('Totals per locale: the repository does not say which device each file is for.');
-  if (store.truncated === true) notes.push('The store read was cut short, so some locales are missing from the store side.');
+  if (!perType)
+    notes.push('Totals per locale: the repository does not say which device each file is for.');
+  if (store.truncated === true)
+    notes.push('The store read was cut short, so some locales are missing from the store side.');
   return details.length === 0 ? done('identical', notes) : done('differs', [...details, ...notes]);
 }

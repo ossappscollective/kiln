@@ -100,7 +100,12 @@ test('listing.read (live listing, drift and history) is open to every role; none
 });
 
 test('only owners and admins manage tokens and webhooks', () => {
-  for (const action of ['tokens.read', 'tokens.manage', 'webhooks.read', 'webhooks.manage'] as const) {
+  for (const action of [
+    'tokens.read',
+    'tokens.manage',
+    'webhooks.read',
+    'webhooks.manage',
+  ] as const) {
     assert.equal(can('owner', action), true, action);
     assert.equal(can('admin', action), true, action);
     assert.equal(can('member', action), false, action);
@@ -121,7 +126,8 @@ test('a token ceiling is never owner', () => {
 
 test('no token can manage tokens, members, credential values or webhooks', () => {
   for (const action of tokenForbiddenActions) {
-    for (const role of roles) assert.equal(canToken(role, null, action), false, `${role} ${action}`);
+    for (const role of roles)
+      assert.equal(canToken(role, null, action), false, `${role} ${action}`);
     assert.equal(tokenActions.includes(action), false, action);
   }
   assert.equal(canToken('admin', null, 'credentials.write'), false);
@@ -145,7 +151,11 @@ test('a token holds the role ceiling, and an allowlist can only narrow it', () =
 
 test('every grantable action is one the admin ceiling can do, those that publish to a store only when named', () => {
   for (const action of tokenActions) {
-    assert.equal(canToken('admin', null, action), !tokenExplicitOnlyActions.includes(action), action);
+    assert.equal(
+      canToken('admin', null, action),
+      !tokenExplicitOnlyActions.includes(action),
+      action,
+    );
     assert.equal(canToken('admin', [action], action), true, action);
   }
 });
@@ -164,7 +174,19 @@ test('reviews: everyone reads, members sync and triage, nothing can reply to a s
     assert.equal(can('admin', action), true, action);
   }
   // Replying to a review is a store write with its own action (see docs/api/reviews.md).
-  assert.ok(!actions.some((a) => /^reviews\./.test(a) && !['reviews.read', 'reviews.sync', 'reviews.triage', 'reviews.reply', 'reviews.translate'].includes(a)));
+  assert.ok(
+    !actions.some(
+      (a) =>
+        /^reviews\./.test(a) &&
+        ![
+          'reviews.read',
+          'reviews.sync',
+          'reviews.triage',
+          'reviews.reply',
+          'reviews.translate',
+        ].includes(a),
+    ),
+  );
   // All three can be given to an API token.
   for (const action of ['reviews.read', 'reviews.sync', 'reviews.triage'] as const) {
     assert.equal(canToken('member', null, action), true, action);
@@ -184,7 +206,11 @@ test('reviews.reply: owners and admins only; a token needs the action named and 
   assert.equal(canToken('admin', null, 'reviews.reply'), false, 'no list: never');
   assert.equal(canToken('admin', ['reviews.read'], 'reviews.reply'), false);
   assert.equal(canToken('admin', ['reviews.reply'], 'reviews.reply'), true);
-  assert.equal(canToken('member', ['reviews.reply'], 'reviews.reply'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['reviews.reply'], 'reviews.reply'),
+    false,
+    'the ceiling still applies',
+  );
   assert.equal(canToken('viewer', ['reviews.reply'], 'reviews.reply'), false);
 });
 
@@ -200,7 +226,11 @@ test('releases.rollout: owners and admins only; a token needs the action named a
   assert.equal(canToken('admin', null, 'releases.rollout'), false, 'no list: never');
   assert.equal(canToken('admin', ['plans.write'], 'releases.rollout'), false);
   assert.equal(canToken('admin', ['releases.rollout'], 'releases.rollout'), true);
-  assert.equal(canToken('member', ['releases.rollout'], 'releases.rollout'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['releases.rollout'], 'releases.rollout'),
+    false,
+    'the ceiling still applies',
+  );
 });
 
 test('settings: members read them, only owners and admins change them; members translate reviews', () => {
@@ -226,7 +256,11 @@ test('store.push_draft: owners and admins only; a token needs the action named a
   assert.equal(canToken('admin', null, 'store.push_draft'), false, 'no list: never');
   assert.equal(canToken('admin', ['changesets.write'], 'store.push_draft'), false);
   assert.equal(canToken('admin', ['store.push_draft'], 'store.push_draft'), true);
-  assert.equal(canToken('member', ['store.push_draft'], 'store.push_draft'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['store.push_draft'], 'store.push_draft'),
+    false,
+    'the ceiling still applies',
+  );
 });
 
 test('store.submit: owners and admins only; a token needs the action named and an admin ceiling', () => {
@@ -237,13 +271,22 @@ test('store.submit: owners and admins only; a token needs the action named and a
   assert.ok(tokenActions.includes('store.submit'));
   assert.ok(tokenExplicitOnlyActions.includes('store.submit'));
   assert.equal(canToken('admin', null, 'store.submit'), false, 'no list: never');
-  assert.equal(canToken('admin', ['store.push_draft'], 'store.submit'), false, 'pushing a draft is not submitting');
+  assert.equal(
+    canToken('admin', ['store.push_draft'], 'store.submit'),
+    false,
+    'pushing a draft is not submitting',
+  );
   assert.equal(canToken('admin', ['store.submit'], 'store.submit'), true);
-  assert.equal(canToken('member', ['store.submit'], 'store.submit'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['store.submit'], 'store.submit'),
+    false,
+    'the ceiling still applies',
+  );
 });
 
 test('ASO: everybody reads, members track keywords and competitors, only admins refresh everything', () => {
-  for (const role of ['viewer', 'member', 'admin', 'owner'] as const) assert.equal(can(role, 'aso.read'), true, role);
+  for (const role of ['viewer', 'member', 'admin', 'owner'] as const)
+    assert.equal(can(role, 'aso.read'), true, role);
   assert.equal(can('viewer', 'aso.write'), false);
   assert.equal(can('member', 'aso.write'), true);
   assert.equal(can('member', 'aso.manage'), false);
@@ -260,14 +303,22 @@ test('ASO: everybody reads, members track keywords and competitors, only admins 
 test('builds.share: owners and admins only; explicit-only on tokens, separate from downloading', () => {
   assert.equal(can('owner', 'builds.share'), true);
   assert.equal(can('admin', 'builds.share'), true);
-  assert.equal(can('member', 'builds.share'), false, 'a member may download a build but not hand it to Google');
+  assert.equal(
+    can('member', 'builds.share'),
+    false,
+    'a member may download a build but not hand it to Google',
+  );
   assert.equal(can('viewer', 'builds.share'), false);
   assert.ok(tokenActions.includes('builds.share'));
   assert.ok(tokenExplicitOnlyActions.includes('builds.share'));
   assert.equal(canToken('admin', null, 'builds.share'), false, 'no list: never');
   assert.equal(canToken('admin', ['builds.download'], 'builds.share'), false);
   assert.equal(canToken('admin', ['builds.share'], 'builds.share'), true);
-  assert.equal(canToken('member', ['builds.share'], 'builds.share'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['builds.share'], 'builds.share'),
+    false,
+    'the ceiling still applies',
+  );
 });
 
 test('store.release: owners and admins only; explicit-only on tokens, separate from submit and rollout', () => {
@@ -278,9 +329,17 @@ test('store.release: owners and admins only; explicit-only on tokens, separate f
   assert.ok(tokenActions.includes('store.release'));
   assert.ok(tokenExplicitOnlyActions.includes('store.release'));
   assert.equal(canToken('admin', null, 'store.release'), false, 'no list: never');
-  assert.equal(canToken('admin', ['store.submit', 'releases.rollout', 'store.push_draft'], 'store.release'), false, 'submitting, rolling out and pushing are not releasing');
+  assert.equal(
+    canToken('admin', ['store.submit', 'releases.rollout', 'store.push_draft'], 'store.release'),
+    false,
+    'submitting, rolling out and pushing are not releasing',
+  );
   assert.equal(canToken('admin', ['store.release'], 'store.release'), true);
-  assert.equal(canToken('member', ['store.release'], 'store.release'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['store.release'], 'store.release'),
+    false,
+    'the ceiling still applies',
+  );
 });
 
 test('store.publish: owners and admins only; explicit-only on tokens and never a substitute for the rights of the steps', () => {
@@ -291,12 +350,29 @@ test('store.publish: owners and admins only; explicit-only on tokens and never a
   assert.ok(tokenActions.includes('store.publish'));
   assert.ok(tokenExplicitOnlyActions.includes('store.publish'));
   assert.equal(canToken('admin', null, 'store.publish'), false, 'no list: never');
-  for (const step of ['store.push_draft', 'store.submit', 'store.release', 'releases.rollout'] as const) {
-    assert.equal(canToken('admin', ['store.publish'], step), false, `store.publish does not give ${step}`);
-    assert.equal(canToken('admin', [step], 'store.publish'), false, `${step} does not give store.publish`);
+  for (const step of [
+    'store.push_draft',
+    'store.submit',
+    'store.release',
+    'releases.rollout',
+  ] as const) {
+    assert.equal(
+      canToken('admin', ['store.publish'], step),
+      false,
+      `store.publish does not give ${step}`,
+    );
+    assert.equal(
+      canToken('admin', [step], 'store.publish'),
+      false,
+      `${step} does not give store.publish`,
+    );
   }
   assert.equal(canToken('admin', ['store.publish'], 'store.publish'), true);
-  assert.equal(canToken('member', ['store.publish'], 'store.publish'), false, 'the ceiling still applies');
+  assert.equal(
+    canToken('member', ['store.publish'], 'store.publish'),
+    false,
+    'the ceiling still applies',
+  );
 });
 
 test('analytics.read: every role; analytics.manage: owners and admins only, explicit-only on tokens', () => {
@@ -306,9 +382,16 @@ test('analytics.read: every role; analytics.manage: owners and admins only, expl
   assert.equal(can('member', 'analytics.manage'), false);
   assert.equal(can('viewer', 'analytics.manage'), false);
   assert.ok(tokenExplicitOnlyActions.includes('analytics.manage'));
-  assert.ok(!tokenExplicitOnlyActions.includes('analytics.read'), 'reading is a default token right');
+  assert.ok(
+    !tokenExplicitOnlyActions.includes('analytics.read'),
+    'reading is a default token right',
+  );
   assert.equal(canToken('admin', null, 'analytics.manage'), false);
   assert.equal(canToken('admin', ['analytics.manage'], 'analytics.manage'), true);
-  assert.equal(canToken('member', ['analytics.manage'], 'analytics.manage'), false, 'a token never exceeds its role');
+  assert.equal(
+    canToken('member', ['analytics.manage'], 'analytics.manage'),
+    false,
+    'a token never exceeds its role',
+  );
   assert.equal(canToken('viewer', null, 'analytics.read'), true);
 });

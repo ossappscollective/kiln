@@ -14,12 +14,12 @@ The per app routes are under `/api/workspaces/{workspaceId}/apps/{id}`; the inbo
 reply settings and the reply templates are under `/api/workspaces/{workspaceId}/reviews`. A non-member
 gets 404, a member without the right gets 403. Rights:
 
-| Right | Who | For |
-| --- | --- | --- |
-| `reviews.read` | every role (viewer and up) | lists, inbox, summaries, one review with its draft, reply settings |
-| `reviews.sync` | member and up | read the store now |
-| `reviews.triage` | member and up | status, assignee, note; **reply drafts** and reply templates |
-| `reviews.reply` | **admin and up** | **send a reply to the store** |
+| Right            | Who                        | For                                                                |
+| ---------------- | -------------------------- | ------------------------------------------------------------------ |
+| `reviews.read`   | every role (viewer and up) | lists, inbox, summaries, one review with its draft, reply settings |
+| `reviews.sync`   | member and up              | read the store now                                                 |
+| `reviews.triage` | member and up              | status, assignee, note; **reply drafts** and reply templates       |
+| `reviews.reply`  | **admin and up**           | **send a reply to the store**                                      |
 
 An API token may hold these like any other action, and a token limited to some apps can use them on
 those apps only. **`reviews.reply` is explicit-only for tokens**: a token with no list of actions
@@ -28,19 +28,19 @@ token's role must allow it. The routes are in the [OpenAPI description](openapi.
 
 ## What each store provides
 
-| | App Store Connect | Google Play |
-| --- | --- | --- |
-| Endpoint | `GET /v1/apps/{id}/customerReviews` ([docs](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-customerreviews)) | `GET /androidpublisher/v3/applications/{packageName}/reviews` ([docs](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/list)) |
-| Reviews with no text | not stated on the page checked (a review with no body is stored with an empty body) | **no**: only reviews with a comment |
-| How far back | all of them, paged newest first (this server reads at most 10 pages of 200 per sync and continues on the next) | **only the last 7 days** ([guide](https://developers.google.com/android-publisher/reply-to-reviews)) |
-| Date filter | none documented: the read sorts newest first and stops | none: the whole window is read each time |
-| Creation time | yes (`createdDate`) | no: only the last modified time. `createdAt` here is when this server first saw the review |
-| Developer response | included (`customerReviewResponses`) | included (`developerComment`) |
-| Reply (a write) | `POST /v1/customerReviewResponses` ([docs](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-customerreviewresponses)): creates a response, or overwrites an existing one; shown as `PENDING_PUBLISH` until Apple publishes it | `POST .../reviews/{reviewId}:reply` ([docs](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/reply), [guide](https://developers.google.com/android-publisher/reply-to-reviews)): `{ "replyText" }`, at most **350** characters, replaces an earlier reply; public |
-| Reply length | no limit documented: this server caps at 5000 (**unverified**) | 350, documented |
-| Delete a reply | `DELETE /v1/customerReviewResponses/{id}` exists ([docs](https://developer.apple.com/documentation/appstoreconnectapi/delete-v1-customerreviewresponses-_id_)); the connector has it, **no route calls it** | no delete call |
-| Rate limit | per key per hour, reported in `X-Rate-Limit`; the read stops with 25 left | 200 GET requests per hour per app |
-| Store-wide average rating | not in the API: the public iTunes lookup is used (below) | **not available** from the Play Developer API |
+|                           | App Store Connect                                                                                                                                                                                                                                 | Google Play                                                                                                                                                                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Endpoint                  | `GET /v1/apps/{id}/customerReviews` ([docs](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-customerreviews))                                                                                                       | `GET /androidpublisher/v3/applications/{packageName}/reviews` ([docs](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/list))                                                                                                                                     |
+| Reviews with no text      | not stated on the page checked (a review with no body is stored with an empty body)                                                                                                                                                               | **no**: only reviews with a comment                                                                                                                                                                                                                                                      |
+| How far back              | all of them, paged newest first (this server reads at most 10 pages of 200 per sync and continues on the next)                                                                                                                                    | **only the last 7 days** ([guide](https://developers.google.com/android-publisher/reply-to-reviews))                                                                                                                                                                                     |
+| Date filter               | none documented: the read sorts newest first and stops                                                                                                                                                                                            | none: the whole window is read each time                                                                                                                                                                                                                                                 |
+| Creation time             | yes (`createdDate`)                                                                                                                                                                                                                               | no: only the last modified time. `createdAt` here is when this server first saw the review                                                                                                                                                                                               |
+| Developer response        | included (`customerReviewResponses`)                                                                                                                                                                                                              | included (`developerComment`)                                                                                                                                                                                                                                                            |
+| Reply (a write)           | `POST /v1/customerReviewResponses` ([docs](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-customerreviewresponses)): creates a response, or overwrites an existing one; shown as `PENDING_PUBLISH` until Apple publishes it | `POST .../reviews/{reviewId}:reply` ([docs](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/reply), [guide](https://developers.google.com/android-publisher/reply-to-reviews)): `{ "replyText" }`, at most **350** characters, replaces an earlier reply; public |
+| Reply length              | no limit documented: this server caps at 5000 (**unverified**)                                                                                                                                                                                    | 350, documented                                                                                                                                                                                                                                                                          |
+| Delete a reply            | `DELETE /v1/customerReviewResponses/{id}` exists ([docs](https://developer.apple.com/documentation/appstoreconnectapi/delete-v1-customerreviewresponses-_id_)); the connector has it, **no route calls it**                                       | no delete call                                                                                                                                                                                                                                                                           |
+| Rate limit                | per key per hour, reported in `X-Rate-Limit`; the read stops with 25 left                                                                                                                                                                         | 200 GET requests per hour per app                                                                                                                                                                                                                                                        |
+| Store-wide average rating | not in the API: the public iTunes lookup is used (below)                                                                                                                                                                                          | **not available** from the Play Developer API                                                                                                                                                                                                                                            |
 
 Not used, and why:
 
@@ -70,18 +70,18 @@ The stored reviews of the app, from this server's database. No store is contacte
 
 Query (all optional):
 
-| Parameter | Meaning |
-| --- | --- |
-| `rating` | one or more of 1 to 5, comma separated: `rating=1,2` |
-| `store`, `platform` | `appstoreconnect`/`googleplay`, `ios`/`android`. An app has one store, so a different one gives an empty list |
-| `territory`, `language`, `version` | exact match (`territory` is upper-cased) |
-| `status` | one or more of `new`, `triaged`, `replied_in_console`, `ignored` |
-| `hasResponse` | `true` or `false`: a developer response is or is not present |
-| `q` | text search in title and body, up to 100 characters. `%`, `_` and `!` match themselves. Review text is only ever a stored value, never put in a URL by this server |
-| `since`, `until` | epoch milliseconds on the creation time (`since` inclusive, `until` exclusive) |
-| `sort` | `newest` (default), `rating` (lowest first, then newest), `updated` |
-| `limit` | 1 to 100, default 25 |
-| `cursor` | the `nextCursor` of the previous page, with the same filters and sort |
+| Parameter                          | Meaning                                                                                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rating`                           | one or more of 1 to 5, comma separated: `rating=1,2`                                                                                                               |
+| `store`, `platform`                | `appstoreconnect`/`googleplay`, `ios`/`android`. An app has one store, so a different one gives an empty list                                                      |
+| `territory`, `language`, `version` | exact match (`territory` is upper-cased)                                                                                                                           |
+| `status`                           | one or more of `new`, `triaged`, `replied_in_console`, `ignored`                                                                                                   |
+| `hasResponse`                      | `true` or `false`: a developer response is or is not present                                                                                                       |
+| `q`                                | text search in title and body, up to 100 characters. `%`, `_` and `!` match themselves. Review text is only ever a stored value, never put in a URL by this server |
+| `since`, `until`                   | epoch milliseconds on the creation time (`since` inclusive, `until` exclusive)                                                                                     |
+| `sort`                             | `newest` (default), `rating` (lowest first, then newest), `updated`                                                                                                |
+| `limit`                            | 1 to 100, default 25                                                                                                                                               |
+| `cursor`                           | the `nextCursor` of the previous page, with the same filters and sort                                                                                              |
 
 Answer: `{ "reviews": [Review], "nextCursor": string | null }`. A bad filter or cursor is `400
 invalid_request` with `issues`.
@@ -166,12 +166,12 @@ is audited as `review.triage` with the fields that changed and the old and new s
 The stored reviews of **every app** of the workspace in one list, newest first by default. Needs
 `reviews.read`. Everything `GET /apps/{id}/reviews` takes, plus:
 
-| Parameter | Meaning |
-| --- | --- |
-| `appIds` (or `appId`) | one or more app ids, comma separated, at most 50. Unknown ids match nothing |
-| `assignee` | `me` or a member's user id |
-| `unassigned` | `true`: nobody is assigned (not together with `assignee`) |
-| `unanswered` | `true`: no developer response; `false`: has one (the same as `hasResponse`, inverted) |
+| Parameter             | Meaning                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `appIds` (or `appId`) | one or more app ids, comma separated, at most 50. Unknown ids match nothing           |
+| `assignee`            | `me` or a member's user id                                                            |
+| `unassigned`          | `true`: nobody is assigned (not together with `assignee`)                             |
+| `unanswered`          | `true`: no developer response; `false`: has one (the same as `hasResponse`, inverted) |
 
 `store`/`platform`, `rating`, `status`, `territory`, `language`, `version`, `q`, `since`/`until`,
 `sort` (`newest`, `rating`, `updated`), `limit` (1 to 100, default 25) and `cursor` work as for one app.
@@ -198,13 +198,33 @@ only reviews rated at or below it (`2`: the one and two star reviews nobody answ
 numbers are the ones older clients know; the other counts never change with it.
 
 ```json
-{ "basis": "stored_reviews", "label": "From 42 stored reviews across 3 apps, not store-wide",
+{
+  "basis": "stored_reviews",
+  "label": "From 42 stored reviews across 3 apps, not store-wide",
   "lowRatingThreshold": 2,
-  "apps": [{ "app": { "id": "", "name": "", "platform": "ios", "store": "appstoreconnect" },
-             "total": 0, "new": 0, "unanswered": 0, "unansweredOldestAt": null, "lowRating": 0,
-             "average": null, "oldestAt": null, "newestAt": null }],
+  "apps": [
+    {
+      "app": { "id": "", "name": "", "platform": "ios", "store": "appstoreconnect" },
+      "total": 0,
+      "new": 0,
+      "unanswered": 0,
+      "unansweredOldestAt": null,
+      "lowRating": 0,
+      "average": null,
+      "oldestAt": null,
+      "newestAt": null
+    }
+  ],
   "unansweredMaxRating": 5,
-  "totals": { "total": 0, "new": 0, "unanswered": 0, "unansweredOldestAt": null, "lowRating": 0, "average": null } }
+  "totals": {
+    "total": 0,
+    "new": 0,
+    "unanswered": 0,
+    "unansweredOldestAt": null,
+    "lowRating": 0,
+    "average": null
+  }
+}
 ```
 
 `new` is status `new`; `unanswered` is no developer response; `lowRating` is a rating at or below the

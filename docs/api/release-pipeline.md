@@ -11,33 +11,54 @@ sync of the app (`lastSyncedAt` says when). Routes are under `/api/workspaces/{w
 
 ## Routes
 
-| Route | Right | Answer |
-| --- | --- | --- |
-| `GET /apps/{id}/release/pipeline` | `apps.read` | `{ app, pipeline, lastSyncedAt, generatedAt }` |
-| `GET /release/pipeline/summary` | `apps.read` | `{ stalledAfterHours, apps[], totals, generatedAt }` |
+| Route                             | Right       | Answer                                               |
+| --------------------------------- | ----------- | ---------------------------------------------------- |
+| `GET /apps/{id}/release/pipeline` | `apps.read` | `{ app, pipeline, lastSyncedAt, generatedAt }`       |
+| `GET /release/pipeline/summary`   | `apps.read` | `{ stalledAfterHours, apps[], totals, generatedAt }` |
 
 A token limited to some apps sees only those apps in the summary, and gets `404` for another app (like every app route).
 
 ### `pipeline`
 
 ```json
-{ "appId": "…", "platform": "ios",
-  "state": "draft", "waitingOn": "you", "since": 1731900000000,
+{
+  "appId": "…",
+  "platform": "ios",
+  "state": "draft",
+  "waitingOn": "you",
+  "since": 1731900000000,
   "stalledAfterHours": 6,
-  "stalled": { "step": "draft", "key": "draft:2.4.0", "anchor": "2.4.0", "since": 1731900000000, "hours": 10, "stale": false,
-               "label": "Prepared, not submitted",
-               "message": "Build 412 was uploaded 10 h ago by run #88; version 2.4.0 is still in Prepare for submission with its build and has not been submitted for review.",
-               "evidence": [ { "kind": "run", "id": "1001", "at": 1731890000000, "label": "run #88" },
-                             { "kind": "build", "id": "412", "at": 1731900000000, "label": "build 412 (2.4.0), VALID" },
-                             { "kind": "version", "id": "2.4.0", "at": 1731900000000, "label": "version 2.4.0 PREPARE_FOR_SUBMISSION" } ] },
-  "stalls": [ "…every stall, the first is `stalled`…" ],
-  "steps": [ { "id": "ci", "status": "done", "at": 1731890000000, "detail": "run #88 succeeded" },
-             { "id": "build", "status": "done", "at": 1731900000000, "detail": "build 412 processed" },
-             { "id": "prepare", "status": "stalled", "at": 1731900000000, "detail": "…" },
-             { "id": "review", "status": "todo", "at": null, "detail": null },
-             { "id": "release", "status": "todo", "at": null, "detail": null } ],
+  "stalled": {
+    "step": "draft",
+    "key": "draft:2.4.0",
+    "anchor": "2.4.0",
+    "since": 1731900000000,
+    "hours": 10,
+    "stale": false,
+    "label": "Prepared, not submitted",
+    "message": "Build 412 was uploaded 10 h ago by run #88; version 2.4.0 is still in Prepare for submission with its build and has not been submitted for review.",
+    "evidence": [
+      { "kind": "run", "id": "1001", "at": 1731890000000, "label": "run #88" },
+      { "kind": "build", "id": "412", "at": 1731900000000, "label": "build 412 (2.4.0), VALID" },
+      {
+        "kind": "version",
+        "id": "2.4.0",
+        "at": 1731900000000,
+        "label": "version 2.4.0 PREPARE_FOR_SUBMISSION"
+      }
+    ]
+  },
+  "stalls": ["…every stall, the first is `stalled`…"],
+  "steps": [
+    { "id": "ci", "status": "done", "at": 1731890000000, "detail": "run #88 succeeded" },
+    { "id": "build", "status": "done", "at": 1731900000000, "detail": "build 412 processed" },
+    { "id": "prepare", "status": "stalled", "at": 1731900000000, "detail": "…" },
+    { "id": "review", "status": "todo", "at": null, "detail": null },
+    { "id": "release", "status": "todo", "at": null, "detail": null }
+  ],
   "summary": "…one sentence about the state…",
-  "latest": { "run": null, "build": null, "version": null } }
+  "latest": { "run": null, "build": null, "version": null }
+}
 ```
 
 - `state`: `unknown` (never synced, nothing known), `idle`, `ci_running`, `ci_failed`, `build_processing`, `build_ready` (a
@@ -62,15 +83,15 @@ A stall is a step that **should have been followed by the next one, and was not,
 `release.stalledAfterHours`** (a [workspace setting](settings.md), default 6; `0` turns the signal off for the workspace, the state
 is still shown). The clock starts at the last thing that moved. The steps, most advanced first (the first is `stalled`):
 
-| `step` | What it says | Starts at |
-| --- | --- | --- |
-| `approved` | A version was approved and nobody released it. | the time the version became `approved` |
-| `rejected` | A version was rejected and nothing changed since. | the time it became `rejected` |
-| `draft` | A draft version (App Store: Prepare for Submission; Google Play: a draft release) has a build or version codes but was not submitted or started. | the newest of the state change, the build upload and the last release run |
-| `build_ready` | A processed build is not attached to any version, and nothing newer is. | the build upload |
-| `build_invalid` | A build failed processing. | the build upload |
-| `build_processing` | The store still shows a build as processing. | the build upload |
-| `ci_run` | A release run succeeded, the store was read after it ended, and no new build and no state change appeared. | the end of the run |
+| `step`             | What it says                                                                                                                                     | Starts at                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `approved`         | A version was approved and nobody released it.                                                                                                   | the time the version became `approved`                                    |
+| `rejected`         | A version was rejected and nothing changed since.                                                                                                | the time it became `rejected`                                             |
+| `draft`            | A draft version (App Store: Prepare for Submission; Google Play: a draft release) has a build or version codes but was not submitted or started. | the newest of the state change, the build upload and the last release run |
+| `build_ready`      | A processed build is not attached to any version, and nothing newer is.                                                                          | the build upload                                                          |
+| `build_invalid`    | A build failed processing.                                                                                                                       | the build upload                                                          |
+| `build_processing` | The store still shows a build as processing.                                                                                                     | the build upload                                                          |
+| `ci_run`           | A release run succeeded, the store was read after it ended, and no new build and no state change appeared.                                       | the end of the run                                                        |
 
 - `message` is one sentence a person can read, built from the evidence in words ("Build 412 was uploaded 6 h ago by run #88;
   version 2.4.0 is still in Prepare for submission ..."), `label` a few words for a chip, and `evidence[]` the ids and times it

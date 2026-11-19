@@ -40,37 +40,37 @@ written once and delivered. With no listening webhook nothing is written to the 
 The action a person's role needs is listed under the table. Repeat window and cap are the defaults; an admin can change the cap and the
 thresholds. Channels are the workspace defaults. The webhook is only on where listed.
 
-| Type | What | Severity | Scope | Raised from | Default channels | Repeat window | Settings (range) |
-|---|---|---|---|---|---|---|---|
-| `release.rejected` | Store review rejected a version | critical | app | `app.release.status_changed` | inbox, email, desktop, webhook | 7d | |
-| `release.approved` | A version was approved | info | app | `app.release.status_changed` | inbox, desktop | 7d | |
-| `release.live` | A version is live or rolling out | info | app | `app.release.status_changed` | inbox | 7d | |
-| `release.in_review` | A version entered store review | info | app | `app.release.status_changed` | none | 7d | |
-| `release.halted` | A rollout was paused or halted | critical | app | `release.rollout_changed`, `app.release.status_changed` | inbox, email, desktop, webhook | 3d | |
-| `release.stalled` | A release has stalled | warning | app | `release.stalled` | inbox, desktop | 3d | |
-| `plan.deadline_overdue` | A release plan is past its target day | warning | app | `plan.deadline_overdue` | inbox, email | 3d | |
-| `plan.deadline_due_soon` | A release plan target day is close | info | app | `plan.deadline_due_soon` | inbox | 3d | |
-| `plan.rollout_step_due` | A planned rollout step is due | info | app | `plan.rollout_step_due` | inbox, desktop | 3d | |
-| `review.low_rating` | A new low-star review | warning | app | `review.new_low_rating` | inbox, desktop | 30d | |
-| `review.sync_failed` | Reading reviews keeps failing | warning | app | `review.sync_failed` | inbox | 24h | |
-| `review.unanswered` | Reviews are waiting for an answer | info | workspace | `review.unanswered` | inbox | 24h | |
-| `rating.dropped` | The average rating dropped | warning | app | state, every 5 minutes | inbox, email | 7d | Drop that counts: 20 hundredths of a star (5 to 200); compared with 7 days (1 to 60) |
-| `store.sync_failed` | A store sync failed | warning | app | state, every 5 minutes | inbox, email | 24h | |
-| `credential.invalid` | A credential does not work | critical | workspace | `credential.test_failed`, and state | inbox, email, desktop, webhook | 24h | |
-| `listing.drift` | The store listing changed outside this tool | warning | app | state, every 5 minutes | inbox | 7d | |
-| `listing.read_failing` | Reading the store listing keeps failing | warning | app | state, every 5 minutes | inbox | 24h | Failed reads in a row: 3 (1 to 50) |
-| `ci.run_failed` | A build run failed | warning | app | `ci.run_finished` (failed runs only) | inbox, desktop | 30d | |
-| `changeset.failed` | A change set could not be applied | warning | workspace | `changeset.failed` | inbox | 7d | |
-| `pending.stale` | Pending changes are waiting too long | info | app | state, every 5 minutes | inbox | 7d | Older than: 7 days (1 to 90) |
-| `analytics.sync_failing` | Analytics sync keeps failing | warning | app | state, every 5 minutes | inbox | 24h | Failed syncs in a row: 3 (2 to 50) |
-| `aso.rank_dropped` | A tracked keyword dropped in the ranking | warning | app | `aso.rank_changed` | inbox | 24h | Places lost: 10 (1 to 200) |
-| `aso.competitor_changed` | A competitor changed its listing | info | app | `aso.competitor_changed` | none | 24h | |
-| `ai.suggestion_ready` | An AI suggestion is ready | info | app | `ai.suggestion_created` | inbox | 30d | |
-| `security.stepup_failed` | Repeated failed confirmations | warning | workspace | `stepup.failed` | inbox, email | 1h | Failures in a row: 3 (1 to 20) |
-| `security.recovery_used` | A recovery code was used | warning | workspace | `stepup.recovery_used` | inbox, email | 1h | |
-| `security.token_created` | An API token was created | info | workspace | `token.created` | inbox | 30d | |
-| `security.member_added` | A member joined | info | workspace | `member.added` | inbox | 30d | |
-| `system.smtp_failing` | Alert email is failing | critical | workspace | state, every 5 minutes | inbox, desktop, webhook | 24h | Failed emails in a row: 3 (2 to 50) |
+| Type                     | What                                        | Severity | Scope     | Raised from                                             | Default channels               | Repeat window | Settings (range)                                                                     |
+| ------------------------ | ------------------------------------------- | -------- | --------- | ------------------------------------------------------- | ------------------------------ | ------------- | ------------------------------------------------------------------------------------ |
+| `release.rejected`       | Store review rejected a version             | critical | app       | `app.release.status_changed`                            | inbox, email, desktop, webhook | 7d            |                                                                                      |
+| `release.approved`       | A version was approved                      | info     | app       | `app.release.status_changed`                            | inbox, desktop                 | 7d            |                                                                                      |
+| `release.live`           | A version is live or rolling out            | info     | app       | `app.release.status_changed`                            | inbox                          | 7d            |                                                                                      |
+| `release.in_review`      | A version entered store review              | info     | app       | `app.release.status_changed`                            | none                           | 7d            |                                                                                      |
+| `release.halted`         | A rollout was paused or halted              | critical | app       | `release.rollout_changed`, `app.release.status_changed` | inbox, email, desktop, webhook | 3d            |                                                                                      |
+| `release.stalled`        | A release has stalled                       | warning  | app       | `release.stalled`                                       | inbox, desktop                 | 3d            |                                                                                      |
+| `plan.deadline_overdue`  | A release plan is past its target day       | warning  | app       | `plan.deadline_overdue`                                 | inbox, email                   | 3d            |                                                                                      |
+| `plan.deadline_due_soon` | A release plan target day is close          | info     | app       | `plan.deadline_due_soon`                                | inbox                          | 3d            |                                                                                      |
+| `plan.rollout_step_due`  | A planned rollout step is due               | info     | app       | `plan.rollout_step_due`                                 | inbox, desktop                 | 3d            |                                                                                      |
+| `review.low_rating`      | A new low-star review                       | warning  | app       | `review.new_low_rating`                                 | inbox, desktop                 | 30d           |                                                                                      |
+| `review.sync_failed`     | Reading reviews keeps failing               | warning  | app       | `review.sync_failed`                                    | inbox                          | 24h           |                                                                                      |
+| `review.unanswered`      | Reviews are waiting for an answer           | info     | workspace | `review.unanswered`                                     | inbox                          | 24h           |                                                                                      |
+| `rating.dropped`         | The average rating dropped                  | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 7d            | Drop that counts: 20 hundredths of a star (5 to 200); compared with 7 days (1 to 60) |
+| `store.sync_failed`      | A store sync failed                         | warning  | app       | state, every 5 minutes                                  | inbox, email                   | 24h           |                                                                                      |
+| `credential.invalid`     | A credential does not work                  | critical | workspace | `credential.test_failed`, and state                     | inbox, email, desktop, webhook | 24h           |                                                                                      |
+| `listing.drift`          | The store listing changed outside this tool | warning  | app       | state, every 5 minutes                                  | inbox                          | 7d            |                                                                                      |
+| `listing.read_failing`   | Reading the store listing keeps failing     | warning  | app       | state, every 5 minutes                                  | inbox                          | 24h           | Failed reads in a row: 3 (1 to 50)                                                   |
+| `ci.run_failed`          | A build run failed                          | warning  | app       | `ci.run_finished` (failed runs only)                    | inbox, desktop                 | 30d           |                                                                                      |
+| `changeset.failed`       | A change set could not be applied           | warning  | workspace | `changeset.failed`                                      | inbox                          | 7d            |                                                                                      |
+| `pending.stale`          | Pending changes are waiting too long        | info     | app       | state, every 5 minutes                                  | inbox                          | 7d            | Older than: 7 days (1 to 90)                                                         |
+| `analytics.sync_failing` | Analytics sync keeps failing                | warning  | app       | state, every 5 minutes                                  | inbox                          | 24h           | Failed syncs in a row: 3 (2 to 50)                                                   |
+| `aso.rank_dropped`       | A tracked keyword dropped in the ranking    | warning  | app       | `aso.rank_changed`                                      | inbox                          | 24h           | Places lost: 10 (1 to 200)                                                           |
+| `aso.competitor_changed` | A competitor changed its listing            | info     | app       | `aso.competitor_changed`                                | none                           | 24h           |                                                                                      |
+| `ai.suggestion_ready`    | An AI suggestion is ready                   | info     | app       | `ai.suggestion_created`                                 | inbox                          | 30d           |                                                                                      |
+| `security.stepup_failed` | Repeated failed confirmations               | warning  | workspace | `stepup.failed`                                         | inbox, email                   | 1h            | Failures in a row: 3 (1 to 20)                                                       |
+| `security.recovery_used` | A recovery code was used                    | warning  | workspace | `stepup.recovery_used`                                  | inbox, email                   | 1h            |                                                                                      |
+| `security.token_created` | An API token was created                    | info     | workspace | `token.created`                                         | inbox                          | 30d           |                                                                                      |
+| `security.member_added`  | A member joined                             | info     | workspace | `member.added`                                          | inbox                          | 30d           |                                                                                      |
+| `system.smtp_failing`    | Alert email is failing                      | critical | workspace | state, every 5 minutes                                  | inbox, desktop, webhook        | 24h           | Failed emails in a row: 3 (2 to 50)                                                  |
 
 Who is told, by type: the `release.*`, `store.sync_failed` and `pending.stale` types go to people who can read apps; `plan.*` to plans;
 `review.*` and `rating.dropped` to reviews; `credential.invalid` to credentials; `listing.*` to listings; `ci.run_failed` and
@@ -101,20 +101,20 @@ failure and a timeout are retried (up to the job queue's attempt limit); a refus
 final and say so. Every delivery is a row in the **delivery log** with a status (queued, retrying, sent, failed, skipped, deferred) and an
 **outcome code from a fixed list**. The screen explains each in a sentence; nothing a provider said is ever stored.
 
-| Outcome | Meaning |
-|---|---|
-| `ok` | Delivered. |
-| `queued_for_client` | Waiting for the app to show it as a desktop notification. |
-| `queued_for_endpoints` | Handed to the workspace's webhooks; each has its own delivery log. |
-| `in_digest` / `digest_sent` | Held for the digest / sent in a digest. |
-| `quiet_hours` | Held back by quiet hours. |
-| `muted` | Muted or snoozed by the person. |
-| `below_minimum_severity` | Below the lowest severity the person asked for. |
-| `user_rate_limited` | Over 20 alert emails in an hour for that person. |
-| `no_address` / `recipient_gone` | No email address, or the person left the workspace. |
-| `no_endpoint` | The webhook channel is on but no webhook listens for `alert.raised`. |
-| `smtp_not_configured` | No mail server is set up. |
-| `smtp_connection_failed` / `smtp_timeout` | The mail server could not be reached / did not answer. Retried. |
+| Outcome                                                  | Meaning                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------- |
+| `ok`                                                     | Delivered.                                                           |
+| `queued_for_client`                                      | Waiting for the app to show it as a desktop notification.            |
+| `queued_for_endpoints`                                   | Handed to the workspace's webhooks; each has its own delivery log.   |
+| `in_digest` / `digest_sent`                              | Held for the digest / sent in a digest.                              |
+| `quiet_hours`                                            | Held back by quiet hours.                                            |
+| `muted`                                                  | Muted or snoozed by the person.                                      |
+| `below_minimum_severity`                                 | Below the lowest severity the person asked for.                      |
+| `user_rate_limited`                                      | Over 20 alert emails in an hour for that person.                     |
+| `no_address` / `recipient_gone`                          | No email address, or the person left the workspace.                  |
+| `no_endpoint`                                            | The webhook channel is on but no webhook listens for `alert.raised`. |
+| `smtp_not_configured`                                    | No mail server is set up.                                            |
+| `smtp_connection_failed` / `smtp_timeout`                | The mail server could not be reached / did not answer. Retried.      |
 | `smtp_auth_failed` / `smtp_tls_failed` / `smtp_rejected` | Login refused / no secure connection / message refused. Not retried. |
 
 The web app's test (`apps/web/src/lib/alerts.test.ts`) reads the server's list and fails if a code has no sentence.
@@ -139,11 +139,11 @@ sent to webhooks. The inbox's Snooze menu makes the mute for the alert's app and
 
 ## Roles
 
-| Action | Who | Used for |
-|---|---|---|
-| `alerts.read` | owner, admin, member, viewer | the inbox, the catalog, the delivery log (own rows) |
-| `alerts.write` | owner, admin, member | own settings, choices, mutes, test alerts |
-| `alerts.manage` | owner, admin | workspace rules, the whole workspace's delivery log |
+| Action          | Who                          | Used for                                            |
+| --------------- | ---------------------------- | --------------------------------------------------- |
+| `alerts.read`   | owner, admin, member, viewer | the inbox, the catalog, the delivery log (own rows) |
+| `alerts.write`  | owner, admin, member         | own settings, choices, mutes, test alerts           |
+| `alerts.manage` | owner, admin                 | workspace rules, the whole workspace's delivery log |
 
 A non-member gets 404. API tokens: only the read endpoints for the catalog, the inbox, the unread count and the delivery log are open to a
 token by default (`alerts.read`); anything that changes a person's own state is session only; `alerts.manage` is

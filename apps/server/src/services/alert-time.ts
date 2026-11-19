@@ -34,7 +34,12 @@ export function localTime(tz: string, at: number): Local {
   const hour = Number(get('hour')) % 24;
   const minute = Number(get('minute'));
   const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday'));
-  return { minutes: hour * 60 + minute, hour, day: `${get('year')}-${get('month')}-${get('day')}`, weekday };
+  return {
+    minutes: hour * 60 + minute,
+    hour,
+    day: `${get('year')}-${get('month')}-${get('day')}`,
+    weekday,
+  };
 }
 
 export type QuietHours = { start: number | null; end: number | null; timezone: string | null };
@@ -62,7 +67,10 @@ export const digestModes: readonly DigestMode[] = ['off', 'daily', 'weekly'];
  * Whether a digest is due: the person's local time is at or after `hour`, and no digest was sent for this local day (daily) or in
  * the last six days (weekly, sent on Mondays). `lastAt` null means never sent: due at the next digest hour.
  */
-export function digestDue(input: { mode: DigestMode; hour: number; timezone: string | null; lastAt: number | null }, at: number): boolean {
+export function digestDue(
+  input: { mode: DigestMode; hour: number; timezone: string | null; lastAt: number | null },
+  at: number,
+): boolean {
   if (input.mode === 'off') return false;
   const tz = input.timezone ?? 'UTC';
   const now = localTime(tz, at);

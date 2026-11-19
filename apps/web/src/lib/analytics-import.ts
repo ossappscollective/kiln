@@ -1,16 +1,16 @@
 import { analyticsLimits, isAnalyticsErrorCode, metricInfo } from '@mrm/core';
-import { ApiError } from './api.ts';
 import {
+  analyticsErrorText,
   type EnablePlan,
   type EnablePreview,
+  formatCountExact,
+  formatDay,
   type ImportPlan,
   type ImportPreview,
   type ImportResult,
-  analyticsErrorText,
-  formatCountExact,
-  formatDay,
   setupSentence,
 } from './analytics.ts';
+import { ApiError } from './api.ts';
 
 /**
  * The two guarded flows of analytics, as pure logic: enabling Apple analytics (preview what will be created, then a typed
@@ -63,8 +63,16 @@ export function enableDecision(preview: EnablePreview): EnableDecision {
 }
 
 /** The confirm button is live only when the plan can be applied, the box is ticked and the phrase is typed exactly. */
-export const canConfirmEnable = (preview: EnablePreview | null, acknowledged: boolean, typed: string): boolean =>
-  !!preview && enableDecision(preview).kind === 'confirm' && preview.confirmHash !== '' && acknowledged && confirmationMatches(typed);
+export const canConfirmEnable = (
+  preview: EnablePreview | null,
+  acknowledged: boolean,
+  typed: string,
+): boolean =>
+  !!preview &&
+  enableDecision(preview).kind === 'confirm' &&
+  preview.confirmHash !== '' &&
+  acknowledged &&
+  confirmationMatches(typed);
 
 export type EnableFailure =
   /** The plan changed at Apple since the preview. The answer carries the new plan when it can be read. */
@@ -85,7 +93,8 @@ const asPreview = (value: unknown): EnablePreview | null => {
 export function classifyEnableError(error: unknown): EnableFailure {
   const message = analyticsErrorText(error);
   if (error instanceof ApiError) {
-    if (error.code === 'plan_changed') return { kind: 'plan_changed', preview: asPreview(error.body), message };
+    if (error.code === 'plan_changed')
+      return { kind: 'plan_changed', preview: asPreview(error.body), message };
     if (error.code === 'analytics_role_required') return { kind: 'role_required', message };
     if (error.code === 'analytics_disabled') return { kind: 'disabled', message };
   }
@@ -111,7 +120,13 @@ export type ImportState =
   | { phase: 'preview'; fileName: string; plan: ImportPlan; confirmHash: string }
   | { phase: 'importing'; fileName: string; plan: ImportPlan; confirmHash: string }
   | { phase: 'done'; fileName: string; result: ImportResult['imported'] }
-  | { phase: 'error'; fileName: string | null; during: 'preview' | 'import'; code: string; message: string };
+  | {
+      phase: 'error';
+      fileName: string | null;
+      during: 'preview' | 'import';
+      code: string;
+      message: string;
+    };
 
 export type ImportEvent =
   | { type: 'pick'; fileName: string }
@@ -129,18 +144,43 @@ export function importStep(state: ImportState, event: ImportEvent): ImportState 
     case 'reset':
       return state.phase === 'importing' || state.phase === 'checking' ? state : idleImport;
     case 'pick':
-      return state.phase === 'importing' || state.phase === 'checking' ? state : { phase: 'checking', fileName: event.fileName };
+      return state.phase === 'importing' || state.phase === 'checking'
+        ? state
+        : { phase: 'checking', fileName: event.fileName };
     case 'previewed':
-      return state.phase === 'checking' ? { phase: 'preview', fileName: state.fileName, plan: event.preview.plan, confirmHash: event.preview.confirmHash } : state;
+      return state.phase === 'checking'
+        ? {
+            phase: 'preview',
+            fileName: state.fileName,
+            plan: event.preview.plan,
+            confirmHash: event.preview.confirmHash,
+          }
+        : state;
     case 'confirm':
-      return state.phase === 'preview' && canConfirmImport(state) ? { phase: 'importing', fileName: state.fileName, plan: state.plan, confirmHash: state.confirmHash } : state;
+      return state.phase === 'preview' && canConfirmImport(state)
+        ? {
+            phase: 'importing',
+            fileName: state.fileName,
+            plan: state.plan,
+            confirmHash: state.confirmHash,
+          }
+        : state;
     case 'imported':
-      return state.phase === 'importing' ? { phase: 'done', fileName: state.fileName, result: event.result } : state;
+      return state.phase === 'importing'
+        ? { phase: 'done', fileName: state.fileName, result: event.result }
+        : state;
     case 'failed': {
       if (event.during === 'preview' && state.phase !== 'checking') return state;
       if (event.during === 'import' && state.phase !== 'importing') return state;
-      const fileName = state.phase === 'checking' || state.phase === 'importing' ? state.fileName : null;
-      return { phase: 'error', fileName, during: event.during, code: event.code, message: event.message };
+      const fileName =
+        state.phase === 'checking' || state.phase === 'importing' ? state.fileName : null;
+      return {
+        phase: 'error',
+        fileName,
+        during: event.during,
+        code: event.code,
+        message: event.message,
+      };
     }
     default:
       return state;
@@ -149,12 +189,15 @@ export function importStep(state: ImportState, event: ImportEvent): ImportState 
 
 /** Something to store and the hash of the preview. A file with nothing usable cannot be confirmed. */
 export const canConfirmImport = (state: ImportState): boolean =>
-  (state.phase === 'preview' || state.phase === 'importing') && state.confirmHash !== '' && state.plan.points > 0;
+  (state.phase === 'preview' || state.phase === 'importing') &&
+  state.confirmHash !== '' &&
+  state.plan.points > 0;
 
 /** The sentence for a failed preview or import: from the fixed vocabularies, never the file's text. */
 export function importErrorText(error: unknown): { code: string; message: string } {
   const code = error instanceof ApiError ? error.code : '';
-  if (error instanceof ApiError && isAnalyticsErrorCode(code)) return { code, message: analyticsErrorText(error) };
+  if (error instanceof ApiError && isAnalyticsErrorCode(code))
+    return { code, message: analyticsErrorText(error) };
   return { code, message: analyticsErrorText(error) };
 }
 
@@ -171,16 +214,31 @@ export type PreviewFacts = {
 export function previewFacts(plan: ImportPlan): PreviewFacts {
   const s = plan.stats;
   const rows = [`${formatCountExact(s.rowsRead)} rows read, ${formatCountExact(s.rowsUsed)} used`];
-  if (s.rowsFiltered > 0) rows.push(`${formatCountExact(s.rowsFiltered)} left out because they belong to another app or platform`);
+  if (s.rowsFiltered > 0)
+    rows.push(
+      `${formatCountExact(s.rowsFiltered)} left out because they belong to another app or platform`,
+    );
   if (s.rowsUnreadable > 0) rows.push(`${formatCountExact(s.rowsUnreadable)} could not be read`);
-  const range = plan.dateFrom && plan.dateTo ? (plan.dateFrom === plan.dateTo ? formatDay(plan.dateFrom, true) : `${formatDay(plan.dateFrom, true)} to ${formatDay(plan.dateTo, true)}`) : 'No dates found';
+  const range =
+    plan.dateFrom && plan.dateTo
+      ? plan.dateFrom === plan.dateTo
+        ? formatDay(plan.dateFrom, true)
+        : `${formatDay(plan.dateFrom, true)} to ${formatDay(plan.dateTo, true)}`
+      : 'No dates found';
   return {
     report: plan.report.label || 'Apple report',
     range,
     rows,
     days: `${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'}`,
-    metrics: plan.metrics.map((m) => ({ label: m.label, days: m.days, total: m.total === null ? 'Average, not a total' : formatCountExact(m.total) })),
-    willStore: plan.points > 0 ? `${formatCountExact(plan.points)} values for ${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'} can be stored.` : 'Nothing in this file can be stored.',
+    metrics: plan.metrics.map((m) => ({
+      label: m.label,
+      days: m.days,
+      total: m.total === null ? 'Average, not a total' : formatCountExact(m.total),
+    })),
+    willStore:
+      plan.points > 0
+        ? `${formatCountExact(plan.points)} values for ${formatCountExact(plan.days)} ${plan.days === 1 ? 'day' : 'days'} can be stored.`
+        : 'Nothing in this file can be stored.',
   };
 }
 
@@ -191,11 +249,25 @@ export function sampleTable(sample: readonly unknown[]): SampleTable {
   const rows: string[][] = [];
   for (const item of sample) {
     if (!item || typeof item !== 'object') continue;
-    const r = item as { date?: unknown; metric?: unknown; value?: unknown; dimension?: { type?: unknown; value?: unknown } };
-    if (typeof r.date !== 'string' || typeof r.metric !== 'string' || typeof r.value !== 'number') continue;
+    const r = item as {
+      date?: unknown;
+      metric?: unknown;
+      value?: unknown;
+      dimension?: { type?: unknown; value?: unknown };
+    };
+    if (typeof r.date !== 'string' || typeof r.metric !== 'string' || typeof r.value !== 'number')
+      continue;
     const label = (metricInfo as Record<string, { label: string }>)[r.metric]?.label ?? r.metric;
-    const dim = r.dimension && typeof r.dimension.type === 'string' && typeof r.dimension.value === 'string' ? `${r.dimension.type.replace(/_/g, ' ')}: ${r.dimension.value}` : 'Total';
-    rows.push([formatDay(r.date, true), label, dim, Number.isInteger(r.value) ? formatCountExact(r.value) : String(r.value)]);
+    const dim =
+      r.dimension && typeof r.dimension.type === 'string' && typeof r.dimension.value === 'string'
+        ? `${r.dimension.type.replace(/_/g, ' ')}: ${r.dimension.value}`
+        : 'Total';
+    rows.push([
+      formatDay(r.date, true),
+      label,
+      dim,
+      Number.isInteger(r.value) ? formatCountExact(r.value) : String(r.value),
+    ]);
     if (rows.length >= 6) break;
   }
   return { columns: ['Date', 'Metric', 'Dimension', 'Value'], rows };
@@ -203,15 +275,21 @@ export function sampleTable(sample: readonly unknown[]): SampleTable {
 
 /** The notes of a preview: plain short sentences, drawn as text. */
 export function previewNotes(notes: readonly unknown[]): string[] {
-  return notes.filter((n): n is string => typeof n === 'string' && n.trim() !== '').map((n) => (n.length > 300 ? `${n.slice(0, 297)}...` : n));
+  return notes
+    .filter((n): n is string => typeof n === 'string' && n.trim() !== '')
+    .map((n) => (n.length > 300 ? `${n.slice(0, 297)}...` : n));
 }
 
 /** The line after a successful import, from the numbers of the answer. A repeat of the same file stores nothing, and says so. */
 export function importedText(result: ImportResult['imported']): string {
-  if (result.written === 0) return 'Nothing new was stored: every value was already there, or the store API already had it.';
+  if (result.written === 0)
+    return 'Nothing new was stored: every value was already there, or the store API already had it.';
   const parts = [`Stored ${formatCountExact(result.written)} values`];
   if (result.unchanged > 0) parts.push(`${formatCountExact(result.unchanged)} were already there`);
-  const range = result.dateFrom && result.dateTo ? ` for ${formatDay(result.dateFrom, true)} to ${formatDay(result.dateTo, true)}` : '';
+  const range =
+    result.dateFrom && result.dateTo
+      ? ` for ${formatDay(result.dateFrom, true)} to ${formatDay(result.dateTo, true)}`
+      : '';
   return `${parts.join(', ')}${range}.`;
 }
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AnalyticsOverview, AnalyticsStatus } from './analytics.ts';
+import { androidOverview, appleOverview, NOW, sourceOf, statusOf } from './analytics-fixtures.ts';
 import {
   allSeries,
   appleCrashRate,
@@ -17,21 +18,26 @@ import {
   pageNotes,
   platformNotes,
   scheduleText,
-  splitHeadline,
   sourceRows,
+  splitHeadline,
   syncLines,
   tableFor,
   tooltipFor,
 } from './analytics-view.ts';
-import { NOW, androidOverview, appleOverview, sourceOf, statusOf } from './analytics-fixtures.ts';
 
-const without = (o: AnalyticsOverview, ...ids: string[]): AnalyticsOverview => ({ ...o, series: o.series.filter((s) => ids.indexOf(s.id) < 0) });
+const without = (o: AnalyticsOverview, ...ids: string[]): AnalyticsOverview => ({
+  ...o,
+  series: o.series.filter((s) => ids.indexOf(s.id) < 0),
+});
 
 // ---- chips ----
 
 test('the Apple chips show only what has data, each with its change against the previous period', () => {
   const chips = buildChips('ios', appleOverview(), appleOverview(), 28);
-  assert.deepEqual(chips.map((c) => c.id), ['impressions', 'product_page_views', 'downloads', 'conversion', 'crash_rate']);
+  assert.deepEqual(
+    chips.map((c) => c.id),
+    ['impressions', 'product_page_views', 'downloads', 'conversion', 'crash_rate'],
+  );
   const downloads = chips.find((c) => c.id === 'downloads');
   assert.ok(downloads);
   assert.match(downloads.value, /\d/);
@@ -40,7 +46,12 @@ test('the Apple chips show only what has data, each with its change against the 
 });
 
 test('a chip without data is left out, not shown as zero', () => {
-  const chips = buildChips('ios', without(appleOverview(), 'sessions', 'crashes', 'impressions'), null, 28);
+  const chips = buildChips(
+    'ios',
+    without(appleOverview(), 'sessions', 'crashes', 'impressions'),
+    null,
+    28,
+  );
   const ids = chips.map((c) => c.id);
   assert.ok(!ids.includes('crash_rate'));
   assert.ok(!ids.includes('impressions'));
@@ -61,7 +72,10 @@ test('with no previous period a chip says nothing about change', () => {
 
 test('the Android chips use installs, conversion, vitals and the newest rating', () => {
   const chips = buildChips('android', androidOverview(), androidOverview(), 28);
-  assert.deepEqual(chips.map((c) => c.id), ['downloads', 'product_page_views', 'conversion', 'crash_rate', 'anr_rate', 'rating']);
+  assert.deepEqual(
+    chips.map((c) => c.id),
+    ['downloads', 'product_page_views', 'conversion', 'crash_rate', 'anr_rate', 'rating'],
+  );
   const rating = chips.find((c) => c.id === 'rating');
   assert.match(rating?.value ?? '', /^4\.\d\d$/);
 });
@@ -81,8 +95,16 @@ test('Apple crash rate is crashes per session, derived here and labelled so', ()
 // ---- cards ----
 
 test('Apple cards come in reading order and a card without data is not drawn', () => {
-  assert.deepEqual(buildCards(appleOverview()).map((c) => c.id), ['reach', 'downloads', 'conversion', 'crashes', 'proceeds']);
-  assert.deepEqual(buildCards(without(appleOverview(), 'sales_proceeds:EUR', 'sales_proceeds:USD')).map((c) => c.id), ['reach', 'downloads', 'conversion', 'crashes']);
+  assert.deepEqual(
+    buildCards(appleOverview()).map((c) => c.id),
+    ['reach', 'downloads', 'conversion', 'crashes', 'proceeds'],
+  );
+  assert.deepEqual(
+    buildCards(without(appleOverview(), 'sales_proceeds:EUR', 'sales_proceeds:USD')).map(
+      (c) => c.id,
+    ),
+    ['reach', 'downloads', 'conversion', 'crashes'],
+  );
   assert.deepEqual(buildCards(appleOverview({ empty: true })), []);
   assert.deepEqual(buildCards(null), []);
 });
@@ -91,9 +113,14 @@ test('proceeds are one panel per currency and never added together', () => {
   const proceeds = buildCards(appleOverview()).find((c) => c.id === 'proceeds');
   assert.ok(proceeds);
   assert.equal(proceeds.panels.length, 2);
-  assert.deepEqual(proceeds.panels.map((p) => p.currency), ['EUR', 'USD']);
+  assert.deepEqual(
+    proceeds.panels.map((p) => p.currency),
+    ['EUR', 'USD'],
+  );
   assert.ok(proceeds.panels.every((p) => p.series.length === 1));
-  const only = buildCards(without(appleOverview(), 'sales_proceeds:USD')).find((c) => c.id === 'proceeds');
+  const only = buildCards(without(appleOverview(), 'sales_proceeds:USD')).find(
+    (c) => c.id === 'proceeds',
+  );
   assert.equal(only?.panels.length, 1);
   assert.equal(only?.panels[0]?.title, 'EUR');
 });
@@ -103,24 +130,39 @@ test('downloads stack first-time and redownloads in two colors; a lone panel is 
   const panel = downloads?.panels[0];
   assert.equal(panel?.kind, 'stacked');
   assert.equal(panel?.title, null);
-  assert.deepEqual(panel?.series.map((s) => s.color), [1, 2]);
+  assert.deepEqual(
+    panel?.series.map((s) => s.color),
+    [1, 2],
+  );
   const reach = buildCards(appleOverview()).find((c) => c.id === 'reach');
-  assert.deepEqual(reach?.panels.map((p) => p.title), ['Impressions', 'Product page views']);
+  assert.deepEqual(
+    reach?.panels.map((p) => p.title),
+    ['Impressions', 'Product page views'],
+  );
 });
 
 test('crashes by version come from the app_version breakdown', () => {
   const crashes = buildCards(appleOverview()).find((c) => c.id === 'crashes');
   assert.equal(crashes?.versions.length, 1);
-  assert.deepEqual(crashes?.versions[0]?.items.map((i) => i.value), ['2.4.1', '2.4.0', '2.3.9']);
+  assert.deepEqual(
+    crashes?.versions[0]?.items.map((i) => i.value),
+    ['2.4.1', '2.4.0', '2.3.9'],
+  );
   const none = buildCards(without(appleOverview(), 'crashes')).find((c) => c.id === 'crashes');
   assert.equal(none?.versions.length ?? 0, 0);
 });
 
 test('Android cards: crash and ANR share a chart in two colors and the rating axis follows the data', () => {
   const cards = buildCards(androidOverview());
-  assert.deepEqual(cards.map((c) => c.id), ['installs', 'listing', 'conversion', 'vitals', 'ratings']);
+  assert.deepEqual(
+    cards.map((c) => c.id),
+    ['installs', 'listing', 'conversion', 'vitals', 'ratings'],
+  );
   const vitals = cards.find((c) => c.id === 'vitals');
-  assert.deepEqual(vitals?.panels[0]?.series.map((s) => s.color), [1, 2]);
+  assert.deepEqual(
+    vitals?.panels[0]?.series.map((s) => s.color),
+    [1, 2],
+  );
   assert.equal(vitals?.versions.length, 1);
   assert.equal(cards.find((c) => c.id === 'ratings')?.panels[0]?.domain, 'tight');
   assert.equal(vitals?.panels[0]?.domain, 'zero');
@@ -150,7 +192,10 @@ test('the about-this-data info lists source, coverage with gaps, lag and notes p
   const card = buildCards(appleOverview({ gap: true })).find((c) => c.id === 'reach');
   assert.ok(card);
   const info = cardInfo(card);
-  assert.deepEqual(info.map((i) => i.id), ['impressions', 'product_page_views']);
+  assert.deepEqual(
+    info.map((i) => i.id),
+    ['impressions', 'product_page_views'],
+  );
   assert.equal(info[0]?.source, 'App Store analytics reports');
   assert.match(info[0]?.coverage ?? '', /2 days missing between the first and the last/);
   assert.ok((info[0]?.notes.length ?? 0) >= 1);
@@ -189,7 +234,10 @@ test('a stacked tooltip adds a total row without a swatch', () => {
   const panel = buildCards(appleOverview()).find((c) => c.id === 'downloads')?.panels[0];
   assert.ok(panel);
   const tip = tooltipFor(panel, 3, '2026-11-19');
-  assert.deepEqual(tip?.rows.map((r) => r.label), ['First-time downloads', 'Redownloads', 'Total']);
+  assert.deepEqual(
+    tip?.rows.map((r) => r.label),
+    ['First-time downloads', 'Redownloads', 'Total'],
+  );
   assert.equal(tip?.rows[2]?.color, 0);
   const a = Number((tip?.rows[0]?.text ?? '').replace(/,/g, ''));
   const b = Number((tip?.rows[1]?.text ?? '').replace(/,/g, ''));
@@ -199,7 +247,10 @@ test('a stacked tooltip adds a total row without a swatch', () => {
 test('the chart description gives the latest, lowest and highest value and the days with no data', () => {
   const card = buildCards(appleOverview({ gap: true })).find((c) => c.id === 'reach');
   const text = describePanel(card?.panels[0] as never, 'Impressions and product page views');
-  assert.match(text, /^Impressions\. Impressions: latest [\d.,KM]+, lowest [\d.,KM]+, highest [\d.,KM]+, 3 days with no data\.$/);
+  assert.match(
+    text,
+    /^Impressions\. Impressions: latest [\d.,KM]+, lowest [\d.,KM]+, highest [\d.,KM]+, 3 days with no data\.$/,
+  );
 });
 
 test('the table twin has a row per day, a column per series, and No data for a gap', () => {
@@ -217,7 +268,13 @@ test('a Play rate of unverified unit is shown as percent and also as sent', () =
   const card = buildCards(androidOverview()).find((c) => c.id === 'vitals');
   assert.ok(card);
   const table = tableFor(card);
-  assert.deepEqual(table.columns, ['Date', 'Crash rate', 'Crash rate, as sent', 'ANR rate', 'ANR rate, as sent']);
+  assert.deepEqual(table.columns, [
+    'Date',
+    'Crash rate',
+    'Crash rate, as sent',
+    'ANR rate',
+    'ANR rate, as sent',
+  ]);
   const row = table.rows[0]?.cells ?? [];
   assert.match(row[0] ?? '', /%$/);
   assert.match(row[1] ?? '', /^0\.\d+$/);
@@ -236,12 +293,22 @@ test('the worst required state wins; an optional setup does not count', () => {
   const optional = sourceOf({
     source: 'apple_sales',
     state: 'needs_setup',
-    setup: { code: 'vendor_number_missing', nextStep: 'set_vendor_number', alternatives: [], optional: true, message: 'x' },
+    setup: {
+      code: 'vendor_number_missing',
+      nextStep: 'set_vendor_number',
+      alternatives: [],
+      optional: true,
+      message: 'x',
+    },
   });
   assert.equal(overallState(statusOf({ sources: [ready, optional] })), 'ready');
   const waiting = sourceOf({ source: 'apple_analytics', state: 'waiting' });
   assert.equal(overallState(statusOf({ sources: [waiting, optional] })), 'waiting');
-  const failed = sourceOf({ source: 'apple_sales', state: 'error', lastError: { code: 'sync_failed', message: 'x' } });
+  const failed = sourceOf({
+    source: 'apple_sales',
+    state: 'error',
+    lastError: { code: 'sync_failed', message: 'x' },
+  });
   assert.equal(overallState(statusOf({ sources: [waiting, failed] })), 'error');
 });
 
@@ -256,7 +323,13 @@ test('a source that needs the role offers enabling, with importing a file as the
         lastAttemptAt: null,
         firstDay: null,
         lastDay: null,
-        setup: { code: 'create_report_request', nextStep: 'enable_apple_analytics', alternatives: ['import_apple_report', 'wait'], optional: false, message: 'server text' },
+        setup: {
+          code: 'create_report_request',
+          nextStep: 'enable_apple_analytics',
+          alternatives: ['import_apple_report', 'wait'],
+          optional: false,
+          message: 'server text',
+        },
       }),
     ],
   });
@@ -265,7 +338,10 @@ test('a source that needs the role offers enabling, with importing a file as the
   assert.equal(row.state, 'needs_setup');
   assert.equal(row.stateLabel, 'Needs setup');
   assert.equal(row.action?.kind, 'enable_apple');
-  assert.deepEqual(row.alternatives.map((a) => a.kind), ['import']);
+  assert.deepEqual(
+    row.alternatives.map((a) => a.kind),
+    ['import'],
+  );
   assert.match(row.message, /report request/);
   assert.equal(row.message.includes('server text'), false);
   assert.equal(row.lastRead, 'Not read yet');
@@ -277,7 +353,11 @@ test('a ready source says its range and when it was read; a failed read is a fix
     statusOf({
       sources: [
         sourceOf({ source: 'apple_analytics', firstDay: '2026-10-25', lastDay: '2026-11-16' }),
-        sourceOf({ source: 'apple_sales', state: 'error', lastError: { code: 'google_permission_denied', message: 'RAW STORE TEXT' } }),
+        sourceOf({
+          source: 'apple_sales',
+          state: 'error',
+          lastError: { code: 'google_permission_denied', message: 'RAW STORE TEXT' },
+        }),
       ],
     }),
     NOW,
@@ -292,13 +372,22 @@ test('a ready source says its range and when it was read; a failed read is a fix
 test('stored data, last read and the schedule are plain facts', () => {
   const status = statusOf();
   assert.equal(hasStoredData(status), true);
-  assert.equal(hasStoredData(statusOf({ sources: [sourceOf({ source: 'apple_analytics', lastDay: null })] })), false);
+  assert.equal(
+    hasStoredData(statusOf({ sources: [sourceOf({ source: 'apple_analytics', lastDay: null })] })),
+    false,
+  );
   assert.equal(hasStoredData(null), false);
   assert.equal(lastReadAt(status), NOW - 3_600_000);
   assert.equal(lastReadAt(statusOf({ sources: [] })), null);
   assert.equal(scheduleText(statusOf()), 'Synced every 6 hours.');
-  assert.equal(scheduleText(statusOf({ schedule: { intervalMinutes: 1440 } })), 'Synced every day.');
-  assert.equal(scheduleText(statusOf({ schedule: { intervalMinutes: 45 } })), 'Synced every 45 minutes.');
+  assert.equal(
+    scheduleText(statusOf({ schedule: { intervalMinutes: 1440 } })),
+    'Synced every day.',
+  );
+  assert.equal(
+    scheduleText(statusOf({ schedule: { intervalMinutes: 45 } })),
+    'Synced every 45 minutes.',
+  );
   assert.match(scheduleText(statusOf({ schedule: { intervalMinutes: 0 } })), /no scheduled sync/);
   assert.match(scheduleText(statusOf({ enabled: false })), /off while analytics is off/);
 });
@@ -308,9 +397,20 @@ test('a manual sync is reported per source in fixed words', () => {
     at: NOW,
     pointsWritten: 12,
     sources: [
-      { source: 'apple_analytics', status: 'ok', points: 12, dayFrom: '2026-11-10', dayTo: '2026-11-16' },
+      {
+        source: 'apple_analytics',
+        status: 'ok',
+        points: 12,
+        dayFrom: '2026-11-10',
+        dayTo: '2026-11-16',
+      },
       { source: 'apple_sales', status: 'ok', points: 0 },
-      { source: 'play_vitals', status: 'failed', errorCode: 'google_permission_denied', transient: true },
+      {
+        source: 'play_vitals',
+        status: 'failed',
+        errorCode: 'google_permission_denied',
+        transient: true,
+      },
       { source: 'play_reports', status: 'skipped', setup: 'bucket_id_missing' },
     ],
   });
@@ -325,24 +425,40 @@ test('a manual sync is reported per source in fixed words', () => {
 
 test('the dashboard strip has downloads, conversion and crash rate with their sparkline data, or nothing', () => {
   const strip = buildStrip(appleOverview());
-  assert.deepEqual(strip?.items.map((i) => i.id), ['downloads', 'conversion', 'crash_rate']);
+  assert.deepEqual(
+    strip?.items.map((i) => i.id),
+    ['downloads', 'conversion', 'crash_rate'],
+  );
   assert.equal(strip?.items[0]?.points.length, 28);
   assert.equal(strip?.items[0]?.dates.length, 28);
   assert.match(strip?.freshness ?? '', /^Data up to /);
   assert.equal(buildStrip(appleOverview({ empty: true })), null);
   assert.equal(buildStrip(null), null);
   const android = buildStrip(androidOverview());
-  assert.deepEqual(android?.items.map((i) => i.label), ['Installs', 'Conversion', 'Crash rate']);
+  assert.deepEqual(
+    android?.items.map((i) => i.label),
+    ['Installs', 'Conversion', 'Crash rate'],
+  );
 });
 
 test('the Insights overview draws one chart open: downloads or installs, the rest behind "More charts"', () => {
   const apple = splitHeadline(buildCards(appleOverview()));
   assert.equal(apple.headline?.id, 'downloads');
-  assert.deepEqual(apple.rest.map((c) => c.id), ['reach', 'conversion', 'crashes', 'proceeds']);
+  assert.deepEqual(
+    apple.rest.map((c) => c.id),
+    ['reach', 'conversion', 'crashes', 'proceeds'],
+  );
   const google = splitHeadline(buildCards(androidOverview()));
   assert.equal(google.headline?.id, 'installs');
   assert.equal(google.rest.length, buildCards(androidOverview()).length - 1);
   assert.deepEqual(splitHeadline([]), { headline: null, rest: [] });
-  const odd = [{ id: 'x', title: 'X', panels: [], versions: [] }, { id: 'y', title: 'Y', panels: [], versions: [] }];
-  assert.equal(splitHeadline(odd).headline?.id, 'x', 'without a downloads or installs card, the first one');
+  const odd = [
+    { id: 'x', title: 'X', panels: [], versions: [] },
+    { id: 'y', title: 'Y', panels: [], versions: [] },
+  ];
+  assert.equal(
+    splitHeadline(odd).headline?.id,
+    'x',
+    'without a downloads or installs card, the first one',
+  );
 });

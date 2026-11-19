@@ -3,8 +3,9 @@
  * checklist, release notes per locale, a target date, a blocked flag); nothing here reads or
  * writes a store. Pure functions only, so both sides compute the same readiness and due flags.
  */
+
+import { APP_STORE_FIELD_SPECS, countCharacters, PLAY_CHANGELOG_SPEC } from './listing.ts';
 import { isApplePlatform, isGooglePlatform, type Platform } from './platform.ts';
-import { APP_STORE_FIELD_SPECS, PLAY_CHANGELOG_SPEC, countCharacters } from './listing.ts';
 
 /** `null` means the plan covers both platforms. */
 export type PlanPlatform = Platform | null;
@@ -23,7 +24,8 @@ export const MAX_TEMPLATES = 50;
 export const MAX_TEMPLATE_NAME_LENGTH = 100;
 
 /** Release notes limit of the App Store ("What's new"), in characters. */
-export const APP_STORE_RELEASE_NOTES_LIMIT: number = APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000;
+export const APP_STORE_RELEASE_NOTES_LIMIT: number =
+  APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000;
 /** Release notes limit of a Play release, in characters. */
 export const PLAY_RELEASE_NOTES_LIMIT: number = PLAY_CHANGELOG_SPEC.maxLength ?? 500;
 
@@ -50,7 +52,10 @@ export function isPlanVersion(value: string): boolean {
 
 /** `default` (the fallback folder of fastlane) or a locale code such as `en-US`, `de`, `pt_BR`. */
 export function isPlanLocale(value: string): boolean {
-  return value === 'default' || (value.length <= 35 && /^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$/.test(value));
+  return (
+    value === 'default' ||
+    (value.length <= 35 && /^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$/.test(value))
+  );
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -87,7 +92,8 @@ export function dueFlags(
   now: number,
   options: { released?: boolean; soonDays?: number } = {},
 ): DueFlags {
-  if (targetDate === null || !isTargetDate(targetDate)) return { dueSoon: false, overdue: false, daysLeft: null };
+  if (targetDate === null || !isTargetDate(targetDate))
+    return { dueSoon: false, overdue: false, daysLeft: null };
   const start = Date.parse(`${targetDate}T00:00:00Z`);
   const today = Math.floor(now / DAY) * DAY;
   const daysLeft = Math.round((start - today) / DAY);
@@ -142,12 +148,20 @@ export function computeReadiness(input: {
   if (open > 0) reasons.push(`${open} required ${open === 1 ? 'item is' : 'items are'} not done.`);
   if (input.notes.length === 0) reasons.push('No release notes yet. Add at least one locale.');
   if (missing.length > 0) reasons.push(`Release notes are missing for ${missing.join(', ')}.`);
-  if (tooLong.length > 0) reasons.push(`Release notes are over ${limit} characters for ${tooLong.join(', ')}.`);
+  if (tooLong.length > 0)
+    reasons.push(`Release notes are over ${limit} characters for ${tooLong.join(', ')}.`);
 
   return {
     ready: open === 0 && complete,
     required: { total: required.length, done, open },
-    notes: { limit, locales: input.notes.length, filled: input.notes.length - missing.length, missing, tooLong, complete },
+    notes: {
+      limit,
+      locales: input.notes.length,
+      filled: input.notes.length - missing.length,
+      missing,
+      tooLong,
+      complete,
+    },
     reasons,
   };
 }

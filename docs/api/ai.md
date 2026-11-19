@@ -16,10 +16,10 @@ sending is a different call). Nothing in this feature pushes, submits, publishes
 
 ## Rights
 
-| Action | Who | Routes |
-| --- | --- | --- |
-| `ai.use` | members, admins, owners (not viewers) | read the configuration, tasks and suggestions; run a task; accept or dismiss |
-| `ai.manage` | admins, owners | change the settings; test the provider; list the provider's models |
+| Action      | Who                                   | Routes                                                                       |
+| ----------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| `ai.use`    | members, admins, owners (not viewers) | read the configuration, tasks and suggestions; run a task; accept or dismiss |
+| `ai.manage` | admins, owners                        | change the settings; test the provider; list the provider's models           |
 
 Both are **explicit-only for API tokens**: a token holds them only when its `actions` list names them (see [tokens](tokens.md)). Accepting also
 needs the right of what it creates: `aso.write` for keywords, `changesets.write` for listing text, `reviews.triage` for a reply draft; for a token
@@ -36,17 +36,43 @@ gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the toke
   "reason": "no_model",
   "server": { "enabled": true, "allowPrivateUrls": false },
   "settings": {
-    "enabled": true, "provider": "anthropic", "model": "claude-...", "baseUrl": null, "baseUrlSet": false,
-    "monthlyTokenBudget": 500000, "maxOutputTokens": 4000, "maxInputTokens": 8000
+    "enabled": true,
+    "provider": "anthropic",
+    "model": "claude-...",
+    "baseUrl": null,
+    "baseUrlSet": false,
+    "monthlyTokenBudget": 500000,
+    "maxOutputTokens": 4000,
+    "maxInputTokens": 8000
   },
   "defaults": { "monthlyTokenBudget": 500000, "maxOutputTokens": 4000, "maxInputTokens": 8000 },
   "overridden": ["enabled", "model"],
   "providers": [
-    { "id": "anthropic", "label": "Anthropic (Claude)", "credentialKind": "ai_anthropic", "credentialRequired": true,
-      "needsUrl": false, "privacy": "The data listed for a task is sent to Anthropic. ...", "credentialPresent": true }
+    {
+      "id": "anthropic",
+      "label": "Anthropic (Claude)",
+      "credentialKind": "ai_anthropic",
+      "credentialRequired": true,
+      "needsUrl": false,
+      "privacy": "The data listed for a task is sent to Anthropic. ...",
+      "credentialPresent": true
+    }
   ],
-  "usage": { "month": "2026-11", "used": 900, "budget": 500000, "remaining": 499100, "runs": 1, "resetsAt": 1796083200000 },
-  "limits": { "maxConcurrentPerWorkspace": 2, "runsPerMinute": 10, "maxGoalChars": 300, "suggestionRetentionDays": 90, "...": 0 },
+  "usage": {
+    "month": "2026-11",
+    "used": 900,
+    "budget": 500000,
+    "remaining": 499100,
+    "runs": 1,
+    "resetsAt": 1796083200000
+  },
+  "limits": {
+    "maxConcurrentPerWorkspace": 2,
+    "runsPerMinute": 10,
+    "maxGoalChars": 300,
+    "suggestionRetentionDays": 90,
+    "...": 0
+  },
   "canManage": true
 }
 ```
@@ -124,9 +150,17 @@ one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a comp
   "provider": { "id": "anthropic", "label": "Anthropic (Claude)", "privacy": "..." },
   "tasks": [
     {
-      "id": "keyword_ideas", "version": 1, "label": "Keyword ideas", "description": "...",
-      "status": "ready", "proposalKind": "keywords", "acceptAction": "aso.write",
-      "scope": [{ "name": "locale", "required": true, "description": "..." }, { "name": "country", "required": false, "description": "..." }],
+      "id": "keyword_ideas",
+      "version": 1,
+      "label": "Keyword ideas",
+      "description": "...",
+      "status": "ready",
+      "proposalKind": "keywords",
+      "acceptAction": "aso.write",
+      "scope": [
+        { "name": "locale", "required": true, "description": "..." },
+        { "name": "country", "required": false, "description": "..." }
+      ],
       "disclosure": { "sends": ["..."], "neverSends": ["..."] }
     }
   ]
@@ -136,19 +170,19 @@ one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a comp
 **Show `disclosure` and `provider.privacy` before the first use of a task.** `status: "planned"` tasks are listed with their disclosure plan and answer
 `409 task_not_available` when run: `release_notes`, `rank_drop_explain`.
 
-| Task | Scope (body fields) | Proposal | Accepting |
-| --- | --- | --- | --- |
-| `keyword_ideas` | `locale` (required), `country`, `goal` | `keywords` | tracks the chosen terms (`aso.write`) |
-| `listing_improve` | `locale` (required), `fields`, `goal` | `listing_text` | stages the texts, source `ai` (`changesets.write`) |
-| `review_reply_draft` | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft` | saves a reply draft (`reviews.triage`, needs `MRM_REVIEW_REPLY_ENABLED`) |
-| `review_summary` | `days` (1 to 180, default 30), `limit` (5 to 80, default 40) | `insight` | marks it reviewed (`ai.use`) |
-| `review_classify` | `days` (default 90), `limit` (1 to 40, default 20), `reviewIds` | `insight` | marks it reviewed; the tags are stored by the run |
-| `fix_next` | `days` (default 30), `limit` (5 to 80, default 40) | `insight` | marks it reviewed |
-| `listing_audit` | `locale` (required), `goal` | `insight` | marks it reviewed |
-| `aso_health` | none | `insight` | marks it reviewed |
-| `keyword_ideas_reviews` | `locale` (required), `country`, `days` (default 90), `goal` | `keywords` | tracks the chosen terms (`aso.write`) |
-| `listing_variants` | `locale` (required), `fields`, `count` (2 to 5, default 3), `goal` | `listing_variants` | stages one chosen variant per field (`changesets.write`) |
-| `listing_translate` | `sourceLocale` and `locale` (the target), both required, `fields` | `listing_text` | stages the texts (`changesets.write`) |
+| Task                    | Scope (body fields)                                                                          | Proposal           | Accepting                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------ |
+| `keyword_ideas`         | `locale` (required), `country`, `goal`                                                       | `keywords`         | tracks the chosen terms (`aso.write`)                                    |
+| `listing_improve`       | `locale` (required), `fields`, `goal`                                                        | `listing_text`     | stages the texts, source `ai` (`changesets.write`)                       |
+| `review_reply_draft`    | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft`      | saves a reply draft (`reviews.triage`, needs `MRM_REVIEW_REPLY_ENABLED`) |
+| `review_summary`        | `days` (1 to 180, default 30), `limit` (5 to 80, default 40)                                 | `insight`          | marks it reviewed (`ai.use`)                                             |
+| `review_classify`       | `days` (default 90), `limit` (1 to 40, default 20), `reviewIds`                              | `insight`          | marks it reviewed; the tags are stored by the run                        |
+| `fix_next`              | `days` (default 30), `limit` (5 to 80, default 40)                                           | `insight`          | marks it reviewed                                                        |
+| `listing_audit`         | `locale` (required), `goal`                                                                  | `insight`          | marks it reviewed                                                        |
+| `aso_health`            | none                                                                                         | `insight`          | marks it reviewed                                                        |
+| `keyword_ideas_reviews` | `locale` (required), `country`, `days` (default 90), `goal`                                  | `keywords`         | tracks the chosen terms (`aso.write`)                                    |
+| `listing_variants`      | `locale` (required), `fields`, `count` (2 to 5, default 3), `goal`                           | `listing_variants` | stages one chosen variant per field (`changesets.write`)                 |
+| `listing_translate`     | `sourceLocale` and `locale` (the target), both required, `fields`                            | `listing_text`     | stages the texts (`changesets.write`)                                    |
 
 `goal` is at most 300 characters (longer is `400`, not cut). Review text is data: it is delimited, cut to 2,000 characters, and the name, device and
 version of the reviewer are not sent.
@@ -158,10 +192,28 @@ version of the reviewer are not sent.
 `POST /ai/tasks/{taskId}/run` (`ai.use`). Body: `appId` plus the scope fields of the task (unknown fields are `400`). Answers `201` (`warning` is `null` unless a limit is near, see [Cost](#cost-the-soft-warning-and-the-cap)):
 
 ```json
-{ "warning": null, "suggestion": { "id": "...", "appId": "...", "task": "keyword_ideas", "taskVersion": 1, "kind": "keywords", "status": "proposed",
-  "provider": "anthropic", "model": "claude-...", "proposal": { }, "scope": { "locale": "en-US", "country": "us", "goal": true },
-  "inputHash": "<sha-256 of the data sent>", "usage": { "inputTokens": 700, "outputTokens": 200 },
-  "createdBy": "...", "createdAt": 1766000000000, "decidedBy": null, "decidedAt": null, "accepted": null } }
+{
+  "warning": null,
+  "suggestion": {
+    "id": "...",
+    "appId": "...",
+    "task": "keyword_ideas",
+    "taskVersion": 1,
+    "kind": "keywords",
+    "status": "proposed",
+    "provider": "anthropic",
+    "model": "claude-...",
+    "proposal": {},
+    "scope": { "locale": "en-US", "country": "us", "goal": true },
+    "inputHash": "<sha-256 of the data sent>",
+    "usage": { "inputTokens": 700, "outputTokens": 200 },
+    "createdBy": "...",
+    "createdAt": 1766000000000,
+    "decidedBy": null,
+    "decidedAt": null,
+    "accepted": null
+  }
+}
 ```
 
 `proposal` by `kind`. Every item has `acceptable` and `flags`; an item with `acceptable: false` is shown and **cannot be accepted**. `reason` and `text` were
@@ -186,20 +238,20 @@ keyword idea is the listing field it would help in, or `null` (track only). `lis
 
 Errors (all JSON `{ "error", "message", ... }` with fixed sentences; never provider text):
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 400 | `invalid_request` | bad body; `issues` lists fields |
-| 404 | `not_found`, `unknown_task` | no such app, review or task |
-| 409 | `ai_not_enabled` | `reason`: `server` or `workspace` |
-| 409 | `task_not_available` | a planned task |
-| 422 | `ai_not_configured` | `reason`: `no_model`, `no_credential`, `no_url`, `credential_unreadable`, `bad_url` (then often `hint`: `private_address_blocked`, `plain_http_not_allowed`) |
-| 422 | `no_listing_text` | no stored listing text for that language |
-| 422 | `ai_input_too_large` | the data is over the input cap; nothing was sent |
-| 422 | `ai_auth`, `ai_too_large` | the provider refused the key, or says the request is too large |
-| 429 | `ai_budget_exhausted` | `budget`, `used`, `resetsAt`; nothing was sent |
-| 429 | `ai_busy`, `rate_limited`, `ai_rate_limited` | too many runs now (`Retry-After`) |
-| 502 | `ai_invalid_output` | the answer did not match the schema (`reason`: `not_json`, `truncated`, `schema`, `no_text`, `refusal`); no suggestion; tokens still count; no sample of the answer |
-| 502, 504 | `ai_unavailable` | the provider could not be reached or answered with an error; `reason` is a short hint (`timeout`, `http_404`, `http_500`, `private_address_blocked`, `plain_http_not_allowed`, `address_not_allowed`) |
+| Status   | `error`                                      | Meaning                                                                                                                                                                                               |
+| -------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400      | `invalid_request`                            | bad body; `issues` lists fields                                                                                                                                                                       |
+| 404      | `not_found`, `unknown_task`                  | no such app, review or task                                                                                                                                                                           |
+| 409      | `ai_not_enabled`                             | `reason`: `server` or `workspace`                                                                                                                                                                     |
+| 409      | `task_not_available`                         | a planned task                                                                                                                                                                                        |
+| 422      | `ai_not_configured`                          | `reason`: `no_model`, `no_credential`, `no_url`, `credential_unreadable`, `bad_url` (then often `hint`: `private_address_blocked`, `plain_http_not_allowed`)                                          |
+| 422      | `no_listing_text`                            | no stored listing text for that language                                                                                                                                                              |
+| 422      | `ai_input_too_large`                         | the data is over the input cap; nothing was sent                                                                                                                                                      |
+| 422      | `ai_auth`, `ai_too_large`                    | the provider refused the key, or says the request is too large                                                                                                                                        |
+| 429      | `ai_budget_exhausted`                        | `budget`, `used`, `resetsAt`; nothing was sent                                                                                                                                                        |
+| 429      | `ai_busy`, `rate_limited`, `ai_rate_limited` | too many runs now (`Retry-After`)                                                                                                                                                                     |
+| 502      | `ai_invalid_output`                          | the answer did not match the schema (`reason`: `not_json`, `truncated`, `schema`, `no_text`, `refusal`); no suggestion; tokens still count; no sample of the answer                                   |
+| 502, 504 | `ai_unavailable`                             | the provider could not be reached or answered with an error; `reason` is a short hint (`timeout`, `http_404`, `http_500`, `private_address_blocked`, `plain_http_not_allowed`, `address_not_allowed`) |
 
 Audit: `ai.run` (suggestion id, app id, task, version, provider, model, token counts, `inputHash`, scope) and `ai.run_failed` (code and counts). **Never a prompt, an
 answer, a review text, a goal or a key.** Event `ai.suggestion_created` with `suggestionId`, `appId`, `task`, `taskVersion`, `kind` ([events](events.md)).

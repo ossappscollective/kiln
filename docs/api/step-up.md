@@ -12,17 +12,17 @@ gets 404.
 
 `PUT /step-up/policy` (owner, admin: `settings.write`): `{ mode: "off" | "hard_actions", actions?, unattended? }`.
 
-| Class | Covers |
-| --- | --- |
-| `store.publish` | `POST /apps/{id}/publish` (several steps at once) |
-| `store.submit` | `POST /apps/{id}/store-submit` |
-| `store.release` | `POST /apps/{id}/store-release` |
-| `rollout` | `POST /apps/{id}/rollout/apply` |
-| `internal_sharing` | `POST /apps/{id}/builds/artifacts/{artifactId}/internal-share` (upload a build to Google Play internal app sharing, [internal-sharing](internal-sharing.md)) |
-| `analytics.enable_apple` | `POST /apps/{id}/analytics/apple/enable` |
-| `credential.delete` | `DELETE /credentials/{id}` |
-| `flags` | `PUT /settings` when it turns `analytics.enabled` or `translation.enabled` **on** (turning off is free) |
-| `store.push_draft` | `POST /apps/{id}/staged/push` (not in the default list: a draft never reaches users) |
+| Class                    | Covers                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `store.publish`          | `POST /apps/{id}/publish` (several steps at once)                                                                                                            |
+| `store.submit`           | `POST /apps/{id}/store-submit`                                                                                                                               |
+| `store.release`          | `POST /apps/{id}/store-release`                                                                                                                              |
+| `rollout`                | `POST /apps/{id}/rollout/apply`                                                                                                                              |
+| `internal_sharing`       | `POST /apps/{id}/builds/artifacts/{artifactId}/internal-share` (upload a build to Google Play internal app sharing, [internal-sharing](internal-sharing.md)) |
+| `analytics.enable_apple` | `POST /apps/{id}/analytics/apple/enable`                                                                                                                     |
+| `credential.delete`      | `DELETE /credentials/{id}`                                                                                                                                   |
+| `flags`                  | `PUT /settings` when it turns `analytics.enabled` or `translation.enabled` **on** (turning off is free)                                                      |
+| `store.push_draft`       | `POST /apps/{id}/staged/push` (not in the default list: a draft never reaches users)                                                                         |
 
 `actions` defaults to every class but `store.push_draft`. `unattended` is the list of classes API tokens may do
 without a person (default empty, see [tokens](#api-tokens-and-ci)). Changing an active policy needs a fresh

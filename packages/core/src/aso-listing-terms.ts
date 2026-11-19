@@ -13,8 +13,8 @@
 import {
   APP_STORE_KEYWORD_BYTES,
   type AsoPlatform,
-  type FitFields,
   checkTerm,
+  type FitFields,
   foldWord,
   isStopWord,
   languageOf,
@@ -22,7 +22,16 @@ import {
   stem,
   words,
 } from './aso.ts';
-import { type TrackedRef, type WasteReason, keywordFieldEntries, keywordFieldWaste, listingBudget, sameLocale, storefrontFor, termKeyOf } from './aso-coach.ts';
+import {
+  keywordFieldEntries,
+  keywordFieldWaste,
+  listingBudget,
+  sameLocale,
+  storefrontFor,
+  type TrackedRef,
+  termKeyOf,
+  type WasteReason,
+} from './aso-coach.ts';
 import { countBytes } from './listing.ts';
 import { isApplePlatform } from './platform.ts';
 
@@ -84,10 +93,14 @@ export type TermOptions = {
 export const DEFAULT_DESCRIPTION_OCCURRENCES = 3;
 export const DEFAULT_DESCRIPTION_TERMS = 8;
 
-const isKeywordWord = (language: string, w: string): boolean => !isStopWord(language, w) && Array.from(w).length >= 3 && !/^[0-9]+$/.test(w);
+const isKeywordWord = (language: string, w: string): boolean =>
+  !isStopWord(language, w) && Array.from(w).length >= 3 && !/^[0-9]+$/.test(w);
 
 /** The words of a text that could be a keyword: no stop word, at least 3 characters, not only digits; each once, with its key. */
-export function significantWords(text: string | undefined, language: string): { term: string; key: string }[] {
+export function significantWords(
+  text: string | undefined,
+  language: string,
+): { term: string; key: string }[] {
   if (!text) return [];
   const out: { term: string; key: string }[] = [];
   const seen = new Set<string>();
@@ -102,7 +115,12 @@ export function significantWords(text: string | undefined, language: string): { 
 }
 
 /** The terms a locale of a stored listing sets. */
-export function listingTerms(input: { platform: AsoPlatform; locale: string; fields: FitFields; options?: TermOptions }): LocaleTerms {
+export function listingTerms(input: {
+  platform: AsoPlatform;
+  locale: string;
+  fields: FitFields;
+  options?: TermOptions;
+}): LocaleTerms {
   const { platform, locale, fields } = input;
   const options = input.options ?? {};
   const language = languageOf(locale);
@@ -112,7 +130,16 @@ export function listingTerms(input: { platform: AsoPlatform; locale: string; fie
   const touch = (term: string, key: string, source: TermSource, set: boolean): ListingTerm => {
     let t = byKey.get(key);
     if (!t) {
-      t = { term, key, sources: [], set: false, waste: null, duplicate: false, entries: 0, occurrences: 0 };
+      t = {
+        term,
+        key,
+        sources: [],
+        set: false,
+        waste: null,
+        duplicate: false,
+        entries: 0,
+        occurrences: 0,
+      };
       byKey.set(key, t);
       order.push(t);
     }
@@ -163,7 +190,8 @@ export function listingTerms(input: { platform: AsoPlatform; locale: string; fie
         { field: 'title', text: fields.title },
         { field: 'shortDescription', text: fields.shortDescription },
       ];
-  for (const f of textFields) for (const w of significantWords(f.text, language)) touch(w.term, w.key, f.field, false);
+  for (const f of textFields)
+    for (const w of significantWords(f.text, language)) touch(w.term, w.key, f.field, false);
 
   if (!apple && options.includeDescription === true && fields.description) {
     const min = options.minDescriptionOccurrences ?? DEFAULT_DESCRIPTION_OCCURRENCES;
@@ -191,18 +219,26 @@ export function listingTerms(input: { platform: AsoPlatform; locale: string; fie
       if (t && t.waste === null) t.duplicate = true;
     }
   } else {
-    for (const t of order) if (t.sources.indexOf('title') >= 0 && t.sources.indexOf('shortDescription') >= 0) t.duplicate = true;
+    for (const t of order)
+      if (t.sources.indexOf('title') >= 0 && t.sources.indexOf('shortDescription') >= 0)
+        t.duplicate = true;
   }
 
   const filled = (v: string | undefined): boolean => v !== undefined && v.trim() !== '';
-  const hasText = apple ? [fields.title, fields.subtitle, fields.keywords].some(filled) : [fields.title, fields.shortDescription].some(filled);
+  const hasText = apple
+    ? [fields.title, fields.subtitle, fields.keywords].some(filled)
+    : [fields.title, fields.shortDescription].some(filled);
   return { platform, locale, terms: order, keywordField, extracted: !apple, hasText };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Tracked or not
 
-export type TrackedRank = TrackedRef & { id?: string; state?: 'ranked' | 'not_ranked' | null; rank?: number | null };
+export type TrackedRank = TrackedRef & {
+  id?: string;
+  state?: 'ranked' | 'not_ranked' | null;
+  rank?: number | null;
+};
 
 export type TermTracking = {
   tracked: boolean;
@@ -214,11 +250,26 @@ export type TermTracking = {
 };
 
 /** Whether a term is tracked in this locale and storefront, with the rank today. */
-export function trackingOf(term: Pick<ListingTerm, 'key'>, locale: string, country: string, tracked: readonly TrackedRank[]): TermTracking {
+export function trackingOf(
+  term: Pick<ListingTerm, 'key'>,
+  locale: string,
+  country: string,
+  tracked: readonly TrackedRank[],
+): TermTracking {
   const c = country.toLowerCase();
   for (const t of tracked) {
-    if (t.country.toLowerCase() !== c || !sameLocale(t.locale, locale) || termKeyOf(t.term, locale) !== term.key) continue;
-    return { tracked: true, keywordId: t.id ?? null, state: t.state ?? null, rank: t.state === 'ranked' ? (t.rank ?? null) : null };
+    if (
+      t.country.toLowerCase() !== c ||
+      !sameLocale(t.locale, locale) ||
+      termKeyOf(t.term, locale) !== term.key
+    )
+      continue;
+    return {
+      tracked: true,
+      keywordId: t.id ?? null,
+      state: t.state ?? null,
+      rank: t.state === 'ranked' ? (t.rank ?? null) : null,
+    };
   }
   return { tracked: false, keywordId: null, state: null, rank: null };
 }
@@ -253,8 +304,16 @@ export function listingRows(input: {
     const sf = storefrontFor(l.locale, input.tracked);
     const chosen = input.countries?.[l.locale];
     const country = chosen !== undefined && sf.options.indexOf(chosen) >= 0 ? chosen : sf.country;
-    const terms = listingTerms({ platform: input.platform, locale: l.locale, fields: l.fields, ...(input.options ? { options: input.options } : {}) });
-    const rows: ListingRowTerm[] = terms.terms.map((t) => ({ ...t, ...trackingOf(t, l.locale, country, input.tracked) }));
+    const terms = listingTerms({
+      platform: input.platform,
+      locale: l.locale,
+      fields: l.fields,
+      ...(input.options ? { options: input.options } : {}),
+    });
+    const rows: ListingRowTerm[] = terms.terms.map((t) => ({
+      ...t,
+      ...trackingOf(t, l.locale, country, input.tracked),
+    }));
     return {
       locale: l.locale,
       country,

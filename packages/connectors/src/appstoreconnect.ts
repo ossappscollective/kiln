@@ -1,7 +1,14 @@
-import { type AppStoreField, type ListingSections, type LocaleText, type MediaSet, PLATFORM_META, type Platform } from '@mrm/core';
 import {
-  AppStoreConnectTokenProvider,
+  type AppStoreField,
+  type ListingSections,
+  type LocaleText,
+  type MediaSet,
+  PLATFORM_META,
+  type Platform,
+} from '@mrm/core';
+import {
   type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
@@ -12,8 +19,8 @@ import {
   type Json,
   num,
   records,
-  type StoreHttpOptions,
   StoreHttp,
+  type StoreHttpOptions,
   type StoreReply,
   serverTime,
   text,
@@ -187,7 +194,8 @@ function localizationIds(items: Json[]): [string, string][] {
 /** The newest by creation time (when sent), else the last one listed. */
 function newest(items: ListingResource[]): ListingResource | undefined {
   return items.reduce<ListingResource | undefined>(
-    (best, item) => (best === undefined || (item.createdAt ?? 0) >= (best.createdAt ?? 0) ? item : best),
+    (best, item) =>
+      best === undefined || (item.createdAt ?? 0) >= (best.createdAt ?? 0) ? item : best,
     undefined,
   );
 }
@@ -283,7 +291,11 @@ function describeAppleFully(details: StoreErrorDetail[]): string {
         d.parameter !== undefined ? `parameter: ${d.parameter}` : '',
         d.pointer !== undefined ? `pointer: ${d.pointer}` : '',
       ].filter(Boolean);
-      return [head, d.detail ? ` - ${d.detail}` : '', named.length > 0 ? ` (${named.join(', ')})` : '']
+      return [
+        head,
+        d.detail ? ` - ${d.detail}` : '',
+        named.length > 0 ? ` (${named.join(', ')})` : '',
+      ]
         .join('')
         .trim();
     })
@@ -497,7 +509,9 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
         name: text(attributes.name) ?? bundleId,
         bundleId,
         // Only when Apple sent the relationship data: an app with no versions yet has `[]` and is not "known".
-        ...(refs !== undefined && found.size > 0 ? { platforms: (['ios', 'macos'] as const).filter((p) => found.has(p)) } : {}),
+        ...(refs !== undefined && found.size > 0
+          ? { platforms: (['ios', 'macos'] as const).filter((p) => found.has(p)) }
+          : {}),
       });
     }
     return apps;
@@ -590,7 +604,12 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
       const pre = (data ? preRelease.get(text(data.id) ?? '') : undefined) ?? byBuild.get(buildId);
       // Builds of other platforms are not this platform's builds. A build whose platform is not known is
       // taken for iOS only (the behavior before macOS), never for macOS.
-      if (pre?.platform !== undefined ? pre.platform !== PLATFORM_META[this.platform].applePlatform : this.platform !== 'ios') continue;
+      if (
+        pre?.platform !== undefined
+          ? pre.platform !== PLATFORM_META[this.platform].applePlatform
+          : this.platform !== 'ios'
+      )
+        continue;
       const raw = text(attributes.processingState);
       const uploaded = Date.parse(text(attributes.uploadedDate) ?? '');
       builds.push({
@@ -627,10 +646,17 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
       'fields[betaGroups]=name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled,publicLinkLimitEnabled,publicLinkLimit,publicLink';
     let found: Json[];
     try {
-      found = (await this.#collect(`/v1/betaGroups?filter[app]=${id}&filter[isInternalGroup]=false&${fields}&limit=${this.#pageSize}`, what)).items;
+      found = (
+        await this.#collect(
+          `/v1/betaGroups?filter[app]=${id}&filter[isInternalGroup]=false&${fields}&limit=${this.#pageSize}`,
+          what,
+        )
+      ).items;
     } catch (error) {
       if (!isAppleParameterError(error)) throw error;
-      found = (await this.#collect(`/v1/apps/${id}/betaGroups?${fields}&limit=${this.#pageSize}`, what)).items;
+      found = (
+        await this.#collect(`/v1/apps/${id}/betaGroups?${fields}&limit=${this.#pageSize}`, what)
+      ).items;
     }
     const groups: TestFlightGroup[] = [];
     for (const item of found) {
@@ -705,19 +731,30 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
    * A failure of an optional section is a warning and the section is left out ("not read"); only a
    * rate limit, a bad credential, a clock problem or the network stop the read.
    */
-  async readListing(appStoreId: string, options: ReadStoreListingOptions = {}): Promise<StoreListing> {
+  async readListing(
+    appStoreId: string,
+    options: ReadStoreListingOptions = {},
+  ): Promise<StoreListing> {
     const what = `reading the listing of app ${appStoreId}`;
     const id = enc(appStoreId);
     const warnings: string[] = [];
     const extended = options.extended === true;
 
     const versions: ListingResource[] = [];
-    for await (const item of this.#pages(`/v1/apps/${id}/appStoreVersions?limit=${this.#pageSize}`, what)) {
+    for await (const item of this.#pages(
+      `/v1/apps/${id}/appStoreVersions?limit=${this.#pageSize}`,
+      what,
+    )) {
       const attributes = isRecord(item.attributes) ? item.attributes : {};
       const versionId = text(item.id);
       // Same rule as `listVersions`: the new state field first, the deprecated one as fallback.
       const rawState = text(attributes.appVersionState) ?? text(attributes.appStoreState);
-      if (!versionId || rawState === undefined || asPlatform(text(attributes.platform)) !== this.platform) continue;
+      if (
+        !versionId ||
+        rawState === undefined ||
+        asPlatform(text(attributes.platform)) !== this.platform
+      )
+        continue;
       const versionString = text(attributes.versionString);
       const created = Date.parse(text(attributes.createdDate) ?? '');
       const copyright = text(attributes.copyright);
@@ -758,7 +795,9 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
           // Apple rejects an `include` value it does not know with a 400 that names the parameter:
           // read the plain list (the texts must not depend on the optional sections).
           if (!isAppleParameterError(error)) throw error;
-          warnings.push('Categories and the age rating were not read: Apple rejected the include parameter.');
+          warnings.push(
+            'Categories and the age rating were not read: Apple rejected the include parameter.',
+          );
           withRelations = false;
           read = await readInfos(base);
         }
@@ -812,7 +851,10 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
       return locales;
     };
     /** Screenshot and preview sets of every locale of a version, as metadata. Undefined: not read. */
-    const readMedia = async (version: ListingResource, label: string): Promise<ListingSections['media']> => {
+    const readMedia = async (
+      version: ListingResource,
+      label: string,
+    ): Promise<ListingSections['media']> => {
       const wanted = versionLocalizations.get(version.id) ?? [];
       const screenshots: Record<string, MediaSet[]> = {};
       const previews: Record<string, MediaSet[]> = {};
@@ -832,7 +874,9 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
           previews[locale] = appleMediaSets(prev as Json, 'previews');
         }
       } catch (error) {
-        warnings.push(sectionWarning(error, `The screenshots and previews of the ${label} version`));
+        warnings.push(
+          sectionWarning(error, `The screenshots and previews of the ${label} version`),
+        );
         return undefined;
       }
       const truncated = wanted.length > MAX_MEDIA_LOCALES;
@@ -852,7 +896,10 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
     ) => {
       if (!version && !info) return;
       const locales: Record<string, LocaleText<AppStoreField>> = {};
-      for (const source of [info ? await readInfo(info) : {}, version ? await readVersion(version) : {}]) {
+      for (const source of [
+        info ? await readInfo(info) : {},
+        version ? await readVersion(version) : {},
+      ]) {
         for (const [locale, texts] of Object.entries(source)) {
           locales[locale] = { ...locales[locale], ...texts };
         }
@@ -864,10 +911,16 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
         if (withRelations && item) {
           const categories = appleCategories(item);
           if (categories) sections.categories = categories;
-          else warnings.push(`Apple sent no category data for the ${channel} app info, so categories were not read.`);
+          else
+            warnings.push(
+              `Apple sent no category data for the ${channel} app info, so categories were not read.`,
+            );
           const ageRating = appleAgeRating(item, infoIncluded);
           if (ageRating) sections.ageRating = ageRating;
-          else warnings.push(`Apple sent no age rating declaration for the ${channel} app info, so the age rating was not read.`);
+          else
+            warnings.push(
+              `Apple sent no age rating declaration for the ${channel} app info, so the age rating was not read.`,
+            );
         }
       }
       if (version) {
@@ -914,7 +967,10 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
     const path = `/v1/preReleaseVersions?filter[app]=${enc(appStoreId)}&include=builds&limit=${this.#pageSize}&limit[builds]=${MAX_INCLUDED_BUILDS}`;
     const byBuild = new Map<string, PreRelease>();
     try {
-      const { items } = await this.#collect(path, `listing the pre-release versions of app ${appStoreId}`);
+      const { items } = await this.#collect(
+        path,
+        `listing the pre-release versions of app ${appStoreId}`,
+      );
       for (const item of items) {
         const attributes = isRecord(item.attributes) ? item.attributes : {};
         const version = text(attributes.version);
@@ -939,7 +995,8 @@ export class AppStoreConnectConnector implements StoreConnector, TestFlightLinks
   async #collect(path: string, what: string): Promise<{ items: Json[]; included: Json[] }> {
     const items: Json[] = [];
     const included: Json[] = [];
-    for await (const item of this.#pages(path, what, (more) => included.push(...more))) items.push(item);
+    for await (const item of this.#pages(path, what, (more) => included.push(...more)))
+      items.push(item);
     return { items, included };
   }
 

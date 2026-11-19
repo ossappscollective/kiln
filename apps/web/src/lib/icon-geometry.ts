@@ -69,7 +69,17 @@ const add = (box: Box, x: number, y: number) => {
   box.maxY = Math.max(box.maxY, y);
 };
 
-function arcPoints(x1: number, y1: number, rx: number, ry: number, phiDeg: number, fa: number, fs: number, x2: number, y2: number): Array<[number, number]> {
+function arcPoints(
+  x1: number,
+  y1: number,
+  rx: number,
+  ry: number,
+  phiDeg: number,
+  fa: number,
+  fs: number,
+  x2: number,
+  y2: number,
+): Array<[number, number]> {
   if (rx === 0 || ry === 0 || (x1 === x2 && y1 === y2)) return [[x2, y2]];
   rx = Math.abs(rx);
   ry = Math.abs(ry);
@@ -105,7 +115,10 @@ function arcPoints(x1: number, y1: number, rx: number, ry: number, phiDeg: numbe
   const steps = 48;
   for (let k = 1; k <= steps; k++) {
     const t = th1 + (dth * k) / steps;
-    pts.push([cx + rx * Math.cos(t) * cos - ry * Math.sin(t) * sin, cy + rx * Math.cos(t) * sin + ry * Math.sin(t) * cos]);
+    pts.push([
+      cx + rx * Math.cos(t) * cos - ry * Math.sin(t) * sin,
+      cy + rx * Math.cos(t) * sin + ry * Math.sin(t) * cos,
+    ]);
   }
   return pts;
 }
@@ -207,7 +220,18 @@ export function pathInfo(d: string): PathInfo {
       case 'a': {
         const ex = (args[5] as number) + ox;
         const ey = (args[6] as number) + oy;
-        for (const [px, py] of arcPoints(x, y, args[0] as number, args[1] as number, args[2] as number, args[3] as number, args[4] as number, ex, ey)) add(box, px, py);
+        for (const [px, py] of arcPoints(
+          x,
+          y,
+          args[0] as number,
+          args[1] as number,
+          args[2] as number,
+          args[3] as number,
+          args[4] as number,
+          ex,
+          ey,
+        ))
+          add(box, px, py);
         x = ex;
         y = ey;
         break;
@@ -245,14 +269,16 @@ export function parseBody(body: string): Shape[] {
   const re = /<(path|circle|rect)((?:\s+[a-z-]+="[^"<>]*")*)\s*\/>/g;
   let last = 0;
   for (let m = re.exec(body); m; m = re.exec(body)) {
-    if (body.slice(last, m.index).trim() !== '') throw new Error(`unexpected markup before index ${m.index}`);
+    if (body.slice(last, m.index).trim() !== '')
+      throw new Error(`unexpected markup before index ${m.index}`);
     last = m.index + m[0].length;
     const tag = m[1] as 'path' | 'circle' | 'rect';
     const attrs: Record<string, string> = {};
     const attrRe = /([a-z-]+)="([^"]*)"/g;
     for (let a = attrRe.exec(m[2] ?? ''); a; a = attrRe.exec(m[2] ?? '')) {
       const name = a[1] as string;
-      if (!(ALLOWED[tag] as string[]).includes(name)) throw new Error(`<${tag}> may not have "${name}"`);
+      if (!(ALLOWED[tag] as string[]).includes(name))
+        throw new Error(`<${tag}> may not have "${name}"`);
       if (name in attrs) throw new Error(`<${tag}> repeats "${name}"`);
       attrs[name] = a[2] as string;
     }
@@ -262,14 +288,23 @@ export function parseBody(body: string): Shape[] {
         if (required) throw new Error(`<${tag}> needs ${name}`);
         return 0;
       }
-      if (!/^-?\d+(\.\d+)?$/.test(raw)) throw new Error(`<${tag}> ${name}="${raw}" is not a number`);
+      if (!/^-?\d+(\.\d+)?$/.test(raw))
+        throw new Error(`<${tag}> ${name}="${raw}" is not a number`);
       return Number(raw);
     };
     if (tag === 'path') {
       if (attrs.d === undefined) throw new Error('<path> needs d');
       shapes.push({ tag, d: attrs.d });
     } else if (tag === 'circle') shapes.push({ tag, cx: num('cx'), cy: num('cy'), r: num('r') });
-    else shapes.push({ tag, x: num('x'), y: num('y'), width: num('width'), height: num('height'), rx: num('rx', false) });
+    else
+      shapes.push({
+        tag,
+        x: num('x'),
+        y: num('y'),
+        width: num('width'),
+        height: num('height'),
+        rx: num('rx', false),
+      });
   }
   if (body.slice(last).trim() !== '') throw new Error('unexpected markup after the last shape');
   if (shapes.length === 0) throw new Error('no shapes');
@@ -299,7 +334,8 @@ export function checkIcon(style: 'stroke' | 'fill', body: string): IconReport {
         const info = pathInfo(s.d);
         add(box, info.box.minX, info.box.minY);
         add(box, info.box.maxX, info.box.maxY);
-        if (style === 'fill' && info.closedSubpaths !== info.subpaths) problems.push('a filled path has an open subpath (end it with Z)');
+        if (style === 'fill' && info.closedSubpaths !== info.subpaths)
+          problems.push('a filled path has an open subpath (end it with Z)');
       } else if (s.tag === 'circle') {
         if (s.r <= 0) problems.push('circle radius must be positive');
         add(box, s.cx - s.r, s.cy - s.r);
@@ -315,7 +351,12 @@ export function checkIcon(style: 'stroke' | 'fill', body: string): IconReport {
   }
   const lo = style === 'stroke' ? 1 : 0;
   const hi = 24 - lo;
-  if (box.minX < lo - TOLERANCE || box.minY < lo - TOLERANCE || box.maxX > hi + TOLERANCE || box.maxY > hi + TOLERANCE) {
+  if (
+    box.minX < lo - TOLERANCE ||
+    box.minY < lo - TOLERANCE ||
+    box.maxX > hi + TOLERANCE ||
+    box.maxY > hi + TOLERANCE
+  ) {
     problems.push(
       `bounds ${box.minX.toFixed(2)},${box.minY.toFixed(2)} to ${box.maxX.toFixed(2)},${box.maxY.toFixed(2)} leave ${lo}..${hi}`,
     );

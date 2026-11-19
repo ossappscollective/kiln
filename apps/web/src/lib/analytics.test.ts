@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  DEFAULT_RANGE,
-  MAX_RANGE_DAYS,
   analyticsErrorText,
+  bucketSourceText,
   customRangeProblem,
+  DEFAULT_RANGE,
   deltaLine,
   deltaSpoken,
   deltaTone,
@@ -21,10 +21,13 @@ import {
   lagText,
   lastValue,
   levelDelta,
+  MAX_RANGE_DAYS,
   missingRuns,
+  needsPlayBucket,
   noteText,
   parseRange,
   periodDelta,
+  playSourceLine,
   presentRuns,
   previousRange,
   rangeText,
@@ -35,14 +38,19 @@ import {
   stepAction,
   stepAvailable,
   storedErrorText,
-  bucketSourceText,
-  needsPlayBucket,
-  playSourceLine,
   withRange,
 } from './analytics.ts';
-import { sourceOf, statusOf } from './analytics-fixtures.ts';
+import {
+  appleOverview,
+  FROM,
+  mkSeries,
+  NOW,
+  sourceOf,
+  statusOf,
+  TO,
+  wave,
+} from './analytics-fixtures.ts';
 import { ApiError } from './api.ts';
-import { FROM, NOW, TO, appleOverview, mkSeries, wave } from './analytics-fixtures.ts';
 
 const series = (values: (number | null)[], over: Partial<Parameters<typeof mkSeries>[0]> = {}) =>
   mkSeries({ id: 'x', label: 'X', unit: 'count', source: 'apple_analytics', values, ...over });
@@ -54,32 +62,74 @@ test('a preset range ends yesterday and the previous period is the same length r
   assert.deepEqual(r, { from: FROM, to: TO, days: 28 });
   const p = previousRange(r);
   assert.deepEqual(p, { from: '2026-09-24', to: '2026-10-21', days: 28 });
-  assert.deepEqual(resolveRange({ kind: 'preset', days: 7 }, NOW), { from: '2026-11-12', to: '2026-11-18', days: 7 });
+  assert.deepEqual(resolveRange({ kind: 'preset', days: 7 }, NOW), {
+    from: '2026-11-12',
+    to: '2026-11-18',
+    days: 7,
+  });
 });
 
 test('a custom range is held inside today and keeps its length', () => {
-  assert.deepEqual(resolveRange({ kind: 'custom', from: '2026-11-01', to: '2026-11-10' }, NOW), { from: '2026-11-01', to: '2026-11-10', days: 10 });
-  assert.deepEqual(resolveRange({ kind: 'custom', from: '2026-11-01', to: '2027-01-01' }, NOW), { from: '2026-11-01', to: '2026-11-19', days: 19 });
-  assert.deepEqual(resolveRange({ kind: 'custom', from: '2027-02-01', to: '2027-03-01' }, NOW), { from: '2026-11-19', to: '2026-11-19', days: 1 });
+  assert.deepEqual(resolveRange({ kind: 'custom', from: '2026-11-01', to: '2026-11-10' }, NOW), {
+    from: '2026-11-01',
+    to: '2026-11-10',
+    days: 10,
+  });
+  assert.deepEqual(resolveRange({ kind: 'custom', from: '2026-11-01', to: '2027-01-01' }, NOW), {
+    from: '2026-11-01',
+    to: '2026-11-19',
+    days: 19,
+  });
+  assert.deepEqual(resolveRange({ kind: 'custom', from: '2027-02-01', to: '2027-03-01' }, NOW), {
+    from: '2026-11-19',
+    to: '2026-11-19',
+    days: 1,
+  });
 });
 
 test('the range lives in the address: the default is clean and a bad value reads as the default', () => {
   assert.deepEqual(parseRange('#/portfolio/a/analytics'), DEFAULT_RANGE);
   assert.deepEqual(parseRange('#/portfolio/a/analytics?range=90'), { kind: 'preset', days: 90 });
   assert.deepEqual(parseRange('#/portfolio/a/analytics?range=13'), DEFAULT_RANGE);
-  assert.deepEqual(parseRange('#/portfolio/a/analytics?from=2026-10-01&to=2026-10-31'), { kind: 'custom', from: '2026-10-01', to: '2026-10-31' });
-  assert.deepEqual(parseRange('#/portfolio/a/analytics?from=2026-10-31&to=2026-10-01'), DEFAULT_RANGE);
-  assert.deepEqual(parseRange('#/portfolio/a/analytics?from=2026-13-01&to=2026-10-01'), DEFAULT_RANGE);
-  assert.deepEqual(parseRange('#/portfolio/a/analytics?from=2024-01-01&to=2026-10-01'), DEFAULT_RANGE);
+  assert.deepEqual(parseRange('#/portfolio/a/analytics?from=2026-10-01&to=2026-10-31'), {
+    kind: 'custom',
+    from: '2026-10-01',
+    to: '2026-10-31',
+  });
+  assert.deepEqual(
+    parseRange('#/portfolio/a/analytics?from=2026-10-31&to=2026-10-01'),
+    DEFAULT_RANGE,
+  );
+  assert.deepEqual(
+    parseRange('#/portfolio/a/analytics?from=2026-13-01&to=2026-10-01'),
+    DEFAULT_RANGE,
+  );
+  assert.deepEqual(
+    parseRange('#/portfolio/a/analytics?from=2024-01-01&to=2026-10-01'),
+    DEFAULT_RANGE,
+  );
 });
 
 test('withRange writes only what differs from the default and keeps other parts of the address', () => {
   const base = '#/portfolio/a/analytics?platform=ios';
   assert.equal(withRange(base, { kind: 'preset', days: 28 }), base);
-  assert.equal(withRange(base, { kind: 'preset', days: 7 }), '#/portfolio/a/analytics?platform=ios&range=7');
+  assert.equal(
+    withRange(base, { kind: 'preset', days: 7 }),
+    '#/portfolio/a/analytics?platform=ios&range=7',
+  );
   assert.equal(withRange('#/portfolio/a/analytics?range=7&platform=ios', DEFAULT_RANGE), base);
-  assert.equal(withRange('#/portfolio/a/analytics?range=7', DEFAULT_RANGE), '#/portfolio/a/analytics');
-  assert.equal(withRange('#/portfolio/a/analytics?range=7', { kind: 'custom', from: '2026-10-01', to: '2026-10-31' }), '#/portfolio/a/analytics?from=2026-10-01&to=2026-10-31');
+  assert.equal(
+    withRange('#/portfolio/a/analytics?range=7', DEFAULT_RANGE),
+    '#/portfolio/a/analytics',
+  );
+  assert.equal(
+    withRange('#/portfolio/a/analytics?range=7', {
+      kind: 'custom',
+      from: '2026-10-01',
+      to: '2026-10-31',
+    }),
+    '#/portfolio/a/analytics?from=2026-10-01&to=2026-10-31',
+  );
 });
 
 test('custom range problems are said in a sentence and an acceptable range gives an empty string', () => {
@@ -87,12 +137,18 @@ test('custom range problems are said in a sentence and an acceptable range gives
   assert.match(customRangeProblem('', '2026-10-31', NOW), /both dates/);
   assert.match(customRangeProblem('2026-10-31', '2026-10-01', NOW), /not be after/);
   assert.match(customRangeProblem('2026-10-01', '2026-11-20', NOW), /future/);
-  assert.match(customRangeProblem('2025-01-01', '2026-11-01', NOW), new RegExp(String(MAX_RANGE_DAYS)));
+  assert.match(
+    customRangeProblem('2025-01-01', '2026-11-01', NOW),
+    new RegExp(String(MAX_RANGE_DAYS)),
+  );
 });
 
 test('rangeText names a preset or the dates', () => {
   const choice = { kind: 'custom', from: '2026-10-01', to: '2026-10-31' } as const;
-  assert.equal(rangeText({ kind: 'preset', days: 90 }, resolveRange({ kind: 'preset', days: 90 }, NOW)), 'Last 90 days');
+  assert.equal(
+    rangeText({ kind: 'preset', days: 90 }, resolveRange({ kind: 'preset', days: 90 }, NOW)),
+    'Last 90 days',
+  );
   assert.equal(rangeText(choice, resolveRange(choice, NOW)), 'Oct 1, 2026 to Oct 31, 2026');
 });
 
@@ -139,9 +195,18 @@ test('days are written from the text of the date', () => {
 // ---- series gaps ----
 
 test('runs: gaps are separated and never bridged', () => {
-  assert.deepEqual(runsWhere([true, true, false, true]), [{ start: 0, end: 1 }, { start: 3, end: 3 }]);
-  assert.deepEqual(presentRuns([1, 2, null, null, 5, null]), [{ start: 0, end: 1 }, { start: 4, end: 4 }]);
-  assert.deepEqual(missingRuns([1, 2, null, null, 5, null]), [{ start: 2, end: 3 }, { start: 5, end: 5 }]);
+  assert.deepEqual(runsWhere([true, true, false, true]), [
+    { start: 0, end: 1 },
+    { start: 3, end: 3 },
+  ]);
+  assert.deepEqual(presentRuns([1, 2, null, null, 5, null]), [
+    { start: 0, end: 1 },
+    { start: 4, end: 4 },
+  ]);
+  assert.deepEqual(missingRuns([1, 2, null, null, 5, null]), [
+    { start: 2, end: 3 },
+    { start: 5, end: 5 },
+  ]);
   assert.deepEqual(presentRuns([]), []);
   assert.deepEqual(presentRuns([null, null]), []);
 });
@@ -159,7 +224,10 @@ test('a derived ratio is missing wherever either side is missing or the denomina
   const num = series([1, null, 3, 4], { id: 'n', notes: ['apple_privacy_thresholds'] });
   const den = series([10, 10, 0, 8], { id: 'd', delayDays: 5 });
   const ratio = deriveRatioSeries({ id: 'r', label: 'R', numerator: num, denominator: den });
-  assert.deepEqual(ratio.points.map((p) => p.value), [0.1, null, null, 0.5]);
+  assert.deepEqual(
+    ratio.points.map((p) => p.value),
+    [0.1, null, null, 0.5],
+  );
   assert.equal(ratio.derived, true);
   assert.equal(ratio.unit, 'ratio');
   assert.equal(ratio.delayDays, 5);
@@ -192,28 +260,45 @@ test('period delta compares totals and says how much, as a sign and a percentage
 });
 
 test('period delta: small differences are flat, a zero previous total gives no percentage', () => {
-  const same = periodDelta(series(Array.from({ length: 28 }, () => 100.5)), series(Array.from({ length: 28 }, () => 100)), 28);
+  const same = periodDelta(
+    series(Array.from({ length: 28 }, () => 100.5)),
+    series(Array.from({ length: 28 }, () => 100)),
+    28,
+  );
   assert.deepEqual(same, { kind: 'flat' });
   assert.equal(deltaLine(same, 28), 'About the same as the previous 28 days');
   assert.equal(deltaTone(same, true), 'neutral');
-  const zero = periodDelta(series(Array.from({ length: 28 }, () => 5)), series(Array.from({ length: 28 }, () => 0)), 28);
+  const zero = periodDelta(
+    series(Array.from({ length: 28 }, () => 5)),
+    series(Array.from({ length: 28 }, () => 0)),
+    28,
+  );
   assert.deepEqual(zero, { kind: 'none', reason: 'no_previous' });
   assert.equal(deltaLine(zero, 28), '');
 });
 
 test('period delta refuses a half-empty period or two unequal stretches: it says there is not enough data', () => {
   const full = series(Array.from({ length: 28 }, () => 100));
-  const half = series([...Array.from({ length: 12 }, () => 100), ...Array.from({ length: 16 }, () => null)]);
+  const half = series([
+    ...Array.from({ length: 12 }, () => 100),
+    ...Array.from({ length: 16 }, () => null),
+  ]);
   const d = periodDelta(half, full, 28);
   assert.deepEqual(d, { kind: 'none', reason: 'not_enough_data' });
   assert.equal(deltaLine(d, 28), 'Not enough data to compare');
   assert.deepEqual(periodDelta(full, half, 28), { kind: 'none', reason: 'not_enough_data' });
   // 18 against 28 days present: both over the minimum, but the stretches differ by more than 15 percent of the days
-  const eighteen = series([...Array.from({ length: 18 }, () => 100), ...Array.from({ length: 10 }, () => null)]);
+  const eighteen = series([
+    ...Array.from({ length: 18 }, () => 100),
+    ...Array.from({ length: 10 }, () => null),
+  ]);
   assert.deepEqual(periodDelta(eighteen, full, 28), { kind: 'none', reason: 'not_enough_data' });
   assert.deepEqual(periodDelta(null, full, 28), { kind: 'none', reason: 'no_current' });
   assert.deepEqual(periodDelta(full, null, 28), { kind: 'none', reason: 'no_previous' });
-  assert.deepEqual(periodDelta(series([null, null]), full, 28), { kind: 'none', reason: 'no_current' });
+  assert.deepEqual(periodDelta(series([null, null]), full, 28), {
+    kind: 'none',
+    reason: 'no_current',
+  });
 });
 
 test('rates compare in percentage points and a mean needs only a few days', () => {
@@ -245,13 +330,23 @@ test('every series says where it comes from and how late it can be', () => {
 });
 
 test('coverage notes come from the fixed vocabulary and an unknown code gets a generic sentence', () => {
-  assert.notEqual(noteText({ code: 'derived', message: 'anything the server says' }), 'anything the server says');
-  assert.equal(noteText({ code: 'not_a_code', message: 'store text <b>' }), 'A limit of the store data applies here.');
+  assert.notEqual(
+    noteText({ code: 'derived', message: 'anything the server says' }),
+    'anything the server says',
+  );
+  assert.equal(
+    noteText({ code: 'not_a_code', message: 'store text <b>' }),
+    'A limit of the store data applies here.',
+  );
 });
 
 test('errors are sentences from fixed lists and never the server message', () => {
-  const err = (code: string, status = 400, retryAfter?: number) => new ApiError(status, code, 'SERVER TEXT', retryAfter);
-  assert.equal(analyticsErrorText(err('analytics_disabled')), 'Analytics is off for this workspace. Turn it on first.');
+  const err = (code: string, status = 400, retryAfter?: number) =>
+    new ApiError(status, code, 'SERVER TEXT', retryAfter);
+  assert.equal(
+    analyticsErrorText(err('analytics_disabled')),
+    'Analytics is off for this workspace. Turn it on first.',
+  );
   assert.match(analyticsErrorText(err('plan_changed', 409)), /changed since the preview/);
   assert.equal(analyticsErrorText(new Error('boom')), 'Something went wrong. Try again.');
   assert.equal(analyticsErrorText(err('weird', 500)), 'The server had a problem. Try again.');
@@ -308,24 +403,55 @@ test('the fixture overview has the shapes the API documents', () => {
 test('an Android app without a reports bucket says so; an iOS app and an app with a bucket do not', () => {
   assert.equal(needsPlayBucket(null), false);
   assert.equal(needsPlayBucket(statusOf()), false, 'iOS has no bucket');
-  assert.equal(needsPlayBucket(statusOf({ google: { bucketIdSet: false, bucketSource: null } })), true);
-  assert.equal(needsPlayBucket(statusOf({ google: { bucketIdSet: true, bucketSource: 'app' } })), false);
+  assert.equal(
+    needsPlayBucket(statusOf({ google: { bucketIdSet: false, bucketSource: null } })),
+    true,
+  );
+  assert.equal(
+    needsPlayBucket(statusOf({ google: { bucketIdSet: true, bucketSource: 'app' } })),
+    false,
+  );
 });
 
 test('the status line names each Android source: Vitals connected, Installs not set up until a bucket is', () => {
   const vitals = sourceOf({ source: 'play_vitals', label: 'Android vitals', state: 'ready' });
-  const reports = sourceOf({ source: 'play_reports', label: 'Play Console reports', state: 'needs_setup' });
-  const without = statusOf({ platform: 'android', apple: null, google: { bucketIdSet: false, bucketSource: null }, sources: [vitals, reports] });
+  const reports = sourceOf({
+    source: 'play_reports',
+    label: 'Play Console reports',
+    state: 'needs_setup',
+  });
+  const without = statusOf({
+    platform: 'android',
+    apple: null,
+    google: { bucketIdSet: false, bucketSource: null },
+    sources: [vitals, reports],
+  });
   assert.equal(playSourceLine(without), 'Vitals: connected · Installs: not set up');
-  const withBucket = statusOf({ platform: 'android', apple: null, google: { bucketIdSet: true, bucketSource: 'workspace' }, sources: [vitals, { ...reports, state: 'ready' }] });
+  const withBucket = statusOf({
+    platform: 'android',
+    apple: null,
+    google: { bucketIdSet: true, bucketSource: 'workspace' },
+    sources: [vitals, { ...reports, state: 'ready' }],
+  });
   assert.equal(playSourceLine(withBucket), 'Vitals: connected · Installs: connected');
-  const failing = statusOf({ platform: 'android', apple: null, google: { bucketIdSet: true, bucketSource: 'app' }, sources: [vitals, { ...reports, state: 'error' }] });
+  const failing = statusOf({
+    platform: 'android',
+    apple: null,
+    google: { bucketIdSet: true, bucketSource: 'app' },
+    sources: [vitals, { ...reports, state: 'error' }],
+  });
   assert.equal(playSourceLine(failing), 'Vitals: connected · Installs: last read failed');
 });
 
 test('where the bucket comes from, in words', () => {
   assert.equal(bucketSourceText({ source: 'app', sharedWith: 3 }), 'Set for this app only.');
-  assert.equal(bucketSourceText({ source: 'workspace', sharedWith: 3 }), 'Set in the workspace settings.');
-  assert.equal(bucketSourceText({ source: 'account', sharedWith: 3 }), 'Shared by the 3 Android apps of this Play account.');
+  assert.equal(
+    bucketSourceText({ source: 'workspace', sharedWith: 3 }),
+    'Set in the workspace settings.',
+  );
+  assert.equal(
+    bucketSourceText({ source: 'account', sharedWith: 3 }),
+    'Shared by the 3 Android apps of this Play account.',
+  );
   assert.equal(bucketSourceText({ source: null, sharedWith: 1 }), 'Not set.');
 });

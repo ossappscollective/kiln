@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  MAX_FIND_PAGES,
   appReviewHref,
   isReviewsAddress,
+  MAX_FIND_PAGES,
   moveSelection,
   resolveSelection,
   reviewFromHash,
   rowByline,
   rowDate,
+  rowDotTone,
   rowReplyText,
   rowTitle,
   shouldFindMore,
   shouldWriteAddress,
-  rowDotTone,
   statusTone,
   withReview,
 } from './review-split.ts';
@@ -37,13 +37,19 @@ test('the review is set in an address and the rest stays', () => {
   assert.equal(withReview('#/reviews?review=old&rating=1', 'new'), '#/reviews?review=new&rating=1');
   assert.equal(withReview('#/reviews?review=old', null), '#/reviews');
   assert.equal(withReview('#/reviews?review=old&rating=1', null), '#/reviews?rating=1');
-  assert.equal(withReview('#/portfolio/a1/reviews?platform=ios', 'r2'), '#/portfolio/a1/reviews?platform=ios&review=r2');
+  assert.equal(
+    withReview('#/portfolio/a1/reviews?platform=ios', 'r2'),
+    '#/portfolio/a1/reviews?platform=ios&review=r2',
+  );
   assert.equal(withReview('#/reviews', 'not valid'), '#/reviews');
   assert.equal(reviewFromHash(withReview('#/reviews?q=hello', 'r3')), 'r3');
 });
 
 test('the link from the inbox opens the app on the review', () => {
-  assert.equal(appReviewHref('app 1', 'r1', 'android'), '#/portfolio/app%201/reviews?platform=android&review=r1');
+  assert.equal(
+    appReviewHref('app 1', 'r1', 'android'),
+    '#/portfolio/app%201/reviews?platform=android&review=r1',
+  );
   assert.equal(appReviewHref('a', 'r1'), '#/portfolio/a/reviews?review=r1');
   assert.equal(appReviewHref('a', 'bad id'), '#/portfolio/a/reviews');
 });
@@ -100,10 +106,20 @@ test('the byline skips what is missing', () => {
 test('the reply text says where the reply stands', () => {
   const base = { developerResponse: null, reply: undefined, replyDraft: null };
   assert.equal(rowReplyText(base), '');
-  assert.equal(rowReplyText({ ...base, developerResponse: { body: 'thanks', at: 1, state: null } }), 'Answered');
+  assert.equal(
+    rowReplyText({ ...base, developerResponse: { body: 'thanks', at: 1, state: null } }),
+    'Answered',
+  );
   assert.equal(rowReplyText({ ...base, reply: { status: 'draft', sentAt: null } }), 'Draft');
   assert.equal(rowReplyText({ ...base, reply: { status: 'failed', sentAt: null } }), 'Send failed');
-  assert.equal(rowReplyText({ ...base, reply: { status: 'sent', sentAt: 5 }, developerResponse: { body: 'x', at: 1, state: null } }), 'Reply sent');
+  assert.equal(
+    rowReplyText({
+      ...base,
+      reply: { status: 'sent', sentAt: 5 },
+      developerResponse: { body: 'x', at: 1, state: null },
+    }),
+    'Reply sent',
+  );
 });
 
 test('status tones follow the badge of the card', () => {

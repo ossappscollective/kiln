@@ -14,9 +14,9 @@ nothing to a store: see [plans](plans.md).
 Routes are under `/api/workspaces/{workspaceId}`. A non-member gets 404, a member without the right
 gets 403. The kill switch is checked after the rights check.
 
-| Right | Who | For |
-| --- | --- | --- |
-| `apps.read` | every role | `GET /rollout/config` |
+| Right              | Who              | For                                                  |
+| ------------------ | ---------------- | ---------------------------------------------------- |
+| `apps.read`        | every role       | `GET /rollout/config`                                |
 | `releases.rollout` | **admin and up** | read the live state, preview, **change the rollout** |
 
 An API token holds `releases.rollout` only when its list of actions **names it** (explicit-only, like
@@ -33,7 +33,10 @@ with `actor_type = token`. All four routes are in the [OpenAPI description](open
 {
   "enabled": false,
   "envName": "MRM_STORE_ROLLOUT_ENABLED",
-  "actions": { "android": ["set_fraction", "halt", "resume", "complete"], "ios": ["pause", "resume", "release_to_all"] },
+  "actions": {
+    "android": ["set_fraction", "halt", "resume", "complete"],
+    "ios": ["pause", "resume", "release_to_all"]
+  },
   "irreversible": ["complete", "release_to_all"],
   "fraction": { "exclusiveMin": 0, "exclusiveMax": 1 }
 }
@@ -49,10 +52,20 @@ Query: Android `track` (for example `production`) and `versionCodes` (comma sepa
 ```json
 {
   "app": { "id": "...", "name": "...", "platform": "android", "store": "googleplay" },
-  "current": { "store": "googleplay", "platform": "android", "track": "production", "versionCodes": ["240"],
-               "name": "2.4.0", "status": "inProgress", "userFraction": 0.1, "otherReleases": 1 },
-  "allowedActions": [ { "action": "halt", "allowed": true, "irreversible": false },
-                      { "action": "resume", "allowed": false, "reason": "...", "irreversible": false } ],
+  "current": {
+    "store": "googleplay",
+    "platform": "android",
+    "track": "production",
+    "versionCodes": ["240"],
+    "name": "2.4.0",
+    "status": "inProgress",
+    "userFraction": 0.1,
+    "otherReleases": 1
+  },
+  "allowedActions": [
+    { "action": "halt", "allowed": true, "irreversible": false },
+    { "action": "resume", "allowed": false, "reason": "...", "irreversible": false }
+  ],
   "minUserFraction": 0.1,
   "readAt": 1700000000000
 }
@@ -66,16 +79,17 @@ startDate, totalPauseDays }`. A successful read settles an earlier unknown outco
 
 Body: the change. Strict: unknown fields are `400`.
 
-| Platform | `action` | Other fields |
-| --- | --- | --- |
-| android | `set_fraction` | `track`, `versionCodes`, `userFraction` (more than 0, less than 1, at most 4 decimals) |
-| android | `halt`, `resume`, `complete` | `track`, `versionCodes`; **`resume` may also carry `userFraction`** (it must not be lower than the current share) |
-| ios | `pause`, `resume`, `release_to_all` | `version` |
+| Platform | `action`                            | Other fields                                                                                                      |
+| -------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| android  | `set_fraction`                      | `track`, `versionCodes`, `userFraction` (more than 0, less than 1, at most 4 decimals)                            |
+| android  | `halt`, `resume`, `complete`        | `track`, `versionCodes`; **`resume` may also carry `userFraction`** (it must not be lower than the current share) |
+| ios      | `pause`, `resume`, `release_to_all` | `version`                                                                                                         |
 
 Reads the live state, checks the change against it, writes nothing:
 
 ```json
-{ "preview": {
+{
+  "preview": {
     "app": { "id": "...", "name": "...", "platform": "android", "store": "googleplay" },
     "action": "set_fraction",
     "target": { "track": "production", "versionCodes": ["240"] },
@@ -85,7 +99,9 @@ Reads the live state, checks the change against it, writes nothing:
     "irreversible": false,
     "confirmHash": "64 hexadecimal characters",
     "warnings": ["Google Play can take several hours to apply a change to a release."],
-    "readAt": 1700000000000 } }
+    "readAt": 1700000000000
+  }
+}
 ```
 
 ### `POST /apps/{id}/rollout/apply`
@@ -93,14 +109,18 @@ Reads the live state, checks the change against it, writes nothing:
 Body: the same change **plus `confirmHash`** from the preview. Answer `200`:
 
 ```json
-{ "result": {
+{
+  "result": {
     "app": { "id": "...", "name": "...", "platform": "android", "store": "googleplay" },
     "action": "set_fraction",
-    "before": { "...": "state" }, "after": { "...": "state" },
+    "before": { "...": "state" },
+    "after": { "...": "state" },
     "irreversible": false,
     "confirmedByReread": false,
     "appliedAt": 1700000000000,
-    "note": "The stored copy of this app is refreshed by the next sync. ..." } }
+    "note": "The stored copy of this app is refreshed by the next sync. ..."
+  }
+}
 ```
 
 `confirmedByReread: true` means the store did not answer the write but reading it back showed the
@@ -145,23 +165,23 @@ The audit `detail` of a change: `appId`, `store`, `platform`, `action`, the targ
 
 ## Errors
 
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 400 | (validation) | A body that is not the shape above, or a `confirmHash` that is not 64 lowercase hexadecimal characters |
-| 404 | `not_found` | Not a member, or no such app in this workspace, or a token not allowed this app |
-| 403 | `forbidden` | The role (or the token) lacks `releases.rollout` |
-| 409 | `rollout_disabled` | The kill switch is off |
-| 422 | `invalid_rollout` | A field is wrong for the platform or the action (`field` names it) |
-| 422 | `rollout_not_allowed` | The state does not allow it (`reason`: `not_an_increase`, `not_allowed`, ...; `current`) |
-| 422 | `credential_not_found`, `credential_kind`, `credential_unreadable`, `app_not_synced` | The app's credential or its App Store id is not usable; no store was called |
-| 422 | `store_auth`, `store_forbidden`, `store_not_found`, `store_rejected` | The store refused; nothing changed |
-| 409 | `state_changed` | The store is not what was previewed (see above) |
-| 409 | `write_in_progress` | Another change for this app is running |
-| 409 | `changes_in_review` | Google Play has changes in review |
-| 409 | `outcome_unknown` | Not known whether the store applied it |
-| 429 | `rate_limited` | The store's limit (`Retry-After`) |
-| 502 | `store_unavailable`, `write_failed` | The store failed; `write_failed` with `outcome: not_applied` is a confirmed no |
-| 504 | `timeout` | The store did not answer in time (default 90 seconds); nothing was changed, or see `outcome_unknown` for a write |
+| Status | `error`                                                                              | Meaning                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| 400    | (validation)                                                                         | A body that is not the shape above, or a `confirmHash` that is not 64 lowercase hexadecimal characters           |
+| 404    | `not_found`                                                                          | Not a member, or no such app in this workspace, or a token not allowed this app                                  |
+| 403    | `forbidden`                                                                          | The role (or the token) lacks `releases.rollout`                                                                 |
+| 409    | `rollout_disabled`                                                                   | The kill switch is off                                                                                           |
+| 422    | `invalid_rollout`                                                                    | A field is wrong for the platform or the action (`field` names it)                                               |
+| 422    | `rollout_not_allowed`                                                                | The state does not allow it (`reason`: `not_an_increase`, `not_allowed`, ...; `current`)                         |
+| 422    | `credential_not_found`, `credential_kind`, `credential_unreadable`, `app_not_synced` | The app's credential or its App Store id is not usable; no store was called                                      |
+| 422    | `store_auth`, `store_forbidden`, `store_not_found`, `store_rejected`                 | The store refused; nothing changed                                                                               |
+| 409    | `state_changed`                                                                      | The store is not what was previewed (see above)                                                                  |
+| 409    | `write_in_progress`                                                                  | Another change for this app is running                                                                           |
+| 409    | `changes_in_review`                                                                  | Google Play has changes in review                                                                                |
+| 409    | `outcome_unknown`                                                                    | Not known whether the store applied it                                                                           |
+| 429    | `rate_limited`                                                                       | The store's limit (`Retry-After`)                                                                                |
+| 502    | `store_unavailable`, `write_failed`                                                  | The store failed; `write_failed` with `outcome: not_applied` is a confirmed no                                   |
+| 504    | `timeout`                                                                            | The store did not answer in time (default 90 seconds); nothing was changed, or see `outcome_unknown` for a write |
 
 ## UNVERIFIED (check with a real account)
 

@@ -2,11 +2,11 @@ import { isLocaleDir } from '@mrm/connectors';
 import {
   type AssetKind,
   type AssetStore,
+  classifyApplePreviewName,
+  isApplePlatform,
   PLAY_DEVICES,
   PLAY_GRAPHIC_FILES,
   type Platform,
-  classifyApplePreviewName,
-  isApplePlatform,
 } from '@mrm/core';
 
 /**
@@ -64,7 +64,11 @@ export type DiscoveryFolders = {
   androidImages: string | null;
 };
 
-export type Discovery = { candidates: AssetCandidate[]; folders: DiscoveryFolders; notes: string[] };
+export type Discovery = {
+  candidates: AssetCandidate[];
+  folders: DiscoveryFolders;
+  notes: string[];
+};
 
 const IMAGE_EXT = /\.(png|jpe?g)$/i;
 const VIDEO_EXT = /\.(mov|m4v|mp4)$/i;
@@ -90,9 +94,22 @@ export function previewFolders(appStoreRoot: string): string[] {
 }
 
 const priorityOf = (kind: AssetKind) =>
-  kind === 'app_icon' ? 0 : kind === 'icon' ? 1 : kind === 'feature_graphic' ? 2 : kind === 'tv_banner' ? 3 : kind === 'promo_graphic' ? 4 : kind === 'screenshot' ? 5 : 6;
+  kind === 'app_icon'
+    ? 0
+    : kind === 'icon'
+      ? 1
+      : kind === 'feature_graphic'
+        ? 2
+        : kind === 'tv_banner'
+          ? 3
+          : kind === 'promo_graphic'
+            ? 4
+            : kind === 'screenshot'
+              ? 5
+              : 6;
 
-const under = (path: string, folder: string) => (folder === '' ? true : path.startsWith(`${folder}/`));
+const under = (path: string, folder: string) =>
+  folder === '' ? true : path.startsWith(`${folder}/`);
 
 /**
  * The store media of one platform. `roots` are the listing roots (the folder of the locale folders
@@ -132,7 +149,17 @@ export function discoverStoreAssets(
           continue;
         }
         folders.androidImages = root;
-        add({ path, store, locale, kind, device: null, imessage: false, extension: extensionOf(path), origin: 'store', priority: priorityOf(kind) });
+        add({
+          path,
+          store,
+          locale,
+          kind,
+          device: null,
+          imessage: false,
+          extension: extensionOf(path),
+          origin: 'store',
+          priority: priorityOf(kind),
+        });
       } else if (rest.length === 0) {
         const device = devices.get(first);
         if (!device) continue;
@@ -141,7 +168,17 @@ export function discoverStoreAssets(
           ignoredImages++;
           continue;
         }
-        add({ path, store, locale, kind: 'screenshot', device, imessage: false, extension: extensionOf(path), origin: 'store', priority: priorityOf('screenshot') });
+        add({
+          path,
+          store,
+          locale,
+          kind: 'screenshot',
+          device,
+          imessage: false,
+          extension: extensionOf(path),
+          origin: 'store',
+          priority: priorityOf('screenshot'),
+        });
       }
     }
   }
@@ -167,7 +204,17 @@ export function discoverStoreAssets(
           if (/\.(webp|gif|bmp|tiff?|heic|avif)$/i.test(name)) ignoredImages++;
           continue;
         }
-        add({ path, store, locale, kind: 'screenshot', device: null, imessage, extension: extensionOf(path), origin: 'store', priority: priorityOf('screenshot') });
+        add({
+          path,
+          store,
+          locale,
+          kind: 'screenshot',
+          device: null,
+          imessage,
+          extension: extensionOf(path),
+          origin: 'store',
+          priority: priorityOf('screenshot'),
+        });
       }
       for (const folder of folders.previews) {
         if (!under(path, folder)) continue;
@@ -175,23 +222,37 @@ export function discoverStoreAssets(
         const [locale, name] = parts;
         if (parts.length !== 2 || !locale || !name || !VIDEO_EXT.test(name)) continue;
         if (locale !== 'default' && !isLocaleDir(locale)) continue;
-        add({ path, store, locale, kind: 'preview', device: classifyApplePreviewName(name), imessage: false, extension: extensionOf(path), origin: 'store', priority: priorityOf('preview') });
+        add({
+          path,
+          store,
+          locale,
+          kind: 'preview',
+          device: classifyApplePreviewName(name),
+          imessage: false,
+          extension: extensionOf(path),
+          origin: 'store',
+          priority: priorityOf('preview'),
+        });
       }
     }
     // The device of a preview that names none cannot be told, and a preview never goes through the size check.
   }
 
   if (ignoredImages > 0) {
-    notes.push(`${ignoredImages} image file${ignoredImages === 1 ? '' : 's'} in the media folders ${ignoredImages === 1 ? 'is' : 'are'} not .png, .jpg or .jpeg, which fastlane does not upload, and ${ignoredImages === 1 ? 'is' : 'are'} not listed.`);
+    notes.push(
+      `${ignoredImages} image file${ignoredImages === 1 ? '' : 's'} in the media folders ${ignoredImages === 1 ? 'is' : 'are'} not .png, .jpg or .jpeg, which fastlane does not upload, and ${ignoredImages === 1 ? 'is' : 'are'} not listed.`,
+    );
   }
-  candidates.sort((a, b) => a.priority - b.priority || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  candidates.sort(
+    (a, b) => a.priority - b.priority || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
+  );
   return { candidates, folders, notes };
 }
 
 /** `order` (1-based, by file name) for the files of every locale, kind and device group. */
-export function orderWithinSets<T extends { path: string; locale: string; kind: AssetKind; device: string | null }>(
-  items: readonly T[],
-): Map<string, number> {
+export function orderWithinSets<
+  T extends { path: string; locale: string; kind: AssetKind; device: string | null },
+>(items: readonly T[]): Map<string, number> {
   const groups = new Map<string, string[]>();
   for (const item of items) {
     const key = `${item.locale}\u0000${item.kind}\u0000${item.device ?? ''}`;
@@ -202,7 +263,9 @@ export function orderWithinSets<T extends { path: string; locale: string; kind: 
   const order = new Map<string, number>();
   for (const paths of groups.values()) {
     // The same order as deliver (sorted by path) and Google Play (file name order): code points.
-    paths.sort((a, b) => (basename(a) < basename(b) ? -1 : basename(a) > basename(b) ? 1 : a < b ? -1 : 1));
+    paths.sort((a, b) =>
+      basename(a) < basename(b) ? -1 : basename(a) > basename(b) ? 1 : a < b ? -1 : 1,
+    );
     paths.forEach((path, index) => order.set(path, index + 1));
   }
   return order;
@@ -234,7 +297,8 @@ export function expoIconPaths(appJson: string | undefined, platform: Platform, d
   } catch {
     return [];
   }
-  const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+  const isObject = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v);
   if (!isObject(parsed)) return [];
   const expo = isObject(parsed.expo) ? parsed.expo : parsed;
   const section = isObject(expo[platform]) ? (expo[platform] as Record<string, unknown>) : {};
@@ -272,12 +336,24 @@ export type ProjectIcons = { candidates: AssetCandidate[]; notes: string[] };
  */
 export function discoverProjectIcons(
   files: readonly string[],
-  input: { platform: Platform; store: AssetStore; expoPaths: readonly string[]; hints: readonly string[] },
+  input: {
+    platform: Platform;
+    store: AssetStore;
+    expoPaths: readonly string[];
+    hints: readonly string[];
+  },
 ): ProjectIcons {
   const fileSet = new Set(files);
   const candidates: AssetCandidate[] = [];
   const notes: string[] = [];
-  const base = { store: input.store, locale: '', kind: 'app_icon' as const, device: null, imessage: false, origin: 'project' as const };
+  const base = {
+    store: input.store,
+    locale: '',
+    kind: 'app_icon' as const,
+    device: null,
+    imessage: false,
+    origin: 'project' as const,
+  };
   const push = (path: string, priority: number) =>
     candidates.push({ ...base, path, extension: extensionOf(path), priority });
   for (const path of input.expoPaths) if (fileSet.has(path)) push(path, 0);
@@ -285,9 +361,13 @@ export function discoverProjectIcons(
   const pickGroup = <T>(groups: Map<string, T[]>, what: string): T[] => {
     if (groups.size === 0) return [];
     if (groups.size === 1) return [...groups.values()][0] ?? [];
-    const named = [...groups.entries()].filter(([dir]) => input.hints.some((h) => dir.toLowerCase().includes(h)));
+    const named = [...groups.entries()].filter(([dir]) =>
+      input.hints.some((h) => dir.toLowerCase().includes(h)),
+    );
     if (named.length === 1) return named[0]?.[1] ?? [];
-    notes.push(`The repository has ${groups.size} ${what}; none could be tied to this app by its name, so none is used for the app icon.`);
+    notes.push(
+      `The repository has ${groups.size} ${what}; none could be tied to this app by its name, so none is used for the app icon.`,
+    );
     return [];
   };
 
@@ -308,7 +388,10 @@ export function discoverProjectIcons(
       const m = MIPMAP.exec(path);
       if (!m) continue;
       const module = m[1] ?? '';
-      mipmaps.set(module, [...(mipmaps.get(module) ?? []), { path, density: DENSITY.indexOf(m[2] ?? '') }]);
+      mipmaps.set(module, [
+        ...(mipmaps.get(module) ?? []),
+        { path, density: DENSITY.indexOf(m[2] ?? '') },
+      ]);
     }
     const chosen = pickGroup(mipmaps, 'Android launcher icon sets');
     chosen.sort((a, b) => a.density - b.density);

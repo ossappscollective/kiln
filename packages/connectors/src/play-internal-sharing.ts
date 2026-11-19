@@ -1,7 +1,14 @@
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName } from './googleplay.ts';
-import { enc, isRecord, StoreHttp, type StoreHttpOptions, type StoreReply, text } from './store-http.ts';
+import {
+  enc,
+  isRecord,
+  StoreHttp,
+  type StoreHttpOptions,
+  type StoreReply,
+  text,
+} from './store-http.ts';
 
 /**
  * Google Play INTERNAL APP SHARING: upload an .aab or .apk and get a download link that installs it on a device. A STORE WRITE (it
@@ -77,33 +84,65 @@ export class PlayInternalSharingConnector implements InternalSharingConnector {
   readonly #account: ServiceAccount;
 
   constructor(options: PlayInternalSharingOptions) {
-    this.#account = typeof options.serviceAccount === 'string' ? parseServiceAccount(options.serviceAccount) : options.serviceAccount;
+    this.#account =
+      typeof options.serviceAccount === 'string'
+        ? parseServiceAccount(options.serviceAccount)
+        : options.serviceAccount;
     if (!isPlayPackageName(options.packageName)) {
-      throw new StoreError('googleplay', 'invalid_input', `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`);
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        `Not a valid Android package name: ${JSON.stringify(options.packageName.slice(0, 80))}.`,
+      );
     }
     this.packageName = options.packageName;
-    const { uploadTimeoutMs, serviceAccount: _account, packageName: _name, apiBase: _base, ...shared } = options;
+    const {
+      uploadTimeoutMs,
+      serviceAccount: _account,
+      packageName: _name,
+      apiBase: _base,
+      ...shared
+    } = options;
     this.#tokenHttp = new StoreHttp({ ...shared, store: 'googleplay' });
     // No wait-and-retry on 429 for the write, and a long timeout for the bytes.
-    this.#uploadHttp = new StoreHttp({ ...shared, store: 'googleplay', maxRateLimitRetries: 0, timeoutMs: uploadTimeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS });
+    this.#uploadHttp = new StoreHttp({
+      ...shared,
+      store: 'googleplay',
+      maxRateLimitRetries: 0,
+      timeoutMs: uploadTimeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS,
+    });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     this.#tokens = new GoogleTokenProvider(this.#account, this.#tokenHttp);
     for (const known of this.#tokenHttp.known) this.#uploadHttp.known.add(known);
   }
 
   async upload(kind: InternalSharingKind, bytes: Uint8Array): Promise<InternalSharingUpload> {
-    if (bytes.byteLength === 0) throw new StoreError('googleplay', 'invalid_input', 'The file is empty, so nothing was uploaded.');
-    const what = kind === 'bundle' ? 'uploading the app bundle for internal app sharing' : 'uploading the APK for internal app sharing';
+    if (bytes.byteLength === 0)
+      throw new StoreError(
+        'googleplay',
+        'invalid_input',
+        'The file is empty, so nothing was uploaded.',
+      );
+    const what =
+      kind === 'bundle'
+        ? 'uploading the app bundle for internal app sharing'
+        : 'uploading the APK for internal app sharing';
     const url = `${this.#base}/upload/androidpublisher/v3/applications/internalappsharing/${enc(this.packageName)}/artifacts/${kind}?uploadType=media`;
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();
       let reply: StoreReply;
       try {
-        reply = await this.#uploadHttp.send('POST', url, { headers: { authorization: `Bearer ${token}` }, raw: { body: bytes, contentType: 'application/octet-stream' } });
+        reply = await this.#uploadHttp.send('POST', url, {
+          headers: { authorization: `Bearer ${token}` },
+          raw: { body: bytes, contentType: 'application/octet-stream' },
+        });
       } catch (error) {
         if (error instanceof StoreRateLimitError) throw error;
         if (error instanceof StoreError && error.kind === 'network') {
-          throw new InternalSharingOutcomeUnknownError(`The connection to Google Play failed while ${what}, so it is not known whether Google stored the file. ${error.message}`, error.status);
+          throw new InternalSharingOutcomeUnknownError(
+            `The connection to Google Play failed while ${what}, so it is not known whether Google stored the file. ${error.message}`,
+            error.status,
+          );
         }
         throw error;
       }
@@ -114,7 +153,10 @@ export class PlayInternalSharingConnector implements InternalSharingConnector {
       }
       if (reply.status >= 200 && reply.status < 300) return this.#result(reply, what);
       if (reply.status >= 500) {
-        throw new InternalSharingOutcomeUnknownError(`Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google stored the file.`, reply.status);
+        throw new InternalSharingOutcomeUnknownError(
+          `Google Play answered HTTP ${reply.status} while ${what}, so it is not known whether Google stored the file.`,
+          reply.status,
+        );
       }
       throw this.#refusal(reply, what);
     }
@@ -124,8 +166,16 @@ export class PlayInternalSharingConnector implements InternalSharingConnector {
     const body = isRecord(reply.json) ? reply.json : {};
     const downloadUrl = text(body.downloadUrl);
     // Google said yes but the link cannot be used: the file may be stored, so this is not a plain failure.
-    if (reply.malformed || !downloadUrl || downloadUrl.length > MAX_URL_LENGTH || !/^https:\/\/[^\s]+$/.test(downloadUrl)) {
-      throw new InternalSharingOutcomeUnknownError(`Google Play answered while ${what} but sent no usable download link, so the file may be stored without a link this server can show.`, reply.status);
+    if (
+      reply.malformed ||
+      !downloadUrl ||
+      downloadUrl.length > MAX_URL_LENGTH ||
+      !/^https:\/\/[^\s]+$/.test(downloadUrl)
+    ) {
+      throw new InternalSharingOutcomeUnknownError(
+        `Google Play answered while ${what} but sent no usable download link, so the file may be stored without a link this server can show.`,
+        reply.status,
+      );
     }
     this.#uploadHttp.known.add(downloadUrl);
     const fingerprint = text(body.certificateFingerprint);
@@ -139,7 +189,12 @@ export class PlayInternalSharingConnector implements InternalSharingConnector {
 
   #refusal(reply: StoreReply, what: string): StoreError {
     if (reply.status === 413) {
-      return new StoreError('googleplay', 'too_large', 'Google Play refused the file because it is too large (413). Nothing was uploaded.', 413);
+      return new StoreError(
+        'googleplay',
+        'too_large',
+        'Google Play refused the file because it is too large (413). Nothing was uploaded.',
+        413,
+      );
     }
     if (reply.status === 400) {
       return new StoreError(
@@ -149,7 +204,17 @@ export class PlayInternalSharingConnector implements InternalSharingConnector {
         400,
       );
     }
-    const error = googleError(reply, what, { packageName: this.packageName, ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}) });
-    return error instanceof StoreRateLimitError ? error : new StoreError('googleplay', error.kind, this.#uploadHttp.redact(error.message), error.status);
+    const error = googleError(reply, what, {
+      packageName: this.packageName,
+      ...(this.#account.projectId ? { projectId: this.#account.projectId } : {}),
+    });
+    return error instanceof StoreRateLimitError
+      ? error
+      : new StoreError(
+          'googleplay',
+          error.kind,
+          this.#uploadHttp.redact(error.message),
+          error.status,
+        );
   }
 }

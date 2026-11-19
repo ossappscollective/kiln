@@ -25,7 +25,8 @@ export function plainAddress(raw: string): string | undefined {
   const local = text.slice(0, at);
   const domain = text.slice(at + 1);
   if (local.length > 64 || !LOCAL.test(local)) return undefined;
-  if (domain.length < 1 || domain.length > 253 || !domain.split('.').every((l) => LABEL.test(l))) return undefined;
+  if (domain.length < 1 || domain.length > 253 || !domain.split('.').every((l) => LABEL.test(l)))
+    return undefined;
   return text;
 }
 
@@ -41,14 +42,19 @@ export function parseMailbox(raw: string): Mailbox | undefined {
   }
   const address = plainAddress(bracket[2] ?? '');
   if (!address) return undefined;
-  const name = cleanText(bracket[1] ?? '').replace(/["\\<>]/g, '').trim();
+  const name = cleanText(bracket[1] ?? '')
+    .replace(/["\\<>]/g, '')
+    .trim();
   return name ? { address, name } : { address };
 }
 
 /** Removes every control character (so no CR or LF), and collapses runs of spaces. */
 export function cleanText(text: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-  return text.replace(/[\u0000-\u001f\u007f\u0080-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+  return text
+    .replace(/[\u0000-\u001f\u007f\u0080-\u009f\u2028\u2029]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
 }
 
 const isPrintableAscii = (text: string) => /^[\x20-\x7e]*$/.test(text);
@@ -96,7 +102,10 @@ export function textHeader(name: string, raw: string): string {
 /** A mailbox as it is written in From or To. */
 export function formatMailbox(box: Mailbox): string {
   if (!box.name) return box.address;
-  if (isPrintableAscii(box.name)) return /^[A-Za-z0-9 ]+$/.test(box.name) ? `${box.name} <${box.address}>` : `"${box.name}" <${box.address}>`;
+  if (isPrintableAscii(box.name))
+    return /^[A-Za-z0-9 ]+$/.test(box.name)
+      ? `${box.name} <${box.address}>`
+      : `"${box.name}" <${box.address}>`;
   return `${encodeWords(box.name)} <${box.address}>`;
 }
 
@@ -108,7 +117,10 @@ export function quotedPrintable(text: string): string {
     let encoded = '';
     for (const byte of Buffer.from(line, 'utf8')) {
       const ch = String.fromCharCode(byte);
-      encoded += (byte >= 33 && byte <= 126 && ch !== '=') || byte === 32 ? ch : `=${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+      encoded +=
+        (byte >= 33 && byte <= 126 && ch !== '=') || byte === 32
+          ? ch
+          : `=${byte.toString(16).toUpperCase().padStart(2, '0')}`;
     }
     // A space at the end of a line would be lost in transit.
     if (encoded.endsWith(' ')) encoded = `${encoded.slice(0, -1)}=20`;
@@ -139,18 +151,22 @@ export type BuildInput = {
   messageId?: string;
 };
 
-export type Built = { ok: true; data: string; envelopeFrom: string; envelopeTo: string[] } | { ok: false; hint: 'invalid_address' | 'message_too_large' };
+export type Built =
+  | { ok: true; data: string; envelopeFrom: string; envelopeTo: string[] }
+  | { ok: false; hint: 'invalid_address' | 'message_too_large' };
 
 /** The whole message, with CRLF line ends, no trailing dot and no dot-stuffing (the client does that). */
 export function buildMessage(input: BuildInput): Built {
-  if (input.to.length === 0 || input.to.length > MAX_RECIPIENTS) return { ok: false, hint: 'invalid_address' };
+  if (input.to.length === 0 || input.to.length > MAX_RECIPIENTS)
+    return { ok: false, hint: 'invalid_address' };
   const to: string[] = [];
   for (const raw of input.to) {
     const address = plainAddress(raw);
     if (!address) return { ok: false, hint: 'invalid_address' };
     if (!to.includes(address)) to.push(address);
   }
-  if (input.text.length > MAX_BODY_CHARS || (input.html?.length ?? 0) > MAX_BODY_CHARS) return { ok: false, hint: 'message_too_large' };
+  if (input.text.length > MAX_BODY_CHARS || (input.html?.length ?? 0) > MAX_BODY_CHARS)
+    return { ok: false, hint: 'message_too_large' };
   const domain = input.from.address.slice(input.from.address.lastIndexOf('@') + 1);
   const messageId = input.messageId ?? `<${randomBytes(16).toString('hex')}@${domain}>`;
   const headers = [
@@ -165,12 +181,16 @@ export function buildMessage(input: BuildInput): Built {
   const text = quotedPrintable(toCrlf(input.text)).replace(/(\r\n)+$/, '');
   let body: string;
   if (input.html === undefined) {
-    headers.push('Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: quoted-printable');
+    headers.push(
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: quoted-printable',
+    );
     body = text;
   } else {
     const html = quotedPrintable(toCrlf(input.html)).replace(/(\r\n)+$/, '');
     let boundary = input.boundary ?? `=_mrm_${randomBytes(18).toString('hex')}`;
-    while (text.includes(boundary) || html.includes(boundary)) boundary = `=_mrm_${randomBytes(18).toString('hex')}`;
+    while (text.includes(boundary) || html.includes(boundary))
+      boundary = `=_mrm_${randomBytes(18).toString('hex')}`;
     headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
     body = [
       `--${boundary}`,

@@ -1,28 +1,28 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   APPLE_REPLY_LIMIT,
+  AppStoreReviewsConnector,
   checkReplyText,
   normalizeReplyText,
   PLAY_REPLY_LIMIT,
-  redactSecrets,
+  PlayReviewsConnector,
   ReplyOutcomeUnknownError,
-  secretStrings,
+  redactSecrets,
   StoreError,
   StoreRateLimitError,
   type StoreReview,
   type StoreReviewReplyConnector,
-  AppStoreReviewsConnector,
-  PlayReviewsConnector,
+  secretStrings,
 } from '@mrm/connectors';
 import { type ActorType, isApplePlatform } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
-import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
+import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
 import type { ReviewConnectorInput } from './review-sync.ts';
-import { type Review, type StoreKey, getReview } from './reviews.ts';
+import { getReview, type Review, type StoreKey } from './reviews.ts';
 
 /**
  * Replying to customer reviews: a STORE WRITE (public text, in the store, in the organisation's
@@ -62,12 +62,15 @@ const HOUR_MS = 60 * 60 * 1000;
 
 export const replyStatuses = ['draft', 'sending', 'sent', 'failed', 'unknown'] as const;
 export type ReplyStatus = (typeof replyStatuses)[number];
-const isReplyStatus = (v: unknown): v is ReplyStatus => (replyStatuses as readonly string[]).includes(String(v));
+const isReplyStatus = (v: unknown): v is ReplyStatus =>
+  (replyStatuses as readonly string[]).includes(String(v));
 
 /** Longest reply the server accepts for a store (see the connectors for where the numbers come from). */
-export const replyLimitFor = (store: StoreKey): number => (store === 'googleplay' ? PLAY_REPLY_LIMIT : APPLE_REPLY_LIMIT);
+export const replyLimitFor = (store: StoreKey): number =>
+  store === 'googleplay' ? PLAY_REPLY_LIMIT : APPLE_REPLY_LIMIT;
 
-export const hashReplyText = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex');
+export const hashReplyText = (text: string): string =>
+  createHash('sha256').update(text, 'utf8').digest('hex');
 
 // ---------------------------------------------------------------------------------------------
 // Context
@@ -80,12 +83,21 @@ export type TranslateDraft = (input: {
   source?: string;
 }) => Promise<{ ok: true; text: string } | { ok: false; code: string; message: string }>;
 
-export type ReviewReplyConnectorFactory = (input: ReviewConnectorInput) => StoreReviewReplyConnector;
+export type ReviewReplyConnectorFactory = (
+  input: ReviewConnectorInput,
+) => StoreReviewReplyConnector;
 
 export const defaultReplyConnectorFactory: ReviewReplyConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppStoreReviewsConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', fetch: input.fetch })
-    : new PlayReviewsConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
+    ? AppStoreReviewsConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        fetch: input.fetch,
+      })
+    : new PlayReviewsConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      });
 
 export type ReviewReplyContext = {
   db: Database;
@@ -144,7 +156,9 @@ function parseEvidence(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'string' || raw === '') return null;
   try {
     const v: unknown = JSON.parse(raw);
-    return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+    return typeof v === 'object' && v !== null && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
@@ -178,7 +192,11 @@ export function toDraft(r: Row): ReplyDraft {
 const DRAFT_COLUMNS = `id, review_id, app_id, store, text, text_hash, status, error_code, evidence, created_by,
   updated_by, created_at, updated_at, sent_at, sent_by, claim_at, store_response_id`;
 
-async function loadDraft(sql: Sql, workspaceId: string, reviewId: string): Promise<(ReplyDraft & { claimAt: number | null }) | undefined> {
+async function loadDraft(
+  sql: Sql,
+  workspaceId: string,
+  reviewId: string,
+): Promise<(ReplyDraft & { claimAt: number | null }) | undefined> {
   const [row] = await sql.query(
     `SELECT ${DRAFT_COLUMNS} FROM review_reply_drafts WHERE review_id = ? AND workspace_id = ?`,
     [reviewId, workspaceId],
@@ -246,13 +264,28 @@ type Mapped = { failure: Failure; code: string };
 
 /** A store refusal as an answer to the person. `secret` is only used to redact. */
 function mapStoreError(error: unknown, secret: string): Mapped {
-  const make = (status: Failure['status'], code: string, message: string, extra: Record<string, unknown> = {}, headers?: Record<string, string>): Mapped => ({
+  const make = (
+    status: Failure['status'],
+    code: string,
+    message: string,
+    extra: Record<string, unknown> = {},
+    headers?: Record<string, string>,
+  ): Mapped => ({
     code,
-    failure: { ...failure(status, code, clean(message, secret), extra), ...(headers ? { headers } : {}) },
+    failure: {
+      ...failure(status, code, clean(message, secret), extra),
+      ...(headers ? { headers } : {}),
+    },
   });
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
-    return make(429, 'rate_limited', error.message, { retryAfterSeconds: wait }, { 'Retry-After': String(wait) });
+    return make(
+      429,
+      'rate_limited',
+      error.message,
+      { retryAfterSeconds: wait },
+      { 'Retry-After': String(wait) },
+    );
   }
   if (error instanceof StoreError) {
     switch (error.kind) {
@@ -272,10 +305,18 @@ function mapStoreError(error: unknown, secret: string): Mapped {
         return make(502, 'store_unavailable', error.message);
       default:
         // Any other refusal: the store looked at the request and said no (a 4xx), so nothing was published.
-        return make(error.status !== undefined && error.status >= 400 && error.status < 500 ? 422 : 502, 'store_rejected', error.message);
+        return make(
+          error.status !== undefined && error.status >= 400 && error.status < 500 ? 422 : 502,
+          'store_rejected',
+          error.message,
+        );
     }
   }
-  return make(502, 'send_failed', 'The reply could not be sent. Nothing was published that this server knows of.');
+  return make(
+    502,
+    'send_failed',
+    'The reply could not be sent. Nothing was published that this server knows of.',
+  );
 }
 
 class ReplyTimeout extends Error {}
@@ -312,7 +353,14 @@ async function withConnector<T>(
 // ---------------------------------------------------------------------------------------------
 // Templates
 
-export type ReplyTemplate = { id: string; name: string; body: string; createdBy: string; createdAt: number; updatedAt: number };
+export type ReplyTemplate = {
+  id: string;
+  name: string;
+  body: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+};
 
 const toTemplate = (r: Row): ReplyTemplate => ({
   id: String(r.id),
@@ -328,11 +376,17 @@ export const templatePlaceholders = ['author', 'app'] as const;
 const MAX_SUBSTITUTION = 60;
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-const SUBSTITUTION_STRIP = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff<>{}]/g;
+const SUBSTITUTION_STRIP =
+  /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff<>{}]/g;
 
 /** A name from outside as plain text for the middle of a sentence: no markup, no control characters, one line, short. */
 export function plainValue(value: string | null | undefined, fallback: string): string {
-  const cleaned = (value ?? '').replace(SUBSTITUTION_STRIP, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_SUBSTITUTION).trim();
+  const cleaned = (value ?? '')
+    .replace(SUBSTITUTION_STRIP, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_SUBSTITUTION)
+    .trim();
   return cleaned === '' ? fallback : cleaned;
 }
 
@@ -341,7 +395,10 @@ export function plainValue(value: string | null | undefined, fallback: string): 
  * customer and from the store: they are reduced to plain text first (see `plainValue`), so a name
  * like `<b>x</b>` cannot put markup or a line break into a public reply. Pure.
  */
-export function renderTemplate(body: string, values: { author?: string | null; app?: string | null }): string {
+export function renderTemplate(
+  body: string,
+  values: { author?: string | null; app?: string | null },
+): string {
   return body.replace(PLACEHOLDER, (whole, name: string) => {
     if (name === 'author') return plainValue(values.author, 'there');
     if (name === 'app') return plainValue(values.app, 'the app');
@@ -352,18 +409,25 @@ export function renderTemplate(body: string, values: { author?: string | null; a
 type TemplateInput = { name: string; body: string };
 
 /** Problems with a template, or null: placeholders, markup and control characters are checked like a reply. */
-export function checkTemplate(input: TemplateInput): { field: 'name' | 'body'; message: string } | null {
+export function checkTemplate(
+  input: TemplateInput,
+): { field: 'name' | 'body'; message: string } | null {
   const name = input.name.trim();
-  if (name === '' || name.length > MAX_TEMPLATE_NAME) return { field: 'name', message: `A name of 1 to ${MAX_TEMPLATE_NAME} characters.` };
+  if (name === '' || name.length > MAX_TEMPLATE_NAME)
+    return { field: 'name', message: `A name of 1 to ${MAX_TEMPLATE_NAME} characters.` };
   const body = normalizeReplyText(input.body);
   const checked = checkReplyText(body, MAX_TEMPLATE_BODY);
   if (!checked.ok) return { field: 'body', message: checked.message };
   for (const match of body.matchAll(PLACEHOLDER)) {
     if (!(templatePlaceholders as readonly string[]).includes(match[1] ?? '')) {
-      return { field: 'body', message: `Unknown placeholder {{${match[1]}}}. Use {{author}} and {{app}}.` };
+      return {
+        field: 'body',
+        message: `Unknown placeholder {{${match[1]}}}. Use {{author}} and {{app}}.`,
+      };
     }
   }
-  if (/\{\{|\}\}/.test(body.replace(PLACEHOLDER, ''))) return { field: 'body', message: 'A stray {{ or }}. Use {{author}} and {{app}}.' };
+  if (/\{\{|\}\}/.test(body.replace(PLACEHOLDER, '')))
+    return { field: 'body', message: 'A stray {{ or }}. Use {{author}} and {{app}}.' };
   return null;
 }
 
@@ -375,9 +439,7 @@ export async function listTemplates(sql: Sql, workspaceId: string): Promise<Repl
   return rows.map(toTemplate);
 }
 
-export type TemplateResult =
-  | { ok: true; template: ReplyTemplate }
-  | Failure;
+export type TemplateResult = { ok: true; template: ReplyTemplate } | Failure;
 
 export async function createTemplate(
   ctx: ReviewReplyContext,
@@ -389,16 +451,32 @@ export async function createTemplate(
   const at = ctx.now();
   const id = randomUUID();
   const made = await ctx.db.transaction(async (tx) => {
-    const [count] = await tx.query('SELECT COUNT(*) AS n FROM review_reply_templates WHERE workspace_id = ?', [input.workspaceId]);
+    const [count] = await tx.query(
+      'SELECT COUNT(*) AS n FROM review_reply_templates WHERE workspace_id = ?',
+      [input.workspaceId],
+    );
     if (Number(count?.n ?? 0) >= MAX_REPLY_TEMPLATES) return false;
     await tx.execute(
       `INSERT INTO review_reply_templates (id, workspace_id, name, body, created_by, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.workspaceId, input.name.trim(), normalizeReplyText(input.body), input.actorId, at, at],
+      [
+        id,
+        input.workspaceId,
+        input.name.trim(),
+        normalizeReplyText(input.body),
+        input.actorId,
+        at,
+        at,
+      ],
     );
     return true;
   });
-  if (!made) return failure(422, 'too_many_templates', `A workspace can have at most ${MAX_REPLY_TEMPLATES} reply templates.`);
+  if (!made)
+    return failure(
+      422,
+      'too_many_templates',
+      `A workspace can have at most ${MAX_REPLY_TEMPLATES} reply templates.`,
+    );
   const [row] = await ctx.db.query(
     'SELECT id, name, body, created_by, created_at, updated_at FROM review_reply_templates WHERE id = ?',
     [id],
@@ -430,19 +508,24 @@ export async function deleteTemplate(
   input: { workspaceId: string; id: string },
 ): Promise<{ ok: true } | Failure> {
   if (!ctx.replyEnabled) return disabled();
-  const removed = await ctx.db.execute('DELETE FROM review_reply_templates WHERE id = ? AND workspace_id = ?', [
-    input.id,
-    input.workspaceId,
-  ]);
+  const removed = await ctx.db.execute(
+    'DELETE FROM review_reply_templates WHERE id = ? AND workspace_id = ?',
+    [input.id, input.workspaceId],
+  );
   return removed === 0 ? failure(404, 'not_found') : { ok: true };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Drafts
 
-const isStale = (draft: { claimAt: number | null }, now: number, ttl: number) => draft.claimAt === null || now - draft.claimAt >= ttl;
+const isStale = (draft: { claimAt: number | null }, now: number, ttl: number) =>
+  draft.claimAt === null || now - draft.claimAt >= ttl;
 
-const auditDetail = (app: { id: string }, review: Review, draft: Pick<ReplyDraft, 'textHash' | 'length'>) => ({
+const auditDetail = (
+  app: { id: string },
+  review: Review,
+  draft: Pick<ReplyDraft, 'textHash' | 'length'>,
+) => ({
   appId: app.id,
   store: review.store,
   length: draft.length,
@@ -470,10 +553,10 @@ export async function saveReplyDraft(
 
   let source = input.text ?? '';
   if (input.templateId !== undefined) {
-    const [row] = await ctx.db.query('SELECT body FROM review_reply_templates WHERE id = ? AND workspace_id = ?', [
-      input.templateId,
-      input.workspaceId,
-    ]);
+    const [row] = await ctx.db.query(
+      'SELECT body FROM review_reply_templates WHERE id = ? AND workspace_id = ?',
+      [input.templateId, input.workspaceId],
+    );
     if (!row) return failure(404, 'template_not_found', 'There is no such reply template.');
     source = renderTemplate(String(row.body), { author: review.authorName, app: app.name });
   }
@@ -481,7 +564,11 @@ export async function saveReplyDraft(
   const limit = replyLimitFor(review.store);
   const checked = checkReplyText(text, limit);
   if (!checked.ok) {
-    return failure(422, 'invalid_reply', checked.message, { problem: checked.problem, limit, length: text.length });
+    return failure(422, 'invalid_reply', checked.message, {
+      problem: checked.problem,
+      limit,
+      length: text.length,
+    });
   }
   const hash = hashReplyText(text);
   const at = ctx.now();
@@ -490,7 +577,12 @@ export async function saveReplyDraft(
   const result = await ctx.db.transaction(async (tx) => {
     const existing = await loadDraft(tx, input.workspaceId, review.id);
     if (existing && existing.status === 'sending' && !isStale(existing, at, ttl)) {
-      return failure(409, 'send_in_progress', 'A send of this reply is in progress. Wait for it to finish.', { reply: existing });
+      return failure(
+        409,
+        'send_in_progress',
+        'A send of this reply is in progress. Wait for it to finish.',
+        { reply: existing },
+      );
     }
     if (existing && (existing.status === 'unknown' || existing.status === 'sending')) {
       return failure(
@@ -515,7 +607,19 @@ export async function saveReplyDraft(
         `INSERT INTO review_reply_drafts
            (id, workspace_id, app_id, review_id, store, text, text_hash, status, created_by, updated_by, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
-        [randomUUID(), input.workspaceId, app.id, review.id, review.store, text, hash, input.actor.id, input.actor.id, at, at],
+        [
+          randomUUID(),
+          input.workspaceId,
+          app.id,
+          review.id,
+          review.store,
+          text,
+          hash,
+          input.actor.id,
+          input.actor.id,
+          at,
+          at,
+        ],
       );
     }
     const draft = (await loadDraft(tx, input.workspaceId, review.id)) as ReplyDraft;
@@ -525,7 +629,11 @@ export async function saveReplyDraft(
       action: 'review.reply_draft',
       target: { type: 'review', id: review.id },
       // Ids, the length and the hash: never the text.
-      detail: { ...auditDetail(app, review, draft), change: existing ? 'updated' : 'created', ...(input.templateId ? { templateId: input.templateId } : {}) },
+      detail: {
+        ...auditDetail(app, review, draft),
+        change: existing ? 'updated' : 'created',
+        ...(input.templateId ? { templateId: input.templateId } : {}),
+      },
       at,
     });
     return { ok: true as const, draft, changed: true };
@@ -548,10 +656,18 @@ export async function deleteReplyDraft(
   return ctx.db.transaction(async (tx) => {
     const existing = await loadDraft(tx, input.workspaceId, review.id);
     if (!existing) return failure(404, 'no_draft', 'There is no draft reply for this review.');
-    if (existing.status === 'unknown' || (existing.status === 'sending' && !isStale(existing, at, ttl))) {
-      return failure(409, existing.status === 'sending' ? 'send_in_progress' : 'outcome_unknown', 'The draft cannot be deleted while a send is in progress or its outcome is unknown.', {
-        reply: existing,
-      });
+    if (
+      existing.status === 'unknown' ||
+      (existing.status === 'sending' && !isStale(existing, at, ttl))
+    ) {
+      return failure(
+        409,
+        existing.status === 'sending' ? 'send_in_progress' : 'outcome_unknown',
+        'The draft cannot be deleted while a send is in progress or its outcome is unknown.',
+        {
+          reply: existing,
+        },
+      );
     }
     await tx.execute('DELETE FROM review_reply_drafts WHERE id = ?', [existing.id]);
     await recordAudit(tx, {
@@ -559,7 +675,11 @@ export async function deleteReplyDraft(
       actor: input.actor,
       action: 'review.reply_draft',
       target: { type: 'review', id: review.id },
-      detail: { ...auditDetail(app, review, existing), change: 'deleted', wasStatus: existing.status },
+      detail: {
+        ...auditDetail(app, review, existing),
+        change: 'deleted',
+        wasStatus: existing.status,
+      },
       at,
     });
     return { ok: true as const };
@@ -593,7 +713,10 @@ export type SendResult =
   | { ok: true; reply: ReplyDraft; review: ReviewView; confirmedByReread: boolean }
   | Failure;
 
-type ReadBack = { kind: 'matched'; review: StoreReview } | { kind: 'no_match'; review: StoreReview } | { kind: 'unreadable'; reason: string };
+type ReadBack =
+  | { kind: 'matched'; review: StoreReview }
+  | { kind: 'no_match'; review: StoreReview }
+  | { kind: 'unreadable'; reason: string };
 
 async function readBack(
   ctx: ReviewReplyContext,
@@ -602,13 +725,24 @@ async function readBack(
   text: string,
 ): Promise<ReadBack> {
   try {
-    const found = await withConnector(ctx, input, (connector) => connector.getReview(storeReviewId));
+    const found = await withConnector(ctx, input, (connector) =>
+      connector.getReview(storeReviewId),
+    );
     if (!found) return { kind: 'unreadable', reason: 'review_not_returned' };
     const response = found.developerResponse;
-    if (response && normalizeReplyText(response.body) === text) return { kind: 'matched', review: found };
+    if (response && normalizeReplyText(response.body) === text)
+      return { kind: 'matched', review: found };
     return { kind: 'no_match', review: found };
   } catch (error) {
-    return { kind: 'unreadable', reason: error instanceof ReplyTimeout ? 'timeout' : error instanceof StoreError ? error.kind : 'error' };
+    return {
+      kind: 'unreadable',
+      reason:
+        error instanceof ReplyTimeout
+          ? 'timeout'
+          : error instanceof StoreError
+            ? error.kind
+            : 'error',
+    };
   }
 }
 
@@ -622,7 +756,13 @@ const responseJson = (r: { body: string; at?: number | null; state?: string | nu
  */
 export async function sendReviewReply(
   ctx: ReviewReplyContext,
-  input: { workspaceId: string; appId: string; reviewId: string; confirmHash: string; actor: Actor },
+  input: {
+    workspaceId: string;
+    appId: string;
+    reviewId: string;
+    confirmHash: string;
+    actor: Actor;
+  },
 ): Promise<SendResult> {
   if (!ctx.replyEnabled) return disabled();
   const { db } = ctx;
@@ -636,10 +776,15 @@ export async function sendReviewReply(
   const view = (draft: ReplyDraft) => ({ reply: draft });
 
   if (input.confirmHash !== found.textHash) {
-    return failure(409, 'stale_draft', 'The draft has changed since it was shown. Review the current text and confirm again.', {
-      ...view(found),
-      currentHash: found.textHash,
-    });
+    return failure(
+      409,
+      'stale_draft',
+      'The draft has changed since it was shown. Review the current text and confirm again.',
+      {
+        ...view(found),
+        currentHash: found.textHash,
+      },
+    );
   }
   if (found.status === 'sent') {
     return failure(409, 'already_sent', 'This exact reply has already been sent.', view(found));
@@ -649,7 +794,12 @@ export async function sendReviewReply(
   let previous: ReplyStatus = found.status;
   if (found.status === 'sending') {
     if (!isStale(found, now, ttl)) {
-      return failure(409, 'send_in_progress', 'A send of this reply is already in progress.', view(found));
+      return failure(
+        409,
+        'send_in_progress',
+        'A send of this reply is already in progress.',
+        view(found),
+      );
     }
     // The process that was sending is gone or stuck: it may or may not have reached the store.
     await db.execute(
@@ -669,9 +819,19 @@ export async function sendReviewReply(
   if (claimed === 0) {
     const current = await loadDraft(db, workspaceId, review.id);
     if (!current) return failure(404, 'no_draft', 'There is no draft reply for this review.');
-    if (current.textHash !== input.confirmHash) return failure(409, 'stale_draft', 'The draft has changed since it was shown.', { ...view(current), currentHash: current.textHash });
-    if (current.status === 'sent') return failure(409, 'already_sent', 'This exact reply has already been sent.', view(current));
-    return failure(409, 'send_in_progress', 'A send of this reply is already in progress.', view(current));
+    if (current.textHash !== input.confirmHash)
+      return failure(409, 'stale_draft', 'The draft has changed since it was shown.', {
+        ...view(current),
+        currentHash: current.textHash,
+      });
+    if (current.status === 'sent')
+      return failure(409, 'already_sent', 'This exact reply has already been sent.', view(current));
+    return failure(
+      409,
+      'send_in_progress',
+      'A send of this reply is already in progress.',
+      view(current),
+    );
   }
   previous = previous === 'sending' ? 'unknown' : previous;
   const claimId = found.id;
@@ -690,21 +850,50 @@ export async function sendReviewReply(
   };
 
   // ----- the store's credential
-  const [credential] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
-  if (!credential) return refusal(failure(422, 'credential_not_found', 'The credential of this app no longer exists.'));
+  const [credential] = await db.query(
+    'SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?',
+    [app.credentialId, workspaceId],
+  );
+  if (!credential)
+    return refusal(
+      failure(422, 'credential_not_found', 'The credential of this app no longer exists.'),
+    );
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
-    return refusal(failure(422, 'credential_kind', "This app's credential is not the kind its platform needs."));
+    return refusal(
+      failure(422, 'credential_kind', "This app's credential is not the kind its platform needs."),
+    );
   }
   if (isApplePlatform(app.platform) && !app.storeAppId) {
-    return refusal(failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.'));
+    return refusal(
+      failure(
+        422,
+        'app_not_synced',
+        'The App Store id of this app is not known yet. Sync the app first.',
+      ),
+    );
   }
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: REPLY_PURPOSE }, input.actor, ctx.now());
+    secret = await useCredentialSecret(
+      db,
+      ctx.masterKey,
+      { workspaceId, id: app.credentialId, purpose: REPLY_PURPOSE },
+      input.actor,
+      ctx.now(),
+    );
   } catch {
-    return refusal(failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.'));
+    return refusal(
+      failure(
+        422,
+        'credential_unreadable',
+        'The credential could not be decrypted. Enter its secret again.',
+      ),
+    );
   }
-  if (secret === undefined) return refusal(failure(422, 'credential_not_found', 'The credential of this app no longer exists.'));
+  if (secret === undefined)
+    return refusal(
+      failure(422, 'credential_not_found', 'The credential of this app no longer exists.'),
+    );
   const connection: Omit<ReviewConnectorInput, 'fetch'> = {
     kind: credentialKindFor[app.platform],
     secret,
@@ -714,14 +903,28 @@ export async function sendReviewReply(
 
   // ----- an unknown outcome is checked, not sent again
   if (previous === 'unknown') {
-    return settle(ctx, { app, review, draft: found, actor: input.actor, connection, secret, cause: found.errorCode === 'claim_expired' ? 'claim_expired' : 'recheck' });
+    return settle(ctx, {
+      app,
+      review,
+      draft: found,
+      actor: input.actor,
+      connection,
+      secret,
+      cause: found.errorCode === 'claim_expired' ? 'claim_expired' : 'recheck',
+    });
   }
 
   // ----- the limit of the store, then the rate limit of the workspace
   const limit = replyLimitFor(review.store);
   const checked = checkReplyText(found.text, limit);
   if (!checked.ok) {
-    return refusal(failure(422, 'invalid_reply', checked.message, { problem: checked.problem, limit, length: found.text.length }));
+    return refusal(
+      failure(422, 'invalid_reply', checked.message, {
+        problem: checked.problem,
+        limit,
+        length: found.text.length,
+      }),
+    );
   }
   now = ctx.now();
   const budget = ctx.sendsPerHour ?? DEFAULT_REPLY_SENDS_PER_HOUR;
@@ -737,9 +940,14 @@ export async function sendReviewReply(
   if (Number(used?.n ?? 0) + Number(inFlight?.n ?? 0) >= budget) {
     const oldest = used?.oldest === null || used?.oldest === undefined ? now : Number(used.oldest);
     const wait = Math.max(1, Math.ceil((oldest + HOUR_MS - now) / 1000));
-    const f = failure(429, 'rate_limited', `Too many replies were sent from this workspace in the last hour (the limit is ${budget}). Try again in ${Math.ceil(wait / 60)} minutes.`, {
-      retryAfterSeconds: wait,
-    });
+    const f = failure(
+      429,
+      'rate_limited',
+      `Too many replies were sent from this workspace in the last hour (the limit is ${budget}). Try again in ${Math.ceil(wait / 60)} minutes.`,
+      {
+        retryAfterSeconds: wait,
+      },
+    );
     return refusal({ ...f, headers: { 'Retry-After': String(wait) } });
   }
 
@@ -747,22 +955,38 @@ export async function sendReviewReply(
   let result: Awaited<ReturnType<StoreReviewReplyConnector['replyToReview']>> | undefined;
   let unknownReason: string | undefined;
   try {
-    result = await withConnector(ctx, connection, (connector) => connector.replyToReview({ reviewId: review.storeReviewId, text: found.text }));
+    result = await withConnector(ctx, connection, (connector) =>
+      connector.replyToReview({ reviewId: review.storeReviewId, text: found.text }),
+    );
   } catch (error) {
     if (error instanceof ReplyOutcomeUnknownError || error instanceof ReplyTimeout) {
       unknownReason = error instanceof ReplyTimeout ? 'timeout' : 'network';
     } else {
       const mapped = mapStoreError(error, secret);
-      return fail(ctx, { app, review, draft: found, actor: input.actor, code: mapped.code, mapped: mapped.failure });
+      return fail(ctx, {
+        app,
+        review,
+        draft: found,
+        actor: input.actor,
+        code: mapped.code,
+        mapped: mapped.failure,
+      });
     }
   }
   if (unknownReason !== undefined) {
-    await db.execute(`UPDATE review_reply_drafts SET status = 'unknown', error_code = ?, claim_at = NULL, updated_at = ? WHERE id = ?`, [
-      unknownReason,
-      ctx.now(),
-      claimId,
-    ]);
-    return settle(ctx, { app, review, draft: found, actor: input.actor, connection, secret, cause: unknownReason });
+    await db.execute(
+      `UPDATE review_reply_drafts SET status = 'unknown', error_code = ?, claim_at = NULL, updated_at = ? WHERE id = ?`,
+      [unknownReason, ctx.now(), claimId],
+    );
+    return settle(ctx, {
+      app,
+      review,
+      draft: found,
+      actor: input.actor,
+      connection,
+      secret,
+      cause: unknownReason,
+    });
   }
   return markSent(ctx, {
     app,
@@ -802,7 +1026,14 @@ async function settle(ctx: ReviewReplyContext, s: Settle): Promise<SendResult> {
     checkedAt: at,
     check: read.kind,
     ...(read.kind === 'unreadable' ? { reason: read.reason } : {}),
-    ...(read.kind !== 'unreadable' ? { hadResponse: read.review.developerResponse !== undefined, ...(read.review.developerResponse?.state ? { responseState: read.review.developerResponse.state } : {}) } : {}),
+    ...(read.kind !== 'unreadable'
+      ? {
+          hadResponse: read.review.developerResponse !== undefined,
+          ...(read.review.developerResponse?.state
+            ? { responseState: read.review.developerResponse.state }
+            : {}),
+        }
+      : {}),
   };
   if (read.kind === 'matched') {
     const response = read.review.developerResponse;
@@ -813,7 +1044,9 @@ async function settle(ctx: ReviewReplyContext, s: Settle): Promise<SendResult> {
       actor: s.actor,
       via: 'reread',
       evidence,
-      ...(response?.storeResponseId !== undefined ? { storeResponseId: response.storeResponseId } : {}),
+      ...(response?.storeResponseId !== undefined
+        ? { storeResponseId: response.storeResponseId }
+        : {}),
       ...(response?.state !== undefined ? { state: response.state } : {}),
       ...(response?.at !== undefined ? { repliedAt: response.at } : {}),
       connection: s.connection,
@@ -829,13 +1062,21 @@ async function settle(ctx: ReviewReplyContext, s: Settle): Promise<SendResult> {
       'The store did not answer, and reading the review back shows a different reply, so the reply was not published. The draft is kept. The store can be slow to show a new reply: check the review before sending again (sending the same text again replaces, it does not duplicate).',
       { outcome: 'not_applied' },
     );
-    return fail(ctx, { app: s.app, review: s.review, draft: s.draft, actor: s.actor, code: 'not_applied', mapped: f, evidence, outcome: 'failed' });
+    return fail(ctx, {
+      app: s.app,
+      review: s.review,
+      draft: s.draft,
+      actor: s.actor,
+      code: 'not_applied',
+      mapped: f,
+      evidence,
+      outcome: 'failed',
+    });
   }
-  await db.execute(`UPDATE review_reply_drafts SET status = 'unknown', claim_at = NULL, evidence = ?, updated_at = ? WHERE id = ?`, [
-    JSON.stringify(evidence),
-    at,
-    s.draft.id,
-  ]);
+  await db.execute(
+    `UPDATE review_reply_drafts SET status = 'unknown', claim_at = NULL, evidence = ?, updated_at = ? WHERE id = ?`,
+    [JSON.stringify(evidence), at, s.draft.id],
+  );
   const workspaceId = await workspaceOf(db, s.draft.id);
   const draft = (await loadDraft(db, workspaceId, s.review.id)) ?? s.draft;
   await recordAudit(db, {
@@ -855,14 +1096,25 @@ async function settle(ctx: ReviewReplyContext, s: Settle): Promise<SendResult> {
 }
 
 async function workspaceOf(sql: Sql, draftId: string): Promise<string> {
-  const [row] = await sql.query('SELECT workspace_id FROM review_reply_drafts WHERE id = ?', [draftId]);
+  const [row] = await sql.query('SELECT workspace_id FROM review_reply_drafts WHERE id = ?', [
+    draftId,
+  ]);
   return String(row?.workspace_id ?? '');
 }
 
 /** A refusal or a failure at the store: the draft is kept as `failed` (or `unknown`), audited, and the answer says why. */
 async function fail(
   ctx: ReviewReplyContext,
-  s: { app: ManagedApp; review: Review; draft: ReplyDraft; actor: Actor; code: string; mapped: Failure; evidence?: Record<string, unknown>; outcome?: 'failed' },
+  s: {
+    app: ManagedApp;
+    review: Review;
+    draft: ReplyDraft;
+    actor: Actor;
+    code: string;
+    mapped: Failure;
+    evidence?: Record<string, unknown>;
+    outcome?: 'failed';
+  },
 ): Promise<Failure> {
   const { db } = ctx;
   const at = ctx.now();
@@ -877,7 +1129,11 @@ async function fail(
       actor: s.actor,
       action: 'review.reply_failed',
       target: { type: 'review', id: s.review.id },
-      detail: { ...auditDetail(s.app, s.review, s.draft), code: s.code, outcome: s.outcome ?? 'failed' },
+      detail: {
+        ...auditDetail(s.app, s.review, s.draft),
+        code: s.code,
+        outcome: s.outcome ?? 'failed',
+      },
       at,
     });
   });
@@ -930,7 +1186,13 @@ async function markSent(
               status_changed_at = CASE WHEN status = 'new' THEN ? ELSE status_changed_at END,
               status_changed_by = CASE WHEN status = 'new' THEN ? ELSE status_changed_by END
         WHERE id = ?`,
-      [responseJson({ body: s.draft.text, at: s.repliedAt ?? at, state: s.state ?? null }), at, at, s.actor.id, s.review.id],
+      [
+        responseJson({ body: s.draft.text, at: s.repliedAt ?? at, state: s.state ?? null }),
+        at,
+        at,
+        s.actor.id,
+        s.review.id,
+      ],
     );
     await recordAudit(tx, {
       workspaceId,
@@ -964,7 +1226,11 @@ async function markSent(
   // Best effort: ask the store what it shows now.
   if (!s.skipReread) {
     try {
-      const fresh = await withConnector(ctx, { ...s.connection, secret: s.connection.secret }, (connector) => connector.getReview(s.review.storeReviewId));
+      const fresh = await withConnector(
+        ctx,
+        { ...s.connection, secret: s.connection.secret },
+        (connector) => connector.getReview(s.review.storeReviewId),
+      );
       if (fresh?.developerResponse) await refreshResponse(db, s.review, fresh);
     } catch {
       // The sync converges on the store's truth.
@@ -987,7 +1253,9 @@ export type ReplyConfig = {
   templates: { max: number; placeholders: readonly string[] };
 };
 
-export const replyConfig = (ctx: Pick<ReviewReplyContext, 'replyEnabled' | 'sendsPerHour' | 'translateDraft'>): ReplyConfig => ({
+export const replyConfig = (
+  ctx: Pick<ReviewReplyContext, 'replyEnabled' | 'sendsPerHour' | 'translateDraft'>,
+): ReplyConfig => ({
   enabled: ctx.replyEnabled,
   envName: REPLY_ENV,
   limits: { appstoreconnect: APPLE_REPLY_LIMIT, googleplay: PLAY_REPLY_LIMIT },

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { ActorType } from '@mrm/core';
 import { checkListingRoot, normalizeRoot } from '@mrm/connectors';
+import type { ActorType } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 
@@ -84,7 +84,10 @@ export type TargetInput = {
   googlePlayRoot?: string | null;
 };
 
-export type TargetProblem = { field: 'name' | 'appId' | 'appStoreRoot' | 'googlePlayRoot' | 'roots'; message: string };
+export type TargetProblem = {
+  field: 'name' | 'appId' | 'appStoreRoot' | 'googlePlayRoot' | 'roots';
+  message: string;
+};
 
 /** A root as stored (see `normalizeRoot`), or null for none. A bad path is a problem. */
 function cleanRoot(
@@ -109,16 +112,29 @@ export function validateTarget(
   const name = input.name.trim();
   if (name === '') problems.push({ field: 'name', message: 'Give the target a name.' });
   else if (name.length > MAX_TARGET_NAME || /[\r\n]/.test(name)) {
-    problems.push({ field: 'name', message: `Use one line of at most ${MAX_TARGET_NAME} characters.` });
+    problems.push({
+      field: 'name',
+      message: `Use one line of at most ${MAX_TARGET_NAME} characters.`,
+    });
   }
   const appId = input.appId?.trim() || null;
   if (appId !== null && (appId.length > 200 || /[\r\n]/.test(appId))) {
-    problems.push({ field: 'appId', message: 'The app id must be one line of at most 200 characters.' });
+    problems.push({
+      field: 'appId',
+      message: 'The app id must be one line of at most 200 characters.',
+    });
   }
   const appStoreRoot = cleanRoot(input.appStoreRoot, 'appStoreRoot', problems);
   const googlePlayRoot = cleanRoot(input.googlePlayRoot, 'googlePlayRoot', problems);
-  if (appStoreRoot === null && googlePlayRoot === null && !problems.some((p) => p.field !== 'name' && p.field !== 'appId')) {
-    problems.push({ field: 'roots', message: 'Give an App Store folder, a Google Play folder or both.' });
+  if (
+    appStoreRoot === null &&
+    googlePlayRoot === null &&
+    !problems.some((p) => p.field !== 'name' && p.field !== 'appId')
+  ) {
+    problems.push({
+      field: 'roots',
+      message: 'Give an App Store folder, a Google Play folder or both.',
+    });
   }
   return problems.length > 0
     ? { ok: false, problems }
@@ -127,7 +143,13 @@ export function validateTarget(
 
 export type TargetResult =
   | { ok: true; target: ListingTarget }
-  | { ok: false; status: 404 | 409 | 422; error: string; message: string; problems?: TargetProblem[] };
+  | {
+      ok: false;
+      status: 404 | 409 | 422;
+      error: string;
+      message: string;
+      problems?: TargetProblem[];
+    };
 
 const isUnique = (error: unknown) =>
   error instanceof Error && /unique|duplicate/i.test(error.message);
@@ -146,17 +168,24 @@ export async function createListingTarget(
 ): Promise<TargetResult> {
   const checked = validateTarget(input.target);
   if (!checked.ok) {
-    return { ok: false, status: 422, error: 'invalid_target', message: checked.problems[0]?.message ?? 'Invalid target.', problems: checked.problems };
+    return {
+      ok: false,
+      status: 422,
+      error: 'invalid_target',
+      message: checked.problems[0]?.message ?? 'Invalid target.',
+      problems: checked.problems,
+    };
   }
   const v = checked.value;
   const id = randomUUID();
   try {
     return await sql.transaction(async (tx): Promise<TargetResult> => {
-      const [repo] = await tx.query('SELECT id FROM repositories WHERE id = ? AND workspace_id = ?', [
-        input.repositoryId,
-        input.workspaceId,
-      ]);
-      if (!repo) return { ok: false, status: 404, error: 'not_found', message: 'No such repository.' };
+      const [repo] = await tx.query(
+        'SELECT id FROM repositories WHERE id = ? AND workspace_id = ?',
+        [input.repositoryId, input.workspaceId],
+      );
+      if (!repo)
+        return { ok: false, status: 404, error: 'not_found', message: 'No such repository.' };
       const [count] = await tx.query(
         'SELECT COUNT(*) AS n FROM repository_listing_targets WHERE repository_id = ?',
         [input.repositoryId],
@@ -178,14 +207,29 @@ export async function createListingTarget(
         `INSERT INTO repository_listing_targets
            (id, workspace_id, repository_id, name, app_id, app_store_root, google_play_root, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, input.workspaceId, input.repositoryId, v.name, v.appId, v.appStoreRoot, v.googlePlayRoot, input.now, input.now],
+        [
+          id,
+          input.workspaceId,
+          input.repositoryId,
+          v.name,
+          v.appId,
+          v.appStoreRoot,
+          v.googlePlayRoot,
+          input.now,
+          input.now,
+        ],
       );
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
         actor,
         action: 'repository.listing_target_create',
         target: { type: 'repository', id: input.repositoryId },
-        detail: { targetId: id, name: v.name, appStoreRoot: v.appStoreRoot, googlePlayRoot: v.googlePlayRoot },
+        detail: {
+          targetId: id,
+          name: v.name,
+          appStoreRoot: v.appStoreRoot,
+          googlePlayRoot: v.googlePlayRoot,
+        },
         at: input.now,
       });
       return {
@@ -218,16 +262,25 @@ export async function updateListingTarget(
   actor: Actor,
 ): Promise<TargetResult> {
   const current = await getListingTarget(sql, input.workspaceId, input.repositoryId, input.id);
-  if (!current) return { ok: false, status: 404, error: 'not_found', message: 'No such listing target.' };
+  if (!current)
+    return { ok: false, status: 404, error: 'not_found', message: 'No such listing target.' };
   const merged: TargetInput = {
     name: input.changes.name ?? current.name,
     appId: 'appId' in input.changes ? input.changes.appId : current.appId,
-    appStoreRoot: 'appStoreRoot' in input.changes ? input.changes.appStoreRoot : current.appStoreRoot,
-    googlePlayRoot: 'googlePlayRoot' in input.changes ? input.changes.googlePlayRoot : current.googlePlayRoot,
+    appStoreRoot:
+      'appStoreRoot' in input.changes ? input.changes.appStoreRoot : current.appStoreRoot,
+    googlePlayRoot:
+      'googlePlayRoot' in input.changes ? input.changes.googlePlayRoot : current.googlePlayRoot,
   };
   const checked = validateTarget(merged);
   if (!checked.ok) {
-    return { ok: false, status: 422, error: 'invalid_target', message: checked.problems[0]?.message ?? 'Invalid target.', problems: checked.problems };
+    return {
+      ok: false,
+      status: 422,
+      error: 'invalid_target',
+      message: checked.problems[0]?.message ?? 'Invalid target.',
+      problems: checked.problems,
+    };
   }
   const v = checked.value;
   try {
@@ -241,14 +294,28 @@ export async function updateListingTarget(
         `UPDATE repository_listing_targets
             SET name = ?, app_id = ?, app_store_root = ?, google_play_root = ?, updated_at = ?
           WHERE id = ? AND workspace_id = ? AND repository_id = ?`,
-        [v.name, v.appId, v.appStoreRoot, v.googlePlayRoot, input.now, input.id, input.workspaceId, input.repositoryId],
+        [
+          v.name,
+          v.appId,
+          v.appStoreRoot,
+          v.googlePlayRoot,
+          input.now,
+          input.id,
+          input.workspaceId,
+          input.repositoryId,
+        ],
       );
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
         actor,
         action: 'repository.listing_target_update',
         target: { type: 'repository', id: input.repositoryId },
-        detail: { targetId: input.id, name: v.name, appStoreRoot: v.appStoreRoot, googlePlayRoot: v.googlePlayRoot },
+        detail: {
+          targetId: input.id,
+          name: v.name,
+          appStoreRoot: v.appStoreRoot,
+          googlePlayRoot: v.googlePlayRoot,
+        },
         at: input.now,
       });
       return { ok: true, target: { ...current, ...v, updatedAt: input.now } };
@@ -266,7 +333,13 @@ export async function deleteListingTarget(
 ): Promise<{ ok: true } | { ok: false; status: 404; error: 'not_found'; message: string }> {
   return sql.transaction(async (tx) => {
     const current = await getListingTarget(tx, input.workspaceId, input.repositoryId, input.id);
-    if (!current) return { ok: false, status: 404, error: 'not_found', message: 'No such listing target.' } as const;
+    if (!current)
+      return {
+        ok: false,
+        status: 404,
+        error: 'not_found',
+        message: 'No such listing target.',
+      } as const;
     await tx.execute('DELETE FROM repository_listing_targets WHERE id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
@@ -321,7 +394,12 @@ export async function resolveSelection(
     else {
       custom = await getListingTarget(sql, workspaceId, repositoryId, target);
       if (!custom) {
-        return { ok: false, status: 404, error: 'target_not_found', message: 'That listing target does not exist (it may have been deleted).' };
+        return {
+          ok: false,
+          status: 404,
+          error: 'target_not_found',
+          message: 'That listing target does not exist (it may have been deleted).',
+        };
       }
       roots.appStore = custom.appStoreRoot ?? '';
       roots.googlePlay = custom.googlePlayRoot ?? '';
@@ -332,7 +410,13 @@ export async function resolveSelection(
     if (given === undefined) continue;
     if (given.trim() !== '') {
       const message = checkListingRoot(given);
-      if (message) return { ok: false, status: 422, error: 'invalid_root', message: `${key === 'appStore' ? 'App Store' : 'Google Play'} folder: ${message}` };
+      if (message)
+        return {
+          ok: false,
+          status: 422,
+          error: 'invalid_root',
+          message: `${key === 'appStore' ? 'App Store' : 'Google Play'} folder: ${message}`,
+        };
     }
     roots[key] = given.trim() === '' ? '' : normalizeRoot(given);
   }
