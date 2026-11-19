@@ -19,7 +19,7 @@ The server, the API, the database schema (migrations), permissions, previews, co
 
 ## Moving the story forward
 
-- `POST /demo/advance {"hours": 30, "outcome": "approve" | "reject" | "none"}`: time passes, reviews finish, phased releases start.
+- `POST /demo/advance {"hours": 30, "outcome": "approve" | "reject" | "none"}`: time passes, reviews finish, phased releases start. The alert evaluator then runs once, so conditions the time brought (a sync that keeps failing, a stalled release) appear in the inbox; the answer has an `alerts` summary. The inbox already holds a few alerts (some read, some not) and the delivery log has their inbox entries; email is off in the demo, and "a competitor changed its listing" is turned off so the seeded ASO history does not flood it ([alerts](alerts.md)).
 - `POST /demo/fail {"connector": "appstoreconnect", "kind": "rate_limit", "count": 1}`: make the next calls fail. Connectors: appstoreconnect, googleplay, stores, github, translation, ai, analytics, aso. Kinds: rate_limit, auth, forbidden, server, unknown, unknown_applied. `DELETE /demo/fail` clears them.
 - `GET /demo/status`, `POST /demo/reset`. The web app reads `GET /demo/status` once at start: when it answers `demo: true` the shell shows a slim, permanent "Demo workspace" bar (any other server has no such route, so no bar).
 

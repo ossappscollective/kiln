@@ -13,6 +13,14 @@ anything here.
 - [docs/phase-1.md](docs/phase-1.md): GitHub, fastlane and Expo repositories, change sets
 - [docs/phase-2.md](docs/phase-2.md): read-only store sync and the portfolio screens
 - [docs/open-decisions.md](docs/open-decisions.md): decisions that wait for a person
+- [docs/ux-ia.md](docs/ux-ia.md): the shell, the pages and their views (including workspace Settings in four views)
+- [docs/alerts.md](docs/alerts.md): alerts, the inbox, email, desktop and webhook delivery ([API](docs/api/alerts.md))
+- [docs/api/two-factor.md](docs/api/two-factor.md) and [docs/api/mail.md](docs/api/mail.md): authenticator app and email codes, and the SMTP server they use
+- [docs/mcp.md](docs/mcp.md): connect Claude, Cursor and other AI assistants ([API](docs/api/mcp.md))
+- [docs/ai-features.md](docs/ai-features.md): the AI assistant for reviews, listings and ASO ([API](docs/api/ai.md))
+- [docs/api/analytics.md](docs/api/analytics.md): store analytics, including the Google Play reports bucket
+- [docs/api/builds.md](docs/api/builds.md): test builds from CI artifacts, TestFlight and Google Play internal sharing
+- [docs/demo.md](docs/demo.md): demo mode, the whole product on simulated stores
 
 ## What works today
 
@@ -22,7 +30,7 @@ production.
 - Accounts and sessions (first-run owner registration, login with rate limits, cookie sessions),
   workspaces, roles (`owner`, `admin`, `member`, `viewer`) and an audit log.
 - Invitations: an admin creates a single-use link (7 days), the invited person accepts it.
-  There is no email delivery; the link is copied by hand ([docs/api/members.md](docs/api/members.md)).
+  The link is copied by hand; it is not emailed ([docs/api/members.md](docs/api/members.md)).
 - Credentials: encrypted at rest (AES-256-GCM, bound to workspace and id), never returned, with
   in-app how-to guides and a "test connection" check
   ([docs/credentials.md](docs/credentials.md), [docs/api/credential-tests.md](docs/api/credential-tests.md)).
@@ -34,12 +42,29 @@ production.
   Store listing source by the server and the repositories screen when a repo has one.
 - Read-only store sync: apps are bound to an App Store Connect or Google Play credential, and a
   sync (inline, or as a background job) stores a snapshot of their versions and tracks
-  ([docs/api/apps.md](docs/api/apps.md)). No write call to a store exists in the code.
+  ([docs/api/apps.md](docs/api/apps.md)). The sync itself never writes to a store; store writes are separate and off by default.
 - A database-backed job queue with retries; SQLite through `node:sqlite` or Postgres.
 - Security hardening of the hosted server: login rate limits, request body caps, security headers,
   non-root container, loopback-only default publish ([docs/deployment.md](docs/deployment.md)).
 - An MCP server (off by default, `MRM_MCP_ENABLED`) so AI assistants such as Claude and Cursor can read a workspace through an API token and
-  preview, never apply, store actions ([docs/mcp.md](docs/mcp.md), [docs/api/mcp.md](docs/api/mcp.md)). Tested against a fake client only.
+  preview, never apply, store actions; "Connect an AI assistant" under Settings, AI, shows how ([docs/mcp.md](docs/mcp.md),
+  [docs/api/mcp.md](docs/api/mcp.md)). Tested against a fake client only.
+- Two-factor confirmation: an authenticator app (TOTP) or an emailed code as extra ways to confirm hard actions and, optionally, to
+  sign in, plus one-time recovery codes. Emailed codes need a mail server (SMTP, set under Settings, Security); without one everything
+  else works ([docs/api/two-factor.md](docs/api/two-factor.md), [docs/api/mail.md](docs/api/mail.md)).
+- Alerts: a store rejected a version, a credential stopped working, a rating fell, a sync keeps failing. They arrive in the inbox (the
+  bell), by email, as a desktop notification and as a signed webhook; each person picks their own channels, admins set the workspace
+  defaults ([docs/alerts.md](docs/alerts.md)).
+- An AI assistant for reviews, the store listing and ASO: suggestions and reports a person reads, never an action on a store; the provider
+  and key are set under Settings, AI, which also shows what is sent per task ([docs/ai-features.md](docs/ai-features.md)).
+- Analytics: App Store Connect and Google Play numbers. For Google Play the monthly reports come from a Cloud Storage bucket, set once for
+  the workspace (Settings, Analytics) or per app ([docs/api/analytics.md](docs/api/analytics.md)).
+- Test builds: find the builds a CI run produced, share a TestFlight link or a Google Play internal sharing link, and download an artifact
+  ([docs/api/builds.md](docs/api/builds.md)).
+- Demo mode: `pnpm demo` seeds "Demo Studio" on simulated stores, with alerts in the inbox, so the whole app can be tried without any
+  account and nothing leaves the machine ([docs/demo.md](docs/demo.md)).
+- Workspace Settings has four views (General, Analytics, Security, AI), each with its own address, for example `#/settings?view=security`
+  ([docs/ux-ia.md](docs/ux-ia.md)).
 - Web UI screens written: setup, sign-in, credentials, members and invitations, audit log,
   repositories. See below for what is not verified about them.
 
@@ -51,9 +76,9 @@ production.
   how (the official Node binary as a Tauri sidecar plus the server as resources) and a staging
   script exists, but the Tauri app has never been compiled or bundled, so **the desktop app does
   not yet ship the server**. In development it starts the server from the repository checkout.
-- Anything that writes to a store (submit, release, listings), test distribution, ASO and assets.
-  The design aims at them; none is built.
-- OpenAPI generation, email delivery, the AI assistant (V2), a project name.
+- Store writes (listing drafts, submit, release, rollout, replies) exist behind off-by-default switches and, like everything else
+  here, have only run against fakes and the demo's simulated stores ([docs/ux-ia.md](docs/ux-ia.md) section 5 lists the switches).
+- A project name.
 
 The tool orchestrates. It does not build or sign apps; your CI does.
 

@@ -4,6 +4,7 @@ import type { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { DEMO_WORKSPACE_NAME } from './config.ts';
 import { COMPETITORS, DEMO_APPS, type DemoApp, KEYWORDS, type Platform } from './content.ts';
+import { seedAlertRules, seedAlerts } from './alerts.ts';
 import { DEMO_USERS } from './routes.ts';
 import type { DemoWorld } from './world.ts';
 import { REPO } from './repo.ts';
@@ -152,6 +153,12 @@ export async function seedDemo(input: { app: Hono<AppEnv>; db: Database; world: 
   }));
   await soft('ai config', call('PUT', '/ai/config', { enabled: true, provider: 'anthropic', model: 'demo-model', monthlyTokenBudget: 500_000 }));
 
+  // ---- alert rules: before anything happens, so the seed's own events do not flood the inbox -------------------------------------
+  {
+    const owner = (await db.query('SELECT id FROM users WHERE email = ?', [DEMO_USERS[0].email]))[0];
+    if (owner) for (const w of await seedAlertRules(db, workspaceId, String(owner.id), world.now)) warnings.push(w);
+  }
+
   // ---- ASO: 60 days of ranks, kept as the real refresh keeps them (one run per simulated day) ----------------------------------
   at(62);
   const keywordApps = [...DEMO_APPS].flatMap((d) => {
@@ -251,6 +258,11 @@ export async function seedDemo(input: { app: Hono<AppEnv>; db: Database; world: 
   await soft('webhook', call('POST', '/webhooks', { url: 'https://hooks.example.com/mrm/releases', description: 'Release channel (simulated receiver)', eventTypes: ['*'] }));
   await soft('webhook 2', call('POST', '/webhooks', { url: 'https://hooks.example.com/mrm/reviews', description: 'Low rating alerts (disabled)', eventTypes: ['review.new_low_rating'], enabled: false }));
   await soft('ai keywords', call('POST', '/ai/tasks/keyword_ideas/run', { appId: notesIos, locale: 'en-US', country: 'us' }));
+
+  // ---- alerts: what went wrong over the last two days, through the alert services ----------------------------------------------------
+  at(0);
+  for (const w of await seedAlerts({ db, workspaceId, apps, playCredentialId: play, seededAt: T, now: world.now })) warnings.push(w);
+  log('alerts');
 
   world.virtualNow = null;
   return { workspaceId, warnings, apps };

@@ -57,7 +57,7 @@
       {#if canManage}
         <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>Import a Play Console CSV instead</Button>
       {/if}
-      <a class="small" href="#/settings">Use one bucket for every Android app: workspace settings</a>
+      <a class="small" href="#/settings?view=analytics">Use one bucket for every Android app: workspace settings</a>
     </div>
   </div>
 </Section>

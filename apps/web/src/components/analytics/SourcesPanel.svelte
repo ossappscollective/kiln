@@ -125,7 +125,7 @@
               {#if action.kind === 'turn_on'}
                 {#if !canManage}<span class="muted text">Ask an owner or an admin to turn analytics on.</span>{:else if ri === firstTurnOn}<TurnOnAnalytics {api} {workspaceId} {onchanged} variant={i === 0 ? 'primary' : 'secondary'} />{/if}
               {:else if action.kind === 'link'}
-                <Button size="sm" variant="secondary" href={action.target === 'settings' ? '#/settings' : '#/credentials'}>{action.label}</Button>
+                <Button size="sm" variant="secondary" href={action.target === 'settings' ? '#/settings?view=analytics' : '#/credentials'}>{action.label}</Button>
               {:else if action.kind === 'bucket'}
                 {#if canManage}
                   <Button size="sm" variant="secondary" href={appAddress(app.id, 'settings', 'android')}>Set the bucket for this app</Button>

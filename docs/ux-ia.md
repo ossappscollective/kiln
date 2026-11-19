@@ -1,7 +1,8 @@
 # UX and information architecture (proposal)
 
-Status: proposal from the revised mockups on the design canvas (R1 to R8). Nothing here is built.
-It replaces "portfolio, then one app with tabs". Visual language stays as in design-system.md.
+Status: sections 0 to 0c are built (shell, page internals, collapsible sections, workspace Settings views). Sections 1 to 6 are the
+original proposal from the mockups on the design canvas (R1 to R8), kept as rationale; where they disagree with sections 0 to 0c,
+those win. It replaced "portfolio, then one app with tabs". Visual language stays as in design-system.md.
 
 ## 0. Shell and navigation, phase 1 (built)
 
@@ -88,8 +89,9 @@ Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchH
   holds for every app. `SectionsToggle` ("Collapse all" or "Expand all") appears from three sections on a page. The body is not drawn while
   collapsed. Applied to: Store listing (locales grid, the sections beyond the texts, graphics per locale, problems, checks), Releases
   (current, older), Builds, Test builds, Workflows and runs, Insights (each chart, more charts, next steps, sources), Reviews summary,
-  App and workspace Settings cards (danger zone starts closed), Pending changes (per kind), Credentials, Audit (per day), Overview details.
-  Not yet: the per platform blocks of the Keywords sub-views, and `Disclosure` (kept for notes; its state is in memory only).
+  App and workspace Settings cards (danger zone starts closed), Pending changes (per kind), Credentials, Audit (per day), Overview details,
+  and the per platform blocks of the Keywords sub-views (Next steps, Fit, Gaps and the others).
+  Not yet: `Disclosure` (kept for notes; its state is in memory only).
 - **Scroll**: only a different route path (`shouldResetScroll`: page, app, opened release) scrolls to the top. A change of the query alone
   (`?view=`, `?platform=`, `?version=`, `?locale=`, filters) keeps the position, and the shell keeps the page height while the new view
   loads, because a short placeholder used to clamp the scroll position. No component is keyed on the address.
@@ -102,7 +104,30 @@ Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchH
 - **All apps, Board**: one status pill per card plus the "N pending" badge; the deadline and rollout plan are quiet text unless late.
 - **Tooltips and chart tips** are drawn by the `floating` action (top layer), centred or beside the crosshair; nothing clips them.
 
-## 1. IA tree
+## 0c. Workspace Settings in views (built)
+
+`#/settings` was one list of twelve cards. It is now four views behind the same small segmented control (`ViewSwitch`), kept in the
+address as `?view=`. Pure logic: `settings-views.ts` (`settingsViews`, `settingsViewOf`, `resolveSettingsView`, `withSettingsView`).
+
+| Address | View | Cards |
+| --- | --- | --- |
+| `#/settings` (also an unknown `?view=`) | General | Reviews, Releases, Translation |
+| `#/settings?view=analytics` | Analytics | the opt-in, the Apple vendor number, the Play bucket |
+| `#/settings?view=security` | Security | Security: confirm hard actions, Recovery codes, Authenticator app and email, Mail |
+| `#/settings?view=ai` | AI | AI assistant (with "What is sent" per task), Connect an AI assistant |
+
+- General is the default and is not written, so the old address keeps working. The links from Analytics ("Open Settings", the Play bucket
+  link) open the Analytics view.
+- Role gating is unchanged. A role without `settings.read` only gets the AI view (Connect an AI assistant is open to every role; the AI
+  assistant card needs `ai.use`), and with a single view there is no switch.
+- General and Analytics are one form with one state, held by the page, and one "Save settings" bar (with "Discard changes") under the
+  open form view. A switch of view keeps what was typed. On Security and AI a note says that changes are still waiting in General or
+  Analytics, with a link. A save that is blocked by a value on the other form view says which view to fix. The AI assistant card and
+  the Security cards keep their own saves.
+- Sections keep their collapse state (keys unique per card, page `settings`); "Collapse all" appears from three sections on a view.
+  The scroll position stays across a switch of view (query-only change, section 0b).
+
+## 1. IA tree (original proposal; the built navigation is in section 0)
 
 ```
 All apps (workspace)                 left rail
@@ -188,27 +213,26 @@ rule, for example "1024 by 500 px"). Invalid items cannot be staged.
 
 | Control | Kind | Gate |
 | --- | --- | --- |
-| Increase Android staged rollout %, halt, resume, release to 100% | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md); screens not built) |
-| Apple phased release: pause, resume, release to all | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md); screens not built) |
-| Push listing text as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (server done, [api/staged-changes](api/staged-changes.md); screens not built) |
-| Push assets as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (same switch and route; server done; screens not built) |
-| Release (App Store version, or a Google Play draft release at a share) | store write, irreversible | `MRM_STORE_RELEASE_ENABLED` and `store.release` (server done, [api/releases-write](api/releases-write.md); screens not built: pick build or codes, edit fields, preview, a typed confirmation that names the share) |
-| Submit the pushed draft for store review | store write, irreversible | `MRM_STORE_SUBMIT_ENABLED` and `store.submit` (server done, [api/submit](api/submit.md); screens not built: preview, checks, then a typed confirmation) |
-| Publish several steps at once (push draft, submit, release, rollout) after one review | store write, irreversible | `MRM_STORE_PUBLISH_BATCH_ENABLED`, `store.publish` and each step's own switch and right (server done, [api/pending](api/pending.md); screens not built: one Pending changes place per app, a review of the plan, one typed phrase) |
-| See everything an app has pending; which apps have pending changes | read only | `listing.read` (server done, [api/pending](api/pending.md); screens not built) |
+| Increase Android staged rollout %, halt, resume, release to 100% | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md)) |
+| Apple phased release: pause, resume, release to all | store write | `MRM_STORE_ROLLOUT_ENABLED` (server done, [api/rollout](api/rollout.md)) |
+| Push listing text as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (server done, [api/staged-changes](api/staged-changes.md)) |
+| Push assets as draft | store write | `MRM_STORE_DRAFT_WRITE_ENABLED` (same switch and route; server done) |
+| Release (App Store version, or a Google Play draft release at a share) | store write, irreversible | `MRM_STORE_RELEASE_ENABLED` and `store.release` (server done, [api/releases-write](api/releases-write.md)) |
+| Submit the pushed draft for store review | store write, irreversible | `MRM_STORE_SUBMIT_ENABLED` and `store.submit` (server done, [api/submit](api/submit.md)) |
+| Publish several steps at once (push draft, submit, release, rollout) after one review | store write, irreversible | `MRM_STORE_PUBLISH_BATCH_ENABLED`, `store.publish` and each step's own switch and right (server done, [api/pending](api/pending.md)) |
+| See everything an app has pending; which apps have pending changes | read only | `listing.read` (server done, [api/pending](api/pending.md)) |
 | Reply to a review | store write | `MRM_REVIEW_REPLY_ENABLED` (exists), plus the credential role |
 | Commit or push to a local clone | repository write | `MRM_LOCAL_REPO_WRITE` (exists) |
 | Rollout step plan, mark step done, reminders, checklist | planning data | none |
 | Triage status, assignee, note | internal data | role `reviews.triage` |
 
-Every store write asks for confirmation with the sentence "This changes the live store" (or, for a
+The screens for these exist (rollout controls on a release, the publish dialogs, Pending changes). Every store write asks for confirmation with the sentence "This changes the live store" (or, for a
 reply, "This will be published publicly in the store"), names the store, app, version and the
 exact change, and is audited. Reply text is never logged.
 
-## 6. Gaps in the current web app, per screen
+## 6. Gaps in the web app, per screen (historical)
 
-Based on `apps/web/src` and `docs/` at the time of writing. Check the working tree before relying on
-an item marked "in progress".
+This list was written before sections 0 to 0c and describes the app as it was then, not today. Do not use it as a status report.
 
 - Shell and navigation: one flat list (Portfolio, Repositories, Credentials, Members, API tokens,
   Webhooks, Audit). No per-app shell, app switcher, all-apps reviews, releases or builds level, no

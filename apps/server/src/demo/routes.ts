@@ -27,6 +27,8 @@ export type DemoRoutesDeps = {
   reset: () => Promise<void>;
   seededAt: () => number | null;
   save: () => void;
+  /** Runs the alert evaluator once at the demo clock (state alerts: a failing sync, a failing credential, ...). */
+  evaluateAlerts?: () => Promise<{ checked: number; raised: number; resolved: number }>;
   trustedOrigins: string[];
 };
 
@@ -77,7 +79,9 @@ export function createDemoRoutes(deps: DemoRoutesDeps) {
     if (!parsed.success) return c.json({ error: 'invalid_request', issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) }, 400);
     const notes = deps.world.advance(parsed.data.hours, parsed.data.outcome);
     deps.save();
-    return c.json({ ok: true, now: deps.world.now(), skewHours: Math.round((deps.world.skewMs / 3_600_000) * 10) / 10, happened: notes });
+    // The clock moved: let the alert evaluator look once, so what the time brought shows up in the inbox and the bell.
+    const alerts = deps.evaluateAlerts ? await deps.evaluateAlerts().catch(() => null) : null;
+    return c.json({ ok: true, now: deps.world.now(), skewHours: Math.round((deps.world.skewMs / 3_600_000) * 10) / 10, happened: notes, alerts });
   });
 
   app.post('/fail', async (c) => {

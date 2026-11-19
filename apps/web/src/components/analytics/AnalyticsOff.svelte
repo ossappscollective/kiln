@@ -38,7 +38,7 @@
       {:else}
         <p class="muted note">An owner or an admin can turn it on. The setting is under Settings, Analytics.</p>
       {/if}
-      <Button variant="ghost" href="#/settings">Open Settings</Button>
+      <Button variant="ghost" href="#/settings?view=analytics">Open Settings</Button>
     </div>
     {#if canManage && apple}<p class="muted note">Importing a report file works without turning analytics on: it reads a file you give it and contacts no store.</p>{/if}
   </div>

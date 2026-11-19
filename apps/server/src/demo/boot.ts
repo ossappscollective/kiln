@@ -8,6 +8,8 @@ import { type AppDeps, createApp } from '../app.ts';
 import { createWorker } from '../jobs.ts';
 import { createEventStreamHub } from '../routes/events.ts';
 import { createScheduler } from '../scheduler.ts';
+import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from '../services/alert-runner.ts';
+import { runAlertEvaluator } from '../services/alert-evaluator.ts';
 import { ANALYTICS_SYNC_QUEUE, createAnalyticsSyncHandler } from '../services/analytics-sync.ts';
 import { ASO_REFRESH_QUEUE, DEFAULT_ASO_LIMITS, createAsoRefreshHandler } from '../services/aso.ts';
 import { APP_SYNC_QUEUE, DEFAULT_SYNC_TIMEOUT_MS, createAppSyncHandler } from '../services/apps.ts';
@@ -151,9 +153,11 @@ export async function createDemoRuntime(config: DemoConfig, options: { worker?: 
         onError: (message, error) => console.error(`[demo] ${message}`, error),
       });
       worker.start();
-      // Release watch (stalled releases, unanswered reviews) runs every 15 minutes of the real clock. Nothing else is scheduled:
-      // syncs happen when a person asks, so the simulated stores only change when the demo says so.
-      const scheduler = createScheduler({ db, now, releaseWatchIntervalMs: 15 * 60_000, reminderIntervalMs: 15 * 60_000, onError: (m: string, e: unknown) => console.error(`[demo] ${m}`, e) } as never);
+      // Release watch (stalled releases, unanswered reviews) runs every 15 minutes of the real clock, and the alert evaluator every five
+      // (state alerts; the digests and the pruning ride with it). Nothing else is scheduled: syncs happen when a person asks, so the
+      // simulated stores only change when the demo says so.
+      const alerts = { intervalMs: ALERT_PASS_INTERVAL_MS, run: createAlertRunner({ db, now, onError: (m, e) => console.error(`[demo] ${m}`, e) }).run };
+      const scheduler = createScheduler({ db, now, releaseWatchIntervalMs: 15 * 60_000, reminderIntervalMs: 15 * 60_000, alerts, onError: (m: string, e: unknown) => console.error(`[demo] ${m}`, e) } as never);
       scheduler.start();
       stop = async () => {
         await scheduler.stop();
@@ -193,6 +197,7 @@ export async function createDemoRuntime(config: DemoConfig, options: { worker?: 
     reset: doReset,
     seededAt: () => current?.seededAt ?? null,
     save: markDirty,
+    evaluateAlerts: () => runAlertEvaluator((current as Inner).db, (current as Inner).world.now()),
     trustedOrigins: [`http://localhost:${config.port}`, `http://127.0.0.1:${config.port}`],
   } as never);
   outer.route('/demo', routes);

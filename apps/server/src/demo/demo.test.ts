@@ -294,6 +294,49 @@ test('a rejection can be simulated and shows in the pipeline', async () => {
   }
 });
 
+// ----- alerts ----------------------------------------------------------------------------------------------------------------
+
+test('the Alerts inbox is not empty: a mix of read and unread alerts, a delivery log, an owner preference, no email', async () => {
+  const rt = await seeded();
+  const { call } = await session(rt);
+  const inbox = (await call('GET', '/alerts/inbox?limit=100')).body as Json;
+  const types = new Set((inbox.alerts as Json[]).map((a) => String(a.type)));
+  for (const t of ['release.rejected', 'review.low_rating', 'release.halted', 'store.sync_failed', 'analytics.sync_failing', 'credential.invalid', 'ai.suggestion_ready']) {
+    assert.ok(types.has(t), `${t} in ${[...types]}`);
+  }
+  assert.ok(types.size >= 7 && (inbox.alerts as Json[]).length < 20, `a readable inbox: ${(inbox.alerts as Json[]).length}`);
+  const alerts = inbox.alerts as Json[];
+  assert.ok(alerts.some((a) => a.read === true) && alerts.some((a) => a.read === false), 'some read, some unread');
+  assert.equal(inbox.unreadCount, alerts.filter((a) => a.read === false).length);
+  assert.ok(alerts.some((a) => String(a.title).includes('Demo Focus') && a.type === 'release.rejected'));
+  // The delivery log has an entry for the inbox channel of each alert, and nothing waits for an email nobody can send.
+  assert.ok((await count(rt, "SELECT COUNT(*) AS n FROM alert_deliveries WHERE channel = 'in_app' AND status = 'sent'")) >= 7);
+  assert.equal(await count(rt, "SELECT COUNT(*) AS n FROM alert_deliveries WHERE channel = 'email'"), 0);
+  assert.equal(await count(rt, "SELECT COUNT(*) AS n FROM alert_preferences WHERE alert_type = 'release.rejected'"), 1);
+  // The 60 simulated days of ASO refreshes do not flood the alerts table with competitor changes.
+  assert.ok((await count(rt, 'SELECT COUNT(*) AS n FROM alerts')) < 40);
+});
+
+test('POST /demo/advance runs the alert evaluator once and says what it found', async () => {
+  const rt = await start();
+  try {
+    const { call } = await session(rt);
+    const before = Number(((await call('GET', '/alerts/inbox')).body as Json).unreadCount);
+    // A failing store read for Demo Weather on Google Play, then time passes: the evaluator sees the failed sync.
+    const id = await appOf(call, 'Demo Weather', 'android');
+    await call('POST', '/demo/fail', { connector: 'googleplay', kind: 'auth', count: 1 });
+    await call('POST', `/apps/${id}/sync`);
+    const advanced = await call('POST', '/demo/advance', { hours: 1, outcome: 'none' });
+    assert.equal(advanced.status, 200);
+    assert.ok(advanced.body.alerts && typeof (advanced.body.alerts as Json).checked === 'number', JSON.stringify(advanced.body));
+    assert.ok((advanced.body.alerts as Json).checked > 0);
+    const after = (await call('GET', '/alerts/inbox')).body as Json;
+    assert.ok(Number(after.unreadCount) >= before);
+  } finally {
+    await rt.close();
+  }
+});
+
 // ----- failure injection, reset ----------------------------------------------------------------------------------------------
 
 test('POST /demo/fail makes the next call to a connector fail, then it recovers', async () => {

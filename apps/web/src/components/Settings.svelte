@@ -1,12 +1,17 @@
 <!--
   Settings: workspace settings (docs/api/settings.md). Any member sees them; owners and admins change them.
-  Sections: Reviews (the low rating threshold and the unanswered reminder), Releases (when a release counts as left
-  unfinished), Analytics (the opt-in, the Apple vendor number and the Play bucket id), Translation (provider, credential, target
-  language, mode, daily budget, a test) and the AI assistant (AiSettings: provider, model, key, monthly limit, a test; its own save).
+  Four views behind a segmented control, kept in the address as `?view=` (lib/settings-views.ts; `#/settings` is General):
+  General (Reviews: the low rating threshold and the unanswered reminder; Releases: when a release counts as left unfinished;
+  Translation: provider, credential, target language, mode, daily budget, a test), Analytics (the opt-in, the Apple vendor number and
+  the Play bucket id), Security (confirm hard actions, recovery codes, authenticator app and email, mail) and AI (the AI assistant:
+  provider, model, key, monthly limit, a test, its own save; and "Connect an AI assistant").
+  General and Analytics are one form with one state and one "Save settings" bar; the state lives here, so it survives a switch of
+  view, and the other views say that changes wait to be saved.
   Secrets are never settings: keys live under Credentials (the AI key is written from its card into the same vault).
 -->
 <script lang="ts">
   import { type Role, can, translationProviderInfo } from '@mrm/core';
+  import { address } from '../lib/address.svelte.ts';
   import { type Api } from '../lib/api.ts';
   import {
     type FormErrors,
@@ -20,6 +25,7 @@
     settingsErrorMessage,
     validateForm,
   } from '../lib/settings.ts';
+  import { isFormView, resolveSettingsView, settingsViewsFor, unsavedViewsNote, withSettingsView } from '../lib/settings-views.ts';
   import { confirmed } from '../lib/step-up-prompt.svelte.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
@@ -36,6 +42,7 @@
   import Button from './ui/Button.svelte';
   import PageHeader from './ui/PageHeader.svelte';
   import SectionsToggle from './ui/SectionsToggle.svelte';
+  import ViewSwitch from './app/ViewSwitch.svelte';
   import Skeleton from './ui/Skeleton.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -45,6 +52,10 @@
   const canManageCredentials = $derived(can(role, 'credentials.write'));
   /** The AI assistant card has its own right and its own save; it does not depend on the other settings loading. */
   const canAi = $derived(can(role, 'ai.use'));
+
+  const allowed = (action: Parameters<typeof can>[1]) => can(role, action);
+  const views = $derived(settingsViewsFor(allowed));
+  const view = $derived(resolveSettingsView(address.hash, allowed));
 
   let data = $state<SettingsResponse | null>(null);
   let form = $state<SettingsForm | null>(null);
@@ -88,7 +99,14 @@
     event.preventDefault();
     if (!data || !form || saving || !editable) return;
     showErrors = true;
-    if (Object.keys(validateForm(form)).length > 0) return;
+    const problems = Object.keys(validateForm(form));
+    if (problems.length > 0) {
+      // A value on the other view of the form may be the one that is wrong: say so, as it is not on screen.
+      const onAnalytics = problems.every((k) => k === 'analyticsVendorNumber' || k === 'analyticsBucketId');
+      const here = view === 'analytics' ? onAnalytics : problems.some((k) => k !== 'analyticsVendorNumber' && k !== 'analyticsBucketId');
+      saveError = here ? '' : `A value on the ${view === 'analytics' ? 'General' : 'Analytics'} view is not valid. Fix it there, then save.`;
+      return;
+    }
     const changes = settingsChanges(data.values, form, data.writable);
     if (Object.keys(changes).length === 0) return;
     saving = true;
@@ -135,48 +153,55 @@
 </script>
 
 <section>
-  <PageHeader title="Settings" description="How this workspace reads and translates customer reviews, and when it reminds you about them and about unfinished releases." />
+  <PageHeader title="Settings" description="How this workspace reads and translates customer reviews, when it reminds you, how people sign in and confirm, and which AI it may use." />
 
-  <div class="row bar"><SectionsToggle /></div>
+  <div class="row bar">
+    <ViewSwitch {views} value={view} hrefFor={(id) => withSettingsView(address.hash, id)} label="Settings views" />
+    <SectionsToggle />
+  </div>
 
   {#if !canRead}
     <Alert tone="info">Your role does not include workspace settings. Members, admins and owners can see them.</Alert>
-  {:else if loadError}
-    <Alert tone="error">{loadError}</Alert>
-    <p><Button onclick={load}>Try again</Button></p>
-  {:else if !data || !form}
-    <Skeleton />
-  {:else if addingCredential}
-    <CredentialForm
-      {api}
-      {workspaceId}
-      initialKind={translationProviderInfo[form.provider].credentialKind}
-      onSaved={credentialSaved}
-      onCancel={() => (addingCredential = false)}
-    />
-  {:else}
+  {:else if isFormView(view)}
+    {#if loadError}
+      <Alert tone="error">{loadError}</Alert>
+      <p><Button onclick={load}>Try again</Button></p>
+    {:else if !data || !form}
+      <Skeleton />
+    {:else if addingCredential}
+      <CredentialForm
+        {api}
+        {workspaceId}
+        initialKind={translationProviderInfo[form.provider].credentialKind}
+        onSaved={credentialSaved}
+        onCancel={() => (addingCredential = false)}
+      />
+    {:else}
     <form class="settings" onsubmit={save} novalidate>
-      <ReviewsSettings
-        bind:form
-        editable={editable && data.writable.indexOf('reviews.lowRatingThreshold') >= 0}
-        error={errors.lowRatingThreshold}
-        {errors}
-        writable={editable ? data.writable : []}
-      />
-      <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
-      <AnalyticsSettings bind:form {editable} {errors} writable={editable ? data.writable : []} />
-      <TranslationSettings
-        bind:form
-        {errors}
-        {editable}
-        {data}
-        {canManageCredentials}
-        {dirty}
-        {testing}
-        {outcome}
-        ontest={test}
-        onaddcredential={() => (addingCredential = true)}
-      />
+      {#if view === 'general'}
+        <ReviewsSettings
+          bind:form
+          editable={editable && data.writable.indexOf('reviews.lowRatingThreshold') >= 0}
+          error={errors.lowRatingThreshold}
+          {errors}
+          writable={editable ? data.writable : []}
+        />
+        <ReleaseSettings bind:form {editable} {errors} writable={data.writable} />
+        <TranslationSettings
+          bind:form
+          {errors}
+          {editable}
+          {data}
+          {canManageCredentials}
+          {dirty}
+          {testing}
+          {outcome}
+          ontest={test}
+          onaddcredential={() => (addingCredential = true)}
+        />
+      {:else}
+        <AnalyticsSettings bind:form {editable} {errors} writable={editable ? data.writable : []} />
+      {/if}
       {#if saveError}<Alert tone="error">{saveError}</Alert>{/if}
       {#if editable}
         <div class="row">
@@ -185,32 +210,35 @@
         </div>
       {/if}
     </form>
+    {/if}
   {/if}
 
-  {#if canRead && !addingCredential}
-    <div class="ai">
-      <SecuritySettings {api} {workspaceId} {role} />
-      <TwoFactorSettings {api} {workspaceId} {role} />
-      <MailSettings {api} {workspaceId} {role} />
-    </div>
-  {/if}
-
-  {#if canAi && !addingCredential}
-    <div class="ai">
-      <AiSettings {api} {workspaceId} {role} />
-    </div>
-  {/if}
-
-  {#if !addingCredential}
-    <div class="ai">
-      <McpSettings {api} {workspaceId} {role} />
-    </div>
+  {#if !isFormView(view)}
+    {#if dirty && unsavedViewsNote(view)}
+      <div class="ai"><Alert tone="info">{unsavedViewsNote(view)} <a href={withSettingsView(address.hash, 'general')}>Go to General</a>.</Alert></div>
+    {/if}
+    {#if view === 'security' && canRead}
+      <div class="ai">
+        <SecuritySettings {api} {workspaceId} {role} />
+        <TwoFactorSettings {api} {workspaceId} {role} />
+        <MailSettings {api} {workspaceId} {role} />
+      </div>
+    {:else if view === 'ai'}
+      {#if canAi}
+        <div class="ai">
+          <AiSettings {api} {workspaceId} {role} />
+        </div>
+      {/if}
+      <div class="ai">
+        <McpSettings {api} {workspaceId} {role} />
+      </div>
+    {/if}
   {/if}
 </section>
 
 <style>
   .bar {
-    justify-content: flex-end;
+    justify-content: space-between;
   }
 
   .ai {
