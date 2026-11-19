@@ -91,6 +91,7 @@ export const appEventTypes: readonly string[] = [
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',
+  'release.started',
   'assets.pulled',
   'aso.rank_changed',
   'aso.competitor_changed',
