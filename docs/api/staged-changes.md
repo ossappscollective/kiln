@@ -149,11 +149,33 @@ a file, a credential or an upload address.
 
 - **Texts:** `POST /apps/{id}/listing/pull` with `channel: "editable"` ([listing](listing.md)) pulls the
   store's texts into a change set against the repository.
-- **Assets: not built.** Pulling store images into the repository as a change set needs the image
-  download (App Store `imageAsset` templates, Google Play `url`) and a commit of binary files through
-  the repository connector, which only writes text today. The gap is documented, not hidden: staging with
-  `from: "store"` answers `source_not_supported`. Download the images from the store consoles and commit
-  them to the repository; stage them from there.
+- **Assets:** `POST /apps/{id}/assets/pull` downloads the store's images into a draft change set (see
+  [assets](assets.md#two-way-sync)). Staging with `from: "store"` still answers `source_not_supported`: a store
+  image is not staged directly, it is pulled into the repository and staged from there, or the file is uploaded.
+
+## Uploading, replacing, removing and fixing
+
+Files of a set can be added, replaced, removed and fixed in the browser; each of these **stages** the whole set (our
+own database, no store is called):
+
+- `PUT /apps/{id}/staged/assets/upload?locale=&kind=&device=&mode=add|replace&position=&name=&fix=&background=` with
+  the raw bytes as the body (at most 8 MiB, PNG or JPEG by magic bytes). A set that is not staged yet starts from the
+  repository's files, so a replace or a remove keeps the others as they are. A file with a spec error answers
+  `422 spec_errors` (`problems[]`, `fix`) and is not staged.
+- `DELETE /apps/{id}/staged/assets/file?locale=&kind=&device=&position=`: removing the last file is refused
+  (`empty_set`). The store keeps the image until the set is pushed, and a push replaces the store's whole set.
+- `POST /apps/{id}/staged/assets/fix` `{ locale, kind, device, position, fix, background? }`: stages a corrected copy.
+- `POST /apps/{id}/staged/assets/to-repo` `{ sets? }`: a draft change set that makes the repository's sets exactly the
+  staged ones (files the staged set no longer holds are deleted; files that are already right are not touched).
+- In the staged view a file has `upload: true` when this server keeps its bytes; the set's `source` is `local` when any
+  file is.
+
+Errors added: `spec_errors`, `empty_set`, `invalid_position`, `too_large` (413), `too_many_bytes`, `too_many_files`,
+`ref_expired`, `image_blocked`, `binary_change_set` (a change set with binary files cannot be refreshed or fixed up
+yet), and `fix_*` (`fix_not_png`, `fix_nothing_to_fix`, `fix_no_target_size`, ...).
+
+Audit: `staged.asset_added`, `staged.asset_replaced`, `staged.asset_removed`, `staged.asset_fixed`, `staged.assets_to_repo`,
+`assets.pulled`. Rate limits: uploads, inspections and fixes 60 a minute per workspace.
 
 ## Submit and publish
 

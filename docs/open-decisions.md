@@ -273,6 +273,15 @@ the raw state). A phased release currently shows as `live` because it is not rea
   Google Play's lack of a review state in the API is acceptable for the "unknown outcome" case.
 - **Check with a real account:** [api/submit](api/submit.md#unverified-check-with-a-real-account).
 
+### ASO: keyword ranks and competitors ([ADR 0011](adr/0011-aso-keywords-competitors.md))
+
+- **Today:** read-only, from public store data. Apple through the documented iTunes Search API; Google Play only when the operator sets
+  `MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true` (unofficial, may be against its terms of service, off by default). Members track keywords and competitors and
+  refresh one app; admins refresh every app and set `aso.rankMoveThreshold`; viewers read. Server only: no screens yet. Nothing was run against a real store.
+- **Decide:** whether the unofficial Google Play source should exist at all in the build you ship (it is opt-in, but it is in the code); whether viewers
+  should see ASO at all (they do today, like reviews); whether an optional LLM provider for keyword and competitor suggestions is wanted (not in v1; public texts only, off by default).
+- **Check with a real account:** [api/aso](api/aso.md#unverified) (Apple result order and fields, every Play markup assumption, which fields each store indexes).
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

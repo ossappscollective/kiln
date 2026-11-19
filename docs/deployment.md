@@ -441,6 +441,31 @@ the provider as well as the workspace's daily character limit (`translation.dail
   The low rating threshold moves from a constant to the setting `reviews.lowRatingThreshold`
   (default 2, the old behavior).
 
+## ASO: keyword ranks and competitors (public store data)
+
+The ASO feature ([api/aso](api/aso.md), [ADR 0011](adr/0011-aso-keywords-competitors.md)) reads the **public** search results and
+listings of the stores to track where an app ranks for a keyword and what competitors change. It uses no credential and writes
+nothing to a store. By hand from the ASO screens or the API, and on a schedule when `MRM_ASO_INTERVAL_MINUTES` is set (default `0`, off;
+otherwise 60 to 10080). The scheduler only queues `aso.refresh` jobs, a few per pass and spread out, and runs where the worker runs
+(`MRM_WORKER=inline`, the default).
+
+- **Apple** is read through the documented iTunes Search and Lookup APIs (`itunes.apple.com`). Apple states about 20 calls per minute
+  (subject to change) and asks for caching, so the defaults are 10 calls per minute per process (`MRM_ASO_APPLE_CALLS_PER_MINUTE`, at most 20)
+  and a one hour cache (`MRM_ASO_CACHE_MINUTES`). Several server processes each have their own limit: with more than one, lower it.
+- **Google Play is unofficial and off by default.** `MRM_ASO_PLAY_UNOFFICIAL_ENABLED=true` makes the server read the public pages of
+  `play.google.com`. Google Play has no official API for this, reading its pages from a program **may be against the Google Play Terms of Service
+  or Google's Terms of Service**, and it breaks when Google changes its markup. This was not reviewed by a lawyer; it is your decision and
+  your risk. While it is off, no request to Google is ever made and the Play routes answer `409 play_unofficial_disabled`. When it is on the server logs
+  a warning at start, uses an identifying User-Agent, no cookie and no login, 4 calls per minute (`MRM_ASO_PLAY_CALLS_PER_MINUTE`), and stops on a refusal or a robot check.
+- **Limits.** `MRM_ASO_MAX_KEYWORDS_PER_APP` (50), `MRM_ASO_MAX_COMPETITORS_PER_APP` (10), `MRM_ASO_MAX_CHECKS_PER_RUN` (25 keyword checks in one refresh, the rest stays due),
+  `MRM_ASO_RANK_DEPTH` (50 results read per search; Google Play at most 50), `MRM_ASO_HEARTBEAT_DAYS` (7: a quiet competitor still gets a snapshot).
+- **Retention.** `MRM_ASO_RETENTION_DAYS` (default `365`; `0` keeps everything; at most `3650`) deletes older rank checks and competitor snapshots, at most 2000 of each per run and
+  once an hour; the newest snapshot of each competitor is kept. Deleting an app deletes its ASO data. What is stored is the terms and notes your team typed, ranks, and
+  public data about other apps (including the first 1000 characters of a competitor's description): no customer data. A backup keeps deleted rows until it expires.
+- **Network.** Outbound https to `itunes.apple.com` and, only when Google Play is switched on, `play.google.com`. Requests go through the same address checks as the app icon
+  lookup (https, a fixed host list, public addresses only, size cap, timeout).
+- **Nothing here was run against the real services** (see the UNVERIFIED lists in [ADR 0011](adr/0011-aso-keywords-competitors.md#unverified)): start with a few keywords and a long interval.
+
 ## Tokens, event streams and webhooks
 
 - **API tokens** work with a `Authorization: Bearer` header and are rate limited per token (300 a

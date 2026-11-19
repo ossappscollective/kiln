@@ -4,14 +4,15 @@ A read-only index of the store media found in an app's repository (screenshots, 
 Google Play graphics, icons), checked against the sizes and counts the stores document, plus a safe
 way to show those images and the icon of each app in the web app.
 
-**Nothing is written anywhere.** No file is uploaded to a store or to this server, no store is
-called to check the files, and the repository is only read. The checks hold the files against the
-documented specs; a store can still refuse an upload. This is the read side that a later "push
-assets" step could build on, and that step does not exist.
+The index itself is read-only: it never writes anything. Around it, the **two way sync** (below) reads what a
+store holds now, compares it with the repository, pulls it into a draft change set, and lets a person add, replace,
+remove and fix files of a staged set. **None of that writes to a store**: the only store write stays the gated
+draft push of [staged changes](staged-changes.md). The checks hold the files against the documented specs; a store can
+still refuse an upload.
 
-Never run against a real GitHub repository or a real store, and never shown in a browser by the
-author of this feature: it is tested with fakes (a fake repository that serves blobs, a fake
-network for the icon lookup) and with real PNG and JPEG bytes made in the tests.
+Never run against a real GitHub repository or a real store, and never shown in a browser by the author of this
+feature: it is tested with fakes (a fake repository that serves blobs, a fake network for the icon lookup and the
+store CDN, fake store connectors) and with real PNG and JPEG bytes made in the tests.
 
 Everything is under `/api/workspaces/{workspaceId}/apps/{id}`. A non-member gets 404, a member
 without the right gets 403. An API token may hold the rights like any other action. The routes are
@@ -73,9 +74,65 @@ of each locale, kind and device next to the most the store takes), `assets` (pat
 device, order, size in bytes and pixels, format, alpha, blob id, whether it was read), `problems`,
 `notes`, `specs` and `storeSide`.
 
-`storeSide` is always `null` today: it is the place where the listing reads can supply the counts
-the store has, so the Assets tab can say "Not yet compared with the store". Until then the tab
-shows exactly that text.
+`storeSide` is `null` until a store read of the last minutes exists (nothing reads a store just to fill it). After
+`GET /assets/store`, `/assets/diff` or a pull, `GET /assets` carries `{ observedAt, counts[] }` (the number of images the
+store has per locale, kind and device), and the tab shows the counts next to each set.
+
+Changes since the first version of the index: an icon file inside an Xcode `AppIcon.appiconset` is checked against the
+sizes of its slot in `Contents.json` and not as the 1024 px store icon (those were false errors), and an Apple
+screenshot in a device's set is checked against the pixel sizes that device takes (`apple.screenshot.size`).
+
+## Two way sync
+
+All routes are under `/api/workspaces/{workspaceId}/apps/{id}`. Nothing here writes to a store.
+
+| Route | Right | What it does |
+| --- | --- | --- |
+| `GET /assets/store[?fresh=1]` | `listing.read` | What the store holds now: per locale, kind and device the images with an opaque `ref`, size, checksum (when the store gives one) and state. A read of the store (App Store Connect: the version's screenshot sets; Google Play: `edits.images.list` per type). Reused for 60 seconds; 12 reads a minute per workspace. |
+| `GET /assets/diff[?fresh=1]` | `listing.read` | The repository against the store: per set and position `identical`, `likely_same`, `differs`, `only_repo` or `only_store`, with both sides' size and checksum. |
+| `GET /assets/store/thumb?ref=&size=` | `listing.read` | A thumbnail of one store image through the server (160, 320 or 640 px wide). `ETag` from the ref, `private` cache, an LRU of 24 MiB; `404 ref_expired` once the ref is older than 15 minutes (read the store again). |
+| `POST /assets/pull` | `changesets.write` | Downloads store images into a **draft change set** (body: `sets`, `files`, `prune`). |
+| `POST /assets/inspect?locale=&kind=&device=&name=` | `changesets.write` | The raw bytes of a file in the body: what it is and what is wrong with it for that set, with the fixes that apply. Stages nothing. |
+| `PUT /staged/assets/upload?...` | `changesets.write` | Stages the raw bytes of a file as an add or a replace. |
+| `DELETE /staged/assets/file?locale=&kind=&device=&position=` | `changesets.write` | Removes a file from the staged set. |
+| `POST /staged/assets/fix` | `changesets.write` | Makes a corrected file of a staged file (`remove_alpha`, `resize`, `rename_extension`) and stages it. |
+| `GET /staged/assets/blob?oid=` | `listing.read` | The bytes of an uploaded or fixed staged file (same safe headers as `/assets/file`). |
+| `POST /staged/assets/to-repo` | `changesets.write` | Makes a draft change set that writes the staged sets into the repository. |
+
+**Keys.** A set is `platform/locale/slotKey` (`ios/en-US/screenshot:iphone_6_9`), an image is the set plus
+`#position`. `platform` is the first part so that macOS can be added later (a value of `ASSET_PLATFORMS`, a connector
+reader and a slot map); it is **not implemented**.
+
+**Pulling.** The server finds the address of each image from the store's answer (Apple's `imageAsset.templateUrl`
+with the width, height and format filled in; Google's `url`), never from the client. A download is only made over
+`https` to an allow listed CDN host (`mzstatic.com` for Apple; `googleusercontent.com` and `ggpht.com` for Google),
+the addresses the name resolves to are checked, a redirect is followed only to another allow listed host, and the
+body is limited to 12 MiB a file, 48 MiB and 120 files a pull and 120 seconds, one after the other. The bytes are
+identified by their magic bytes (PNG or JPEG), never by a header. Google Play gives a SHA-256: a file that does not
+match it is left out (`checksum_mismatch`). App Store Connect gives no checksum of the image: its images are taken and
+listed under `unverified`. Files go to the repository's screenshot folder (iOS: the folder the repository already
+uses, else deliver's default) or Play's `images` folders, named so that they sort in the store's order; nothing in the
+repository is deleted unless `prune: true`. The answer is `{ pull: { changeSet, written, deleted, unchanged, bytes,
+skipped[], unverified[], left[], notes[] } }`; `changeSet` is `null` when nothing differs. A person reviews and
+applies it like any change set. The change set carries base64 file changes (`encoding: "base64"`), which the GitHub
+and the local clone connectors write as binary files.
+
+**Staging bytes.** An uploaded file is kept in the table `staged_asset_blobs` (migration 26) as base64, with its git blob
+id, so a push reads it from there (`source: "local"`, path `uploads/<id>/<name>`). Caps: 8 MiB a file, 64 MiB and 100
+files for an app; a staged set that is removed or replaced drops the bytes nothing refers to. A file is accepted only
+when its bytes are a PNG or a JPEG with a readable header, and it passes the rules of its set; otherwise the answer is
+`422 spec_errors` with `problems[]` and `fix` (`options[]`, `manual[]`), and the same request with `fix=` (and
+`background=#rrggbb`) stages the corrected file. A set cannot be emptied (`empty_set`): a push cannot clear a store's
+set, so the last file stays.
+
+**Fixes.** `remove_alpha` flattens the picture onto a background (default white); `resize` scales a PNG to the nearest
+size the store requires (area average down, bilinear up); `rename_extension` fixes the name. They run on 8 bit,
+non interlaced PNG (gray, RGB, palette with tRNS, gray alpha, RGBA); anything else is refused with a message. A wrong
+pixel size of a JPEG, or a size that has no single answer, is reported as a manual fix with the exact sizes.
+
+Audit: `assets.pulled`, `staged.asset_added`, `staged.asset_replaced`, `staged.asset_removed`, `staged.asset_fixed`,
+`staged.assets_to_repo`, with ids, counts and hashes only. Event: [`assets.pulled`](events.md). Store reads open the
+credential with the purpose `store.images_read` (never the draft purpose).
 
 A problem has a `rule` code, a `severity` (`error`, `warning`, `info`), a message (the documented
 rule, then what was found), the `source` page of the rule and `verified`. A rule whose number was
@@ -139,6 +196,15 @@ information only, never as an error):
   was read. Only `id` is sent, and no country.
 - Apple's terms for the iTunes data allow artwork only to promote the content; the icon is shown
   next to the app in this tool only.
+
+**UNVERIFIED for the sync** (nothing was run against a store):
+
+- Apple: that `imageAsset.templateUrl` (documented) serves the original bytes at the template's full size, and the
+  CDN host list (`mzstatic.com` is the host of Apple's documented example). The pull therefore treats Apple images as
+  unverified.
+- Google: the `Image` fields `id`, `url`, `sha1` and `sha256` are documented; that `url` is "a preview", whether it
+  serves the full size image, and which hosts it uses (`googleusercontent.com`, `ggpht.com`) are not.
+- That the stores' placement order equals the order of the lists read.
 
 ## Audit and cost
 
