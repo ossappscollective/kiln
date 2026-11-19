@@ -9,13 +9,26 @@ import {
   type DraftApplyResult,
   type DraftAssetState,
   DraftDriftError,
+  type DraftFieldFacts,
   type DraftImageState,
   DraftOutcomeUnknownError,
   DraftPartialError,
   type DraftReadRequest,
   type DraftState,
   type DraftStep,
+  APPLE_RELEASABLE_STATE,
+  type EditableRelease,
+  type PlayReleaseState,
+  type ReleaseApplyInput,
+  ReleaseDriftError,
+  ReleaseOutcomeUnknownError,
+  type ReleaseCandidates,
+  type ReleaseRequest,
+  type ReleaseResult,
+  type ReleaseState,
   type StoreDraftConnector,
+  type StoreReleaseConnector,
+  type StoreReleaseReader,
   StoreError,
   type StoreImageReader,
   type StoreImageRecord,
@@ -41,6 +54,7 @@ import { clearRepoSnapshots } from './services/repo-snapshot.ts';
 import type { StoreConnectorFactory } from './services/apps.ts';
 import type { DraftConnectorFactory, DraftConnectorInput } from './services/store-draft.ts';
 import type { SubmitConnectorFactory, SubmitConnectorInput } from './services/store-submit.ts';
+import type { ReleaseConnectorFactory, ReleaseConnectorInput } from './services/store-release.ts';
 
 /**
  * Shared by the staged changes and store draft tests. Everything runs against fakes: no store and no
@@ -147,7 +161,7 @@ export type DraftBehavior =
 const key = (locale: string, field: string) => `${locale}\u0000${field}`;
 
 /** A store's draft that can be read and written, remembers every write, and can be told how to fail. */
-export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
+export class FakeDraftStore implements StoreDraftConnector, StoreImageReader, StoreReleaseReader {
   readonly store: 'appstoreconnect' | 'googleplay';
   readonly platform: Platform;
   version: DraftState['version'];
@@ -164,8 +178,17 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
   imageReads = 0;
   imageReadError: unknown;
   applyCalls = 0;
+  /** Release fields the draft holds (`locale\0field`, canonical text). */
+  fields = new Map<string, string>();
+  /** Facts a read of a release field answers with, by field (a test overrides them). */
+  fieldFacts = new Map<string, DraftFieldFacts>();
+  /** What `listReleaseCandidates` and `readEditableRelease` answer (a test's starting point), and how often they were asked. */
+  candidates: ReleaseCandidates | undefined;
+  editable: EditableRelease | undefined;
+  releaseReads = 0;
+  releaseReadError: unknown;
   /** What the store was asked to write (names and checksums, never bytes). */
-  writes: { text: { locale: string; field: string }[]; sets: { locale: string; target: string; files: string[] }[] }[] = [];
+  writes: { text: { locale: string; field: string }[]; sets: { locale: string; target: string; files: string[] }[]; fields?: { locale: string; field: string; value: string }[] }[] = [];
   /** The most recent `applyDraft` input, with the bytes. */
   lastInput: DraftApplyInput | undefined;
   /** A write waits for this after the guard accepted: lets a test hold a write in flight. */
@@ -196,6 +219,37 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
     };
   }
 
+  #facts(field: string): DraftFieldFacts | undefined {
+    const set = this.fieldFacts.get(field);
+    if (set) return set;
+    if (field === 'build') return { currentNumber: '57', wantedFound: true, wantedNumber: '58', wantedProcessingState: 'VALID', wantedExpired: false };
+    if (field === 'version_codes') return { missing: '' };
+    if (field === 'track') return { draftCount: 1, otherInProgress: 0 };
+    return undefined;
+  }
+
+  async listReleaseCandidates(): Promise<ReleaseCandidates> {
+    this.releaseReads++;
+    if (this.releaseReadError) throw this.releaseReadError;
+    return structuredClone(
+      this.candidates ??
+        (this.platform === 'android'
+          ? { store: 'googleplay' as const, platform: 'android' as const, track: 'production', codes: [{ versionCode: '241', source: 'bundle' as const, sha256: 'a'.repeat(64), inTrack: [] }] }
+          : { store: 'appstoreconnect' as const, platform: this.platform, version: this.version ? { id: this.version.id, versionString: this.version.versionString, state: this.version.state } : null, builds: [{ id: 'b-2', buildNumber: '58', version: '2.1', uploadedDate: '2026-11-18T09:00:00-08:00', processingState: 'VALID', expired: false, selectable: true, reason: null, attached: false }], attachedBuildId: null, truncatedAt: null }),
+    );
+  }
+
+  async readEditableRelease(): Promise<EditableRelease> {
+    this.releaseReads++;
+    if (this.releaseReadError) throw this.releaseReadError;
+    return structuredClone(
+      this.editable ??
+        (this.platform === 'android'
+          ? { store: 'googleplay' as const, platform: 'android' as const, track: 'production', draft: null, others: [] }
+          : { store: 'appstoreconnect' as const, platform: this.platform, version: { id: 'v-next', versionString: '2.1', state: 'PREPARE_FOR_SUBMISSION', editable: true as const }, releaseType: 'MANUAL', earliestReleaseDate: null, copyright: null, build: null, phasedRelease: null, releaseNotes: [] }),
+    );
+  }
+
   #state(request: DraftReadRequest): DraftState {
     const assets: DraftAssetState[] = request.assets.map((s) => {
       const images = this.sets.get(`${s.locale}\u0000${s.target}`);
@@ -207,6 +261,9 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
       version: this.version ? { ...this.version } : null,
       text: request.text.map((t) => ({ locale: t.locale, field: t.field, value: this.texts.get(key(t.locale, t.field)) ?? null, localeExists: this.locales.has(t.locale) })),
       assets,
+      ...(request.fields !== undefined
+        ? { fields: request.fields.map((f) => ({ field: f.field, locale: f.locale, value: this.fields.get(key(f.locale, f.field)) ?? null, ...(this.#facts(f.field) ? { facts: { ...this.#facts(f.field) } } : {}) })) }
+        : {}),
     };
   }
 
@@ -228,10 +285,11 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
       assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target })),
+      ...(input.fields !== undefined ? { fields: input.fields } : {}),
     };
     const before = this.#state(request);
     if (!input.guard(before)) throw new DraftDriftError(before);
-    this.writes.push({ text: input.text.map((t) => ({ locale: t.locale, field: t.field })), sets: input.assets.map((a) => ({ locale: a.locale, target: a.target, files: a.files.map((f) => `${f.name}:${f.md5}`) })) });
+    this.writes.push({ text: input.text.map((t) => ({ locale: t.locale, field: t.field })), sets: input.assets.map((a) => ({ locale: a.locale, target: a.target, files: a.files.map((f) => `${f.name}:${f.md5}`) })), ...(input.fields ? { fields: input.fields.map((f) => ({ ...f })) } : {}) });
     if (this.gate) await this.gate;
     const b = this.behavior;
     const steps: DraftStep[] = [];
@@ -252,6 +310,10 @@ export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
         this.locales.add(t.locale);
         this.texts.set(key(t.locale, t.field), t.value);
       }, { type: 'text', locale: t.locale, target: t.field });
+    }
+    for (const f of input.fields ?? []) {
+      const same = this.fields.get(key(f.locale, f.field)) === f.value;
+      apply({ type: 'field', locale: f.locale, target: f.field, outcome: same ? 'already_same' : 'applied' }, () => this.fields.set(key(f.locale, f.field), f.value), { type: 'field', locale: f.locale, target: f.field });
     }
     for (const a of input.assets) {
       const current = this.sets.get(`${a.locale}\u0000${a.target}`) ?? [];
@@ -399,6 +461,134 @@ export class FakeSubmitStore implements StoreSubmitConnector {
   }
 }
 
+// ----- the store's release side --------------------------------------------------------------------
+
+export type ReleaseBehavior =
+  | { kind: 'ok' }
+  /** The store refuses the release (nothing was released). */
+  | { kind: 'refuse'; error: StoreError }
+  /** The write is sent and the store does not answer; `applied` says whether it applied it anyway. */
+  | { kind: 'unknown'; applied: boolean };
+
+type FakeVersion = { id: string; versionString: string; state: string; releaseType: string | null };
+
+/**
+ * What a store shows for a release: App Store versions (one waits for release), or the releases of a Google Play track (one
+ * draft). Remembers every release it was asked for and can be told how to fail.
+ */
+export class FakeReleaseStore implements StoreReleaseConnector {
+  readonly store: 'appstoreconnect' | 'googleplay';
+  readonly platform: Platform;
+  versions: FakeVersion[];
+  build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null = { id: 'b-1', buildNumber: '57', processingState: 'VALID', expired: false };
+  phased: { id: string; state: string | null } | null = null;
+  track = 'production';
+  releases: PlayReleaseState[];
+  /** Version codes Google Play lists as uploaded. */
+  uploaded = new Set<string>(['200', '240', '241']);
+  behavior: ReleaseBehavior = { kind: 'ok' };
+  readError: unknown;
+  /** After a release whose answer was lost, the store cannot be read back. */
+  readFailsAfterWrite = false;
+  reads = 0;
+  releaseCalls = 0;
+  /** What was released: version ids (App Store) or `track:codes:fraction` (Google Play). */
+  released: string[] = [];
+  gate: Promise<void> | undefined;
+
+  constructor(platform: Platform) {
+    this.platform = platform;
+    this.store = platform === 'android' ? 'googleplay' : 'appstoreconnect';
+    this.versions =
+      platform === 'android'
+        ? []
+        : [
+            { id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION', releaseType: 'MANUAL' },
+            { id: 'v-next', versionString: '2.1', state: APPLE_RELEASABLE_STATE, releaseType: 'MANUAL' },
+          ];
+    this.releases =
+      platform === 'android'
+        ? [
+            { name: '2.0', status: 'completed', userFraction: null, versionCodes: ['200'], notes: 1 },
+            { name: '2.1', status: 'draft', userFraction: null, versionCodes: ['241'], notes: 1 },
+          ]
+        : [];
+  }
+
+  #state(request: ReleaseRequest): ReleaseState {
+    if (this.platform === 'android') {
+      const codes = request.versionCodes?.map(String);
+      const same = (a: string[], b: string[]) => [...a].sort().join(',') === [...b].sort().join(',');
+      const drafts = this.releases.filter((r) => r.status === 'draft');
+      const matching = codes && codes.length > 0 ? drafts.filter((r) => same(r.versionCodes, codes)) : drafts;
+      const target = matching.length === 1 ? matching[0] : undefined;
+      return {
+        store: 'googleplay',
+        platform: 'android',
+        track: request.track ?? this.track,
+        release: target ? { ...target, versionCodes: [...target.versionCodes] } : null,
+        ambiguous: matching.length > 1,
+        others: this.releases.filter((r) => r !== target).map((r) => ({ ...r, versionCodes: [...r.versionCodes] })),
+        missingCodes: target ? target.versionCodes.filter((c) => !this.uploaded.has(c)) : [],
+      };
+    }
+    const named = request.version;
+    const pool = named === undefined ? this.versions.filter((v) => v.state === APPLE_RELEASABLE_STATE) : this.versions.filter((v) => v.versionString === named);
+    const waiting = pool.filter((v) => v.state === APPLE_RELEASABLE_STATE);
+    const chosen = waiting.length === 1 ? waiting[0] : named !== undefined && pool.length === 1 && waiting.length === 0 ? pool[0] : undefined;
+    return {
+      store: 'appstoreconnect',
+      platform: this.platform,
+      version: chosen ? { id: chosen.id, versionString: chosen.versionString, state: chosen.state, releaseType: chosen.releaseType } : null,
+      releasable: chosen !== undefined && chosen.state === APPLE_RELEASABLE_STATE,
+      ambiguous: waiting.length > 1,
+      build: chosen ? (this.build ? { ...this.build } : null) : null,
+      phasedRelease: chosen ? (this.phased ? { ...this.phased } : null) : null,
+      versions: this.versions.map((v) => ({ versionString: v.versionString, state: v.state })),
+    };
+  }
+
+  async readReleaseState(request: ReleaseRequest): Promise<ReleaseState> {
+    this.reads++;
+    if (this.readError) throw this.readError;
+    return this.#state(request);
+  }
+
+  async release(input: ReleaseApplyInput): Promise<ReleaseResult> {
+    this.reads++;
+    if (this.readError) throw this.readError;
+    const before = this.#state(input.request);
+    if (!input.guard(before)) throw new ReleaseDriftError(before);
+    this.releaseCalls++;
+    if (this.gate) await this.gate;
+    const b = this.behavior;
+    if (b.kind === 'refuse') throw b.error;
+    if (b.kind === 'unknown') {
+      if (b.applied) this.#apply(input.request, before);
+      if (this.readFailsAfterWrite) this.readError = new Error('down');
+      throw new ReleaseOutcomeUnknownError(this.store, 'timed out');
+    }
+    this.#apply(input.request, before);
+    return { before, releaseRequestId: this.platform === 'android' ? null : `rel-${this.released.length}`, via: this.platform === 'android' ? 'edit_commit' : 'release_request' };
+  }
+
+  #apply(request: ReleaseRequest, before: ReleaseState) {
+    if (before.store === 'appstoreconnect') {
+      const v = this.versions.find((x) => x.id === before.version?.id);
+      if (v) v.state = 'PROCESSING_FOR_APP_STORE';
+      this.released.push(before.version?.id ?? '');
+      return;
+    }
+    const target = this.releases.find((r) => r.status === 'draft' && before.release !== null && r.versionCodes.join(',') === before.release.versionCodes.join(','));
+    const fraction = request.userFraction ?? 0;
+    if (target) {
+      target.status = fraction === 1 ? 'completed' : 'inProgress';
+      target.userFraction = fraction === 1 ? null : fraction;
+    }
+    this.released.push(`${before.track}:${before.release?.versionCodes.join(',') ?? ''}:${fraction}`);
+  }
+}
+
 // ----- booting -----------------------------------------------------------------------------------
 
 export type StagedBootOptions = {
@@ -406,6 +596,8 @@ export type StagedBootOptions = {
   draft?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
   /** Submitting for review: on by default in tests (the kill switch has its own test). */
   submit?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
+  /** Releasing: on by default in tests (the kill switch has its own test). */
+  release?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
   /** More options of the app (the exchange of the image downloads, limiters). */
   extra?: Record<string, unknown>;
 };
@@ -431,6 +623,12 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     submitBuilt.push(input);
     return input.kind === 'app_store_connect' ? submitStores.ios : submitStores.android;
   };
+  const releaseStores = { ios: new FakeReleaseStore('ios'), android: new FakeReleaseStore('android'), macos: new FakeReleaseStore('macos') };
+  const releaseBuilt: ReleaseConnectorInput[] = [];
+  const releaseFactory: ReleaseConnectorFactory = (input) => {
+    releaseBuilt.push(input);
+    return input.kind === 'app_store_connect' ? (input.platform === 'macos' ? releaseStores.macos : releaseStores.ios) : releaseStores.android;
+  };
   const readStores = { ios: new FakeStore('ios'), android: new FakeStore('android') };
   const built: DraftConnectorInput[] = [];
   const connectorFactory: DraftConnectorFactory = (input) => {
@@ -444,6 +642,7 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     listing: { intervalMs: 60 * 60_000 },
     storeDraft: { enabled: true, connectorFactory, ...options.draft },
     storeSubmit: { enabled: true, connectorFactory: submitFactory, ...options.submit },
+    storeRelease: { enabled: true, connectorFactory: releaseFactory, ...options.release },
     ...(options.extra ?? {}),
   });
   const { repositoryId } = await t.connect();
@@ -501,8 +700,20 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     return { preview: p, submit: await submitApply(appId, { confirmHash: p.body.preview.confirmHash, confirmation: p.body.preview.confirmation.phrase }, cookie) };
   };
   const submitClaim = async (appId: string) => (await db.query('SELECT * FROM store_submit_claims WHERE app_id = ?', [appId]))[0];
+  const stageField = (appId: string, body: Record<string, unknown>, cookie = t.owner) => t.call(cookie, 'PUT', sp(appId, '/release-fields'), body);
+  const rel = (appId: string, rest = '') => `/apps/${appId}/store-release${rest}`;
+  const releaseState = (appId: string, cookie = t.owner) => t.call(cookie, 'GET', rel(appId));
+  const releasePreview = (appId: string, body: Record<string, unknown> = {}, cookie = t.owner) => t.call(cookie, 'POST', rel(appId, '/preview'), body);
+  const releaseApply = (appId: string, body: Record<string, unknown>, cookie = t.owner) => t.call(cookie, 'POST', rel(appId), body);
+  /** Preview, then release with its hash and typed phrase. */
+  const previewAndRelease = async (appId: string, what: Record<string, unknown> = {}, cookie = t.owner) => {
+    const p = await releasePreview(appId, what, cookie);
+    if (p.status !== 200 || !p.body.preview.confirmHash) return { preview: p, release: p };
+    return { preview: p, release: await releaseApply(appId, { ...what, confirmHash: p.body.preview.confirmHash, confirmation: p.body.preview.confirmation.phrase }, cookie) };
+  };
+  const releaseClaim = async (appId: string) => (await db.query('SELECT * FROM store_release_claims WHERE app_id = ?', [appId]))[0];
   const pushRecord = async (appId: string) => (await db.query('SELECT * FROM store_draft_pushes WHERE app_id = ?', [appId]))[0];
-  return { ...t, repo, files, stores, submitStores, submitBuilt, sub, submitState, submitPreview, submitApply, previewAndSubmit, submitClaim, pushRecord, readStores, built, repositoryId, iosCredential, playCredential, addApp, sp, view, stageText, stageAssets, unstage, clear, preview, push, previewAndPush, events, audit, claim, rows };
+  return { ...t, repo, files, stores, releaseStores, releaseBuilt, stageField, rel, releaseState, releasePreview, releaseApply, previewAndRelease, releaseClaim, submitStores, submitBuilt, sub, submitState, submitPreview, submitApply, previewAndSubmit, submitClaim, pushRecord, readStores, built, repositoryId, iosCredential, playCredential, addApp, sp, view, stageText, stageAssets, unstage, clear, preview, push, previewAndPush, events, audit, claim, rows };
 }
 
 export type StagedBoot = Awaited<ReturnType<typeof bootStaged>>;

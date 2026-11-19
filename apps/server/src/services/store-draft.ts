@@ -3,6 +3,8 @@ import {
   AppleDraftConnector,
   type DraftApplyResult,
   type DraftAssetWrite,
+  type DraftFieldState,
+  type DraftFieldWrite,
   type DraftFile,
   DraftDriftError,
   DraftOutcomeUnknownError,
@@ -10,14 +12,17 @@ import {
   type DraftReadRequest,
   type DraftState,
   type DraftStep,
+  type EditableRelease,
   type DraftTextWrite,
   PlayDraftConnector,
+  type ReleaseCandidates,
   type StoreDraftConnector,
   StoreError,
   type StoreImagesRead,
   StoreRateLimitError,
   draftKey,
   isStoreImageReader,
+  isStoreReleaseReader,
   redactSecrets,
   sameDraftState,
   secretStrings,
@@ -25,8 +30,11 @@ import {
 } from '@mrm/connectors';
 import {
   type AssetSlot,
+  LOCAL_ONLY_RELEASE_FIELDS,
   type Platform,
+  RELEASE_FIELD_SPECS,
   STAGED_LIMITS,
+  isReleaseFieldId,
   slotKey,
   sniffImageFormat,
   isApplePlatform,
@@ -43,6 +51,7 @@ import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
 import { type PushedManifest, fileEntry, recordPush, textEntry } from './store-draft-record.ts';
 import { getBlob } from './staged-asset-blobs.ts';
+import { type ReleaseCheck, releaseFieldChecks } from './staged-release.ts';
 import {
   type AssetSet,
   type StagedRow,
@@ -96,6 +105,13 @@ export const DEFAULT_DRAFT_TIMEOUT_MS = 240_000;
 /** Longer than the timeout, so a claim is never trusted less than the write it guards can still run. */
 export const DEFAULT_DRAFT_CLAIM_TTL_MS = 300_000;
 
+const FIELDS_NOTE = {
+  apple:
+    'Release fields change the editable App Store version right away (the version string, release type, release date, copyright and build in one request; the phased release in its own). Releasing the approved version is a separate, gated step (docs/api/releases-write.md).',
+  google:
+    'The draft release of the track is written in the same edit and held back with the rest. The intended rollout share is kept here only: Google Play cannot hold a share in a draft. Starting the release is a separate, gated step (docs/api/releases-write.md).',
+} as const;
+
 const DRAFT_NOTE =
   'This is a draft only. Nothing was submitted for review or published: do that in App Store Connect or Play Console.';
 
@@ -133,6 +149,9 @@ export type DraftContext = {
   draftTimeoutMs?: number;
   claimTtlMs?: number;
 };
+
+/** What reaching a store needs: the same for a push and for the reads that only look. */
+export type StoreConnectContext = Pick<DraftContext, 'db' | 'masterKey' | 'now' | 'draftConnectorFactory' | 'draftTimeoutMs'>;
 
 // ---------------------------------------------------------------------------------------------
 // Failures
@@ -192,7 +211,7 @@ class DraftTimeout extends Error {}
 
 /** Runs `job` with a connector whose requests are aborted after the timeout. */
 async function withConnector<T>(
-  ctx: DraftContext,
+  ctx: StoreConnectContext,
   input: Omit<DraftConnectorInput, 'fetch'>,
   job: (connector: StoreDraftConnector) => Promise<T>,
 ): Promise<T> {
@@ -272,7 +291,7 @@ const clearUnknown = (sql: Sql, app: ManagedApp) =>
 
 type Connection = { input: Omit<DraftConnectorInput, 'fetch'>; secret: string };
 
-async function connect(ctx: DraftContext, workspaceId: string, app: ManagedApp, actor: Actor, purpose: string = DRAFT_PURPOSE): Promise<{ ok: true; connection: Connection } | Failure> {
+async function connect(ctx: StoreConnectContext, workspaceId: string, app: ManagedApp, actor: Actor, purpose: string = DRAFT_PURPOSE): Promise<{ ok: true; connection: Connection } | Failure> {
   const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
   if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   if (String(credential.kind) !== credentialKindFor[app.platform]) return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
@@ -324,6 +343,63 @@ export async function readStoreImagesOf(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Reading what a release draft is made of (never a write, so not behind the draft switch)
+
+export const RELEASE_READ_PURPOSE = 'store.release_read';
+
+/**
+ * The processed builds of the app (App Store, the macOS ones for a macOS app) or the uploaded version codes with where a track
+ * uses them (Google Play, the track is required). Reads with the credential of the app (audited as `credential.use`, purpose
+ * `store.release_read`), changes nothing. The connector is the one a push uses, so a fake stands in for it in tests.
+ */
+export async function readReleaseCandidatesOf(
+  ctx: StoreConnectContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor; version?: string | undefined; track?: string | undefined },
+): Promise<{ ok: true; read: ReleaseCandidates } | Failure> {
+  const { app } = input;
+  if (isGooglePlatform(app.platform) && (input.track === undefined || input.track === '')) {
+    return failure(422, 'track_required', 'Name the track (for example production).');
+  }
+  const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  try {
+    const read = await withConnector(ctx, connection.input, async (connector) => {
+      if (!isStoreReleaseReader(connector)) throw new StoreError(storeFor(app.platform), 'unsupported', 'This store connection cannot read builds or version codes.');
+      return connector.listReleaseCandidates({ ...(input.version !== undefined ? { version: input.version } : {}), ...(input.track !== undefined ? { track: input.track } : {}) });
+    });
+    return { ok: true, read };
+  } catch (error) {
+    if (error instanceof DraftTimeout) return failure(504, 'timeout', 'The store did not answer in time.');
+    return mapStoreError(error, connection.secret).failure;
+  }
+}
+
+/** The release fields the store holds for the editable App Store version, or for the draft release of a Google Play track. */
+export async function readEditableReleaseOf(
+  ctx: StoreConnectContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor; track?: string | undefined },
+): Promise<{ ok: true; read: EditableRelease } | Failure> {
+  const { app } = input;
+  if (isGooglePlatform(app.platform) && (input.track === undefined || input.track === '')) {
+    return failure(422, 'track_required', 'Name the track (for example production).');
+  }
+  const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  try {
+    const read = await withConnector(ctx, connection.input, async (connector) => {
+      if (!isStoreReleaseReader(connector)) throw new StoreError(storeFor(app.platform), 'unsupported', 'This store connection cannot read the release fields.');
+      return connector.readEditableRelease(input.track !== undefined ? { track: input.track } : {});
+    });
+    return { ok: true, read };
+  } catch (error) {
+    if (error instanceof DraftTimeout) return failure(504, 'timeout', 'The store did not answer in time.');
+    return mapStoreError(error, connection.secret).failure;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // What is to be written: the staged rows, with the bytes of the files
 
 type PreparedSet = {
@@ -335,7 +411,13 @@ type PreparedSet = {
   rows: StagedRow[];
   files: DraftFile[];
 };
-type Prepared = { rows: StagedRow[]; texts: DraftTextWrite[]; sets: PreparedSet[] };
+type Prepared = {
+  rows: StagedRow[];
+  texts: DraftTextWrite[];
+  sets: PreparedSet[];
+  /** The release fields to write (docs/api/releases-write.md). The intended Play share (`user_fraction`) stays here: a draft cannot hold it. */
+  fields: DraftFieldWrite[];
+};
 
 const md5Hex = (bytes: Uint8Array) => createHash('md5').update(bytes).digest('hex');
 const sha256Bytes = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -361,10 +443,13 @@ async function prepare(
   if (rows.length === 0) return failure(422, 'nothing_staged', 'Nothing is staged for this app.');
   const view = await buildStagedView(ctx, input.workspaceId, app, rows);
   if (!view.valid) {
-    const errors = [...view.text.flatMap((t) => t.problems.filter((p) => p.severity === 'error').map((p) => ({ item: `${t.locale}/${t.field}`, code: p.code, message: p.message }))), ...view.assets.flatMap((a) => a.problems.filter((p) => p.severity === 'error').map((p) => ({ item: a.id, code: p.code, message: p.message })))];
+    const errors = [...view.text.flatMap((t) => t.problems.filter((p) => p.severity === 'error').map((p) => ({ item: `${t.locale}/${t.field}`, code: p.code, message: p.message }))), ...view.assets.flatMap((a) => a.problems.filter((p) => p.severity === 'error').map((p) => ({ item: a.id, code: p.code, message: p.message }))), ...(view.release ?? []).flatMap((r) => r.problems.filter((p) => p.severity === 'error').map((p) => ({ item: `${r.field}${r.locale ? `/${r.locale}` : ''}`, code: p.code, message: p.message })))];
     return failure(422, 'staged_invalid', 'Some staged items have errors. Fix or remove them first.', { problems: errors.slice(0, 30), total: errors.length });
   }
   const texts: DraftTextWrite[] = rows.filter((r) => r.kind === 'listing_text').map((r) => ({ locale: r.locale, field: r.target, value: r.valueText ?? '' }));
+  const fields: DraftFieldWrite[] = rows
+    .filter((r) => r.kind === 'release_field' && isReleaseFieldId(r.target) && !LOCAL_ONLY_RELEASE_FIELDS.includes(r.target))
+    .map((r) => ({ field: r.target, locale: r.locale, value: r.valueText ?? '' }));
   const sets: PreparedSet[] = [];
   const planned = assetSetsOf(rows);
   let total = 0;
@@ -449,17 +534,19 @@ async function prepare(
     }
   }
   for (const set of sets) set.files = set.files.filter((f) => f !== undefined);
-  return { ok: true, prepared: { rows, texts, sets } };
+  return { ok: true, prepared: { rows, texts, sets, fields } };
 }
 
 const requestOf = (p: Prepared): DraftReadRequest => ({
   text: p.texts.map((t) => ({ locale: t.locale, field: t.field })),
   assets: p.sets.map((s) => ({ locale: s.locale, kind: s.slot.kind, device: s.slot.device, target: s.target, ...sizeOf(s) })),
+  ...(p.fields.length > 0 ? { fields: p.fields } : {}),
 });
 
-const writesOf = (p: Prepared): { text: DraftTextWrite[]; assets: DraftAssetWrite[] } => ({
+const writesOf = (p: Prepared): { text: DraftTextWrite[]; assets: DraftAssetWrite[]; fields?: DraftFieldWrite[] } => ({
   text: p.texts,
   assets: p.sets.map((s) => ({ locale: s.locale, kind: s.slot.kind, device: s.slot.device, target: s.target, ...sizeOf(s), files: s.files })),
+  ...(p.fields.length > 0 ? { fields: p.fields } : {}),
 });
 
 /** The pixel size of the first file of a set: the App Store connector finds the asset library placement group from it. */
@@ -557,13 +644,31 @@ export type PreviewAssetSet = {
   willRemove: number;
 };
 
+export type PreviewReleaseField = {
+  id: string;
+  field: string;
+  label: string;
+  /** The language of a per language field (Play release notes); empty otherwise. */
+  locale: string;
+  /** The store's value now, in the same canonical text (null: not set). */
+  before: string | null;
+  after: string;
+  /** `local`: kept here, never written to the store (the intended Play share). */
+  status: 'changed' | 'unchanged' | 'local';
+  localOnly: boolean;
+};
+
 export type DraftPreview = {
   app: { id: string; name: string; platform: Platform; store: string };
   /** App Store: the editable version that is written. Google Play: null (a draft is an edit). */
   version: { id: string; versionString: string | null; state: string } | null;
   text: PreviewText[];
   assets: PreviewAssetSet[];
-  summary: { textChanged: number; textUnchanged: number; assetSetsChanged: number; assetSetsUnchanged: number; filesToUpload: number; filesToRemove: number; nothingToDo: boolean };
+  /** The release fields (docs/api/releases-write.md), before and after. Empty when none is staged. */
+  release: PreviewReleaseField[];
+  /** What the store says about the staged release fields. A blocking check refuses the push (`409 blocked`). */
+  checks: { blocking: ReleaseCheck[]; warnings: ReleaseCheck[]; canPush: boolean };
+  summary: { textChanged: number; textUnchanged: number; assetSetsChanged: number; assetSetsUnchanged: number; filesToUpload: number; filesToRemove: number; fieldsChanged: number; fieldsUnchanged: number; nothingToDo: boolean };
   /** Always false: a push writes a draft and never submits or publishes. */
   submits: false;
   confirmHash: string;
@@ -571,7 +676,14 @@ export type DraftPreview = {
   readAt: number;
 };
 
+const checksOf = (p: Prepared, platform: Platform, state: DraftState): DraftPreview['checks'] => {
+  const all = releaseFieldChecks({ platform, fields: p.fields, state: state.fields });
+  const blocking = all.filter((c) => c.severity === 'blocking');
+  return { blocking, warnings: all.filter((c) => c.severity === 'warning'), canPush: blocking.length === 0 };
+};
+
 const itemMatches = (state: DraftState, p: Prepared) => ({
+  fields: p.fields.map((f) => state.fields?.find((s) => s.field === f.field && s.locale === f.locale)?.value === f.value),
   text: p.texts.map((t) => {
     const found = state.text.find((s) => s.locale === t.locale && s.field === t.field);
     return found !== undefined && found.value !== null && normalizeListingValue(found.value) === normalizeListingValue(t.value);
@@ -616,7 +728,26 @@ function previewOf(ctx: DraftContext, app: ManagedApp, workspaceId: string, p: P
       willRemove: unchanged ? 0 : (found?.images.length ?? 0),
     };
   });
+  const release: PreviewReleaseField[] = p.rows
+    .filter((r) => r.kind === 'release_field' && isReleaseFieldId(r.target))
+    .map((r) => {
+      const local = LOCAL_ONLY_RELEASE_FIELDS.includes(r.target as never);
+      const index = p.fields.findIndex((f) => f.field === r.target && f.locale === r.locale);
+      const found: DraftFieldState | undefined = state.fields?.find((f) => f.field === r.target && f.locale === r.locale);
+      return {
+        id: r.id,
+        field: r.target,
+        label: isReleaseFieldId(r.target) ? RELEASE_FIELD_SPECS[r.target].label : r.target,
+        locale: r.locale,
+        before: local ? null : (found?.value ?? null),
+        after: r.valueText ?? '',
+        status: local ? ('local' as const) : index !== -1 && match.fields[index] ? ('unchanged' as const) : ('changed' as const),
+        localOnly: local,
+      };
+    });
   const summary = {
+    fieldsChanged: release.filter((f) => f.status === 'changed').length,
+    fieldsUnchanged: release.filter((f) => f.status === 'unchanged').length,
     textChanged: text.filter((t) => t.status !== 'unchanged').length,
     textUnchanged: text.filter((t) => t.status === 'unchanged').length,
     assetSetsChanged: assets.filter((a) => a.status === 'changed').length,
@@ -625,7 +756,7 @@ function previewOf(ctx: DraftContext, app: ManagedApp, workspaceId: string, p: P
     filesToRemove: assets.reduce((n, a) => n + a.willRemove, 0),
     nothingToDo: false,
   };
-  summary.nothingToDo = summary.textChanged === 0 && summary.assetSetsChanged === 0;
+  summary.nothingToDo = summary.textChanged === 0 && summary.assetSetsChanged === 0 && summary.fieldsChanged === 0;
   const warnings =
     isApplePlatform(app.platform)
       ? [
@@ -643,10 +774,12 @@ function previewOf(ctx: DraftContext, app: ManagedApp, workspaceId: string, p: P
     version: state.version,
     text,
     assets,
+    release,
+    checks: checksOf(p, app.platform, state),
     summary,
     submits: false,
     confirmHash: draftConfirmHash({ workspaceId, app, rows: p.rows, current: state }),
-    warnings,
+    warnings: p.fields.length > 0 ? [...warnings, FIELDS_NOTE[isApplePlatform(app.platform) ? 'apple' : 'google']] : warnings,
     readAt: ctx.now(),
   };
 }
@@ -687,6 +820,8 @@ export type DraftPushResult = {
   counts: { applied: number; alreadySame: number; filesUploaded: number; filesRemoved: number };
   /** Google Play: `not_sent_for_review` (the commit held the changes back). App Store: `none`. */
   commit: 'not_sent_for_review' | 'none';
+  /** The release fields that were part of the push (docs/api/releases-write.md). */
+  fields: number;
   /** Always true: what was written is a draft. */
   draft: true;
   /** Always false: nothing was submitted, sent for review or published. */
@@ -709,6 +844,7 @@ function stepsFromReread(p: Prepared, before: DraftState): DraftStep[] {
   const was = itemMatches(before, p);
   const steps: DraftStep[] = [];
   p.texts.forEach((t, i) => steps.push({ type: 'text', locale: t.locale, target: t.field, outcome: was.text[i] ? 'already_same' : 'applied' }));
+  p.fields.forEach((f, i) => steps.push({ type: 'field', locale: f.locale, target: f.field, outcome: was.fields[i] ? 'already_same' : 'applied' }));
   p.sets.forEach((s, i) => {
     const found = before.assets.find((a) => a.locale === s.locale && a.target === s.target);
     steps.push({ type: 'asset', locale: s.locale, target: s.target, outcome: was.assets[i] ? 'already_same' : 'applied', ...(was.assets[i] ? {} : { uploaded: s.files.length, removed: found?.images.length ?? 0 }) });
@@ -717,11 +853,15 @@ function stepsFromReread(p: Prepared, before: DraftState): DraftStep[] {
 }
 
 async function markPushed(sql: Sql, workspaceId: string, appId: string, p: Prepared, steps: readonly DraftStep[] | 'all', at: number): Promise<void> {
-  const done = (type: 'text' | 'asset', locale: string, target: string) =>
+  const done = (type: 'text' | 'asset' | 'field', locale: string, target: string) =>
     steps === 'all' || steps.some((s) => s.type === type && s.locale === locale && s.target === target && (s.outcome === 'applied' || s.outcome === 'already_same'));
   for (const t of p.texts) {
     if (!done('text', t.locale, t.field)) continue;
     await sql.execute("UPDATE staged_changes SET pushed_at = ?, pushed_hash = value_hash WHERE workspace_id = ? AND app_id = ? AND kind = 'listing_text' AND locale = ? AND target = ?", [at, workspaceId, appId, t.locale, t.field]);
+  }
+  for (const f of p.fields) {
+    if (!done('field', f.locale, f.field)) continue;
+    await sql.execute("UPDATE staged_changes SET pushed_at = ?, pushed_hash = value_hash WHERE workspace_id = ? AND app_id = ? AND kind = 'release_field' AND locale = ? AND target = ?", [at, workspaceId, appId, f.locale, f.field]);
   }
   for (const s of p.sets) {
     if (!done('asset', s.locale, s.target)) continue;
@@ -774,6 +914,7 @@ async function succeed(
       ...(s.before.version ? { versionId: s.before.version.id } : {}),
       texts: s.prepared.texts.length,
       assetSets: s.prepared.sets.length,
+      fields: s.prepared.fields.length,
       ...counts,
       commit: s.commit,
       hash: input.confirmHash,
@@ -791,6 +932,7 @@ async function succeed(
         platform: s.app.platform,
         texts: s.prepared.texts.length,
         assetSets: s.prepared.sets.length,
+        fields: s.prepared.fields.length,
         ...counts,
         commit: s.commit,
         submitted: false,
@@ -809,6 +951,7 @@ async function succeed(
       steps: s.steps,
       counts,
       commit: s.commit,
+      fields: s.prepared.fields.length,
       draft: true,
       submitted: false,
       confirmedByReread: s.via === 'reread',
@@ -848,6 +991,7 @@ export async function applyDraftPush(
   const hashOf = (current: DraftState) => draftConfirmHash({ workspaceId: input.workspaceId, app, rows: p.rows, current });
 
   let accepted: DraftState | undefined;
+  let blocked: DraftPreview['checks'] | undefined;
   let done: DraftApplyResult | undefined;
   let unknown: { cause: string; completed: DraftStep[] } | undefined;
   try {
@@ -855,6 +999,11 @@ export async function applyDraftPush(
       connector.applyDraft({
         ...writesOf(p),
         guard: (current) => {
+          const checks = checksOf(p, app.platform, current);
+          if (!checks.canPush) {
+            blocked = checks;
+            return false;
+          }
           const same = hashOf(current) === input.confirmHash;
           if (same) accepted = current;
           return same;
@@ -863,6 +1012,11 @@ export async function applyDraftPush(
     );
   } catch (error) {
     if (error instanceof DraftDriftError) {
+      if (blocked) {
+        await audit(ctx, input, app, error.current, { code: 'blocked', outcome: 'refused', blocking: blocked.blocking.map((b) => b.code).slice(0, 20) });
+        await releaseClaim(db, claim);
+        return failure(409, 'blocked', 'Something stands in the way of writing the release fields, so nothing was written. See `checks`.', { checks: blocked });
+      }
       await audit(ctx, input, app, error.current, { code: 'state_changed', outcome: 'refused' });
       await releaseClaim(db, claim);
       return failure(409, 'state_changed', 'The staged changes or the store’s draft changed since this was previewed, so nothing was written. Review the new preview and confirm it.', {
@@ -914,7 +1068,7 @@ export async function applyDraftPush(
     );
   }
   const now = itemMatches(current, p);
-  if (now.text.every(Boolean) && now.assets.every(Boolean)) {
+  if (now.text.every(Boolean) && now.assets.every(Boolean) && now.fields.every(Boolean)) {
     // Google Play: whether the committed draft shows in a later edit is UNVERIFIED; it counts here only when it does show.
     return succeed(ctx, input, { app: appView, prepared: p, claim, before, steps: stepsFromReread(p, before), commit: isGooglePlatform(app.platform) ? 'not_sent_for_review' : 'none', via: 'reread', cause });
   }
@@ -937,8 +1091,9 @@ export async function applyDraftPush(
   const itemsDone = {
     text: p.texts.map((t, i) => ({ locale: t.locale, field: t.field, matches: now.text[i] === true })),
     assets: p.sets.map((s, i) => ({ locale: s.locale, slotKey: s.key, matches: now.assets[i] === true })),
+    fields: p.fields.map((f, i) => ({ locale: f.locale, field: f.field, matches: now.fields[i] === true })),
   };
-  await audit(ctx, input, app, before, { code: 'partial', outcome: 'partial', cause, matching: [...itemsDone.text, ...itemsDone.assets].filter((i) => i.matches).length, total: itemsDone.text.length + itemsDone.assets.length });
+  await audit(ctx, input, app, before, { code: 'partial', outcome: 'partial', cause, matching: [...itemsDone.text, ...itemsDone.assets, ...itemsDone.fields].filter((i) => i.matches).length, total: itemsDone.text.length + itemsDone.assets.length + itemsDone.fields.length });
   await releaseClaim(db, claim);
   return failure(409, 'draft_partial', 'The store did not answer, and its draft now holds some of the changes but not all. Preview and push again to finish: items that already match are skipped.', { items: itemsDone });
 }

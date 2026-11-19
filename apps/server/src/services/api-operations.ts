@@ -797,14 +797,33 @@ const stagedAssetSchema = z.object({
   createdAt: timestamp,
   updatedAt: timestamp,
 });
+const stagedReleaseFieldSchema = z.object({
+  id: z.string(),
+  kind: z.literal('release_field'),
+  field: z.string().describe('App Store: `build`, `version_string`, `release_type`, `earliest_release_date`, `copyright`, `phased_release`. Google Play: `track`, `release_name`, `version_codes`, `user_fraction`, `release_notes`. The App Store "what is new" is the listing field `release_notes` of `stageListingText`.'),
+  label: z.string(),
+  locale: z.string().describe('The language of a per language field (Play `release_notes`); empty otherwise.'),
+  value: z.string().describe('The canonical staged value (version codes `240,241`, a share `0.1`, a date `2026-12-01T10:00:00Z`, phased release `on` or `off`).'),
+  valueHash: z.string(),
+  localOnly: z.boolean().describe('True for `user_fraction`: kept here, never written to the store by a push (Google Play cannot hold a share in a draft). The release step needs an explicit share.'),
+  maxLength: z.number().int().nullable(),
+  status: z.enum(['changed', 'invalid']),
+  problems: z.array(stagedProblemSchema),
+  pushedAt: timestamp.nullable(),
+  pushed: z.boolean().describe('Pushed, and the staged value is still the one that was pushed.'),
+  createdBy: z.string(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
 const stagedLimitsSchema = z.object({ maxItems: z.number().int(), maxTextChars: z.number().int(), maxLocaleChars: z.number().int(), maxAssetFilesPerPush: z.number().int(), maxAssetBytesPerPush: z.number().int(), maxAssetFileBytes: z.number().int() });
 const stagedChangesSchema = z.object({
   app: stagedAppSchema,
   text: z.array(stagedTextSchema),
   assets: z.array(stagedAssetSchema),
-  totals: z.object({ text: z.number().int(), assetSets: z.number().int(), assetFiles: z.number().int(), errors: z.number().int(), warnings: z.number().int(), changed: z.number().int() }),
+  release: z.array(stagedReleaseFieldSchema).describe('The release fields staged for the app (docs/api/releases-write.md): App Store version fields or a Google Play draft release.'),
+  totals: z.object({ text: z.number().int(), assetSets: z.number().int(), assetFiles: z.number().int(), errors: z.number().int(), warnings: z.number().int(), changed: z.number().int(), release: z.number().int() }),
   valid: z.boolean().describe('False when any item has an error: a push is refused while there are some.'),
-  pushable: z.object({ textFields: z.array(z.string()) }),
+  pushable: z.object({ textFields: z.array(z.string()), releaseFields: z.array(z.string()).describe('The release fields this platform can stage.') }),
   limits: stagedLimitsSchema,
 });
 const stagedTextBody = z.object({
@@ -820,6 +839,11 @@ const stagedAssetsBody = z.object({
   from: stagedSource.optional().describe('Only `repo` is supported (default). Store images are pulled into the repository (`pullStoreImages`) and files are uploaded with `uploadStagedAsset`.'),
   paths: z.array(z.string().max(1024)).min(1).max(100).optional().describe('The files of the set, in order, as the asset index lists them. Default: every file of the slot in index order.'),
   commit: z.string().max(64).optional().describe('Read this commit of the repository (a full hash). Default: the branch tip.'),
+});
+const stagedReleaseFieldBody = z.object({
+  field: z.string().min(1).max(40).describe('A release field of this platform: App Store `build` (the id of a processed build from `listReleaseCandidates`), `version_string`, `release_type` (`MANUAL`, `AFTER_APPROVAL`, `SCHEDULED`), `earliest_release_date`, `copyright`, `phased_release` (`on` or `off`); Google Play `track`, `release_name`, `version_codes`, `user_fraction`, `release_notes`.'),
+  locale: z.string().min(2).max(35).optional().describe('Google Play `release_notes` only: the language, for example `en-US`.'),
+  value: z.union([z.string().max(40_000), z.number(), z.boolean(), z.array(z.string().max(20)).max(50)]).describe('The value. Version codes may be an array or `240,241`; a share `0.1` or `10%`; `phased_release` `on`/`off` or a boolean. It is normalized and checked; an empty value is refused (nothing clears a store field).'),
 });
 const stagedPushBody = z.object({ confirmHash: z.string().regex(/^[0-9a-f]{64}$/).describe('The `confirmHash` of a preview made now.') });
 const stagedPushPreviewBody = z.object({});
@@ -847,7 +871,22 @@ const draftPreviewSchema = z.object({
     willUpload: z.number().int(),
     willRemove: z.number().int(),
   })),
-  summary: z.object({ textChanged: z.number().int(), textUnchanged: z.number().int(), assetSetsChanged: z.number().int(), assetSetsUnchanged: z.number().int(), filesToUpload: z.number().int(), filesToRemove: z.number().int(), nothingToDo: z.boolean() }),
+  release: z.array(z.object({
+    id: z.string(),
+    field: z.string(),
+    label: z.string(),
+    locale: z.string(),
+    before: z.string().nullable().describe('The store’s value now, in the same canonical text. Null: not set.'),
+    after: z.string(),
+    status: z.enum(['changed', 'unchanged', 'local']).describe('`local`: kept here and never written (the intended Play share).'),
+    localOnly: z.boolean(),
+  })).describe('The staged release fields, before and after.'),
+  checks: z.object({
+    blocking: z.array(z.object({ code: z.string().describe('For example `build_not_found`, `build_expired`, `build_not_processed`, `version_codes_not_uploaded`, `no_draft_release`, `field_unreadable`.'), severity: z.enum(['blocking', 'warning']), message: z.string(), field: z.string().optional(), locale: z.string().optional() })),
+    warnings: z.array(z.object({ code: z.string(), severity: z.enum(['blocking', 'warning']), message: z.string(), field: z.string().optional(), locale: z.string().optional() })),
+    canPush: z.boolean(),
+  }).describe('What the store says about the staged release fields. A blocking check refuses the push (`409 blocked`, nothing written).'),
+  summary: z.object({ textChanged: z.number().int(), textUnchanged: z.number().int(), assetSetsChanged: z.number().int(), assetSetsUnchanged: z.number().int(), filesToUpload: z.number().int(), filesToRemove: z.number().int(), fieldsChanged: z.number().int(), fieldsUnchanged: z.number().int(), nothingToDo: z.boolean() }),
   submits: z.literal(false).describe('Always false: a push writes a draft and never submits or publishes.'),
   confirmHash: z.string().describe('Send it back to push. Valid only while the staged items and the store’s draft are as previewed.'),
   warnings: z.array(z.string()),
@@ -856,8 +895,9 @@ const draftPreviewSchema = z.object({
 const draftResultSchema = z.object({
   app: stagedAppSchema,
   version: draftStateVersion,
-  steps: z.array(z.object({ type: z.enum(['text', 'asset', 'locale']), locale: z.string(), target: z.string(), outcome: z.enum(['applied', 'already_same']), uploaded: z.number().int().optional(), removed: z.number().int().optional() })),
+  steps: z.array(z.object({ type: z.enum(['text', 'asset', 'locale', 'field']), locale: z.string(), target: z.string(), outcome: z.enum(['applied', 'already_same']), uploaded: z.number().int().optional(), removed: z.number().int().optional() })),
   counts: z.object({ applied: z.number().int(), alreadySame: z.number().int(), filesUploaded: z.number().int(), filesRemoved: z.number().int() }),
+  fields: z.number().int().describe('How many release fields were part of the push.'),
   commit: z.enum(['not_sent_for_review', 'none']).describe('Google Play: the edit was committed with `changesNotSentForReview=true`. App Store: `none` (every request changes the draft at once).'),
   draft: z.literal(true),
   submitted: z.literal(false).describe('Always false: nothing was submitted, sent for review or published.'),
@@ -924,6 +964,118 @@ const submitResultSchema = z.object({
   released: z.literal(false).describe('Always false: nothing was released and no rollout changed.'),
   confirmedByReread: z.boolean().describe('True when the store did not answer and reading it back showed the submission (App Store only).'),
   submittedAt: timestamp,
+  note: z.string(),
+});
+
+// ----- releasing: reads of builds and version codes, and the irreversible release step (docs/api/releases-write.md) ----
+const buildCandidateSchema = z.object({
+  id: z.string(),
+  buildNumber: z.string().nullable().describe('The build number (`CFBundleVersion`).'),
+  version: z.string().nullable().describe('The marketing version the build belongs to.'),
+  uploadedDate: z.string().nullable(),
+  processingState: z.string().nullable().describe('Apple’s names (UNVERIFIED): `PROCESSING`, `FAILED`, `INVALID`, `VALID`.'),
+  expired: z.boolean().nullable(),
+  selectable: z.boolean().describe('Processed and not expired: it can be staged as the `build` field.'),
+  reason: z.string().nullable().describe('Why it cannot be selected.'),
+  attached: z.boolean().describe('It is the build attached to the editable version now.'),
+});
+const releaseCandidatesSchema = z.union([
+  z.object({
+    store: z.literal('appstoreconnect'),
+    platform: z.enum(PLATFORMS),
+    version: z.object({ id: z.string(), versionString: z.string().nullable(), state: z.string() }).nullable().describe('The editable version the build would be attached to.'),
+    builds: z.array(buildCandidateSchema),
+    attachedBuildId: z.string().nullable(),
+    truncatedAt: z.number().int().nullable().describe('The list was cut at this many builds (null: complete).'),
+  }),
+  z.object({
+    store: z.literal('googleplay'),
+    platform: z.literal('android'),
+    track: z.string(),
+    codes: z.array(z.object({ versionCode: z.string(), source: z.enum(['bundle', 'apk']), sha256: z.string().nullable(), inTrack: z.array(z.object({ name: z.string().nullable(), status: z.string() })) })),
+  }),
+]);
+const playReleaseReadSchema = z.object({ name: z.string().nullable(), status: z.string(), userFraction: z.number().nullable(), versionCodes: z.array(z.string()), notes: z.array(z.object({ locale: z.string(), text: z.string() })) });
+const editableReleaseSchema = z.union([
+  z.object({
+    store: z.literal('appstoreconnect'),
+    platform: z.enum(PLATFORMS),
+    version: z.object({ id: z.string(), versionString: z.string().nullable(), state: z.string(), editable: z.literal(true) }),
+    releaseType: z.string().nullable(),
+    earliestReleaseDate: z.string().nullable(),
+    copyright: z.string().nullable(),
+    build: z.object({ id: z.string(), buildNumber: z.string().nullable(), processingState: z.string().nullable(), expired: z.boolean().nullable() }).nullable(),
+    phasedRelease: z.object({ id: z.string(), state: z.string().nullable() }).nullable().describe('Null: the version has no phased release (off).'),
+    releaseNotes: z.array(z.object({ locale: z.string(), text: z.string() })).describe('The "what is new" of each locale (the listing field `release_notes`).'),
+  }),
+  z.object({
+    store: z.literal('googleplay'),
+    platform: z.literal('android'),
+    track: z.string(),
+    draft: playReleaseReadSchema.nullable().describe('The draft release of the track (status `draft`).'),
+    others: z.array(playReleaseReadSchema).describe('The other releases of the track, read only.'),
+  }),
+]);
+const releaseWhat = {
+  version: z.string().min(1).max(40).optional().describe('App Store: the marketing version (required when more than one version waits for release).'),
+  track: z.string().min(1).max(100).optional().describe('Google Play (required): the track of the draft release.'),
+  versionCodes: z.array(z.string().regex(/^[0-9]{1,10}$/)).min(1).max(20).optional().describe('Google Play: the version codes that identify the draft release (needed when the track holds more than one draft).'),
+  userFraction: z.number().gt(0).lte(1).optional().describe('Google Play (required, never implied): the share of users, more than 0 and at most 1. 1 completes the release.'),
+};
+const releaseConfigSchema = z.object({
+  enabled: z.boolean().describe('MRM_STORE_RELEASE_ENABLED (default false). While false the preview and release routes answer `409 store_release_disabled`. The reads of builds and version codes do not depend on it.'),
+  envName: z.string(),
+  action: z.literal('store.release'),
+  minimumRole: z.literal('admin').describe('The lowest role that can release. A token needs `store.release` named in its actions.'),
+  irreversible: z.literal(true).describe('Nothing here can recall a release.'),
+  note: z.string(),
+});
+const releaseStateSchema = z.object({
+  enabled: z.boolean(),
+  inFlight: z.object({ release: z.boolean(), push: z.boolean(), submit: z.boolean() }),
+  unknownOutcome: z.object({ release: z.boolean(), push: z.boolean(), submit: z.boolean() }).describe('An earlier release, push or submit whose outcome is unknown: preview again (a release) or look at the store.'),
+});
+const releaseCheckSchema = z.object({
+  code: z.string().describe('For example `not_releasable`, `ambiguous_version`, `no_draft_release`, `ambiguous_release`, `not_a_draft`, `version_codes_not_uploaded`, `rollout_in_progress`, `push_in_progress`, `submit_in_progress`, `unpushed_release_fields`, `full_rollout`, `fraction_differs_from_staged`, `play_review_state_unknown`.'),
+  severity: z.enum(['blocking', 'warning']),
+  message: z.string(),
+  item: z.string().optional(),
+});
+const releaseRequestSchema = z.object({ version: z.string().optional(), track: z.string().optional(), versionCodes: z.array(z.string()).optional(), userFraction: z.number().optional() });
+const releaseAudienceSchema = z.object({ kind: z.enum(['all', 'phased', 'percent']), userFraction: z.number().nullable(), description: z.string() });
+const releasePreviewSchema = z.object({
+  app: stagedAppSchema,
+  request: releaseRequestSchema.describe('What was asked. The share is always the one the person named.'),
+  version: z.object({ id: z.string(), versionString: z.string().nullable(), state: z.string(), releaseType: z.string().nullable() }).nullable().describe('App Store: the version that would be released (in `PENDING_DEVELOPER_RELEASE`). Google Play: null.'),
+  build: z.object({ id: z.string(), buildNumber: z.string().nullable(), processingState: z.string().nullable(), expired: z.boolean().nullable() }).nullable(),
+  phasedRelease: z.object({ id: z.string(), state: z.string().nullable() }).nullable().describe('App Store: a phased release exists (UNVERIFIED how Apple starts it for a release request). Null: everybody at once.'),
+  track: z.string().nullable(),
+  release: z.object({ name: z.string().nullable(), status: z.string(), versionCodes: z.array(z.string()), notes: z.number().int().describe('How many languages have release notes.') }).nullable().describe('Google Play: the draft release that would start.'),
+  others: z.array(z.object({ name: z.string().nullable(), status: z.string(), userFraction: z.number().nullable(), versionCodes: z.array(z.string()) })).describe('Google Play: the other releases of the track, read only.'),
+  audience: releaseAudienceSchema,
+  irreversible: z.array(z.string()).describe('What cannot be undone from this server, in words, for the confirmation dialog.'),
+  releases: z.literal(true),
+  checks: z.object({ blocking: z.array(releaseCheckSchema), warnings: z.array(releaseCheckSchema), canRelease: z.boolean() }),
+  confirmHash: z.string().nullable().describe('Send it back with `confirmation`. Null while a blocking check stands. Valid only while the store is as previewed.'),
+  confirmation: z.object({ phrase: z.string(), instruction: z.string() }).nullable().describe('The text the person types to confirm (`release <identifier> <version>` or `release <identifier> <track> <percent>%`); send it back as `confirmation`.'),
+  readAt: timestamp,
+});
+const releaseApplyBody = z.object({
+  ...releaseWhat,
+  confirmHash: z.string().regex(/^[0-9a-f]{64}$/).describe('The `confirmHash` of a preview of exactly this request, made now.'),
+  confirmation: z.string().min(1).max(300).describe('The `confirmation.phrase` of that preview, typed by the person. A different text is `422 confirmation_mismatch` and nothing is written.'),
+});
+const releaseResultSchema = z.object({
+  app: stagedAppSchema,
+  request: releaseRequestSchema,
+  version: z.object({ id: z.string(), versionString: z.string().nullable() }).nullable(),
+  track: z.string().nullable(),
+  releaseRequestId: z.string().nullable().describe('App Store: the release request Apple created, when it said. Google Play: null.'),
+  via: z.enum(['release_request', 'edit_commit']),
+  audience: releaseAudienceSchema,
+  released: z.literal(true),
+  confirmedByReread: z.boolean().describe('True when the store did not answer and reading it back showed the release.'),
+  releasedAt: timestamp,
   note: z.string(),
 });
 
@@ -1167,11 +1319,19 @@ const drafts: Draft[] = [
   { id: 'clearStagedChanges', method: 'delete', path: `${W}/apps/{id}/staged`, tags: ['staged-changes'], summary: 'Remove every staged item of an app', risk: 'destructive', access: { action: 'changesets.write' }, appScope: { kind: 'param', name: 'id' }, responses: { '200': { description: 'The (empty) staged changes.', schema: z.object({ staged: stagedChangesSchema }) } } },
   { id: 'previewStagedPush', method: 'post', path: `${W}/apps/{id}/staged/push/preview`, tags: ['staged-changes'], summary: 'Preview pushing the staged changes to the store as a draft: per item before and after, and a confirmHash', description: 'READS THE STORE (the draft; Google Play opens and deletes an edit, which invalidates other open edits of the same service account) and the bytes of the staged files from the repository. Writes nothing. `422 nothing_staged`, `422 staged_invalid` (items with errors), `422 asset_changed`, `422 no_editable_version` (App Store: no version in Prepare for Submission). Needs `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED=true` (`409 store_draft_disabled` otherwise).', risk: 'read', access: { action: 'store.push_draft' }, appScope: { kind: 'param', name: 'id' }, body: stagedPushPreviewBody, bodyOptional: true, responses: { '200': { description: 'The preview.', schema: z.object({ preview: draftPreviewSchema }) } } },
   { id: 'pushStagedDraft', method: 'post', path: `${W}/apps/{id}/staged/push`, tags: ['staged-changes'], summary: 'Write the staged changes to the store as a DRAFT (never submits, sends for review or publishes)', description: 'A STORE WRITE. Needs `store.push_draft` (owner and admin; a token only when its actions name it) and `MRM_STORE_DRAFT_WRITE_ENABLED=true`. `confirmHash` must come from a preview of the same staged items. The store’s draft is READ AGAIN right before the first write: if it is not the one previewed, or the staged items changed, nothing is written (`409 state_changed`, with a new `preview`). One write per app at a time (`409 write_in_progress`). App Store: the editable version’s localizations and screenshots change one request at a time (a refusal part way is `502 draft_partial`, with `completed` and `failed`). Google Play: one edit, committed with `changesNotSentForReview=true` (`409 draft_not_allowed` when Google refuses that, `409 changes_in_review` when changes are in review: nothing is committed). Never retried: after a timeout or a 5xx the draft is read back and the answer is `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), `409 draft_partial`, or `409 outcome_unknown` (then preview again). Audited as `listing.draft_pushed` / `listing.draft_push_failed` (ids, counts and hashes, never a text or a credential) and emitted as the event `listing.draft_pushed`.', risk: 'destructive', access: { action: 'store.push_draft' }, appScope: { kind: 'param', name: 'id' }, body: stagedPushBody, responses: { '200': { description: 'What was written.', schema: z.object({ result: draftResultSchema }) } } },
+  { id: 'stageReleaseField', method: 'put', path: `${W}/apps/{id}/staged/release-fields`, tags: ['staged-changes'], summary: 'Stage one release field of the draft release; nothing is written to a store', description: 'Stages ONE field, normalized and checked on its own (`422 field_not_stageable`, `422 invalid_locale`, `422 empty_value`, `422 invalid_staged` with the first error, `422 too_many_items`). The App Store "what is new" is the listing field `release_notes` (`stageListingText`). Google Play `user_fraction` is kept here only: a draft cannot hold a share, and the release step needs an explicit one. The values reach a store only through the draft push (`pushStagedDraft`), whose preview shows each field before and after with the store’s facts (`checks`). Needs `changesets.write`. Audited as `staged.release_field_set` with a hash, never the value.', risk: 'write', access: { action: 'changesets.write' }, appScope: { kind: 'param', name: 'id' }, body: stagedReleaseFieldBody, responses: { '200': { description: 'The staged changes after the change.', schema: z.object({ staged: stagedChangesSchema }) } } },
+  { id: 'listReleaseCandidates', method: 'get', path: `${W}/apps/{id}/release/candidates`, tags: ['releases'], summary: 'List the builds and version codes a draft release can use (processed builds, uploaded codes)', description: 'READS the store with the credential of the app (audited as `credential.use`, purpose `store.release_read`) and changes nothing; not behind a switch. App Store: the builds of the app for this platform, newest first, each with `selectable` (processed, not expired) and `attached`; `version` optionally narrows them to a marketing version. Google Play: `track` is required (`422 track_required`); the uploaded version codes with the releases of that track that hold them. Rate limited per workspace (`429`). Needs `listing.read`.', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ track: z.string().max(100).optional().describe('Google Play: required.'), version: z.string().max(40).optional().describe('App Store: narrow the builds to this marketing version.') }), responses: { '200': { description: 'The candidates.', schema: z.object({ candidates: releaseCandidatesSchema }) } } },
+  { id: 'getEditableRelease', method: 'get', path: `${W}/apps/{id}/release/editable`, tags: ['releases'], summary: 'The release fields the store holds: the editable App Store version, or the draft release of a Google Play track', description: 'READS the store (same rules as `listReleaseCandidates`) and changes nothing. App Store: the editable version’s release type, earliest release date, copyright, attached build, phased release and the "what is new" per locale; `422 no_editable_version` when there is none. Google Play: `track` is required; the draft release (name, version codes, notes per language) and the other releases of the track. Needs `listing.read`.', risk: 'read', access: { action: 'listing.read' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ track: z.string().max(100).optional().describe('Google Play: required.') }), responses: { '200': { description: 'The release fields.', schema: z.object({ editable: editableReleaseSchema }) } } },
   // ----- submitting the pushed draft for store review (IRREVERSIBLE; off unless MRM_STORE_SUBMIT_ENABLED=true) ----
   { id: 'getStoreSubmitConfig', method: 'get', path: `${W}/store-submit/config`, tags: ['submit'], summary: 'Whether submitting drafts for store review is switched on', risk: 'read', access: { action: 'apps.read' }, responses: { '200': { description: 'The switch, the action and the lowest role that can submit.', schema: submitConfigSchema } } },
   { id: 'getStoreSubmitState', method: 'get', path: `${W}/apps/{id}/store-submit`, tags: ['submit'], summary: 'Where the submit of an app stands here: push recorded, in flight (no store contacted)', description: 'Needs `store.submit`. Reads the database only: whether a successful draft push is recorded and not yet submitted, and whether a submit or push is in flight or has an unknown outcome. It works while the switch is off too (`enabled` says which), so a screen can show where things stand either way.', risk: 'read', access: { action: 'store.submit' }, appScope: { kind: 'param', name: 'id' }, responses: { '200': { description: 'The state.', schema: z.object({ submit: submitStateSchema }) } } },
   { id: 'previewStoreSubmit', method: 'post', path: `${W}/apps/{id}/store-submit/preview`, tags: ['submit'], summary: 'Preview a submit for review: what goes, checks, a confirmHash and the text to type', description: 'Needs `store.submit` and `MRM_STORE_SUBMIT_ENABLED=true`. READS the store, writes nothing, and settles an earlier unknown outcome (a successful read). `409 nothing_pushed` when no successful draft push is recorded. `checks.blocking` stops a submit (the store’s draft no longer holds what was pushed, no or an expired build, a version that would release by itself, a version already in review, no locales or screenshots, a documented spec broken, an image not processed); `checks.warnings` do not. While anything blocks, `confirmHash` and `confirmation` are null.', risk: 'read', access: { action: 'store.submit' }, appScope: { kind: 'param', name: 'id' }, body: z.object({}), responses: { '200': { description: 'The preview.', schema: z.object({ preview: submitPreviewSchema }) } } },
   { id: 'applyStoreSubmit', method: 'post', path: `${W}/apps/{id}/store-submit`, tags: ['submit'], summary: 'Hand the pushed draft to store REVIEW (irreversible; never releases or changes a rollout)', description: 'A STORE WRITE THAT CANNOT BE TAKEN BACK from this server. Needs `store.submit` (owner and admin; a token only when its actions name it; `403` otherwise) and `MRM_STORE_SUBMIT_ENABLED=true` (`409 store_submit_disabled`). `confirmHash` must come from a preview of the same state and `confirmation` must be its `confirmation.phrase` (`422 confirmation_mismatch`). The store is READ AGAIN right before the write: if it is not the one previewed nothing is written (`409 state_changed`, with a new `preview`); if a check blocks, nothing is written (`409 blocked`, with `checks`). One submit per app and platform at a time (`409 write_in_progress`); a draft push in flight or with an unknown outcome blocks it. App Store: a review submission with the editable version as its item, then submitted; only that last request cannot be undone here; a version that would release by itself is blocked. Google Play: an edit committed without `changesNotSentForReview` and with `changesInReviewBehavior=ERROR_IF_IN_REVIEW` (`409 changes_in_review` when changes are in review); no track is written. Never retried: after a timeout or a 5xx the store is read back. App Store: `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`), or `409 outcome_unknown`. Google Play shows no review state, so it is `409 outcome_unknown` until the person has looked in Play Console and previews again. Audited as `listing.submitted` / `listing.submit_failed` (ids, hashes and outcomes, never a text or a credential) and emitted as the event `listing.submitted`.', risk: 'destructive', access: { action: 'store.submit' }, appScope: { kind: 'param', name: 'id' }, body: submitApplyBody, responses: { '200': { description: 'What was submitted.', schema: z.object({ result: submitResultSchema }) } } },
+  // ----- releasing (IRREVERSIBLE; off unless MRM_STORE_RELEASE_ENABLED=true) ----
+  { id: 'getStoreReleaseConfig', method: 'get', path: `${W}/store-release/config`, tags: ['releases'], summary: 'Whether releasing from this server is switched on', risk: 'read', access: { action: 'apps.read' }, responses: { '200': { description: 'The switch, the action and the lowest role that can release.', schema: releaseConfigSchema } } },
+  { id: 'getStoreReleaseState', method: 'get', path: `${W}/apps/{id}/store-release`, tags: ['releases'], summary: 'Where the release of an app stands here: in flight, unknown outcomes (no store contacted)', description: 'Needs `store.release`. Reads the database only: whether a release, a draft push or a submit is in flight or has an unknown outcome. It works while the switch is off too (`enabled` says which).', risk: 'read', access: { action: 'store.release' }, appScope: { kind: 'param', name: 'id' }, responses: { '200': { description: 'The state.', schema: z.object({ release: releaseStateSchema }) } } },
+  { id: 'previewStoreRelease', method: 'post', path: `${W}/apps/{id}/store-release/preview`, tags: ['releases'], summary: 'Preview a release: what is released, to whom, checks, a confirmHash and the text to type', description: 'Needs `store.release` and `MRM_STORE_RELEASE_ENABLED=true`. READS the store, writes nothing, and settles an earlier unknown outcome (a successful read). App Store: the version in Pending Developer Release (name `version` when more than one waits; macOS is the macOS version). Google Play: `track` and an explicit `userFraction` are required (`422 track_required`, `422 user_fraction_required`); `versionCodes` pick the draft when the track holds several. `checks.blocking` stops a release (nothing releasable, more than one candidate, version codes not uploaded, a rollout already running in the track, a push or submit in flight); `checks.warnings` do not. While anything blocks, `confirmHash` and `confirmation` are null.', risk: 'read', access: { action: 'store.release' }, appScope: { kind: 'param', name: 'id' }, body: z.object(releaseWhat), responses: { '200': { description: 'The preview.', schema: z.object({ preview: releasePreviewSchema }) } } },
+  { id: 'applyStoreRelease', method: 'post', path: `${W}/apps/{id}/store-release`, tags: ['releases'], summary: 'RELEASE the approved version, or start the Google Play draft release at the named share (irreversible)', description: 'A STORE WRITE THAT CANNOT BE TAKEN BACK from this server. Needs `store.release` (owner and admin; a token only when its actions name it; `403` otherwise) and `MRM_STORE_RELEASE_ENABLED=true` (`409 store_release_disabled`). `confirmHash` must come from a preview of the same request and state, and `confirmation` must be its `confirmation.phrase` (`422 confirmation_mismatch`). The store is READ AGAIN right before the write: if it is not the one previewed nothing is written (`409 state_changed`, with a new `preview`); if a check blocks, nothing is written (`409 blocked`, with `checks`). One release per app and platform at a time (`409 write_in_progress`); a draft push or a submit in flight blocks it. App Store: `POST appStoreVersionReleaseRequests` for the version in Pending Developer Release. Google Play: an edit that sets the draft release to `inProgress` with `userFraction` (or `completed` for 1), committed without `changesNotSentForReview` and with `changesInReviewBehavior=ERROR_IF_IN_REVIEW` (`409 changes_in_review`). Never retried: after a timeout or a 5xx the store is read back: `200` with `confirmedByReread: true`, `502 write_failed` (`outcome: not_applied`, App Store), or `409 outcome_unknown` (preview again; Google Play can be slow to show a commit). Audited as `store.released` / `store.release_failed` (ids, a share, hashes and outcomes, never a text or a credential) and emitted as the event `release.started`.', risk: 'destructive', access: { action: 'store.release' }, appScope: { kind: 'param', name: 'id' }, body: releaseApplyBody, responses: { '200': { description: 'What was released.', schema: z.object({ result: releaseResultSchema }) } } },
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

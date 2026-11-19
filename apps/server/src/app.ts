@@ -24,6 +24,7 @@ import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
 import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
+import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-release.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
@@ -220,6 +221,13 @@ export type AppDeps = {
    * submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   storeSubmit?: SubmitRoutesContext['submit'];
+  /**
+   * Releasing (docs/api/releases-write.md, docs/adr/0014-release-management.md): releasing an approved App Store version or
+   * starting a Google Play draft release is a store write that is OFF unless `enabled` (MRM_STORE_RELEASE_ENABLED).
+   * `connectorFactory` builds the connector that can read and release (fakes in tests); `timeoutMs` and `claimTtlMs` are for
+   * tests. The reads of builds and version codes use the draft connector (`storeDraft.connectorFactory`) and no switch.
+   */
+  storeRelease?: ReleaseRoutesContext['release'];
   /**
    * ASO, keyword ranks and competitors from public store data (docs/api/aso.md). `sources` reads the stores (a fake in
    * tests; index.ts builds one and shares it with the worker, so the cache and the rate limits are shared);
@@ -532,6 +540,17 @@ export function createApp(deps: AppDeps) {
       masterKey: services.masterKey,
       now: services.now,
       ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
+    }),
+  );
+  // Releasing: reads of builds and version codes (no switch), and the irreversible step (off unless MRM_STORE_RELEASE_ENABLED).
+  app.route(
+    '/api/workspaces',
+    storeReleaseRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      ...(deps.storeDraft ? { draft: { ...(deps.storeDraft.connectorFactory ? { connectorFactory: deps.storeDraft.connectorFactory } : {}), ...(deps.storeDraft.timeoutMs !== undefined ? { timeoutMs: deps.storeDraft.timeoutMs } : {}) } } : {}),
+      ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

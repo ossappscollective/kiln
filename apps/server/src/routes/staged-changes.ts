@@ -17,6 +17,7 @@ import {
   previewDraftPush,
 } from '../services/store-draft.ts';
 import { type StagedContext, clearStaged, getStagedChanges, stageAssets, stageText, unstage } from '../services/staged-changes.ts';
+import { stageReleaseField } from '../services/staged-release.ts';
 
 /**
  * Staged listing text and graphics of an app, and writing them to the store as a DRAFT
@@ -70,6 +71,14 @@ const assetsBody = z
     commit: z.string().max(64).optional(),
   })
   .strict();
+const releaseFieldBody = z
+  .object({
+    field: z.string().min(1).max(40),
+    /** The language of a per language field (Play release notes). Leave out for the others. */
+    locale: z.string().min(2).max(35).optional(),
+    value: z.union([z.string().max(40_000), z.number(), z.boolean(), z.array(z.string().max(20)).max(50)]),
+  })
+  .strict();
 const hash64 = /^[0-9a-f]{64}$/;
 const previewBody = z.object({}).strict().optional();
 const pushBody = z.object({ confirmHash: z.string().regex(hash64, 'The confirmHash of the preview, 64 hexadecimal characters.') }).strict();
@@ -116,6 +125,14 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
     const body = await parseBody(c, textBody);
     if (!body.ok) return body.response;
     const done = await stageText(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
+    return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
+  });
+
+  // The release fields of a draft release (docs/api/releases-write.md): staged like a text, written by the same push.
+  routes.put('/:workspaceId/apps/:id/staged/release-fields', needs('changesets.write'), async (c) => {
+    const body = await parseBody(c, releaseFieldBody);
+    if (!body.ok) return body.response;
+    const done = await stageReleaseField(staged, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });
     return done.ok ? c.json({ staged: done.staged }) : respond(c, done);
   });
 

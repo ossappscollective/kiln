@@ -165,7 +165,7 @@ dbTest('preview (App Store): the editable version, each item before and after, a
   assert.deepEqual(set.after.files.map((f: { name: string }) => f.name), ['1_iphone65.png', '2_iphone65.png']);
   assert.ok(set.after.files.every((f: { oid: string; bytes: number }) => /^[0-9a-f]{40}$/.test(f.oid) && f.bytes > 0));
   assert.deepEqual([set.status, set.willUpload, set.willRemove], ['changed', 2, 1]);
-  assert.deepEqual(p.summary, { textChanged: 1, textUnchanged: 0, assetSetsChanged: 1, assetSetsUnchanged: 0, filesToUpload: 2, filesToRemove: 1, nothingToDo: false });
+  assert.deepEqual(p.summary, { textChanged: 1, textUnchanged: 0, assetSetsChanged: 1, assetSetsUnchanged: 0, filesToUpload: 2, filesToRemove: 1, fieldsChanged: 0, fieldsUnchanged: 0, nothingToDo: false });
   assert.match(p.confirmHash, /^[0-9a-f]{64}$/);
   assert.ok(p.warnings.some((w: string) => /draft/i.test(w)));
   // A read, not a write.
@@ -252,7 +252,7 @@ dbTest('push (App Store): the draft is written once, nothing is submitted, audit
   const events = await t.events('listing.draft_pushed');
   assert.equal(events.length, 1);
   const payload = events[0]?.payload as Record<string, unknown>;
-  assert.deepEqual(Object.keys(payload).sort(), ['actor', 'alreadySame', 'appId', 'applied', 'assetSets', 'commit', 'confirmedByReread', 'filesRemoved', 'filesUploaded', 'platform', 'store', 'submitted', 'texts']);
+  assert.deepEqual(Object.keys(payload).sort(), ['actor', 'alreadySame', 'appId', 'applied', 'assetSets', 'commit', 'confirmedByReread', 'fields', 'filesRemoved', 'filesUploaded', 'platform', 'store', 'submitted', 'texts']);
   assert.equal(payload.submitted, false);
   assert.equal(payload.store, 'appstoreconnect');
   assert.equal(await t.claim(app), undefined, 'the claim was given back');

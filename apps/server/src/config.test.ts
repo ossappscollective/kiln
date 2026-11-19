@@ -473,3 +473,17 @@ test('MRM_STORE_SUBMIT_ENABLED is off by default; only true and false are accept
   // Independent of the draft switch: turning drafts on does not turn submitting on.
   assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: 'true' }).storeSubmitEnabled, false);
 });
+
+test('MRM_STORE_RELEASE_ENABLED is off by default; only true and false are accepted; blank means off', () => {
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key }).storeReleaseEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_RELEASE_ENABLED: '' }).storeReleaseEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_RELEASE_ENABLED: 'false' }).storeReleaseEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_RELEASE_ENABLED: 'true' }).storeReleaseEnabled, true);
+  for (const bad of ['1', 'yes', 'TRUE', 'on']) {
+    assert.throws(() => loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_RELEASE_ENABLED: bad }), /MRM_STORE_RELEASE_ENABLED/, bad);
+  }
+  // Independent of the draft and submit switches: turning them on does not turn releasing on.
+  const others = loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_DRAFT_WRITE_ENABLED: 'true', MRM_STORE_SUBMIT_ENABLED: 'true' });
+  assert.equal(others.storeReleaseEnabled, false);
+  assert.equal(loadConfig({ MRM_MASTER_KEY: key, MRM_STORE_RELEASE_ENABLED: 'true' }).storeSubmitEnabled, false);
+});

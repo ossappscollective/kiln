@@ -149,6 +149,7 @@ const app = createApp({
   rollout: { enabled: config.storeRolloutEnabled },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
+  storeRelease: { enabled: config.storeReleaseEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   reads,
   cloneUpkeep,
@@ -268,6 +269,9 @@ if (config.worker === 'inline') {
   }
   if (config.storeSubmitEnabled) {
     console.log('Submitting for store review is ON (MRM_STORE_SUBMIT_ENABLED): owners and admins can submit a pushed draft to App Review or send it to Google Play review (not recallable from here; never releases)');
+  }
+  if (config.storeReleaseEnabled) {
+    console.log('Releasing is ON (MRM_STORE_RELEASE_ENABLED): owners and admins can release an approved App Store version or start a Google Play draft release at a share of users (not recallable from here)');
   }
   if (config.reminderIntervalMinutes > 0) {
     console.log(`Plan reminders every ${config.reminderIntervalMinutes} minutes (events only)`);

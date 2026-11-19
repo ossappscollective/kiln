@@ -8,8 +8,13 @@ import {
   type AssetSlot,
   type Platform,
   PUSHABLE_IMAGE_FORMATS,
+  RELEASE_FIELD_SPECS,
+  type ReleaseFieldId,
+  type ReleaseFieldItem,
+  STAGEABLE_RELEASE_FIELDS,
   STAGED_LIMITS,
   STAGEABLE_TEXT_FIELDS,
+  type StagedReleaseFieldView,
   type StagedAssetFileView,
   type StagedAssetView,
   type StagedChangesView,
@@ -19,10 +24,14 @@ import {
   appleDisplayType,
   assetSlotSupport,
   assetStoreOf,
+  checkReleaseField,
+  checkReleaseSet,
   deviceLabel,
+  isReleaseFieldId,
   isStageableTextField,
   parseSlotKey,
   playImageType,
+  releaseItemKey,
   slotKey,
   slotMaxFiles,
   validateAssets,
@@ -84,7 +93,7 @@ export type StagedRow = {
   workspaceId: string;
   appId: string;
   platform: Platform;
-  kind: 'listing_text' | 'asset';
+  kind: 'listing_text' | 'asset' | 'release_field';
   locale: string;
   /** The listing field (text) or the slot key (asset). */
   target: string;
@@ -293,7 +302,41 @@ export type StagedAnalysis = {
 };
 
 /** The staged changes of an app as the API shows them. Reads the database only. */
-export async function buildStagedView(ctx: Pick<StagedContext, 'db'>, workspaceId: string, app: ManagedApp, rows?: StagedRow[]): Promise<StagedChangesView> {
+/**
+ * The release fields staged for an app (docs/api/releases-write.md) as the API shows them. A value is checked on its own
+ * (`checkReleaseField`) and against the other staged fields (`checkReleaseSet`); what the store holds is checked by the push preview.
+ */
+export function releaseViewsOf(platform: Platform, rows: readonly StagedRow[], now: number): StagedReleaseFieldView[] {
+  const mine = rows.filter((r) => r.kind === 'release_field' && isReleaseFieldId(r.target));
+  const items: ReleaseFieldItem[] = mine.map((r) => ({ field: r.target as ReleaseFieldId, locale: r.locale, value: r.valueText ?? '' }));
+  const set = checkReleaseSet(platform, items);
+  return mine.map((r) => {
+    const field = r.target as ReleaseFieldId;
+    const spec = RELEASE_FIELD_SPECS[field];
+    const value = r.valueText ?? '';
+    const problems = [...checkReleaseField(platform, field, r.locale, value, now), ...(set[releaseItemKey(field, r.locale)] ?? [])];
+    return {
+      id: r.id,
+      kind: 'release_field' as const,
+      field,
+      label: spec.label,
+      locale: r.locale,
+      value,
+      valueHash: r.valueHash,
+      localOnly: field === 'user_fraction',
+      maxLength: spec.maxLength,
+      status: hasError(problems) ? ('invalid' as const) : ('changed' as const),
+      problems,
+      pushedAt: r.pushedAt,
+      pushed: r.pushedHash !== null && r.pushedHash === r.valueHash,
+      createdBy: r.createdBy,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    };
+  });
+}
+
+export async function buildStagedView(ctx: Pick<StagedContext, 'db'> & { now?: () => number }, workspaceId: string, app: ManagedApp, rows?: StagedRow[]): Promise<StagedChangesView> {
   const all = rows ?? (await loadStagedRows(ctx.db, workspaceId, app.id));
   const textRows = all.filter((r) => r.kind === 'listing_text');
   const before = new Map<string, string | null>();
@@ -361,22 +404,25 @@ export async function buildStagedView(ctx: Pick<StagedContext, 'db'>, workspaceI
       updatedAt: Math.max(...set.rows.map((r) => r.updatedAt)),
     };
   });
-  const all2 = [...text.flatMap((t) => t.problems), ...assets.flatMap((a) => a.problems)];
+  const release = releaseViewsOf(app.platform, all, ctx.now ? ctx.now() : Date.now());
+  const all2 = [...text.flatMap((t) => t.problems), ...assets.flatMap((a) => a.problems), ...release.flatMap((r) => r.problems)];
   const errors = all2.filter((p) => p.severity === 'error').length;
   return {
     app: { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) },
     text,
     assets,
+    release,
     totals: {
       text: text.length,
       assetSets: assets.length,
       assetFiles: assets.reduce((n, a) => n + a.files.length, 0),
+      release: release.length,
       errors,
       warnings: all2.filter((p) => p.severity === 'warning').length,
-      changed: text.filter((t) => t.status === 'changed').length + assets.filter((a) => a.status === 'changed').length,
+      changed: text.filter((t) => t.status === 'changed').length + assets.filter((a) => a.status === 'changed').length + release.filter((r) => r.status === 'changed' && !r.localOnly).length,
     },
     valid: errors === 0,
-    pushable: { textFields: [...STAGEABLE_TEXT_FIELDS[app.platform]] },
+    pushable: { textFields: [...STAGEABLE_TEXT_FIELDS[app.platform]], releaseFields: [...STAGEABLE_RELEASE_FIELDS[app.platform]] },
     limits: STAGED_LIMITS,
   };
 }
@@ -637,7 +683,7 @@ export async function unstage(
       count = await tx.execute("DELETE FROM staged_changes WHERE workspace_id = ? AND app_id = ? AND kind = 'asset' AND locale = ? AND target = ?", [input.workspaceId, app.id, locale, key]);
       detail = { appId: app.id, set: input.id, rows: count };
     } else {
-      count = await tx.execute("DELETE FROM staged_changes WHERE workspace_id = ? AND app_id = ? AND kind = 'listing_text' AND id = ?", [input.workspaceId, app.id, input.id]);
+      count = await tx.execute("DELETE FROM staged_changes WHERE workspace_id = ? AND app_id = ? AND kind IN ('listing_text', 'release_field') AND id = ?", [input.workspaceId, app.id, input.id]);
       detail = { appId: app.id, itemId: input.id, rows: count };
     }
     if (count === 0) return false;
@@ -674,7 +720,7 @@ export async function clearStaged(
 export const sha256Hex = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');
 
 /** What a push confirmation holds of the staged side: the hash of every text and the blob ids of every set, in a fixed order. */
-export function stagedKey(rows: readonly StagedRow[]): { text: string[][]; assets: (string | string[])[][] } {
+export function stagedKey(rows: readonly StagedRow[]): { text: string[][]; assets: (string | string[])[][]; release?: string[][] } {
   const text = rows
     .filter((r) => r.kind === 'listing_text')
     .map((r) => [r.locale, r.target, r.valueHash])
@@ -682,7 +728,12 @@ export function stagedKey(rows: readonly StagedRow[]): { text: string[][]; asset
   const assets = assetSetsOf(rows)
     .map((s) => [s.locale, slotKey(s.slot), s.rows.map((r) => r.valueHash)] as (string | string[])[])
     .sort((a, b) => ((a[0] as string) + (a[1] as string) < (b[0] as string) + (b[1] as string) ? -1 : 1));
-  return { text, assets };
+  // Release fields count only when there are some, so the confirmation of a push without them is what it always was.
+  const release = rows
+    .filter((r) => r.kind === 'release_field')
+    .map((r) => [r.locale, r.target, r.valueHash])
+    .sort((a, b) => (a.join('\u0000') < b.join('\u0000') ? -1 : 1));
+  return release.length > 0 ? { text, assets, release } : { text, assets };
 }
 
 export { ABSENT_HASH };
