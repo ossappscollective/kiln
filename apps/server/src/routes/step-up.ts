@@ -60,6 +60,8 @@ const verifyBody = z.discriminatedUnion('factor', [
     assertion: z.object({ id: b64, clientDataJSON: b64, authenticatorData: b64, signature: b64 }),
   }),
   z.object({ factor: z.literal('recovery'), action: actionSchema, target: targetSchema.optional(), code: z.string().min(1).max(64) }),
+  z.object({ factor: z.literal('totp'), action: actionSchema, target: targetSchema.optional(), code: z.string().min(1).max(16) }),
+  z.object({ factor: z.literal('email'), action: actionSchema, target: targetSchema.optional(), code: z.string().min(1).max(16) }),
 ]);
 export const stepUpVerifyBody = verifyBody;
 
@@ -242,7 +244,11 @@ export function stepUpRoutes(ctx: StepUpRoutesContext) {
         ? { ...common, factor: 'password' as const, password: body.data.password }
         : body.data.factor === 'recovery'
           ? { ...common, factor: 'recovery' as const, code: body.data.code }
-          : { ...common, factor: 'passkey' as const, challengeId: body.data.challengeId, assertion: body.data.assertion };
+          : body.data.factor === 'totp'
+            ? { ...common, factor: 'totp' as const, code: body.data.code, masterKey: services.masterKey }
+            : body.data.factor === 'email'
+              ? { ...common, factor: 'email' as const, code: body.data.code, masterKey: services.masterKey }
+              : { ...common, factor: 'passkey' as const, challengeId: body.data.challengeId, assertion: body.data.assertion };
     const done = await verifyFactor(db, input, now());
     c.header('Cache-Control', 'no-store');
     if (done.ok) return c.json({ grant: done.grant, expiresAt: done.expiresAt });

@@ -59,8 +59,9 @@ async function setup(db: Database) {
         NOW - 1000,
       ],
     );
+  // Adding the viewer and the member wrote a member.added event each; the tests below count the plan's own events.
   const events = async (type?: string) =>
-    ((await call(owner.cookie, 'GET', `/events?since=0${type ? `&type=${type}` : ''}`)).body.events as Json[]);
+    ((await call(owner.cookie, 'GET', `/events?since=0${type ? `&type=${type}` : ''}`)).body.events as Json[]).filter((e) => e.type !== 'member.added');
   return { ...t, owner, viewer, member, call, seedApp, androidId, iosId, plan, release, events };
 }
 type Setup = Awaited<ReturnType<typeof setup>>;

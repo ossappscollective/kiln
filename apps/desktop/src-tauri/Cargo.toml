@@ -10,5 +10,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# Native desktop notifications for alerts (docs/alerts.md). Not compiled in the session that added it.
+tauri-plugin-notification = "2"
 # OS CSPRNG for the per-launch secret and the master key.
 getrandom = "0.2"

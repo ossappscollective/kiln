@@ -1,6 +1,6 @@
 import type { JsonSchema } from '@mrm/connectors';
-import type { AiProposal, AiProposalKind, AiTaskId } from '@mrm/core';
-import type { Database } from '@mrm/db';
+import type { AiAppContext, AiProposal, AiProposalKind, AiTaskId } from '@mrm/core';
+import type { Database, Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 
@@ -18,7 +18,17 @@ import { type AiFailure, aiFail } from './ai-config.ts';
  * against the task's JSON schema by the provider layer, post-processed here, stored as a proposal and shown to a person.
  */
 
-export type TaskContext = { db: Database; now: () => number; workspaceId: string; app: ManagedApp };
+export type TaskContext = {
+  db: Database;
+  now: () => number;
+  workspaceId: string;
+  app: ManagedApp;
+  /** What the person told the assistant about this app (docs/adr/0024-ai-features.md). Empty when nothing was written. */
+  context: AiAppContext;
+};
+
+/** What a task's `persist` step knows about the run it belongs to. */
+export type PersistInfo = { workspaceId: string; appId: string; provider: string; model: string; at: number };
 
 export type PreparedRun = {
   /** The structured data sent: only what the disclosure lists. */
@@ -62,6 +72,16 @@ export type ReadyTask = TaskBase & {
   maxOutputTokens: number;
   prepare(ctx: TaskContext, scope: Record<string, unknown>): Promise<PreparedRun | AiFailure>;
   propose(output: unknown, run: PreparedRun): AiProposal;
+  /**
+   * `false`: the app context is NOT added to this task's input. For a task whose result is cached (review tags): the cache must not
+   * depend on text that a person can edit. Default: the context is added (only the filled in parts), as `appContext`.
+   */
+  useContext?: boolean;
+  /**
+   * Runs in the same transaction that stores the suggestion, for a task whose result is also kept somewhere other than the
+   * suggestion (the review tags cache). It writes the task's OWN tables only.
+   */
+  persist?(sql: Sql, info: PersistInfo, proposal: AiProposal, run: PreparedRun): Promise<void>;
 };
 
 /** Registered, not built yet: listed with its disclosure plan, answers 409 `task_not_available` when run. */

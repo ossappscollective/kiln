@@ -273,8 +273,16 @@ test('the accept payload names exactly the ticked rows, by position for keywords
 
 test('what accepting did points to where the result lives', () => {
   const kw = acceptedNote({ kind: 'keywords', keywordIds: ['a'], created: 2, existing: 1, rejected: 0 }, 'app 1', 'ios');
-  assert.equal(kw.text, '2 keywords added to the tracked keywords, 1 already tracked.');
+  assert.equal(kw.text, 'Added 2 keywords, 1 already tracked.');
   assert.equal(kw.href, '#/portfolio/app%201/insights?platform=ios&view=keywords');
+  assert.equal(kw.linkLabel, 'Show them');
+  // It says where they went, and the link opens that platform even when the page is on the whole app.
+  const where = acceptedNote({ kind: 'keywords', keywordIds: [], created: 8, existing: 0, rejected: 0, locale: 'en-US', country: 'us', remaining: 0 }, 'a1', 'both', 'ios');
+  assert.equal(where.text, 'Added 8 keywords to iOS · en-US.');
+  assert.equal(where.href, '#/portfolio/a1/insights?platform=ios&view=keywords');
+  const part = acceptedNote({ kind: 'keywords', keywordIds: [], created: 1, existing: 0, rejected: 0, locale: 'de-DE', remaining: 3 }, 'a1', null, 'android');
+  assert.equal(part.text, 'Added 1 keyword to Android · de-DE. 3 ideas are still proposed.');
+  assert.equal(acceptedNote({ kind: 'keywords', keywordIds: [], created: 0, existing: 2, rejected: 0, locale: 'en-US' }, 'a1', null, 'ios').text, 'Nothing new for iOS · en-US, 2 already tracked.');
   const li = acceptedNote({ kind: 'listing_text', stagedFields: ['keywords', 'promotional_text'], locale: 'de-DE' }, 'a1');
   assert.match(li.text, /Staged 2 texts for de-DE \(Keyword field, Promotional text\)\. Nothing is sent to a store/);
   assert.equal(li.href, '#/portfolio/a1/pending');

@@ -88,6 +88,10 @@ const schema = z.object({
   // network address, which is how a local model (Ollama, LM Studio, vLLM) is reached; plain http then works to the same machine only.
   // Off by default: the address must be https to a public host. Link-local addresses (cloud metadata) are refused either way.
   MRM_AI_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // 'true' turns on the MCP endpoint (POST /mcp) that lets AI assistants (Claude, Cursor, ...) work with a workspace through an API token.
+  // Off by default: while off, /mcp answers 404. Even when on, a token sees only what its role and actions allow; store writes are never
+  // applied through it (only previewed). docs/mcp.md, docs/adr/0023-mcp-server.md.
+  MRM_MCP_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Where scans and listings read the repository. 'auto' (default) uses a local git clone and
   // falls back to the GitHub API for a request when the clone cannot be used. 'clone' never falls
   // back. 'api' is the GitHub REST API only. See docs/adr/0005-local-clone-reads.md.
@@ -537,6 +541,8 @@ export type Config = {
   aiEnabled: boolean;
   /** The address of an OpenAI compatible model server may be private or loopback. See MRM_AI_ALLOW_PRIVATE_URLS. */
   aiAllowPrivateUrls: boolean;
+  /** The MCP endpoint (POST /mcp) is on. See MRM_MCP_ENABLED. */
+  mcpEnabled: boolean;
   /** How scans and listings read the repository. See MRM_READS. */
   reads: 'api' | 'clone' | 'auto';
   /** Where git clones live: MRM_CLONE_DIR, default `<dataDir>/clones`. */
@@ -647,6 +653,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     translateAllowPrivateUrls: data.MRM_TRANSLATE_ALLOW_PRIVATE_URLS === 'true',
     aiEnabled: data.MRM_AI_ENABLED === 'true',
     aiAllowPrivateUrls: data.MRM_AI_ALLOW_PRIVATE_URLS === 'true',
+    mcpEnabled: data.MRM_MCP_ENABLED === 'true',
     reads: data.MRM_READS,
     cloneDir: data.MRM_CLONE_DIR ?? join(data.MRM_DATA_DIR, 'clones'),
     cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,

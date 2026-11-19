@@ -156,6 +156,16 @@ export async function reopenSuggestion(sql: Sql, workspaceId: string, id: string
   );
 }
 
+/** Rewrites the proposal of a suggestion that is still open (a partial accept marks the items it took). False when it was no longer proposed. */
+export async function updateProposal(sql: Sql, workspaceId: string, id: string, proposal: AiProposal): Promise<boolean> {
+  const changed = await sql.execute("UPDATE ai_suggestions SET proposal = ? WHERE workspace_id = ? AND id = ? AND status = 'proposed'", [
+    JSON.stringify(proposal),
+    workspaceId,
+    id,
+  ]);
+  return Number(changed) > 0;
+}
+
 /** Records what an accepted suggestion created. */
 export async function recordAccepted(sql: Sql, workspaceId: string, id: string, accepted: AiAcceptedRef): Promise<void> {
   await sql.execute('UPDATE ai_suggestions SET accepted = ? WHERE workspace_id = ? AND id = ?', [JSON.stringify(accepted), workspaceId, id]);
@@ -164,6 +174,9 @@ export async function recordAccepted(sql: Sql, workspaceId: string, id: string, 
 /** Deletes everything AI knows about an app (called when the app is deleted). Usage rows keep no app text; their app id is cleared. */
 export async function deleteAiData(sql: Sql, workspaceId: string, appId: string): Promise<void> {
   await sql.execute('DELETE FROM ai_suggestions WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
+  // The context a person wrote for the app and the tags the assistant gave its reviews (docs/adr/0024-ai-features.md) go with it.
+  await sql.execute('DELETE FROM ai_app_context WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
+  await sql.execute('DELETE FROM review_classifications WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
   await sql.execute('UPDATE ai_usage SET app_id = NULL WHERE workspace_id = ? AND app_id = ?', [workspaceId, appId]);
 }
 
@@ -171,5 +184,7 @@ export async function deleteAiData(sql: Sql, workspaceId: string, appId: string)
 export async function purgeAiData(sql: Sql, now: number): Promise<number> {
   const suggestions = await sql.execute('DELETE FROM ai_suggestions WHERE created_at < ?', [now - aiLimits.suggestionRetentionDays * DAY_MS]);
   const usage = await sql.execute('DELETE FROM ai_usage WHERE created_at < ?', [now - USAGE_RETENTION_MS]);
-  return Number(suggestions) + Number(usage);
+  // Tags of reviews that no longer exist (pruned or deleted).
+  const tags = await sql.execute('DELETE FROM review_classifications WHERE review_id NOT IN (SELECT id FROM app_reviews)');
+  return Number(suggestions) + Number(usage) + Number(tags);
 }

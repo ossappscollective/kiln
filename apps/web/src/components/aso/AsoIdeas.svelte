@@ -33,6 +33,7 @@
   import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
+  import SuggestKeywordsFromReviews from '../ai/SuggestKeywordsFromReviews.svelte';
 
   let {
     api,
@@ -110,6 +111,14 @@
   {#if canWrite}
     <div class="suggest-row">
       <SuggestKeywords
+        {api}
+        {workspaceId}
+        {role}
+        {members}
+        {keywords}
+        localeFor={(app) => (locale !== '' && locales.indexOf(locale) >= 0 ? locale : (data[app.id]?.locale ?? null))}
+      />
+      <SuggestKeywordsFromReviews
         {api}
         {workspaceId}
         {role}

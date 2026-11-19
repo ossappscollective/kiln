@@ -122,6 +122,7 @@ export const analyticsErrorCodes = [
   'bucket_forbidden', // the service account may not read the bucket
   'bucket_not_found',
   'reports_not_found', // the bucket holds no file for the month
+  'package_not_in_bucket', // the bucket can be read but holds no report of this package at all: usually the bucket of another Play account
   // Both
   'store_auth', // the credential is unusable
   'store_forbidden',
@@ -206,6 +207,7 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   bucket_forbidden: 'The service account may not read the Cloud Storage bucket of the Play Console reports.',
   bucket_not_found: 'Google Cloud Storage has no bucket with this id.',
   reports_not_found: 'The bucket holds no report file for this app and month yet.',
+  package_not_in_bucket: 'This package is not in this bucket. The reports of an app are in the bucket of the Play account that owns it: check the bucket of this app.',
   store_auth: 'The credential was refused by the store. Check the key and enter it again.',
   store_forbidden: 'The credential is not allowed to read this from the store.',
   store_not_found: 'The store has no such app for this credential.',
@@ -337,6 +339,36 @@ export function normalizeBucketId(raw: string): string | undefined {
   const trimmed = raw.trim().replace(/^gs:\/\//i, '').replace(/\/+$/, '');
   return /^pubsite_prod_rev_[0-9]{6,30}$/.test(trimmed) ? trimmed : undefined;
 }
+
+/** Where the bucket an app reads came from: its own override, its Play developer account (credential), or the workspace setting. */
+export const playBucketSources = ['app', 'account', 'workspace'] as const;
+export type PlayBucketSource = (typeof playBucketSources)[number];
+
+/** What "Test the bucket" can answer. A fixed vocabulary: nothing Google said is passed on. */
+export const playBucketTestCodes = [
+  'ok', // the bucket was read and holds report files for this app
+  'no_reports_yet', // the bucket can be read, but holds no report file for this app in the last two months
+  'package_not_found', // the bucket can be read but holds no report of this package at all (the bucket of another Play account?)
+  'not_set',
+  'bucket_invalid',
+  'bucket_forbidden', // the service account may not read it
+  'bucket_not_found',
+  'credential_problem',
+  'unreachable',
+] as const;
+export type PlayBucketTestCode = (typeof playBucketTestCodes)[number];
+
+export const playBucketTestMessages: Record<PlayBucketTestCode, string> = {
+  ok: 'The bucket can be read and holds report files for this app.',
+  package_not_found: 'This package is not in this bucket: the bucket belongs to another Play account, or the app has no reports yet. The reports of an app are in the bucket of the Play account that owns it.',
+  no_reports_yet: 'The bucket can be read, but it holds no report file for this app yet. Google writes the files monthly, so this can be right for a new app or month.',
+  not_set: 'No bucket is set for this app.',
+  bucket_invalid: 'That is not a Play reports bucket. It looks like gs://pubsite_prod_rev_ followed by digits.',
+  bucket_forbidden: 'The service account may not read this bucket. Grant it Storage Object Viewer on the bucket (and check the Play Console permission).',
+  bucket_not_found: 'Google Cloud Storage has no bucket with this id. Copy it again from Play Console.',
+  credential_problem: 'The saved Google Play credential could not be used. Check it under Credentials.',
+  unreachable: 'Google Cloud Storage could not be reached just now. Try again later.',
+};
 
 /** An Apple vendor number (Payments and Financial Reports): digits only. */
 export function normalizeVendorNumber(raw: string): string | undefined {

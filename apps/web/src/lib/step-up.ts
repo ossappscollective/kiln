@@ -47,7 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export const stepUpActionLabel = (action: string): string => ACTION_LABELS[action] || 'This action';
 
-export type StepUpFactor = 'passkey' | 'password' | 'recovery';
+export type StepUpFactor = 'passkey' | 'password' | 'recovery' | 'totp' | 'email';
 export type StepUpTarget = { id?: string; hash?: string };
 export type StepUpNeed = { action: string; target: StepUpTarget; factors: StepUpFactor[]; reason: string };
 
@@ -71,7 +71,7 @@ export function stepUpNeed(error: unknown, hash?: string): StepUpNeed | undefine
   const e = error as ErrorLike | null;
   if (!e || typeof e !== 'object' || e.code !== 'step_up_required') return undefined;
   const body = (e.body && typeof e.body === 'object' ? e.body : {}) as Record<string, unknown>;
-  const factors = Array.isArray(body.factors) ? (body.factors.filter((f) => f === 'passkey' || f === 'password' || f === 'recovery') as StepUpFactor[]) : [];
+  const factors = Array.isArray(body.factors) ? (body.factors.filter((f) => f === 'passkey' || f === 'password' || f === 'recovery' || f === 'totp' || f === 'email') as StepUpFactor[]) : [];
   const target: StepUpTarget = {};
   if (typeof body.target === 'string' && body.target) target.id = body.target;
   if (hash) target.hash = hash;
@@ -107,7 +107,7 @@ export function stepUpMessage(code: string, retryAfter?: number): string | undef
     case 'step_up_required_human':
       return 'This needs a person to confirm it in the app. An API token cannot.';
     case 'step_up_not_enrolled':
-      return 'This action needs a confirmation, and you have no way to confirm yet. Add a passkey or set a confirmation password in Settings, Security.';
+      return 'This action needs a confirmation, and you have no way to confirm yet. Add a passkey, an authenticator app or a confirmation password in Settings, Security.';
     case 'step_up_failed':
       return 'That did not confirm. Try again.';
     case 'step_up_locked': {
@@ -265,12 +265,14 @@ export function webauthnSupported(env: { isSecureContext?: boolean; PublicKeyCre
 export function primaryFactor(factors: readonly StepUpFactor[], supported: boolean): StepUpFactor | undefined {
   if (supported && factors.indexOf('passkey') >= 0) return 'passkey';
   if (factors.indexOf('password') >= 0) return 'password';
+  if (factors.indexOf('totp') >= 0) return 'totp';
+  if (factors.indexOf('email') >= 0) return 'email';
   return undefined;
 }
 
 /** True when the only enrolled way is a passkey and this window cannot use one: the person is stuck here and needs to be told. */
 export function passkeyOnlyButUnsupported(factors: readonly StepUpFactor[], supported: boolean): boolean {
-  return !supported && factors.indexOf('passkey') >= 0 && factors.indexOf('password') < 0;
+  return !supported && factors.indexOf('passkey') >= 0 && factors.indexOf('password') < 0 && factors.indexOf('totp') < 0 && factors.indexOf('email') < 0;
 }
 
 // ---------------------------------------------------------------------------------------------

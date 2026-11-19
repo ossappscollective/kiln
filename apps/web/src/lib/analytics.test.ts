@@ -35,8 +35,12 @@ import {
   stepAction,
   stepAvailable,
   storedErrorText,
+  bucketSourceText,
+  needsPlayBucket,
+  playSourceLine,
   withRange,
 } from './analytics.ts';
+import { sourceOf, statusOf } from './analytics-fixtures.ts';
 import { ApiError } from './api.ts';
 import { FROM, NOW, TO, appleOverview, mkSeries, wave } from './analytics-fixtures.ts';
 
@@ -271,8 +275,9 @@ test('a next step is a button only for those who may manage; words and links are
   assert.equal(stepAction('import_apple_report').kind, 'import');
   assert.equal(stepAction('sync_now').kind, 'sync');
   const bucket = stepAction('set_bucket_id');
-  assert.deepEqual(bucket, { kind: 'link', label: 'Set the bucket id in Settings', target: 'settings', needs: 'none' });
-  assert.equal(stepAvailable(bucket, false), true);
+  assert.deepEqual(bucket, { kind: 'bucket', label: 'Set the reports bucket', needs: 'manage' });
+  assert.equal(stepAvailable(bucket, false), false, 'only an owner or an admin sets it');
+  assert.equal(stepAvailable(bucket, true), true);
   const cred = stepAction('fix_credential');
   assert.equal(cred.kind === 'link' && cred.target, 'credentials');
   assert.equal(stepAction('wait').kind, 'text');
@@ -282,7 +287,7 @@ test('a next step is a button only for those who may manage; words and links are
 
 test('setup codes read as plain sentences, unknown ones as a generic sentence; unknown states need setup', () => {
   assert.match(setupSentence('role_required'), /Import a report file/);
-  assert.match(setupSentence('bucket_id_missing'), /bucket id/);
+  assert.match(setupSentence('bucket_id_missing'), /reports/);
   assert.match(setupSentence('nope'), /needs attention/);
   assert.equal(stateOf('ready'), 'ready');
   assert.equal(stateOf('what'), 'needs_setup');
@@ -296,4 +301,31 @@ test('the fixture overview has the shapes the API documents', () => {
   assert.equal(wave(3, 10, 0).length, 3);
   const gap = appleOverview({ gap: true }).series.find((s) => s.id === 'impressions');
   assert.equal(gap?.coverage.gapDays, 2);
+});
+
+// ---- the Google Play reports bucket ----
+
+test('an Android app without a reports bucket says so; an iOS app and an app with a bucket do not', () => {
+  assert.equal(needsPlayBucket(null), false);
+  assert.equal(needsPlayBucket(statusOf()), false, 'iOS has no bucket');
+  assert.equal(needsPlayBucket(statusOf({ google: { bucketIdSet: false, bucketSource: null } })), true);
+  assert.equal(needsPlayBucket(statusOf({ google: { bucketIdSet: true, bucketSource: 'app' } })), false);
+});
+
+test('the status line names each Android source: Vitals connected, Installs not set up until a bucket is', () => {
+  const vitals = sourceOf({ source: 'play_vitals', label: 'Android vitals', state: 'ready' });
+  const reports = sourceOf({ source: 'play_reports', label: 'Play Console reports', state: 'needs_setup' });
+  const without = statusOf({ platform: 'android', apple: null, google: { bucketIdSet: false, bucketSource: null }, sources: [vitals, reports] });
+  assert.equal(playSourceLine(without), 'Vitals: connected · Installs: not set up');
+  const withBucket = statusOf({ platform: 'android', apple: null, google: { bucketIdSet: true, bucketSource: 'workspace' }, sources: [vitals, { ...reports, state: 'ready' }] });
+  assert.equal(playSourceLine(withBucket), 'Vitals: connected · Installs: connected');
+  const failing = statusOf({ platform: 'android', apple: null, google: { bucketIdSet: true, bucketSource: 'app' }, sources: [vitals, { ...reports, state: 'error' }] });
+  assert.equal(playSourceLine(failing), 'Vitals: connected · Installs: last read failed');
+});
+
+test('where the bucket comes from, in words', () => {
+  assert.equal(bucketSourceText({ source: 'app', sharedWith: 3 }), 'Set for this app only.');
+  assert.equal(bucketSourceText({ source: 'workspace', sharedWith: 3 }), 'Set in the workspace settings.');
+  assert.equal(bucketSourceText({ source: 'account', sharedWith: 3 }), 'Shared by the 3 Android apps of this Play account.');
+  assert.equal(bucketSourceText({ source: null, sharedWith: 1 }), 'Not set.');
 });

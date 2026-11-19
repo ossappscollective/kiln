@@ -129,6 +129,8 @@ export async function deleteCredential(
       input.workspaceId,
     ]);
     if (changed === 0) return false;
+    // The Play reports bucket of a developer account (analytics) goes with its credential.
+    await tx.execute('DELETE FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?', [input.id, input.workspaceId]);
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor,

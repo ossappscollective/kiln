@@ -551,6 +551,20 @@ Analytics ([api/analytics](api/analytics.md), [ADR 0017](adr/0017-analytics-foun
 - **Import size:** an uploaded Apple report may be 10 MiB (64 MiB unpacked); the usual 1 MiB request limit is lifted for the two import routes only.
 - **Not verified:** nothing was run against Apple or Google. See [the study](research/analytics-apis.md) and [api/analytics](api/analytics.md#not-verified-unverified).
 
+## Outgoing mail and two-factor codes
+
+Emailed codes and alert emails need a mail server: `MRM_SMTP_HOST`, `MRM_SMTP_PORT`, `MRM_SMTP_SECURE`, `MRM_SMTP_USER`, `MRM_SMTP_PASSWORD`,
+`MRM_SMTP_FROM` in `.env`, or an admin enters it under Settings, Mail. See [mail](api/mail.md).
+
+- Allow outbound TCP from the server to the mail host and port (587 or 465). A network that blocks it shows as "could not be reached".
+- Inside Docker, `localhost` is the container. A relay on the host or on your network is a **private address** and is refused until you set
+  `MRM_SMTP_ALLOW_PRIVATE_HOSTS=true`; only the operator can, on purpose (the setting screen cannot).
+- Certificates are verified. For a relay with a private CA, add the CA to the container with `NODE_EXTRA_CA_CERTS`.
+- The authenticator app needs the server clock to be right (NTP); codes are accepted 30 seconds either side.
+- An authenticator app and email codes confirm hard actions with no mail server for the app. A sign-in second step
+  (Settings, Security, "Signing in") needs accounts, not single-user mode. Before you set it to "required", check that every owner and admin has
+  a phone or recovery codes; the way back for a locked-out only owner is in [two-factor](api/two-factor.md#if-someone-is-locked-out).
+
 ## Tokens, event streams and webhooks
 
 - **API tokens** work with a `Authorization: Bearer` header and are rate limited per token (300 a

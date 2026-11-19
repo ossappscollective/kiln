@@ -9,6 +9,10 @@
  * push, submit, publish, release or send a reply.
  */
 
+import type { AiInsightProposal, AiVariantsProposal } from './ai-insights.ts';
+
+export * from './ai-insights.ts';
+
 export const aiProviders = ['anthropic', 'openai', 'openai_compatible'] as const;
 export type AiProvider = (typeof aiProviders)[number];
 
@@ -61,6 +65,14 @@ export const aiTaskIds = [
   'release_notes',
   'listing_translate',
   'rank_drop_explain',
+  // AI features (docs/adr/0024-ai-features.md): reviews and ASO insights.
+  'review_summary',
+  'review_classify',
+  'fix_next',
+  'listing_audit',
+  'keyword_ideas_reviews',
+  'listing_variants',
+  'aso_health',
 ] as const;
 export type AiTaskId = (typeof aiTaskIds)[number];
 
@@ -72,7 +84,7 @@ export const aiSuggestionStatuses = ['proposed', 'accepted', 'dismissed'] as con
 export type AiSuggestionStatus = (typeof aiSuggestionStatuses)[number];
 
 /** What a proposal turns into when a person accepts it. Each kind goes through an EXISTING mechanism. */
-export const aiProposalKinds = ['keywords', 'listing_text', 'reply_draft'] as const;
+export const aiProposalKinds = ['keywords', 'listing_text', 'reply_draft', 'insight', 'listing_variants'] as const;
 export type AiProposalKind = (typeof aiProposalKinds)[number];
 
 /** The right a person needs to ACCEPT a proposal of each kind (the right of the mechanism it goes through). */
@@ -80,6 +92,10 @@ export const aiAcceptAction = {
   keywords: 'aso.write',
   listing_text: 'changesets.write',
   reply_draft: 'reviews.triage',
+  /** An insight is read, not applied: "accepting" it only marks it reviewed, so the right to use AI is enough. */
+  insight: 'ai.use',
+  /** A chosen variant is STAGED like a listing text. */
+  listing_variants: 'changesets.write',
 } as const;
 
 export const aiLimits = {
@@ -151,6 +167,16 @@ export const aiFlags = [
   'cleaned',
   /** Reply: looks like HTML. Replies are plain text. */
   'markup',
+  /** Text contains a word the app's AI context bans. The text is kept for reading and cannot be accepted. */
+  'banned_term',
+  /** Reply: contains an email address, a phone number or a link. Replies never include those. */
+  'personal_data',
+  /** Reply or text: reads like a promise of a refund, a date, a fix or a legal position. Kept, flagged: a person decides. */
+  'risky_promise',
+  /** Insight: a number about a rank that the data did not hold. The finding is kept and flagged. */
+  'unverified_number',
+  /** Text: a brand term of the app's AI context that was in the source is missing from the result. */
+  'brand_term_missing',
 ] as const;
 export type AiFlag = (typeof aiFlags)[number];
 
@@ -160,6 +186,10 @@ export type AiKeywordIdea = {
   reason: string;
   /** The listing field the model suggests the term for, or null (track only). */
   field: string | null;
+  /** 0 to 100: how well the model thinks the term fits the app, when the task asks for it. */
+  relevance?: number;
+  /** Where the idea came from: `reviews`, `listing`, `competitors`. */
+  sources?: string[];
   acceptable: boolean;
   flags: AiFlag[];
 };
@@ -203,13 +233,26 @@ export type AiReplyProposal = {
   flags: AiFlag[];
 };
 
-export type AiProposal = AiKeywordProposal | AiListingProposal | AiReplyProposal;
+export type AiProposal = AiKeywordProposal | AiListingProposal | AiReplyProposal | AiInsightProposal | AiVariantsProposal;
 
 /** What accepting created, as ids (never text). */
 export type AiAcceptedRef =
-  | { kind: 'keywords'; keywordIds: string[]; created: number; existing: number; rejected: number }
+  | {
+      kind: 'keywords';
+      keywordIds: string[];
+      created: number;
+      existing: number;
+      rejected: number;
+      /** Where they were tracked (the proposal's language and storefront). Absent on suggestions accepted before this was recorded. */
+      locale?: string;
+      country?: string;
+      /** How many items of the suggestion are still open to accept (0: the suggestion is closed). Absent on older results. */
+      remaining?: number;
+    }
   | { kind: 'listing_text'; stagedFields: string[]; locale: string }
-  | { kind: 'reply_draft'; reviewId: string; draftId: string };
+  | { kind: 'reply_draft'; reviewId: string; draftId: string }
+  /** An insight marked as reviewed: nothing was created. */
+  | { kind: 'insight' };
 
 export type AiSuggestionView = {
   id: string;

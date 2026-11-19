@@ -17,7 +17,7 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 
 - `analytics.enabled` (boolean, default `false`): syncing, the scheduled job and the Apple enable action need it. Reading and **importing** do not.
 - `analytics.appleVendorNumber` (string, 5 to 12 digits): turns on `apple_sales` for iOS and macOS apps.
-- `analytics.playBucketId` (string, `pubsite_prod_rev_` and digits): the Cloud Storage bucket of the monthly CSV reports (copy it from Play Console).
+- `analytics.playBucketId` (string, `pubsite_prod_rev_` and digits): the Cloud Storage bucket of the monthly CSV reports, for the whole workspace. The narrower places below win; prefer them.
 
 `MRM_ANALYTICS_INTERVAL_MINUTES` (default 360; `0` off; 15 to 10080) sets how often the scheduler queues a sync. See [deployment](../deployment.md).
 
@@ -30,7 +30,10 @@ Workspace settings (see [settings](settings.md)), all written with `analytics.ma
 | `POST sync` | manage | read the stores now (body optional `{ "sources": [...] }`) |
 | `GET apple/enable[?backfill=true]` | manage | preview of the Apple report request (reads Apple, changes nothing) |
 | `POST apple/enable` | manage | create it (`{ "confirmHash", "backfill"? }`) |
-| `POST import/preview?fileName=` | manage | check an Apple report file (the raw file is the body) |
+| `GET play-bucket` | read | where the Google Play reports bucket of an Android app is set |
+| `PUT play-bucket` | manage | set or clear it (`{ "bucket", "scope"? }`) |
+| `POST play-bucket/test` | manage | can the service account list this app's report files? |
+| `POST import/preview?fileName=` | manage | check a report file: Apple report, or for Android a Play Console statistics CSV (the raw file is the body) |
 | `POST import?fileName=&confirmHash=` | manage | store it (the same raw file again) |
 
 ### `GET overview`
@@ -108,6 +111,37 @@ Error codes (`analyticsErrorCodes`): `analytics_role_required`, `analytics_reque
 `reports_not_found`, `store_auth`, `store_forbidden`, `store_not_found`, `rate_limited`, `store_unavailable`, `timeout`,
 `credential_unreadable`, `credential_not_found`, `app_not_synced`, `sync_failed`. Messages carry no URL, token, report row or store text.
 
+### Google Play reports bucket
+
+Installs, ratings and store listing numbers of an Android app are not in the Reporting API (it holds crash and ANR data only). Google
+publishes them as monthly CSV files in a **private Cloud Storage bucket, one per Play developer account** (`gs://pubsite_prod_rev_<number>`;
+the reports inside are organised by package name). Without a bucket an Android app shows vitals only: Insights says so, with the steps.
+A workspace can hold apps of **several Play accounts**, so the bucket is resolved per app, the narrowest first:
+
+1. the **app** (`scope: "app"`, the default of `PUT`; shown in App settings),
+2. the **Play credential** (`scope: "account"`, optional: every Android app that uses that credential),
+3. the **workspace default**, the setting `analytics.playBucketId` (Settings, Analytics).
+
+The sync and the status use the resolved bucket of each app. An app never reads another app's bucket: an app of a second Play account
+needs its own, because its package is not in the workspace default's bucket. Then the read ends with `package_not_in_bucket` (the bucket can
+be listed, but no report of this package exists in it at all), which is a different step from `reports_not_found` (no file for these months yet).
+
+- `GET play-bucket` answers `{ "playBucket": { bucketId, source, app, account, workspace, inherited: { bucketId, source }, credentialId, sharedWith } }`.
+  `bucketId` is the one the app reads now (no `gs://`), `source` is `app`, `account` or `workspace` (null when none is set), `inherited` is
+  what it would read without its own override ("Use the workspace default" shows it), `sharedWith` counts the Android apps on the same
+  credential. `422 not_an_android_app` for iOS and macOS apps.
+- `PUT play-bucket` takes `{ "bucket": "gs://pubsite_prod_rev_01234567890/" | "pubsite_prod_rev_01234567890" | null, "scope": "app" | "account" }`
+  (`scope` defaults to `app`; `null` clears the override and the app inherits). `400 invalid_request`, `422 bucket_invalid`,
+  `422 not_an_android_app`, `404`. Contacts no store. Audited as `analytics.play_bucket_set` with ids, the scope and whether it was
+  cleared (the bucket id itself is not logged). Deleting the Play credential removes its bucket id; deleting the app removes its own.
+- `POST play-bucket/test` takes an optional `{ "bucket" }` (a value to try before saving it; otherwise the resolved one is used), lists the
+  report files of the app for the previous and the current month (nothing is stored) and always answers 200 with
+  `{ "result": { ok, code, message, months } }`. The codes are a fixed vocabulary, never Google's text: `ok`, `no_reports_yet` (readable, no
+  file yet: `ok: true`), `package_not_found` (readable, but this package is not in the bucket: another account's bucket), `not_set`,
+  `bucket_invalid`, `bucket_forbidden`, `bucket_not_found`, `credential_problem`, `unreachable`. Rate limited like the sync.
+
+`GET status` carries `google: { bucketIdSet, bucketSource }` for Android apps (`bucketSource`: `app`, `account` or `workspace`).
+
 ### Apple enable
 
 `GET apple/enable` returns what exists at Apple and what would be created. It changes nothing at Apple.
@@ -128,15 +162,17 @@ and a store code from the list above (422, or 429, 502, 504). Audited as `analyt
 
 ### Import
 
-For when the key cannot create a request, or a report was exported by hand. The **raw file** is the request body (any content type;
+For when the key cannot create a request, or a report was exported by hand. **Android:** the file is a Play Console statistics CSV
+(Play Console, Download reports, Statistics: installs, ratings or store listing, the same columns as the monthly files of the reports bucket,
+matched by name; rows of another package are left out). It is stored as source `play_reports`, so it is the way to get installs before the
+bucket is set up. A file that is no such report is `422 unknown_report`. The **raw file** is the request body (any content type;
 `.tsv`, `.csv` or the `.gz` as downloaded), at most 10 MiB (64 MiB unpacked, 400,000 rows, 80 columns). Columns are matched by name; the
 report name in `fileName` (at most 200 characters) picks the mapping, else the header does.
 
 - `POST import/preview` stores nothing and answers `{ "plan": { source, report: {kind,label}, platform, stats: {rowsRead,rowsUsed,rowsUnreadable,rowsFiltered}, dateFrom, dateTo, days, points, metrics: [{metric,label,days,total}], sample: [...], notes: [] }, "confirmHash" }`.
 - `POST import?confirmHash=` stores it and answers 201 `{ "imported": { source, points, written, unchanged, dateFrom, dateTo } }`.
   The same file again gives `written: 0`; a value the API already read is never replaced by an imported one.
-- Errors: `409 confirm_mismatch` (the body is not the previewed file), `413 payload_too_large`, `422 import_not_supported` (an Android app),
-  `422 app_not_synced`, `422` with `bad_gzip`, `bad_format`, `missing_columns`, `unknown_report`, `file_too_large` or `no_rows`.
+- Errors: `409 confirm_mismatch` (the body is not the previewed file), `413 payload_too_large`, `422 app_not_synced`, `422` with `bad_gzip`, `bad_format`, `missing_columns`, `unknown_report`, `file_too_large` or `no_rows`.
   Audited as `analytics.import`.
 
 ### Import Google Play search terms
@@ -172,6 +208,6 @@ only when a sync or import stored something new. Never rows, URLs or tokens. See
 The mapping is written from documentation; nothing was run against Apple or Google. To settle with a real account: the segment
 delimiter, checksum and time zone of the date column; the Device strings for Mac; the `salesReports` parameters and answer encoding; the
 Sales key's role after an Admin creates the request; what Apple answers to a duplicate request; the Reporting API field names,
-`freshnessInfo` and the crash-rate unit (stored as sent); Play Console permission names; bucket id discovery and IAM; CSV encodings and
-file names; the `store_performance` columns and their fate after the June and July 2026 change; whether month files grow in place;
+`freshnessInfo` and the crash-rate unit (stored as sent); Play Console permission names; whether the Play Console permission alone lets the service account read the bucket or Storage Object Viewer must be granted on it (the empty state in Insights says both); bucket id discovery and IAM; CSV encodings and
+file names; whether the Play Console statistics export has exactly the bucket's columns (the import assumes it); the `store_performance` columns and their fate after the June and July 2026 change; whether month files grow in place;
 how far back vitals reach.

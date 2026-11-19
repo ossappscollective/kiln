@@ -3,11 +3,14 @@ import {
   type AnalyticsDimension,
   type AnalyticsMetric,
   type AnalyticsSource,
+  type PlayBucketSource,
   addDays,
   dateToDay,
+  normalizeBucketId,
   toMicro,
 } from '@mrm/core';
 import type { AnalyticsPoint } from '@mrm/connectors';
+import type { ManagedApp } from './apps.ts';
 import type { Database, Param, Sql } from '@mrm/db';
 
 /**
@@ -338,6 +341,33 @@ export async function setAppleMode(sql: Sql, input: { workspaceId: string; appId
      ON CONFLICT (app_id) DO UPDATE SET apple_mode = excluded.apple_mode, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
     [input.appId, input.workspaceId, input.mode, input.by, input.now],
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Google Play reports bucket (see analytics-bucket.ts)
+
+const clean = (value: unknown): string | null => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text === '' ? null : (normalizeBucketId(text) ?? null);
+};
+
+export async function getAccountBucket(sql: Sql, workspaceId: string, credentialId: string): Promise<string | null> {
+  const [row] = await sql.query('SELECT play_bucket_id FROM analytics_credential_config WHERE credential_id = ? AND workspace_id = ?', [credentialId, workspaceId]);
+  return row ? clean(row.play_bucket_id) : null;
+}
+
+/** The bucket an Android app reads: its own override, else its developer account's, else the workspace setting. */
+export async function resolvePlayBucket(
+  sql: Sql,
+  input: { workspaceId: string; app: Pick<ManagedApp, 'id' | 'credentialId'>; settings: Record<string, unknown> },
+): Promise<{ bucketId: string | null; source: PlayBucketSource | null; app: string | null; account: string | null; workspace: string | null; inherited: { bucketId: string | null; source: PlayBucketSource | null } }> {
+  const app = clean((await getAppConfig(sql, input.workspaceId, input.app.id)).playBucketId);
+  const account = await getAccountBucket(sql, input.workspaceId, input.app.credentialId);
+  const workspace = clean(input.settings['analytics.playBucketId']);
+  const [bucketId, source] = app ? [app, 'app' as const] : account ? [account, 'account' as const] : workspace ? [workspace, 'workspace' as const] : [null, null];
+  // What the app would read without its own override: the Play credential's bucket, else the workspace default.
+  const inherited = account ? { bucketId: account, source: 'account' as const } : workspace ? { bucketId: workspace, source: 'workspace' as const } : { bucketId: null, source: null };
+  return { bucketId, source, app, account, workspace, inherited };
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -33,13 +33,15 @@ import { normalizeListingValue } from './listing-drift.ts';
  * the text (`changesets.write`, source `ai`); it is pushed only by the existing gated push, after a person previews it.
  */
 
-export const LISTING_IMPROVE_VERSION = 1;
+export const LISTING_IMPROVE_VERSION = 2;
 
 /** The stageable fields that are plain listing copy (not URLs, not release notes), per platform. */
 const IMPROVABLE: Record<'apple' | 'play', readonly string[]> = {
   apple: ['description', 'keywords', 'promotional_text'],
   play: ['title', 'short_description', 'full_description'],
 };
+/** Fields that are one line: a line break in them is white space. */
+export const SINGLE_LINE: readonly string[] = ['keywords', 'title', 'short_description', 'name', 'subtitle'];
 const CONTEXT_FIELDS: Record<'apple' | 'play', readonly string[]> = { apple: ['name', 'subtitle'], play: [] };
 
 export const improvableFields = (platform: Platform): readonly string[] => IMPROVABLE[isApplePlatform(platform) ? 'apple' : 'play'];
@@ -55,7 +57,8 @@ Rules:
 4. For a field called keywords: one line of terms separated by commas with no spaces after the commas, no duplicates, no words that are already in the name or subtitle, and no brand names.
 5. Plain text only: no Markdown and no HTML.
 6. Return one entry per requested field, with a reason in one sentence (at most 200 characters) saying what you changed and why.
-7. Answer only with the JSON object that matches the schema.`;
+7. If the data has appContext, follow its brandVoice, tone, do and dont lists, never use a word in neverUseWords and keep every name in keepExactlyAsWritten exactly as written.
+8. Answer only with the JSON object that matches the schema.`;
 
 const schemaFor = (fields: readonly string[]): JsonSchema => ({
   type: 'object',
@@ -82,10 +85,10 @@ const schemaFor = (fields: readonly string[]): JsonSchema => ({
 type FieldFacts = { field: string; limit: number | null; unit: 'characters' | 'bytes'; current: string | null };
 type Facts = { platform: Platform; locale: string; fields: FieldFacts[] };
 
-const measure = (unit: 'characters' | 'bytes', value: string): number => (unit === 'bytes' ? countBytes(value) : countCharacters(value));
+export const measure = (unit: 'characters' | 'bytes', value: string): number => (unit === 'bytes' ? countBytes(value) : countCharacters(value));
 
 /** A keywords text as the stores want it: entries trimmed, empty and repeated ones dropped, joined with a comma. */
-function normalizeKeywords(text: string): string[] {
+export function normalizeKeywords(text: string): string[] {
   const seen = new Set<string>();
   const entries: string[] = [];
   for (const raw of text.replace(/\n/g, ',').split(',')) {
@@ -198,7 +201,7 @@ export const listingImproveTask: ReadyTask = {
       const spec = facts.fields.find((f) => f.field === answer.field);
       if (!spec) continue;
       const flags: AiFlag[] = [];
-      const cleaned = cleanText(String(answer.text), { multiline: spec.field !== 'keywords' && spec.field !== 'title' && spec.field !== 'short_description' });
+      const cleaned = cleanText(String(answer.text), { multiline: SINGLE_LINE.indexOf(spec.field) === -1 });
       if (cleaned.changed) flags.push('cleaned');
       let text = normalizeListingValue(cleaned.text);
       let unit = spec.unit;

@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { serve } from '@hono/node-server';
 import { createDatabase, migrate } from '@mrm/db';
 import { createApp } from './app.ts';
+import { parseSmtpEnv } from './services/mail-config.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
 import { createWorker } from './jobs.ts';
@@ -38,6 +39,9 @@ import {
   createReviewSyncHandler,
   defaultReviewConnectorFactory,
 } from './services/review-sync.ts';
+import { createAlertDeliveryHandler } from './services/alert-delivery.ts';
+import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './services/alert-runner.ts';
+import { ALERT_QUEUE } from './services/alerts.ts';
 import { WEBHOOK_QUEUE, createWebhookHandler, pruneDeliveries } from './services/webhooks.ts';
 import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
@@ -165,6 +169,8 @@ const app = createApp({
   storePublish: { enabled: config.storePublishBatchEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
   ai: { enabled: config.aiEnabled, allowPrivateUrls: config.aiAllowPrivateUrls },
+  mail: { env: parseSmtpEnv(process.env) },
+  mcp: { enabled: config.mcpEnabled },
   reads,
   cloneUpkeep,
   localWrite: {
@@ -229,6 +235,8 @@ const worker = createWorker({
       now: Date.now,
       allowPrivate: config.webhooksAllowPrivate,
     }),
+    // Alert emails (docs/alerts.md): one job per delivery row; the mailer is services/mailer.ts.
+    [ALERT_QUEUE]: createAlertDeliveryHandler({ db: database, now: Date.now }),
     [CI_POLL_QUEUE]: createCiPollHandler(
       createCiContext({
         db: database,
@@ -257,6 +265,11 @@ const scheduler = createScheduler({
   asoPlayEnabled: config.asoPlayUnofficialEnabled,
   asoRetentionDays: config.asoRetentionDays,
   limiter: syncLimiter,
+  // State alerts, digests and alert upkeep (services/alert-runner.ts).
+  alerts: {
+    intervalMs: ALERT_PASS_INTERVAL_MS,
+    run: createAlertRunner({ db: database, onError: (message, error) => console.error(message, error) }).run,
+  },
   ...(config.cloneSweepIntervalMinutes > 0 && reads.active
     ? { cloneSweep: { intervalMs: config.cloneSweepIntervalMinutes * 60_000, run: () => cloneUpkeep.sweep() } }
     : {}),

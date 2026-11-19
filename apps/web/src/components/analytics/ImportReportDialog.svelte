@@ -1,6 +1,6 @@
 <!--
   ImportReportDialog: "Import a report file", for when the API key may not create report requests or a report was exported by
-  hand. Drop or choose an Apple analytics report or a Sales and Trends summary (.tsv, .csv or the .gz as downloaded, at most
+  hand. Drop or choose an Apple analytics report or a Sales and Trends summary, or for an Android app a Play Console statistics CSV (.tsv, .csv or the .gz as downloaded, at most
   10 MiB). Three steps, none skipped:
   1. Choose the file: it is sent to THIS server only (nothing goes to Apple or Google), and checked, storing nothing.
   2. Preview: the report, the dates, the rows read, left out and unreadable, the metrics with their totals, a few rows.
@@ -37,7 +37,8 @@
     workspaceId,
     appId,
     onimported,
-  }: { open?: boolean; api: Api; workspaceId: string; appId: string; onimported: () => void } = $props();
+    android = false,
+  }: { open?: boolean; api: Api; workspaceId: string; appId: string; onimported: () => void; android?: boolean } = $props();
 
   const uid = $props.id();
   let flow = $state<ImportState>(idleImport);
@@ -101,14 +102,26 @@
   }
 </script>
 
-<Modal bind:open size="lg" title="Import a report file" description="For when the API key cannot create report requests, or you exported a report by hand." dismissible={!busy}>
+<Modal
+  bind:open
+  size="lg"
+  title={android ? 'Import a Play Console CSV' : 'Import a report file'}
+  description={android ? 'For installs and ratings when the reports bucket is not set up: a statistics file you downloaded from Play Console.' : 'For when the API key cannot create report requests, or you exported a report by hand.'}
+  dismissible={!busy}
+>
   <div class="stack">
     {#if flow.phase === 'done'}
       <Alert tone="ok" title="Done">{importedText(flow.result)}</Alert>
     {:else}
       <p class="muted small">
-        Download an Analytics Report or a Sales and Trends summary from App Store Connect and drop it here. The file is sent to this server only, never to
-        Apple or Google. Numbers the store API already read are never replaced, and the same file twice stores nothing new.
+        {#if android}
+          In Play Console open Download reports, then Statistics, download the installs (or ratings) CSV for this app and drop it here. Rows of other apps in the
+          file are left out. The file is sent to this server only, never to Google. Numbers read from your reports bucket are never replaced, and the same file
+          twice stores nothing new.
+        {:else}
+          Download an Analytics Report or a Sales and Trends summary from App Store Connect and drop it here. The file is sent to this server only, never to
+          Apple or Google. Numbers the store API already read are never replaced, and the same file twice stores nothing new.
+        {/if}
       </p>
 
       {#if flow.phase === 'idle' || flow.phase === 'error' || flow.phase === 'checking'}

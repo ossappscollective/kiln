@@ -77,6 +77,8 @@ export type PlayReportsResult = {
 };
 
 export interface PlayReportsPort {
+  /** Whether the bucket holds any report file of the package, whatever the month. Optional: a port without it cannot tell. */
+  hasPackage?(): Promise<boolean>;
   /** The reports of one month (`YYYYMM`). */
   readMonth(month: string): Promise<PlayReportsResult>;
 }
@@ -333,6 +335,33 @@ const reportDefs: { report: ReportKind; dir: string; /** File suffixes in order 
   { report: 'store_performance', dir: 'store_performance', suffixes: ['country', 'overview', 'traffic_source'], mapping: performanceMapping },
 ];
 
+/**
+ * A Play Console statistics CSV read by hand (Download reports > Statistics, or a file out of the reports bucket), for an app whose
+ * service account cannot read the bucket. It is the SAME table as the bucket's monthly file, so it is read with the same column
+ * mappings, BY NAME. The report is told by which of its columns are present (installs, ratings, or store listing performance). When
+ * the file has a package name column, rows of another package are left out (an account-wide export holds every app).
+ */
+export function mapPlayConsoleFile(
+  table: Table,
+  packageName: string,
+): { report: PlayReportFile['report']; points: AnalyticsPoint[]; stats: ParseStats } | undefined {
+  const cols = columnIndex(table.header);
+  const packageAt = cols.get('package name');
+  let rows = table.rows;
+  let filtered = 0;
+  if (packageAt !== undefined) {
+    rows = table.rows.filter((r) => (r[packageAt] ?? '').trim().toLowerCase() === packageName.toLowerCase() || (r[packageAt] ?? '').trim() === '');
+    filtered = table.rows.length - rows.length;
+  }
+  const matched = (mapping: Mapping) => mapping.filter((m) => m.column.some((c) => cols.has(c))).length;
+  const candidates = reportDefs.map((def) => ({ def, n: matched(def.mapping) })).filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+  const best = candidates[0];
+  if (!best) return undefined;
+  const mapped = mapPlayTable({ ...table, rows }, best.def.mapping);
+  if (!mapped.mapped) return undefined;
+  return { report: best.def.report, points: mapped.points, stats: { ...mapped.stats, rowsFiltered: mapped.stats.rowsFiltered + filtered } };
+}
+
 export class PlayReportsConnector implements PlayReportsPort {
   readonly #http: StoreHttp;
   readonly #tokens: GoogleTokenProvider;
@@ -351,6 +380,11 @@ export class PlayReportsConnector implements PlayReportsPort {
     this.#projectId = account.projectId;
     this.#base = (options.storageBase ?? STORAGE_BASE).replace(/\/+$/, '');
     this.#tokens = new GoogleTokenProvider(account, http, DEVSTORAGE_READ_ONLY_SCOPE);
+  }
+
+  async hasPackage(): Promise<boolean> {
+    for (const def of reportDefs) if ((await this.#list(`stats/${def.dir}/${def.dir}_${this.#package}_`, 1)).length > 0) return true;
+    return false;
   }
 
   async readMonth(month: string): Promise<PlayReportsResult> {
@@ -381,12 +415,12 @@ export class PlayReportsConnector implements PlayReportsPort {
     return { points, files, missing, unmapped, stats };
   }
 
-  async #list(prefix: string): Promise<string[]> {
+  async #list(prefix: string, maxResults = 100): Promise<string[]> {
     const names: string[] = [];
     let pageToken: string | undefined;
     for (let page = 0; page < 5; page++) {
       const url =
-        `${this.#base}/storage/v1/b/${enc(this.#bucket)}/o?prefix=${enc(prefix)}&maxResults=100&fields=${enc('items(name),nextPageToken')}` +
+        `${this.#base}/storage/v1/b/${enc(this.#bucket)}/o?prefix=${enc(prefix)}&maxResults=${maxResults}&fields=${enc('items(name),nextPageToken')}` +
         (pageToken ? `&pageToken=${enc(pageToken)}` : '');
       const reply = await this.#authed(url, `listing the Play Console reports of ${this.#package}`);
       let json: unknown;
@@ -401,7 +435,7 @@ export class PlayReportsConnector implements PlayReportsPort {
         if (name) names.push(name);
       }
       pageToken = text(body.nextPageToken) || undefined;
-      if (!pageToken) break;
+      if (!pageToken || (maxResults === 1 && names.length > 0)) break;
     }
     return names;
   }

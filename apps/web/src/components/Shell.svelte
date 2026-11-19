@@ -11,6 +11,7 @@
   import { appSwitchHash, jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { breadcrumbItems, charsFor, fitCrumbs } from '../lib/breadcrumb.ts';
   import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
+  import { alertStore } from '../lib/alert-store.svelte.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
   import { lineFor } from '../lib/pending.ts';
   import { pendingStore } from '../lib/pending-store.svelte.ts';
@@ -24,6 +25,7 @@
   import type { Me } from '../lib/types.ts';
   import { views } from '../lib/views.ts';
   import AppNav from './app/AppNav.svelte';
+  import AlertBell from './alerts/AlertBell.svelte';
   import AppSwitcher from './app/AppSwitcher.svelte';
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
@@ -111,6 +113,12 @@
     const space = workspaceId;
     void appAddr?.id;
     if (space !== '' && workspace && can(workspace.role, 'listing.read')) untrack(() => void pendingStore.loadSummary(api, space));
+  });
+  // The alert bell's count and newest alerts, read while a workspace is open (lib/alert-store.svelte.ts).
+  $effect(() => {
+    const space = workspaceId;
+    if (space === '' || !workspace || !can(workspace.role, 'alerts.read')) return;
+    return untrack(() => alertStore.start(api, space));
   });
   const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform ?? '');
   const modKey = isMac ? 'Cmd' : 'Ctrl';
@@ -461,6 +469,10 @@
           <span class="go-text">Go to app</span>
           <kbd aria-hidden="true">{isMac ? '⌘' : 'Ctrl'} K</kbd>
         </button>
+      {/if}
+
+      {#if workspace && can(workspace.role, 'alerts.read')}
+        <AlertBell {api} {workspaceId} />
       {/if}
 
       <div class="user" bind:this={userEl} onfocusout={onUserFocusOut}>

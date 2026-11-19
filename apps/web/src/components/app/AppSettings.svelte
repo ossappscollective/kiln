@@ -12,6 +12,8 @@
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
+  import AiContextSection from './settings/AiContextSection.svelte';
+  import AnalyticsSection from './settings/AnalyticsSection.svelte';
   import DefaultsSection from './settings/DefaultsSection.svelte';
   import NotificationsSection from './settings/NotificationsSection.svelte';
   import RepositorySection from './settings/RepositorySection.svelte';
@@ -61,7 +63,9 @@
   <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
   <RepositorySection {api} {workspaceId} {role} {members} />
   <DefaultsSection {api} {workspaceId} {role} {members} />
+  <AnalyticsSection {api} {workspaceId} {role} {members} />
   <NotificationsSection {api} {workspaceId} {role} />
+  <AiContextSection {api} {workspaceId} {role} {members} />
 
   <SettingsCard
     title="Danger zone"

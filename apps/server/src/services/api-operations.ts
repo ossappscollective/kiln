@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../routes/aso.ts';
 import { aiOperations } from './api-operations-ai.ts';
+import { alertOperations } from './api-operations-alerts.ts';
 import { analyticsOperations } from './api-operations-analytics.ts';
 import { searchTermsOperations } from './api-operations-search-terms.ts';
 import { buildsOperations } from './api-operations-builds.ts';
 import { stepUpOperations } from './api-operations-step-up.ts';
+import { twoFactorOperations } from './api-operations-two-factor.ts';
+import { mcpOperations } from './api-operations-mcp.ts';
 import { eventTypes } from './event-types.ts';
 import type { Operation } from './openapi.ts';
 import { createTokenBody } from './tokens.ts';
@@ -1559,9 +1562,12 @@ const drafts: Draft[] = [
   // ----- AI assistance: suggestions only; accepting goes through existing services (own file) ----
   ...aiOperations,
   ...analyticsOperations,
+  ...alertOperations,
   ...searchTermsOperations,
   ...buildsOperations,
   ...stepUpOperations,
+  ...twoFactorOperations,
+  ...mcpOperations,
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

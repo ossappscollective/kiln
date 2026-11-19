@@ -1,7 +1,8 @@
 # Step-up confirmation
 
 Hard actions can ask for a fresh proof: a **passkey** (Touch ID, Face ID, Windows Hello, a PIN, a security
-key), a **password** or a one-time **recovery code**. Design and reasons: [ADR 0019](../adr/0019-step-up-confirmation.md). Switched **off by
+key), a **password**, a one-time **recovery code**, the six digits of an **authenticator app** or a **code sent by email**
+([two-factor](two-factor.md)). Design and reasons: [ADR 0019](../adr/0019-step-up-confirmation.md). Switched **off by
 default**; **recommended on**. With it off, nothing below applies and every route behaves as before.
 
 Routes are under `/api/workspaces/{workspaceId}/step-up`. **Every one is closed to API tokens.** A non-member
@@ -68,6 +69,9 @@ Settings, Security.
 - `DELETE /step-up/passkeys/{id}`.
 - `PUT /step-up/confirmation-password` `{ password }` (at least 12 characters): **single-user mode only**
   (`409 account_password_used` elsewhere). Hashed like account passwords.
+- Authenticator app and email codes: set up, removed and used through the routes in [two-factor](two-factor.md); they confirm with
+  `POST /step-up/verify` `{ factor: "totp" | "email", action, target?, code }` (an emailed code is requested first with
+  `POST /step-up/email-code`). They count as enrolled, so a passkey-only window has a way out. A wrong code counts toward the same lockout.
 - Adding or removing a way to confirm, setting the password and weakening an active policy need a fresh
   confirmation (action `step_up.manage`) **whenever the person already has a way to confirm**; the first one needs
   nothing. In multi-user mode that is always (the account password).
@@ -102,7 +106,7 @@ and leave publishing, submitting and releasing off the list unless a pipeline tr
 
 ## Events and audit
 
-Events `stepup.verified`, `stepup.failed` and `stepup.recovery_used` ([events](events.md)). Audit: `step_up.verified`, `step_up.failed`
+Events `stepup.verified`, `stepup.failed` and `stepup.recovery_used` ([events](events.md)); the factor can also be `totp` or `email`. Audit: `step_up.verified`, `step_up.failed`
 (`factor`, `action`, `reason`, `failedCount`), `step_up.refused`, `step_up.passkey_added`,
 `step_up.passkey_removed`, `step_up.password_set`, `step_up.policy_changed`, `step_up.recovery_generated`, `step_up.recovery_used`. Never a password, key or grant.
 

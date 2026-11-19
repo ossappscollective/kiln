@@ -65,7 +65,8 @@
     />
     <p class="hint" id="{uid}-bucket-hint">
       The Cloud Storage bucket of the monthly Play Console reports, like pubsite_prod_rev_01234567890123456789 (a gs:// address is accepted). The
-      service account needs read access to it. With it, installs and ratings are read. It applies to every Android app in the workspace.
+      service account needs read access to it. With it, installs and ratings are read. It is the DEFAULT for every Android app: an app of another
+      Google Play account (each account has its own bucket) sets its own under App settings, and that wins.
     </p>
     {#if errors.analyticsBucketId}<p class="field-error" role="alert">{errors.analyticsBucketId}</p>{/if}
   </div>

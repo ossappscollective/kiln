@@ -35,6 +35,7 @@
   import PageHeader from '../ui/PageHeader.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatChip from '../ui/StatChip.svelte';
+  import AsoHealthAi from './AsoHealthAi.svelte';
   import AsoStatus from './AsoStatus.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -255,6 +256,8 @@
           <p class="muted hint">Open an app to see all of its next steps. They come from what is already stored here and say nothing about search volume.</p>
         </section>
       {/if}
+
+      <AsoHealthAi {api} {workspaceId} {role} targets={(apps ?? []).filter((a) => withData.some((r) => r.appId === a.id))} />
 
       {#if hasMoves}
         <div class="moves">

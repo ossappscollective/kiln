@@ -115,7 +115,7 @@ dbTest('status: the setup needs of an app with next-step codes, before and after
 
   const droid = (await get(t, `/apps/${android}/analytics/status`)).body;
   assert.equal(droid.apple, null);
-  assert.deepEqual(droid.google, { bucketIdSet: false });
+  assert.deepEqual(droid.google, { bucketIdSet: false, bucketSource: null });
   assert.deepEqual([droid.sources[0].setup.code, droid.sources[0].setup.nextStep], ['first_sync_pending', 'sync_now']);
   assert.deepEqual([droid.sources[1].setup.code, droid.sources[1].setup.nextStep], ['bucket_id_missing', 'set_bucket_id']);
   assert.deepEqual(droid.runs, []);

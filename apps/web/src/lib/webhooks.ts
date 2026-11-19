@@ -36,9 +36,13 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'analytics.synced', label: 'Analytics data was synced for an app (ids and counts only)' },
   { type: 'stepup.verified', label: 'Someone confirmed a hard action with a passkey or password' },
   { type: 'stepup.failed', label: 'A confirmation of a hard action failed (wrong password or passkey)' },
+  { type: 'auth.second_factor_failed', label: 'A second factor failed at sign-in (a wrong code after a right password; ids and a fixed reason only)' },
   { type: 'stepup.recovery_used', label: 'A step-up recovery code was used (ids and how many are left only; never the code)' },
   { type: 'ci.run_finished', label: 'A GitHub Actions workflow run finished (ids and the conclusion only)' },
   { type: 'assets.pulled', label: 'Store images were pulled into a change set for the repository (ids and counts only)' },
+  { type: 'alert.raised', label: 'An alert was raised (its type, severity, title and ids; see docs/alerts.md)' },
+  { type: 'token.created', label: 'An API token was created (its id, name and role; never the token)' },
+  { type: 'member.added', label: 'Someone joined the workspace by accepting an invitation (ids and role)' },
 ];
 
 export type WebhookForm = {

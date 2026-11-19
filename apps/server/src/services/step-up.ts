@@ -5,6 +5,7 @@ import { getCookie } from 'hono/cookie';
 import type { AppEnv } from '../http.ts';
 import { type ScryptCost, hashPassword, verifyPassword } from '../passwords.ts';
 import { recordAudit } from './audit.ts';
+import { activeEmail, checkMailCode, checkTotpCode, hasActiveTotp } from './two-factor.ts';
 import {
   SUPPORTED_ALGS,
   WebAuthnError,
@@ -187,6 +188,9 @@ export async function setConfirmationPassword(db: Database, userId: string, pass
 
 export async function isEnrolled(sql: Sql, userId: string): Promise<boolean> {
   if ((await listPasskeys(sql, userId)).length > 0) return true;
+  // An authenticator app or a verified address is a way to confirm too (docs/adr/0021-two-factor-and-smtp.md).
+  if (await hasActiveTotp(sql, userId)) return true;
+  if ((await activeEmail(sql, userId)) !== undefined) return true;
   return (await passwordKind(sql, userId)) !== undefined;
 }
 
@@ -466,6 +470,8 @@ export type VerifyInput = {
   | { factor: 'password'; password: string }
   | { factor: 'passkey'; challengeId: string; assertion: AssertionInput }
   | { factor: 'recovery'; code: string }
+  | { factor: 'totp'; code: string; masterKey: Buffer }
+  | { factor: 'email'; code: string; masterKey: Buffer }
 );
 
 export type VerifyResult =
@@ -496,6 +502,22 @@ export async function verifyFactor(db: Database, input: VerifyInput, now: number
       if ((await recoveryStatus(db, userId)).remaining === 0) return { ok: false, status: 409, error: 'factor_not_enrolled', reason: 'recovery' };
       // A wrong code counts like a wrong password (same failure count and lockout). A right one is spent here, before the grant exists.
       if (!(await spendRecoveryCode(db, userId, input.code, now))) reason = 'invalid_recovery_code';
+    } else if (input.factor === 'totp') {
+      if (!(await hasActiveTotp(db, userId))) return { ok: false, status: 409, error: 'factor_not_enrolled', reason: 'totp' };
+      // A wrong or replayed code counts like a wrong password (same failure count and lockout).
+      const checked = await checkTotpCode(db, { masterKey: input.masterKey, userId, code: input.code, want: 'active' }, now);
+      if (!checked.ok) reason = checked.reason === 'replay' ? 'code_already_used' : 'invalid_code';
+    } else if (input.factor === 'email') {
+      if ((await activeEmail(db, userId)) === undefined) return { ok: false, status: 409, error: 'factor_not_enrolled', reason: 'email' };
+      // The code was mailed for THIS session, workspace, action and target; five wrong guesses kill it.
+      const checked = await checkMailCode(
+        db,
+        input.masterKey,
+        { userId, purpose: 'step_up', binding: input.sessionId, workspaceId: input.workspaceId, action: input.action, targetId: input.target.id ?? null, targetHash: input.target.hash ?? null },
+        input.code,
+        now,
+      );
+      if (!checked.ok) reason = checked.reason === 'missing' ? 'code_not_sent' : checked.reason === 'too_many_attempts' ? 'code_locked' : 'invalid_code';
     } else {
       const challenge = await consumeChallenge(db, input.challengeId, { userId, sessionId: input.sessionId, purpose: 'assert', action: input.action, targetId: input.target.id ?? null, targetHash: input.target.hash ?? null, workspaceId: input.workspaceId }, now);
       if (!challenge) reason = 'challenge_invalid';
@@ -594,7 +616,12 @@ async function bodyOf(c: Context): Promise<Record<string, unknown> | undefined> 
 async function factorsOf(sql: Sql, userId: string) {
   const passkeys = (await listPasskeys(sql, userId)).length;
   const password = await passwordKind(sql, userId);
-  const list = [...(passkeys > 0 ? ['passkey'] : []), ...(password ? ['password'] : [])];
+  const list = [
+    ...(passkeys > 0 ? ['passkey'] : []),
+    ...(password ? ['password'] : []),
+    ...((await hasActiveTotp(sql, userId)) ? ['totp'] : []),
+    ...((await activeEmail(sql, userId)) !== undefined ? ['email'] : []),
+  ];
   // A recovery code is offered beside a real factor, never instead of one (a person with no factor has nothing to recover).
   if (list.length > 0 && (await recoveryStatus(sql, userId)).remaining > 0) list.push('recovery');
   return { passkeys, password, list };
@@ -619,7 +646,7 @@ async function enforce(ctx: GuardCtx, c: Context<AppEnv>, action: GrantAction, t
   const presented = c.req.header(GRANT_HEADER) ?? (typeof body?.stepUp === 'string' ? body.stepUp : undefined);
   const hash = target.hashField && typeof body?.[target.hashField] === 'string' ? (body[target.hashField] as string) : undefined;
   const required = (reason: string) =>
-    c.json({ error: 'step_up_required', message: 'Confirm this action with a passkey or your password.', reason, factors: factors.list, ...info }, 403);
+    c.json({ error: 'step_up_required', message: 'Confirm this action with a passkey, your password, an authenticator code or an emailed code.', reason, factors: factors.list, ...info }, 403);
   const sessionId = sessionIdOf(c);
   if (!presented) return required('missing');
   if (!sessionId) return required('mismatch');

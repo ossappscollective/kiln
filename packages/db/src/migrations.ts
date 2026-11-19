@@ -1,4 +1,7 @@
 import type { Dialect } from './dialect.ts';
+import { alertMigrations } from './migrations-alerts.ts';
+import { aiFeatureMigrations } from './migrations-ai-features.ts';
+import { analyticsBucketMigrations } from './migrations-analytics-bucket.ts';
 
 /**
  * Forward-only SQL migrations, applied in order at boot (see migrate() in index.ts).
@@ -1730,4 +1733,87 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 35,
+    name: 'Instance settings (the encrypted SMTP setting) and mail codes (email verification and the email second factor)',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // docs/adr/0021-two-factor-and-smtp.md. instance_settings: one row per setting of the WHOLE server (not of a workspace); value_enc is the
+      // JSON document ENCRYPTED with the master key (AES-GCM, bound to the key by AAD), so an SMTP password is never stored in the clear.
+      // user_mail: the address a person verified for email codes (verified_at is NULL until the code was entered). mail_codes: one row per
+      // six digit code that was mailed (purpose verify_email, step_up or login). code_mac is an HMAC of the code under the master key, never
+      // the code; attempts counts wrong guesses (5 and the code is dead); binding ties it to the session (step_up) or login challenge.
+      return [
+        `CREATE TABLE IF NOT EXISTS instance_settings (
+           key TEXT PRIMARY KEY,
+           value_enc TEXT NOT NULL,
+           updated_at ${t} NOT NULL,
+           updated_by TEXT
+         )`,
+        `CREATE TABLE IF NOT EXISTS user_mail (
+           user_id TEXT PRIMARY KEY REFERENCES users(id),
+           email TEXT NOT NULL,
+           verified_at ${t},
+           created_at ${t} NOT NULL
+         )`,
+        `CREATE TABLE IF NOT EXISTS mail_codes (
+           id TEXT PRIMARY KEY,
+           user_id TEXT NOT NULL REFERENCES users(id),
+           purpose TEXT NOT NULL,
+           workspace_id TEXT,
+           binding TEXT,
+           action TEXT,
+           target_id TEXT,
+           target_hash TEXT,
+           email TEXT NOT NULL,
+           code_mac TEXT NOT NULL,
+           attempts INTEGER NOT NULL DEFAULT 0,
+           created_at ${t} NOT NULL,
+           expires_at ${t} NOT NULL,
+           used_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS mail_codes_user_idx ON mail_codes (user_id, created_at)',
+        'CREATE INDEX IF NOT EXISTS mail_codes_workspace_idx ON mail_codes (workspace_id, created_at)',
+      ];
+    },
+  },
+  {
+    id: 36,
+    name: 'Authenticator app (TOTP) secrets and the second step of signing in',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // docs/adr/0021-two-factor-and-smtp.md. user_totp: the TOTP secret of a person, ENCRYPTED with the master key (bound to the user by AAD).
+      // confirmed_at is NULL while enrolling (the first code has not been entered). last_step is the time step of the last accepted code:
+      // a code is accepted only for a later step, so one code cannot be used twice (replay). login_challenges: the state between a right
+      // password and the second factor; id is the SHA-256 of a random token the client holds, kind is verify (a factor is enrolled) or
+      // enroll (the policy requires one and the person has none), attempts counts wrong second factors (5 and it is dead).
+      return [
+        `CREATE TABLE IF NOT EXISTS user_totp (
+           user_id TEXT PRIMARY KEY REFERENCES users(id),
+           secret_enc TEXT NOT NULL,
+           confirmed_at ${t},
+           last_step ${t},
+           created_at ${t} NOT NULL
+         )`,
+        `CREATE TABLE IF NOT EXISTS login_challenges (
+           id TEXT PRIMARY KEY,
+           user_id TEXT NOT NULL REFERENCES users(id),
+           kind TEXT NOT NULL,
+           attempts INTEGER NOT NULL DEFAULT 0,
+           created_at ${t} NOT NULL,
+           expires_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS login_challenges_expires_idx ON login_challenges (expires_at)',
+      ];
+    },
+  },
+  ...alertMigrations,
+  {
+    // Number 39 was reserved for the MCP server, which needed no table. Kept as an empty step so the ids stay contiguous (1..n).
+    id: 39,
+    name: 'Reserved: no schema change',
+    statements: () => [],
+  },
+  ...aiFeatureMigrations,
+  ...analyticsBucketMigrations,
 ];

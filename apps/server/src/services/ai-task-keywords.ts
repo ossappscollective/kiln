@@ -22,7 +22,7 @@ import { getDrift } from './listing-live.ts';
  * app TRACKS (`aso.write`, the same call as adding a keyword by hand). Tracking contacts no store by itself and changes no listing.
  */
 
-export const KEYWORD_IDEAS_VERSION = 1;
+export const KEYWORD_IDEAS_VERSION = 2;
 const MAX_IDEAS = 15;
 const MAX_TRACKED_SENT = 100;
 const MAX_COMPETITORS_SENT = 10;
@@ -45,7 +45,8 @@ Rules:
 3. Do not suggest the names of competitor apps or other brands, and do not invent facts about the app.
 4. For each term give a reason in one sentence (at most 200 characters) and the listing field where it would help most, using only the field names in the schema. Use "${TRACK_ONLY}" when the term is only worth tracking.
 5. Respect the field limits in the data. Never suggest stuffing a field.
-6. Answer only with the JSON object that matches the schema.`;
+6. If the data has appContext, take it into account: what the app is and who it is for, and never suggest a word in neverUseWords.
+7. Answer only with the JSON object that matches the schema.`;
 
 const schemaFor = (store: 'app_store' | 'google_play'): JsonSchema => ({
   type: 'object',

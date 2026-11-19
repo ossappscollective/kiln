@@ -42,6 +42,7 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import ReviewTagChips from './ReviewTagChips.svelte';
   import ReviewTranslation from './ReviewTranslation.svelte';
   import ReplyDialog from './ReplyDialog.svelte';
 
@@ -208,6 +209,7 @@
   {/if}
 
   <ReviewTranslation {api} {workspaceId} {appId} {review} stored={translation} onstore={ontranslate} showAll={showTranslations} />
+  <ReviewTagChips reviewId={review.id} {workspaceId} />
 
   <p class="meta muted">
     {#if review.authorName}<span>{review.authorName}</span>{/if}

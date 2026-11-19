@@ -4,10 +4,11 @@
   AI looks as it did. A run that just finished opens the tray by itself. Each suggestion is a proposal a person accepts or dismisses
   (AiSuggestionCard); accepting uses an existing mechanism and says where the result is.
   Props: api, workspaceId, role, app (the app record), platform? (the scope of the open app, for links), showPlatform? (name the
-  platform in the line when the page shows several), onaccepted? (the screen reads its own list again after an accept).
+  platform in the line when the page shows several), kind? (only the suggestions of this kind: the Keywords views list the keyword ideas
+  they asked for), tasks? (only the suggestions of these tasks, which is also how a screen shows the reports it asked for), onaccepted? (the screen reads its own list again after an accept or an undo).
 -->
 <script lang="ts">
-  import { type AiAcceptedRef, type Role, can } from '@mrm/core';
+  import { type AiAcceptedRef, type AiProposalKind, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import { openLine } from '../../lib/ai.ts';
   import { aiStore } from '../../lib/ai-store.svelte.ts';
@@ -25,6 +26,8 @@
     app,
     platform = null,
     showPlatform = false,
+    kind = null,
+    tasks = null,
     onaccepted,
   }: {
     api: Api;
@@ -33,14 +36,21 @@
     app: AppSummary;
     platform?: PlatformScope | null;
     showPlatform?: boolean;
+    kind?: AiProposalKind | null;
+    tasks?: string[] | null;
     onaccepted?: (result: AiAcceptedRef) => void | Promise<void>;
   } = $props();
 
   const canUse = $derived(can(role, 'ai.use'));
   const config = $derived(aiStore.config(workspaceId));
   const on = $derived(config !== null && config.state !== 'off_server' && config.state !== 'off_workspace');
-  const list = $derived(aiStore.shown(app.id));
-  const count = $derived(aiStore.openCount(app.id));
+  // Reports (insights) show only where they were asked for: a tray that names no kind and no task leaves them out.
+  const list = $derived(
+    aiStore
+      .shown(app.id)
+      .filter((s) => (kind === null || s.kind === kind) && (tasks === null || tasks.indexOf(s.task) !== -1) && (kind !== null || tasks !== null || s.kind !== 'insight')),
+  );
+  const count = $derived(list.filter((s) => s.status === 'proposed').length);
 
   let open = $state(false);
 
@@ -74,7 +84,7 @@
           Proposals only. Nothing changes until you accept one, and nothing is sent to a store: staged texts still go through Pending changes.
         </p>
         {#each list as s (s.id)}
-          <AiSuggestionCard {api} {workspaceId} {role} suggestion={s} {platform} {onaccepted} />
+          <AiSuggestionCard {api} {workspaceId} {role} suggestion={s} {platform} appPlatform={app.platform} {onaccepted} />
         {/each}
       </div>
     </Disclosure>

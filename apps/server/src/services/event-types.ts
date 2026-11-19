@@ -36,6 +36,11 @@ export const eventTypes = [
   'stepup.verified',
   'stepup.failed',
   'stepup.recovery_used',
+  'auth.second_factor_failed',
+  // Alerts (docs/alerts.md): the event an alert becomes for webhooks, and the two audit facts alerts report.
+  'alert.raised',
+  'token.created',
+  'member.added',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -80,4 +85,10 @@ export const eventReadAction: Record<EventType, Action> = {
   'stepup.verified': 'settings.write',
   'stepup.failed': 'settings.write',
   'stepup.recovery_used': 'settings.write',
+  // A wrong second factor at sign-in (docs/api/two-factor.md): admins only, ids and a fixed reason, never a code.
+  'auth.second_factor_failed': 'settings.write',
+  // An alert is visible to who may read alerts; who made a token or who joined: admins only (ids, names and roles, never a secret).
+  'alert.raised': 'alerts.read',
+  'token.created': 'settings.write',
+  'member.added': 'settings.write',
 };

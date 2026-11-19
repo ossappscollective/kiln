@@ -1,5 +1,5 @@
 import type { AiAcceptedRef, AiSuggestionView } from '@mrm/core';
-import type { AiAcceptBody, AiConfig, AiRunBody, AiTaskView, AiTasksResponse } from './ai.ts';
+import type { AiAcceptBody, AiConfig, AiReviewTagView, AiRunBody, AiTaskView, AiTasksResponse, AiUsageWarning } from './ai.ts';
 import { isOpen } from './ai.ts';
 import type { Api } from './api.ts';
 
@@ -17,6 +17,13 @@ let suggestions = $state<Record<string, AiSuggestionView[] | undefined>>({});
 let settled = $state<Record<string, AiAcceptedRef | undefined>>({});
 /** Bumped per app when a run added a suggestion: a tray opens itself on it. */
 let fresh = $state<Record<string, number | undefined>>({});
+
+/** The warning the last run answered with (near a monthly limit), per workspace, until a screen has shown it. */
+let warnings = $state<Record<string, AiUsageWarning | undefined>>({});
+/** The tags the assistant gave reviews, by review id (advisory labels). Reads our own database. */
+let tags = $state<Record<string, AiReviewTagView | undefined>>({});
+/** Review ids a read was made for (so a review without tags is not asked again and again). */
+const tagsAsked: Record<string, boolean | undefined> = {};
 
 const configLoading: Record<string, Promise<AiConfig | null> | undefined> = {};
 const tasksLoading: Record<string, Promise<AiTasksResponse | null> | undefined> = {};
@@ -148,11 +155,38 @@ export const aiStore = {
   async run(api: Api, workspaceId: string, taskId: string, body: AiRunBody): Promise<AiSuggestionView> {
     try {
       const out = await api.runAiTask(workspaceId, taskId, body);
+      warnings[workspaceId] = out.warning ?? undefined;
       put(body.appId, out.suggestion);
       fresh[body.appId] = (fresh[body.appId] ?? 0) + 1;
       return out.suggestion;
     } finally {
       void aiStore.loadConfig(api, workspaceId, true);
+    }
+  },
+
+  /** The warning of the last run for a workspace, once: null when there is none or it was already taken. */
+  takeWarning(workspaceId: string): AiUsageWarning | null {
+    const w = warnings[workspaceId] ?? null;
+    if (w !== null) warnings[workspaceId] = undefined;
+    return w;
+  },
+
+  /** The tags of one review, or null when it has none (yet). */
+  tagFor(reviewId: string): AiReviewTagView | null {
+    return tags[reviewId] ?? null;
+  },
+  /** Reads the tags of the given reviews that were not asked for yet (`force`: all of them again). Never throws: tags are a quiet extra. */
+  async loadTags(api: Api, workspaceId: string, appId: string, reviewIds: readonly string[], force = false): Promise<void> {
+    const want = reviewIds.filter((id) => force || tagsAsked[id] !== true);
+    for (let at = 0; at < want.length; at += 100) {
+      const chunk = want.slice(at, at + 100);
+      try {
+        const out = await api.reviewAiTags(workspaceId, appId, chunk);
+        for (const id of chunk) tagsAsked[id] = true;
+        for (const t of out.tags) tags[t.reviewId] = t;
+      } catch {
+        // Quiet: a review without tags simply shows none.
+      }
     }
   },
 
@@ -177,5 +211,8 @@ export const aiStore = {
     suggestions = {};
     settled = {};
     fresh = {};
+    warnings = {};
+    tags = {};
+    for (const k of Object.keys(tagsAsked)) tagsAsked[k] = undefined;
   },
 };

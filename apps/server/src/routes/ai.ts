@@ -5,7 +5,9 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { type AiServices, acceptSuggestion, dismissSuggestion, getAiConfigView, getSuggestion, listAiTasks, listAppSuggestions, runAiTask, testAiConnection } from '../services/ai.ts';
+import { type AiServices, acceptSuggestion, dismissSuggestion, getAiConfigView, getSuggestion, listAiTasks, listAppSuggestions, previewAiTask, runAiTask, testAiConnection } from '../services/ai.ts';
+import { getAppContext, setAppContext } from '../services/ai-app-context.ts';
+import { getReviewTags } from '../services/ai-review-classes.ts';
 import { type AiFailure, updateAiConfig } from '../services/ai-config.ts';
 import { listAiModels } from '../services/ai-models.ts';
 import { getApp } from '../services/apps.ts';
@@ -47,6 +49,27 @@ export const runTaskBody = z
     reviewId: z.string().min(1).max(100).optional(),
     tone: z.enum(['friendly', 'neutral', 'apologetic']).optional(),
     replyLanguage: z.string().max(20).optional(),
+    /** Review tasks: how many days back, and how many reviews to send or tag; the reviews to tag (their ids in this tool). */
+    days: z.number().int().min(1).max(180).optional(),
+    limit: z.number().int().min(1).max(80).optional(),
+    reviewIds: z.array(z.string().min(1).max(100)).min(1).max(40).optional(),
+    /** Listing tasks: the language to translate from, and how many variants per field. */
+    sourceLocale: z.string().max(20).optional(),
+    count: z.number().int().min(2).max(5).optional(),
+  })
+  .strict();
+
+/** What a person tells the assistant about an app. The lengths are checked again, with sentences, by `normalizeAiAppContext`. */
+export const appContextBody = z
+  .object({
+    about: z.string().max(5000).optional(),
+    audience: z.string().max(2000).optional(),
+    tone: z.string().max(1000).optional(),
+    brandVoice: z.string().max(5000).optional(),
+    bannedWords: z.array(z.string().max(500)).max(200).optional(),
+    brandTerms: z.array(z.string().max(500)).max(200).optional(),
+    doList: z.array(z.string().max(1000)).max(50).optional(),
+    dontList: z.array(z.string().max(1000)).max(50).optional(),
   })
   .strict();
 
@@ -59,6 +82,10 @@ export const updateConfigBody = z
     monthlyTokenBudget: z.number().int().min(0).max(aiLimits.maxMonthlyTokenBudget).nullable().optional(),
     maxOutputTokens: z.number().int().min(aiLimits.minMaxOutputTokens).max(aiLimits.maxMaxOutputTokens).nullable().optional(),
     maxInputTokens: z.number().int().min(aiLimits.minMaxInputTokens).max(aiLimits.maxMaxInputTokens).nullable().optional(),
+    softWarnPercent: z.number().int().min(0).max(100).nullable().optional(),
+    priceInputCentsPerMTok: z.number().int().min(0).max(1_000_000).nullable().optional(),
+    priceOutputCentsPerMTok: z.number().int().min(0).max(1_000_000).nullable().optional(),
+    monthlyCostCapCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, 'Send at least one setting.');
@@ -76,6 +103,8 @@ export const acceptBody = z
   .object({
     items: z.array(z.number().int().min(0).max(1000)).min(1).max(100).optional(),
     fields: z.array(z.string().min(1).max(40)).min(1).max(10).optional(),
+    /** `listing_variants`: the variant (its position in the field's list) chosen for each field. */
+    choices: z.array(z.object({ field: z.string().min(1).max(40), variant: z.number().int().min(0).max(10) }).strict()).min(1).max(10).optional(),
     replace: z.boolean().optional(),
   })
   .strict()
@@ -176,7 +205,55 @@ export function aiRoutes(ctx: AiRoutesContext) {
     });
     if (!done.ok) return respond(c, done);
     c.header('Cache-Control', 'no-store');
-    return c.json({ suggestion: done.suggestion }, 201);
+    return c.json({ suggestion: done.suggestion, warning: done.warning }, 201);
+  });
+
+  /** "What will be sent": the exact input a run with the same body would send. Calls no provider, reserves nothing, stores nothing. */
+  routes.post('/:workspaceId/ai/tasks/:taskId/preview', needs('ai.use'), small, async (c) => {
+    const body = await parseBody(c, runTaskBody);
+    if (!body.ok) return body.response;
+    const wait = limited(c);
+    if (wait) return wait;
+    const { appId, ...scope } = body.data;
+    const done = await previewAiTask(ctx, { workspaceId: ws(c), actor: actor(c), taskId: param(c, 'taskId'), appId, scope: scope as Record<string, unknown> });
+    if (!done.ok) return respond(c, done);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ preview: done.preview });
+  });
+
+  // ----- the AI context of an app and the tags of its reviews ----------------------------------------
+  routes.get('/:workspaceId/apps/:id/ai/context', needs('ai.use'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const stored = await getAppContext(db, ws(c), app.id);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ ...stored, canEdit: can(c.get('role'), 'apps.write') });
+  });
+
+  routes.put('/:workspaceId/apps/:id/ai/context', needs('apps.write'), small, async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const body = await parseBody(c, appContextBody);
+    if (!body.ok) return body.response;
+    const done = await setAppContext(db, { workspaceId: ws(c), appId: app.id, actor: actor(c), context: body.data, at: ctx.now() });
+    if (!done.ok) return respond(c, done);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ ...done.stored, canEdit: true });
+  });
+
+  /** The tags the assistant gave reviews (advisory labels). Reading them needs only `reviews.read`: no provider is contacted. */
+  routes.get('/:workspaceId/apps/:id/ai/review-tags', needs('reviews.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return c.json({ error: 'not_found' }, 404);
+    const ids = (c.req.query('ids') ?? '').split(',').map((i) => i.trim()).filter((i) => i !== '');
+    if (ids.length === 0 || ids.length > 100) {
+      return c.json({ error: 'invalid_request', issues: [{ path: 'ids', message: 'One to 100 review ids, separated by commas.' }] }, 400);
+    }
+    const found = await getReviewTags(db, ws(c), app.id, ids);
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      tags: [...found.values()].map(({ taskVersion: _v, textHash: _h, createdAt: _c, ...tags }) => tags),
+    });
   });
 
   // ----- suggestions -------------------------------------------------------------------------------

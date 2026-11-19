@@ -26,7 +26,10 @@
   import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
   import AiSettings from './settings/AiSettings.svelte';
+  import McpSettings from './settings/McpSettings.svelte';
   import SecuritySettings from './settings/SecuritySettings.svelte';
+  import TwoFactorSettings from './settings/TwoFactorSettings.svelte';
+  import MailSettings from './settings/MailSettings.svelte';
   import ReviewsSettings from './settings/ReviewsSettings.svelte';
   import TranslationSettings from './settings/TranslationSettings.svelte';
   import Alert from './ui/Alert.svelte';
@@ -187,12 +190,20 @@
   {#if canRead && !addingCredential}
     <div class="ai">
       <SecuritySettings {api} {workspaceId} {role} />
+      <TwoFactorSettings {api} {workspaceId} {role} />
+      <MailSettings {api} {workspaceId} {role} />
     </div>
   {/if}
 
   {#if canAi && !addingCredential}
     <div class="ai">
       <AiSettings {api} {workspaceId} {role} />
+    </div>
+  {/if}
+
+  {#if !addingCredential}
+    <div class="ai">
+      <McpSettings {api} {workspaceId} {role} />
     </div>
   {/if}
 </section>

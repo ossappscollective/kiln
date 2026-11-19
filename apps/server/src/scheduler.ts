@@ -131,6 +131,8 @@ export type SchedulerOptions = {
    * the job queue, because the clones are on this machine's disk. Absent: no sweep.
    */
   cloneSweep?: { intervalMs: number; run: () => Promise<unknown> };
+  /** The alert evaluator, digests and upkeep (services/alert-runner.ts): `run` is called from a tick when `intervalMs` has passed. Absent: no alerts pass. */
+  alerts?: { intervalMs: number; run: () => Promise<unknown> };
   onError?: (message: string, error: unknown) => void;
 };
 
@@ -160,6 +162,8 @@ export type TickSummary = {
   analyticsUpkeep?: AnalyticsUpkeepSummary;
   /** What a clone sweep returned; set only in a tick where one ran. */
   cloneSweep?: unknown;
+  /** What the alerts pass returned; set only in a tick where one ran. */
+  alerts?: unknown;
 };
 
 export type Scheduler = {
@@ -309,6 +313,7 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   }
 
   let lastSweepAt: number | undefined;
+  let lastAlertsAt: number | undefined;
 
   async function tick(): Promise<TickSummary> {
     const at = now();
@@ -434,6 +439,15 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         summary.cloneSweep = await sweep.run();
       } catch (error) {
         report('clone sweep failed', error);
+      }
+    }
+    const alertsPass = options.alerts;
+    if (alertsPass && alertsPass.intervalMs > 0 && (lastAlertsAt === undefined || at - lastAlertsAt >= alertsPass.intervalMs)) {
+      lastAlertsAt = at;
+      try {
+        summary.alerts = await alertsPass.run();
+      } catch (error) {
+        report('alerts pass failed', error);
       }
     }
     return summary;

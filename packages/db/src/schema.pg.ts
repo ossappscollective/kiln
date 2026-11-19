@@ -1608,6 +1608,21 @@ export const analyticsAppConfig = pgTable(
   (t) => [index('analytics_app_config_workspace_idx').on(t.workspaceId)],
 );
 
+/** The Google Play reports bucket of a Play developer account, shared by its Android apps (migration 42). Not a secret. */
+export const analyticsCredentialConfig = pgTable(
+  'analytics_credential_config',
+  {
+    credentialId: text('credential_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    playBucketId: text('play_bucket_id'),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('analytics_credential_config_workspace_idx').on(t.workspaceId)],
+);
+
 /** The last result per app, platform and source; the status endpoint reads it. Migration 31. */
 export const analyticsSourceState = pgTable(
   'analytics_source_state',
@@ -1801,3 +1816,290 @@ export const playInternalShareClaims = pgTable('play_internal_share_claims', {
   claimedBy: text('claimed_by').notNull(),
   claimAt: epochMs('claim_at').notNull(),
 });
+
+/** What a person told the assistant about an app (migration 40, docs/adr/0024-ai-features.md). Sent with every AI task of the app. */
+export const aiAppContext = pgTable(
+  'ai_app_context',
+  {
+    appId: text('app_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** JSON: about, audience, tone, brandVoice, bannedWords, brandTerms, doList, dontList. */
+    context: text('context').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('ai_app_context_workspace_idx').on(t.workspaceId)],
+);
+
+/** The tags the assistant gave a review, a cache so a review is tagged once (migration 41). Holds a hash of the text, never the text. */
+export const reviewClassifications = pgTable(
+  'review_classifications',
+  {
+    reviewId: text('review_id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    taskVersion: integer('task_version').notNull(),
+    textHash: text('text_hash').notNull(),
+    /** JSON list from a fixed vocabulary. */
+    topics: text('topics').notNull(),
+    sentiment: text('sentiment').notNull(),
+    severity: text('severity').notNull(),
+    language: text('language'),
+    needsReply: integer('needs_reply').notNull().default(0),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [index('review_classifications_app_idx').on(t.workspaceId, t.appId)],
+);
+
+/** One setting of the whole server, encrypted (the SMTP settings). Migration 35. */
+export const instanceSettings = pgTable('instance_settings', {
+  key: text('key').primaryKey(),
+  valueEnc: text('value_enc').notNull(),
+  updatedAt: epochMs('updated_at').notNull(),
+  updatedBy: text('updated_by'),
+});
+
+/** The address a person verified for email codes. Migration 35. */
+export const userMail = pgTable('user_mail', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  email: text('email').notNull(),
+  verifiedAt: epochMs('verified_at'),
+  createdAt: epochMs('created_at').notNull(),
+});
+
+/** One mailed six digit code (an HMAC, never the code). Migration 35. */
+export const mailCodes = pgTable(
+  'mail_codes',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    purpose: text('purpose').notNull(),
+    workspaceId: text('workspace_id'),
+    binding: text('binding'),
+    action: text('action'),
+    targetId: text('target_id'),
+    targetHash: text('target_hash'),
+    email: text('email').notNull(),
+    codeMac: text('code_mac').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: epochMs('created_at').notNull(),
+    expiresAt: epochMs('expires_at').notNull(),
+    usedAt: epochMs('used_at'),
+  },
+  (t) => [index('mail_codes_user_idx').on(t.userId, t.createdAt), index('mail_codes_workspace_idx').on(t.workspaceId, t.createdAt)],
+);
+
+/** The TOTP secret of a person, encrypted. Migration 36. */
+export const userTotp = pgTable('user_totp', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  secretEnc: text('secret_enc').notNull(),
+  confirmedAt: epochMs('confirmed_at'),
+  lastStep: epochMs('last_step'),
+  createdAt: epochMs('created_at').notNull(),
+});
+
+/** Between a right password and the second factor. Migration 36. */
+export const loginChallenges = pgTable(
+  'login_challenges',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: epochMs('created_at').notNull(),
+    expiresAt: epochMs('expires_at').notNull(),
+  },
+  (t) => [index('login_challenges_expires_idx').on(t.expiresAt)],
+);
+
+/** What an admin decided for one alert type of a workspace (docs/alerts.md). Migration 37. */
+export const alertWorkspaceRules = pgTable(
+  'alert_workspace_rules',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    alertType: text('alert_type').notNull(),
+    enabled: integer('enabled').notNull().default(1),
+    channels: text('channels').notNull(),
+    maxPerHour: integer('max_per_hour'),
+    params: text('params'),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.alertType] })],
+);
+
+/** A person's alert settings in a workspace: lowest severity, quiet hours, digest. Migration 37. */
+export const alertUserSettings = pgTable(
+  'alert_user_settings',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    minSeverity: text('min_severity').notNull().default('info'),
+    quietStart: integer('quiet_start'),
+    quietEnd: integer('quiet_end'),
+    timezone: text('timezone'),
+    digest: text('digest').notNull().default('off'),
+    digestHour: integer('digest_hour').notNull().default(8),
+    lastDigestAt: epochMs('last_digest_at'),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })],
+);
+
+/** A person's own channels for one alert type, for all apps (app_id '') or one. Migration 37. */
+export const alertPreferences = pgTable(
+  'alert_preferences',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    alertType: text('alert_type').notNull(),
+    appId: text('app_id').notNull().default(''),
+    channels: text('channels').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.userId, t.alertType, t.appId] })],
+);
+
+/** A snooze (until set) or a mute (until null) of an app, an alert type or both (null = all). Migration 37. */
+export const alertMutes = pgTable(
+  'alert_mutes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    appId: text('app_id'),
+    alertType: text('alert_type'),
+    until: epochMs('until'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [index('alert_mutes_user_idx').on(t.workspaceId, t.userId)],
+);
+
+/** One alert after repeats collapsed (count). Migration 38. */
+export const alerts = pgTable(
+  'alerts',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    type: text('type').notNull(),
+    severity: text('severity').notNull(),
+    appId: text('app_id'),
+    dedupeKey: text('dedupe_key').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    data: text('data').notNull(),
+    count: integer('count').notNull().default(1),
+    firstAt: epochMs('first_at').notNull(),
+    lastAt: epochMs('last_at').notNull(),
+    resolvedAt: epochMs('resolved_at'),
+    isTest: integer('is_test').notNull().default(0),
+  },
+  (t) => [
+    index('alerts_key_idx').on(t.workspaceId, t.dedupeKey, t.lastAt),
+    index('alerts_workspace_idx').on(t.workspaceId, t.lastAt),
+    index('alerts_type_idx').on(t.workspaceId, t.type, t.firstAt),
+  ],
+);
+
+/** The in-app channel: one row per person and alert. Migration 38. */
+export const alertInbox = pgTable(
+  'alert_inbox',
+  {
+    alertId: text('alert_id')
+      .notNull()
+      .references(() => alerts.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    desktop: integer('desktop').notNull().default(0),
+    readAt: epochMs('read_at'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.alertId, t.userId] }),
+    index('alert_inbox_user_idx').on(t.workspaceId, t.userId, t.readAt),
+  ],
+);
+
+/** The alert delivery log: one row per channel attempt, outcome from a fixed vocabulary. Migration 38. */
+export const alertDeliveries = pgTable(
+  'alert_deliveries',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    alertId: text('alert_id'),
+    userId: text('user_id'),
+    channel: text('channel').notNull(),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    outcome: text('outcome').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    subject: text('subject'),
+    body: text('body'),
+    eventId: epochMs('event_id'),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+    deliveredAt: epochMs('delivered_at'),
+  },
+  (t) => [
+    index('alert_deliveries_workspace_idx').on(t.workspaceId, t.createdAt),
+    index('alert_deliveries_alert_idx').on(t.alertId),
+  ],
+);
+
+/** What the alert evaluator last saw for a state condition. Migration 38. */
+export const alertConditions = pgTable(
+  'alert_conditions',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    dedupeKey: text('dedupe_key').notNull(),
+    type: text('type').notNull(),
+    appId: text('app_id'),
+    firstSeenAt: epochMs('first_seen_at').notNull(),
+    lastSeenAt: epochMs('last_seen_at').notNull(),
+    raisedAt: epochMs('raised_at').notNull(),
+    active: integer('active').notNull().default(1),
+    alertId: text('alert_id'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.dedupeKey] }),
+    index('alert_conditions_active_idx').on(t.workspaceId, t.active),
+  ],
+);

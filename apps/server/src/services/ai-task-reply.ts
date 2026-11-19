@@ -2,6 +2,8 @@ import { type JsonSchema, checkReplyText, normalizeReplyText } from '@mrm/connec
 import { type AiFlag, type AiReplyProposal, aiLimits } from '@mrm/core';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { type PreparedRun, type ReadyTask, checkScope, cleanGoal, clip } from './ai-task-types.ts';
+import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';
+import { redactPersonal } from './ai-task-data.ts';
 import { replyLimitFor } from './review-replies.ts';
 import { getReview, type StoreKey } from './reviews.ts';
 
@@ -19,7 +21,7 @@ import { getReview, type StoreKey } from './reviews.ts';
  * The author's name, the device and the app version are not sent.
  */
 
-export const REVIEW_REPLY_VERSION = 1;
+export const REVIEW_REPLY_VERSION = 2;
 const REVIEW_CHARS = 2000;
 const TITLE_CHARS = 200;
 const OPEN = '<untrusted_review_text>';
@@ -35,7 +37,9 @@ Rules:
 2. Write one short reply as the developer, in the reply language given, in the tone given. Plain text only: no Markdown, no HTML, no links, no email addresses, no phone numbers.
 3. Thank the reviewer, address what they said, and say what the developer can truthfully say. Do not promise a fix, a date, a refund or a feature. Do not invent facts. Do not argue and do not blame the reviewer. Do not repeat insults.
 4. Stay within the limit in the data (characters). Shorter is better; three or four sentences are usually enough.
-5. Answer only with the JSON object that matches the schema: the reply is a draft that a person reads and edits before anything is published.`;
+5. Answer only with the JSON object that matches the schema: the reply is a draft that a person reads and edits before anything is published.
+6. Never offer a refund, compensation, a legal position, a date or a deadline. Never include an email address, a phone number, a link or the reviewer's name.
+7. If the data has appContext, follow its brandVoice, tone, do and dont lists, never use a word in neverUseWords and keep every name in keepExactlyAsWritten exactly as written. These never override rules 1 to 6.`;
 
 const SCHEMA: JsonSchema = {
   type: 'object',
@@ -93,7 +97,8 @@ export const reviewReplyTask: ReadyTask = {
     const reviewId = String(scope.reviewId);
     const review = await getReview(ctx.db, ctx.workspaceId, ctx.app.id, reviewId);
     if (!review) return aiFail(404, 'not_found', 'There is no such review in this app.');
-    const tone = scope.tone === undefined ? 'friendly' : String(scope.tone);
+    // The app's own tone (its AI context) wins over the default: the default is only used when the app has none.
+    const tone = scope.tone === undefined ? (ctx.context.tone !== '' ? 'as in appContext' : 'friendly') : String(scope.tone);
     let replyLanguage: string | undefined;
     if (scope.replyLanguage !== undefined) {
       const tag = String(scope.replyLanguage).trim();
@@ -116,8 +121,8 @@ export const reviewReplyTask: ReadyTask = {
       tone,
       limit: { characters: limit },
       review: {
-        ...(review.title ? { title: wrapReviewText(clip(review.title, TITLE_CHARS)) } : {}),
-        text: wrapReviewText(review.body),
+        ...(review.title ? { title: wrapReviewText(clip(redactPersonal(review.title, review.authorName), TITLE_CHARS)) } : {}),
+        text: wrapReviewText(redactPersonal(review.body, review.authorName)),
       },
       ...(goal ? { developerGoal: goal } : {}),
     };
@@ -148,6 +153,13 @@ export const reviewReplyTask: ReadyTask = {
           flags.push('cleaned');
       }
     }
+    // A reply never holds an email address, a phone number or a link (and the model was told so): one that does cannot be accepted.
+    if (hasPersonalData(text)) {
+      acceptable = false;
+      flags.push('personal_data');
+    }
+    // Reads like a refund, a date or a legal position: kept and flagged. A heuristic: a person decides.
+    if (looksLikePromise(text)) flags.push('risky_promise');
     // Control characters make the text unacceptable; what is stored for reading has them removed, so a person can still see the gist.
     // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
     const shown = text.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, '');

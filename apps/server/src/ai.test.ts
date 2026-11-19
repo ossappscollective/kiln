@@ -348,7 +348,7 @@ dbTest('keyword_ideas: a proposal flags what is tracked, repeated or not a term;
   const s = res.body.suggestion;
   assert.equal(s.status, 'proposed');
   assert.equal(s.task, 'keyword_ideas');
-  assert.equal(s.taskVersion, 1);
+  assert.equal(s.taskVersion, 2, 'keyword_ideas is at version 2: it takes the app context');
   assert.equal(s.kind, 'keywords');
   assert.equal(s.provider, 'anthropic');
   assert.equal(s.model, 'fake-model');
@@ -658,7 +658,21 @@ dbTest('the task list shows what each task sends before any use, and planned tas
     assert.equal(typeof task.version, 'number');
   }
   const status = Object.fromEntries(res.body.tasks.map((x: { id: string; status: string }) => [x.id, x.status]));
-  assert.deepEqual(status, { keyword_ideas: 'ready', listing_improve: 'ready', review_reply_draft: 'ready', release_notes: 'planned', listing_translate: 'planned', rank_drop_explain: 'planned' });
+  assert.deepEqual(status, {
+    keyword_ideas: 'ready',
+    listing_improve: 'ready',
+    review_reply_draft: 'ready',
+    review_summary: 'ready',
+    review_classify: 'ready',
+    fix_next: 'ready',
+    listing_audit: 'ready',
+    keyword_ideas_reviews: 'ready',
+    listing_variants: 'ready',
+    aso_health: 'ready',
+    listing_translate: 'ready',
+    release_notes: 'planned',
+    rank_drop_explain: 'planned',
+  });
   const accept = Object.fromEntries(res.body.tasks.map((x: { id: string; acceptAction: string | null }) => [x.id, x.acceptAction]));
   assert.equal(accept.keyword_ideas, 'aso.write');
   assert.equal(accept.listing_improve, 'changesets.write');
@@ -1051,10 +1065,12 @@ dbTest('deleting an app deletes its suggestions; retention purges old ones', asy
 
 test('structure: the AI modules import only the services they may and never name an action that leaves the tool', () => {
   const dir = new URL('./services/', import.meta.url);
-  const files = ['ai.ts', 'ai-tasks.ts', 'ai-task-types.ts', 'ai-task-keywords.ts', 'ai-task-listing.ts', 'ai-task-reply.ts', 'ai-suggestions.ts', 'ai-usage.ts', 'ai-config.ts', 'ai-models.ts'].map((f) => [f, new URL(f, dir)] as const);
+  const files = ['ai.ts', 'ai-tasks.ts', 'ai-task-types.ts', 'ai-task-keywords.ts', 'ai-task-listing.ts', 'ai-task-reply.ts', 'ai-suggestions.ts', 'ai-usage.ts', 'ai-config.ts', 'ai-models.ts', 'ai-app-context.ts', 'ai-review-classes.ts', 'ai-task-data.ts', 'ai-task-lenient.ts', 'ai-task-reviews.ts', 'ai-task-aso.ts', 'ai-task-listing-more.ts'].map((f) => [f, new URL(f, dir)] as const);
   const routes = readFileSync(new URL('./routes/ai.ts', import.meta.url), 'utf8');
   const allowed = new Set([
     'ai-config', 'ai-models', 'ai-suggestions', 'ai-tasks', 'ai-task-types', 'ai-task-keywords', 'ai-task-listing', 'ai-task-reply', 'ai-usage',
+    'ai-app-context', 'ai-review-classes', 'ai-task-data', 'ai-task-lenient', 'ai-task-reviews', 'ai-task-aso', 'ai-task-listing-more',
+    'aso-insights', 'review-summary', 'analytics-query',
     'aso', 'aso-net', 'apps', 'audit', 'events', 'listing-drift', 'listing-live', 'review-replies', 'reviews', 'asset-repo', 'staged-changes',
     'credentials', 'translate-net', 'webhook-transport',
   ]);

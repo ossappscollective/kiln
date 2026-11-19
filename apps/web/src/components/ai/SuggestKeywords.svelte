@@ -52,7 +52,7 @@
       }
     }
     if (problems.length > 0) toast.error(problems.join(' '));
-    else if (made > 0) toast.info('Keyword ideas are ready in AI suggestions. Nothing is tracked until you accept them.');
+    else if (made > 0) toast.info('Keyword ideas are ready just above this list. Nothing is tracked until you accept them.');
   }
 </script>
 

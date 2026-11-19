@@ -106,7 +106,7 @@ export type AnalyticsStatus = {
     requests: { accessType: string; status: string; createdAt: number; lastCheckedAt: number | null }[];
     vendorNumberSet: boolean;
   } | null;
-  google: { bucketIdSet: boolean } | null;
+  google: { bucketIdSet: boolean; bucketSource?: 'app' | 'account' | 'workspace' | null } | null;
   sources: SourceStatus[];
   runs: AnalyticsRun[];
 };
@@ -578,7 +578,7 @@ export const setupText: Record<AnalyticsSetupCode, string> = {
   request_stopped: 'Apple stopped the request because nothing was read for a long time. Enable Apple analytics again.',
   vendor_number_missing: 'Optional: add the Apple vendor number in the workspace settings to read daily units and proceeds.',
   sales_forbidden: 'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
-  bucket_id_missing: 'Add the Cloud Storage bucket id of the Play Console reports in the workspace settings to read installs and ratings.',
+  bucket_id_missing: 'Add the Cloud Storage bucket of your Play Console reports (it is the same for every app of the Play account) to read installs and ratings.',
   bucket_forbidden: 'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
   reporting_api_not_enabled: 'In Google Cloud console, open the project of the service account, find Google Play Developer Reporting API and click Enable. Then sync again.',
   play_permission_missing: 'In Play Console open Users and permissions, invite the service account email address and give it access to this app with View app quality information (read-only). Then sync again.',
@@ -594,7 +594,7 @@ export const nextStepLabels: Record<AnalyticsNextStep, string> = {
   import_apple_report: 'Import a report file',
   ask_apple_admin: 'Ask an Apple admin',
   set_vendor_number: 'Set the vendor number',
-  set_bucket_id: 'Set the bucket id',
+  set_bucket_id: 'Set the reports bucket',
   grant_play_permission: 'Grant the Play permission',
   enable_reporting_api: 'Enable the Reporting API',
   fix_credential: 'Check the credential',
@@ -608,6 +608,7 @@ export type StepAction =
   | { kind: 'enable_apple'; label: string; needs: 'manage' }
   | { kind: 'import'; label: string; needs: 'manage' }
   | { kind: 'sync'; label: string; needs: 'manage' }
+  | { kind: 'bucket'; label: string; needs: 'manage' }
   | { kind: 'link'; label: string; target: 'settings' | 'credentials'; needs: 'none' }
   | { kind: 'text'; label: string; needs: 'none' };
 
@@ -622,8 +623,9 @@ export function stepAction(step: string): StepAction {
       return { kind: 'import', label, needs: 'manage' };
     case 'sync_now':
       return { kind: 'sync', label, needs: 'manage' };
-    case 'set_vendor_number':
     case 'set_bucket_id':
+      return { kind: 'bucket', label, needs: 'manage' };
+    case 'set_vendor_number':
       return { kind: 'link', label: `${label} in Settings`, target: 'settings', needs: 'none' };
     case 'fix_credential':
       return { kind: 'link', label: `${label} under Credentials`, target: 'credentials', needs: 'none' };
@@ -644,3 +646,60 @@ export const stateInfo: Record<SourceState, { label: string; tone: 'neutral' | '
 };
 
 export const stateOf = (value: string): SourceState => (value in stateInfo ? (value as SourceState) : 'needs_setup');
+
+// ---------------------------------------------------------------------------------------------
+// The Google Play reports bucket (docs/api/analytics.md): installs and ratings of an Android app come from monthly CSV files in ONE
+// private Cloud Storage bucket per Play developer account. Crash and ANR numbers (vitals) need no bucket.
+
+export type PlayBucketView = {
+  bucketId: string | null;
+  source: 'app' | 'account' | 'workspace' | null;
+  app: string | null;
+  account: string | null;
+  workspace: string | null;
+  /** What the app reads without its own override: its Play credential's bucket, else the workspace default. */
+  inherited: { bucketId: string | null; source: 'app' | 'account' | 'workspace' | null };
+  credentialId: string;
+  sharedWith: number;
+};
+
+export type PlayBucketTestResult = { ok: boolean; code: string; message: string; months: string[] };
+
+/** Whether an Android app has vitals but nowhere to read installs from: the "Downloads need your Play reports bucket" state. */
+export const needsPlayBucket = (status: Pick<AnalyticsStatus, 'google'> | null): boolean => status !== null && status.google !== null && !status.google.bucketIdSet;
+
+/** One line per source of an Android app: "Vitals: connected · Installs: not set up". */
+export function playSourceLine(status: AnalyticsStatus): string {
+  const word = (source: string, label: string, setUp: boolean): string => {
+    const found = status.sources.find((s) => s.source === source);
+    if (!setUp) return `${label}: not set up`;
+    if (!found) return `${label}: not set up`;
+    switch (stateOf(found.state)) {
+      case 'ready':
+        return `${label}: connected`;
+      case 'waiting':
+        return `${label}: waiting for data`;
+      case 'error':
+        return `${label}: last read failed`;
+      case 'off':
+        return `${label}: off`;
+      default:
+        return `${label}: needs setup`;
+    }
+  };
+  return [word('play_vitals', 'Vitals', true), word('play_reports', 'Installs', status.google?.bucketIdSet === true)].join(' · ');
+}
+
+/** Where the bucket the app reads comes from, in words. */
+export function bucketSourceText(view: Pick<PlayBucketView, 'source' | 'sharedWith'>): string {
+  switch (view.source) {
+    case 'app':
+      return 'Set for this app only.';
+    case 'account':
+      return view.sharedWith > 1 ? `Shared by the ${view.sharedWith} Android apps of this Play account.` : 'Saved for this Play account.';
+    case 'workspace':
+      return 'Set in the workspace settings.';
+    default:
+      return 'Not set.';
+  }
+}

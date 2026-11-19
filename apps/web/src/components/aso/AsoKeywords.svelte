@@ -313,7 +313,7 @@
                     {/if}
                     <span class="truncate" title={k.term}>{k.term}</span>
                     {#if multi}<Badge>{platformLabel(k.platform)}</Badge>{/if}
-                    {#if k.tag}<Badge tone="info">{k.tag}</Badge>{/if}
+                    {#if k.tag === 'ai'}<Badge tone="info">added by AI</Badge>{:else if k.tag}<Badge tone="info">{k.tag}</Badge>{/if}
                   </span>
                 </th>
                 <td class="muted">{marketText(k)}</td>

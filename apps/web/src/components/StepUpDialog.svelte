@@ -4,6 +4,7 @@
   It sends nothing but the confirmation: `onGranted(grant)` is called once with the short-lived, single-use grant and the
   caller repeats ITS OWN call with it. Every sentence for a failure comes from a fixed code, never from the browser.
   A web view that offers no passkeys (the desktop app's shell may not) gets the password form and a note.
+  An authenticator app code or an emailed code can confirm too (docs/api/two-factor.md).
   Props: open (bindable), api, workspaceId, action, target ({ id?, hash? }), factors (the ways the server offered),
   onGranted(grant), oncancel().
 -->
@@ -25,6 +26,7 @@
     webauthnFailureMessage,
     webauthnSupported,
   } from '../lib/step-up.ts';
+  import { codeComplete, resendIn, twoFactorProblem } from '../lib/two-factor.ts';
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import Modal from './ui/Modal.svelte';
@@ -56,11 +58,22 @@
   const hasPassword = $derived(factors.indexOf('password') >= 0);
   const hasPasskey = $derived(factors.indexOf('passkey') >= 0 && supported);
   const hasRecovery = $derived(factors.indexOf('recovery') >= 0);
+  const hasTotp = $derived(factors.indexOf('totp') >= 0);
+  const hasEmail = $derived(factors.indexOf('email') >= 0);
 
   // The way the person chose to switch to; null means the first offered way.
   let chosen = $state<StepUpFactor | null>(null);
   let password = $state('');
   let recoveryCode = $state('');
+  let totpCode = $state('');
+  let emailCode = $state('');
+  let emailSent = $state<{ to: string; at: number; wait: number } | null>(null);
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!emailSent) return;
+    const timer = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(timer);
+  });
   let busy = $state(false);
   let problem = $state('');
   let settled = false;
@@ -69,6 +82,9 @@
   const showPasskey = $derived(hasPasskey && current === 'passkey');
   const showPassword = $derived(hasPassword && current === 'password');
   const showRecovery = $derived(hasRecovery && current === 'recovery');
+  const showTotp = $derived(hasTotp && current === 'totp');
+  const showEmail = $derived(hasEmail && current === 'email');
+  const emailWait = $derived(emailSent ? resendIn(emailSent.at, emailSent.wait, now) : 0);
   const switchTo = (factor: StepUpFactor) => () => {
     chosen = factor;
     problem = '';
@@ -145,6 +161,40 @@
     }
   }
 
+  async function withCode(factor: 'totp' | 'email', typed: string) {
+    if (busy || !codeComplete(typed)) return;
+    busy = true;
+    problem = '';
+    try {
+      const done = await api.stepUpVerify(workspaceId, { factor, action, target, code: typed.replace(/\D+/g, '') });
+      totpCode = '';
+      emailCode = '';
+      finish(done.grant);
+    } catch (error) {
+      totpCode = '';
+      emailCode = '';
+      problem = twoFactorProblem(error);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function sendEmailCode() {
+    if (busy) return;
+    busy = true;
+    problem = '';
+    try {
+      const sent = await api.stepUpEmailCode(workspaceId, { action, target });
+      emailSent = { to: sent.to, at: Date.now(), wait: sent.resendAfterSeconds };
+      now = Date.now();
+      emailCode = '';
+    } catch (error) {
+      problem = twoFactorProblem(error);
+    } finally {
+      busy = false;
+    }
+  }
+
   function closed() {
     if (!settled) {
       settled = true;
@@ -198,10 +248,35 @@
       </form>
     {/if}
 
-    {#if current !== undefined && (hasPasskey || hasPassword || hasRecovery)}
+    {#if showTotp}
+      <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('totp', totpCode); }}>
+        <TextField label="Authenticator code" bind:value={totpCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" hint="The six digits your authenticator app shows. Each code works once." required disabled={busy} />
+        <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(totpCode)}>Confirm</Button></div>
+      </form>
+    {/if}
+
+    {#if showEmail}
+      {#if emailSent}
+        <form class="stack" onsubmit={(event) => { event.preventDefault(); void withCode('email', emailCode); }}>
+          <p class="muted">A code was sent to <strong>{emailSent.to}</strong>. It works once, for this action only.</p>
+          <TextField label="Code from the email" bind:value={emailCode} inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required disabled={busy} />
+          <div class="row">
+            <Button type="submit" variant="primary" loading={busy} disabled={busy || !codeComplete(emailCode)}>Confirm</Button>
+            <Button disabled={busy || emailWait > 0} onclick={sendEmailCode}>{emailWait > 0 ? `Send again in ${emailWait}s` : 'Send again'}</Button>
+          </div>
+        </form>
+      {:else}
+        <p class="muted">We email a six digit code to your verified address. It works once, for this action only.</p>
+        <Button variant="primary" icon="mail" loading={busy} disabled={busy} onclick={sendEmailCode}>Email me a code</Button>
+      {/if}
+    {/if}
+
+    {#if current !== undefined && (hasPasskey || hasPassword || hasRecovery || hasTotp || hasEmail)}
       <p class="alts">
         {#if hasPasskey && current !== 'passkey'}<Button variant="link" disabled={busy} onclick={switchTo('passkey')}>Use passkey</Button>{/if}
         {#if hasPassword && current !== 'password'}<Button variant="link" disabled={busy} onclick={switchTo('password')}>Use password</Button>{/if}
+        {#if hasTotp && current !== 'totp'}<Button variant="link" disabled={busy} onclick={switchTo('totp')}>Use an authenticator code</Button>{/if}
+        {#if hasEmail && current !== 'email'}<Button variant="link" disabled={busy} onclick={switchTo('email')}>Email me a code</Button>{/if}
         {#if hasRecovery && current !== 'recovery'}<Button variant="link" disabled={busy} onclick={switchTo('recovery')}>Use a recovery code</Button>{/if}
       </p>
     {/if}

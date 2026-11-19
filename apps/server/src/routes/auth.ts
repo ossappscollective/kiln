@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { type AppEnv, type Services, clientIp, parseBody } from '../http.ts';
@@ -14,7 +15,9 @@ import {
   resolveSession,
   verifyLogin,
 } from '../services/accounts.ts';
+import { mailConfigured } from '../services/mailer.ts';
 import { LOCAL_USER_EMAIL } from '../single-user.ts';
+import { createLoginChallenge, loginMethods, loginNeed } from '../services/two-factor.ts';
 
 export const SESSION_COOKIE = 'mrm_session';
 
@@ -26,6 +29,19 @@ const registerBody = z.object({
 });
 
 const loginBody = z.object({ email: z.string().max(254), password: z.string().max(200) });
+
+/** Sets the session cookie for a person who has fully signed in (the password and, where it is asked, the second factor). */
+export async function startLoginSession(services: Services, c: Context, userId: string) {
+  const { token } = await createSession(services.db, userId, services.now());
+  const proto = c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '');
+  setCookie(c, SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: proto === 'https',
+    path: '/',
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+}
 
 export function authRoutes(services: Services) {
   const { db, now, limiter, ipLimiter, singleUser } = services;
@@ -47,17 +63,7 @@ export function authRoutes(services: Services) {
     app.post('/logout', disabled);
   }
 
-  const startSession = async (c: Parameters<typeof setCookie>[0], userId: string) => {
-    const { token } = await createSession(db, userId, now());
-    const proto = c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '');
-    setCookie(c, SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'Lax',
-      secure: proto === 'https',
-      path: '/',
-      maxAge: Math.floor(SESSION_TTL_MS / 1000),
-    });
-  };
+  const startSession = (c: Context, userId: string) => startLoginSession(services, c, userId);
 
   // Tells the UI which screen to show. Public, and reveals nothing beyond "is there an account".
   app.get('/status', async (c) => {
@@ -126,6 +132,16 @@ export function authRoutes(services: Services) {
       throw error;
     }
     if (!user) return c.json({ error: 'invalid_credentials' }, 401);
+    // The second step (docs/adr/0021-two-factor-and-smtp.md). With the policy off, the default, this is 'none' and nothing changes. When
+    // a second factor is asked for, NO session starts yet, and the email counter is NOT reset: it keeps counting the guesses that follow,
+    // so a known password does not buy unlimited tries.
+    const need = await loginNeed(db, user.id);
+    if (need !== 'none') {
+      if (ip) ipLimiter.refund(ip);
+      const challenge = await createLoginChallenge(db, user.id, need, now());
+      c.header('Cache-Control', 'no-store');
+      return c.json({ twoFactorRequired: true, enrollmentRequired: need === 'enroll', challenge, methods: await loginMethods(db, user.id, need, await mailConfigured()) });
+    }
     limiter.reset(key);
     // A success must not wipe the address's failures (one valid login would reset the count for a
     // guesser sharing the address), so it only gives its own attempt back.

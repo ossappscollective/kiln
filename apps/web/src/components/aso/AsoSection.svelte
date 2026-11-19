@@ -4,7 +4,8 @@
   and `?view=terms` is the separate Search terms view (Google Play apps only, from a Play Console file).
   Keywords: a small switch of two views, Keywords (the tracker: rank history per locale, add and remove keywords, "Check now") and Rank
   and downloads (the rank history laid on downloads; a correlation view), and a "More" menu with the rest: In your listing,
-  Competitors, Ideas, Fit, Gaps and Markets. The ranked next steps and the AI suggestions are on the Overview of Insights, not here.
+  Competitors, Ideas, Fit, Gaps and Markets. The ranked next steps are on the Overview of Insights; the keyword ideas that "Suggest keywords"
+  asked for are listed here (Keywords and Ideas), where accepting them reads the tracked keywords again at once.
   It reads the tracked keywords of every app record in scope once and hands them to the views; the config of the server (is Google
   Play reading on, are checks scheduled) shows as one quiet pill. Nothing here writes to a store: the reads are our own database,
   "Check now" and following a competitor read the public store.
@@ -20,6 +21,7 @@
   import { appAddress } from '../../lib/app-scope.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
+  import AiSuggestions from '../ai/AiSuggestions.svelte';
   import ViewSwitch from '../app/ViewSwitch.svelte';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
@@ -164,6 +166,11 @@
       <Skeleton width="100%" height="140px" />
     </div>
   {:else}
+    {#if view === 'keywords' || view === 'ideas'}
+      {#each members as m (m.id)}
+        <AiSuggestions {api} {workspaceId} {role} app={m} platform={address.platform} showPlatform={members.length > 1} kind="keywords" onaccepted={changed} />
+      {/each}
+    {/if}
     <div>
       {#if view === 'keywords'}
         <AsoKeywords {...shared} {canWrite} />

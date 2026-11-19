@@ -287,12 +287,13 @@ dbTest('import: unknown report, missing columns, bad gzip, decompression bomb an
   assert.ok(t.texts.every((text) => !text.includes(SEGMENT_SECRET)));
 });
 
-dbTest('import: an Android app has no file import, and an imported number never replaces one the API read', async (db) => {
+dbTest('import: an Android app takes a Play Console statistics file only, and an imported number never replaces one the API read', async (db) => {
   const t = await bootAnalytics(db);
   await t.enable();
   const android = await t.addApp('android');
   const refused = await t.upload(t.owner, `/apps/${android}/analytics/import/preview`, 'x');
-  assert.deepEqual([refused.status, refused.body.error], [422, 'import_not_supported']);
+  assert.equal(refused.status, 422, 'a file that is not a Play Console statistics report is refused');
+  assert.notEqual(refused.body.error, 'import_not_supported');
 
   const appId = await t.addApp('ios');
   await t.db.execute(

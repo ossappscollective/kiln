@@ -38,6 +38,8 @@ production.
 - A database-backed job queue with retries; SQLite through `node:sqlite` or Postgres.
 - Security hardening of the hosted server: login rate limits, request body caps, security headers,
   non-root container, loopback-only default publish ([docs/deployment.md](docs/deployment.md)).
+- An MCP server (off by default, `MRM_MCP_ENABLED`) so AI assistants such as Claude and Cursor can read a workspace through an API token and
+  preview, never apply, store actions ([docs/mcp.md](docs/mcp.md), [docs/api/mcp.md](docs/api/mcp.md)). Tested against a fake client only.
 - Web UI screens written: setup, sign-in, credentials, members and invitations, audit log,
   repositories. See below for what is not verified about them.
 

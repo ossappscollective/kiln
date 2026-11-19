@@ -7,6 +7,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { type BearerOptions, requireAuth } from './bearer.ts';
 import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
+import { type McpDeps, mountMcp } from './mcp/routes.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { appRoutes } from './routes/apps.ts';
 import { aiRoutes } from './routes/ai.ts';
@@ -34,9 +35,11 @@ import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-re
 import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { stepUpRoutes } from './routes/step-up.ts';
+import { type MailDeps, loginSecondFactorRoutes, mailAndTwoFactorRoutes, setUpMail } from './routes/mail-mount.ts';
 import { enableStepUpAutoApprove } from './services/step-up.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
+import { alertRoutes } from './routes/alerts.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
 import {
@@ -118,6 +121,8 @@ export type AppDeps = {
   publicOrigin?: string;
   /** Demo mode only: hard actions pass the step-up check, because nobody is there to confirm them. */
   stepUpAutoApprove?: boolean;
+  /** Email (SMTP) and two-factor codes (docs/api/mail.md). `env` is MRM_SMTP_*; tests pass `mailer`. All optional. */
+  mail?: MailDeps;
   /** Overridable for tests. */
   now?: () => number;
   cost?: Services['cost'];
@@ -295,6 +300,8 @@ export type AppDeps = {
     clientFactory?: AiContext['clientFactory'];
     limiter?: TestLimiter;
   };
+  /** The MCP endpoint for AI assistants (docs/mcp.md). `enabled` is MRM_MCP_ENABLED (default false: POST /mcp answers 404). */
+  mcp?: McpDeps;
 };
 
 export function createApp(deps: AppDeps) {
@@ -345,6 +352,8 @@ export function createApp(deps: AppDeps) {
   });
 
   app.route('/api/auth', authRoutes(services));
+  const mail = setUpMail(services, deps.mail);
+  if (!deps.singleUser) app.route('/api/auth', loginSecondFactorRoutes(mail, services));
   app.use('/api/me', requireUser(services));
   app.route('/api/me', meRoute(services));
   // The session cookie, or an API token (bearer.ts). Cookie requests are handled exactly as before.
@@ -374,6 +383,8 @@ export function createApp(deps: AppDeps) {
       ...deps.webhooks,
     }),
   );
+  // Alerts (docs/api/alerts.md): the inbox, a person's choices, the workspace rules, the delivery log. Email is sent by the worker.
+  app.route('/api/workspaces', alertRoutes({ db: services.db, now: services.now }));
   const cloneUpkeep =
     deps.cloneUpkeep ??
     (deps.reads
@@ -409,6 +420,7 @@ export function createApp(deps: AppDeps) {
   };
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
   app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
+  app.route('/api/workspaces', mailAndTwoFactorRoutes(mail, services));
   app.route('/api/workspaces', stepUpRoutes({ services, ...(deps.publicOrigin ? { publicOrigin: deps.publicOrigin } : {}), ...(deps.trustedOrigins ? { trustedOrigins: deps.trustedOrigins } : {}) }));
   // Workspace settings (any member reads, admins write) and the translation of stored reviews.
   app.route(
@@ -690,6 +702,24 @@ export function createApp(deps: AppDeps) {
   app.route('/api/builds', publicBuildsRoutes(buildsContext));
   // Public: the person with the link is not signed in yet.
   app.route('/api/invitations', publicInvitationRoutes(services));
+
+  // MCP: POST /mcp for AI assistants (off unless MRM_MCP_ENABLED) and its status for Settings. Store writes are previewed, never applied. docs/adr/0023-mcp-server.md
+  mountMcp(app, {
+    services,
+    deps: deps.mcp,
+    version: deps.version,
+    publicOrigin: deps.publicOrigin,
+    trustedOrigins: deps.trustedOrigins,
+    flags: {
+      reviewReply: deps.reviews?.reply?.enabled === true,
+      storeRollout: deps.rollout?.enabled === true,
+      storeDraft: deps.storeDraft?.enabled === true,
+      storeSubmit: deps.storeSubmit?.enabled === true,
+      storeRelease: deps.storeRelease?.enabled === true,
+      storePublish: deps.storePublish?.enabled === true,
+      internalSharing: deps.builds?.internalSharingEnabled === true,
+    },
+  });
 
   const openApiDocument = buildOpenApiDocument(operations, { version: deps.version });
   app.get('/api/openapi.json', (c) => c.json(openApiDocument));

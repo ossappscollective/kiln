@@ -1,5 +1,6 @@
 import type { Action, Role } from '@mrm/core';
 import type { Component } from 'svelte';
+import Alerts from '../components/Alerts.svelte';
 import Audit from '../components/Audit.svelte';
 import Credentials from '../components/Credentials.svelte';
 import Members from '../components/Members.svelte';
@@ -43,6 +44,7 @@ export const views: ViewDef[] = [
   { id: 'members', group: 'workspace', icon: 'users', label: 'Members', component: Members, requires: 'members.read' },
   { id: 'tokens', group: 'workspace', icon: 'shield', label: 'API tokens', component: Tokens, requires: 'tokens.read' },
   { id: 'webhooks', group: 'workspace', icon: 'globe', label: 'Webhooks', component: Webhooks, requires: 'webhooks.read' },
+  { id: 'alerts', group: 'workspace', icon: 'bell', label: 'Alerts', component: Alerts, requires: 'alerts.read' },
   { id: 'settings', group: 'workspace', icon: 'settings', label: 'Settings', component: Settings, requires: 'settings.read' },
   { id: 'audit', group: 'workspace', icon: 'history', label: 'Audit log', component: Audit, requires: 'audit.read' },
 ];

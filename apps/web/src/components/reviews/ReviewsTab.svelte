@@ -76,6 +76,7 @@
   import StatusPill from '../ui/StatusPill.svelte';
   import RatingOverview from './RatingOverview.svelte';
   import ReviewCard from './ReviewCard.svelte';
+  import ReviewsAi from './ReviewsAi.svelte';
   import ReviewSplit from './ReviewSplit.svelte';
   import { isReviewsAddress, reviewFromHash, withReview } from '../../lib/review-split.ts';
 
@@ -412,6 +413,8 @@
         {/if}
       </div>
       </Section>
+
+      <ReviewsAi {api} {workspaceId} {role} {app} reviewIds={reviews.map((r) => r.id)} />
 
       <form class="toolbar" onsubmit={search} role="search" aria-label="Filter reviews">
         <label class="searchbox">

@@ -148,6 +148,11 @@ export class FakeReports implements PlayReportsPort {
   months = new Map<string, AnalyticsPoint[]>();
   error: unknown;
   asked: string[] = [];
+  /** Whether the bucket holds any file of the package at all (false: the bucket of another Play account). */
+  packageKnown = true;
+  async hasPackage(): Promise<boolean> {
+    return this.packageKnown;
+  }
   async readMonth(month: string): Promise<PlayReportsResult> {
     this.asked.push(month);
     if (this.error) throw this.error;

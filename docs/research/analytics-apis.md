@@ -234,6 +234,22 @@ or Finance on the help page; a Sales and Reports key cannot read it. Treat as an
 - Read path from TypeScript: Cloud Storage JSON API list (`storage.googleapis.com/storage/v1/b/{bucket}/o?prefix=`)
   and media download (`alt=media`), with the same JWT bearer grant at the new scope. No client library needed (**UNVERIFIED**
   against a real bucket).
+- **One bucket per developer account, not per app** (Google's documentation: the reports of every app of the account are in the
+  same private bucket, organised by package name). A workspace may hold apps of several accounts, so the repo resolves the bucket per
+  app: the app's own setting (`analytics_app_config.play_bucket_id`, App settings), else the Play credential's
+  (`analytics_credential_config`, migration 42, optional), else the workspace default (`analytics.playBucketId`). A package that is
+  nowhere in the bucket (`package_not_in_bucket`, found by listing `stats/<report>/<report>_<package>_` without a month) means the
+  bucket is another account's. Where the user finds the id: Play Console, Download reports, then Reviews, Statistics or Financial,
+  the "Copy Cloud Storage URI" button next to the section header; the URI starts with `gs://pubsite_prod_rev_` and digits.
+- **Why Android Insights showed vitals but no downloads**: Reporting API vitals need no bucket and arrive on their own; installs and
+  ratings exist only in these CSV files, so until a bucket id is set nothing reads them. The sync reported this as an *optional* setup
+  step, collapsed under "Sources and sync". Insights now says it where the numbers would be, and offers the import of a Play Console
+  statistics CSV (Download reports, Statistics) as the way in that needs no Cloud Storage access at all (**UNVERIFIED** that the console
+  export has the same columns as the bucket files: the import matches by header name and refuses a file it cannot map).
+- What the empty state tells the user to grant is **UNVERIFIED**: (1) the Play Console permission "View app information and download
+  bulk reports (read-only)" for the service account, and (2) Storage Object Viewer on the bucket in Google Cloud. Google's pages read
+  do not say whether (1) alone suffices or whether (2) can be granted on a bucket Google owns; the test button of the app answers
+  with `bucket_forbidden` so the first real attempt settles it.
 - Files are **monthly CSVs**. Most data is captured daily and posted within 3 to 7 days. Re-read the current month's
   file on each sync (the exact cumulative behaviour is **UNVERIFIED**). Earnings and invoice billing files are monthly and
   usually there by the 5th of the next month. Google advises not depending on an exact update time. Retention is not stated.

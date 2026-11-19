@@ -140,6 +140,13 @@ export type AiConfigValues = {
   monthlyTokenBudget: number;
   maxOutputTokens: number;
   maxInputTokens: number;
+  /** Warn (softly) when the month's usage reaches this share of the token budget or of the cost cap. 0: no warning. */
+  softWarnPercent: number;
+  /** What the provider charges per million tokens, in whole cents (0: free or unknown). Used only for the cost estimate. */
+  priceInputCentsPerMTok: number;
+  priceOutputCentsPerMTok: number;
+  /** The most the estimated cost of a UTC month may reach, in whole cents. 0: no cost cap. Needs a price to mean anything. */
+  monthlyCostCapCents: number;
 };
 export type AiConfigKey = keyof AiConfigValues;
 
@@ -226,6 +233,26 @@ export const aiSettingDefinitions: { [K in AiConfigKey]: Definition<AiConfigValu
     doc: `The largest input of one run, in estimated tokens (3 characters each, which over-counts) (${aiLimits.minMaxInputTokens} to ${aiLimits.maxMaxInputTokens}). A bigger input is refused before anything is sent.`,
     default: aiLimits.defaultMaxInputTokens,
     parse: integerIn(aiLimits.minMaxInputTokens, aiLimits.maxMaxInputTokens),
+  },
+  softWarnPercent: {
+    doc: 'A warning (never a stop) is shown when this month\'s usage reaches this percentage of the token budget or of the cost cap. 0 turns the warning off. Default 80.',
+    default: 80,
+    parse: integerIn(0, 100),
+  },
+  priceInputCentsPerMTok: {
+    doc: 'What the provider charges for a million INPUT tokens, in whole cents (300 is 3.00). Only used for the cost estimate in the usage meter; 0 (default) means free or unknown, which is right for a model you run yourself.',
+    default: 0,
+    parse: integerIn(0, 1_000_000),
+  },
+  priceOutputCentsPerMTok: {
+    doc: 'What the provider charges for a million OUTPUT tokens, in whole cents. Only used for the cost estimate; 0 (default) means free or unknown.',
+    default: 0,
+    parse: integerIn(0, 1_000_000),
+  },
+  monthlyCostCapCents: {
+    doc: 'The most the ESTIMATED cost of a UTC month may reach, in whole cents (2000 is 20.00). A run that would pass it is refused before anything is sent. Needs a price above to mean anything. 0 (default) means no cost cap; the token budget still applies.',
+    default: 0,
+    parse: integerIn(0, 100_000_000),
   },
 };
 

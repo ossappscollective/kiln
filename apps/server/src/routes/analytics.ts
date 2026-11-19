@@ -1,4 +1,4 @@
-import { type Action, analyticsLimits, analyticsSources, can, sourcesForPlatform } from '@mrm/core';
+import { type Action, analyticsLimits, analyticsSources, can, isApplePlatform, sourcesForPlatform } from '@mrm/core';
 import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -8,6 +8,7 @@ import { memberRole } from '../services/accounts.ts';
 import { requireStepUp } from '../services/step-up.ts';
 import { type AnalyticsContext, syncAnalytics } from '../services/analytics-sync.ts';
 import { applyEnable, previewEnable } from '../services/analytics-enable.ts';
+import { getPlayBucket, setPlayBucket, testPlayBucket } from '../services/analytics-bucket.ts';
 import { applyImport, previewImport } from '../services/analytics-import.ts';
 import { applySearchTermsImport, previewSearchTermsImport } from '../services/play-search-terms.ts';
 import { checkOverviewQuery, overview, status } from '../services/analytics-query.ts';
@@ -49,6 +50,10 @@ export const syncBody = z
 export const enableBody = z
   .object({ confirmHash: z.string().regex(/^[0-9a-f]{64}$/), backfill: z.boolean().optional(), stepUp: z.string().max(200).optional() })
   .strict();
+
+/** `bucket`: `gs://pubsite_prod_rev_<digits>/` or the bare id (validated by the service: `bucket_invalid`), or null to clear. */
+export const playBucketBody = z.object({ bucket: z.string().trim().max(200).nullable(), scope: z.enum(['account', 'app']).optional() }).strict();
+export const playBucketTestBody = z.object({ bucket: z.string().trim().max(200).optional() }).strict();
 
 type Issue = { path: string; message: string };
 const bad = (c: Context<AppEnv>, issues: Issue[]) => c.json({ error: 'invalid_request', issues }, 400);
@@ -130,6 +135,41 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
     const done = await syncAnalytics(ctx, { workspaceId: ws(c), appId: app.id }, actor(c), { trigger: 'manual', ...(sources ? { sources } : {}) });
     if (!done.ok) return respond(c, done);
     return c.json({ sync: done.sync, status: await status(db, { workspaceId: ws(c), app, intervalMinutes: ctx.intervalMinutes }) });
+  });
+
+  // ----- Google Play reports bucket (one per developer account, shared by its Android apps) ---------------
+  routes.get('/:workspaceId/apps/:id/analytics/play-bucket', needs('analytics.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    if (isApplePlatform(app.platform)) return c.json({ error: 'not_an_android_app', message: 'The Play reports bucket is for Android apps.' }, 422);
+    return c.json({ playBucket: await getPlayBucket(db, ws(c), app) });
+  });
+
+  routes.put('/:workspaceId/apps/:id/analytics/play-bucket', needs('analytics.manage'), bodyLimit({ maxSize: 1024, onError: tooLarge }), async (c) => {
+    const body = await parseBody(c, playBucketBody);
+    if (!body.ok) return body.response;
+    const done = await setPlayBucket(db, ctx.now, { workspaceId: ws(c), appId: param(c, 'id'), bucket: body.data.bucket, scope: body.data.scope ?? 'app' }, actor(c));
+    if (!done.ok) return respond(c, done);
+    return c.json({ playBucket: done.view });
+  });
+
+  routes.post('/:workspaceId/apps/:id/analytics/play-bucket/test', needs('analytics.manage'), bodyLimit({ maxSize: 1024, onError: tooLarge }), async (c) => {
+    const raw = await c.req.text();
+    let json: unknown = {};
+    if (raw.trim() !== '') {
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        return bad(c, [{ path: 'body', message: 'Send JSON, or no body.' }]);
+      }
+    }
+    const parsed = playBucketTestBody.safeParse(json);
+    if (!parsed.success) return bad(c, parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })));
+    const wait = limited(c);
+    if (wait) return wait;
+    const done = await testPlayBucket(ctx, { workspaceId: ws(c), appId: param(c, 'id'), ...(parsed.data.bucket !== undefined ? { bucket: parsed.data.bucket } : {}) }, actor(c));
+    if (!done.ok) return respond(c, done);
+    return c.json({ result: done.result });
   });
 
   // ----- Apple: enable analytics (the one store write), preview then confirm ------------------------------

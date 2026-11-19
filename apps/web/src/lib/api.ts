@@ -1,3 +1,4 @@
+import type { McpStatus } from './mcp.ts';
 import type { BuildsList, DownloadLink, InternalSharingConfig, ShareResult, SharePreview } from './builds.ts';
 import { isDemoStatus } from './demo.ts';
 import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
@@ -8,9 +9,25 @@ import type {
   EnablePreview,
   EnableResult,
   ImportPreview,
+  PlayBucketTestResult,
+  PlayBucketView,
   ImportResult as AnalyticsImportResult,
 } from './analytics.ts';
-import type { AiAcceptBody, AiAcceptResult, AiConfig, AiModelsBody, AiModelsResponse, AiRunBody, AiSettingsChanges, AiTasksResponse, AiTestOutcome } from './ai.ts';
+import type {
+  AiAcceptBody,
+  AiAcceptResult,
+  AiAppContextView,
+  AiConfig,
+  AiModelsBody,
+  AiModelsResponse,
+  AiPreview,
+  AiReviewTagView,
+  AiRunBody,
+  AiRunResult,
+  AiSettingsChanges,
+  AiTasksResponse,
+  AiTestOutcome,
+} from './ai.ts';
 import type {
   AsoAddResult,
   AsoCompetitor,
@@ -46,7 +63,9 @@ import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 import type { ReleaseBody, ReleasePreview, ReleaseResult, StoreReleaseConfig, StoreReleaseState } from './store-release.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
+import type { AlertChannel, CatalogEntry, Delivery, AlertInboxPage, Mute, Preference, RuleView, SettingsPage, AlertTestResult, UserSettings } from './alerts.ts';
 import { type StepUpAction, type StepUpStatus, type StepUpTarget, stepUpMessage } from './step-up.ts';
+import { type CodeSent, type LoginMethod, type LoginMode, type LoginResult, type MailTestResult, type SmtpInput, type SmtpSettings, type TotpBegin, type TotpStatus, type TwoFactorStatus, twoFactorMessage } from './two-factor.ts';
 import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
 import type { InboxPage, Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody, WorkspaceReviewsSummary } from './reviews.ts';
 import type {
@@ -153,6 +172,9 @@ export function messageFor(
   // Step-up confirmation (docs/api/step-up.md): every code has a fixed sentence.
   const stepUp = stepUpMessage(body.error ?? '', retryAfter);
   if (stepUp) return stepUp;
+  // Two-factor authentication and mail (docs/api/two-factor.md): fixed sentences for each code.
+  const twoFactor = twoFactorMessage(body.error ?? '', retryAfter);
+  if (twoFactor) return twoFactor;
   switch (body.error) {
     case 'invalid_credentials':
       return 'The email or password is wrong.';
@@ -396,7 +418,15 @@ export function createApi(options: ApiOptions = {}) {
     register: (input: { email: string; displayName: string; password: string; workspaceName: string }) =>
       request<{ user: User; workspaceId: string }>('POST', '/api/auth/register', input),
     login: (input: { email: string; password: string }) =>
-      request<{ user: User }>('POST', '/api/auth/login', input),
+      request<LoginResult>('POST', '/api/auth/login', input),
+    // The second step of signing in (docs/api/two-factor.md): the `challenge` from `login` is the credential for 5 minutes.
+    loginSecondFactor: (input: { challenge: string; method: LoginMethod; code: string }) =>
+      request<{ user: User }>('POST', '/api/auth/login/two-factor', input),
+    loginEmailCode: (challenge: string) => request<CodeSent>('POST', '/api/auth/login/two-factor/email-code', { challenge }),
+    loginEnrollTotp: (challenge: string) => request<TotpBegin>('POST', '/api/auth/login/enroll/totp', { challenge }),
+    loginEnrollTotpConfirm: (challenge: string, code: string) => request<{ user: User }>('POST', '/api/auth/login/enroll/totp/confirm', { challenge, code }),
+    loginEnrollEmail: (challenge: string) => request<CodeSent>('POST', '/api/auth/login/enroll/email', { challenge }),
+    loginEnrollEmailConfirm: (challenge: string, code: string) => request<{ user: User }>('POST', '/api/auth/login/enroll/email/confirm', { challenge, code }),
     logout: () => request<void>('POST', '/api/auth/logout'),
     me: () => request<Me>('GET', '/api/me'),
     credentials: (workspaceId: string) =>
@@ -830,6 +860,8 @@ export function createApi(options: ApiOptions = {}) {
       ),
     audit: (workspaceId: string, limit = 100) =>
       request<{ events: AuditEvent[] }>('GET', `${workspace(workspaceId)}/audit?limit=${limit}`),
+    // The MCP server for AI assistants: whether it is on and which tools it offers (owners and admins). docs/api/mcp.md
+    mcpStatus: (workspaceId: string) => request<McpStatus>('GET', `${workspace(workspaceId)}/mcp/status`),
     // API tokens. The token is in the answer to `createApiToken` and nowhere else.
     apiTokens: (workspaceId: string) =>
       request<{ tokens: ApiToken[] }>('GET', `${workspace(workspaceId)}/tokens`),
@@ -839,6 +871,42 @@ export function createApi(options: ApiOptions = {}) {
     ) => request<CreatedApiToken>('POST', `${workspace(workspaceId)}/tokens`, input),
     revokeApiToken: (workspaceId: string, id: string) =>
       request<void>('DELETE', `${workspace(workspaceId)}/tokens/${encodeURIComponent(id)}`),
+    // Alerts (docs/api/alerts.md): the inbox, a person's own choices, the workspace rules, the delivery log.
+    alertCatalog: (workspaceId: string) =>
+      request<{ catalog: CatalogEntry[] }>('GET', `${workspace(workspaceId)}/alerts/catalog`),
+    alertInbox: (workspaceId: string, query: { unread?: boolean; limit?: number; before?: number } = {}) => {
+      const q = [
+        query.unread ? 'unread=1' : '',
+        query.limit ? `limit=${query.limit}` : '',
+        query.before !== undefined ? `before=${query.before}` : '',
+      ].filter(Boolean);
+      return request<AlertInboxPage>('GET', `${workspace(workspaceId)}/alerts/inbox${q.length ? `?${q.join('&')}` : ''}`);
+    },
+    markAlertsRead: (workspaceId: string, body: { ids: string[] } | { all: true }) =>
+      request<{ marked: number; unreadCount: number }>('POST', `${workspace(workspaceId)}/alerts/inbox/read`, body),
+    alertSettings: (workspaceId: string) => request<SettingsPage>('GET', `${workspace(workspaceId)}/alerts/settings`),
+    updateAlertSettings: (workspaceId: string, body: Partial<Omit<UserSettings, 'lastDigestAt'>>) =>
+      request<{ settings: UserSettings }>('PUT', `${workspace(workspaceId)}/alerts/settings`, body),
+    setAlertPreference: (workspaceId: string, alertType: string, body: { appId?: string | null; channels: AlertChannel[] | null }) =>
+      request<{ preference: Preference | null }>('PUT', `${workspace(workspaceId)}/alerts/preferences/${encodeURIComponent(alertType)}`, body),
+    createAlertMute: (workspaceId: string, body: { appId?: string | null; alertType?: string | null; hours?: number }) =>
+      request<{ mute: Mute }>('POST', `${workspace(workspaceId)}/alerts/mutes`, body),
+    deleteAlertMute: (workspaceId: string, id: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/alerts/mutes/${encodeURIComponent(id)}`),
+    setAlertRule: (
+      workspaceId: string,
+      alertType: string,
+      body: { enabled?: boolean; channels?: AlertChannel[]; maxPerHour?: number | null; params?: Record<string, number> },
+    ) => request<{ rule: RuleView }>('PUT', `${workspace(workspaceId)}/alerts/rules/${encodeURIComponent(alertType)}`, body),
+    resetAlertRule: (workspaceId: string, alertType: string) =>
+      request<{ rule: RuleView }>('DELETE', `${workspace(workspaceId)}/alerts/rules/${encodeURIComponent(alertType)}`),
+    alertDeliveries: (workspaceId: string, query: { workspace?: boolean; limit?: number } = {}) =>
+      request<{ deliveries: Delivery[] }>(
+        'GET',
+        `${workspace(workspaceId)}/alerts/deliveries?limit=${query.limit ?? 30}${query.workspace ? '&scope=workspace' : ''}`,
+      ),
+    sendTestAlert: (workspaceId: string, channel: AlertChannel) =>
+      request<AlertTestResult>('POST', `${workspace(workspaceId)}/alerts/test`, { channel }),
     // Webhooks. The secret is in the answers to `createWebhook` and `rotateWebhookSecret` only.
     webhooks: (workspaceId: string) =>
       request<{ webhooks: WebhookEndpoint[] }>('GET', `${workspace(workspaceId)}/webhooks`),
@@ -1027,11 +1095,27 @@ export function createApi(options: ApiOptions = {}) {
       body:
         | { factor: 'password'; action: string; target?: StepUpTarget; password: string }
         | { factor: 'recovery'; action: string; target?: StepUpTarget; code: string }
+        | { factor: 'totp' | 'email'; action: string; target?: StepUpTarget; code: string }
         | { factor: 'passkey'; action: string; target?: StepUpTarget; challengeId: string; assertion: { id: string; clientDataJSON: string; authenticatorData: string; signature: string } },
     ) => request<{ grant: string; expiresAt: number }>('POST', `${workspace(workspaceId)}/step-up/verify`, body),
     /** Ten new one-time codes; any older ones stop working. The codes are in this answer only. Needs a confirmation (`step_up.manage`). */
     stepUpMakeRecoveryCodes: (workspaceId: string, grant?: string) =>
       request<{ codes: string[]; remaining: number; generatedAt: number }>('POST', `${workspace(workspaceId)}/step-up/recovery-codes`, {}, undefined, grantHeader(grant)),
+    // Authenticator app, emailed codes and mail settings (docs/api/two-factor.md, docs/api/mail.md). Changes carry a step-up grant.
+    twoFactorStatus: (workspaceId: string) => request<TwoFactorStatus>('GET', `${workspace(workspaceId)}/two-factor/status`),
+    twoFactorTotpBegin: (workspaceId: string, grant?: string) => request<TotpBegin>('POST', `${workspace(workspaceId)}/two-factor/totp/begin`, {}, undefined, grantHeader(grant)),
+    twoFactorTotpConfirm: (workspaceId: string, code: string) => request<{ totp: TotpStatus }>('POST', `${workspace(workspaceId)}/two-factor/totp/confirm`, { code }),
+    twoFactorTotpRemove: (workspaceId: string, grant?: string) => request<void>('DELETE', `${workspace(workspaceId)}/two-factor/totp`, undefined, undefined, grantHeader(grant)),
+    twoFactorEmailBegin: (workspaceId: string, email?: string, grant?: string) => request<CodeSent>('POST', `${workspace(workspaceId)}/two-factor/email/begin`, email ? { email } : {}, undefined, grantHeader(grant)),
+    twoFactorEmailConfirm: (workspaceId: string, code: string) => request<unknown>('POST', `${workspace(workspaceId)}/two-factor/email/confirm`, { code }),
+    twoFactorEmailRemove: (workspaceId: string, grant?: string) => request<void>('DELETE', `${workspace(workspaceId)}/two-factor/email`, undefined, undefined, grantHeader(grant)),
+    stepUpEmailCode: (workspaceId: string, body: { action: string; target?: StepUpTarget }) => request<CodeSent>('POST', `${workspace(workspaceId)}/step-up/email-code`, body),
+    twoFactorSetPolicy: (workspaceId: string, mode: LoginMode, grant?: string) => request<{ mode: LoginMode; membersWithoutSecondFactor: number }>('PUT', `${workspace(workspaceId)}/two-factor/policy`, { mode }, undefined, grantHeader(grant)),
+    twoFactorResetMember: (workspaceId: string, userId: string, grant?: string) => request<void>('DELETE', `${workspace(workspaceId)}/two-factor/members/${encodeURIComponent(userId)}`, undefined, undefined, grantHeader(grant)),
+    mailSettings: (workspaceId: string) => request<SmtpSettings>('GET', `${workspace(workspaceId)}/mail/settings`),
+    mailSaveSettings: (workspaceId: string, body: SmtpInput, grant?: string) => request<SmtpSettings>('PUT', `${workspace(workspaceId)}/mail/settings`, body, undefined, grantHeader(grant)),
+    mailClearSettings: (workspaceId: string, grant?: string) => request<SmtpSettings>('DELETE', `${workspace(workspaceId)}/mail/settings`, undefined, undefined, grantHeader(grant)),
+    mailSendTest: (workspaceId: string, to?: string) => request<MailTestResult>('POST', `${workspace(workspaceId)}/mail/test`, to ? { to } : {}),
     stepUpSetPolicy: (workspaceId: string, body: { mode: 'off' | 'hard_actions'; actions?: StepUpAction[]; unattended?: StepUpAction[] }, grant?: string) =>
       request<{ policy: StepUpStatus['policy']; enrolled: boolean }>('PUT', `${workspace(workspaceId)}/step-up/policy`, body, undefined, grantHeader(grant)),
     testTranslation: (workspaceId: string) =>
@@ -1088,7 +1172,18 @@ export function createApi(options: ApiOptions = {}) {
     aiModels: (workspaceId: string, body: AiModelsBody) => request<AiModelsResponse>('POST', `${workspace(workspaceId)}/ai/models`, body),
     aiTasks: (workspaceId: string) => request<AiTasksResponse>('GET', `${workspace(workspaceId)}/ai/tasks`),
     runAiTask: (workspaceId: string, taskId: string, body: AiRunBody) =>
-      request<{ suggestion: AiSuggestionView }>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/run`, body),
+      request<AiRunResult>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/run`, body),
+    /** What a run would send, exactly, from stored data. Contacts no provider and costs nothing. */
+    previewAiTask: (workspaceId: string, taskId: string, body: AiRunBody) =>
+      request<{ preview: AiPreview }>('POST', `${workspace(workspaceId)}/ai/tasks/${encodeURIComponent(taskId)}/preview`, body),
+    /** What the person told the assistant about this app (brand voice, words to avoid). Editing needs the right to edit the app. */
+    appAiContext: (workspaceId: string, appId: string) =>
+      request<AiAppContextView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`),
+    updateAppAiContext: (workspaceId: string, appId: string, context: Record<string, unknown>) =>
+      request<AiAppContextView>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/context`, context),
+    /** The tags the assistant gave reviews earlier (advisory). Reads our own database: no provider is contacted. */
+    reviewAiTags: (workspaceId: string, appId: string, reviewIds: string[]) =>
+      request<{ tags: AiReviewTagView[] }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/ai/review-tags?ids=${reviewIds.map(encodeURIComponent).join(',')}`),
     appAiSuggestions: (workspaceId: string, appId: string, query: { status?: AiSuggestionStatus; limit?: number } = {}) => {
       const params = new URLSearchParams();
       if (query.status) params.set('status', query.status);
@@ -1177,6 +1272,12 @@ export function createApi(options: ApiOptions = {}) {
     },
     syncAnalytics: (workspaceId: string, appId: string, sources?: string[]) =>
       request<AnalyticsSyncResult>('POST', `${analyticsPath(workspaceId, appId)}/sync`, sources && sources.length > 0 ? { sources } : undefined),
+    // The Google Play reports bucket (one per Play developer account, shared by its Android apps). Needs `analytics.manage` to change or test.
+    playBucket: (workspaceId: string, appId: string) => request<{ playBucket: PlayBucketView }>('GET', `${analyticsPath(workspaceId, appId)}/play-bucket`),
+    setPlayBucket: (workspaceId: string, appId: string, body: { bucket: string | null; scope?: 'account' | 'app' }) =>
+      request<{ playBucket: PlayBucketView }>('PUT', `${analyticsPath(workspaceId, appId)}/play-bucket`, body),
+    testPlayBucket: (workspaceId: string, appId: string, bucket?: string) =>
+      request<{ result: PlayBucketTestResult }>('POST', `${analyticsPath(workspaceId, appId)}/play-bucket/test`, bucket !== undefined ? { bucket } : undefined),
     previewAppleEnable: (workspaceId: string, appId: string, backfill = false) =>
       request<EnablePreview>('GET', `${analyticsPath(workspaceId, appId)}/apple/enable${backfill ? '?backfill=true' : ''}`),
     enableApple: (workspaceId: string, appId: string, body: { confirmHash: string; backfill?: boolean }, grant?: string) =>

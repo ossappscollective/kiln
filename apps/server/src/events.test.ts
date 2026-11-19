@@ -163,7 +163,8 @@ dbTest('an app restricted token sees only events about its apps', async (db) => 
   const seen = await json(await bearer(t, token, '/events?since=0'));
   assert.deepEqual(seen.events.map((e: { payload: { n: number } }) => e.payload.n), [1]);
   const all = await json(await bearer(t, await makeToken(t), '/events?since=0'));
-  assert.equal(all.events.length, 3);
+  // Making the tokens above wrote a token.created event each (alerts need it); the three emitted here are the rest.
+  assert.equal(all.events.filter((e: { type: string }) => e.type !== 'token.created').length, 3);
 });
 
 // ----- events from the services ---------------------------------------------------------------

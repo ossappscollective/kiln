@@ -21,11 +21,12 @@ import {
   isGranularity,
   isIsoDate,
   metricInfo,
+  type PlayBucketSource,
   safeRatio,
   sourcesForPlatform,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { type DailyRow, dayBounds, getAppConfig, getSourceStates, listReportRequests, readDaily, recentRuns } from './analytics-store.ts';
+import { type DailyRow, dayBounds, getAppConfig, getSourceStates, listReportRequests, readDaily, recentRuns, resolvePlayBucket } from './analytics-store.ts';
 import { type Setup, deriveSetup, setupMessages } from './analytics-setup.ts';
 import type { ManagedApp } from './apps.ts';
 import { getSettings } from './workspace-settings.ts';
@@ -373,7 +374,7 @@ export type AnalyticsStatus = {
     requests: { accessType: string; status: string; createdAt: number; lastCheckedAt: number | null }[];
     vendorNumberSet: boolean;
   } | null;
-  google: { bucketIdSet: boolean } | null;
+  google: { bucketIdSet: boolean; bucketSource: PlayBucketSource | null } | null;
   sources: SourceStatus[];
   runs: { source: AnalyticsSource; trigger: string; status: string; errorCode: string | null; pointsWritten: number; reportsRead: number; startedAt: number; finishedAt: number | null }[];
 };
@@ -394,8 +395,7 @@ export async function status(
   const enabled = settings['analytics.enabled'] === true;
   const vendorNumber = String(settings['analytics.appleVendorNumber'] ?? '');
   const config = await getAppConfig(sql, workspaceId, app.id);
-  const setBucket = String(settings['analytics.playBucketId'] ?? '');
-  const bucketId = config.playBucketId ?? (setBucket !== '' ? setBucket : null);
+  const { bucketId, source: bucketSource } = await resolvePlayBucket(sql, { workspaceId, app, settings });
   const requests = await listReportRequests(sql, workspaceId, app.id);
   const states = await getSourceStates(sql, workspaceId, app.id, app.platform);
   const bounds = await dayBounds(sql, { workspaceId, appId: app.id, platform: app.platform });
@@ -448,7 +448,7 @@ export async function status(
           vendorNumberSet: vendorNumber !== '',
         }
       : null,
-    google: apple ? null : { bucketIdSet: bucketId !== null },
+    google: apple ? null : { bucketIdSet: bucketId !== null, bucketSource },
     sources,
     runs: runs.map((r) => ({
       source: r.source,

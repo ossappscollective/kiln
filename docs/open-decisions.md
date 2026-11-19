@@ -325,6 +325,19 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Check with real devices:** [api/step-up](api/step-up.md#unverified): Touch ID, Face ID, Windows Hello, security
   keys, and whether the desktop shell's web view offers passkeys at all.
 
+### Two-factor codes and outgoing mail ([ADR 0021](adr/0021-two-factor-and-smtp.md))
+
+- **Today:** built and tested against a fake mail server and the RFC 6238 vectors; everything is **off until an admin sets it up** (no mail server, sign-in policy `off`).
+  An authenticator app and emailed codes are extra step-up factors; on a server with accounts the sign-in policy can ask for a second factor (`optional`,
+  `admins`, `all`), with recovery codes as the fallback. The SMTP client is our own (no `nodemailer`). See [api/two-factor](api/two-factor.md), [api/mail](api/mail.md).
+- **Decide:** whether `admins` should be the default for new servers with accounts; whether email codes should be allowed as a sign-in factor at all (they are only
+  as strong as the mailbox) or only for confirming actions; whether an owner who is locked out with no phone and no recovery codes needs a documented operator command
+  (today: delete the rows in `user_totp` and `user_mail`); whether passkeys should also work as a sign-in factor (not built); whether to allow a mail host on a private
+  address from the screen (today only the operator, with `MRM_SMTP_ALLOW_PRIVATE_HOSTS`); whether OAuth2 mail (Gmail, Microsoft 365 without app passwords) or an HTTP
+  mail API is worth a second `Mailer`.
+- **Check with the real thing:** [api/two-factor](api/two-factor.md#unverified) and [api/mail](api/mail.md#unverified): real authenticator apps scanning the QR code, a real mailbox
+  (delivery, spam filtering), Gmail, Microsoft 365 and SES settings, and a browser run of the three screens.
+
 ### Google Play internal app sharing ([ADR 0020](adr/0020-play-internal-sharing.md))
 
 - **Today:** built, tested against fakes, **off by default** (`MRM_PLAY_INTERNAL_SHARING_ENABLED`). Owners and admins (`builds.share`, explicit-only for

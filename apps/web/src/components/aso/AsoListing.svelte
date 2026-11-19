@@ -14,7 +14,7 @@
   canWrite, onchanged, now.
 -->
 <script lang="ts">
-  import { type ListingRow, type TrackedRank, listingRows } from '@mrm/core';
+  import { type ListingRow, type Role, type TrackedRank, listingRows } from '@mrm/core';
   import { untrack } from 'svelte';
   import { address } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
@@ -42,6 +42,7 @@
   import { territoryName } from '../../lib/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
+  import ListingAi from './ListingAi.svelte';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
@@ -53,6 +54,7 @@
   let {
     api,
     workspaceId,
+    role,
     members,
     config,
     keywords,
@@ -62,6 +64,7 @@
   }: {
     api: Api;
     workspaceId: string;
+    role: Role;
     members: AppSummary[];
     config: AsoConfig | null;
     keywords: AsoKeyword[];
@@ -378,6 +381,7 @@
               : 'kw: keyword field, name: name, sub: subtitle.'}
             A dashed chip is not tracked yet; a solid one is tracked and shows its rank today.
           </p>
+          <ListingAi {api} {workspaceId} {role} app={s.app} locales={s.rows.map((r) => r.locale)} />
         {/if}
       </section>
     {/each}

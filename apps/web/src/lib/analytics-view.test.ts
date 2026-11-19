@@ -318,7 +318,7 @@ test('a manual sync is reported per source in fixed words', () => {
   assert.equal(lines[1]?.text, 'Nothing new.');
   assert.match(lines[2]?.text ?? '', /The next sync tries again\.$/);
   assert.equal(lines[2]?.tone, 'bad');
-  assert.match(lines[3]?.text ?? '', /^Skipped\. Add the Cloud Storage bucket id/);
+  assert.match(lines[3]?.text ?? '', /^Skipped\. Add the Cloud Storage bucket/);
 });
 
 // ---- strip ----

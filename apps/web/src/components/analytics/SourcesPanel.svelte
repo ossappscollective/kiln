@@ -3,7 +3,7 @@
   icon), the dates it covers, when it was last read, a sentence from a fixed vocabulary about what it needs, the last failed
   read as a fixed sentence (never the store's text), and the next step as a button for those who may act (`analytics.manage`:
   owners and admins) or as words for everyone else. Above the list: when the data was last read, how often it is synced, and
-  "Sync analytics now". For Apple apps a file import is always offered. The last manual sync lists what each source did.
+  "Sync analytics now". A file import is always offered (an Apple report, or for Android a Play Console statistics CSV). The last manual sync lists what each source did.
   Props: api, workspaceId, app (id and platform), status, role, now, onchanged (called after something changed, so the screen reads again).
   Nothing here changes a store; "Enable Apple analytics" and "Import a report file" open their own dialogs with a preview and a confirmation.
 -->
@@ -13,6 +13,7 @@
   import { type AnalyticsStatus, type StepAction, analyticsErrorText, stateInfo, stepAvailable } from '../../lib/analytics.ts';
   import { type SyncLine, lastReadAt, overallState, scheduleText, sourceRows, syncLines } from '../../lib/analytics-view.ts';
   import { timeAgo } from '../../lib/format.ts';
+  import { appAddress } from '../../lib/app-scope.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -47,8 +48,8 @@
           : 'No Apple report request exists yet.'
       : status.google
         ? status.google.bucketIdSet
-          ? 'The Play Console reports bucket is set.'
-          : 'The Play Console reports bucket is not set.'
+          ? `The Play reports bucket is ${status.google.bucketSource === 'app' ? 'from app settings' : status.google.bucketSource === 'account' ? 'from the Play account of this app' : 'from the workspace default'}.`
+          : 'The Play reports bucket is not set.'
         : '',
   );
 
@@ -94,8 +95,8 @@
     {#if canManage && status.enabled}
       <Button size="sm" icon="refresh" loading={syncing} onclick={sync}>{syncing ? 'Syncing…' : 'Sync analytics now'}</Button>
     {/if}
-    {#if canManage && apple}
-      <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>Import a report file</Button>
+    {#if canManage}
+      <Button size="sm" icon="upload" onclick={() => (importOpen = true)}>{apple ? 'Import a report file' : 'Import a Play Console CSV'}</Button>
     {/if}
   </div>
 
@@ -125,6 +126,12 @@
                 {#if !canManage}<span class="muted text">Ask an owner or an admin to turn analytics on.</span>{:else if ri === firstTurnOn}<TurnOnAnalytics {api} {workspaceId} {onchanged} variant={i === 0 ? 'primary' : 'secondary'} />{/if}
               {:else if action.kind === 'link'}
                 <Button size="sm" variant="secondary" href={action.target === 'settings' ? '#/settings' : '#/credentials'}>{action.label}</Button>
+              {:else if action.kind === 'bucket'}
+                {#if canManage}
+                  <Button size="sm" variant="secondary" href={appAddress(app.id, 'settings', 'android')}>Set the bucket for this app</Button>
+                {:else}
+                  <span class="muted text">Needs an owner or an admin: set the reports bucket of this app.</span>
+                {/if}
               {:else if action.kind === 'text'}
                 <span class="muted text">Next step: {action.label}.</span>
               {:else if stepAvailable(action, canManage)}
@@ -142,7 +149,9 @@
 
 {#if canManage && apple}
   <EnableAppleDialog bind:open={enableOpen} {api} {workspaceId} appId={app.id} onenabled={onchanged} onimport={() => (importOpen = true)} />
-  <ImportReportDialog bind:open={importOpen} {api} {workspaceId} appId={app.id} onimported={onchanged} />
+{/if}
+{#if canManage}
+  <ImportReportDialog bind:open={importOpen} {api} {workspaceId} appId={app.id} android={!apple} onimported={onchanged} />
 {/if}
 
 <style>

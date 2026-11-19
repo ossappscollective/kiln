@@ -1,5 +1,6 @@
 import type { Row, Sql } from '@mrm/db';
 import { type EventType, eventTypes, isEventType } from './event-types.ts';
+import { observeEventForAlerts } from './alerts.ts';
 import { queueWebhookDeliveries } from './webhooks.ts';
 
 export { type EventType, eventTypes, isEventType };
@@ -139,6 +140,8 @@ export async function emitEvent(sql: Sql, input: EmitInput): Promise<EventRecord
     createdAt: at,
   };
   await queueWebhookDeliveries(sql, record);
+  // Alerts follow from events (services/alerts.ts); they never throw into the emitter.
+  await observeEventForAlerts(sql, record);
   wake(input.workspaceId);
   return record;
 }
@@ -294,6 +297,21 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
       };
     case 'step_up.recovery_used':
       return { ...base, type: 'stepup.recovery_used', payload: { userId: audit.actor.id, action: text(detail.action) ?? null, remaining: typeof detail.remaining === 'number' ? detail.remaining : null } };
+    case 'token.create':
+      return {
+        ...base,
+        type: 'token.created',
+        payload: {
+          tokenId: audit.target?.type === 'token' ? audit.target.id : null,
+          name: text(detail.name) ?? null,
+          role: text(detail.role) ?? null,
+          createdBy: audit.actor.type === 'user' ? audit.actor.id : (text(detail.onBehalfOf) ?? null),
+        },
+      };
+    case 'invitation.accept':
+      return { ...base, type: 'member.added', payload: { userId: audit.actor.id, role: text(detail.role) ?? null, newAccount: detail.newAccount === true } };
+    case 'auth.second_factor_failed':
+      return { ...base, type: 'auth.second_factor_failed', payload: { userId: audit.actor.id, method: text(detail.method) ?? null, reason: text(detail.reason) ?? null } };
     default:
       return undefined;
   }

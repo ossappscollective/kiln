@@ -26,7 +26,7 @@ test('members read but never change credentials or members', () => {
   assert.equal(can('member', 'members.manage'), false);
 });
 
-test('viewers only read the workspace, repositories, apps, listings, plans, reviews, events and ASO', () => {
+test('viewers only read the workspace, repositories, apps, listings, plans, reviews, events, ASO, analytics and alerts', () => {
   const reads = [
     'workspace.read',
     'repositories.read',
@@ -37,6 +37,7 @@ test('viewers only read the workspace, repositories, apps, listings, plans, revi
     'events.read',
     'aso.read',
     'analytics.read',
+    'alerts.read',
   ];
   for (const action of reads) assert.equal(can('viewer', action as never), true, action);
   for (const action of actions.filter((a) => !reads.includes(a))) {

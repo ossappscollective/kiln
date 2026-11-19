@@ -2,7 +2,8 @@
 
 Reference for the routes under `/api/workspaces/{workspaceId}/` that run AI tasks and manage the suggestions they produce. Everything is
 also in `GET /api/openapi.json` (tag `ai`). The decisions behind it, including the prompt-injection design, are in
-[ADR 0016](../adr/0016-ai-foundation.md).
+[ADR 0016](../adr/0016-ai-foundation.md). The features built on it (review reports, ASO reports, text variants, the per-app AI context, the cost cap)
+are in [AI features](../ai-features.md) and [ADR 0024](../adr/0024-ai-features.md); this page is the route reference for both.
 
 **The rule.** An AI task reads stored data, sends an allow-listed part of it to the AI provider the workspace chose, gets back JSON that
 must match a schema, and stores a **suggestion** (a proposal). It changes nothing by itself. A person **accepts** a suggestion, and
@@ -54,7 +55,7 @@ gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the toke
   `credential_unreadable` or `bad_url`). `reason` is absent otherwise.
 - `settings.baseUrl` is the address of an OpenAI compatible server; only admins see it (others get `null`, see `baseUrlSet`).
 - `PUT` body: any of `enabled`, `provider` (`anthropic`, `openai`, `openai_compatible`), `model`, `baseUrl`, `monthlyTokenBudget` (`0` = no limit here),
-  `maxOutputTokens`, `maxInputTokens`; `null` resets a key to its default. All or nothing. Unknown keys are `400`. `400 invalid_setting` lists `issues`.
+  `maxOutputTokens`, `maxInputTokens`, `softWarnPercent`, `priceInputCentsPerMTok`, `priceOutputCentsPerMTok`, `monthlyCostCapCents` (see [Cost](#cost-the-soft-warning-and-the-cap)); `null` resets a key to its default. All or nothing. Unknown keys are `400`. `400 invalid_setting` lists `issues`.
   The key is **not** a setting: add a credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible` ([credentials](../credentials.md#ai-provider-keys)).
   The settings are not part of `PUT /settings`.
 - **Addresses.** The `baseUrl` must be `https` to a public host. With `MRM_AI_ALLOW_PRIVATE_URLS=true` loopback and private addresses are allowed and
@@ -133,23 +134,31 @@ one read, `GET /v1/models` (Anthropic, OpenAI) or `GET <baseUrl>/models` (a comp
 ```
 
 **Show `disclosure` and `provider.privacy` before the first use of a task.** `status: "planned"` tasks are listed with their disclosure plan and answer
-`409 task_not_available` when run: `release_notes`, `listing_translate`, `rank_drop_explain`.
+`409 task_not_available` when run: `release_notes`, `rank_drop_explain`.
 
 | Task | Scope (body fields) | Proposal | Accepting |
 | --- | --- | --- | --- |
 | `keyword_ideas` | `locale` (required), `country`, `goal` | `keywords` | tracks the chosen terms (`aso.write`) |
 | `listing_improve` | `locale` (required), `fields`, `goal` | `listing_text` | stages the texts, source `ai` (`changesets.write`) |
 | `review_reply_draft` | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft` | saves a reply draft (`reviews.triage`, needs `MRM_REVIEW_REPLY_ENABLED`) |
+| `review_summary` | `days` (1 to 180, default 30), `limit` (5 to 80, default 40) | `insight` | marks it reviewed (`ai.use`) |
+| `review_classify` | `days` (default 90), `limit` (1 to 40, default 20), `reviewIds` | `insight` | marks it reviewed; the tags are stored by the run |
+| `fix_next` | `days` (default 30), `limit` (5 to 80, default 40) | `insight` | marks it reviewed |
+| `listing_audit` | `locale` (required), `goal` | `insight` | marks it reviewed |
+| `aso_health` | none | `insight` | marks it reviewed |
+| `keyword_ideas_reviews` | `locale` (required), `country`, `days` (default 90), `goal` | `keywords` | tracks the chosen terms (`aso.write`) |
+| `listing_variants` | `locale` (required), `fields`, `count` (2 to 5, default 3), `goal` | `listing_variants` | stages one chosen variant per field (`changesets.write`) |
+| `listing_translate` | `sourceLocale` and `locale` (the target), both required, `fields` | `listing_text` | stages the texts (`changesets.write`) |
 
 `goal` is at most 300 characters (longer is `400`, not cut). Review text is data: it is delimited, cut to 2,000 characters, and the name, device and
 version of the reviewer are not sent.
 
 ## Running a task
 
-`POST /ai/tasks/{taskId}/run` (`ai.use`). Body: `appId` plus the scope fields of the task (unknown fields are `400`). Answers `201`:
+`POST /ai/tasks/{taskId}/run` (`ai.use`). Body: `appId` plus the scope fields of the task (unknown fields are `400`). Answers `201` (`warning` is `null` unless a limit is near, see [Cost](#cost-the-soft-warning-and-the-cap)):
 
 ```json
-{ "suggestion": { "id": "...", "appId": "...", "task": "keyword_ideas", "taskVersion": 1, "kind": "keywords", "status": "proposed",
+{ "warning": null, "suggestion": { "id": "...", "appId": "...", "task": "keyword_ideas", "taskVersion": 1, "kind": "keywords", "status": "proposed",
   "provider": "anthropic", "model": "claude-...", "proposal": { }, "scope": { "locale": "en-US", "country": "us", "goal": true },
   "inputHash": "<sha-256 of the data sent>", "usage": { "inputTokens": 700, "outputTokens": 200 },
   "createdBy": "...", "createdAt": 1766000000000, "decidedBy": null, "decidedAt": null, "accepted": null } }
@@ -195,15 +204,74 @@ Errors (all JSON `{ "error", "message", ... }` with fixed sentences; never provi
 Audit: `ai.run` (suggestion id, app id, task, version, provider, model, token counts, `inputHash`, scope) and `ai.run_failed` (code and counts). **Never a prompt, an
 answer, a review text, a goal or a key.** Event `ai.suggestion_created` with `suggestionId`, `appId`, `task`, `taskVersion`, `kind` ([events](events.md)).
 
+## Reports, variants, context, preview and cost
+
+Details of each task, with the design reasons, are in [AI features](../ai-features.md). The route facts:
+
+**Proposal kinds added.** `insight` is a report, not something to apply; `listing_variants` offers several alternatives per field.
+
+```json
+{ "kind": "insight", "insight": "review_summary", "period": { "days": 30, "from": 0, "to": 0 }, "reviewCount": 40, "analysed": 25,
+  "sentiment": { "positive": 10, "neutral": 5, "negative": 10 }, "overview": "...",
+  "themes": [{ "label": "...", "kind": "issue", "summary": "...", "count": 6, "reviewIds": ["..."], "averageRating": 1.8 }], "notes": [] }
+
+{ "kind": "listing_variants", "locale": "en-US",
+  "fields": [{ "field": "promotional_text", "limit": 170, "unit": "characters",
+               "variants": [{ "text": "...", "reason": "...", "length": 18, "acceptable": true, "flags": [] }] }] }
+```
+
+`insight` is one of `review_summary`, `review_classify`, `fix_next`, `listing_audit`, `aso_health`. In every report the **numbers are counted by the server**
+(reviews per theme, shares of stars, versions, lengths, coverage, ranks); the model only writes the words, an evidence id it cites that was not in the data is dropped
+(and said in `notes`), and a rank-like claim that the data does not hold gets `unverified_number`. Review ids in a report are the ids of this app's reviews; review text,
+author, device and territory are never in a proposal.
+
+**Flags added** (item, field or variant level): `banned_term` (a word of the app's `bannedWords`; **not acceptable**), `personal_data` (an email, link or number in a reply; **not
+acceptable**), `risky_promise` (a reply or a release note promises something: a date, a refund, "will be fixed"; a warning), `unverified_number`, `brand_term_missing` (a
+translation left out a name of `brandTerms`; a warning).
+
+**Accepting.** `{ "choices": [{ "field": "promotional_text", "variant": 1 }] }` for `listing_variants` (at most one variant per field; without `choices` the first acceptable
+variant of each field is taken; a chosen variant that is not acceptable is `422 nothing_acceptable`). `result` is `{ "kind": "listing_text", ... }` as for a staged text. An `insight` needs
+no body and answers `{ "kind": "insight" }`: it only marks the report as reviewed (`ai.use`); nothing else is created or changed.
+
+**Preview.** `POST /ai/tasks/{taskId}/preview` (`ai.use`, rate limited, **no provider is contacted and no token is spent**). Same body as a run. Answers
+`{ "preview": { "task": { "id", "version" }, "input": { }, "system": "...", "estimatedInputTokens": 900, "maxOutputTokens": 2000, "includesAppContext": true, "provider": "anthropic",
+"model": "..." } }`: the exact data a run would send, built from stored data by the same code, and the instruction text. Same failures as a run before the call (`422 no_reviews`, `no_listing_text`, ...).
+
+**The AI context of an app.** `GET /apps/{id}/ai/context` (`ai.use`) and `PUT /apps/{id}/ai/context` (`apps.write`, so admins and owners). Body and answer:
+`{ "about", "audience", "tone", "brandVoice", "bannedWords": [], "brandTerms": [], "doList": [], "dontList": [] }` plus `updatedAt`, `updatedBy` and (GET, PUT) `canEdit`. `PUT` replaces the
+whole context (a missing field is cleared; all empty deletes it). Limits: `about` 600, `audience` 300, `tone` 120, `brandVoice` 600 characters; 30 words of at most 40 characters in
+`bannedWords` and `brandTerms`; 8 rules of at most 160 characters in each list. Too long is `400 invalid_request` with `issues` (never cut). Unknown keys are `400`. Audit `ai.app_context_update` holds
+the **names** of the fields that changed, never the text. Only the filled-in parts reach a task, as `appContext` in its data, and only for tasks that use it (`review_classify` does not).
+
+**Review tags.** `GET /apps/{id}/ai/review-tags?ids=a,b,c` (`reviews.read`, 1 to 100 ids): `{ "tags": [{ "reviewId", "topics": [], "sentiment", "severity", "language", "needsReply" }] }` for the
+reviews that were tagged. It reads our own database and contacts no provider. Topics are one of `crash`, `bug`, `performance`, `login`, `sync`, `billing`, `price`, `ads`, `ui`,
+`feature_request`, `privacy`, `notifications`, `support`, `onboarding`, `content`, `praise`, `other`; `sentiment` is `positive`, `neutral`, `negative` or `mixed`; `severity` is `none`, `low`, `medium` or
+`high`. The tags are **advisory**: they never change a review's status, assignee or reply. A tagged review is not sent again until its text or the task version changes (`nothing_to_do` when
+nothing is left to tag).
+
+**Cost, the soft warning and the cap.** Providers bill in money, the budget counts tokens. Three optional settings fix that: `priceInputCentsPerMTok` and `priceOutputCentsPerMTok` (whole cents per
+million tokens; `0` = not set) give an **estimate** of the month's cost, `monthlyCostCapCents` (`0` = none) refuses a run whose estimate would pass it, and `softWarnPercent` (default 80, `0` = off) is the share
+of either limit from which a warning is shown. `GET /ai/config` `usage` then also holds `estimatedCostCents`, `costCapCents`, `pricesSet`, `byTask` (`[{ task, runs, inputTokens, outputTokens, costCents }]`) and
+`warning` (`null`, or `{ "kind": "tokens" | "cost", "level": "soft" | "limit", "percent", "message" }`). A run answers `{ "suggestion", "warning" }` with the same `warning` after the run. A soft warning never blocks
+anything; at 100% the existing `429 ai_budget_exhausted` (tokens) or the new `429 ai_cost_cap_reached` (`capCents`, `estimatedCents`, `resetsAt`; nothing was sent) applies. The estimate is **not a bill**: it
+uses prices an admin typed and the token counts the provider reported.
+
+Errors added to a run: `422 no_reviews` (nothing to look at in the period), `409 nothing_to_do` (every review already has tags), `422 no_data` (nothing stored to report on), `422 goal_needed` (release notes alone
+need a goal), `429 ai_cost_cap_reached`.
+
 ## Suggestions
 
 - `GET /apps/{id}/ai/suggestions?status=&task=&limit=` (`ai.use`, app scoped): `{ "suggestions": [...] }`, newest first, `limit` default 20, at most 100.
   `status` is `proposed`, `accepted` or `dismissed`.
 - `GET /ai/suggestions/{suggestionId}`: `{ "suggestion": {...} }`.
 - `POST /ai/suggestions/{suggestionId}/accept` (`ai.use` and the right of the mechanism). Optional body `{ "items": [0, 2], "fields": ["keywords"], "replace": false }`
-  (`items` for keywords, by position; `fields` for listing text; no body accepts everything acceptable). Answers `200 { "suggestion", "result" }` where `result` is ids only:
-  `{ "kind": "keywords", "keywordIds": [...], "created": 2, "existing": 0, "rejected": 0 }`, `{ "kind": "listing_text", "stagedFields": ["keywords"], "locale": "en-US" }` or
+  (`items` for keywords, by position; `fields` for listing text; `choices` for variants, see above; no body accepts everything acceptable). Answers `200 { "suggestion", "result" }` where `result` is ids only:
+  `{ "kind": "keywords", "keywordIds": [...], "created": 2, "existing": 0, "rejected": 0, "locale": "en-US", "country": "us", "remaining": 0 }` (the keywords
+  are tracked for THIS app's platform and that market, with the tag `ai`; `remaining` is how many ideas are still open), `{ "kind": "listing_text", "stagedFields": ["keywords"], "locale": "en-US" }` or
   `{ "kind": "reply_draft", "reviewId": "...", "draftId": "..." }`.
+  **Keyword ideas accepted in part** (`items` names some of the acceptable ones): they are tracked, the suggestion stays `proposed`, and the ideas
+  taken are rewritten in its `proposal` as `already_tracked` and not acceptable. The rest can be accepted or dismissed later; the suggestion becomes
+  `accepted` with its last open idea. Each accept is audited as `ai.suggestion_accepted` (with `partial` and `remaining`).
 - `POST /ai/suggestions/{suggestionId}/dismiss`: `200 { "suggestion" }`; nothing is created.
 
 Accept errors: `403 forbidden` (with `action`), `404 not_found`, `409 suggestion_not_proposed` (already accepted or dismissed; only one accept wins),

@@ -51,6 +51,10 @@ export const actions = [
   'ai.manage',
   'analytics.read',
   'analytics.manage',
+  // Alerts (docs/alerts.md): read your own inbox and the catalog; change your own preferences; set the workspace defaults.
+  'alerts.read',
+  'alerts.write',
+  'alerts.manage',
 ] as const;
 export type Action = (typeof actions)[number];
 
@@ -83,6 +87,8 @@ const allowed: Record<Role, readonly Action[]> = {
     'aso.write',
     'ai.use',
     'analytics.read',
+    'alerts.read',
+    'alerts.write',
   ],
   viewer: [
     'workspace.read',
@@ -94,6 +100,7 @@ const allowed: Record<Role, readonly Action[]> = {
     'events.read',
     'aso.read',
     'analytics.read',
+    'alerts.read',
   ],
 };
 
@@ -144,7 +151,7 @@ export const tokenActions: readonly Action[] = actions.filter((a) => !tokenForbi
  * ("everything the ceiling allows") never does, so widening an old token's role cannot start
  * answering customers or moving a rollout.
  */
-export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage', 'builds.download', 'builds.share'];
+export const tokenExplicitOnlyActions: readonly Action[] = ['reviews.reply', 'releases.rollout', 'store.push_draft', 'store.submit', 'store.release', 'store.publish', 'ai.use', 'ai.manage', 'analytics.manage', 'builds.download', 'builds.share', 'alerts.manage'];
 
 export function isTokenRole(value: unknown): value is TokenRole {
   return typeof value === 'string' && (tokenRoles as readonly string[]).includes(value);

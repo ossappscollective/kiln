@@ -7,6 +7,7 @@ import {
   columnIndex,
   mapAppleSalesTable,
   mapAppleTable,
+  mapPlayConsoleFile,
   readTable,
 } from '@mrm/connectors';
 import { type ActorType, type AnalyticsSource, analyticsErrorMessages, analyticsLimits, isApplePlatform, metricInfo, toMicro } from '@mrm/core';
@@ -19,7 +20,8 @@ import { type Failure, failure } from './repositories.ts';
 
 /**
  * Importing a report file by hand (docs/adr/0017-analytics-foundation.md): the way in for an app whose key may not create report
- * requests (`analytics_role_required`), and for history. The person downloads a report from App Store Connect (Analytics) or a Sales
+ * requests (`analytics_role_required`), and for history. For an Android app the file is a Play Console statistics CSV (installs,
+ * ratings, store listing): the way in while no reports bucket is set up. The person downloads a report from App Store Connect (Analytics) or a Sales
  * and Trends summary and uploads it as the raw request body (.tsv, .csv, or the .gz as downloaded).
  *
  * - Strict: the size is capped (compressed and decompressed), the rows and columns are capped, the columns are matched BY NAME (the
@@ -66,10 +68,9 @@ export async function parseImport(
 ): Promise<Parsed> {
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return failure(404, 'not_found');
-  if (!isApplePlatform(app.platform)) {
-    return failure(422, 'import_not_supported', 'Importing a file is for App Store analytics reports. This app is an Android app: its data comes from Google Play directly.');
-  }
+  const android = !isApplePlatform(app.platform);
   const platform = app.platform === 'macos' ? ('macos' as const) : ('ios' as const);
+  const playLabels = { installs: 'Play Console installs', ratings: 'Play Console ratings', store_performance: 'Play Console store listing performance' } as const;
   try {
     const table = await readTable(input.bytes, {
       maxFileBytes: analyticsLimits.maxFileBytes,
@@ -85,7 +86,19 @@ export async function parseImport(
     let dateFrom: string | null;
     let dateTo: string | null;
     let notes: string[];
-    if (cols.has('developer proceeds') && cols.has('apple identifier')) {
+    if (android) {
+      // A Play Console statistics CSV (Download reports > Statistics): the same columns as the monthly files of the reports bucket.
+      const parsed = mapPlayConsoleFile(table, app.identifier);
+      if (!parsed) return failure(422, 'unknown_report', 'This file is not a Play Console statistics report (installs, ratings or store listing). Download it from Play Console under Download reports, Statistics.');
+      source = 'play_reports';
+      kind = parsed.report;
+      label = playLabels[parsed.report];
+      points = parsed.points;
+      stats = parsed.stats;
+      dateFrom = parsed.points.reduce<string | null>((a, p) => (a === null || p.date < a ? p.date : a), null);
+      dateTo = parsed.points.reduce<string | null>((a, p) => (a === null || p.date > a ? p.date : a), null);
+      notes = ['Imported numbers never replace numbers Google Cloud Storage delivered, and the same file twice stores nothing new.'];
+    } else if (cols.has('developer proceeds') && cols.has('apple identifier')) {
       if (!app.storeAppId) return failure(422, 'app_not_synced', analyticsErrorMessages.app_not_synced);
       const parsed = mapAppleSalesTable(table, { appleId: app.storeAppId, platform });
       source = 'apple_sales';

@@ -1,6 +1,8 @@
 import {
   type AiAcceptedRef,
+  type AiAppContext,
   type AiFlag,
+  type AiInsightProposal,
   type AiProposal,
   type AiProposalKind,
   type AiProvider,
@@ -13,9 +15,11 @@ import {
   checkSecret,
   isApplePlatform,
 } from '@mrm/core';
+import { centsFromText, centsInput, insightTitle } from './ai-insights.ts';
 import { ApiError } from './api.ts';
 import { type PlatformScope, appAddress, appReviewsHref } from './app-scope.ts';
 import { asoViewHref } from './aso.ts';
+import { platformLabel } from './portfolio.ts';
 
 /**
  * AI assistance in the web (docs/api/ai.md, docs/adr/0016-ai-foundation.md): the shapes of the API and the pure logic of the screens.
@@ -42,7 +46,24 @@ export type AiProviderView = {
   credentialPresent: boolean;
 };
 
-export type AiUsage = { month: string; used: number; budget: number; remaining: number | null; runs: number; resetsAt: number };
+/** A soft warning (`soft`: runs still work) or the limit (`limit`: the next run is refused), written by the server. */
+export type AiUsageWarning = { kind: 'tokens' | 'cost'; level: 'soft' | 'limit'; percent: number; message: string };
+export type AiTaskUsage = { task: string; runs: number; inputTokens: number; outputTokens: number; costCents: number };
+
+export type AiUsage = {
+  month: string;
+  used: number;
+  budget: number;
+  remaining: number | null;
+  runs: number;
+  resetsAt: number;
+  /** In whole cents, worked out from the prices an admin typed. 0 when no prices are set. */
+  estimatedCostCents?: number;
+  costCapCents?: number;
+  pricesSet?: boolean;
+  byTask?: AiTaskUsage[];
+  warning?: AiUsageWarning | null;
+};
 
 export type AiConfig = {
   state: AiState;
@@ -58,8 +79,23 @@ export type AiConfig = {
     monthlyTokenBudget: number;
     maxOutputTokens: number;
     maxInputTokens: number;
+    /** From this share of a monthly limit on, a run shows a warning (0: never). Runs still work until 100. */
+    softWarnPercent?: number;
+    /** Whole cents per million tokens, typed by an admin (0: not set). Only used to estimate the cost. */
+    priceInputCentsPerMTok?: number;
+    priceOutputCentsPerMTok?: number;
+    /** A monthly cost cap in whole cents (0: none). Unlike the soft warning it refuses a run. */
+    monthlyCostCapCents?: number;
   };
-  defaults: { monthlyTokenBudget: number; maxOutputTokens: number; maxInputTokens: number };
+  defaults: {
+    monthlyTokenBudget: number;
+    maxOutputTokens: number;
+    maxInputTokens: number;
+    softWarnPercent?: number;
+    priceInputCentsPerMTok?: number;
+    priceOutputCentsPerMTok?: number;
+    monthlyCostCapCents?: number;
+  };
   /** The settings an operator fixed in the server's environment. */
   overridden: string[];
   providers: AiProviderView[];
@@ -95,9 +131,46 @@ export type AiRunBody = {
   reviewId?: string;
   tone?: 'friendly' | 'neutral' | 'apologetic';
   replyLanguage?: string;
+  /** Reviews of the last `days` days (summary, what to fix next). */
+  days?: number;
+  /** How many reviews to tag in one run (classify). */
+  limit?: number;
+  reviewIds?: string[];
+  /** The language to translate from (`locale` is the one to translate to). */
+  sourceLocale?: string;
+  /** How many variants per field. */
+  count?: number;
 };
 
-export type AiAcceptBody = { items?: number[]; fields?: string[]; replace?: boolean };
+export type AiAcceptBody = { items?: number[]; fields?: string[]; choices?: { field: string; variant: number }[]; replace?: boolean };
+
+/** A run answers with the suggestion and, near a monthly limit, a warning. */
+export type AiRunResult = { suggestion: AiSuggestionView; warning?: AiUsageWarning | null };
+
+/** POST /ai/tasks/:id/preview: exactly what a run would send, built from stored data. Nothing is sent to a provider. */
+export type AiPreview = {
+  task: { id: string; version: number };
+  input: unknown;
+  system: string;
+  estimatedInputTokens: number;
+  maxOutputTokens: number;
+  includesAppContext: boolean;
+  provider: AiProvider;
+  model: string;
+};
+
+/** GET and PUT /apps/:id/ai/context. */
+export type AiAppContextView = { context: AiAppContext; updatedAt: number | null; updatedBy: string | null; canEdit: boolean };
+
+/** What the assistant tagged a review with (advisory). */
+export type AiReviewTagView = {
+  reviewId: string;
+  topics: string[];
+  sentiment: string;
+  severity: string;
+  language: string | null;
+  needsReply: boolean;
+};
 export type AiAcceptResult = { suggestion: AiSuggestionView; result: AiAcceptedRef };
 
 /** What PUT /ai/config takes: any of these, `null` resets one to its default. */
@@ -109,6 +182,10 @@ export type AiSettingsChanges = {
   monthlyTokenBudget?: number | null;
   maxOutputTokens?: number | null;
   maxInputTokens?: number | null;
+  softWarnPercent?: number | null;
+  priceInputCentsPerMTok?: number | null;
+  priceOutputCentsPerMTok?: number | null;
+  monthlyCostCapCents?: number | null;
 };
 
 /** A model a provider offers (POST /ai/models). */
@@ -323,6 +400,11 @@ export const flagTexts: Record<AiFlag, { text: string; tone: FlagTone; blocks: s
   empty: { text: 'Empty', tone: 'bad', blocks: 'It is empty.' },
   cleaned: { text: 'Odd characters removed', tone: 'warn', blocks: null },
   markup: { text: 'Looks like HTML', tone: 'bad', blocks: 'Replies are plain text, and this looks like HTML.' },
+  banned_term: { text: 'Uses a word you ruled out', tone: 'bad', blocks: 'It uses a word the AI context of this app rules out. Edit it by hand.' },
+  personal_data: { text: 'May hold personal data', tone: 'bad', blocks: 'It seems to hold an email address, a link or a number. Write it by hand.' },
+  risky_promise: { text: 'Makes a promise', tone: 'warn', blocks: null },
+  unverified_number: { text: 'Number not in the data', tone: 'warn', blocks: null },
+  brand_term_missing: { text: 'A brand name is missing', tone: 'warn', blocks: null },
 };
 
 export const flagInfos = (flags: readonly AiFlag[]): FlagInfo[] =>
@@ -380,6 +462,10 @@ export type ProposalRow = {
   /** Why it cannot be accepted, or null. */
   blocked: string | null;
   meter: RowMeter | null;
+  /** Rows with the same group are alternatives: at most one of them is chosen (the variants of one listing field). Null: independent. */
+  group: string | null;
+  /** The position inside its group, for the `choices` of an accept. */
+  variant: number | null;
 };
 
 /** The proposal of a suggestion as rows for the screen. Every text is data: the screen shows it as text only. */
@@ -397,6 +483,8 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         acceptable: item.acceptable,
         blocked: item.acceptable ? null : blockedReason(item.flags),
         meter: null,
+        group: null,
+        variant: null,
       }));
     case 'listing_text':
       return proposal.fields.map((f, index) => ({
@@ -410,7 +498,34 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
         acceptable: f.acceptable,
         blocked: f.acceptable ? null : blockedReason(f.flags),
         meter: f.limit === null ? null : meterFor(f.length, f.limit, f.unit),
+        group: null,
+        variant: null,
       }));
+    case 'listing_variants': {
+      const out: ProposalRow[] = [];
+      for (const f of proposal.fields) {
+        f.variants.forEach((v, n) => {
+          out.push({
+            index: out.length,
+            key: `${f.field}#${n}`,
+            title: `${listingFieldLabel(f.field)} · option ${n + 1}`,
+            text: v.text,
+            reason: v.reason,
+            note: null,
+            flags: flagInfos(v.flags),
+            acceptable: v.acceptable,
+            blocked: v.acceptable ? null : blockedReason(v.flags),
+            meter: f.limit === null ? null : meterFor(v.length, f.limit, f.unit),
+            group: f.field,
+            variant: n,
+          });
+        });
+      }
+      return out;
+    }
+    case 'insight':
+      // A report has nothing to tick: it is read, and marked as reviewed.
+      return [];
     case 'reply_draft':
       return [
         {
@@ -424,6 +539,8 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
           acceptable: proposal.acceptable,
           blocked: proposal.acceptable ? null : blockedReason(proposal.flags),
           meter: meterFor(proposal.length, proposal.limit, 'characters'),
+          group: null,
+          variant: null,
         },
       ];
   }
@@ -431,14 +548,30 @@ export function proposalRows(proposal: AiProposal): ProposalRow[] {
 
 export const acceptableIndexes = (rows: readonly ProposalRow[]): number[] => rows.filter((r) => r.acceptable).map((r) => r.index);
 
-/** Everything that can be accepted is selected to start with; the rest is never selected. */
-export const initialSelection = (rows: readonly ProposalRow[]): number[] => acceptableIndexes(rows);
+/** Everything that can be accepted is selected to start with (the first acceptable alternative of each group); the rest is never selected. */
+export function initialSelection(rows: readonly ProposalRow[]): number[] {
+  const seen: Record<string, boolean> = {};
+  const out: number[] = [];
+  for (const r of rows) {
+    if (!r.acceptable) continue;
+    if (r.group !== null) {
+      if (seen[r.group]) continue;
+      seen[r.group] = true;
+    }
+    out.push(r.index);
+  }
+  return out;
+}
 
 /** Switches one row of a selection. A row that cannot be accepted is never added. */
 export function toggleSelection(rows: readonly ProposalRow[], selected: readonly number[], index: number, on: boolean): number[] {
   const ok = acceptableIndexes(rows);
-  const next = selected.filter((i) => i !== index && ok.indexOf(i) !== -1);
-  if (on && ok.indexOf(index) !== -1) next.push(index);
+  const group = rows.find((r) => r.index === index)?.group ?? null;
+  // Choosing one alternative of a group (a variant of a field) replaces the one chosen before.
+  const sameGroup = (i: number): boolean => group !== null && rows.some((r) => r.index === i && r.group === group);
+  const addable = on && ok.indexOf(index) !== -1;
+  const next = selected.filter((i) => i !== index && ok.indexOf(i) !== -1 && !(addable && sameGroup(i)));
+  if (addable) next.push(index);
   return next.sort((a, b) => a - b);
 }
 
@@ -451,6 +584,9 @@ export function acceptBody(proposal: AiProposal, rows: readonly ProposalRow[], s
   const body: AiAcceptBody = {};
   if (proposal.kind === 'keywords') body.items = chosen.map((r) => r.index);
   else if (proposal.kind === 'listing_text') body.fields = chosen.map((r) => r.key);
+  else if (proposal.kind === 'listing_variants') {
+    body.choices = chosen.filter((r) => r.group !== null && r.variant !== null).map((r) => ({ field: r.group as string, variant: r.variant as number }));
+  }
   if (replace) body.replace = true;
   return body;
 }
@@ -464,6 +600,10 @@ export function acceptLabel(kind: AiProposalKind, chosen: number): string {
       return `Stage ${plural(chosen, 'text', 'texts')}`;
     case 'reply_draft':
       return 'Save as reply draft';
+    case 'listing_variants':
+      return `Stage ${plural(chosen, 'text', 'texts')}`;
+    case 'insight':
+      return 'Mark as reviewed';
   }
 }
 
@@ -476,13 +616,21 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** The sentence after an accept and the link to where the result lives (ids only came back, never text). */
-export function acceptedNote(result: AiAcceptedRef, appId: string, platform: PlatformScope | null = null): AcceptedNote {
+/**
+ * The sentence after an accept and the link to where the result lives (ids only came back, never text). `appPlatform` is the platform
+ * of the app the suggestion belongs to: a keyword is tracked for that app and market, so the sentence names them ("Added 8 keywords to
+ * iOS · en-US") and the link opens that platform, whatever scope the page was in.
+ */
+export function acceptedNote(result: AiAcceptedRef, appId: string, platform: PlatformScope | null = null, appPlatform: Platform | null = null): AcceptedNote {
   switch (result.kind) {
     case 'keywords': {
-      const parts = [`${plural(result.created, 'keyword', 'keywords')} added to the tracked keywords`];
+      const where = [appPlatform ? platformLabel(appPlatform) : '', result.locale ?? ''].filter((p) => p !== '').join(' · ');
+      const parts = [result.created > 0 ? `Added ${plural(result.created, 'keyword', 'keywords')}${where ? ` to ${where}` : ''}` : `Nothing new${where ? ` for ${where}` : ''}`];
       if (result.existing > 0) parts.push(`${result.existing} already tracked`);
-      return { text: `${parts.join(', ')}.`, href: asoViewHref(appId, 'keywords', platform), linkLabel: 'Open the keywords list' };
+      if (result.rejected > 0) parts.push(`${result.rejected} could not be tracked`);
+      let text = `${parts.join(', ')}.`;
+      if (result.remaining !== undefined && result.remaining > 0) text += ` ${plural(result.remaining, 'idea is', 'ideas are')} still proposed.`;
+      return { text, href: asoViewHref(appId, 'keywords', appPlatform ?? platform), linkLabel: 'Show them' };
     }
     case 'listing_text': {
       const names = result.stagedFields.map(listingFieldLabel).join(', ');
@@ -494,6 +642,8 @@ export function acceptedNote(result: AiAcceptedRef, appId: string, platform: Pla
     }
     case 'reply_draft':
       return { text: 'Saved as a reply draft. Nothing is sent.', href: appReviewsHref(appId, platform), linkLabel: 'Open the reviews' };
+    case 'insight':
+      return { text: 'Marked as reviewed. Nothing was changed.', href: null, linkLabel: null };
   }
 }
 
@@ -516,6 +666,10 @@ export function suggestionTitle(proposal: AiProposal): string {
       return `Listing text · ${proposal.locale}`;
     case 'reply_draft':
       return 'Reply draft';
+    case 'listing_variants':
+      return `Text variants · ${proposal.locale}`;
+    case 'insight':
+      return insightTitle(proposal);
   }
 }
 
@@ -652,6 +806,18 @@ export function aiErrorMessage(error: unknown, fallback = 'That did not work. Tr
       return 'The app already tracks the most keywords it may.';
     case 'invalid_request':
       return 'Those options cannot be used. Check them and try again.';
+    case 'no_reviews':
+      return 'There are no reviews to look at in that period. Sync the reviews, or choose more days.';
+    case 'nothing_to_do':
+      return 'Every review in reach already has tags. Nothing was sent.';
+    case 'no_data':
+      return 'There is not enough stored data for this yet. Track keywords or sync the app first.';
+    case 'goal_needed':
+      return 'Say what the new text should achieve, then try again.';
+    case 'ai_cost_cap_reached':
+      return typeof body.resetsAt === 'number'
+        ? `The monthly cost cap is reached. It starts again on ${resetText(body.resetsAt)}. Nothing was sent.`
+        : 'The monthly cost cap is reached. Nothing was sent.';
     default:
       return error.status >= 500 ? 'The server had a problem. Try again.' : fallback;
   }
@@ -757,9 +923,19 @@ export type AiForm = {
   budget: string;
   /** Write-only: what is typed now, never what is stored. Empty keeps the saved key. */
   apiKey: string;
+  /** Share of a monthly limit (whole percent, as text) from which a run shows a warning. 0 means never. */
+  softWarn: string;
+  /** Dollars per million tokens, as text ("3", "0.25"). Empty or 0: not set, so no cost is estimated. */
+  priceIn: string;
+  priceOut: string;
+  /** Dollars per month, as text. Empty or 0: no cost cap. */
+  costCap: string;
 };
 
-export type AiFormErrors = Partial<Record<'model' | 'baseUrl' | 'budget' | 'apiKey', string>>;
+export type AiFormErrors = Partial<Record<'model' | 'baseUrl' | 'budget' | 'apiKey' | 'softWarn' | 'priceIn' | 'priceOut' | 'costCap', string>>;
+
+/** The soft warning starts at this share unless an admin chose another (the server's default). */
+export const DEFAULT_SOFT_WARN = 80;
 
 export function formFromConfig(config: Pick<AiConfig, 'settings'>): AiForm {
   const s = config.settings;
@@ -770,6 +946,10 @@ export function formFromConfig(config: Pick<AiConfig, 'settings'>): AiForm {
     baseUrl: s.baseUrl ?? '',
     budget: String(s.monthlyTokenBudget),
     apiKey: '',
+    softWarn: String(s.softWarnPercent ?? DEFAULT_SOFT_WARN),
+    priceIn: centsInput(s.priceInputCentsPerMTok ?? 0),
+    priceOut: centsInput(s.priceOutputCentsPerMTok ?? 0),
+    costCap: centsInput(s.monthlyCostCapCents ?? 0),
   };
 }
 
@@ -784,6 +964,15 @@ export function validateAiForm(form: AiForm, config: Pick<AiConfig, 'providers' 
   const budget = form.budget.trim();
   const max = config.limits.maxMonthlyTokenBudget ?? 1_000_000_000;
   if (!/^\d{1,12}$/.test(budget) || Number(budget) > max) errors.budget = `Use a whole number from 0 to ${countText(max)}. 0 means no limit here.`;
+  const soft = form.softWarn.trim();
+  if (!/^\d{1,3}$/.test(soft) || Number(soft) > 100) errors.softWarn = 'Use a whole number from 0 to 100. 0 means no warning.';
+  const money = (text: string): number | null => centsFromText(text);
+  const priceIn = money(form.priceIn);
+  if (priceIn === null || priceIn > 1_000_000) errors.priceIn = 'Use an amount in dollars, such as 3 or 0.25.';
+  const priceOut = money(form.priceOut);
+  if (priceOut === null || priceOut > 1_000_000) errors.priceOut = 'Use an amount in dollars, such as 15 or 0.6.';
+  const cap = money(form.costCap);
+  if (cap === null || cap > 100_000_000) errors.costCap = 'Use an amount in dollars, such as 25. 0 means no cap.';
   if (form.apiKey.trim() !== '') {
     const provider = config.providers.find((p) => p.id === form.provider);
     if (provider) {
@@ -806,6 +995,14 @@ export function aiChanges(config: Pick<AiConfig, 'settings'>, form: AiForm): AiS
   if (url !== (s.baseUrl ?? '')) changes.baseUrl = url === '' ? null : url;
   const budget = Number(form.budget.trim());
   if (Number.isFinite(budget) && form.budget.trim() !== '' && budget !== s.monthlyTokenBudget) changes.monthlyTokenBudget = budget;
+  const soft = form.softWarn.trim();
+  if (/^\d{1,3}$/.test(soft) && Number(soft) !== (s.softWarnPercent ?? DEFAULT_SOFT_WARN)) changes.softWarnPercent = Number(soft);
+  const priceIn = centsFromText(form.priceIn);
+  if (priceIn !== null && priceIn !== (s.priceInputCentsPerMTok ?? 0)) changes.priceInputCentsPerMTok = priceIn;
+  const priceOut = centsFromText(form.priceOut);
+  if (priceOut !== null && priceOut !== (s.priceOutputCentsPerMTok ?? 0)) changes.priceOutputCentsPerMTok = priceOut;
+  const cap = centsFromText(form.costCap);
+  if (cap !== null && cap !== (s.monthlyCostCapCents ?? 0)) changes.monthlyCostCapCents = cap;
   return changes;
 }
 

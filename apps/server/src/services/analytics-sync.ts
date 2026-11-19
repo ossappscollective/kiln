@@ -22,7 +22,6 @@ import {
   addDays,
   analyticsErrorMessages,
   dateToDay,
-  normalizeBucketId,
   sourcesForPlatform,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
@@ -32,6 +31,7 @@ import {
   type SyncRun,
   recordRun,
   getAppConfig,
+  resolvePlayBucket,
   listReportRequests,
   markReportRequest,
   saveInstance,
@@ -391,7 +391,12 @@ async function readPlayReports(env: Env, firstRead: boolean): Promise<Outcome> {
     if (r.from !== null && (from === null || r.from < from)) from = r.from;
     if (r.to !== null && (to === null || r.to > to)) to = r.to;
   }
-  if (found === 0) throw new AnalyticsError('reports_not_found');
+  if (found === 0) {
+    // Reports are organised by package name in ONE bucket per Play account: a package that is nowhere in the bucket means the bucket
+    // belongs to another account (or the app has no reports at all), which is a different next step from "no file for this month yet".
+    if (port.hasPackage && !(await port.hasPackage())) throw new AnalyticsError('package_not_in_bucket');
+    throw new AnalyticsError('reports_not_found');
+  }
   return { kind: 'done', status: 'ok', points, reports, dayFrom: from, dayTo: to };
 }
 
@@ -471,10 +476,9 @@ async function run(
   }
   if (secret === undefined) return failAll(ctx, app, workspaceId, wanted, 'credential_not_found', actor, options.trigger, startedBy);
 
-  const config = await getAppConfig(ctx.db, workspaceId, app.id);
   const vendorNumber = typeof settings['analytics.appleVendorNumber'] === 'string' ? (settings['analytics.appleVendorNumber'] as string) : '';
-  const setBucket = typeof settings['analytics.playBucketId'] === 'string' ? (settings['analytics.playBucketId'] as string) : '';
-  const bucketId = normalizeBucketId(config.playBucketId ?? '') ?? (setBucket !== '' ? normalizeBucketId(setBucket) ?? null : null);
+  // The app's own override, else its Play developer account's bucket, else the workspace setting.
+  const bucketId = (await resolvePlayBucket(ctx.db, { workspaceId, app, settings })).bucketId;
 
   const results: SourceResult[] = [];
   const states = await ctx.db.query('SELECT source, newest_day, last_ok_at FROM analytics_source_state WHERE app_id = ? AND platform = ?', [app.id, app.platform]);

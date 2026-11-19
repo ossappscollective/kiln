@@ -6,14 +6,16 @@
   asks to go on ("Don't ask again for this task" is kept in localStorage; a failure to keep it just asks again). A run only makes a
   suggestion: it changes nothing, and nothing here sends anything to a store.
   Props: api, workspaceId, role, kind (what the task proposes, which decides the right needed), taskId, label (visible text), hiddenLabel?
-  (extra words for screen readers), onrun (does the run; may throw, the error is shown as a fixed sentence), disabledReason? (a reason
+  (extra words for screen readers), preview? (the options of the run: given, the popover offers "Show exactly what will be sent", which reads
+  the data of this run from our own database and shows it; nothing is sent to a provider by that), onrun (does the run; may throw, the error is shown as a fixed sentence), disabledReason? (a reason
   the screen has that makes it unavailable now), align ('start' | 'end': which edge the popover lines up with).
 -->
 <script lang="ts">
   import { type AiProposalKind, type Role, can } from '@mrm/core';
   import { tick } from 'svelte';
   import { floating } from '../../lib/floating.ts';
-  import { type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai.ts';
+  import { type AiPreview, type AiRunBody, type AiTaskView, aiErrorMessage, disclosureGate, providerSentence, suggestAvailability } from '../../lib/ai.ts';
+  import { previewFacts, previewText } from '../../lib/ai-insights.ts';
   import { aiStore } from '../../lib/ai-store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -31,6 +33,7 @@
     onrun,
     disabledReason = null,
     align = 'start',
+    preview = null,
   }: {
     api: Api;
     workspaceId: string;
@@ -42,6 +45,7 @@
     onrun: () => Promise<void>;
     disabledReason?: string | null;
     align?: 'start' | 'end';
+    preview?: AiRunBody | null;
   } = $props();
 
   const uid = $props.id();
@@ -53,6 +57,9 @@
   let remember = $state(false);
   let root = $state<HTMLElement | null>(null);
   let confirmButton = $state<HTMLButtonElement | null>(null);
+  let shown = $state<AiPreview | null>(null);
+  let showing = $state(false);
+  let previewProblem = $state('');
 
   const config = $derived(aiStore.config(workspaceId));
   const avail = $derived(suggestAvailability({ role, config, kind }));
@@ -78,6 +85,9 @@
     running = true;
     try {
       await onrun();
+      // Near a monthly limit the run answered with a warning: said once, quietly. Runs still work until the limit.
+      const warning = aiStore.takeWarning(workspaceId);
+      if (warning) toast.info(warning.message);
     } catch (e) {
       toast.error(aiErrorMessage(e));
     } finally {
@@ -104,6 +114,8 @@
     if (disclosureGate.needs(found, providerId)) {
       info = found;
       remember = false;
+      shown = null;
+      previewProblem = '';
       asking = true;
       await tick();
       confirmButton?.focus();
@@ -121,6 +133,21 @@
 
   function cancel() {
     asking = false;
+  }
+
+  /** Reads what this run would send (stored data only) so the person can see it before saying yes. */
+  async function showPreview() {
+    if (preview === null || showing || info === null) return;
+    showing = true;
+    previewProblem = '';
+    try {
+      shown = (await api.previewAiTask(workspaceId, info.id, preview)).preview;
+    } catch (e) {
+      shown = null;
+      previewProblem = aiErrorMessage(e, 'Could not show what would be sent.');
+    } finally {
+      showing = false;
+    }
   }
 </script>
 
@@ -156,6 +183,18 @@
         <ul class="plain">
           {#each info.disclosure.neverSends as line (line)}<li>{line}</li>{/each}
         </ul>
+        {#if preview !== null}
+          <div class="preview">
+            <Button size="sm" variant="ghost" icon="eye" loading={showing} disabled={showing} onclick={() => void showPreview()}>Show exactly what will be sent</Button>
+            {#if previewProblem}<p class="hint" role="alert">{previewProblem}</p>{/if}
+            {#if shown}
+              {@const view = previewText(shown.input)}
+              <p class="hint">{previewFacts(shown)}</p>
+              <textarea class="sent" readonly rows="8" aria-label="The data this run would send" value={view.text}></textarea>
+              {#if view.cut}<p class="hint">The view is cut here. All of it is sent.</p>{/if}
+            {/if}
+          </div>
+        {/if}
         <label class="check">
           <input type="checkbox" bind:checked={remember} />
           Don't ask again for this task
@@ -227,5 +266,27 @@
 
   .end {
     justify-content: flex-end;
+  }
+
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    align-items: flex-start;
+  }
+
+  .sent {
+    box-sizing: border-box;
+    width: 100%;
+    max-height: 14rem;
+    padding: var(--space-2);
+    margin: 0;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    resize: vertical;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
   }
 </style>

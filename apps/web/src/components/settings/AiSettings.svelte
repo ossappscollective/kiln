@@ -31,6 +31,7 @@
     aiTestText,
     addressAdvice,
     canAutoLoadModels,
+    countText,
     formFromConfig,
     isAiDirty,
     keyTyped,
@@ -47,6 +48,7 @@
     usageText,
     validateAiForm,
   } from '../../lib/ai.ts';
+  import { centsText, costLine } from '../../lib/ai-insights.ts';
   import { aiStore } from '../../lib/ai-store.svelte.ts';
   import type { Api } from '../../lib/api.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -228,7 +230,7 @@
   }
 </script>
 
-<Card title="AI assistant" collapseKey="ai" description="Suggestions for keywords, listing text and review replies. You read every suggestion and accept it yourself; nothing is sent to a store by this.">
+<Card title="AI assistant" collapseKey="ai" description="Suggestions and reports for keywords, listing text, review replies and review summaries. You read every suggestion and accept it yourself; nothing is sent to a store by this.">
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
     <p><Button onclick={() => void load()}>Try again</Button></p>
@@ -353,6 +355,41 @@
           </p>
           {#if errors.budget}<p class="field-error" role="alert">{errors.budget}</p>{/if}
         </div>
+
+        <div class="field">
+          <label for="{uid}-soft">Warn me at (percent of a limit)</label>
+          <input id="{uid}-soft" inputmode="numeric" bind:value={form.softWarn} autocomplete="off" aria-invalid={errors.softWarn ? 'true' : undefined} aria-describedby="{uid}-soft-hint" />
+          <p class="hint" id="{uid}-soft-hint">
+            From this share of the monthly limit on, a run says how much is used. It is only a warning: runs keep working until 100%. 0 turns the warning off.
+          </p>
+          {#if errors.softWarn}<p class="field-error" role="alert">{errors.softWarn}</p>{/if}
+        </div>
+
+        <fieldset class="field">
+          <legend>Cost estimate and cap (optional)</legend>
+          <p class="hint">
+            Providers bill in dollars, not tokens. Enter the prices of your model (dollars per million tokens, from your provider's price list) to see an estimate, and a monthly cap in dollars that stops runs
+            before the estimate passes it. The estimate is not your bill: check it with your provider.
+          </p>
+          <div class="row wrap">
+            <div class="field">
+              <label for="{uid}-price-in">Input price ($ per million)</label>
+              <input id="{uid}-price-in" inputmode="decimal" bind:value={form.priceIn} autocomplete="off" aria-invalid={errors.priceIn ? 'true' : undefined} />
+              {#if errors.priceIn}<p class="field-error" role="alert">{errors.priceIn}</p>{/if}
+            </div>
+            <div class="field">
+              <label for="{uid}-price-out">Output price ($ per million)</label>
+              <input id="{uid}-price-out" inputmode="decimal" bind:value={form.priceOut} autocomplete="off" aria-invalid={errors.priceOut ? 'true' : undefined} />
+              {#if errors.priceOut}<p class="field-error" role="alert">{errors.priceOut}</p>{/if}
+            </div>
+            <div class="field">
+              <label for="{uid}-cap">Monthly cost cap ($)</label>
+              <input id="{uid}-cap" inputmode="decimal" bind:value={form.costCap} autocomplete="off" aria-invalid={errors.costCap ? 'true' : undefined} />
+              {#if errors.costCap}<p class="field-error" role="alert">{errors.costCap}</p>{/if}
+            </div>
+          </div>
+          <p class="hint">0 or empty means not set. The cap needs both prices. A model on your own machine costs nothing here: leave them empty.</p>
+        </fieldset>
       {/if}
 
       <div class="field">
@@ -360,6 +397,22 @@
           {#if fraction !== null}<progress value={fraction} max="1" aria-label="Share of the monthly limit used"></progress>{/if}
           <span class="hint">{usageText(data.usage)}</span>
         </p>
+        {#if costLine(data.usage)}<p class="hint">{costLine(data.usage)}</p>{/if}
+        {#if data.usage.warning}
+          <Alert tone={data.usage.warning.level === 'limit' ? 'error' : 'warn'}>{data.usage.warning.message}</Alert>
+        {/if}
+        {#if (data.usage.byTask ?? []).length > 0}
+          <details class="bytask">
+            <summary class="hint">This month by task</summary>
+            <ul class="plain">
+              {#each data.usage.byTask ?? [] as u (u.task)}
+                <li>
+                  {tasks?.tasks.find((t) => t.id === u.task)?.label ?? u.task}: {u.runs} {u.runs === 1 ? 'run' : 'runs'}, {countText(u.inputTokens + u.outputTokens)} tokens{data.usage.pricesSet ? `, about ${centsText(u.costCents)}` : ''}
+                </li>
+              {/each}
+            </ul>
+          </details>
+        {/if}
       </div>
 
       <div class="field">
