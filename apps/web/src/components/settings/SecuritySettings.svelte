@@ -14,8 +14,11 @@
     type StepUpAction,
     type StepUpStatus,
     STEP_UP_ACTIONS,
+    RECOVERY_FILE_NAME,
     attestationToServer,
     creationOptionsFromServer,
+    recoveryCodesText,
+    recoverySummary,
     securitySummary,
     stepUpActionLabel,
     toggleAction,
@@ -27,6 +30,7 @@
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
   import Card from '../ui/Card.svelte';
+  import CopyButton from '../ui/CopyButton.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import TextField from '../ui/TextField.svelte';
 
@@ -46,6 +50,11 @@
   let passkeyName = $state('');
   let newPassword = $state('');
 
+  // Recovery codes are shown once, here, and held in memory only until the person says they are saved.
+  let shown = $state<{ codes: string[]; generatedAt: number } | null>(null);
+  let replacing = $state(false);
+  let codeProblem = $state('');
+
   const message = (e: unknown) => (e instanceof ApiError ? e.message : webauthnFailureMessage(e));
 
   async function load() {
@@ -62,7 +71,13 @@
   }
   $effect(() => {
     void workspaceId;
+    shown = null;
+    replacing = false;
+    codeProblem = '';
     load();
+    return () => {
+      shown = null;
+    };
   });
 
   async function run(task: () => Promise<void>) {
@@ -124,6 +139,34 @@
       toast.success(`Removed “${name}”.`);
       await load();
     });
+
+  async function makeCodes() {
+    if (busy) return;
+    busy = true;
+    codeProblem = '';
+    try {
+      const made = await confirmed((grant) => api.stepUpMakeRecoveryCodes(workspaceId, grant));
+      shown = { codes: made.codes, generatedAt: made.generatedAt };
+      replacing = false;
+      await load();
+    } catch (e) {
+      codeProblem = message(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function downloadCodes() {
+    if (!shown) return;
+    const url = URL.createObjectURL(new Blob([recoveryCodesText(shown.codes, shown.generatedAt)], { type: 'text/plain' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = RECOVERY_FILE_NAME;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   const savePassword = () =>
     run(async () => {
@@ -239,6 +282,52 @@
   {/if}
 </Card>
 
+{#if isAdmin && status}
+  <Card title="Recovery codes" description="Ten one-time codes to confirm with when your passkey or password is lost. Keep them offline.">
+    <div class="stack">
+      {#if shown}
+        <Alert tone="warn" title="Save these codes now">
+          They are shown only this once and cannot be looked up again. Keep them in a password manager or print them. Each works once.
+        </Alert>
+        <ul class="plain codes" aria-label="Your new recovery codes">
+          {#each shown.codes as code (code)}<li><code>{code}</code></li>{/each}
+        </ul>
+        <div class="row">
+          <CopyButton value={shown.codes.join('\n')} label="Copy codes" size="sm" variant="secondary" />
+          <Button size="sm" icon="download" onclick={downloadCodes}>Download as text</Button>
+        </div>
+        <div class="row"><Button variant="primary" onclick={() => (shown = null)}>I have saved them</Button></div>
+      {:else}
+        <p class="muted small">{recoverySummary(status.recovery)}</p>
+        {#if !status.enrolled}
+          <p class="muted small">Add a passkey or a confirmation password first. Recovery codes stand in for them.</p>
+        {:else if replacing}
+          <Alert tone="warn">
+            Making new codes stops every old one from working, including the {status.recovery?.remaining ?? 0} you have left. You will be asked to confirm.
+          </Alert>
+          <div class="row">
+            <Button variant="danger" loading={busy} disabled={busy} onclick={makeCodes}>Replace my codes</Button>
+            <Button disabled={busy} onclick={() => (replacing = false)}>Cancel</Button>
+          </div>
+        {:else}
+          <div class="row">
+            <Button
+              loading={busy}
+              disabled={busy}
+              onclick={() => ((status?.recovery?.total ?? 0) > 0 ? (replacing = true) : makeCodes())}
+            >{(status.recovery?.total ?? 0) > 0 ? 'Make new codes' : 'Make recovery codes'}</Button>
+          </div>
+        {/if}
+        <p class="muted small">
+          Lost your passkey or password? Remove the lost passkey or set a new confirmation password in the card above. When you are asked to confirm,
+          choose "Use a recovery code". Using a code is recorded in the audit log.
+        </p>
+      {/if}
+      {#if codeProblem}<Alert tone="error">{codeProblem}</Alert>{/if}
+    </div>
+  </Card>
+{/if}
+
 <style>
   .plain {
     list-style: none;
@@ -246,6 +335,12 @@
     padding: 0;
     display: flex;
     flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .codes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
     gap: var(--space-2);
   }
 

@@ -1,6 +1,6 @@
 <!--
   StepUpDialog: asks the person to confirm ONE hard action again, with a passkey (Touch ID, Face ID, Windows Hello, a
-  security key) or their password (docs/api/step-up.md, docs/adr/0019-step-up-confirmation.md).
+  security key) their password or a one-time recovery code (docs/api/step-up.md, docs/adr/0019-step-up-confirmation.md).
   It sends nothing but the confirmation: `onGranted(grant)` is called once with the short-lived, single-use grant and the
   caller repeats ITS OWN call with it. Every sentence for a failure comes from a fixed code, never from the browser.
   A web view that offers no passkeys (the desktop app's shell may not) gets the password form and a note.
@@ -14,8 +14,12 @@
     type StepUpFactor,
     type StepUpTarget,
     assertionToServer,
+    RECOVERY_CODE_HINT,
     passkeyOnlyButUnsupported,
     primaryFactor,
+    recoveryCodeComplete,
+    recoveryFailureMessage,
+    formatRecoveryCode,
     requestOptionsFromServer,
     stepUpActionLabel,
     webauthnFailureMessage,
@@ -51,14 +55,24 @@
   const stuck = $derived(passkeyOnlyButUnsupported(factors, supported));
   const hasPassword = $derived(factors.indexOf('password') >= 0);
   const hasPasskey = $derived(factors.indexOf('passkey') >= 0 && supported);
+  const hasRecovery = $derived(factors.indexOf('recovery') >= 0);
 
-  let usePassword = $state(false);
+  // The way the person chose to switch to; null means the first offered way.
+  let chosen = $state<StepUpFactor | null>(null);
   let password = $state('');
+  let recoveryCode = $state('');
   let busy = $state(false);
   let problem = $state('');
   let settled = false;
 
-  const showPassword = $derived(hasPassword && (usePassword || first === 'password'));
+  const current = $derived<StepUpFactor | undefined>(chosen ?? first ?? (hasRecovery ? 'recovery' : undefined));
+  const showPasskey = $derived(hasPasskey && current === 'passkey');
+  const showPassword = $derived(hasPassword && current === 'password');
+  const showRecovery = $derived(hasRecovery && current === 'recovery');
+  const switchTo = (factor: StepUpFactor) => () => {
+    chosen = factor;
+    problem = '';
+  };
 
   function finish(grant: string) {
     settled = true;
@@ -114,6 +128,23 @@
     }
   }
 
+  async function withRecovery(event: Event) {
+    event.preventDefault();
+    if (busy || !recoveryCodeComplete(recoveryCode)) return;
+    busy = true;
+    problem = '';
+    try {
+      const done = await api.stepUpVerify(workspaceId, { factor: 'recovery', action, target, code: formatRecoveryCode(recoveryCode) });
+      recoveryCode = '';
+      finish(done.grant);
+    } catch (error) {
+      recoveryCode = '';
+      problem = recoveryFailureMessage(error) ?? (error instanceof ApiError ? error.message : webauthnFailureMessage(error));
+    } finally {
+      busy = false;
+    }
+  }
+
   function closed() {
     if (!settled) {
       settled = true;
@@ -138,22 +169,41 @@
       </Alert>
     {/if}
 
-    {#if hasPasskey && !showPassword}
+    {#if showPasskey}
       <p class="muted">Use the passkey on this device (Touch ID, Face ID, Windows Hello) or a security key.</p>
       <Button variant="primary" icon="key" loading={busy} disabled={busy} onclick={withPasskey}>Confirm with Touch ID / passkey</Button>
-      {#if hasPassword}
-        <p><Button variant="link" disabled={busy} onclick={() => (usePassword = true)}>Use password</Button></p>
-      {/if}
     {/if}
 
     {#if showPassword}
       <form class="stack" onsubmit={withPassword}>
         <TextField label="Password" type="password" reveal bind:value={password} autocomplete="current-password" required disabled={busy} />
-        <div class="row">
-          <Button type="submit" variant="primary" loading={busy} disabled={busy || password === ''}>Confirm</Button>
-          {#if hasPasskey}<Button variant="link" disabled={busy} onclick={() => (usePassword = false)}>Use passkey</Button>{/if}
-        </div>
+        <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || password === ''}>Confirm</Button></div>
       </form>
+    {/if}
+
+    {#if showRecovery}
+      <form class="stack" onsubmit={withRecovery}>
+        <TextField
+          label="Recovery code"
+          bind:value={recoveryCode}
+          hint={RECOVERY_CODE_HINT}
+          placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck={false}
+          required
+          disabled={busy}
+        />
+        <div class="row"><Button type="submit" variant="primary" loading={busy} disabled={busy || !recoveryCodeComplete(recoveryCode)}>Confirm</Button></div>
+      </form>
+    {/if}
+
+    {#if current !== undefined && (hasPasskey || hasPassword || hasRecovery)}
+      <p class="alts">
+        {#if hasPasskey && current !== 'passkey'}<Button variant="link" disabled={busy} onclick={switchTo('passkey')}>Use passkey</Button>{/if}
+        {#if hasPassword && current !== 'password'}<Button variant="link" disabled={busy} onclick={switchTo('password')}>Use password</Button>{/if}
+        {#if hasRecovery && current !== 'recovery'}<Button variant="link" disabled={busy} onclick={switchTo('recovery')}>Use a recovery code</Button>{/if}
+      </p>
     {/if}
 
     {#if problem}<Alert tone="error">{problem}</Alert>{/if}
@@ -163,3 +213,12 @@
     <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
   {/snippet}
 </Modal>
+
+<style>
+  .alts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: 0;
+  }
+</style>

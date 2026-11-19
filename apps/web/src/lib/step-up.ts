@@ -47,16 +47,18 @@ const ACTION_LABELS: Record<string, string> = {
 
 export const stepUpActionLabel = (action: string): string => ACTION_LABELS[action] || 'This action';
 
-export type StepUpFactor = 'passkey' | 'password';
+export type StepUpFactor = 'passkey' | 'password' | 'recovery';
 export type StepUpTarget = { id?: string; hash?: string };
 export type StepUpNeed = { action: string; target: StepUpTarget; factors: StepUpFactor[]; reason: string };
 
 export type StepUpPasskey = { id: string; name: string; createdAt: number; lastUsedAt: number | null; transports: string[] };
 export type StepUpPolicy = { mode: 'off' | 'hard_actions'; actions: StepUpAction[]; unattended: StepUpAction[]; classes?: StepUpAction[]; defaults?: StepUpAction[] };
+export type RecoveryStatus = { remaining: number; total: number; generatedAt: number | null };
 export type StepUpStatus = {
   policy: StepUpPolicy;
   factors: { passkeys: StepUpPasskey[]; password: { kind: 'account' | 'confirmation' } | null; confirmationPasswordSettable: boolean };
   enrolled: boolean;
+  recovery?: RecoveryStatus;
   lockedUntil: number | null;
   supported: { webauthn: boolean; rpId: string; maxPasskeys: number };
   grantTtlSeconds: number;
@@ -69,7 +71,7 @@ export function stepUpNeed(error: unknown, hash?: string): StepUpNeed | undefine
   const e = error as ErrorLike | null;
   if (!e || typeof e !== 'object' || e.code !== 'step_up_required') return undefined;
   const body = (e.body && typeof e.body === 'object' ? e.body : {}) as Record<string, unknown>;
-  const factors = Array.isArray(body.factors) ? (body.factors.filter((f) => f === 'passkey' || f === 'password') as StepUpFactor[]) : [];
+  const factors = Array.isArray(body.factors) ? (body.factors.filter((f) => f === 'passkey' || f === 'password' || f === 'recovery') as StepUpFactor[]) : [];
   const target: StepUpTarget = {};
   if (typeof body.target === 'string' && body.target) target.id = body.target;
   if (hash) target.hash = hash;
@@ -116,7 +118,7 @@ export function stepUpMessage(code: string, retryAfter?: number): string | undef
     case 'step_up_busy':
       return 'Another confirmation is in progress. Try again in a moment.';
     case 'factor_not_enrolled':
-      return 'That way of confirming is not set up.';
+      return 'That way of confirming is not set up. For recovery codes, add a passkey or a confirmation password first, or you may have used every code.';
     case 'webauthn_unavailable':
       return 'Passkeys need https, or http://localhost. Use a password instead.';
     case 'challenge_invalid':
@@ -129,6 +131,49 @@ export function stepUpMessage(code: string, retryAfter?: number): string | undef
       return undefined;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Recovery codes (docs/api/step-up.md, "Recovery codes")
+
+export const RECOVERY_CODE_HINT = 'Each recovery code works once. Wrong ones count like wrong passwords.';
+const RECOVERY_SYMBOLS = 20;
+
+/** What was typed as the symbols it stands for: case, dashes and spaces do not matter (the server folds O to 0 and I, L to 1). */
+export const recoverySymbols = (text: string): string => text.toUpperCase().replace(/[\s-]+/g, '');
+
+/** True when the text has the 20 symbols of a code. A wrong code counts toward the lockout, so a short one is not sent. */
+export const recoveryCodeComplete = (text: string): boolean => /^[0-9A-Z]+$/.test(recoverySymbols(text)) && recoverySymbols(text).length === RECOVERY_SYMBOLS;
+
+/** The code as it is shown, in four groups of five: `XXXXX-XXXXX-XXXXX-XXXXX`. Anything that is not 20 symbols is returned trimmed. */
+export function formatRecoveryCode(text: string): string {
+  const symbols = recoverySymbols(text);
+  if (!recoveryCodeComplete(text)) return text.trim();
+  return [0, 5, 10, 15].map((i) => symbols.slice(i, i + 5)).join('-');
+}
+
+/** The sentence for a recovery code that did not confirm (a fixed code, never the server's text). */
+export function recoveryFailureMessage(error: unknown): string | undefined {
+  const e = error as { code?: unknown; body?: unknown } | null;
+  if (!e || typeof e !== 'object' || e.code !== 'step_up_failed') return undefined;
+  const body = (e.body && typeof e.body === 'object' ? e.body : {}) as Record<string, unknown>;
+  return body.reason === 'invalid_recovery_code' ? 'That recovery code did not work. Check it and try again. A code that was used before no longer works.' : undefined;
+}
+
+/** The Security card's line about the codes that are left. */
+export function recoverySummary(recovery: RecoveryStatus | undefined): string {
+  if (!recovery || recovery.total === 0) return 'No recovery codes yet. Make a set and keep it offline, so a lost passkey or password does not lock you out.';
+  if (recovery.remaining === 0) return 'Every recovery code has been used. Make a new set.';
+  if (recovery.remaining <= 3) return `${recovery.remaining} of ${recovery.total} recovery codes left. Make a new set soon.`;
+  return `${recovery.remaining} of ${recovery.total} recovery codes left.`;
+}
+
+/** The text file the person can save: the codes, a heading, the date. Never includes anything but the codes. */
+export function recoveryCodesText(codes: readonly string[], generatedAt: number): string {
+  const day = new Date(generatedAt).toISOString().slice(0, 10);
+  return ['Mobile Release Manager recovery codes', `Made ${day}`, '', ...codes, '', 'Each code works once. Keep this file offline. Making a new set stops these from working.', ''].join('\n');
+}
+
+export const RECOVERY_FILE_NAME = 'mrm-recovery-codes.txt';
 
 /** What went wrong in the browser's WebAuthn call, as a sentence. The browser's own text is never shown. */
 export function webauthnFailureMessage(error: unknown): string {

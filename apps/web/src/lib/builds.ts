@@ -468,3 +468,159 @@ export const secondsLeft = (expiresAt: number, now: number): number => Math.max(
 
 /** The number in a stepper row title ("Build 240"), or null for "Build (number unknown)". */
 export const buildNumberOfTitle = (title: string): string | null => /^Build ([A-Za-z0-9._-]+)$/.exec(title)?.[1] ?? null;
+
+// ---------------------------------------------------------------------------------------------
+// Share to device: Google Play internal app sharing (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md)
+
+export type InternalSharingConfig = {
+  enabled: boolean;
+  envName?: string;
+  linkRetentionHours: number;
+  maxBytes: number | null;
+  /** Whether the caller's role may share (owner and admin). */
+  canShare: boolean;
+  note?: string;
+};
+
+export type ShareCheck = { code: string; severity: 'blocking' | 'warning'; message: string };
+
+export type SharePreview = {
+  app: { id: string; name: string; platform: string; identifier: string };
+  artifact: { id: string; name: string; kind: string; sizeBytes: number; zipSha256: string | null; runId: string | null; headSha: string | null; createdAt: number | null; expiresAt: number | null };
+  upload: { packageName: string; kind: 'bundle' | 'apk' | null; fileName: string | null; entry: string | null; versionCode: number | null; sha256: string | null; maxSizeBytes: number };
+  effects: string[];
+  linkRetentionHours: number;
+  checks: { blocking: ShareCheck[]; warnings: ShareCheck[]; canShare: boolean };
+  confirmHash: string | null;
+  confirmation: { phrase: string; instruction: string } | null;
+  readAt: number;
+};
+
+export type ShareResult = {
+  share: { id: string; packageName: string; kind: 'bundle' | 'apk'; fileName: string | null; sizeBytes: number; sha256: string; createdAt: number; expiresAt: number; hasLink: boolean };
+  /** SENSITIVE: whoever holds it and is allowed by Google can install the build. Never log it, never put it in an address. */
+  downloadUrl: string;
+  checksumMatches: boolean | null;
+  note: string;
+};
+
+/** The phrase to type, as the server expects it. The preview carries the same text; this is for tests and a fallback. */
+export const sharePhrase = (packageName: string): string => `SHARE ${packageName}`;
+
+/** The button shows only for an Android artifact that can be a build, when the server offers sharing and the role may use it. */
+export function canOfferShare(row: Pick<BuildRow, 'source' | 'platform' | 'artifact'>, config: Pick<InternalSharingConfig, 'enabled' | 'canShare'> | null): boolean {
+  if (!config || !config.enabled || !config.canShare) return false;
+  if (row.source !== 'ci' || row.platform !== 'android' || !row.artifact) return false;
+  return !row.artifact.expired && !row.artifact.tooLarge;
+}
+
+/** A name for the file inside the upload, or the honest "found when you confirm". */
+export const uploadFileText = (u: Pick<SharePreview['upload'], 'fileName' | 'kind'>): string => {
+  const kind = u.kind === 'bundle' ? 'Android App Bundle (.aab)' : u.kind === 'apk' ? 'APK' : null;
+  if (u.fileName) return kind ? `${u.fileName} (${kind})` : u.fileName;
+  return kind ?? 'The .aab or .apk inside the zip, found when you confirm';
+};
+
+/** The version code is known only when the server read the file; today it does not before the upload. */
+export const versionCodeText = (v: number | null): string => (v === null ? 'Not known before the upload' : String(v));
+
+export const shortHash = (sha: string | null): string => (sha ? `${sha.slice(0, 12)}…${sha.slice(-6)}` : 'Not known before the upload');
+
+/** True when what was typed is the phrase (spaces at the ends do not matter; case does). */
+export const phraseMatches = (typed: string, phrase: string | null | undefined): boolean => !!phrase && typed.trim() === phrase;
+
+/** Words for a link's life: "24 hours" for the server's copy; Google's own expiry is not known here. */
+export const linkKeptText = (hours: number): string => `This server keeps the link for ${hours} hour${hours === 1 ? '' : 's'}, then forgets it. Share the build again to get a new one.`;
+
+export const LINK_SENSITIVE_TEXT =
+  'This link is sensitive. Anyone who has it and whose Google account is allowed to use internal app sharing can install this build. Send it only to the people who should test it.';
+
+/** What this does not do, said once in the preview. */
+export const SHARE_CANNOT_UNDO_TEXT = 'This cannot be taken back from here: Google offers no way to delete an uploaded build or its link.';
+
+/** The entry names a server lists when one artifact holds several builds (at most 20). */
+export function entryChoices(body: Record<string, unknown> | undefined): string[] {
+  const list = body && Array.isArray(body.entries) ? body.entries : [];
+  return list.filter((x): x is string => typeof x === 'string');
+}
+
+/**
+ * One plain sentence for every fixed code the preview and the apply answer with. Unknown codes give undefined: the caller shows its own
+ * fallback. Google's wording is never shown (the server does not pass it on).
+ */
+export function shareErrorMessage(code: string, retryAfter?: number): string | undefined {
+  switch (code) {
+    case 'internal_sharing_disabled':
+      return 'Sharing to a device is switched off on this server.';
+    case 'forbidden':
+      return 'Only an owner or an admin can share a build to a device.';
+    case 'not_android':
+      return 'Sharing to a device is for Android apps.';
+    case 'invalid_entry':
+      return 'That is not the path of an .aab or .apk file inside the artifact.';
+    case 'entry_required':
+      return 'This artifact holds more than one build file. Choose the one to share.';
+    case 'entry_not_found':
+      return 'That file is not in the artifact. Choose another.';
+    case 'no_android_build':
+      return 'There is no .aab or .apk in this artifact, so nothing was uploaded.';
+    case 'bad_zip':
+      return 'This artifact could not be read as a zip, so nothing was uploaded.';
+    case 'artifact_expired':
+      return 'GitHub no longer keeps this artifact. Run the workflow again to make a new one.';
+    case 'artifact_too_large':
+      return 'This build is larger than the limit this server allows, so nothing was uploaded.';
+    case 'confirmation_mismatch':
+      return 'The words you typed do not match. Nothing was uploaded.';
+    case 'state_changed':
+      return 'The artifact changed since it was previewed. Nothing was uploaded. Review the new preview and confirm again.';
+    case 'blocked':
+      return 'Something stands in the way of sharing. Nothing was uploaded.';
+    case 'write_in_progress':
+      return 'A build of this app is being uploaded already. Wait for it to finish.';
+    case 'store_auth':
+      return 'Google rejected the credential of this app. Replace it in Credentials, then try again.';
+    case 'store_forbidden':
+      return 'The credential of this app is not allowed to do this, or the Android Publisher API is off for its Google Cloud project.';
+    case 'store_not_found':
+      return 'Google does not know this package. Nothing was uploaded.';
+    case 'artifact_rejected':
+      return 'Google did not accept the file: it is not a valid, signed build for this package.';
+    case 'rate_limited':
+      return `Too many requests. Try again in ${retryAfter && retryAfter > 0 ? (retryAfter < 60 ? `${Math.ceil(retryAfter)} seconds` : `${Math.ceil(retryAfter / 60)} minutes`) : 'a minute'}.`;
+    case 'upload_failed':
+      return 'The upload to Google failed. Nothing was shared. Try again later.';
+    case 'outcome_unknown':
+      return 'The upload may or may not have reached Google, and Google cannot be asked. Preview again before you share again; sharing twice only makes a second link.';
+    case 'link_expired':
+      return 'This link is no longer kept. Share the build again to get a new one.';
+    case 'not_found':
+      return 'That build or app was not found.';
+    default:
+      return undefined;
+  }
+}
+
+/** The refusal the dialog shows for an error: a fixed sentence for the code, else the API client's own text. */
+export function shareFailure(error: { code?: unknown; retryAfter?: unknown; message?: unknown }): string {
+  const code = typeof error.code === 'string' ? error.code : '';
+  const fixed = shareErrorMessage(code, typeof error.retryAfter === 'number' ? error.retryAfter : undefined);
+  return fixed ?? (typeof error.message === 'string' && error.message ? error.message : 'Could not share the build. Try again.');
+}
+
+/** Blocking and warning lines of a preview as one list, blocking first. The server's messages are fixed text and safe to show. */
+export function previewNotes(preview: Pick<SharePreview, 'checks'>): { tone: 'error' | 'warn'; text: string }[] {
+  return [
+    ...preview.checks.blocking.map((c) => ({ tone: 'error' as const, text: c.message })),
+    ...preview.checks.warnings.map((c) => ({ tone: 'warn' as const, text: c.message })),
+  ];
+}
+
+/** A preview the apply may use: not blocked, with a hash and a phrase. */
+export const previewReady = (p: Pick<SharePreview, 'checks' | 'confirmHash' | 'confirmation'>): boolean => p.checks.canShare && !!p.confirmHash && !!p.confirmation;
+
+/** The `state_changed` answer carries a new preview; this returns it when it looks like one. */
+export function previewFromBody(body: Record<string, unknown> | undefined): SharePreview | null {
+  const p = body?.preview as Partial<SharePreview> | undefined;
+  return p && typeof p === 'object' && p.artifact && p.upload && p.checks ? (p as SharePreview) : null;
+}

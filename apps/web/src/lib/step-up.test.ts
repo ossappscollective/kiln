@@ -8,8 +8,15 @@ import {
   base64urlToBytes,
   bytesToBase64url,
   creationOptionsFromServer,
+  RECOVERY_CODE_HINT,
+  formatRecoveryCode,
   passkeyOnlyButUnsupported,
   primaryFactor,
+  recoveryCodeComplete,
+  recoveryCodesText,
+  recoveryFailureMessage,
+  recoverySummary,
+  recoverySymbols,
   requestOptionsFromServer,
   securitySummary,
   stepUpMessage,
@@ -166,4 +173,58 @@ test('the classes and defaults are the server\'s', async () => {
   const server = await import('../../../server/src/services/step-up.ts');
   assert.deepEqual([...STEP_UP_ACTIONS], [...server.stepUpActions]);
   assert.deepEqual([...DEFAULT_COVERED], [...server.defaultCoveredActions]);
+});
+
+// ---- Recovery codes ----
+
+test('a need keeps recovery in the offered ways, and drops anything unknown', () => {
+  const need = stepUpNeed({ code: 'step_up_required', body: { action: 'rollout', factors: ['passkey', 'recovery', 'carrier-pigeon'] } });
+  assert.deepEqual(need?.factors, ['passkey', 'recovery']);
+});
+
+test('recovery is never the first way offered while a real factor exists', () => {
+  assert.equal(primaryFactor(['passkey', 'password', 'recovery'], true), 'passkey');
+  assert.equal(primaryFactor(['password', 'recovery'], true), 'password');
+  assert.equal(primaryFactor(['passkey', 'recovery'], false), undefined);
+  assert.equal(passkeyOnlyButUnsupported(['passkey', 'recovery'], false), true);
+});
+
+test('a code is complete at 20 symbols, whatever the case, dashes or spaces', () => {
+  assert.equal(recoveryCodeComplete('ABCDE-FGHJK-MNPQR-STVWX'), true);
+  assert.equal(recoveryCodeComplete('abcde fghjk mnpqr stvwx'), true);
+  assert.equal(recoveryCodeComplete('ABCDEFGHJKMNPQRSTVWX'), true);
+  assert.equal(recoveryCodeComplete('ABCDE-FGHJK-MNPQR'), false);
+  assert.equal(recoveryCodeComplete('ABCDE-FGHJK-MNPQR-STVWXY'), false);
+  assert.equal(recoveryCodeComplete('ABCDE-FGHJK-MNPQR-STVW!'), false);
+  assert.equal(recoveryCodeComplete(''), false);
+  assert.equal(recoverySymbols(' ab-cd ef '), 'ABCDEF');
+});
+
+test('a code is shown in four groups of five; short text is left alone', () => {
+  assert.equal(formatRecoveryCode('abcdefghjkmnpqrstvwx'), 'ABCDE-FGHJK-MNPQR-STVWX');
+  assert.equal(formatRecoveryCode('abcde-fghjk'), 'abcde-fghjk');
+});
+
+test('a wrong recovery code gets its own sentence; other failures do not', () => {
+  assert.match(recoveryFailureMessage({ code: 'step_up_failed', body: { reason: 'invalid_recovery_code' } }) ?? '', /no longer works/);
+  assert.equal(recoveryFailureMessage({ code: 'step_up_failed', body: { reason: 'invalid_password' } }), undefined);
+  assert.equal(recoveryFailureMessage({ code: 'step_up_locked', body: {} }), undefined);
+  assert.equal(recoveryFailureMessage(null), undefined);
+  assert.match(RECOVERY_CODE_HINT, /works once/);
+});
+
+test('the card says what is left, and when to make a new set', () => {
+  assert.match(recoverySummary(undefined), /No recovery codes yet/);
+  assert.match(recoverySummary({ remaining: 0, total: 0, generatedAt: null }), /No recovery codes yet/);
+  assert.match(recoverySummary({ remaining: 0, total: 10, generatedAt: 1 }), /Every recovery code has been used/);
+  assert.equal(recoverySummary({ remaining: 7, total: 10, generatedAt: 1 }), '7 of 10 recovery codes left.');
+  assert.match(recoverySummary({ remaining: 2, total: 10, generatedAt: 1 }), /Make a new set soon/);
+});
+
+test('the downloadable text holds the codes, the day and a keep-offline note, nothing else', () => {
+  const text = recoveryCodesText(['AAAAA-AAAAA-AAAAA-AAAAA', 'BBBBB-BBBBB-BBBBB-BBBBB'], Date.UTC(2026, 10, 19, 12));
+  assert.match(text, /Made 2026-11-19/);
+  assert.match(text, /AAAAA-AAAAA-AAAAA-AAAAA\nBBBBB-BBBBB-BBBBB-BBBBB/);
+  assert.match(text, /Keep this file offline/);
+  assert.ok(text.endsWith('\n'));
 });

@@ -17,7 +17,9 @@
     type BuildRow,
     type BuildsList,
     DOWNLOADS_OFF_TEXT,
+    type InternalSharingConfig,
     applyFilters,
+    canOfferShare,
     defaultFilters,
     downloadBlocker,
     expiryText,
@@ -41,6 +43,7 @@
   import Skeleton from '../ui/Skeleton.svelte';
   import DownloadDialog from './DownloadDialog.svelte';
   import InstallGuide from './InstallGuide.svelte';
+  import InternalShareDialog from './InternalShareDialog.svelte';
   import PhoneLinkDialog from './PhoneLinkDialog.svelte';
   import TestFlightLinks from './TestFlightLinks.svelte';
 
@@ -55,6 +58,9 @@
   let now = $state(Date.now());
   let downloadRow = $state<BuildRow | null>(null);
   let phoneRow = $state<BuildRow | null>(null);
+  let shareRow = $state<BuildRow | null>(null);
+  // Google Play internal app sharing: the button exists only when the server switch is on and this role may share. A failed read hides it.
+  let sharing = $state<InternalSharingConfig | null>(null);
 
   const focus = $derived(parseViewPath(address.hash).query.get('build'));
   let generation = 0;
@@ -82,6 +88,22 @@
     void workspaceId;
     void refreshKey;
     if (mayRead) untrack(() => void load());
+  });
+
+  $effect(() => {
+    const id = workspaceId;
+    sharing = null;
+    if (!mayRead || !can(role, 'builds.share')) return;
+    let current = true;
+    api.internalSharingConfig(id).then(
+      (config) => {
+        if (current) sharing = config;
+      },
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
   });
 
   const rows = $derived(data ? rowsOf(data) : []);
@@ -213,6 +235,9 @@
                     {:else if row.artifact}
                       <InfoTip label="Why this cannot be downloaded" icon="lock" text={blocker ?? ''} align="end" />
                     {/if}
+                    {#if canOfferShare(row, sharing)}
+                      <Button size="sm" icon="upload" onclick={() => (shareRow = row)}>Share to device</Button>
+                    {/if}
                     {#if guide.link}
                       <Button size="sm" icon="external-link" href={guide.link.href} target="_blank">{guide.link.label}</Button>
                     {/if}
@@ -234,6 +259,9 @@
 
 {#if downloadRow && data}
   <DownloadDialog {workspaceId} appId={app.id} row={downloadRow} onclose={() => (downloadRow = null)} />
+{/if}
+{#if shareRow && data}
+  <InternalShareDialog {api} {workspaceId} appId={app.id} row={shareRow} onclose={() => (shareRow = null)} />
 {/if}
 {#if phoneRow && data}
   <PhoneLinkDialog {api} {workspaceId} appId={app.id} row={phoneRow} onclose={() => (phoneRow = null)} />

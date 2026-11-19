@@ -1,4 +1,4 @@
-import type { BuildsList, DownloadLink } from './builds.ts';
+import type { BuildsList, DownloadLink, InternalSharingConfig, ShareResult, SharePreview } from './builds.ts';
 import { isDemoStatus } from './demo.ts';
 import type { AiSuggestionStatus, AiSuggestionView, AssetDiffView, Listing, ListingProblem, StagedChangesView, StoreImagesView } from '@mrm/core';
 import type {
@@ -764,6 +764,24 @@ export function createApi(options: ApiOptions = {}) {
     /** A link a phone can open without signing in: ten minutes, once. Needs `builds.download` and the server switch. */
     createBuildLink: (workspaceId: string, appId: string, artifactId: string) =>
       request<DownloadLink>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/link`),
+    /** Google Play internal app sharing (docs/api/internal-sharing.md): whether the server offers it, and the limits. Needs `builds.read`. */
+    internalSharingConfig: (workspaceId: string) => request<InternalSharingConfig>('GET', `${workspace(workspaceId)}/builds/internal-sharing/config`),
+    /** What would be uploaded. Nothing is downloaded and Google is not contacted. Needs `builds.share`. */
+    internalSharePreview: (workspaceId: string, appId: string, artifactId: string, entry?: string) =>
+      request<{ preview: SharePreview }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/internal-share/preview`,
+        entry ? { entry } : {},
+      ),
+    /** The upload. A store write: needs the preview's confirmHash, the typed phrase and (policy on) a step-up grant. */
+    internalShareApply: (workspaceId: string, appId: string, artifactId: string, body: { confirmHash: string; confirmation: string; entry?: string }, grant?: string) =>
+      request<{ result: ShareResult }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/builds/artifacts/${encodeURIComponent(artifactId)}/internal-share`,
+        body,
+        undefined,
+        grantHeader(grant),
+      ),
     /** The commits between a build and the one before it (or `base`). Reads GitHub. */
     buildChanges: (workspaceId: string, appId: string, build: { platform: string; buildNumber: string; base?: string }) => {
       const query = new URLSearchParams({ platform: build.platform, build: build.buildNumber });
@@ -1008,8 +1026,12 @@ export function createApi(options: ApiOptions = {}) {
       workspaceId: string,
       body:
         | { factor: 'password'; action: string; target?: StepUpTarget; password: string }
+        | { factor: 'recovery'; action: string; target?: StepUpTarget; code: string }
         | { factor: 'passkey'; action: string; target?: StepUpTarget; challengeId: string; assertion: { id: string; clientDataJSON: string; authenticatorData: string; signature: string } },
     ) => request<{ grant: string; expiresAt: number }>('POST', `${workspace(workspaceId)}/step-up/verify`, body),
+    /** Ten new one-time codes; any older ones stop working. The codes are in this answer only. Needs a confirmation (`step_up.manage`). */
+    stepUpMakeRecoveryCodes: (workspaceId: string, grant?: string) =>
+      request<{ codes: string[]; remaining: number; generatedAt: number }>('POST', `${workspace(workspaceId)}/step-up/recovery-codes`, {}, undefined, grantHeader(grant)),
     stepUpSetPolicy: (workspaceId: string, body: { mode: 'off' | 'hard_actions'; actions?: StepUpAction[]; unattended?: StepUpAction[] }, grant?: string) =>
       request<{ policy: StepUpStatus['policy']; enrolled: boolean }>('PUT', `${workspace(workspaceId)}/step-up/policy`, body, undefined, grantHeader(grant)),
     testTranslation: (workspaceId: string) =>

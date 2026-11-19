@@ -6,8 +6,23 @@ import {
   type StoreBuildItem,
   DOWNLOADS_OFF_TEXT,
   NO_RIGHT_TEXT,
+  type SharePreview,
+  LINK_SENSITIVE_TEXT,
   applyFilters,
   artifactRow,
+  canOfferShare,
+  entryChoices,
+  linkKeptText,
+  phraseMatches,
+  previewFromBody,
+  previewNotes,
+  previewReady,
+  shareErrorMessage,
+  shareFailure,
+  sharePhrase,
+  shortHash,
+  uploadFileText,
+  versionCodeText,
   buildNumberOfTitle,
   defaultFilters,
   downloadBlocker,
@@ -194,4 +209,85 @@ test('TestFlight row: links with state and limit, and plain words when there is 
   assert.equal(denied.kind === 'message' && denied.tone, 'warn');
   assert.match((denied as { text: string }).text, /App Manager/);
   assert.match((testflightView({ testflight: info({ groups: [], problem: { reason: 'not_synced', needs: null } }) }, store()) as { text: string }).text, /Sync this app/);
+});
+
+// ---- Share to device (Google Play internal app sharing) ----
+
+const preview = (over: Partial<SharePreview> = {}): SharePreview => ({
+  app: { id: 'a', name: 'Acme', platform: 'android', identifier: 'com.acme.app' },
+  artifact: { id: '9', name: 'android-release', kind: 'aab', sizeBytes: 1024, zipSha256: null, runId: '101', headSha: 'abc', createdAt: NOW, expiresAt: null },
+  upload: { packageName: 'com.acme.app', kind: 'bundle', fileName: 'app-release.aab', entry: null, versionCode: null, sha256: null, maxSizeBytes: 1000 },
+  effects: ['x'], linkRetentionHours: 24, checks: { blocking: [], warnings: [], canShare: true },
+  confirmHash: 'a'.repeat(64), confirmation: { phrase: 'SHARE com.acme.app', instruction: 'Type it.' }, readAt: NOW, ...over,
+});
+
+test('the share button needs the switch, the role and an Android CI artifact that can still be read', () => {
+  const on = { enabled: true, canShare: true };
+  const droid = artifactRow(artifact({ platform: 'android', name: 'android-release', kind: 'aab' }));
+  assert.equal(canOfferShare(droid, on), true);
+  assert.equal(canOfferShare(droid, null), false);
+  assert.equal(canOfferShare(droid, { enabled: false, canShare: true }), false);
+  assert.equal(canOfferShare(droid, { enabled: true, canShare: false }), false);
+  assert.equal(canOfferShare(artifactRow(artifact({ platform: 'ios' })), on), false);
+  assert.equal(canOfferShare(artifactRow(artifact({ platform: 'android', expired: true })), on), false);
+  assert.equal(canOfferShare(artifactRow(artifact({ platform: 'android', tooLarge: true })), on), false);
+  assert.equal(canOfferShare(storeRow(store({ platform: 'android', channel: 'play' })), on), false);
+});
+
+test('the typed phrase is SHARE and the package, exactly', () => {
+  assert.equal(sharePhrase('com.acme.app'), 'SHARE com.acme.app');
+  assert.equal(phraseMatches('SHARE com.acme.app', 'SHARE com.acme.app'), true);
+  assert.equal(phraseMatches('  SHARE com.acme.app ', 'SHARE com.acme.app'), true);
+  assert.equal(phraseMatches('share com.acme.app', 'SHARE com.acme.app'), false);
+  assert.equal(phraseMatches('SHARE', 'SHARE com.acme.app'), false);
+  assert.equal(phraseMatches('anything', null), false);
+});
+
+test('a preview is ready only with no blocking check, a hash and a phrase', () => {
+  assert.equal(previewReady(preview()), true);
+  assert.equal(previewReady(preview({ confirmHash: null })), false);
+  assert.equal(previewReady(preview({ confirmation: null })), false);
+  const blocked = preview({ checks: { blocking: [{ code: 'share_in_progress', severity: 'blocking', message: 'Wait.' }], warnings: [{ code: 'previous_upload_unknown', severity: 'warning', message: 'Unknown.' }], canShare: false } });
+  assert.equal(previewReady(blocked), false);
+  assert.deepEqual(previewNotes(blocked).map((n) => n.tone), ['error', 'warn']);
+});
+
+test('unknown file facts are said plainly, not invented', () => {
+  assert.equal(versionCodeText(null), 'Not known before the upload');
+  assert.equal(versionCodeText(42), '42');
+  assert.equal(shortHash(null), 'Not known before the upload');
+  assert.equal(shortHash('a'.repeat(64)), `${'a'.repeat(12)}…${'a'.repeat(6)}`);
+  assert.match(uploadFileText({ fileName: null, kind: null }), /found when you confirm/);
+  assert.equal(uploadFileText({ fileName: 'app.apk', kind: 'apk' }), 'app.apk (APK)');
+  assert.equal(uploadFileText({ fileName: null, kind: 'bundle' }), 'Android App Bundle (.aab)');
+});
+
+test('every fixed code of the sharing routes has a sentence, and none carries a secret or a vendor text', () => {
+  const codes = ['internal_sharing_disabled', 'forbidden', 'not_android', 'invalid_entry', 'entry_required', 'entry_not_found', 'no_android_build', 'bad_zip', 'artifact_expired', 'artifact_too_large', 'confirmation_mismatch', 'state_changed', 'blocked', 'write_in_progress', 'store_auth', 'store_forbidden', 'store_not_found', 'artifact_rejected', 'rate_limited', 'upload_failed', 'outcome_unknown', 'link_expired', 'not_found'];
+  for (const code of codes) assert.ok(shareErrorMessage(code), code);
+  assert.equal(shareErrorMessage('nope'), undefined);
+  assert.match(shareErrorMessage('rate_limited', 30) ?? '', /30 seconds/);
+  assert.match(shareErrorMessage('rate_limited', 120) ?? '', /2 minutes/);
+  assert.match(shareErrorMessage('outcome_unknown') ?? '', /Preview again/);
+});
+
+test('a failure shows the fixed sentence for its code, else the client text, else a fallback', () => {
+  assert.match(shareFailure({ code: 'store_auth', message: 'raw google words' }), /rejected the credential/);
+  assert.equal(shareFailure({ code: 'something_else', message: 'Client text.' }), 'Client text.');
+  assert.match(shareFailure({}), /Could not share/);
+});
+
+test('entry choices and a new preview are read from an error body, and only when they look right', () => {
+  assert.deepEqual(entryChoices({ entries: ['a.aab', 3, 'b.apk'] }), ['a.aab', 'b.apk']);
+  assert.deepEqual(entryChoices({}), []);
+  assert.deepEqual(entryChoices(undefined), []);
+  assert.equal(previewFromBody({ preview: preview() })?.confirmHash, 'a'.repeat(64));
+  assert.equal(previewFromBody({ preview: 'x' }), null);
+  assert.equal(previewFromBody({}), null);
+});
+
+test('the link warnings say it is sensitive and how long this server keeps it', () => {
+  assert.match(LINK_SENSITIVE_TEXT, /sensitive/);
+  assert.match(linkKeptText(24), /24 hours/);
+  assert.match(linkKeptText(1), /1 hour,/);
 });
