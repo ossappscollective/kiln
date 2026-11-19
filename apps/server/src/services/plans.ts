@@ -851,7 +851,7 @@ export async function setReleaseNotes(
     const length = releaseNotesLength(input.text);
     if (length > limit) {
       const store =
-        platform === 'ios' ? 'the App Store' : platform === 'android' ? 'Google Play' : 'Google Play (a plan for both platforms must fit the stricter store)';
+        platform === 'ios' ? 'the App Store' : platform === 'macos' ? 'the Mac App Store' : platform === 'android' ? 'Google Play' : 'Google Play (a plan for both platforms must fit the stricter store)';
       return failure(422, 'notes_too_long', `Release notes for ${input.locale} are ${length} characters. ${store} allows ${limit}.`, {
         locale: input.locale,
         limit,

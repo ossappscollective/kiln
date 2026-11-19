@@ -15,6 +15,8 @@ import {
   PLAY_FIELD_SPECS,
   type Platform,
   validateAssets,
+  isApplePlatform,
+  isGooglePlatform,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
@@ -71,6 +73,8 @@ export type SubmitConnectorInput = {
   secret: string;
   identifier: string;
   storeAppId: string | null;
+  /** The platform of the app record (macOS submits the macOS version). */
+  platform?: Platform;
   /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
   fetch: typeof fetch;
 };
@@ -78,7 +82,7 @@ export type SubmitConnectorFactory = (input: SubmitConnectorInput) => StoreSubmi
 
 export const defaultSubmitConnectorFactory: SubmitConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppleSubmitConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', fetch: input.fetch })
+    ? AppleSubmitConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', platform: input.platform === 'macos' ? 'macos' : 'ios', fetch: input.fetch })
     : new PlaySubmitConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
 
 export type SubmitContext = {
@@ -195,7 +199,7 @@ async function connect(ctx: SubmitContext, workspaceId: string, app: ManagedApp,
   const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
   if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   if (String(credential.kind) !== credentialKindFor[app.platform]) return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
-  if (app.platform === 'ios' && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
+  if (isApplePlatform(app.platform) && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
   let secret: string | undefined;
   try {
     secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: SUBMIT_PURPOSE }, actor, ctx.now());
@@ -205,7 +209,7 @@ async function connect(ctx: SubmitContext, workspaceId: string, app: ManagedApp,
   if (secret === undefined) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   return {
     ok: true,
-    connection: { secret, input: { kind: app.platform === 'ios' ? 'app_store_connect' : 'google_play', secret, identifier: app.identifier, storeAppId: app.storeAppId } },
+    connection: { secret, input: { kind: credentialKindFor[app.platform], secret, identifier: app.identifier, storeAppId: app.storeAppId, platform: app.platform } },
   };
 }
 
@@ -235,7 +239,7 @@ export function evaluateChecks(input: { app: Pick<ManagedApp, 'platform'>; recor
   const { app, record, state } = input;
   const out: SubmitCheck[] = [];
   const add = (check: SubmitCheck) => out.push(check);
-  const ios = app.platform === 'ios';
+  const ios = isApplePlatform(app.platform);
 
   if (input.inFlight.push === 'writing') add({ code: 'push_in_progress', severity: 'blocking', message: 'A draft push for this app is in progress. Wait for it to finish.' });
   if (input.inFlight.push === 'unknown') {
@@ -488,7 +492,7 @@ export type SubmitPreview = {
 };
 
 const irreversibleOf = (platform: Platform, record: PushRecord): string[] =>
-  platform === 'ios'
+  isApplePlatform(platform)
     ? [
         `${record.versionString ? `Version ${record.versionString}` : 'The version'} is handed to App Review. This server cannot withdraw it: only App Store Connect can.`,
         'Once submitted the version and its listing can no longer be edited here.',
@@ -515,7 +519,7 @@ function previewOf(ctx: SubmitContext, input: { workspaceId: string; app: Manage
         screenshotSets: l.assets.filter((a) => a.kind === 'screenshot').map((a) => ({ target: a.target, device: a.device, images: a.images.length })),
       })),
       pushed: { pushedAt: record.pushedAt, pushedBy: record.pushedBy, texts: record.manifest.text.length, assetSets: record.manifest.assets.length },
-      includesChangesNotPushedHere: app.platform === 'android',
+      includesChangesNotPushedHere: isGooglePlatform(app.platform),
     },
     tracks: state.tracks,
     irreversible: irreversibleOf(app.platform, record),
@@ -649,7 +653,7 @@ async function succeed(
       released: false,
       confirmedByReread: s.reread,
       submittedAt: at,
-      note: s.app.platform === 'ios' ? NOTE_IOS : NOTE_PLAY,
+      note: isApplePlatform(s.app.platform) ? NOTE_IOS : NOTE_PLAY,
     },
   };
 }
@@ -738,7 +742,7 @@ export async function applySubmit(
 
   // ----- an unknown outcome is checked, not sent again
   const cause = unknown?.cause ?? 'unknown';
-  if (app.platform === 'android') {
+  if (isGooglePlatform(app.platform)) {
     // Google Play shows no review state: reading cannot settle it.
     await markUnknown(db, claim);
     await auditFailed(ctx, input, app, accepted, { code: cause, outcome: 'unknown' });

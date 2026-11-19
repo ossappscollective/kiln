@@ -1,4 +1,4 @@
-import { type Action, can } from '@mrm/core';
+import { type Action, can, parsePlatform } from '@mrm/core';
 import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import { z } from 'zod';
@@ -179,8 +179,8 @@ function parseQuery(c: Context<AppEnv>):
   if (store !== undefined && store !== '' && store !== 'appstoreconnect' && store !== 'googleplay') {
     issues.push({ path: 'store', message: 'Use appstoreconnect or googleplay.' });
   }
-  if (platform !== undefined && platform !== '' && platform !== 'ios' && platform !== 'android') {
-    issues.push({ path: 'platform', message: 'Use ios or android.' });
+  if (platform !== undefined && platform !== '' && parsePlatform(platform) !== platform) {
+    issues.push({ path: 'platform', message: 'Use ios, macos or android.' });
   }
   const limit = queryInt(c.req.query('limit'), { fallback: DEFAULT_REVIEWS_PAGE, max: MAX_REVIEWS_PAGE });
   if (limit === undefined) issues.push({ path: 'limit', message: `A whole number from 1 to ${MAX_REVIEWS_PAGE}.` });
@@ -188,7 +188,7 @@ function parseQuery(c: Context<AppEnv>):
   if (issues.length > 0 || !sort || limit === undefined) return { ok: false, issues };
   // `store` and `platform` narrow to a store; an app has one, so they only ever empty the list.
   if (store || platform) {
-    (filter as ReviewFilter & { store?: string }).store = store || (platform === 'ios' ? 'appstoreconnect' : 'googleplay');
+    (filter as ReviewFilter & { store?: string }).store = store || (platform === 'android' ? 'googleplay' : 'appstoreconnect');
   }
   return { ok: true, filter, sort, ...(cursor ? { cursor } : {}), limit };
 }

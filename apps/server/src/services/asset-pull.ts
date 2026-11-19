@@ -1,4 +1,14 @@
-import { ASSET_SYNC_LIMITS, type AssetPlatform, type AssetSlot, IMESSAGE_PREFIX, type FileChange, storeImageKey, storeSetKey } from '@mrm/core';
+import {
+  ASSET_SYNC_LIMITS,
+  type AssetPlatform,
+  type AssetSlot,
+  IMESSAGE_PREFIX,
+  type FileChange,
+  storeImageKey,
+  storeSetKey,
+  isApplePlatform,
+  isGooglePlatform,
+} from '@mrm/core';
 import type { ManagedApp } from './apps.ts';
 import { openAssets } from './asset-repo.ts';
 import { type AssetSyncContext, repoSetsOf } from './asset-diff.ts';
@@ -70,7 +80,7 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
   const { app } = input;
   const repoCtx = ctx.assets.repo;
   if (!app.repositoryId) return failure(422, 'no_repository', 'This app has no linked repository to pull the images into.');
-  const platform: AssetPlatform = app.platform === 'ios' ? 'ios' : 'android';
+  const platform: AssetPlatform = app.platform;
   const store = await getStoreImages(ctx.store, { workspaceId: input.workspaceId, app, actor: input.actor });
   if (!store.ok) return store;
   const opened = await openAssets(ctx.assets, { workspaceId: input.workspaceId, app }, input.actor, { ...(input.gate ? { onCompute: input.gate } : {}) });
@@ -84,7 +94,7 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
   const imageKeys = new Map<string, { set: (typeof store.view.sets)[number]; position: number; ref: string }>();
   for (const s of store.view.sets) {
     if ((s.device ?? '').startsWith(IMESSAGE_PREFIX)) continue;
-    if (platform === 'ios' && s.kind !== 'screenshot') continue;
+    if (isApplePlatform(platform) && s.kind !== 'screenshot') continue;
     if (s.kind === 'preview' || s.kind === 'app_icon') continue;
     const slot: AssetSlot = { kind: s.kind, device: s.device };
     setKeys.set(storeSetKey(platform, s.locale, slot), s);
@@ -162,13 +172,13 @@ export async function pullStoreImages(ctx: AssetSyncContext, input: PullInput): 
         const mine = entry.checksumKind === 'md5' ? null : image.sha256;
         const ok = mine === null ? true : sums(entry.checksum, mine);
         if (!ok) {
-          if (platform === 'android') {
+          if (isGooglePlatform(platform)) {
             fail('checksum_mismatch', 'The bytes did not match the SHA-256 Google Play gave, so the file was not taken.');
             continue;
           }
           unverified.push(key);
         }
-      } else if (platform === 'ios') {
+      } else if (isApplePlatform(platform)) {
         unverified.push(key);
       }
       fetched.set(f.position, { bytes: image.bytes, format: image.format, oid: gitBlobOid(image.bytes) });

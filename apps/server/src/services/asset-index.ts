@@ -10,8 +10,11 @@ import {
   type ImageFormat,
   type Platform,
   SPEC_SOURCES,
+  assetStoreOf,
   classifyAppleScreenshot,
+  deviceFitsPlatform,
   deviceLabel,
+  isApplePlatform,
   readImageHeader,
   sniffImageFormat,
   summarizeAssets,
@@ -104,7 +107,18 @@ export type IndexInput = {
   signal?: AbortSignal;
 };
 
-const storeOf = (platform: Platform): AssetStore => (platform === 'ios' ? 'app_store' : 'google_play');
+const storeOf = (platform: Platform): AssetStore => assetStoreOf(platform);
+
+/**
+ * Whether an indexed file belongs to the app record of this platform. A macOS record keeps the Mac display
+ * (`APP_DESKTOP`) screenshots and previews and every non screenshot kind (the icon); an iOS record drops the Mac ones,
+ * which cannot be pushed to an iOS version. Google Play keeps everything.
+ */
+export function fileFitsPlatform(platform: Platform, f: { kind: AssetKind; device: string | null }): boolean {
+  if (!isApplePlatform(platform) || (f.kind !== 'screenshot' && f.kind !== 'preview')) return true;
+  if (f.device === null) return platform === 'ios';
+  return deviceFitsPlatform(platform, f.device);
+}
 
 const bySignal = (signal: AbortSignal | undefined) => (signal ? { signal } : {});
 
@@ -251,7 +265,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
     return { ...f, device, origin: c.origin };
   });
   const order = orderWithinSets(classified);
-  const assets: IndexedAsset[] = classified
+  let assets: IndexedAsset[] = classified
+    .filter((f) => fileFitsPlatform(app.platform, f))
     .map(({ needsMore: _needsMore, ...f }) => ({ ...f, order: order.get(f.path) ?? 1 }))
     .sort((a, b) => a.locale.localeCompare(b.locale) || a.kind.localeCompare(b.kind) || (a.device ?? '').localeCompare(b.device ?? '') || a.order - b.order);
 
@@ -262,6 +277,7 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
     const { needsMore: _needsMore, ...unopened } = factsOf(c, undefined);
     assets.push({ ...unopened, order: 0, origin: c.origin });
   }
+  assets = assets.filter((a) => fileFitsPlatform(app.platform, a));
   const rest = orderWithinSets(assets);
   for (const a of assets) a.order = rest.get(a.path) ?? a.order;
 

@@ -20,6 +20,8 @@ import {
   storeRollout,
   summarizeRollout,
   validateRolloutSteps,
+  isApplePlatform,
+  storeFamilyOf,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
@@ -283,7 +285,7 @@ export async function setRollout(
     if (!plan) return notFound();
     if (body.template !== undefined) {
       const template = rolloutTemplate(body.template);
-      if (!template || template.kind !== body.kind || (template.platform !== null && template.platform !== plan.appPlatform)) {
+      if (!template || template.kind !== body.kind || (template.platform !== null && storeFamilyOf(template.platform) !== storeFamilyOf(plan.appPlatform))) {
         return failure(422, 'template_not_found', 'That rollout template does not exist or does not fit this app.');
       }
     }
@@ -291,8 +293,8 @@ export async function setRollout(
     const existing = plan.kind === 'steps' ? await loadRolloutSteps(tx, input.workspaceId, plan.id, at) : [];
 
     if (body.kind === 'apple_phased') {
-      if (plan.appPlatform !== 'ios') {
-        return failure(422, 'rollout_platform_mismatch', "Apple's phased release is for an iOS app.");
+      if (!isApplePlatform(plan.appPlatform)) {
+        return failure(422, 'rollout_platform_mismatch', "Apple's phased release is for an iOS or macOS app.");
       }
       if (existing.some((s) => s.status === 'done')) {
         return failure(409, 'rollout_has_done_steps', 'This plan has steps that are done. Reopen them before switching to the phased release.');
@@ -321,7 +323,7 @@ export async function setRollout(
       }
     } else {
       const onlyImmediate = body.steps.length === 1 && body.steps[0]?.percent === 100;
-      if (plan.appPlatform === 'ios' && !onlyImmediate) {
+      if (isApplePlatform(plan.appPlatform) && !onlyImmediate) {
         return failure(
           422,
           'rollout_platform_mismatch',

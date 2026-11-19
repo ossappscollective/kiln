@@ -4,7 +4,9 @@ import {
   type AssetStore,
   PLAY_DEVICES,
   PLAY_GRAPHIC_FILES,
+  type Platform,
   classifyApplePreviewName,
+  isApplePlatform,
 } from '@mrm/core';
 
 /**
@@ -223,8 +225,9 @@ export function resolveRelative(dir: string, rel: string): string | undefined {
 }
 
 /** The icon paths an Expo `app.json` names for a platform, repository relative, most specific first. */
-export function expoIconPaths(appJson: string | undefined, platform: 'ios' | 'android', dir = ''): string[] {
-  if (appJson === undefined) return [];
+export function expoIconPaths(appJson: string | undefined, platform: Platform, dir = ''): string[] {
+  // Expo has no macOS target: its `icon` belongs to the iOS and Android apps, so a macOS record takes none.
+  if (appJson === undefined || platform === 'macos') return [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(appJson);
@@ -269,7 +272,7 @@ export type ProjectIcons = { candidates: AssetCandidate[]; notes: string[] };
  */
 export function discoverProjectIcons(
   files: readonly string[],
-  input: { platform: 'ios' | 'android'; store: AssetStore; expoPaths: readonly string[]; hints: readonly string[] },
+  input: { platform: Platform; store: AssetStore; expoPaths: readonly string[]; hints: readonly string[] },
 ): ProjectIcons {
   const fileSet = new Set(files);
   const candidates: AssetCandidate[] = [];
@@ -288,7 +291,7 @@ export function discoverProjectIcons(
     return [];
   };
 
-  if (input.platform === 'ios') {
+  if (isApplePlatform(input.platform)) {
     const sets = new Map<string, string[]>();
     for (const path of files) {
       if (IGNORED_PATHS.test(path)) continue;

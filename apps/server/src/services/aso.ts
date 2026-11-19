@@ -17,6 +17,8 @@ import {
   normalizeLocale,
   rankChange,
   rankTrend,
+  isApplePlatform,
+  isGooglePlatform,
 } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
@@ -94,7 +96,7 @@ export type AsoContext = {
   maxRunMs?: number;
 };
 
-export const platformStore = (platform: AsoPlatform): 'app_store' | 'google_play' => (platform === 'ios' ? 'app_store' : 'google_play');
+export const platformStore = (platform: AsoPlatform): 'app_store' | 'google_play' => (isApplePlatform(platform) ? 'app_store' : 'google_play');
 
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -563,7 +565,7 @@ export async function getCompetitor(sql: Sql, workspaceId: string, appId: string
 /** The numeric App Store id (also from `id123` or an apps.apple.com address), or the Android package name (also from a play.google.com address). */
 export function normalizeExternalId(platform: AsoPlatform, raw: string): string | undefined {
   const text = raw.trim();
-  if (platform === 'ios') {
+  if (isApplePlatform(platform)) {
     const match = /^(?:id)?([0-9]{1,15})$/i.exec(text) ?? /\/id([0-9]{1,15})(?:[/?#]|$)/.exec(text);
     return match?.[1];
   }
@@ -636,11 +638,11 @@ export async function addCompetitor(
   const { workspaceId, app } = input;
   const externalId = normalizeExternalId(app.platform, input.externalId);
   if (!externalId) {
-    return failure(422, 'invalid_external_id', app.platform === 'ios' ? 'Use the numeric App Store id (a number, id123 or an apps.apple.com address).' : 'Use the Android package name (such as com.example.app) or its play.google.com address.');
+    return failure(422, 'invalid_external_id', isApplePlatform(app.platform) ? 'Use the numeric App Store id (a number, id123 or an apps.apple.com address).' : 'Use the Android package name (such as com.example.app) or its play.google.com address.');
   }
   const country = input.country === undefined ? 'us' : normalizeCountry(input.country);
   if (!country) return failure(422, 'invalid_country', 'The country is two letters, such as us or de.');
-  if (externalId === (app.platform === 'ios' ? app.storeAppId : app.identifier)) {
+  if (externalId === (isApplePlatform(app.platform) ? app.storeAppId : app.identifier)) {
     return failure(422, 'own_app', 'That is this app itself.');
   }
   const store = platformStore(app.platform);
@@ -808,7 +810,7 @@ export async function refreshApp(
 ): Promise<{ ok: true; result: AsoRefreshResult; state: AsoAppState } | AsoRefreshFailure> {
   const app = await getApp(ctx.db, input.workspaceId, input.id);
   if (!app) return { ...failure(404, 'not_found'), transient: false };
-  if (app.platform === 'android' && !ctx.sources.playEnabled) return { ...playDisabledFailure(), transient: false };
+  if (isGooglePlatform(app.platform) && !ctx.sources.playEnabled) return { ...playDisabledFailure(), transient: false };
   if (running.has(app.id) || !(await claim(ctx.db, input.workspaceId, app.id, ctx.now(), actor.id))) {
     return { ...failure(409, 'refresh_in_progress', 'This app is being refreshed right now.'), transient: true };
   }
@@ -847,7 +849,7 @@ async function run(
   const before = await getAsoState(ctx.db, workspaceId, app.id);
   const threshold = await rankMoveThresholdFor(ctx.db, workspaceId);
   const maxRunMs = ctx.maxRunMs ?? DEFAULT_ASO_RUN_MS;
-  const ownId = app.platform === 'ios' ? app.storeAppId : app.identifier;
+  const ownId = isApplePlatform(app.platform) ? app.storeAppId : app.identifier;
 
   const result: AsoRefreshResult = {
     at: startedAt,
@@ -908,7 +910,7 @@ async function run(
         const moved = await recordRank(ctx, workspaceId, app, keyword, {
           rank,
           total: outcome.total,
-          source: app.platform === 'ios' ? 'apple_search' : 'play_public',
+          source: isApplePlatform(app.platform) ? 'apple_search' : 'play_public',
           top: outcome.hits.slice(0, MAX_TOP_RESULTS),
           threshold,
         });

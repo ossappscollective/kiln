@@ -8,7 +8,7 @@ import {
   APPLE_SEARCH_MAX_LIMIT,
   PLAY_MAX_SEARCH_LIMIT,
 } from '@mrm/connectors';
-import type { AsoPlatform } from '@mrm/core';
+import { type AsoPlatform, isApplePlatform, isGooglePlatform } from '@mrm/core';
 import { createTestLimiter, type TestLimiter } from './credential-tests.ts';
 import { type Exchange, safeGet } from './safe-fetch.ts';
 import { timedCache } from './timed-cache.ts';
@@ -203,11 +203,11 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
   return {
     playEnabled: options.playEnabled,
     async search(input) {
-      const limit = Math.min(input.limit, input.platform === 'ios' ? APPLE_SEARCH_MAX_LIMIT : PLAY_MAX_SEARCH_LIMIT);
-      const key = `s|${input.platform}|${input.country}|${input.platform === 'android' ? input.locale : ''}|${input.term.toLowerCase()}|${limit}`;
+      const limit = Math.min(input.limit, isApplePlatform(input.platform) ? APPLE_SEARCH_MAX_LIMIT : PLAY_MAX_SEARCH_LIMIT);
+      const key = `s|${input.platform}|${input.country}|${isGooglePlatform(input.platform) ? input.locale : ''}|${input.term.toLowerCase()}|${limit}`;
       const { value, cached } = await shared(key, searches, async () => {
-        if (input.platform === 'ios') {
-          const r = await outbound('apple', () => searchApple({ term: input.term, country: input.country, limit, fetch: doFetch }));
+        if (isApplePlatform(input.platform)) {
+          const r = await outbound('apple', () => searchApple({ term: input.term, country: input.country, limit, ...(input.platform === 'macos' ? { macos: true } : {}), fetch: doFetch }));
           return { hits: r.apps.map((a) => ({ id: a.trackId, name: a.name })), total: r.total, cached: false };
         }
         if (!options.playEnabled) {
@@ -219,10 +219,10 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
       return { ...value, cached };
     },
     async lookup(input) {
-      const key = `l|${input.platform}|${input.country}|${input.platform === 'android' ? input.locale : ''}|${input.id}`;
+      const key = `l|${input.platform}|${input.country}|${isGooglePlatform(input.platform) ? input.locale : ''}|${input.id}`;
       const { value } = await shared(key, lookups, async () => {
-        if (input.platform === 'ios') {
-          const app = await outbound('apple', () => lookupApple({ id: input.id, country: input.country, fetch: doFetch }));
+        if (isApplePlatform(input.platform)) {
+          const app = await outbound('apple', () => lookupApple({ id: input.id, country: input.country, ...(input.platform === 'macos' ? { macos: true } : {}), fetch: doFetch }));
           return app ? fromApple(app) : null;
         }
         if (!options.playEnabled) {

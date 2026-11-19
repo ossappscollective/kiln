@@ -69,7 +69,7 @@ export async function buildAssetDiff(
   input: { workspaceId: string; app: ManagedApp; actor: Actor; fresh?: boolean; gate?: () => Failure | undefined },
 ): Promise<DiffOutcome> {
   const { app } = input;
-  const platform: AssetPlatform = app.platform === 'ios' ? 'ios' : 'android';
+  const platform: AssetPlatform = app.platform;
   const store = await getStoreImages(ctx.store, { workspaceId: input.workspaceId, app, actor: input.actor, ...(input.fresh ? { fresh: true } : {}) });
   if (!store.ok) return store;
   const opened = await openAssets(ctx.assets, { workspaceId: input.workspaceId, app }, input.actor, { ...(input.gate ? { onCompute: input.gate } : {}) });

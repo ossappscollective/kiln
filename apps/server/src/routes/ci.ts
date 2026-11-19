@@ -1,4 +1,4 @@
-import { type Action, type Platform, can } from '@mrm/core';
+import { type Action, type Platform, can, parsePlatform } from '@mrm/core';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Context, Next } from 'hono';
@@ -69,8 +69,7 @@ const linkBody = z.object({ runId: z.string().regex(RUN_ID, 'A run id is a numbe
 /** The conventions are a few short patterns; 16 KiB is far more than they need. */
 export const CONVENTIONS_BODY_LIMIT = 16 * 1024;
 
-const platformOf = (value: string): Platform | undefined =>
-  value === 'ios' || value === 'android' ? value : undefined;
+const platformOf = (value: string): Platform | undefined => (value === parsePlatform(value) ? parsePlatform(value) : undefined);
 
 /** CI routes: workflows, dispatch and runs of a repository, and the builds of an app. */
 export function ciRoutes(ctx: CiContext) {
@@ -303,7 +302,7 @@ export function ciRoutes(ctx: CiContext) {
   // Reads GitHub (the compare API), so it needs the right of a scan.
   app.get('/:workspaceId/apps/:id/builds/changes', needs('repositories.scan'), async (c) => {
     const platform = platformOf(c.req.query('platform') ?? '');
-    if (!platform) return invalid(c, 'platform', 'ios or android.');
+    if (!platform) return invalid(c, 'platform', 'ios, macos or android.');
     const build = c.req.query('build') ?? '';
     if (!BUILD_NUMBER.test(build)) return invalid(c, 'build', 'A build number.');
     const base = c.req.query('base');
@@ -319,7 +318,7 @@ export function ciRoutes(ctx: CiContext) {
   const buildTarget = (c: Context<AppEnv>) => {
     const platform = platformOf(param(c, 'platform'));
     const buildNumber = param(c, 'buildNumber');
-    if (!platform) return { error: invalid(c, 'platform', 'ios or android.') } as const;
+    if (!platform) return { error: invalid(c, 'platform', 'ios, macos or android.') } as const;
     if (!BUILD_NUMBER.test(buildNumber)) return { error: invalid(c, 'buildNumber', 'A build number.') } as const;
     return { ref: { workspaceId: ws(c), appId: param(c, 'id'), platform, buildNumber } } as const;
   };

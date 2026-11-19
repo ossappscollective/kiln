@@ -11,6 +11,7 @@ import {
   isPlanLocale,
   isPlanVersion,
   isTargetDate,
+  PLATFORMS,
 } from '@mrm/core';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -68,7 +69,7 @@ const id = z.string().min(1).max(100);
 
 const createBody = z.strictObject({
   version,
-  platform: z.enum(['ios', 'android']).nullable().optional(),
+  platform: z.enum(PLATFORMS).nullable().optional(),
   targetDate: targetDate.nullable().optional(),
   notes: planNotes.optional(),
   templateId: id.optional(),

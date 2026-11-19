@@ -28,7 +28,7 @@ import {
   StoreRateLimitError,
   type StoreRolloutConnector,
 } from '@mrm/connectors';
-import type { ActorType, Platform } from '@mrm/core';
+import { type ActorType, type Platform, isApplePlatform } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -83,6 +83,8 @@ export type RolloutConnectorInput = {
   identifier: string;
   /** Apple's numeric app id; null until the app's first sync. */
   storeAppId: string | null;
+  /** The platform of the app record (macOS: the macOS version and its phased release). */
+  platform?: Platform;
   /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
   fetch: typeof fetch;
 };
@@ -91,7 +93,7 @@ export type RolloutConnectorFactory = (input: RolloutConnectorInput) => StoreRol
 
 export const defaultRolloutConnectorFactory: RolloutConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppleRolloutConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', fetch: input.fetch })
+    ? AppleRolloutConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', platform: input.platform === 'macos' ? 'macos' : 'ios', fetch: input.fetch })
     : new PlayRolloutConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
 
 export type RolloutContext = {
@@ -376,7 +378,7 @@ async function connect(ctx: RolloutContext, workspaceId: string, app: ManagedApp
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
     return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
   }
-  if (app.platform === 'ios' && !app.storeAppId) {
+  if (isApplePlatform(app.platform) && !app.storeAppId) {
     return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
   }
   let secret: string | undefined;
@@ -391,10 +393,11 @@ async function connect(ctx: RolloutContext, workspaceId: string, app: ManagedApp
     connection: {
       secret,
       input: {
-        kind: app.platform === 'ios' ? 'app_store_connect' : 'google_play',
+        kind: credentialKindFor[app.platform],
         secret,
         identifier: app.identifier,
         storeAppId: app.storeAppId,
+        platform: app.platform,
       },
     },
   };
@@ -693,7 +696,7 @@ export async function applyRollout(
     return succeed(ctx, input, { app: appView, change, claim, before: accepted, after: current, via: 'reread', cause: unknown ?? 'unknown' });
   }
   if (sameRolloutState(current, accepted)) {
-    if (app.platform === 'ios') {
+    if (isApplePlatform(app.platform)) {
       // Apple changes the state synchronously: the old state means the change was not applied.
       await audit(ctx, input, app, change, accepted, { code: 'not_applied', outcome: 'failed', cause: unknown ?? 'unknown' }, 'failed');
       await releaseClaim(db, claim);

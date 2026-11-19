@@ -23,7 +23,15 @@ import {
   secretStrings,
   setMatches,
 } from '@mrm/connectors';
-import { type AssetSlot, type Platform, STAGED_LIMITS, slotKey, sniffImageFormat } from '@mrm/core';
+import {
+  type AssetSlot,
+  type Platform,
+  STAGED_LIMITS,
+  slotKey,
+  sniffImageFormat,
+  isApplePlatform,
+  isGooglePlatform,
+} from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
 import { type AssetsContext, openAssets } from './asset-repo.ts';
@@ -101,6 +109,8 @@ export type DraftConnectorInput = {
   identifier: string;
   /** Apple's numeric app id; null until the app's first sync. */
   storeAppId: string | null;
+  /** The platform of the app record (macOS reads and writes the macOS version of the same App Store Connect app). */
+  platform?: Platform;
   /** Aborted when the call times out. Pass it to the connector as its `fetch`. */
   fetch: typeof fetch;
 };
@@ -108,7 +118,7 @@ export type DraftConnectorFactory = (input: DraftConnectorInput) => StoreDraftCo
 
 export const defaultDraftConnectorFactory: DraftConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppleDraftConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', fetch: input.fetch })
+    ? AppleDraftConnector.fromSecret(input.secret, { appStoreId: input.storeAppId ?? '', platform: input.platform === 'macos' ? 'macos' : 'ios', fetch: input.fetch })
     : new PlayDraftConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
 
 export type DraftContext = {
@@ -266,7 +276,7 @@ async function connect(ctx: DraftContext, workspaceId: string, app: ManagedApp, 
   const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
   if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   if (String(credential.kind) !== credentialKindFor[app.platform]) return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
-  if (app.platform === 'ios' && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
+  if (isApplePlatform(app.platform) && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
   let secret: string | undefined;
   try {
     secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose }, actor, ctx.now());
@@ -278,7 +288,7 @@ async function connect(ctx: DraftContext, workspaceId: string, app: ManagedApp, 
     ok: true,
     connection: {
       secret,
-      input: { kind: app.platform === 'ios' ? 'app_store_connect' : 'google_play', secret, identifier: app.identifier, storeAppId: app.storeAppId },
+      input: { kind: credentialKindFor[app.platform], secret, identifier: app.identifier, storeAppId: app.storeAppId, platform: app.platform },
     },
   };
 }
@@ -303,7 +313,7 @@ export async function readStoreImagesOf(
   const { app } = input;
   try {
     const read = await withConnector(ctx, connection.input, async (connector) => {
-      if (!isStoreImageReader(connector)) throw new StoreError(app.platform === 'ios' ? 'appstoreconnect' : 'googleplay', 'unsupported', 'This store connection cannot read images.');
+      if (!isStoreImageReader(connector)) throw new StoreError(storeFor(app.platform), 'unsupported', 'This store connection cannot read images.');
       return connector.readStoreImages();
     });
     return { ok: true, read };
@@ -617,7 +627,7 @@ function previewOf(ctx: DraftContext, app: ManagedApp, workspaceId: string, p: P
   };
   summary.nothingToDo = summary.textChanged === 0 && summary.assetSetsChanged === 0;
   const warnings =
-    app.platform === 'ios'
+    isApplePlatform(app.platform)
       ? [
           DRAFT_NOTE,
           'Texts and screenshots are written to the editable App Store version right away, one request at a time: if a request fails, the earlier ones stay written.',
@@ -906,10 +916,10 @@ export async function applyDraftPush(
   const now = itemMatches(current, p);
   if (now.text.every(Boolean) && now.assets.every(Boolean)) {
     // Google Play: whether the committed draft shows in a later edit is UNVERIFIED; it counts here only when it does show.
-    return succeed(ctx, input, { app: appView, prepared: p, claim, before, steps: stepsFromReread(p, before), commit: app.platform === 'android' ? 'not_sent_for_review' : 'none', via: 'reread', cause });
+    return succeed(ctx, input, { app: appView, prepared: p, claim, before, steps: stepsFromReread(p, before), commit: isGooglePlatform(app.platform) ? 'not_sent_for_review' : 'none', via: 'reread', cause });
   }
   if (sameDraftState(current, before)) {
-    if (app.platform === 'ios') {
+    if (isApplePlatform(app.platform)) {
       await audit(ctx, input, app, before, { code: 'not_applied', outcome: 'failed', cause });
       await releaseClaim(db, claim);
       return failure(502, 'write_failed', 'The store did not answer, and reading its draft back shows nothing was written. Nothing was changed. Preview again to try again.', { outcome: 'not_applied' });

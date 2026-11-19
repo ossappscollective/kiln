@@ -1,4 +1,4 @@
-import { credentialKinds, invitableRoles, roles, translationModes, translationProviders } from '@mrm/core';
+import { PLATFORMS, credentialKinds, invitableRoles, roles, translationModes, translationProviders } from '@mrm/core';
 import { z } from 'zod';
 import { addCompetitorBody, addKeywordsBody, updateKeywordBody } from '../routes/aso.ts';
 import { eventTypes } from './event-types.ts';
@@ -93,7 +93,7 @@ const invitationSchema = z.object({
 const appSchema = z.object({
   id: z.string(),
   name: z.string(),
-  platform: z.enum(['ios', 'android']),
+  platform: z.enum(PLATFORMS),
   identifier: z.string(),
   storeAppId: z.string().nullable(),
   credentialId: z.string(),
@@ -108,7 +108,7 @@ const appSchema = z.object({
 const releaseSchema = z.object({
   id: z.string(),
   appId: z.string(),
-  platform: z.enum(['ios', 'android']),
+  platform: z.enum(PLATFORMS),
   version: z.string(),
   track: z.string().nullable(),
   build: z.string().nullable(),
@@ -263,7 +263,7 @@ const testBody = z.object({ kind: z.enum(credentialKinds), secret: secretText })
 const roleBody = z.object({ role: z.enum(roles) });
 const inviteBody = z.object({ email: z.string().trim().email().max(254), role: z.enum(invitableRoles) });
 const acceptBody = z.object({ displayName: z.string().trim().max(100).optional(), password: z.string().max(200).optional() });
-const platform = z.enum(['ios', 'android']);
+const platform = z.enum(PLATFORMS);
 const appBody = z.object({
   platform,
   identifier: z.string().trim().min(1).max(255),
@@ -344,7 +344,7 @@ export const reviewSchema = z.object({
   id: z.string(),
   appId: z.string(),
   store: reviewStore,
-  platform: z.enum(['ios', 'android']),
+  platform: z.enum(PLATFORMS),
   storeReviewId: z.string(),
   rating: z.number().int().min(1).max(5),
   title: z.string().nullable(),
@@ -409,7 +409,7 @@ const reviewSyncStateSchema = z.object({
 const reviewListQuery = z.object({
   rating: z.string().optional().describe('One or more ratings from 1 to 5, comma separated: `1,2`.'),
   store: reviewStore.optional(),
-  platform: z.enum(['ios', 'android']).optional(),
+  platform: z.enum(PLATFORMS).optional(),
   territory: z.string().optional(),
   language: z.string().optional(),
   version: z.string().optional(),
@@ -424,7 +424,7 @@ const reviewListQuery = z.object({
 });
 
 const reviewsSummarySchema = z.object({
-  app: z.object({ id: z.string(), platform: z.enum(['ios', 'android']), store: reviewStore }),
+  app: z.object({ id: z.string(), platform: z.enum(PLATFORMS), store: reviewStore }),
   stored: z.object({
     basis: z.literal('stored_reviews'),
     label: z.string().describe('Where the numbers come from, in words. Show it next to them.'),
@@ -485,7 +485,7 @@ export const reviewViewSchema = reviewSchema.extend({
   reply: replyStateSchema.describe('The state of the reply in one place; `none` without a draft. `developerResponse` is what the store shows.'),
 });
 const inboxReviewSchema = reviewViewSchema.extend({
-  app: z.object({ id: z.string(), name: z.string(), platform: z.enum(['ios', 'android']) }),
+  app: z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS) }),
 });
 const replyDraftBody = z.object({
   text: z.string().max(20000).optional().describe('Plain text. Line breaks are kept; HTML-looking tags, tabs and other control characters are refused. At most the store\u2019s limit.'),
@@ -520,7 +520,7 @@ const workspaceSummarySchema = z.object({
   basis: z.literal('stored_reviews'),
   label: z.string().describe('Where the numbers come from, to show next to them.'),
   lowRatingThreshold: z.number().int(),
-  apps: z.array(workspaceCounts.extend({ app: z.object({ id: z.string(), name: z.string(), platform: z.enum(['ios', 'android']), store: reviewStore }), oldestAt: timestamp.nullable(), newestAt: timestamp.nullable() })),
+  apps: z.array(workspaceCounts.extend({ app: z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: reviewStore }), oldestAt: timestamp.nullable(), newestAt: timestamp.nullable() })),
   totals: workspaceCounts,
 });
 
@@ -531,7 +531,7 @@ const triageReviewBody = z.object({
 });
 
 // ----- ASO: keyword ranks and competitors from public store data ---------------------------------------
-const asoPlatform = z.enum(['ios', 'android']);
+const asoPlatform = z.enum(PLATFORMS);
 const asoStore = z.enum(['app_store', 'google_play']);
 const asoRankChangeSchema = z.object({
   kind: z.enum(['first', 'same', 'up', 'down', 'entered', 'dropped', 'still_unranked']),
@@ -683,7 +683,7 @@ const reviewTranslationSchema = z.object({
 const rolloutStateSchema = z
   .object({
     store: z.enum(['googleplay', 'appstoreconnect']),
-    platform: z.enum(['android', 'ios']),
+    platform: z.enum(PLATFORMS),
     track: z.string().optional().describe('Google Play only.'),
     versionCodes: z.array(z.string()).optional().describe('Google Play only. Sorted.'),
     name: z.string().nullable().optional().describe('Google Play only: the release name.'),
@@ -700,7 +700,7 @@ const rolloutStateSchema = z
     totalPauseDays: z.number().int().nullable().optional().describe('App Store only: days paused, of the 30 Apple allows.'),
   })
   .describe('Where the release stands in the store, as read just now.');
-const rolloutAppSchema = z.object({ id: z.string(), name: z.string(), platform: z.enum(['ios', 'android']), store: reviewStore });
+const rolloutAppSchema = z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: reviewStore });
 const rolloutAllowedSchema = z.object({ action: z.string(), allowed: z.boolean(), reason: z.string().optional(), irreversible: z.boolean() });
 const rolloutRequestFields = {
   action: z.string().min(1).max(40).describe('Google Play: `set_fraction`, `halt`, `resume`, `complete`. App Store: `pause`, `resume`, `release_to_all`.'),
@@ -759,7 +759,7 @@ const stagedProblemSchema = z.object({
   unit: z.enum(['characters', 'bytes']).optional(),
 });
 const stagedSource = z.enum(['local', 'repo', 'store']);
-const stagedAppSchema = z.object({ id: z.string(), name: z.string(), platform: z.enum(['ios', 'android']), store: reviewStore });
+const stagedAppSchema = z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: reviewStore });
 const stagedSlotSchema = z.object({ kind: z.string().describe('`screenshot`, `icon`, `feature_graphic`, `tv_banner`, ...'), device: z.string().nullable().describe('A display id (`iphone_6_5`) or a Play device (`phone`); null for graphics that have none.') });
 const stagedTextSchema = z.object({
   id: z.string(),
@@ -1100,7 +1100,7 @@ const drafts: Draft[] = [
   { id: 'getWorkflowInputs', method: 'get', path: `${W}/repositories/{id}/workflows/{workflow}/inputs`, tags: ['ci'], summary: 'The inputs a workflow accepts', risk: 'read', access: { action: 'repositories.scan' }, query: z.object({ ref: z.string().optional() }), partial: true, responses: { '200': { description: 'The inputs.', schema: object } } },
   { id: 'dispatchWorkflow', method: 'post', path: `${W}/repositories/{id}/workflows/{workflow}/dispatches`, tags: ['ci'], summary: 'Start a workflow run', description: 'Runs a workflow on GitHub. It can ship a build: assistants should ask a person first.', risk: 'write', access: { action: 'ci.dispatch' }, body: object, partial: true, responses: { '202': { description: 'The dispatch was accepted.', schema: z.object({ dispatched: z.boolean(), runKnown: z.boolean(), run: object.nullable() }) } } },
   { id: 'listBuilds', method: 'get', path: `${W}/apps/{id}/builds`, tags: ['ci'], summary: 'Builds of an app and the runs linked to them', risk: 'read', access: { action: 'apps.read' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'Builds.', schema: object } } },
-  { id: 'getBuildChanges', method: 'get', path: `${W}/apps/{id}/builds/changes`, tags: ['ci'], summary: 'Commits between two builds', risk: 'read', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ platform: z.enum(['ios', 'android']), build: z.string(), base: z.string().optional() }), partial: true, responses: { '200': { description: 'The changes.', schema: object } } },
+  { id: 'getBuildChanges', method: 'get', path: `${W}/apps/{id}/builds/changes`, tags: ['ci'], summary: 'Commits between two builds', risk: 'read', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, query: z.object({ platform: z.enum(PLATFORMS), build: z.string(), base: z.string().optional() }), partial: true, responses: { '200': { description: 'The changes.', schema: object } } },
   { id: 'linkBuild', method: 'put', path: `${W}/apps/{id}/builds/{platform}/{buildNumber}/link`, tags: ['ci'], summary: 'Link a build to a workflow run', risk: 'write', access: { action: 'apps.sync' }, appScope: { kind: 'param', name: 'id' }, body: object, partial: true, responses: { '200': { description: 'The build.', schema: z.object({ build: object }) } } },
   { id: 'unlinkBuild', method: 'delete', path: `${W}/apps/{id}/builds/{platform}/{buildNumber}/link`, tags: ['ci'], summary: 'Remove the link of a build', risk: 'destructive', access: { action: 'apps.sync' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'The build.', schema: z.object({ build: object }) } } },
   { id: 'rematchBuilds', method: 'post', path: `${W}/apps/{id}/builds/rematch`, tags: ['ci'], summary: 'Search runs, tags and releases again for the unlinked builds of an app', description: 'Reads GitHub (runs, tags, releases, a few commits) and stores the links it finds. Rate limited per workspace.', risk: 'write', access: { action: 'repositories.scan' }, appScope: { kind: 'param', name: 'id' }, partial: true, responses: { '200': { description: 'The builds, with diagnostics, and what the search did.', schema: object } } },

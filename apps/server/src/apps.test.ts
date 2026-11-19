@@ -1527,3 +1527,101 @@ dbTest('discovery marks an app as already added only for its own platform', asyn
   assert.equal(iosAdded.appId, apple.body.app.id);
   assert.notEqual(iosAdded.appId, droidAdded.appId);
 });
+
+// ---------------------------------------------------------------------------------------------
+// macOS: a third platform on the same app entry
+
+dbTest('a macOS app is a third record next to iOS and Android, and its connector is built for macOS', async (db) => {
+  const t = await boot(db);
+  const mac = await t.call(t.owner, 'POST', '/apps', {
+    platform: 'macos',
+    identifier: 'com.acme.app',
+    credentialId: t.iosCredential,
+    name: 'Acme',
+  });
+  assert.equal(mac.status, 201, mac.text);
+  assert.equal(mac.body.app.platform, 'macos');
+  assert.equal((await t.addIos()).status, 201, 'iOS with the same bundle id is a different record');
+  assert.equal((await t.addAndroid()).status, 201);
+  assert.equal((await t.addIos()).status, 409, 'the same platform twice is still refused');
+  assert.equal((await t.call(t.owner, 'GET', '/apps')).body.apps.length, 3);
+
+  // A macOS app needs an App Store Connect credential, like iOS.
+  const withPlay = await t.call(t.owner, 'POST', '/apps', {
+    platform: 'macos',
+    identifier: 'com.acme.other',
+    credentialId: t.playCredential,
+  });
+  assert.equal(withPlay.status, 422);
+
+  t.stores.ios.versions = [
+    { ...ios('3.0', 'READY_FOR_SALE', 'live'), platform: 'macos' },
+  ];
+  const res = await t.call(t.owner, 'POST', syncPath(mac.body.app.id as string));
+  assert.equal(res.status, 200, res.text);
+  assert.equal(t.built.at(-1)?.platform, 'macos', 'the connector is asked for the macOS versions');
+  assert.equal(t.built.at(-1)?.kind, 'app_store_connect');
+  assert.deepEqual(res.body.releases.map((r: { platform: string }) => r.platform), ['macos']);
+  t.noLeaks();
+});
+
+dbTest('a macOS sync with no macOS version says so, instead of showing the iOS versions', async (db) => {
+  const t = await boot(db);
+  const mac = await t.call(t.owner, 'POST', '/apps', {
+    platform: 'macos',
+    identifier: 'com.acme.app',
+    credentialId: t.iosCredential,
+  });
+  t.stores.ios.versions = [];
+  const res = await t.call(t.owner, 'POST', syncPath(mac.body.app.id as string));
+  assert.equal(res.status, 422, res.text);
+  assert.equal(res.body.error, 'store_not_found');
+  assert.match(res.text, /no macOS version/);
+});
+
+dbTest('Apple discovery lists one candidate per platform of a universal app, and import adds a macOS record', async (db) => {
+  const t = await boot(db);
+  t.stores.ios.apps = [
+    { ...appleApp('111', 'Acme', 'com.acme.app'), platforms: ['ios', 'macos'] },
+    { ...appleApp('222', 'Mac Only', 'com.acme.mac'), platforms: ['macos'] },
+    appleApp('333', 'Unknown', 'com.acme.unknown'),
+  ];
+  const res = await t.call(t.owner, 'POST', discoverPath, { credentialId: t.iosCredential });
+  assert.equal(res.status, 200, res.text);
+  assert.deepEqual(
+    res.body.candidates.map((c: { platform: string; identifier: string }) => [c.platform, c.identifier]),
+    [
+      ['ios', 'com.acme.app'],
+      ['macos', 'com.acme.app'],
+      ['macos', 'com.acme.mac'],
+      ['ios', 'com.acme.unknown'],
+    ],
+    'an app whose platforms are unknown stays an iOS candidate, as before',
+  );
+
+  const imported = await t.call(t.owner, 'POST', importPath, {
+    credentialId: t.iosCredential,
+    items: [
+      { platform: 'ios', identifier: 'com.acme.app', storeAppId: '111', name: 'Acme' },
+      { platform: 'macos', identifier: 'com.acme.app', storeAppId: '111', name: 'Acme' },
+      { platform: 'macos', identifier: 'com.acme.app', storeAppId: '111', name: 'Acme' },
+    ],
+  });
+  assert.equal(imported.status, 200, imported.text);
+  assert.deepEqual(imported.body.summary, { created: 2, skipped: 1, failed: 0 });
+  const apps = (await t.call(t.owner, 'GET', '/apps')).body.apps as { platform: string; storeAppId: string }[];
+  assert.deepEqual(apps.map((a) => [a.platform, a.storeAppId]).sort(), [
+    ['ios', '111'],
+    ['macos', '111'],
+  ]);
+
+  const again = (await t.call(t.owner, 'POST', discoverPath, { credentialId: t.iosCredential })).body.candidates as {
+    platform: string;
+    identifier: string;
+    alreadyAdded: boolean;
+  }[];
+  const flags = again.map((c) => [c.platform, c.identifier, c.alreadyAdded]);
+  assert.deepEqual(flags[0], ['ios', 'com.acme.app', true]);
+  assert.deepEqual(flags[1], ['macos', 'com.acme.app', true]);
+  assert.deepEqual(flags[2], ['macos', 'com.acme.mac', false]);
+});

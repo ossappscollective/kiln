@@ -1,11 +1,13 @@
-import type {
-  ActorType,
-  AppStoreListing,
-  Listing,
-  ListingProblem,
-  LocaleText,
-  PlayListing,
-  Platform,
+import {
+  type ActorType,
+  type AppStoreListing,
+  type Listing,
+  type ListingProblem,
+  type LocaleText,
+  type PlayListing,
+  type Platform,
+  isApplePlatform,
+  platformMeta,
 } from '@mrm/core';
 import { validateListing } from '@mrm/core';
 import type { Sql } from '@mrm/db';
@@ -164,7 +166,7 @@ type Texts = Record<string, Record<string, string>>;
 
 const DEFAULT_FOLDER = 'default';
 
-const storeName = (platform: Platform) => (platform === 'ios' ? 'App Store' : 'Google Play');
+const storeName = (platform: Platform) => platformMeta(platform).storeName;
 
 const itemKey = (locale: string, field: string) => `${canonicalLocale(locale)}\u0000${field}`;
 
@@ -362,7 +364,7 @@ export function planPull(input: PullPlanInput): PullPlan {
   for (const [locale, text] of Object.entries(repoLocaleTexts)) locales[locale] = { ...text };
   for (const c of changes) (locales[c.repoLocale] ??= {})[c.field] = c.after;
   const desired: Listing =
-    platform === 'ios'
+    isApplePlatform(platform)
       ? {
           appStore: {
             locales: locales as Record<string, LocaleText<never>>,
@@ -572,7 +574,7 @@ async function preparePull(ctx: { repo: RepoContext }, input: PullInput): Promis
   const chosen = await chooseSelection(ctx.repo, workspaceId, repository.id, app, input.selection);
   if (!chosen.ok) return chosen;
 
-  const slot = app.platform === 'ios' ? 'appStore' : 'googlePlay';
+  const slot = isApplePlatform(app.platform) ? 'appStore' : 'googlePlay';
   const history = await loadPullHistory(db, workspaceId, app.id, channel, input.excludeChangeSet);
   return {
     ok: true,

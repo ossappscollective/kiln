@@ -14,7 +14,7 @@ import {
   AppStoreReviewsConnector,
   PlayReviewsConnector,
 } from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
+import { type ActorType, isApplePlatform } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -695,7 +695,7 @@ export async function sendReviewReply(
   if (String(credential.kind) !== credentialKindFor[app.platform]) {
     return refusal(failure(422, 'credential_kind', "This app's credential is not the kind its platform needs."));
   }
-  if (app.platform === 'ios' && !app.storeAppId) {
+  if (isApplePlatform(app.platform) && !app.storeAppId) {
     return refusal(failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.'));
   }
   let secret: string | undefined;
@@ -706,7 +706,7 @@ export async function sendReviewReply(
   }
   if (secret === undefined) return refusal(failure(422, 'credential_not_found', 'The credential of this app no longer exists.'));
   const connection: Omit<ReviewConnectorInput, 'fetch'> = {
-    kind: app.platform === 'ios' ? 'app_store_connect' : 'google_play',
+    kind: credentialKindFor[app.platform],
     secret,
     identifier: app.identifier,
     storeAppId: app.storeAppId,

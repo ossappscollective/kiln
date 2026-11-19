@@ -17,6 +17,8 @@ import {
   normalizeLocale,
   suggestCompetitors,
   termsAcrossMarkets,
+  isApplePlatform,
+  isGooglePlatform,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { type ManagedApp } from './apps.ts';
@@ -59,7 +61,7 @@ export async function ownFields(
   if (!chosen) return { found: null, readAt: listing.readAt, error: listing.error };
   const text = channel.locales[chosen] ?? {};
   const fields: FitFields = {};
-  if (app.platform === 'ios') {
+  if (isApplePlatform(app.platform)) {
     if (text.name !== undefined) fields.title = text.name;
     if (text.subtitle !== undefined) fields.subtitle = text.subtitle;
     if (text.keywords !== undefined) fields.keywords = text.keywords;
@@ -234,7 +236,7 @@ export async function suggestionsFor(
   app: ManagedApp,
   options: { minKeywords?: number; limit?: number } = {},
 ): Promise<{ suggestions: SuggestionView[]; basedOnKeywords: number; notes: string[] }> {
-  const ownId = app.platform === 'ios' ? app.storeAppId : app.identifier;
+  const ownId = isApplePlatform(app.platform) ? app.storeAppId : app.identifier;
   const keywords = await listKeywords(sql, workspaceId, app.id);
   const followed = await listCompetitors(sql, workspaceId, app.id);
   const rows = await sql.query(
@@ -283,7 +285,7 @@ export async function suggestionsFor(
   suggestions.sort((a, b) => b.keywordCount - a.keywordCount || a.averageRank - b.averageRank || a.externalId.localeCompare(b.externalId));
   const notes: string[] = [];
   if (used === 0) notes.push('No keyword has been checked yet, so there are no results to compare. Refresh the app first.');
-  if (app.platform === 'android') notes.push('Google Play results carry no names; look an app up before following it.');
+  if (isGooglePlatform(app.platform)) notes.push('Google Play results carry no names; look an app up before following it.');
   return { suggestions: suggestions.slice(0, options.limit ?? 20), basedOnKeywords: used, notes };
 }
 

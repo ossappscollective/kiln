@@ -88,7 +88,7 @@ export function resolveRef(ref: string, workspaceId: string, appId: string, now:
   return entry;
 }
 
-const platformOf = (app: ManagedApp): AssetPlatform => (app.platform === 'ios' ? 'ios' : 'android');
+const platformOf = (app: ManagedApp): AssetPlatform => app.platform;
 
 /** The view of a read, and the refs of its images. */
 function build(ctx: StoreImagesContext, workspaceId: string, app: ManagedApp, read: StoreImagesRead, now: number): StoreImagesView {

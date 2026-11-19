@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type Platform, RELEASE_STATES, type ReleaseState } from '@mrm/core';
+import { type Platform, RELEASE_STATES, type ReleaseState, isGooglePlatform } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { type AppRelease, type ManagedApp, listAppReleases } from './apps.ts';
 import type { Confidence, LinkEvidence } from './build-tags.ts';
@@ -49,7 +49,10 @@ export type BuildMatcher = {
 const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 const ANY_KEYS = new Set(['buildnumber', 'build', 'buildno']);
 const IOS_KEYS = new Set(['iosbuildnumber', 'iosbuild', 'cfbundleversion', 'bundleversion']);
+const MACOS_KEYS = new Set(['macosbuildnumber', 'macosbuild', 'osxbuildnumber', 'osxbuild', 'cfbundleversion', 'bundleversion']);
 const ANDROID_KEYS = new Set(['versioncode', 'androidversioncode', 'androidbuildnumber', 'androidbuild']);
+
+const ownKeys = (platform: Platform): Set<string> => (platform === 'ios' ? IOS_KEYS : platform === 'macos' ? MACOS_KEYS : ANDROID_KEYS);
 
 /**
  * The run was started from this tool (or any dispatch we recorded) with an input that names the
@@ -63,7 +66,7 @@ export const dispatchInputMatcher: BuildMatcher = {
   match(build, run) {
     for (const [key, value] of Object.entries(run.inputs ?? {})) {
       const k = normalizeKey(key);
-      const own = build.platform === 'ios' ? IOS_KEYS : ANDROID_KEYS;
+      const own = ownKeys(build.platform);
       if ((ANY_KEYS.has(k) || own.has(k)) && value.trim() === build.buildNumber) {
         return `input ${key} = ${value.trim()}`;
       }
@@ -73,7 +76,7 @@ export const dispatchInputMatcher: BuildMatcher = {
 };
 
 const NOT_A_VERSION = '(?!\\.\\d)';
-const AFTER_PLATFORM = '(?<!\\b(?:ios|android)[\\s_-]*)';
+const AFTER_PLATFORM = '(?<!\\b(?:ios|macos|osx|android)[\\s_-]*)';
 
 const TITLE_PATTERNS: { platform: Platform | 'any'; label: string; re: RegExp }[] = [
   {
@@ -85,6 +88,11 @@ const TITLE_PATTERNS: { platform: Platform | 'any'; label: string; re: RegExp }[
     platform: 'ios',
     label: 'ios build N',
     re: new RegExp(`\\bios[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`, 'gi'),
+  },
+  {
+    platform: 'macos',
+    label: 'macos build N',
+    re: new RegExp(`\\b(?:macos|osx)[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`, 'gi'),
   },
   {
     platform: 'android',
@@ -237,7 +245,7 @@ export function buildsFromReleases(releases: readonly AppRelease[]): StoredBuild
   const byKey = new Map<string, StoredBuild>();
   for (const release of releases) {
     const numbers =
-      release.platform === 'android'
+      isGooglePlatform(release.platform)
         ? (release.versionCodes ?? release.build?.split(',') ?? [])
         : release.build
           ? [release.build]

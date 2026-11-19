@@ -15,6 +15,7 @@ import {
   sectionFromText,
   sectionOfField,
   sectionToText,
+  isGooglePlatform,
 } from '@mrm/core';
 import {
   redactSecrets,
@@ -454,7 +455,7 @@ export async function syncListing(
       // A channel that is gone (the editable version was released) is recorded as removed.
       for (const channel of ['live', 'editable'] as const) {
         const found = channels.find((c) => c.channel === channel);
-        if (!found && app.platform === 'android') continue;
+        if (!found && isGooglePlatform(app.platform)) continue;
         const result = await recordStream(
           tx,
           {
@@ -781,6 +782,7 @@ export type SectionDrift = {
 /** The sections each platform has, in display order. Google Play has no categories or age rating in its API. */
 export const SECTIONS_OF: Record<Platform, readonly ListingSectionName[]> = {
   ios: ['categories', 'ageRating', 'privacy', 'details', 'media'],
+  macos: ['categories', 'ageRating', 'privacy', 'details', 'media'],
   android: ['details', 'media', 'releaseNotes'],
 };
 

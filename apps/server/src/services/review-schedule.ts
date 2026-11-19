@@ -86,7 +86,7 @@ export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions
             s.last_attempt_at, s.backoff_until
        FROM apps a
        LEFT JOIN review_sync_state s
-         ON s.app_id = a.id AND s.store = CASE WHEN a.platform = 'ios' THEN 'appstoreconnect' ELSE 'googleplay' END
+         ON s.app_id = a.id AND s.store = CASE WHEN a.platform = 'android' THEN 'googleplay' ELSE 'appstoreconnect' END
       ORDER BY COALESCE(s.last_attempt_at, 0), a.created_at, a.id`,
   );
   const jobs = await db.query("SELECT payload FROM jobs WHERE queue = ? AND status IN ('queued', 'running')", [
@@ -106,12 +106,22 @@ export async function queueReviewSyncs(db: Database, options: ReviewQueueOptions
 
   const perWorkspaceCount = new Map<string, number>();
   const limited = new Set<string>();
+  const sharedWithIos = new Set(
+    apps
+      .filter((a) => String(a.platform) === 'ios' && a.store_app_id)
+      .map((a) => `${String(a.workspace_id)}\u0000${String(a.store_app_id)}`),
+  );
   for (const app of apps) {
     const id = String(app.id);
     const workspaceId = String(app.workspace_id);
     const credentialId = String(app.credential_id);
     const last = Number(app.last_attempt_at ?? 0);
-    if (String(app.platform) === 'ios' && !app.store_app_id) {
+    if (String(app.platform) !== 'android' && !app.store_app_id) {
+      summary.skipped.notReady++;
+      continue;
+    }
+    // A macOS entry that shares its App Store Connect app with an iOS entry has the same customer reviews: not read twice.
+    if (String(app.platform) === 'macos' && sharedWithIos.has(`${workspaceId}\u0000${String(app.store_app_id)}`)) {
       summary.skipped.notReady++;
       continue;
     }

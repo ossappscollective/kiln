@@ -1,4 +1,4 @@
-import type { ActorType, FileChange, Listing } from '@mrm/core';
+import { type ActorType, type FileChange, type Listing, platformMeta } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { flattenListing, hasStoreListing, hashListingValue, fieldKey } from './listing-drift.ts';
 import {
@@ -131,7 +131,7 @@ export async function refreshRepoListing(
       repo_ref: ref,
       repo_error: found
         ? null
-        : `No ${app.platform === 'ios' ? 'App Store' : 'Google Play'} listing files were found in the repository for this app.`,
+        : `No ${platformMeta(app.platform).storeName} listing files were found in the repository for this app.`,
     });
     return recorded;
   });

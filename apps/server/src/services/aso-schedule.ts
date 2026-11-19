@@ -113,7 +113,7 @@ export async function queueAsoRefreshes(db: Database, options: AsoQueueOptions):
       summary.skipped.playOff++;
       continue;
     }
-    if (platform === 'ios' && !app.store_app_id) {
+    if (platform !== 'android' && !app.store_app_id) {
       summary.skipped.notReady++;
       continue;
     }
@@ -244,7 +244,7 @@ export async function queueAsoRefreshAll(
       summary.skipped.playOff++;
       continue;
     }
-    if (String(app.platform) === 'ios' && !app.store_app_id) {
+    if (String(app.platform) !== 'android' && !app.store_app_id) {
       summary.skipped.notReady++;
       continue;
     }

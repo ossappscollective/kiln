@@ -11,6 +11,7 @@ import {
   PLAY_FIELDS,
   type Platform,
   validateListing,
+  isApplePlatform,
 } from '@mrm/core';
 
 /**
@@ -24,14 +25,14 @@ export type ListingSource = (typeof LISTING_SOURCES)[number];
 
 /** The fields of the store listing that belongs to a platform, in display order. */
 export const listingFieldsFor = (platform: Platform): readonly string[] =>
-  platform === 'ios' ? APP_STORE_FIELDS : PLAY_FIELDS;
+  isApplePlatform(platform) ? APP_STORE_FIELDS : PLAY_FIELDS;
 
 export const isListingField = (platform: Platform, field: string): boolean =>
   listingFieldsFor(platform).includes(field);
 
 export function fieldSpec(platform: Platform, field: string): ListingFieldSpec | undefined {
   const specs: Record<string, ListingFieldSpec> =
-    platform === 'ios' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS;
+    isApplePlatform(platform) ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS;
   return specs[field];
 }
 
@@ -60,7 +61,7 @@ export const splitKey = (key: string): { locale: string; field: string } => {
 /** The listing of the app's own store as flat field values. A field that is not set is left out. */
 export function flattenListing(listing: Listing, platform: Platform): FieldValue[] {
   const locales: Record<string, LocaleText<string>> | undefined =
-    platform === 'ios' ? listing.appStore?.locales : listing.googlePlay?.locales;
+    isApplePlatform(platform) ? listing.appStore?.locales : listing.googlePlay?.locales;
   const out: FieldValue[] = [];
   if (!locales) return out;
   for (const locale of Object.keys(locales).sort()) {
@@ -75,7 +76,7 @@ export function flattenListing(listing: Listing, platform: Platform): FieldValue
 
 /** True when the listing has the store of this platform at all. */
 export const hasStoreListing = (listing: Listing, platform: Platform): boolean =>
-  platform === 'ios' ? listing.appStore !== undefined : listing.googlePlay !== undefined;
+  isApplePlatform(platform) ? listing.appStore !== undefined : listing.googlePlay !== undefined;
 
 // ---------------------------------------------------------------------------------------------
 // The three-way view
@@ -170,7 +171,7 @@ export function toListing(platform: Platform, values: ReadonlyMap<string, string
     const { locale, field } = splitKey(key);
     (locales[locale] ??= {})[field] = value;
   }
-  return platform === 'ios'
+  return isApplePlatform(platform)
     ? { appStore: { locales: locales as Record<string, LocaleText<never>> } as Listing['appStore'] }
     : { googlePlay: { locales, changelogs: {} } as unknown as Listing['googlePlay'] };
 }

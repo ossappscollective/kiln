@@ -1,4 +1,10 @@
-import type { FileChange, Listing, ListingSections, Platform } from '@mrm/core';
+import {
+  type FileChange,
+  type Listing,
+  type ListingSections,
+  type Platform,
+  isApplePlatform,
+} from '@mrm/core';
 import {
   detectProject,
   type ExpoStoreSnapshot,
@@ -189,12 +195,12 @@ export function repositorySections(
   merged: Listing,
   platform: Platform,
 ): ListingSections {
-  const found = platform === 'ios' ? merged.appStore : merged.googlePlay;
+  const found = isApplePlatform(platform) ? merged.appStore : merged.googlePlay;
   if (!found) return {};
   const sections: ListingSections = {
-    ...(platform === 'ios' ? (listings.sections?.appStore ?? {}) : (listings.sections?.googlePlay ?? {})),
+    ...(isApplePlatform(platform) ? (listings.sections?.appStore ?? {}) : (listings.sections?.googlePlay ?? {})),
   };
-  if (platform === 'ios') {
+  if (isApplePlatform(platform)) {
     const copyright = merged.appStore?.copyright;
     sections.details = copyright !== undefined ? { copyright } : {};
   }

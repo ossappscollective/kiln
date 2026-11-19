@@ -1,5 +1,6 @@
 import type { Sql } from '@mrm/db';
 import { type ReviewStatus, reviewStatuses } from './reviews.ts';
+import { isGooglePlatform, type Platform, parsePlatform } from '@mrm/core';
 
 /**
  * Numbers about the reviews of one app, always with their basis: `stored` is computed from the
@@ -196,7 +197,7 @@ export async function reviewsSummary(
 // Workspace-wide (the reviews inbox of every app)
 
 export type WorkspaceAppCounts = {
-  app: { id: string; name: string; platform: 'ios' | 'android'; store: 'appstoreconnect' | 'googleplay' };
+  app: { id: string; name: string; platform: Platform; store: 'appstoreconnect' | 'googleplay' };
   total: number;
   /** Triage status `new`. */
   new: number;
@@ -262,9 +263,9 @@ export async function workspaceReviewsSummary(
   for (const a of apps) {
     const r = byApp.get(String(a.id));
     const total = n(r?.total);
-    const platform = String(a.platform) === 'android' ? 'android' : 'ios';
+    const platform = (parsePlatform(String(a.platform)) ?? 'ios') as Platform;
     out.push({
-      app: { id: String(a.id), name: String(a.name), platform, store: platform === 'android' ? 'googleplay' : 'appstoreconnect' },
+      app: { id: String(a.id), name: String(a.name), platform, store: isGooglePlatform(platform) ? 'googleplay' : 'appstoreconnect' },
       total,
       new: n(r?.new_count),
       unanswered: n(r?.unanswered),

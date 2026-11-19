@@ -1,5 +1,5 @@
 import type { StoreConnector } from '@mrm/connectors';
-import type { ActorType } from '@mrm/core';
+import { type ActorType, isGooglePlatform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue, type Job, type JobHandler } from '../jobs.ts';
 import {
@@ -355,7 +355,7 @@ export async function runListingRead(
     }
     // An iOS app that was never synced has no Apple id yet: the full sync finds it (and reads the
     // listing as its last step), so it is the right job for that app.
-    const storeId = app.platform === 'android' ? app.identifier : app.storeAppId;
+    const storeId = isGooglePlatform(app.platform) ? app.identifier : app.storeAppId;
     if (!storeId) {
       running.delete(app.id);
       const done = await syncApp(ctx, { workspaceId, id: app.id }, actor, {

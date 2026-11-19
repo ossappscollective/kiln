@@ -1,5 +1,5 @@
 import { isPlayPackageName } from '@mrm/connectors';
-import { type Action, can } from '@mrm/core';
+import { type Action, PLATFORMS, can } from '@mrm/core';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Context, Next } from 'hono';
@@ -39,7 +39,7 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
 
 const registerBody = z
   .object({
-    platform: z.enum(['ios', 'android']),
+    platform: z.enum(PLATFORMS),
     identifier: z.string().trim().min(1).max(255),
     credentialId: z.string().min(1).max(100),
     name: z
@@ -76,7 +76,7 @@ const discoverBody = z
 
 const importItem = z
   .object({
-    platform: z.enum(['ios', 'android']),
+    platform: z.enum(PLATFORMS),
     identifier: z.string().trim().min(1).max(255),
     storeAppId: z
       .string()

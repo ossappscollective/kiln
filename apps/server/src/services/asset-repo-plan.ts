@@ -1,4 +1,11 @@
-import { type AssetKind, type AssetSlot, PLAY_DEVICES, PLAY_GRAPHIC_FILES, type Platform } from '@mrm/core';
+import {
+  type AssetKind,
+  type AssetSlot,
+  PLAY_DEVICES,
+  PLAY_GRAPHIC_FILES,
+  type Platform,
+  isApplePlatform,
+} from '@mrm/core';
 import { screenshotFolders } from './store-assets.ts';
 
 /**
@@ -41,7 +48,7 @@ const defaultScreenshotFolder = (appStoreRoot: string): string => {
 export function layoutFor(input: LayoutInput): { ok: true; layout: PlanLayout } | { ok: false; message: string } {
   const { platform, locale, slot } = input;
   const stem = slot.device ?? slot.kind;
-  if (platform === 'ios') {
+  if (isApplePlatform(platform)) {
     if (slot.kind !== 'screenshot') return { ok: false, message: 'Only App Store screenshots are put in a repository from here.' };
     const mine = input.existing.find((a) => a.locale === locale && a.kind === slot.kind && a.device === slot.device);
     if (mine) return { ok: true, layout: { dir: dirname(mine.path), fixedStem: null, stem } };

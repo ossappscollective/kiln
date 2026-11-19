@@ -26,6 +26,7 @@ import {
   slotKey,
   slotMaxFiles,
   validateAssets,
+  isApplePlatform,
 } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
 import { type ManagedApp, getApp } from './apps.ts';
@@ -154,7 +155,7 @@ export const isStageableLocale = (value: string): boolean => value.length <= STA
 
 /** The store's own name of a set (App Store display type, Google Play image type), or undefined. */
 export function storeTargetOf(platform: Platform, slot: AssetSlot, first: { width: number | null; height: number | null } | undefined): string | undefined {
-  if (platform === 'ios') {
+  if (isApplePlatform(platform)) {
     if (slot.device === null) return undefined;
     return appleDisplayType(slot.device, first?.width ?? null, first?.height ?? null);
   }
@@ -238,7 +239,7 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
       out.push({ severity: 'error', code: 'file_too_large', message: `${name} is larger than the ${STAGED_LIMITS.maxAssetFileBytes / (1024 * 1024)} MB this server uploads.`, limit: STAGED_LIMITS.maxAssetFileBytes, ...(r.assetBytes !== null ? { actual: r.assetBytes } : {}), unit: 'bytes' });
     }
   }
-  if (platform === 'ios' && support.ok && set.slot.device !== null) {
+  if (isApplePlatform(platform) && support.ok && set.slot.device !== null) {
     const names = new Set(set.rows.map((r) => storeTargetOf(platform, set.slot, { width: r.assetWidth, height: r.assetHeight }) ?? ''));
     if (names.has('')) {
       out.push({ severity: 'error', code: 'no_display_type', message: 'This server has no App Store display type for the size of a file of this set.' });

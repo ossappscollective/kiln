@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { ActorType, Platform, ReleaseState } from '@mrm/core';
+import {
+  type ActorType,
+  type Platform,
+  type ReleaseState,
+  isApplePlatform,
+  isGooglePlatform,
+  platformLabel,
+} from '@mrm/core';
 import {
   AppStoreConnectConnector,
   GooglePlayConnector,
@@ -34,6 +41,7 @@ const MAX_ERROR_LENGTH = 500;
 /** The credential kind each platform needs. */
 export const credentialKindFor = {
   ios: 'app_store_connect',
+  macos: 'app_store_connect',
   android: 'google_play',
 } as const satisfies Record<Platform, string>;
 
@@ -46,6 +54,8 @@ export type StoreConnectorInput = {
   secret: string;
   /** The bundle id or package name. */
   identifier: string;
+  /** The platform of the app record: macOS reads the macOS versions and builds of the App Store Connect app. */
+  platform?: Platform;
   /** Aborted when the sync times out. Pass it to the connector as its `fetch`. */
   fetch: typeof fetch;
 };
@@ -55,7 +65,7 @@ export type StoreConnectorFactory = (input: StoreConnectorInput) => StoreConnect
 
 export const defaultStoreConnectorFactory: StoreConnectorFactory = (input) =>
   input.kind === 'app_store_connect'
-    ? AppStoreConnectConnector.fromSecret(input.secret, { fetch: input.fetch })
+    ? AppStoreConnectConnector.fromSecret(input.secret, { fetch: input.fetch, platform: input.platform === 'macos' ? 'macos' : 'ios' })
     : new GooglePlayConnector({
         serviceAccount: input.secret,
         packages: [input.identifier],
@@ -230,7 +240,7 @@ export type RegisterInput = {
 
 /** Rules for the identifier, shared with the route. Returns a message, or undefined when fine. */
 export function checkIdentifier(platform: Platform, identifier: string): string | undefined {
-  if (platform === 'android') {
+  if (isGooglePlatform(platform)) {
     return isPlayPackageName(identifier)
       ? undefined
       : 'Not an Android package name. Use the application id, for example com.acme.app.';
@@ -262,8 +272,8 @@ export async function registerApp(
     return failure(
       422,
       'credential_kind',
-      input.platform === 'ios'
-        ? 'An iOS app needs an App Store Connect API key credential.'
+      isApplePlatform(input.platform)
+        ? `${platformLabel(input.platform)} apps need an App Store Connect API key credential.`
         : 'An Android app needs a Google Play service account credential.',
     );
   }
@@ -280,7 +290,7 @@ export async function registerApp(
   // Apple bundle ids are not case sensitive; Play package names are.
   const taken = async () => {
     const rows =
-      input.platform === 'ios'
+      isApplePlatform(input.platform)
         ? await db.query(
             'SELECT id FROM apps WHERE workspace_id = ? AND platform = ? AND lower(identifier) = ?',
             [input.workspaceId, input.platform, input.identifier.toLowerCase()],
@@ -482,7 +492,7 @@ function pickBuild(version: StoreVersion, builds: StoreBuild[]): StoreBuild | un
 }
 
 async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Read> {
-  if (app.platform === 'ios') {
+  if (isApplePlatform(app.platform)) {
     let appStoreId = app.storeAppId;
     if (!appStoreId) {
       const apps = await connector.listApps();
@@ -497,6 +507,13 @@ async function readStore(connector: StoreConnector, app: ManagedApp): Promise<Re
       appStoreId = hit.storeId;
     }
     const versions = await connector.listVersions(appStoreId);
+    if (app.platform === 'macos' && versions.length === 0) {
+      throw new StoreError(
+        'appstoreconnect',
+        'not_found',
+        `App Store Connect has no macOS version for app ${appStoreId}. Add the macOS platform to the app in App Store Connect first (a macOS app that is its own app record is added with its own bundle id).`,
+      );
+    }
     const builds = await connector.listBuilds(appStoreId);
     return {
       appStoreId,
@@ -685,6 +702,7 @@ async function runSync(
       kind: kind as StoreConnectorInput['kind'],
       secret,
       identifier: app.identifier,
+      platform: app.platform,
       fetch: guardedFetch,
     });
     const work = readStore(connector, app);
@@ -873,10 +891,11 @@ export const APP_DISCOVER_PURPOSE = 'app.discover';
 export const MAX_IMPORT_ITEMS = 50;
 const MAX_CANDIDATES = 1_000;
 
+/** The platforms a credential kind can have apps on. An App Store Connect app can have an iOS and a macOS version. */
 const DISCOVERABLE = {
-  app_store_connect: 'ios',
-  google_play: 'android',
-} as const satisfies Record<string, Platform>;
+  app_store_connect: ['ios', 'macos'],
+  google_play: ['android'],
+} as const satisfies Record<string, readonly Platform[]>;
 
 type DiscoverKind = keyof typeof DISCOVERABLE;
 
@@ -905,7 +924,7 @@ export type Discovery = {
 };
 
 const identityKey = (platform: string, identifier: string) =>
-  `${platform}\u0000${platform === 'ios' ? identifier.toLowerCase() : identifier}`;
+  `${platform}\u0000${platform !== 'android' ? identifier.toLowerCase() : identifier}`;
 
 /** The apps of the workspace by platform and identifier (bundle ids compared without case). */
 async function existingApps(sql: Sql, workspaceId: string): Promise<Map<string, string>> {
@@ -1028,7 +1047,7 @@ export async function discoverApps(
   timedOut.catch(() => undefined);
   const read = async (identifier: string) => {
     const connector = ctx.connectorFactory({ kind, secret: secret as string, identifier, fetch: guardedFetch });
-    const work = connector.listApps();
+    const work = connector.listApps(kind === 'app_store_connect' ? { withPlatforms: true } : {});
     // The race may lose to the timeout; the abandoned read must not become an unhandled rejection.
     work.catch(() => undefined);
     return Promise.race([work, timedOut]);
@@ -1074,11 +1093,16 @@ export async function discoverApps(
       }
       const seen = new Set<string>();
       for (const a of apps) {
-        if (a.platform !== 'ios' || checkIdentifier('ios', a.bundleId)) continue;
-        const key = identityKey('ios', a.bundleId);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        add('ios', a.storeId, a.bundleId, a.name);
+        if (a.platform === 'android' || checkIdentifier('ios', a.bundleId)) continue;
+        // `platforms` is known only when the store answered the platform read: then one candidate per Apple platform
+        // the app has (a universal purchase app has both, with the same store id and bundle id). Unknown: iOS, as before.
+        const platforms = (a.platforms ?? []).filter((p) => p === 'ios' || p === 'macos');
+        for (const platform of platforms.length > 0 ? platforms : (['ios'] as const)) {
+          const key = identityKey(platform, a.bundleId);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          add(platform, a.storeId, a.bundleId, a.name);
+        }
         if (candidates.length >= MAX_CANDIDATES) break;
       }
       candidates.sort((a, b) => a.name.localeCompare(b.name) || a.identifier.localeCompare(b.identifier));
@@ -1155,7 +1179,7 @@ export async function importApps(
   const { workspaceId } = input;
   const found = await discoverableCredential(db, workspaceId, input.credentialId);
   if (!found.ok) return found;
-  const platform = DISCOVERABLE[found.kind];
+  const kindPlatforms: readonly Platform[] = DISCOVERABLE[found.kind];
 
   const repositoryIds = [...new Set(input.items.flatMap((i) => (i.repositoryId ? [i.repositoryId] : [])))];
   const knownRepositories = new Set<string>();
@@ -1174,14 +1198,14 @@ export async function importApps(
       for (const item of input.items) {
         const base = { platform: item.platform, identifier: item.identifier };
         const key = identityKey(item.platform, item.identifier);
-        if (item.platform !== platform) {
+        if (!kindPlatforms.includes(item.platform)) {
           results.push({
             ...base,
             status: 'failed',
             error: 'credential_kind',
             message:
-              item.platform === 'ios'
-                ? 'An iOS app needs an App Store Connect API key credential.'
+              isApplePlatform(item.platform)
+                ? `${platformLabel(item.platform)} apps need an App Store Connect API key credential.`
                 : 'An Android app needs a Google Play service account credential.',
           });
           continue;
@@ -1220,7 +1244,7 @@ export async function importApps(
             cleanName(item.name ?? '', item.identifier),
             item.platform,
             item.identifier,
-            item.storeAppId ?? (item.platform === 'android' ? item.identifier : null),
+            item.storeAppId ?? (isGooglePlatform(item.platform) ? item.identifier : null),
             input.credentialId,
             item.repositoryId ?? null,
             now,

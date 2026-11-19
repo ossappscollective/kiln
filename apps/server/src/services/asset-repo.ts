@@ -1,4 +1,4 @@
-import type { AssetKind } from '@mrm/core';
+import { type AssetKind, assetStoreOf } from '@mrm/core';
 import { isBlobReads } from '@mrm/connectors';
 import type { ManagedApp } from './apps.ts';
 import {
@@ -110,7 +110,7 @@ const budgetKindOf = (connector: RepoClient): AssetSourceKind =>
 const emptyView = (app: ManagedApp, status: 'no_repository', now: number): AssetIndexView => ({
   appId: app.id,
   platform: app.platform,
-  store: app.platform === 'ios' ? 'app_store' : 'google_play',
+  store: assetStoreOf(app.platform),
   repository: null,
   status,
   source: null,
@@ -296,7 +296,7 @@ export async function openAssets(
         const view: AssetIndexView = {
           appId: app.id,
           platform: app.platform,
-          store: app.platform === 'ios' ? 'app_store' : 'google_play',
+          store: assetStoreOf(app.platform),
           repository: { id: repository.id, name: repository.name },
           status: 'ok',
           source: { kind, label: SOURCE_LABELS[kind], fast: kind === 'local_clone' },

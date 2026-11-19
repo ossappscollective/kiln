@@ -13,7 +13,7 @@ import {
   type StoreReview,
   type StoreReviewConnector,
 } from '@mrm/connectors';
-import type { ActorType, Platform } from '@mrm/core';
+import { type ActorType, type Platform, isApplePlatform, isGooglePlatform } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { type ManagedApp, credentialKindFor, getApp } from './apps.ts';
@@ -75,7 +75,7 @@ export const reviewBackoffMs = (failures: number): number =>
   Math.min(MIN_BACKOFF_MS * 2 ** Math.max(0, failures - 1), MAX_BACKOFF_MS);
 
 /** The store behind a platform. */
-export const storeFor = (platform: Platform): StoreKey => (platform === 'ios' ? 'appstoreconnect' : 'googleplay');
+export const storeFor = (platform: Platform): StoreKey => (isApplePlatform(platform) ? 'appstoreconnect' : 'googleplay');
 
 // ---------------------------------------------------------------------------------------------
 // Connectors
@@ -100,7 +100,7 @@ export const defaultReviewConnectorFactory: ReviewConnectorFactory = (input) =>
     : new PlayReviewsConnector({ serviceAccount: input.secret, packageName: input.identifier, fetch: input.fetch });
 
 /** The optional store-wide rating (public iTunes lookup). Replaced by a fake in tests. */
-export type RatingFetcher = (input: { appStoreId: string; country: string }) => Promise<RatingSummary | undefined>;
+export type RatingFetcher = (input: { appStoreId: string; country: string; platform?: 'ios' | 'macos' }) => Promise<RatingSummary | undefined>;
 
 export const defaultRatingFetcher: RatingFetcher = (input) => fetchRatingSummary(input);
 
@@ -365,6 +365,24 @@ export async function syncReviews(
   }
 }
 
+/**
+ * Customer reviews belong to the App Store Connect APP, not to one platform. A macOS record that shares the store
+ * app id of an iOS record (universal purchase) would read and store the same reviews a second time, so its reviews are
+ * the iOS record's. Returns the id of that iOS record, or null when the app's reviews are its own.
+ */
+export async function reviewsOwnedByOtherRecord(
+  sql: Sql,
+  workspaceId: string,
+  app: { platform: Platform; storeAppId: string | null },
+): Promise<string | null> {
+  if (app.platform !== 'macos' || !app.storeAppId) return null;
+  const [owner] = await sql.query(
+    "SELECT id FROM apps WHERE workspace_id = ? AND platform = 'ios' AND store_app_id = ? ORDER BY created_at, id",
+    [workspaceId, app.storeAppId],
+  );
+  return owner ? String(owner.id) : null;
+}
+
 async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: ReviewSyncTrigger) {
   const { db } = ctx;
   const workspaceId = app.workspaceId;
@@ -375,6 +393,13 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   };
   const plain = (status: Failure['status'], code: string, message: string) =>
     stop({ failure: failure(status, code, message), message, transient: false });
+
+  if (await reviewsOwnedByOtherRecord(db, workspaceId, app)) {
+    return {
+      ...failure(409, 'reviews_shared', 'The customer reviews of an App Store Connect app are shared by its iOS and macOS entries. They are read once, for the iOS entry.'),
+      transient: false,
+    } as ReviewSyncFailure;
+  }
 
   const [credential] = await db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [
     app.credentialId,
@@ -387,7 +412,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   if (kind !== credentialKindFor[app.platform]) {
     return plain(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
   }
-  if (app.platform === 'ios' && !app.storeAppId) {
+  if (isApplePlatform(app.platform) && !app.storeAppId) {
     return plain(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first, then read its reviews.');
   }
   let secret: string | undefined;
@@ -413,7 +438,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   // What to ask for. Play ignores `since` on purpose (a developer reply does not change the user
   // comment's time, and the whole window is a handful of requests).
   const since =
-    app.platform === 'android'
+    isGooglePlatform(app.platform)
       ? undefined
       : saved
         ? (saved.s ?? undefined)
@@ -421,7 +446,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
           ? before.lastSuccessAt - APPLE_OVERLAP_MS
           : undefined;
   const gap =
-    app.platform === 'android' && before.lastSuccessAt !== null && startedAt - before.lastSuccessAt > PLAY_REVIEW_WINDOW_MS
+    isGooglePlatform(app.platform) && before.lastSuccessAt !== null && startedAt - before.lastSuccessAt > PLAY_REVIEW_WINDOW_MS
       ? { from: before.lastSuccessAt, to: startedAt }
       : null;
 
@@ -666,7 +691,7 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
 
   // Best effort, after the reviews are safe: the store-wide rating of an iOS app.
   let changed = false;
-  if (app.platform === 'ios' && app.storeAppId && ctx.ratingFetcher !== null) {
+  if (isApplePlatform(app.platform) && app.storeAppId && ctx.ratingFetcher !== null) {
     const fetcher = ctx.ratingFetcher ?? defaultRatingFetcher;
     outcome.ratingSummary = await recordRatingSummary(ctx, app, app.storeAppId, fetcher);
     changed = true;
@@ -706,7 +731,7 @@ async function recordRatingSummary(
 ): Promise<ReviewSyncResult['ratingSummary']> {
   let summary: RatingSummary | undefined;
   try {
-    summary = await fetcher({ appStoreId, country: RATING_COUNTRY });
+    summary = await fetcher({ appStoreId, country: RATING_COUNTRY, ...(app.platform === 'macos' ? { platform: 'macos' as const } : {}) });
   } catch {
     return 'unavailable';
   }
