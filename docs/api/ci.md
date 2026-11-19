@@ -23,8 +23,8 @@ reported, not guessed. The layout was modelled on a real fastlane lane, but only
 
 | Action | viewer | member | admin / owner |
 | --- | --- | --- | --- |
-| `repositories.read` / `apps.read`: read stored runs and builds | yes | yes | yes |
-| `repositories.scan`: anything that asks GitHub (list workflows, workflow inputs, refresh runs, what changed, read tags for the preview, re-run matching) | no | yes | yes |
+| `repositories.read` / `apps.read`: read stored runs and builds, and the "running now" list (stored runs, plus the job progress a member read lately) | yes | yes | yes |
+| `repositories.scan`: anything that asks GitHub (list workflows, workflow inputs, refresh runs, the jobs of a run, the refresh behind "running now", what changed, read tags for the preview, re-run matching) | no | yes | yes |
 | `repositories.write`: save the build-number conventions | no | no | yes |
 | `ci.dispatch`: start a workflow | no | yes | yes |
 | `apps.sync`: link a build to a run by hand, remove such a link | no | yes | yes |
@@ -129,19 +129,92 @@ A run:
 | `inputs`, `dispatchedBy`, `appId` | set when this tool started the run |
 | `startedAt`, `updatedAt`, `syncedAt` | run times from GitHub, and when we last read it |
 
-**How the table is kept fresh.** `refresh=true` reads the repository's 50 most recent runs; any
+**How the table is kept fresh.** `refresh=true` reads the repository's 50 most recent runs as a
+**conditional request** when the connection supports it (the connector keeps the `ETag` of the last
+read in memory and sends `If-None-Match`; GitHub answers `304`, which does not count against the rate
+limit, while nothing changed, and then nothing is rewritten and no active run is asked for by id); any
 stored run that is still active but missing from them (a busy repository) is asked for one by one
 (at most 10). Reads of one repository are **at least 8 seconds apart whoever asks**, two at once
 share one request, and a read that is too soon returns the stored rows with `"refreshed": false`.
 The `ci.poll` job follows a repository while a run is active: first poll 5 seconds after a
-dispatch, then a growing delay (`min(10 s × 1.5^attempt, 60 s)`), until no run is active or **3
-hours** after the first poll. A GitHub rate limit waits for what GitHub asks; a temporary failure
+dispatch, then a growing delay (`min(15 s × 1.5^attempt, 60 s)`: 15, 22, 34, 51, then 60 seconds),
+until no run is active or **3 hours** after the first poll. A GitHub rate limit waits for what GitHub asks; a temporary failure
 (`502`, `504`) retries through the job queue's backoff; a permanent one (bad credential, no access)
 is audited once as `ci.poll` with the error `code` and ends the chain. The reads are audited as
 `credential.use` (purpose `ci.poll`). Runs older than 90 days are dropped unless they explain a
 build link. Disconnecting a repository, or deleting an app, removes its rows on the next scheduler
 tick. Every call to GitHub has the same 90 second timeout as the other repository calls, and is aborted
 when it runs out.
+
+## Following runs: "running now" and jobs
+
+A run started here or on GitHub is followed until it finishes. Two reads feed the screens (the
+Dashboard of an app, All apps, and the run panel); neither stores anything new (there is no
+migration): the runs come from `workflow_runs`, the jobs are kept in memory.
+
+- `GET /ci/runs/active` (under `/api/workspaces/:workspaceId`) needs `repositories.read`. Query:
+  `repositoryId` (comma separated, at most 50) narrows it to those repositories, as an app's
+  dashboard does. Answer:
+
+```json
+{ "runs": [ { "id": "1001", "repositoryId": "…", "appId": null, "workflow": "iOS release", "title": "Release 2.4.0",
+              "status": "in_progress", "conclusion": null, "active": true, "branch": "main", "startedAt": 1731900000000,
+              "repository": { "id": "…", "owner": "acme", "repo": "app" },
+              "actor": "octocat",
+              "progress": { "jobsTotal": 3, "jobsDone": 1, "job": "test", "step": "Run tests",
+                            "stepsDone": 2, "stepsTotal": 5, "fraction": 0.4, "readAt": 1731900100000 } } ],
+  "recent": [ { "…": "runs finished in the last 24 hours: failed first, then newest; at most 20" } ],
+  "repositories": [ { "id": "…", "owner": "acme", "repo": "app" } ],
+  "problems": [ { "repositoryId": "…", "reason": "no_access" } ],
+  "refreshedAt": 1731900100000, "live": true, "cached": false }
+```
+
+  `runs` are the runs that have not finished (a dispatch GitHub has not named yet is `pending`),
+  newest first, with the fields of a run above. `actor` is the GitHub login that started the run; the
+  table has no column for it, so it is kept in memory for a day and is `null` until a read since the
+  last restart saw the run. `progress` is `null` for a run that has not started, when the jobs were not
+  read, or (for a viewer) when nobody read them lately. `problems` lists repositories GitHub could not
+  be read for, with a reason from a fixed list (`no_access`, `rate_limited`, `unavailable`,
+  `unsupported`; never GitHub's own text); the answer is still `200`, and a client shows one quiet
+  pill. A repository that cannot be read is left alone for 10 minutes (30 seconds for a temporary
+  failure, as long as GitHub asked for a rate limit), and a repository without a local-only flag is
+  the only kind covered (a local-only repository has no GitHub).
+
+  **Budget.** Whoever has `repositories.scan` makes the answer live: before reading the table the
+  repositories are refreshed through the same run sync as `?refresh=true` and `ci.poll` (conditional
+  reads, at least 8 seconds apart per repository whoever asks, one request shared by concurrent
+  callers). A repository with a run going is looked at that often; one with none at most **once a
+  minute** (that is how a run started on GitHub itself is noticed), at most 25 repositories per answer,
+  four at a time. For the runs in progress (12 at most) the jobs are read too (below). A viewer gets
+  `"live": false`: the stored rows and whatever progress a member read lately, never a GitHub read.
+  An answer is kept **5 seconds** per workspace, role kind and repository set, and requests that arrive
+  while it is being made share it (`cached: true`). The route is limited to **60 requests per workspace
+  per minute** (`429 rate_limited`, `Retry-After`; a cached answer counts). An API token limited to some
+  apps sees only the repositories of those apps, and of their runs only those that belong to no app or to
+  one of them (the filtering is done in the route; the operation is registered with the `list` app scope
+  so such a token may call it). Reads are audited like the other run reads (`credential.use`, purposes
+  `ci.poll` and `ci.jobs`).
+
+- `GET /repositories/:id/workflows/runs/:runId/jobs` needs `repositories.read`. Answer
+  `{ runId, jobs, truncated, readAt, cached, live }` where a job is `{ id, name, status, conclusion,
+  startedAt, completedAt, url, steps: [{ number, name, status, conclusion, startedAt, completedAt }] }`
+  (GitHub's words for status and conclusion, times in epoch milliseconds). **Names, states and times
+  only: no logs, no runner details.** A member or admin reads GitHub (`GET /actions/runs/:id/jobs`, one
+  page of 100 jobs, a conditional read; kept 10 seconds while the run is going, 2 minutes after it
+  finished, shared between concurrent callers); a viewer gets `live: false` with what a member read in
+  the last 30 minutes, possibly no jobs, and `404` for a run that is not stored. `422 ci_unsupported`
+  when the connection cannot read jobs, `404` when GitHub has no such run, `400` for an id that is not a
+  number (a `pending-…` placeholder). An API token limited to some apps cannot call it.
+
+### Events
+
+`ci.run_started` and `ci.run_finished` (see [events](events.md)) are written when the run sync
+stores a run: a run that appears active, a pending dispatch that a run adopts, a dispatch that GitHub
+named at once, and an active run seen finished. The payload is **ids only** (`runId`, `repositoryId`,
+`appId` or `null`) plus the `conclusion` word on a finish. History read for the first time is not
+announced; a run first seen already finished is announced (both events) only when it finished in the
+last 15 minutes, which means it ran between two reads. Subject: `repositoryId`, and `appId` when the run
+was started for an app (so an app limited token hears about its own).
 
 ## Builds of an app
 
