@@ -157,12 +157,39 @@ export function isStrictCompatible(schema: JsonSchema): boolean {
 
 /** Parses the text of a model answer as JSON. Tolerates one Markdown code fence, which local models add. Undefined when it is not JSON. */
 export function parseModelJson(text: string): unknown {
-  let body = text.trim();
-  const fence = /^```[A-Za-z]*\s*\n([\s\S]*?)\n?```$/.exec(body);
+  // A model that thinks first may put its reasoning in <think> blocks, and many wrap the answer in a Markdown fence or
+  // a sentence. Take the answer out of that, then the first balanced JSON object; the result is validated by the caller.
+  let body = text.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
+  const fence = /```[A-Za-z]*\s*\n([\s\S]*?)\n?```/.exec(body);
   if (fence) body = (fence[1] ?? '').trim();
   try {
     return JSON.parse(body) as unknown;
   } catch {
-    return undefined;
+    // fall through to the first balanced object
   }
+  const start = body.indexOf('{');
+  if (start < 0) return undefined;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < body.length; i += 1) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(body.slice(start, i + 1)) as unknown;
+        } catch {
+          return undefined;
+        }
+      }
+    }
+  }
+  return undefined;
 }

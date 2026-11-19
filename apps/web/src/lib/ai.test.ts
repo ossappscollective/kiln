@@ -482,3 +482,10 @@ test('the fixed codes of a refused address turn into the same sentence on save, 
   assert.match(aiTestText({ ok: false, kind: 'unavailable', reason: 'http_404' }).text, /not found/);
   assert.equal(aiErrorMessage(apiError(422, 'ai_not_configured', { reason: 'no_model' })), 'AI assistance is not set up yet. An admin can finish it in Settings.');
 });
+
+test('an unusable answer says why, in fixed sentences', async () => {
+  const { invalidOutputHint } = await import('./ai.ts');
+  assert.match(invalidOutputHint('not_json'), /JSON/);
+  assert.match(invalidOutputHint('truncated'), /cut off/);
+  assert.equal(invalidOutputHint('whatever'), '');
+});

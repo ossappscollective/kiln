@@ -45,6 +45,13 @@ function classify(status: number, json: unknown, retryAfter: string | null): AiE
   return new AiError('unavailable', { detail: `http_${status}`.slice(0, 24) });
 }
 
+/** A 400 or 422 that names the response format (a server without schema support), not any other bad request. */
+function refusesFormat(reply: { status: number; json: unknown }): boolean {
+  if (reply.status !== 400 && reply.status !== 422) return false;
+  const text = `${textAt(reply.json, 'error', 'message')} ${textAt(reply.json, 'error')} ${textAt(reply.json, 'message')}`.toLowerCase();
+  return /response_format|json_schema|json schema|structured|grammar/.test(text);
+}
+
 function usageOf(json: Record<string, unknown>, guess: () => AiUsage): AiUsage {
   const usage = isRecord(json.usage) ? json.usage : undefined;
   const input = usage ? countOf(usage.prompt_tokens) : undefined;
@@ -72,24 +79,27 @@ export function createOpenAiCompatibleClient(options: OpenAiCompatibleOptions): 
       const schema = providerSchema(request.schema);
       const system = `${request.system}\n\nAnswer with ONE JSON object and nothing else (no Markdown, no explanation). It must match this JSON Schema:\n${JSON.stringify(schema)}`;
       const user = renderUserMessage(request.input);
-      const reply = await postJson(
-        {
-          url: `${base}/chat/completions`,
-          headers: key ? { authorization: `Bearer ${key}` } : {},
-          body: {
-            model,
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: user },
-            ],
-            max_tokens: request.maxTokens,
-            stream: false,
-            response_format: { type: 'json_schema', json_schema: { name: request.schemaName ?? 'result', strict: true, schema } },
-          },
-          signal: request.signal,
-        },
-        options,
-      );
+      const bodyFor = (format: Record<string, unknown> | undefined): Record<string, unknown> => ({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        max_tokens: request.maxTokens,
+        stream: false,
+        ...(format ? { response_format: format } : {}),
+      });
+      // Servers differ in what they accept for structured output: the strict schema first, then a plain JSON mode, then
+      // none (the schema is also in the system message). Only a refusal that names the format moves to the next one.
+      const formats: (Record<string, unknown> | undefined)[] = [
+        { type: 'json_schema', json_schema: { name: request.schemaName ?? 'result', strict: true, schema } },
+        { type: 'json_object' },
+        undefined,
+      ];
+      let reply = await postJson({ url: `${base}/chat/completions`, headers: key ? { authorization: `Bearer ${key}` } : {}, body: bodyFor(formats[0]), signal: request.signal }, options);
+      for (let i = 1; i < formats.length && refusesFormat(reply); i += 1) {
+        reply = await postJson({ url: `${base}/chat/completions`, headers: key ? { authorization: `Bearer ${key}` } : {}, body: bodyFor(formats[i]), signal: request.signal }, options);
+      }
       if (reply.status < 200 || reply.status > 299) throw classify(reply.status, reply.json, reply.retryAfter);
       const json = reply.json;
       if (!isRecord(json)) throw new AiError('unavailable', { detail: 'bad_reply' });

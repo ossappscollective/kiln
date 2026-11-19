@@ -105,7 +105,10 @@ test('providerSchema removes what providers do not accept, deeply, and keeps nam
 test('parseModelJson reads JSON, tolerates one code fence, and says undefined for anything else', () => {
   assert.deepEqual(parseModelJson('{"a":1}'), { a: 1 });
   assert.deepEqual(parseModelJson('```json\n{"a":1}\n```'), { a: 1 });
-  assert.equal(parseModelJson('Sure! {"a":1}'), undefined);
+  assert.deepEqual(parseModelJson('Sure! {"a":1} Hope it helps.'), { a: 1 });
+  assert.deepEqual(parseModelJson('<think>maybe {"x":0}</think>\n{"a":{"b":"}"}}'), { a: { b: '}' } });
+  assert.equal(parseModelJson('no json here'), undefined);
+  assert.equal(parseModelJson('{"a":'), undefined);
   assert.equal(parseModelJson(''), undefined);
 });
 
@@ -306,7 +309,7 @@ test('openai compatible: a server without usage is estimated (over-counted), a c
   assert.equal(cut.detail, 'truncated');
   const refused = await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:1234/v1', options: { fetch: fakeFetch({ status: 200, json: { choices: [{ message: { content: null, refusal: 'no' }, finish_reason: 'stop' }] } }).fetch } }).complete(REQUEST));
   assert.equal(refused.detail, 'refusal');
-  const chatty = await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:1234/v1', options: { fetch: fakeFetch(chatOk('Sure, here you go: {}')).fetch } }).complete(REQUEST));
+  const chatty = await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:1234/v1', options: { fetch: fakeFetch(chatOk('Sure, here you go')).fetch } }).complete(REQUEST));
   assert.equal(chatty.detail, 'not_json');
   const gone = await kindOf(createAiClient({ provider: 'openai_compatible', model: 'nope', baseUrl: 'http://localhost:1234/v1', options: { fetch: fakeFetch({ status: 404, json: { error: { message: 'model "nope" not found' } } }).fetch } }).complete(REQUEST));
   assert.equal(gone.detail, 'http_404');
@@ -468,4 +471,19 @@ test('the fallback lists are fixed and valid ids; a compatible server has none; 
   assert.equal(fake.listCalls, 1);
   const failing = createFakeAiClient({ answers: [], models: new AiError('auth') });
   assert.equal((await kindOf(failing.listModels())).kind, 'auth');
+});
+
+test('openai compatible: a server that refuses strict schemas is asked again with a plain JSON mode, then without a format', async () => {
+  const refuse = { status: 400, json: { error: { message: "'response_format.type' must be 'json_object' or 'text'" } } };
+  const f = fakeFetch(refuse, refuse, chatOk('<think>hmm</think>```json\n' + JSON.stringify(GOOD) + '\n```'));
+  const out = await createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:11234/v1', options: { fetch: f.fetch } }).complete(REQUEST);
+  assert.deepEqual(out.output, GOOD);
+  assert.equal(f.requests.length, 3);
+  assert.equal((f.requests[0]?.body as { response_format?: { type?: string } }).response_format?.type, 'json_schema');
+  assert.equal((f.requests[1]?.body as { response_format?: { type?: string } }).response_format?.type, 'json_object');
+  assert.equal((f.requests[2]?.body as { response_format?: unknown }).response_format, undefined);
+  // Any other bad request is not retried.
+  const other = fakeFetch({ status: 400, json: { error: { message: 'model is overloaded' } } });
+  await kindOf(createAiClient({ provider: 'openai_compatible', model: 'm', baseUrl: 'http://localhost:11234/v1', options: { fetch: other.fetch } }).complete(REQUEST));
+  assert.equal(other.requests.length, 1);
 });

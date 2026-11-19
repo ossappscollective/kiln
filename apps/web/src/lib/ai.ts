@@ -619,8 +619,10 @@ export function aiErrorMessage(error: unknown, fallback = 'That did not work. Tr
     case 'rate_limited':
     case 'ai_rate_limited':
       return `Too many requests at the moment. Try again in ${wait(error.retryAfter)}.`;
-    case 'ai_invalid_output':
-      return 'The answer could not be used, so nothing was saved. Try again.';
+    case 'ai_invalid_output': {
+      const hint = invalidOutputHint(body.reason);
+      return `The answer could not be used, so nothing was saved. ${hint || 'Try again.'}`;
+    }
     case 'ai_unavailable': {
       const hint = addressHintOf(error);
       if (hint) return ADDRESS_TEXTS[hint];
@@ -683,6 +685,24 @@ export const needsReplace = (error: unknown): boolean =>
 // ---------------------------------------------------------------------------------------------
 // The test of the connection
 
+/** Why an answer could not be used, from the fixed `reason` of an invalid output. Empty for an unknown reason. */
+export function invalidOutputHint(reason: unknown): string {
+  switch (reason) {
+    case 'not_json':
+      return 'The model did not answer with JSON. Models that think first, or small models, often do not: try a model made for structured answers, or turn thinking off.';
+    case 'truncated':
+      return 'The answer was cut off before it ended. A model that thinks first can use up the limit: try one that does not.';
+    case 'schema':
+      return 'The answer did not have the shape the task needs. A larger or instruction-tuned model usually fixes that.';
+    case 'no_text':
+      return 'The model sent no text. Some servers put the answer elsewhere when a model thinks first.';
+    case 'refusal':
+      return 'The model refused to answer.';
+    default:
+      return '';
+  }
+}
+
 const TEST_FAILURES: Record<string, string> = {
   not_configured: 'Not set up yet. Check the model and the key.',
   auth: 'The provider did not accept the key.',
@@ -703,6 +723,10 @@ export function aiTestText(outcome: AiTestOutcome, providers: readonly Pick<AiPr
     if (outcome.reason === 'address_not_allowed') return { ok: false, text: 'This server does not allow that address.' };
     if (outcome.reason === 'http_404') return { ok: false, text: NOT_FOUND_TEXT };
     return { ok: false, text: 'The provider could not be reached.' };
+  }
+  if (outcome.kind === 'invalid_output') {
+    const hint = invalidOutputHint(outcome.reason);
+    if (hint) return { ok: false, text: `The provider answered, but not in the form this tool needs. ${hint}` };
   }
   return { ok: false, text: TEST_FAILURES[outcome.kind ?? ''] ?? 'The test did not work. Check the settings and try again.' };
 }
