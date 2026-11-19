@@ -1,4 +1,4 @@
-import { type AssetKind, PLAY_DEVICES, PLAY_LISTING_MEMBERS } from '@mrm/core';
+import { type AssetKind, normalizeReleaseValue, PLAY_DEVICES, PLAY_LISTING_MEMBERS, versionCodesOf } from '@mrm/core';
 import { StoreError, StoreRateLimitError } from './errors.ts';
 import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
@@ -7,6 +7,9 @@ import {
   type DraftApplyResult,
   type DraftAssetState,
   DraftDriftError,
+  type DraftFieldFacts,
+  type DraftFieldState,
+  type DraftFieldWrite,
   type DraftImageState,
   DraftOutcomeUnknownError,
   type DraftReadRequest,
@@ -19,6 +22,7 @@ import {
   type StoreImageRecord,
   type StoreImagesRead,
 } from './store-draft-types.ts';
+import type { CodeCandidate, EditableRelease, PlayReleaseRead, ReleaseCandidates, StoreReleaseReader } from './release-types.ts';
 import {
   enc,
   isRecord,
@@ -92,7 +96,7 @@ const DEFAULT_BASE = 'https://androidpublisher.googleapis.com';
 /** Listing languages whose images one read looks at (each costs one request per image type). */
 const MAX_READ_LANGUAGES = 60;
 
-export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader {
+export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader {
   readonly store = 'googleplay' as const;
   readonly platform = 'android' as const;
   readonly packageName: string;
@@ -187,6 +191,7 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
       assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target })),
+      ...(input.fields !== undefined && input.fields.length > 0 ? { fields: input.fields } : {}),
     };
     return serializedPlayEdits(this.#account.clientEmail, async () => {
       const http = this.#writeHttp;
@@ -218,6 +223,11 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
             await this.#call(http, 'PUT', this.#url(`/${enc(editId)}/listings/${enc(locale)}`), `changing the ${locale} listing`, { json: body });
           }
           for (const field of fields.keys()) steps.push({ type: 'text', locale, target: field, outcome: changedFields.has(field) ? 'applied' : 'already_same' });
+        }
+
+        // The draft release of a track (name, version codes, release notes per language): one `tracks.update`.
+        if (input.fields !== undefined && input.fields.length > 0) {
+          steps.push(...(await this.#applyFields(http, editId, input.fields, before.fields ?? [])));
         }
 
         // Graphics: a set is replaced as a whole (delete all, upload in order), then checked against Google's SHA-256.
@@ -261,6 +271,185 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         return { before, steps, commit: 'not_sent_for_review' as const };
       } finally {
         if (!settled) await this.#deleteEdit(http, editId);
+      }
+    });
+  }
+
+
+  // -------------------------------------------------------------------------------------------
+  // The draft release of a track (docs/api/releases-write.md)
+  //
+  // VERIFIED on Google's pages (read 2026-11-19): `Release` has `name`, `versionCodes[]`, `releaseNotes[]` (`LocalizedText`:
+  // `language`, `text`), `status` (`draft`: "APKs are not served to users") and `userFraction` ("0 < fraction < 1 ... can only be set
+  // when status is inProgress or halted", so a draft cannot hold a share); `edits.tracks.get` and `edits.tracks.update`
+  // (`PUT .../tracks/{track}`, body and answer a `Track`); `edits.bundles.list` (`bundles[]`: `versionCode`, `sha1`, `sha256`) and
+  // `edits.apks.list` (`apks[]`: the `Apk` fields are not on the page: `versionCode` is UNVERIFIED). Google's tracks page: "Draft
+  // releases allow you to automatically upload APKs and create a release via the API ... can now be inspected and rolled out via the
+  // Google Play Console or the API". UNVERIFIED: whether `tracks.update` REPLACES all the releases of the track (this connector sends
+  // every other release back as read), whether a track may hold more than one draft release (this connector refuses to guess), and
+  // whether a commit with `changesNotSentForReview` is accepted for a track change.
+
+  async #readTrack(http: StoreHttp, editId: string, track: string): Promise<Json[]> {
+    try {
+      const reply = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/tracks/${enc(track)}`), `reading the ${track} track`);
+      return records(isRecord(reply.json) ? reply.json.releases : undefined);
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'not_found') return [];
+      throw error;
+    }
+  }
+
+  /** The version codes Play lists as uploaded: app bundles and APKs of the app. */
+  async #uploaded(http: StoreHttp, editId: string): Promise<Map<string, { source: 'bundle' | 'apk'; sha256: string | null }>> {
+    const out = new Map<string, { source: 'bundle' | 'apk'; sha256: string | null }>();
+    const bundles = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/bundles`), 'listing the app bundles');
+    for (const b of records(isRecord(bundles.json) ? bundles.json.bundles : undefined)) {
+      const code = typeof b.versionCode === 'number' || typeof b.versionCode === 'string' ? String(b.versionCode) : undefined;
+      if (code) out.set(code, { source: 'bundle', sha256: text(b.sha256)?.toLowerCase() ?? null });
+    }
+    try {
+      const apks = await this.#call(http, 'GET', this.#url(`/${enc(editId)}/apks`), 'listing the APKs');
+      for (const a of records(isRecord(apks.json) ? apks.json.apks : undefined)) {
+        const code = typeof a.versionCode === 'number' || typeof a.versionCode === 'string' ? String(a.versionCode) : undefined;
+        const binary = isRecord(a.binary) ? a.binary : {};
+        if (code && !out.has(code)) out.set(code, { source: 'apk', sha256: text(binary.sha256)?.toLowerCase() ?? null });
+      }
+    } catch (error) {
+      if (!(error instanceof StoreError) || error.kind !== 'not_found') throw error;
+    }
+    return out;
+  }
+
+  static #releaseRead(r: Json): PlayReleaseRead {
+    return {
+      name: text(r.name) ?? null,
+      status: text(r.status) ?? 'statusUnspecified',
+      userFraction: typeof r.userFraction === 'number' ? r.userFraction : null,
+      versionCodes: Array.isArray(r.versionCodes) ? r.versionCodes.map(String) : [],
+      notes: records(r.releaseNotes).flatMap((n) => {
+        const language = text(n.language);
+        const body = text(n.text);
+        return language && body !== undefined ? [{ locale: language, text: body }] : [];
+      }),
+    };
+  }
+
+  static #draftOf(track: string, releases: Json[]): Json | undefined {
+    const drafts = releases.filter((r) => text(r.status) === 'draft');
+    if (drafts.length > 1) {
+      throw new StoreError('googleplay', 'invalid_input', `The ${track} track has more than one draft release; this server will not guess which one to change. Remove one in Play Console.`);
+    }
+    return drafts[0];
+  }
+
+  async #readFields(http: StoreHttp, editId: string, wanted: readonly DraftFieldWrite[]): Promise<DraftFieldState[]> {
+    const track = wanted.find((w) => w.field === 'track')?.value;
+    if (track === undefined) return [];
+    const releases = await this.#readTrack(http, editId, track);
+    const draft = PlayDraftConnector.#draftOf(track, releases);
+    const read = draft ? PlayDraftConnector.#releaseRead(draft) : undefined;
+    const uploaded = wanted.some((w) => w.field === 'version_codes') ? await this.#uploaded(http, editId) : undefined;
+    const out: DraftFieldState[] = [];
+    for (const w of wanted) {
+      if (w.field === 'track') {
+        out.push({ field: 'track', locale: '', value: track, facts: { draftCount: draft ? 1 : 0, otherInProgress: releases.filter((r) => text(r.status) === 'inProgress').length } });
+      } else if (w.field === 'release_name') {
+        out.push({ field: w.field, locale: '', value: read?.name ?? null });
+      } else if (w.field === 'version_codes') {
+        const missing = versionCodesOf(w.value).filter((code) => !(uploaded as Map<string, unknown>).has(code));
+        const facts: DraftFieldFacts = { missing: missing.join(',') };
+        out.push({ field: w.field, locale: '', value: read ? normalizeReleaseValue('version_codes', read.versionCodes) : null, facts });
+      } else if (w.field === 'release_notes') {
+        out.push({ field: w.field, locale: w.locale, value: read?.notes.find((n) => n.locale === w.locale)?.text ?? null });
+      } else {
+        out.push({ field: w.field, locale: w.locale, value: null });
+      }
+    }
+    return out;
+  }
+
+  /** Rewrites the draft release of the track with the wanted fields, every other release as read. One `tracks.update`, committed later. */
+  async #applyFields(http: StoreHttp, editId: string, wanted: readonly DraftFieldWrite[], current: readonly DraftFieldState[]): Promise<DraftStep[]> {
+    const track = wanted.find((w) => w.field === 'track')?.value;
+    if (track === undefined) throw new StoreError('googleplay', 'invalid_input', 'Stage the track of the draft release.');
+    const releases = await this.#readTrack(http, editId, track);
+    const draft = PlayDraftConnector.#draftOf(track, releases);
+    const now = (field: string, locale: string) => current.find((c) => c.field === field && c.locale === locale)?.value ?? null;
+    const writes = wanted.filter((w) => w.field !== 'track' && w.field !== 'user_fraction');
+    const differs = (w: DraftFieldWrite) => now(w.field, w.locale) !== w.value;
+    const steps: DraftStep[] = [{ type: 'field', locale: '', target: 'track', outcome: 'already_same' }];
+    if (writes.some(differs)) {
+      const codes = writes.find((w) => w.field === 'version_codes');
+      if (!draft && !codes) {
+        throw new StoreError('googleplay', 'invalid_input', `The ${track} track has no draft release and no version codes were staged, so there is nothing to build a draft release from.`);
+      }
+      const next: Json = { ...(draft ?? {}), status: 'draft' };
+      for (const w of writes) {
+        if (w.field === 'release_name') next.name = w.value;
+        else if (w.field === 'version_codes') next.versionCodes = versionCodesOf(w.value);
+      }
+      const notes = new Map<string, string>(records(next.releaseNotes).flatMap((n) => (text(n.language) !== undefined ? [[text(n.language) as string, text(n.text) ?? ''] as [string, string]] : [])));
+      let notesChanged = false;
+      for (const w of writes) {
+        if (w.field === 'release_notes') {
+          notes.set(w.locale, w.value);
+          notesChanged = true;
+        }
+      }
+      if (notesChanged) next.releaseNotes = [...notes].map(([language, body]) => ({ language, text: body }));
+      const index = draft ? releases.indexOf(draft) : -1;
+      const all = index === -1 ? [...releases, next] : releases.map((r, i) => (i === index ? next : r));
+      await this.#call(http, 'PUT', this.#url(`/${enc(editId)}/tracks/${enc(track)}`), `changing the draft release of the ${track} track`, { json: { track, releases: all } });
+    }
+    for (const w of writes) {
+      steps.push({ type: 'field', locale: w.field === 'release_notes' ? w.locale : '', target: w.field, outcome: differs(w) ? 'applied' : 'already_same' });
+    }
+    return steps;
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Release reads (StoreReleaseReader): a throw away edit, nothing is committed
+
+  async listReleaseCandidates(input: { version?: string; track?: string }): Promise<ReleaseCandidates> {
+    const track = input.track;
+    if (track === undefined || track === '') throw new StoreError('googleplay', 'invalid_input', 'Name the track (for example production).');
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      const editId = await this.#insertEdit(this.#http);
+      try {
+        const uploaded = await this.#uploaded(this.#http, editId);
+        const releases = (await this.#readTrack(this.#http, editId, track)).map((r) => PlayDraftConnector.#releaseRead(r));
+        const codes: CodeCandidate[] = [...uploaded]
+          .map(([versionCode, u]) => ({
+            versionCode,
+            source: u.source,
+            sha256: u.sha256,
+            inTrack: releases.filter((r) => r.versionCodes.includes(versionCode)).map((r) => ({ name: r.name, status: r.status })),
+          }))
+          .sort((a, b) => Number(b.versionCode) - Number(a.versionCode));
+        return { store: 'googleplay' as const, platform: 'android' as const, track, codes };
+      } finally {
+        await this.#deleteEdit(this.#http, editId);
+      }
+    });
+  }
+
+  async readEditableRelease(input: { track?: string }): Promise<EditableRelease> {
+    const track = input.track;
+    if (track === undefined || track === '') throw new StoreError('googleplay', 'invalid_input', 'Name the track (for example production).');
+    return serializedPlayEdits(this.#account.clientEmail, async () => {
+      const editId = await this.#insertEdit(this.#http);
+      try {
+        const releases = await this.#readTrack(this.#http, editId, track);
+        const draft = PlayDraftConnector.#draftOf(track, releases);
+        return {
+          store: 'googleplay' as const,
+          platform: 'android' as const,
+          track,
+          draft: draft ? PlayDraftConnector.#releaseRead(draft) : null,
+          others: releases.filter((r) => r !== draft).map((r) => PlayDraftConnector.#releaseRead(r)),
+        };
+      } finally {
+        await this.#deleteEdit(this.#http, editId);
       }
     });
   }
@@ -309,7 +498,8 @@ export class PlayDraftConnector implements StoreDraftConnector, StoreImageReader
         images: await this.#images(http, editId, slot.locale, slot.target),
       });
     }
-    return { store: 'googleplay', platform: 'android', version: null, text: textState, assets };
+    const fields = request.fields !== undefined && request.fields.length > 0 ? await this.#readFields(http, editId, request.fields) : undefined;
+    return { store: 'googleplay', platform: 'android', version: null, text: textState, assets, ...(fields !== undefined ? { fields } : {}) };
   }
 
   #url(suffix: string): string {

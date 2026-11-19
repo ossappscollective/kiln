@@ -34,3 +34,6 @@ export * from './appstore-submit.ts';
 export * from './aso-common.ts';
 export * from './apple-search.ts';
 export * from './play-public.ts';
+export * from './release-types.ts';
+export * from './play-release.ts';
+export * from './appstore-release.ts';

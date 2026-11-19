@@ -1,0 +1,251 @@
+import { createHash } from 'node:crypto';
+import type { Platform } from '@mrm/core';
+import { StoreError, type StoreName } from './errors.ts';
+
+/**
+ * Releasing (docs/adr/0014-release-management.md, docs/api/releases-write.md): the shapes both store connectors share for
+ * (1) the READS that let a person edit a draft release (processed builds, uploaded version codes, the draft's release
+ * fields) and (2) the one WRITE that cannot be taken back: releasing an approved App Store version, or starting a Google
+ * Play draft release at a chosen share of users. Nothing here talks to a store.
+ *
+ * - App Store Connect: `POST /v1/appStoreVersionReleaseRequests` for a version in `PENDING_DEVELOPER_RELEASE`. Apple: "Send this
+ *   request only when you're ready to publish your version. You can't cancel this request." (VERIFIED, Apple's page, 2026-11-19.)
+ * - Google Play: an edit that sets the status of a draft release to `inProgress` (with `userFraction`) or `completed`, committed
+ *   with `changesInReviewBehavior=ERROR_IF_IN_REVIEW`. The share is always explicit, never implied.
+ *
+ * Neither connector retries a write. A write whose answer is lost is `ReleaseOutcomeUnknownError`: the caller reads the store back.
+ */
+
+// ---------------------------------------------------------------------------------------------
+// Reads: what a person can pick, and what the draft holds
+
+/** One App Store Connect build of the app, for the platform of the app record. */
+export type BuildCandidate = {
+  id: string;
+  /** The build number (`CFBundleVersion`), Apple's `builds.version`. */
+  buildNumber: string | null;
+  /** The marketing version the build belongs to (the pre-release version, `CFBundleShortVersionString`). */
+  version: string | null;
+  /** ISO 8601, as Apple reports it. */
+  uploadedDate: string | null;
+  /** `PROCESSING`, `FAILED`, `INVALID`, `VALID` (Apple's names, UNVERIFIED list). */
+  processingState: string | null;
+  expired: boolean | null;
+  /** Processed (`VALID`) and not expired: it can be attached to a version. */
+  selectable: boolean;
+  /** Why it cannot be selected, in words (null when it can). */
+  reason: string | null;
+  /** It is the build attached to the editable version now. */
+  attached: boolean;
+};
+
+/** One Google Play version code that was uploaded (to the app, through an edit). */
+export type CodeCandidate = {
+  versionCode: string;
+  /** `bundle` (edits.bundles) or `apk` (edits.apks). */
+  source: 'bundle' | 'apk';
+  sha256: string | null;
+  /** The releases of the asked track that hold this code. */
+  inTrack: { name: string | null; status: string }[];
+};
+
+export type ReleaseCandidates =
+  | {
+      store: 'appstoreconnect';
+      platform: Platform;
+      /** The editable version the build would be attached to (null: there is none). */
+      version: { id: string; versionString: string | null; state: string } | null;
+      builds: BuildCandidate[];
+      attachedBuildId: string | null;
+      /** The listing was cut at this many builds (null: complete). */
+      truncatedAt: number | null;
+    }
+  | {
+      store: 'googleplay';
+      platform: 'android';
+      track: string;
+      codes: CodeCandidate[];
+    };
+
+export type ReleaseNoteRead = { locale: string; text: string };
+
+export type PlayReleaseRead = { name: string | null; status: string; userFraction: number | null; versionCodes: string[]; notes: ReleaseNoteRead[] };
+
+export type EditableRelease =
+  | {
+      store: 'appstoreconnect';
+      platform: Platform;
+      version: { id: string; versionString: string | null; state: string; editable: true };
+      releaseType: string | null;
+      /** ISO 8601 as Apple reports it, or null. */
+      earliestReleaseDate: string | null;
+      copyright: string | null;
+      build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null;
+      /** The phased release of the version: null means the version has none (off). */
+      phasedRelease: { id: string; state: string | null } | null;
+      /** The "what's new" of each locale (a listing field: stage it with the listing texts). */
+      releaseNotes: ReleaseNoteRead[];
+    }
+  | {
+      store: 'googleplay';
+      platform: 'android';
+      track: string;
+      /** The draft release of the track (status `draft`), or null. */
+      draft: PlayReleaseRead | null;
+      /** The other releases of the track, as the store shows them (read only here). */
+      others: PlayReleaseRead[];
+    };
+
+/** The read side of the release feature. Changes nothing in a store. */
+export interface StoreReleaseReader {
+  readonly store: StoreName;
+  readonly platform: Platform;
+  /** App Store: the builds of the app for this platform. Google Play: the uploaded version codes (and where a track uses them). */
+  listReleaseCandidates(input: { version?: string; track?: string }): Promise<ReleaseCandidates>;
+  /** The release fields of the editable App Store version, or of the draft release of a Google Play track. */
+  readEditableRelease(input: { track?: string }): Promise<EditableRelease>;
+}
+
+export const isStoreReleaseReader = (value: unknown): value is StoreReleaseReader =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { listReleaseCandidates?: unknown }).listReleaseCandidates === 'function' &&
+  typeof (value as { readEditableRelease?: unknown }).readEditableRelease === 'function';
+
+// ---------------------------------------------------------------------------------------------
+// The release itself
+
+/** What the person asks to release. App Store: nothing (or the marketing version, to be sure). Google Play: the track, the codes and the share. */
+export type ReleaseRequest = {
+  /** App Store: the marketing version the person means (optional, checked). */
+  version?: string;
+  /** Google Play: the track of the draft release. */
+  track?: string;
+  /** Google Play: the version codes that identify the draft release (optional when the track has exactly one draft release). */
+  versionCodes?: string[];
+  /** Google Play: the share of users, `0 < x <= 1`. `1` completes the release (100%). Always explicit. */
+  userFraction?: number;
+};
+
+export type PlayReleaseState = {
+  name: string | null;
+  status: string;
+  userFraction: number | null;
+  versionCodes: string[];
+  notes: number;
+};
+
+/** Everything a release is decided on, read from the store at one moment. */
+export type ReleaseState =
+  | {
+      store: 'appstoreconnect';
+      platform: Platform;
+      /** The version that would be released (null: none is in a state that can be released and none matched). */
+      version: { id: string; versionString: string | null; state: string; releaseType: string | null } | null;
+      /** The version is in `PENDING_DEVELOPER_RELEASE`: Apple approved it and it waits for the release. */
+      releasable: boolean;
+      /** More than one version waits: the person must name the marketing version. */
+      ambiguous: boolean;
+      build: { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null } | null;
+      /** The phased release of the version (null: none, so everybody gets it at once). */
+      phasedRelease: { id: string; state: string | null } | null;
+      /** The states of this platform's other versions, so a refusal can say what the store holds. */
+      versions: { versionString: string | null; state: string }[];
+    }
+  | {
+      store: 'googleplay';
+      platform: 'android';
+      track: string;
+      /** The draft release that would be started (null: none matched). */
+      release: PlayReleaseState | null;
+      /** More than one draft release in the track and no version codes were named. */
+      ambiguous: boolean;
+      /** The other releases of the track. A release that is rolling out is a blocking check. */
+      others: PlayReleaseState[];
+      /** The version codes of the release that Play does not list as uploaded (empty: all are). */
+      missingCodes: string[];
+    };
+
+export type ReleaseApplyInput = {
+  request: ReleaseRequest;
+  /**
+   * Called with the state read from the store right before the write. When it says false nothing is written and
+   * `ReleaseDriftError` is thrown: "the store is not what was previewed" on the freshest read there is.
+   */
+  guard: (current: ReleaseState) => boolean;
+};
+
+export type ReleaseResult = {
+  /** The state the guard accepted. */
+  before: ReleaseState;
+  /** App Store: the release request Apple created (id), when it said. Google Play: null. */
+  releaseRequestId: string | null;
+  via: 'release_request' | 'edit_commit';
+};
+
+/** The store is not what the person confirmed: nothing was written. */
+export class ReleaseDriftError extends Error {
+  readonly current: ReleaseState;
+  constructor(current: ReleaseState) {
+    super('The store changed since the preview was made.');
+    this.name = 'ReleaseDriftError';
+    this.current = current;
+  }
+}
+
+/**
+ * The release was sent and the store did not answer in a way that tells whether it was applied. Nothing retries it: the
+ * caller reads the store back.
+ */
+export class ReleaseOutcomeUnknownError extends StoreError {
+  constructor(store: StoreName, message: string, status?: number) {
+    super(store, 'network', message, status);
+    this.name = 'ReleaseOutcomeUnknownError';
+  }
+}
+
+/**
+ * The write side. `release` makes the approved version, or the draft release, available to users and does nothing else: no
+ * version is created, no draft is edited, no review is submitted or cancelled.
+ */
+export interface StoreReleaseConnector {
+  readonly store: StoreName;
+  readonly platform: Platform;
+  /** Changes nothing. */
+  readReleaseState(request: ReleaseRequest): Promise<ReleaseState>;
+  release(input: ReleaseApplyInput): Promise<ReleaseResult>;
+}
+
+const sha = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');
+
+/** The App Store version states in which a version can be released. Apple: "Pending Developer Release" (VERIFIED), the API name is UNVERIFIED. */
+export const APPLE_RELEASABLE_STATE = 'PENDING_DEVELOPER_RELEASE';
+
+/** Stable form of a state for the confirmation hash: everything the confirmation depends on, in a fixed order. */
+export function releaseKey(state: ReleaseState): Record<string, unknown> {
+  if (state.store === 'appstoreconnect') {
+    return {
+      store: state.store,
+      version: state.version === null ? null : [state.version.id, state.version.versionString, state.version.state, state.version.releaseType],
+      releasable: state.releasable,
+      ambiguous: state.ambiguous,
+      build: state.build === null ? null : [state.build.id, state.build.buildNumber, state.build.processingState, state.build.expired],
+      phased: state.phasedRelease === null ? null : [state.phasedRelease.id, state.phasedRelease.state],
+      versions: [...state.versions].map((v) => [v.versionString, v.state]).sort((a, b) => (`${a[0]}\u0000${a[1]}` < `${b[0]}\u0000${b[1]}` ? -1 : 1)),
+    };
+  }
+  const one = (r: PlayReleaseState) => [r.name, r.status, r.userFraction, [...r.versionCodes].sort(), r.notes];
+  return {
+    store: state.store,
+    track: state.track,
+    release: state.release === null ? null : one(state.release),
+    ambiguous: state.ambiguous,
+    others: [...state.others].map(one).sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)),
+    missing: [...state.missingCodes].sort(),
+  };
+}
+
+export const sameReleaseState = (a: ReleaseState, b: ReleaseState): boolean => JSON.stringify(releaseKey(a)) === JSON.stringify(releaseKey(b));
+
+/** Hash of the part of a state a person confirms. */
+export const releaseStateHash = (state: ReleaseState): string => sha(JSON.stringify(releaseKey(state)));

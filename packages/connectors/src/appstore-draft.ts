@@ -1,4 +1,4 @@
-import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES, classifyAppleScreenshot, PLATFORM_META } from '@mrm/core';
+import { APPLE_VERSION_LOCALIZATION_ATTRIBUTES, classifyAppleScreenshot, normalizeReleaseValue, PLATFORM_META } from '@mrm/core';
 import {
   AppStoreConnectTokenProvider,
   type AppStoreConnectKey,
@@ -14,6 +14,9 @@ import {
   type DraftAssetState,
   type DraftAssetWrite,
   DraftDriftError,
+  type DraftFieldFacts,
+  type DraftFieldState,
+  type DraftFieldWrite,
   DraftOutcomeUnknownError,
   DraftPartialError,
   type DraftReadRequest,
@@ -27,6 +30,7 @@ import {
   type StoreImageRecord,
   type StoreImagesRead,
 } from './store-draft-types.ts';
+import type { BuildCandidate, EditableRelease, ReleaseCandidates, StoreReleaseReader } from './release-types.ts';
 import {
   enc,
   isRecord,
@@ -136,6 +140,16 @@ const MAX_SET_FILES = 10;
 const UPLOAD_HOST = /(^|\.)apple\.com$/i;
 
 type LocalizationRef = { id: string; attributes: Json };
+/** The editable version, with the attributes of the list answer (release type, earliest release date, copyright). */
+type AttachedBuild = { id: string; buildNumber: string | null; processingState: string | null; expired: boolean | null };
+type VersionRef = { id: string; versionString: string | null; state: string; attrs: Json };
+/** App Store version attribute of a release field (`version_string` is written as `versionString`). */
+const VERSION_ATTRIBUTES: Readonly<Record<string, string>> = {
+  version_string: 'versionString',
+  release_type: 'releaseType',
+  earliest_release_date: 'earliestReleaseDate',
+  copyright: 'copyright',
+};
 
 /** A placement of the editable version's localization, with the library image behind it. */
 type PlacementRef = { id: string; group: string; imageId: string | null; image: Json };
@@ -175,7 +189,7 @@ const screenOf = (device: string | null): string | null => {
 
 const attr = (field: string): string => APPLE_VERSION_LOCALIZATION_ATTRIBUTES[field] ?? '';
 
-export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader {
+export class AppleDraftConnector implements StoreDraftConnector, StoreImageReader, StoreReleaseReader {
   readonly store = 'appstoreconnect' as const;
   readonly platform: 'ios' | 'macos';
   readonly #apple: string;
@@ -318,7 +332,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   async #readableVersion(notes: string[]): Promise<{ id: string; versionString: string | null; state: string; editable: boolean }> {
     try {
       const v = await this.#editableVersion();
-      return { ...v, editable: true };
+      return { id: v.id, versionString: v.versionString, state: v.state, editable: true };
     } catch (error) {
       if (!(error instanceof StoreError) || error.kind !== 'no_editable_version') throw error;
     }
@@ -346,6 +360,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     const request: DraftReadRequest = {
       text: input.text.map((t) => ({ locale: t.locale, field: t.field })),
       assets: input.assets.map((a) => ({ locale: a.locale, kind: a.kind, device: a.device, target: a.target, width: a.width ?? null, height: a.height ?? null })),
+      ...(input.fields !== undefined && input.fields.length > 0 ? { fields: input.fields } : {}),
     };
     const version = await this.#editableVersion();
     const locs = await this.#localizations(version.id);
@@ -401,6 +416,10 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
           for (const field of fields.keys()) steps.push({ type: 'text', locale, target: field, outcome: 'applied' });
         }
       }
+      if (input.fields !== undefined && input.fields.length > 0) {
+        at = { type: 'field', locale: '', target: 'version' };
+        steps.push(...(await this.#applyFields(version.id, input.fields, before.fields ?? [], (target) => (at = { type: 'field', locale: '', target }))));
+      }
       for (const write of input.assets) {
         at = { type: 'asset', locale: write.locale, target: write.target };
         let locId = localeIds.get(write.locale);
@@ -443,10 +462,10 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
   // -------------------------------------------------------------------------------------------
   // Reading
 
-  async #editableVersion(): Promise<{ id: string; versionString: string | null; state: string }> {
+  async #editableVersion(): Promise<VersionRef> {
     const what = 'looking for the editable App Store version';
     let url: string | undefined = `${this.#base}/v1/apps/${enc(this.#appId)}/appStoreVersions?limit=${this.#pageSize}`;
-    const found: { id: string; versionString: string | null; state: string }[] = [];
+    const found: VersionRef[] = [];
     for (let page = 0; url !== undefined && page < this.#maxPages; page++) {
       const body = (await this.#get(url, what)).json;
       for (const item of records(body.data)) {
@@ -454,7 +473,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         const id = text(item.id);
         const state = (text(a.appVersionState) ?? text(a.appStoreState) ?? '').toUpperCase();
         if (!id || text(a.platform) !== this.#apple || !APPLE_DRAFT_VERSION_STATES.includes(state)) continue;
-        found.push({ id, versionString: text(a.versionString) ?? null, state });
+        found.push({ id, versionString: text(a.versionString) ?? null, state, attrs: a });
       }
       const links = isRecord(body.links) ? body.links : {};
       const next = text(links.next);
@@ -471,7 +490,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
     if (found.length > 1) {
       throw new StoreError('appstoreconnect', 'invalid_input', `App Store Connect has more than one editable ${this.#label} version; this server will not guess which one to write to.`);
     }
-    return found[0] as { id: string; versionString: string | null; state: string };
+    return found[0] as VersionRef;
   }
 
   async #localizations(versionId: string): Promise<Map<string, LocalizationRef>> {
@@ -495,7 +514,7 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
 
   async #read(
     request: DraftReadRequest,
-    version: { id: string; versionString: string | null; state: string },
+    version: VersionRef,
     locs: Map<string, LocalizationRef>,
   ): Promise<{ state: DraftState; placements: Map<string, PlacementRef[]> }> {
     const textState: DraftTextState[] = request.text.map((t) => {
@@ -528,7 +547,290 @@ export class AppleDraftConnector implements StoreDraftConnector, StoreImageReade
         }),
       });
     }
-    return { state: { store: 'appstoreconnect', platform: this.platform, version, text: textState, assets }, placements };
+    const fields = request.fields !== undefined && request.fields.length > 0 ? await this.#readFields(request.fields, version) : undefined;
+    return {
+      state: {
+        store: 'appstoreconnect',
+        platform: this.platform,
+        version: { id: version.id, versionString: version.versionString, state: version.state },
+        text: textState,
+        assets,
+        ...(fields !== undefined ? { fields } : {}),
+      },
+      placements,
+    };
+  }
+
+
+  // -------------------------------------------------------------------------------------------
+  // Release fields of the editable version (docs/api/releases-write.md). Names UNVERIFIED unless said.
+
+  /** The build attached to a version, or null. `GET /v1/appStoreVersions/{id}/build` (title VERIFIED; the attributes are UNVERIFIED). */
+  async #attachedBuild(versionId: string): Promise<AttachedBuild | null> {
+    try {
+      const { json } = await this.#get(`${this.#base}/v1/appStoreVersions/${enc(versionId)}/build`, 'reading the build of the version');
+      const data = isRecord(json.data) ? json.data : undefined;
+      const id = data ? text(data.id) : undefined;
+      if (!data || !id) return null;
+      const a = isRecord(data.attributes) ? data.attributes : {};
+      return { id, buildNumber: text(a.version) ?? null, processingState: text(a.processingState) ?? null, expired: typeof a.expired === 'boolean' ? a.expired : null };
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'not_found') return null;
+      throw error;
+    }
+  }
+
+  /** The phased release of a version, or null when it has none (404 and `data: null` both mean none). */
+  async #phasedRelease(versionId: string): Promise<{ id: string; state: string | null } | null> {
+    try {
+      const { json } = await this.#get(`${this.#base}/v1/appStoreVersions/${enc(versionId)}/appStoreVersionPhasedRelease`, 'reading the phased release');
+      const data = isRecord(json.data) ? json.data : undefined;
+      const id = data ? text(data.id) : undefined;
+      if (!data || !id) return null;
+      const a = isRecord(data.attributes) ? data.attributes : {};
+      return { id, state: text(a.phasedReleaseState) ?? null };
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'not_found') return null;
+      throw error;
+    }
+  }
+
+  /** One build by id (`GET /v1/builds/{id}`), or null when Apple does not know it. */
+  async #buildById(buildId: string): Promise<AttachedBuild | null> {
+    try {
+      const { json } = await this.#get(`${this.#base}/v1/builds/${enc(buildId)}`, 'looking up the build');
+      const data = isRecord(json.data) ? json.data : undefined;
+      const id = data ? text(data.id) : undefined;
+      if (!data || !id) return null;
+      const a = isRecord(data.attributes) ? data.attributes : {};
+      return { id, buildNumber: text(a.version) ?? null, processingState: text(a.processingState) ?? null, expired: typeof a.expired === 'boolean' ? a.expired : null };
+    } catch (error) {
+      if (error instanceof StoreError && error.kind === 'not_found') return null;
+      throw error;
+    }
+  }
+
+  /** What the store holds for the wanted release fields, in the canonical text of `@mrm/core`. */
+  async #readFields(wanted: readonly DraftFieldWrite[], version: VersionRef): Promise<DraftFieldState[]> {
+    const out: DraftFieldState[] = [];
+    let attached: AttachedBuild | null | undefined;
+    for (const w of wanted) {
+      switch (w.field) {
+        case 'version_string':
+          out.push({ field: w.field, locale: '', value: version.versionString });
+          break;
+        case 'release_type':
+          out.push({ field: w.field, locale: '', value: (text(version.attrs.releaseType) ?? '').toUpperCase() || null });
+          break;
+        case 'earliest_release_date': {
+          const raw = text(version.attrs.earliestReleaseDate);
+          out.push({ field: w.field, locale: '', value: raw === undefined || raw === '' ? null : normalizeReleaseValue('earliest_release_date', raw) });
+          break;
+        }
+        case 'copyright':
+          out.push({ field: w.field, locale: '', value: text(version.attrs.copyright) ?? null });
+          break;
+        case 'build': {
+          if (attached === undefined) attached = await this.#attachedBuild(version.id);
+          const facts: DraftFieldFacts = { currentNumber: attached?.buildNumber ?? null };
+          if (w.value !== (attached?.id ?? '')) {
+            const found = await this.#buildById(w.value);
+            facts.wantedFound = found !== null;
+            facts.wantedNumber = found?.buildNumber ?? null;
+            facts.wantedProcessingState = found?.processingState ?? null;
+            facts.wantedExpired = found?.expired ?? null;
+          } else {
+            facts.wantedFound = attached !== null;
+            facts.wantedNumber = attached?.buildNumber ?? null;
+            facts.wantedProcessingState = attached?.processingState ?? null;
+            facts.wantedExpired = attached?.expired ?? null;
+          }
+          out.push({ field: w.field, locale: '', value: attached?.id ?? null, facts });
+          break;
+        }
+        case 'phased_release': {
+          const phased = await this.#phasedRelease(version.id);
+          out.push({ field: w.field, locale: '', value: phased ? 'on' : 'off', facts: { phasedReleaseId: phased?.id ?? null, phasedReleaseState: phased?.state ?? null } });
+          break;
+        }
+        default:
+          out.push({ field: w.field, locale: w.locale, value: null });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Writes the release fields of the editable version: ONE `PATCH /v1/appStoreVersions/{id}` for the version's own fields and the
+   * build (`relationships.build`, UNVERIFIED that the update request takes it; the attributes are UNVERIFIED too), then the
+   * phased release (`POST /v1/appStoreVersionPhasedReleases` to switch it on, `DELETE /v1/appStoreVersionPhasedReleases/{id}` to
+   * switch it off). Only what differs from the store is sent. Never retried.
+   */
+  async #applyFields(versionId: string, fields: readonly DraftFieldWrite[], current: readonly DraftFieldState[], at: (target: string) => void): Promise<DraftStep[]> {
+    const steps: DraftStep[] = [];
+    const now = (field: string) => current.find((c) => c.field === field);
+    const attributes: Record<string, string> = {};
+    const sent: string[] = [];
+    let buildId: string | undefined;
+    const done: DraftStep[] = [];
+    for (const f of fields) {
+      const same = now(f.field)?.value === f.value;
+      if (f.field === 'phased_release') continue;
+      if (f.field === 'build') {
+        if (!same) buildId = f.value;
+      } else {
+        const name = VERSION_ATTRIBUTES[f.field];
+        if (name === undefined) continue;
+        if (!same) attributes[name] = f.value;
+      }
+      if (!same) sent.push(f.field);
+      else done.push({ type: 'field', locale: '', target: f.field, outcome: 'already_same' });
+    }
+    if (sent.length > 0) {
+      at('version');
+      await this.#write('PATCH', `/v1/appStoreVersions/${enc(versionId)}`, 'changing the version', {
+        data: {
+          type: 'appStoreVersions',
+          id: versionId,
+          ...(Object.keys(attributes).length > 0 ? { attributes } : {}),
+          ...(buildId !== undefined ? { relationships: { build: { data: { type: 'builds', id: buildId } } } } : {}),
+        },
+      });
+      for (const field of sent) steps.push({ type: 'field', locale: '', target: field, outcome: 'applied' });
+    }
+    steps.push(...done);
+    const phased = fields.find((f) => f.field === 'phased_release');
+    if (phased) {
+      const state = now('phased_release');
+      if (state?.value === phased.value) {
+        steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'already_same' });
+      } else if (phased.value === 'on') {
+        at('phased_release');
+        await this.#write('POST', '/v1/appStoreVersionPhasedReleases', 'switching phased release on', {
+          data: {
+            type: 'appStoreVersionPhasedReleases',
+            attributes: { phasedReleaseState: 'INACTIVE' },
+            relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: versionId } } },
+          },
+        });
+        steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'applied' });
+      } else {
+        const id = state?.facts?.phasedReleaseId;
+        if (typeof id !== 'string' || id === '') {
+          steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'already_same' });
+        } else {
+          at('phased_release');
+          await this.#write('DELETE', `/v1/appStoreVersionPhasedReleases/${enc(id)}`, 'switching phased release off', undefined, [404]);
+          steps.push({ type: 'field', locale: '', target: 'phased_release', outcome: 'applied' });
+        }
+      }
+    }
+    return steps;
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Release reads (StoreReleaseReader): changes nothing
+
+  /**
+   * The builds of the app for this platform, newest upload first: `GET /v1/builds?filter[app]=<id>&filter[preReleaseVersion.platform]=<IOS|MAC_OS>
+   * &include=preReleaseVersion&sort=-uploadedDate`. The resource and the build attributes (`version`, `uploadedDate`,
+   * `processingState`, `expired`) are Apple's (the page "List builds" is VERIFIED to exist; the filters, `sort`, `include` and the
+   * attribute names are UNVERIFIED because Apple's page lists none). The platform and the version are filtered here too, from
+   * the pre release version Apple includes, so a Mac build never shows in an iOS list even if a filter is ignored.
+   */
+  async listReleaseCandidates(input: { version?: string; track?: string }): Promise<ReleaseCandidates> {
+    let editable: VersionRef | undefined;
+    try {
+      editable = await this.#editableVersion();
+    } catch (error) {
+      if (!(error instanceof StoreError) || error.kind !== 'no_editable_version') throw error;
+    }
+    const attached = editable ? await this.#attachedBuild(editable.id) : null;
+    const what = 'listing the builds';
+    const query = [
+      `filter[app]=${enc(this.#appId)}`,
+      `filter[preReleaseVersion.platform]=${this.#apple}`,
+      ...(input.version !== undefined && input.version !== '' ? [`filter[preReleaseVersion.version]=${enc(input.version)}`] : []),
+      'include=preReleaseVersion',
+      'sort=-uploadedDate',
+      'fields[builds]=version,uploadedDate,processingState,expired,preReleaseVersion',
+      'fields[preReleaseVersions]=version,platform',
+      'limit=200',
+    ].join('&');
+    let url: string | undefined = `${this.#base}/v1/builds?${query}`;
+    const builds: BuildCandidate[] = [];
+    let truncatedAt: number | null = null;
+    for (let page = 0; url !== undefined; page++) {
+      if (page >= Math.min(this.#maxPages, 2)) {
+        truncatedAt = builds.length;
+        break;
+      }
+      const body = (await this.#get(url, what)).json;
+      const pre = new Map<string, Json>();
+      for (const item of records(body.included)) {
+        const id = text(item.id);
+        if (id && text(item.type) === 'preReleaseVersions') pre.set(id, isRecord(item.attributes) ? item.attributes : {});
+      }
+      for (const item of records(body.data)) {
+        const id = text(item.id);
+        if (!id) continue;
+        const a = isRecord(item.attributes) ? item.attributes : {};
+        const rels = isRecord(item.relationships) ? item.relationships : {};
+        const rel = isRecord(rels.preReleaseVersion) ? rels.preReleaseVersion : {};
+        const preId = isRecord(rel.data) ? text(rel.data.id) : undefined;
+        const preAttrs = preId ? pre.get(preId) : undefined;
+        const platform = preAttrs ? text(preAttrs.platform) : undefined;
+        if (platform !== undefined && platform !== this.#apple) continue;
+        const version = preAttrs ? (text(preAttrs.version) ?? null) : null;
+        if (input.version !== undefined && input.version !== '' && version !== null && version !== input.version) continue;
+        const processingState = text(a.processingState) ?? null;
+        const expired = typeof a.expired === 'boolean' ? a.expired : null;
+        const ready = processingState === 'VALID' && expired !== true;
+        builds.push({
+          id,
+          buildNumber: text(a.version) ?? null,
+          version,
+          uploadedDate: text(a.uploadedDate) ?? null,
+          processingState,
+          expired,
+          selectable: ready,
+          reason: ready ? null : expired === true ? 'The build has expired.' : processingState === null ? 'Apple did not say whether the build is processed.' : `The build is not processed (${processingState}).`,
+          attached: attached !== null && attached.id === id,
+        });
+      }
+      const links = isRecord(body.links) ? body.links : {};
+      const next = text(links.next);
+      url = next === undefined ? undefined : this.#checkNext(next, what);
+    }
+    return {
+      store: 'appstoreconnect',
+      platform: this.platform,
+      version: editable ? { id: editable.id, versionString: editable.versionString, state: editable.state } : null,
+      builds,
+      attachedBuildId: attached?.id ?? null,
+      truncatedAt,
+    };
+  }
+
+  /** The release fields of the editable version (a refusal `no_editable_version` when there is none). */
+  async readEditableRelease(): Promise<EditableRelease> {
+    const version = await this.#editableVersion();
+    const [build, phased, locs] = await Promise.all([this.#attachedBuild(version.id), this.#phasedRelease(version.id), this.#localizations(version.id)]);
+    const earliest = text(version.attrs.earliestReleaseDate);
+    return {
+      store: 'appstoreconnect',
+      platform: this.platform,
+      version: { id: version.id, versionString: version.versionString, state: version.state, editable: true },
+      releaseType: (text(version.attrs.releaseType) ?? '').toUpperCase() || null,
+      earliestReleaseDate: earliest === undefined || earliest === '' ? null : normalizeReleaseValue('earliest_release_date', earliest),
+      copyright: text(version.attrs.copyright) ?? null,
+      build,
+      phasedRelease: phased,
+      releaseNotes: [...locs].flatMap(([locale, ref]) => {
+        const notes = text(ref.attributes.whatsNew);
+        return notes === undefined ? [] : [{ locale, text: notes }];
+      }),
+    };
   }
 
   /** The screenshot placements of a localization, in display order, each with its library image. */

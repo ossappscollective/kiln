@@ -40,6 +40,32 @@ export type DraftSlot = {
   height?: number | null;
 };
 
+/**
+ * A release field to write into the draft (docs/api/releases-write.md): an App Store version field (build, version string,
+ * release type, earliest release date, copyright, phased release) or a Google Play draft release field (track, name,
+ * version codes, release notes of one language). `field` is a `@mrm/core` `ReleaseFieldId`, `value` its canonical text
+ * (`normalizeReleaseValue`), `locale` is the language of a per language field and empty otherwise. `user_fraction` is never
+ * sent here: Play cannot hold a share in a draft.
+ */
+export type DraftFieldWrite = { field: string; locale: string; value: string };
+
+/** Small facts about the store's state that a check needs. */
+export type DraftFieldFacts = { [fact: string]: string | number | boolean | null };
+
+/** What the store holds for a release field now, in the same canonical text. */
+export type DraftFieldState = {
+  field: string;
+  locale: string;
+  /** Null: not set (or no draft release / no phased release is `off`, see the connectors). */
+  value: string | null;
+  /**
+   * Facts the checks need and that move with the store (never a secret): for `build` the facts of the WANTED build
+   * (`wantedFound`, `wantedNumber`, `wantedProcessingState`, `wantedExpired`) and of the attached one (`currentNumber`); for
+   * `version_codes` the codes that were not uploaded (`missing`) and `otherInProgress`; for `release_type` nothing.
+   */
+  facts?: DraftFieldFacts;
+};
+
 /** One file to upload. The bytes are in memory: the server read them from the clone and checked them against the staged blob id. */
 export type DraftFile = {
   /** The file name the store shows. Never a path. */
@@ -59,6 +85,8 @@ export type DraftAssetWrite = DraftSlot & { files: DraftFile[] };
 export type DraftReadRequest = {
   text: { locale: string; field: string }[];
   assets: DraftSlot[];
+  /** The release fields the staged changes are about (the whole write: the Google Play `track` field names the track to read). */
+  fields?: DraftFieldWrite[];
 };
 
 export type DraftTextState = {
@@ -109,10 +137,12 @@ export type DraftState = {
   version: { id: string; versionString: string | null; state: string } | null;
   text: DraftTextState[];
   assets: DraftAssetState[];
+  /** Present when the request named release fields. */
+  fields?: DraftFieldState[];
 };
 
 export type DraftStep = {
-  type: 'text' | 'asset' | 'locale';
+  type: 'text' | 'asset' | 'locale' | 'field';
   locale: string;
   /** The field id (text), the set's store name (asset) or `locale`. */
   target: string;
@@ -126,6 +156,8 @@ export type DraftStep = {
 export type DraftApplyInput = {
   text: DraftTextWrite[];
   assets: DraftAssetWrite[];
+  /** Release fields: App Store version fields, or the Google Play draft release. */
+  fields?: DraftFieldWrite[];
   /**
    * Called with the draft read from the store right before the first write. When it says false
    * nothing is written and `DraftDriftError` is thrown: this is how "the store changed since the
@@ -215,6 +247,13 @@ export function draftKey(state: DraftState): Record<string, unknown> {
     assets: [...state.assets]
       .sort((a, b) => (a.locale + '\u0000' + a.target).localeCompare(b.locale + '\u0000' + b.target))
       .map((a) => [a.locale, a.target, a.setExists, a.images.map((i) => [i.id, i.checksum, i.state])]),
+    ...(state.fields !== undefined && state.fields.length > 0
+      ? {
+          fields: [...state.fields]
+            .sort((a, b) => (a.field + '\u0000' + a.locale).localeCompare(b.field + '\u0000' + b.locale))
+            .map((f) => [f.field, f.locale, f.value, f.facts === undefined ? null : Object.keys(f.facts).sort().map((k) => [k, (f.facts as DraftFieldFacts)[k]])]),
+        }
+      : {}),
   };
 }
 

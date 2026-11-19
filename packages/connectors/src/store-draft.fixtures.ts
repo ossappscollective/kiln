@@ -40,7 +40,7 @@ const refName = (bytes: Uint8Array) => `mrm:sha256:${sha256(bytes).slice(0, 32)}
 
 export class FakeAppleDraftApi {
   readonly seen: Seen[] = [];
-  versions: { id: string; versionString: string; state: string; platform?: string; releaseType?: string }[] = [
+  versions: { id: string; versionString: string; state: string; platform?: string; releaseType?: string; earliestReleaseDate?: string; copyright?: string }[] = [
     { id: 'v-live', versionString: '2.0', state: 'READY_FOR_DISTRIBUTION' },
     { id: 'v-next', versionString: '2.1', state: 'PREPARE_FOR_SUBMISSION' },
   ];
@@ -53,6 +53,18 @@ export class FakeAppleDraftApi {
   library = '10746822401';
   /** version id -> the build attached to it (App Store Connect API: `GET /v1/appStoreVersions/{id}/build`). */
   builds = new Map<string, { id: string; version: string; processingState: string; expired: boolean }>([['v-next', { id: 'b-1', version: '57', processingState: 'VALID', expired: false }]]);
+  /** `GET /v1/builds`: every build of the app (a test sets more). */
+  buildList: { id: string; version: string; processingState: string; expired: boolean; uploadedDate: string; marketing: string; platform?: string }[] = [
+    { id: 'b-1', version: '57', processingState: 'VALID', expired: false, uploadedDate: '2026-11-17T09:00:00-08:00', marketing: '2.1' },
+    { id: 'b-2', version: '58', processingState: 'VALID', expired: false, uploadedDate: '2026-11-18T09:00:00-08:00', marketing: '2.1' },
+    { id: 'b-3', version: '59', processingState: 'PROCESSING', expired: false, uploadedDate: '2026-11-18T12:00:00-08:00', marketing: '2.1' },
+    { id: 'b-old', version: '40', processingState: 'VALID', expired: true, uploadedDate: '2026-08-01T09:00:00-07:00', marketing: '2.0' },
+    { id: 'b-mac', version: '9', processingState: 'VALID', expired: false, uploadedDate: '2026-11-18T10:00:00-08:00', marketing: '2.1', platform: 'MAC_OS' },
+  ];
+  /** version id -> its phased release. */
+  phased = new Map<string, { id: string; state: string }>();
+  /** The release requests made: version ids. */
+  releaseRequests: string[] = [];
   /** Review submissions: id -> state and the versions added to it. */
   submissions = new Map<string, { state: string; versions: string[] }>();
   /** The reference data: the placement groups of the fake store. */
@@ -145,7 +157,71 @@ export class FakeAppleDraftApi {
     const notFound = () => json(404, { errors: [{ status: '404', code: 'NOT_FOUND', title: 'Not found' }] });
     let m: RegExpMatchArray | null;
     if (method === 'GET' && /^\/v1\/apps\/\d+\/appStoreVersions$/.test(path)) {
-      return json(200, { data: this.versions.map((v) => ({ type: 'appStoreVersions', id: v.id, attributes: { platform: v.platform ?? 'IOS', versionString: v.versionString, appVersionState: v.state, ...(v.releaseType ? { releaseType: v.releaseType } : {}) } })), links: {} });
+      return json(200, { data: this.versions.map((v) => ({ type: 'appStoreVersions', id: v.id, attributes: { platform: v.platform ?? 'IOS', versionString: v.versionString, appVersionState: v.state, ...(v.releaseType ? { releaseType: v.releaseType } : {}), ...(v.earliestReleaseDate ? { earliestReleaseDate: v.earliestReleaseDate } : {}), ...(v.copyright ? { copyright: v.copyright } : {}) } })), links: {} });
+    }
+    // ----- release fields of a version, builds, phased release, release requests
+    if (method === 'PATCH' && (m = path.match(/^\/v1\/appStoreVersions\/([^/]+)$/))) {
+      const version = this.versions.find((v) => v.id === m?.[1]);
+      if (!version) return notFound();
+      if (version.state !== 'PREPARE_FOR_SUBMISSION') return json(409, { errors: [{ status: '409', code: 'STATE_ERROR.INVALID_STATE', title: 'The version cannot be changed in this state' }] });
+      const data = (s.body as { data: { attributes?: Record<string, string>; relationships?: { build?: { data: { id: string } } } } }).data;
+      for (const [k, v] of Object.entries(data.attributes ?? {})) {
+        if (k === 'releaseType' && !['MANUAL', 'AFTER_APPROVAL', 'SCHEDULED'].includes(v)) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.ATTRIBUTE.INVALID.ENUM', title: 'Invalid release type' }] });
+        if (k === 'versionString') version.versionString = v;
+        else if (k === 'releaseType') version.releaseType = v;
+        else if (k === 'earliestReleaseDate') version.earliestReleaseDate = v;
+        else if (k === 'copyright') version.copyright = v;
+        else return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.ATTRIBUTE.UNKNOWN', title: `Unknown attribute ${k}` }] });
+      }
+      const wanted = data.relationships?.build?.data.id;
+      if (wanted !== undefined) {
+        const b = this.buildList.find((x) => x.id === wanted);
+        if (!b) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'Unknown build' }] });
+        if (b.processingState !== 'VALID' || b.expired) return json(409, { errors: [{ status: '409', code: 'STATE_ERROR', title: 'The build cannot be used' }] });
+        this.builds.set(version.id, { id: b.id, version: b.version, processingState: b.processingState, expired: b.expired });
+      }
+      return json(200, { data: { type: 'appStoreVersions', id: version.id, attributes: { versionString: version.versionString } } });
+    }
+    if (method === 'GET' && path === '/v1/builds') {
+      const want = url.searchParams.get('filter[preReleaseVersion.version]');
+      const platform = url.searchParams.get('filter[preReleaseVersion.platform]');
+      const list = this.buildList.filter((b) => (want === null || b.marketing === want) && (platform === null || (b.platform ?? 'IOS') === platform));
+      return json(200, {
+        data: list.map((b) => ({ type: 'builds', id: b.id, attributes: { version: b.version, uploadedDate: b.uploadedDate, processingState: b.processingState, expired: b.expired }, relationships: { preReleaseVersion: { data: { type: 'preReleaseVersions', id: `pre-${b.marketing}-${b.platform ?? 'IOS'}` } } } })),
+        included: list.map((b) => ({ type: 'preReleaseVersions', id: `pre-${b.marketing}-${b.platform ?? 'IOS'}`, attributes: { version: b.marketing, platform: b.platform ?? 'IOS' } })),
+        links: {},
+      });
+    }
+    if (method === 'GET' && (m = path.match(/^\/v1\/builds\/([^/]+)$/))) {
+      const b = this.buildList.find((x) => x.id === m?.[1]);
+      return b ? json(200, { data: { type: 'builds', id: b.id, attributes: { version: b.version, uploadedDate: b.uploadedDate, processingState: b.processingState, expired: b.expired } } }) : notFound();
+    }
+    if (method === 'GET' && (m = path.match(/^\/v1\/appStoreVersions\/([^/]+)\/appStoreVersionPhasedRelease$/))) {
+      const p = this.phased.get(m[1] ?? '');
+      return p ? json(200, { data: { type: 'appStoreVersionPhasedReleases', id: p.id, attributes: { phasedReleaseState: p.state } } }) : notFound();
+    }
+    if (method === 'POST' && path === '/v1/appStoreVersionPhasedReleases') {
+      const data = (s.body as { data: { attributes?: { phasedReleaseState?: string }; relationships: { appStoreVersion: { data: { id: string } } } } }).data;
+      const versionId = data.relationships.appStoreVersion.data.id;
+      if (this.phased.has(versionId)) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'The version already has a phased release' }] });
+      const id = this.#id('phased');
+      this.phased.set(versionId, { id, state: data.attributes?.phasedReleaseState ?? 'INACTIVE' });
+      return json(201, { data: { type: 'appStoreVersionPhasedReleases', id, attributes: { phasedReleaseState: 'INACTIVE' } } });
+    }
+    if (method === 'DELETE' && (m = path.match(/^\/v1\/appStoreVersionPhasedReleases\/([^/]+)$/))) {
+      const entry = [...this.phased].find(([, p]) => p.id === m?.[1]);
+      if (!entry) return notFound();
+      this.phased.delete(entry[0]);
+      return json(204);
+    }
+    if (method === 'POST' && path === '/v1/appStoreVersionReleaseRequests') {
+      const versionId = (s.body as { data: { relationships: { appStoreVersion: { data: { id: string } } } } }).data.relationships.appStoreVersion.data.id;
+      const version = this.versions.find((v) => v.id === versionId);
+      if (!version) return json(409, { errors: [{ status: '409', code: 'ENTITY_ERROR.RELATIONSHIP.INVALID', title: 'Unknown version' }] });
+      if (version.state !== 'PENDING_DEVELOPER_RELEASE') return json(409, { errors: [{ status: '409', code: 'STATE_ERROR.INVALID_STATE', title: 'The version is not waiting for release' }] });
+      version.state = 'PROCESSING_FOR_APP_STORE';
+      this.releaseRequests.push(versionId);
+      return json(201, { data: { type: 'appStoreVersionReleaseRequests', id: this.#id('rel') } });
     }
     if (method === 'GET' && (m = path.match(/^\/v1\/appStoreVersions\/([^/]+)\/appStoreVersionLocalizations$/))) {
       return json(200, { data: [...this.locs].filter(([, l]) => l.versionId === m?.[1]).map(([id, l]) => ({ type: 'appStoreVersionLocalizations', id, attributes: l.attributes })), links: {} });
@@ -376,15 +452,22 @@ export class FakePlayDraftApi {
   images = new Map<string, PlayImage[]>();
   commits: { query: string }[] = [];
   /** `edits.tracks.list`. */
-  tracks: { track: string; releases: { name?: string; status: string; userFraction?: number; versionCodes: string[] }[] }[] = [
+  tracks: { track: string; releases: { name?: string; status: string; userFraction?: number; versionCodes: string[]; releaseNotes?: { language: string; text: string }[] }[] }[] = [
     { track: 'production', releases: [{ name: '2.0', status: 'completed', versionCodes: ['200'] }] },
   ];
+  /** `edits.bundles.list` and `edits.apks.list`. */
+  bundles: { versionCode: number; sha256: string }[] = [
+    { versionCode: 200, sha256: 'a'.repeat(64) },
+    { versionCode: 240, sha256: 'b'.repeat(64) },
+    { versionCode: 241, sha256: 'c'.repeat(64) },
+  ];
+  apks: { versionCode: number; binary: { sha256: string } }[] = [];
   /** How the commit is answered. */
   commitAnswer: 'ok' | 'in_review' | 'not_sent_refused' | 'server_error' | 'cut' = 'ok';
   /** Make an upload store different bytes than were sent (a bad answer from the store). */
   corruptUploads = false;
   hook: Hook | undefined;
-  #edit: { listings: Map<string, PlayListing>; images: Map<string, PlayImage[]> } | undefined;
+  #edit: { listings: Map<string, PlayListing>; images: Map<string, PlayImage[]>; tracks: FakePlayDraftApi['tracks'] } | undefined;
   #n = 0;
 
   setImages(language: string, type: string, files: Uint8Array[]): void {
@@ -417,7 +500,7 @@ export class FakePlayDraftApi {
     const { method } = s;
     const path = s.path.replace(/^\/(upload\/)?androidpublisher\/v3\/applications\/[^/]+\/edits/, '');
     if (method === 'POST' && path === '') {
-      this.#edit = { listings: new Map([...this.listings].map(([k, v]) => [k, { ...v }])), images: new Map([...this.images].map(([k, v]) => [k, [...v]])) };
+      this.#edit = { listings: new Map([...this.listings].map(([k, v]) => [k, { ...v }])), images: new Map([...this.images].map(([k, v]) => [k, [...v]])), tracks: structuredClone(this.tracks) };
       return json(200, fx.googleEdit);
     }
     if (!this.#edit) return json(404, { error: { code: 404, message: 'Edit not found' } });
@@ -429,7 +512,23 @@ export class FakePlayDraftApi {
     }
     if (method === 'GET' && path === `${id}/listings`) return json(200, { listings: [...edit.listings.values()] });
     if (method === 'GET' && path === `${id}/tracks`) return json(200, { tracks: this.tracks });
+    if (method === 'GET' && path === `${id}/bundles`) return json(200, { kind: 'androidpublisher#bundlesListResponse', bundles: this.bundles });
+    if (method === 'GET' && path === `${id}/apks`) return json(200, { kind: 'androidpublisher#apksListResponse', apks: this.apks });
     let m: RegExpMatchArray | null;
+    if ((m = path.match(new RegExp(`^${id}/tracks/([^/]+)$`)))) {
+      const name = decodeURIComponent(m[1] ?? '');
+      if (method === 'GET') {
+        const found = edit.tracks.find((t) => t.track === name);
+        return found ? json(200, found) : json(404, { error: { code: 404, message: 'Track not found' } });
+      }
+      if (method === 'PUT') {
+        const body = s.body as FakePlayDraftApi['tracks'][number];
+        const at = edit.tracks.findIndex((t) => t.track === name);
+        if (at === -1) edit.tracks.push(body);
+        else edit.tracks[at] = body;
+        return json(200, body);
+      }
+    }
     if (method === 'PUT' && (m = path.match(new RegExp(`^${id}/listings/([^/]+)$`)))) {
       const listing = s.body as PlayListing;
       edit.listings.set(decodeURIComponent(m[1] ?? ''), listing);
@@ -476,5 +575,6 @@ export class FakePlayDraftApi {
     if (!this.#edit) return;
     this.listings = this.#edit.listings;
     this.images = this.#edit.images;
+    this.tracks = this.#edit.tracks;
   }
 }
