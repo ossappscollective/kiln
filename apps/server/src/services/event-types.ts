@@ -22,6 +22,11 @@ export const eventTypes = [
   'release.rollout_changed',
   'listing.draft_pushed',
   'listing.submitted',
+  'aso.rank_changed',
+  'aso.competitor_changed',
+  'ci.run_started',
+  'ci.run_finished',
+  'assets.pulled',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -49,4 +54,9 @@ export const eventReadAction: Record<EventType, Action> = {
   'release.rollout_changed': 'apps.read',
   'listing.draft_pushed': 'listing.read',
   'listing.submitted': 'listing.read',
+  'aso.rank_changed': 'aso.read',
+  'aso.competitor_changed': 'aso.read',
+  'ci.run_started': 'repositories.read',
+  'ci.run_finished': 'repositories.read',
+  'assets.pulled': 'listing.read',
 };

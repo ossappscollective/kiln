@@ -9,10 +9,12 @@ import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { appRoutes } from './routes/apps.ts';
+import { asoRoutes } from './routes/aso.ts';
 import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
 import { publicInvitationRoutes, workspaceInvitationRoutes } from './routes/invitations.ts';
 import { assetRoutes } from './routes/assets.ts';
+import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
 import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
 import { listingRoutes } from './routes/listing.ts';
 import { type EventStreamHub, createEventStreamHub, eventRoutes } from './routes/events.ts';
@@ -41,6 +43,8 @@ import {
   createCloneUpkeep,
 } from './services/clone-upkeep.ts';
 import { operations } from './services/api-operations.ts';
+import { type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
+import { type AsoSources, createAsoSources } from './services/aso-net.ts';
 import { createAppIcons, type IconsContext } from './services/app-icons.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import {
@@ -159,7 +163,7 @@ export type AppDeps = {
    * `limiter` is the per workspace limit of dispatches (default 10 per minute), `matchers` the
    * build number conventions, `pollMaxMs` how long `ci.poll` follows a run. All optional.
    */
-  ci?: Partial<Pick<CiContext, 'limiter' | 'matchers' | 'pollMaxMs'>>;
+  ci?: Partial<Pick<CiContext, 'limiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>>;
   /**
    * The scheduled listing read (MRM_LISTING_INTERVAL_MINUTES) in milliseconds, 0 or absent for off.
    * Only used to tell the Listing tab when the next read is due; the scheduler is built in index.ts.
@@ -172,6 +176,11 @@ export type AppDeps = {
    * exchange and allowPrivate, for tests and development). All optional.
    */
   assets?: { limiter?: TestLimiter; icons?: Pick<IconsContext, 'limiter' | 'net'> };
+  /**
+   * Two way sync of graphics (docs/api/assets.md): `net` is the exchange and address check of the downloads from a store's CDN
+   * (fakes in tests), the limiters are per workspace (store reads, CDN fetches, uploads). All optional.
+   */
+  assetSync?: Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'>;
   /**
    * Customer reviews (docs/api/reviews.md), read-only. `connectorFactory` builds the App Store
    * Connect / Google Play reviews connector (overridable for tests), `ratingFetcher` the store-wide
@@ -211,6 +220,12 @@ export type AppDeps = {
    * submit (fakes in tests); `timeoutMs` and `claimTtlMs` are for tests.
    */
   storeSubmit?: SubmitRoutesContext['submit'];
+  /**
+   * ASO, keyword ranks and competitors from public store data (docs/api/aso.md). `sources` reads the stores (a fake in
+   * tests; index.ts builds one and shares it with the worker, so the cache and the rate limits are shared);
+   * `limits` are the MRM_ASO_* values; `limiter` is the per workspace budget of refreshes and lookups (default 10 a minute).
+   */
+  aso?: { sources?: AsoSources; limits?: Partial<AsoLimits>; limiter?: TestLimiter; maxRunMs?: number };
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
@@ -350,6 +365,27 @@ export function createApp(deps: AppDeps) {
       limiter: deps.translation?.limiter ?? createTestLimiter({ now: services.now, limit: 20 }),
     }),
   );
+  // ASO: keyword ranks and competitors from public store data. Google Play only when MRM_ASO_PLAY_UNOFFICIAL_ENABLED.
+  const asoLimits: AsoLimits = { ...DEFAULT_ASO_LIMITS, ...(deps.aso?.limits ?? {}) };
+  app.route(
+    '/api/workspaces',
+    asoRoutes({
+      db: services.db,
+      now: services.now,
+      sources:
+        deps.aso?.sources ??
+        createAsoSources({
+          playEnabled: false,
+          now: services.now,
+          cacheMs: 60 * 60_000,
+          appleCallsPerMinute: 10,
+          playCallsPerMinute: 4,
+        }),
+      limits: asoLimits,
+      ...(deps.aso?.maxRunMs !== undefined ? { maxRunMs: deps.aso.maxRunMs } : {}),
+      limiter: deps.aso?.limiter ?? createTestLimiter({ now: services.now }),
+    }),
+  );
   // Customer reviews: an inbox with internal triage. Replying (a store write) is off unless MRM_REVIEW_REPLY_ENABLED.
   app.route(
     '/api/workspaces',
@@ -471,6 +507,20 @@ export function createApp(deps: AppDeps) {
       repo: assetsRepo,
       limiter: assetsLimiter,
       ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
+    }),
+  );
+  // Two way sync of graphics: the store's images and their comparison with the repository, pulling them into a change set,
+  // and uploading, replacing, removing and fixing the files of a staged set. Store reads change nothing in the store.
+  app.route(
+    '/api/workspaces',
+    assetSyncRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      repo: assetsRepo,
+      limiter: assetsLimiter,
+      ...(deps.storeDraft ? { draft: deps.storeDraft } : {}),
+      ...(deps.assetSync ?? {}),
     }),
   );
   // Submitting the pushed draft for store review: reads the store and writes only to its review queue; off unless

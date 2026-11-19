@@ -13,6 +13,7 @@ import {
   type StoreVersion,
 } from '@mrm/connectors';
 import type { Database, Sql } from '@mrm/db';
+import { deleteAsoData } from './aso-data.ts';
 import { recordAudit } from './audit.ts';
 import { recordSyncEvents, releaseStatusChanges } from './events.ts';
 import { useCredentialSecret } from './credentials.ts';
@@ -349,12 +350,17 @@ export async function deleteApp(
     ]);
     await deleteListingData(tx, input.workspaceId, input.id);
     await deleteReviewData(tx, input.workspaceId, input.id);
+    await deleteAsoData(tx, input.workspaceId, input.id);
     await deleteAppIcon(tx, input.workspaceId, input.id);
     await tx.execute('DELETE FROM store_rollout_claims WHERE app_id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
     ]);
     await tx.execute('DELETE FROM staged_changes WHERE app_id = ? AND workspace_id = ?', [
+      input.id,
+      input.workspaceId,
+    ]);
+    await tx.execute('DELETE FROM staged_asset_blobs WHERE app_id = ? AND workspace_id = ?', [
       input.id,
       input.workspaceId,
     ]);

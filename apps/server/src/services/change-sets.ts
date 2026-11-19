@@ -38,6 +38,10 @@ export type ChangeSetFile = {
   change: 'added' | 'modified' | 'deleted';
   before?: string;
   after?: string;
+  /** An image (store assets sync): its content is never shown or returned as text, only its size. */
+  binary?: true;
+  /** The size of the new content in bytes (binary files). */
+  bytes?: number;
 };
 
 /**
@@ -164,6 +168,11 @@ export const parseFiles = (row: Row): FileChange[] => JSON.parse(String(row.file
 export function toView(row: Row, withContent: boolean): ChangeSetView {
   const files = parseFiles(row).map((f): ChangeSetFile => {
     const base = { path: f.path, change: changeOf(f) };
+    if (f.encoding === 'base64') {
+      // Bytes, not text: never put base64 into a view. The size is enough to review.
+      const text = f.after ?? f.before ?? '';
+      return { ...base, binary: true, bytes: Math.floor((text.length * 3) / 4) - (text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0) };
+    }
     if (!withContent) return base;
     return {
       ...base,
@@ -365,6 +374,37 @@ export async function createChangeSet(
   }
   const changeSet = (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView;
   return { ok: true, changeSet, problems: validateListing(desired), warnings };
+}
+
+/**
+ * A draft change set made from files that are already worked out (the store assets sync: images pulled from a store,
+ * staged images written to the repository). Nothing is read here. It then follows the usual review, approve and apply
+ * flow. `origin.source` is never `store_pull`, so a refresh or a fix-up never recomputes it from the listing.
+ */
+export async function createFileChangeSet(
+  ctx: RepoContext,
+  input: {
+    workspaceId: string;
+    repositoryId: string;
+    summary: string;
+    files: FileChange[];
+    origin: ChangeSetOrigin;
+    auditDetail?: Record<string, unknown>;
+  },
+  actor: Actor,
+): Promise<Outcome<{ changeSet: ChangeSetView }>> {
+  const repository = await getRepository(ctx.db, input.workspaceId, input.repositoryId);
+  if (!repository) return failure(404, 'not_found');
+  if (input.files.length === 0) return failure(422, 'no_changes', 'There is nothing to put in a change set.');
+  const id = randomUUID();
+  const now = ctx.now();
+  try {
+    await insertDraft(ctx, { id, now, files: input.files, input, actor, origin: input.origin });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) return failure(404, 'not_found', 'The repository was disconnected while this was being made.');
+    throw error;
+  }
+  return { ok: true, changeSet: (await getChangeSet(ctx.db, input.workspaceId, id)) as ChangeSetView };
 }
 
 async function insertDraft(

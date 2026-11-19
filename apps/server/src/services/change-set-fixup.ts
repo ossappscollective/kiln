@@ -238,6 +238,9 @@ export async function fixupChangeSet(
   }
   const summary = String(row.summary);
   const stored = parseFiles(row);
+  if (stored.some((f) => f.encoding === 'base64')) {
+    return failure(422, 'binary_change_set', 'This change set holds images, which are applied as they are. A fix-up works on text files only: discard it and make the change again.');
+  }
   const known = new Set(stored.map((f) => f.path));
   const unknown = Object.keys(input.resolutions ?? {}).filter((p) => !known.has(p));
   if (unknown.length > 0) {

@@ -55,6 +55,8 @@ export type SafeGetOptions = {
   timeoutMs?: number;
   maxRedirects?: number;
   accept?: string;
+  /** The User-Agent to send. Default `mobile-release-manager`. */
+  userAgent?: string;
   /** Development only (MRM_WEBHOOKS_ALLOW_PRIVATE): accept loopback and private addresses. */
   allowPrivate?: boolean;
   resolve?: Resolver;
@@ -64,7 +66,7 @@ export type SafeGetOptions = {
 
 export type SafeGetResult =
   | { ok: true; status: number; body: Uint8Array; contentType: string | null; finalUrl: string }
-  | { ok: false; kind: 'blocked' | 'dns' | 'timeout' | 'network' | 'status' | 'too_large' | 'redirect'; message: string; transient: boolean; status?: number };
+  | { ok: false; kind: 'blocked' | 'dns' | 'timeout' | 'network' | 'status' | 'too_large' | 'redirect'; message: string; transient: boolean; status?: number; /** The Retry-After header of a refusal, as sent. */ retryAfter?: string };
 
 export const SAFE_GET_TIMEOUT_MS = 10_000;
 
@@ -179,7 +181,7 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           family: resolved.family,
           secure: check.url.protocol === 'https:',
           ...(check.literal ? {} : { servername: check.hostname }),
-          headers: { accept: options.accept ?? '*/*', 'accept-encoding': 'identity', 'user-agent': 'mobile-release-manager' },
+          headers: { accept: options.accept ?? '*/*', 'accept-encoding': 'identity', 'user-agent': options.userAgent ?? 'mobile-release-manager' },
           maxBytes: options.maxBytes,
           signal: controller.signal,
         });
@@ -212,6 +214,7 @@ export async function safeGet(rawUrl: string, options: SafeGetOptions): Promise<
           message: `The server answered ${res.status}.`,
           transient: res.status >= 500 || res.status === 429,
           status: res.status,
+          ...(res.headers['retry-after'] ? { retryAfter: res.headers['retry-after'].slice(0, 100) } : {}),
         };
       }
       return { ok: true, status: 200, body: res.body, contentType: res.headers['content-type'] ?? null, finalUrl: check.url.toString() };

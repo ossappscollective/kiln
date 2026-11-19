@@ -682,7 +682,7 @@ export function cleanIdentity(identity: Partial<CommitIdentity> | undefined): Co
 }
 
 /** One file of a change set, as stored: absent `before` means the file is new, absent `after` that it is deleted. */
-export type FileEdit = { path: string; before?: string; after?: string };
+export type FileEdit = { path: string; before?: string; after?: string; /** `base64`: before and after are the base64 text of bytes (an image), not UTF-8 text. */ encoding?: 'base64' };
 
 export type BranchCommitInput = {
   gitPath: string;
@@ -1082,26 +1082,26 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
     if (cat.code !== 0) return problem(cat);
     contents = parseCatBatch(cat.stdout);
   }
-  const same = (entry: TreeEntry | undefined, text: string | undefined): boolean => {
+  const same = (entry: TreeEntry | undefined, text: string | undefined, encoding?: 'base64'): boolean => {
     if (!entry || text === undefined) return false;
     const blob = contents.get(entry.oid);
-    return blob !== undefined && blob.equals(Buffer.from(text, 'utf8'));
+    return blob !== undefined && blob.equals(Buffer.from(text, encoding === 'base64' ? 'base64' : 'utf8'));
   };
 
-  const plan: { path: string; mode: string; content?: string }[] = [];
+  const plan: { path: string; mode: string; content?: string; encoding?: 'base64' }[] = [];
   const differing: string[] = [];
   let skipped = 0;
   for (const file of input.files) {
     const entry = wanted.get(file.path);
     if (file.after === undefined) {
       if (!entry) skipped += 1; // already gone
-      else if (file.before !== undefined && !same(entry, file.before)) differing.push(file.path);
+      else if (file.before !== undefined && !same(entry, file.before, file.encoding)) differing.push(file.path);
       else plan.push({ path: file.path, mode: entry.mode });
       continue;
     }
-    if (same(entry, file.after)) skipped += 1; // already has this text
-    else if (file.before === undefined ? entry !== undefined : !same(entry, file.before)) differing.push(file.path);
-    else plan.push({ path: file.path, mode: entry?.mode ?? '100644', content: file.after });
+    if (same(entry, file.after, file.encoding)) skipped += 1; // already has this text
+    else if (file.before === undefined ? entry !== undefined : !same(entry, file.before, file.encoding)) differing.push(file.path);
+    else plan.push({ path: file.path, mode: entry?.mode ?? '100644', content: file.after, ...(file.encoding === 'base64' ? { encoding: 'base64' as const } : {}) });
   }
   if (differing.length > 0) {
     return fail(
@@ -1120,7 +1120,7 @@ export async function createBranchCommit(input: BranchCommitInput): Promise<Bran
   const worker = async () => {
     for (let item = queue.shift(); item && !failure; item = queue.shift()) {
       const made = await run(['hash-object', '-w', '--no-filters', '-t', 'blob', '--stdin'], {
-        input: Buffer.from(item.content ?? '', 'utf8'),
+        input: Buffer.from(item.content ?? '', item.encoding === 'base64' ? 'base64' : 'utf8'),
       });
       const oid = made.stdout.toString('utf8').trim();
       if (made.code !== 0 || oid.length !== baseSha.length || !SHA.test(oid)) failure ??= problem(made);

@@ -14,8 +14,10 @@ import {
   PlayDraftConnector,
   type StoreDraftConnector,
   StoreError,
+  type StoreImagesRead,
   StoreRateLimitError,
   draftKey,
+  isStoreImageReader,
   redactSecrets,
   sameDraftState,
   secretStrings,
@@ -32,6 +34,7 @@ import { normalizeListingValue } from './listing-drift.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
 import { type PushedManifest, fileEntry, recordPush, textEntry } from './store-draft-record.ts';
+import { getBlob } from './staged-asset-blobs.ts';
 import {
   type AssetSet,
   type StagedRow,
@@ -259,14 +262,14 @@ const clearUnknown = (sql: Sql, app: ManagedApp) =>
 
 type Connection = { input: Omit<DraftConnectorInput, 'fetch'>; secret: string };
 
-async function connect(ctx: DraftContext, workspaceId: string, app: ManagedApp, actor: Actor): Promise<{ ok: true; connection: Connection } | Failure> {
+async function connect(ctx: DraftContext, workspaceId: string, app: ManagedApp, actor: Actor, purpose: string = DRAFT_PURPOSE): Promise<{ ok: true; connection: Connection } | Failure> {
   const [credential] = await ctx.db.query('SELECT kind FROM credentials WHERE id = ? AND workspace_id = ?', [app.credentialId, workspaceId]);
   if (!credential) return failure(422, 'credential_not_found', 'The credential of this app no longer exists.');
   if (String(credential.kind) !== credentialKindFor[app.platform]) return failure(422, 'credential_kind', "This app's credential is not the kind its platform needs.");
   if (app.platform === 'ios' && !app.storeAppId) return failure(422, 'app_not_synced', 'The App Store id of this app is not known yet. Sync the app first.');
   let secret: string | undefined;
   try {
-    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose: DRAFT_PURPOSE }, actor, ctx.now());
+    secret = await useCredentialSecret(ctx.db, ctx.masterKey, { workspaceId, id: app.credentialId, purpose }, actor, ctx.now());
   } catch {
     return failure(422, 'credential_unreadable', 'The credential could not be decrypted. Enter its secret again.');
   }
@@ -278,6 +281,36 @@ async function connect(ctx: DraftContext, workspaceId: string, app: ManagedApp, 
       input: { kind: app.platform === 'ios' ? 'app_store_connect' : 'google_play', secret, identifier: app.identifier, storeAppId: app.storeAppId },
     },
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reading the store's images (never a write, so not behind the draft switch)
+
+export const IMAGES_PURPOSE = 'store.images_read';
+
+/**
+ * The images the store holds for the app: for the App Store the version the draft push would edit (or the live one), for
+ * Google Play the live listing. Reads with the credential of the app (audited as `credential.use`, purpose
+ * `store.images_read`) and changes nothing. The connector is the same one a push uses, so a fake stands in for it in tests.
+ */
+export async function readStoreImagesOf(
+  ctx: DraftContext,
+  input: { workspaceId: string; app: ManagedApp; actor: Actor },
+): Promise<{ ok: true; read: StoreImagesRead } | Failure> {
+  const connected = await connect(ctx, input.workspaceId, input.app, input.actor, IMAGES_PURPOSE);
+  if (!connected.ok) return connected;
+  const { connection } = connected;
+  const { app } = input;
+  try {
+    const read = await withConnector(ctx, connection.input, async (connector) => {
+      if (!isStoreImageReader(connector)) throw new StoreError(app.platform === 'ios' ? 'appstoreconnect' : 'googleplay', 'unsupported', 'This store connection cannot read images.');
+      return connector.readStoreImages();
+    });
+    return { ok: true, read };
+  } catch (error) {
+    if (error instanceof DraftTimeout) return failure(504, 'timeout', 'The store did not answer in time.');
+    return mapStoreError(error, connection.secret).failure;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -343,12 +376,35 @@ async function prepare(
   const byCommit = new Map<string, PreparedSet[]>();
   for (const set of sets) {
     for (const r of set.rows) {
+      if (r.source === 'local') continue;
       const list = byCommit.get(r.assetCommit ?? '') ?? [];
       if (!list.includes(set)) list.push(set);
       byCommit.set(r.assetCommit ?? '', list);
     }
   }
   let read = 0;
+  // Images uploaded or fixed in the app: their bytes are kept here, held to the staged blob id like a repository file.
+  for (const set of sets) {
+    for (const r of set.rows) {
+      if (r.source !== 'local') continue;
+      const name = (r.assetPath ?? '').split('/').pop() ?? '';
+      const blob = await getBlob(ctx.db, input.workspaceId, app.id, r.valueHash);
+      if (!blob) return failure(422, 'asset_changed', `${name} is no longer kept by this server. Upload it again.`, { item: set.key });
+      read += blob.bytes.length;
+      if (blob.bytes.length > STAGED_LIMITS.maxAssetFileBytes || read > STAGED_LIMITS.maxAssetBytesPerPush) {
+        return failure(422, 'staged_invalid', `${name} is larger than a push uploads.`, { item: set.key });
+      }
+      const format = sniffImageFormat(blob.bytes);
+      if (format !== 'png' && format !== 'jpeg') return failure(422, 'asset_changed', `${name} is not a PNG or JPEG.`, { item: set.key });
+      set.files[r.ordinal] = {
+        name: fileNameOf(r.assetPath ?? '', r.ordinal),
+        mime: format === 'png' ? 'image/png' : 'image/jpeg',
+        bytes: blob.bytes,
+        md5: md5Hex(blob.bytes),
+        sha256: sha256Bytes(blob.bytes),
+      };
+    }
+  }
   for (const [commit, group] of byCommit) {
     const opened = await openAssets(ctx.assets, { workspaceId: input.workspaceId, app, commit }, input.actor);
     if (!opened.ok) return assetFailure(opened.status, String(opened.body.message ?? 'The repository could not be read.'));

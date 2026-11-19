@@ -425,3 +425,31 @@ test('the author is cleaned: no angle brackets or line breaks, a fallback for a 
   assert.deepEqual(cleanIdentity({ name: 'x', email: 'a@b>\n' }), { name: 'x', email: 'noreply@localhost' });
   assert.deepEqual(cleanIdentity(undefined), { name: 'Mobile Release Manager', email: 'noreply@localhost' });
 });
+
+test('an image is committed byte for byte, held to the bytes it was made from, and deleted with its old bytes', async () => {
+  const s = setup();
+  const a = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01, 0x0a, 0x0d]);
+  const b = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0x02, 0xff, 0x0d, 0x0a]);
+  const c = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x7f, 0x80, 0x81, 0x00]);
+  writeFileSync(join(s.dir, 'shot.png'), a);
+  writeFileSync(join(s.dir, 'gone.png'), a);
+  git(s.dir, 'add', '-A');
+  git(s.dir, 'commit', '-q', '-m', 'images');
+  const files: FileEdit[] = [
+    { path: 'shot.png', before: a.toString('base64'), after: b.toString('base64'), encoding: 'base64' },
+    { path: 'new.png', after: c.toString('base64'), encoding: 'base64' },
+    { path: 'gone.png', before: a.toString('base64'), encoding: 'base64' },
+  ];
+  const done = await createBranchCommit(commitInput(s, { files }));
+  assert.equal(done.ok, true, JSON.stringify(done));
+  if (!done.ok) return;
+  const show = (path: string) => execFileSync('git', ['show', `${done.commit}:${path}`], { cwd: s.dir, env: gitEnv });
+  assert.deepEqual(show('shot.png'), b);
+  assert.deepEqual(show('new.png'), c);
+  assert.equal(treeOf(s.dir, done.commit)['gone.png'], undefined);
+  git(s.dir, 'fsck', '--strict');
+  // Other bytes than the ones the change set was made from: refused, nothing written.
+  const stale = await createBranchCommit(commitInput(s, { branch: 'mrm/stale-images-1234abcd', files: [{ path: 'shot.png', before: c.toString('base64'), after: b.toString('base64'), encoding: 'base64' }] }));
+  assert.equal(stale.ok === false && stale.code, 'base_changed');
+  assert.equal(git(s.dir, 'branch', '--list', 'mrm/stale-images-1234abcd'), '');
+});

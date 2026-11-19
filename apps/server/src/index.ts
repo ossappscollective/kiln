@@ -7,6 +7,9 @@ import { loadConfig } from './config.ts';
 import { createWorker } from './jobs.ts';
 import { createEventStreamHub } from './routes/events.ts';
 import { createScheduler, reminderIntervalMs, syncIntervalMs } from './scheduler.ts';
+import { ASO_REFRESH_QUEUE, type AsoLimits, createAsoRefreshHandler } from './services/aso.ts';
+import { createAsoSources } from './services/aso-net.ts';
+import { asoIntervalMs } from './services/aso-schedule.ts';
 import {
   APP_SYNC_QUEUE,
   DEFAULT_SYNC_TIMEOUT_MS,
@@ -114,6 +117,24 @@ const cloneUpkeep = createCloneUpkeep({
 // One budget for manual and scheduled syncs (10 per workspace per minute).
 const syncLimiter = createTestLimiter();
 
+// ASO reads public store data only. One set of sources for the routes and the worker: they share the cache and the rate limits.
+const asoLimits: AsoLimits = {
+  maxKeywordsPerApp: config.asoMaxKeywordsPerApp,
+  maxCompetitorsPerApp: config.asoMaxCompetitorsPerApp,
+  maxChecksPerRun: config.asoMaxChecksPerRun,
+  rankDepth: config.asoRankDepth,
+  heartbeatMs: config.asoHeartbeatMs,
+  retentionDays: config.asoRetentionDays,
+  intervalMs: asoIntervalMs(config.asoIntervalMinutes),
+};
+const asoSources = createAsoSources({
+  playEnabled: config.asoPlayUnofficialEnabled,
+  now: Date.now,
+  cacheMs: config.asoCacheMs,
+  appleCallsPerMinute: config.asoAppleCallsPerMinute,
+  playCallsPerMinute: config.asoPlayCallsPerMinute,
+});
+
 // Open event streams, so shutdown can end them (they would keep the server from closing).
 const eventStreams = createEventStreamHub();
 
@@ -124,6 +145,7 @@ const app = createApp({
   appSync: { limiter: syncLimiter },
   listing: { intervalMs: listingIntervalMs(config.listingIntervalMinutes) },
   reviews: { limiter: syncLimiter, retentionDays: config.reviewRetentionDays, reply: { enabled: config.reviewReplyEnabled } },
+  aso: { sources: asoSources, limits: asoLimits },
   rollout: { enabled: config.storeRolloutEnabled },
   storeDraft: { enabled: config.storeDraftWriteEnabled },
   storeSubmit: { enabled: config.storeSubmitEnabled },
@@ -175,6 +197,8 @@ const worker = createWorker({
       timeoutMs: DEFAULT_REVIEW_TIMEOUT_MS,
       translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
     }),
+    // Scheduled and background ASO refreshes (public store data only; docs/api/aso.md).
+    [ASO_REFRESH_QUEUE]: createAsoRefreshHandler({ db: database, now: Date.now, sources: asoSources, limits: asoLimits }),
     [WEBHOOK_QUEUE]: createWebhookHandler({
       db: database,
       masterKey: config.masterKey,
@@ -203,6 +227,9 @@ const scheduler = createScheduler({
   listingIntervalMs: listingIntervalMs(config.listingIntervalMinutes),
   reviewSyncIntervalMs: reviewSyncIntervalMs(config.reviewSyncIntervalMinutes),
   reviewRetentionDays: config.reviewRetentionDays,
+  asoIntervalMs: asoLimits.intervalMs,
+  asoPlayEnabled: config.asoPlayUnofficialEnabled,
+  asoRetentionDays: config.asoRetentionDays,
   limiter: syncLimiter,
   ...(config.cloneSweepIntervalMinutes > 0 && reads.active
     ? { cloneSweep: { intervalMs: config.cloneSweepIntervalMinutes * 60_000, run: () => cloneUpkeep.sweep() } }
@@ -223,6 +250,12 @@ if (config.worker === 'inline') {
   }
   if (config.reviewSyncIntervalMinutes > 0) {
     console.log(`Scheduled review reads every ${config.reviewSyncIntervalMinutes} minutes (read-only; reviews kept ${config.reviewRetentionDays === 0 ? 'forever' : `${config.reviewRetentionDays} days`})`);
+  }
+  if (config.asoIntervalMinutes > 0) {
+    console.log(`Scheduled ASO refreshes every ${config.asoIntervalMinutes} minutes (public store data, read-only; kept ${config.asoRetentionDays === 0 ? 'forever' : `${config.asoRetentionDays} days`})`);
+  }
+  if (config.asoPlayUnofficialEnabled) {
+    console.warn('ASO for Google Play is ON (MRM_ASO_PLAY_UNOFFICIAL_ENABLED): the public pages of play.google.com are read. This is unofficial and may be against the Google Play Terms of Service; read docs/api/aso.md.');
   }
   if (config.reviewReplyEnabled) {
     console.log('Replying to customer reviews is ON (MRM_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores');

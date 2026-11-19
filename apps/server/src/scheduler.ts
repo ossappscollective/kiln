@@ -1,6 +1,7 @@
 import type { Database } from '@mrm/db';
 import { enqueue } from './jobs.ts';
 import { APP_SYNC_QUEUE } from './services/apps.ts';
+import { type AsoQueueSummary, type AsoUpkeepSummary, asoUpkeep, queueAsoRefreshes } from './services/aso-schedule.ts';
 import { DEFAULT_POLL_MAX_MS, enqueueCiPoll } from './services/ci.ts';
 import { ACTIVE_STATUSES, purgeOrphans } from './services/ci-runs.ts';
 import { type ListingQueueSummary, queueListingReads } from './services/listing-schedule.ts';
@@ -91,6 +92,17 @@ export type SchedulerOptions = {
    * most once an hour. 0 keeps them all. Absent: no pruning (rows of deleted apps are still removed).
    */
   reviewRetentionDays?: number;
+  /**
+   * Milliseconds between scheduled ASO refreshes (keyword ranks and competitors from public store pages) of one
+   * app (MRM_ASO_INTERVAL_MINUTES). 0 (the default) turns them off. They queue `aso.refresh` jobs
+   * (services/aso-schedule.ts), bounded and spaced by `aso`, sharing `limiter`. `asoPlayEnabled` is
+   * MRM_ASO_PLAY_UNOFFICIAL_ENABLED: while off, Google Play apps are skipped.
+   */
+  asoIntervalMs?: number;
+  asoPlayEnabled?: boolean;
+  aso?: { perTick?: number; perWorkspace?: number; spacingMs?: number; maxJitterMs?: number };
+  /** MRM_ASO_RETENTION_DAYS: rank checks and competitor snapshots older than this are deleted (at most once an hour). 0 keeps them. Absent: no pruning. */
+  asoRetentionDays?: number;
   /** Runs started longer ago than this are no longer polled. Default 3 hours. */
   pollMaxMs?: number;
   /**
@@ -116,6 +128,10 @@ export type TickSummary = {
   reviews?: ReviewQueueSummary;
   /** What the review upkeep deleted; set only in a tick where it ran. */
   reviewUpkeep?: ReviewUpkeepSummary;
+  /** What the scheduled ASO refreshes queued; absent when they are off. */
+  aso?: AsoQueueSummary;
+  /** What the ASO upkeep deleted; set only in a tick where it ran. */
+  asoUpkeep?: AsoUpkeepSummary;
   /** What a clone sweep returned; set only in a tick where one ran. */
   cloneSweep?: unknown;
 };
@@ -163,7 +179,9 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
   const reminderInterval = options.reminderIntervalMs ?? 0;
   const listingInterval = options.listingIntervalMs ?? 0;
   const reviewInterval = options.reviewSyncIntervalMs ?? 0;
+  const asoInterval = options.asoIntervalMs ?? 0;
   let lastReviewUpkeepAt: number | undefined;
+  let lastAsoUpkeepAt: number | undefined;
   /** When the reminders last ran in this process. Other instances have their own; the unique key keeps them apart. */
   let lastReminderAt: number | undefined;
 
@@ -310,6 +328,29 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
         summary.reviewUpkeep = await reviewUpkeep(db, { now: at, retentionDays: options.reviewRetentionDays });
       } catch (error) {
         report('review upkeep failed', error);
+      }
+    }
+    if (asoInterval > 0) {
+      // ASO reads are optional work: a failure here must not stop syncs or polls.
+      try {
+        summary.aso = await queueAsoRefreshes(db, {
+          now: at,
+          intervalMs: asoInterval,
+          playEnabled: options.asoPlayEnabled ?? false,
+          ...(options.aso ?? {}),
+          ...(options.jitter ? { jitter: options.jitter } : {}),
+          ...(options.limiter ? { limiter: options.limiter } : {}),
+        });
+      } catch (error) {
+        report('scheduled ASO refreshes failed', error);
+      }
+    }
+    if (options.asoRetentionDays !== undefined && (lastAsoUpkeepAt === undefined || at - lastAsoUpkeepAt >= 60 * MINUTE)) {
+      lastAsoUpkeepAt = at;
+      try {
+        summary.asoUpkeep = await asoUpkeep(db, { now: at, retentionDays: options.asoRetentionDays });
+      } catch (error) {
+        report('ASO upkeep failed', error);
       }
     }
     const sweep = options.cloneSweep;

@@ -249,6 +249,9 @@ async function load(
     );
   }
   const files = parseFiles(row);
+  if (files.some((f) => f.encoding === 'base64')) {
+    return failure(422, 'binary_change_set', 'This change set holds images, which cannot be refreshed in place. Discard it and make the change again.');
+  }
   const read = await readCurrent(
     ctx,
     { workspaceId: input.workspaceId, repositoryId: String(row.repository_id), paths: files.map((f) => f.path), purpose },
@@ -266,6 +269,9 @@ export async function changeSetStaleness(
   actor: Actor,
 ): Promise<Outcome<Staleness>> {
   const done = await load(ctx, input, actor, STALENESS_PURPOSE);
+  // Images are compared as bytes when the change set is applied (a changed file is a conflict then); there is no text to
+  // compare here, so such a change set is reported as not stale rather than as an error.
+  if (!done.ok && done.body.error === 'binary_change_set') return { ok: true, stale: false, files: [], readAt: '' };
   if (!done.ok) return done;
   const { files, evaluations, current } = done.loaded;
   const rows = files.map((file, i): StalenessFile => ({

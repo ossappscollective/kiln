@@ -17,6 +17,9 @@ import {
   type DraftStep,
   type StoreDraftConnector,
   StoreError,
+  type StoreImageReader,
+  type StoreImageRecord,
+  type StoreImagesRead,
   type StoreSubmitConnector,
   type SubmitApplyInput,
   SubmitDriftError,
@@ -144,7 +147,7 @@ export type DraftBehavior =
 const key = (locale: string, field: string) => `${locale}\u0000${field}`;
 
 /** A store's draft that can be read and written, remembers every write, and can be told how to fail. */
-export class FakeDraftStore implements StoreDraftConnector {
+export class FakeDraftStore implements StoreDraftConnector, StoreImageReader {
   readonly store: 'appstoreconnect' | 'googleplay';
   readonly platform: Platform;
   version: DraftState['version'];
@@ -156,6 +159,10 @@ export class FakeDraftStore implements StoreDraftConnector {
   /** After a failed write the draft cannot be read back. */
   readFailsAfterWrite = false;
   reads = 0;
+  /** What `readStoreImages` answers (a test's starting point), and how often it was asked. */
+  imageRecords: StoreImageRecord[] = [];
+  imageReads = 0;
+  imageReadError: unknown;
   applyCalls = 0;
   /** What the store was asked to write (names and checksums, never bytes). */
   writes: { text: { locale: string; field: string }[]; sets: { locale: string; target: string; files: string[] }[] }[] = [];
@@ -201,6 +208,12 @@ export class FakeDraftStore implements StoreDraftConnector {
       text: request.text.map((t) => ({ locale: t.locale, field: t.field, value: this.texts.get(key(t.locale, t.field)) ?? null, localeExists: this.locales.has(t.locale) })),
       assets,
     };
+  }
+
+  async readStoreImages(): Promise<StoreImagesRead> {
+    this.imageReads++;
+    if (this.imageReadError) throw this.imageReadError;
+    return { version: this.version ? { id: this.version.id, versionString: this.version.versionString, state: this.version.state, editable: true } : null, images: structuredClone(this.imageRecords), unplaced: 0, notes: [] };
   }
 
   async readDraft(request: DraftReadRequest): Promise<DraftState> {
@@ -393,6 +406,8 @@ export type StagedBootOptions = {
   draft?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
   /** Submitting for review: on by default in tests (the kill switch has its own test). */
   submit?: { enabled?: boolean; timeoutMs?: number; claimTtlMs?: number };
+  /** More options of the app (the exchange of the image downloads, limiters). */
+  extra?: Record<string, unknown>;
 };
 
 export async function bootStaged(db: Database, options: StagedBootOptions = {}) {
@@ -429,6 +444,7 @@ export async function bootStaged(db: Database, options: StagedBootOptions = {}) 
     listing: { intervalMs: 60 * 60_000 },
     storeDraft: { enabled: true, connectorFactory, ...options.draft },
     storeSubmit: { enabled: true, connectorFactory: submitFactory, ...options.submit },
+    ...(options.extra ?? {}),
   });
   const { repositoryId } = await t.connect();
   const iosCredential = await t.addCredential('app_store_connect', ASC_SECRET);

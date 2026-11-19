@@ -457,6 +457,7 @@ dbTest('OpenAPI describes the settings and translation operations with real sche
   assert.equal(put?.operationId, 'updateWorkspaceSettings');
   const props = put?.requestBody?.content['application/json']?.schema.properties ?? {};
   assert.deepEqual(Object.keys(props).sort(), [
+    'aso.rankMoveThreshold',
     'reviews.lowRatingThreshold',
     'translation.dailyCharBudget',
     'translation.enabled',

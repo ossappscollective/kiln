@@ -69,6 +69,12 @@ export const settingDefinitions = {
     writeAction: 'settings.write',
     parse: integerIn(1, 4),
   } satisfies Definition<number>,
+  'aso.rankMoveThreshold': {
+    doc: 'A keyword that moves this many places or more between two checks raises `aso.rank_changed` (1 to 100). Entering or leaving the results raises it only within the top 10. Changing it never re-sends events for checks already made.',
+    default: 5,
+    writeAction: 'aso.manage',
+    parse: integerIn(1, 100),
+  } satisfies Definition<number>,
   'translation.enabled': {
     doc: 'Turns review translation on. While off, nothing is sent to a translation provider.',
     default: false,
@@ -184,6 +190,12 @@ export async function lowRatingThresholdFor(sql: Sql, workspaceId: string, fallb
     return settings.values['reviews.lowRatingThreshold'] as number;
   }
   return fallback ?? (settings.values['reviews.lowRatingThreshold'] as number);
+}
+
+/** The rank move (places) that raises `aso.rank_changed` in a workspace. */
+export async function rankMoveThresholdFor(sql: Sql, workspaceId: string): Promise<number> {
+  const settings = await getSettings(sql, workspaceId);
+  return settings.values['aso.rankMoveThreshold'] as number;
 }
 
 /** What `GET /settings` says: values, defaults, documentation and which keys this role may change. */

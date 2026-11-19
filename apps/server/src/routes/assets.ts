@@ -9,6 +9,7 @@ import { getApp } from '../services/apps.ts';
 import { isCommitSha, openAssets } from '../services/asset-repo.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import { type Failure, type RepoContext, failure } from '../services/repositories.ts';
+import { peekStoreImages, storeSideOf } from '../services/store-images.ts';
 
 export type AssetRoutesContext = {
   db: Database;
@@ -29,7 +30,7 @@ const respond = (c: Context<AppEnv>, f: Failure) => {
   return c.json(f.body, f.status);
 };
 
-const IMAGE_TYPES = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' } as const;
+export const IMAGE_TYPES = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' } as const;
 
 /** A path as the index lists it: relative, no traversal, no odd characters. The index is still the only authority. */
 export function isPlainRelativePath(path: string): boolean {
@@ -106,7 +107,9 @@ export function assetRoutes(ctx: AssetRoutesContext) {
     const opened = await openAssets({ repo: ctx.repo }, { workspaceId: ws(c), app }, actor(c), { onCompute: gate(c) });
     if (!opened.ok) return respond(c, opened);
     c.header('Cache-Control', 'no-store');
-    return c.json({ ...opened.handle.view, cached: opened.cached });
+    // The store's counts of the last read that is still cached; no store request is made here.
+    const side = peekStoreImages(ws(c), app.id, ctx.now());
+    return c.json({ ...opened.handle.view, ...(side ? { storeSide: storeSideOf(side) } : {}), cached: opened.cached });
   });
 
   routes.get('/:workspaceId/apps/:id/assets/file', needs('listing.read'), async (c) => {

@@ -153,6 +153,42 @@ const schema = z.object({
       .refine((v) => v >= 0 && v <= 3650, 'must be 0 (keep) or from 1 to 3650')
       .default(365),
   ),
+  // ASO: keyword ranks and competitors from PUBLIC store data (docs/adr/0011-aso-keywords-competitors.md,
+  // docs/api/aso.md). Minutes between scheduled refreshes of every app's keywords and competitors; 0
+  // (the default) turns them off, otherwise 60 to 10080. A person can always refresh an app by hand.
+  MRM_ASO_INTERVAL_MINUTES: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 0 || (v >= 60 && v <= 10_080), 'must be 0 (off) or from 60 to 10080')
+      .default(0),
+  ),
+  // Days a stored rank check and competitor snapshot is kept; 0 keeps them for ever.
+  MRM_ASO_RETENTION_DAYS: blankIsUnset(
+    z.coerce
+      .number()
+      .int()
+      .refine((v) => v >= 0 && v <= 3650, 'must be 0 (keep) or from 1 to 3650')
+      .default(365),
+  ),
+  // Google Play has no public API for search results or listings. Reading its public web pages is
+  // UNOFFICIAL, may be against Google Play's terms of service and breaks when the markup changes, so it
+  // is off by default: every Play ASO route then answers 409 play_unofficial_disabled. Apple is read
+  // through the documented iTunes Search API and does not depend on this. Read docs/api/aso.md first.
+  MRM_ASO_PLAY_UNOFFICIAL_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  MRM_ASO_MAX_KEYWORDS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(500).default(50)),
+  MRM_ASO_MAX_COMPETITORS_PER_APP: blankIsUnset(z.coerce.number().int().min(1).max(50).default(10)),
+  // The most keyword checks one refresh makes (the rest stays due for the next one).
+  MRM_ASO_MAX_CHECKS_PER_RUN: blankIsUnset(z.coerce.number().int().min(1).max(200).default(25)),
+  // How many search results are read to find the app (Apple allows up to 200, Google Play is capped lower).
+  MRM_ASO_RANK_DEPTH: blankIsUnset(z.coerce.number().int().min(10).max(200).default(50)),
+  // How long the same search or lookup is reused, in minutes; 0 never.
+  MRM_ASO_CACHE_MINUTES: blankIsUnset(z.coerce.number().int().min(0).max(1440).default(60)),
+  // Calls per minute to each store, per process. Apple documents about 20; Google Play documents nothing.
+  MRM_ASO_APPLE_CALLS_PER_MINUTE: blankIsUnset(z.coerce.number().int().min(1).max(20).default(10)),
+  MRM_ASO_PLAY_CALLS_PER_MINUTE: blankIsUnset(z.coerce.number().int().min(1).max(20).default(4)),
+  // A competitor with no stored snapshot for this many days gets one anyway (so a quiet one shows it was looked at).
+  MRM_ASO_HEARTBEAT_DAYS: blankIsUnset(z.coerce.number().int().min(1).max(90).default(7)),
   // Kill switch for replying to customer reviews (docs/adr/0007-review-replies.md). A reply is
   // published publicly in the App Store or Google Play in the organisation's name, so it is off by
   // default: every reply route answers 409 reply_disabled until this is 'true'. Reading and
@@ -449,6 +485,22 @@ export type Config = {
   reviewSyncIntervalMinutes: number;
   /** Days a stored review is kept; 0 keeps them (MRM_REVIEW_RETENTION_DAYS). */
   reviewRetentionDays: number;
+  /** Minutes between scheduled ASO refreshes of every app; 0 is off (MRM_ASO_INTERVAL_MINUTES). */
+  asoIntervalMinutes: number;
+  /** Days a stored rank check or competitor snapshot is kept; 0 keeps them (MRM_ASO_RETENTION_DAYS). */
+  asoRetentionDays: number;
+  /** Reading Google Play's public pages is allowed (MRM_ASO_PLAY_UNOFFICIAL_ENABLED). Unofficial; default false. */
+  asoPlayUnofficialEnabled: boolean;
+  asoMaxKeywordsPerApp: number;
+  asoMaxCompetitorsPerApp: number;
+  asoMaxChecksPerRun: number;
+  asoRankDepth: number;
+  /** Milliseconds a search or lookup is reused (MRM_ASO_CACHE_MINUTES). */
+  asoCacheMs: number;
+  asoAppleCallsPerMinute: number;
+  asoPlayCallsPerMinute: number;
+  /** Milliseconds (MRM_ASO_HEARTBEAT_DAYS). */
+  asoHeartbeatMs: number;
   /** Replying to customer reviews in the stores is allowed (MRM_REVIEW_REPLY_ENABLED). Default false. */
   reviewReplyEnabled: boolean;
   /** Changing a live rollout in the stores is allowed (MRM_STORE_ROLLOUT_ENABLED). Default false. */
@@ -516,6 +568,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     syncIntervalMinutes: data.MRM_SYNC_INTERVAL_MINUTES,
     reviewSyncIntervalMinutes: data.MRM_REVIEW_SYNC_INTERVAL_MINUTES,
     reviewRetentionDays: data.MRM_REVIEW_RETENTION_DAYS,
+    asoIntervalMinutes: data.MRM_ASO_INTERVAL_MINUTES,
+    asoRetentionDays: data.MRM_ASO_RETENTION_DAYS,
+    asoPlayUnofficialEnabled: data.MRM_ASO_PLAY_UNOFFICIAL_ENABLED === 'true',
+    asoMaxKeywordsPerApp: data.MRM_ASO_MAX_KEYWORDS_PER_APP,
+    asoMaxCompetitorsPerApp: data.MRM_ASO_MAX_COMPETITORS_PER_APP,
+    asoMaxChecksPerRun: data.MRM_ASO_MAX_CHECKS_PER_RUN,
+    asoRankDepth: data.MRM_ASO_RANK_DEPTH,
+    asoCacheMs: data.MRM_ASO_CACHE_MINUTES * 60_000,
+    asoAppleCallsPerMinute: data.MRM_ASO_APPLE_CALLS_PER_MINUTE,
+    asoPlayCallsPerMinute: data.MRM_ASO_PLAY_CALLS_PER_MINUTE,
+    asoHeartbeatMs: data.MRM_ASO_HEARTBEAT_DAYS * 24 * 60 * 60_000,
     reviewReplyEnabled: data.MRM_REVIEW_REPLY_ENABLED === 'true',
     storeRolloutEnabled: data.MRM_STORE_ROLLOUT_ENABLED === 'true',
     storeDraftWriteEnabled: data.MRM_STORE_DRAFT_WRITE_ENABLED === 'true',
