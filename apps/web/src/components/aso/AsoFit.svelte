@@ -28,12 +28,14 @@
   import { appAddress } from '../../lib/app-scope.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { countOf, summaryLine } from '../../lib/section-state.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatChip from '../ui/StatChip.svelte';
   import AsoBudget from './AsoBudget.svelte';
@@ -48,7 +50,6 @@
   }: { api: Api; workspaceId: string; members: AppSummary[]; keywords: AsoKeyword[]; version: number; now: number } = $props();
 
   const uid = $props.id();
-  const multi = $derived(members.length > 1);
   const allLocales = $derived(localesOf(keywords));
   /** The locale of the page header (?locale=) when this view has keywords for it, else '' (the most used). */
   const locale = $derived.by(() => {
@@ -104,98 +105,99 @@
       {@const d = data[app.id]}
       {@const pick = d ? (d.locales.filter((l) => l.locale === (locale || allLocales[0]))[0] ?? d.locales[0]) : undefined}
       {@const fit = pick?.fit ?? null}
-      <section class="stack" aria-label="{platformLabel(app.platform)} fit">
-        <div class="row head">
-          {#if multi}<h3 class="eyebrow">{platformLabel(app.platform)}</h3>{/if}
-          {#if pick}<span class="muted">{pick.locale}{pick.listingLocale && pick.listingLocale !== pick.locale ? ` (listing text in ${pick.listingLocale})` : ''}</span>{/if}
-          {#if d}
-            <InfoTip label="What counts" align="start">
-              <p class="tip">
-                Compares the listing text stored on this server{d.readAt ? ` (read ${timeAgo(d.readAt, now)})` : ''} with your tracked keywords. Which fields each store searches is unverified:
-                {d.indexedFields.join(', ')} are assumed.
-              </p>
-              {#if fit}<ul class="plain">{#each fit.assumptions as a (a)}<li>{a}</li>{/each}</ul>{/if}
-            </InfoTip>
-          {/if}
-          <span class="spacer"></span>
-          <Button size="sm" variant="link" icon="file-text" href={appAddress(app.id, 'listing', address.platform)}>Open the listing</Button>
-        </div>
-
-        {#if errors[app.id]}
-          <Alert tone="error">{errors[app.id]}</Alert>
-        {:else if d && d.locales.length === 0}
-          <p class="none">No keywords tracked yet. <a href={asoViewHref(app.id, 'keywords', address.platform)}>Add keywords</a> to see how the listing covers them.</p>
-        {:else if pick && !fit}
-          <p class="none">No listing text is stored for {pick.locale}. Sync the app to read it, then come back.</p>
-        {:else if fit && pick}
-          <div class="row chips">
-            <StatChip label="strong" value={fit.counts.strong} tone="ok" />
-            <StatChip label="covered" value={fit.counts.covered} tone="ok" />
-            <StatChip label="partial" value={fit.counts.partial + fit.counts.description_only} tone="warn" />
-            <StatChip label="missing" value={fit.counts.missing} tone="bad" />
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={fit && pick ? summaryLine([pick.locale, countOf(fit.keywords.length, 'keyword'), fit.counts.missing > 0 && `${fit.counts.missing} missing`, fit.counts.partial + fit.counts.description_only > 0 && `${fit.counts.partial + fit.counts.description_only} partial`]) : (pick?.locale ?? '')}>
+        <div class="stack">
+          <div class="row head">
+            {#if pick}<span class="muted">{pick.locale}{pick.listingLocale && pick.listingLocale !== pick.locale ? ` (listing text in ${pick.listingLocale})` : ''}</span>{/if}
+            {#if d}
+              <InfoTip label="What counts" align="start">
+                <p class="tip">
+                  Compares the listing text stored on this server{d.readAt ? ` (read ${timeAgo(d.readAt, now)})` : ''} with your tracked keywords. Which fields each store searches is unverified:
+                  {d.indexedFields.join(', ')} are assumed.
+                </p>
+                {#if fit}<ul class="plain">{#each fit.assumptions as a (a)}<li>{a}</li>{/each}</ul>{/if}
+              </InfoTip>
+            {/if}
+            <span class="spacer"></span>
+            <Button size="sm" variant="link" icon="file-text" href={appAddress(app.id, 'listing', address.platform)}>Open the listing</Button>
           </div>
 
-          {#if fit.gaps.length > 0}
-            <p class="weak">
-              <span class="muted">Weak or missing:</span>
-              {#each fit.gaps.slice(0, 8) as g (g.id)}
-                <Badge tone={fitStatusInfo[g.status].tone}>{g.term}{g.priority >= 3 ? ' (high)' : ''}</Badge>
-              {/each}
-              {#if fit.gaps.length > 8}<span class="muted">and {fit.gaps.length - 8} more</span>{/if}
-            </p>
-          {/if}
-
-          <div class="table-wrap">
-            <table class="compact">
-              <thead>
-                <tr>
-                  <th scope="col">Keyword</th>
-                  <th scope="col">Fit</th>
-                  {#each fitColumns[app.platform] as f (f)}<th scope="col" class="mid">{fitFieldLabels[f]}</th>{/each}
-                </tr>
-              </thead>
-              <tbody>
-                {#each fit.keywords as k (k.id)}
-                  {@const status = fitStatusInfo[k.status]}
-                  <tr>
-                    <th scope="row" class="term">{k.term} {#if k.priority !== 2}<span class="muted prio">{priorityLabel(k.priority)}</span>{/if}</th>
-                    <td><span title={status.hint}><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{status.label}</Badge></span></td>
-                    {#each fitColumns[app.platform] as f (f)}
-                      {@const cell = fieldCell(k, f)}
-                      <td class="mid" title={cell.title}>
-                        {#if cell.mark === 'phrase'}
-                          <span class="in"><Icon name="check" size={14} /><span class="visually-hidden">Phrase in this field</span>{cell.text}</span>
-                        {:else if cell.mark === 'words'}
-                          <span class="muted">{cell.text} words</span>
-                        {:else}
-                          <span class="muted"><span aria-hidden="true">–</span><span class="visually-hidden">Not in this field</span></span>
-                        {/if}
-                      </td>
-                    {/each}
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-
-          {#if pick.fields}
-            {@const text = overlayStaged(app.platform, pick.listingLocale ?? pick.locale, pick.fields, stagedStore.view(app.id))}
-            {@const mine = keywords.filter((k) => k.appId === app.id)}
-            <div class="card budgetcard">
-              <AsoBudget
-                platform={app.platform}
-                locale={pick.locale}
-                fields={text.fields}
-                staged={text.staged}
-                keywords={keywordsForLocale(mine, pick.locale)}
-                countries={countriesForLocale(mine, pick.locale)}
-                listingLocales={d?.listingLocales ?? []}
-                addHref={coachHref({ to: 'keywords_add', label: 'Add keywords' }, app.id, address.platform)}
-              />
+          {#if errors[app.id]}
+            <Alert tone="error">{errors[app.id]}</Alert>
+          {:else if d && d.locales.length === 0}
+            <p class="none">No keywords tracked yet. <a href={asoViewHref(app.id, 'keywords', address.platform)}>Add keywords</a> to see how the listing covers them.</p>
+          {:else if pick && !fit}
+            <p class="none">No listing text is stored for {pick.locale}. Sync the app to read it, then come back.</p>
+          {:else if fit && pick}
+            <div class="row chips">
+              <StatChip label="strong" value={fit.counts.strong} tone="ok" />
+              <StatChip label="covered" value={fit.counts.covered} tone="ok" />
+              <StatChip label="partial" value={fit.counts.partial + fit.counts.description_only} tone="warn" />
+              <StatChip label="missing" value={fit.counts.missing} tone="bad" />
             </div>
+
+            {#if fit.gaps.length > 0}
+              <p class="weak">
+                <span class="muted">Weak or missing:</span>
+                {#each fit.gaps.slice(0, 8) as g (g.id)}
+                  <Badge tone={fitStatusInfo[g.status].tone}>{g.term}{g.priority >= 3 ? ' (high)' : ''}</Badge>
+                {/each}
+                {#if fit.gaps.length > 8}<span class="muted">and {fit.gaps.length - 8} more</span>{/if}
+              </p>
+            {/if}
+
+            <div class="table-wrap">
+              <table class="compact">
+                <thead>
+                  <tr>
+                    <th scope="col">Keyword</th>
+                    <th scope="col">Fit</th>
+                    {#each fitColumns[app.platform] as f (f)}<th scope="col" class="mid">{fitFieldLabels[f]}</th>{/each}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each fit.keywords as k (k.id)}
+                    {@const status = fitStatusInfo[k.status]}
+                    <tr>
+                      <th scope="row" class="term">{k.term} {#if k.priority !== 2}<span class="muted prio">{priorityLabel(k.priority)}</span>{/if}</th>
+                      <td><span title={status.hint}><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{status.label}</Badge></span></td>
+                      {#each fitColumns[app.platform] as f (f)}
+                        {@const cell = fieldCell(k, f)}
+                        <td class="mid" title={cell.title}>
+                          {#if cell.mark === 'phrase'}
+                            <span class="in"><Icon name="check" size={14} /><span class="visually-hidden">Phrase in this field</span>{cell.text}</span>
+                          {:else if cell.mark === 'words'}
+                            <span class="muted">{cell.text} words</span>
+                          {:else}
+                            <span class="muted"><span aria-hidden="true">–</span><span class="visually-hidden">Not in this field</span></span>
+                          {/if}
+                        </td>
+                      {/each}
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+
+            {#if pick.fields}
+              {@const text = overlayStaged(app.platform, pick.listingLocale ?? pick.locale, pick.fields, stagedStore.view(app.id))}
+              {@const mine = keywords.filter((k) => k.appId === app.id)}
+              <div class="card budgetcard">
+                <AsoBudget
+                  platform={app.platform}
+                  locale={pick.locale}
+                  fields={text.fields}
+                  staged={text.staged}
+                  keywords={keywordsForLocale(mine, pick.locale)}
+                  countries={countriesForLocale(mine, pick.locale)}
+                  listingLocales={d?.listingLocales ?? []}
+                  addHref={coachHref({ to: 'keywords_add', label: 'Add keywords' }, app.id, address.platform)}
+                />
+              </div>
+            {/if}
           {/if}
-        {/if}
-      </section>
+        </div>
+      </Section>
     {/each}
   {/if}
 </div>

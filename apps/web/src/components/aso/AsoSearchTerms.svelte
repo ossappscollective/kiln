@@ -16,6 +16,7 @@
   import { address } from '../../lib/address.svelte.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { countOf, summaryLine } from '../../lib/section-state.ts';
   import {
     type SearchTermsResponse,
     dayOfMs,
@@ -34,6 +35,7 @@
   import Button from '../ui/Button.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SearchTermsImportDialog from './SearchTermsImportDialog.svelte';
 
@@ -61,7 +63,6 @@
 
   const uid = $props.id();
   const apps = $derived(members.filter((m) => m.platform === 'android'));
-  const multi = $derived(members.length > 1);
   const canImport = $derived(can(role, 'analytics.manage'));
   const today = $derived(dateToDay(now));
 
@@ -164,87 +165,88 @@
         {@const d = data[app.id]}
         {@const rows = d ? termRows(d.terms) : []}
         {@const fresh = d ? freshnessLine(d, dayOfMs) : null}
-        <section class="stack" aria-label="{platformLabel(app.platform)} search terms">
-          <div class="row head">
-            {#if multi}<h3 class="eyebrow">{platformLabel(app.platform)}</h3>{/if}
-            {#if d && d.terms.length > 0}<span class="muted">{periodLine(d)}</span>{/if}
-            {#if d && d.stored && d.notes.length > 0}
-              <InfoTip label="How to read the search terms" buttonText="How to read this" align="start" width="26rem">
-                <ul class="plain">{#each d.notes as n (n.code)}<li>{n.message}</li>{/each}</ul>
-              </InfoTip>
-            {/if}
-            <span class="spacer"></span>
-            {#if canImport && d && d.stored}
-              <Button size="sm" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
-            {/if}
-          </div>
+        <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? (d.stored ? summaryLine([countOf(d.terms.length, 'term'), d.terms.length > 0 && periodLine(d)]) : 'No file imported yet') : ''}>
+          <div class="stack">
+            <div class="row head">
+              {#if d && d.terms.length > 0}<span class="muted">{periodLine(d)}</span>{/if}
+              {#if d && d.stored && d.notes.length > 0}
+                <InfoTip label="How to read the search terms" buttonText="How to read this" align="start" width="26rem">
+                  <ul class="plain">{#each d.notes as n (n.code)}<li>{n.message}</li>{/each}</ul>
+                </InfoTip>
+              {/if}
+              <span class="spacer"></span>
+              {#if canImport && d && d.stored}
+                <Button size="sm" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
+              {/if}
+            </div>
 
-          {#if errors[app.id]}
-            <Alert tone="error">{errors[app.id]}</Alert>
-          {:else if d && !d.stored}
-            <EmptyState icon="search" title="No search terms yet" description={exportCaveat}>
-              {#snippet actions()}
-                {#if canImport}
-                  <Button variant="primary" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
-                {:else}
-                  <span class="muted">An owner or an admin can import the file.</span>
-                {/if}
-              {/snippet}
-            </EmptyState>
-            <ol class="steps">{#each exportSteps as step (step)}<li>{step}</li>{/each}</ol>
-          {:else if d}
-            {#if fresh}<p class="fresh muted">{fresh}</p>{/if}
-            {#if d.terms.length === 0}
-              <p class="none">No terms in this period{d.country ? ` for ${d.country.toUpperCase()}` : ''}. Choose another country, or import a file that covers it.</p>
-            {:else}
-              {@const sum = totalsLine(d)}
-              {#if sum}<p class="muted sum">{sum}</p>{/if}
-              <div class="table-wrap">
-                <table class="compact">
-                  <thead>
-                    <tr>
-                      <th scope="col">Term</th>
-                      <th scope="col" class="num">Installs</th>
-                      <th scope="col" class="num">Visitors</th>
-                      <th scope="col" class="num">Conversion</th>
-                      <th scope="col">In your listing</th>
-                      <th scope="col">Tracked</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each rows as r (r.key)}
+            {#if errors[app.id]}
+              <Alert tone="error">{errors[app.id]}</Alert>
+            {:else if d && !d.stored}
+              <EmptyState icon="search" title="No search terms yet" description={exportCaveat}>
+                {#snippet actions()}
+                  {#if canImport}
+                    <Button variant="primary" icon="upload" onclick={() => openImport(app.id)}>Import a file</Button>
+                  {:else}
+                    <span class="muted">An owner or an admin can import the file.</span>
+                  {/if}
+                {/snippet}
+              </EmptyState>
+              <ol class="steps">{#each exportSteps as step (step)}<li>{step}</li>{/each}</ol>
+            {:else if d}
+              {#if fresh}<p class="fresh muted">{fresh}</p>{/if}
+              {#if d.terms.length === 0}
+                <p class="none">No terms in this period{d.country ? ` for ${d.country.toUpperCase()}` : ''}. Choose another country, or import a file that covers it.</p>
+              {:else}
+                {@const sum = totalsLine(d)}
+                {#if sum}<p class="muted sum">{sum}</p>{/if}
+                <div class="table-wrap">
+                  <table class="compact">
+                    <thead>
                       <tr>
-                        <th scope="row" class="term">
-                          {r.term}
-                          {#if r.hint}<span class="hint muted">{r.hint}</span>{/if}
-                        </th>
-                        <td class="num">{r.installs}</td>
-                        <td class="num">{r.visitors}</td>
-                        <td class="num">{r.conversion}</td>
-                        <td><span title={r.listing.title}><Badge tone={r.listing.tone}>{r.listing.text}</Badge></span></td>
-                        <td>
-                          {#if r.tracked || justTracked[`${app.id}/${r.key}`]}
-                            <Badge tone="ok" icon="check">Tracked{r.trackedIn ? ` in ${r.trackedIn}` : ''}</Badge>
-                          {:else if canWrite}
-                            <Button size="sm" variant="link" icon="plus" loading={tracking[r.key] === true} onclick={() => track(app, d, r.term, r.key)}>Track</Button>
-                          {:else}
-                            <span class="muted">No</span>
-                          {/if}
-                        </td>
+                        <th scope="col">Term</th>
+                        <th scope="col" class="num">Installs</th>
+                        <th scope="col" class="num">Visitors</th>
+                        <th scope="col" class="num">Conversion</th>
+                        <th scope="col">In your listing</th>
+                        <th scope="col">Tracked</th>
                       </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-              {#if d.listingReadAt}
-                <p class="muted foot">
-                  Listing text read {timeAgo(d.listingReadAt, now)}{d.listingLocale ? ` (${d.listingLocale})` : ''}.
-                  <a href={asoViewHref(app.id, 'fit', address.platform)}>See how the listing covers your keywords</a>
-                </p>
+                    </thead>
+                    <tbody>
+                      {#each rows as r (r.key)}
+                        <tr>
+                          <th scope="row" class="term">
+                            {r.term}
+                            {#if r.hint}<span class="hint muted">{r.hint}</span>{/if}
+                          </th>
+                          <td class="num">{r.installs}</td>
+                          <td class="num">{r.visitors}</td>
+                          <td class="num">{r.conversion}</td>
+                          <td><span title={r.listing.title}><Badge tone={r.listing.tone}>{r.listing.text}</Badge></span></td>
+                          <td>
+                            {#if r.tracked || justTracked[`${app.id}/${r.key}`]}
+                              <Badge tone="ok" icon="check">Tracked{r.trackedIn ? ` in ${r.trackedIn}` : ''}</Badge>
+                            {:else if canWrite}
+                              <Button size="sm" variant="link" icon="plus" loading={tracking[r.key] === true} onclick={() => track(app, d, r.term, r.key)}>Track</Button>
+                            {:else}
+                              <span class="muted">No</span>
+                            {/if}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+                {#if d.listingReadAt}
+                  <p class="muted foot">
+                    Listing text read {timeAgo(d.listingReadAt, now)}{d.listingLocale ? ` (${d.listingLocale})` : ''}.
+                    <a href={asoViewHref(app.id, 'fit', address.platform)}>See how the listing covers your keywords</a>
+                  </p>
+                {/if}
               {/if}
             {/if}
-          {/if}
-        </section>
+          </div>
+        </Section>
       {/each}
     {/if}
   {/if}

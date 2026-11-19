@@ -19,12 +19,14 @@
   } from '../../lib/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { countOf, summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
 
   let {
@@ -46,7 +48,6 @@
   } = $props();
 
   const uid = $props.id();
-  const multi = $derived(members.length > 1);
   const locales = $derived(localesOf(keywords));
   let locale = $state('');
   let data = $state<Record<string, AsoGapsResponse | undefined>>({});
@@ -127,66 +128,67 @@
   {:else}
     {#each members as app (app.id)}
       {@const d = data[app.id]}
-      <section class="stack" aria-label="{platformLabel(app.platform)} gaps">
-        <div class="row head">
-          {#if multi}<h3 class="eyebrow">{platformLabel(app.platform)}</h3>{/if}
-          {#if d}
-            <span class="muted">{d.locale}: {d.competitors} {d.competitors === 1 ? 'competitor' : 'competitors'} read</span>
-            <InfoTip label="About these gaps" align="start">
-              <p class="tip">
-                Terms competitors put in their names, subtitles or descriptions that your searched fields do not hold. It compares stored texts only; it does not know what people search for.
-              </p>
-              {#if d.notes.length > 0}
-                <ul class="plain">{#each d.notes as n (n)}<li>{n}</li>{/each}</ul>
-              {/if}
-            </InfoTip>
-          {/if}
-        </div>
-        {#if errors[app.id]}
-          <Alert tone="error">{errors[app.id]}</Alert>
-        {:else if d && d.competitors === 0}
-          <p class="none"><a href={asoViewHref(app.id, 'competitors', address.platform)}>Follow a competitor</a> to see which terms it uses that you do not.</p>
-        {:else if d && d.gaps.length === 0}
-          <p class="none">No gaps found: your listing has the terms the competitors use.</p>
-        {:else if d}
-          <div class="table-wrap">
-            <table class="compact">
-              <thead>
-                <tr>
-                  <th scope="col">Term</th>
-                  <th scope="col">Used by</th>
-                  <th scope="col">Your listing</th>
-                  {#if canWrite}<th scope="col"><span class="visually-hidden">Track</span></th>{/if}
-                </tr>
-              </thead>
-              <tbody>
-                {#each d.gaps as g (g.term)}
-                  {@const status = fitStatusInfo[g.ourStatus]}
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([countOf(d.gaps.length, 'gap'), d.locale, countOf(d.competitors, 'competitor') + ' read']) : ''}>
+        <div class="stack">
+          <div class="row head">
+            {#if d}
+              <span class="muted">{d.locale}: {d.competitors} {d.competitors === 1 ? 'competitor' : 'competitors'} read</span>
+              <InfoTip label="About these gaps" align="start">
+                <p class="tip">
+                  Terms competitors put in their names, subtitles or descriptions that your searched fields do not hold. It compares stored texts only; it does not know what people search for.
+                </p>
+                {#if d.notes.length > 0}
+                  <ul class="plain">{#each d.notes as n (n)}<li>{n}</li>{/each}</ul>
+                {/if}
+              </InfoTip>
+            {/if}
+          </div>
+          {#if errors[app.id]}
+            <Alert tone="error">{errors[app.id]}</Alert>
+          {:else if d && d.competitors === 0}
+            <p class="none"><a href={asoViewHref(app.id, 'competitors', address.platform)}>Follow a competitor</a> to see which terms it uses that you do not.</p>
+          {:else if d && d.gaps.length === 0}
+            <p class="none">No gaps found: your listing has the terms the competitors use.</p>
+          {:else if d}
+            <div class="table-wrap">
+              <table class="compact">
+                <thead>
                   <tr>
-                    <th scope="row" class="term">{g.term} {#if g.origin === 'tracked'}<Badge tone="info">Tracked</Badge>{/if}</th>
-                    <td>
-                      {#if g.inTitle.length > 0}
-                        <span title="In the name or subtitle">{usedBy(app, g.inTitle)}</span>
-                        <span class="muted">(name or subtitle)</span>
-                      {:else}
-                        <span>{usedBy(app, g.inDescription)}</span> <span class="muted">(description)</span>
-                      {/if}
-                    </td>
-                    <td><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{status.label}</Badge></td>
-                    {#if canWrite}
-                      <td class="actions">
-                        {#if g.origin === 'idea'}
-                          <Button size="sm" icon="plus" loading={busy === `${app.id}|${g.term}`} onclick={() => track(app, d, g.term)}>Track</Button>
+                    <th scope="col">Term</th>
+                    <th scope="col">Used by</th>
+                    <th scope="col">Your listing</th>
+                    {#if canWrite}<th scope="col"><span class="visually-hidden">Track</span></th>{/if}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each d.gaps as g (g.term)}
+                    {@const status = fitStatusInfo[g.ourStatus]}
+                    <tr>
+                      <th scope="row" class="term">{g.term} {#if g.origin === 'tracked'}<Badge tone="info">Tracked</Badge>{/if}</th>
+                      <td>
+                        {#if g.inTitle.length > 0}
+                          <span title="In the name or subtitle">{usedBy(app, g.inTitle)}</span>
+                          <span class="muted">(name or subtitle)</span>
+                        {:else}
+                          <span>{usedBy(app, g.inDescription)}</span> <span class="muted">(description)</span>
                         {/if}
                       </td>
-                    {/if}
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
-      </section>
+                      <td><Badge tone={status.tone} icon={status.tone === 'ok' ? 'check-circle' : status.tone === 'bad' ? 'x-circle' : 'alert-triangle'}>{status.label}</Badge></td>
+                      {#if canWrite}
+                        <td class="actions">
+                          {#if g.origin === 'idea'}
+                            <Button size="sm" icon="plus" loading={busy === `${app.id}|${g.term}`} onclick={() => track(app, d, g.term)}>Track</Button>
+                          {/if}
+                        </td>
+                      {/if}
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </div>
+      </Section>
     {/each}
   {/if}
 </div>

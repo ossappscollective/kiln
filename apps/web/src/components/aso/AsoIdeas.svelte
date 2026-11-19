@@ -23,12 +23,14 @@
   } from '../../lib/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { countOf, summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import type { AppSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
 
@@ -53,7 +55,6 @@
   } = $props();
 
   const uid = $props.id();
-  const multi = $derived(members.length > 1);
   const locales = $derived(localesOf(keywords));
   /** '' lets the server pick the locale most keywords use. */
   let locale = $state('');
@@ -133,58 +134,59 @@
   {:else}
     {#each members as app (app.id)}
       {@const d = data[app.id]}
-      <section class="stack" aria-label="{platformLabel(app.platform)} ideas">
-        <div class="row head">
-          {#if multi}<h3 class="phead">{platformLabel(app.platform)}</h3>{/if}
-          {#if d}
-            <span class="muted">{d.locale}: from {ideaSourceText(d.basedOn)}</span>
-            <InfoTip label="About these ideas" align="start">
-              <p class="tip">
-                Phrases that occur at least twice in the texts the server holds (your live listing and the competitors you follow) and are not tracked yet. The order is a frequency
-                in those texts. It is not a search volume or a popularity: no free store source publishes one.
-              </p>
-              {#if d.notes.length > 0}
-                <ul class="plain">{#each d.notes as n (n)}<li>{n}</li>{/each}</ul>
-              {/if}
-            </InfoTip>
+      <Section title={platformLabel(app.platform)} key="platform.{app.platform}" variant="plain" summary={d ? summaryLine([countOf(d.ideas.length, 'idea'), d.locale]) : ''}>
+        <div class="stack">
+          <div class="row head">
+            {#if d}
+              <span class="muted">{d.locale}: from {ideaSourceText(d.basedOn)}</span>
+              <InfoTip label="About these ideas" align="start">
+                <p class="tip">
+                  Phrases that occur at least twice in the texts the server holds (your live listing and the competitors you follow) and are not tracked yet. The order is a frequency
+                  in those texts. It is not a search volume or a popularity: no free store source publishes one.
+                </p>
+                {#if d.notes.length > 0}
+                  <ul class="plain">{#each d.notes as n (n)}<li>{n}</li>{/each}</ul>
+                {/if}
+              </InfoTip>
+            {/if}
+          </div>
+          {#if errors[app.id]}
+            <Alert tone="error">{errors[app.id]}</Alert>
+          {:else if d && d.ideas.length === 0}
+            <p class="none">
+              No ideas yet. {#if !d.basedOn.ownListing}Sync the app to read its listing. {/if}{#if d.basedOn.competitors === 0}<a href={asoViewHref(app.id, 'competitors', address.platform)}>Follow a competitor</a> to give it more text.{/if}
+            </p>
+          {:else if d}
+            {@const texts = ideaTexts(d.basedOn)}
+            <div class="table-wrap">
+              <table class="compact">
+                <thead>
+                  <tr>
+                    <th scope="col">Idea</th>
+                    <th scope="col">Why</th>
+                    <th scope="col" class="num">Score</th>
+                    {#if canWrite}<th scope="col"><span class="visually-hidden">Track</span></th>{/if}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each d.ideas as idea (idea.term)}
+                    <tr>
+                      <th scope="row" class="term">{idea.term} {#if idea.words > 1}<Badge>{idea.words} words</Badge>{/if}</th>
+                      <td class="muted">{ideaWhy(idea, texts)}</td>
+                      <td class="num" title="A frequency in the stored texts, not a search volume">{idea.localScore}</td>
+                      {#if canWrite}
+                        <td class="actions">
+                          <Button size="sm" icon="plus" loading={busy === `${app.id}|${idea.term}`} onclick={() => track(app, d, idea.term)}>Track</Button>
+                        </td>
+                      {/if}
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
           {/if}
         </div>
-        {#if errors[app.id]}
-          <Alert tone="error">{errors[app.id]}</Alert>
-        {:else if d && d.ideas.length === 0}
-          <p class="none">
-            No ideas yet. {#if !d.basedOn.ownListing}Sync the app to read its listing. {/if}{#if d.basedOn.competitors === 0}<a href={asoViewHref(app.id, 'competitors', address.platform)}>Follow a competitor</a> to give it more text.{/if}
-          </p>
-        {:else if d}
-          {@const texts = ideaTexts(d.basedOn)}
-          <div class="table-wrap">
-            <table class="compact">
-              <thead>
-                <tr>
-                  <th scope="col">Idea</th>
-                  <th scope="col">Why</th>
-                  <th scope="col" class="num">Score</th>
-                  {#if canWrite}<th scope="col"><span class="visually-hidden">Track</span></th>{/if}
-                </tr>
-              </thead>
-              <tbody>
-                {#each d.ideas as idea (idea.term)}
-                  <tr>
-                    <th scope="row" class="term">{idea.term} {#if idea.words > 1}<Badge>{idea.words} words</Badge>{/if}</th>
-                    <td class="muted">{ideaWhy(idea, texts)}</td>
-                    <td class="num" title="A frequency in the stored texts, not a search volume">{idea.localScore}</td>
-                    {#if canWrite}
-                      <td class="actions">
-                        <Button size="sm" icon="plus" loading={busy === `${app.id}|${idea.term}`} onclick={() => track(app, d, idea.term)}>Track</Button>
-                      </td>
-                    {/if}
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
-      </section>
+      </Section>
     {/each}
   {/if}
 </div>
@@ -216,11 +218,5 @@
     padding: 0;
     margin: 0;
     list-style: none;
-  }
-  .phead {
-    margin: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    color: var(--muted);
   }
 </style>
