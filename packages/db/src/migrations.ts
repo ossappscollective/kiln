@@ -1233,4 +1233,35 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 26,
+    name: 'staged asset blobs (images uploaded or fixed here, kept until pushed or removed)',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // staged_asset_blobs: the bytes of an image a person uploaded (or fixed in the app) to a staged set of
+      // graphics, see docs/adr/0012-assets-two-way-sync.md. A staged_changes row of `source = 'local'` and `kind = 'asset'`
+      // points at its blob by (app_id, oid): `value_hash` of the row is the git blob id of the bytes, so the push
+      // checks them exactly as it checks a file of the repository. The bytes are base64 text (the database layer has
+      // no binary parameter, like app_icons), at most 8 MiB of image per row and 64 MiB per app (enforced in code).
+      // sha256 is kept for the store comparison and for the preview. No foreign key on app_id (like the other staged
+      // tables): deleting an app deletes its blobs in code. A blob nothing refers to any more is deleted by the code
+      // that removes a staged row. Bytes are never audited, logged or put in an event.
+      return [
+        `CREATE TABLE IF NOT EXISTS staged_asset_blobs (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           oid TEXT NOT NULL,
+           sha256 TEXT NOT NULL,
+           size INTEGER NOT NULL,
+           media_type TEXT NOT NULL,
+           data TEXT NOT NULL,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL
+         )`,
+        'CREATE UNIQUE INDEX IF NOT EXISTS staged_asset_blobs_oid_idx ON staged_asset_blobs (app_id, oid)',
+        'CREATE INDEX IF NOT EXISTS staged_asset_blobs_workspace_idx ON staged_asset_blobs (workspace_id, app_id)',
+      ];
+    },
+  },
 ];

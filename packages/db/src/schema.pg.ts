@@ -1247,3 +1247,31 @@ export const asoAppState = pgTable(
   },
   (t) => [index('aso_app_state_workspace_idx').on(t.workspaceId)],
 );
+
+/**
+ * The bytes of an image uploaded or fixed in the app for a staged set of graphics (see migration 26 and
+ * docs/adr/0012-assets-two-way-sync.md). base64 text; the staged row refers to it by (app_id, oid).
+ */
+export const stagedAssetBlobs = pgTable(
+  'staged_asset_blobs',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id').notNull(),
+    /** The git blob id of the bytes: the `value_hash` of the staged rows that use it. */
+    oid: text('oid').notNull(),
+    sha256: text('sha256').notNull(),
+    size: integer('size').notNull(),
+    mediaType: text('media_type').notNull(),
+    /** The image bytes in base64 (at most 8 MiB of image). */
+    data: text('data').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('staged_asset_blobs_oid_idx').on(t.appId, t.oid),
+    index('staged_asset_blobs_workspace_idx').on(t.workspaceId, t.appId),
+  ],
+);
