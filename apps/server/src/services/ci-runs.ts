@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CiRun } from '@mrm/connectors';
 import type { Sql } from '@mrm/db';
 import { purgeConventionOrphans } from './build-conventions.ts';
+import { emitEvent } from './events.ts';
 
 /**
  * The stored side of CI tracking: `workflow_runs` rows, one per GitHub Actions run of a connected
@@ -24,6 +25,8 @@ export const isActiveStatus = (status: string): boolean =>
 export const PENDING_DISPATCH_TTL_MS = 10 * 60_000;
 /** Finished runs older than this are deleted, unless a build link names them. */
 export const RUN_RETENTION_MS = 90 * 24 * 60 * 60_000;
+/** A run that finished and was first seen finished within this long is still announced (`ci.run_finished`). */
+export const RECENT_FINISH_EVENT_MS = 15 * 60_000;
 /** Runs read from GitHub per refresh (one page). */
 export const REFRESH_PAGE_SIZE = 50;
 
@@ -104,6 +107,32 @@ export const firstLine = (message: string | undefined): string | null => {
   return line ? line.slice(0, 200) : null;
 };
 
+/**
+ * `ci.run_started` and `ci.run_finished`: ids only (the run, its repository, its app), plus the
+ * conclusion word on a finish. Never a title, a branch, an input or a person. A run that is
+ * first seen already finished (history read for the first time) is not announced, unless it
+ * finished within `RECENT_FINISH_EVENT_MS`, which means it ran between two reads.
+ */
+async function announce(
+  sql: Sql,
+  run: { workspaceId: string; repositoryId: string; appId: string | null; runId: string; at: number },
+  kind: 'started' | 'finished',
+  conclusion?: string | null,
+): Promise<void> {
+  await emitEvent(sql, {
+    workspaceId: run.workspaceId,
+    type: kind === 'started' ? 'ci.run_started' : 'ci.run_finished',
+    subject: { repositoryId: run.repositoryId, ...(run.appId ? { appId: run.appId } : {}) },
+    payload: {
+      runId: run.runId,
+      repositoryId: run.repositoryId,
+      appId: run.appId,
+      ...(kind === 'finished' ? { conclusion: conclusion ?? null } : {}),
+    },
+    at: run.at,
+  });
+}
+
 export type RunFilter = {
   /** A workflow path, its file name, or its name. */
   workflow?: string | undefined;
@@ -158,6 +187,35 @@ export async function getRunView(
   return row ? toRunView(row) : undefined;
 }
 
+/**
+ * The runs of several repositories at once, for the "running now" list: every run that has not
+ * finished (newest first, at most `activeLimit`), and every run that finished at or after
+ * `finishedSince` (newest first, at most `finishedLimit`). Reads only our own table.
+ */
+export async function listWorkspaceRuns(
+  sql: Sql,
+  workspaceId: string,
+  repositoryIds: readonly string[],
+  options: { finishedSince: number; activeLimit?: number; finishedLimit?: number },
+): Promise<{ active: WorkflowRunView[]; finished: WorkflowRunView[] }> {
+  if (repositoryIds.length === 0) return { active: [], finished: [] };
+  const repos = repositoryIds.map(() => '?').join(', ');
+  const marks = ACTIVE_STATUSES.map(() => '?').join(', ');
+  const active = await sql.query(
+    `SELECT ${RUN_COLUMNS} FROM workflow_runs
+      WHERE workspace_id = ? AND repository_id IN (${repos}) AND status IN (${marks})
+      ORDER BY started_at DESC, id DESC LIMIT ?`,
+    [workspaceId, ...repositoryIds, ...ACTIVE_STATUSES, options.activeLimit ?? 100],
+  );
+  const finished = await sql.query(
+    `SELECT ${RUN_COLUMNS} FROM workflow_runs
+      WHERE workspace_id = ? AND repository_id IN (${repos}) AND status = 'completed' AND run_updated_at >= ?
+      ORDER BY run_updated_at DESC, id DESC LIMIT ?`,
+    [workspaceId, ...repositoryIds, options.finishedSince, options.finishedLimit ?? 200],
+  );
+  return { active: active.map(toRunView), finished: finished.map(toRunView) };
+}
+
 /** How many runs of the repository are not finished (pending dispatches included). */
 export async function countActiveRuns(
   sql: Sql,
@@ -207,6 +265,9 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
       [d.appId, inputsJson, d.dispatchedBy, String(existing.id), d.workspaceId],
     );
   } else {
+    if (d.runId) {
+      await announce(sql, { workspaceId: d.workspaceId, repositoryId: d.repositoryId, appId: d.appId, runId, at: d.now }, 'started');
+    }
     await sql.execute(
       `INSERT INTO workflow_runs
          (id, workspace_id, repository_id, app_id, run_id, workflow, workflow_path, status, branch,
@@ -235,7 +296,7 @@ export async function recordDispatch(sql: Sql, d: PendingDispatch): Promise<Work
   return view as WorkflowRunView;
 }
 
-type PendingRow = { id: string; workflow: string; branch: string | null; startedAt: number };
+type PendingRow = { id: string; appId: string | null; workflow: string; branch: string | null; startedAt: number };
 
 /** Does this run look like the one a pending dispatch of `workflow` on `ref` started? */
 function fitsPending(run: CiRun, pending: PendingRow): boolean {
@@ -275,13 +336,14 @@ export async function storeRuns(
     [workspaceId, repositoryId, now - PENDING_DISPATCH_TTL_MS],
   );
   const pendingRows = await sql.query(
-    `SELECT id, workflow, branch, started_at FROM workflow_runs
+    `SELECT id, app_id, workflow, branch, started_at FROM workflow_runs
       WHERE workspace_id = ? AND repository_id = ? AND status = 'pending'
       ORDER BY started_at, id`,
     [workspaceId, repositoryId],
   );
   const pending: PendingRow[] = pendingRows.map((p) => ({
     id: String(p.id),
+    appId: orNull(p.app_id, String),
     workflow: String(p.workflow),
     branch: orNull(p.branch, String),
     startedAt: Number(p.started_at),
@@ -313,12 +375,17 @@ export async function storeRuns(
       commit_message = ?, branch = ?, event = ?, run_number = ?, url = ?, started_at = ?,
       run_updated_at = ?, synced_at = ?`;
     const [existing] = await sql.query(
-      'SELECT id FROM workflow_runs WHERE repository_id = ? AND run_id = ?',
+      'SELECT id, status, app_id FROM workflow_runs WHERE repository_id = ? AND run_id = ?',
       [repositoryId, run.id],
     );
+    const about = (appId: string | null) => ({ workspaceId, repositoryId, appId, runId: run.id, at: now });
+    const finishedNow = run.status === 'completed';
     if (existing) {
       await sql.execute(`UPDATE workflow_runs SET ${set} WHERE id = ?`, [...values, String(existing.id)]);
       result.updated++;
+      if (finishedNow && isActiveStatus(String(existing.status))) {
+        await announce(sql, about(orNull(existing.app_id, String)), 'finished', run.conclusion ?? null);
+      }
       continue;
     }
     const claimed = pending.findIndex((p) => fitsPending(run, p));
@@ -330,6 +397,8 @@ export async function storeRuns(
         taken.id,
       ]);
       result.adopted++;
+      await announce(sql, about(taken.appId), 'started');
+      if (finishedNow) await announce(sql, about(taken.appId), 'finished', run.conclusion ?? null);
       continue;
     }
     await sql.execute(
@@ -341,6 +410,11 @@ export async function storeRuns(
       [randomUUID(), workspaceId, repositoryId, run.id, ...values],
     );
     result.added++;
+    if (!finishedNow) await announce(sql, about(null), 'started');
+    else if (now - (run.updatedAt ?? startedAt) <= RECENT_FINISH_EVENT_MS) {
+      await announce(sql, about(null), 'started');
+      await announce(sql, about(null), 'finished', run.conclusion ?? null);
+    }
   }
   return result;
 }

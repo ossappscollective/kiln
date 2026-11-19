@@ -16,12 +16,15 @@ import {
   listAppBuilds,
   listRepositoryTags,
   listWorkflows,
+  cachedRunJobs,
+  readRunJobs,
   refreshRuns,
   rematchBuilds,
   setConventions,
   unlinkBuild,
 } from '../services/ci.ts';
 import { conventionsBody } from '../services/build-conventions.ts';
+import { listActiveRuns } from '../services/ci-active.ts';
 import { countActiveRuns, getRunView, listRuns } from '../services/ci-runs.ts';
 import { type Failure, getRepository } from '../services/repositories.ts';
 
@@ -95,6 +98,37 @@ export function ciRoutes(ctx: CiContext) {
     return c.json({ workflows: done.workflows, cached: done.cached });
   });
 
+  // ----- running now (workspace wide) -----------------------------------------------------------
+
+  // Every repository's runs that have not finished, and those finished in the last day. Stored runs for
+  // everybody who may read; a member or admin also refreshes them from GitHub (cached for seconds,
+  // rate limited per workspace). An API token limited to some apps sees only their repositories' runs.
+  app.get('/:workspaceId/ci/runs/active', needs('repositories.read'), async (c) => {
+    const raw = c.req.query('repositoryId');
+    let repositoryIds: string[] | undefined;
+    if (raw !== undefined) {
+      repositoryIds = raw.split(',').map((v) => v.trim()).filter((v) => v !== '');
+      if (repositoryIds.length === 0 || repositoryIds.length > 50 || repositoryIds.some((v) => v.length > 100)) {
+        return invalid(c, 'repositoryId', 'Up to 50 repository ids, comma separated.');
+      }
+    }
+    const wait = ctx.activeLimiter.take(ws(c));
+    if (wait > 0) {
+      return respond(c, {
+        ok: false,
+        status: 429,
+        body: { error: 'rate_limited', message: `Too many requests. Try again in ${wait} seconds.`, retryAfterSeconds: wait },
+        headers: { 'Retry-After': String(wait) },
+      });
+    }
+    const answer = await listActiveRuns(
+      ctx,
+      { workspaceId: ws(c), canScan: canScan(c), repositoryIds, appIds: c.get('token')?.appIds ?? null },
+      actor(c),
+    );
+    return c.json(answer);
+  });
+
   // ----- runs (registered before /:workflow/..., so "runs" is never read as a workflow) ------
 
   app.get('/:workspaceId/repositories/:id/workflows/runs', needs('repositories.read'), async (c) => {
@@ -145,6 +179,28 @@ export function ciRoutes(ctx: CiContext) {
     if (!canScan(c)) return notFound(c);
     const done = await fetchRun(ctx, { workspaceId: ws(c), repository, runId }, actor(c));
     return done.ok ? c.json({ run: done.run }) : respond(c, done);
+  });
+
+  // Jobs and steps of a run (names, states, times; never logs). A member or admin reads them from GitHub
+  // (kept 10 seconds while the run is going); a viewer sees what was read lately, which may be nothing.
+  app.get('/:workspaceId/repositories/:id/workflows/runs/:runId/jobs', needs('repositories.read'), async (c) => {
+    const repository = await getRepository(db, ws(c), param(c, 'id'));
+    if (!repository) return notFound(c);
+    const runId = param(c, 'runId');
+    if (!RUN_ID.test(runId)) return invalid(c, 'runId', 'A run id is a number.');
+    const stored = await getRunView(db, ws(c), repository.id, runId);
+    if (!canScan(c)) {
+      if (!stored) return notFound(c);
+      const seen = cachedRunJobs(repository.id, runId, ctx.now());
+      return c.json({ runId, jobs: seen?.jobs ?? [], truncated: seen?.truncated ?? false, readAt: seen?.readAt ?? null, cached: true, live: false });
+    }
+    const done = await readRunJobs(
+      ctx,
+      { workspaceId: ws(c), repository, runId, active: stored?.active ?? true },
+      actor(c),
+    );
+    if (!done.ok) return respond(c, done);
+    return c.json({ runId, jobs: done.jobs.jobs, truncated: done.jobs.truncated, readAt: done.jobs.readAt, cached: done.cached, live: true });
   });
 
   app.get('/:workspaceId/repositories/:id/workflows/:workflow/inputs', needs('repositories.scan'), async (c) => {

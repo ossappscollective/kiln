@@ -1,6 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import type {
+  CiJob,
+  CiJobList,
   CiRun,
+  CiRunPage,
   CiWorkflow,
   CommitComparison,
   CommitDetail,
@@ -13,6 +16,7 @@ import type { Database } from '@mrm/db';
 import { bootRepoApp } from './repo-test-helpers.ts';
 import type { AppDeps } from './app.ts';
 import { type CiClient, clearCiCaches, createCiContext } from './services/ci.ts';
+import { clearActiveCaches } from './services/ci-active.ts';
 
 /** Shared by ci.test.ts and scheduler.test.ts. Not a test file itself. */
 
@@ -25,6 +29,25 @@ export const workflow = (path: string, name: string, id = path.length * 1000): C
   name,
   path,
   state: 'active',
+});
+
+export const job = (id: string, name: string, status: string, steps: [string, string][] = [], extra: Partial<CiJob> = {}): CiJob => ({
+  id,
+  name,
+  status,
+  conclusion: status === 'completed' ? 'success' : null,
+  startedAt: status === 'queued' ? null : 1_800_000_000_000,
+  completedAt: status === 'completed' ? 1_800_000_060_000 : null,
+  url: `https://github.com/acme/app/actions/runs/1/job/${id}`,
+  steps: steps.map(([stepName, stepStatus], i) => ({
+    number: i + 1,
+    name: stepName,
+    status: stepStatus,
+    conclusion: stepStatus === 'completed' ? 'success' : null,
+    startedAt: stepStatus === 'queued' ? null : 1_800_000_000_000,
+    completedAt: stepStatus === 'completed' ? 1_800_000_010_000 : null,
+  })),
+  ...extra,
 });
 
 export const run = (id: string, extra: Partial<CiRun> = {}): CiRun => ({
@@ -52,6 +75,10 @@ export class FakeCi implements CiClient {
     workflow('.github/workflows/android.yml', 'Android release', 2),
   ];
   runs: CiRun[] = [];
+  /** The jobs of each run id, for `listRunJobs`. */
+  jobs = new Map<string, CiJob[]>();
+  /** When true the fake answers with ETags (a hash of what it would send) and 304s, like GitHub. Off by default so a test may change `runs` freely. */
+  etagging = false;
   files = new Map<string, string>();
   comparison: CommitComparison = {
     status: 'ahead',
@@ -80,6 +107,7 @@ export class FakeCi implements CiClient {
     tags: unknown[];
     releases: unknown[];
     commits: unknown[];
+    jobs: unknown[];
   } = {
     workflows: [],
     runs: [],
@@ -89,6 +117,7 @@ export class FakeCi implements CiClient {
     tags: [],
     releases: [],
     commits: [],
+    jobs: [],
   };
   calls: { name: string; args: unknown[] }[] = [];
   dispatches: { workflow: string; ref: string; inputs?: Record<string, string> | undefined }[] = [];
@@ -135,6 +164,25 @@ export class FakeCi implements CiClient {
     if (error) throw error;
     return this.runs.slice(0, options.limit ?? 30);
   }
+  async listCiRunsPage(options: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined } = {}): Promise<CiRunPage> {
+    const runs = await this.listCiRuns(options);
+    if (!this.etagging) return { runs, notModified: false };
+    const etag = `W/"${Buffer.from(JSON.stringify(runs)).toString('base64').slice(-24)}${runs.length}"`;
+    if (options.etag === etag) return { runs: [], notModified: true, etag };
+    return { runs, notModified: false, etag };
+  }
+  async listRunJobs(runId: string, options: { signal?: AbortSignal; etag?: string | undefined } = {}): Promise<CiJobList> {
+    this.calls.push({ name: 'listRunJobs', args: [runId, options.etag] });
+    this.signals.push(options.signal);
+    const error = this.errors.jobs.shift();
+    if (error) throw error;
+    const jobs = this.jobs.get(runId);
+    if (!jobs) return { jobs: [], notModified: false, truncated: false, missing: true };
+    if (!this.etagging) return { jobs, notModified: false, truncated: false };
+    const etag = `W/"${JSON.stringify(jobs).length}-${jobs.map((j) => j.status + j.steps.map((x) => x.status).join('')).join('')}"`;
+    if (options.etag === etag) return { jobs: [], notModified: true, truncated: false, etag };
+    return { jobs, notModified: false, truncated: false, etag };
+  }
   async getCiRun(runId: string, signal?: AbortSignal) {
     this.calls.push({ name: 'getCiRun', args: [runId] });
     this.signals.push(signal);
@@ -179,6 +227,7 @@ export class FakeCi implements CiClient {
 /** The server with a fake GitHub and one connected repository (acme/app, with a token credential). */
 export async function bootCi(db: Database, ci: NonNullable<AppDeps['ci']> = {}, overrides: Partial<AppDeps> = {}) {
   clearCiCaches();
+  clearActiveCaches();
   const fake = new FakeCi();
   const masterKey = randomBytes(32);
   const t = await bootRepoApp(db, undefined, { masterKey, connectorFactory: () => fake, ci, ...overrides });

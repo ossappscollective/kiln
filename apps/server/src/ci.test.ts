@@ -452,15 +452,16 @@ dbTest('ci.poll keeps polling with a growing delay while a run is active, then s
   let next = await queued();
   assert.equal(next.length, 1);
   assert.equal(next[0]?.payload.attempt, 1);
-  assert.equal(next[0]?.runAt, clock.now + 10_000, 'first delay 10 seconds');
+  assert.equal(next[0]?.runAt, clock.now + 15_000, 'first delay 15 seconds');
   await db.execute('DELETE FROM jobs');
 
   clock.now += 10_000;
   await handler({ ...payload, attempt: 3 }, job);
   next = await queued();
   assert.equal(next[0]?.runAt, clock.now + pollDelayMs(3));
-  assert.equal(pollDelayMs(3), 33_750);
-  assert.equal(pollDelayMs(5), 60_000);
+  assert.equal(pollDelayMs(0), 15_000);
+  assert.equal(pollDelayMs(3), 50_625);
+  assert.equal(pollDelayMs(4), 60_000);
   assert.equal(pollDelayMs(30), 60_000, 'never longer than a minute');
   await db.execute('DELETE FROM jobs');
 

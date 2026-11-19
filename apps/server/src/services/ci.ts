@@ -1,6 +1,9 @@
 import { type ActorType, DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS, type Platform } from '@mrm/core';
 import type {
+  CiJob,
+  CiJobList,
   CiRun,
+  CiRunPage,
   CiWorkflow,
   CommitComparison,
   DispatchResult,
@@ -81,6 +84,8 @@ export const MIN_REFRESH_MS = 8_000;
 export const COMPARE_CACHE_TTL_MS = 10 * 60_000;
 /** `ci.poll` stops after this long, even when a run is still going. GitHub runs end within 6 hours. */
 export const DEFAULT_POLL_MAX_MS = 3 * 60 * 60_000;
+/** Reads of the workspace-wide "running now" list per workspace per minute (cached answers count too). */
+export const ACTIVE_LIMIT_PER_MINUTE = 60;
 /** Dispatches per workspace per minute (a refused one counts too). Reads are cached and spaced instead. */
 export const CI_LIMIT_PER_MINUTE = 10;
 /** "Re-run matching" requests per workspace per minute. */
@@ -94,18 +99,21 @@ export type CiContext = RepoContext & {
   limiter: TestLimiter;
   /** Re-run matching reads several things from GitHub: its own, smaller budget per workspace. */
   rematchLimiter: TestLimiter;
+  /** Reads of `GET /ci/runs/active` per workspace. */
+  activeLimiter: TestLimiter;
   matchers: BuildMatcher[];
   pollMaxMs: number;
 };
 
 export function createCiContext(
   base: RepoContext,
-  options: Partial<Pick<CiContext, 'limiter' | 'rematchLimiter' | 'matchers' | 'pollMaxMs'>> = {},
+  options: Partial<Pick<CiContext, 'limiter' | 'rematchLimiter' | 'activeLimiter' | 'matchers' | 'pollMaxMs'>> = {},
 ): CiContext {
   return {
     ...base,
     limiter: options.limiter ?? createTestLimiter({ limit: CI_LIMIT_PER_MINUTE, now: base.now }),
     rematchLimiter: options.rematchLimiter ?? createTestLimiter({ limit: REMATCH_LIMIT_PER_MINUTE, now: base.now }),
+    activeLimiter: options.activeLimiter ?? createTestLimiter({ limit: ACTIVE_LIMIT_PER_MINUTE, now: base.now }),
     matchers: options.matchers ?? defaultMatchers(),
     pollMaxMs: options.pollMaxMs ?? DEFAULT_POLL_MAX_MS,
   };
@@ -124,6 +132,12 @@ export type CiClient = RepoClient &
     listWorkflows(signal?: AbortSignal): Promise<CiWorkflow[]>;
     listCiRuns(options?: ListWorkflowRunsOptions & { signal?: AbortSignal }): Promise<CiRun[]>;
     getCiRun(runId: string, signal?: AbortSignal): Promise<CiRun | undefined>;
+    /** Conditional read of the runs (ETag). A client without it is read with `listCiRuns` every time. */
+    listCiRunsPage?(
+      options?: ListWorkflowRunsOptions & { signal?: AbortSignal; etag?: string | undefined },
+    ): Promise<CiRunPage>;
+    /** The jobs and steps of a run (no logs). A client without it cannot show job progress. */
+    listRunJobs?(runId: string, options?: { signal?: AbortSignal; etag?: string | undefined }): Promise<CiJobList>;
     compareCommits(
       base: string,
       head: string,
@@ -141,9 +155,9 @@ const isCiClient = (c: RepoClient): c is CiClient => {
   );
 };
 
-type Opened = { client: CiClient; secret: string };
+export type Opened = { client: CiClient; secret: string };
 
-async function openCi(
+export async function openCi(
   ctx: CiContext,
   workspaceId: string,
   repository: Repository,
@@ -169,7 +183,7 @@ async function openCi(
 }
 
 /** Runs one GitHub read under the request time limit; a timeout also cancels the request. */
-async function guarded<T>(
+export async function guarded<T>(
   ctx: CiContext,
   secret: string,
   work: (signal: AbortSignal) => Promise<T>,
@@ -203,6 +217,14 @@ const previewCache = timedCache<RepositoryTags>(WORKFLOW_CACHE_TTL_MS, 50);
 const lastAttempt = new Map<string, number>();
 const lastSuccess = new Map<string, number>();
 const refreshing = new Map<string, Promise<Outcome<{ refreshed: boolean; refreshedAt: number | null }>>>();
+/** The ETag of the last read of a repository's runs (the first page), so the next read can be conditional. */
+const runEtags = new Map<string, string>();
+/** The run ids of that page, for a 304 (which carries no runs): an active run not among them is asked for one by one. */
+const runPageIds = new Map<string, Set<string>>();
+/** Who started a run on GitHub. The table has no column for it, so it is kept for a day in memory. */
+const actorCache = timedCache<string>(24 * 60 * 60_000, 2_000);
+const jobsStore = timedCache<JobsEntry>(30 * 60_000, 500);
+const jobsInFlight = new Map<string, Promise<Outcome<{ jobs: RunJobs; cached: boolean }>>>();
 
 /** For tests. */
 export function clearCiCaches(): void {
@@ -214,6 +236,24 @@ export function clearCiCaches(): void {
   lastAttempt.clear();
   lastSuccess.clear();
   refreshing.clear();
+  runEtags.clear();
+  runPageIds.clear();
+  jobsStore.clear();
+  jobsInFlight.clear();
+  actorCache.clear();
+}
+
+/** When the runs of a repository were last asked for (a try counts, as does a failure), or undefined. */
+export const lastRefreshAttempt = (repositoryId: string): number | undefined => lastAttempt.get(repositoryId);
+/** When the runs of a repository were last read from GitHub successfully, or undefined. */
+export const lastRefreshSuccess = (repositoryId: string): number | undefined => lastSuccess.get(repositoryId);
+
+/** The GitHub login that started a run, when a read since the last restart saw it. */
+export const runActor = (repositoryId: string, runId: string, now: number): string | null =>
+  actorCache.get(`${repositoryId}\u0000${runId}`, now) ?? null;
+
+function rememberActors(repositoryId: string, runs: readonly CiRun[], now: number): void {
+  for (const run of runs) if (run.actor) actorCache.set(`${repositoryId}\u0000${run.id}`, run.actor, now);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -424,9 +464,21 @@ async function readRuns(
   if (!opened.ok) return opened;
   const { client } = opened;
   const read = await guarded(ctx, opened.secret, async (signal) => {
-    const runs = await client.listCiRuns({ limit: REFRESH_PAGE_SIZE, signal });
+    // A conditional read when the client can: GitHub answers 304 (free of the rate limit) while nothing changed.
+    let runs: CiRun[];
+    let notModified = false;
+    let etag: string | undefined;
+    if (client.listCiRunsPage) {
+      const page = await client.listCiRunsPage({ limit: REFRESH_PAGE_SIZE, signal, etag: runEtags.get(repository.id) });
+      runs = page.runs;
+      notModified = page.notModified;
+      etag = page.etag;
+    } else {
+      runs = await client.listCiRuns({ limit: REFRESH_PAGE_SIZE, signal });
+    }
     // Active runs that fell off the page (a busy repository) are asked for one by one.
-    const seen = new Set(runs.map((r) => r.id));
+    const seen = notModified ? (runPageIds.get(repository.id) ?? new Set<string>()) : new Set(runs.map((r) => r.id));
+    if (!notModified) runPageIds.set(repository.id, seen);
     const stale = await ctx.db.query(
       `SELECT run_id FROM workflow_runs
         WHERE workspace_id = ? AND repository_id = ? AND status IN ('queued', 'in_progress', 'waiting', 'requested')`,
@@ -439,12 +491,15 @@ async function readRuns(
     }
     const settled: { id: string; run: CiRun | undefined }[] = [];
     for (const id of missing) settled.push({ id, run: await client.getCiRun(id, signal) });
-    return { runs, settled };
+    return { runs, settled, notModified, etag };
   });
   if (!read.ok) return read;
+  if (read.value.etag) runEtags.set(repository.id, read.value.etag);
+  else runEtags.delete(repository.id);
 
   const now = ctx.now();
   const fetched = [...read.value.runs, ...read.value.settled.flatMap((s) => (s.run ? [s.run] : []))];
+  rememberActors(repository.id, fetched, now);
   await ctx.db.transaction(async (tx) => {
     await storeRuns(tx, { workspaceId, repositoryId: repository.id, runs: fetched, now });
     for (const gone of read.value.settled.filter((s) => s.run === undefined)) {
@@ -455,6 +510,8 @@ async function readRuns(
         [now, repository.id, gone.id],
       );
     }
+    // Nothing changed on GitHub (a 304) and nothing was settled by hand: there is nothing to prune or to link again.
+    if (read.value.notModified && read.value.settled.length === 0) return;
     await pruneRuns(tx, { workspaceId, repositoryId: repository.id, now });
     const linked = await tx.query(
       'SELECT id FROM apps WHERE workspace_id = ? AND repository_id = ?',
@@ -509,6 +566,7 @@ export async function fetchRun(
   if (!read.ok) return read;
   if (!read.value) return failure(404, 'not_found');
   const now = ctx.now();
+  rememberActors(input.repository.id, [read.value as CiRun], now);
   await ctx.db.transaction((tx) =>
     storeRuns(tx, {
       workspaceId: input.workspaceId,
@@ -519,6 +577,67 @@ export async function fetchRun(
   );
   const run = await getRunView(ctx.db, input.workspaceId, input.repository.id, input.runId);
   return run ? { ok: true, run } : failure(404, 'not_found');
+}
+
+// ---------------------------------------------------------------------------------------------
+// Jobs of a run (what a person following the run sees: names, states, times; never logs)
+
+/** An active run's jobs are read again after this long; a finished run's after `JOBS_TTL_DONE_MS`. */
+export const JOBS_TTL_ACTIVE_MS = 10_000;
+export const JOBS_TTL_DONE_MS = 2 * 60_000;
+
+export type RunJobs = { jobs: CiJob[]; truncated: boolean; readAt: number };
+type JobsEntry = RunJobs & { etag?: string };
+
+const jobsKey = (repositoryId: string, runId: string) => `${repositoryId}\u0000${runId}`;
+
+/** The jobs as last read by anyone (up to 30 minutes ago), without asking GitHub: what a viewer may see. */
+export const cachedRunJobs = (repositoryId: string, runId: string, now: number): RunJobs | null => {
+  const hit = jobsStore.get(jobsKey(repositoryId, runId), now);
+  return hit ? { jobs: hit.jobs, truncated: hit.truncated, readAt: hit.readAt } : null;
+};
+
+/**
+ * Reads the jobs and steps of one run. Kept for 10 seconds while the run is active and 2 minutes
+ * after it finished, two requests at once share one read, and the read is conditional (ETag) so an
+ * unchanged answer is a free 304. Needs a connection that can read CI (`422 ci_unsupported`).
+ */
+export async function readRunJobs(
+  ctx: CiContext,
+  input: { workspaceId: string; repository: Repository; runId: string; active: boolean },
+  actor: Actor,
+): Promise<Outcome<{ jobs: RunJobs; cached: boolean }>> {
+  const key = jobsKey(input.repository.id, input.runId);
+  const ttl = input.active ? JOBS_TTL_ACTIVE_MS : JOBS_TTL_DONE_MS;
+  const entry = jobsStore.get(key, ctx.now());
+  if (entry && ctx.now() - entry.readAt < ttl) {
+    return { ok: true, jobs: { jobs: entry.jobs, truncated: entry.truncated, readAt: entry.readAt }, cached: true };
+  }
+  const running = jobsInFlight.get(key);
+  if (running) return running;
+  const work = (async (): Promise<Outcome<{ jobs: RunJobs; cached: boolean }>> => {
+    const opened = await openCi(ctx, input.workspaceId, input.repository, actor, 'ci.jobs');
+    if (!opened.ok) return opened;
+    const { client } = opened;
+    if (!client.listRunJobs) return failure(422, 'ci_unsupported', 'This repository connection cannot read CI jobs.');
+    const read = await guarded(ctx, opened.secret, (signal) =>
+      (client.listRunJobs as NonNullable<CiClient['listRunJobs']>)(input.runId, { signal, etag: entry?.etag }),
+    );
+    if (!read.ok) return read;
+    const now = ctx.now();
+    const list = read.value;
+    if (list.missing) return failure(404, 'not_found');
+    const value: JobsEntry =
+      list.notModified && entry
+        ? { ...entry, readAt: now }
+        : { jobs: list.jobs, truncated: list.truncated, readAt: now, ...(list.etag ? { etag: list.etag } : {}) };
+    jobsStore.set(key, value, now);
+    return { ok: true, jobs: { jobs: value.jobs, truncated: value.truncated, readAt: now }, cached: false };
+  })().finally(() => {
+    jobsInFlight.delete(key);
+  });
+  jobsInFlight.set(key, work);
+  return work;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -534,8 +653,8 @@ export type CiPollPayload = {
   requestedBy: string;
 };
 
-/** 10 s, 15 s, 22 s, 34 s, 51 s, then a minute. */
-export const pollDelayMs = (attempt: number) => Math.min(Math.round(10_000 * 1.5 ** attempt), 60_000);
+/** 15 s, 22 s, 34 s, 51 s, then a minute. */
+export const pollDelayMs = (attempt: number) => Math.min(Math.round(15_000 * 1.5 ** attempt), 60_000);
 
 /**
  * Queues a poll of a repository's runs, unless one is already waiting for it. A poll that is
