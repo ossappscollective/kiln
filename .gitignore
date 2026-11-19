@@ -10,3 +10,7 @@ target/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/binaries/
 *.bak
+
+# stabilisation run output
+stabilise-report.md
+.stabilise/
