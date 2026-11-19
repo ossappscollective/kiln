@@ -310,12 +310,12 @@ const encoder = new TextEncoder();
 const byteLength = (s: string) => encoder.encode(s).length;
 
 /** English plural folding only for English: `trackers` matches `tracker`. */
-function stem(word: string, language: string): string {
+export function stem(word: string, language: string): string {
   if (language === 'en' && word.length > 3 && word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
   return word;
 }
 
-const matchWords = (text: string | undefined, language: string): string[] =>
+export const matchWords = (text: string | undefined, language: string): string[] =>
   text ? foldedWords(text).map((w) => stem(w, language)) : [];
 
 function countPhrase(haystack: readonly string[], needle: readonly string[]): number {

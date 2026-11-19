@@ -1,14 +1,17 @@
 <!--
   AsoFit: how well the stored live listing covers the tracked keywords, per locale: which of the searched fields have each keyword
   (name, subtitle, keyword field, description; on Android title, short and full description), the weak or missing high priority
-  ones first, and for iOS the hidden keyword field against its 100 byte budget with the duplicates and wasted space.
-  It reads the listing text the server stored (sync the app to refresh it); it never reads a store. Which fields each store
+  ones first, and the keyword budget of the locale (AsoBudget: used and limit of each field, with the waste, the repeats
+  and the storefront hint in a popover). It reads the listing text the server stored (sync the app to refresh it), with
+  any staged text on top; it never reads a store. Which fields each store
   searches is unverified; the tip says so. A suggestion, not advice. Editing happens in the Listing tab.
   Props: api, workspaceId, members, keywords, version.
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
   import { address, replaceHash } from '../../lib/address.svelte.ts';
+  import { coachHref, countriesForLocale, keywordsForLocale, overlayStaged } from '../../lib/aso-budget.ts';
+  import { stagedStore } from '../../lib/staged-store.svelte.ts';
   import {
     type AsoFitResponse,
     type AsoKeyword,
@@ -18,7 +21,6 @@
     fitColumns,
     fitFieldLabels,
     fitStatusInfo,
-    keywordMeter,
     localesOf,
     priorityLabel,
   } from '../../lib/aso.ts';
@@ -30,12 +32,11 @@
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
-  import CopyButton from '../ui/CopyButton.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatChip from '../ui/StatChip.svelte';
+  import AsoBudget from './AsoBudget.svelte';
 
   let {
     api,
@@ -69,6 +70,7 @@
       const bad: Record<string, string | undefined> = {};
       await Promise.all(
         list.map(async (m) => {
+          void stagedStore.load(api, workspaceId, m.id);
           try {
             next[m.id] = await api.asoFit(workspaceId, m.id);
           } catch (e) {
@@ -176,35 +178,20 @@
             </table>
           </div>
 
-          {#if fit.keywordField}
-            {@const kf = fit.keywordField}
-            {@const meter = keywordMeter(kf.bytes, kf.max)}
-            {@const waste = kf.duplicates.length + kf.inTitleOrSubtitle.length}
-            <div class="card kfield stack tight">
-              <div class="row">
-                <strong>Keyword field</strong>
-                <InfoTip label="About the keyword field" text="The hidden App Store keyword field has a budget of 100 bytes (UNVERIFIED here: check it in App Store Connect). Entries whose words are already in the name or subtitle, and repeats, cost space for nothing." />
-                <span class="spacer"></span>
-                <span class="tabular {meter.tone}">{meter.text}</span>
-              </div>
-              <svg class="meter {meter.tone}" viewBox="0 0 100 6" preserveAspectRatio="none" role="meter" aria-valuemin="0" aria-valuemax={kf.max} aria-valuenow={kf.bytes} aria-label="Keyword field budget: {meter.text}">
-                <rect x="0" y="0" width="100" height="6" class="track" />
-                <rect x="0" y="0" width={meter.percent} height="6" class="fill" />
-              </svg>
-              {#if waste > 0 || kf.separatorBytes > 0}
-                <Disclosure summary="Duplicates and waste ({waste} {waste === 1 ? 'entry' : 'entries'}, {kf.savedBytes} bytes to save)" stateKey="aso.kfield.{app.id}">
-                  <ul class="plain waste">
-                    {#if kf.duplicates.length > 0}<li>Repeated: {kf.duplicates.join(', ')}</li>{/if}
-                    {#if kf.inTitleOrSubtitle.length > 0}<li>Already in the name or subtitle: {kf.inTitleOrSubtitle.join(', ')}</li>{/if}
-                    {#if kf.separatorBytes > 0}<li>{kf.separatorBytes} bytes are spaces around commas.</li>{/if}
-                  </ul>
-                  <p class="row compact-row">
-                    <span class="muted">Without them ({kf.compactedBytes} bytes):</span>
-                    <code class="truncate">{kf.compacted}</code>
-                    <CopyButton value={kf.compacted} iconOnly label="Copy the compacted keyword field" />
-                  </p>
-                </Disclosure>
-              {/if}
+          {#if pick.fields}
+            {@const text = overlayStaged(app.platform, pick.listingLocale ?? pick.locale, pick.fields, stagedStore.view(app.id))}
+            {@const mine = keywords.filter((k) => k.appId === app.id)}
+            <div class="card budgetcard">
+              <AsoBudget
+                platform={app.platform}
+                locale={pick.locale}
+                fields={text.fields}
+                staged={text.staged}
+                keywords={keywordsForLocale(mine, pick.locale)}
+                countries={countriesForLocale(mine, pick.locale)}
+                listingLocales={d?.listingLocales ?? []}
+                addHref={coachHref({ to: 'keywords_add', label: 'Add keywords' }, app.id, address.platform)}
+              />
             </div>
           {/if}
         {/if}
@@ -268,53 +255,7 @@
     list-style: none;
   }
 
-  .waste {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    margin-bottom: var(--space-2);
-    font-size: var(--text-sm);
-  }
-
-  .compact-row {
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
-  .kfield .ok {
-    color: var(--ok-ink);
-  }
-
-  .kfield .warn {
-    color: var(--warn-ink);
-  }
-
-  .kfield .bad {
-    color: var(--bad-ink);
-  }
-
-  .meter {
-    display: block;
-    width: 100%;
-    height: 6px;
-    border-radius: var(--radius-full);
-  }
-
-  .meter .track {
-    fill: var(--surface-sunken);
-  }
-
-  .meter.ok .fill {
-    fill: var(--ok);
-  }
-
-  .meter.warn .fill {
-    fill: var(--warn);
-  }
-
-  .meter.bad .fill {
-    fill: var(--bad);
+  .budgetcard {
+    padding: var(--space-3) var(--space-4);
   }
 </style>

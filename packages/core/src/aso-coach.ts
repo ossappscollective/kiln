@@ -1,0 +1,776 @@
+/**
+ * ASO coaching, pure: how much of each listing field's budget is used, which tracked keywords sit in
+ * which field, what is wasted, where locales are left unused, and a short ranked list of next actions
+ * worked out from data the tool already holds. No network, no clock (the caller passes `now`), no
+ * database. ES2017-safe so the web can share it (no `flatMap`, `fromEntries`, `matchAll`, `.at()`).
+ *
+ * Nothing here is a search volume, a popularity or an estimate of what a change will earn: every number
+ * is a count of characters, keywords, places or days taken from the input. Facts about how the stores
+ * index text that no official page checked here states are marked UNVERIFIED, here and in the text a
+ * person reads (docs/adr/0011-aso-keywords-competitors.md).
+ */
+
+import {
+  type AsoPlatform,
+  type FitField,
+  type FitFields,
+  type FitKeyword,
+  type FitStatus,
+  type RankChange,
+  defaultLocaleFor,
+  fitKeyword,
+  foldWord,
+  isBigMove,
+  isStopWord,
+  languageOf,
+  matchWords,
+  stem,
+  words,
+} from './aso.ts';
+import { APP_STORE_FIELD_SPECS, PLAY_FIELD_SPECS, countBytes, countCharacters } from './listing.ts';
+import { isApplePlatform } from './platform.ts';
+
+// ---------------------------------------------------------------------------------------------
+// Locale helpers
+
+const tagOf = (locale: string): string => locale.replace(/_/g, '-').toLowerCase();
+
+/** `es-MX` against `es-mx`, and a bare language (`it`) against any locale of that language (`it-IT`). */
+export function sameLocale(a: string, b: string): boolean {
+  const x = tagOf(a);
+  const y = tagOf(b);
+  if (x === y) return true;
+  const xs = x.split('-');
+  const ys = y.split('-');
+  if (xs[0] !== ys[0]) return false;
+  return xs.length === 1 || ys.length === 1;
+}
+
+/** The listing locale that holds the text for a keyword locale: the same tag, else another locale of the language (as the fit view does). */
+export function matchListingLocale<T extends { locale: string }>(listing: readonly T[], locale: string): T | undefined {
+  const wanted = tagOf(locale);
+  for (const l of listing) if (tagOf(l.locale) === wanted) return l;
+  const language = languageOf(locale);
+  for (const l of listing) if (languageOf(l.locale) === language) return l;
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Budgets per field
+
+export type BudgetUnit = 'characters' | 'bytes';
+export type BudgetSpec = { field: FitField; label: string; limit: number; unit: BudgetUnit };
+
+const appleSpecs = APP_STORE_FIELD_SPECS;
+const playSpecs = PLAY_FIELD_SPECS;
+const limitOf = (spec: { maxLength?: number }): number => spec.maxLength ?? 0;
+
+const APPLE_BUDGETS: readonly BudgetSpec[] = [
+  { field: 'title', label: 'Name', limit: limitOf(appleSpecs.name), unit: appleSpecs.name.unit },
+  { field: 'subtitle', label: 'Subtitle', limit: limitOf(appleSpecs.subtitle), unit: appleSpecs.subtitle.unit },
+  { field: 'keywords', label: 'Keyword field', limit: limitOf(appleSpecs.keywords), unit: appleSpecs.keywords.unit },
+];
+
+/**
+ * The fields that have a budget, in the order a person fills them. Limits come from the listing specs
+ * (core `listing.ts`, each with its source page): App Store name and subtitle 30 characters, keyword
+ * field 100 bytes; Google Play title 30, short description 80, full description 4000 characters.
+ */
+export const BUDGET_SPECS: Record<AsoPlatform, readonly BudgetSpec[]> = {
+  ios: APPLE_BUDGETS,
+  macos: APPLE_BUDGETS,
+  android: [
+    { field: 'title', label: 'Title', limit: limitOf(playSpecs.title), unit: playSpecs.title.unit },
+    { field: 'shortDescription', label: 'Short description', limit: limitOf(playSpecs.short_description), unit: playSpecs.short_description.unit },
+    { field: 'description', label: 'Full description', limit: limitOf(playSpecs.full_description), unit: playSpecs.full_description.unit },
+  ],
+};
+
+export const BUDGET_ASSUMPTIONS: Record<'apple' | 'google', readonly string[]> = {
+  apple: [
+    'Apple states the name and subtitle at 30 characters and the keyword field at 100 bytes. Whether the commas count toward the 100 is not stated, so the whole field is measured.',
+    'UNVERIFIED: that the App Store reads name, subtitle and keyword field words together, so a word repeated across them adds nothing. Repeats are shown as likely waste, not as fact.',
+    'UNVERIFIED: that singular and plural count as one word. Here English plurals (a trailing "s") are folded; other languages are matched by exact word.',
+  ],
+  google: [
+    'Google Play limits used here: title 30, short description 80, full description 4000 characters.',
+    'UNVERIFIED: how Google Play weights a term that is repeated across title, short and full description. Repeats are listed for information; no waste is counted.',
+  ],
+};
+
+export type FieldBudget = {
+  field: FitField;
+  label: string;
+  unit: BudgetUnit;
+  limit: number;
+  used: number;
+  /** Negative when over the limit. */
+  remaining: number;
+  over: boolean;
+  /** 0 to 100, capped. */
+  percent: number;
+  /** The field has no text. */
+  empty: boolean;
+  /** Tracked keywords whose words are all in this field. */
+  keywords: { id: string; term: string }[];
+};
+
+export type WasteReason = 'space' | 'empty_entry' | 'repeated_entry' | 'plural_variant' | 'in_title_or_subtitle';
+
+export type WasteItem = {
+  reason: WasteReason;
+  /** The entry as it stands in the field (trimmed). */
+  text: string;
+  /** Bytes the entry costs that could be given back, with its separating comma where it has one. */
+  bytes: number;
+};
+
+export type KeywordFieldWaste = {
+  /** Exact: the bytes of the field minus the bytes of `compacted`. */
+  totalBytes: number;
+  items: WasteItem[];
+  /** The field without spaces around commas, empty entries, repeats, plural variants and entries already in the name or subtitle. */
+  compacted: string;
+  compactedBytes: number;
+};
+
+export type RepeatedWord = {
+  /** The word as written the first time it appears. */
+  word: string;
+  fields: FitField[];
+  /** The word is part of a tracked keyword. */
+  tracked: boolean;
+  /** `waste`: App Store, a word the store already has from an earlier field (UNVERIFIED). `info`: Google Play. */
+  severity: 'waste' | 'info';
+  /** Characters the later occurrences cost (App Store only; 0 for info). */
+  wastedCharacters: number;
+};
+
+export type UntrackedTerms = { field: FitField; label: string; terms: string[] };
+
+export type MissingKeyword = { id: string; term: string; priority: number; status: FitStatus };
+
+export type ListingBudget = {
+  platform: AsoPlatform;
+  locale: string;
+  fields: FieldBudget[];
+  /** App Store only, when the listing has a keyword field. */
+  keywordField: KeywordFieldWaste | null;
+  /** Words found in more than one field of this locale, after the waste of the keyword field was taken out. */
+  repeated: RepeatedWord[];
+  /** Words of the fields that no tracked keyword uses. Empty while nothing is tracked in this locale. */
+  untracked: UntrackedTerms[];
+  /** Tracked keywords that are in none of the searched fields. */
+  missing: MissingKeyword[];
+  /** Tracked keywords of which only some words are in the searched fields. */
+  partial: MissingKeyword[];
+  /** Characters (bytes for the keyword field) that could be given back: the keyword field waste plus repeated words. App Store only. */
+  wastedTotal: number;
+  assumptions: readonly string[];
+};
+
+type Token = { key: string; display: string; ignore: boolean };
+
+const tokensOf = (text: string | undefined, language: string): Token[] =>
+  text
+    ? words(text).map((w) => ({
+        key: stem(foldWord(w), language),
+        display: w,
+        // A stop word or a one or two character word is no keyword by itself (Apple asks for entries longer than two characters).
+        ignore: isStopWord(language, w) || Array.from(w).length < 3,
+      }))
+    : [];
+
+/** The keyword field without its waste, entry by entry. Pure; the order of the checks is the order of the reasons. */
+export function keywordFieldWaste(
+  value: string,
+  options: { title?: string; subtitle?: string; language?: string } = {},
+): KeywordFieldWaste {
+  const language = options.language ?? 'en';
+  const known = new Set<string>(matchWords(options.title, language).concat(matchWords(options.subtitle, language)));
+  const parts = value.split(',');
+  const seenExact = new Set<string>();
+  const seenStem = new Set<string>();
+  const items: WasteItem[] = [];
+  const keep: string[] = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i] as string;
+    const text = part.trim();
+    const comma = parts.length > 1 ? 1 : 0;
+    const drop = (reason: WasteReason): void => {
+      items.push({ reason, text, bytes: countBytes(part) + comma });
+    };
+    if (text === '') {
+      if (parts.length > 1) drop('empty_entry');
+      continue;
+    }
+    const exact = words(text).join(' ');
+    const key = matchWords(text, language).join(' ');
+    if (key === '') {
+      drop('empty_entry');
+      continue;
+    }
+    if (seenExact.has(exact)) {
+      drop('repeated_entry');
+      continue;
+    }
+    if (seenStem.has(key)) {
+      drop('plural_variant');
+      continue;
+    }
+    seenExact.add(exact);
+    seenStem.add(key);
+    if (key.split(' ').every((w) => known.has(w))) {
+      drop('in_title_or_subtitle');
+      continue;
+    }
+    const spaces = countBytes(part) - countBytes(text);
+    if (spaces > 0) items.push({ reason: 'space', text, bytes: spaces });
+    keep.push(text);
+  }
+  const compacted = keep.join(',');
+  const compactedBytes = countBytes(compacted);
+  return { totalBytes: Math.max(0, countBytes(value) - compactedBytes), items, compacted, compactedBytes };
+}
+
+const fieldValue = (fields: FitFields, field: FitField): string => fields[field] ?? '';
+
+/**
+ * The budget of every field of one locale of a listing, which tracked keywords sit in which field, the
+ * waste, the repeats across fields, the words no tracked keyword uses and the tracked keywords the
+ * searched fields lack. `keywords` are the ones tracked in this locale.
+ */
+export function listingBudget(input: {
+  platform: AsoPlatform;
+  locale: string;
+  fields: FitFields;
+  keywords: readonly FitKeyword[];
+}): ListingBudget {
+  const { platform, locale, fields } = input;
+  const language = languageOf(locale);
+  const isApple = isApplePlatform(platform);
+  const specs = BUDGET_SPECS[platform];
+  const tracked = input.keywords
+    .map((k) => ({ k, words: Array.from(new Set(matchWords(k.term, language))) }))
+    .filter((x) => x.words.length > 0);
+  const trackedWords = new Set<string>();
+  for (const t of tracked) for (const w of t.words) trackedWords.add(w);
+
+  const waste =
+    isApple && fields.keywords !== undefined
+      ? keywordFieldWaste(fields.keywords, {
+          ...(fields.title !== undefined ? { title: fields.title } : {}),
+          ...(fields.subtitle !== undefined ? { subtitle: fields.subtitle } : {}),
+          language,
+        })
+      : null;
+
+  const budgets: FieldBudget[] = specs.map((spec) => {
+    const text = fieldValue(fields, spec.field);
+    const used = spec.unit === 'bytes' ? countBytes(text) : countCharacters(text);
+    const set = new Set(matchWords(text, language));
+    return {
+      field: spec.field,
+      label: spec.label,
+      unit: spec.unit,
+      limit: spec.limit,
+      used,
+      remaining: spec.limit - used,
+      over: used > spec.limit,
+      percent: spec.limit <= 0 ? 0 : Math.min(100, Math.round((used / spec.limit) * 100)),
+      empty: text.trim() === '',
+      keywords: tracked.filter((t) => t.words.every((w) => set.has(w))).map((t) => ({ id: t.k.id, term: t.k.term })),
+    };
+  });
+
+  // Repeats across fields. The keyword field is read without what `waste` already takes out, so an
+  // entry is not counted twice.
+  const repeatFields: FitField[] = isApple ? ['title', 'subtitle', 'keywords'] : ['title', 'shortDescription', 'description'];
+  const byWord = new Map<string, { display: string; fields: FitField[]; cost: number }>();
+  for (const field of repeatFields) {
+    const text = field === 'keywords' && waste !== null ? waste.compacted : fieldValue(fields, field);
+    const seen = new Set<string>();
+    for (const t of tokensOf(text, language)) {
+      if (t.ignore || seen.has(t.key)) continue;
+      seen.add(t.key);
+      let entry = byWord.get(t.key);
+      if (!entry) {
+        entry = { display: t.display, fields: [], cost: 0 };
+        byWord.set(t.key, entry);
+      } else if (isApple) {
+        entry.cost += Array.from(t.display).length + (field === 'keywords' ? 1 : 0);
+      }
+      entry.fields.push(field);
+    }
+  }
+  const repeated: RepeatedWord[] = [];
+  byWord.forEach((entry, key) => {
+    if (entry.fields.length < 2) return;
+    // Google Play: only words of tracked keywords; a full description repeats ordinary words all the time.
+    if (!isApple && !trackedWords.has(key)) return;
+    repeated.push({
+      word: entry.display,
+      fields: entry.fields,
+      tracked: trackedWords.has(key),
+      severity: isApple ? 'waste' : 'info',
+      wastedCharacters: isApple ? entry.cost : 0,
+    });
+  });
+  repeated.sort((a, b) => b.wastedCharacters - a.wastedCharacters || a.word.localeCompare(b.word));
+
+  // Words in the fields that no tracked keyword uses.
+  const untracked: UntrackedTerms[] = [];
+  if (tracked.length > 0) {
+    const labelOf = (field: FitField): string => specs.find((s) => s.field === field)?.label ?? field;
+    const scan: FitField[] = isApple ? ['title', 'subtitle', 'keywords'] : ['title', 'shortDescription'];
+    for (const field of scan) {
+      const text = field === 'keywords' && waste !== null ? waste.compacted : fieldValue(fields, field);
+      const found: string[] = [];
+      if (field === 'keywords') {
+        for (const entry of text.split(',')) {
+          const t = entry.trim();
+          const keys = tokensOf(t, language).filter((x) => !x.ignore);
+          if (t !== '' && keys.length > 0 && keys.every((x) => !trackedWords.has(x.key)) && found.indexOf(t) < 0) found.push(t);
+        }
+      } else {
+        for (const t of tokensOf(text, language)) {
+          if (!t.ignore && !trackedWords.has(t.key) && found.indexOf(t.display) < 0) found.push(t.display);
+        }
+      }
+      if (found.length > 0) untracked.push({ field, label: labelOf(field), terms: found });
+    }
+  }
+
+  const missing: MissingKeyword[] = [];
+  const partial: MissingKeyword[] = [];
+  for (const k of input.keywords) {
+    const fit = fitKeyword(platform, locale, fields, k);
+    const row = { id: k.id, term: k.term, priority: k.priority ?? 2, status: fit.status };
+    if (fit.status === 'missing' || fit.status === 'description_only') missing.push(row);
+    else if (fit.status === 'partial') partial.push(row);
+  }
+  const byImportance = (a: MissingKeyword, b: MissingKeyword) => b.priority - a.priority || a.term.localeCompare(b.term);
+  missing.sort(byImportance);
+  partial.sort(byImportance);
+
+  const wastedTotal = isApple ? (waste?.totalBytes ?? 0) + repeated.reduce((n, r) => n + r.wastedCharacters, 0) : 0;
+  return {
+    platform,
+    locale,
+    fields: budgets,
+    keywordField: waste,
+    repeated,
+    untracked,
+    missing,
+    partial,
+    wastedTotal,
+    assumptions: isApple ? BUDGET_ASSUMPTIONS.apple : BUDGET_ASSUMPTIONS.google,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Storefronts and locales
+
+/**
+ * Locales that ASO tools REPORT an App Store storefront also reads besides its own. Apple's own pages
+ * checked here do not state this, so every use of it says UNVERIFIED. It is a hint about where more
+ * keyword text might be read, never a promise. Only a few storefronts are listed; a storefront that is
+ * not listed says nothing. (Source: a public list compiled by aso.dev, read 2026-11-19; not Apple.)
+ */
+export const REPORTED_EXTRA_LOCALES: Record<string, readonly string[]> = {
+  us: ['es-MX', 'fr-FR', 'pt-BR', 'ru', 'ko', 'vi', 'zh-Hans', 'zh-Hant', 'ar-SA'],
+  ca: ['fr-CA'],
+  be: ['nl-NL', 'fr-FR'],
+  ch: ['en-GB', 'fr-FR', 'it'],
+  jp: ['en-US'],
+  mx: ['en-GB'],
+};
+
+export const STOREFRONT_NOTE =
+  'UNVERIFIED: tools report that some storefronts also read the keywords of other locales of the same listing. Apple does not state this on the pages checked here. Treat it as a hint and check it yourself.';
+
+export type StorefrontLocale = { locale: string; kind: 'primary' | 'reported'; present: boolean };
+
+/** For one storefront: its usual locale and the reported extra ones, each with whether the listing has that locale. */
+export function storefrontCombos(
+  country: string,
+  listingLocales: readonly string[],
+): { country: string; locales: StorefrontLocale[]; unverified: true; note: string } {
+  const c = country.toLowerCase();
+  const primary = defaultLocaleFor(c);
+  const has = (l: string) => listingLocales.some((x) => sameLocale(x, l));
+  const locales: StorefrontLocale[] = [{ locale: primary, kind: 'primary', present: has(primary) }];
+  for (const l of REPORTED_EXTRA_LOCALES[c] ?? []) locales.push({ locale: l, kind: 'reported', present: has(l) });
+  return { country: c, locales, unverified: true, note: STOREFRONT_NOTE };
+}
+
+export type UntappedKind = 'no_locale' | 'empty_keyword_field' | 'empty_short_description';
+
+export type UntappedLocale = {
+  locale: string;
+  kind: UntappedKind;
+  /** Storefronts (two letters) where keywords are tracked in this locale. */
+  countries: string[];
+  /** How many tracked keywords use this locale. */
+  keywords: number;
+};
+
+/**
+ * Locales the app is not using: a tracked locale that the listing has no text for, a locale whose App Store
+ * keyword field is empty (Google Play: whose short description is empty). Uses what the tool already holds:
+ * the tracked markets and the stored listing. Tracked ones come first, the most keywords first.
+ */
+export function untappedLocales(input: {
+  platform: AsoPlatform;
+  listingLocales: readonly { locale: string; fields: FitFields }[];
+  tracked: readonly { country: string; locale: string }[];
+}): UntappedLocale[] {
+  const isApple = isApplePlatform(input.platform);
+  const wanted = new Map<string, { locale: string; countries: string[]; keywords: number }>();
+  for (const t of input.tracked) {
+    const tag = tagOf(t.locale);
+    let entry = wanted.get(tag);
+    if (!entry) {
+      entry = { locale: t.locale, countries: [], keywords: 0 };
+      wanted.set(tag, entry);
+    }
+    entry.keywords += 1;
+    const country = t.country.toLowerCase();
+    if (entry.countries.indexOf(country) < 0) entry.countries.push(country);
+  }
+  const out: UntappedLocale[] = [];
+  const emptyKind: UntappedKind = isApple ? 'empty_keyword_field' : 'empty_short_description';
+  const isEmpty = (fields: FitFields): boolean => ((isApple ? fields.keywords : fields.shortDescription) ?? '').trim() === '';
+  const reported = new Set<string>();
+  wanted.forEach((entry) => {
+    const listing = matchListingLocale(input.listingLocales, entry.locale);
+    entry.countries.sort();
+    if (!listing) {
+      out.push({ locale: entry.locale, kind: 'no_locale', countries: entry.countries, keywords: entry.keywords });
+      return;
+    }
+    if (isEmpty(listing.fields)) {
+      reported.add(tagOf(listing.locale));
+      out.push({ locale: listing.locale, kind: emptyKind, countries: entry.countries, keywords: entry.keywords });
+    }
+  });
+  for (const l of input.listingLocales) {
+    if (reported.has(tagOf(l.locale)) || !isEmpty(l.fields)) continue;
+    out.push({ locale: l.locale, kind: emptyKind, countries: [], keywords: 0 });
+  }
+  out.sort((a, b) => b.keywords - a.keywords || a.locale.localeCompare(b.locale));
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The coach: a short ranked list of next actions
+
+export type CoachKind =
+  | 'track_keywords'
+  | 'check_ranks'
+  | 'rank_dropped'
+  | 'not_in_listing'
+  | 'competitor_above'
+  | 'keyword_field_waste'
+  | 'unused_characters'
+  | 'untapped_locale'
+  | 'follow_competitors';
+
+/** The order the actions are given in: first what blocks everything else, then what has moved, then tidying. */
+export const COACH_ORDER: readonly CoachKind[] = [
+  'track_keywords',
+  'check_ranks',
+  'rank_dropped',
+  'not_in_listing',
+  'competitor_above',
+  'keyword_field_waste',
+  'unused_characters',
+  'untapped_locale',
+  'follow_competitors',
+];
+
+export type CoachKeyword = {
+  id: string;
+  term: string;
+  country: string;
+  locale: string;
+  priority?: number;
+  state: 'ranked' | 'not_ranked' | null;
+  rank: number | null;
+  lastCheckedAt: number | null;
+  change: RankChange | null;
+};
+
+export type CoachCompetitorAbove = { keywordId: string; competitorId: string; competitorName: string; competitorRank: number };
+
+export type CoachInput = {
+  platform: AsoPlatform;
+  now: number;
+  keywords: readonly CoachKeyword[];
+  competitors: readonly { id: string; name: string }[];
+  /** Followed competitors that are in the stored results of a tracked keyword above the own app (or while it is not in them). */
+  competitorsAbove: readonly CoachCompetitorAbove[];
+  /** Every locale of the stored listing. */
+  listingLocales: readonly { locale: string; fields: FitFields }[];
+  /** When the last rank check succeeded; null: never. */
+  lastCheckAt: number | null;
+  /** The workspace's rank move threshold (places). */
+  rankMoveThreshold: number;
+  /** A check older than this is "not lately". Default 7 days. */
+  staleAfterMs?: number;
+  /** At most this many actions. Default 8. */
+  limit?: number;
+};
+
+export type CoachLink = {
+  to: 'keywords' | 'keywords_add' | 'competitors' | 'fit' | 'ideas' | 'listing';
+  /** Open this locale (the listing's locale drawer). */
+  locale?: string;
+  label: string;
+};
+
+export type CoachAction = {
+  id: string;
+  kind: CoachKind;
+  /** 1 is first. */
+  position: number;
+  title: string;
+  detail: string;
+  /** What it is about, short lines (at most 5). */
+  items: string[];
+  /** How many more there are than `items` shows. */
+  more: number;
+  link: CoachLink;
+};
+
+const DAY_MS = 86_400_000;
+const MAX_ITEMS = 5;
+
+const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/** Room is "left" when at least this share of the limit, and at least this many characters, are unused. */
+const ROOM_SHARE = 0.15;
+const ROOM_MIN = 5;
+
+type Draft = Omit<CoachAction, 'position' | 'items' | 'more'> & { all: string[] };
+
+function dropSize(change: RankChange | null): number {
+  if (!change) return 0;
+  if (change.kind === 'down') return Math.abs(change.delta ?? 0);
+  if (change.kind === 'dropped') return 1000;
+  return 0;
+}
+
+function dropText(change: RankChange | null): string {
+  if (!change) return '';
+  if (change.kind === 'dropped') return `left the results (was ${change.from})`;
+  return `${change.from} to ${change.to}`;
+}
+
+/** Up to `limit` (default 8) next actions in a fixed order of importance, from what the tool already holds; fewer, or none, when little applies. */
+export function buildCoach(input: CoachInput): CoachAction[] {
+  const { platform, keywords } = input;
+  const isApple = isApplePlatform(platform);
+  const drafts: Draft[] = [];
+  const stale = input.staleAfterMs ?? 7 * DAY_MS;
+
+  // 1. Nothing tracked.
+  if (keywords.length === 0) {
+    drafts.push({
+      id: 'track_keywords',
+      kind: 'track_keywords',
+      title: 'Track your first keywords',
+      detail: 'A keyword is a word or phrase people might search for. Tracking one records where the app appears in the store results for it.',
+      all: [],
+      link: { to: 'keywords_add', label: 'Add keywords' },
+    });
+  }
+
+  // 2. No rank check lately.
+  if (keywords.length > 0) {
+    const unchecked = keywords.filter((k) => k.lastCheckedAt === null).length;
+    if (input.lastCheckAt === null || unchecked === keywords.length) {
+      drafts.push({
+        id: 'check_ranks',
+        kind: 'check_ranks',
+        title: 'Check the ranks for the first time',
+        detail: `${count(unchecked, 'tracked keyword has', 'tracked keywords have')} not been checked yet. A check reads the public store; nothing is changed there.`,
+        all: [],
+        link: { to: 'keywords', label: 'Open keywords' },
+      });
+    } else if (input.now - input.lastCheckAt >= stale) {
+      const days = Math.floor((input.now - input.lastCheckAt) / DAY_MS);
+      drafts.push({
+        id: 'check_ranks',
+        kind: 'check_ranks',
+        title: `Ranks were last checked ${days === 1 ? '1 day' : `${days} days`} ago`,
+        detail: 'Ranks only change when a check runs. Run one to see where things stand now.',
+        all: [],
+        link: { to: 'keywords', label: 'Open keywords' },
+      });
+    }
+  }
+
+  // 3. Rank dropped.
+  const drops = keywords
+    .filter((k) => k.change !== null && (k.change.kind === 'down' || k.change.kind === 'dropped') && isBigMove(k.change, input.rankMoveThreshold))
+    .sort((a, b) => dropSize(b.change) - dropSize(a.change) || a.term.localeCompare(b.term));
+  if (drops.length > 0) {
+    drafts.push({
+      id: 'rank_dropped',
+      kind: 'rank_dropped',
+      title: `${count(drops.length, 'keyword', 'keywords')} dropped in rank`,
+      detail: `Down at least ${count(input.rankMoveThreshold, 'place', 'places')}, or out of the top 10, between the last two checks.`,
+      all: drops.map((k) => `${k.term} (${k.country.toUpperCase()}): ${dropText(k.change)}`),
+      link: { to: 'keywords', label: 'Open keywords' },
+    });
+  }
+
+  // Per locale analysis of the listing, shared by the next actions.
+  const byLocale = new Map<string, { locale: string; list: CoachKeyword[] }>();
+  for (const k of keywords) {
+    const tag = tagOf(k.locale);
+    const entry = byLocale.get(tag) ?? { locale: k.locale, list: [] };
+    entry.list.push(k);
+    byLocale.set(tag, entry);
+  }
+  const asFit = (list: readonly CoachKeyword[]): FitKeyword[] =>
+    list.map((k) => ({ id: k.id, term: k.term, ...(k.priority !== undefined ? { priority: k.priority } : {}) }));
+
+  // 4. Tracked keywords that are not in the listing.
+  const missingLines: { line: string; locale: string; priority: number }[] = [];
+  byLocale.forEach((entry) => {
+    const listing = matchListingLocale(input.listingLocales, entry.locale);
+    if (!listing) return;
+    const budget = listingBudget({ platform, locale: entry.locale, fields: listing.fields, keywords: asFit(entry.list) });
+    for (const m of budget.missing) missingLines.push({ line: `${m.term} (${entry.locale})`, locale: listing.locale, priority: m.priority });
+  });
+  if (missingLines.length > 0) {
+    missingLines.sort((a, b) => b.priority - a.priority || a.line.localeCompare(b.line));
+    const first = missingLines[0] as { locale: string };
+    const where = isApple ? 'name, subtitle or keyword field' : 'title, short or full description';
+    drafts.push({
+      id: 'not_in_listing',
+      kind: 'not_in_listing',
+      title: `${count(missingLines.length, 'tracked keyword is', 'tracked keywords are')} not in the listing`,
+      detail: `None of their words appear in the ${where}, so the store has little reason to show the app for them.`,
+      all: missingLines.map((m) => m.line),
+      link: { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` },
+    });
+  }
+
+  // 5. A followed competitor ranks above.
+  if (input.competitorsAbove.length > 0) {
+    const kw = new Map<string, CoachKeyword>();
+    for (const k of keywords) kw.set(k.id, k);
+    const rows: { a: CoachCompetitorAbove; k: CoachKeyword }[] = [];
+    for (const a of input.competitorsAbove) {
+      const k = kw.get(a.keywordId);
+      if (k) rows.push({ a, k });
+    }
+    rows.sort((x, y) => (y.k.priority ?? 2) - (x.k.priority ?? 2) || x.a.competitorRank - y.a.competitorRank || x.k.term.localeCompare(y.k.term));
+    if (rows.length > 0) {
+      drafts.push({
+        id: 'competitor_above',
+        kind: 'competitor_above',
+        title: `${count(rows.length, 'followed competitor ranks', 'followed competitors rank')} above you`,
+        detail: 'In the stored results for tracked keywords, a competitor you follow comes before this app. Compare their name and subtitle with yours.',
+        all: rows.map(({ a, k }) => `${a.competitorName} is ${a.competitorRank} for ${k.term}; ${k.state === 'ranked' && k.rank !== null ? `you are ${k.rank}` : 'you are not in the results'}`),
+        link: { to: 'competitors', label: 'Open competitors' },
+      });
+    }
+  }
+
+  const budgets = input.listingLocales.map((l) => ({
+    l,
+    budget: listingBudget({ platform, locale: l.locale, fields: l.fields, keywords: asFit(byLocale.get(tagOf(l.locale))?.list ?? []) }),
+  }));
+
+  // 6. Keyword field waste (App Store).
+  if (isApple) {
+    const wasteful = budgets.filter((b) => b.budget.keywordField !== null && b.budget.keywordField.totalBytes > 0);
+    if (wasteful.length > 0) {
+      const bytesOf = (b: (typeof wasteful)[number]): number => b.budget.keywordField?.totalBytes ?? 0;
+      const total = wasteful.reduce((n, b) => n + bytesOf(b), 0);
+      wasteful.sort((a, b) => bytesOf(b) - bytesOf(a) || a.l.locale.localeCompare(b.l.locale));
+      const first = (wasteful[0] as (typeof wasteful)[number]).l.locale;
+      drafts.push({
+        id: 'keyword_field_waste',
+        kind: 'keyword_field_waste',
+        title: `The keyword field wastes ${count(total, 'byte', 'bytes')}`,
+        detail: 'Spaces after commas, empty or repeated entries, and entries the name or subtitle already hold take room from words that could be added. UNVERIFIED that the store ignores repeats across fields.',
+        all: wasteful.map((b) => `${b.l.locale}: ${count(bytesOf(b), 'byte', 'bytes')}`),
+        link: { to: 'listing', locale: first, label: `Open ${first} in the listing` },
+      });
+    }
+  }
+
+  const untapped = untappedLocales({
+    platform,
+    listingLocales: input.listingLocales,
+    tracked: keywords.map((k) => ({ country: k.country, locale: k.locale })),
+  });
+  const emptyKeywordLocales = new Set(untapped.filter((u) => u.kind !== 'no_locale').map((u) => tagOf(u.locale)));
+
+  // 7. Characters left unused in the fields a person writes (an empty keyword field is reported as an untapped locale instead).
+  const room: { line: string; locale: string; remaining: number }[] = [];
+  for (const { l, budget } of budgets) {
+    for (const f of budget.fields) {
+      if (f.field === 'description') continue;
+      if (f.field === 'keywords' && emptyKeywordLocales.has(tagOf(l.locale))) continue;
+      if (f.remaining >= Math.max(ROOM_MIN, Math.ceil(f.limit * ROOM_SHARE))) {
+        room.push({ line: `${l.locale} ${f.label.toLowerCase()}: ${f.used} of ${f.limit} ${f.unit} used`, locale: l.locale, remaining: f.remaining });
+      }
+    }
+  }
+  if (room.length > 0) {
+    room.sort((a, b) => b.remaining - a.remaining || a.line.localeCompare(b.line));
+    const first = (room[0] as { locale: string }).locale;
+    drafts.push({
+      id: 'unused_characters',
+      kind: 'unused_characters',
+      title: `${count(room.length, 'field has', 'fields have')} room left`,
+      detail: 'Characters not used are words the store cannot match. Fill them only with words that describe the app.',
+      all: room.map((r) => r.line),
+      link: { to: 'listing', locale: first, label: `Open ${first} in the listing` },
+    });
+  }
+
+  // 8. Untapped locales.
+  if (untapped.length > 0) {
+    const first = untapped[0] as UntappedLocale;
+    const what = (u: UntappedLocale): string => {
+      const markets = u.countries.length > 0 ? ` (tracked in ${u.countries.map((c) => c.toUpperCase()).join(', ')})` : '';
+      if (u.kind === 'no_locale') return `${u.locale}: no listing text${markets}`;
+      return `${u.locale}: ${isApple ? 'the keyword field is empty' : 'the short description is empty'}${markets}`;
+    };
+    drafts.push({
+      id: 'untapped_locale',
+      kind: 'untapped_locale',
+      title: `${count(untapped.length, 'locale has', 'locales have')} no ${isApple ? 'keyword' : 'search'} text`,
+      detail: 'A locale with no text gives the store nothing to match in that language. A storefront may also read other locales of the listing (UNVERIFIED).',
+      all: untapped.map(what),
+      link: first.kind === 'no_locale' ? { to: 'listing', label: 'Open the listing' } : { to: 'listing', locale: first.locale, label: `Open ${first.locale} in the listing` },
+    });
+  }
+
+  // 9. Follow a competitor.
+  if (keywords.length > 0 && input.competitors.length === 0) {
+    drafts.push({
+      id: 'follow_competitors',
+      kind: 'follow_competitors',
+      title: 'Follow a competitor',
+      detail: 'Seeing what a similar app puts in its name and subtitle shows words you may be missing. Apps that show up for several of your keywords can be suggested.',
+      all: [],
+      link: { to: 'competitors', label: 'Open competitors' },
+    });
+  }
+
+  drafts.sort((a, b) => COACH_ORDER.indexOf(a.kind) - COACH_ORDER.indexOf(b.kind));
+  return drafts.slice(0, Math.max(1, input.limit ?? 8)).map(({ all, ...rest }, i) => ({
+    ...rest,
+    position: i + 1,
+    items: all.slice(0, MAX_ITEMS),
+    more: Math.max(0, all.length - MAX_ITEMS),
+  }));
+}

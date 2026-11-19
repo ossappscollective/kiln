@@ -21,6 +21,7 @@
   import { type Platform, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import type { AsoKeyword } from '../../lib/aso.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { shortRef } from '../../lib/listing-drift.ts';
@@ -150,9 +151,24 @@
     }
   }
 
+  /** The tracked ASO keywords by app, for the keyword budget in the locale drawer. Best effort: a role without ASO reads none. */
+  let asoKeywords = $state<Record<string, AsoKeyword[] | undefined>>({});
+  const canReadAso = $derived(can(role, 'aso.read'));
+
+  async function loadAso(app: AppSummary) {
+    if (!canReadAso) return;
+    try {
+      const list = await api.asoKeywords(workspaceId, app.id);
+      asoKeywords[app.id] = list.keywords;
+    } catch {
+      asoKeywords[app.id] = undefined;
+    }
+  }
+
   const reloadAll = () => {
     for (const app of members) {
       void load(app);
+      void loadAso(app);
       void stagedStore.load(api, workspaceId, app.id);
     }
   };
@@ -168,6 +184,7 @@
       if (next !== shownFor) {
         shownFor = next;
         views = {};
+        asoKeywords = {};
         filter = defaultMatrixFilter();
         drawerOpen = false;
         drawerLocale = null;
@@ -675,6 +692,8 @@
   onunstage={unstageField}
   {stagingKey}
   locked={lockedPlatforms}
+  asoKeywords={canReadAso ? asoKeywords : undefined}
+  allLocales={matrix.rows.map((r) => r.locale)}
 />
 
 {#if members.length > 0}

@@ -3,8 +3,8 @@
   kept in the address (`?view=keywords|competitors|ideas|fit|gaps|markets`): Keywords, Competitors, Ideas,
   Fit, Gaps and Markets. It reads the tracked keywords of every app record in scope once and hands them to
   the views; the config of the server (is Google Play reading on, are checks scheduled) shows as one quiet
-  pill. Nothing here writes to a store: the reads are our own database, "Check now" and following a
-  competitor read the public store.
+  pill. Above the tabs, the ranked next steps of each app in scope (AsoCoach). Nothing here writes to a store: the
+  reads are our own database, "Check now" and following a competitor read the public store.
   Props: api, workspaceId, role, members (the app records in scope), releases (by app id), now.
 -->
 <script lang="ts">
@@ -19,6 +19,7 @@
   import Button from '../ui/Button.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import AsoCoach from './AsoCoach.svelte';
   import AsoCompetitors from './AsoCompetitors.svelte';
   import AsoFit from './AsoFit.svelte';
   import AsoGaps from './AsoGaps.svelte';
@@ -45,6 +46,7 @@
 
   const uid = $props.id();
   const canWrite = $derived(can(role, 'aso.write'));
+  const canRead = $derived(can(role, 'aso.read'));
 
   const view = $derived(asoViewFromHash(address.hash));
   const setView = (next: string) => replaceHash(withAsoView(location.hash, next as AsoView));
@@ -118,6 +120,12 @@
 </script>
 
 <section class="aso stack" aria-label="ASO">
+  {#if canRead}
+    {#each members as m (m.id)}
+      <AsoCoach {api} {workspaceId} app={m} {version} showPlatform={members.length > 1} visible={members.length > 1 ? 2 : 4} />
+    {/each}
+  {/if}
+
   <div class="row bar">
     <SegmentTabs tabs={asoViews} label="ASO views" idPrefix={uid} bind:value={() => view, setView} />
     <span class="spacer"></span>

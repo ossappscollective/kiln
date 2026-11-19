@@ -25,7 +25,7 @@ import {
   removeCompetitor,
   updateKeyword,
 } from '../services/aso.ts';
-import { checkLocale, gapsFor, ideasFor, listingFitFor, marketsFor, suggestionsFor, summaryFor } from '../services/aso-insights.ts';
+import { checkLocale, coachFor, gapsFor, ideasFor, listingFitFor, listingLocalesFor, marketsFor, suggestionsFor, summaryFor } from '../services/aso-insights.ts';
 import { queueAsoRefreshAll } from '../services/aso-schedule.ts';
 import { recordAudit } from '../services/audit.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
@@ -135,6 +135,13 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const app = await getApp(db, ws(c), param(c, 'id'));
     if (!app) return notFound(c);
     return c.json(await summaryFor(db, ws(c), app, ctx.now()));
+  });
+
+  // The next steps for one app, worked out from what is stored (no store is read).
+  routes.get('/:workspaceId/apps/:id/aso/coach', needs('aso.read'), async (c) => {
+    const app = await getApp(db, ws(c), param(c, 'id'));
+    if (!app) return notFound(c);
+    return c.json(await coachFor(db, ws(c), app, ctx.now()));
   });
 
   // ----- keywords -------------------------------------------------------------------------------------
@@ -282,7 +289,8 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const locale = localeQuery(c);
     if (!locale.ok) return bad(c, [locale.issue]);
     const fit = await listingFitFor(db, ws(c), app, locale.locale ? { locale: locale.locale } : {});
-    return c.json({ ...fit, indexedFields: INDEXED_FIELDS[app.platform], assumptions: FIT_ASSUMPTIONS });
+    const stored = await listingLocalesFor(db, ws(c), app);
+    return c.json({ ...fit, listingLocales: stored.locales.map((l) => l.locale), indexedFields: INDEXED_FIELDS[app.platform], assumptions: FIT_ASSUMPTIONS });
   });
 
   routes.get('/:workspaceId/apps/:id/aso/ideas', needs('aso.read'), async (c) => {

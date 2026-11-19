@@ -1,12 +1,13 @@
 <!--
   AsoOverview: the ASO view of the whole workspace (#/aso): the keywords that moved most across all apps, competitor changes,
-  and one row per app. It reads one summary per app from our own database (no store is contacted). With nothing tracked it is
+  and one row per app, with "Where to start" (the first next step of each app, see AsoCoach). It reads one summary and the
+  next steps per app from our own database (no store is contacted). With nothing tracked it is
   one line that points to adding keywords. Admins can queue a check of every app and set how many places a keyword has to
   move before `aso.rank_changed` is raised (the Settings screen has no generic field for it, so it lives here).
   Props (from the shell): api, workspaceId, role.
 -->
 <script lang="ts">
-  import { type Role, can } from '@mrm/core';
+  import { type CoachAction, type Role, can } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import {
@@ -21,6 +22,7 @@
     overviewStats,
     parseThreshold,
   } from '../../lib/aso.ts';
+  import { coachHref } from '../../lib/aso-budget.ts';
   import { timeAgo } from '../../lib/format.ts';
   import { appLabel, platformLabel, portfolioHref, runLimited } from '../../lib/portfolio.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -44,6 +46,8 @@
   let apps = $state<AppSummary[] | null>(null);
   let rows = $state<OverviewRow[]>([]);
   let config = $state<AsoConfig | null>(null);
+  /** The first steps of each app (core `buildCoach`, by app id); an app whose steps could not be read is left out. */
+  let coaches = $state<Record<string, CoachAction[] | undefined>>({});
   let error = $state('');
   let loading = $state(true);
   let now = $state(Date.now());
@@ -55,6 +59,15 @@
   const changed = $derived(withData.filter((r) => r.summary.competitors.changedRecently > 0));
   const hasMoves = $derived(movers.gains.length + movers.drops.length > 0);
   const androidTracked = $derived(withData.some((r) => r.platform === 'android'));
+  /** The first next step of each app that has one, in the order of the app list: where to start. */
+  const starts = $derived(
+    (apps ?? [])
+      .map((a) => ({ app: a, step: coaches[a.id]?.[0], total: coaches[a.id]?.length ?? 0 }))
+      .filter((r): r is { app: AppSummary; step: CoachAction; total: number } => r.step !== undefined)
+      // Apps that already track keywords first; "track your first keywords" can wait.
+      .sort((a, b) => Number(a.step.kind === 'track_keywords') - Number(b.step.kind === 'track_keywords'))
+      .slice(0, 6),
+  );
   const appName = (id: string): string => {
     const a = apps?.find((x) => x.id === id);
     return a ? appLabel(a) : '';
@@ -69,14 +82,21 @@
       if (mine !== generation) return;
       apps = list;
       const next: OverviewRow[] = [];
+      const steps: Record<string, CoachAction[] | undefined> = {};
       await runLimited(list, 4, async (a) => {
         try {
           next.push({ name: a.name, appId: a.id, platform: a.platform, summary: await api.asoSummary(workspaceId, a.id) });
         } catch {
           // An app that cannot be read is left out; the rest still shows.
         }
+        try {
+          steps[a.id] = (await api.asoCoach(workspaceId, a.id)).actions;
+        } catch {
+          // The next steps are a help, not the screen: without them the rest still shows.
+        }
       });
       if (mine !== generation) return;
+      coaches = steps;
       rows = list.map((a) => next.find((r) => r.appId === a.id)).filter((r): r is OverviewRow => r !== undefined);
     } catch (e) {
       if (mine !== generation) return;
@@ -91,6 +111,7 @@
     untrack(() => {
       apps = null;
       rows = [];
+      coaches = {};
       config = null;
       if (!canRead) return;
       void load();
@@ -216,6 +237,24 @@
         <span class="spacer"></span>
         <AsoStatus {config} androidInScope={androidTracked} />
       </div>
+
+      {#if starts.length > 0}
+        <section class="card" aria-label="Where to start">
+          <h2 class="h"><Icon name="check-circle" size={16} /> Where to start</h2>
+          <ul class="movers starts">
+            {#each starts as r (r.app.id)}
+              <li>
+                <span class="what">
+                  <strong class="truncate">{r.step.title}</strong>
+                  <span class="muted">{appLabel(r.app)}{r.total > 1 ? `, ${r.total} steps` : ''}</span>
+                </span>
+                <Button size="sm" href={coachHref(r.step.link, r.app.id, r.app.platform)}>{r.step.link.label}</Button>
+              </li>
+            {/each}
+          </ul>
+          <p class="muted hint">Open an app to see all of its next steps. They come from what is already stored here and say nothing about search volume.</p>
+        </section>
+      {/if}
 
       {#if hasMoves}
         <div class="moves">
@@ -380,6 +419,15 @@
 
   .movers li:first-child {
     border-top: 0;
+  }
+
+  .starts li {
+    align-items: center;
+  }
+
+  .hint {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-xs);
   }
 
   .what {

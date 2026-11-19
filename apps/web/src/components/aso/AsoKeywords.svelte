@@ -6,10 +6,14 @@
   this server states ("try again in 30 seconds") disables the button until then. Viewers read only.
   A rank is a position in the results the store's search returned (for Apple a proxy for the App Store's own search);
   "50+" is "not within the first 50", never "does not rank".
+  A `?add=1` in the address (the next steps link to it) opens the add panel once.
   Props: api, workspaceId, role, members, config, keywords (all of them), canWrite, onchanged, now.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { address, replaceHash } from '../../lib/address.svelte.ts';
   import type { Api } from '../../lib/api.ts';
+  import { asksToAddKeywords, withoutParam } from '../../lib/aso-budget.ts';
   import {
     type AsoCheck,
     type AsoConfig,
@@ -70,6 +74,15 @@
   let adding = $state(false);
   let removing = $state<string | null>(null);
   let busyId = $state<string | null>(null);
+
+  // A link from the next steps (`?add=1`) opens the add panel once and leaves the address clean.
+  $effect(() => {
+    if (!asksToAddKeywords(address.hash)) return;
+    untrack(() => {
+      if (canWrite) adding = true;
+      replaceHash(withoutParam(location.hash, 'add'));
+    });
+  });
 
   const rows = $derived(sortKeywords(filterKeywords(keywords, query), sort));
   const top10 = $derived(keywords.filter((k) => k.state === 'ranked' && k.rank !== null && k.rank <= 10).length);

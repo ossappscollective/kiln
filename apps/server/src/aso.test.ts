@@ -563,6 +563,49 @@ dbTest('fit, ideas, gaps, suggestions and markets are worked out from what is st
   assert.equal(calls(), before, 'the views read the database only');
 });
 
+dbTest('coach: ranked next steps from what is stored, and the fit view carries the listing text', async (db) => {
+  const t = await bootAso(db);
+  const appId = await t.addApp('ios');
+  const empty = await t.call(t.owner, 'GET', `/apps/${appId}/aso/coach`);
+  assert.equal(empty.status, 200, empty.text);
+  assert.deepEqual(empty.body.actions.map((a: { kind: string }) => a.kind), ['track_keywords']);
+  assert.deepEqual(empty.body.actions[0].link, { to: 'keywords_add', label: 'Add keywords' });
+  assert.equal(empty.body.basedOn.keywords, 0);
+
+  await seedListing(db, t.workspaceId, appId, 'en-US', { name: 'Hydro Buddy', subtitle: 'Water reminder', keywords: 'hydration, drink log' });
+  await t.addKeywords(appId, [{ term: 'water reminder' }, { term: 'bedtime notes' }]);
+  const unchecked = await t.call(t.owner, 'GET', `/apps/${appId}/aso/coach`);
+  assert.equal(unchecked.body.actions[0].kind, 'check_ranks', 'nothing was checked yet');
+
+  t.sources.setApp('ios', 'us', publicApp('701', { name: 'Rival Seven One' }));
+  assert.equal((await t.call(t.owner, 'POST', `/apps/${appId}/aso/competitors`, { externalId: '701' })).status, 201);
+  t.sources.setResults('ios', 'us', 'water reminder', ['701', OWN_IOS_ID]);
+  t.sources.setResults('ios', 'us', 'bedtime notes', ['701', '702']);
+  assert.equal((await t.refresh(appId, '?scope=keywords')).status, 200);
+
+  const before = t.sources.searches.length + t.sources.lookups.length;
+  const coach = await t.call(t.owner, 'GET', `/apps/${appId}/aso/coach`);
+  assert.equal(coach.status, 200, coach.text);
+  assert.equal(t.sources.searches.length + t.sources.lookups.length, before, 'the coach reads the database only');
+  const kinds = coach.body.actions.map((a: { kind: string }) => a.kind);
+  assert.equal(kinds.includes('check_ranks'), false);
+  assert.ok(kinds.indexOf('not_in_listing') < kinds.indexOf('competitor_above'), kinds.join());
+  const missing = coach.body.actions.find((a: { kind: string }) => a.kind === 'not_in_listing');
+  assert.deepEqual(missing.items, ['bedtime notes (en-US)']);
+  assert.deepEqual(missing.link, { to: 'listing', locale: 'en-US', label: 'Open en-US in the listing' });
+  const above = coach.body.actions.find((a: { kind: string }) => a.kind === 'competitor_above');
+  assert.deepEqual(above.items.slice().sort(), ['Rival Seven One is 1 for bedtime notes; you are not in the results', 'Rival Seven One is 1 for water reminder; you are 2']);
+  assert.deepEqual(coach.body.actions.map((a: { position: number }) => a.position), coach.body.actions.map((_: unknown, i: number) => i + 1));
+  assert.equal(coach.body.basedOn.competitors, 1);
+
+  const fit = await t.call(t.owner, 'GET', `/apps/${appId}/aso/fit?locale=en-US`);
+  assert.deepEqual(fit.body.locales[0].fields, { title: 'Hydro Buddy', subtitle: 'Water reminder', keywords: 'hydration, drink log' });
+
+  const viewer = await t.addMember('viewer');
+  assert.equal((await t.call(viewer, 'GET', `/apps/${appId}/aso/coach`)).status, 200);
+  assert.equal((await t.call(t.owner, 'GET', `/apps/nope/aso/coach`)).status, 404);
+});
+
 dbTest('deleting an app deletes what ASO holds for it', async (db) => {
   const t = await bootAso(db);
   const appId = await t.addApp('ios');

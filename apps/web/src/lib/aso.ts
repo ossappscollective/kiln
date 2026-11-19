@@ -1,5 +1,5 @@
 import { type Platform, type RankChange, type RankChangeKind, checkTerm, defaultLocaleFor, normalizeCountry, normalizeLocale } from '@mrm/core';
-import type { CoverageGap, FitStatus, Idea, ListingFit, SuggestedCompetitor, TermAcrossMarkets } from '@mrm/core';
+import type { CoachAction, CoverageGap, FitFields, FitStatus, Idea, ListingFit, SuggestedCompetitor, TermAcrossMarkets } from '@mrm/core';
 import { ApiError } from './api.ts';
 import { type PlatformScope, appAddress, parseViewPath } from './app-scope.ts';
 import type { IconName } from './icons.ts';
@@ -138,8 +138,14 @@ export type AsoFitView = {
   channel: 'live' | 'editable' | null;
   keywords: number;
   fit: ListingFit | null;
+  /** The stored listing text the fit was worked out from (for the budget meters). Absent from an older server. */
+  fields?: FitFields | null;
 };
-export type AsoFitResponse = { readAt: number | null; error: string | null; locales: AsoFitView[]; indexedFields: string[]; assumptions: string[] };
+export type AsoCoachResponse = {
+  actions: CoachAction[];
+  basedOn: { keywords: number; competitors: number; listingLocales: number; lastCheckAt: number | null; listingReadAt: number | null };
+};
+export type AsoFitResponse = { readAt: number | null; error: string | null; locales: AsoFitView[]; /** Every locale the stored listing has text for. Absent from an older server. */ listingLocales?: string[]; indexedFields: string[]; assumptions: string[] };
 export type AsoIdeasResponse = {
   locale: string;
   basedOn: { ownListing: boolean; competitors: number };

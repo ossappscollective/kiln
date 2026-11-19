@@ -16,5 +16,6 @@ export * from './translation.ts';
 export * from './staged-changes.ts';
 export * from './release-fields.ts';
 export * from './aso.ts';
+export * from './aso-coach.ts';
 export * from './asset-sync.ts';
 export * from './release-pipeline.ts';

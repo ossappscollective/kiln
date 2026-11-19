@@ -9,12 +9,16 @@
   onstep (-1 or 1: the previous or next locale), onpull (app, fields: opens the pull dialog),
   onhistory (app, field), role, onstage (app, field: stage the repository's text), onunstage (app, id, field),
   stagingKey (`<app id>\u0000<locale>\u0000<field>` of the field being staged or unstaged, or ''), locked? (the
-  platforms whose version is locked: their fields are read-only here, with no stage control).
+  platforms whose version is locked: their fields are read-only here, with no stage control), asoKeywords? (the
+  tracked ASO keywords by app id; given when the role can read ASO, it shows the keyword budget of each platform's
+  fields: the store text with the staged text on top, see AsoBudget), allLocales? (every locale of the grid).
   A native <dialog> shown as a side panel, so the focus trap, Escape and the focus return come from
   the browser. A pull or history dialog opened from here stacks above it.
 -->
 <script lang="ts">
   import { type Platform, type Role, platformLabel } from '@mrm/core';
+  import { coachHref, countriesForLocale, fieldsFromDrift, keywordsForLocale } from '../../lib/aso-budget.ts';
+  import type { AsoKeyword } from '../../lib/aso.ts';
   import { localeSummary } from '../../lib/listing-drift.ts';
   import { cellInfo, cellStatus } from '../../lib/listing-matrix.ts';
   import type { MatrixRow } from '../../lib/listing-matrix.ts';
@@ -26,6 +30,7 @@
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import AsoBudget from '../aso/AsoBudget.svelte';
   import FieldCompare from './FieldCompare.svelte';
   import StatusDot from './StatusDot.svelte';
 
@@ -45,6 +50,8 @@
     onunstage,
     stagingKey = '',
     locked = [],
+    asoKeywords,
+    allLocales = [],
   }: {
     open?: boolean;
     row: MatrixRow | null;
@@ -61,6 +68,8 @@
     onunstage: (app: AppSummary, id: string, field: DriftField) => void;
     stagingKey?: string;
     locked?: Platform[];
+    asoKeywords?: Record<string, AsoKeyword[] | undefined>;
+    allLocales?: string[];
   } = $props();
 
   const uid = $props.id();
@@ -148,6 +157,23 @@
                 <span class="dotted"><StatusDot {status} label="{field.label}: {cellInfo(status).label}" /><span>{field.label}</span></span>
               {/each}
             </div>
+
+            {#if app !== undefined && asoKeywords !== undefined && fields.length > 0}
+              {@const text = fieldsFromDrift(platform, row.locale, fields, stagedStore.view(app.id))}
+              {@const tracked = asoKeywords[app.id] ?? []}
+              <div class="budget">
+                <AsoBudget
+                  {platform}
+                  locale={row.locale}
+                  fields={text.fields}
+                  staged={text.staged}
+                  keywords={keywordsForLocale(tracked, row.locale)}
+                  countries={countriesForLocale(tracked, row.locale)}
+                  listingLocales={allLocales}
+                  addHref={coachHref({ to: 'keywords_add', label: 'Add keywords' }, app.id, platform)}
+                />
+              </div>
+            {/if}
 
             {#if app !== undefined && pullable.length > 0}
               <div class="pullrow">
@@ -287,6 +313,10 @@
     display: inline-flex;
     gap: var(--space-1);
     align-items: center;
+  }
+
+  .budget {
+    padding: 0 var(--space-4) var(--space-3);
   }
 
   .pullrow {

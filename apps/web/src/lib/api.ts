@@ -4,6 +4,7 @@ import type {
   AsoCompetitor,
   AsoCompetitorHistory,
   AsoConfig,
+  AsoCoachResponse,
   AsoFitResponse,
   AsoGapsResponse,
   AsoIdeasResponse,
@@ -1016,6 +1017,8 @@ export function createApi(options: ApiOptions = {}) {
       request<void>('DELETE', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}`),
     asoCompetitorHistory: (workspaceId: string, appId: string, competitorId: string, limit = 30) =>
       request<AsoCompetitorHistory>('GET', `${asoPath(workspaceId, appId)}/competitors/${encodeURIComponent(competitorId)}/history?limit=${limit}`),
+    /** Ranked next steps, worked out from stored data (no store is read). */
+    asoCoach: (workspaceId: string, appId: string) => request<AsoCoachResponse>('GET', `${asoPath(workspaceId, appId)}/coach`),
     asoFit: (workspaceId: string, appId: string) => request<AsoFitResponse>('GET', `${asoPath(workspaceId, appId)}/fit`),
     asoIdeas: (workspaceId: string, appId: string, locale?: string) =>
       request<AsoIdeasResponse>('GET', `${asoPath(workspaceId, appId)}/ideas${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
