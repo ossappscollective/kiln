@@ -100,6 +100,8 @@ export type RepoSideFile = {
   oid: string | null;
   /** SHA-256 of the bytes, when the server read the file for this comparison. */
   sha256: string | null;
+  /** MD5 of the bytes (App Store Connect's `sourceFileChecksum` is an MD5), when the server read the file. */
+  md5?: string | null;
   bytes: number | null;
   width: number | null;
   height: number | null;
@@ -144,10 +146,9 @@ export function compareFile(repo: RepoSideFile | null, store: StoreImageFile | n
   if (repo !== null && store === null) return { status: 'only_repo', reason: '' };
   if (repo === null && store !== null) return { status: 'only_store', reason: '' };
   if (repo === null || store === null) return { status: 'differs', reason: 'Nothing to compare.' };
-  if (store.checksum !== null && repo.sha256 !== null && (store.checksumKind === 'sha256' || store.checksumKind === null)) {
-    return sameChecksum(store.checksum, repo.sha256)
-      ? { status: 'identical', reason: '' }
-      : { status: 'differs', reason: 'The checksums differ.' };
+  const mine = store.checksumKind === 'md5' ? (repo.md5 ?? null) : repo.sha256;
+  if (store.checksum !== null && mine !== null) {
+    return sameChecksum(store.checksum, mine) ? { status: 'identical', reason: '' } : { status: 'differs', reason: 'The checksums differ.' };
   }
   if (repo.width !== null && repo.height !== null && store.width !== null && store.height !== null && (repo.width !== store.width || repo.height !== store.height)) {
     return { status: 'differs', reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.` };

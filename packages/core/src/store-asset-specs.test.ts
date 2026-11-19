@@ -96,8 +96,11 @@ test('App Store screenshots: format, alpha, size and counts', () => {
   assert.deepEqual(rules('app_store', eleven), ['error:apple.screenshot.count']);
   assert.deepEqual(rules('app_store', eleven.slice(0, 10)), []);
   // Ten on the iPhone and ten on the iPad are two sets.
-  const two = [...eleven.slice(0, 10), ...eleven.slice(0, 10).map((a, i) => ({ ...a, device: 'ipad_13', path: `i/${i}.png` }))];
+  const two = [...eleven.slice(0, 10), ...eleven.slice(0, 10).map((a, i) => ({ ...a, device: 'ipad_13', width: 2064, height: 2752, path: `i/${i}.png` }))];
   assert.deepEqual(rules('app_store', two), []);
+  // A file put in a display's set must have one of that display's sizes (a set made by hand, an upload).
+  assert.deepEqual(rules('app_store', [facts('app_store', { device: 'ipad_13', width: 1290, height: 2796 })]), ['error:apple.screenshot.size']);
+  assert.deepEqual(rules('app_store', [facts('app_store', { device: 'imessage:iphone_6_9', width: 2796, height: 1290 })]), [], 'landscape is a size of the display too');
   // Another locale is another set.
   const split = [...eleven.slice(0, 6), ...eleven.slice(6).map((a) => ({ ...a, locale: 'fr-FR' }))];
   assert.deepEqual(rules('app_store', split), []);

@@ -247,6 +247,11 @@ export type StagedAssetFileView = {
   height: number | null;
   format: string | null;
   hasAlpha: boolean | null;
+  /**
+   * The file was uploaded or fixed in the app: its bytes are kept by this server (`path` is `uploads/<id>/<name>`, `commit` is
+   * empty) and are shown from `GET .../staged/assets/blob`, not from the repository.
+   */
+  upload?: boolean;
 };
 
 export type StagedAssetView = {

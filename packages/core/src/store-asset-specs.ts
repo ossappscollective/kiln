@@ -429,6 +429,15 @@ function checkApple(a: AssetFacts, out: AssetProblem[], w: ReturnType<typeof whe
     if (a.width !== null && a.height !== null && a.device === null) {
       out.push(problem('apple.screenshot.size', 'error', `${sizeText(a)} is not one of them.`, w));
     }
+    // A file put in a display's set (staged by hand, uploaded) must have one of that display's sizes. A file of the
+    // repository is classified by its size, so it always does.
+    if (a.width !== null && a.height !== null && a.device !== null) {
+      const id = a.device.startsWith(IMESSAGE_PREFIX) ? a.device.slice(IMESSAGE_PREFIX.length) : a.device;
+      const display = APPLE_DISPLAYS.find((d) => d.id === id);
+      if (display && !display.sizes.some(([width, height]) => width === a.width && height === a.height)) {
+        out.push(problem('apple.screenshot.size', 'error', `${sizeText(a)} is not a size of the ${display.label} display.`, w));
+      }
+    }
     return;
   }
   if (a.kind === 'app_icon') {

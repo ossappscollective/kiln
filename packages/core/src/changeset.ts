@@ -13,6 +13,12 @@ export type FileChange = {
   before?: string;
   /** Content after the change. Absent for a deleted file. */
   after?: string;
+  /**
+   * `base64`: `before` and `after` are the base64 text of the file's bytes, not text (an image of the store
+   * assets sync, docs/adr/0012-assets-two-way-sync.md). Absent: UTF-8 text, as always. A change set with such a file is
+   * never refreshed or fixed up; it is applied as it is.
+   */
+  encoding?: 'base64';
 };
 
 /**
