@@ -15,6 +15,7 @@
   import { appAddress } from '../../../lib/app-scope.ts';
   import { testErrorMessage } from '../../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../../lib/format.ts';
+  import { countOf } from '../../../lib/section-state.ts';
   import { platformLabel, storeName, syncInfo } from '../../../lib/portfolio.ts';
   import type { AppSummary, CredentialSummary } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
@@ -85,6 +86,7 @@
   icon="key"
   description="Which store each record of this app is in, and the credential it reads the store with. Secrets are never shown."
   unavailable={notAvailable.changeCredential}
+  summary={countOf(records.length, 'store record')}
 >
   {#if loadProblem}<Alert tone="warn">{loadProblem}</Alert>{/if}
   <div class="stack">

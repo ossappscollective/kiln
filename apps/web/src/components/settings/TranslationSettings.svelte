@@ -59,7 +59,7 @@
   const modes: TranslationMode[] = [...translationModes];
 </script>
 
-<Card title="Translation" description="Translate customer reviews with a service you choose.">
+<Card title="Translation" collapseKey="translation" description="Translate customer reviews with a service you choose.">
   {#if !editable}
     <Alert tone="info">Only owners and admins can change these settings. You can see what is set.</Alert>
   {/if}

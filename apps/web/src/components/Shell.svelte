@@ -8,7 +8,7 @@
   import { groupApps } from '../lib/app-groups.ts';
   import { type AppSection, appAddress, parseViewPath, visibleSections } from '../lib/app-scope.ts';
   import { pageTitle } from '../lib/app-nav.ts';
-  import { jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
+  import { appSwitchHash, jumpTarget, switcherItems, type SwitcherItem } from '../lib/app-switcher.ts';
   import { breadcrumbItems } from '../lib/breadcrumb.ts';
   import { DEMO_BANNER_TEXT } from '../lib/demo.ts';
   import { appNavCounts, badgeLabel, badgeText } from '../lib/nav-badges.ts';
@@ -18,6 +18,9 @@
   import { navSignals } from '../lib/nav-signals.svelte.ts';
   import { CHORD_TIMEOUT_MS, type ChordState, chordHint, idleChord, isTypingTarget, stepShortcut } from '../lib/shortcuts.ts';
   import { initials } from '../lib/format.ts';
+  import { heightToHold, shouldResetScroll } from '../lib/scroll-keep.ts';
+  import { createSectionHost, provideSectionHost } from '../lib/section-host.svelte.ts';
+  import { sectionPageOf } from '../lib/section-state.ts';
   import type { Me } from '../lib/types.ts';
   import { views } from '../lib/views.ts';
   import AppNav from './app/AppNav.svelte';
@@ -121,8 +124,10 @@
     void navSignals.ensureApps(api, workspaceId);
   }
 
+  /** Another app opens on the same page (Releases stays Releases, a view and a platform that exist there stay), else on its Overview. */
   function pickApp(item: SwitcherItem) {
-    location.hash = appAddress(item.key);
+    const role = workspace?.role;
+    location.hash = appSwitchHash(address.hash, item, role ? (a) => can(role, a) : undefined);
   }
 
   function setChord(next: ChordState) {
@@ -189,6 +194,37 @@
   let menuButton = $state<HTMLButtonElement>();
   let userButton = $state<HTMLButtonElement>();
   let userEl = $state<HTMLElement>();
+
+  // The collapsible sections of the page remember their state per workspace, person and page (components/ui/Section.svelte).
+  provideSectionHost(createSectionHost(() => ({ workspaceId, userId: me.user.id, page: sectionPageOf(address.hash) })));
+
+  // Scroll: only a different route path (another page or app) starts at the top. A change of the query alone (view, platform scope,
+  // version, locale, filters) keeps the position: the page also keeps its height while the new view loads, so a short placeholder
+  // cannot pull it up. Runs before the DOM is updated, while the old page is still measurable.
+  let keptHash = untrack(() => address.hash);
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  $effect.pre(() => {
+    const next = address.hash;
+    const prev = untrack(() => keptHash);
+    if (next === prev) return;
+    keptHash = next;
+    const reset = shouldResetScroll(prev, next);
+    const top = window.scrollY;
+    const hold = untrack(() => heightToHold(reset, mainEl?.offsetHeight ?? 0));
+    if (holdTimer !== null) clearTimeout(holdTimer);
+    holdTimer = null;
+    if (mainEl) mainEl.style.minHeight = hold > 0 ? `${hold}px` : '';
+    void tick().then(() => {
+      if (reset) window.scrollTo(0, 0);
+      else if (Math.abs(window.scrollY - top) > 1) window.scrollTo(0, top);
+    });
+    if (hold > 0) {
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        if (mainEl) mainEl.style.minHeight = '';
+      }, 3000);
+    }
+  });
 
   // Following a link closes the drawer.
   $effect(() => {

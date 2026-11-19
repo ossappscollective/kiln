@@ -2,11 +2,15 @@
   BoardCard: one app (one platform) and its newest version on the board: where it is in the
   lifecycle, a blocked flag with its reason, the deadline, what to do next and when it was synced.
   Everything on it is read from the stores or from our own plan; it has no control that changes a store.
-  Props: card (from buildBoard), now (epoch ms, so relative times update).
+  One status pill (the release status; a planned version says "Planned"), then the "N pending" badge of the app when something waits for
+  review. The deadline and the rollout plan are quiet text, not extra pills, unless something is late or due.
+  Props: card (from buildBoard), now (epoch ms, so relative times update), pending? (the app's pending line, from lineFor).
 -->
 <script lang="ts">
   import type { BoardCard } from '../../lib/dashboard.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
+  import type { PendingLine } from '../../lib/pending.ts';
+  import { appAddress } from '../../lib/app-scope.ts';
   import { appHref, trackLabel } from '../../lib/portfolio.ts';
   import { dueText, rolloutBadge } from '../../lib/release.ts';
   import { toneIcon } from '../../lib/status-icons.ts';
@@ -15,8 +19,9 @@
   import AppIcon from '../ui/AppIcon.svelte';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
+  import PendingChip from '../publish/PendingChip.svelte';
 
-  let { card, now }: { card: BoardCard; now: number } = $props();
+  let { card, now, pending = null }: { card: BoardCard; now: number; pending?: PendingLine | null } = $props();
 
   const uid = $props.id();
   const due = $derived(card.due ? dueText(card.due) : null);
@@ -42,6 +47,7 @@
     {:else}
       <ReleaseStatus status={card.status} rawState={card.rawState ?? undefined} rolloutFraction={card.rolloutFraction} />
     {/if}
+    <PendingChip line={pending} href={appAddress(card.appId, 'pending')} />
   </div>
 
   {#if card.blocked}
@@ -53,8 +59,20 @@
 
   {#if due || rollout}
     <p class="due">
-      {#if due}<Badge tone={due.tone === 'neutral' ? 'neutral' : due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>{/if}
-      {#if rollout}<Badge tone={rollout.tone} icon={toneIcon(rollout.tone)}>{rollout.label}</Badge>{/if}
+      {#if due}
+        {#if due.tone === 'warn' || due.tone === 'bad'}
+          <Badge tone={due.tone} icon={toneIcon(due.tone)}>{due.text}</Badge>
+        {:else}
+          <span class="muted small">{due.text}</span>
+        {/if}
+      {/if}
+      {#if rollout}
+        {#if rollout.tone === 'warn'}
+          <Badge tone={rollout.tone} icon={toneIcon(rollout.tone)}>{rollout.label}</Badge>
+        {:else}
+          <span class="muted small">{rollout.label}</span>
+        {/if}
+      {/if}
     </p>
   {/if}
 

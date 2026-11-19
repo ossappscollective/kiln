@@ -23,7 +23,7 @@
   import { platformLabel } from '../../lib/portfolio.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
+  import Section from '../ui/Section.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -189,14 +189,13 @@
           <ChartCard card={split.headline} {today} {showData} />
         {/if}
         {#if split.rest.length > 0}
-          <Disclosure summary="More charts ({split.rest.length})" stateKey="analytics.charts.{app.id}">
-            {#snippet meta()}{split.rest.map((c) => c.title).join(', ')}{/snippet}
+          <Section title="More charts" key="more-charts.{app.platform}" variant="plain" count={split.rest.length} defaultOpen={false} summary={split.rest.map((c) => c.title).join(', ')}>
             <div class="grid">
               {#each split.rest as card (card.id)}
                 <ChartCard {card} {today} {showData} />
               {/each}
             </div>
-          </Disclosure>
+          </Section>
         {/if}
 
         {#if noRatingHistory(app.platform) && loaded}
@@ -209,10 +208,9 @@
           <p class="quiet">Rank versus downloads, with the tracked keywords: <a href={asoViewHref(app.id, 'rank', app.platform)}>open Keywords</a>.</p>
         {/if}
 
-        <Disclosure summary="Sources and sync" stateKey="analytics.sources.{app.id}">
-          {#snippet meta()}{stateInfo[overall].label}{lastRead === null ? '' : `, last read ${timeAgo(lastRead, now)}`}{/snippet}
+        <Section title="Sources and sync" key="sources.{app.platform}" defaultOpen={false} summary={`${stateInfo[overall].label}${lastRead === null ? '' : `, last read ${timeAgo(lastRead, now)}`}`}>
           <SourcesPanel {api} {workspaceId} {app} {status} {role} {now} onchanged={reload} />
-        </Disclosure>
+        </Section>
       </div>
     {/if}
   {/if}

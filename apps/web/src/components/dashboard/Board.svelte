@@ -10,6 +10,8 @@
   import { type Role, can } from '@mrm/core';
   import type { Api } from '../../lib/api.ts';
   import { attentionItems, blockedCount, buildBoard } from '../../lib/dashboard.ts';
+  import { lineFor } from '../../lib/pending.ts';
+  import { pendingStore } from '../../lib/pending-store.svelte.ts';
   import { appLabel, type ReleaseLoad } from '../../lib/portfolio.ts';
   import type { AppSummary, PlanSummary } from '../../lib/types.ts';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -108,7 +110,7 @@
           {:else}
             <ul class="cards">
               {#each column.cards as card (card.key)}
-                <li><BoardCard {card} {now} /></li>
+                <li><BoardCard {card} {now} pending={lineFor(pendingStore.summary(workspaceId), [card.appId])} /></li>
               {/each}
             </ul>
           {/if}

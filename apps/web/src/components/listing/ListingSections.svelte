@@ -28,6 +28,7 @@
   import type { SectionDrift } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Icon from '../ui/Icon.svelte';
+  import Section from '../ui/Section.svelte';
 
   let {
     sections,
@@ -67,9 +68,15 @@
 
   {#each ordered as section (section.name)}
     {@const status = section.compare.status}
-    <article class="card flush section" aria-label={sectionTitle(section.name)}>
-      <header>
-        <h4>{sectionTitle(section.name)}</h4>
+    <Section
+      title={sectionTitle(section.name)}
+      key="{platform}.{section.name}"
+      level={4}
+      flush
+      defaultOpen={status === 'differs' || status === 'not-read'}
+      summary={`${sectionStatusLabel(status)}${section.name === 'media' && section.store !== null ? ` · ${mediaSummary(section.store as ListingMedia)}` : ''}`}
+    >
+      {#snippet actions()}
         <Badge tone={sectionStatusTone(status)}>{sectionStatusLabel(status)}</Badge>
         {#if section.name === 'media' && section.store !== null}
           <span class="muted">{mediaSummary(section.store as ListingMedia)}</span>
@@ -77,7 +84,7 @@
         {#if section.storeObservedAt !== null}
           <span class="muted when" title={fullTime(section.storeObservedAt)}>in the store since {timeAgo(section.storeObservedAt, now)}</span>
         {/if}
-      </header>
+      {/snippet}
       <div class="body">
         <p class="muted explain">{sectionStatusExplanation(status)}</p>
         {#if !repositoryLinked && status !== 'not-read'}
@@ -193,7 +200,7 @@
           {/if}
         {/if}
       </div>
-    </article>
+    </Section>
   {/each}
 </section>
 
@@ -227,19 +234,6 @@
   .summary {
     margin: 0;
     font-weight: var(--weight-medium);
-  }
-
-  .section > header {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
-    align-items: center;
-    padding: var(--space-3) var(--space-4);
-  }
-
-  .section h4 {
-    margin: 0;
-    font-size: var(--text-md);
   }
 
   .when {

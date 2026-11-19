@@ -11,8 +11,10 @@ import { placePopover } from './popover-place.ts';
  */
 export type FloatingParams = {
   anchor: HTMLElement | null;
-  align?: 'start' | 'end';
+  align?: 'start' | 'end' | 'center';
   gap?: number;
+  /** Above the anchor when it fits there (tooltips). */
+  prefer?: 'below' | 'above';
   /** At least as wide as the anchor (the list of a field). */
   matchAnchorWidth?: boolean;
 };
@@ -47,6 +49,7 @@ export function floating(node: HTMLElement, params: FloatingParams) {
       viewport,
       size: { width: node.offsetWidth, height: node.scrollHeight + (node.offsetHeight - node.clientHeight) },
       align: current.align,
+      prefer: current.prefer,
       gap: current.gap,
       matchAnchorWidth: current.matchAnchorWidth,
     });

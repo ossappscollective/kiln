@@ -1,5 +1,7 @@
-import type { Platform } from '@mrm/core';
+import type { Action, Platform } from '@mrm/core';
 import type { AppGroup } from './app-groups.ts';
+import { canonicalAppHash, canonicalSection, sectionViews } from './app-nav.ts';
+import { type AppSection, appAddress, isPlatformScope, parseAppAddress, parseViewPath, visibleSections } from './app-scope.ts';
 import type { PendingLine } from './pending.ts';
 
 /**
@@ -93,4 +95,45 @@ export function moveActive(key: string, current: number, count: number): number 
   if (key === 'Home') return 0;
   if (key === 'End') return count - 1;
   return Math.min(Math.max(0, current), count - 1);
+}
+
+/**
+ * Where another app opens: on the same page the current app shows (Releases stays Releases, Store listing stays Store listing), not on
+ * its Overview. The generic parts of the address come along when they are valid there: the view (`?view=`, unless it is Search terms
+ * and the app has no Google Play record) and the platform scope (when the app has that platform, else all of them). The version, the
+ * locale and an open release belong to the old app and are dropped. A page the person may not open falls back to the Overview. From
+ * anywhere that is not an app (All apps, the inbox) the app opens on its Overview, as before.
+ */
+export function appSwitchHash(
+  currentHash: string,
+  target: Pick<SwitcherItem, 'key' | 'platforms'>,
+  allowed: (action: Action) => boolean = () => true,
+): string {
+  const hash = canonicalAppHash(currentHash) ?? currentHash;
+  const here = parseAppAddress(hash);
+  if (!here) return appAddress(target.key);
+  const section: AppSection = canonicalSection(here.section);
+  const open = visibleSections(allowed).some((s) => s.id === section);
+  if (!open || section === 'dashboard') return appAddress(target.key, 'dashboard', scopeFor(here.platform, target.platforms));
+  const base = appAddress(target.key, section, scopeFor(here.platform, target.platforms));
+  // An open release is a version of the old app: the list of the new one opens.
+  const params = new URLSearchParams();
+  const view = here.release === null ? parseViewPath(hash).query.get('view') : null;
+  const views = sectionViews[section];
+  if (view !== null && views && (section === 'insights' || views.some((v) => v.id === view))) {
+    const entry = views.find((v) => v.id === view);
+    const playOnly = entry?.androidOnly === true && target.platforms.indexOf('android') < 0;
+    const allowedView = entry?.requires === undefined || allowed(entry.requires);
+    if (!playOnly && allowedView) params.set('view', view);
+  }
+  const search = params.toString();
+  if (search === '') return base;
+  return base.indexOf('?') < 0 ? `${base}?${search}` : `${base}&${search}`;
+}
+
+/** The platform scope of the address when the other app has it, else none (all of its platforms). */
+function scopeFor(asked: string | null, platforms: readonly Platform[]): 'both' | Platform | null {
+  if (!isPlatformScope(asked)) return null;
+  if (asked === 'both') return platforms.length > 1 ? 'both' : null;
+  return platforms.indexOf(asked) >= 0 ? asked : null;
 }

@@ -21,7 +21,7 @@
   const canRemind = (key: string): boolean => canEdit(writable, key);
 </script>
 
-<Card title="Reviews" description="Which reviews count as low.">
+<Card title="Reviews" collapseKey="reviews" description="Which reviews count as low.">
   <div class="field">
     <label for="{uid}-threshold">Low rating threshold</label>
     <select id="{uid}-threshold" bind:value={form.lowRatingThreshold} disabled={!editable} aria-describedby="{uid}-threshold-hint" aria-invalid={error ? 'true' : undefined}>

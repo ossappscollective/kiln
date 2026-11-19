@@ -10,6 +10,8 @@
 -->
 <script lang="ts">
   import { formatDay, formatValue } from '../../lib/analytics.ts';
+  import { floating } from '../../lib/floating.ts';
+  import { pointAnchor } from '../../lib/virtual-anchor.ts';
   import { indexAt, labelsCollide, plot, provisionalIndex, xTickIndexes } from '../../lib/analytics-chart.ts';
   import { type ChartPanel, describePanel, tooltipFor } from '../../lib/analytics-view.ts';
 
@@ -63,6 +65,8 @@
   const tip = $derived(hover === null ? null : tooltipFor(panel, hover, today));
   const tipLeft = $derived(hover === null ? 0 : geo.xCenter(hover));
   const flip = $derived(tipLeft > width * 0.58);
+  /** The tip hangs on a point beside the crosshair and is drawn in the top layer (lib/floating.ts), so no card can clip it. */
+  const tipAnchor = $derived(tip && svg ? pointAnchor(svg, tipLeft + (flip ? -12 : 12), 8) : null);
   const name = $derived(describePanel(panel, cardTitle));
   const spoken = $derived(tip ? `${tip.heading}. ${tip.rows.map((r) => `${r.label}: ${r.text}`).join('. ')}${tip.provisional ? '. May still change.' : ''}` : '');
   const isLine = $derived(panel.kind === 'line');
@@ -213,16 +217,18 @@
     </svg>
 
     {#if tip}
-      <div class="tip" class:flip style:left={flip ? undefined : `${tipLeft + 12}px`} style:right={flip ? `${width - tipLeft + 12}px` : undefined}>
-        <div class="tip-date">{tip.heading}</div>
-        {#each tip.rows as row (row.key)}
-          <div class="tip-row" class:none={row.missing}>
-            {#if row.color !== 0}<span class="key s{row.color}" class:col={!isLine} aria-hidden="true"></span>{:else}<span class="key-gap" aria-hidden="true"></span>{/if}
-            <strong class="num">{row.text}</strong>
-            <span class="tip-label">{row.label}</span>
-          </div>
-        {/each}
-        {#if tip.provisional}<div class="tip-note">The store may still change this day.</div>{/if}
+      <div class="tip" aria-hidden="true" use:floating={{ anchor: tipAnchor, align: flip ? 'end' : 'start', gap: 0 }}>
+        <div class="tip-body">
+          <div class="tip-date">{tip.heading}</div>
+          {#each tip.rows as row (row.key)}
+            <div class="tip-row" class:none={row.missing}>
+              {#if row.color !== 0}<span class="key s{row.color}" class:col={!isLine} aria-hidden="true"></span>{:else}<span class="key-gap" aria-hidden="true"></span>{/if}
+              <strong class="num">{row.text}</strong>
+              <span class="tip-label">{row.label}</span>
+            </div>
+          {/each}
+          {#if tip.provisional}<div class="tip-note">The store may still change this day.</div>{/if}
+        </div>
       </div>
     {/if}
     <div class="visually-hidden" id="{uid}-live" aria-live="polite">{spoken}</div>
@@ -399,19 +405,22 @@
     filter: brightness(1.15);
   }
 
+  /* In the top layer and placed by the floating action: the card around the chart cannot clip it. */
   .tip {
-    position: absolute;
-    top: var(--space-2);
-    z-index: var(--z-tooltip);
-    min-width: 11rem;
-    max-width: 18rem;
+    width: max-content;
     padding: var(--space-2) var(--space-3);
+    color: var(--ink);
     pointer-events: none;
     font-size: var(--text-sm);
     background: var(--surface);
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
+  }
+
+  .tip-body {
+    min-width: 11rem;
+    max-width: 18rem;
   }
 
   .tip-date {

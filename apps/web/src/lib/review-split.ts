@@ -13,6 +13,15 @@ import { type InboxShortcut, type Review, type ReviewStatus, isAnswered, moveInd
 export const SPLIT_MIN_WIDTH = 1100;
 export const SPLIT_QUERY = `(min-width: ${SPLIT_MIN_WIDTH}px)`;
 
+/** From this width up to the one above, the list takes the whole width and the review opens as a drawer from the right. */
+export const COMPACT_MIN_WIDTH = 800;
+export const COMPACT_QUERY = `(min-width: ${COMPACT_MIN_WIDTH}px)`;
+
+export type SplitLayout = 'side-by-side' | 'drawer' | 'cards';
+
+/** How reviews are laid out at a window width: list and detail side by side, the list with a drawer, or the cards. */
+export const splitLayout = (width: number): SplitLayout => (width >= SPLIT_MIN_WIDTH ? 'side-by-side' : width >= COMPACT_MIN_WIDTH ? 'drawer' : 'cards');
+
 /** How many extra pages may be read to find the review an address asks for. */
 export const MAX_FIND_PAGES = 8;
 

@@ -28,6 +28,7 @@
   import type { AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import Section from '../ui/Section.svelte';
   import AssetProblems from './AssetProblems.svelte';
   import AssetThumb from './AssetThumb.svelte';
 
@@ -72,11 +73,8 @@
 
 <div class="gallery">
   {#each groups as locale (locale.locale)}
-    <section class="locale" aria-labelledby="loc-{appId}-{locale.locale || 'project'}">
-      <h3 id="loc-{appId}-{locale.locale || 'project'}">
-        {locale.label}
-        <span class="muted count">{locale.assetCount} {locale.assetCount === 1 ? 'file' : 'files'}</span>
-      </h3>
+    <Section title={locale.label} key="locale.{locale.locale || 'project'}" count={`${locale.assetCount} ${locale.assetCount === 1 ? 'file' : 'files'}`} summary={locale.groups.map((g) => `${g.kindLabel} ${g.count}`).join(' · ')}>
+    <div class="locale">
       {#each locale.groups as group (group.key)}
         {@const compare = compareWithStore(storeSide, group, locale.locale)}
         {@const over = group.max !== null && group.count > group.max}
@@ -150,34 +148,23 @@
           </ul>
         </div>
       {/each}
-    </section>
+    </div>
+    </Section>
   {/each}
 </div>
 
 <style>
   .gallery {
     display: grid;
-    gap: var(--space-8);
+    gap: var(--space-4);
   }
   .locale {
     display: grid;
     gap: var(--space-4);
   }
-  h3 {
-    margin: 0;
-    font-size: var(--text-lg);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-3);
-  }
   h4 {
     margin: 0;
     font-size: var(--text-md);
-  }
-  .count {
-    font-size: var(--text-sm);
-    font-weight: 400;
   }
   .set {
     display: grid;

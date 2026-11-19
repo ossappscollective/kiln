@@ -62,7 +62,8 @@
   import type { AppSummary, AssetIndex, AssetItem, AssetStoreSide } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
+  import Section from '../ui/Section.svelte';
+  import SectionsToggle from '../ui/SectionsToggle.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
@@ -180,6 +181,8 @@
   // A choice the group does not offer (after switching group or reading again) counts as "all".
   const active = $derived(sanitizeFilter(filter, options));
   const groups = $derived(groupAssets(slice, active));
+  /** The filters of the toolbar are drawn when the open group is on this store and has files. */
+  const groupShown = $derived(groupAvailability(asGroupId(group), app.platform).available && (summaries.filter((g) => g.id === group)[0]?.files ?? 0) > 0);
   const problemMap = $derived(index ? problemsByPath(index.problems) : {});
   const shownAssets = $derived(groups.reduce((all: AssetItem[], locale) => {
     for (const group of locale.groups) for (const asset of group.assets) all.push(asset);
@@ -452,6 +455,7 @@
         <section class="summarybar" aria-label="Summary">
           <p class="summary"><strong>{summaryText(index)}</strong> <span class="muted">· {problemCountsText(index)}</span></p>
           <div class="row wrap staging">
+            <SectionsToggle />
             <InfoTip label="About staging" align="end" width="24rem">
               <p>Stage collects repository files for a draft push. {REVERSE_IMAGE_SYNC_NOTE}</p>
             </InfoTip>
@@ -480,13 +484,48 @@
         {/if}
 
         {#if index.problems.length > 0}
-          <Disclosure
-            variant="boxed"
-            stateKey="assets.problems"
-            summary="Problems found ({index.problems.length}): {problemCountsText(index)}"
-          >
+          <Section title="Problems found" key="problems" count={index.problems.length} summary={problemCountsText(index)} defaultOpen={false}>
             <div class="problem-list"><AssetProblems problems={index.problems} onopenpath={openPath} /></div>
-          </Disclosure>
+          </Section>
+        {/if}
+
+        {#if groupShown}
+          <div class="filters">
+            <div class="field">
+              <label for="asset-locale-{app.id}">Locale</label>
+              <select id="asset-locale-{app.id}" value={active.locale} onchange={(e) => {
+                  filter = { ...filter, locale: e.currentTarget.value };
+                  writeLocale(e.currentTarget.value);
+                }}>
+                <option value={ALL}>All locales</option>
+                {#each options.locales as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+              </select>
+            </div>
+            {#if options.devices.length > 1 || active.device !== ALL}
+              <div class="field">
+                <label for="asset-device-{app.id}">Device</label>
+                <select id="asset-device-{app.id}" value={active.device} onchange={(e) => (filter = { ...filter, device: e.currentTarget.value })}>
+                  <option value={ALL}>All devices</option>
+                  {#each options.devices as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+                </select>
+              </div>
+            {/if}
+            {#if options.kinds.length > 1 || active.kind !== ALL}
+              <div class="field">
+                <label for="asset-kind-{app.id}">Kind</label>
+                <select id="asset-kind-{app.id}" value={active.kind} onchange={(e) => (filter = { ...filter, kind: e.currentTarget.value })}>
+                  <option value={ALL}>All kinds</option>
+                  {#each options.kinds as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+                </select>
+              </div>
+            {/if}
+            {#if isFiltered(active)}
+              <Button variant="ghost" onclick={() => {
+                filter = { ...NO_FILTER };
+                writeLocale(ALL);
+              }}>Clear filters</Button>
+            {/if}
+          </div>
         {/if}
 
         <Tabs
@@ -506,43 +545,6 @@
                   <EmptyState icon="images" title="No {groupDef(asGroupId(id)).label.toLowerCase()} found" description="The repository holds none in the places the stores' tooling uses." />
                 </div>
               {:else}
-                <div class="filters">
-                  <div class="field">
-                    <label for="asset-locale-{app.id}">Locale</label>
-                    <select id="asset-locale-{app.id}" value={active.locale} onchange={(e) => {
-                        filter = { ...filter, locale: e.currentTarget.value };
-                        writeLocale(e.currentTarget.value);
-                      }}>
-                      <option value={ALL}>All locales</option>
-                      {#each options.locales as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-                    </select>
-                  </div>
-                  {#if options.devices.length > 1 || active.device !== ALL}
-                    <div class="field">
-                      <label for="asset-device-{app.id}">Device</label>
-                      <select id="asset-device-{app.id}" value={active.device} onchange={(e) => (filter = { ...filter, device: e.currentTarget.value })}>
-                        <option value={ALL}>All devices</option>
-                        {#each options.devices as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-                      </select>
-                    </div>
-                  {/if}
-                  {#if options.kinds.length > 1 || active.kind !== ALL}
-                    <div class="field">
-                      <label for="asset-kind-{app.id}">Kind</label>
-                      <select id="asset-kind-{app.id}" value={active.kind} onchange={(e) => (filter = { ...filter, kind: e.currentTarget.value })}>
-                        <option value={ALL}>All kinds</option>
-                        {#each options.kinds as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-                      </select>
-                    </div>
-                  {/if}
-                  {#if isFiltered(active)}
-                    <Button variant="ghost" onclick={() => {
-                      filter = { ...NO_FILTER };
-                      writeLocale(ALL);
-                    }}>Clear filters</Button>
-                  {/if}
-                </div>
-
                 {#if groups.length === 0}
                   <div class="card">
                     <EmptyState icon="filter" title="Nothing matches the filters" description="Choose another locale, device or kind.">
@@ -581,8 +583,7 @@
         </Tabs>
       {/if}
 
-      <details class="card specs">
-        <summary>How these checks work</summary>
+      <Section title="How these checks work" key="specs" defaultOpen={false}>
         <div class="stack spec-body">
           <p>{index.specs.basis}</p>
           <p class="muted">Rules come from these pages:</p>
@@ -598,7 +599,7 @@
             </ul>
           {/if}
         </div>
-      </details>
+      </Section>
 
       <AssetPullDialog bind:open={pullOpen} {api} {workspaceId} {role} {app} initialSets={pullSets} />
       <AssetCompareDialog bind:open={compareOpen} {api} {workspaceId} {role} {app} focus={compareFocus} ondiff={(d) => (diff = d)} />
@@ -671,10 +672,6 @@
     margin: 0;
     font-size: var(--text-sm);
     overflow-wrap: anywhere;
-  }
-  details > summary {
-    cursor: pointer;
-    font-weight: 600;
   }
   .problem-list,
   .spec-body {

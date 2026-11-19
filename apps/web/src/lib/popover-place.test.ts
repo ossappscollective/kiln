@@ -48,3 +48,16 @@ test('a dropdown can be at least as wide as its field', () => {
   const p = placePopover({ anchor: box(10, 10, 400), viewport: vp, size: { width: 280, height: 100 }, matchAnchorWidth: true });
   assert.equal(p.width, 400);
 });
+
+test('a tooltip is centred over its trigger and goes above when it fits there', () => {
+  const p = placePopover({ anchor: box(300, 200, 100, 24), viewport: vp, size: { width: 80, height: 30 }, align: 'center', prefer: 'above', gap: 6 });
+  assert.equal(p.placement, 'above');
+  assert.equal(p.left, 310);
+  assert.equal(p.top, 200 - 6 - 30);
+});
+
+test('a tooltip with no room above goes below, and stays inside the window', () => {
+  const p = placePopover({ anchor: box(0, 4, 20, 24), viewport: vp, size: { width: 120, height: 30 }, align: 'center', prefer: 'above' });
+  assert.equal(p.placement, 'below');
+  assert.equal(p.left, 8);
+});

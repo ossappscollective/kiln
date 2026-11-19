@@ -64,6 +64,8 @@
   import InfoTip from '../ui/InfoTip.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
+  import Section from '../ui/Section.svelte';
+  import SectionsToggle from '../ui/SectionsToggle.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
   import HistoryDrawer from './HistoryDrawer.svelte';
   import ListingSections from './ListingSections.svelte';
@@ -72,6 +74,7 @@
   import PullResultSummary from './PullResultSummary.svelte';
   import StagedTray from './StagedTray.svelte';
   import StatusDot from './StatusDot.svelte';
+  import { countOf, summaryLine } from '../../lib/section-state.ts';
 
   let {
     api,
@@ -460,6 +463,7 @@
     </div>
     {#if !nothingLoaded}
       <div class="actions row wrap">
+        <SectionsToggle />
         <InfoTip label="Legend and sources of this grid" buttonText="Legend and sources" icon="info" align="end" width="min(28rem, 92vw)">
           {#if hasRows}
             <p>
@@ -617,7 +621,8 @@
           </EmptyState>
         </div>
       {:else}
-        <div class="card flush grid-scroll">
+        <Section title="Locales" key="locales" flush summary={summaryLine([countOf(rows.length, 'locale'), line.attention > 0 ? `${line.attention} need attention` : 'all in sync'])}>
+        <div class="grid-scroll">
           <table class="matrix compact">
             <caption class="visually-hidden">
               Listing status by locale and field{both ? ` for ${platformNames(shown)}` : ''}. Open a locale for the full comparison.
@@ -681,6 +686,7 @@
             </tbody>
           </table>
         </div>
+        </Section>
       {/if}
     {/if}
 

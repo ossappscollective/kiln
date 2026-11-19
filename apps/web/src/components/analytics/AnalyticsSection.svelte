@@ -18,6 +18,7 @@
   import AiSuggestions from '../ai/AiSuggestions.svelte';
   import AsoCoach from '../aso/AsoCoach.svelte';
   import AnalyticsPlatform from './AnalyticsPlatform.svelte';
+  import SectionsToggle from '../ui/SectionsToggle.svelte';
   import RangeControl from './RangeControl.svelte';
   import VizScope from './VizScope.svelte';
 
@@ -43,6 +44,7 @@
     <div class="filters" hidden={!anyStored}>
       <RangeControl {choice} {range} {now} onchange={setRange} />
       <span class="spacer"></span>
+      <SectionsToggle />
       <button type="button" class="bare toggle" aria-pressed={showData} onclick={() => (showData = !showData)}>
         {showData ? 'Hide data' : 'Show data'}
       </button>

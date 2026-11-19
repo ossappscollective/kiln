@@ -242,7 +242,7 @@
     <h2 class="repo">{repositoryName(repository)} <span class="muted text-sm">default branch {repository.defaultBranch}</span></h2>
   {/if}
 
-  <Card title="Workflows" flush>
+  <Card title="Workflows" flush collapseKey="workflows" count={ranked.length}>
     {#snippet actions()}
       {#if following}
         <span class="muted text-sm" role="status">Following {runs?.filter((r) => r.active).length ?? 0} running</span>
@@ -305,7 +305,7 @@
     {/if}
   </Card>
 
-  <Card title="Recent runs" flush>
+  <Card title="Recent runs" flush collapseKey="runs" count={runsByPlatform.shown.length}>
     {#if runsProblem}
       <div class="pad stack">
         <StatusPill tone="warn" label={runsProblem.label}>{runsProblem.message}</StatusPill>

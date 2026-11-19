@@ -6,7 +6,8 @@
   iconUrls, members, canTriage, replyConfig, lowThreshold, now (ms), translations / ontranslate /
   showTranslations (kept by the Reviews tab), settled (false while the list is being read again: the address
   is not rewritten then), hasMore, moreLoading, onmore (read the next page), onsearch (the `/` key), onchange
-  (a review changed: the triage or reply of the card), showKeys.
+  (a review changed: the triage or reply of the card), showKeys, compact (800 to 1100 px wide: the list takes the whole width and the
+  selected review opens as a drawer from the right when a row is chosen; Escape or Close shuts it, j and k keep moving while it is open).
 
   The selection is kept in the address (`?review=<id>`), so a link opens on that review and a reload keeps
   it. It is the first review until one is chosen, and it survives a triage or a re-read. If the address asks for
@@ -20,7 +21,7 @@
 -->
 <script lang="ts">
   import type { Role } from '@mrm/core';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
   import { fullTime } from '../../lib/format.ts';
   import type { ReplyConfig } from '../../lib/review-reply.ts';
@@ -81,6 +82,7 @@
     onsearch = undefined,
     onchange,
     showKeys = true,
+    compact = false,
   }: {
     api: Api;
     workspaceId: string;
@@ -104,6 +106,7 @@
     onsearch?: (() => void) | undefined;
     onchange: (updated: Review) => void;
     showKeys?: boolean;
+    compact?: boolean;
   } = $props();
 
   const uid = $props.id();
@@ -112,6 +115,8 @@
   let listEl = $state<HTMLElement>();
   let detailEl = $state<HTMLElement>();
   let card = $state<ReviewCard>();
+  /** Compact only: the drawer with the selected review is open. */
+  let drawerOpen = $state(false);
   /** The review the address asked for, or the one chosen last. Resolved against the list below. */
   const asked = isReviewsAddress(location.hash) ? reviewFromHash(location.hash) : null;
   let wanted = $state<string | null>(asked);
@@ -164,6 +169,24 @@
   function focusDetail() {
     detailEl?.querySelector<HTMLElement>('article')?.focus();
   }
+
+  /** Compact only: shows the selected review in the drawer and puts focus in it. */
+  async function openDrawer() {
+    if (!compact) return;
+    drawerOpen = true;
+    await tick();
+    focusDetail();
+  }
+
+  function closeDrawer() {
+    drawerOpen = false;
+    if (selectedId !== null) void focusRowOf(selectedId);
+  }
+
+  // Leaving the compact layout (the window grew) closes the drawer, so the side by side view starts clean.
+  $effect(() => {
+    if (!compact) drawerOpen = false;
+  });
 
   // The first review is the selection until one is chosen: make the address say so, once the list is settled
   // and the asked review is not still being looked for.
@@ -231,6 +254,11 @@
 
   function onKey(event: KeyboardEvent) {
     if (event.defaultPrevented || !isVisible() || document.querySelector('dialog[open]')) return;
+    if (event.key === 'Escape' && compact && drawerOpen) {
+      event.preventDefault();
+      closeDrawer();
+      return;
+    }
     const action = shortcutFor({
       key: event.key,
       ctrlKey: event.ctrlKey,
@@ -265,7 +293,8 @@
     if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     choose(id, false);
-    focusDetail();
+    if (compact) void openDrawer();
+    else focusDetail();
   }
 
   const appNameOf = (review: SplitReview): string => review.app?.name ?? appName;
@@ -273,7 +302,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="split" bind:this={root}>
+<div class="split" class:compact bind:this={root}>
   <div class="pane list-pane" bind:this={listEl}>
     <ul class="rows" aria-label="Reviews">
       {#each reviews as review (review.id)}
@@ -286,7 +315,10 @@
             class="row"
             data-review={review.id}
             aria-current={current ? 'true' : undefined}
-            onclick={() => choose(review.id, false)}
+            onclick={() => {
+              choose(review.id, false);
+              void openDrawer();
+            }}
             onkeydown={(event) => onRowKey(event, review.id)}
           >
             <span class="line">
@@ -327,7 +359,13 @@
     </div>
   </div>
 
-  <div class="pane detail-pane" bind:this={detailEl} aria-label="Selected review" role="region" id="{uid}-detail">
+  <div class="pane detail-pane" class:drawer={compact} hidden={compact && !drawerOpen} bind:this={detailEl} aria-label="Selected review" role="region" id="{uid}-detail">
+    {#if compact}
+      <div class="drawer-head">
+        <span class="muted small">Review</span>
+        <Button size="sm" variant="ghost" icon="x" onclick={closeDrawer}>Close<span class="visually-hidden"> the review</span></Button>
+      </div>
+    {/if}
     {#if selected}
       {#key selected.id}
         {#if selected.app}
@@ -381,6 +419,41 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
+  }
+
+  .split.compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .split.compact .list-pane {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* 800 to 1100 px: the review opens from the right over the list, which keeps its whole width. */
+  .detail-pane.drawer {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: var(--z-overlay);
+    width: min(34rem, 94vw);
+    max-height: none;
+    padding: var(--space-4);
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .detail-pane[hidden] {
+    display: none;
+  }
+
+  .drawer-head {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
   }
 
   .detail-pane {

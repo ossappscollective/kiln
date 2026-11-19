@@ -12,6 +12,7 @@
   import type { AppSummary, RepositorySummary, SavedListingTarget } from '../../../lib/types.ts';
   import Alert from '../../ui/Alert.svelte';
   import Badge from '../../ui/Badge.svelte';
+  import { countOf } from '../../../lib/section-state.ts';
   import Button from '../../ui/Button.svelte';
   import PlatformBadge from '../../ui/PlatformBadge.svelte';
   import SettingsCard from './SettingsCard.svelte';
@@ -67,6 +68,7 @@
   icon="git-branch"
   description="Where the files of this app live: fastlane metadata, screenshots and the build tags. The store listing and the assets are read from here."
   unavailable={notAvailable.changeRepository}
+  summary={countOf(repositories.length, 'repository', 'repositories')}
 >
   {#if problem}<Alert tone="warn">{problem}</Alert>{/if}
   <div class="stack">

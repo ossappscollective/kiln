@@ -37,6 +37,7 @@
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
+  import Section from '../ui/Section.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
@@ -174,6 +175,7 @@
     {#if shown.length === 0}
       <EmptyState icon="smartphone" title={rows.length === 0 ? 'No builds to test yet' : 'Nothing matches the filters'} description={rows.length === 0 ? 'Run a workflow that uploads the build as an artifact (actions/upload-artifact), or sync the app so its store builds appear. CI builds show here for the runs linked to this app.' : 'Change the filters above to see the other builds.'} />
     {:else}
+      <Section title="Test builds" key="test-builds" count={shown.length} flush>
       <div class="table-wrap">
         <table>
           <caption class="visually-hidden">Builds of {app.name} to test</caption>
@@ -251,6 +253,7 @@
           </tbody>
         </table>
       </div>
+      </Section>
       {#if data.truncated}<p class="muted text-sm">Only the newest artifacts of the repository were read.</p>{/if}
       {#if data.hiddenArtifacts > 0}<p class="muted text-sm">{data.hiddenArtifacts} other artifact{data.hiddenArtifacts === 1 ? '' : 's'} of this repository belong to other runs or platforms and are not shown.</p>{/if}
     {/if}

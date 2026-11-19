@@ -5,6 +5,7 @@
   import type { CredentialSummary, LastTest } from '../lib/types.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import CredentialTable from './credentials/CredentialTable.svelte';
+  import Section from './ui/Section.svelte';
   import StoreBadge from './ui/StoreBadge.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -114,15 +115,17 @@
         </p>
       </div>
     {:else if items && items.length > 0}
-      <CredentialTable
-        {api}
-        {workspaceId}
-        {items}
-        {canWrite}
-        onChanged={changed}
-        onTested={tested}
-        onError={(message) => (loadError = message)}
-      />
+      <Section title="Saved credentials" key="saved" count={items.length} flush>
+        <CredentialTable
+          {api}
+          {workspaceId}
+          {items}
+          {canWrite}
+          onChanged={changed}
+          onTested={tested}
+          onError={(message) => (loadError = message)}
+        />
+      </Section>
     {/if}
   {/if}
 </section>

@@ -19,6 +19,7 @@
   import StoresSection from './settings/StoresSection.svelte';
   import Button from '../ui/Button.svelte';
   import Modal from '../ui/Modal.svelte';
+  import SectionsToggle from '../ui/SectionsToggle.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
 
   let {
@@ -56,6 +57,7 @@
 </script>
 
 <div class="stack loose">
+  <div class="row bar"><SectionsToggle /></div>
   <StoresSection {api} {workspaceId} {role} {members} {all} {now} />
   <RepositorySection {api} {workspaceId} {role} {members} />
   <DefaultsSection {api} {workspaceId} {role} {members} />
@@ -64,6 +66,7 @@
   <SettingsCard
     title="Danger zone"
     icon="trash"
+    defaultOpen={false}
     description="Removing an app deletes its stored releases, reviews and plans from this workspace. Nothing in the store is changed, and you can add the app again later."
   >
     {#if canWrite}
@@ -111,6 +114,10 @@
 {/if}
 
 <style>
+  .bar {
+    justify-content: flex-end;
+  }
+
   .note {
     margin: 0;
     font-size: var(--text-sm);

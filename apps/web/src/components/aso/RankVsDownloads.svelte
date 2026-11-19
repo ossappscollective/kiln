@@ -36,7 +36,9 @@
     toggleKeyword,
     whatChangedList,
   } from '../../lib/rank-downloads.ts';
+  import { floating } from '../../lib/floating.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
+  import { pointAnchor } from '../../lib/virtual-anchor.ts';
   import Alert from '../ui/Alert.svelte';
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
@@ -76,6 +78,7 @@
   let generation = 0;
   let hover = $state<number | null>(null);
   let width = $state(640);
+  let plotsEl = $state<HTMLElement | null>(null);
 
   $effect(() => {
     void version;
@@ -114,6 +117,8 @@
   const tip = $derived(view && hover !== null ? tipFor(view, hover) : null);
   const tipX = $derived(rank && hover !== null ? rank.xCenter(hover) : 0);
   const flip = $derived(tipX > width * 0.58);
+  /** The tip hangs on a point beside the crosshair and is drawn in the top layer (lib/floating.ts), so no card can clip it. */
+  const tipAnchor = $derived(tip && plotsEl ? pointAnchor(plotsEl, tipX + (flip ? -12 : 12), 4) : null);
   const changed = $derived(view && gate?.kind === 'chart' ? whatChangedList(view) : []);
   const noCheckBands = $derived.by(() => {
     if (!view || !rank) return [];
@@ -206,7 +211,7 @@
           {#if gate.kind === 'missing' && gate.action === 'keywords' && keywordsHref}<Button size="sm" href={keywordsHref}>Track keywords</Button>{/if}
         </div>
       {:else if gate && rank}
-        <div class="plots" class:loading bind:clientWidth={width}>
+        <div class="plots" class:loading bind:clientWidth={width} bind:this={plotsEl}>
           <ul class="legend" aria-label="Keywords">
             {#each rank.lines as l (l.id)}
               <li>
@@ -282,7 +287,7 @@
           {/if}
 
           {#if tip}
-            <div class="tip" class:flip style:left={flip ? undefined : `${tipX + 12}px`} style:right={flip ? `${width - tipX + 12}px` : undefined}>
+            <div class="tip" aria-hidden="true" use:floating={{ anchor: tipAnchor, align: flip ? 'end' : 'start', gap: 0 }}>
               <div class="tip-date">{tip.heading}</div>
               {#each tip.ranks as r (r.id)}<div class="tip-row"><strong class="num">{r.text}</strong><span class="muted">{r.term}</span></div>{/each}
               <div class="tip-row"><strong class="num">{tip.downloads}</strong><span class="muted">{view.downloads ? view.downloads.label.toLowerCase() : 'downloads'}</span></div>
@@ -462,10 +467,11 @@
     fill: var(--viz-2);
   }
 
+  /* In the top layer and placed by the floating action: nothing around the chart can clip it. */
   .tip {
-    position: absolute;
-    top: 0;
-    z-index: 2;
+    width: max-content;
+    max-width: 18rem;
+    color: var(--ink);
     padding: var(--space-2) var(--space-3);
     pointer-events: none;
     background: var(--surface);

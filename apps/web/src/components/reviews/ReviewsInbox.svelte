@@ -278,7 +278,7 @@
 
   function onKey(event: KeyboardEvent) {
     // The list and detail view has its own keys (ReviewSplit).
-    if (splitView.wide) return;
+    if (splitView.active) return;
     if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
     const action = shortcutFor({
       key: event.key,
@@ -485,8 +485,9 @@
           </EmptyState>
         </div>
       {:else}
-        {#if splitView.wide}
+        {#if splitView.active}
           <ReviewSplit
+            compact={splitView.drawer}
             {api}
             {workspaceId}
             {role}

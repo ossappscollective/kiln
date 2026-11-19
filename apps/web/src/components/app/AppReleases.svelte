@@ -37,7 +37,7 @@
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
   import RolloutControls from '../release/RolloutControls.svelte';
   import Button from '../ui/Button.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
+  import Section from '../ui/Section.svelte';
   import EmptyState from '../ui/EmptyState.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
 
@@ -139,7 +139,6 @@
   const empty = $derived(members.filter((m) => (releases[m.id] ?? []).length === 0));
   const filtering = $derived(filter.query.trim() !== '' || filter.inProgressOnly);
   const searching = $derived(filter.query.trim() !== '');
-  let olderOpen = $state(false);
   const scope = $derived(address.platform);
 
   // "Prepare release": the stepper of the address (`&step=`). While it is open it replaces the table, so the page has one job.
@@ -204,51 +203,48 @@
       {/each}
     </div>
   {:else}
-    <div class="toolbar">
-      <p class="summary" aria-live="polite">
-        Current and in progress
-        <span class="muted">{split.currentCount} {split.currentCount === 1 ? 'release' : 'releases'}</span>
-      </p>
-      <div class="filters">
-        <label class="check">
-          <input type="checkbox" bind:checked={filter.inProgressOnly} />
-          <span>Not live yet</span>
-        </label>
-        <InfoTip label="About this list" align="end">
-          <p>
-            Shown here: the newest release of each platform, what is live now, what is not live yet, and what has a plan.
-            Everything else is under Older releases.
-          </p>
-          <p>
-            This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports
-            disappears.
-          </p>
-        </InfoTip>
-      </div>
-    </div>
+    <Section title="Current and in progress" key="current" variant="plain" count={split.currentCount}>
+      {#snippet actions()}
+        <div class="filters">
+          <label class="check">
+            <input type="checkbox" bind:checked={filter.inProgressOnly} />
+            <span>Not live yet</span>
+          </label>
+          <InfoTip label="About this list" align="end">
+            <p>
+              Shown here: the newest release of each platform, what is live now, what is not live yet, and what has a plan.
+              Everything else is under Older releases.
+            </p>
+            <p>
+              This is a snapshot of the store, not a history. Each sync replaces it, and a version the store no longer reports
+              disappears.
+            </p>
+          </InfoTip>
+        </div>
+      {/snippet}
+      <div class="stack">
+      {#if empty.length > 0}
+        <p class="muted note">
+          {empty.map((m) => platformLabel(m.platform)).join(' and ')}: no releases reported by the last sync.
+        </p>
+      {/if}
 
-    {#if empty.length > 0}
-      <p class="muted note">
-        {empty.map((m) => platformLabel(m.platform)).join(' and ')}: no releases reported by the last sync.
-      </p>
-    {/if}
-
-    {#if visible.length === 0}
-      <div class="card">
-        <EmptyState icon="check-circle" title="Nothing in progress" description="No release matches the filter. The older releases are below.">
-          {#snippet actions()}
-            {#if filter.inProgressOnly}<Button onclick={() => (filter = defaultReleaseFilter())}>Clear the filter</Button>{/if}
-          {/snippet}
-        </EmptyState>
+      {#if visible.length === 0}
+        <div class="card">
+          <EmptyState icon="check-circle" title="Nothing in progress" description="No release matches the filter. The older releases are below.">
+            {#snippet actions()}
+              {#if filter.inProgressOnly}<Button onclick={() => (filter = defaultReleaseFilter())}>Clear the filter</Button>{/if}
+            {/snippet}
+          </EmptyState>
+        </div>
+      {:else}
+        <ReleaseTable {api} {workspaceId} {role} groups={visible} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
+      {/if}
       </div>
-    {:else}
-      <ReleaseTable {api} {workspaceId} {role} groups={visible} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
-    {/if}
+    </Section>
 
     {#if split.olderCount > 0}
-      <Disclosure bind:open={olderOpen} stateKey="releases.older" variant="boxed">
-        {#snippet summary()}Older releases ({split.olderCount}){/snippet}
-        {#snippet meta()}{#if searching}{olderShownCount} match{olderShownCount === 1 ? '' : 'es'}{:else}newest first{/if}{/snippet}
+      <Section title="Older releases" key="older" count={split.olderCount} defaultOpen={false} summary={searching ? `${olderShownCount} match${olderShownCount === 1 ? '' : 'es'}` : 'newest first'}>
         <div class="stack">
           <div class="older-tools">
             <label class="visually-hidden" for="releases-query">Search older releases</label>
@@ -261,7 +257,7 @@
             <ReleaseTable {api} {workspaceId} {role} groups={olderShown} {apps} {builds} {now} {scope} showPlatform={members.length > 1} />
           {/if}
         </div>
-      </Disclosure>
+      </Section>
     {/if}
   {/if}
 
@@ -269,27 +265,6 @@
 </div>
 
 <style>
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .summary {
-    display: flex;
-    gap: var(--space-3);
-    align-items: baseline;
-    margin: 0;
-    font-weight: var(--weight-semibold);
-  }
-
-  .summary .muted {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-regular);
-  }
-
   .filters {
     display: flex;
     flex-wrap: wrap;

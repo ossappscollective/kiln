@@ -32,6 +32,7 @@
   import Alert from './ui/Alert.svelte';
   import Button from './ui/Button.svelte';
   import PageHeader from './ui/PageHeader.svelte';
+  import SectionsToggle from './ui/SectionsToggle.svelte';
   import Skeleton from './ui/Skeleton.svelte';
 
   let { api, workspaceId, role }: { api: Api; workspaceId: string; role: Role } = $props();
@@ -133,6 +134,8 @@
 <section>
   <PageHeader title="Settings" description="How this workspace reads and translates customer reviews, and when it reminds you about them and about unfinished releases." />
 
+  <div class="row bar"><SectionsToggle /></div>
+
   {#if !canRead}
     <Alert tone="info">Your role does not include workspace settings. Members, admins and owners can see them.</Alert>
   {:else if loadError}
@@ -195,6 +198,10 @@
 </section>
 
 <style>
+  .bar {
+    justify-content: flex-end;
+  }
+
   .ai {
     max-width: 48rem;
     margin-top: var(--space-5);

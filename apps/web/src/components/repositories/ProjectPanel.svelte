@@ -118,7 +118,7 @@
       </EmptyState>
     </div>
   {:else}
-    <Card title="Project type" description={projectKindSummary(detection.kind)}>
+    <Card title="Project type" collapseKey="project-type" description={projectKindSummary(detection.kind)}>
       {#snippet actions()}
         {#if canScan}<Button icon="refresh" onclick={scan}>Scan again</Button>{/if}
       {/snippet}
@@ -149,7 +149,7 @@
     {/if}
 
     {#if paths.length > 0 || localeRows.length > 0}
-      <Card title="What was found" description="Folders and files the scan used.">
+      <Card title="What was found" collapseKey="found" defaultOpen={false} description="Folders and files the scan used.">
         <dl class="facts stacked">
           {#each paths as row (row.label)}
             <div>
@@ -170,7 +170,7 @@
     {/if}
 
     {#if expoRows.length > 0}
-      <Card title="Expo" description="Read from app.json and eas.json. Nothing is run.">
+      <Card title="Expo" collapseKey="expo" description="Read from app.json and eas.json. Nothing is run.">
         <dl class="facts stacked">
           {#each expoRows as [label, value] (label)}
             <div>

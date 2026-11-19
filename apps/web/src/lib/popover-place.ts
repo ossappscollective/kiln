@@ -14,8 +14,10 @@ export type PlaceInput = {
   viewport: Viewport;
   /** The natural size of the popover (its width as styled, its full content height). */
   size: { width: number; height: number };
-  /** Which edge of the anchor the popover lines up with. */
-  align?: 'start' | 'end';
+  /** Which edge of the anchor the popover lines up with, or `center` (a tooltip over its trigger). */
+  align?: 'start' | 'end' | 'center';
+  /** Go above the anchor when the content fits there (a tooltip); the default is below. */
+  prefer?: 'below' | 'above';
   /** Space between the anchor and the popover. */
   gap?: number;
   /** The least space kept free at the window edges. */
@@ -46,13 +48,14 @@ export function placePopover(input: PlaceInput): Placement {
   const wanted = input.matchAnchorWidth ? Math.max(size.width, anchor.right - anchor.left) : size.width;
   const width = Math.min(wanted, maxWidth);
 
-  const edge = input.align === 'end' ? anchor.right - width : anchor.left;
+  const edge = input.align === 'end' ? anchor.right - width : input.align === 'center' ? (anchor.left + anchor.right - width) / 2 : anchor.left;
   const left = clamp(edge, margin, viewport.width - margin - width);
 
   const below = Math.max(0, viewport.height - anchor.bottom - gap - margin);
   const above = Math.max(0, anchor.top - gap - margin);
   // Below unless the content does not fit there and there is more room above.
-  const placement: Placement['placement'] = size.height <= below || below >= above ? 'below' : 'above';
+  const placement: Placement['placement'] =
+    input.prefer === 'above' && size.height <= above ? 'above' : size.height <= below || below >= above ? 'below' : 'above';
   const room = placement === 'below' ? below : above;
   const maxHeight = Math.floor(room);
   const height = Math.min(size.height, maxHeight);

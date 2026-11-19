@@ -140,3 +140,15 @@ test('the dot: blue when new, green once answered, none when triaged', () => {
   assert.equal(rowDotTone({ ...base, status: 'ignored' }), 'neutral');
   assert.equal(rowDotTone({ ...base, status: 'new', reply: { status: 'sent', sentAt: 1 } }), 'ok');
 });
+
+test('the layout follows the window width: side by side, a list with a drawer, or the cards', async () => {
+  const { splitLayout, SPLIT_MIN_WIDTH, COMPACT_MIN_WIDTH } = await import('./review-split.ts');
+  assert.equal(SPLIT_MIN_WIDTH, 1100);
+  assert.equal(COMPACT_MIN_WIDTH, 800);
+  assert.equal(splitLayout(1400), 'side-by-side');
+  assert.equal(splitLayout(1100), 'side-by-side');
+  assert.equal(splitLayout(1099), 'drawer');
+  assert.equal(splitLayout(800), 'drawer');
+  assert.equal(splitLayout(799), 'cards');
+  assert.equal(splitLayout(360), 'cards');
+});

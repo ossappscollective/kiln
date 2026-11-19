@@ -32,7 +32,7 @@
   import ReleaseStatus from '../portfolio/ReleaseStatus.svelte';
   import SyncStatus from '../portfolio/SyncStatus.svelte';
   import CopyButton from '../ui/CopyButton.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
+  import Section from '../ui/Section.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import RunningNow from '../ci/RunningNow.svelte';
   import AnalyticsStrip from '../analytics/AnalyticsStrip.svelte';
@@ -273,7 +273,7 @@
     {/each}
   </div>
 
-  <Disclosure summary="Details" stateKey="app.overview.details">
+  <Section title="Details" key="details" defaultOpen={false} summary={members.map((m) => m.identifier).join(' · ')}>
     <div class="stack">
       {#each members as app (app.id)}
         {@const latest = latestRelease(releases[app.id] ?? [], app.platform)}
@@ -309,7 +309,7 @@
       {/each}
       <AnalyticsStrip {api} {workspaceId} {members} {now} refreshKey={syncRuns} />
     </div>
-  </Disclosure>
+  </Section>
 </div>
 
 <style>

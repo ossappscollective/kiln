@@ -69,7 +69,7 @@
 {#if error}
   <Alert tone="warn">{error}</Alert>
 {:else if info && (info.enabled || info.clone)}
-  <Card title="Clone on the server" description="A cache of the repository, so scans and listings do not download it every time.">
+  <Card title="Clone on the server" collapseKey="clone" description="A cache of the repository, so scans and listings do not download it every time.">
     {#snippet actions()}
       {#if mayFree && info?.clone}
         <Button size="sm" icon="trash" loading={freeing} onclick={free}>{freeing ? 'Freeing…' : 'Free space'}</Button>

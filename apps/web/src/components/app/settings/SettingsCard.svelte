@@ -1,47 +1,49 @@
 <!--
   SettingsCard: one section of the app Settings tab: a heading with an icon, one sentence on what the
   section is, the content, and (when there is no API for something) a muted "not available yet" line.
-  Props: title, icon, description, unavailable? (a sentence, shown muted at the end), children.
+  Collapsible (ui/Section.svelte): the title is the toggle, remembered per page; `summary` says what is set while it is collapsed.
+  Props: title, icon, description, unavailable? (a sentence, shown muted at the end), summary? (one line while collapsed), key? (defaults
+  to the title), defaultOpen? = true, children.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { IconName } from '../../../lib/icons.ts';
   import Icon from '../../ui/Icon.svelte';
+  import Section from '../../ui/Section.svelte';
 
   let {
     title,
     icon,
     description,
     unavailable = undefined,
+    summary,
+    key,
+    defaultOpen = true,
     children,
-  }: { title: string; icon: IconName; description: string; unavailable?: string | undefined; children: Snippet } = $props();
-
-  const uid = $props.id();
+  }: {
+    title: string;
+    icon: IconName;
+    description: string;
+    unavailable?: string | undefined;
+    summary?: string;
+    key?: string;
+    defaultOpen?: boolean;
+    children: Snippet;
+  } = $props();
 </script>
 
-<section class="card" aria-labelledby="{uid}-title">
+<Section {title} key={key ?? title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} {summary} {defaultOpen}>
   <div class="stack">
-    <div>
-      <h3 id="{uid}-title"><Icon name={icon} size={16} /> {title}</h3>
-      <p class="muted desc">{description}</p>
-    </div>
+    <p class="muted desc"><Icon name={icon} size={14} /> {description}</p>
     {@render children()}
     {#if unavailable}<p class="muted na"><Icon name="clock" size={14} /> {unavailable}</p>{/if}
   </div>
-</section>
+</Section>
 
 <style>
-  h3 {
-    display: inline-flex;
-    gap: var(--space-2);
-    align-items: center;
-    margin: 0;
-    font-size: var(--text-md);
-  }
-
   .desc,
   .na {
-    margin: var(--space-1) 0 0;
+    margin: 0;
     font-size: var(--text-sm);
   }
 

@@ -42,6 +42,8 @@
   import Badge from '../ui/Badge.svelte';
   import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
+  import Section from '../ui/Section.svelte';
+  import SectionsToggle from '../ui/SectionsToggle.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import StatusPill from '../ui/StatusPill.svelte';
@@ -218,6 +220,7 @@
       {/if}
     </div>
     <div class="act">
+      <SectionsToggle />
       <Button
         variant="primary"
         size="lg"
@@ -283,8 +286,7 @@
         </div>
 
         {#each groupItems(g.platform.items) as kind (kind.kind)}
-          <section aria-labelledby="{uid}-{g.appId}-{kind.kind}">
-            <h3 id="{uid}-{g.appId}-{kind.kind}">{kind.label} <span class="muted count">{kind.items.length}</span></h3>
+          <Section title={kind.label} key="{g.platform.platform}.{kind.kind}" variant="plain" level={3} count={kind.items.length}>
             <ul class="items">
               {#each kind.items as item (item.id)}
                 {@const badge = stateBadge(item.state)}
@@ -326,7 +328,7 @@
                 </li>
               {/each}
             </ul>
-          </section>
+          </Section>
         {/each}
       </section>
     {/each}
@@ -410,15 +412,6 @@
     align-items: center;
   }
 
-  h3 {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-md);
-  }
-
-  .count {
-    font-weight: var(--weight-regular);
-  }
-
   .items {
     display: grid;
     gap: var(--space-2);
@@ -477,6 +470,13 @@
   .next {
     margin: 0;
     font-size: var(--text-sm);
+  }
+
+  .act {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
   }
 
   .actions {

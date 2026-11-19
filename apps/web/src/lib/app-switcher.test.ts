@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Platform } from '@mrm/core';
 import { groupApps } from './app-groups.ts';
-import { filterSwitcher, itemOfId, jumpTarget, moveActive, switcherItems } from './app-switcher.ts';
+import { appSwitchHash, filterSwitcher, itemOfId, jumpTarget, moveActive, switcherItems } from './app-switcher.ts';
 import type { AppSummary } from './types.ts';
 
 const app = (id: string, name: string, platform: Platform, identifier: string): AppSummary => ({
@@ -92,4 +92,47 @@ test('filtering narrows by name and by identifier', () => {
   assert.deepEqual(filterSwitcher(items, 'zoo').map((i) => i.name), ['Zebra']);
   assert.deepEqual(filterSwitcher(items, 'notes').map((i) => i.name), ['Notes', 'Notes Pro']);
   assert.deepEqual(filterSwitcher(items, 'qqq'), []);
+});
+
+const iosOnly = { key: 'new', platforms: ['ios'] as Platform[] };
+const both = { key: 'new', platforms: ['ios', 'android'] as Platform[] };
+const androidOnly = { key: 'new', platforms: ['android'] as Platform[] };
+
+test('another app opens on the same page, not on its overview', () => {
+  assert.equal(appSwitchHash('#/portfolio/old/releases', iosOnly), '#/portfolio/new/releases');
+  assert.equal(appSwitchHash('#/portfolio/old/listing', iosOnly), '#/portfolio/new/listing');
+  assert.equal(appSwitchHash('#/portfolio/old/reviews', both), '#/portfolio/new/reviews');
+  assert.equal(appSwitchHash('#/portfolio/old', both), '#/portfolio/new');
+  assert.equal(appSwitchHash('#/portfolio/old/settings', both), '#/portfolio/new/settings');
+});
+
+test('the view carries over, the version, the locale and the release do not', () => {
+  assert.equal(appSwitchHash('#/portfolio/old/builds?view=workflows&version=1.2&locale=de-DE', iosOnly), '#/portfolio/new/builds?view=workflows');
+  assert.equal(appSwitchHash('#/portfolio/old/listing?view=graphics&locale=fr-FR', both), '#/portfolio/new/listing?view=graphics');
+  assert.equal(appSwitchHash('#/portfolio/old/insights?view=rank', both), '#/portfolio/new/insights?view=rank');
+  assert.equal(appSwitchHash('#/portfolio/old/release/2.0.0', both), '#/portfolio/new/releases');
+  assert.equal(appSwitchHash('#/portfolio/old/releases?version=2.0.0', both), '#/portfolio/new/releases');
+});
+
+test('the platform scope stays when the new app has it, else all platforms', () => {
+  assert.equal(appSwitchHash('#/portfolio/old/reviews?platform=ios', both), '#/portfolio/new/reviews?platform=ios');
+  assert.equal(appSwitchHash('#/portfolio/old/reviews?platform=android', iosOnly), '#/portfolio/new/reviews');
+  assert.equal(appSwitchHash('#/portfolio/old/reviews?platform=both', both), '#/portfolio/new/reviews?platform=both');
+  assert.equal(appSwitchHash('#/portfolio/old/reviews?platform=both', iosOnly), '#/portfolio/new/reviews');
+  assert.equal(appSwitchHash('#/portfolio/old/builds?platform=ios&view=tests', both), '#/portfolio/new/builds?platform=ios&view=tests');
+});
+
+test('Search terms needs a Google Play record, and a page the role may not open falls back to the overview', () => {
+  assert.equal(appSwitchHash('#/portfolio/old/insights?view=terms', both), '#/portfolio/new/insights?view=terms');
+  assert.equal(appSwitchHash('#/portfolio/old/insights?view=terms', iosOnly), '#/portfolio/new/insights');
+  assert.equal(appSwitchHash('#/portfolio/old/insights?view=terms', androidOnly), '#/portfolio/new/insights?view=terms');
+  assert.equal(appSwitchHash('#/portfolio/old/reviews', both, (a) => a !== 'reviews.read'), '#/portfolio/new');
+});
+
+test('old addresses read as their new page, and a place that is not an app opens the overview', () => {
+  assert.equal(appSwitchHash('#/portfolio/old/workflows', iosOnly), '#/portfolio/new/builds?view=workflows');
+  assert.equal(appSwitchHash('#/portfolio/old/assets', iosOnly), '#/portfolio/new/listing?view=graphics');
+  assert.equal(appSwitchHash('#/portfolio', both), '#/portfolio/new');
+  assert.equal(appSwitchHash('#/reviews', both), '#/portfolio/new');
+  assert.equal(appSwitchHash('', both), '#/portfolio/new');
 });

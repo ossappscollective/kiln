@@ -42,6 +42,7 @@
   import BuildsPanelConventions from './BuildsPanelConventions.svelte';
   import BuildsPanelLink from './BuildsPanelLink.svelte';
   import PlatformBadge from './PlatformBadge.svelte';
+  import Section from '../ui/Section.svelte';
   import ReleaseStatus from './ReleaseStatus.svelte';
 
   let {
@@ -237,6 +238,7 @@
         </div>
       {/if}
 
+      <Section title="Builds" key="builds" count={data.builds.length} flush>
       <div class="table-wrap">
         <table>
           <caption class="visually-hidden">Builds of {app.name}</caption>
@@ -378,6 +380,7 @@
           </tbody>
         </table>
       </div>
+      </Section>
 
       <details class="how" open={unlinkedCount > 0 && data.diagnostics !== null}>
         <summary>How builds are matched to runs</summary>

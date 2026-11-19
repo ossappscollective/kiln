@@ -58,7 +58,9 @@
     unansweredChip,
     unansweredFilters,
   } from '../../lib/reviews-tab.ts';
-  import { filtersButtonText, popoverFilterCount, statusChips, statusesAfterChip } from '../../lib/reviews-toolbar.ts';
+  import { filtersButtonText, popoverFilterCount, statsLine, statusChips, statusesAfterChip } from '../../lib/reviews-toolbar.ts';
+  import { averageText } from '../../lib/reviews.ts';
+  import Section from '../ui/Section.svelte';
   import { navSignals } from '../../lib/nav-signals.svelte.ts';
   import { type TranslationConfig, languageName, loadTranslationConfig } from '../../lib/settings.ts';
   import { splitView } from '../../lib/split-view.svelte.ts';
@@ -399,6 +401,7 @@
         </EmptyState>
       </div>
     {:else}
+      <Section title="Rating summary" key="summary" variant="plain" level={2} summary={`${averageText(summary.stored.average)} · ${statsLine(summary.stored)}`}>
       <div class="statsrow">
         <RatingOverview {summary} />
         {#if chip}
@@ -408,6 +411,7 @@
           </p>
         {/if}
       </div>
+      </Section>
 
       <form class="toolbar" onsubmit={search} role="search" aria-label="Filter reviews">
         <label class="searchbox">
@@ -518,8 +522,9 @@
             </EmptyState>
           </div>
         {:else}
-          {#if splitView.wide}
+          {#if splitView.active}
             <ReviewSplit
+              compact={splitView.drawer}
               {api}
               {workspaceId}
               {role}

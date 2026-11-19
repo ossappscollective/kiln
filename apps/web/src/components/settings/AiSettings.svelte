@@ -228,7 +228,7 @@
   }
 </script>
 
-<Card title="AI assistant" description="Suggestions for keywords, listing text and review replies. You read every suggestion and accept it yourself; nothing is sent to a store by this.">
+<Card title="AI assistant" collapseKey="ai" description="Suggestions for keywords, listing text and review replies. You read every suggestion and accept it yourself; nothing is sent to a store by this.">
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
     <p><Button onclick={() => void load()}>Try again</Button></p>

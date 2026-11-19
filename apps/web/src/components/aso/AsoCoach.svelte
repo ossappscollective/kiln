@@ -18,6 +18,7 @@
   import type { AppSummary } from '../../lib/types.ts';
   import Button from '../ui/Button.svelte';
   import Disclosure from '../ui/Disclosure.svelte';
+  import Section from '../ui/Section.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
 
   let {
@@ -54,24 +55,22 @@
     });
   });
 
-  const actions = $derived(data?.actions ?? []);
-  const shown = $derived(all ? actions : actions.slice(0, visible));
+  const nextSteps = $derived(data?.actions ?? []);
+  const shown = $derived(all ? nextSteps : nextSteps.slice(0, visible));
 </script>
 
-{#if actions.length > 0}
-  <section class="coach card" aria-label="Next steps{showPlatform ? `, ${platformLabel(app.platform)}` : ''}">
-    <header class="row">
-      <h2>Next steps{showPlatform ? ` · ${platformLabel(app.platform)}` : ''}</h2>
-      <InfoTip label="How the next steps are chosen" align="start">
+{#if nextSteps.length > 0}
+  <Section title={`Next steps${showPlatform ? ` · ${platformLabel(app.platform)}` : ''}`} key="coach.{app.platform}" count={`${nextSteps.length} ${nextSteps.length === 1 ? 'step' : 'steps'}`} summary={nextSteps[0]?.title ?? ''}>
+    {#snippet actions()}
+      <InfoTip label="How the next steps are chosen" align="end">
         <p class="tip">
           Worked out from what this server already holds: your tracked keywords and their ranks, the stored listing, and the competitors you follow. They are
           ordered by what blocks the rest, then by what moved, then by tidying up. Nothing here is a search volume or a promise of more downloads, and
           nothing is changed for you. Which fields a store searches is unverified.
         </p>
       </InfoTip>
-      <span class="spacer"></span>
-      <span class="muted count">{actions.length} {actions.length === 1 ? 'step' : 'steps'}</span>
-    </header>
+    {/snippet}
+    <div class="coach">
     <ol class="steps">
       {#each shown as a (a.id)}
         <li>
@@ -94,10 +93,11 @@
         </li>
       {/each}
     </ol>
-    {#if actions.length > visible}
-      <div><Button size="sm" variant="link" onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${actions.length}`}</Button></div>
+    {#if nextSteps.length > visible}
+      <div><Button size="sm" variant="link" onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${nextSteps.length}`}</Button></div>
     {/if}
-  </section>
+    </div>
+  </Section>
 {/if}
 
 <style>
@@ -105,16 +105,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: var(--text-md);
-  }
-
-  .count {
-    font-size: var(--text-sm);
   }
 
   .tip {

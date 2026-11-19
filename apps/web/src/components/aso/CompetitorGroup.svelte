@@ -20,7 +20,7 @@
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import Button from '../ui/Button.svelte';
-  import Disclosure from '../ui/Disclosure.svelte';
+  import Section from '../ui/Section.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import CompetitorCard from './CompetitorCard.svelte';
 
@@ -203,7 +203,7 @@
     {/if}
 
     {#if canWrite && suggestions.length > 0}
-      <Disclosure summary="Suggested from your keywords ({suggestions.length})" stateKey="aso.suggestions.{app.id}">
+      <Section title="Suggested from your keywords" key="suggestions.{app.platform}" count={suggestions.length} defaultOpen={false}>
         <ul class="suggest">
           {#each suggestions as s (`${s.externalId}:${s.country}`)}
             {@const id = `${s.externalId}:${s.country}`}
@@ -224,7 +224,7 @@
             </li>
           {/each}
         </ul>
-      </Disclosure>
+      </Section>
     {/if}
   {/if}
 </section>

@@ -164,7 +164,7 @@
   <p class="visually-hidden" role="status">{announcement}</p>
 
   {#if canScan}
-    <Card title="Workflows" description="GitHub Actions workflows of this repository." flush>
+    <Card title="Workflows" description="GitHub Actions workflows of this repository." flush collapseKey="workflows" count={workflows?.length ?? 0}>
       {#if workflowsProblem}
         <div class="pad stack">
           <Alert tone="error" title="Could not load the workflows">{workflowsProblem}</Alert>
@@ -225,7 +225,7 @@
     <p class="muted">Listing and starting workflows asks GitHub, which needs the member or admin role. You can read the runs below.</p>
   {/if}
 
-  <Card title="Recent runs" flush>
+  <Card title="Recent runs" flush collapseKey="runs" count={runs?.length ?? 0}>
     {#snippet actions()}
       {#if following}
         <span class="muted text-sm" role="status">Following {runs?.filter((r) => r.active).length ?? 0} running</span>

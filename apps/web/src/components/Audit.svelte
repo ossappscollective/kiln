@@ -16,6 +16,8 @@
   import EmptyState from './ui/EmptyState.svelte';
   import Icon from './ui/Icon.svelte';
   import PageHeader from './ui/PageHeader.svelte';
+  import Section from './ui/Section.svelte';
+  import SectionsToggle from './ui/SectionsToggle.svelte';
   import Skeleton from './ui/Skeleton.svelte';
   import { type IconName, isIconName } from './ui/icons.ts';
 
@@ -131,6 +133,7 @@
         </button>
       {/each}
     </div>
+    <SectionsToggle />
     {#if actors.length > 1}
       <div class="actor">
         <label class="visually-hidden" for="audit-actor">Filter by person</label>
@@ -151,9 +154,7 @@
   {:else}
     <div class="stack loose">
       {#each groups as group (group.key)}
-        <section aria-labelledby="day-{group.key}">
-          <h2 id="day-{group.key}" class="day">{group.label}</h2>
-          <div class="card">
+        <Section title={group.label} key="day.{group.key}" level={2} count={group.items.length}>
             <ol class="timeline">
               {#each group.items as event (event.id)}
                 {@const visual = eventVisual(event.action)}
@@ -167,8 +168,7 @@
                 </li>
               {/each}
             </ol>
-          </div>
-        </section>
+        </Section>
       {/each}
     </div>
     {#if filtering}
@@ -234,14 +234,6 @@
     min-width: 160px;
     min-height: var(--control-sm);
     font-size: var(--text-sm);
-  }
-
-  .day {
-    margin-bottom: var(--space-2);
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    color: var(--muted);
-    letter-spacing: 0;
   }
 
   .timeline {

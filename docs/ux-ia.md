@@ -76,6 +76,32 @@ Same principles as phase 1: quiet by default, the important thing first, one pri
   window, above the anchor when there is no room below, scrolling inside when tall. No container with `overflow` or a transform can
   clip them.
 
+## 0b. Collapsible sections, scroll and app switching, phase 3 (built)
+
+Pure logic: `section-state.ts`, `scroll-keep.ts`, `app-switcher.ts` (`appSwitchHash`), `review-split.ts` (`splitLayout`),
+`virtual-anchor.ts`; the host is `section-host.svelte.ts`.
+
+- **Collapsible sections** (`ui/Section.svelte`, one primitive; `Card` and `SettingsCard` take it with `collapseKey`): the head is a button
+  inside the heading (`aria-expanded`, Enter and Space), with a count chip and, while collapsed, a one-line summary ("12 locales · 3 need
+  attention"). The state is remembered per workspace, person, page and section key in `localStorage` (`mrm.sections.v1:...`, in a
+  try/catch; storage that refuses means the default). A page is `listing.text`, `insights.keywords`, `reviews`... not the app, so a choice
+  holds for every app. `SectionsToggle` ("Collapse all" or "Expand all") appears from three sections on a page. The body is not drawn while
+  collapsed. Applied to: Store listing (locales grid, the sections beyond the texts, graphics per locale, problems, checks), Releases
+  (current, older), Builds, Test builds, Workflows and runs, Insights (each chart, more charts, next steps, sources), Reviews summary,
+  App and workspace Settings cards (danger zone starts closed), Pending changes (per kind), Credentials, Audit (per day), Overview details.
+  Not yet: the per platform blocks of the Keywords sub-views, and `Disclosure` (kept for notes; its state is in memory only).
+- **Scroll**: only a different route path (`shouldResetScroll`: page, app, opened release) scrolls to the top. A change of the query alone
+  (`?view=`, `?platform=`, `?version=`, `?locale=`, filters) keeps the position, and the shell keeps the page height while the new view
+  loads, because a short placeholder used to clamp the scroll position. No component is keyed on the address.
+- **Changing app keeps the page** (`appSwitchHash`): the left panel switcher, Cmd or Ctrl + K and Cmd or Ctrl + digit open the same
+  page of the other app. The view and the platform scope carry over when valid there (Search terms needs a Google Play record, a scope
+  the app does not have becomes all platforms); version, locale and an open release are dropped; a page the role cannot open, and every
+  address that is not an app, open the Overview.
+- **Reviews at 800 to 1100 px**: the list takes the whole width and the review opens as a drawer from the right (Escape or Close shuts
+  it, j and k keep moving). From 1100 px it stays side by side, below 800 px the cards.
+- **All apps, Board**: one status pill per card plus the "N pending" badge; the deadline and rollout plan are quiet text unless late.
+- **Tooltips and chart tips** are drawn by the `floating` action (top layer), centred or beside the crosshair; nothing clips them.
+
 ## 1. IA tree
 
 ```

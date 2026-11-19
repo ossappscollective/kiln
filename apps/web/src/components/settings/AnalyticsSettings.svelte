@@ -20,7 +20,7 @@
   const can = (key: string): boolean => editable && canEdit(writable, key);
 </script>
 
-<Card title="Analytics" description="Daily numbers for your apps from the stores. Off until an owner or an admin turns it on.">
+<Card title="Analytics" collapseKey="analytics" description="Daily numbers for your apps from the stores. Off until an owner or an admin turns it on.">
   <div class="field">
     <label class="check" for="{uid}-enabled">
       <input id="{uid}-enabled" type="checkbox" bind:checked={form.analyticsEnabled} disabled={!can(KEYS.analyticsEnabled)} aria-describedby="{uid}-enabled-hint" />

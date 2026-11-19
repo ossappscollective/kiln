@@ -182,7 +182,7 @@
     });
 </script>
 
-<Card title="Security: confirm hard actions" description="Ask for a passkey or a password again before publishing, submitting, releasing, changing a rollout, turning on Apple analytics, deleting a credential or switching a feature on.">
+<Card title="Security: confirm hard actions" collapseKey="security" description="Ask for a passkey or a password again before publishing, submitting, releasing, changing a rollout, turning on Apple analytics, deleting a credential or switching a feature on.">
   {#if loadError}
     <Alert tone="error">{loadError}</Alert>
     <p><Button onclick={load}>Try again</Button></p>
@@ -283,7 +283,7 @@
 </Card>
 
 {#if isAdmin && status}
-  <Card title="Recovery codes" description="Ten one-time codes to confirm with when your passkey or password is lost. Keep them offline.">
+  <Card title="Recovery codes" collapseKey="recovery-codes" description="Ten one-time codes to confirm with when your passkey or password is lost. Keep them offline.">
     <div class="stack">
       {#if shown}
         <Alert tone="warn" title="Save these codes now">

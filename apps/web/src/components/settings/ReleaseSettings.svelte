@@ -14,7 +14,7 @@
   const can = (key: string): boolean => editable && canEdit(writable, key);
 </script>
 
-<Card title="Releases" description="When a release counts as left unfinished.">
+<Card title="Releases" collapseKey="releases" description="When a release counts as left unfinished.">
   <div class="field">
     <label for="{uid}-after">Remind me when a release stands still for (hours)</label>
     <input
