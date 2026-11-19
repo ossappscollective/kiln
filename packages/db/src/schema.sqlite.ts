@@ -1396,3 +1396,74 @@ export const storePublishClaims = sqliteTable(
     index('store_publish_claims_workspace_idx').on(t.workspaceId),
   ],
 );
+
+/**
+ * One row per AI run (migration 30, docs/adr/0016-ai-foundation.md): the tokens reserved before the provider is called and
+ * the tokens it reported. No text of any kind. The monthly budget is the sum of these rows since the start of the UTC month.
+ */
+export const aiUsage = sqliteTable(
+  'ai_usage',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    appId: text('app_id'),
+    task: text('task').notNull(),
+    taskVersion: integer('task_version').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    /** reserved, ok or failed. */
+    status: text('status').notNull().default('reserved'),
+    errorCode: text('error_code'),
+    reservedTokens: integer('reserved_tokens').notNull().default(0),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    finishedAt: integer('finished_at'),
+  },
+  (t) => [index('ai_usage_workspace_idx').on(t.workspaceId, t.createdAt)],
+);
+
+/**
+ * What an AI task proposed (migration 30): validated, post-processed output that a person accepts or dismisses. Accepting hands
+ * it to an existing mechanism (keywords, staged text, reply draft); nothing here is ever sent to a store.
+ */
+export const aiSuggestions = sqliteTable(
+  'ai_suggestions',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    /** No foreign key: deleting an app removes its rows in code. */
+    appId: text('app_id').notNull(),
+    task: text('task').notNull(),
+    taskVersion: integer('task_version').notNull(),
+    /** keywords, listing_text or reply_draft. */
+    kind: text('kind').notNull(),
+    /** proposed, accepted or dismissed. */
+    status: text('status').notNull().default('proposed'),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    /** JSON: ids and options of the run. Never text. */
+    scope: text('scope').notNull(),
+    /** JSON: the validated proposal. */
+    proposal: text('proposal').notNull(),
+    /** SHA-256 of the data sent. */
+    inputHash: text('input_hash').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    decidedBy: text('decided_by'),
+    decidedAt: integer('decided_at'),
+    /** JSON: ids of what accepting created. */
+    accepted: text('accepted'),
+  },
+  (t) => [
+    index('ai_suggestions_app_idx').on(t.workspaceId, t.appId, t.createdAt),
+    index('ai_suggestions_created_idx').on(t.createdAt),
+  ],
+);

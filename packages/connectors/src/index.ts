@@ -25,6 +25,7 @@ export * from './play-rollout.ts';
 export * from './appstore-rollout.ts';
 export * from './blobs.ts';
 export * from './translate/index.ts';
+export * from './ai/index.ts';
 export * from './store-draft-types.ts';
 export * from './play-draft.ts';
 export * from './appstore-draft.ts';

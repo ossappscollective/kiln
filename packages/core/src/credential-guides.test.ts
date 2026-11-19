@@ -18,6 +18,11 @@ const allowedHosts = new Set([
   'learn.microsoft.com',
   'portal.azure.com',
   'docs.libretranslate.com',
+  'platform.claude.com',
+  'developers.openai.com',
+  'docs.ollama.com',
+  'lmstudio.ai',
+  'docs.vllm.ai',
 ]);
 
 const verbs = new Set([

@@ -66,6 +66,14 @@ const schema = z.object({
   // metadata, 169.254.169.254, fd00:ec2::254) are refused either way. Turn it on only when every
   // person who can change workspace settings is trusted with your network. See docs/deployment.md.
   MRM_TRANSLATE_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). OFF by default: while off, no request is ever sent to an AI
+  // provider, whatever a workspace has set. A workspace must ALSO turn it on in its AI settings (admins), and add a provider key.
+  // AI only produces suggestions a person accepts; it cannot push, submit, publish, release or send a reply.
+  MRM_AI_ENABLED: blankIsUnset(z.enum(['true', 'false']).default('false')),
+  // 'true' lets the address of an OpenAI compatible model server (a workspace setting an admin can change) be a loopback or private
+  // network address, which is how a local model (Ollama, LM Studio, vLLM) is reached; plain http then works to the same machine only.
+  // Off by default: the address must be https to a public host. Link-local addresses (cloud metadata) are refused either way.
+  MRM_AI_ALLOW_PRIVATE_URLS: blankIsUnset(z.enum(['true', 'false']).default('false')),
   // Where scans and listings read the repository. 'auto' (default) uses a local git clone and
   // falls back to the GitHub API for a request when the clone cannot be used. 'clone' never falls
   // back. 'api' is the GitHub REST API only. See docs/adr/0005-local-clone-reads.md.
@@ -485,6 +493,10 @@ export type Config = {
   webhooksAllowPrivate: boolean;
   /** The LibreTranslate address may be private or loopback. See MRM_TRANSLATE_ALLOW_PRIVATE_URLS. */
   translateAllowPrivateUrls: boolean;
+  /** AI assistance may be used at all. See MRM_AI_ENABLED. */
+  aiEnabled: boolean;
+  /** The address of an OpenAI compatible model server may be private or loopback. See MRM_AI_ALLOW_PRIVATE_URLS. */
+  aiAllowPrivateUrls: boolean;
   /** How scans and listings read the repository. See MRM_READS. */
   reads: 'api' | 'clone' | 'auto';
   /** Where git clones live: MRM_CLONE_DIR, default `<dataDir>/clones`. */
@@ -584,6 +596,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     trustProxy: data.MRM_TRUST_PROXY === '1',
     webhooksAllowPrivate: data.MRM_WEBHOOKS_ALLOW_PRIVATE === '1',
     translateAllowPrivateUrls: data.MRM_TRANSLATE_ALLOW_PRIVATE_URLS === 'true',
+    aiEnabled: data.MRM_AI_ENABLED === 'true',
+    aiAllowPrivateUrls: data.MRM_AI_ALLOW_PRIVATE_URLS === 'true',
     reads: data.MRM_READS,
     cloneDir: data.MRM_CLONE_DIR ?? join(data.MRM_DATA_DIR, 'clones'),
     cloneTtlMs: data.MRM_CLONE_TTL_SECONDS * 1000,

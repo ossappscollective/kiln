@@ -1399,4 +1399,67 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 30,
+    name: 'AI usage (token counts per run) and AI suggestions (validated proposals a person accepts or dismisses)',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // ai_usage: one row per AI run (docs/adr/0016-ai-foundation.md), written BEFORE the provider is called with the tokens
+      // reserved (status `reserved`, reserved_tokens = the estimated input plus the output cap) and settled afterwards with the
+      // tokens the provider reported (status `ok`, or `failed` with a fixed error_code; a failed call that the provider billed
+      // still records its tokens). The monthly budget is the sum of these rows since the start of the UTC month, so a burst of
+      // runs cannot all pass a check and then overspend together. NO TEXT of any kind is stored here: no prompt, no output, no
+      // review text, no model message. task = the task id, task_version its version, model = the model name the workspace
+      // configured. app_id is null for a run that is not about one app.
+      // ai_suggestions: what a task PROPOSED. proposal = the validated, post-processed output as JSON (keywords, listing text or
+      // a reply DRAFT, each item with flags); scope = the ids and options of the run (locale, review id, ...), never text;
+      // input_hash = SHA-256 of the exact data sent, as provenance without keeping it. status is proposed, accepted or dismissed;
+      // accepted = the ids of what accepting created (keyword ids, staged fields, a reply draft id). A suggestion is deleted
+      // with its app and after the retention (90 days). Nothing here is ever sent to a store: accepting hands the proposal to an
+      // existing mechanism (keywords, staged text, reply draft), whose own gates apply.
+      return [
+        `CREATE TABLE IF NOT EXISTS ai_usage (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT,
+           task TEXT NOT NULL,
+           task_version INTEGER NOT NULL,
+           provider TEXT NOT NULL,
+           model TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'reserved',
+           error_code TEXT,
+           reserved_tokens INTEGER NOT NULL DEFAULT 0,
+           input_tokens INTEGER NOT NULL DEFAULT 0,
+           output_tokens INTEGER NOT NULL DEFAULT 0,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           finished_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS ai_usage_workspace_idx ON ai_usage (workspace_id, created_at)',
+        `CREATE TABLE IF NOT EXISTS ai_suggestions (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           app_id TEXT NOT NULL,
+           task TEXT NOT NULL,
+           task_version INTEGER NOT NULL,
+           kind TEXT NOT NULL,
+           status TEXT NOT NULL DEFAULT 'proposed',
+           provider TEXT NOT NULL,
+           model TEXT NOT NULL,
+           scope TEXT NOT NULL,
+           proposal TEXT NOT NULL,
+           input_hash TEXT NOT NULL,
+           input_tokens INTEGER NOT NULL DEFAULT 0,
+           output_tokens INTEGER NOT NULL DEFAULT 0,
+           created_by TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           decided_by TEXT,
+           decided_at ${t},
+           accepted TEXT
+         )`,
+        'CREATE INDEX IF NOT EXISTS ai_suggestions_app_idx ON ai_suggestions (workspace_id, app_id, created_at)',
+        'CREATE INDEX IF NOT EXISTS ai_suggestions_created_idx ON ai_suggestions (created_at)',
+      ];
+    },
+  },
 ];

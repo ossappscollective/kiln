@@ -1,0 +1,183 @@
+# AI assistance
+
+Reference for the routes under `/api/workspaces/{workspaceId}/` that run AI tasks and manage the suggestions they produce. Everything is
+also in `GET /api/openapi.json` (tag `ai`). The decisions behind it, including the prompt-injection design, are in
+[ADR 0016](../adr/0016-ai-foundation.md).
+
+**The rule.** An AI task reads stored data, sends an allow-listed part of it to the AI provider the workspace chose, gets back JSON that
+must match a schema, and stores a **suggestion** (a proposal). It changes nothing by itself. A person **accepts** a suggestion, and
+accepting calls a service that already exists, with that service's own right: tracking keywords (`aso.write`), **staging** a listing text
+(`changesets.write`; it reaches a store only through the previewed and confirmed draft push) or saving a reply **draft** (`reviews.triage`;
+sending is a different call). Nothing in this feature pushes, submits, publishes, releases, rolls out or sends.
+
+**Off by default, twice.** The server needs `MRM_AI_ENABLED=true` and the workspace needs the setting `enabled`. A provider, a model and
+(except for a local server) a key must be set. `GET /ai/config` says which is missing.
+
+## Rights
+
+| Action | Who | Routes |
+| --- | --- | --- |
+| `ai.use` | members, admins, owners (not viewers) | read the configuration, tasks and suggestions; run a task; accept or dismiss |
+| `ai.manage` | admins, owners | change the settings; test the provider |
+
+Both are **explicit-only for API tokens**: a token holds them only when its `actions` list names them (see [tokens](tokens.md)). Accepting also
+needs the right of what it creates: `aso.write` for keywords, `changesets.write` for listing text, `reviews.triage` for a reply draft; for a token
+that action must be named too. `run`, `accept`, `dismiss` and the single-suggestion read have no app in the path, so a token restricted to apps
+gets `403` there; `GET /apps/{id}/ai/suggestions` works for the apps of the token. Non-members get `404`; a member without the right gets `403`.
+
+## Configuration
+
+`GET /ai/config` (`ai.use`) and `PUT /ai/config` (`ai.manage`, same answer). No key or prompt is ever returned.
+
+```json
+{
+  "state": "ready",
+  "reason": "no_model",
+  "server": { "enabled": true, "allowPrivateUrls": false },
+  "settings": {
+    "enabled": true, "provider": "anthropic", "model": "claude-...", "baseUrl": null, "baseUrlSet": false,
+    "monthlyTokenBudget": 500000, "maxOutputTokens": 4000, "maxInputTokens": 8000
+  },
+  "defaults": { "monthlyTokenBudget": 500000, "maxOutputTokens": 4000, "maxInputTokens": 8000 },
+  "overridden": ["enabled", "model"],
+  "providers": [
+    { "id": "anthropic", "label": "Anthropic (Claude)", "credentialKind": "ai_anthropic", "credentialRequired": true,
+      "needsUrl": false, "privacy": "The data listed for a task is sent to Anthropic. ...", "credentialPresent": true }
+  ],
+  "usage": { "month": "2026-11", "used": 900, "budget": 500000, "remaining": 499100, "runs": 1, "resetsAt": 1796083200000 },
+  "limits": { "maxConcurrentPerWorkspace": 2, "runsPerMinute": 10, "maxGoalChars": 300, "suggestionRetentionDays": 90, "...": 0 },
+  "canManage": true
+}
+```
+
+- `state`: `ready`, `off_server`, `off_workspace` or `not_configured` (then `reason` is `no_model`, `no_credential`, `no_url`,
+  `credential_unreadable` or `bad_url`). `reason` is absent otherwise.
+- `settings.baseUrl` is the address of an OpenAI compatible server; only admins see it (others get `null`, see `baseUrlSet`).
+- `PUT` body: any of `enabled`, `provider` (`anthropic`, `openai`, `openai_compatible`), `model`, `baseUrl`, `monthlyTokenBudget` (`0` = no limit here),
+  `maxOutputTokens`, `maxInputTokens`; `null` resets a key to its default. All or nothing. Unknown keys are `400`. `400 invalid_setting` lists `issues`.
+  The key is **not** a setting: add a credential of kind `ai_anthropic`, `ai_openai` or `ai_openai_compatible` ([credentials](../credentials.md#ai-provider-keys)).
+  The settings are not part of `PUT /settings`.
+- **Addresses.** The `baseUrl` must be `https` to a public host. With `MRM_AI_ALLOW_PRIVATE_URLS=true` loopback and private addresses are allowed and
+  plain `http` only to the same machine (how Ollama or LM Studio is reached). Cloud metadata addresses are always refused. The address is checked
+  when saved and again at every call.
+- **Budget.** Input plus output tokens per UTC month, default 500,000. A run reserves its estimated input plus its output cap before it is sent and is
+  settled with the tokens the provider reported, so `used` includes runs in flight. Tokens of an answer that was rejected still count.
+
+`POST /ai/test` (`ai.manage`) sends one fixed request (no workspace data) through the configured provider and answers `{ "ok": true, "provider", "model" }`
+or `{ "ok": false, "provider", "kind", "message", "reason"? }` with a fixed sentence, never provider text. Needs both switches on. Rate limited.
+
+## Tasks and what they send
+
+`GET /ai/tasks` (`ai.use`):
+
+```json
+{
+  "state": "ready",
+  "provider": { "id": "anthropic", "label": "Anthropic (Claude)", "privacy": "..." },
+  "tasks": [
+    {
+      "id": "keyword_ideas", "version": 1, "label": "Keyword ideas", "description": "...",
+      "status": "ready", "proposalKind": "keywords", "acceptAction": "aso.write",
+      "scope": [{ "name": "locale", "required": true, "description": "..." }, { "name": "country", "required": false, "description": "..." }],
+      "disclosure": { "sends": ["..."], "neverSends": ["..."] }
+    }
+  ]
+}
+```
+
+**Show `disclosure` and `provider.privacy` before the first use of a task.** `status: "planned"` tasks are listed with their disclosure plan and answer
+`409 task_not_available` when run: `release_notes`, `listing_translate`, `rank_drop_explain`.
+
+| Task | Scope (body fields) | Proposal | Accepting |
+| --- | --- | --- | --- |
+| `keyword_ideas` | `locale` (required), `country`, `goal` | `keywords` | tracks the chosen terms (`aso.write`) |
+| `listing_improve` | `locale` (required), `fields`, `goal` | `listing_text` | stages the texts, source `ai` (`changesets.write`) |
+| `review_reply_draft` | `reviewId` (required), `tone` (`friendly`, `neutral`, `apologetic`), `replyLanguage`, `goal` | `reply_draft` | saves a reply draft (`reviews.triage`, needs `MRM_REVIEW_REPLY_ENABLED`) |
+
+`goal` is at most 300 characters (longer is `400`, not cut). Review text is data: it is delimited, cut to 2,000 characters, and the name, device and
+version of the reviewer are not sent.
+
+## Running a task
+
+`POST /ai/tasks/{taskId}/run` (`ai.use`). Body: `appId` plus the scope fields of the task (unknown fields are `400`). Answers `201`:
+
+```json
+{ "suggestion": { "id": "...", "appId": "...", "task": "keyword_ideas", "taskVersion": 1, "kind": "keywords", "status": "proposed",
+  "provider": "anthropic", "model": "claude-...", "proposal": { }, "scope": { "locale": "en-US", "country": "us", "goal": true },
+  "inputHash": "<sha-256 of the data sent>", "usage": { "inputTokens": 700, "outputTokens": 200 },
+  "createdBy": "...", "createdAt": 1766000000000, "decidedBy": null, "decidedAt": null, "accepted": null } }
+```
+
+`proposal` by `kind`. Every item has `acceptable` and `flags`; an item with `acceptable: false` is shown and **cannot be accepted**. `reason` and `text` were
+written by a model: show them as plain text, never as markup.
+
+```json
+{ "kind": "keywords", "store": "app_store", "country": "us", "locale": "en-US",
+  "items": [{ "term": "hydration tracker", "reason": "...", "field": "keywords", "acceptable": true, "flags": [] }] }
+
+{ "kind": "listing_text", "locale": "en-US",
+  "fields": [{ "field": "keywords", "text": "water,hydrate", "reason": "...", "length": 13, "limit": 100, "unit": "bytes",
+               "acceptable": true, "flags": ["trimmed"] }] }
+
+{ "kind": "reply_draft", "reviewId": "...", "store": "appstoreconnect", "text": "...", "length": 120, "limit": 5000,
+  "acceptable": true, "flags": [] }
+```
+
+Flags: `already_tracked`, `duplicate`, `invalid_term`, `field_not_for_store` (keywords); `over_limit` (kept for reading, not acceptable), `trimmed` (a keywords
+text lost entries from the end to fit its byte limit), `unchanged`, `not_stageable`, `empty` (text); `markup`, `over_limit`, `empty`, `cleaned` (reply). `field` of a
+keyword idea is the listing field it would help in, or `null` (track only). `listing_improve` offers the fields a draft push can write: App Store `description`,
+`keywords`, `promotional_text`; Google Play `title`, `short_description`, `full_description`. Limits are checked on the server in the store's unit.
+
+Errors (all JSON `{ "error", "message", ... }` with fixed sentences; never provider text):
+
+| Status | `error` | Meaning |
+| --- | --- | --- |
+| 400 | `invalid_request` | bad body; `issues` lists fields |
+| 404 | `not_found`, `unknown_task` | no such app, review or task |
+| 409 | `ai_not_enabled` | `reason`: `server` or `workspace` |
+| 409 | `task_not_available` | a planned task |
+| 422 | `ai_not_configured` | `reason`: `no_model`, `no_credential`, `no_url`, `credential_unreadable`, `bad_url` |
+| 422 | `no_listing_text` | no stored listing text for that language |
+| 422 | `ai_input_too_large` | the data is over the input cap; nothing was sent |
+| 422 | `ai_auth`, `ai_too_large` | the provider refused the key, or says the request is too large |
+| 429 | `ai_budget_exhausted` | `budget`, `used`, `resetsAt`; nothing was sent |
+| 429 | `ai_busy`, `rate_limited`, `ai_rate_limited` | too many runs now (`Retry-After`) |
+| 502 | `ai_invalid_output` | the answer did not match the schema; no suggestion; tokens still count |
+| 502, 504 | `ai_unavailable` | the provider could not be reached or answered with an error; `reason` is a short hint (`timeout`, `http_500`, `address_not_allowed`) |
+
+Audit: `ai.run` (suggestion id, app id, task, version, provider, model, token counts, `inputHash`, scope) and `ai.run_failed` (code and counts). **Never a prompt, an
+answer, a review text, a goal or a key.** Event `ai.suggestion_created` with `suggestionId`, `appId`, `task`, `taskVersion`, `kind` ([events](events.md)).
+
+## Suggestions
+
+- `GET /apps/{id}/ai/suggestions?status=&task=&limit=` (`ai.use`, app scoped): `{ "suggestions": [...] }`, newest first, `limit` default 20, at most 100.
+  `status` is `proposed`, `accepted` or `dismissed`.
+- `GET /ai/suggestions/{suggestionId}`: `{ "suggestion": {...} }`.
+- `POST /ai/suggestions/{suggestionId}/accept` (`ai.use` and the right of the mechanism). Optional body `{ "items": [0, 2], "fields": ["keywords"], "replace": false }`
+  (`items` for keywords, by position; `fields` for listing text; no body accepts everything acceptable). Answers `200 { "suggestion", "result" }` where `result` is ids only:
+  `{ "kind": "keywords", "keywordIds": [...], "created": 2, "existing": 0, "rejected": 0 }`, `{ "kind": "listing_text", "stagedFields": ["keywords"], "locale": "en-US" }` or
+  `{ "kind": "reply_draft", "reviewId": "...", "draftId": "..." }`.
+- `POST /ai/suggestions/{suggestionId}/dismiss`: `200 { "suggestion" }`; nothing is created.
+
+Accept errors: `403 forbidden` (with `action`), `404 not_found`, `409 suggestion_not_proposed` (already accepted or dismissed; only one accept wins),
+`422 nothing_acceptable` (what you chose is flagged not acceptable), `409 staged_exists` (a different text is staged for a field; send `replace: true`),
+`409 draft_exists` (a different reply draft exists; send `replace: true`), `409 reply_not_editable` (the reply was sent or is being sent), and the refusal of the
+mechanism passed on (for example `409 reply_disabled`, `422 field_not_pushable`, `422 too_many_items`, `422 keyword_limit`); then the suggestion is `proposed` again.
+Suggestions are kept 90 days and deleted with their app.
+
+## MCP and agent hook
+
+Documentation only; nothing is built. An MCP server or an in-app assistant should drive **these routes**, not a provider, so the switches, budget, flags, audit and
+rights stay in one place:
+
+1. `GET /ai/tasks` to list tools, with `disclosure` shown to the human who enables the tool.
+2. `POST /ai/tasks/{id}/run` as a tool call; the result is a suggestion id and a proposal, never an effect.
+3. `POST /ai/suggestions/{id}/accept` and `dismiss` only after a person approved in the client (they are `risk: write` in the OpenAPI document).
+4. Give the assistant's token `actions` that name `ai.use` and only the accept rights it should have (for example `aso.write` but not `changesets.write`). Leave `store.*`, `reviews.reply` and
+   `releases.*` out: this feature never needs them.
+
+## UNVERIFIED
+
+The request and answer shapes of the three providers were written from their documentation and never run against a live endpoint (see ADR 0016). Check with a real key before relying
+on: Anthropic `output_config.format` and the `anthropic-version` header; OpenAI Responses `text.format` with `strict: true`; `response_format` on Ollama, LM Studio and vLLM; which models support
+structured outputs; token counts reported by each provider; the 3-characters-a-token estimate.

@@ -782,6 +782,200 @@ const translateLibretranslate: CredentialGuide = {
   checkedOn: CHECKED_ON,
 };
 
+const aiAnthropic: CredentialGuide = {
+  summary:
+    'Lets the tool send the data listed for an AI task to the Anthropic API and read back a structured proposal. It cannot publish, send or change anything in a store: a person accepts every proposal.',
+  prerequisites: [
+    'An Anthropic account with a billing method, and an API key from its console.',
+    'AI assistance turned on for this server (MRM_AI_ENABLED=true) and for the workspace, by an admin.',
+  ],
+  steps: [
+    {
+      title: 'Open your Anthropic account',
+      body: 'Sign in to the Anthropic console and check that billing is set up for the workspace you want to use.',
+      link: { label: 'Claude API overview', url: 'https://platform.claude.com/docs/en/api/overview' },
+    },
+    {
+      title: 'Create a key',
+      body: 'Create an API key only for this tool, so you can revoke it without touching anything else.',
+    },
+    {
+      title: 'Set a spending limit',
+      body: 'Set a spending limit with Anthropic as well. The monthly token budget in AI settings is a second, separate limit.',
+    },
+    {
+      title: 'Enter the key',
+      body: 'Enter the key in the form. Then open AI settings, choose Anthropic and enter the model name you want to use.',
+    },
+    {
+      title: 'Choose a model',
+      body: 'Use a model name from the Anthropic model list. No model is chosen for you, so an old name never goes stale.',
+    },
+    {
+      title: 'Wait for the test',
+      body: 'Use the test button in AI settings. It sends one fixed request without any of your data and says whether the key and the model work.',
+    },
+  ],
+  permissions: [
+    'The key can spend money on your Anthropic account. Keep it private and revoke it if it leaks.',
+    'The tool sends only the data listed for a task before you run it, never credentials and never reviewer names.',
+    'Nothing the model writes is acted on by itself: it becomes a proposal that a person accepts or dismisses.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The test says the key was refused.',
+      fix: 'The key is wrong, revoked or from another workspace. Create a new key and enter it again.',
+    },
+    {
+      problem: 'The test says the provider is limiting requests.',
+      fix: 'A rate limit or a spending cap was reached. Wait, or raise the limit in the Anthropic console.',
+    },
+    {
+      problem: 'The test says the provider could not be reached.',
+      fix: 'Check that this server can reach api.anthropic.com over https, and that the model name exists on your account.',
+    },
+    {
+      problem: 'A task says the answer could not be used.',
+      fix: 'The model did not return what the task needs, or ran out of room. Try again, or choose a more capable model.',
+    },
+  ],
+  links: [
+    { label: 'Claude API overview', url: 'https://platform.claude.com/docs/en/api/overview' },
+    { label: 'Claude API errors', url: 'https://platform.claude.com/docs/en/api/errors' },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
+const aiOpenai: CredentialGuide = {
+  summary:
+    'Lets the tool send the data listed for an AI task to the OpenAI API and read back a structured proposal. It cannot publish, send or change anything in a store: a person accepts every proposal.',
+  prerequisites: [
+    'An OpenAI account with a billing method, and an API key.',
+    'AI assistance turned on for this server (MRM_AI_ENABLED=true) and for the workspace, by an admin.',
+  ],
+  steps: [
+    {
+      title: 'Open your OpenAI account',
+      body: 'Sign in to the OpenAI platform and check that billing is set up for the project you want to use.',
+      link: { label: 'OpenAI structured outputs', url: 'https://developers.openai.com/api/docs/guides/structured-outputs' },
+    },
+    {
+      title: 'Create a key',
+      body: 'Create an API key only for this tool, in a project of its own, so you can revoke it without touching anything else.',
+    },
+    {
+      title: 'Set a spending limit',
+      body: 'Set a project budget with OpenAI as well. The monthly token budget in AI settings is a second, separate limit.',
+    },
+    {
+      title: 'Enter the key',
+      body: 'Enter the key in the form. Then open AI settings, choose OpenAI and enter the model name you want to use.',
+    },
+    {
+      title: 'Choose a model',
+      body: 'Use a model that supports structured outputs. No model is chosen for you, so an old name never goes stale.',
+    },
+    {
+      title: 'Wait for the test',
+      body: 'Use the test button in AI settings. It sends one fixed request without any of your data and says whether the key and the model work.',
+    },
+  ],
+  permissions: [
+    'The key can spend money on your OpenAI account. Keep it private and revoke it if it leaks.',
+    'The tool sends only the data listed for a task before you run it, never credentials and never reviewer names.',
+    'Nothing the model writes is acted on by itself: it becomes a proposal that a person accepts or dismisses.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The test says the key was refused.',
+      fix: 'The key is wrong, revoked or belongs to another project. Create a new key and enter it again.',
+    },
+    {
+      problem: 'The test says the provider is limiting requests.',
+      fix: 'A rate limit or a budget was reached. Wait, or raise the limit in your OpenAI project.',
+    },
+    {
+      problem: 'The test says the provider could not be reached.',
+      fix: 'Check that this server can reach api.openai.com over https, and that the model name exists in your project.',
+    },
+    {
+      problem: 'A task says the answer could not be used.',
+      fix: 'The model did not return what the task needs, or ran out of room. Try again, or choose a more capable model.',
+    },
+  ],
+  links: [
+    { label: 'OpenAI structured outputs', url: 'https://developers.openai.com/api/docs/guides/structured-outputs' },
+    { label: 'OpenAI API reference', url: 'https://developers.openai.com/api/reference/resources/responses/methods/create' },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
+const aiOpenaiCompatible: CredentialGuide = {
+  summary:
+    'Lets the tool use a model you run yourself, or a gateway, that speaks the OpenAI chat protocol. The server address is a workspace setting; this credential is only the API key, and only when the server asks for one.',
+  prerequisites: [
+    'A model server this server can reach, for example Ollama, LM Studio or vLLM, or a hosted gateway.',
+    'The address of the server, ending in /v1. A server on your own network needs MRM_AI_ALLOW_PRIVATE_URLS=true on this server, and plain http only works to this same machine.',
+  ],
+  steps: [
+    {
+      title: 'Choose where it runs',
+      body: 'Run a model server yourself or use a hosted one. The data of a task goes to whichever you choose.',
+      link: { label: 'Ollama OpenAI compatibility', url: 'https://docs.ollama.com/api/openai-compatibility' },
+    },
+    {
+      title: 'Start the server',
+      body: 'Follow the project instructions to start it and load a model that can follow a JSON schema.',
+      link: { label: 'LM Studio structured output', url: 'https://lmstudio.ai/docs/developer/openai-compat/structured-output' },
+    },
+    {
+      title: 'Check whether it needs a key',
+      body: 'A local server usually needs no key, so no credential is needed. A hosted gateway or a server started with a key does.',
+    },
+    {
+      title: 'Create a key',
+      body: 'If a key is needed, create one the way that server describes, then copy it.',
+    },
+    {
+      title: 'Enter the address',
+      body: 'Open AI settings, choose the OpenAI compatible server, enter the address and the model name exactly as the server lists it.',
+    },
+    {
+      title: 'Wait for the test',
+      body: 'Use the test button in AI settings. It sends one fixed request without any of your data and says whether the address, the key and the model work.',
+    },
+  ],
+  permissions: [
+    'The key can use that server. Keep it private.',
+    'The tool sends only the data listed for a task before you run it, and nothing else, to the address you entered.',
+    'This server refuses addresses with a user name or password in them, addresses on a private network unless MRM_AI_ALLOW_PRIVATE_URLS=true, and cloud metadata addresses always.',
+  ],
+  troubleshooting: [
+    {
+      problem: 'The address is refused as private or not allowed.',
+      fix: 'A server on your own network is refused by default. Set MRM_AI_ALLOW_PRIVATE_URLS=true on this server only if you trust everyone who can change settings.',
+    },
+    {
+      problem: 'The test says the key was refused.',
+      fix: 'The server wants a key. Add a credential of this kind with the right key.',
+    },
+    {
+      problem: 'A task says the answer could not be used.',
+      fix: 'Small models often ignore a schema. Try a larger model, or one that supports structured output.',
+    },
+    {
+      problem: 'The server takes too long.',
+      fix: 'The first request after a start loads the model and can be slow. Try again, or give the server more memory.',
+    },
+  ],
+  links: [
+    { label: 'Ollama OpenAI compatibility', url: 'https://docs.ollama.com/api/openai-compatibility' },
+    { label: 'LM Studio structured output', url: 'https://lmstudio.ai/docs/developer/openai-compat/structured-output' },
+    { label: 'vLLM structured outputs', url: 'https://docs.vllm.ai/en/latest/features/structured_outputs.html' },
+  ],
+  checkedOn: CHECKED_ON,
+};
+
 export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   app_store_connect: appStoreConnect,
   google_play: googlePlay,
@@ -791,6 +985,9 @@ export const credentialGuides: Record<CredentialKind, CredentialGuide> = {
   translate_deepl: translateDeepl,
   translate_azure: translateAzure,
   translate_libretranslate: translateLibretranslate,
+  ai_anthropic: aiAnthropic,
+  ai_openai: aiOpenai,
+  ai_openai_compatible: aiOpenaiCompatible,
 };
 
 export function guideFor(kind: CredentialKind): CredentialGuide {

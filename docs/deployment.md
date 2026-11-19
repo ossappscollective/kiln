@@ -488,6 +488,30 @@ the provider as well as the workspace's daily character limit (`translation.dail
   The low rating threshold moves from a constant to the setting `reviews.lowRatingThreshold`
   (default 2, the old behavior).
 
+## AI assistance (off by default)
+
+AI assistance ([api/ai](api/ai.md), [ADR 0016](adr/0016-ai-foundation.md)) suggests keywords, listing text and review reply drafts. It only
+**proposes**: a person accepts a suggestion, and accepting calls the existing keyword, staged text or reply draft service with its own right. Nothing
+here pushes, submits, publishes, releases or sends a reply.
+
+- `MRM_AI_ENABLED` (default `false`; only `true` or `false`). While `false`, nothing is ever sent to an AI provider, whatever a workspace has set.
+  A workspace must also turn it on (an admin, in the AI settings), choose a provider and a model, and add a key (a vault credential, see
+  [credentials](credentials.md#ai-provider-keys)); a local model server that needs no key needs no credential.
+- **Privacy.** When on, the data listed for a task (listing text, tracked keywords, competitor names and titles, one review's text and rating) goes to the
+  provider the workspace chose. Anthropic and OpenAI are third parties: check their terms for your account. A model you run yourself (Ollama, LM Studio, vLLM
+  through the `openai_compatible` provider) keeps it on your own network. The API returns each task's disclosure so a screen can show it before first use.
+  Review text is never logged or audited; the audit log has ids, versions, token counts and a hash of the data sent.
+- `MRM_AI_ALLOW_PRIVATE_URLS` (default `false`; only `true` or `false`). The address of an OpenAI compatible server is a workspace setting. By default it must be
+  `https` to a public host, is checked when saved and at every call, is not redirected, and the connection is pinned to the checked address. **Warning:** `true`
+  lets anyone who can change the AI settings (admins and owners) make this server send requests, carrying listing and review text, to any host it can reach; plain
+  `http` is then accepted for loopback only. Turn it on only to reach a model on your own network or machine, and only when you trust every admin.
+  Cloud metadata addresses stay refused either way.
+- **Cost.** Each workspace has a monthly token budget (UTC month, input plus output, default 500,000, `0` means no limit here), a cap on the input and on the
+  output of one run, two runs at a time and ten runs a minute. The token counts are estimates before a call and the provider's own numbers after it. Also set a
+  spending limit with the provider.
+- Suggestions are kept 90 days (and deleted with their app); usage rows (counts only) 400 days.
+- Upgrade: migration 30 adds `ai_usage` and `ai_suggestions`. Nothing changes until `MRM_AI_ENABLED=true` and a workspace turns it on.
+
 ## ASO: keyword ranks and competitors (public store data)
 
 The ASO feature ([api/aso](api/aso.md), [ADR 0011](adr/0011-aso-keywords-competitors.md)) reads the **public** search results and

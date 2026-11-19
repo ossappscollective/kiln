@@ -47,6 +47,9 @@ A token may do an operation when **all** of these hold:
    (`/apps/{id}/...`) need that app, otherwise 404. Lists of apps are filtered to them, and events
    to events about them. Endpoints that are not about one app (repositories, change sets,
    credentials, members) answer 403 to an app-restricted token.
+5. **Some actions are explicit-only.** A token whose `actions` is left out holds every action its role has **except** these, which it holds only when `actions`
+   names them: `reviews.reply`, `releases.rollout`, `store.push_draft`, `store.submit`, `store.release`, `store.publish`, `ai.use` and `ai.manage` ([ai](ai.md)). An admin
+   token without a list cannot run an AI task.
 
 A token stops working at once when it is revoked or expires, and when its creator is no longer a
 member of the workspace. Every call a token makes is recorded in the audit log with

@@ -25,9 +25,11 @@ export type StagedKind = (typeof STAGED_KINDS)[number];
 /**
  * Where a staged value came from. `repo`: the repository's listing files or media (read through the
  * clone roots of the app's listing target). `local`: typed in by a person. `store`: copied from the
- * store's own snapshot that the last sync stored. Staging never reads or writes a store.
+ * store's own snapshot that the last sync stored. `ai`: proposed by an AI task and ACCEPTED by a person
+ * (docs/adr/0016-ai-foundation.md); it is typed text for every other purpose and can only be set by the
+ * server's accept step, never by a request. Staging never reads or writes a store.
  */
-export const STAGED_SOURCES = ['repo', 'local', 'store'] as const;
+export const STAGED_SOURCES = ['repo', 'local', 'store', 'ai'] as const;
 export type StagedSource = (typeof STAGED_SOURCES)[number];
 
 export const STAGED_LIMITS = {

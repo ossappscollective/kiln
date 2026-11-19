@@ -13,6 +13,9 @@ export const credentialKinds = [
   'translate_deepl',
   'translate_azure',
   'translate_libretranslate',
+  'ai_anthropic',
+  'ai_openai',
+  'ai_openai_compatible',
 ] as const;
 export type CredentialKind = (typeof credentialKinds)[number];
 
@@ -109,6 +112,22 @@ export const credentialKindInfo: Record<CredentialKind, CredentialKindInfo> = {
       'The API key of a LibreTranslate server that requires one. The server address is set under Settings, Translation. A server without API keys needs no credential.',
     fields: [{ name: 'apiKey', label: 'API key', secret: true }],
   },
+  ai_anthropic: {
+    label: 'Anthropic API key',
+    description: 'An API key for the Anthropic API, used for the AI assistance of a workspace (docs/adr/0016-ai-foundation.md).',
+    fields: [{ name: 'apiKey', label: 'API key', secret: true, hint: 'Create a key in the Anthropic Console. Set a spending limit there as well as the monthly token budget here.' }],
+  },
+  ai_openai: {
+    label: 'OpenAI API key',
+    description: 'An API key for the OpenAI API, used for the AI assistance of a workspace.',
+    fields: [{ name: 'apiKey', label: 'API key', secret: true, hint: 'Set a spending limit with OpenAI as well as the monthly token budget here.' }],
+  },
+  ai_openai_compatible: {
+    label: 'API key of an OpenAI compatible server',
+    description:
+      'The API key of an OpenAI compatible server (Ollama, LM Studio, vLLM, a gateway) that requires one. The server address is set under AI settings. A local server without a key needs no credential.',
+    fields: [{ name: 'apiKey', label: 'API key', secret: true }],
+  },
 };
 
 const clean = (value: string | undefined) => (value ?? '').trim();
@@ -135,6 +154,9 @@ export function buildSecret(kind: CredentialKind, values: Record<string, string>
     case 'translate_google':
     case 'translate_deepl':
     case 'translate_libretranslate':
+    case 'ai_anthropic':
+    case 'ai_openai':
+    case 'ai_openai_compatible':
       return JSON.stringify({ apiKey: clean(values.apiKey) });
     case 'translate_azure':
       return JSON.stringify({ apiKey: clean(values.apiKey), region: clean(values.region) });
@@ -165,7 +187,15 @@ export function checkSecret(kind: CredentialKind, secret: string): string | unde
     if (/\s/.test(secret.trim())) return 'A token has no spaces or line breaks.';
     return undefined;
   }
-  if (kind === 'translate_google' || kind === 'translate_deepl' || kind === 'translate_azure' || kind === 'translate_libretranslate') {
+  if (
+    kind === 'translate_google' ||
+    kind === 'translate_deepl' ||
+    kind === 'translate_azure' ||
+    kind === 'translate_libretranslate' ||
+    kind === 'ai_anthropic' ||
+    kind === 'ai_openai' ||
+    kind === 'ai_openai_compatible'
+  ) {
     const parts = parseObject(secret);
     if (!parts) return 'The secret could not be read.';
     const apiKey = typeof parts.apiKey === 'string' ? parts.apiKey.trim() : '';

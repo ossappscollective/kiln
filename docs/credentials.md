@@ -148,6 +148,19 @@ against a real account**:
   server does. The contact phone number in the app details is never read.
 - Nothing here lets this tool change a store: no upload, no delete, no commit of an edit.
 
+## AI provider keys
+
+AI assistance ([api/ai](api/ai.md)) needs a provider key only when the provider requires one. Add it as a credential of the matching kind; the key is stored encrypted, decrypted
+for the length of one request and never returned. Set a **spending limit with the provider** as well as the monthly token budget in the AI settings.
+
+- **Anthropic** (`ai_anthropic`): an API key from the Anthropic Console (https://platform.claude.com/).
+- **OpenAI** (`ai_openai`): an API key from the OpenAI platform (https://developers.openai.com/).
+- **OpenAI compatible server** (`ai_openai_compatible`): only if the server asks for a key. Ollama (https://docs.ollama.com/), LM Studio (https://lmstudio.ai/) and vLLM
+  (https://docs.vllm.ai/) normally do not. The server address is an AI setting, not part of the credential.
+
+The first credential of the provider's kind in the workspace is the one used. A key may be saved before AI is turned on; nothing is sent until the server switch
+(`MRM_AI_ENABLED`) and the workspace setting are both on. The connection test is `POST /ai/test` (AI settings), not the generic credential test.
+
 ## GitHub App (recommended for teams)
 
 1. In Settings, Developer settings, GitHub Apps, click New GitHub App. Give it a name and homepage

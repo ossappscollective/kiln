@@ -152,6 +152,7 @@ const app = createApp({
   storeRelease: { enabled: config.storeReleaseEnabled },
   storePublish: { enabled: config.storePublishBatchEnabled },
   translation: { allowPrivateUrls: config.translateAllowPrivateUrls },
+  ai: { enabled: config.aiEnabled, allowPrivateUrls: config.aiAllowPrivateUrls },
   reads,
   cloneUpkeep,
   localWrite: {
@@ -259,6 +260,9 @@ if (config.worker === 'inline') {
   }
   if (config.asoPlayUnofficialEnabled) {
     console.warn('ASO for Google Play is ON (MRM_ASO_PLAY_UNOFFICIAL_ENABLED): the public pages of play.google.com are read. This is unofficial and may be against the Google Play Terms of Service; read docs/api/aso.md.');
+  }
+  if (config.aiEnabled) {
+    console.log('AI assistance is ON (MRM_AI_ENABLED): workspaces that turn it on send the data listed for a task to their chosen AI provider; it only makes suggestions a person accepts');
   }
   if (config.reviewReplyEnabled) {
     console.log('Replying to customer reviews is ON (MRM_REVIEW_REPLY_ENABLED): owners and admins can publish replies in the stores');

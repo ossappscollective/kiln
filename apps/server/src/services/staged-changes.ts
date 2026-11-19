@@ -447,7 +447,7 @@ export type StageTextInput = {
   locale: string;
   field: string;
   from: StagedSource;
-  /** Required for `local`, refused otherwise. */
+  /** Required for `local` and `ai` (a typed text; `ai` is only ever set by accepting an AI proposal, never by a request), refused otherwise. */
   value?: string | undefined;
   actor: Actor;
 };
@@ -476,8 +476,8 @@ export async function stageText(
     );
   }
   let raw: string | undefined;
-  if (input.from === 'local') {
-    if (input.value === undefined) return invalid('invalid_staged', 'value is required when from is local.', { field: 'value' });
+  if (input.from === 'local' || input.from === 'ai') {
+    if (input.value === undefined) return invalid('invalid_staged', `value is required when from is ${input.from}.`, { field: 'value' });
     raw = input.value;
   } else {
     if (input.value !== undefined) return invalid('invalid_staged', `value is not accepted when from is ${input.from}: it is taken from the stored snapshot.`, { field: 'value' });

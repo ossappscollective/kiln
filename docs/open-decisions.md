@@ -295,6 +295,18 @@ the raw state). A phased release currently shows as `live` because it is not rea
   should see ASO at all (they do today, like reviews); whether an optional LLM provider for keyword and competitor suggestions is wanted (not in v1; public texts only, off by default).
 - **Check with a real account:** [api/aso](api/aso.md#unverified) (Apple result order and fields, every Play markup assumption, which fields each store indexes).
 
+### AI assistance ([ADR 0016](adr/0016-ai-foundation.md))
+
+- **Today:** a foundation, off by default (`MRM_AI_ENABLED`, then a workspace switch). Anthropic, OpenAI and any OpenAI compatible server (a local model is the
+  default recommendation for privacy) behind one interface; structured outputs only, validated twice; three tasks (`keyword_ideas`, `listing_improve`,
+  `review_reply_draft`) and three registered stubs (`release_notes`, `listing_translate`, `rank_drop_explain`). Output is a suggestion; a person accepts it
+  through the keyword, staged text or reply draft service with that service's own right. Monthly token budget (default 500,000), per request caps, two runs at a
+  time. Server only: no screens yet. Nothing was run against a real provider.
+- **Decide:** whether to ship the hosted providers at all or only the OpenAI compatible one; the default monthly budget and output cap (500,000 and 4,000 tokens);
+  whether accepting a reply draft should need `reviews.triage` only (today) or also the reply switch being on (it does: `reply_disabled`); whether
+  `MRM_AI_ALLOW_PRIVATE_URLS` may ever be on for a shared server; the 90 day suggestion retention; whether viewers should see AI suggestions (they cannot today).
+- **Check with a real account:** [ADR 0016](adr/0016-ai-foundation.md#not-verified-unverified) (every provider request shape, structured output support per model, token counts).
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

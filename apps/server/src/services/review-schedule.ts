@@ -1,5 +1,6 @@
 import type { Database } from '@mrm/db';
 import { enqueue } from '../jobs.ts';
+import { purgeAiData } from './ai-suggestions.ts';
 import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './review-sync.ts';
 import { pruneReviews, purgeOrphanReviewRows } from './reviews.ts';
 import { purgeOrphanTranslations } from './translation.ts';
@@ -178,5 +179,7 @@ export async function reviewUpkeep(db: Database, options: ReviewUpkeepOptions): 
   const orphans = await purgeOrphanReviewRows(db, maxRows);
   // Stored translations of reviews that are gone (pruned or deleted with their app).
   await purgeOrphanTranslations(db, maxRows).catch(() => 0);
+  // AI suggestions older than their retention window, and old usage rows (counts only).
+  await purgeAiData(db, options.now).catch(() => 0);
   return { pruned, orphans };
 }

@@ -9,6 +9,7 @@ import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { appRoutes } from './routes/apps.ts';
+import { aiRoutes } from './routes/ai.ts';
 import { asoRoutes } from './routes/aso.ts';
 import { ciRoutes } from './routes/ci.ts';
 import { type CredentialTestDeps, credentialTestRoutes } from './routes/credential-tests.ts';
@@ -46,6 +47,10 @@ import {
   createCloneUpkeep,
 } from './services/clone-upkeep.ts';
 import { operations } from './services/api-operations.ts';
+import { type AiContext } from './services/ai-config.ts';
+import { createConcurrencyGate } from './services/ai-usage.ts';
+import { aiLimits } from '@mrm/core';
+import { defaultReplyConnectorFactory } from './services/review-replies.ts';
 import { type AsoLimits, DEFAULT_ASO_LIMITS } from './services/aso.ts';
 import { type AsoSources, createAsoSources } from './services/aso-net.ts';
 import { createAppIcons, type IconsContext } from './services/app-icons.ts';
@@ -249,6 +254,21 @@ export type AppDeps = {
    * `limiter` is the per workspace budget of translation requests (default 20 a minute).
    */
   translation?: Pick<TranslationContext, 'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'> & {
+    limiter?: TestLimiter;
+  };
+  /**
+   * AI assistance (docs/api/ai.md). `enabled` is MRM_AI_ENABLED (default false: no provider is ever contacted), `allowPrivateUrls` is
+   * MRM_AI_ALLOW_PRIVATE_URLS. `fetch` replaces the network for Anthropic and OpenAI, `resolve` and `exchange` for an OpenAI compatible
+   * server, `clientFactory` hands in a whole client (tests use a fake). `limiter` is the per workspace budget of runs a minute.
+   */
+  ai?: {
+    enabled?: boolean;
+    allowPrivateUrls?: boolean;
+    fetch?: typeof fetch;
+    resolve?: AiContext['resolve'];
+    exchange?: AiContext['exchange'];
+    timeoutMs?: number;
+    clientFactory?: AiContext['clientFactory'];
     limiter?: TestLimiter;
   };
 };
@@ -577,6 +597,35 @@ export function createApp(deps: AppDeps) {
       ...(deps.storeSubmit ? { submit: deps.storeSubmit } : {}),
       ...(deps.storeRelease ? { release: deps.storeRelease } : {}),
       ...(deps.rollout ? { rollout: deps.rollout } : {}),
+    }),
+  );
+  // AI assistance: suggestions for keywords, listing text and review replies. OFF unless MRM_AI_ENABLED and the workspace turns it on.
+  // It only PROPOSES: accepting calls the keyword, staged text and reply draft services; nothing here can push, submit, publish,
+  // release or send. Mounted after the services it hands accepted proposals to are configured.
+  app.route(
+    '/api/workspaces',
+    aiRoutes({
+      db: services.db,
+      masterKey: services.masterKey,
+      now: services.now,
+      enabled: deps.ai?.enabled ?? false,
+      ...(deps.ai?.allowPrivateUrls ? { allowPrivateUrls: true } : {}),
+      ...(deps.ai?.fetch ? { fetch: deps.ai.fetch } : {}),
+      ...(deps.ai?.resolve ? { resolve: deps.ai.resolve } : {}),
+      ...(deps.ai?.exchange ? { exchange: deps.ai.exchange } : {}),
+      ...(deps.ai?.timeoutMs !== undefined ? { timeoutMs: deps.ai.timeoutMs } : {}),
+      ...(deps.ai?.clientFactory ? { clientFactory: deps.ai.clientFactory } : {}),
+      asoLimits,
+      assets: { repo: assetsRepo },
+      reply: {
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        replyEnabled: deps.reviews?.reply?.enabled ?? false,
+        replyConnectorFactory: deps.reviews?.reply?.connectorFactory ?? defaultReplyConnectorFactory,
+      },
+      gate: createConcurrencyGate(aiLimits.maxConcurrentPerWorkspace),
+      limiter: deps.ai?.limiter ?? createTestLimiter({ now: services.now, limit: aiLimits.runsPerMinute }),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

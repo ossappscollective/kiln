@@ -27,6 +27,12 @@ const verifierNames: Record<CredentialKind, string> = {
   // Checked together with the workspace's server address by services/translation.ts (the route
   // calls it): a key alone cannot be tested.
   translate_libretranslate: 'verifyTranslateLibretranslateCredential',
+  // A key alone proves nothing about a model or a server address: the AI settings have their own
+  // `POST /ai/test` (ai.manage), which sends one fixed request through the configured provider.
+  // These names do not exist, so the generic test says "not available yet" and sends nothing.
+  ai_anthropic: 'verifyAiAnthropicCredential',
+  ai_openai: 'verifyAiOpenaiCredential',
+  ai_openai_compatible: 'verifyAiOpenaiCompatibleCredential',
 };
 
 /**
