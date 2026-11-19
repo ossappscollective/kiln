@@ -105,7 +105,7 @@ export const canDispatchWorkflow = (workflow: Pick<CiWorkflow, 'state'>): boolea
 // ---------------------------------------------------------------------------------------------
 // Polling cadence
 
-export const POLL_MS = 5_000;
+export const POLL_MS = 15_000;
 export const POLL_MAX_MS = 60_000;
 
 /** Milliseconds between polls: steady while all goes well, doubling after each failure up to a minute. */

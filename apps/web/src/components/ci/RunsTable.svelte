@@ -1,6 +1,7 @@
 <!--
   RunsTable: recent workflow runs of a repository, running ones first.
-  Props: runs, now (epoch ms, for "5 minutes ago"), repository ({ owner, repo }, for the commit links).
+  Props: runs, now (epoch ms, for "5 minutes ago"), repository ({ owner, repo }, for the commit links),
+  onfollow? (called with a run: opens its panel with the jobs; not offered for a run GitHub has not named).
   A run that GitHub has not named yet (we just started it) has no link; it says so.
 -->
 <script lang="ts">
@@ -8,6 +9,7 @@
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { githubUrl } from '../../lib/repositories.ts';
   import type { WorkflowRun } from '../../lib/types.ts';
+  import Button from '../ui/Button.svelte';
   import Icon from '../ui/Icon.svelte';
   import RunStatus from './RunStatus.svelte';
 
@@ -15,7 +17,13 @@
     runs,
     now,
     repository,
-  }: { runs: WorkflowRun[]; now: number; repository: { owner: string | null; repo: string | null } } = $props();
+    onfollow,
+  }: {
+    runs: WorkflowRun[];
+    now: number;
+    repository: { owner: string | null; repo: string | null };
+    onfollow?: (run: WorkflowRun) => void;
+  } = $props();
 
   const rows = $derived(sortRuns(runs));
 </script>
@@ -34,7 +42,16 @@
     <tbody>
       {#each rows as run (run.id)}
         <tr>
-          <td><RunStatus {run} /></td>
+          <td>
+            <div class="status">
+              <RunStatus {run} />
+              {#if onfollow && !isPending(run)}
+                <Button size="sm" variant="ghost" label="{run.active ? 'Follow' : 'Jobs of'} {runTitle(run)}" onclick={() => onfollow(run)}
+                  >{run.active ? 'Follow' : 'Jobs'}</Button
+                >
+              {/if}
+            </div>
+          </td>
           <td>
             <div class="run">
               {#if run.url}
@@ -79,6 +96,13 @@
 </div>
 
 <style>
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+  }
+
   .run {
     display: flex;
     flex-direction: column;

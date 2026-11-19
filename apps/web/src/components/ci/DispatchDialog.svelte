@@ -1,7 +1,9 @@
 <!--
   DispatchDialog: start a GitHub Actions workflow with `workflow_dispatch`, in two steps: the
   inputs (read from the workflow file, else typed as name=value lines), then a confirmation that
-  says what is about to run. This tool never builds anything: it asks the team's own CI to.
+  says what is about to run (workflow, branch or tag, repository, app and every input with its value).
+  The inputs are read from the workflow file at the chosen branch or tag, so a change of branch reads
+  them again before anything can be started. This tool never builds anything: it asks the team's own CI to.
   Props: api, workspaceId, repository, workflow, apps (the workspace's apps, to tie a run to one),
   onclose (called after the dialog closes), ondispatched (called with the run that was stored).
   Mount it when a workflow is chosen; unmount it on close, so every open starts clean.
@@ -54,6 +56,12 @@
   let loadProblem = $state('');
   let info = $state<WorkflowInputs | null>(null);
   let ref = $state(untrack(() => repository.defaultBranch));
+  /** The branch or tag the inputs on screen were read at. A different `ref` means they must be read again first. */
+  let inputsRef = $state(untrack(() => repository.defaultBranch));
+  /** Set when the inputs were read again for a new branch: the person looks at them before continuing. */
+  let reread = $state('');
+  /** A timed-out dispatch may have started the run: the button then says so, and asks again only on purpose. */
+  let maybeStarted = $state(false);
   let values = $state<InputValues>({});
   let freeText = $state('');
   let appId = $state('');
@@ -62,13 +70,18 @@
   /** Problems are shown after the first try to continue, not while the person is still typing. */
   let tried = $state(false);
 
-  async function loadInputs() {
+  async function loadInputs(at: string = inputsRef) {
     loading = true;
     loadProblem = '';
     try {
-      const read = await api.workflowInputs(workspaceId, repository.id, key);
+      const read = await api.workflowInputs(workspaceId, repository.id, key, at === repository.defaultBranch ? undefined : at);
       info = read;
-      values = initialInputValues(read.parsed ? read.inputs : []);
+      // Keep what was typed for an input that still exists on the other branch.
+      const fresh = initialInputValues(read.parsed ? read.inputs : []);
+      const kept: InputValues = {};
+      for (const name of Object.keys(fresh)) kept[name] = name in values && values[name] !== '' ? (values[name] as string) : (fresh[name] as string);
+      values = kept;
+      inputsRef = at;
     } catch (e) {
       info = null;
       loadProblem = e instanceof ApiError ? e.message : 'Could not read the workflow.';
@@ -91,10 +104,21 @@
   const payload = $derived(freeForm ? free.inputs : dispatchInputs(specs, values));
   const linkable = $derived(apps.filter((a) => a.repositoryId === repository.id));
   const notDispatchable = $derived(info?.dispatchable === false);
+  const chosenApp = $derived(linkable.find((a) => a.id === appId) ?? null);
 
-  function next() {
+  async function next() {
     tried = true;
+    if (refProblem !== '') return;
+    const wanted = ref.trim();
+    if (wanted !== inputsRef) {
+      // The workflow file may differ on this branch: read its inputs there, and let the person check them.
+      await loadInputs(wanted);
+      reread = wanted;
+      tried = false;
+      return;
+    }
     if (!valid || notDispatchable) return;
+    reread = '';
     step = 'confirm';
   }
 
@@ -107,6 +131,7 @@
         inputs: payload,
         ...(appId ? { appId } : {}),
       });
+      maybeStarted = false;
       toast.success(
         done.runKnown
           ? `Started ${workflow.name}. It is listed under recent runs.`
@@ -116,6 +141,7 @@
       open = false;
     } catch (e) {
       // A timeout may still have started the run: the server says so, and that matters here.
+      if (e instanceof ApiError && e.code === 'timeout') maybeStarted = true;
       problem =
         e instanceof ApiError
           ? e.code === 'timeout' && typeof e.body.message === 'string'
@@ -176,6 +202,12 @@
           autocomplete="off"
           spellcheck={false}
         />
+
+        {#if reread !== '' && reread === inputsRef && !loadProblem}
+          <Alert tone="info">
+            Read the inputs of <code>{reread}</code>. Check them, then continue.
+          </Alert>
+        {/if}
 
         {#if freeForm}
           <div class="field">
@@ -249,6 +281,7 @@
   {:else}
     <div class="stack">
       <p>{dispatchSummary({ workflow: key, ref: ref.trim(), repository: repositoryName(repository), inputs: payload })}</p>
+      {#if chosenApp}<p class="muted">For the app {chosenApp.name} ({chosenApp.platform === 'ios' ? 'iOS' : 'Android'}).</p>{/if}
       {#if Object.keys(payload).length > 0}
         <dl class="inputs">
           {#each Object.entries(payload) as [name, value] (name)}
@@ -260,7 +293,7 @@
       <Alert tone="info">
         This runs your CI with your CI's secrets and may build and upload. This tool does not build anything itself and does not publish to any store.
       </Alert>
-      {#if problem}<Alert tone="error" title="Could not start the workflow">{problem}</Alert>{/if}
+      {#if problem}<Alert tone={maybeStarted ? 'warn' : 'error'} title={maybeStarted ? 'It may have started' : 'Could not start the workflow'}>{problem}</Alert>{/if}
     </div>
   {/if}
 
@@ -270,7 +303,7 @@
       <Button variant="primary" type="submit" form="{uid}-form" disabled={loading || notDispatchable}>Continue</Button>
     {:else}
       <Button disabled={submitting} onclick={() => (step = 'form')}>Back</Button>
-      <Button variant="primary" icon="play" loading={submitting} onclick={run}>Run workflow</Button>
+      <Button variant="primary" icon="play" loading={submitting} onclick={run}>{maybeStarted ? 'Run again anyway' : 'Run workflow'}</Button>
     {/if}
   {/snippet}
 </Modal>

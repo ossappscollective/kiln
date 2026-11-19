@@ -22,6 +22,8 @@ export type PollerOptions = {
   /** One poll. Resolve true to be called again after the interval, false when there is nothing left to follow. */
   tick: () => Promise<boolean>;
   intervalMs: number;
+  /** The interval for the next tick, asked each time (a quicker cadence while something runs, a slower one when idle). Default: `intervalMs`. */
+  delayMs?: () => number;
   maxIntervalMs?: number;
   /** Called with the error of a failed tick (the poller keeps going, slower). */
   onError?: (error: unknown) => void;
@@ -63,7 +65,7 @@ export function createPoller(options: PollerOptions): Poller {
   // Bumped by stop, so a tick that finishes later knows it belongs to a poller that was stopped.
   let generation = 0;
 
-  const delay = () => Math.min(max, options.intervalMs * 2 ** Math.min(failures, 10));
+  const delay = () => Math.min(max, (options.delayMs?.() ?? options.intervalMs) * 2 ** Math.min(failures, 10));
 
   function schedule(ms: number) {
     if (!active) return;

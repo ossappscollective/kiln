@@ -20,6 +20,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import DispatchDialog from './DispatchDialog.svelte';
+  import RunDrawer from './RunDrawer.svelte';
   import RunsTable from './RunsTable.svelte';
 
   let {
@@ -45,6 +46,10 @@
   let apps = $state<AppSummary[]>([]);
   let dispatchTarget = $state<CiWorkflow | null>(null);
   let announcement = $state('');
+  /** The run whose panel is open (its id; the row is looked up in the list so the panel follows the list). */
+  let followedId = $state<string | null>(null);
+  let drawerOpen = $state(false);
+  const followed = $derived(followedId === null ? null : ((runs ?? []).find((r) => r.id === followedId) ?? null));
 
   /** Ignores a late answer for a repository that is no longer open. */
   let generation = 0;
@@ -121,6 +126,8 @@
       runsWarning = '';
       refreshedAt = null;
       dispatchTarget = null;
+      followedId = null;
+      drawerOpen = false;
       void readRuns(canScan);
       if (canScan) void readWorkflows();
       if (canDispatch) void readApps();
@@ -155,6 +162,13 @@
     // The new run is stored on the server already; show it without waiting for the next read.
     runs = [run, ...(runs ?? []).filter((r) => r.id !== run.id)];
     announcement = `Started ${run.workflow}.`;
+    // A run GitHub already named is followed at once; a placeholder is picked up by the list when it is named.
+    if (!run.id.startsWith('pending-')) follow(run);
+  }
+
+  function follow(run: WorkflowRun) {
+    followedId = run.id;
+    drawerOpen = true;
   }
 </script>
 
@@ -259,11 +273,15 @@
             : 'No runs have been read from GitHub yet. A member or admin can refresh them.'}
         />
       {:else}
-        <RunsTable {runs} {now} {repository} />
+        <RunsTable {runs} {now} {repository} onfollow={follow} />
       {/if}
     {/if}
   </Card>
 </div>
+
+{#if followed}
+  <RunDrawer bind:open={drawerOpen} {api} {workspaceId} run={followed} {repository} {now} />
+{/if}
 
 {#if dispatchTarget}
   <DispatchDialog

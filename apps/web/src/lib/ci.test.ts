@@ -121,12 +121,11 @@ test('hasActiveRun, isPending, runTitle, sortRuns, runDuration', () => {
 });
 
 test('pollDelay: steady, then doubling to a cap', () => {
-  assert.equal(pollDelay(0), 5_000);
-  assert.equal(pollDelay(1), 10_000);
-  assert.equal(pollDelay(3), 40_000);
-  assert.equal(pollDelay(4), 60_000);
+  assert.equal(pollDelay(0), 15_000);
+  assert.equal(pollDelay(1), 30_000);
+  assert.equal(pollDelay(2), 60_000);
   assert.equal(pollDelay(100), 60_000);
-  assert.equal(pollDelay(-3), 5_000);
+  assert.equal(pollDelay(-3), 15_000);
 });
 
 const specs: WorkflowInputSpec[] = [
