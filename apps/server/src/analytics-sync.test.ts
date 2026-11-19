@@ -224,6 +224,23 @@ dbTest('play vitals: the Reporting API not being enabled and a missing permissio
   assert.equal(fixed.body.status.sources[0].state, 'ready');
 });
 
+dbTest('play vitals: a rejected query, an empty first read and a rate limit each show their own code and message, never a generic one', async (db) => {
+  const t = await bootAnalytics(db);
+  await t.enable();
+  const appId = await t.addApp('android');
+  t.vitals.error = new AnalyticsError('play_vitals_bad_request', undefined, 400);
+  const bad = await sync(t, appId, { sources: ['play_vitals'] });
+  assert.equal(bad.body.sync.sources[0].errorCode, 'play_vitals_bad_request');
+  assert.equal(bad.body.status.sources[0].lastError.code, 'play_vitals_bad_request');
+  assert.notEqual(bad.body.status.sources[0].lastError.message, 'The store did not answer or failed. The next sync tries again.');
+  t.vitals.error = new AnalyticsError('play_app_not_found', undefined, 404);
+  assert.equal((await sync(t, appId, { sources: ['play_vitals'] })).body.status.sources[0].lastError.code, 'play_app_not_found');
+  t.vitals.error = undefined;
+  t.vitals.points = [];
+  const empty = await sync(t, appId, { sources: ['play_vitals'] });
+  assert.equal(empty.body.status.sources[0].lastError.code, 'play_vitals_no_data');
+});
+
 dbTest('play reports need the bucket id: skipped without it, read with it, a month without a file is fine', async (db) => {
   const t = await bootAnalytics(db);
   await t.enable();

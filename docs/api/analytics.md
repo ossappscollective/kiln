@@ -104,7 +104,7 @@ HTTP errors: `404 not_found`, `409 analytics_disabled`, `409 sync_in_progress` (
 Error codes (`analyticsErrorCodes`): `analytics_role_required`, `analytics_request_missing`, `analytics_request_stopped`,
 `report_not_ready`, `segment_expired`, `segment_too_large`, `file_too_large`, `bad_gzip`, `bad_format`, `unknown_report`,
 `missing_columns`, `no_rows`, `vendor_number_missing`, `vendor_number_invalid`, `sales_forbidden`, `play_reporting_not_enabled`,
-`play_permission_missing`, `play_app_not_found`, `bucket_missing`, `bucket_invalid`, `bucket_forbidden`, `bucket_not_found`,
+`play_permission_missing`, `play_app_not_found`, `play_vitals_bad_request`, `play_vitals_no_data`, `bucket_missing`, `bucket_invalid`, `bucket_forbidden`, `bucket_not_found`,
 `reports_not_found`, `store_auth`, `store_forbidden`, `store_not_found`, `rate_limited`, `store_unavailable`, `timeout`,
 `credential_unreadable`, `credential_not_found`, `app_not_synced`, `sync_failed`. Messages carry no URL, token, report row or store text.
 

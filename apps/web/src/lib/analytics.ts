@@ -580,8 +580,8 @@ export const setupText: Record<AnalyticsSetupCode, string> = {
   sales_forbidden: 'The key may not read Sales and Trends. It needs the Sales and Reports role or higher.',
   bucket_id_missing: 'Add the Cloud Storage bucket id of the Play Console reports in the workspace settings to read installs and ratings.',
   bucket_forbidden: 'The service account may not read the bucket of the Play Console reports. Grant it read access to the bucket.',
-  reporting_api_not_enabled: 'Enable the Google Play Developer Reporting API in the Cloud project of the service account.',
-  play_permission_missing: 'The service account may not read vitals or reports for this app. Grant it the Play Console permission to view app information.',
+  reporting_api_not_enabled: 'In Google Cloud console, open the project of the service account, find Google Play Developer Reporting API and click Enable. Then sync again.',
+  play_permission_missing: 'In Play Console open Users and permissions, invite the service account email address and give it access to this app with View app quality information (read-only). Then sync again.',
   credential_problem: 'The saved credential could not be used. Check it under Credentials.',
   first_sync_pending: 'Everything is set up and nothing has been read yet. Sync now, or wait for the next scheduled sync.',
 };

@@ -336,6 +336,8 @@ async function readPlayVitals(env: Env, newestDay: string | null): Promise<Outco
   const to = addDays(dateToDay(now), -1);
   const from = newestDay ? addDays(newestDay, -analyticsWindows.vitalsOverlapDays) : addDays(dateToDay(now), -analyticsWindows.vitalsFirstDays);
   const result = await port.rates({ from: from < to ? from : to, to });
+  // A first read that finds nothing says so, instead of an empty chart with no reason. Later reads may find nothing new.
+  if (newestDay === null && result.rows === 0) throw new AnalyticsError('play_vitals_no_data');
   const written = await upsertPoints(
     ctx.db,
     { workspaceId, appId: app.id, platform: app.platform, source: 'play_vitals', processingDate: dateToDay(ctx.now()), origin: 'sync', now: ctx.now() },

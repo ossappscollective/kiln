@@ -115,6 +115,8 @@ export const analyticsErrorCodes = [
   'play_reporting_not_enabled', // the Play Developer Reporting API is not enabled in the Cloud project
   'play_permission_missing', // the service account may not read vitals or reports
   'play_app_not_found',
+  'play_vitals_bad_request', // Google rejected the vitals query (HTTP 400, INVALID_ARGUMENT): a fault of the request, not of the setup
+  'play_vitals_no_data', // the Reporting API answered and holds no daily vitals for the app (too few users, or too new)
   'bucket_missing', // no Cloud Storage bucket id is set for the app
   'bucket_invalid',
   'bucket_forbidden', // the service account may not read the bucket
@@ -190,9 +192,15 @@ export const analyticsErrorMessages: Record<AnalyticsErrorCode, string> = {
   vendor_number_missing: 'Sales and Trends needs the vendor number of the team. Set it in the analytics settings of the app.',
   vendor_number_invalid: 'The vendor number is not valid. It is a number from App Store Connect, Payments and Financial Reports.',
   sales_forbidden: 'The App Store Connect API key may not read Sales and Trends reports (it needs the Sales and Reports role or higher).',
-  play_reporting_not_enabled: 'The Google Play Developer Reporting API is not enabled in the Google Cloud project of the service account.',
-  play_permission_missing: 'The service account may not read Android vitals or reports for this app. Grant it the Play Console permission to view app information.',
-  play_app_not_found: 'The Play Developer Reporting API has no app with this package name that the service account can see.',
+  play_reporting_not_enabled:
+    'The Google Play Developer Reporting API is not enabled in the Google Cloud project of the service account. In Google Cloud console, open that project, find Google Play Developer Reporting API and click Enable. Wait a few minutes, then sync again.',
+  play_permission_missing:
+    'Google Play refused the service account for Android vitals. In Play Console open Users and permissions, invite the service account email address (client_email in its JSON key) and give it access to this app with the permission View app quality information (read-only). New permissions can take a while to apply. Then sync again.',
+  play_app_not_found:
+    'The Play Developer Reporting API knows no app with this package name that the service account can see. Check that the package name is the application id of the app in Play Console, and that the service account was granted access to this app.',
+  play_vitals_bad_request: 'Google rejected the Android vitals request (HTTP 400). This is a fault of this server, not of your setup. Sync again later, and report it if it stays.',
+  play_vitals_no_data:
+    'Google has no Android vitals for this app yet. Play shows vitals only for apps with enough users and a published version, and they appear a day or two late. Nothing is wrong with the setup.',
   bucket_missing: 'No Cloud Storage bucket id is set for this app. Copy it from the Reports page of Play Console.',
   bucket_invalid: 'The bucket id is not valid. It looks like pubsite_prod_rev_<number>.',
   bucket_forbidden: 'The service account may not read the Cloud Storage bucket of the Play Console reports.',

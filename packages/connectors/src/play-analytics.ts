@@ -163,9 +163,17 @@ export class PlayVitalsConnector implements PlayVitalsPort {
     let rows = 0;
     let dataThrough: string | null = null;
     for (const set of ['crashRate', 'anrRate'] as const) {
-      dataThrough = (await this.#freshness(set)) ?? dataThrough;
+      // The documented rule: the freshness value "can be used directly as the endpoint in a query time range". An end time
+      // newer than the data the store has is refused (HTTP 400), so the end is never later than the freshness.
+      const latestEnd = await this.#freshness(set);
+      if (latestEnd !== undefined) {
+        const through = addDays(latestEnd, -1);
+        if (dataThrough === null || through > dataThrough) dataThrough = through;
+      }
+      const end = latestEnd !== undefined && latestEnd < addDays(input.to, 1) ? latestEnd : addDays(input.to, 1);
+      if (end <= input.from) continue; // the store has no day in the range yet
       for (const dimensions of [[], ['versionCode']]) {
-        const read = await this.#query(set, input, dimensions);
+        const read = await this.#query(set, { from: input.from, endExclusive: end }, dimensions);
         points.push(...read.points);
         rows += read.rows;
       }
@@ -173,25 +181,23 @@ export class PlayVitalsConnector implements PlayVitalsPort {
     return { points, dataThrough, rows };
   }
 
-  /** The newest day the metric set says it has (DAILY), or undefined. The end time is exclusive (UNVERIFIED). */
+  /** The exclusive end (YYYY-MM-DD, Pacific Time) of the newest DAILY data the metric set has, or undefined when it did not say. */
   async #freshness(set: string): Promise<string | undefined> {
     try {
       const json = await this.#call('GET', `${this.#base}/v1beta1/apps/${enc(this.#package)}/${set}MetricSet`, `reading the freshness of ${set}`);
       const info = isRecord(json.freshnessInfo) ? json.freshnessInfo : {};
       for (const f of records(info.freshnesses)) {
-        if (text(f.aggregationPeriod) === 'DAILY') {
-          const end = dateOf(f.latestEndTime);
-          if (end) return addDays(end, -1);
-        }
+        if (text(f.aggregationPeriod) === 'DAILY') return dateOf(f.latestEndTime);
       }
     } catch (error) {
-      // Freshness is a hint. A refusal here is reported by the query that follows.
+      // Freshness is a hint. A refusal of the setup (code) or a rate limit is reported now; anything else by the query that follows.
       if (error instanceof AnalyticsError || error instanceof StoreRateLimitError) throw error;
     }
     return undefined;
   }
 
-  async #query(set: string, range: { from: string; to: string }, dimensions: string[]): Promise<{ points: AnalyticsPoint[]; rows: number }> {
+  async #query(set: string, range: { from: string; endExclusive: string }, dimensions: string[]): Promise<{ points: AnalyticsPoint[]; rows: number }> {
+    // DAILY needs the hours, minutes, seconds and nanos unset and the only supported time zone is America/Los_Angeles.
     const day = (iso: string) => ({
       year: Number(iso.slice(0, 4)),
       month: Number(iso.slice(5, 7)),
@@ -207,7 +213,7 @@ export class PlayVitalsConnector implements PlayVitalsPort {
         `${this.#base}/v1beta1/apps/${enc(this.#package)}/${set}MetricSet:query`,
         `reading ${set} for ${this.#package}`,
         {
-          timelineSpec: { aggregationPeriod: 'DAILY', startTime: day(range.from), endTime: day(addDays(range.to, 1)) },
+          timelineSpec: { aggregationPeriod: 'DAILY', startTime: day(range.from), endTime: day(range.endExclusive) },
           metrics: [set],
           dimensions,
           pageSize: 1000,
@@ -256,6 +262,8 @@ function playAnalyticsError(
     if (error.kind === 'api_disabled') return new AnalyticsError('play_reporting_not_enabled', undefined, reply.status);
     if (error.kind === 'forbidden') return new AnalyticsError('play_permission_missing', undefined, reply.status);
     if (error.kind === 'not_found') return new AnalyticsError('play_app_not_found', undefined, reply.status);
+    // 400 INVALID_ARGUMENT: the query itself was refused (a fault of this server), never shown with Google's text.
+    if (reply.status === 400) return new AnalyticsError('play_vitals_bad_request', undefined, reply.status);
   } else {
     if (error.kind === 'forbidden' || error.kind === 'api_disabled') return new AnalyticsError('bucket_forbidden', undefined, reply.status);
     if (error.kind === 'not_found') return new AnalyticsError('bucket_not_found', undefined, reply.status);

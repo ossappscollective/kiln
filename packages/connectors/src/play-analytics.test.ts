@@ -10,7 +10,7 @@ import {
   parseServiceAccount,
 } from './google-auth.ts';
 import { PlayReportsConnector, PlayVitalsConnector, mapPlayTable, parseVitalsRows } from './play-analytics.ts';
-import { StoreError } from './errors.ts';
+import { StoreError, StoreRateLimitError } from './errors.ts';
 import { StoreHttp } from './store-http.ts';
 import { parseTable } from './delimited.ts';
 import * as fx from './store.fixtures.ts';
@@ -133,6 +133,8 @@ test('vitals errors are fixed codes: API not enabled, permission, no such app', 
     [403, { error: { message: 'Google Play Developer Reporting API has not been used in project 1 before or it is disabled.', details: [{ reason: 'SERVICE_DISABLED' }] } }, 'play_reporting_not_enabled'],
     [403, { error: { message: 'The caller does not have permission' } }, 'play_permission_missing'],
     [404, { error: { message: 'Requested entity was not found.' } }, 'play_app_not_found'],
+    [403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'The caller does not have permission' } }, 'play_permission_missing'],
+    [400, { error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Invalid field timeline_spec: secret-ish ya29.abc' } }, 'play_vitals_bad_request'],
   ];
   for (const [status, json, code] of cases) {
     const fake = new ax.RouteFetch();
@@ -144,5 +146,36 @@ test('vitals errors are fixed codes: API not enabled, permission, no such app', 
     assert.ok(error instanceof AnalyticsError, `${code}: ${error.message}`);
     assert.equal(error.code, code);
     assert.ok(!error.message.includes('ya29'));
+  }
+});
+
+test('vitals: the end of the query never passes the freshness (a newer end time is refused by Google)', async () => {
+  const { fake, connector } = vitals();
+  const result = await connector.rates({ from: '2026-11-01', to: '2026-11-18' });
+  const ends = fake.calls.filter((c) => c.url.pathname.endsWith(':query')).map((c) => JSON.parse(c.body ?? '{}').timelineSpec.endTime);
+  assert.equal(ends.length, 4);
+  for (const end of ends) assert.deepEqual([end.year, end.month, end.day], [2026, 11, 12]);
+  assert.equal(result.dataThrough, '2026-11-11');
+});
+
+test('vitals: no query is sent when the store has no day in the range yet', async () => {
+  const { fake, connector } = vitals();
+  const result = await connector.rates({ from: '2026-11-12', to: '2026-11-18' });
+  assert.equal(fake.calls.filter((c) => c.url.pathname.endsWith(':query')).length, 0);
+  assert.equal(result.rows, 0);
+});
+
+test('vitals: rate limit, server failure and an unreadable answer are not mistaken for a setup problem', async () => {
+  const cases: [number, unknown, (e: Error) => void][] = [
+    [429, { error: { status: 'RESOURCE_EXHAUSTED', details: [{ reason: 'RATE_LIMIT_EXCEEDED' }] } }, (e) => assert.ok(e instanceof StoreRateLimitError)],
+    [503, { error: { status: 'UNAVAILABLE', message: 'try later' } }, (e) => assert.ok(e instanceof StoreError && e.kind === 'server')],
+  ];
+  for (const [status, json, check] of cases) {
+    const fake = new ax.RouteFetch();
+    tokenRoute(fake);
+    fake.on('GET', /MetricSet$/, { json: ax.freshness });
+    fake.on('POST', /MetricSet:query$/, { status, json });
+    const connector = new PlayVitalsConnector({ serviceAccount: account, packageName: PKG, fetch: fake.fetch, now: () => T0, sleep: async () => undefined, maxRateLimitRetries: 0 });
+    check(await captured(() => connector.rates({ from: '2026-11-01', to: '2026-11-02' })));
   }
 });
