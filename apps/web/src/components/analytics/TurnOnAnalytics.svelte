@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import type { Api } from '../../lib/api.ts';
+  import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { analyticsErrorText } from '../../lib/analytics.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
@@ -29,7 +30,7 @@
     busy = true;
     problem = '';
     try {
-      await api.updateWorkspaceSettings(workspaceId, { 'analytics.enabled': true });
+      await confirmed((grant) => api.updateWorkspaceSettings(workspaceId, { 'analytics.enabled': true }, grant));
       open = false;
       toast.success('Analytics is on. The first numbers arrive with the next sync.');
       onchanged();

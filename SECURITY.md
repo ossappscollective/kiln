@@ -11,3 +11,5 @@ Design rules that matter for reviews:
 - Secrets are encrypted with AES-256-GCM before storage and are never logged.
 - Every write is recorded in the audit log with its actor.
 - Store credentials should have the least privilege the store allows.
+- Hard actions (publish, submit, release, rollout, delete a credential) can require a fresh passkey or password
+  confirmation ([docs/api/step-up.md](docs/api/step-up.md)). It is off by default; turn it on in Settings, Security.

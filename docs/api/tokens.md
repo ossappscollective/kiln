@@ -57,6 +57,13 @@ member of the workspace. Every call a token makes is recorded in the audit log w
 token acts for, is in `detail.onBehalfOf`. Approval of change sets by tokens is up to the role: a `member` token can draft
 and cannot approve; an `admin` token can approve and apply.
 
+### Step-up confirmation
+
+A token cannot confirm a hard action with a passkey or password. When the workspace has [step-up confirmation](step-up.md)
+on, a token that does a covered action (publish, submit, release, rollout, enable Apple analytics, delete a credential,
+turn a feature on) gets `403 step_up_required_human`, unless an admin allowed that class for unattended use. The step-up
+routes themselves are not open to tokens.
+
 ## Endpoints
 
 Rights: `tokens.read` (owner, admin) to list, `tokens.manage` (owner, admin) to create and revoke.

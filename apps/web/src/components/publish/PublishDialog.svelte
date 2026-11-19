@@ -13,6 +13,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
     type PlanStep,
@@ -176,7 +177,8 @@
     problem = '';
     try {
       // The only call that writes. Sent once, with the plan's hash, its steps and the phrase; never sent again by this app.
-      const out = await api.publishPending(workspaceId, sent.app.id, publishBody(sent, typed));
+      const publishPayload = publishBody(sent, typed);
+      const out = await confirmed((grant) => api.publishPending(workspaceId, sent.app.id, publishPayload, grant), publishPayload.planHash);
       if (mine !== seq) return;
       result = out.result;
       changed = true;

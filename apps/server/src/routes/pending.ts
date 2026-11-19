@@ -5,6 +5,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import { getPending, pendingSummary, PUBLISH_STEPS } from '../services/pending.ts';
 import type { Failure } from '../services/repositories.ts';
 import { type DraftConnectorFactory, type DraftContext, defaultDraftConnectorFactory } from '../services/store-draft.ts';
@@ -178,6 +179,8 @@ export function pendingRoutes(ctx: PendingRoutesContext) {
 
   // The only route that runs several gated store steps. One app per request: no bulk publish.
   routes.post('/:workspaceId/apps/:id/publish', needs('store.publish'), async (c) => {
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.publish', { id: param(c, 'id'), hashField: 'planHash' });
+    if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, publishApplyBody);
     if (!body.ok) return body.response;
     const done = await applyPublish(publish, {

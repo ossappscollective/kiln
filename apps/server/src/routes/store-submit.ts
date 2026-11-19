@@ -5,6 +5,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import type { Failure } from '../services/repositories.ts';
 import {
   type SubmitConnectorFactory,
@@ -96,6 +97,8 @@ export function storeSubmitRoutes(ctx: SubmitRoutesContext) {
   // The only route that hands anything to a store's review. One app per request: no bulk submit.
   routes.post('/:workspaceId/apps/:id/store-submit', needs('store.submit'), async (c) => {
     if (!submit.submitEnabled) return respond(c, submitDisabledFailure());
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.submit', { id: param(c, 'id'), hashField: 'confirmHash' });
+    if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, applyBody);
     if (!body.ok) return body.response;
     const done = await applySubmit(submit, { workspaceId: ws(c), appId: param(c, 'id'), confirmHash: body.data.confirmHash, confirmation: body.data.confirmation, actor: actor(c) });

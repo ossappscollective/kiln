@@ -6,6 +6,7 @@ import { aiOperations } from './api-operations-ai.ts';
 import { analyticsOperations } from './api-operations-analytics.ts';
 import { searchTermsOperations } from './api-operations-search-terms.ts';
 import { buildsOperations } from './api-operations-builds.ts';
+import { stepUpOperations } from './api-operations-step-up.ts';
 import { eventTypes } from './event-types.ts';
 import type { Operation } from './openapi.ts';
 import { createTokenBody } from './tokens.ts';
@@ -1560,6 +1561,7 @@ const drafts: Draft[] = [
   ...analyticsOperations,
   ...searchTermsOperations,
   ...buildsOperations,
+  ...stepUpOperations,
 ];
 
 export const operations: readonly Operation[] = drafts.map((d) => ({ ...d, tags: d.tags ?? [] }));

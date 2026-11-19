@@ -1674,3 +1674,79 @@ export const playSearchTermImports = pgTable(
   },
   (t) => [index('play_search_term_imports_workspace_idx').on(t.workspaceId)],
 );
+
+/** A passkey (WebAuthn credential) of a person, used to confirm hard actions. Migration 33. Never a private key. */
+export const stepUpCredentials = pgTable(
+  'step_up_credentials',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    credentialId: text('credential_id').notNull().unique(),
+    /** SPKI DER, base64url. */
+    publicKey: text('public_key').notNull(),
+    /** COSE algorithm: -7 (ES256) or -8 (EdDSA). */
+    alg: integer('alg').notNull(),
+    signCount: epochMs('sign_count').notNull().default(0),
+    name: text('name').notNull(),
+    transports: text('transports'),
+    createdAt: epochMs('created_at').notNull(),
+    lastUsedAt: epochMs('last_used_at'),
+  },
+  (t) => [index('step_up_credentials_user_idx').on(t.userId)],
+);
+
+/** A one-time challenge for a passkey registration or assertion; deleted when used. Migration 33. */
+export const stepUpChallenges = pgTable(
+  'step_up_challenges',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    sessionId: text('session_id').notNull(),
+    purpose: text('purpose').notNull(),
+    challenge: text('challenge').notNull(),
+    workspaceId: text('workspace_id'),
+    action: text('action'),
+    targetId: text('target_id'),
+    targetHash: text('target_hash'),
+    expiresAt: epochMs('expires_at').notNull(),
+  },
+  (t) => [index('step_up_challenges_expires_idx').on(t.expiresAt)],
+);
+
+/** A passed confirmation: single use, bound to session, user, action and target. Keyed by the SHA-256 of the grant. Migration 33. */
+export const stepUpGrants = pgTable(
+  'step_up_grants',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    sessionId: text('session_id').notNull(),
+    action: text('action').notNull(),
+    targetId: text('target_id'),
+    targetHash: text('target_hash'),
+    factor: text('factor').notNull(),
+    createdAt: epochMs('created_at').notNull(),
+    expiresAt: epochMs('expires_at').notNull(),
+    usedAt: epochMs('used_at'),
+  },
+  (t) => [index('step_up_grants_expires_idx').on(t.expiresAt)],
+);
+
+/** The optional confirmation password of a person and the failure counter with its lockout. Migration 33. */
+export const stepUpUsers = pgTable('step_up_users', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  confirmationHash: text('confirmation_hash'),
+  failedCount: integer('failed_count').notNull().default(0),
+  lockedUntil: epochMs('locked_until'),
+  updatedAt: epochMs('updated_at').notNull(),
+});

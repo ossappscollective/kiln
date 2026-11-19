@@ -22,6 +22,7 @@
   import Button from './ui/Button.svelte';
   import EmptyState from './ui/EmptyState.svelte';
   import Icon from './ui/Icon.svelte';
+  import StepUpHost from './StepUpHost.svelte';
   import Logo from './ui/Logo.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import { productName } from './ui/brand.ts';
@@ -441,6 +442,10 @@
 
 {#if workspace && canApps}
   <AppSwitcher bind:open={switcherOpen} items={switcherList} mod={modKey} onpick={pickApp} />
+{/if}
+
+{#if workspace}
+  <StepUpHost {api} {workspaceId} />
 {/if}
 
 <style>

@@ -20,11 +20,13 @@
     settingsErrorMessage,
     validateForm,
   } from '../lib/settings.ts';
+  import { confirmed } from '../lib/step-up-prompt.svelte.ts';
   import { toast } from '../lib/toast.svelte.ts';
   import CredentialForm from './credentials/CredentialForm.svelte';
   import AnalyticsSettings from './settings/AnalyticsSettings.svelte';
   import ReleaseSettings from './settings/ReleaseSettings.svelte';
   import AiSettings from './settings/AiSettings.svelte';
+  import SecuritySettings from './settings/SecuritySettings.svelte';
   import ReviewsSettings from './settings/ReviewsSettings.svelte';
   import TranslationSettings from './settings/TranslationSettings.svelte';
   import Alert from './ui/Alert.svelte';
@@ -88,7 +90,7 @@
     saving = true;
     saveError = '';
     try {
-      await api.updateWorkspaceSettings(workspaceId, changes);
+      await confirmed((grant) => api.updateWorkspaceSettings(workspaceId, changes, grant));
       forgetTranslationConfig(workspaceId);
       outcome = null;
       showErrors = false;
@@ -177,6 +179,12 @@
         </div>
       {/if}
     </form>
+  {/if}
+
+  {#if canRead && !addingCredential}
+    <div class="ai">
+      <SecuritySettings {api} {workspaceId} {role} />
+    </div>
   {/if}
 
   {#if canAi && !addingCredential}

@@ -32,6 +32,8 @@ import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-release.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
 import { settingsRoutes } from './routes/settings.ts';
+import { stepUpRoutes } from './routes/step-up.ts';
+import { enableStepUpAutoApprove } from './services/step-up.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
@@ -111,6 +113,10 @@ export type AppDeps = {
   version: string;
   /** Origins besides this server that may send state-changing requests, e.g. a dev server. */
   trustedOrigins?: string[];
+  /** MRM_PUBLIC_ORIGIN: the origin passkeys are bound to (step-up confirmation). Default: the origin of the request. */
+  publicOrigin?: string;
+  /** Demo mode only: hard actions pass the step-up check, because nobody is there to confirm them. */
+  stepUpAutoApprove?: boolean;
   /** Overridable for tests. */
   now?: () => number;
   cost?: Services['cost'];
@@ -303,6 +309,8 @@ export function createApp(deps: AppDeps) {
     singleUser: deps.singleUser && { gate: createLaunchGate(deps.singleUser.launchSecret) },
   };
 
+  if (deps.stepUpAutoApprove) enableStepUpAutoApprove(deps.db);
+
   // First, and on every path including the static UI: a rebound DNS name must get nothing.
   if (deps.singleUser) app.use('*', hostGuard(deps.singleUser.port, deps.singleUser.extraHosts));
 
@@ -399,6 +407,7 @@ export function createApp(deps: AppDeps) {
   };
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
   app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
+  app.route('/api/workspaces', stepUpRoutes({ services, ...(deps.publicOrigin ? { publicOrigin: deps.publicOrigin } : {}), ...(deps.trustedOrigins ? { trustedOrigins: deps.trustedOrigins } : {}) }));
   // Workspace settings (any member reads, admins write) and the translation of stored reviews.
   app.route(
     '/api/workspaces',

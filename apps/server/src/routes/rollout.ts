@@ -5,6 +5,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import type { Failure } from '../services/repositories.ts';
 import {
   type RolloutConnectorFactory,
@@ -112,6 +113,8 @@ export function rolloutRoutes(ctx: RolloutRoutesContext) {
   // The only route that changes a rollout in a store. One app per request: no bulk change.
   routes.post('/:workspaceId/apps/:id/rollout/apply', needs('releases.rollout'), async (c) => {
     if (!rolloutCtx.rolloutEnabled) return off(c);
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'rollout', { id: param(c, 'id'), hashField: 'confirmHash' });
+    if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, applyBody);
     if (!body.ok) return body.response;
     const { confirmHash, ...request } = body.data;

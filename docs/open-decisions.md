@@ -313,6 +313,18 @@ the raw state). A phased release currently shows as `live` because it is not rea
 - **Decide:** whether `analytics.manage` (sync, enable, import) stays admin and owner only; whether the 6 hour default is right; keeping daily facts for ever or adding a retention setting; whether the web offers the Apple one-time history snapshot (`backfill`) by default (one per 30 days, a second one after a month is not supported yet); a bucket id per app (stored, no route yet) or per workspace only; whether the import should also need `analytics.enabled` (it does not today).
 - **Check with a real account:** [api/analytics](api/analytics.md#not-verified-unverified) and [the study](research/analytics-apis.md): the Apple report segment format and the Sales key's role, the Google Reporting API fields and units, Play Console permissions and the bucket, and what Google still exports after the 2026 store listing change.
 
+### Step-up confirmation: on by default? recovery? CI?
+
+- **Today:** [step-up confirmation](api/step-up.md) ([ADR 0019](adr/0019-step-up-confirmation.md)) is built and **off by
+  default**, so nothing changes on upgrade. Passkeys and a password confirm; API tokens cannot unless a class is on the
+  `unattended` list. No recovery code: losing the only factor with the policy on needs a database edit.
+- **Decide:** turn it on by default for new workspaces (recommended) or keep it opt-in; whether to add recovery codes;
+  whether `store.push_draft` should be covered by default; whether API tokens may ever be allowed to confirm (a signed
+  approval from a person, instead of the `unattended` list); whether Google Play internal app sharing (no route yet)
+  gets this class when it is built.
+- **Check with real devices:** [api/step-up](api/step-up.md#unverified): Touch ID, Face ID, Windows Hello, security
+  keys, and whether the desktop shell's web view offers passkeys at all.
+
 ## Smaller items
 
 - Project name, then the `@mrm` scope, Tauri identifier and title ([phase-0.md](phase-0.md)).

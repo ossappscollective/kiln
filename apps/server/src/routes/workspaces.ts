@@ -4,6 +4,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, type Services, parseBody, queryInt } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import { MAX_AUDIT_LIMIT, listAudit } from '../services/audit.ts';
 import {
   createCredential,
@@ -75,6 +76,8 @@ export function workspaceRoutes(services: Services) {
   });
 
   app.delete('/:workspaceId/credentials/:id', needs('credentials.write'), async (c) => {
+    const stepUpRefusal = await requireStepUp({ db, now }, c, 'credential.delete', { id: param(c, 'id') });
+    if (stepUpRefusal) return stepUpRefusal;
     const done = await deleteCredential(
       db,
       { workspaceId: ws(c), id: param(c, 'id') },

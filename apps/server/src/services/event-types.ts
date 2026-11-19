@@ -33,6 +33,8 @@ export const eventTypes = [
   'assets.pulled',
   'ai.suggestion_created',
   'analytics.synced',
+  'stepup.verified',
+  'stepup.failed',
 ] as const;
 export type EventType = (typeof eventTypes)[number];
 
@@ -73,4 +75,7 @@ export const eventReadAction: Record<EventType, Action> = {
   'ai.suggestion_created': 'ai.use',
   // New analytics numbers were stored for an app (ids and counts only).
   'analytics.synced': 'analytics.read',
+  // Who confirmed (or failed to confirm) a hard action: admins only (ids and factor type, never a secret).
+  'stepup.verified': 'settings.write',
+  'stepup.failed': 'settings.write',
 };

@@ -15,6 +15,7 @@
   import type { Role } from '@mrm/core';
   import { untrack } from 'svelte';
   import type { Api } from '../../../lib/api.ts';
+  import { confirmed } from '../../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../../lib/portfolio.ts';
   import {
     type ReleaseFailure,
@@ -164,7 +165,8 @@
     try {
       // The only call that writes to a store, and it cannot be taken back. Sent once per click, with the hash of the
       // preview and the typed phrase. This app never sends it again by itself, whatever the answer.
-      const done = await api.storeRelease(workspaceId, app.id, { ...sent.request, confirmHash: sent.confirmHash ?? '', confirmation: typed });
+      const releaseBody = { ...sent.request, confirmHash: sent.confirmHash ?? '', confirmation: typed };
+      const done = await confirmed((grant) => api.storeRelease(workspaceId, app.id, releaseBody, grant), releaseBody.confirmHash);
       if (mine !== seq) return;
       result = done.result;
       closeDialog();

@@ -177,6 +177,7 @@ const app = createApp({
   version: VERSION,
   webDist,
   trustedOrigins: config.trustedOrigins,
+  ...(config.publicOrigin ? { publicOrigin: config.publicOrigin } : {}),
   trustProxy: config.trustProxy,
   singleUser: config.mode === 'single_user' && config.launchSecret
     ? { launchSecret: config.launchSecret, port: config.port, extraHosts: config.allowedHosts }

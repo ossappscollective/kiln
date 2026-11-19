@@ -43,6 +43,20 @@ const schema = z.object({
   MRM_WORKER: z.enum(['inline', 'off']).default('inline'),
   // Comma-separated origins allowed to send state-changing requests besides the server itself.
   MRM_TRUSTED_ORIGINS: z.string().default(''),
+  // The origin passkeys (step-up confirmation, docs/adr/0019-step-up-confirmation.md) are bound to, for example
+  // https://mrm.example.com. Empty: the origin of the request. Needed behind a proxy that rewrites Host.
+  MRM_PUBLIC_ORIGIN: z
+    .string()
+    .default('')
+    .refine((v) => {
+      if (v === '') return true;
+      try {
+        const u = new URL(v);
+        return (u.protocol === 'https:' || u.protocol === 'http:') && u.origin === v;
+      } catch {
+        return false;
+      }
+    }, 'MRM_PUBLIC_ORIGIN must be an origin such as https://mrm.example.com (no path, no trailing slash).'),
   // 'multi' is the hosted server with accounts. 'single_user' is the desktop app: no login,
   // loopback only, sessions start from MRM_LAUNCH_SECRET. See docs/adr/0003-single-user-mode.md.
   MRM_MODE: z.enum(['multi', 'single_user']).default('multi'),
@@ -498,6 +512,8 @@ export type Config = {
   webDist: string;
   worker: 'inline' | 'off';
   trustedOrigins: string[];
+  /** MRM_PUBLIC_ORIGIN, or undefined: passkeys are bound to the origin of the request. */
+  publicOrigin?: string;
   mode: 'multi' | 'single_user';
   /** Single-user mode only. Treat as a password: never log it. */
   launchSecret?: string;
@@ -613,6 +629,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     trustedOrigins: data.MRM_TRUSTED_ORIGINS.split(',')
       .map((o) => o.trim())
       .filter(Boolean),
+    ...(data.MRM_PUBLIC_ORIGIN ? { publicOrigin: data.MRM_PUBLIC_ORIGIN } : {}),
     mode: data.MRM_MODE,
     launchSecret,
     host: data.MRM_MODE === 'single_user' ? '127.0.0.1' : undefined,

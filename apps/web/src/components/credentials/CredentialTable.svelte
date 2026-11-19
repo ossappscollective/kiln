@@ -2,6 +2,7 @@
   import { credentialKindInfo, isCredentialKind } from '@mrm/core';
   import { tick } from 'svelte';
   import { ApiError, type Api } from '../../lib/api.ts';
+  import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { announceTest, summarizeTest, testErrorMessage, testStatus } from '../../lib/credentials.ts';
   import { fullTime, timeAgo } from '../../lib/format.ts';
   import { storeForCredentialKind } from '../../lib/stores.ts';
@@ -63,7 +64,7 @@
   async function remove(item: CredentialSummary) {
     deleting = true;
     try {
-      await api.deleteCredential(workspaceId, item.id);
+      await confirmed((grant) => api.deleteCredential(workspaceId, item.id, grant));
       confirmingDelete = null;
       onChanged(`Deleted “${item.label}”.`);
     } catch (e) {

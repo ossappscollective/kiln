@@ -1615,4 +1615,68 @@ export const migrations: Migration[] = [
       ];
     },
   },
+  {
+    id: 33,
+    name: 'Step-up confirmation: passkeys, one-time challenges, single-use grants and the confirmation password with its lockout',
+    statements: (dialect) => {
+      const t = epoch(dialect);
+      // docs/adr/0019-step-up-confirmation.md. step_up_credentials: a WebAuthn passkey of a person (not of a workspace): the credential id
+      // (base64url, unique), the public key as SPKI DER in base64url, its COSE algorithm (-7 ES256, -8 EdDSA), the signature counter and
+      // when it was last used. No private key or biometric ever reaches the server. step_up_challenges: one row per issued challenge
+      // (registration or assertion), bound to the person and the session and, for an assertion, to the action and target; deleted when
+      // used (single use) and useless after expires_at (2 minutes). step_up_grants: the result of a passed confirmation, keyed by the
+      // SHA-256 of the random grant (the grant itself is never stored), bound to workspace, user, session, action and optionally a target
+      // id and hash; used_at is set when it is spent. step_up_users: the optional confirmation password (a scrypt hash, as for accounts)
+      // and the failure counter with its lockout, which also covers the account password and passkey failures.
+      return [
+        `CREATE TABLE IF NOT EXISTS step_up_credentials (
+           id TEXT PRIMARY KEY,
+           user_id TEXT NOT NULL REFERENCES users(id),
+           credential_id TEXT NOT NULL UNIQUE,
+           public_key TEXT NOT NULL,
+           alg INTEGER NOT NULL,
+           sign_count ${t} NOT NULL DEFAULT 0,
+           name TEXT NOT NULL,
+           transports TEXT,
+           created_at ${t} NOT NULL,
+           last_used_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS step_up_credentials_user_idx ON step_up_credentials (user_id)',
+        `CREATE TABLE IF NOT EXISTS step_up_challenges (
+           id TEXT PRIMARY KEY,
+           user_id TEXT NOT NULL REFERENCES users(id),
+           session_id TEXT NOT NULL,
+           purpose TEXT NOT NULL,
+           challenge TEXT NOT NULL,
+           workspace_id TEXT,
+           action TEXT,
+           target_id TEXT,
+           target_hash TEXT,
+           expires_at ${t} NOT NULL
+         )`,
+        'CREATE INDEX IF NOT EXISTS step_up_challenges_expires_idx ON step_up_challenges (expires_at)',
+        `CREATE TABLE IF NOT EXISTS step_up_grants (
+           id TEXT PRIMARY KEY,
+           workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+           user_id TEXT NOT NULL REFERENCES users(id),
+           session_id TEXT NOT NULL,
+           action TEXT NOT NULL,
+           target_id TEXT,
+           target_hash TEXT,
+           factor TEXT NOT NULL,
+           created_at ${t} NOT NULL,
+           expires_at ${t} NOT NULL,
+           used_at ${t}
+         )`,
+        'CREATE INDEX IF NOT EXISTS step_up_grants_expires_idx ON step_up_grants (expires_at)',
+        `CREATE TABLE IF NOT EXISTS step_up_users (
+           user_id TEXT PRIMARY KEY REFERENCES users(id),
+           confirmation_hash TEXT,
+           failed_count INTEGER NOT NULL DEFAULT 0,
+           locked_until ${t},
+           updated_at ${t} NOT NULL
+         )`,
+      ];
+    },
+  },
 ];

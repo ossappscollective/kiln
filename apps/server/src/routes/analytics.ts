@@ -5,6 +5,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import { type AnalyticsContext, syncAnalytics } from '../services/analytics-sync.ts';
 import { applyEnable, previewEnable } from '../services/analytics-enable.ts';
 import { applyImport, previewImport } from '../services/analytics-import.ts';
@@ -46,7 +47,7 @@ export const syncBody = z
   .object({ sources: z.array(z.enum(analyticsSources)).min(1).max(analyticsSources.length).optional() })
   .strict();
 export const enableBody = z
-  .object({ confirmHash: z.string().regex(/^[0-9a-f]{64}$/), backfill: z.boolean().optional() })
+  .object({ confirmHash: z.string().regex(/^[0-9a-f]{64}$/), backfill: z.boolean().optional(), stepUp: z.string().max(200).optional() })
   .strict();
 
 type Issue = { path: string; message: string };
@@ -142,6 +143,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
   });
 
   routes.post('/:workspaceId/apps/:id/analytics/apple/enable', needs('analytics.manage'), bodyLimit({ maxSize: 4 * 1024, onError: tooLarge }), async (c) => {
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'analytics.enable_apple', { id: param(c, 'id'), hashField: 'confirmHash' });
+    if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, enableBody);
     if (!body.ok) return body.response;
     const wait = limited(c);

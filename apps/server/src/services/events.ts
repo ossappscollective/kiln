@@ -284,6 +284,14 @@ export function eventFromAudit(audit: AuditLike): EmitInput | undefined {
           actor,
         },
       };
+    case 'step_up.verified':
+      return { ...base, type: 'stepup.verified', payload: { userId: audit.actor.id, factor: text(detail.factor) ?? null, action: text(detail.action) ?? null, targetId: text(detail.targetId) ?? null } };
+    case 'step_up.failed':
+      return {
+        ...base,
+        type: 'stepup.failed',
+        payload: { userId: audit.actor.id, factor: text(detail.factor) ?? null, action: text(detail.action) ?? null, reason: text(detail.reason) ?? null, failedCount: typeof detail.failedCount === 'number' ? detail.failedCount : null },
+      };
     default:
       return undefined;
   }

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import { translationCredentialId, translationUsageToday } from '../services/translation.ts';
 import {
   type SettingsContext,
@@ -16,6 +17,9 @@ export type SettingsRoutesContext = SettingsContext & {
   db: Database;
   now: () => number;
 };
+
+/** The settings that switch a feature on. Turning one on is a hard action when step-up is on. */
+export const FEATURE_SWITCHES = ['analytics.enabled', 'translation.enabled'] as const;
 
 const ws = (c: Context<AppEnv>) => c.req.param('workspaceId') ?? '';
 
@@ -68,9 +72,18 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
         400,
       );
     }
+    // Switching a feature ON (step-up class `flags`, docs/adr/0019-step-up-confirmation.md): a store-facing or paid feature that was off.
+    // `stepUp` is the grant (docs/api/step-up.md), not a setting.
+    const { stepUp: _grant, ...changes } = raw as Record<string, unknown>;
+    const current = (await getSettings(db, ws(c))).values;
+    const turnedOn = FEATURE_SWITCHES.find((key) => changes[key] === true && current[key] !== true);
+    if (turnedOn) {
+      const refusal = await requireStepUp({ db, now: ctx.now }, c, 'flags', { id: turnedOn });
+      if (refusal) return refusal;
+    }
     const done = await updateSettings(
       db,
-      { workspaceId: ws(c), role: c.get('role'), changes: raw as Record<string, unknown> },
+      { workspaceId: ws(c), role: c.get('role'), changes },
       { type: 'user', id: c.get('user').id },
       ctx.now(),
       { ...(ctx.allowPrivateUrls ? { allowPrivateUrls: true } : {}), ...(ctx.resolve ? { resolve: ctx.resolve } : {}) },

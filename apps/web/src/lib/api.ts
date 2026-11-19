@@ -45,6 +45,7 @@ import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 import type { ReleaseBody, ReleasePreview, ReleaseResult, StoreReleaseConfig, StoreReleaseState } from './store-release.ts';
 import type { SettingValue, SettingsResponse, SettingsUpdateResponse, TranslationTestOutcome } from './settings.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
+import { type StepUpAction, type StepUpStatus, type StepUpTarget, stepUpMessage } from './step-up.ts';
 import type { RolloutConfig, RolloutPreview, RolloutRequest, RolloutResult, RolloutStateView } from './store-rollout.ts';
 import type { InboxPage, Review, ReviewSyncOutcome, ReviewsPage, ReviewsSummary, TriageBody, WorkspaceReviewsSummary } from './reviews.ts';
 import type {
@@ -148,6 +149,9 @@ export function messageFor(
   // Local clones: the server's messages are written to be shown (they name MRM_LOCAL_REPO_ROOTS, the
   // folder rule or the fix), so they are used as they are.
   if (body.error?.startsWith('local_') && body.message) return body.message;
+  // Step-up confirmation (docs/api/step-up.md): every code has a fixed sentence.
+  const stepUp = stepUpMessage(body.error ?? '', retryAfter);
+  if (stepUp) return stepUp;
   switch (body.error) {
     case 'invalid_credentials':
       return 'The email or password is wrong.';
@@ -323,13 +327,23 @@ function uploadQueryText(q: UploadQuery): string {
 export function createApi(options: ApiOptions = {}) {
   const send = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
 
+  const requestHeaders = (raw: Blob | undefined, body: unknown, extra: Record<string, string> | undefined): Record<string, string> | undefined => {
+    const headers: Record<string, string> = { ...(extra || {}) };
+    if (raw) headers['content-type'] = raw.type || 'application/octet-stream';
+    else if (body !== undefined) headers['content-type'] = 'application/json';
+    return Object.keys(headers).length > 0 ? headers : undefined;
+  };
+
+  /** The header a confirmed hard action carries (docs/api/step-up.md). Never in a URL. */
+  const grantHeader = (grant?: string): Record<string, string> | undefined => (grant ? { 'x-step-up-grant': grant } : undefined);
+
   /** `raw`: the body is the bytes of a file (an image upload), sent as they are; otherwise `body` is sent as JSON. */
-  async function request<T>(method: string, path: string, body?: unknown, raw?: Blob): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown, raw?: Blob, extraHeaders?: Record<string, string>): Promise<T> {
     let response: Response;
     try {
       response = await send(path, {
         method,
-        headers: raw ? { 'content-type': raw.type || 'application/octet-stream' } : body === undefined ? undefined : { 'content-type': 'application/json' },
+        headers: requestHeaders(raw, body, extraHeaders),
         body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
       });
     } catch {
@@ -387,8 +401,8 @@ export function createApi(options: ApiOptions = {}) {
       request<{ credential: CredentialSummary }>('POST', `${workspace(workspaceId)}/credentials`, input),
     replaceSecret: (workspaceId: string, id: string, secret: string) =>
       request<void>('PUT', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`, { secret }),
-    deleteCredential: (workspaceId: string, id: string) =>
-      request<void>('DELETE', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`),
+    deleteCredential: (workspaceId: string, id: string, grant?: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/credentials/${encodeURIComponent(id)}`, undefined, undefined, grantHeader(grant)),
     /** Tries a secret against the provider without saving it. */
     testSecret: (workspaceId: string, input: { kind: string; secret: string }) =>
       request<TestResult>('POST', `${workspace(workspaceId)}/credentials/test`, input),
@@ -668,8 +682,8 @@ export function createApi(options: ApiOptions = {}) {
       ),
     rolloutPreview: (workspaceId: string, appId: string, body: RolloutRequest) =>
       request<{ preview: RolloutPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/preview`, body),
-    rolloutApply: (workspaceId: string, appId: string, body: RolloutRequest & { confirmHash: string }) =>
-      request<{ result: RolloutResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/apply`, body),
+    rolloutApply: (workspaceId: string, appId: string, body: RolloutRequest & { confirmHash: string }, grant?: string) =>
+      request<{ result: RolloutResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/rollout/apply`, body, undefined, grantHeader(grant)),
     checklistTemplates: (workspaceId: string) =>
       request<{ templates: ChecklistTemplate[] }>('GET', `${workspace(workspaceId)}/checklist-templates`),
     createChecklistTemplate: (workspaceId: string, input: { name: string; items: { text: string; required: boolean }[] }) =>
@@ -882,8 +896,8 @@ export function createApi(options: ApiOptions = {}) {
       request<{ staged: StagedChangesView }>('DELETE', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged`),
     previewStagedPush: (workspaceId: string, appId: string) =>
       request<{ preview: DraftPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push/preview`, {}),
-    pushStagedDraft: (workspaceId: string, appId: string, confirmHash: string) =>
-      request<{ result: DraftPushResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push`, { confirmHash }),
+    pushStagedDraft: (workspaceId: string, appId: string, confirmHash: string, grant?: string) =>
+      request<{ result: DraftPushResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/staged/push`, { confirmHash }, undefined, grantHeader(grant)),
     // Submitting the pushed draft for store review (docs/api/submit.md): a SEPARATE, IRREVERSIBLE store write,
     // off by default. `config` and `appStoreSubmit` read our own database; `previewStoreSubmit` reads the store.
     // `storeSubmit` is the only call that writes: sent once with the preview's hash and the typed phrase, and
@@ -893,8 +907,8 @@ export function createApi(options: ApiOptions = {}) {
       request<{ submit: SubmitState }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`),
     previewStoreSubmit: (workspaceId: string, appId: string) =>
       request<{ preview: SubmitPreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit/preview`, {}),
-    storeSubmit: (workspaceId: string, appId: string, body: { confirmHash: string; confirmation: string }) =>
-      request<{ result: SubmitResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`, body),
+    storeSubmit: (workspaceId: string, appId: string, body: { confirmHash: string; confirmation: string }, grant?: string) =>
+      request<{ result: SubmitResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-submit`, body, undefined, grantHeader(grant)),
     // Preparing a release (docs/api/releases-write.md): reads of the store for the build picker, the draft and the
     // earlier notes; staging is the existing staged route and writes nothing to a store.
     releaseCandidates: (workspaceId: string, appId: string, query: { track?: string; version?: string } = {}) => {
@@ -928,8 +942,8 @@ export function createApi(options: ApiOptions = {}) {
       request<{ release: StoreReleaseState }>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`),
     previewStoreRelease: (workspaceId: string, appId: string, body: ReleaseBody) =>
       request<{ preview: ReleasePreview }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release/preview`, body),
-    storeRelease: (workspaceId: string, appId: string, body: ReleaseBody & { confirmHash: string; confirmation: string }) =>
-      request<{ result: ReleaseResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`, body),
+    storeRelease: (workspaceId: string, appId: string, body: ReleaseBody & { confirmHash: string; confirmation: string }, grant?: string) =>
+      request<{ result: ReleaseResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/store-release`, body, undefined, grantHeader(grant)),
     // Everything pending, and publishing it in one go (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md). The two
     // pending reads and the config read our own database only. `previewPublish` reads the stores (a plan, no write).
     // `publishPending` is the only call that writes: sent once with the plan's hash and the typed phrase, never retried by this app.
@@ -939,8 +953,8 @@ export function createApi(options: ApiOptions = {}) {
     storePublishConfig: (workspaceId: string) => request<PublishConfig>('GET', `${workspace(workspaceId)}/store-publish/config`),
     previewPublish: (workspaceId: string, appId: string, body: { steps?: StepRequest[] } = {}) =>
       request<{ plan: PublishPlan }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish/preview`, body),
-    publishPending: (workspaceId: string, appId: string, body: { planHash: string; steps: StepRequest[]; phrase?: string }) =>
-      request<{ result: PublishResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish`, body),
+    publishPending: (workspaceId: string, appId: string, body: { planHash: string; steps: StepRequest[]; phrase?: string }, grant?: string) =>
+      request<{ result: PublishResult }>('POST', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/publish`, body, undefined, grantHeader(grant)),
     // Customer reviews (docs/api/reviews.md): reads of our own database, a store read on sync, and
     // internal triage. Nothing in this group writes to a store; replying is the group below.
     appReviews: (workspaceId: string, appId: string, query = '') =>
@@ -969,8 +983,31 @@ export function createApi(options: ApiOptions = {}) {
     // Workspace settings and the translation of reviews (docs/api/settings.md, docs/api/reviews.md).
     // `translateReviews` sends the stored text of the named reviews to the workspace's translation provider.
     workspaceSettings: (workspaceId: string) => request<SettingsResponse>('GET', `${workspace(workspaceId)}/settings`),
-    updateWorkspaceSettings: (workspaceId: string, changes: Record<string, SettingValue>) =>
-      request<SettingsUpdateResponse>('PUT', `${workspace(workspaceId)}/settings`, changes),
+    updateWorkspaceSettings: (workspaceId: string, changes: Record<string, SettingValue>, grant?: string) =>
+      request<SettingsUpdateResponse>('PUT', `${workspace(workspaceId)}/settings`, changes, undefined, grantHeader(grant)),
+    // Step-up confirmation (docs/api/step-up.md). The passkey calls move base64url JSON; `lib/step-up.ts` converts it.
+    stepUpStatus: (workspaceId: string) => request<StepUpStatus>('GET', `${workspace(workspaceId)}/step-up/status`),
+    stepUpRegisterOptions: (workspaceId: string) =>
+      request<{ challengeId: string; publicKey: Record<string, unknown> }>('POST', `${workspace(workspaceId)}/step-up/passkeys/register/options`, {}),
+    stepUpRegisterVerify: (
+      workspaceId: string,
+      body: { challengeId: string; name: string; credential: { id: string; clientDataJSON: string; attestationObject: string; transports?: string[] } },
+      grant?: string,
+    ) => request<{ passkey: { id: string; name: string } }>('POST', `${workspace(workspaceId)}/step-up/passkeys/register/verify`, body, undefined, grantHeader(grant)),
+    stepUpDeletePasskey: (workspaceId: string, id: string, grant?: string) =>
+      request<void>('DELETE', `${workspace(workspaceId)}/step-up/passkeys/${encodeURIComponent(id)}`, undefined, undefined, grantHeader(grant)),
+    stepUpSetPassword: (workspaceId: string, password: string, grant?: string) =>
+      request<void>('PUT', `${workspace(workspaceId)}/step-up/confirmation-password`, { password }, undefined, grantHeader(grant)),
+    stepUpAssertionOptions: (workspaceId: string, body: { action: StepUpAction | 'step_up.manage'; target?: StepUpTarget }) =>
+      request<{ challengeId: string; publicKey: Record<string, unknown> }>('POST', `${workspace(workspaceId)}/step-up/passkeys/assertion/options`, body),
+    stepUpVerify: (
+      workspaceId: string,
+      body:
+        | { factor: 'password'; action: string; target?: StepUpTarget; password: string }
+        | { factor: 'passkey'; action: string; target?: StepUpTarget; challengeId: string; assertion: { id: string; clientDataJSON: string; authenticatorData: string; signature: string } },
+    ) => request<{ grant: string; expiresAt: number }>('POST', `${workspace(workspaceId)}/step-up/verify`, body),
+    stepUpSetPolicy: (workspaceId: string, body: { mode: 'off' | 'hard_actions'; actions?: StepUpAction[]; unattended?: StepUpAction[] }, grant?: string) =>
+      request<{ policy: StepUpStatus['policy']; enrolled: boolean }>('PUT', `${workspace(workspaceId)}/step-up/policy`, body, undefined, grantHeader(grant)),
     testTranslation: (workspaceId: string) =>
       request<TranslationTestOutcome>('POST', `${workspace(workspaceId)}/translate/test`),
     translateReviews: (workspaceId: string, appId: string, body: { reviewIds: string[]; target?: string }) =>
@@ -1116,8 +1153,8 @@ export function createApi(options: ApiOptions = {}) {
       request<AnalyticsSyncResult>('POST', `${analyticsPath(workspaceId, appId)}/sync`, sources && sources.length > 0 ? { sources } : undefined),
     previewAppleEnable: (workspaceId: string, appId: string, backfill = false) =>
       request<EnablePreview>('GET', `${analyticsPath(workspaceId, appId)}/apple/enable${backfill ? '?backfill=true' : ''}`),
-    enableApple: (workspaceId: string, appId: string, body: { confirmHash: string; backfill?: boolean }) =>
-      request<EnableResult>('POST', `${analyticsPath(workspaceId, appId)}/apple/enable`, body),
+    enableApple: (workspaceId: string, appId: string, body: { confirmHash: string; backfill?: boolean }, grant?: string) =>
+      request<EnableResult>('POST', `${analyticsPath(workspaceId, appId)}/apple/enable`, body, undefined, grantHeader(grant)),
     previewAnalyticsImport: (workspaceId: string, appId: string, fileName: string, file: Blob) =>
       request<ImportPreview>('POST', `${analyticsPath(workspaceId, appId)}/import/preview?fileName=${encodeURIComponent(fileName)}`, undefined, file),
     importAnalytics: (workspaceId: string, appId: string, fileName: string, confirmHash: string, file: Blob) =>

@@ -10,6 +10,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import {
     type RolloutConfig,
@@ -188,7 +189,7 @@
     try {
       // The same change as the preview, with its hash. This is the only call that writes to the store, and it is sent once.
       const body = { ...previewed, confirmHash: sent.confirmHash };
-      const done = await api.rolloutApply(workspaceId, app.id, body);
+      const done = await confirmed((grant) => api.rolloutApply(workspaceId, app.id, body, grant), sent.confirmHash);
       if (mine !== seq) return;
       result = done.result;
       closeDialog();

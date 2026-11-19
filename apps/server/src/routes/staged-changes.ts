@@ -5,6 +5,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
 import { type Failure, type RepoContext, failure } from '../services/repositories.ts';
 import {
@@ -168,6 +169,8 @@ export function stagedRoutes(ctx: StagedRoutesContext) {
   // The only route that writes to a store. One app per request: no bulk push. It never submits.
   routes.post('/:workspaceId/apps/:id/staged/push', needs('store.push_draft'), async (c) => {
     if (!draft.draftEnabled) return off(c);
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.push_draft', { id: param(c, 'id'), hashField: 'confirmHash' });
+    if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, pushBody);
     if (!body.ok) return body.response;
     const done = await applyDraftPush(draft, { workspaceId: ws(c), appId: param(c, 'id'), confirmHash: body.data.confirmHash, actor: actor(c) });

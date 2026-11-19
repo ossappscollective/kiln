@@ -10,6 +10,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Api } from '../../lib/api.ts';
+  import { confirmed } from '../../lib/step-up-prompt.svelte.ts';
   import { type EnablePreview, analyticsErrorText } from '../../lib/analytics.ts';
   import { ENABLE_PHRASE, canConfirmEnable, classifyEnableError, describeStep, enableDecision } from '../../lib/analytics-import.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -88,7 +89,8 @@
     sendError = '';
     changed = false;
     try {
-      await api.enableApple(workspaceId, appId, { confirmHash: preview.confirmHash, ...(backfill ? { backfill: true } : {}) });
+      const hash = preview.confirmHash;
+      await confirmed((grant) => api.enableApple(workspaceId, appId, { confirmHash: hash, ...(backfill ? { backfill: true } : {}) }, grant), hash);
       open = false;
       toast.success('Apple analytics is enabled. The first reports take one to two days.');
       onenabled();

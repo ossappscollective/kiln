@@ -5,6 +5,7 @@ import type { Context, Next } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import { requireStepUp } from '../services/step-up.ts';
 import { getApp } from '../services/apps.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
@@ -202,6 +203,8 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
   // The only route that releases anything. One app per request: no bulk release.
   routes.post('/:workspaceId/apps/:id/store-release', needs('store.release'), async (c) => {
     if (!release.releaseEnabled) return respond(c, releaseDisabledFailure());
+    const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'store.release', { id: param(c, 'id'), hashField: 'confirmHash' });
+    if (stepUpRefusal) return stepUpRefusal;
     const body = await parseBody(c, applyBody);
     if (!body.ok) return body.response;
     const done = await applyRelease(release, { workspaceId: ws(c), appId: param(c, 'id'), ...body.data, actor: actor(c) });

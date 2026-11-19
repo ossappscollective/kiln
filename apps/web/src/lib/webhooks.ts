@@ -34,6 +34,8 @@ export const webhookEventChoices: { type: string; label: string }[] = [
   { type: 'pending.published', label: 'Pending changes were published in one go (ids, counts and the outcome of each step only)' },
   { type: 'ai.suggestion_created', label: 'An AI suggestion was proposed (ids and the task only; nothing is applied)' },
   { type: 'analytics.synced', label: 'Analytics data was synced for an app (ids and counts only)' },
+  { type: 'stepup.verified', label: 'Someone confirmed a hard action with a passkey or password' },
+  { type: 'stepup.failed', label: 'A confirmation of a hard action failed (wrong password or passkey)' },
   { type: 'ci.run_finished', label: 'A GitHub Actions workflow run finished (ids and the conclusion only)' },
   { type: 'assets.pulled', label: 'Store images were pulled into a change set for the repository (ids and counts only)' },
 ];
