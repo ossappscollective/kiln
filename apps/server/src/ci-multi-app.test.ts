@@ -58,7 +58,11 @@ dbTest(
     const detail = JSON.parse(audits[0]?.detail ?? '{}');
     assert.deepEqual(detail.appIds, [a, b].sort());
     assert.deepEqual(detail.inputs, ['build_number']);
-    assert.ok(!JSON.stringify(audits).includes('241'), 'an input value is never audited');
+    // Ids and times are random digits: look for the value as a whole token, not as a substring.
+    assert.ok(
+      !/(^|[^0-9a-z-])241([^0-9a-z-]|$)/i.test(JSON.stringify(detail)),
+      'an input value is never audited',
+    );
   },
 );
 
