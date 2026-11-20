@@ -1,30 +1,4 @@
-import {
-  type AnalyticsDimension,
-  type AnalyticsMetric,
-  type AnalyticsNextStep,
-  type AnalyticsSetupCode,
-  type AnalyticsSource,
-  addDays,
-  analyticsDimensions,
-  analyticsErrorMessages,
-  analyticsMetrics,
-  bucketStart,
-  bucketStarts,
-  type CoverageNoteCode,
-  coverageNoteMessages,
-  dateToDay,
-  daysBetween,
-  type Granularity,
-  isAnalyticsErrorCode,
-  isGranularity,
-  isIsoDate,
-  type MetricAggregation,
-  type MetricUnit,
-  metricInfo,
-  type PlayBucketSource,
-  safeRatio,
-  sourcesForPlatform,
-} from '@mrm/core';
+import { addDays, type AnalyticsDimension, analyticsDimensions, analyticsErrorMessages, type AnalyticsMetric, analyticsMetrics, type AnalyticsNextStep, type AnalyticsSetupCode, type AnalyticsSource, bucketStart, bucketStarts, type CoverageNoteCode, coverageNoteMessages, dateToDay, daysBetween, type Granularity, isAnalyticsErrorCode, isGranularity, isIsoDate, type MetricAggregation, metricInfo, type MetricUnit, type PlayBucketSource, safeRatio, sourcesForPlatform, supports } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { deriveSetup, type Setup, setupMessages } from './setup.ts';
 import {
@@ -414,7 +388,7 @@ export async function overview(
       }),
     });
   };
-  if (app.platform === 'android') {
+  if (supports(app.platform, 'playReportsBucket')) {
     derive(
       'product_page_conversion',
       'Store listing conversion',
@@ -432,7 +406,7 @@ export async function overview(
   }
 
   const notes: Note[] =
-    app.platform === 'android'
+    supports(app.platform, 'playReportsBucket')
       ? [note('google_no_impressions')]
       : [note('apple_rating_history_not_available')];
   return {
@@ -526,7 +500,7 @@ export async function status(
   const states = await getSourceStates(sql, workspaceId, app.id, app.platform);
   const bounds = await dayBounds(sql, { workspaceId, appId: app.id, platform: app.platform });
   const runs = await recentRuns(sql, workspaceId, app.id, 10);
-  const apple = app.platform !== 'android';
+  const apple = supports(app.platform, 'appleAnalyticsReports');
 
   const sources: SourceStatus[] = sourcesForPlatform(app.platform).map((source) => {
     const state = states.get(source);

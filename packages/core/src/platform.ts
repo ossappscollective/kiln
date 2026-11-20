@@ -30,9 +30,21 @@ export type PlatformMeta = {
   label: string;
   /** The store the platform is sold in: "App Store", "Mac App Store", "Google Play". */
   storeName: string;
+  /** The same store in a sentence: "the App Store", "the Mac App Store", "Google Play". */
+  storeNameWithArticle: string;
   /** The console behind it: "App Store Connect", "Google Play Console". */
   consoleName: string;
   family: StoreFamily;
+  /** The device the app runs on: a phone or tablet app, or a desktop one. */
+  formFactor: 'mobile' | 'desktop';
+  /** What the store calls the app's identifier: "Bundle ID" or "Package name" (`identifierNoun` is the sentence form). */
+  identifierLabel: string;
+  /** The identifier in a sentence: "bundle ID", "package name". */
+  identifierNoun: string;
+  /** What a release is built from, as a column or a field label: "Build" or "Version codes". */
+  buildLabel: string;
+  /** The same for one: "Build" or "Version code". */
+  buildLabelSingular: string;
   /** The store that sells it (what a connector, a review or a draft is tagged with). */
   store: StoreId;
   /** The same store as listing data names it. */
@@ -96,6 +108,8 @@ export const CAPABILITIES = [
   'searchResultsHaveNames',
   /** Public search is read from an unofficial source that must be switched on (Google Play). */
   'unofficialSearch',
+  /** A build can be put on Google Play's internal app sharing, which gives a download link at once. */
+  'internalAppSharing',
   /** An app's identifier is a bundle id (letters, digits, dots, hyphens; case-insensitive) rather than a package name (case-sensitive). */
   'bundleIdentifier',
 ] as const;
@@ -122,6 +136,7 @@ const APPLE_CAPABILITIES: PlatformCapabilities = {
   searchResultsHaveNames: true,
   unofficialSearch: false,
   bundleIdentifier: true,
+  internalAppSharing: false,
 };
 
 const GOOGLE_CAPABILITIES: PlatformCapabilities = {
@@ -144,6 +159,7 @@ const GOOGLE_CAPABILITIES: PlatformCapabilities = {
   searchResultsHaveNames: false,
   unofficialSearch: true,
   bundleIdentifier: false,
+  internalAppSharing: true,
 };
 
 export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
@@ -151,8 +167,14 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     id: 'ios',
     label: 'iOS',
     storeName: 'App Store',
+    storeNameWithArticle: 'the App Store',
     consoleName: 'App Store Connect',
     family: 'apple',
+    formFactor: 'mobile',
+    identifierLabel: 'Bundle ID',
+    identifierNoun: 'bundle ID',
+    buildLabel: 'Build',
+    buildLabelSingular: 'Build',
     store: 'appstoreconnect',
     listingStore: 'app_store',
     storeShortName: 'App Store',
@@ -167,8 +189,14 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     id: 'macos',
     label: 'macOS',
     storeName: 'Mac App Store',
+    storeNameWithArticle: 'the Mac App Store',
     consoleName: 'App Store Connect',
     family: 'apple',
+    formFactor: 'desktop',
+    identifierLabel: 'Bundle ID',
+    identifierNoun: 'bundle ID',
+    buildLabel: 'Build',
+    buildLabelSingular: 'Build',
     store: 'appstoreconnect',
     listingStore: 'app_store',
     storeShortName: 'App Store',
@@ -183,8 +211,14 @@ export const PLATFORM_META: Readonly<Record<Platform, PlatformMeta>> = {
     id: 'android',
     label: 'Android',
     storeName: 'Google Play',
+    storeNameWithArticle: 'Google Play',
     consoleName: 'Google Play Console',
     family: 'google',
+    formFactor: 'mobile',
+    identifierLabel: 'Package name',
+    identifierNoun: 'package name',
+    buildLabel: 'Version codes',
+    buildLabelSingular: 'Version code',
     store: 'googleplay',
     listingStore: 'google_play',
     storeShortName: 'Google Play',
@@ -233,6 +267,9 @@ export const byFamily = <const C extends Readonly<Record<StoreFamily, unknown>>>
   platform: Platform,
   choices: C,
 ): C[StoreFamily] => choices[PLATFORM_META[platform].family];
+/** Whether the platform's app runs on a desktop (macOS, later Windows or Linux) rather than a phone or tablet. */
+export const isDesktop = (platform: Platform): boolean =>
+  PLATFORM_META[platform].formFactor === 'desktop';
 /** Whether the platform's store has the capability. */
 export const supports = (platform: Platform, capability: Capability): boolean =>
   PLATFORM_META[platform].capabilities[capability];

@@ -103,7 +103,7 @@ export function parseRolloutTarget(
     version?: string | undefined;
   },
 ): { ok: true; target: RolloutTarget } | Failure {
-  if (platform === 'android') {
+  if (supports(platform, 'releaseTracks')) {
     if (input.version !== undefined)
       return invalid(
         'A Google Play release is named by track and versionCodes, not by version.',
@@ -147,7 +147,7 @@ export function parseRolloutRequest(
 ): { ok: true; target: RolloutTarget; change: RolloutChange } | Failure {
   const target = parseRolloutTarget(platform, request);
   if (!target.ok) return target;
-  if (platform === 'android') {
+  if (supports(platform, 'releaseTracks')) {
     const action = PLAY_ROLLOUT_ACTIONS.find((a) => a === request.action);
     if (!action)
       return invalid(

@@ -1,6 +1,7 @@
 import type { Database } from '@mrm/db';
 import { enqueue } from '../../jobs.ts';
 import { ANALYTICS_SYNC_QUEUE, type AnalyticsSyncPayload } from './sync.ts';
+import { parsePlatform, supports } from '@mrm/core';
 
 /**
  * Scheduled analytics syncs (MRM_ANALYTICS_INTERVAL_MINUTES, default 360, 0 is off). The scheduler only queues `analytics.sync` jobs;
@@ -140,7 +141,9 @@ export async function queueAnalyticsSyncs(
       summary.skipped.off++;
       continue;
     }
-    const apple = String(app.platform) !== 'android';
+    const platform = parsePlatform(String(app.platform));
+    if (platform === undefined) continue;
+    const apple = supports(platform, 'appleAnalyticsReports');
     if (apple && !withRequest.has(id) && !vendor.has(workspaceId)) {
       summary.skipped.notReady++;
       continue;

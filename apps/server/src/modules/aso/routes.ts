@@ -336,7 +336,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     const body = await parseBody(c, addCompetitorBody);
     if (!body.ok) return body.response;
     // Not for an app that cannot be looked up at all: no slot is spent on it.
-    if (app.platform === 'android' && !ctx.sources.playEnabled)
+    if (supports(app.platform, 'unofficialSearch') && !ctx.sources.playEnabled)
       return respond(c, playDisabledFailure());
     const stop = limited(c);
     if (stop) return stop;
@@ -470,7 +470,7 @@ export function asoRoutes(ctx: AsoRoutesContext) {
     if (scope !== 'all' && scope !== 'keywords' && scope !== 'competitors') {
       return bad(c, [{ path: 'scope', message: 'Use all, keywords or competitors.' }]);
     }
-    if (app.platform === 'android' && !ctx.sources.playEnabled)
+    if (supports(app.platform, 'unofficialSearch') && !ctx.sources.playEnabled)
       return respond(c, playDisabledFailure());
     const stop = limited(c);
     if (stop) return stop;

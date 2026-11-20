@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { appleScope, AppStoreConnectConnector, connectorFactory, GooglePlayConnector, isPlayPackageName, redactSecrets, secretStrings, type StoreBuild, type StoreConnector, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreVersion } from '@mrm/connectors';
-import { type ActorType, byFamily, needsStoreAppId, type Platform, PLATFORM_META, platformLabel, PLATFORMS, type ReleaseState, type StoreCredentialKind, supports } from '@mrm/core';
+import { type ActorType, byFamily, needsStoreAppId, parsePlatform, type Platform, PLATFORM_META, platformLabel, PLATFORMS, type ReleaseState, type StoreCredentialKind, supports } from '@mrm/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAsoData } from '../modules/aso/data.ts';
@@ -210,7 +210,7 @@ export async function listAppReleases(
   const sent = await releasesSentHere(sql, workspaceId, appId);
   return rows.map((r) => {
     const release = toRelease(r);
-    if (release.platform !== 'android' || release.track === null || sent.length === 0)
+    if (!supports(release.platform, 'releaseTracks') || release.track === null || sent.length === 0)
       return release;
     const at = sentAtOf(sent, release.track, release.versionCodes);
     if (at === null) return release;
@@ -1120,17 +1120,20 @@ export type Discovery = {
   failures: DiscoverFailure[];
 };
 
-const identityKey = (platform: string, identifier: string) =>
-  `${platform}\u0000${platform !== 'android' ? identifier.toLowerCase() : identifier}`;
+const identityKey = (platform: Platform, identifier: string) =>
+  `${platform}\u0000${supports(platform, 'bundleIdentifier') ? identifier.toLowerCase() : identifier}`;
 
 /** The apps of the workspace by platform and identifier (bundle ids compared without case). */
 async function existingApps(sql: Sql, workspaceId: string): Promise<Map<string, string>> {
   const rows = await sql.query('SELECT id, platform, identifier FROM apps WHERE workspace_id = ?', [
     workspaceId,
   ]);
-  return new Map(
-    rows.map((r) => [identityKey(String(r.platform), String(r.identifier)), String(r.id)]),
-  );
+  const known = new Map<string, string>();
+  for (const r of rows) {
+    const platform = parsePlatform(String(r.platform));
+    if (platform !== undefined) known.set(identityKey(platform, String(r.identifier)), String(r.id));
+  }
+  return known;
 }
 
 /** Looks up the credential's kind. Not found, and another workspace's, are the same. */
@@ -1294,7 +1297,7 @@ export async function discoverApps(
       }
       const seen = new Set<string>();
       for (const a of apps) {
-        if (a.platform === 'android' || checkIdentifier('ios', a.bundleId)) continue;
+        if (!supports(a.platform, 'bundleIdentifier') || checkIdentifier('ios', a.bundleId)) continue;
         // `platforms` is known only when the store answered the platform read: then one candidate per Apple platform
         // the app has (a universal purchase app has both, with the same store id and bundle id). Unknown: iOS, as before.
         const platforms = (a.platforms ?? []).filter((p) => p === 'ios' || p === 'macos');

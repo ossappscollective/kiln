@@ -64,8 +64,13 @@ const ANDROID_KEYS = new Set([
   'androidbuild',
 ]);
 
-const ownKeys = (platform: Platform): Set<string> =>
-  platform === 'ios' ? IOS_KEYS : platform === 'macos' ? MACOS_KEYS : ANDROID_KEYS;
+const BUILD_KEYS: Readonly<Record<Platform, Set<string>>> = {
+  ios: IOS_KEYS,
+  macos: MACOS_KEYS,
+  android: ANDROID_KEYS,
+};
+
+const ownKeys = (platform: Platform): Set<string> => BUILD_KEYS[platform];
 
 /**
  * The run was started from this tool (or any dispatch we recorded) with an input that names the

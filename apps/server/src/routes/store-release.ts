@@ -1,4 +1,4 @@
-import { type Action, can } from '@mrm/core';
+import { type Action, can, isPlatform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
@@ -185,9 +185,7 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     if (
       platform !== undefined &&
       platform !== '' &&
-      platform !== 'ios' &&
-      platform !== 'macos' &&
-      platform !== 'android'
+      !isPlatform(platform)
     ) {
       issues.push({ path: 'platform', message: 'Use ios, macos or android.' });
     }

@@ -4,6 +4,7 @@ import { purgeAiData } from '../../services/ai-suggestions.ts';
 import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './sync.ts';
 import { pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import { purgeOrphanTranslations } from '../../services/translation.ts';
+import { needsStoreAppId, parsePlatform } from '@mrm/core';
 
 /**
  * Scheduled review reads (MRM_REVIEW_SYNC_INTERVAL_MINUTES, off by default) and the data
@@ -128,8 +129,10 @@ export async function queueReviewSyncs(
     const id = String(app.id);
     const workspaceId = String(app.workspace_id);
     const credentialId = String(app.credential_id);
+    const platform = parsePlatform(String(app.platform));
+    if (platform === undefined) continue;
     const last = Number(app.last_attempt_at ?? 0);
-    if (String(app.platform) !== 'android' && !app.store_app_id) {
+    if (needsStoreAppId(platform) && !app.store_app_id) {
       summary.skipped.notReady++;
       continue;
     }

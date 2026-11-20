@@ -1,5 +1,5 @@
 import { isLocaleDir } from '@mrm/connectors';
-import { type AssetKind, type AssetStore, classifyApplePreviewName, type Platform, PLAY_DEVICES, PLAY_GRAPHIC_FILES, supports } from '@mrm/core';
+import { type AssetKind, type AssetStore, classifyApplePreviewName, isDesktop, type Platform, PLAY_DEVICES, PLAY_GRAPHIC_FILES, supports } from '@mrm/core';
 
 /**
  * Which files of a repository are store media, and what each one is. Pure: a list of paths in, a
@@ -278,7 +278,7 @@ export function resolveRelative(dir: string, rel: string): string | undefined {
 /** The icon paths an Expo `app.json` names for a platform, repository relative, most specific first. */
 export function expoIconPaths(appJson: string | undefined, platform: Platform, dir = ''): string[] {
   // Expo has no macOS target: its `icon` belongs to the iOS and Android apps, so a macOS record takes none.
-  if (appJson === undefined || platform === 'macos') return [];
+  if (appJson === undefined || isDesktop(platform)) return [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(appJson);

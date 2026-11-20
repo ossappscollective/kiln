@@ -479,7 +479,7 @@ async function storeBuilds(
     } catch {
       // not JSON: only the build column counts
     }
-    for (const code of app.platform === 'android'
+    for (const code of supports(app.platform, 'releaseTracks')
       ? codes.length
         ? codes
         : String(r.build ?? '').split(',')
@@ -492,7 +492,7 @@ async function storeBuilds(
       tracksOf.set(k, e);
     }
   }
-  const play = app.platform === 'android';
+  const play = supports(app.platform, 'releaseTracks');
   const items = rows.map((r): StoreBuildItem => {
     const number = String(r.build_number);
     const uploadedAt =

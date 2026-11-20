@@ -1,18 +1,4 @@
-import {
-  type AnalyticsMetric,
-  addDays,
-  buildRankVsDownloads,
-  type DownloadsIn,
-  dateToDay,
-  daysBetween,
-  dayToMs,
-  isIsoDate,
-  metricInfo,
-  normalizeCountry,
-  type RankDownloadsView,
-  type RankKeywordIn,
-  rankDownloadsLimits,
-} from '@mrm/core';
+import { addDays, type AnalyticsMetric, buildRankVsDownloads, dateToDay, daysBetween, dayToMs, type DownloadsIn, isIsoDate, metricInfo, normalizeCountry, rankDownloadsLimits, type RankDownloadsView, type RankKeywordIn, supports } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { readDaily } from '../analytics/store.ts';
 import type { ManagedApp } from '../../services/apps.ts';
@@ -38,7 +24,7 @@ const LOOKBACK_DAYS = 14;
 type Candidate = { metric: AnalyticsMetric; label: string; source: 'apple' | 'play' };
 
 const candidates = (platform: ManagedApp['platform']): Candidate[] =>
-  platform === 'android'
+  supports(platform, 'playReportsBucket')
     ? [
         { metric: 'installs_user', label: metricInfo.installs_user.label, source: 'play' },
         { metric: 'installs_device', label: metricInfo.installs_device.label, source: 'play' },

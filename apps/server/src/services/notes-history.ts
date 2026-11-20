@@ -4,6 +4,7 @@ import type { Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
 import { readNotesHistoryOf, type StoreConnectContext } from './store-draft.ts';
 import { timedCache } from './timed-cache.ts';
+import { storeOf } from '@mrm/core';
 
 /**
  * The texts earlier releases used for "what is new", to reuse in the next one (docs/api/releases-write.md, "Notes history").
@@ -95,7 +96,7 @@ export async function notesHistory(
     Math.max(Math.trunc(input.limit ?? DEFAULT_NOTES_HISTORY_LIMIT), 1),
     MAX_NOTES_HISTORY_LIMIT,
   );
-  const store = app.platform === 'android' ? ('googleplay' as const) : ('appstoreconnect' as const);
+  const store = storeOf(app.platform);
   const wantedLocale =
     input.locale === undefined || input.locale === '' ? undefined : norm(input.locale);
 

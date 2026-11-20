@@ -1,6 +1,7 @@
 import type { Database } from '@mrm/db';
 import { enqueue } from '../../jobs.ts';
 import { ASO_CLAIM_TTL_MS, ASO_REFRESH_QUEUE, type AsoRefreshPayload } from './service.ts';
+import { needsStoreAppId, parsePlatform, supports } from '@mrm/core';
 
 /**
  * Scheduled ASO refreshes (MRM_ASO_INTERVAL_MINUTES, off by default) and the data protection upkeep
@@ -139,12 +140,13 @@ export async function queueAsoRefreshes(
   for (const app of apps) {
     const id = String(app.id);
     const workspaceId = String(app.workspace_id);
-    const platform = String(app.platform);
-    if (platform === 'android' && !options.playEnabled) {
+    const platform = parsePlatform(String(app.platform));
+    if (platform === undefined) continue;
+    if (supports(platform, 'unofficialSearch') && !options.playEnabled) {
       summary.skipped.playOff++;
       continue;
     }
-    if (platform !== 'android' && !app.store_app_id) {
+    if (needsStoreAppId(platform) && !app.store_app_id) {
       summary.skipped.notReady++;
       continue;
     }
@@ -305,11 +307,13 @@ export async function queueAsoRefreshAll(
   }
   for (const app of apps) {
     const id = String(app.id);
-    if (String(app.platform) === 'android' && !input.playEnabled) {
+    const platform = parsePlatform(String(app.platform));
+    if (platform === undefined) continue;
+    if (supports(platform, 'unofficialSearch') && !input.playEnabled) {
       summary.skipped.playOff++;
       continue;
     }
-    if (String(app.platform) !== 'android' && !app.store_app_id) {
+    if (needsStoreAppId(platform) && !app.store_app_id) {
       summary.skipped.notReady++;
       continue;
     }

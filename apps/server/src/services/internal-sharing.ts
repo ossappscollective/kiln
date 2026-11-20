@@ -24,6 +24,7 @@ import {
 } from './builds.ts';
 import { useCredentialSecret } from './credentials.ts';
 import type { Failure } from './repositories.ts';
+import { supports } from '@mrm/core';
 
 /**
  * Google Play INTERNAL APP SHARING from the Test builds panel (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md): take
@@ -307,7 +308,7 @@ async function look(
   if (!ctx.builds.internalSharingEnabled) return sharingDisabledFailure();
   const app = await getApp(ctx.db, input.workspaceId, input.appId);
   if (!app) return fail(404, 'not_found');
-  if (app.platform !== 'android')
+  if (!supports(app.platform, 'internalAppSharing'))
     return fail(422, 'not_android', 'Google Play internal app sharing is for Android apps.');
   const asked = entryOf(input.entry);
   if (!asked.ok) return asked;
@@ -626,7 +627,7 @@ export async function applyShare(
   const { db } = ctx;
   const app = await getApp(db, input.workspaceId, input.appId);
   if (!app) return fail(404, 'not_found');
-  if (app.platform !== 'android')
+  if (!supports(app.platform, 'internalAppSharing'))
     return fail(422, 'not_android', 'Google Play internal app sharing is for Android apps.');
   const phrase = confirmationPhraseOf(app);
   if (input.confirmation.trim() !== phrase) {

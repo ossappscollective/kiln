@@ -1,18 +1,4 @@
-import {
-  evaluatePipeline,
-  type Pipeline,
-  type PipelineBuildFact,
-  type PipelineFacts,
-  type PipelineRunFact,
-  type PipelineState,
-  type PipelineVersionFact,
-  PLATFORMS,
-  type Platform,
-  RELEASE_STATES,
-  type ReleaseState,
-  type StoreId,
-  storeOf,
-} from '@mrm/core';
+import { evaluatePipeline, type Pipeline, type PipelineBuildFact, type PipelineFacts, type PipelineRunFact, type PipelineState, type PipelineVersionFact, type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState, type StoreId, storeOf, supports } from '@mrm/core';
 import { nullableNumber, nullableString, oneOf, type Sql } from '@mrm/db';
 import { releasesSentHere, sentAtOf } from './apps.ts';
 import { effectiveConventions, listConventions } from './build-conventions.ts';
@@ -207,7 +193,7 @@ export async function loadPipelineFacts(
       });
 
     const sent =
-      input.sentForReview === true && app.platform === 'android'
+      input.sentForReview === true && supports(app.platform, 'releaseTracks')
         ? await releasesSentHere(sql, workspaceId, app.id)
         : [];
     const versionFacts: PipelineVersionFact[] = releases

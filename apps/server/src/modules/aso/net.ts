@@ -7,7 +7,7 @@ import {
   type PlayApp,
   PlayPublicConnector,
   searchApple } from '@mrm/connectors';
-import { type AsoPlatform, byFamily, listingStoreOf } from '@mrm/core';
+import { type AsoPlatform, byFamily, isDesktop, listingStoreOf } from '@mrm/core';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { type Exchange, safeGet } from '../../services/safe-fetch.ts';
 import { timedCache } from '../../services/timed-cache.ts';
@@ -236,7 +236,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
               term: input.term,
               country: input.country,
               limit,
-              ...(input.platform === 'macos' ? { macos: true } : {}),
+              ...(isDesktop(input.platform) ? { macos: true } : {}),
               fetch: doFetch }),
           );
           return {
@@ -267,7 +267,7 @@ export function createAsoSources(options: AsoSourceOptions): AsoSources {
             lookupApple({
               id: input.id,
               country: input.country,
-              ...(input.platform === 'macos' ? { macos: true } : {}),
+              ...(isDesktop(input.platform) ? { macos: true } : {}),
               fetch: doFetch }),
           );
           return app ? fromApple(app) : null;

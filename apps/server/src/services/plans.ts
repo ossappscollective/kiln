@@ -1,25 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  type ActorType,
-  type ChecklistTemplateItem,
-  computeReadiness,
-  DEFAULT_CHECKLIST_TEMPLATES,
-  type DueFlags,
-  defaultTemplate,
-  dueFlags,
-  isBuiltinTemplateId,
-  MAX_CHECKLIST_ITEMS,
-  MAX_NOTE_LOCALES,
-  MAX_TEMPLATES,
-  PLATFORMS,
-  type PlanPlatform,
-  type Platform,
-  type Readiness,
-  type RolloutStepState,
-  type RolloutSummary,
-  releaseNotesLength,
-  releaseNotesLimit,
-} from '@mrm/core';
+import { type ActorType, type ChecklistTemplateItem, computeReadiness, DEFAULT_CHECKLIST_TEMPLATES, defaultTemplate, type DueFlags, dueFlags, isBuiltinTemplateId, isPlatform, MAX_CHECKLIST_ITEMS, MAX_NOTE_LOCALES, MAX_TEMPLATES, type PlanPlatform, type Platform, platformMeta, PLATFORMS, type Readiness, releaseNotesLength, releaseNotesLimit, type RolloutStepState, type RolloutSummary } from '@mrm/core';
 import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@mrm/db';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
@@ -942,13 +922,9 @@ export async function setReleaseNotes(
     const length = releaseNotesLength(input.text);
     if (length > limit) {
       const store =
-        platform === 'ios'
-          ? 'the App Store'
-          : platform === 'macos'
-            ? 'the Mac App Store'
-            : platform === 'android'
-              ? 'Google Play'
-              : 'Google Play (a plan for both platforms must fit the stricter store)';
+        isPlatform(platform)
+          ? platformMeta(platform).storeNameWithArticle
+          : 'Google Play (a plan for both platforms must fit the stricter store)';
       return failure(
         422,
         'notes_too_long',
