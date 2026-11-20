@@ -66,6 +66,7 @@
   import EmptyState from '../ui/EmptyState.svelte';
   import Icon from '../ui/Icon.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import PlatformBadge from '../ui/PlatformBadge.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import Section from '../ui/Section.svelte';
@@ -441,17 +442,18 @@
   {/each}
 
   {#if hasRows}
-    <div class="context">
-      <p class="ctx muted">{listingContext(shown, matrix.rows.length)}</p>
-      <p class="ctx muted">To change a text, press the pencil in its cell: you can write it, check its length and ask for an AI suggestion. Changes are staged here first; nothing reaches a store until you push the staged changes.</p>
-      <p class="statusline {line.tone}" data-testid="listing-status-line">
-        <StatusDot status={line.tone === 'ok' ? 'sync' : line.tone === 'warn' ? 'repo-differs' : 'na'} />
-        <span>{line.text}{anySyncing ? ' · reading the store…' : ''}</span>
+    <PageLead
+      testid="listing-status-line"
+      tone={line.tone === 'ok' ? 'ok' : line.tone === 'warn' ? 'warn' : 'neutral'}
+      headline={`${line.text}${anySyncing ? ' · reading the store…' : ''}`}
+      hint="{listingContext(shown, matrix.rows.length)}. Press the pencil in a cell to edit it; changes are staged, and nothing reaches a store until you publish them."
+    >
+      {#snippet actions()}
         {#if line.attention > 0 && filter.mode !== 'differing'}
-          <Button size="sm" variant="link" onclick={() => setMode('differing')}>Show them</Button>
+          <Button variant="primary" onclick={() => setMode('differing')}>Show the {line.attention === 1 ? 'locale' : `${line.attention} locales`} that need attention</Button>
         {/if}
-      </p>
-    </div>
+      {/snippet}
+    </PageLead>
   {/if}
 
   <div class="toolbar">
@@ -835,27 +837,6 @@
     font-size: var(--text-xs);
   }
 
-  .context {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-4);
-    align-items: center;
-  }
-
-  .ctx,
-  .statusline {
-    margin: 0;
-    font-size: var(--text-sm);
-  }
-
-  .statusline {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-    font-weight: var(--weight-medium);
-  }
-
   .menu {
     display: flex;
     flex-direction: column;
@@ -899,8 +880,9 @@
   }
 
   .filters input {
-    width: 13rem;
-    min-height: var(--control-sm);
+    width: 14rem;
+    min-height: var(--control-md);
+    font-size: 0.9375rem;
   }
 
   .chips {
@@ -913,9 +895,9 @@
     display: inline-flex;
     gap: var(--space-2);
     align-items: center;
-    min-height: var(--control-sm);
-    padding: 0 var(--space-3);
-    font-size: var(--text-sm);
+    min-height: var(--control-md);
+    padding: 0 var(--space-4);
+    font-size: 0.9375rem;
     font-weight: var(--weight-medium);
     color: var(--muted);
     cursor: pointer;
@@ -962,12 +944,13 @@
 
   .matrix {
     width: 100%;
+    font-size: 0.9375rem;
     border-collapse: collapse;
   }
 
   .matrix th,
   .matrix td {
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
     vertical-align: middle;
   }
 
@@ -997,7 +980,7 @@
 
   .col .sub {
     display: block;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-regular);
   }
 
@@ -1064,7 +1047,7 @@
   }
 
   .name {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-regular);
   }
 
