@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { actions } from '@mrm/core';
+import { eventTypes } from '../../services/event-types.ts';
 import {
   alertCatalog,
   alertGroups,
@@ -12,14 +13,7 @@ import {
   redactAlertData,
   resolveParams,
 } from './catalog.ts';
-import {
-  digestDue,
-  inQuietHours,
-  isValidTimeZone,
-  localTime,
-  quietEndsAt,
-} from './time.ts';
-import { eventTypes } from '../../services/event-types.ts';
+import { digestDue, inQuietHours, isValidTimeZone, localTime, quietEndsAt } from './time.ts';
 
 test('every alert type is complete: ids are unique, defaults fit the allowed channels, the audience is a real action', () => {
   assert.equal(new Set(alertTypeIds).size, alertTypeIds.length);

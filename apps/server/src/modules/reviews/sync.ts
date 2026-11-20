@@ -1,5 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import { AppStoreReviewsConnector, connectorFactory, fetchRatingSummary, type ListReviewsResult, PLAY_REVIEW_WINDOW_MS, PlayReviewsConnector, type RatingSummary, redactSecrets, secretStrings, type StoreConnectorInput, StoreError, StoreRateLimitError, type StoreReview, type StoreReviewConnector } from '@mrm/connectors';
+import {
+  AppStoreReviewsConnector,
+  connectorFactory,
+  fetchRatingSummary,
+  type ListReviewsResult,
+  PLAY_REVIEW_WINDOW_MS,
+  PlayReviewsConnector,
+  type RatingSummary,
+  redactSecrets,
+  type StoreConnectorInput,
+  StoreError,
+  StoreRateLimitError,
+  type StoreReview,
+  type StoreReviewConnector,
+  secretStrings,
+} from '@mrm/connectors';
 import { type ActorType, needsStoreAppId, type Platform, storeOf, supports } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
@@ -8,12 +23,13 @@ import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import { parseResponse, type StoreKey } from './service.ts';
 import {
   type AutoTranslateSummary,
   autoTranslateNewReviews,
-  type TranslationContext } from '../../services/translation.ts';
+  type TranslationContext,
+} from '../../services/translation.ts';
 import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
+import { parseResponse, type StoreKey } from './service.ts';
 
 /**
  * Reads the customer reviews of an app from its store (read only) into `app_reviews`.
@@ -82,16 +98,20 @@ export type ReviewConnectorInput = StoreConnectorInput;
 
 export type ReviewConnectorFactory = (input: ReviewConnectorInput) => StoreReviewConnector;
 
-export const defaultReviewConnectorFactory: ReviewConnectorFactory = connectorFactory<StoreReviewConnector>({
-  app_store_connect: (input) =>
-    AppStoreReviewsConnector.fromSecret(input.secret, {
-          appStoreId: input.storeAppId ?? '',
-          fetch: input.fetch }),
-  google_play: (input) =>
-    new PlayReviewsConnector({
-          serviceAccount: input.secret,
-          packageName: input.identifier,
-          fetch: input.fetch }) });
+export const defaultReviewConnectorFactory: ReviewConnectorFactory =
+  connectorFactory<StoreReviewConnector>({
+    app_store_connect: (input) =>
+      AppStoreReviewsConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        fetch: input.fetch,
+      }),
+    google_play: (input) =>
+      new PlayReviewsConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      }),
+  });
 
 /** The optional store-wide rating (public iTunes lookup). Replaced by a fake in tests. */
 export type RatingFetcher = (input: {
@@ -198,7 +218,8 @@ export async function getSyncState(
     backoffUntil: n(row?.backoff_until),
     lastGapAt: n(row?.last_gap_at),
     moreToRead: typeof row?.cursor === 'string' && row.cursor !== '',
-    lastResult };
+    lastResult,
+  };
 }
 
 type Cursor = { c: string; s: number | null };
@@ -244,9 +265,11 @@ function classify(error: unknown, secret: string): Classified {
         ok: false,
         status,
         body: { error: code, message: safe, ...extra },
-        ...(headers ? { headers } : {}) },
+        ...(headers ? { headers } : {}),
+      },
       message: safe,
-      transient };
+      transient,
+    };
   };
   if (error instanceof SyncTimeout)
     return make(504, 'timeout', 'The store did not answer in time. Try again.', true);
@@ -261,7 +284,8 @@ function classify(error: unknown, secret: string): Classified {
         { retryAfterSeconds: wait },
         { 'Retry-After': String(wait) },
       ),
-      retryAfterSeconds: wait };
+      retryAfterSeconds: wait,
+    };
   }
   if (error instanceof StoreError) {
     switch (error.kind) {
@@ -329,7 +353,8 @@ async function recordFailure(
       action: 'reviews.sync',
       target: { type: 'app', id: app.id },
       detail: { ok: false, store, code: String(c.failure.body.error), ...trigger },
-      at });
+      at,
+    });
     if (notify) {
       await emitEvent(tx, {
         workspaceId: app.workspaceId,
@@ -340,8 +365,10 @@ async function recordFailure(
           store,
           code: String(c.failure.body.error),
           transient: c.transient,
-          failures },
-        at });
+          failures,
+        },
+        at,
+      });
     }
   });
 }
@@ -387,7 +414,8 @@ export async function syncReviews(
   if (running.has(app.id)) {
     return {
       ...failure(409, 'sync_in_progress', 'The reviews of this app are already being read.'),
-      transient: false };
+      transient: false,
+    };
   }
   running.add(app.id);
   try {
@@ -438,7 +466,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
         'reviews_shared',
         'The customer reviews of an App Store Connect app are shared by its iOS and macOS entries. They are read once, for the iOS entry.',
       ),
-      transient: false } as ReviewSyncFailure;
+      transient: false,
+    } as ReviewSyncFailure;
   }
 
   const [credential] = await db.query(
@@ -517,7 +546,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -532,12 +562,14 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       secret,
       identifier: app.identifier,
       storeAppId: app.storeAppId,
-      fetch: guardedFetch });
+      fetch: guardedFetch,
+    });
     const work = serialized(app.credentialId, () =>
       connector.listReviews({
         ...(since !== undefined ? { since } : {}),
         ...(saved ? { cursor: saved.c } : {}),
-        limit: MAX_REVIEWS_PER_SYNC }),
+        limit: MAX_REVIEWS_PER_SYNC,
+      }),
     );
     work.catch(() => undefined);
     read = await Promise.race([work, timedOut]);
@@ -611,8 +643,10 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
           store,
           rating: review.rating,
           threshold,
-          source },
-        at });
+          source,
+        },
+        at,
+      });
       return at;
     };
 
@@ -674,7 +708,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
             ? {
                 body: parsed.body,
                 ...(parsed.at !== null ? { at: parsed.at } : {}),
-                ...(parsed.state !== null ? { state: parsed.state } : {}) }
+                ...(parsed.state !== null ? { state: parsed.state } : {}),
+              }
             : undefined;
         })(),
       );
@@ -731,7 +766,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
           type: 'review.new',
           subject: { appId: app.id },
           payload: { ...common, grouped: true, count: added, baseline },
-          at });
+          at,
+        });
       } else {
         for (const r of addedRatings) {
           await emitEvent(tx, {
@@ -742,8 +778,10 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
               ...common,
               reviewId: r.id,
               storeReviewId: r.storeReviewId,
-              rating: r.rating },
-            at });
+              rating: r.rating,
+            },
+            at,
+          });
         }
       }
     }
@@ -772,7 +810,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
       baseline,
       lowRatingEvents: events,
       lowRatingThreshold: threshold,
-      ratingSummary: 'off' };
+      ratingSummary: 'off',
+    };
     const cursor: Param = read.nextCursor
       ? JSON.stringify({ c: read.nextCursor, s: since ?? null } satisfies Cursor)
       : null;
@@ -805,8 +844,10 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
         complete: result.complete,
         gap: gap !== null,
         baseline,
-        ...trigger },
-      at });
+        ...trigger,
+      },
+      at,
+    });
     return { result, addedIds };
   });
   if (!done) return { ...failure(404, 'not_found'), transient: false } as ReviewSyncFailure;
@@ -843,7 +884,8 @@ async function run(ctx: ReviewsContext, app: RunApp, actor: Actor, trigger: Revi
   return {
     ok: true as const,
     sync: outcome,
-    state: await getSyncState(db, workspaceId, app.id, store) };
+    state: await getSyncState(db, workspaceId, app.id, store),
+  };
 }
 
 const milli = (v: number | undefined): number | null =>
@@ -861,7 +903,8 @@ async function recordRatingSummary(
     summary = await fetcher({
       appStoreId,
       country: RATING_COUNTRY,
-      ...(app.platform === 'macos' ? { platform: 'macos' as const } : {}) });
+      ...(app.platform === 'macos' ? { platform: 'macos' as const } : {}),
+    });
   } catch {
     return 'unavailable';
   }
@@ -870,7 +913,8 @@ async function recordRatingSummary(
     average: milli(summary.averageRating),
     count: summary.ratingCount ?? null,
     currentAverage: milli(summary.currentVersionAverage),
-    currentCount: summary.currentVersionCount ?? null };
+    currentCount: summary.currentVersionCount ?? null,
+  };
   try {
     const [last] = await ctx.db.query(
       `SELECT average_milli, rating_count, current_average_milli, current_count FROM app_rating_summaries
@@ -926,7 +970,8 @@ export function enqueueReviewSync(
 ): Promise<string> {
   return enqueue(ctx.db, REVIEW_SYNC_QUEUE, payload, {
     now: ctx.now(),
-    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}) });
+    ...(options.runAt !== undefined ? { runAt: options.runAt } : {}),
+  });
 }
 
 const isPayload = (value: unknown): value is ReviewSyncPayload =>

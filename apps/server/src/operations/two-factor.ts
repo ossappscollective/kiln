@@ -1,7 +1,17 @@
 import { z } from 'zod';
-import { loginChallengeBody, loginChallengeCodeBody, loginSecondFactorBody } from '../routes/login-two-factor.ts';
+import {
+  loginChallengeBody,
+  loginChallengeCodeBody,
+  loginSecondFactorBody,
+} from '../routes/login-two-factor.ts';
 import { mailSettingsBody, mailTestBody } from '../routes/mail.ts';
-import { emailBeginBody, emailConfirmBody, loginPolicyBody, stepUpEmailCodeBody, totpConfirmBody } from '../routes/two-factor.ts';
+import {
+  emailBeginBody,
+  emailConfirmBody,
+  loginPolicyBody,
+  stepUpEmailCodeBody,
+  totpConfirmBody,
+} from '../routes/two-factor.ts';
 import { mailErrorCodes } from '../services/mailer.ts';
 import type { Operation } from './openapi.ts';
 

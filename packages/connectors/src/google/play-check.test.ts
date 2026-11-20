@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '../errors.ts';
-import { PlayReleaseConnector } from './play-release.ts';
 import { isStorePlayReleaseChecker, type PlayCheckRelease } from '../release-types.ts';
 import * as fx from '../store.fixtures.ts';
 import { FakePlayDraftApi } from '../store-draft.fixtures.ts';
+import { PlayReleaseConnector } from './play-release.ts';
 
 /**
  * "Check with Google Play" (docs/adr/0025-play-release-checks.md): a proposed release is staged in an edit, the edit is

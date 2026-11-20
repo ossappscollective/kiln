@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as fx from '../analytics.fixtures.ts';
 import { AnalyticsError } from '../analytics-types.ts';
+import { parseTable } from '../delimited.ts';
 import {
   appleReportKindFromHeader,
   appleReportKindFromName,
@@ -9,7 +10,6 @@ import {
   mapAppleSalesTable,
   mapAppleTable,
 } from './apple-analytics-parse.ts';
-import { parseTable } from '../delimited.ts';
 
 const find = (
   points: {

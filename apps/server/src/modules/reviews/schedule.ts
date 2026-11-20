@@ -1,10 +1,10 @@
+import { needsStoreAppId, parsePlatform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue } from '../../jobs.ts';
 import { purgeAiData } from '../../services/ai-suggestions.ts';
-import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './sync.ts';
-import { pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import { purgeOrphanTranslations } from '../../services/translation.ts';
-import { needsStoreAppId, parsePlatform } from '@mrm/core';
+import { pruneReviews, purgeOrphanReviewRows } from './service.ts';
+import { REVIEW_SYNC_QUEUE, type ReviewSyncPayload } from './sync.ts';
 
 /**
  * Scheduled review reads (MRM_REVIEW_SYNC_INTERVAL_MINUTES, off by default) and the data

@@ -1,5 +1,25 @@
 import type { BlobHeadItem, BlobReads } from '@mrm/connectors';
-import { ASSET_RULES, type AssetFacts, type AssetKind, type AssetProblem, type AssetSet, type AssetStore, assetStoreOf, classifyAppleScreenshot, deviceFitsPlatform, deviceLabel, type ImageFormat, IMESSAGE_PREFIX, type Platform, readImageHeader, sniffImageFormat, SPEC_SOURCES, summarizeAssets, supports, validateAssets } from '@mrm/core';
+import {
+  ASSET_RULES,
+  type AssetFacts,
+  type AssetKind,
+  type AssetProblem,
+  type AssetSet,
+  type AssetStore,
+  assetStoreOf,
+  classifyAppleScreenshot,
+  deviceFitsPlatform,
+  deviceLabel,
+  IMESSAGE_PREFIX,
+  type ImageFormat,
+  type Platform,
+  readImageHeader,
+  SPEC_SOURCES,
+  sniffImageFormat,
+  summarizeAssets,
+  supports,
+  validateAssets,
+} from '@mrm/core';
 import {
   type AssetCandidate,
   appHints,
@@ -7,7 +27,8 @@ import {
   discoverProjectIcons,
   discoverStoreAssets,
   expoIconPaths,
-  orderWithinSets } from '../../services/store-assets.ts';
+  orderWithinSets,
+} from '../../services/store-assets.ts';
 
 /**
  * The index of the media of one app's listing target in its repository: which files there are, and
@@ -42,14 +63,16 @@ export type AssetBudget = {
 export const BUDGETS = {
   local_clone: { maxFiles: 2000, maxTransferBytes: 4 * 1024 * 1024 * 1024 },
   github_clone: { maxFiles: 150, maxTransferBytes: 48 * 1024 * 1024 },
-  github_api: { maxFiles: 60, maxTransferBytes: 24 * 1024 * 1024 } } as const satisfies Record<string, AssetBudget>;
+  github_api: { maxFiles: 60, maxTransferBytes: 24 * 1024 * 1024 },
+} as const satisfies Record<string, AssetBudget>;
 
 export type AssetSourceKind = keyof typeof BUDGETS;
 
 export const SOURCE_LABELS: Record<AssetSourceKind, string> = {
   local_clone: 'Local clone (fast)',
   github_clone: 'Clone of the GitHub repository',
-  github_api: 'GitHub (slower)' };
+  github_api: 'GitHub (slower)',
+};
 
 export type IndexedAsset = AssetFacts & {
   /** The git blob id of the file, the identity of its bytes. Null when the file was not found. */
@@ -95,7 +118,11 @@ export function fileFitsPlatform(
   platform: Platform,
   f: { kind: AssetKind; device: string | null },
 ): boolean {
-  if (!supports(platform, 'screenshotsByDevice') || (f.kind !== 'screenshot' && f.kind !== 'preview')) return true;
+  if (
+    !supports(platform, 'screenshotsByDevice') ||
+    (f.kind !== 'screenshot' && f.kind !== 'preview')
+  )
+    return true;
   if (f.device === null) return platform === 'ios';
   return deviceFitsPlatform(platform, f.device);
 }
@@ -122,7 +149,8 @@ function factsOf(
     hasAlpha: null as boolean | null,
     read: 'not_read' as AssetFacts['read'],
     oid: null as string | null,
-    needsMore: false };
+    needsMore: false,
+  };
   if (!item) return base;
   base.oid = item.oid;
   if (!item.ok) {
@@ -144,7 +172,8 @@ function factsOf(
       height: header.height,
       format: header.format,
       hasAlpha: header.hasAlpha,
-      read: 'read' };
+      read: 'read',
+    };
   }
   // A JPEG whose first frame header is further in than we looked: ask for more once.
   const sniffed = sniffImageFormat(item.head);
@@ -179,7 +208,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
       platform: app.platform,
       store,
       expoPaths: expoIconPaths(appJson, app.platform),
-      hints: appHints(app.identifier, app.name) });
+      hints: appHints(app.identifier, app.name),
+    });
     notes.push(...project.notes);
     candidates = [...candidates, ...project.candidates];
   }
@@ -209,7 +239,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
         headBytes: HEAD_BYTES,
         maxFileBytes: MAX_READ_FILE_BYTES,
         maxTransferBytes: budget.maxTransferBytes,
-        ...bySignal(input.signal) },
+        ...bySignal(input.signal),
+      },
     );
     for (const [path, item] of read.items) items.set(path, item);
     transferred += read.transferredBytes;
@@ -230,7 +261,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
         headBytes: JPEG_RETRY_BYTES,
         maxFileBytes: MAX_READ_FILE_BYTES,
         maxTransferBytes: remaining,
-        ...bySignal(input.signal) },
+        ...bySignal(input.signal),
+      },
     );
     transferred += read.transferredBytes;
     const second = new Map(
@@ -262,7 +294,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
             headBytes: 0,
             maxFileBytes: Number.MAX_SAFE_INTEGER,
             maxTransferBytes: 0,
-            ...bySignal(input.signal) },
+            ...bySignal(input.signal),
+          },
         )
       : undefined;
     for (const c of previews) {
@@ -272,7 +305,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
         oid: item?.oid ?? null,
         bytes: item?.ok ? item.size : null,
         format: 'video',
-        read: 'not_read' });
+        read: 'not_read',
+      });
     }
   }
 
@@ -318,7 +352,8 @@ export async function indexAssets(input: IndexInput): Promise<IndexResult> {
     folders: discovery.folders,
     notes,
     partial: { partial: reasons.length > 0, reasons, skipped },
-    transferredBytes: transferred };
+    transferredBytes: transferred,
+  };
 }
 
 /**
@@ -426,7 +461,8 @@ export function specsView(): AssetIndexView['specs'] {
     sources: { ...SPEC_SOURCES },
     unverified: Object.values(ASSET_RULES)
       .filter((r) => !r.verified)
-      .map((r) => ({ id: r.id, text: r.text })) };
+      .map((r) => ({ id: r.id, text: r.text })),
+  };
 }
 
 export function viewOfAsset(a: IndexedAsset): AssetView {
@@ -444,7 +480,8 @@ export function viewOfAsset(a: IndexedAsset): AssetView {
     hasAlpha: a.hasAlpha,
     oid: a.oid,
     read: a.read,
-    origin: a.origin };
+    origin: a.origin,
+  };
 }
 
 export function totalsOf(result: IndexResult): AssetIndexView['totals'] {
@@ -457,5 +494,6 @@ export function totalsOf(result: IndexResult): AssetIndexView['totals'] {
     errors: count('error'),
     warnings: count('warning'),
     infos: count('info'),
-    locales: new Set(result.assets.filter((a) => a.origin === 'store').map((a) => a.locale)).size };
+    locales: new Set(result.assets.filter((a) => a.origin === 'store').map((a) => a.locale)).size,
+  };
 }

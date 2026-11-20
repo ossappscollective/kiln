@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppleDraftConnector } from './appstore-draft.ts';
 import { StoreError } from '../errors.ts';
 import * as fx from '../store.fixtures.ts';
 import { FakeAppleDraftApi, md5Of, sha256 } from '../store-draft.fixtures.ts';
@@ -13,6 +12,7 @@ import {
   type DraftSlot,
   sameDraftState,
 } from '../store-draft-types.ts';
+import { AppleDraftConnector } from './appstore-draft.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.appleKeyPem();

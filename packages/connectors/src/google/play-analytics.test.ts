@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import * as ax from '../analytics.fixtures.ts';
 import { AnalyticsError } from '../analytics-types.ts';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
+import { StoreHttp } from '../store-http.ts';
 import {
   ANDROID_PUBLISHER_SCOPE,
   DEVSTORAGE_READ_ONLY_SCOPE,
@@ -11,8 +13,6 @@ import {
   parseServiceAccount,
 } from './google-auth.ts';
 import { PlayVitalsConnector, parseVitalsRows } from './play-analytics.ts';
-import * as fx from '../store.fixtures.ts';
-import { StoreHttp } from '../store-http.ts';
 
 const T0 = Date.UTC(2026, 10, 19, 12, 0, 0);
 const key = fx.googleKeyPem();

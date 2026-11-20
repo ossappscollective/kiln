@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dbTest } from '@mrm/db/testing';
-import { type AnalyticsBoot, bootAnalytics } from './test-helpers.ts';
 import { createScheduler } from '../../scheduler.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
 import { analyticsIntervalMs, queueAnalyticsSyncs } from './schedule.ts';
 import { analyticsUpkeep } from './store.ts';
 import { ANALYTICS_SYNC_QUEUE, createAnalyticsSyncHandler } from './sync.ts';
-import { createTestLimiter } from '../../services/credential-tests.ts';
+import { type AnalyticsBoot, bootAnalytics } from './test-helpers.ts';
 
 /** Scheduled analytics syncs and the upkeep (docs/api/analytics.md, "Scheduling"). Everything runs against fakes. */
 

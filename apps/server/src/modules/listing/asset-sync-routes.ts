@@ -15,8 +15,6 @@ import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import { getApp } from '../../services/apps.ts';
-import { buildAssetDiff } from './asset-diff.ts';
-import { pullStoreImages } from './asset-pull.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { parseHexColour } from '../../services/image-fix.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
@@ -36,6 +34,8 @@ import {
 } from '../../services/store-draft.ts';
 import type { StoreImageNet } from '../../services/store-image-net.ts';
 import { getStoreImages, storeThumbnail, thumbSizeOf } from '../../services/store-images.ts';
+import { buildAssetDiff } from './asset-diff.ts';
+import { pullStoreImages } from './asset-pull.ts';
 import { IMAGE_TYPES, matchesEtag, safeImageHeaders } from './asset-routes.ts';
 
 /**

@@ -1,20 +1,30 @@
-import { type Action, analyticsLimits, analyticsSources, can, sourcesForPlatform, supports } from '@mrm/core';
+import {
+  type Action,
+  analyticsLimits,
+  analyticsSources,
+  can,
+  sourcesForPlatform,
+  supports,
+} from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
+import { getApp } from '../../services/apps.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
+import {
+  applySearchTermsImport,
+  previewSearchTermsImport,
+} from '../../services/play-search-terms.ts';
+import type { Failure } from '../../services/repositories.ts';
+import { requireStepUp } from '../../services/step-up.ts';
 import { getPlayBucket, setPlayBucket, testPlayBucket } from './bucket.ts';
 import { applyEnable, previewEnable } from './enable.ts';
 import { applyImport, previewImport } from './import.ts';
 import { checkOverviewQuery, overview, status } from './query.ts';
 import { type AnalyticsContext, syncAnalytics } from './sync.ts';
-import { getApp } from '../../services/apps.ts';
-import type { TestLimiter } from '../../services/credential-tests.ts';
-import { applySearchTermsImport, previewSearchTermsImport } from '../../services/play-search-terms.ts';
-import type { Failure } from '../../services/repositories.ts';
-import { requireStepUp } from '../../services/step-up.ts';
 
 /**
  * Analytics: daily metrics from the stores (docs/api/analytics.md, docs/adr/0017-analytics-foundation.md). Mounted under /api/workspaces.
@@ -47,20 +57,23 @@ const IMPORT_BODY_LIMIT = analyticsLimits.maxFileBytes + 1024;
 
 export const syncBody = z
   .object({
-    sources: z.array(z.enum(analyticsSources)).min(1).max(analyticsSources.length).optional() })
+    sources: z.array(z.enum(analyticsSources)).min(1).max(analyticsSources.length).optional(),
+  })
   .strict();
 export const enableBody = z
   .object({
     confirmHash: z.string().regex(/^[0-9a-f]{64}$/),
     backfill: z.boolean().optional(),
-    stepUp: z.string().max(200).optional() })
+    stepUp: z.string().max(200).optional(),
+  })
   .strict();
 
 /** `bucket`: `gs://pubsite_prod_rev_<digits>/` or the bare id (validated by the service: `bucket_invalid`), or null to clear. */
 export const playBucketBody = z
   .object({
     bucket: z.string().trim().max(200).nullable(),
-    scope: z.enum(['account', 'app']).optional() })
+    scope: z.enum(['account', 'app']).optional(),
+  })
   .strict();
 export const playBucketTestBody = z
   .object({ bucket: z.string().trim().max(200).optional() })
@@ -93,7 +106,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
       {
         error: 'rate_limited',
         message: `Too many analytics requests. Try again in ${wait} seconds.`,
-        retryAfterSeconds: wait },
+        retryAfterSeconds: wait,
+      },
       429,
     );
   };
@@ -107,7 +121,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
       ...(q('from') !== undefined ? { from: q('from') as string } : {}),
       ...(q('to') !== undefined ? { to: q('to') as string } : {}),
       ...(q('granularity') !== undefined ? { granularity: q('granularity') as string } : {}),
-      ...(q('breakdown') !== undefined ? { breakdown: q('breakdown') as string } : {}) };
+      ...(q('breakdown') !== undefined ? { breakdown: q('breakdown') as string } : {}),
+    };
     const checked = checkOverviewQuery(app, query, ctx.now());
     if (!checked.ok) return c.json(checked.body, checked.status);
     return c.json(
@@ -118,7 +133,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
         to: checked.to,
         granularity: checked.granularity,
         ...(checked.breakdown ? { breakdown: checked.breakdown } : {}),
-        now: ctx.now() }),
+        now: ctx.now(),
+      }),
     );
   });
 
@@ -158,7 +174,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
           return bad(c, [
             {
               path: 'sources',
-              message: `Not a source of a ${app.platform} app: ${wrong.join(', ')}.` },
+              message: `Not a source of a ${app.platform} app: ${wrong.join(', ')}.`,
+            },
           ]);
         sources = parsed.data.sources;
       }
@@ -166,11 +183,13 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
       if (wait) return wait;
       const done = await syncAnalytics(ctx, { workspaceId: ws(c), appId: app.id }, actor(c), {
         trigger: 'manual',
-        ...(sources ? { sources } : {}) });
+        ...(sources ? { sources } : {}),
+      });
       if (!done.ok) return respond(c, done);
       return c.json({
         sync: done.sync,
-        status: await status(db, { workspaceId: ws(c), app, intervalMinutes: ctx.intervalMinutes }) });
+        status: await status(db, { workspaceId: ws(c), app, intervalMinutes: ctx.intervalMinutes }),
+      });
     },
   );
 
@@ -200,7 +219,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
           workspaceId: ws(c),
           appId: param(c, 'id'),
           bucket: body.data.bucket,
-          scope: body.data.scope ?? 'app' },
+          scope: body.data.scope ?? 'app',
+        },
         actor(c),
       );
       if (!done.ok) return respond(c, done);
@@ -235,7 +255,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
         {
           workspaceId: ws(c),
           appId: param(c, 'id'),
-          ...(parsed.data.bucket !== undefined ? { bucket: parsed.data.bucket } : {}) },
+          ...(parsed.data.bucket !== undefined ? { bucket: parsed.data.bucket } : {}),
+        },
         actor(c),
       );
       if (!done.ok) return respond(c, done);
@@ -268,7 +289,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
     async (c) => {
       const stepUpRefusal = await requireStepUp({ db, now: ctx.now }, c, 'analytics.enable_apple', {
         id: param(c, 'id'),
-        hashField: 'confirmHash' });
+        hashField: 'confirmHash',
+      });
       if (stepUpRefusal) return stepUpRefusal;
       const body = await parseBody(c, enableBody);
       if (!body.ok) return body.response;
@@ -280,7 +302,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
           workspaceId: ws(c),
           appId: param(c, 'id'),
           backfill: body.data.backfill === true,
-          confirmHash: body.data.confirmHash },
+          confirmHash: body.data.confirmHash,
+        },
         actor(c),
       );
       if (!done.ok) return respond(c, done);
@@ -321,7 +344,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
         workspaceId: ws(c),
         appId: app.id,
         bytes,
-        ...(name.name ? { fileName: name.name } : {}) });
+        ...(name.name ? { fileName: name.name } : {}),
+      });
       if (!done.ok) return respond(c, done);
       return c.json({ plan: done.plan, confirmHash: done.confirmHash });
     },
@@ -352,7 +376,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
           appId: app.id,
           bytes,
           confirmHash,
-          ...(name.name ? { fileName: name.name } : {}) },
+          ...(name.name ? { fileName: name.name } : {}),
+        },
         actor(c),
       );
       if (!done.ok) return respond(c, done);
@@ -364,7 +389,9 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
             written: done.written,
             unchanged: done.unchanged,
             dateFrom: done.dateFrom,
-            dateTo: done.dateTo } },
+            dateTo: done.dateTo,
+          },
+        },
         201,
       );
     },
@@ -380,7 +407,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
     if (given(from) !== given(to))
       return {
         ok: false,
-        issue: { path: given(from) ? 'to' : 'from', message: 'Send both from and to, or neither.' } };
+        issue: { path: given(from) ? 'to' : 'from', message: 'Send both from and to, or neither.' },
+      };
     return { ok: true, ...(given(from) ? { from: from as string, to: to as string } : {}) };
   };
 
@@ -402,7 +430,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
         workspaceId: ws(c),
         appId: app.id,
         bytes,
-        ...(period.from ? { from: period.from, to: period.to } : {}) });
+        ...(period.from ? { from: period.from, to: period.to } : {}),
+      });
       if (!done.ok) return respond(c, done);
       return c.json({ plan: done.plan, confirmHash: done.confirmHash });
     },
@@ -433,7 +462,8 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
           appId: app.id,
           bytes,
           confirmHash,
-          ...(period.from ? { from: period.from, to: period.to } : {}) },
+          ...(period.from ? { from: period.from, to: period.to } : {}),
+        },
         actor(c),
       );
       if (!done.ok) return respond(c, done);
@@ -444,7 +474,9 @@ export function analyticsRoutes(ctx: AnalyticsRoutesContext) {
             written: done.written,
             unchanged: done.unchanged,
             dateFrom: done.dateFrom,
-            dateTo: done.dateTo } },
+            dateTo: done.dateTo,
+          },
+        },
         201,
       );
     },

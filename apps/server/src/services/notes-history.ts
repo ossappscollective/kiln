@@ -1,10 +1,10 @@
 import type { NotesHistoryRead } from '@mrm/connectors';
 import type { StoreId } from '@mrm/core';
+import { storeOf } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
 import { readNotesHistoryOf, type StoreConnectContext } from './store-draft.ts';
 import { timedCache } from './timed-cache.ts';
-import { storeOf } from '@mrm/core';
 
 /**
  * The texts earlier releases used for "what is new", to reuse in the next one (docs/api/releases-write.md, "Notes history").

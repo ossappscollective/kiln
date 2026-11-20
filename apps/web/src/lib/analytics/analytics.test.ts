@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from '../api.ts';
 import {
   analyticsErrorText,
   bucketSourceText,
@@ -40,17 +41,7 @@ import {
   storedErrorText,
   withRange,
 } from './analytics.ts';
-import {
-  appleOverview,
-  FROM,
-  mkSeries,
-  NOW,
-  sourceOf,
-  statusOf,
-  TO,
-  wave,
-} from './fixtures.ts';
-import { ApiError } from '../api.ts';
+import { appleOverview, FROM, mkSeries, NOW, sourceOf, statusOf, TO, wave } from './fixtures.ts';
 
 const series = (values: (number | null)[], over: Partial<Parameters<typeof mkSeries>[0]> = {}) =>
   mkSeries({ id: 'x', label: 'X', unit: 'count', source: 'apple_analytics', values, ...over });

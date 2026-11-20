@@ -5,8 +5,26 @@ import {
   StoreError,
   type StoreListing,
   StoreRateLimitError,
-  secretStrings } from '@mrm/connectors';
-import { type ActorType, compareAgeRating, compareCategories, compareDetails, compareMedia, comparePrivacy, type ListingSectionName, type ListingSections, type Platform, SECTION_LOCALE, type SectionCompare, sectionField, sectionFromText, sectionOfField, sectionToText, supports } from '@mrm/core';
+  secretStrings,
+} from '@mrm/connectors';
+import {
+  type ActorType,
+  compareAgeRating,
+  compareCategories,
+  compareDetails,
+  compareMedia,
+  comparePrivacy,
+  type ListingSectionName,
+  type ListingSections,
+  type Platform,
+  SECTION_LOCALE,
+  type SectionCompare,
+  sectionField,
+  sectionFromText,
+  sectionOfField,
+  sectionToText,
+  supports,
+} from '@mrm/core';
 import { type Database, nullableNumber, nullableString, type Sql } from '@mrm/db';
 import {
   ABSENT_HASH,
@@ -27,7 +45,8 @@ import {
   listingFieldsFor,
   sideProblems,
   splitKey,
-  summarize } from './drift.ts';
+  summarize,
+} from './drift.ts';
 
 /**
  * The live store listing, its history and the three-way drift view. Read-only toward the stores:
@@ -99,7 +118,8 @@ export async function getListingStatus(
     repoError: nullableString(row?.repo_error),
     listingAttemptAt: nullableNumber(row?.listing_attempt_at),
     listingFailures: Number(row?.listing_failures ?? 0),
-    listingWarnings: parseWarnings(row?.listing_warnings) };
+    listingWarnings: parseWarnings(row?.listing_warnings),
+  };
 }
 
 /** Changes some columns of the status row, creating it first. Portable (no upsert syntax). */
@@ -353,7 +373,8 @@ const channelValues = (read: StoreListing, platform: Platform) =>
     channel: c.channel,
     ref: c.versionString ?? null,
     values: flattenListing(c.listing, platform),
-    sections: c.sections }));
+    sections: c.sections,
+  }));
 
 /** The sections of every kind, so a channel that is gone can mark each of them removed. */
 const GONE: Record<ListingSectionName, null> = {
@@ -362,7 +383,8 @@ const GONE: Record<ListingSectionName, null> = {
   privacy: null,
   media: null,
   details: null,
-  releaseNotes: null };
+  releaseNotes: null,
+};
 
 /** One failed read: the message, the time of the attempt and one more failure in a row. */
 export async function recordListingFailure(
@@ -447,7 +469,8 @@ export async function syncListing(
             channel,
             sourceRef: found?.ref ?? null,
             observedAt: at,
-            actor: input.actor },
+            actor: input.actor,
+          },
           found?.values ?? [],
         );
         count += result.changed + result.removed;
@@ -462,7 +485,8 @@ export async function syncListing(
             channel,
             sourceRef: found?.ref ?? null,
             observedAt: at,
-            actor: input.actor },
+            actor: input.actor,
+          },
           found ? (found.sections ?? {}) : GONE,
         );
         count += sections.changed + sections.removed;
@@ -480,7 +504,8 @@ export async function syncListing(
         listing_error: null,
         listing_attempt_at: at,
         listing_failures: 0,
-        listing_warnings: warnings.length > 0 ? JSON.stringify(warnings) : null });
+        listing_warnings: warnings.length > 0 ? JSON.stringify(warnings) : null,
+      });
       return count;
     });
     return { ok: true, recorded };
@@ -527,7 +552,8 @@ async function loadIndex(sql: Sql, workspaceId: string, appId: string): Promise<
     source: String(r.source) as ListingSource,
     sourceRef: nullableString(r.source_ref),
     hash: String(r.value_hash),
-    observedAt: Number(r.observed_at) }));
+    observedAt: Number(r.observed_at),
+  }));
 }
 
 /** The values of some rows, by id (a few hundred at a time). */
@@ -687,7 +713,8 @@ export function scheduleOf(status: ListingStatus, intervalMs: number): ListingSc
           { readAt: status.listingReadAt, attemptAt: status.listingAttemptAt },
           status.listingFailures,
         )
-      : null };
+      : null,
+  };
 }
 
 /** The latest values of the live store listing per locale and field, from the stored snapshots. */
@@ -730,7 +757,8 @@ export async function getLiveListing(
       sourceRef: newest.sourceRef,
       observedAt: newest.observedAt,
       locales: Object.fromEntries(Object.entries(locales).sort(([a], [b]) => a.localeCompare(b))),
-      ...(Object.keys(sections).length > 0 ? { sections } : {}) };
+      ...(Object.keys(sections).length > 0 ? { sections } : {}),
+    };
   });
   // A channel that has sections but no text (an app info with no localization yet) still shows them.
   for (const name of ['live', 'editable'] as const) {
@@ -747,7 +775,8 @@ export async function getLiveListing(
     error: status.listingError,
     warnings: status.listingWarnings,
     schedule: scheduleOf(status, options.intervalMs ?? 0),
-    channels: out };
+    channels: out,
+  };
 }
 
 export type Drift = {
@@ -781,7 +810,8 @@ export type SectionDrift = {
 export const SECTIONS_OF: Record<Platform, readonly ListingSectionName[]> = {
   ios: ['categories', 'ageRating', 'privacy', 'details', 'media'],
   macos: ['categories', 'ageRating', 'privacy', 'details', 'media'],
-  android: ['details', 'media', 'releaseNotes'] };
+  android: ['details', 'media', 'releaseNotes'],
+};
 
 export function compareSection(
   name: ListingSectionName,
@@ -812,7 +842,8 @@ export function compareSection(
             status: 'not-comparable',
             details: [
               "Release notes of the tracks are shown as the store has them; the repository's changelogs are not compared.",
-            ] };
+            ],
+          };
   }
 }
 
@@ -900,7 +931,8 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
         ...(repo ? { repo } : {}),
         ...(db ? { db } : {}),
         ...(live ? { live } : {}),
-        repoKey });
+        repoKey,
+      });
     }
   }
 
@@ -914,7 +946,8 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
           value: isPresent(r) ? (values.get(r.id) ?? null) : null,
           observedAt: r.observedAt,
           sourceRef: r.sourceRef,
-          source: r.source };
+          source: r.source,
+        };
 
   const repoValues = new Map<string, string>();
   const liveValues = new Map<string, string>();
@@ -934,7 +967,8 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
       repo: repo.value,
       live: live.value,
       repoHistory: repoHistory.get(p.repoKey) ?? [],
-      liveHistory: storeHistory.get(key) ?? new Set<string>() });
+      liveHistory: storeHistory.get(key) ?? new Set<string>(),
+    });
     const spec = fieldSpec(platform, p.field);
     const field: DriftField = {
       locale: p.locale,
@@ -947,7 +981,8 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
       repo,
       db,
       live,
-      problems: { repo: repoProblems.get(key) ?? [], live: liveProblems.get(key) ?? [] } };
+      problems: { repo: repoProblems.get(key) ?? [], live: liveProblems.get(key) ?? [] },
+    };
     const list = byLocale.get(p.locale) ?? [];
     list.push(field);
     byLocale.set(p.locale, list);
@@ -963,7 +998,8 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
       storeObservedAt: store?.observedAt ?? null,
       repo: repo?.value ?? null,
       repoObservedAt: repo?.observedAt ?? null,
-      compare: compareSection(name, store?.value ?? null, repo?.value ?? null, platform) };
+      compare: compareSection(name, store?.value ?? null, repo?.value ?? null, platform),
+    };
   });
   return {
     appId: app.id,
@@ -973,7 +1009,8 @@ export async function getDrift(sql: Sql, workspaceId: string, app: ListingApp): 
     repo: { readAt: status.repoReadAt, ref: status.repoRef, error: status.repoError },
     summary: summarize(result),
     locales: result,
-    sections };
+    sections,
+  };
 }
 
 export type HistoryEntry = {
@@ -1046,7 +1083,9 @@ export async function getHistory(
       source: String(r.source) as ListingSource,
       sourceRef: nullableString(r.source_ref),
       observedAt: Number(r.observed_at),
-      actor: r.actor_type ? { type: String(r.actor_type), id: String(r.actor_id ?? '') } : null })),
+      actor: r.actor_type ? { type: String(r.actor_type), id: String(r.actor_id ?? '') } : null,
+    })),
     nextCursor:
-      rows.length > options.limit && last ? `${Number(last.observed_at)}:${String(last.id)}` : null };
+      rows.length > options.limit && last ? `${Number(last.observed_at)}:${String(last.id)}` : null,
+  };
 }

@@ -14,12 +14,12 @@ import {
   tools,
   unavailableReason,
 } from './mcp/tools.ts';
-import { bootRepoApp } from './repo-test-helpers.ts';
 import { ASC_SECRET, PLAY_SECRET } from './modules/reviews/test-helpers.ts';
+import { pathParams, tokenAllowedFor, zodToJsonSchema } from './operations/openapi.ts';
 import { operations } from './operations/registry.ts';
+import { bootRepoApp } from './repo-test-helpers.ts';
 import { listAudit } from './services/audit.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
-import { pathParams, tokenAllowedFor, zodToJsonSchema } from './operations/openapi.ts';
 
 type Options = NonNullable<Parameters<typeof bootRepoApp>[2]>;
 // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC answers are inspected loosely

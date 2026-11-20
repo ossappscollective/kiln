@@ -1,6 +1,19 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiFlag, type AiKeywordIdea, type AiKeywordProposal, aiLimits, APP_STORE_FIELD_SPECS, checkTerm, type ListingStore, listingStoreOf, normalizeCountry, normalizeLocale, PLAY_FIELD_SPECS } from '@mrm/core';
+import {
+  type AiFlag,
+  type AiKeywordIdea,
+  type AiKeywordProposal,
+  APP_STORE_FIELD_SPECS,
+  aiLimits,
+  checkTerm,
+  type ListingStore,
+  listingStoreOf,
+  normalizeCountry,
+  normalizeLocale,
+  PLAY_FIELD_SPECS,
+} from '@mrm/core';
 import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
+import { getDrift } from '../modules/listing/live.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import {
   checkScope,
@@ -12,7 +25,6 @@ import {
   type ReadyTask,
   type TaskContext,
 } from './ai-task-types.ts';
-import { getDrift } from '../modules/listing/live.ts';
 
 /**
  * Task `keyword_ideas` (version 1): candidate search keywords for an app in one language and storefront, each with a

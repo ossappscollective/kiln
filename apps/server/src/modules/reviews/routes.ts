@@ -8,6 +8,7 @@ import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import type { Failure } from '../../services/repositories.ts';
+import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
 import {
   attachReplies,
   createTemplate,
@@ -27,21 +28,6 @@ import {
   updateTemplate,
 } from './replies.ts';
 import {
-  DEFAULT_TREND_WEEKS,
-  DEFAULT_UNANSWERED_MAX_RATING,
-  MAX_TREND_WEEKS,
-  reviewsSummary,
-  workspaceReviewsSummary,
-} from './summary.ts';
-import {
-  enqueueReviewSync,
-  getSyncState,
-  LOW_RATING_THRESHOLD,
-  type ReviewsContext,
-  storeFor,
-  syncReviews,
-} from './sync.ts';
-import {
   DEFAULT_REVIEWS_PAGE,
   type InboxFilter,
   isReviewStatus,
@@ -57,7 +43,21 @@ import {
   reviewStatuses,
   triageReview,
 } from './service.ts';
-import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
+import {
+  DEFAULT_TREND_WEEKS,
+  DEFAULT_UNANSWERED_MAX_RATING,
+  MAX_TREND_WEEKS,
+  reviewsSummary,
+  workspaceReviewsSummary,
+} from './summary.ts';
+import {
+  enqueueReviewSync,
+  getSyncState,
+  LOW_RATING_THRESHOLD,
+  type ReviewsContext,
+  storeFor,
+  syncReviews,
+} from './sync.ts';
 
 export type ReviewRoutesContext = ReviewsContext & {
   /** Reads per workspace per minute: the budget the app sync routes use (built in createApp). */

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ReviewTranslation } from './translation.ts';
 import {
   isLowOnly,
   lowRatings,
@@ -11,6 +10,7 @@ import {
   unansweredChip,
   unansweredFilters,
 } from './tab.ts';
+import type { ReviewTranslation } from './translation.ts';
 
 const r = (
   id: string,

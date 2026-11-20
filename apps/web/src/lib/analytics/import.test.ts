@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from '../api.ts';
 import type { EnablePreview, ImportPlan, ImportPreview } from './analytics.ts';
 import {
   canConfirmEnable,
@@ -20,7 +21,6 @@ import {
   previewNotes,
   sampleTable,
 } from './import.ts';
-import { ApiError } from '../api.ts';
 
 const preview = (
   steps: EnablePreview['plan']['steps'],

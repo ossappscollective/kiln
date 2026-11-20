@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { appleScope, connectorFactory, type StoreConnectorInput } from './store-registry.ts';
 
-const input = (kind: StoreConnectorInput['kind'], platform?: 'ios' | 'macos' | 'android'): StoreConnectorInput => ({
+const input = (
+  kind: StoreConnectorInput['kind'],
+  platform?: 'ios' | 'macos' | 'android',
+): StoreConnectorInput => ({
   kind,
   secret: 's',
   identifier: 'com.example',

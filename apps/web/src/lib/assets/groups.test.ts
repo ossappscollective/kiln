@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AssetProblem, AssetSet } from '@mrm/core';
+import type { AssetItem } from '../types.ts';
 import { NOT_COMPARED } from './assets.ts';
 import {
   defaultGroup,
@@ -11,7 +12,6 @@ import {
   storeOnlyCount,
   storeStatusOf,
 } from './groups.ts';
-import type { AssetItem } from '../types.ts';
 
 const item = (over: Partial<AssetItem> & { path: string }): AssetItem => ({
   locale: 'en-US',

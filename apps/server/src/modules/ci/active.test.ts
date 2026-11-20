@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { GithubError, GithubRateLimitError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootCi, job, run } from './test-helpers.ts';
-import { dispatchRun, JOBS_TTL_ACTIVE_MS, MIN_REFRESH_MS, readRunJobs } from './service.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
+import { listEvents } from '../../services/events.ts';
+import { getRepository } from '../../services/repositories.ts';
 import {
   ACTIVE_CACHE_TTL_MS,
   IDLE_REFRESH_MS,
@@ -10,9 +11,8 @@ import {
   PROBLEM_BACKOFF_MS,
   summarizeJobs,
 } from './active.ts';
-import { createTestLimiter } from '../../services/credential-tests.ts';
-import { listEvents } from '../../services/events.ts';
-import { getRepository } from '../../services/repositories.ts';
+import { dispatchRun, JOBS_TTL_ACTIVE_MS, MIN_REFRESH_MS, readRunJobs } from './service.ts';
+import { bootCi, job, run } from './test-helpers.ts';
 
 // Everything here runs against a fake GitHub: no live GitHub call is ever made.
 

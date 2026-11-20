@@ -1,6 +1,4 @@
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName } from './googleplay.ts';
 import {
   enc,
   isRecord,
@@ -9,6 +7,8 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleError, isPlayPackageName } from './googleplay.ts';
 
 /**
  * Google Play INTERNAL APP SHARING: upload an .aab or .apk and get a download link that installs it on a device. A STORE WRITE (it

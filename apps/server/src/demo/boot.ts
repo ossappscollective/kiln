@@ -6,13 +6,6 @@ import { Hono } from 'hono';
 import { type AppDeps, createApp } from '../app.ts';
 import type { AppEnv } from '../http.ts';
 import { createWorker } from '../jobs.ts';
-import {
-  ASO_REFRESH_QUEUE,
-  createAsoRefreshHandler,
-  DEFAULT_ASO_LIMITS,
-} from '../modules/aso/service.ts';
-import { createEventStreamHub } from '../routes/events.ts';
-import { createScheduler } from '../scheduler.ts';
 import { runAlertEvaluator } from '../modules/alerts/evaluator.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from '../modules/alerts/runner.ts';
 import {
@@ -20,20 +13,27 @@ import {
   createAnalyticsSyncHandler,
   DEFAULT_ANALYTICS_TIMEOUT_MS,
 } from '../modules/analytics/sync.ts';
-import { APP_SYNC_QUEUE, createAppSyncHandler, DEFAULT_SYNC_TIMEOUT_MS } from '../services/apps.ts';
+import {
+  ASO_REFRESH_QUEUE,
+  createAsoRefreshHandler,
+  DEFAULT_ASO_LIMITS,
+} from '../modules/aso/service.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from '../modules/ci/service.ts';
-import { createTestLimiter } from '../services/credential-tests.ts';
 import {
   createListingReadHandler,
   DEFAULT_LISTING_TIMEOUT_MS,
   LISTING_READ_QUEUE,
 } from '../modules/listing/schedule.ts';
-import { DEFAULT_REPO_TIMEOUT_MS } from '../services/repositories.ts';
 import {
   createReviewSyncHandler,
   DEFAULT_REVIEW_TIMEOUT_MS,
   REVIEW_SYNC_QUEUE,
 } from '../modules/reviews/sync.ts';
+import { createEventStreamHub } from '../routes/events.ts';
+import { createScheduler } from '../scheduler.ts';
+import { APP_SYNC_QUEUE, createAppSyncHandler, DEFAULT_SYNC_TIMEOUT_MS } from '../services/apps.ts';
+import { createTestLimiter } from '../services/credential-tests.ts';
+import { DEFAULT_REPO_TIMEOUT_MS } from '../services/repositories.ts';
 import { createWebhookHandler, WEBHOOK_QUEUE } from '../services/webhooks.ts';
 import { VERSION } from '../version.ts';
 import { DEMO_MARKER, type DemoConfig } from './config.ts';

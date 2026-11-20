@@ -1,7 +1,7 @@
+import { parsePlatform, supports } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue } from '../../jobs.ts';
 import { ANALYTICS_SYNC_QUEUE, type AnalyticsSyncPayload } from './sync.ts';
-import { parsePlatform, supports } from '@mrm/core';
 
 /**
  * Scheduled analytics syncs (MRM_ANALYTICS_INTERVAL_MINUTES, default 360, 0 is off). The scheduler only queues `analytics.sync` jobs;

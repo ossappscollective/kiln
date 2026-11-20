@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { storeReview } from './test-helpers.ts';
 import { bootTranslation } from '../../translation-test-helpers.ts';
+import { storeReview } from './test-helpers.ts';
 
 /**
  * Semantics of `reviews.lowRatingThreshold` (docs/api/reviews.md): a review raises

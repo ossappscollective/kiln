@@ -1,8 +1,8 @@
+import { supports } from '@mrm/core';
 import { parseViewPath } from './app-scope.ts';
 import { trackLabel } from './portfolio.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { ReleaseSummary } from './types.ts';
-import { supports } from '@mrm/core';
 
 /**
  * "Promote to production" (docs/adr/0025-play-release-checks.md): a release that is in a Google Play track that is not production

@@ -1,6 +1,7 @@
 import type { Role } from '@mrm/core';
 import { can } from '@mrm/core';
 import type { Database, Row, Sql } from '@mrm/db';
+import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,
   type AlertSeverity,
@@ -10,7 +11,6 @@ import {
   configurableAlertTypes,
 } from './catalog.ts';
 import { raiseAlert } from './service.ts';
-import { recordAudit } from '../../services/audit.ts';
 
 /** Reading side of alerts (docs/api/alerts.md): the inbox of a person, the delivery log, "send a test", and the catalog as the API shows it. */
 

@@ -3,13 +3,13 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import type { AppSummary, CiWorkflow, RepositorySummary } from '../types.ts';
 import {
   DISPATCH_DIALOG_PROPS,
   dispatchLinkableApps,
   dispatchPreselection,
   dispatchTarget,
 } from './dispatch-target.ts';
-import type { AppSummary, CiWorkflow, RepositorySummary } from '../types.ts';
 
 const repository = { id: 'r1', defaultBranch: 'main' } as RepositorySummary;
 const workflow = {

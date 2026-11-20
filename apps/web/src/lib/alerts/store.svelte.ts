@@ -1,3 +1,5 @@
+import type { Api } from '../api.ts';
+import type { InboxAlert } from './alerts.ts';
 import {
   deviceEnabled,
   notificationTitle,
@@ -6,8 +8,6 @@ import {
   remember,
 } from './desktop.ts';
 import { notificationState, showNotification } from './notify.ts';
-import type { InboxAlert } from './alerts.ts';
-import type { Api } from '../api.ts';
 
 /**
  * What the shell knows about alerts (docs/alerts.md): the unread count and the newest alerts for the bell, kept fresh by a slow poll

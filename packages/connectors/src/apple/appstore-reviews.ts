@@ -1,9 +1,3 @@
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   APPLE_REPLY_LIMIT,
@@ -32,6 +26,12 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { appleError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect connector for customer reviews. The reads are GETs. Answering a review

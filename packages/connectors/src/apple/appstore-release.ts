@@ -1,10 +1,4 @@
 import { PLATFORM_META } from '@mrm/core';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   APPLE_RELEASABLE_STATE,
@@ -26,6 +20,12 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { appleError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect: RELEASE an approved App Store version. A STORE WRITE that cannot be taken back (Apple: "Send this request

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { verify } from 'node:crypto';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount } from './google-auth.ts';
-import { GooglePlayConnector } from './googleplay.ts';
 import * as fx from '../store.fixtures.ts';
 import { StoreHttp } from '../store-http.ts';
+import { GoogleTokenProvider, parseServiceAccount } from './google-auth.ts';
+import { GooglePlayConnector } from './googleplay.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.googleKeyPem();

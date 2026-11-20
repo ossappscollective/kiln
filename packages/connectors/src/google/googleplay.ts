@@ -1,6 +1,5 @@
 import type { ListingSections, LocaleText, MediaSet, PlayField } from '@mrm/core';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 import { mapPlayTrackRelease } from '../mappings.ts';
 import {
   enc,
@@ -29,6 +28,7 @@ import type {
   StoreListing,
   StoreVersion,
 } from '../types.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
 
 /**
  * Read-only Google Play Developer API connector.

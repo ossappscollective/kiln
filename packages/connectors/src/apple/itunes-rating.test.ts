@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { fetchRatingSummary, ITUNES_LOOKUP_URL, parseRatingSummary } from './itunes-rating.ts';
 import * as rx from '../reviews.fixtures.ts';
+import { fetchRatingSummary, ITUNES_LOOKUP_URL, parseRatingSummary } from './itunes-rating.ts';
 
 type Seen = { url: string; init: RequestInit | undefined };
 

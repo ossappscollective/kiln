@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { type AppEnv, parseBody, queryInt } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
+import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { alertChannels, alertSeverities, alertTypeIds } from './catalog.ts';
 import {
   catalogEntries,
@@ -31,7 +32,6 @@ import {
   setRule,
 } from './prefs.ts';
 import { digestModes } from './time.ts';
-import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 
 /** Bodies, exported for the operations registry (services/api-operations-alerts.ts). */
 export const markReadBody = z

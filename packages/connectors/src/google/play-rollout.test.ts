@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { PlayRolloutConnector, playRolloutState } from './play-rollout.ts';
 import { RolloutDriftError, RolloutOutcomeUnknownError } from '../rollout-types.ts';
 import * as fx from '../store.fixtures.ts';
+import { PlayRolloutConnector, playRolloutState } from './play-rollout.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.googleKeyPem();

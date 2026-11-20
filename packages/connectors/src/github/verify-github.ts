@@ -1,8 +1,8 @@
 import { createPrivateKey } from 'node:crypto';
 import { checkSecret } from '@mrm/core';
 import { redactSecrets, secretStrings } from '../errors.ts';
-import { signGithubAppJwt } from './github.ts';
 import type { VerifyOptions, VerifyResult } from '../verify.ts';
+import { signGithubAppJwt } from './github.ts';
 
 /**
  * "Test connection" for GitHub credentials. Read-only: the one write is the short-lived

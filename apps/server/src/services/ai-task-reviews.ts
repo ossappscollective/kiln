@@ -1,5 +1,23 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiFixItem, type AiFixNextInsight, type AiFlag, type AiReviewClassifyInsight, type AiReviewSummaryInsight, type AiReviewTags, type AiReviewTheme, aiReviewTopics, type AiSentiment, aiSentiments, aiSeverities, type AiSeverity, type AiThemeKind, aiThemeKinds, APP_STORE_FIELD_SPECS, listingStoreOf } from '@mrm/core';
+import {
+  type AiFixItem,
+  type AiFixNextInsight,
+  type AiFlag,
+  type AiReviewClassifyInsight,
+  type AiReviewSummaryInsight,
+  type AiReviewTags,
+  type AiReviewTheme,
+  type AiSentiment,
+  type AiSeverity,
+  type AiThemeKind,
+  APP_STORE_FIELD_SPECS,
+  aiReviewTopics,
+  aiSentiments,
+  aiSeverities,
+  aiThemeKinds,
+  listingStoreOf,
+} from '@mrm/core';
+import { getReview } from '../modules/reviews/service.ts';
 import { looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { getReviewTags, reviewTextHash, saveReviewTags } from './ai-review-classes.ts';
@@ -15,7 +33,6 @@ import {
 } from './ai-task-data.ts';
 import { bool, int, line, oneOf, paragraphOf, str, strings } from './ai-task-lenient.ts';
 import { checkScope, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
-import { getReview } from '../modules/reviews/service.ts';
 
 /**
  * The review tasks (docs/adr/0024-ai-features.md): `review_summary`, `review_classify` and `fix_next`.
@@ -665,9 +682,10 @@ export const fixNextTask: ReadyTask = {
         ...(r.version ? { version: r.version } : {}),
       })),
     };
-    const limitChars = listingStoreOf(ctx.app.platform) === 'app_store'
-      ? (APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000)
-      : PLAY_WHATS_NEW_LIMIT;
+    const limitChars =
+      listingStoreOf(ctx.app.platform) === 'app_store'
+        ? (APP_STORE_FIELD_SPECS.release_notes.maxLength ?? 4000)
+        : PLAY_WHATS_NEW_LIMIT;
     const facts: FixFacts = { loaded, stats, limit: limitChars };
     return { input, scope: { days, limit }, facts };
   },

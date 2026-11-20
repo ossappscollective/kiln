@@ -119,4 +119,3 @@ export const stagedAppSchema = z.object({
   platform: z.enum(PLATFORMS),
   store: reviewStore,
 });
-

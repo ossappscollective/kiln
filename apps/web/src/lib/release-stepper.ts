@@ -1,4 +1,12 @@
-import { byFamily, can, type Platform, type Role, type StagedChangesView, type StagedReleaseFieldView, supports } from '@mrm/core';
+import {
+  byFamily,
+  can,
+  type Platform,
+  type Role,
+  type StagedChangesView,
+  type StagedReleaseFieldView,
+  supports,
+} from '@mrm/core';
 import { appAddress, type PlatformScope, parseViewPath } from './app-scope.ts';
 import type { BuildCandidate, EditableRelease } from './release-candidates.ts';
 
@@ -16,7 +24,8 @@ export const STEP_LABELS: Readonly<Record<StepId, string>> = {
   notes: 'Notes',
   assets: 'Assets',
   review: 'Review',
-  confirm: 'Confirm' };
+  confirm: 'Confirm',
+};
 
 export const isStepId = (value: string | null | undefined): value is StepId =>
   value !== null && value !== undefined && (STEP_IDS as readonly string[]).indexOf(value) >= 0;
@@ -142,7 +151,8 @@ export function stagedFacts(view: StagedChangesView | null): StagedFacts {
     unpushed:
       view.text.filter((t) => !t.pushed && t.status !== 'unchanged').length +
       view.assets.filter((a) => !a.pushed).length +
-      release.filter((r) => !r.pushed && !r.localOnly).length };
+      release.filter((r) => !r.pushed && !r.localOnly).length,
+  };
 }
 
 export const stagedField = (
@@ -195,7 +205,8 @@ export function chosenOf(input: {
       const hit = input.builds.filter((b) => b.id === staged.value)[0];
       return {
         label: hit && hit.buildNumber !== null ? `Build ${hit.buildNumber}` : 'A build',
-        where: 'staged' };
+        where: 'staged',
+      };
     }
     if (
       input.editable !== null &&
@@ -212,7 +223,8 @@ export function chosenOf(input: {
   if (codes !== null)
     return {
       label: `Version codes ${codes.value.split(',').join(', ')}${track ? ` on ${track.value}` : ''}`,
-      where: 'staged' };
+      where: 'staged',
+    };
   if (
     input.editable !== null &&
     input.editable.store === 'googleplay' &&
@@ -221,7 +233,8 @@ export function chosenOf(input: {
   ) {
     return {
       label: `Version codes ${input.editable.draft.versionCodes.join(', ')} on ${input.editable.track}`,
-      where: 'store' };
+      where: 'store',
+    };
   }
   return null;
 }
@@ -253,7 +266,8 @@ export function buildStatus(f: StepperFacts): StepStatus {
     return {
       ...base,
       level: 'ready',
-      text: `${f.chosen.label}${f.chosen.where === 'staged' ? ', staged' : ', in the store draft'}` };
+      text: `${f.chosen.label}${f.chosen.where === 'staged' ? ', staged' : ', in the store draft'}`,
+    };
   if (f.editable.state === 'loading')
     return { ...base, level: 'unknown', text: 'Reading the store' };
   if (f.editable.state === 'error')
@@ -264,7 +278,8 @@ export function buildStatus(f: StepperFacts): StepStatus {
       level: 'blocked',
       text: !supports(f.platform, 'releaseTracks')
         ? 'No version is in Prepare for Submission'
-        : 'No draft release on that track yet' };
+        : 'No draft release on that track yet',
+    };
   }
   if (f.choices === 0)
     return {
@@ -272,11 +287,13 @@ export function buildStatus(f: StepperFacts): StepStatus {
       level: 'attention',
       text: !supports(f.platform, 'releaseTracks')
         ? 'No build can be chosen yet'
-        : 'No version code can be added yet' };
+        : 'No version code can be added yet',
+    };
   return {
     ...base,
     level: 'todo',
-    text: byFamily(f.platform, { apple: 'Choose a build', google: 'Choose the version codes' }) };
+    text: byFamily(f.platform, { apple: 'Choose a build', google: 'Choose the version codes' }),
+  };
 }
 
 export function notesStatus(f: StepperFacts): StepStatus {
@@ -285,17 +302,20 @@ export function notesStatus(f: StepperFacts): StepStatus {
     return {
       ...base,
       level: 'attention',
-      text: `${plural(f.notes.unsaved, 'language is', 'languages are')} not staged yet` };
+      text: `${plural(f.notes.unsaved, 'language is', 'languages are')} not staged yet`,
+    };
   if (f.notes.over > 0)
     return {
       ...base,
       level: 'attention',
-      text: `${plural(f.notes.over, 'text is', 'texts are')} over the store limit` };
+      text: `${plural(f.notes.over, 'text is', 'texts are')} over the store limit`,
+    };
   if (f.notes.withText === 0) return { ...base, level: 'todo', text: 'No release notes yet' };
   return {
     ...base,
     level: 'ready',
-    text: plural(f.notes.withText, 'language has notes', 'languages have notes') };
+    text: plural(f.notes.withText, 'language has notes', 'languages have notes'),
+  };
 }
 
 export function assetsStatus(f: StepperFacts): StepStatus {
@@ -304,7 +324,8 @@ export function assetsStatus(f: StepperFacts): StepStatus {
   return {
     ...base,
     level: 'ready',
-    text: `${plural(f.staged.assets, 'graphic set', 'graphic sets')} staged` };
+    text: `${plural(f.staged.assets, 'graphic set', 'graphic sets')} staged`,
+  };
 }
 
 export function reviewStatus(f: StepperFacts): StepStatus {
@@ -313,12 +334,14 @@ export function reviewStatus(f: StepperFacts): StepStatus {
     return {
       ...base,
       level: 'blocked',
-      text: `${plural(f.staged.errors, 'error', 'errors')} in the staged changes` };
+      text: `${plural(f.staged.errors, 'error', 'errors')} in the staged changes`,
+    };
   if (f.staged.total === 0) return { ...base, level: 'optional', text: 'Nothing is staged' };
   return {
     ...base,
     level: 'ready',
-    text: `${plural(f.staged.total, 'staged change', 'staged changes')}${f.staged.warnings > 0 ? `, ${plural(f.staged.warnings, 'warning', 'warnings')}` : ''}` };
+    text: `${plural(f.staged.total, 'staged change', 'staged changes')}${f.staged.warnings > 0 ? `, ${plural(f.staged.warnings, 'warning', 'warnings')}` : ''}`,
+  };
 }
 
 export function confirmStatus(f: StepperFacts): StepStatus {
@@ -329,7 +352,8 @@ export function confirmStatus(f: StepperFacts): StepStatus {
     return {
       ...base,
       level: 'todo',
-      text: `Push ${plural(f.staged.unpushed, 'staged change', 'staged changes')} to the store draft` };
+      text: `Push ${plural(f.staged.unpushed, 'staged change', 'staged changes')} to the store draft`,
+    };
   const p = f.pipeline;
   if (p === null)
     return { ...base, level: 'unknown', text: 'The state of the release is not known' };
@@ -344,14 +368,16 @@ export function confirmStatus(f: StepperFacts): StepStatus {
       return {
         ...base,
         level: 'attention',
-        text: 'Rejected: fix what the store asks for, then push and submit again' };
+        text: 'Rejected: fix what the store asks for, then push and submit again',
+      };
     case 'approved':
       return {
         ...base,
         level: 'todo',
         text: !supports(f.platform, 'releaseTracks')
           ? 'Approved: waiting for you to release it'
-          : 'Approved: release it at a share of users' };
+          : 'Approved: release it at a share of users',
+      };
     case 'rolling_out':
       return { ...base, level: 'ready', text: 'Rolling out' };
     case 'halted':
@@ -369,7 +395,8 @@ export function stepStatuses(f: StepperFacts, visible: readonly StepId[]): StepS
     notes: notesStatus(f),
     assets: assetsStatus(f),
     review: reviewStatus(f),
-    confirm: confirmStatus(f) };
+    confirm: confirmStatus(f),
+  };
   return visible.map((id) => all[id]);
 }
 
@@ -380,14 +407,16 @@ export const LEVEL_TONE: Readonly<Record<Level, 'ok' | 'info' | 'warn' | 'bad' |
   attention: 'warn',
   blocked: 'bad',
   optional: 'neutral',
-  unknown: 'neutral' };
+  unknown: 'neutral',
+};
 export const LEVEL_WORD: Readonly<Record<Level, string>> = {
   ready: 'Ready',
   todo: 'To do',
   attention: 'Look at this',
   blocked: 'Blocked',
   optional: 'Optional',
-  unknown: 'Not known' };
+  unknown: 'Not known',
+};
 
 /** The version the stepper works on: the one asked for, else the editable one (Prepare for Submission or a draft), else the newest. */
 export function pickVersion(

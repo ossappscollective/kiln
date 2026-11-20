@@ -1,4 +1,11 @@
-import { byFamily, type Platform, platformLabel, type ReleaseState, sortPlatforms, supports } from '@mrm/core';
+import {
+  byFamily,
+  type Platform,
+  platformLabel,
+  type ReleaseState,
+  sortPlatforms,
+  supports,
+} from '@mrm/core';
 import { parseViewPath } from './app-scope.ts';
 import { compareReleases, compareVersions } from './portfolio.ts';
 import type { ReleaseSummary } from './types.ts';
@@ -66,7 +73,8 @@ export function versionState(status: ReleaseState | null, platform: Platform): V
     case 'build_chosen':
       return {
         label: byFamily(platform, { apple: 'Prepare for submission', google: 'Draft' }),
-        tone: 'neutral' };
+        tone: 'neutral',
+      };
     case 'ready':
       return { label: 'Ready to submit', tone: 'info' };
     case 'in_review':
@@ -166,7 +174,8 @@ export function buildVersionOptions(
             .join(' · ')
         : '',
       platforms: mine,
-      releases: chosen };
+      releases: chosen,
+    };
   });
 }
 

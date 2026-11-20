@@ -1,5 +1,19 @@
 import { createHash } from 'node:crypto';
-import { APP_STORE_FIELD_SPECS, APP_STORE_FIELDS, byFamily, DEFAULT_LOCALE, type Listing, type ListingFieldSpec, type ListingProblem, listingStoreOf, type LocaleText, type Platform, PLAY_FIELD_SPECS, PLAY_FIELDS, validateListing } from '@mrm/core';
+import {
+  APP_STORE_FIELD_SPECS,
+  APP_STORE_FIELDS,
+  byFamily,
+  DEFAULT_LOCALE,
+  type Listing,
+  type ListingFieldSpec,
+  type ListingProblem,
+  type LocaleText,
+  listingStoreOf,
+  PLAY_FIELD_SPECS,
+  PLAY_FIELDS,
+  type Platform,
+  validateListing,
+} from '@mrm/core';
 
 /**
  * The pure part of the listing history and drift view: which fields an app has, how a value is
@@ -18,9 +32,8 @@ export const isListingField = (platform: Platform, field: string): boolean =>
   listingFieldsFor(platform).includes(field);
 
 export function fieldSpec(platform: Platform, field: string): ListingFieldSpec | undefined {
-  const specs: Record<string, ListingFieldSpec> = listingStoreOf(platform) === 'app_store'
-    ? APP_STORE_FIELD_SPECS
-    : PLAY_FIELD_SPECS;
+  const specs: Record<string, ListingFieldSpec> =
+    listingStoreOf(platform) === 'app_store' ? APP_STORE_FIELD_SPECS : PLAY_FIELD_SPECS;
   return specs[field];
 }
 
@@ -50,9 +63,10 @@ export const splitKey = (key: string): { locale: string; field: string } => {
 
 /** The listing of the app's own store as flat field values. A field that is not set is left out. */
 export function flattenListing(listing: Listing, platform: Platform): FieldValue[] {
-  const locales: Record<string, LocaleText<string>> | undefined = listingStoreOf(platform) === 'app_store'
-    ? listing.appStore?.locales
-    : listing.googlePlay?.locales;
+  const locales: Record<string, LocaleText<string>> | undefined =
+    listingStoreOf(platform) === 'app_store'
+      ? listing.appStore?.locales
+      : listing.googlePlay?.locales;
   const out: FieldValue[] = [];
   if (!locales) return out;
   for (const locale of Object.keys(locales).sort()) {
@@ -67,7 +81,9 @@ export function flattenListing(listing: Listing, platform: Platform): FieldValue
 
 /** True when the listing has the store of this platform at all. */
 export const hasStoreListing = (listing: Listing, platform: Platform): boolean =>
-  listingStoreOf(platform) === 'app_store' ? listing.appStore !== undefined : listing.googlePlay !== undefined;
+  listingStoreOf(platform) === 'app_store'
+    ? listing.appStore !== undefined
+    : listing.googlePlay !== undefined;
 
 // ---------------------------------------------------------------------------------------------
 // The three-way view
@@ -141,7 +157,8 @@ export const emptySide = (): DriftSide => ({
   value: null,
   observedAt: null,
   sourceRef: null,
-  source: null });
+  source: null,
+});
 
 export type SideProblem = Pick<
   ListingProblem,
@@ -200,7 +217,8 @@ export function sideProblems(
       message: p.message,
       ...(p.limit !== undefined ? { limit: p.limit } : {}),
       ...(p.actual !== undefined ? { actual: p.actual } : {}),
-      ...(p.unit !== undefined ? { unit: p.unit } : {}) });
+      ...(p.unit !== undefined ? { unit: p.unit } : {}),
+    });
     found.set(key, list);
   }
   return found;
@@ -247,7 +265,8 @@ export function summarize(locales: readonly DriftLocale[]): DriftSummary {
     'repo-ahead': 0,
     'store-ahead': 0,
     diverged: 0,
-    'missing-in-one': 0 };
+    'missing-in-one': 0,
+  };
   for (const l of locales) for (const f of l.fields) summary[f.status]++;
   return summary;
 }

@@ -1,7 +1,7 @@
 import type { Platform } from '@mrm/core';
-import { canDispatchWorkflow } from './ci.ts';
 import { isFailedRun, runAppIds } from '../running.ts';
 import type { CiWorkflow, WorkflowRun } from '../types.ts';
+import { canDispatchWorkflow } from './ci.ts';
 
 /**
  * Pure helpers for the Workflows pages (an app's and the workspace's): which workflows look like

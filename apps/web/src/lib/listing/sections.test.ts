@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { ListingSchedule, SectionDrift } from '../types.ts';
 import {
   ageRatingLabel,
   ageRatingRows,
@@ -25,7 +26,6 @@ import {
   timeAhead,
   valueRows,
 } from './sections.ts';
-import type { ListingSchedule, SectionDrift } from '../types.ts';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

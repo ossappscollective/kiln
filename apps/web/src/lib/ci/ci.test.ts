@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { AppBuild, WorkflowInputSpec, WorkflowRun } from '../types.ts';
 import {
   buildLinkLabel,
   buildName,
@@ -22,7 +23,6 @@ import {
   sortRuns,
   workflowKey,
 } from './ci.ts';
-import type { AppBuild, WorkflowInputSpec, WorkflowRun } from '../types.ts';
 
 const run = (over: Partial<WorkflowRun> = {}): WorkflowRun => ({
   id: '1',

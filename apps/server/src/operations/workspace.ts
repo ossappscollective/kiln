@@ -1,4 +1,11 @@
-import { credentialKinds, invitableRoles, PLATFORMS, roles, translationModes, translationProviders } from '@mrm/core';
+import {
+  credentialKinds,
+  invitableRoles,
+  PLATFORMS,
+  roles,
+  translationModes,
+  translationProviders,
+} from '@mrm/core';
 import { z } from 'zod';
 import { eventTypes } from '../services/event-types.ts';
 import { createTokenBody } from '../services/tokens.ts';

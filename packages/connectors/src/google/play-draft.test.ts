@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '../errors.ts';
-import { PlayDraftConnector } from './play-draft.ts';
 import * as fx from '../store.fixtures.ts';
 import { FakePlayDraftApi, md5Of, sha256 } from '../store-draft.fixtures.ts';
 import {
@@ -11,6 +10,7 @@ import {
   DraftOutcomeUnknownError,
   type DraftSlot,
 } from '../store-draft-types.ts';
+import { PlayDraftConnector } from './play-draft.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.googleKeyPem();

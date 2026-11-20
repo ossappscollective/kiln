@@ -19,8 +19,8 @@ import {
   sniffImageFormat,
   validateAssets,
 } from '@mrm/core';
-import type { ManagedApp } from './apps.ts';
 import { type AssetHandle, isCommitSha, openAssets } from '../modules/listing/asset-repo.ts';
+import type { ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';
 import {

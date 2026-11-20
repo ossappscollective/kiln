@@ -1,6 +1,24 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { type AiFlag, aiLimits, type AiListingField, type AiListingProposal, APP_STORE_FIELD_SPECS, byFamily, countBytes, countCharacters, isStageableTextField, listingStoreOf, normalizeLocale, type Platform, PLAY_FIELD_SPECS, STAGEABLE_TEXT_FIELDS, type StoreFamily, storeFamilyOf } from '@mrm/core';
+import {
+  type AiFlag,
+  type AiListingField,
+  type AiListingProposal,
+  APP_STORE_FIELD_SPECS,
+  aiLimits,
+  byFamily,
+  countBytes,
+  countCharacters,
+  isStageableTextField,
+  listingStoreOf,
+  normalizeLocale,
+  PLAY_FIELD_SPECS,
+  type Platform,
+  STAGEABLE_TEXT_FIELDS,
+  type StoreFamily,
+  storeFamilyOf,
+} from '@mrm/core';
 import { listKeywords } from '../modules/aso/service.ts';
+import { normalizeListingValue } from '../modules/listing/drift.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
 import {
@@ -12,7 +30,6 @@ import {
   type PreparedRun,
   type ReadyTask,
 } from './ai-task-types.ts';
-import { normalizeListingValue } from '../modules/listing/drift.ts';
 
 /**
  * Task `listing_improve` (version 1): rewrites the text of chosen listing fields of one language within the store's limits.
@@ -206,9 +223,10 @@ export const listingImproveTask: ReadyTask = {
         { field: 'locale' },
       );
     }
-    const specs = (
-      byFamily(ctx.app.platform, { apple: APP_STORE_FIELD_SPECS, google: PLAY_FIELD_SPECS })
-    ) as Record<
+    const specs = byFamily(ctx.app.platform, {
+      apple: APP_STORE_FIELD_SPECS,
+      google: PLAY_FIELD_SPECS,
+    }) as Record<
       string,
       { label: string; maxLength?: number; unit: 'characters' | 'bytes' } | undefined
     >;

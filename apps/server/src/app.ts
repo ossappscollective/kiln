@@ -9,14 +9,20 @@ import { type BearerOptions, requireAuth } from './bearer.ts';
 import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { type McpDeps, mountMcp } from './mcp/routes.ts';
+import { alertsModule } from './modules/alerts/index.ts';
 import { type AnalyticsDeps, analyticsModule } from './modules/analytics/index.ts';
+import { analyticsImportPath } from './modules/analytics/routes.ts';
 import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
+import { type BuildsDeps, buildsModule } from './modules/builds/index.ts';
+import { ciModule } from './modules/ci/index.ts';
+import { type CiContext, createCiContext } from './modules/ci/service.ts';
+import { type ListingDeps, listingModule } from './modules/listing/index.ts';
 import type { ModuleShared } from './modules/module.ts';
 import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
+import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';
+import { buildOpenApiDocument } from './operations/openapi.ts';
+import { operations } from './operations/registry.ts';
 import { aiRoutes } from './routes/ai.ts';
-import { type ListingDeps, listingModule } from './modules/listing/index.ts';
-import { alertsModule } from './modules/alerts/index.ts';
-import { analyticsImportPath } from './modules/analytics/routes.ts';
 import { appRoutes } from './routes/apps.ts';
 import { authRoutes, meRoute, requireUser } from './routes/auth.ts';
 import { changeSetFixupRoutes } from './routes/change-set-fixup.ts';
@@ -47,15 +53,11 @@ import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
 import type { AiContext } from './services/ai-config.ts';
 import { createConcurrencyGate } from './services/ai-usage.ts';
-import { operations } from './operations/registry.ts';
 import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
   type StoreConnectorFactory,
 } from './services/apps.ts';
-import { type BuildsDeps, buildsModule } from './modules/builds/index.ts';
-import { ciModule } from './modules/ci/index.ts';
-import { type CiContext, createCiContext } from './modules/ci/service.ts';
 import {
   type CloneUpkeep,
   createCloneUpkeep,
@@ -64,10 +66,8 @@ import {
 } from './services/clone-upkeep.ts';
 import { createTestLimiter, type TestLimiter } from './services/credential-tests.ts';
 import type { LocalWriteConfig } from './services/local-reads.ts';
-import { buildOpenApiDocument } from './operations/openapi.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
-import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';
 import { enableStepUpAutoApprove } from './services/step-up.ts';
 import type { TranslationContext } from './services/translation.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
@@ -181,7 +181,9 @@ export type AppDeps = {
    * addresses, and http to localhost); `resolve` and `send` are for tests. The delivery job itself
    * is registered in index.ts with the same options.
    */
-  webhooks?: Pick<WebhookRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'limiter'> | undefined;
+  webhooks?:
+    | Pick<WebhookRoutesContext, 'allowPrivate' | 'resolve' | 'send' | 'limiter'>
+    | undefined;
   /**
    * CI runs and build linking (docs/api/ci.md). Uses `connectorFactory` and `repositoryTimeoutMs`.
    * `limiter` is the per workspace limit of dispatches (default 10 per minute), `matchers` the
@@ -461,7 +463,12 @@ export function createApp(deps: AppDeps) {
   listingModule.mount(
     app,
     services,
-    { listing: deps.listing, assets: deps.assets, assetSync: deps.assetSync, draft: deps.storeDraft },
+    {
+      listing: deps.listing,
+      assets: deps.assets,
+      assetSync: deps.assetSync,
+      draft: deps.storeDraft,
+    },
     shared,
   );
   ciModule.mount(app, services, undefined, shared);

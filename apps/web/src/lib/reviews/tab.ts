@@ -1,10 +1,10 @@
+import { MAX_RATING, type ReviewFilters, type UnansweredSummary } from './reviews.ts';
 import {
   chunkIds,
   needsTranslation,
   type ReviewTranslation,
   type Translatable,
 } from './translation.ts';
-import { MAX_RATING, type ReviewFilters, type UnansweredSummary } from './reviews.ts';
 
 /**
  * Small pure helpers of the per-app Reviews tab (docs/ux-ia.md, design R6): the low-rating quick filter and

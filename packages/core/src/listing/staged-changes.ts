@@ -1,10 +1,18 @@
-import { byFamily, isDesktop, listingStoreOf, type Platform, type StoreId, supports } from '../platform.ts';
+import {
+  byFamily,
+  isDesktop,
+  listingStoreOf,
+  type Platform,
+  type StoreId,
+  supports,
+} from '../platform.ts';
 import type { ReleaseFieldId, StagedReleaseFieldView } from '../release/release-fields.ts';
 import {
   type AssetKind,
   type AssetStore,
   deviceFitsPlatform,
-  PLAY_DEVICES } from './store-asset-specs.ts';
+  PLAY_DEVICES,
+} from './store-asset-specs.ts';
 
 /**
  * Staged store changes (docs/api/staged-changes.md, docs/adr/0009-staged-store-drafts.md): the
@@ -47,7 +55,8 @@ export const STAGED_LIMITS = {
   maxAssetFilesPerPush: 100,
   maxAssetBytesPerPush: 64 * 1024 * 1024,
   /** One uploaded file. The stores state no maximum for screenshots; this is this server's own cap. */
-  maxAssetFileBytes: 8 * 1024 * 1024 } as const;
+  maxAssetFileBytes: 8 * 1024 * 1024,
+} as const;
 
 /** Formats a push uploads. Everything else (webp, gif, video, an unread file) is refused at staging. */
 export const PUSHABLE_IMAGE_FORMATS: readonly string[] = ['png', 'jpeg'];
@@ -83,7 +92,8 @@ export const STAGEABLE_TEXT_FIELDS: Readonly<Record<Platform, readonly string[]>
     'marketing_url',
     'support_url',
   ],
-  android: ['title', 'short_description', 'full_description', 'video'] };
+  android: ['title', 'short_description', 'full_description', 'video'],
+};
 
 /** Apple attribute of an `appStoreVersionLocalizations` resource for a listing field (names as the read connector uses). */
 export const APPLE_VERSION_LOCALIZATION_ATTRIBUTES: Readonly<Record<string, string>> = {
@@ -92,14 +102,16 @@ export const APPLE_VERSION_LOCALIZATION_ATTRIBUTES: Readonly<Record<string, stri
   promotional_text: 'promotionalText',
   release_notes: 'whatsNew',
   marketing_url: 'marketingUrl',
-  support_url: 'supportUrl' };
+  support_url: 'supportUrl',
+};
 
 /** Google `Listing` member for a listing field. */
 export const PLAY_LISTING_MEMBERS: Readonly<Record<string, string>> = {
   title: 'title',
   short_description: 'shortDescription',
   full_description: 'fullDescription',
-  video: 'video' };
+  video: 'video',
+};
 
 export const isStageableTextField = (platform: Platform, field: string): boolean =>
   STAGEABLE_TEXT_FIELDS[platform].indexOf(field) !== -1;
@@ -143,7 +155,8 @@ export const APPLE_DISPLAY_TYPES: Readonly<Record<string, string>> = {
   ipad_10_5: 'APP_IPAD_105',
   ipad_9_7: 'APP_IPAD_97',
   mac: 'APP_DESKTOP',
-  apple_tv: 'APP_APPLE_TV' };
+  apple_tv: 'APP_APPLE_TV',
+};
 
 /** The size Apple files under the 6.7 inch display type; the rest of `iphone_6_9` under 6.9 inch (UNVERIFIED). */
 const IPHONE_67_SIZES: readonly (readonly number[])[] = [
@@ -196,7 +209,8 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
             ? 'App previews (video) are not pushed: this server uploads images only.'
             : slot.kind === 'app_icon'
               ? 'The App Store icon is part of the app build; the App Store Connect API has no icon upload.'
-              : 'This kind of graphic does not exist on the App Store.' };
+              : 'This kind of graphic does not exist on the App Store.',
+      };
     }
     if (
       slot.device === null ||
@@ -204,15 +218,16 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
     ) {
       return {
         ok: false,
-        reason: 'This display size has no known App Store Connect screenshot display type.' };
+        reason: 'This display size has no known App Store Connect screenshot display type.',
+      };
     }
     if (!deviceFitsPlatform(platform, slot.device)) {
       return {
         ok: false,
-        reason:
-          isDesktop(platform)
-            ? 'A macOS version takes Mac screenshots only (the Mac display).'
-            : 'The Mac display belongs to the macOS version of the app, not the iOS one.' };
+        reason: isDesktop(platform)
+          ? 'A macOS version takes Mac screenshots only (the Mac display).'
+          : 'The Mac display belongs to the macOS version of the app, not the iOS one.',
+      };
     }
     return { ok: true };
   }
@@ -220,7 +235,8 @@ export function assetSlotSupport(platform: Platform, slot: AssetSlot): SlotSuppo
     return {
       ok: false,
       reason:
-        'Google Play has no image type for the promo graphic in the Developer API (AppImageType).' };
+        'Google Play has no image type for the promo graphic in the Developer API (AppImageType).',
+    };
   }
   if (slot.kind === 'preview' || slot.kind === 'app_icon') {
     return { ok: false, reason: 'This kind of graphic is not a Google Play listing image.' };
@@ -236,8 +252,7 @@ export function slotMaxFiles(platform: Platform, slot: AssetSlot): number {
   return 1;
 }
 
-export const assetStoreOf = (platform: Platform): AssetStore =>
-  listingStoreOf(platform);
+export const assetStoreOf = (platform: Platform): AssetStore => listingStoreOf(platform);
 
 // ---------------------------------------------------------------------------------------------
 // What the API shows

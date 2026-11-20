@@ -1,4 +1,5 @@
 import type { Platform, ReleaseState } from '@mrm/core';
+import { isDesktop, platformMeta, supports } from '@mrm/core';
 import { runBadge } from './ci/ci.ts';
 import {
   type BadgeTone,
@@ -9,7 +10,6 @@ import {
   trackLabel,
 } from './portfolio.ts';
 import type { AppBuild, PlanSummary, ReleaseSummary } from './types.ts';
-import { isDesktop, platformMeta, supports } from '@mrm/core';
 
 /**
  * The compact releases table of an app as pure functions: the releases the store reports for the
@@ -238,7 +238,11 @@ export type VersionGroup = {
 export function buildText(
   release: Pick<ReleaseSummary, 'platform' | 'build' | 'versionCodes'>,
 ): string {
-  if (supports(release.platform, 'releaseTracks') && release.versionCodes && release.versionCodes.length > 0)
+  if (
+    supports(release.platform, 'releaseTracks') &&
+    release.versionCodes &&
+    release.versionCodes.length > 0
+  )
     return release.versionCodes.join(', ');
   return release.build ?? '—';
 }

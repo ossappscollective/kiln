@@ -1,6 +1,4 @@
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 import {
   isPlayTrackName,
   isVersionCode,
@@ -27,6 +25,8 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 
 /**
  * Google Play: change the staged rollout of a release on a track. A STORE WRITE: it changes what

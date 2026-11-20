@@ -4,11 +4,12 @@
  * (open the run that failed or is going, or start the release workflow). Also the order of the run list: the workflows that are failing
  * come first. Pure; the component only draws.
  */
-import { isPending, runBadge } from './ci.ts';
+
 import { timeAgo } from '../format.ts';
 import type { LeadTone } from '../page-lead.ts';
 import { isFailedRun } from '../running.ts';
 import type { WorkflowRun } from '../types.ts';
+import { isPending, runBadge } from './ci.ts';
 import { runBlockedReason, type WorkflowRow } from './workflows.ts';
 
 export type WorkflowsPrimary =

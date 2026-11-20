@@ -3,6 +3,14 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
+import { detectedSources } from '../modules/listing/sources.ts';
+import {
+  createListingTarget,
+  deleteListingTarget,
+  type ListingSelection,
+  listListingTargets,
+  updateListingTarget,
+} from '../modules/listing/targets.ts';
 import { memberRole } from '../services/accounts.ts';
 import { applyChangeSetLocally, publishLocalCommit } from '../services/change-set-local.ts';
 import { changeSetStaleness, refreshChangeSet } from '../services/change-set-refresh.ts';
@@ -15,14 +23,6 @@ import {
   listChangeSets,
 } from '../services/change-sets.ts';
 import type { CloneUpkeep } from '../services/clone-upkeep.ts';
-import { detectedSources } from '../modules/listing/sources.ts';
-import {
-  createListingTarget,
-  deleteListingTarget,
-  type ListingSelection,
-  listListingTargets,
-  updateListingTarget,
-} from '../modules/listing/targets.ts';
 import {
   attachLocalCheckout,
   checkLocalPath,

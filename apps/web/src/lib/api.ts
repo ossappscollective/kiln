@@ -64,6 +64,13 @@ import type {
   AsoSuggestionsResponse,
   AsoSummary,
 } from './aso/aso.ts';
+import type { RankVsDownloadsResponse } from './aso/rank-downloads.ts';
+import type {
+  SearchTermsImportResult,
+  SearchTermsPreview,
+  SearchTermsQuery,
+  SearchTermsResponse,
+} from './aso/search-terms.ts';
 import type {
   InspectedFile,
   PullReport,
@@ -93,14 +100,12 @@ import type {
   StepRequest,
 } from './pending.ts';
 import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
-import type { RankVsDownloadsResponse } from './aso/rank-downloads.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
 import type { TranslateNotesBody, TranslateNotesResult } from './release-notes-translate.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 import type { ReleaseSettingsView } from './release-settings.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './reviews/reply.ts';
-import type { TranslateReviewsResult } from './reviews/translation.ts';
 import type {
   InboxPage,
   Review,
@@ -110,12 +115,7 @@ import type {
   TriageBody,
   WorkspaceReviewsSummary,
 } from './reviews/reviews.ts';
-import type {
-  SearchTermsImportResult,
-  SearchTermsPreview,
-  SearchTermsQuery,
-  SearchTermsResponse,
-} from './aso/search-terms.ts';
+import type { TranslateReviewsResult } from './reviews/translation.ts';
 import type {
   SettingsResponse,
   SettingsUpdateResponse,
@@ -517,9 +517,7 @@ export function createApi(options: ApiOptions = {}) {
       response = await send(path, {
         method,
         ...(headers ? { headers } : {}),
-        ...(raw !== undefined || body !== undefined
-          ? { body: raw ?? JSON.stringify(body) }
-          : {}),
+        ...(raw !== undefined || body !== undefined ? { body: raw ?? JSON.stringify(body) } : {}),
       });
     } catch {
       throw new ApiError(0, 'network', 'Cannot reach the server. Check that it is running.');

@@ -1,3 +1,4 @@
+import type { EventType } from '../../services/event-types.ts';
 import {
   type AlertData,
   type AlertDef,
@@ -6,7 +7,6 @@ import {
   releaseDefs,
 } from './catalog-core.ts';
 import { moreDefs } from './catalog-more.ts';
-import type { EventType } from '../../services/event-types.ts';
 
 /**
  * The alert catalog (docs/alerts.md, docs/adr/0022-alerts.md): every condition somebody can be told about, as data. Pure: no

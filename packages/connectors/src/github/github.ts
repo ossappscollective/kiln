@@ -1,6 +1,12 @@
 import { createHash, createPrivateKey, type KeyObject, sign } from 'node:crypto';
 import { type ChangeSet, checkSecret, type FileChange } from '@mrm/core';
-import type { BlobEntry, BlobHeadItem, BlobHeads, BlobHeadsOptions, BlobListing } from '../blobs.ts';
+import type {
+  BlobEntry,
+  BlobHeadItem,
+  BlobHeads,
+  BlobHeadsOptions,
+  BlobListing,
+} from '../blobs.ts';
 import {
   BranchExistsError,
   BranchMissingError,
@@ -1227,7 +1233,10 @@ export class GithubRepoConnector implements RepoConnector {
    * with no runs. Without an `etag` it is a plain read, and the answer's `etag` is kept for next time.
    */
   async listCiRunsPage(
-    options: ListWorkflowRunsOptions & { signal?: AbortSignal | undefined; etag?: string | undefined } = {},
+    options: ListWorkflowRunsOptions & {
+      signal?: AbortSignal | undefined;
+      etag?: string | undefined;
+    } = {},
   ): Promise<CiRunPage> {
     const path = options.workflow
       ? this.#repoPath(`/actions/workflows/${enc(options.workflow)}/runs`)

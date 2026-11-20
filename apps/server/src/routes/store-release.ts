@@ -182,11 +182,7 @@ export function storeReleaseRoutes(ctx: ReleaseRoutesContext) {
     if (!app) return c.json({ error: 'not_found' }, 404);
     const issues: { path: string; message: string }[] = [];
     const platform = c.req.query('platform');
-    if (
-      platform !== undefined &&
-      platform !== '' &&
-      !isPlatform(platform)
-    ) {
+    if (platform !== undefined && platform !== '' && !isPlatform(platform)) {
       issues.push({ path: 'platform', message: 'Use ios, macos or android.' });
     }
     const locale = c.req.query('locale');

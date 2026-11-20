@@ -1,7 +1,14 @@
 import { z } from 'zod';
-import { stepUpAssertionOptionsBody, stepUpPasswordBody, stepUpPolicyBody, stepUpRecoveryBody, stepUpRegisterVerifyBody, stepUpVerifyBody } from '../routes/step-up.ts';
-import type { Operation } from './openapi.ts';
+import {
+  stepUpAssertionOptionsBody,
+  stepUpPasswordBody,
+  stepUpPolicyBody,
+  stepUpRecoveryBody,
+  stepUpRegisterVerifyBody,
+  stepUpVerifyBody,
+} from '../routes/step-up.ts';
 import { stepUpActions } from '../services/step-up.ts';
+import type { Operation } from './openapi.ts';
 
 /**
  * Step-up confirmation (docs/api/step-up.md). Every operation is for a person in the app: none is open to an API token (a token cannot

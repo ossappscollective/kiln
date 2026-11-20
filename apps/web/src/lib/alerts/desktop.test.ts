@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { CatalogEntry, InboxAlert } from './alerts.ts';
 import {
   DESKTOP_KINDS,
   DEVICE_KEY,
@@ -13,7 +14,6 @@ import {
   remember,
   writeDeviceChoice,
 } from './desktop.ts';
-import type { CatalogEntry, InboxAlert } from './alerts.ts';
 
 const NOW = 1_800_000_000_000;
 

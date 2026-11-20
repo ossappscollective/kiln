@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AssetProblem, AssetSet } from '@mrm/core';
+import type { AssetItem } from '../types.ts';
 import {
   ALL,
   assetFileUrl,
@@ -27,7 +28,6 @@ import {
   summaryText,
   worstSeverity,
 } from './assets.ts';
-import type { AssetItem } from '../types.ts';
 
 const item = (over: Partial<AssetItem> & { path: string }): AssetItem => ({
   locale: 'en-US',

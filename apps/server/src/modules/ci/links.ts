@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState, supports } from '@mrm/core';
+import { PLATFORMS, type Platform, RELEASE_STATES, type ReleaseState, supports } from '@mrm/core';
 import { oneOf, type Row, type Sql } from '@mrm/db';
 import { type AppRelease, listAppReleases, type ManagedApp } from '../../services/apps.ts';
-import type { Confidence, LinkEvidence } from './tags.ts';
 import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './runs.ts';
+import type { Confidence, LinkEvidence } from './tags.ts';
 
 /**
  * Links the builds a store reports to the CI run (and so the commit) that made them, through the
@@ -91,7 +91,8 @@ export const dispatchInputMatcher: BuildMatcher = {
       }
     }
     return undefined;
-  } };
+  },
+};
 
 const NOT_A_VERSION = '(?!\\.\\d)';
 const AFTER_PLATFORM = '(?<!\\b(?:ios|macos|osx|android)[\\s_-]*)';
@@ -103,35 +104,40 @@ const TITLE_PATTERNS: { platform: Platform | 'any'; label: string; re: RegExp }[
     re: new RegExp(
       `${AFTER_PLATFORM}\\bbuild[\\s_-]?(?:number|no\\.?)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
       'gi',
-    ) },
+    ),
+  },
   {
     platform: 'ios',
     label: 'ios build N',
     re: new RegExp(
       `\\bios[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
       'gi',
-    ) },
+    ),
+  },
   {
     platform: 'macos',
     label: 'macos build N',
     re: new RegExp(
       `\\b(?:macos|osx)[\\s_-]*build(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
       'gi',
-    ) },
+    ),
+  },
   {
     platform: 'android',
     label: 'android build N / version code N',
     re: new RegExp(
       `\\bandroid[\\s_-]*(?:build|version[\\s_-]*code)(?:[\\s_-]*number)?\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
       'gi',
-    ) },
+    ),
+  },
   {
     platform: 'android',
     label: 'version code N',
     re: new RegExp(
       `${AFTER_PLATFORM}\\bversion[\\s_-]*code\\s*[:=#]?\\s*(\\d{1,10})\\b${NOT_A_VERSION}`,
       'gi',
-    ) },
+    ),
+  },
   { platform: 'any', label: 'x.y.z (N)', re: /\b\d+\.\d+(?:\.\d+)*\s*\((\d{1,10})\)/g },
   { platform: 'any', label: 'x.y.z+N', re: /\b\d+\.\d+\.\d+\+(\d{1,10})\b/g },
 ];
@@ -159,7 +165,8 @@ export const runTitleMatcher: BuildMatcher = {
       }
     }
     return undefined;
-  } };
+  },
+};
 
 /**
  * Opt-in: the build number is the workflow's run number plus an offset, as with fastlane's
@@ -182,7 +189,8 @@ export function runNumberMatcher(options: {
       return String(run.runNumber + offset) === build.buildNumber
         ? `run number ${run.runNumber}${offset ? ` + ${offset}` : ''}`
         : undefined;
-    } };
+    },
+  };
 }
 
 export const defaultMatchers = (): BuildMatcher[] => [dispatchInputMatcher, runTitleMatcher];
@@ -229,7 +237,8 @@ export function matchBuilds(
         run: first.run,
         matcher: matcher.id,
         reason: first.reason,
-        candidates: hits.length });
+        candidates: hits.length,
+      });
       break;
     }
   }
@@ -287,7 +296,8 @@ export function buildsFromReleases(releases: readonly AppRelease[]): StoredBuild
           status: release.status,
           rawState: release.rawState,
           uploadedAt: release.storeUpdatedAt,
-          syncedAt: release.syncedAt });
+          syncedAt: release.syncedAt,
+        });
         continue;
       }
       if (release.track && !known.tracks.includes(release.track)) known.tracks.push(release.track);
@@ -355,7 +365,8 @@ const toLink = (r: Row): StoredLink => ({
   reason: String(r.reason ?? ''),
   linkedBy: r.linked_by === null || r.linked_by === undefined ? null : String(r.linked_by),
   linkedAt: Number(r.linked_at),
-  evidence: parseEvidence(r.evidence_json) });
+  evidence: parseEvidence(r.evidence_json),
+});
 
 const LINK_COLUMNS = `id, app_id, platform, build_number, repository_id, run_id, head_sha, run_url,
   workflow, source, reason, linked_by, linked_at, evidence_json`;
@@ -505,11 +516,13 @@ export async function relinkApp(
         id: match.run.id,
         headSha: match.run.headSha,
         url: runUrlOf(runs, match.run.id),
-        workflow: match.run.workflow },
+        workflow: match.run.workflow,
+      },
       source: match.matcher,
       reason: match.reason,
       linkedBy: null,
-      now: input.now });
+      now: input.now,
+    });
     written++;
   }
   return written;
@@ -670,7 +683,8 @@ export function buildViews(input: {
             url: run.url,
             branch: run.branch,
             startedAt: run.startedAt,
-            updatedAt: run.updatedAt }
+            updatedAt: run.updatedAt,
+          }
         : fallbackUrl || fallbackWorkflow
           ? {
               id: runId,
@@ -682,14 +696,17 @@ export function buildViews(input: {
               url: fallbackUrl,
               branch: null,
               startedAt: linkedAt ?? 0,
-              updatedAt: linkedAt ?? 0 }
+              updatedAt: linkedAt ?? 0,
+            }
           : null,
       commit: {
         sha,
         shortSha: sha.slice(0, 7),
         message:
           (run && run.headSha === sha ? run.commitMessage : null) ?? evidence?.message ?? null,
-        url: repository ? commitUrl(url, repository.owner, repository.repo, sha) : null } };
+        url: repository ? commitUrl(url, repository.owner, repository.repo, sha) : null,
+      },
+    };
     return { ...build, linkState: tagOnly ? 'tag' : 'linked', link, diagnostic: null };
   });
 }

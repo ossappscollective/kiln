@@ -7,11 +7,11 @@ import {
   type StagedChangesView,
   slotKey,
 } from '@mrm/core';
-import { getApp } from './apps.ts';
 import { repoSetsOf } from '../modules/listing/asset-diff.ts';
 import { openAssets } from '../modules/listing/asset-repo.ts';
 import { layoutFor, planSet, type Wanted } from '../modules/listing/asset-repo-plan.ts';
 import { stepsToChanges } from '../modules/listing/asset-repo-write.ts';
+import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { type ChangeSetView, createFileChangeSet } from './change-sets.ts';
 import { type FixFailure, fixImage } from './image-fix.ts';

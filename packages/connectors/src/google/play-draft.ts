@@ -6,8 +6,6 @@ import {
   versionCodesOf,
 } from '@mrm/core';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 import { playCodeEligibility } from '../release-eligibility.ts';
 import {
   type CodeCandidate,
@@ -51,6 +49,8 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 
 /**
  * Google Play: write listing text and images into an EDIT and commit it WITHOUT sending it for

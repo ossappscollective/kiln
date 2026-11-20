@@ -1,15 +1,62 @@
 import { createHash } from 'node:crypto';
-import { AppleDraftConnector, appleScope, connectorFactory, type DraftApplyResult, type DraftAssetWrite, DraftDriftError, type DraftFieldState, type DraftFieldWrite, type DraftFile, draftKey, DraftOutcomeUnknownError, DraftPartialError, type DraftReadRequest, type DraftState, type DraftStep, type DraftTextWrite, type EditableRelease, isStoreImageReader, isStoreNotesHistoryReader, isStoreReleaseReader, type NotesHistoryRead, PlayDraftConnector, redactSecrets, type ReleaseCandidates, sameDraftState, secretStrings, setMatches, type StoreConnectorInput, type StoreDraftConnector, StoreError, type StoreImagesRead, StoreRateLimitError } from '@mrm/connectors';
-import { type AssetSlot, byFamily, isReleaseFieldId, LOCAL_ONLY_RELEASE_FIELDS, needsStoreAppId, type Platform, RELEASE_FIELD_SPECS, slotKey, sniffImageFormat, STAGED_LIMITS, storeFamilyOf, supports, versionCodesOf } from '@mrm/core';
+import {
+  AppleDraftConnector,
+  appleScope,
+  connectorFactory,
+  type DraftApplyResult,
+  type DraftAssetWrite,
+  DraftDriftError,
+  type DraftFieldState,
+  type DraftFieldWrite,
+  type DraftFile,
+  DraftOutcomeUnknownError,
+  DraftPartialError,
+  type DraftReadRequest,
+  type DraftState,
+  type DraftStep,
+  type DraftTextWrite,
+  draftKey,
+  type EditableRelease,
+  isStoreImageReader,
+  isStoreNotesHistoryReader,
+  isStoreReleaseReader,
+  type NotesHistoryRead,
+  PlayDraftConnector,
+  type ReleaseCandidates,
+  redactSecrets,
+  type StoreConnectorInput,
+  type StoreDraftConnector,
+  StoreError,
+  type StoreImagesRead,
+  StoreRateLimitError,
+  sameDraftState,
+  secretStrings,
+  setMatches,
+} from '@mrm/connectors';
+import {
+  type AssetSlot,
+  byFamily,
+  isReleaseFieldId,
+  LOCAL_ONLY_RELEASE_FIELDS,
+  needsStoreAppId,
+  type Platform,
+  RELEASE_FIELD_SPECS,
+  STAGED_LIMITS,
+  slotKey,
+  sniffImageFormat,
+  storeFamilyOf,
+  supports,
+  versionCodesOf,
+} from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
-import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { type AssetsContext, openAssets } from '../modules/listing/asset-repo.ts';
+import { normalizeListingValue } from '../modules/listing/drift.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
+import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
-import { normalizeListingValue } from '../modules/listing/drift.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from '../modules/reviews/sync.ts';
 import { getBlob } from './staged-asset-blobs.ts';
 import {
   assetSetsOf,
@@ -17,7 +64,8 @@ import {
   loadStagedRows,
   type StagedRow,
   stagedKey,
-  storeTargetOf } from './staged-changes.ts';
+  storeTargetOf,
+} from './staged-changes.ts';
 import { type ReleaseCheck, releaseFieldChecks } from './staged-release.ts';
 import { fileEntry, type PushedManifest, recordPush, textEntry } from './store-draft-record.ts';
 
@@ -68,7 +116,8 @@ const FIELDS_NOTE = {
   apple:
     'Release fields change the editable App Store version right away (the version string, release type, release date, copyright and build in one request; the phased release in its own). Releasing the approved version is a separate, gated step (docs/api/releases-write.md).',
   google:
-    'The draft release of the track is written in the same edit and held back with the rest. The intended rollout share is kept here only: Google Play cannot hold a share in a draft. Starting the release is a separate, gated step (docs/api/releases-write.md).' } as const;
+    'The draft release of the track is written in the same edit and held back with the rest. The intended rollout share is kept here only: Google Play cannot hold a share in a draft. Starting the release is a separate, gated step (docs/api/releases-write.md).',
+} as const;
 
 const DRAFT_NOTE =
   'This is a draft only. Nothing was submitted for review or published: do that in App Store Connect or Play Console.';
@@ -79,17 +128,21 @@ const DRAFT_NOTE =
 export type DraftConnectorInput = StoreConnectorInput;
 export type DraftConnectorFactory = (input: DraftConnectorInput) => StoreDraftConnector;
 
-export const defaultDraftConnectorFactory: DraftConnectorFactory = connectorFactory<StoreDraftConnector>({
-  app_store_connect: (input) =>
-    AppleDraftConnector.fromSecret(input.secret, {
-          appStoreId: input.storeAppId ?? '',
-          platform: appleScope(input),
-          fetch: input.fetch }),
-  google_play: (input) =>
-    new PlayDraftConnector({
-          serviceAccount: input.secret,
-          packageName: input.identifier,
-          fetch: input.fetch }) });
+export const defaultDraftConnectorFactory: DraftConnectorFactory =
+  connectorFactory<StoreDraftConnector>({
+    app_store_connect: (input) =>
+      AppleDraftConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        platform: appleScope(input),
+        fetch: input.fetch,
+      }),
+    google_play: (input) =>
+      new PlayDraftConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      }),
+  });
 
 export type DraftContext = {
   db: Database;
@@ -119,7 +172,8 @@ const disabled = (): Failure =>
     'store_draft_disabled',
     `Writing drafts to the stores is switched off on this server. Set ${DRAFT_ENV}=true to turn it on (see docs/deployment.md).`,
     {
-      envName: DRAFT_ENV },
+      envName: DRAFT_ENV,
+    },
   );
 /** The `409 store_draft_disabled` answer, for routes that check the kill switch before anything else. */
 export const draftDisabledFailure = disabled;
@@ -141,7 +195,9 @@ export function mapStoreError(error: unknown, secret: string): Mapped {
     code,
     failure: {
       ...failure(status, code, clean(message, secret), extra),
-      ...(headers ? { headers } : {}) } });
+      ...(headers ? { headers } : {}),
+    },
+  });
   if (error instanceof StoreRateLimitError) {
     const wait = error.retryAfterSeconds;
     return make(
@@ -203,7 +259,8 @@ async function withConnector<T>(
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -346,7 +403,10 @@ export async function connect(
         secret,
         identifier: app.identifier,
         storeAppId: app.storeAppId,
-        platform: app.platform } } };
+        platform: app.platform,
+      },
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -406,7 +466,10 @@ export async function readReleaseCandidatesOf(
   },
 ): Promise<{ ok: true; read: ReleaseCandidates } | Failure> {
   const { app } = input;
-  if (supports(app.platform, 'releaseTracks') && (input.track === undefined || input.track === '')) {
+  if (
+    supports(app.platform, 'releaseTracks') &&
+    (input.track === undefined || input.track === '')
+  ) {
     return failure(422, 'track_required', 'Name the track (for example production).');
   }
   const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
@@ -422,7 +485,8 @@ export async function readReleaseCandidatesOf(
         );
       return connector.listReleaseCandidates({
         ...(input.version !== undefined ? { version: input.version } : {}),
-        ...(input.track !== undefined ? { track: input.track } : {}) });
+        ...(input.track !== undefined ? { track: input.track } : {}),
+      });
     });
     return { ok: true, read };
   } catch (error) {
@@ -469,7 +533,10 @@ export async function readEditableReleaseOf(
   input: { workspaceId: string; app: ManagedApp; actor: Actor; track?: string | undefined },
 ): Promise<{ ok: true; read: EditableRelease } | Failure> {
   const { app } = input;
-  if (supports(app.platform, 'releaseTracks') && (input.track === undefined || input.track === '')) {
+  if (
+    supports(app.platform, 'releaseTracks') &&
+    (input.track === undefined || input.track === '')
+  ) {
     return failure(422, 'track_required', 'Name the track (for example production).');
   }
   const connected = await connect(ctx, input.workspaceId, app, input.actor, RELEASE_READ_PURPOSE);
@@ -562,7 +629,8 @@ async function prepare(
           .map((p) => ({
             item: `${r.field}${r.locale ? `/${r.locale}` : ''}`,
             code: p.code,
-            message: p.message })),
+            message: p.message,
+          })),
       ),
     ];
     return failure(
@@ -591,7 +659,8 @@ async function prepare(
     const first = set.rows[0] as StagedRow;
     const target = storeTargetOf(app.platform, set.slot, {
       width: first.assetWidth,
-      height: first.assetHeight });
+      height: first.assetHeight,
+    });
     if (target === undefined)
       return failure(422, 'staged_invalid', 'A staged set has no store name.', { item: set.key });
     sets.push({
@@ -600,7 +669,8 @@ async function prepare(
       key: slotKey(set.slot),
       target,
       rows: set.rows,
-      files: [] });
+      files: [],
+    });
     for (const r of set.rows) {
       count++;
       total += r.assetBytes ?? 0;
@@ -609,7 +679,8 @@ async function prepare(
   if (count > STAGED_LIMITS.maxAssetFilesPerPush || total > STAGED_LIMITS.maxAssetBytesPerPush) {
     return failure(422, 'staged_invalid', 'The staged files are more than one push can upload.', {
       limit: STAGED_LIMITS.maxAssetFilesPerPush,
-      actual: count });
+      actual: count,
+    });
   }
   // One read of the index per commit the files were staged at.
   const byCommit = new Map<string, PreparedSet[]>();
@@ -641,7 +712,8 @@ async function prepare(
         read > STAGED_LIMITS.maxAssetBytesPerPush
       ) {
         return failure(422, 'staged_invalid', `${name} is larger than a push uploads.`, {
-          item: set.key });
+          item: set.key,
+        });
       }
       const format = sniffImageFormat(blob.bytes);
       if (format !== 'png' && format !== 'jpeg')
@@ -651,7 +723,8 @@ async function prepare(
         mime: format === 'png' ? 'image/png' : 'image/jpeg',
         bytes: blob.bytes,
         md5: md5Hex(blob.bytes),
-        sha256: sha256Bytes(blob.bytes) };
+        sha256: sha256Bytes(blob.bytes),
+      };
     }
   }
   for (const [commit, group] of byCommit) {
@@ -695,7 +768,8 @@ async function prepare(
           read > STAGED_LIMITS.maxAssetBytesPerPush
         ) {
           return failure(422, 'staged_invalid', `${name} is larger than a push uploads.`, {
-            item: set.key });
+            item: set.key,
+          });
         }
         if (file.oid !== r.valueHash)
           return failure(
@@ -712,7 +786,8 @@ async function prepare(
           mime: format === 'png' ? 'image/png' : 'image/jpeg',
           bytes: file.bytes,
           md5: md5Hex(file.bytes),
-          sha256: sha256Bytes(file.bytes) };
+          sha256: sha256Bytes(file.bytes),
+        };
       }
     }
   }
@@ -727,8 +802,10 @@ const requestOf = (p: Prepared): DraftReadRequest => ({
     kind: s.slot.kind,
     device: s.slot.device,
     target: s.target,
-    ...sizeOf(s) })),
-  ...(p.fields.length > 0 ? { fields: p.fields } : {}) });
+    ...sizeOf(s),
+  })),
+  ...(p.fields.length > 0 ? { fields: p.fields } : {}),
+});
 
 const writesOf = (
   p: Prepared,
@@ -740,13 +817,16 @@ const writesOf = (
     device: s.slot.device,
     target: s.target,
     ...sizeOf(s),
-    files: s.files })),
-  ...(p.fields.length > 0 ? { fields: p.fields } : {}) });
+    files: s.files,
+  })),
+  ...(p.fields.length > 0 ? { fields: p.fields } : {}),
+});
 
 /** The pixel size of the first file of a set: the App Store connector finds the asset library placement group from it. */
 const sizeOf = (s: PreparedSet): { width: number | null; height: number | null } => ({
   width: s.rows[0]?.assetWidth ?? null,
-  height: s.rows[0]?.assetHeight ?? null });
+  height: s.rows[0]?.assetHeight ?? null,
+});
 
 /** The record of what a push wrote (hashes and ids only), for the submit step (docs/adr/0010-store-submit.md). */
 /** Google Play: the draft release this push wrote, when it named the track and the version codes. */
@@ -769,7 +849,9 @@ export const manifestOfPrepared = (p: Prepared): PushedManifest => ({
     device: s.slot.device,
     target: s.target,
     ...sizeOf(s),
-    files: s.files.map(fileEntry) })) });
+    files: s.files.map(fileEntry),
+  })),
+});
 
 // ---------------------------------------------------------------------------------------------
 // The confirmation hash
@@ -790,7 +872,8 @@ export function draftConfirmHash(input: {
     appId: input.app.id,
     platform: input.app.platform,
     staged: stagedKey(input.rows),
-    current: draftKey(input.current) });
+    current: draftKey(input.current),
+  });
   return createHash('sha256').update(body, 'utf8').digest('hex');
 }
 
@@ -811,8 +894,10 @@ export const draftConfig = (ctx: Pick<DraftContext, 'draftEnabled'>): DraftConfi
   submit: {
     implemented: true,
     configRoute: '/store-submit/config',
-    note: 'A push never submits. Submitting the draft for review is a separate, gated step with its own switch, right and confirmation (docs/api/submit.md).' },
-  limits: STAGED_LIMITS });
+    note: 'A push never submits. Submitting the draft for review is a separate, gated step with its own switch, right and confirmation (docs/api/submit.md).',
+  },
+  limits: STAGED_LIMITS,
+});
 
 // ---------------------------------------------------------------------------------------------
 // Preview
@@ -908,7 +993,8 @@ const checksOf = (p: Prepared, platform: Platform, state: DraftState): DraftPrev
   return {
     blocking,
     warnings: all.filter((c) => c.severity === 'warning'),
-    canPush: blocking.length === 0 };
+    canPush: blocking.length === 0,
+  };
 };
 
 const itemMatches = (state: DraftState, p: Prepared) => ({
@@ -931,7 +1017,8 @@ const itemMatches = (state: DraftState, p: Prepared) => ({
       setMatches(found.images, s.files) &&
       (found.images.length > 0 || s.files.length === 0)
     );
-  }) });
+  }),
+});
 
 function previewOf(
   ctx: DraftContext,
@@ -953,7 +1040,8 @@ function previewOf(
       before: found?.value ?? null,
       after: t.value,
       localeExists: found?.localeExists ?? false,
-      status: found && !found.localeExists ? 'new_locale' : match.text[i] ? 'unchanged' : 'changed' };
+      status: found && !found.localeExists ? 'new_locale' : match.text[i] ? 'unchanged' : 'changed',
+    };
   });
   const assets: PreviewAssetSet[] = p.sets.map((s, i) => {
     const found = state.assets.find((a) => a.locale === s.locale && a.target === s.target);
@@ -971,7 +1059,9 @@ function previewOf(
           id: im.id,
           name: im.name,
           checksum: im.checksum,
-          state: im.state })) },
+          state: im.state,
+        })),
+      },
       after: {
         files: s.rows.map((r, n) => ({
           path: r.assetPath ?? '',
@@ -980,10 +1070,13 @@ function previewOf(
           bytes: s.files[n]?.bytes.length ?? r.assetBytes ?? 0,
           width: r.assetWidth,
           height: r.assetHeight,
-          format: r.assetFormat })) },
+          format: r.assetFormat,
+        })),
+      },
       status: unchanged ? 'unchanged' : 'changed',
       willUpload: unchanged ? 0 : s.files.length,
-      willRemove: unchanged ? 0 : (found?.images.length ?? 0) };
+      willRemove: unchanged ? 0 : (found?.images.length ?? 0),
+    };
   });
   const release: PreviewReleaseField[] = p.rows
     .filter((r) => r.kind === 'release_field' && isReleaseFieldId(r.target))
@@ -1005,7 +1098,8 @@ function previewOf(
           : index !== -1 && match.fields[index]
             ? ('unchanged' as const)
             : ('changed' as const),
-        localOnly: local };
+        localOnly: local,
+      };
     });
   const summary = {
     fieldsChanged: release.filter((f) => f.status === 'changed').length,
@@ -1016,7 +1110,8 @@ function previewOf(
     assetSetsUnchanged: assets.filter((a) => a.status === 'unchanged').length,
     filesToUpload: assets.reduce((n, a) => n + a.willUpload, 0),
     filesToRemove: assets.reduce((n, a) => n + a.willRemove, 0),
-    nothingToDo: false };
+    nothingToDo: false,
+  };
   summary.nothingToDo =
     summary.textChanged === 0 && summary.assetSetsChanged === 0 && summary.fieldsChanged === 0;
   const warnings = !supports(app.platform, 'transactionalEdits')
@@ -1041,10 +1136,9 @@ function previewOf(
     submits: false,
     confirmHash: draftConfirmHash({ workspaceId, app, rows: p.rows, current: state }),
     warnings:
-      p.fields.length > 0
-        ? [...warnings, FIELDS_NOTE[storeFamilyOf(app.platform)]]
-        : warnings,
-    readAt: ctx.now() };
+      p.fields.length > 0 ? [...warnings, FIELDS_NOTE[storeFamilyOf(app.platform)]] : warnings,
+    readAt: ctx.now(),
+  };
 }
 
 /** `POST .../staged/push/preview`: reads the store's draft and the staged files, and shows each item before and after. Nothing is written. */
@@ -1102,7 +1196,8 @@ const countsOf = (steps: readonly DraftStep[]) => ({
   applied: steps.filter((s) => s.outcome === 'applied').length,
   alreadySame: steps.filter((s) => s.outcome === 'already_same').length,
   filesUploaded: steps.reduce((n, s) => n + (s.uploaded ?? 0), 0),
-  filesRemoved: steps.reduce((n, s) => n + (s.removed ?? 0), 0) });
+  filesRemoved: steps.reduce((n, s) => n + (s.removed ?? 0), 0),
+});
 
 /** The steps a successful read-back stands for: what differed in the draft that was accepted is what was applied. */
 function stepsFromReread(p: Prepared, before: DraftState): DraftStep[] {
@@ -1113,14 +1208,16 @@ function stepsFromReread(p: Prepared, before: DraftState): DraftStep[] {
       type: 'text',
       locale: t.locale,
       target: t.field,
-      outcome: was.text[i] ? 'already_same' : 'applied' }),
+      outcome: was.text[i] ? 'already_same' : 'applied',
+    }),
   );
   p.fields.forEach((f, i) =>
     steps.push({
       type: 'field',
       locale: f.locale,
       target: f.field,
-      outcome: was.fields[i] ? 'already_same' : 'applied' }),
+      outcome: was.fields[i] ? 'already_same' : 'applied',
+    }),
   );
   p.sets.forEach((s, i) => {
     const found = before.assets.find((a) => a.locale === s.locale && a.target === s.target);
@@ -1129,7 +1226,8 @@ function stepsFromReread(p: Prepared, before: DraftState): DraftStep[] {
       locale: s.locale,
       target: s.target,
       outcome: was.assets[i] ? 'already_same' : 'applied',
-      ...(was.assets[i] ? {} : { uploaded: s.files.length, removed: found?.images.length ?? 0 }) });
+      ...(was.assets[i] ? {} : { uploaded: s.files.length, removed: found?.images.length ?? 0 }),
+    });
   });
   return steps;
 }
@@ -1193,8 +1291,10 @@ async function audit(
       platform: app.platform,
       ...(state?.version ? { versionId: state.version.id } : {}),
       hash: input.confirmHash,
-      ...extra },
-    at: ctx.now() });
+      ...extra,
+    },
+    at: ctx.now(),
+  });
 }
 
 async function succeed(
@@ -1227,7 +1327,8 @@ async function succeed(
       confirmHash: input.confirmHash,
       manifest: manifestOfPrepared(s.prepared),
       actorId: input.actor.id,
-      at });
+      at,
+    });
     const detail = {
       appId: s.app.id,
       store: s.app.store,
@@ -1240,14 +1341,16 @@ async function succeed(
       commit: s.commit,
       hash: input.confirmHash,
       via: s.via,
-      ...(s.cause ? { cause: s.cause } : {}) };
+      ...(s.cause ? { cause: s.cause } : {}),
+    };
     await recordAudit(tx, {
       workspaceId: input.workspaceId,
       actor: input.actor,
       action: 'listing.draft_pushed',
       target: { type: 'app', id: s.app.id },
       detail,
-      at });
+      at,
+    });
     await emitEvent(tx, {
       workspaceId: input.workspaceId,
       type: 'listing.draft_pushed',
@@ -1263,8 +1366,10 @@ async function succeed(
         commit: s.commit,
         submitted: false,
         confirmedByReread: s.via === 'reread',
-        actor: { type: input.actor.type, id: input.actor.id } },
-      at });
+        actor: { type: input.actor.type, id: input.actor.id },
+      },
+      at,
+    });
   });
   await releaseClaim(ctx.db, s.claim);
   return {
@@ -1280,7 +1385,9 @@ async function succeed(
       submitted: false,
       confirmedByReread: s.via === 'reread',
       pushedAt: at,
-      note: DRAFT_NOTE } };
+      note: DRAFT_NOTE,
+    },
+  };
 }
 
 /**
@@ -1299,7 +1406,8 @@ export async function applyDraftPush(
     id: app.id,
     name: app.name,
     platform: app.platform,
-    store: storeFor(app.platform) };
+    store: storeFor(app.platform),
+  };
 
   const taken = await takeClaim(ctx, { workspaceId: input.workspaceId, app, actor: input.actor });
   if (!taken.ok) return taken;
@@ -1334,7 +1442,8 @@ export async function applyDraftPush(
           const same = hashOf(current) === input.confirmHash;
           if (same) accepted = current;
           return same;
-        } }),
+        },
+      }),
     );
   } catch (error) {
     if (error instanceof DraftDriftError) {
@@ -1342,7 +1451,8 @@ export async function applyDraftPush(
         await audit(ctx, input, app, error.current, {
           code: 'blocked',
           outcome: 'refused',
-          blocking: blocked.blocking.map((b) => b.code).slice(0, 20) });
+          blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
+        });
         await releaseClaim(db, claim);
         return failure(
           409,
@@ -1358,7 +1468,8 @@ export async function applyDraftPush(
         'state_changed',
         'The staged changes or the store’s draft changed since this was previewed, so nothing was written. Review the new preview and confirm it.',
         {
-          preview: previewOf(ctx, app, input.workspaceId, p, error.current) },
+          preview: previewOf(ctx, app, input.workspaceId, p, error.current),
+        },
       );
     }
     if (error instanceof DraftPartialError) {
@@ -1370,7 +1481,8 @@ export async function applyDraftPush(
         outcome: 'partial',
         storeCode: mapped.code,
         ...countsOf(error.completed),
-        failed: error.failed });
+        failed: error.failed,
+      });
       await releaseClaim(db, claim);
       return failure(
         502,
@@ -1379,13 +1491,15 @@ export async function applyDraftPush(
         {
           completed: error.completed,
           failed: error.failed,
-          storeError: { code: mapped.code } },
+          storeError: { code: mapped.code },
+        },
       );
     }
     if (error instanceof DraftOutcomeUnknownError || error instanceof DraftTimeout) {
       unknown = {
         cause: error instanceof DraftTimeout ? 'timeout' : 'network',
-        completed: error instanceof DraftOutcomeUnknownError ? error.completed : [] };
+        completed: error instanceof DraftOutcomeUnknownError ? error.completed : [],
+      };
     } else {
       const mapped = mapStoreError(error, connection.secret);
       await audit(ctx, input, app, accepted, { code: mapped.code, outcome: 'failed' });
@@ -1402,7 +1516,8 @@ export async function applyDraftPush(
       before: done.before,
       steps: done.steps,
       commit: done.commit,
-      via: 'store' });
+      via: 'store',
+    });
   }
 
   // ----- an unknown outcome is checked, not sent again
@@ -1421,7 +1536,8 @@ export async function applyDraftPush(
     await audit(ctx, input, app, before, {
       code: cause,
       outcome: 'unknown',
-      ...(current === undefined ? { readBack: 'failed' } : {}) });
+      ...(current === undefined ? { readBack: 'failed' } : {}),
+    });
     return failure(
       409,
       'outcome_unknown',
@@ -1439,7 +1555,8 @@ export async function applyDraftPush(
       steps: stepsFromReread(p, before),
       commit: byFamily(app.platform, { apple: 'none', google: 'not_sent_for_review' }),
       via: 'reread',
-      cause });
+      cause,
+    });
   }
   if (sameDraftState(current, before)) {
     if (!supports(app.platform, 'transactionalEdits')) {
@@ -1466,22 +1583,27 @@ export async function applyDraftPush(
     text: p.texts.map((t, i) => ({
       locale: t.locale,
       field: t.field,
-      matches: now.text[i] === true })),
+      matches: now.text[i] === true,
+    })),
     assets: p.sets.map((s, i) => ({
       locale: s.locale,
       slotKey: s.key,
-      matches: now.assets[i] === true })),
+      matches: now.assets[i] === true,
+    })),
     fields: p.fields.map((f, i) => ({
       locale: f.locale,
       field: f.field,
-      matches: now.fields[i] === true })) };
+      matches: now.fields[i] === true,
+    })),
+  };
   await audit(ctx, input, app, before, {
     code: 'partial',
     outcome: 'partial',
     cause,
     matching: [...itemsDone.text, ...itemsDone.assets, ...itemsDone.fields].filter((i) => i.matches)
       .length,
-    total: itemsDone.text.length + itemsDone.assets.length + itemsDone.fields.length });
+    total: itemsDone.text.length + itemsDone.assets.length + itemsDone.fields.length,
+  });
   await releaseClaim(db, claim);
   return failure(
     409,

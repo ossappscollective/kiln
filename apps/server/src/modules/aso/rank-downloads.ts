@@ -1,8 +1,23 @@
-import { addDays, type AnalyticsMetric, buildRankVsDownloads, dateToDay, daysBetween, dayToMs, type DownloadsIn, isIsoDate, metricInfo, normalizeCountry, rankDownloadsLimits, type RankDownloadsView, type RankKeywordIn, supports } from '@mrm/core';
+import {
+  type AnalyticsMetric,
+  addDays,
+  buildRankVsDownloads,
+  type DownloadsIn,
+  dateToDay,
+  daysBetween,
+  dayToMs,
+  isIsoDate,
+  metricInfo,
+  normalizeCountry,
+  type RankDownloadsView,
+  type RankKeywordIn,
+  rankDownloadsLimits,
+  supports,
+} from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { readDaily } from '../analytics/store.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
+import { readDaily } from '../analytics/store.ts';
 import { type AsoKeyword, listKeywords } from './service.ts';
 
 /**

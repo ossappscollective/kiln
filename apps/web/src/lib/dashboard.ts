@@ -1,4 +1,18 @@
-import { type Blocked, DASHBOARD_BUCKETS, dashboardBucket, type DashboardBucket, type DueFlags, formatPercent, type Platform, platformMeta, type Readiness, type ReleaseEvent, type ReleaseState, type RolloutSummary, supports } from '@mrm/core';
+import {
+  type Blocked,
+  DASHBOARD_BUCKETS,
+  type DashboardBucket,
+  type DueFlags,
+  dashboardBucket,
+  formatPercent,
+  type Platform,
+  platformMeta,
+  type Readiness,
+  type ReleaseEvent,
+  type ReleaseState,
+  type RolloutSummary,
+  supports,
+} from '@mrm/core';
 import {
   appHref,
   compareVersions,
@@ -174,7 +188,10 @@ export function nextAction(input: NextActionInput): NextAction {
   }
   const step = STEPS[input.status];
   // macOS is Apple's: the App Store Connect steps apply to it as they do to iOS.
-  return { kind: step.kind, text: step[supports(input.platform, 'releaseTracks') ? 'android' : 'ios'] };
+  return {
+    kind: step.kind,
+    text: step[supports(input.platform, 'releaseTracks') ? 'android' : 'ios'],
+  };
 }
 
 function prepareText(readiness: NextActionInput['readiness']): NextAction | null {

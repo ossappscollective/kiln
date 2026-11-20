@@ -19,8 +19,8 @@ import {
 import { bootRepoApp, FakeRepo } from '../../repo-test-helpers.ts';
 import type { StoreConnectorFactory } from '../../services/apps.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
-import { forgetInspectedChangeSets } from './repo.ts';
 import { clearRepoSnapshots } from '../../services/repo-snapshot.ts';
+import { forgetInspectedChangeSets } from './repo.ts';
 
 // The store pull end to end: a live store listing (a fake connector) into repository files (a fake
 // GitHub), as a draft change set. Nothing here contacts a store or GitHub. The pure parts are in

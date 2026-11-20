@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AiProposal } from '@mrm/core';
+import { ApiError } from '../api.ts';
 import {
   ADDRESS_TEXTS,
   type AiConfig,
@@ -44,7 +45,6 @@ import {
   usageText,
   validateAiForm,
 } from './ai.ts';
-import { ApiError } from '../api.ts';
 
 const providers: AiConfig['providers'] = [
   {

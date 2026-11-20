@@ -5,7 +5,8 @@ import {
   redactSecrets,
   StoreError,
   StoreRateLimitError,
-  secretStrings } from '@mrm/connectors';
+  secretStrings,
+} from '@mrm/connectors';
 import { normalizeReleaseValue, supports, versionCodesOf } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { credentialKindFor, type ManagedApp } from './apps.ts';
@@ -149,7 +150,9 @@ export function playCheckRequestOf(
       status,
       ...(status === 'inProgress' && fraction !== undefined ? { userFraction: fraction } : {}),
       ...(name ? { name } : {}),
-      notes } };
+      notes,
+    },
+  };
 }
 
 class CheckTimeout extends Error {}
@@ -161,7 +164,8 @@ const mapFailure = (error: unknown, secret: string): Failure => {
     const wait = error.retryAfterSeconds;
     return {
       ...failure(429, 'rate_limited', clean(error.message), { retryAfterSeconds: wait }),
-      headers: { 'Retry-After': String(wait) } };
+      headers: { 'Retry-After': String(wait) },
+    };
   }
   if (error instanceof StoreError) {
     switch (error.kind) {
@@ -248,13 +252,15 @@ export async function checkPlayReleaseOf(
     secret,
     identifier: app.identifier,
     storeAppId: app.storeAppId,
-    platform: app.platform };
+    platform: app.platform,
+  };
   const controller = new AbortController();
   const baseFetch = globalThis.fetch;
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -289,7 +295,9 @@ export async function checkPlayReleaseOf(
           .map((f) => ({ stage: f.stage, message: clean(f.message) })),
         committed: false,
         checkedAt: ctx.now(),
-        note: result.outcome === 'no_errors' ? PLAY_CHECK_NO_ERRORS_NOTE : PLAY_CHECK_ERRORS_NOTE } };
+        note: result.outcome === 'no_errors' ? PLAY_CHECK_NO_ERRORS_NOTE : PLAY_CHECK_ERRORS_NOTE,
+      },
+    };
   } catch (error) {
     if (error instanceof CheckTimeout)
       return failure(

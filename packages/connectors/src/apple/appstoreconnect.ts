@@ -6,11 +6,6 @@ import {
   PLATFORM_META,
   type Platform,
 } from '@mrm/core';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import { mapAppStoreState } from '../mappings.ts';
 import {
@@ -44,6 +39,11 @@ import type {
   TestFlightGroup,
   TestFlightLinksConnector,
 } from '../types.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
 
 /**
  * Read-only App Store Connect API connector. Nothing here writes: every request is a GET.

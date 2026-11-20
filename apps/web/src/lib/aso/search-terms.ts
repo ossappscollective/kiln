@@ -6,7 +6,12 @@ import {
   searchTermLimits,
   type TermListing,
 } from '@mrm/core';
-import { analyticsErrorText, formatCountExact, formatDay, formatPercent } from '../analytics/analytics.ts';
+import {
+  analyticsErrorText,
+  formatCountExact,
+  formatDay,
+  formatPercent,
+} from '../analytics/analytics.ts';
 import { ApiError } from '../api.ts';
 
 /**

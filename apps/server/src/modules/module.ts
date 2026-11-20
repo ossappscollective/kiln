@@ -1,10 +1,10 @@
 import type { Hono } from 'hono';
 import type { AppEnv, Services } from '../http.ts';
 import type { AppsContext } from '../services/apps.ts';
-import type { RepoContext } from '../services/repositories.ts';
-import type { CiContext } from './ci/service.ts';
 import type { TestLimiter } from '../services/credential-tests.ts';
+import type { RepoContext } from '../services/repositories.ts';
 import type { TranslationContext } from '../services/translation.ts';
+import type { CiContext } from './ci/service.ts';
 
 /**
  * One feature of the server (ASO, analytics, reviews, ...). A module owns its routes, services, jobs and tests in one folder,
@@ -22,7 +22,10 @@ export type ModuleShared = {
   /** The CI context (repositories, rate limits, build matchers): the CI and builds modules both read it. */
   ci: CiContext;
   /** The translation provider's seams (tests replace the network), also used by the reviews and the settings. */
-  translation: Pick<TranslationContext, 'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'>;
+  translation: Pick<
+    TranslationContext,
+    'allowPrivateUrls' | 'fetch' | 'resolve' | 'exchange' | 'timeoutMs'
+  >;
   /** The per workspace budget of the app sync routes, the default budget of the reviews. */
   appSyncLimiter: TestLimiter;
   /** The budget of translating stored reviews (`deps.translation.limiter`), when a test sets one. */

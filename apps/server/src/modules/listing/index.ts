@@ -1,5 +1,5 @@
-import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { createAppIcons, type IconsContext } from '../../services/app-icons.ts';
+import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import type { ServerModule } from '../module.ts';
 import { assetRoutes } from './asset-routes.ts';
 import { type AssetSyncRoutesContext, assetSyncRoutes } from './asset-sync-routes.ts';
@@ -19,8 +19,15 @@ import { listingRoutes } from './routes.ts';
  */
 export type ListingDeps = {
   listing?: { intervalMs?: number | undefined } | undefined;
-  assets?: { limiter?: TestLimiter | undefined; icons?: Pick<IconsContext, 'limiter' | 'net'> | undefined } | undefined;
-  assetSync?: Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'> | undefined;
+  assets?:
+    | {
+        limiter?: TestLimiter | undefined;
+        icons?: Pick<IconsContext, 'limiter' | 'net'> | undefined;
+      }
+    | undefined;
+  assetSync?:
+    | Pick<AssetSyncRoutesContext, 'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'>
+    | undefined;
   draft?: AssetSyncRoutesContext['draft'] | undefined;
 };
 

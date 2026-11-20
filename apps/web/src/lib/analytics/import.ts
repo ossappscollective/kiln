@@ -1,4 +1,5 @@
 import { analyticsLimits, isAnalyticsErrorCode, metricInfo } from '@mrm/core';
+import { ApiError } from '../api.ts';
 import {
   analyticsErrorText,
   type EnablePlan,
@@ -10,7 +11,6 @@ import {
   type ImportResult,
   setupSentence,
 } from './analytics.ts';
-import { ApiError } from '../api.ts';
 
 /**
  * The two guarded flows of analytics, as pure logic: enabling Apple analytics (preview what will be created, then a typed

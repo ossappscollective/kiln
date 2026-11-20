@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { Platform } from '../platform.ts';
 import {
   allowedEvents,
   DASHBOARD_BUCKETS,
@@ -9,7 +10,6 @@ import {
   type ReleaseState,
   transition,
 } from './lifecycle.ts';
-import type { Platform } from '../platform.ts';
 
 function run(platform: Platform, events: ReleaseEvent[]): ReleaseState {
   let state: ReleaseState = 'draft';

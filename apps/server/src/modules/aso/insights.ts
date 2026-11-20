@@ -1,8 +1,35 @@
-import { buildCoach, byFamily, type CoachAction, type CoachKeyword, type CompetitorText, type CoverageGap, coverageGaps, defaultLocaleFor, type FitFields, type FitKeyword, type Idea, type IdeaSource, languageOf, type ListingFit, listingFit, type ListingStore, listingStoreOf, type MarketKeyword, mineIdeas, normalizeLocale, storeSideId, suggestCompetitors, type SuggestedCompetitor, supports, type TermAcrossMarkets, termsAcrossMarkets } from '@mrm/core';
+import {
+  buildCoach,
+  byFamily,
+  type CoachAction,
+  type CoachKeyword,
+  type CompetitorText,
+  type CoverageGap,
+  coverageGaps,
+  defaultLocaleFor,
+  type FitFields,
+  type FitKeyword,
+  type Idea,
+  type IdeaSource,
+  type ListingFit,
+  type ListingStore,
+  languageOf,
+  listingFit,
+  listingStoreOf,
+  type MarketKeyword,
+  mineIdeas,
+  normalizeLocale,
+  type SuggestedCompetitor,
+  storeSideId,
+  suggestCompetitors,
+  supports,
+  type TermAcrossMarkets,
+  termsAcrossMarkets,
+} from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from '../../services/apps.ts';
-import { getLiveListing } from '../listing/live.ts';
 import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
+import { getLiveListing } from '../listing/live.ts';
 import {
   type AsoAppState,
   type AsoCompetitor,
@@ -10,7 +37,8 @@ import {
   getAsoState,
   listCompetitors,
   listKeywords,
-  platformStore } from './service.ts';
+  platformStore,
+} from './service.ts';
 
 /**
  * What can be worked out from what is already stored: no store is read here, so none of it costs a
@@ -67,7 +95,8 @@ export async function listingLocalesFor(
   const listing = await getLiveListing(sql, workspaceId, {
     id: app.id,
     platform: app.platform,
-    identifier: app.identifier });
+    identifier: app.identifier,
+  });
   const channel =
     listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ??
     listing.channels.find((c) => Object.keys(c.locales).length > 0);
@@ -76,7 +105,8 @@ export async function listingLocalesFor(
         .sort()
         .map((locale) => ({
           locale,
-          fields: fitFieldsOf(app.platform, channel.locales[locale] ?? {}) }))
+          fields: fitFieldsOf(app.platform, channel.locales[locale] ?? {}),
+        }))
     : [];
   return { locales, readAt: listing.readAt, error: listing.error };
 }
@@ -91,7 +121,8 @@ export async function ownFields(
   const listing = await getLiveListing(sql, workspaceId, {
     id: app.id,
     platform: app.platform,
-    identifier: app.identifier });
+    identifier: app.identifier,
+  });
   const channel =
     listing.channels.find((c) => c.channel === 'live' && Object.keys(c.locales).length > 0) ??
     listing.channels.find((c) => Object.keys(c.locales).length > 0);
@@ -106,7 +137,8 @@ export async function ownFields(
   return {
     found: { channel: channel.channel, locale: chosen, fields, observedAt: channel.observedAt },
     readAt: listing.readAt,
-    error: listing.error };
+    error: listing.error,
+  };
 }
 
 /**
@@ -135,7 +167,8 @@ const fitKeywordOf = (k: AsoKeyword): FitKeyword => ({
   id: k.id,
   term: k.term,
   priority: k.priority,
-  rank: k.state === 'ranked' ? k.rank : k.state === 'not_ranked' ? null : undefined });
+  rank: k.state === 'ranked' ? k.rank : k.state === 'not_ranked' ? null : undefined,
+});
 
 export type FitView = {
   /** The locale of the tracked keywords this block is about. */
@@ -182,9 +215,11 @@ export async function listingFitFor(
             platform: app.platform,
             locale,
             fields: own.found.fields,
-            keywords: group.map(fitKeywordOf) })
+            keywords: group.map(fitKeywordOf),
+          })
         : null,
-      fields: own.found?.fields ?? null });
+      fields: own.found?.fields ?? null,
+    });
   }
   if (byLocale.size === 0) {
     const own = await ownFields(sql, workspaceId, app, filter.locale ?? 'en-US');
@@ -266,7 +301,8 @@ export async function ideasFor(
     language: locale,
     exclude: keywords.map((k) => k.term),
     limit: options.limit ?? 30,
-    minOccurrences: options.minOccurrences ?? 2 });
+    minOccurrences: options.minOccurrences ?? 2,
+  });
   const notes = [
     'The score is a frequency in the texts listed under basedOn. It is not a search volume or a popularity.',
   ];
@@ -280,7 +316,8 @@ export async function ideasFor(
     locale,
     basedOn: { ownListing: own.found !== null, competitors: competitors.length },
     ideas,
-    notes };
+    notes,
+  };
 }
 
 /** Terms competitors use in their names and texts that the own listing does not have. */
@@ -308,7 +345,8 @@ export async function gapsFor(
     ours: own.found?.fields ?? {},
     competitors: texts.map((t) => t.text),
     tracked: keywords.map(fitKeywordOf),
-    limit: options.limit ?? 30 });
+    limit: options.limit ?? 30,
+  });
   return { locale, competitors: texts.length, gaps, notes };
 }
 
@@ -369,12 +407,14 @@ export async function suggestionsFor(
       ...(ownId ? { ownId } : {}),
       exclude,
       minKeywords: options.minKeywords ?? 2,
-      ...(options.limit !== undefined ? { limit: options.limit } : {}) });
+      ...(options.limit !== undefined ? { limit: options.limit } : {}),
+    });
     for (const s of found)
       suggestions.push({
         ...s,
         country,
-        name: names.get(`${country}\u0000${s.externalId}`) ?? null });
+        name: names.get(`${country}\u0000${s.externalId}`) ?? null,
+      });
   }
   suggestions.sort(
     (a, b) =>
@@ -407,7 +447,8 @@ export async function marketsFor(
     locale: k.locale,
     rank: k.rank,
     state: k.state ?? (k.error ? 'unavailable' : null),
-    checkedAt: k.lastCheckedAt }));
+    checkedAt: k.lastCheckedAt,
+  }));
   return termsAcrossMarkets(items);
 }
 
@@ -456,7 +497,8 @@ export async function summaryFor(
     unchecked: 0,
     failing: 0,
     top3: 0,
-    top10: 0 };
+    top10: 0,
+  };
   const moves: AsoSummary['movers'] = [];
   for (const k of keywords) {
     if (k.state === null) counts.unchecked += 1;
@@ -479,7 +521,8 @@ export async function summaryFor(
         kind: c.kind,
         from: c.from,
         to: c.to,
-        delta: c.delta ?? null });
+        delta: c.delta ?? null,
+      });
     }
   }
   const size = (m: AsoSummary['movers'][number]) => (m.delta !== null ? Math.abs(m.delta) : 1000);
@@ -493,8 +536,10 @@ export async function summaryFor(
       notFound: competitors.filter((c) => c.state === 'not_found').length,
       changedRecently: competitors.filter(
         (c) => c.latest?.kind === 'change' && now - c.latest.checkedAt < RECENT_CHANGE_MS,
-      ).length },
-    state: await getAsoState(sql, workspaceId, app.id) };
+      ).length,
+    },
+    state: await getAsoState(sql, workspaceId, app.id),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -571,7 +616,8 @@ export async function coachFor(
     state: k.state,
     rank: k.rank,
     lastCheckedAt: k.lastCheckedAt,
-    change: k.change }));
+    change: k.change,
+  }));
 
   // A followed competitor in the stored results of a keyword, before the own app (or while it is not in them).
   const above: {
@@ -598,12 +644,14 @@ export async function coachFor(
           best = {
             competitorId: competitor.id,
             competitorName: competitor.name,
-            competitorRank: rank };
+            competitorRank: rank,
+          };
       });
       if (best !== null)
         above.push({
           keywordId: k.id,
-          ...(best as { competitorId: string; competitorName: string; competitorRank: number }) });
+          ...(best as { competitorId: string; competitorName: string; competitorRank: number }),
+        });
     }
   }
 
@@ -615,7 +663,8 @@ export async function coachFor(
     competitorsAbove: above,
     listingLocales: listing.locales,
     lastCheckAt: state.lastSuccessAt,
-    rankMoveThreshold: threshold });
+    rankMoveThreshold: threshold,
+  });
   return {
     actions,
     basedOn: {
@@ -623,5 +672,7 @@ export async function coachFor(
       competitors: competitors.length,
       listingLocales: listing.locales.length,
       lastCheckAt: state.lastSuccessAt,
-      listingReadAt: listing.readAt } };
+      listingReadAt: listing.readAt,
+    },
+  };
 }

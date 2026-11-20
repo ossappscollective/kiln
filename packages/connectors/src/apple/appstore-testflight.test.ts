@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppStoreConnectConnector } from './appstoreconnect.ts';
 import { StoreError } from '../errors.ts';
 import * as fx from '../store.fixtures.ts';
+import { AppStoreConnectConnector } from './appstoreconnect.ts';
 
 const key = fx.appleKeyPem();
 

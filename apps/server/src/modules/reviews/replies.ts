@@ -1,5 +1,20 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { APPLE_REPLY_LIMIT, AppStoreReviewsConnector, checkReplyText, connectorFactory, normalizeReplyText, PLAY_REPLY_LIMIT, PlayReviewsConnector, redactSecrets, ReplyOutcomeUnknownError, secretStrings, StoreError, StoreRateLimitError, type StoreReview, type StoreReviewReplyConnector } from '@mrm/connectors';
+import {
+  APPLE_REPLY_LIMIT,
+  AppStoreReviewsConnector,
+  checkReplyText,
+  connectorFactory,
+  normalizeReplyText,
+  PLAY_REPLY_LIMIT,
+  PlayReviewsConnector,
+  ReplyOutcomeUnknownError,
+  redactSecrets,
+  StoreError,
+  StoreRateLimitError,
+  type StoreReview,
+  type StoreReviewReplyConnector,
+  secretStrings,
+} from '@mrm/connectors';
 import { type ActorType, needsStoreAppId } from '@mrm/core';
 import {
   type Database,
@@ -14,8 +29,8 @@ import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
-import type { ReviewConnectorInput } from './sync.ts';
 import { getReview, type Review, type StoreKey } from './service.ts';
+import type { ReviewConnectorInput } from './sync.ts';
 
 /**
  * Replying to customer reviews: a STORE WRITE (public text, in the store, in the organisation's
@@ -80,19 +95,20 @@ export type ReviewReplyConnectorFactory = (
   input: ReviewConnectorInput,
 ) => StoreReviewReplyConnector;
 
-export const defaultReplyConnectorFactory: ReviewReplyConnectorFactory = connectorFactory<StoreReviewReplyConnector>({
-  app_store_connect: (input) =>
-    AppStoreReviewsConnector.fromSecret(input.secret, {
-          appStoreId: input.storeAppId ?? '',
-          fetch: input.fetch,
-        }),
-  google_play: (input) =>
-    new PlayReviewsConnector({
-          serviceAccount: input.secret,
-          packageName: input.identifier,
-          fetch: input.fetch,
-        }),
-});
+export const defaultReplyConnectorFactory: ReviewReplyConnectorFactory =
+  connectorFactory<StoreReviewReplyConnector>({
+    app_store_connect: (input) =>
+      AppStoreReviewsConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        fetch: input.fetch,
+      }),
+    google_play: (input) =>
+      new PlayReviewsConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      }),
+  });
 
 export type ReviewReplyContext = {
   db: Database;

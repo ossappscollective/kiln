@@ -1,5 +1,15 @@
 import { type ActorType, type FileChange, type Listing, platformMeta } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
+import {
+  type Failure,
+  failure,
+  getRepository,
+  githubFailure,
+  type Outcome,
+  openConnectorForRepository,
+  type RepoContext,
+  readRepositoryListing,
+} from '../../services/repositories.ts';
 import { fieldKey, flattenListing, hashListingValue, hasStoreListing } from './drift.ts';
 import {
   type ListingApp,
@@ -15,16 +25,6 @@ import {
   repositorySections,
 } from './sources.ts';
 import { listListingTargets } from './targets.ts';
-import {
-  type Failure,
-  failure,
-  getRepository,
-  githubFailure,
-  type Outcome,
-  openConnectorForRepository,
-  type RepoContext,
-  readRepositoryListing,
-} from '../../services/repositories.ts';
 
 /**
  * The adapter between an app and the repository side of its listing. It only calls the exported

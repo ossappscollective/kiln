@@ -1,4 +1,17 @@
-import { DEFAULT_RELEASE_PATTERNS, DEFAULT_TAG_PATTERNS, MAX_PATTERNS, type PatternKind, patternListProblems, type Platform, platformLabel, platformMeta, prefixProblem, previewPatterns, type PreviewRow, proposePattern } from '@mrm/core';
+import {
+  DEFAULT_RELEASE_PATTERNS,
+  DEFAULT_TAG_PATTERNS,
+  MAX_PATTERNS,
+  type PatternKind,
+  type Platform,
+  type PreviewRow,
+  patternListProblems,
+  platformLabel,
+  platformMeta,
+  prefixProblem,
+  previewPatterns,
+  proposePattern,
+} from '@mrm/core';
 import type { Tone } from '../repositories.ts';
 import type {
   AppBuild,

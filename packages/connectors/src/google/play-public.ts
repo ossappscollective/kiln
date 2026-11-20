@@ -1,6 +1,12 @@
-import { AsoError, checkStatus, cleanPublicText, decodeEntities, getCapped } from '../aso-common.ts';
-import { isPlayPackageName } from './googleplay.ts';
+import {
+  AsoError,
+  checkStatus,
+  cleanPublicText,
+  decodeEntities,
+  getCapped,
+} from '../aso-common.ts';
 import { isRecord } from '../store-http.ts';
+import { isPlayPackageName } from './googleplay.ts';
 
 /**
  * Google Play, from its PUBLIC web pages. UNOFFICIAL, OPT-IN, FRAGILE.

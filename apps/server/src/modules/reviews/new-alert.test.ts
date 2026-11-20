@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { dbTest } from '@mrm/db/testing';
-import { storeReview } from './test-helpers.ts';
+import { bootTranslation } from '../../translation-test-helpers.ts';
 import { alertCatalog, alertsFromEvent } from '../alerts/catalog.ts';
 import { MAX_NEW_REVIEW_EVENTS_PER_SYNC } from './sync.ts';
-import { bootTranslation } from '../../translation-test-helpers.ts';
+import { storeReview } from './test-helpers.ts';
 
 /**
  * `review.new` and the alert of the same name (docs/alerts.md, docs/adr/0027-review-feed-and-new-review-alert.md):

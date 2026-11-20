@@ -1,23 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ASSET_PLATFORMS, requiredSizes, storeSetKey } from './listing/asset-sync.ts';
-import { allowedEvents, transition } from './release/lifecycle.ts';
-import {
-  listingStoreOf,
-  needsStoreAppId,
-  storeShortName,
-  storeSideId,
-  supports,
-  PLATFORM_META,
-  PLATFORMS,
-  parsePlatform,
-  platformLabel,
-  platformsOfFamily,
-  sortPlatforms,
-  storeFamilyOf,
-} from './platform.ts';
-import { releaseNotesLimit } from './release/release-plan.ts';
-import { rolloutTemplatesFor, storeRollout } from './release/rollout-plan.ts';
 import {
   appleDisplayType,
   assetSlotSupport,
@@ -26,6 +9,23 @@ import {
   slotMaxFiles,
 } from './listing/staged-changes.ts';
 import { deviceFitsPlatform } from './listing/store-asset-specs.ts';
+import {
+  listingStoreOf,
+  needsStoreAppId,
+  PLATFORM_META,
+  PLATFORMS,
+  parsePlatform,
+  platformLabel,
+  platformsOfFamily,
+  sortPlatforms,
+  storeFamilyOf,
+  storeShortName,
+  storeSideId,
+  supports,
+} from './platform.ts';
+import { allowedEvents, transition } from './release/lifecycle.ts';
+import { releaseNotesLimit } from './release/release-plan.ts';
+import { rolloutTemplatesFor, storeRollout } from './release/rollout-plan.ts';
 
 test('the platforms, their labels, stores and families come from one table', () => {
   assert.deepEqual([...PLATFORMS], ['ios', 'macos', 'android']);

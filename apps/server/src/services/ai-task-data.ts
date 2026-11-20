@@ -1,7 +1,7 @@
 import type { Sql } from '@mrm/db';
-import { clip } from './ai-task-types.ts';
 import type { Review } from '../modules/reviews/service.ts';
 import { listReviews, type ReviewFilter } from '../modules/reviews/service.ts';
+import { clip } from './ai-task-types.ts';
 
 /**
  * Review data for AI tasks, minimised (docs/adr/0024-ai-features.md). What leaves the server about a review is only: a short alias

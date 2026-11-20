@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError, createApi } from '../api.ts';
 import type { AnalyticsOverview, AnalyticsStatus } from './analytics.ts';
 import { resolveRange } from './analytics.ts';
 import { appleOverview, NOW, sourceOf, statusOf } from './fixtures.ts';
 import { type AnalyticsReads, loadOverviews, loadStrip } from './load.ts';
-import { ApiError, createApi } from '../api.ts';
 
 type Query = {
   platform?: string;

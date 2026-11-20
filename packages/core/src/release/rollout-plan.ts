@@ -7,8 +7,9 @@
  * step marked done does not change a rollout, and a store that moved on does not mark a step done
  * (a person confirms it, see `compareRollout`).
  */
-import type { ReleaseState } from './lifecycle.ts';
+
 import { type Platform, storeFamilyOf, supports } from '../platform.ts';
+import type { ReleaseState } from './lifecycle.ts';
 
 // ---------------------------------------------------------------------------------------------
 // Limits and shapes
@@ -94,7 +95,8 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
       'A cautious ramp for Google Play. Play lets you choose any share; these numbers are our suggestion, not a Play default.',
     platform: 'android',
     kind: 'steps',
-    steps: [{ percent: 1 }, { percent: 5 }, { percent: 20 }, { percent: 50 }, { percent: 100 }] },
+    steps: [{ percent: 1 }, { percent: 5 }, { percent: 20 }, { percent: 50 }, { percent: 100 }],
+  },
   {
     id: 'builtin:apple-phased',
     name: 'App Store phased release (7 days)',
@@ -102,14 +104,16 @@ export const ROLLOUT_TEMPLATES: readonly RolloutTemplate[] = [
       'Apple releases to automatic updates over 7 days: 1, 2, 5, 10, 20, 50 and 100% on days 1 to 7. The schedule is fixed by Apple, so it is shown for information and the percentages cannot be edited.',
     platform: 'ios',
     kind: 'apple_phased',
-    steps: [] },
+    steps: [],
+  },
   {
     id: 'builtin:immediate',
     name: 'Immediate release to 100%',
     description: 'No staging: everyone gets the version at once.',
     platform: null,
     kind: 'steps',
-    steps: [{ percent: 100 }] },
+    steps: [{ percent: 100 }],
+  },
 ];
 
 export const rolloutTemplate = (id: string): RolloutTemplate | undefined =>
@@ -145,7 +149,8 @@ export function validateRolloutSteps(
   if (input.length > MAX_ROLLOUT_STEPS) {
     issues.push({
       path: 'steps',
-      message: `A rollout plan can have ${MAX_ROLLOUT_STEPS} steps at most.` });
+      message: `A rollout plan can have ${MAX_ROLLOUT_STEPS} steps at most.`,
+    });
   }
   const seen = new Set<string>();
   let previousPercent = 0;
@@ -158,7 +163,8 @@ export function validateRolloutSteps(
       if (!stored)
         issues.push({
           path: `${at}.id`,
-          message: 'This step does not exist. Reload and try again.' });
+          message: 'This step does not exist. Reload and try again.',
+        });
       else if (seen.has(step.id))
         issues.push({ path: `${at}.id`, message: 'A step is listed twice.' });
       seen.add(step.id);
@@ -170,13 +176,15 @@ export function validateRolloutSteps(
       if (step.percent <= previousPercent) {
         issues.push({
           path: `${at}.percent`,
-          message: `Each step must be higher than the one before (${previousPercent}%).` });
+          message: `Each step must be higher than the one before (${previousPercent}%).`,
+        });
       }
       previousPercent = Math.max(previousPercent, step.percent);
       if (stored?.status === 'done' && stored.percent !== step.percent) {
         issues.push({
           path: `${at}.percent`,
-          message: 'A step that is done keeps its percentage. Reopen it first.' });
+          message: 'A step that is done keeps its percentage. Reopen it first.',
+        });
       }
     }
     const plannedAt = step.plannedAt ?? null;
@@ -187,12 +195,14 @@ export function validateRolloutSteps(
         if (stored?.status !== 'done' && plannedAt < options.planCreatedAt) {
           issues.push({
             path: `${at}.plannedAt`,
-            message: 'Plan a step after the plan was created.' });
+            message: 'Plan a step after the plan was created.',
+          });
         }
         if (previousPlannedAt !== null && plannedAt < previousPlannedAt) {
           issues.push({
             path: `${at}.plannedAt`,
-            message: 'A step cannot be planned before the step above it.' });
+            message: 'A step cannot be planned before the step above it.',
+          });
         }
         previousPlannedAt = plannedAt;
       }
@@ -201,21 +211,24 @@ export function validateRolloutSteps(
     if (note !== null && (note.length > MAX_ROLLOUT_NOTE_LENGTH || /[\r\n]/.test(note))) {
       issues.push({
         path: `${at}.note`,
-        message: `One line of at most ${MAX_ROLLOUT_NOTE_LENGTH} characters.` });
+        message: `One line of at most ${MAX_ROLLOUT_NOTE_LENGTH} characters.`,
+      });
     }
   });
   for (const stored of existing.values()) {
     if (stored.status === 'done' && !seen.has(stored.id)) {
       issues.push({
         path: 'steps',
-        message: `The step at ${stored.percent}% is done and cannot be removed. Reopen it first.` });
+        message: `The step at ${stored.percent}% is done and cannot be removed. Reopen it first.`,
+      });
     }
   }
   const lastDone = statuses.lastIndexOf('done');
   if (lastDone > 0 && statuses.slice(0, lastDone).includes('planned')) {
     issues.push({
       path: 'steps',
-      message: 'A step before a completed step must be done or skipped.' });
+      message: 'A step before a completed step must be done or skipped.',
+    });
   }
   return issues.length === 0 ? { ok: true } : { ok: false, issues };
 }
@@ -259,7 +272,8 @@ export function checkRolloutAction(
       return {
         ok: false,
         code: 'earlier_steps_open',
-        message: 'Complete or skip the earlier steps first.' };
+        message: 'Complete or skip the earlier steps first.',
+      };
     }
     return { ok: true, noop: false, to: target };
   }
@@ -268,7 +282,8 @@ export function checkRolloutAction(
       return {
         ok: false,
         code: 'invalid_transition',
-        message: 'A step that is done cannot be skipped. Reopen it first.' };
+        message: 'A step that is done cannot be skipped. Reopen it first.',
+      };
     }
     return { ok: true, noop: false, to: target };
   }
@@ -276,7 +291,8 @@ export function checkRolloutAction(
     return {
       ok: false,
       code: 'later_steps_done',
-      message: 'Reopen the later steps that are done first.' };
+      message: 'Reopen the later steps that are done first.',
+    };
   }
   return { ok: true, noop: false, to: target };
 }
@@ -326,7 +342,8 @@ export function summarizeRollout(
       (s) => s.status === 'planned' && s.plannedAt !== null && s.plannedAt <= now,
     ).length,
     nextPlannedAt:
-      steps.find((s) => s.status === 'planned' && s.plannedAt !== null)?.plannedAt ?? null };
+      steps.find((s) => s.status === 'planned' && s.plannedAt !== null)?.plannedAt ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -412,7 +429,8 @@ export function compareRollout(
     planPercent: summary.planPercent,
     planStep,
     storePercent: store?.percent ?? null,
-    halted: store?.status === 'halted' };
+    halted: store?.status === 'halted',
+  };
   const halted = base.halted ? ' The store has the rollout halted.' : '';
   if (!store || store.percent === null) {
     const apple = store !== null && supports(store.platform, 'phasedRelease');
@@ -427,7 +445,8 @@ export function compareRollout(
               ? 'The share of an Apple phased release is not read from the store, so the plan cannot be compared.'
               : 'The store reports no rollout share for this version.'
           }${halted}`
-        : 'The store has not reported this version yet.' };
+        : 'The store has not reported this version yet.',
+    };
   }
   const firstOpen = steps.find((s) => s.status === 'planned');
   const confirmStepId = firstOpen && store.percent >= firstOpen.percent ? firstOpen.id : null;
@@ -438,7 +457,8 @@ export function compareRollout(
       verdict: 'match',
       mismatch: false,
       confirmStepId,
-      message: `${said}, ${planText}: they agree.${halted}` };
+      message: `${said}, ${planText}: they agree.${halted}`,
+    };
   }
   if (store.percent > summary.planPercent) {
     return {
@@ -446,14 +466,16 @@ export function compareRollout(
       verdict: 'store_ahead',
       mismatch: true,
       confirmStepId,
-      message: `${said}, ahead of the plan: ${planText}.${confirmStepId ? ' You can confirm the next step from the store.' : ''}${halted}` };
+      message: `${said}, ahead of the plan: ${planText}.${confirmStepId ? ' You can confirm the next step from the store.' : ''}${halted}`,
+    };
   }
   return {
     ...base,
     verdict: 'store_behind',
     mismatch: true,
     confirmStepId: null,
-    message: `${said}, behind the plan: ${planText}. Check the console, or reopen the steps that are not true.${halted}` };
+    message: `${said}, behind the plan: ${planText}. Check the console, or reopen the steps that are not true.${halted}`,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -499,14 +521,16 @@ export function deadlineReminder(
           kind: 'overdue',
           dueKey: targetDate,
           hoursLeft: 0,
-          daysOverdue: Math.floor(late / DAY_MS) + 1 };
+          daysOverdue: Math.floor(late / DAY_MS) + 1,
+        };
   }
   if (now >= end - lead) {
     return {
       kind: 'due_soon',
       dueKey: targetDate,
       hoursLeft: Math.max(0, Math.ceil((end - now) / HOUR_MS)),
-      daysOverdue: 0 };
+      daysOverdue: 0,
+    };
   }
   return none;
 }

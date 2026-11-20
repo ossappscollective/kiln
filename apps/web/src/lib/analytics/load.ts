@@ -1,3 +1,4 @@
+import type { Api } from '../api.ts';
 import {
   type AnalyticsOverview,
   type AnalyticsStatus,
@@ -7,7 +8,6 @@ import {
   resolveRange,
 } from './analytics.ts';
 import { buildStrip, hasStoredData, type Strip } from './view.ts';
-import type { Api } from '../api.ts';
 
 /**
  * Reads for the Analytics screen and the dashboard strip. Reading only: nothing here reaches a store. Per app record there

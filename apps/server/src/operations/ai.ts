@@ -1,6 +1,20 @@
-import { aiLimits, aiProposalKinds, aiProviders, aiSentiments, aiSeverities, aiSuggestionStatuses, aiTaskIds } from '@mrm/core';
+import {
+  aiLimits,
+  aiProposalKinds,
+  aiProviders,
+  aiSentiments,
+  aiSeverities,
+  aiSuggestionStatuses,
+  aiTaskIds,
+} from '@mrm/core';
 import { z } from 'zod';
-import { acceptBody, appContextBody, listModelsBody, runTaskBody, updateConfigBody } from '../routes/ai.ts';
+import {
+  acceptBody,
+  appContextBody,
+  listModelsBody,
+  runTaskBody,
+  updateConfigBody,
+} from '../routes/ai.ts';
 import type { Operation } from './openapi.ts';
 
 /**

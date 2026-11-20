@@ -8,19 +8,19 @@ import { listingOperations } from '../modules/listing/operations.ts';
 import { reviewsOperations } from '../modules/reviews/operations.ts';
 import { aiOperations } from './ai.ts';
 import { mcpOperations } from './mcp.ts';
-import { plansOperations } from './plans.ts';
+import type { Operation } from './openapi.ts';
 import { pendingOperations } from './pending.ts';
+import { plansOperations } from './plans.ts';
 import { releasesOperations } from './releases.ts';
 import { repositoriesOperations } from './repositories.ts';
 import { rolloutOperations } from './rollout.ts';
-import { stagedChangesOperations } from './staged-changes.ts';
-import { submitOperations } from './submit.ts';
 import type { Draft } from './shared.ts';
+import { stagedChangesOperations } from './staged-changes.ts';
 import { stepUpOperations } from './step-up.ts';
 import { storeVersionOperations } from './store-version.ts';
+import { submitOperations } from './submit.ts';
 import { twoFactorOperations } from './two-factor.ts';
 import { workspaceOperations } from './workspace.ts';
-import type { Operation } from './openapi.ts';
 
 /**
  * The registry: every operation of the API that is documented, with the permission it needs and

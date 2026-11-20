@@ -1,5 +1,34 @@
-import { addDays, type AnalyticsDimension, analyticsDimensions, analyticsErrorMessages, type AnalyticsMetric, analyticsMetrics, type AnalyticsNextStep, type AnalyticsSetupCode, type AnalyticsSource, bucketStart, bucketStarts, type CoverageNoteCode, coverageNoteMessages, dateToDay, daysBetween, type Granularity, isAnalyticsErrorCode, isGranularity, isIsoDate, type MetricAggregation, metricInfo, type MetricUnit, type PlayBucketSource, safeRatio, sourcesForPlatform, supports } from '@mrm/core';
+import {
+  type AnalyticsDimension,
+  type AnalyticsMetric,
+  type AnalyticsNextStep,
+  type AnalyticsSetupCode,
+  type AnalyticsSource,
+  addDays,
+  analyticsDimensions,
+  analyticsErrorMessages,
+  analyticsMetrics,
+  bucketStart,
+  bucketStarts,
+  type CoverageNoteCode,
+  coverageNoteMessages,
+  dateToDay,
+  daysBetween,
+  type Granularity,
+  isAnalyticsErrorCode,
+  isGranularity,
+  isIsoDate,
+  type MetricAggregation,
+  type MetricUnit,
+  metricInfo,
+  type PlayBucketSource,
+  safeRatio,
+  sourcesForPlatform,
+  supports,
+} from '@mrm/core';
 import type { Sql } from '@mrm/db';
+import type { ManagedApp } from '../../services/apps.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 import { deriveSetup, type Setup, setupMessages } from './setup.ts';
 import {
   type DailyRow,
@@ -11,8 +40,6 @@ import {
   recentRuns,
   resolvePlayBucket,
 } from './store.ts';
-import type { ManagedApp } from '../../services/apps.ts';
-import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * The read side of analytics (docs/api/analytics.md): `overview` (series per metric with their source, delay and coverage) and
@@ -405,10 +432,9 @@ export async function overview(
     derive('impression_tap_rate', 'Tap-through rate', 'product_page_views', 'impressions');
   }
 
-  const notes: Note[] =
-    supports(app.platform, 'playReportsBucket')
-      ? [note('google_no_impressions')]
-      : [note('apple_rating_history_not_available')];
+  const notes: Note[] = supports(app.platform, 'playReportsBucket')
+    ? [note('google_no_impressions')]
+    : [note('apple_rating_history_not_available')];
   return {
     appId: app.id,
     platform: app.platform,

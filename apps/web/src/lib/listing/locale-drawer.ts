@@ -1,7 +1,7 @@
 import { type Platform, platformLabel } from '@mrm/core';
+import type { DriftField } from '../types.ts';
 import { usage, usageText } from './drift.ts';
 import { type CellStatus, cellStatus } from './matrix.ts';
-import type { DriftField } from '../types.ts';
 
 /**
  * Pure parts of the locale drawer of Store listing (docs/design/readability.md, "Second pass: forms and dialogs"): what the drawer opens

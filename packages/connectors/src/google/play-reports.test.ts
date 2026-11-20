@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import * as ax from '../analytics.fixtures.ts';
 import { AnalyticsError } from '../analytics-types.ts';
 import { parseTable } from '../delimited.ts';
+import * as fx from '../store.fixtures.ts';
 import { DEVSTORAGE_READ_ONLY_SCOPE } from './google-auth.ts';
 import { mapPlayTable, PlayReportsConnector } from './play-analytics.ts';
-import * as fx from '../store.fixtures.ts';
 
 const T0 = Date.UTC(2026, 10, 19, 12, 0, 0);
 const account = fx.serviceAccountJson(fx.googleKeyPem().privateKey);

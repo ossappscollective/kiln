@@ -4,12 +4,6 @@ import {
   normalizeReleaseValue,
   PLATFORM_META,
 } from '@mrm/core';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { appleError, isAppleParameterError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import { appleBuildEligibility } from '../release-eligibility.ts';
 import {
@@ -60,6 +54,12 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { appleError, isAppleParameterError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect: write listing text and screenshots into the EDITABLE App Store version, as a

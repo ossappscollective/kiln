@@ -1,6 +1,4 @@
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName } from './googleplay.ts';
 import {
   checkReplyText,
   clampLimit,
@@ -29,6 +27,8 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleError, isPlayPackageName } from './googleplay.ts';
 
 /**
  * Google Play connector for user reviews. The reads are GETs. `replyToReview` (`reviews.reply`) is

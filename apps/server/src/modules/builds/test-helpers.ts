@@ -9,10 +9,10 @@ import type {
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
 import { zip } from '../../../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
+import { PASSWORD } from '../../testkit.ts';
 import { bootCi, FakeCi, run } from '../ci/test-helpers.ts';
 import { PLAY_SECRET } from '../reviews/test-helpers.ts';
 import { clearBuildCaches } from './service.ts';
-import { PASSWORD } from '../../testkit.ts';
 
 /** A fake GitHub, a fake artifact storage and a fake Google for the internal app sharing tests. Not a test file. */
 

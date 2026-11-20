@@ -11,14 +11,6 @@ import {
 } from '../delimited.ts';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
 import {
-  DEVSTORAGE_READ_ONLY_SCOPE,
-  GoogleTokenProvider,
-  PLAY_DEVELOPER_REPORTING_SCOPE,
-  parseServiceAccount,
-  type ServiceAccount,
-} from './google-auth.ts';
-import { googleError, isPlayPackageName } from './googleplay.ts';
-import {
   enc,
   isRecord,
   type Json,
@@ -28,6 +20,14 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  DEVSTORAGE_READ_ONLY_SCOPE,
+  GoogleTokenProvider,
+  PLAY_DEVELOPER_REPORTING_SCOPE,
+  parseServiceAccount,
+  type ServiceAccount,
+} from './google-auth.ts';
+import { googleError, isPlayPackageName } from './googleplay.ts';
 
 /**
  * Google Play analytics, read only: Android vitals from the Play Developer Reporting API and the monthly CSV reports in the Cloud

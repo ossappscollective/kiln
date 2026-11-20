@@ -267,7 +267,8 @@ export function cleanSection<N extends ListingSectionName>(
             }
             const entry: ListingReleaseNotes['tracks'][string] = {
               versionCodes: strings(t.versionCodes, 50) ?? [],
-              notes };
+              notes,
+            };
             const tname = text(t.name);
             const status = text(t.status);
             if (tname !== undefined) entry.name = tname;
@@ -329,7 +330,8 @@ export type SectionCompare = {
 
 const done = (status: SectionStatus, details: string[] = []): SectionCompare => ({
   status,
-  details });
+  details,
+});
 
 /**
  * What two category texts are compared as: upper case, `&` as AND, everything but letters and
@@ -393,7 +395,8 @@ export function compareCategories(
 export const LEGACY_AGE_ANSWER: Record<string, string> = {
   '0': 'NONE',
   '1': 'INFREQUENT_OR_MILD',
-  '2': 'FREQUENT_OR_INTENSE' };
+  '2': 'FREQUENT_OR_INTENSE',
+};
 
 /**
  * Age rating answers are compared key by key, only for the keys the repository states under the

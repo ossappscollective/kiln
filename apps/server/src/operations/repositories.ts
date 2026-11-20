@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { changeSetSchema, type Draft, id, listingQuery, none, object, timestamp, W } from './shared.ts';
+import {
+  changeSetSchema,
+  type Draft,
+  id,
+  listingQuery,
+  none,
+  object,
+  timestamp,
+  W,
+} from './shared.ts';
 
 const localConfigSchema = z.object({
   enabled: z.boolean(),

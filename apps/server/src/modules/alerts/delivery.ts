@@ -1,12 +1,12 @@
 import type { Database } from '@mrm/db';
 import { DEFAULT_MAX_ATTEMPTS, type JobHandler } from '../../jobs.ts';
-import { ALERT_QUEUE, type DeliveryOutcome } from './service.ts';
 import {
   isMailErrorCode,
   type MailInput,
   type MailResult,
   sendMail as realSendMail,
 } from '../../services/mailer.ts';
+import { ALERT_QUEUE, type DeliveryOutcome } from './service.ts';
 
 /**
  * The job that sends one alert email (docs/alerts.md). The delivery row holds the rendered subject and text (ids and names only), so

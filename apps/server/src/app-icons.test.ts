@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isPlainRelativePath, matchesEtag, safeImageHeaders } from './modules/listing/asset-routes.ts';
+import {
+  isPlainRelativePath,
+  matchesEtag,
+  safeImageHeaders,
+} from './modules/listing/asset-routes.ts';
 import type { IconRow } from './services/app-icon-store.ts';
 import {
   checkIconBytes,

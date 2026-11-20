@@ -26,6 +26,12 @@ import {
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { enqueue, type JobHandler } from '../../jobs.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 import {
   getAppConfig,
   listReportRequests,
@@ -39,12 +45,6 @@ import {
   settledInstances,
   upsertPoints,
 } from './store.ts';
-import { getApp, type ManagedApp } from '../../services/apps.ts';
-import { recordAudit } from '../../services/audit.ts';
-import { useCredentialSecret } from '../../services/credentials.ts';
-import { emitEvent } from '../../services/events.ts';
-import { type Failure, failure } from '../../services/repositories.ts';
-import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * Reads the analytics of an app from its stores into `analytics_daily` (docs/adr/0017-analytics-foundation.md). Read only toward the

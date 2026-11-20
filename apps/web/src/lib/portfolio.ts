@@ -1,4 +1,13 @@
-import { byFamily, type Platform, platformMeta, PLATFORMS, type ReleaseEvent, type ReleaseState, supports, transition } from '@mrm/core';
+import {
+  byFamily,
+  PLATFORMS,
+  type Platform,
+  platformMeta,
+  type ReleaseEvent,
+  type ReleaseState,
+  supports,
+  transition,
+} from '@mrm/core';
 import { type Api, ApiError } from './api.ts';
 import { timeAgo } from './format.ts';
 import type {
@@ -12,7 +21,8 @@ import type {
   ImportSummary,
   NewApp,
   ReleaseSummary,
-  SyncSummary } from './types.ts';
+  SyncSummary,
+} from './types.ts';
 
 export type BadgeTone = 'neutral' | 'ok' | 'bad' | 'warn' | 'info' | 'accent';
 
@@ -58,7 +68,8 @@ const TRACKS: Record<string, string> = {
   production: 'Production',
   beta: 'Open testing (beta)',
   alpha: 'Closed testing (alpha)',
-  internal: 'Internal testing' };
+  internal: 'Internal testing',
+};
 
 /** The Play track as a person reads it. `null` (iOS) is the App Store. */
 export function trackLabel(track: string | null): string {
@@ -72,31 +83,38 @@ const STATUS: Record<ReleaseState, StatusInfo> = {
   draft: {
     label: 'Draft',
     tone: 'neutral',
-    description: 'Being prepared. No build is chosen yet.' },
+    description: 'Being prepared. No build is chosen yet.',
+  },
   build_chosen: {
     label: 'Build chosen',
     tone: 'neutral',
-    description: 'A build is attached. It is not ready to submit yet.' },
+    description: 'A build is attached. It is not ready to submit yet.',
+  },
   ready: { label: 'Ready', tone: 'info', description: 'Ready to submit for review.' },
   in_review: {
     label: 'In review',
     tone: 'info',
-    description: 'Waiting for the store to review it.' },
+    description: 'Waiting for the store to review it.',
+  },
   rejected: {
     label: 'Rejected',
     tone: 'bad',
-    description: 'The store rejected it. A fix is needed before it can go out.' },
+    description: 'The store rejected it. A fix is needed before it can go out.',
+  },
   approved: {
     label: 'Approved',
     tone: 'accent',
-    description: 'Approved and waiting to be released.' },
+    description: 'Approved and waiting to be released.',
+  },
   propagating: {
     label: 'Propagating',
     tone: 'info',
-    description: 'Released, but not yet visible in the store.' },
+    description: 'Released, but not yet visible in the store.',
+  },
   rolling_out: { label: 'Rolling out', tone: 'info', description: 'Going out to users in stages.' },
   live: { label: 'Live', tone: 'ok', description: 'Available to users.' },
-  halted: { label: 'Halted', tone: 'warn', description: 'The rollout was stopped.' } };
+  halted: { label: 'Halted', tone: 'warn', description: 'The rollout was stopped.' },
+};
 
 /** The label, tone and a sentence for a normalized status. `null` means the store state has no mapping. */
 export function statusInfo(
@@ -109,7 +127,8 @@ export function statusInfo(
     tone: 'neutral',
     description: rawState
       ? `The store reports “${rawState}”, which has no normalized status.`
-      : 'The store state has no normalized status.' };
+      : 'The store state has no normalized status.',
+  };
 }
 
 /** "20%", "0.5%", or null when the store reports no staged rollout. */
@@ -248,7 +267,8 @@ export function groupReleases(releases: readonly ReleaseSummary[]): ReleaseGroup
           ? `${platformLabel(latest.platform)} · ${storeName(latest.platform)}`
           : `${platformLabel(latest.platform)} · ${trackLabel(latest.track)}`,
       releases: list,
-      latest });
+      latest,
+    });
   }
   return result.sort(
     (a, b) =>
@@ -308,7 +328,8 @@ export function timeline(platform: Platform, status: ReleaseState | null): Timel
       state,
       label: info.label,
       position: i < at ? 'done' : current ? 'current' : 'upcoming',
-      tone: current ? info.tone : 'neutral' };
+      tone: current ? info.tone : 'neutral',
+    };
   });
 }
 
@@ -496,7 +517,8 @@ export function classifySyncError(error: unknown): SyncFailure {
       kind: 'failed',
       code: 'error',
       message: 'Something went wrong. Try again.',
-      retryAfterSeconds: null };
+      retryAfterSeconds: null,
+    };
   }
   const message = appErrorMessage(error, 'sync');
   const retryAfterSeconds = retrySeconds(error);
@@ -524,7 +546,8 @@ export async function syncApp(
     return {
       ok: false,
       failure: classifySyncError(error),
-      app: error instanceof ApiError ? appFromError(error) : null };
+      app: error instanceof ApiError ? appFromError(error) : null,
+    };
   }
 }
 
@@ -550,7 +573,8 @@ export const identifierLabel = (platform: Platform) =>
 
 const IDENTIFIER_HINTS: Readonly<Record<Platform, string>> = {
   ios: 'The bundle ID from App Store Connect, such as com.acme.app.',
-  macos: 'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.',
+  macos:
+    'The bundle ID of the Mac app in App Store Connect, such as com.acme.app. It can be the iOS bundle ID.',
   android: 'The package name from the Play Console, such as com.acme.app.',
 };
 
@@ -847,7 +871,8 @@ export function buildImportItems(
     const item: ImportItem = {
       platform: c.platform,
       identifier: c.identifier,
-      storeAppId: c.storeId };
+      storeAppId: c.storeId,
+    };
     if (c.name.trim()) item.name = c.name.trim().slice(0, 100);
     const repositoryId = repositories[key];
     if (repositoryId) item.repositoryId = repositoryId;
@@ -871,7 +896,8 @@ export function mergeImports(parts: readonly ImportResult[]): ImportResult {
     results.filter((r) => r.status === status).length;
   return {
     results,
-    summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') } };
+    summary: { created: count('created'), skipped: count('skipped'), failed: count('failed') },
+  };
 }
 
 /**
@@ -911,7 +937,8 @@ export function importItemMessage(
         status: 422,
         code: result.error ?? 'error',
         message: result.message ?? '',
-        body: { message: result.message } },
+        body: { message: result.message },
+      },
       'import',
     );
   }
@@ -943,7 +970,8 @@ export async function syncApps(
     appId: a.id,
     name: labelOf(a),
     status: 'pending',
-    message: '' }));
+    message: '',
+  }));
   const report = (current: string) =>
     onProgress?.(
       results.map((r) => ({ ...r })),

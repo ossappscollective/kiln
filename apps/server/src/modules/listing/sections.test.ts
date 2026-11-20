@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { StoreListing } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
+import { operations } from '../../operations/registry.ts';
 import {
   bootListing,
   EN_US,
@@ -10,7 +11,6 @@ import {
   type ListingBoot,
   playListing,
 } from './test-helpers.ts';
-import { operations } from '../../operations/registry.ts';
 
 // The listing sections (categories, age rating, privacy, media, details, release notes) end to end:
 // a sync of a fake store records them, the views show them, the drift compares them with the

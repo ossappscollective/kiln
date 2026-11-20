@@ -233,7 +233,11 @@ export const isUniqueViolation = (error: unknown) =>
 export async function acceptInvitation(
   db: Database,
   token: string,
-  input: { signedIn?: User | undefined; displayName?: string | undefined; password?: string | undefined },
+  input: {
+    signedIn?: User | undefined;
+    displayName?: string | undefined;
+    password?: string | undefined;
+  },
   options: { now: number; cost?: ScryptCost | undefined },
 ): Promise<AcceptResult> {
   const { now } = options;

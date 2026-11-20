@@ -174,7 +174,10 @@ export function rolloutTargets(
   const list: ReleaseSummary[] = [];
   for (const r of releases) {
     if (r.platform !== app.platform) continue;
-    if (supports(app.platform, 'releaseTracks') && (r.track === null || (r.versionCodes ?? []).length === 0))
+    if (
+      supports(app.platform, 'releaseTracks') &&
+      (r.track === null || (r.versionCodes ?? []).length === 0)
+    )
       continue;
     list.push(r);
   }

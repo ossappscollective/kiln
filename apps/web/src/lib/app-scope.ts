@@ -1,4 +1,12 @@
-import { type Action, isDesktop, isPlatform, type Platform, platformLabel, PLATFORMS, sortPlatforms } from '@mrm/core';
+import {
+  type Action,
+  isDesktop,
+  isPlatform,
+  PLATFORMS,
+  type Platform,
+  platformLabel,
+  sortPlatforms,
+} from '@mrm/core';
 import type { IconName } from './icons.ts';
 
 /**

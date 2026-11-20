@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { bootAlerts } from './test-helpers.ts';
 import { createScheduler } from '../../scheduler.ts';
 import { runAlertEvaluator } from './evaluator.ts';
 import { createAlertRunner } from './runner.ts';
+import { bootAlerts } from './test-helpers.ts';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 5, 10, 12, 0);

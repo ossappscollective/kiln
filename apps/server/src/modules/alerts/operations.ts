@@ -1,7 +1,14 @@
 import { z } from 'zod';
-import { markReadBody, muteBody, preferenceBody, ruleBody, settingsBody, testBody } from './routes.ts';
-import { alertChannels, alertGroups, alertSeverities } from './catalog.ts';
 import type { Operation } from '../../operations/openapi.ts';
+import { alertChannels, alertGroups, alertSeverities } from './catalog.ts';
+import {
+  markReadBody,
+  muteBody,
+  preferenceBody,
+  ruleBody,
+  settingsBody,
+  testBody,
+} from './routes.ts';
 
 /**
  * The operations of alerts (docs/api/alerts.md), kept in their own file and added to the registry in api-operations.ts. Reading the

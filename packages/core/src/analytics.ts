@@ -196,13 +196,12 @@ export const metricsOfSource = (source: AnalyticsSource): AnalyticsMetric[] =>
   analyticsMetrics.filter((m) => metricInfo[m].source === source);
 
 /** Which sources can ever apply to an app of this platform. */
-export const sourcesForPlatform = (platform: Platform): AnalyticsSource[] =>
-  [
-    ...byFamily(platform, {
-      apple: ['apple_analytics', 'apple_sales'],
-      google: ['play_vitals', 'play_reports'],
-    }),
-  ];
+export const sourcesForPlatform = (platform: Platform): AnalyticsSource[] => [
+  ...byFamily(platform, {
+    apple: ['apple_analytics', 'apple_sales'],
+    google: ['play_vitals', 'play_reports'],
+  }),
+];
 
 // ---------------------------------------------------------------------------------------------
 // Fixed vocabularies: error codes, setup needs, next steps. A client switches on these, never on a message.

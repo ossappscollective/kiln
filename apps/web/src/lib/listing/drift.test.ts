@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type {
+  DriftField,
+  DriftLocale,
+  DriftSide,
+  DriftStatus,
+  ListingDrift,
+  ListingHistoryEntry,
+} from '../types.ts';
 import {
   actorText,
   comparison,
@@ -19,14 +27,6 @@ import {
   usage,
   usageText,
 } from './drift.ts';
-import type {
-  DriftField,
-  DriftLocale,
-  DriftSide,
-  DriftStatus,
-  ListingDrift,
-  ListingHistoryEntry,
-} from '../types.ts';
 
 const side = (value: string | null): DriftSide => ({
   value,

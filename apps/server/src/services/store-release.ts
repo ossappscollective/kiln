@@ -1,13 +1,34 @@
 import { createHash } from 'node:crypto';
-import { APPLE_RELEASABLE_STATE, AppleReleaseConnector, appleScope, connectorFactory, type PlayReleaseBuild, PlayReleaseConnector, ReleaseDriftError, releaseKey, ReleaseOutcomeUnknownError, type ReleaseRequest, type ReleaseState, type StoreConnectorInput, type StoreReleaseConnector } from '@mrm/connectors';
-import { byFamily, needsStoreAppId, normalizeReleaseValue, type Platform, supports, versionCodesOf } from '@mrm/core';
+import {
+  APPLE_RELEASABLE_STATE,
+  AppleReleaseConnector,
+  appleScope,
+  connectorFactory,
+  type PlayReleaseBuild,
+  PlayReleaseConnector,
+  ReleaseDriftError,
+  ReleaseOutcomeUnknownError,
+  type ReleaseRequest,
+  type ReleaseState,
+  releaseKey,
+  type StoreConnectorInput,
+  type StoreReleaseConnector,
+} from '@mrm/connectors';
+import {
+  byFamily,
+  needsStoreAppId,
+  normalizeReleaseValue,
+  type Platform,
+  supports,
+  versionCodesOf,
+} from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from '../modules/reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
 import { clearPushedRelease } from './store-draft-record.ts';
 
@@ -51,17 +72,21 @@ const OTHER_CLAIM_TTL_MS = 300_000;
 export type ReleaseConnectorInput = StoreConnectorInput;
 export type ReleaseConnectorFactory = (input: ReleaseConnectorInput) => StoreReleaseConnector;
 
-export const defaultReleaseConnectorFactory: ReleaseConnectorFactory = connectorFactory<StoreReleaseConnector>({
-  app_store_connect: (input) =>
-    AppleReleaseConnector.fromSecret(input.secret, {
-          appStoreId: input.storeAppId ?? '',
-          platform: appleScope(input),
-          fetch: input.fetch }),
-  google_play: (input) =>
-    new PlayReleaseConnector({
-          serviceAccount: input.secret,
-          packageName: input.identifier,
-          fetch: input.fetch }) });
+export const defaultReleaseConnectorFactory: ReleaseConnectorFactory =
+  connectorFactory<StoreReleaseConnector>({
+    app_store_connect: (input) =>
+      AppleReleaseConnector.fromSecret(input.secret, {
+        appStoreId: input.storeAppId ?? '',
+        platform: appleScope(input),
+        fetch: input.fetch,
+      }),
+    google_play: (input) =>
+      new PlayReleaseConnector({
+        serviceAccount: input.secret,
+        packageName: input.identifier,
+        fetch: input.fetch,
+      }),
+  });
 
 export type ReleaseContext = {
   db: Database;
@@ -83,7 +108,8 @@ export const releaseDisabledFailure = (): Failure =>
     'store_release_disabled',
     `Releasing from this server is switched off. Set ${RELEASE_ENV}=true to turn it on (see docs/deployment.md).`,
     {
-      envName: RELEASE_ENV },
+      envName: RELEASE_ENV,
+    },
   );
 
 class ReleaseTimeout extends Error {}
@@ -99,7 +125,8 @@ async function withConnector<T>(
   const guardedFetch: typeof fetch = (target, init) =>
     baseFetch(target, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -203,7 +230,8 @@ async function inFlightOf(ctx: ReleaseContext, app: ManagedApp): Promise<InFligh
   return {
     release: await read('store_release_claims', ctx.claimTtlMs ?? DEFAULT_RELEASE_CLAIM_TTL_MS),
     push: await read('store_draft_claims', OTHER_CLAIM_TTL_MS),
-    submit: await read('store_submit_claims', OTHER_CLAIM_TTL_MS) };
+    submit: await read('store_submit_claims', OTHER_CLAIM_TTL_MS),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -262,7 +290,10 @@ async function connect(
         secret,
         identifier: app.identifier,
         storeAppId: app.storeAppId,
-        platform: app.platform } } };
+        platform: app.platform,
+      },
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -311,7 +342,8 @@ export function requestOfInput(
     const version = input.version?.trim();
     if (version !== undefined && (version === '' || version.length > 40))
       return invalid('invalid_request', 'version is the marketing version, for example 2.4.0.', {
-        field: 'version' });
+        field: 'version',
+      });
     return { ok: true, request: version !== undefined ? { version } : {} };
   }
   if (input.version !== undefined)
@@ -350,7 +382,8 @@ export function requestOfInput(
     codes = versionCodesOf(normalizeReleaseValue('version_codes', input.versionCodes));
     if (codes.length === 0 || codes.length > 20 || codes.some((c) => !/^[0-9]{1,10}$/.test(c)))
       return invalid('invalid_version_codes', 'versionCodes are whole numbers (at most 20).', {
-        field: 'versionCodes' });
+        field: 'versionCodes',
+      });
   }
   if (input.build !== undefined && codes === undefined)
     return invalid(
@@ -364,7 +397,9 @@ export function requestOfInput(
       track: input.track,
       userFraction: fraction,
       ...(codes ? { versionCodes: codes } : {}),
-      ...(input.build !== undefined ? { build: input.build } : {}) } };
+      ...(input.build !== undefined ? { build: input.build } : {}),
+    },
+  };
 }
 
 /**
@@ -400,7 +435,9 @@ export async function resolveDirect(
       ...input,
       track,
       ...(codes.length > 0 ? { versionCodes: codes } : {}),
-      build: { name: name === '' ? null : name, notes } } };
+      build: { name: name === '' ? null : name, notes },
+    },
+  };
 }
 
 const percentOf = (fraction: number): string => String(Math.round(fraction * 10000) / 100);
@@ -426,7 +463,8 @@ const split = (items: ReleaseCheck[]): ReleaseChecks => {
   return {
     blocking,
     warnings: items.filter((i) => i.severity === 'warning'),
-    canRelease: blocking.length === 0 };
+    canRelease: blocking.length === 0,
+  };
 };
 
 /** Checks against the state read from the store and the claims. Pure. */
@@ -446,29 +484,34 @@ export function evaluateReleaseChecks(input: {
     add({
       code: 'push_in_progress',
       severity: 'blocking',
-      message: 'A draft push for this app is in progress. Wait for it to finish.' });
+      message: 'A draft push for this app is in progress. Wait for it to finish.',
+    });
   if (input.inFlight.push === 'unknown')
     add({
       code: 'push_outcome_unknown',
       severity: 'blocking',
       message:
-        'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.' });
+        'It is not known whether the last draft push reached the store. Preview that push again first (staged changes), then release.',
+    });
   if (input.inFlight.submit === 'writing')
     add({
       code: 'submit_in_progress',
       severity: 'blocking',
-      message: 'A submit for review of this app is in progress. Wait for it to finish.' });
+      message: 'A submit for review of this app is in progress. Wait for it to finish.',
+    });
   if (input.inFlight.submit === 'unknown')
     add({
       code: 'submit_outcome_unknown',
       severity: 'blocking',
       message:
-        'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.' });
+        'It is not known whether the last submit for review reached the store. Preview that submit again first, then release.',
+    });
   if (input.unpushedFields > 0) {
     add({
       code: 'unpushed_release_fields',
       severity: 'warning',
-      message: `${input.unpushedFields} staged release field${input.unpushedFields === 1 ? ' is' : 's are'} not written to the store's draft. A release releases what the store holds, not what is staged.` });
+      message: `${input.unpushedFields} staged release field${input.unpushedFields === 1 ? ' is' : 's are'} not written to the store's draft. A release releases what the store holds, not what is staged.`,
+    });
   }
 
   if (state.store === 'appstoreconnect') {
@@ -477,29 +520,34 @@ export function evaluateReleaseChecks(input: {
         code: 'ambiguous_version',
         severity: 'blocking',
         message:
-          'More than one version waits for release. Name the version (its marketing version, for example 2.4.0).' });
+          'More than one version waits for release. Name the version (its marketing version, for example 2.4.0).',
+      });
     } else if (state.version === null || !state.releasable) {
       const known = state.versions.slice(0, 6).map((v) => `${v.versionString ?? '?'} (${v.state})`);
       add({
         code: 'not_releasable',
         severity: 'blocking',
-        message: `No version is waiting for release (${APPLE_RELEASABLE_STATE}), so there is nothing to release.${known.length > 0 ? ` The versions of this platform: ${known.join(', ')}.` : ''}` });
+        message: `No version is waiting for release (${APPLE_RELEASABLE_STATE}), so there is nothing to release.${known.length > 0 ? ` The versions of this platform: ${known.join(', ')}.` : ''}`,
+      });
     } else {
       if (state.build === null)
         add({
           code: 'no_build_read',
           severity: 'warning',
-          message: 'The build of the version could not be read.' });
+          message: 'The build of the version could not be read.',
+        });
       else if (state.build.expired === true)
         add({
           code: 'build_expired',
           severity: 'warning',
-          message: `Build ${state.build.buildNumber ?? state.build.id} is marked expired.` });
+          message: `Build ${state.build.buildNumber ?? state.build.id} is marked expired.`,
+        });
       if (state.version.releaseType !== null && state.version.releaseType !== 'MANUAL') {
         add({
           code: 'release_type_not_manual',
           severity: 'warning',
-          message: `The version was set to release ${state.version.releaseType}. It waits for release, so this request releases it now.` });
+          message: `The version was set to release ${state.version.releaseType}. It waits for release, so this request releases it now.`,
+        });
       }
     }
     return out;
@@ -510,76 +558,89 @@ export function evaluateReleaseChecks(input: {
     code: 'play_review_state_unknown',
     severity: 'warning',
     message:
-      'Google Play shows no review state through its API: this server cannot tell whether the release goes live at once or waits for review, and cannot confirm it afterwards beyond reading the track back.' });
+      'Google Play shows no review state through its API: this server cannot tell whether the release goes live at once or waits for review, and cannot confirm it afterwards beyond reading the track back.',
+  });
   if (state.ambiguous)
     add({
       code: 'ambiguous_release',
       severity: 'blocking',
-      message: `The ${state.track} track holds more than one draft release. Name its version codes.` });
+      message: `The ${state.track} track holds more than one draft release. Name its version codes.`,
+    });
   else if (state.release === null)
     add({
       code: 'no_draft_release',
       severity: 'blocking',
-      message: `The ${state.track} track has no draft release${request.versionCodes ? ' with these version codes' : ''}, so there is nothing to start.` });
+      message: `The ${state.track} track has no draft release${request.versionCodes ? ' with these version codes' : ''}, so there is nothing to start.`,
+    });
   else {
     if (state.release.status !== 'draft')
       add({
         code: 'not_a_draft',
         severity: 'blocking',
-        message: `The release is ${state.release.status}, not a draft.` });
+        message: `The release is ${state.release.status}, not a draft.`,
+      });
     if (state.release.versionCodes.length === 0)
       add({
         code: 'no_version_codes',
         severity: 'blocking',
-        message: 'The draft release has no version codes.' });
+        message: 'The draft release has no version codes.',
+      });
     if (state.missingCodes.length > 0) {
       add({
         code: 'version_codes_not_uploaded',
         severity: 'blocking',
-        message: `Google Play does not list ${state.missingCodes.length === 1 ? 'this version code' : 'these version codes'} as uploaded: ${state.missingCodes.slice(0, 10).join(', ')}.` });
+        message: `Google Play does not list ${state.missingCodes.length === 1 ? 'this version code' : 'these version codes'} as uploaded: ${state.missingCodes.slice(0, 10).join(', ')}.`,
+      });
     }
     if (state.release.notes === 0)
       add({
         code: 'no_release_notes',
         severity: 'warning',
-        message: 'The draft release has no release notes.' });
+        message: 'The draft release has no release notes.',
+      });
   }
   if (state.creates) {
     add({
       code: 'direct_release',
       severity: 'warning',
-      message: `The ${state.track} track holds no draft release with these version codes. The release is made from the staged fields and sent to Google in this one step, with no draft first. Google reviews it before users get it.` });
+      message: `The ${state.track} track holds no draft release with these version codes. The release is made from the staged fields and sent to Google in this one step, with no draft first. Google reviews it before users get it.`,
+    });
     const wanted = [...(request.versionCodes ?? [])].sort().join(',');
     const holding = state.others.filter((r) => [...r.versionCodes].sort().join(',') === wanted);
     if (holding.length > 0)
       add({
         code: 'codes_already_in_track',
         severity: 'blocking',
-        message: `A release of the ${state.track} track (${holding.map((r) => r.status).join(', ')}) already holds these version codes, so a new release is not made from them.` });
+        message: `A release of the ${state.track} track (${holding.map((r) => r.status).join(', ')}) already holds these version codes, so a new release is not made from them.`,
+      });
   } else if (request.build !== undefined) {
     add({
       code: 'draft_used_as_is',
       severity: 'warning',
       message:
-        'A draft release with these version codes already exists in the track. It is released as it is: its name and notes are not changed by this step.' });
+        'A draft release with these version codes already exists in the track. It is released as it is: its name and notes are not changed by this step.',
+    });
   }
   const rolling = state.others.filter((r) => r.status === 'inProgress');
   if (rolling.length > 0) {
     add({
       code: 'rollout_in_progress',
       severity: 'blocking',
-      message: `A release is already rolling out in the ${state.track} track (${rolling.map((r) => `${r.name ?? r.versionCodes.join(',')} at ${r.userFraction === null ? '?' : `${percentOf(r.userFraction)}%`}`).join(', ')}). Complete or halt it in Play Console first: this server does not start a second rollout beside a running one.` });
+      message: `A release is already rolling out in the ${state.track} track (${rolling.map((r) => `${r.name ?? r.versionCodes.join(',')} at ${r.userFraction === null ? '?' : `${percentOf(r.userFraction)}%`}`).join(', ')}). Complete or halt it in Play Console first: this server does not start a second rollout beside a running one.`,
+    });
   }
   if (state.others.some((r) => r.status === 'halted'))
     add({
       code: 'halted_release',
       severity: 'warning',
-      message: `A halted release is in the ${state.track} track.` });
+      message: `A halted release is in the ${state.track} track.`,
+    });
   if (request.userFraction === 1)
     add({
       code: 'full_rollout',
       severity: 'warning',
-      message: 'The release goes to 100% of users at once (the release is completed).' });
+      message: 'The release goes to 100% of users at once (the release is completed).',
+    });
   if (
     input.stagedFraction !== null &&
     request.userFraction !== undefined &&
@@ -588,7 +649,8 @@ export function evaluateReleaseChecks(input: {
     add({
       code: 'fraction_differs_from_staged',
       severity: 'warning',
-      message: `The staged intended share is ${percentOf(input.stagedFraction)}%, this release is asked for ${percentOf(request.userFraction)}%. The share asked here is the one used.` });
+      message: `The staged intended share is ${percentOf(input.stagedFraction)}%, this release is asked for ${percentOf(request.userFraction)}%. The share asked here is the one used.`,
+    });
   }
   return out;
 }
@@ -623,8 +685,10 @@ export function releaseConfirmHash(input: {
         track: r.track ?? null,
         codes: r.versionCodes ? [...r.versionCodes].sort() : null,
         userFraction: r.userFraction ?? null,
-        build: r.build ? buildDigest(r.build) : null },
-      store: releaseKey(input.state) }),
+        build: r.build ? buildDigest(r.build) : null,
+      },
+      store: releaseKey(input.state),
+    }),
   );
 }
 
@@ -664,7 +728,8 @@ export const releaseConfig = (ctx: Pick<ReleaseContext, 'releaseEnabled'>): Rele
   action: 'store.release',
   minimumRole: 'admin',
   irreversible: true,
-  note: 'Releasing makes an approved App Store version available, or starts a Google Play draft release at a share you name. It cannot be recalled from here (docs/api/releases-write.md).' });
+  note: 'Releasing makes an approved App Store version available, or starts a Google Play draft release at a share you name. It cannot be recalled from here (docs/api/releases-write.md).',
+});
 
 export type ReleaseStateView = {
   enabled: boolean;
@@ -688,11 +753,15 @@ export async function getReleaseState(
       inFlight: {
         release: f.release === 'writing',
         push: f.push === 'writing',
-        submit: f.submit === 'writing' },
+        submit: f.submit === 'writing',
+      },
       unknownOutcome: {
         release: f.release === 'unknown',
         push: f.push === 'unknown',
-        submit: f.submit === 'unknown' } } };
+        submit: f.submit === 'unknown',
+      },
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -805,7 +874,8 @@ const audienceOf = (state: ReleaseState, request: ReleaseRequest): ReleasePrevie
       ? {
           kind: 'phased',
           userFraction: null,
-          description: 'Phased release: automatic updates reach users over seven days.' }
+          description: 'Phased release: automatic updates reach users over seven days.',
+        }
       : { kind: 'all', userFraction: null, description: 'Everybody at once.' };
   }
   const f = request.userFraction ?? 0;
@@ -862,7 +932,8 @@ function previewOf(
       state,
       inFlight: input.inFlight,
       unpushedFields: input.unpushed.count,
-      stagedFraction: input.unpushed.fraction }),
+      stagedFraction: input.unpushed.fraction,
+    }),
   );
   const phrase = checks.canRelease ? confirmationPhraseOf(app, request, state) : null;
   const apple = state.store === 'appstoreconnect';
@@ -880,14 +951,16 @@ function previewOf(
             name: state.release.name,
             status: state.release.status,
             versionCodes: state.release.versionCodes,
-            notes: state.release.notes },
+            notes: state.release.notes,
+          },
     others: apple
       ? []
       : state.others.map((o) => ({
           name: o.name,
           status: o.status,
           userFraction: o.userFraction,
-          versionCodes: o.versionCodes })),
+          versionCodes: o.versionCodes,
+        })),
     audience: audienceOf(state, request),
     direct:
       apple || request.build === undefined
@@ -901,7 +974,8 @@ function previewOf(
                 request.build.notes.filter((n) => n.text.trim() !== '').map((n) => n.locale),
               ),
             ],
-            summary: directSummaryOf(request, state) },
+            summary: directSummaryOf(request, state),
+          },
     irreversible: irreversibleOf(state, request),
     releases: true,
     checks,
@@ -914,7 +988,8 @@ function previewOf(
         ? { phrase, instruction: `Type "${phrase}" to confirm. This cannot be undone from here.` }
         : null,
     confirmationRequired: input.stepUpCovers !== true,
-    readAt: ctx.now() };
+    readAt: ctx.now(),
+  };
 }
 
 /** `POST .../store-release/preview`: reads the store and shows what would be released, to whom, and what stands in the way. Writes nothing. */
@@ -959,7 +1034,9 @@ export async function previewRelease(
       state,
       inFlight,
       unpushed,
-      stepUpCovers: input.stepUpCovers }) };
+      stepUpCovers: input.stepUpCovers,
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1007,8 +1084,10 @@ async function auditFailed(
       ...(request.track ? { track: request.track } : {}),
       ...(request.userFraction !== undefined ? { userFraction: request.userFraction } : {}),
       hash: input.confirmHash,
-      ...extra },
-    at: ctx.now() });
+      ...extra,
+    },
+    at: ctx.now(),
+  });
 }
 
 /**
@@ -1098,8 +1177,10 @@ async function succeed(
         via: s.via,
         confirmedByReread: s.reread,
         hash: input.confirmHash,
-        ...(s.cause ? { cause: s.cause } : {}) },
-      at });
+        ...(s.cause ? { cause: s.cause } : {}),
+      },
+      at,
+    });
     await emitEvent(tx, {
       workspaceId: input.workspaceId,
       type: 'release.started',
@@ -1113,8 +1194,10 @@ async function succeed(
         ...(s.request.userFraction !== undefined ? { userFraction: s.request.userFraction } : {}),
         via: s.via,
         confirmedByReread: s.reread,
-        actor: { type: input.actor.type, id: input.actor.id } },
-      at });
+        actor: { type: input.actor.type, id: input.actor.id },
+      },
+      at,
+    });
   });
   await releaseClaim(ctx.db, s.claim);
   return {
@@ -1130,7 +1213,9 @@ async function succeed(
       released: true,
       confirmedByReread: s.reread,
       releasedAt: at,
-      note: apple ? NOTE_IOS : NOTE_PLAY } };
+      note: apple ? NOTE_IOS : NOTE_PLAY,
+    },
+  };
 }
 
 /** After a lost answer: does the store show the release? */
@@ -1244,7 +1329,8 @@ export async function applyRelease(
               state: current,
               inFlight: { release: null, push: null, submit: null },
               unpushedFields: unpushed.count,
-              stagedFraction: unpushed.fraction }),
+              stagedFraction: unpushed.fraction,
+            }),
           );
           if (!checks.canRelease) {
             blocked = checks;
@@ -1263,7 +1349,8 @@ export async function applyRelease(
             input.confirmHash;
           if (same) accepted = current;
           return same;
-        } }),
+        },
+      }),
     );
   } catch (error) {
     if (error instanceof ReleaseDriftError) {
@@ -1271,7 +1358,8 @@ export async function applyRelease(
         await auditFailed(ctx, input, app, request, {
           code: 'blocked',
           outcome: 'refused',
-          blocking: blocked.blocking.map((b) => b.code).slice(0, 20) });
+          blocking: blocked.blocking.map((b) => b.code).slice(0, 20),
+        });
         await releaseClaim(db, claim);
         return failure(
           409,
@@ -1283,7 +1371,8 @@ export async function applyRelease(
       if (wrongPhrase !== undefined) {
         await auditFailed(ctx, input, app, request, {
           code: 'confirmation_mismatch',
-          outcome: 'refused' });
+          outcome: 'refused',
+        });
         await releaseClaim(db, claim);
         return failure(
           422,
@@ -1306,7 +1395,9 @@ export async function applyRelease(
             state: error.current,
             inFlight: { release: null, push: null, submit: null },
             unpushed,
-            stepUpCovers: input.stepUpCovers }) },
+            stepUpCovers: input.stepUpCovers,
+          }),
+        },
       );
     }
     if (error instanceof ReleaseOutcomeUnknownError || error instanceof ReleaseTimeout) {
@@ -1327,7 +1418,8 @@ export async function applyRelease(
       before: done.before,
       releaseRequestId: done.releaseRequestId,
       via: done.via,
-      reread: false });
+      reread: false,
+    });
 
   // ----- an unknown outcome is checked, not sent again
   const cause = unknown?.cause ?? 'unknown';
@@ -1344,7 +1436,8 @@ export async function applyRelease(
     await auditFailed(ctx, input, app, request, {
       code: cause,
       outcome: 'unknown',
-      readBack: 'failed' });
+      readBack: 'failed',
+    });
     return failure(
       409,
       'outcome_unknown',
@@ -1361,7 +1454,8 @@ export async function applyRelease(
       releaseRequestId: null,
       via: byFamily(app.platform, { apple: 'release_request', google: 'edit_commit' }),
       reread: true,
-      cause });
+      cause,
+    });
   if (shown === 'still_waiting' && !supports(app.platform, 'transactionalEdits')) {
     await auditFailed(ctx, input, app, request, { code: 'not_applied', outcome: 'failed', cause });
     await releaseClaim(db, claim);
@@ -1377,7 +1471,8 @@ export async function applyRelease(
   await auditFailed(ctx, input, app, request, {
     code: shown === 'still_waiting' ? 'not_visible' : 'unclear',
     outcome: 'unknown',
-    cause });
+    cause,
+  });
   return failure(
     409,
     'outcome_unknown',

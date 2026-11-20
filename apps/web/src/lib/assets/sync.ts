@@ -17,9 +17,9 @@ import {
   UPLOAD_FORMATS,
 } from '@mrm/core';
 import { ApiError } from '../api.ts';
-import { formatBytes } from './assets.ts';
 import type { IconName } from '../icons.ts';
 import type { AssetItem, ChangeSetView } from '../types.ts';
+import { formatBytes } from './assets.ts';
 
 /**
  * Two way sync of the graphics, the web side (docs/api/assets.md, docs/api/staged-changes.md,

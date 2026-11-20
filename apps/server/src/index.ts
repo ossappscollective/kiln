@@ -6,21 +6,6 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
 import { createWorker } from './jobs.ts';
-import { createAsoSources } from './modules/aso/net.ts';
-import { asoIntervalMs } from './modules/aso/schedule.ts';
-import {
-  ASO_REFRESH_QUEUE,
-  type AsoLimits,
-  createAsoRefreshHandler,
-} from './modules/aso/service.ts';
-import { createEventStreamHub } from './routes/events.ts';
-import {
-  createScheduler,
-  releaseWatchIntervalMs,
-  reminderIntervalMs,
-  syncIntervalMs,
-} from './scheduler.ts';
-import { pruneSessions } from './services/accounts.ts';
 import { createAlertDeliveryHandler } from './modules/alerts/delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './modules/alerts/runner.ts';
 import { ALERT_QUEUE } from './modules/alerts/service.ts';
@@ -31,26 +16,20 @@ import {
   DEFAULT_ANALYTICS_TIMEOUT_MS,
   defaultAnalyticsConnectors,
 } from './modules/analytics/sync.ts';
+import { createAsoSources } from './modules/aso/net.ts';
+import { asoIntervalMs } from './modules/aso/schedule.ts';
 import {
-  APP_SYNC_QUEUE,
-  createAppSyncHandler,
-  DEFAULT_SYNC_TIMEOUT_MS,
-  defaultStoreConnectorFactory,
-} from './services/apps.ts';
+  ASO_REFRESH_QUEUE,
+  type AsoLimits,
+  createAsoRefreshHandler,
+} from './modules/aso/service.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './modules/ci/service.ts';
-import { checkGit, setUpReads } from './services/clone-reads.ts';
-import { createCloneUpkeep } from './services/clone-upkeep.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
-import { pruneEvents } from './services/events.ts';
 import {
   createListingReadHandler,
   DEFAULT_LISTING_TIMEOUT_MS,
   LISTING_READ_QUEUE,
   listingIntervalMs,
 } from './modules/listing/schedule.ts';
-import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
-import { parseSmtpEnv } from './services/mail-config.ts';
-import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { reviewSyncIntervalMs } from './modules/reviews/schedule.ts';
 import {
   createReviewSyncHandler,
@@ -58,6 +37,27 @@ import {
   defaultReviewConnectorFactory,
   REVIEW_SYNC_QUEUE,
 } from './modules/reviews/sync.ts';
+import { createEventStreamHub } from './routes/events.ts';
+import {
+  createScheduler,
+  releaseWatchIntervalMs,
+  reminderIntervalMs,
+  syncIntervalMs,
+} from './scheduler.ts';
+import { pruneSessions } from './services/accounts.ts';
+import {
+  APP_SYNC_QUEUE,
+  createAppSyncHandler,
+  DEFAULT_SYNC_TIMEOUT_MS,
+  defaultStoreConnectorFactory,
+} from './services/apps.ts';
+import { checkGit, setUpReads } from './services/clone-reads.ts';
+import { createCloneUpkeep } from './services/clone-upkeep.ts';
+import { createTestLimiter } from './services/credential-tests.ts';
+import { pruneEvents } from './services/events.ts';
+import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
+import { parseSmtpEnv } from './services/mail-config.ts';
+import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
 import { createWebhookHandler, pruneDeliveries, WEBHOOK_QUEUE } from './services/webhooks.ts';
 import { VERSION } from './version.ts';
 
@@ -405,12 +405,15 @@ if (config.worker === 'inline') {
   }
 }
 
-const server = serve({ fetch: app.fetch, port: config.port, ...(config.host ? { hostname: config.host } : {}) }, (info) => {
-  const where = config.host ?? 'localhost';
-  console.log(
-    `Mobile Release Manager ${VERSION} on http://${where}:${info.port} (${database.dialect}, ${config.mode})`,
-  );
-});
+const server = serve(
+  { fetch: app.fetch, port: config.port, ...(config.host ? { hostname: config.host } : {}) },
+  (info) => {
+    const where = config.host ?? 'localhost';
+    console.log(
+      `Mobile Release Manager ${VERSION} on http://${where}:${info.port} (${database.dialect}, ${config.mode})`,
+    );
+  },
+);
 
 let stopping = false;
 async function shutdown(signal: string) {

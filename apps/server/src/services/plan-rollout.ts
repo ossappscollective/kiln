@@ -1,5 +1,29 @@
 import { randomUUID } from 'node:crypto';
-import { type ActorType, APPLE_PHASED_SCHEDULE, checkRolloutAction, compareRollout, type Platform, PLATFORMS, type ReleaseState, type RolloutAction, type RolloutComparison, type RolloutDoneSource, type RolloutIssue, type RolloutKind, type RolloutStepInput, type RolloutStepState, type RolloutStepStatus, type RolloutSummary, rolloutTemplate, storeFamilyOf, storeRollout, type StoreRollout, summarizeRollout, supports, validateRolloutSteps } from '@mrm/core';
+import {
+  type ActorType,
+  APPLE_PHASED_SCHEDULE,
+  checkRolloutAction,
+  compareRollout,
+  PLATFORMS,
+  type Platform,
+  type ReleaseState,
+  type RolloutAction,
+  type RolloutComparison,
+  type RolloutDoneSource,
+  type RolloutIssue,
+  type RolloutKind,
+  type RolloutStepInput,
+  type RolloutStepState,
+  type RolloutStepStatus,
+  type RolloutSummary,
+  rolloutTemplate,
+  type StoreRollout,
+  storeFamilyOf,
+  storeRollout,
+  summarizeRollout,
+  supports,
+  validateRolloutSteps,
+} from '@mrm/core';
 import { mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import type { EventType } from './event-types.ts';
@@ -72,7 +96,8 @@ const toStep = (r: Row, now: number): RolloutStepView => {
     doneAt: mapOrNull(r.done_at, Number),
     doneBy: r.done_by ? { id: String(r.done_by), name: mapOrNull(r.done_by_name, String) } : null,
     doneSource: mapOrNull(r.done_source, String) as RolloutDoneSource | null,
-    due: status === 'planned' && plannedAt !== null && plannedAt <= now };
+    due: status === 'planned' && plannedAt !== null && plannedAt <= now,
+  };
 };
 
 const STEP_COLUMNS = `s.id, s.plan_id, s.position, s.percent, s.planned_at, s.note, s.status, s.done_at,
@@ -161,7 +186,8 @@ export async function observeStore(
     status: mapOrNull(best.status, String) as ReleaseState | null,
     rawState: mapOrNull(best.raw_state, String),
     fraction: parseFraction(best.details_json),
-    syncedAt: mapOrNull(best.synced_at, Number) });
+    syncedAt: mapOrNull(best.synced_at, Number),
+  });
 }
 
 type PlanFacts = {
@@ -193,7 +219,8 @@ async function planFacts(sql: Sql, ref: RolloutRef): Promise<PlanFacts | undefin
     createdAt: Number(r.created_at),
     kind: kind === 'steps' || kind === 'apple_phased' ? kind : null,
     template: mapOrNull(r.rollout_template, String),
-    startAt: mapOrNull(r.rollout_start_at, Number) };
+    startAt: mapOrNull(r.rollout_start_at, Number),
+  };
 }
 
 function appleView(startAt: number | null): AppleRolloutView {
@@ -203,8 +230,10 @@ function appleView(startAt: number | null): AppleRolloutView {
       day: s.day,
       percent: s.percent,
       date:
-        startAt === null ? null : new Date(startAt + (s.day - 1) * DAY).toISOString().slice(0, 10) })),
-    note: APPLE_NOTE };
+        startAt === null ? null : new Date(startAt + (s.day - 1) * DAY).toISOString().slice(0, 10),
+    })),
+    note: APPLE_NOTE,
+  };
 }
 
 async function buildView(
@@ -225,7 +254,8 @@ async function buildView(
     apple: plan.kind === 'apple_phased' ? appleView(plan.startAt) : null,
     summary: rolloutSummaryOf(plan.kind, steps, now),
     store,
-    comparison: plan.kind === 'steps' ? compareRollout(steps, store) : null };
+    comparison: plan.kind === 'steps' ? compareRollout(steps, store) : null,
+  };
 }
 
 export type RolloutRef = { workspaceId: string; appId: string; planId: string };
@@ -255,7 +285,8 @@ const touch = (tx: Sql, workspaceId: string, planId: string, at: number) =>
 
 const invalid = (issues: RolloutIssue[]) =>
   failure(422, 'invalid_rollout', issues[0]?.message ?? 'This rollout plan is not valid.', {
-    issues });
+    issues,
+  });
 
 /** Reminders about steps that no longer exist or no longer apply. */
 const dropStepReminders = (tx: Sql, planId: string, itemIds?: string[]) =>
@@ -345,7 +376,8 @@ export async function setRollout(
           action: 'plan.rollout_set',
           target: { type: 'release_plan', id: plan.id },
           detail: { appId: plan.appId, version: plan.version, kind: 'apple_phased', startsAt },
-          at });
+          at,
+        });
       }
     } else {
       const onlyImmediate = body.steps.length === 1 && body.steps[0]?.percent === 100;
@@ -424,8 +456,10 @@ export async function setRollout(
             version: plan.version,
             kind: 'steps',
             ...(body.template ? { template: body.template } : {}),
-            percents: body.steps.map((s) => s.percent) },
-          at });
+            percents: body.steps.map((s) => s.percent),
+          },
+          at,
+        });
       }
     }
     const fresh = (await planFacts(tx, input)) as PlanFacts;
@@ -468,8 +502,10 @@ export async function clearRollout(
           appId: plan.appId,
           version: plan.version,
           kind: plan.kind,
-          steps: Number(steps?.n ?? 0) },
-        at });
+          steps: Number(steps?.n ?? 0),
+        },
+        at,
+      });
     }
     const fresh = (await planFacts(tx, input)) as PlanFacts;
     return { ok: true as const, rollout: await buildView(tx, input, fresh, ctx.now()) };
@@ -482,11 +518,13 @@ export async function clearRollout(
 const ACTION_EVENT: Record<RolloutAction, EventType> = {
   complete: 'plan.rollout_step_done',
   skip: 'plan.rollout_step_skipped',
-  reopen: 'plan.rollout_step_reopened' };
+  reopen: 'plan.rollout_step_reopened',
+};
 const ACTION_AUDIT: Record<RolloutAction, string> = {
   complete: 'plan.rollout_step_done',
   skip: 'plan.rollout_step_skipped',
-  reopen: 'plan.rollout_step_reopened' };
+  reopen: 'plan.rollout_step_reopened',
+};
 
 /**
  * Completes, skips or reopens one step. `fromStore` (complete only) records that a person confirmed
@@ -533,7 +571,8 @@ export async function rolloutStepAction(
               `The store says ${store.percent}%, which is below this step (${step.percent}%).`,
               {
                 storePercent: store.percent,
-                stepPercent: step.percent },
+                stepPercent: step.percent,
+              },
             );
           }
           source = 'store';
@@ -569,20 +608,23 @@ export async function rolloutStepAction(
         index: index + 1,
         total: steps.length,
         percent: step.percent,
-        ...(source ? { source } : {}) };
+        ...(source ? { source } : {}),
+      };
       await recordAudit(tx, {
         workspaceId: input.workspaceId,
         actor,
         action: ACTION_AUDIT[input.action],
         target: { type: 'release_plan', id: plan.id },
         detail,
-        at });
+        at,
+      });
       await emitEvent(tx, {
         workspaceId: input.workspaceId,
         type: ACTION_EVENT[input.action],
         subject: { appId: plan.appId },
         payload: { planId: plan.id, ...detail, actor: { type: actor.type, id: actor.id } },
-        at });
+        at,
+      });
     }
     return { ok: true as const, rollout: await buildView(tx, input, plan, ctx.now()) };
   });

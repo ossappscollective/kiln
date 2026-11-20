@@ -1,11 +1,12 @@
-import { type Platform, PLATFORMS, supports } from '../platform.ts';
+import { PLATFORMS, type Platform, supports } from '../platform.ts';
 import { type AssetSlot, assetStoreOf, slotKey } from './staged-changes.ts';
 import {
   APPLE_DISPLAYS,
   type AssetKind,
   type AssetStore,
   deviceLabel,
-  PLAY_DEVICES } from './store-asset-specs.ts';
+  PLAY_DEVICES,
+} from './store-asset-specs.ts';
 
 /**
  * Two way sync of store images (docs/adr/0012-assets-two-way-sync.md, docs/api/assets.md): the shapes the
@@ -53,7 +54,8 @@ export const ASSET_SYNC_LIMITS = {
   maxStagedUploadBytes: 64 * 1024 * 1024,
   maxStagedUploadFiles: 100,
   /** Seconds one answer of the store listing is reused. */
-  storeCacheSeconds: 60 } as const;
+  storeCacheSeconds: 60,
+} as const;
 
 /** Formats that may be uploaded (what a push writes). */
 export const UPLOAD_FORMATS: readonly string[] = ['png', 'jpeg'];
@@ -136,7 +138,8 @@ export const COMPARE_LABELS: Readonly<Record<AssetCompareStatus, string>> = {
   likely_same: 'Probably the same',
   differs: 'Differs',
   only_repo: 'Only in the repository',
-  only_store: 'Only in the store' };
+  only_store: 'Only in the store',
+};
 
 export type AssetCompareRow = {
   position: number;
@@ -178,7 +181,8 @@ export function compareFile(
   ) {
     return {
       status: 'differs',
-      reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.` };
+      reason: `The size differs: ${repo.width} x ${repo.height} in the repository, ${store.width} x ${store.height} in the store.`,
+    };
   }
   if (repo.bytes !== null && store.bytes !== null && repo.bytes !== store.bytes) {
     return { status: 'differs', reason: 'The file sizes differ.' };
@@ -187,7 +191,8 @@ export function compareFile(
   return known
     ? {
         status: 'likely_same',
-        reason: 'The store gives no checksum, so the files are only compared by size.' }
+        reason: 'The store gives no checksum, so the files are only compared by size.',
+      }
     : { status: 'likely_same', reason: 'Too little is known about one side to say more.' };
 }
 
@@ -215,7 +220,8 @@ export function compareTotals(rows: readonly { status: AssetCompareStatus }[]): 
     likely_same: 0,
     differs: 0,
     only_repo: 0,
-    only_store: 0 };
+    only_store: 0,
+  };
   for (const r of rows) out[r.status] += 1;
   return out;
 }
@@ -363,7 +369,8 @@ const EXTENSION_FOR: Readonly<Record<string, string>> = {
   png: 'png',
   jpeg: 'jpg',
   webp: 'webp',
-  gif: 'gif' };
+  gif: 'gif',
+};
 export const extensionForFormat = (format: string): string | undefined => EXTENSION_FOR[format];
 
 /**
@@ -387,7 +394,8 @@ export function fixAdvice(
         kind: 'remove_alpha',
         label: 'Remove the alpha channel',
         detail:
-          'Flattens the transparency onto a background colour (white by default) and writes a PNG without alpha.' });
+          'Flattens the transparency onto a background colour (white by default) and writes a PNG without alpha.',
+      });
     } else {
       manual.push(
         `The alpha channel can only be removed from a PNG, and this is ${facts.format ? facts.format.toUpperCase() : 'not a PNG'}. Export it again without transparency.`,
@@ -400,12 +408,15 @@ export function fixAdvice(
       options.push({
         kind: 'rename_extension',
         label: `Rename to .${right}`,
-        detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.` });
+        detail: `The content is ${facts.format.toUpperCase()}; the name says .${facts.extension}. The bytes do not change.`,
+      });
     }
   }
   const sizeRule =
     REQUIRED_SIZE_RULES.some((r) => has(r)) ||
-    (supports(platform, 'screenshotsByDevice') && facts.kind === 'screenshot' && facts.device === null);
+    (supports(platform, 'screenshotsByDevice') &&
+      facts.kind === 'screenshot' &&
+      facts.device === null);
   if (sizeRule) {
     const need = requiredSizesText(platform, slot);
     if (
@@ -417,7 +428,8 @@ export function fixAdvice(
       options.push({
         kind: 'resize',
         label: 'Resize to the required size',
-        detail: `Scales to the nearest required size (${need}). Only PNG files are resized; a different aspect ratio is cropped to fill.` });
+        detail: `Scales to the nearest required size (${need}). Only PNG files are resized; a different aspect ratio is cropped to fill.`,
+      });
     } else {
       manual.push(
         `The size is wrong${facts.width !== null && facts.height !== null ? ` (${facts.width} x ${facts.height})` : ''}. Required: ${need}.${facts.format === 'png' ? '' : ' Only PNG files can be resized here.'}`,

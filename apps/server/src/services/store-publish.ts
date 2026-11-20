@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { type Platform, supports, versionCodesOf } from '@mrm/core';
 import type { Database, Sql } from '@mrm/db';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
@@ -10,15 +11,16 @@ import {
   PUBLISH_STEPS,
   type PublishStep,
   pendingItemsOf,
-  totalsOf } from './pending.ts';
+  totalsOf,
+} from './pending.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from '../modules/reviews/sync.ts';
 import {
   applyDraftPush,
   DRAFT_ENV,
   type DraftContext,
   type DraftPreview,
-  previewDraftPush } from './store-draft.ts';
+  previewDraftPush,
+} from './store-draft.ts';
 import { loadPush } from './store-draft-record.ts';
 import {
   applyRelease,
@@ -28,19 +30,22 @@ import {
   type ReleaseContext,
   type ReleaseInput,
   requestOfInput,
-  resolveDirect } from './store-release.ts';
+  resolveDirect,
+} from './store-release.ts';
 import {
   applyRollout,
   previewRollout,
   ROLLOUT_ENV,
   type RolloutContext,
-  type RolloutRequest } from './store-rollout.ts';
+  type RolloutRequest,
+} from './store-rollout.ts';
 import {
   applySubmit,
   confirmationPhrase,
   previewSubmit,
   SUBMIT_ENV,
-  type SubmitContext } from './store-submit.ts';
+  type SubmitContext,
+} from './store-submit.ts';
 
 /**
  * The BATCH PUBLISH of an app: one plan, ONE final confirmation, several gated store steps in order
@@ -79,23 +84,27 @@ export const STEP_ACTION = {
   push_draft: 'store.push_draft',
   submit: 'store.submit',
   release: 'store.release',
-  rollout: 'releases.rollout' } as const;
+  rollout: 'releases.rollout',
+} as const;
 export const STEP_ENV = {
   push_draft: DRAFT_ENV,
   submit: SUBMIT_ENV,
   release: RELEASE_ENV,
-  rollout: ROLLOUT_ENV } as const;
+  rollout: ROLLOUT_ENV,
+} as const;
 const STEP_LABEL = {
   push_draft: 'Push the staged changes to the store as a draft',
   submit: 'Submit the draft for store review',
   release: 'Release',
-  rollout: 'Change the rollout' } as const;
+  rollout: 'Change the rollout',
+} as const;
 /** Steps that cannot be taken back, or change what live users receive: they need the typed phrase. */
 const IRREVERSIBLE: Record<PublishStep, boolean> = {
   push_draft: false,
   submit: true,
   release: true,
-  rollout: true };
+  rollout: true,
+};
 
 export type PublishContext = {
   db: Database;
@@ -134,7 +143,8 @@ const FIELDS: Record<PublishStep, readonly (keyof StepRequest)[]> = {
   push_draft: [],
   submit: [],
   release: ['version', 'track', 'versionCodes', 'userFraction', 'direct'],
-  rollout: ['action', 'version', 'track', 'versionCodes', 'userFraction'] };
+  rollout: ['action', 'version', 'track', 'versionCodes', 'userFraction'],
+};
 
 const invalidSteps = (message: string, extra: Record<string, unknown> = {}): Failure =>
   failure(422, 'invalid_steps', message, extra);
@@ -160,7 +170,8 @@ export function normalizeSteps(
     if (r.type === 'rollout' && (r.action === undefined || r.action === ''))
       return invalidSteps('A rollout step needs the action to take.', {
         type: r.type,
-        field: 'action' });
+        field: 'action',
+      });
     const clean: StepRequest = { type: r.type };
     for (const key of allowed) {
       const v = r[key];
@@ -266,14 +277,16 @@ const problemsFromChecks = (checks: { blocking: Check[]; warnings: Check[] }): P
       code: c.code,
       severity: 'error',
       message: c.message,
-      ...(c.item !== undefined ? { item: c.item } : {}) }),
+      ...(c.item !== undefined ? { item: c.item } : {}),
+    }),
   ),
   ...checks.warnings.slice(0, 30).map(
     (c): PlanProblem => ({
       code: c.code,
       severity: 'warning',
       message: c.message,
-      ...(c.item !== undefined ? { item: c.item } : {}) }),
+      ...(c.item !== undefined ? { item: c.item } : {}),
+    }),
   ),
 ];
 
@@ -289,7 +302,8 @@ const problemOfFailure = (f: Failure): PlanProblem[] => {
       code: String(p.code ?? f.body.error),
       severity: 'error' as const,
       message: String(p.message ?? ''),
-      ...(p.item !== undefined ? { item: String(p.item) } : {}) }));
+      ...(p.item !== undefined ? { item: String(p.item) } : {}),
+    }));
   }
   return [{ code: f.body.error, severity: 'error', message: messageOf(f) }];
 };
@@ -319,7 +333,8 @@ const unavailable = (
   preview,
   confirmHash: null,
   stepPhrase: null,
-  problems });
+  problems,
+});
 
 /** What the push promises the submit that follows it: the items its record will hold, counted like the record counts them. */
 async function recordAfterPush(
@@ -340,7 +355,8 @@ async function recordAfterPush(
     texts: texts.size,
     assetSets: sets.size,
     versionString:
-      push.version?.versionString ?? (sameVersion ? (record?.versionString ?? null) : null) };
+      push.version?.versionString ?? (sameVersion ? (record?.versionString ?? null) : null),
+  };
 }
 
 /**
@@ -368,7 +384,8 @@ async function stagedForDirect(
     fields: 0,
     track: null as string | null,
     codes: [] as string[],
-    fraction: null as number | null };
+    fraction: null as number | null,
+  };
   for (const r of rows) {
     const kind = String(r.kind);
     const target = String(r.target);
@@ -417,10 +434,13 @@ export async function buildPlan(
     push_draft: ctx.draft.draftEnabled,
     submit: ctx.submit.submitEnabled,
     release: ctx.release.releaseEnabled,
-    rollout: ctx.rollout.rolloutEnabled };
+    rollout: ctx.rollout.rolloutEnabled,
+  };
   // Google Play, release fields only: the default plan is ONE direct release (docs/adr/0029-direct-play-release.md), not a push, a
   // submit and a release. A person who wants only the draft asks for the push alone ("Save as a draft only"): that is explicit.
-  const staged = supports(app.platform, 'directRelease') ? await stagedForDirect(ctx.db, app) : null;
+  const staged = supports(app.platform, 'directRelease')
+    ? await stagedForDirect(ctx.db, app)
+    : null;
   const directHint =
     staged !== null && staged.track !== null && staged.codes.length > 0
       ? { track: staged.track, versionCodes: staged.codes, stagedFraction: staged.fraction }
@@ -440,7 +460,8 @@ export async function buildPlan(
           type: 'release',
           direct: true,
           track: directHint?.track ?? '',
-          versionCodes: directHint?.versionCodes ?? [] },
+          versionCodes: directHint?.versionCodes ?? [],
+        },
       ]
     : input.steps;
   const explicit = askedSteps !== undefined;
@@ -485,11 +506,13 @@ export async function buildPlan(
         fieldsChanged: pre.summary.fieldsChanged,
         filesToUpload: pre.summary.filesToUpload,
         filesToRemove: pre.summary.filesToRemove,
-        versionString: pre.version?.versionString ?? null },
+        versionString: pre.version?.versionString ?? null,
+      },
       preview: pre,
       confirmHash: pre.confirmHash,
       stepPhrase: null,
-      problems: problemsFromChecks({ blocking: [], warnings: pre.checks.warnings }) };
+      problems: problemsFromChecks({ blocking: [], warnings: pre.checks.warnings }),
+    };
   };
 
   const ONLY_RELEASE_FIELDS =
@@ -508,7 +531,8 @@ export async function buildPlan(
         summary: {
           versionString: after.versionString,
           texts: after.texts,
-          assetSets: after.assetSets },
+          assetSets: after.assetSets,
+        },
         preview: null,
         confirmHash: null,
         stepPhrase: confirmationPhrase(app, { versionString: after.versionString }),
@@ -517,8 +541,10 @@ export async function buildPlan(
             code: 'previewed_after_push',
             severity: 'warning',
             message:
-              'The submit is previewed again after the draft was pushed, and runs only if it matches this summary.' },
-        ] };
+              'The submit is previewed again after the draft was pushed, and runs only if it matches this summary.',
+          },
+        ],
+      };
     }
     if (supports(app.platform, 'releaseTracks')) {
       const record = await loadPush(ctx.db, app.id, app.platform);
@@ -549,11 +575,13 @@ export async function buildPlan(
       summary: {
         versionString: pre.version?.versionString ?? null,
         texts: pre.contents.pushed.texts,
-        assetSets: pre.contents.pushed.assetSets },
+        assetSets: pre.contents.pushed.assetSets,
+      },
       preview: pre,
       confirmHash: pre.confirmHash,
       stepPhrase: pre.confirmation?.phrase ?? null,
-      problems: problemsFromChecks({ blocking: [], warnings: pre.checks.warnings }) };
+      problems: problemsFromChecks({ blocking: [], warnings: pre.checks.warnings }),
+    };
   };
 
   const evalRelease = async (request: StepRequest | undefined): Promise<Evaluation> => {
@@ -562,7 +590,8 @@ export async function buildPlan(
       track: request?.track,
       versionCodes: request?.versionCodes,
       userFraction: request?.userFraction,
-      direct: request?.direct };
+      direct: request?.direct,
+    };
     const resolved = await resolveDirect(ctx.db, app, what);
     if (!resolved.ok)
       return unavailable('blocked', messageOf(resolved), problemOfFailure(resolved));
@@ -617,7 +646,8 @@ export async function buildPlan(
         summary: {
           track: asked.request.track ?? null,
           userFraction: asked.request.userFraction ?? null,
-          audience: pre.audience.kind },
+          audience: pre.audience.kind,
+        },
         preview: pre,
         confirmHash: null,
         stepPhrase: confirmationPhraseOf(app, asked.request, undefined),
@@ -627,8 +657,10 @@ export async function buildPlan(
             code: 'previewed_after_push',
             severity: 'warning',
             message:
-              'The draft release does not exist yet: this step is previewed again after the draft was pushed, and runs only if it matches this summary.' },
-        ] };
+              'The draft release does not exist yet: this step is previewed again after the draft was pushed, and runs only if it matches this summary.',
+          },
+        ],
+      };
     }
     return {
       availability: 'available',
@@ -646,10 +678,12 @@ export async function buildPlan(
                 code: 'previewed_after_push',
                 severity: 'warning' as const,
                 message:
-                  'This release is previewed again after the draft was pushed, and runs only if it matches this summary.' },
+                  'This release is previewed again after the draft was pushed, and runs only if it matches this summary.',
+              },
             ]
           : []),
-      ] };
+      ],
+    };
   };
 
   const evalRollout = async (request: StepRequest | undefined): Promise<Evaluation> => {
@@ -669,7 +703,8 @@ export async function buildPlan(
           {
             code: 'rollout_after_release',
             severity: 'error',
-            message: 'Start the release first, then change its rollout in a second publish.' },
+            message: 'Start the release first, then change its rollout in a second publish.',
+          },
         ],
       );
     }
@@ -678,12 +713,14 @@ export async function buildPlan(
       track: request.track,
       versionCodes: request.versionCodes,
       version: request.version,
-      userFraction: request.userFraction };
+      userFraction: request.userFraction,
+    };
     const p = await previewRollout(ctx.rollout, {
       workspaceId,
       appId: app.id,
       request: rolloutRequest,
-      actor });
+      actor,
+    });
     if (!p.ok) return unavailable('blocked', messageOf(p), problemOfFailure(p));
     return {
       availability: 'available',
@@ -693,13 +730,15 @@ export async function buildPlan(
         action: p.preview.action,
         target: p.preview.target,
         irreversibleInStore: p.preview.irreversible,
-        description: p.preview.summary },
+        description: p.preview.summary,
+      },
       preview: p.preview,
       confirmHash: p.preview.confirmHash,
       stepPhrase: null,
       problems: p.preview.warnings.map(
         (message): PlanProblem => ({ code: 'rollout_note', severity: 'warning', message }),
-      ) };
+      ),
+    };
   };
 
   const steps: PlanStep[] = [];
@@ -710,7 +749,8 @@ export async function buildPlan(
       action: STEP_ACTION[type],
       envName: STEP_ENV[type],
       enabled: enabled[type],
-      allowed: input.rights[type] };
+      allowed: input.rights[type],
+    };
     let ev: Evaluation;
     if (explicit && !requested) ev = unavailable('not_requested', 'Not part of this batch.');
     else if (!requires.enabled)
@@ -746,7 +786,8 @@ export async function buildPlan(
       preview: ev.preview,
       confirmHash: ev.confirmHash,
       stepPhrase: ev.stepPhrase,
-      problems: ev.problems };
+      problems: ev.problems,
+    };
     steps.push(step);
     done[type] = step;
   }
@@ -777,7 +818,9 @@ export async function buildPlan(
             request: s.request,
             summary: s.summary,
             phrase: s.stepPhrase,
-            confirmHash: s.deferred ? null : s.confirmHash })) }),
+            confirmHash: s.deferred ? null : s.confirmHash,
+          })),
+        }),
       )
     : null;
   const instruction = `Type "${phrase}" to publish ${included.length === 1 ? 'this step' : `these ${included.length} steps`}.${irreversibleSteps.length > 0 ? ' Some of them cannot be undone from here.' : ''}`;
@@ -795,7 +838,8 @@ export async function buildPlan(
     confirmation: confirmable && confirmationRequired ? { phrase, instruction } : null,
     direct: directHint,
     defaultedToDirect,
-    readAt: ctx.now() };
+    readAt: ctx.now(),
+  };
 }
 
 /** What a release will do, as the plan promises it and the deferred preview must keep. */
@@ -821,8 +865,10 @@ function releaseSummary(
               direct: true,
               creates: pre.direct.creates,
               versionCodes: pre.direct.versionCodes,
-              notesLanguages: pre.direct.notesLanguages }
-          : {}) };
+              notesLanguages: pre.direct.notesLanguages,
+            }
+          : {}),
+      };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -854,24 +900,30 @@ export const publishConfig = (
       action: STEP_ACTION.push_draft,
       envName: STEP_ENV.push_draft,
       enabled: ctx.draft.draftEnabled,
-      irreversible: false },
+      irreversible: false,
+    },
     submit: {
       action: STEP_ACTION.submit,
       envName: STEP_ENV.submit,
       enabled: ctx.submit.submitEnabled,
-      irreversible: true },
+      irreversible: true,
+    },
     release: {
       action: STEP_ACTION.release,
       envName: STEP_ENV.release,
       enabled: ctx.release.releaseEnabled,
-      irreversible: true },
+      irreversible: true,
+    },
     rollout: {
       action: STEP_ACTION.rollout,
       envName: STEP_ENV.rollout,
       enabled: ctx.rollout.rolloutEnabled,
-      irreversible: true } },
+      irreversible: true,
+    },
+  },
   phrase: 'publish <app name> <n> steps',
-  note: 'The batch publish runs the same gated steps as the individual routes, in order, with one confirmation. It turns no step on and replaces no right: each step needs its own switch and role right (docs/api/pending.md).' });
+  note: 'The batch publish runs the same gated steps as the individual routes, in order, with one confirmation. It turns no step on and replaces no right: each step needs its own switch and role right (docs/api/pending.md).',
+});
 
 export const publishDisabledFailure = (): Failure =>
   failure(
@@ -913,7 +965,9 @@ export async function previewPublish(
       actor: input.actor,
       steps,
       rights: input.rights,
-      stepUpCovers: input.stepUpCovers }) };
+      stepUpCovers: input.stepUpCovers,
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1023,7 +1077,8 @@ const failedStep = (type: PublishStep, f: Failure): StepResult => {
     httpStatus: f.status,
     outcome: outcomeOf(f),
     message: typeof message === 'string' ? message : error,
-    ...(Object.keys(rest).length > 0 ? { detail: rest } : {}) };
+    ...(Object.keys(rest).length > 0 ? { detail: rest } : {}),
+  };
 };
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -1056,7 +1111,8 @@ async function runStep(
       workspaceId,
       appId: app.id,
       confirmHash: step.confirmHash ?? '',
-      actor });
+      actor,
+    });
     return r.ok
       ? {
           type,
@@ -1064,7 +1120,8 @@ async function runStep(
           confirmedByReread: Boolean(
             (r.result as { confirmedByReread?: boolean }).confirmedByReread,
           ),
-          result: r.result }
+          result: r.result,
+        }
       : failedStep(type, r);
   }
 
@@ -1100,7 +1157,8 @@ async function runStep(
       appId: app.id,
       confirmHash,
       confirmation: phrase,
-      actor });
+      actor,
+    });
     return r.ok
       ? {
           type,
@@ -1108,7 +1166,8 @@ async function runStep(
           confirmedByReread: Boolean(
             (r.result as { confirmedByReread?: boolean }).confirmedByReread,
           ),
-          result: r.result }
+          result: r.result,
+        }
       : failedStep(type, r);
   }
 
@@ -1118,7 +1177,8 @@ async function runStep(
       track: reqOf.track,
       versionCodes: reqOf.versionCodes,
       userFraction: reqOf.userFraction,
-      direct: reqOf.direct };
+      direct: reqOf.direct,
+    };
     let confirmHash = step.confirmHash ?? '';
     let phrase = step.stepPhrase ?? '';
     if (step.deferred) {
@@ -1146,7 +1206,8 @@ async function runStep(
       ...what,
       confirmHash,
       confirmation: phrase,
-      actor });
+      actor,
+    });
     return r.ok
       ? {
           type,
@@ -1154,7 +1215,8 @@ async function runStep(
           confirmedByReread: Boolean(
             (r.result as { confirmedByReread?: boolean }).confirmedByReread,
           ),
-          result: r.result }
+          result: r.result,
+        }
       : failedStep(type, r);
   }
 
@@ -1163,19 +1225,22 @@ async function runStep(
     track: reqOf.track,
     versionCodes: reqOf.versionCodes,
     version: reqOf.version,
-    userFraction: reqOf.userFraction };
+    userFraction: reqOf.userFraction,
+  };
   const r = await applyRollout(ctx.rollout, {
     workspaceId,
     appId: app.id,
     request,
     confirmHash: step.confirmHash ?? '',
-    actor });
+    actor,
+  });
   return r.ok
     ? {
         type,
         status: 'applied',
         confirmedByReread: Boolean((r.result as { confirmedByReread?: boolean }).confirmedByReread),
-        result: r.result }
+        result: r.result,
+      }
     : failedStep(type, r);
 }
 
@@ -1221,7 +1286,8 @@ export async function applyPublish(
     push_draft: ctx.draft.draftEnabled,
     submit: ctx.submit.submitEnabled,
     release: ctx.release.releaseEnabled,
-    rollout: ctx.rollout.rolloutEnabled };
+    rollout: ctx.rollout.rolloutEnabled,
+  };
   const off = types.filter((t) => !switches[t]);
   if (off.length > 0) {
     return failure(
@@ -1252,7 +1318,8 @@ export async function applyPublish(
       actor: input.actor,
       steps: requested,
       rights: input.rights,
-      stepUpCovers: input.stepUpCovers });
+      stepUpCovers: input.stepUpCovers,
+    });
     if (!plan.confirmable || plan.planHash === null) {
       return failure(
         409,
@@ -1278,7 +1345,8 @@ export async function applyPublish(
           type: step.type,
           status: 'skipped',
           reason: 'previous_step_not_applied',
-          message: `Not run: ${stopped} was not applied.` });
+          message: `Not run: ${stopped} was not applied.`,
+        });
         continue;
       }
       let result: StepResult;
@@ -1297,7 +1365,8 @@ export async function applyPublish(
           httpStatus: 502,
           outcome: 'unknown',
           message:
-            'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.' };
+            'The step stopped unexpectedly, so it is not known whether it reached the store. Look at the app in the store, then preview again.',
+        };
       }
       results.push(result);
       if (result.status !== 'applied') stopped = step.type;
@@ -1316,7 +1385,8 @@ export async function applyPublish(
       status: r.status,
       ...(r.status === 'failed' ? { code: r.error, outcome: r.outcome } : {}),
       ...(r.status === 'skipped' ? { reason: r.reason, ...(r.code ? { code: r.code } : {}) } : {}),
-      ...(r.status === 'applied' ? { confirmedByReread: r.confirmedByReread } : {}) }));
+      ...(r.status === 'applied' ? { confirmedByReread: r.confirmedByReread } : {}),
+    }));
     if (applied + failedCount > 0) {
       await db.transaction(async (tx) => {
         await recordAudit(tx, {
@@ -1333,8 +1403,10 @@ export async function applyPublish(
             applied,
             skipped,
             failed: failedCount,
-            steps: stepsOut },
-          at });
+            steps: stepsOut,
+          },
+          at,
+        });
         if (applied > 0) {
           await emitEvent(tx, {
             workspaceId: input.workspaceId,
@@ -1349,15 +1421,18 @@ export async function applyPublish(
               applied,
               skipped,
               failed: failedCount,
-              steps: stepsOut },
-            at });
+              steps: stepsOut,
+            },
+            at,
+          });
         }
       });
     }
     const items: PendingItem[] = await pendingItemsOf(db, {
       workspaceId: input.workspaceId,
       app,
-      now: at });
+      now: at,
+    });
     const totals = totalsOf(items);
     return {
       ok: true,
@@ -1371,7 +1446,9 @@ export async function applyPublish(
         stoppedAt: stopped,
         steps: results,
         pending: { items: totals.items, actionable: totals.actionable, blocking: totals.blocking },
-        publishedAt: at } };
+        publishedAt: at,
+      },
+    };
   } finally {
     await releaseClaim(db, claim);
   }

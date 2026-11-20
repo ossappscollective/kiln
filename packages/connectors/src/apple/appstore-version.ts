@@ -1,10 +1,4 @@
 import { PLATFORM_META } from '@mrm/core';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import { APPLE_DRAFT_VERSION_STATES } from '../store-draft-types.ts';
 import {
@@ -17,6 +11,12 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { appleError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect: CREATE the next App Store version (`POST /v1/appStoreVersions`), so a build can be attached to it. A STORE

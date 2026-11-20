@@ -1,11 +1,5 @@
 import { analyticsLimits } from '@mrm/core';
 import { AnalyticsError } from '../analytics-types.ts';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
 import { decodeTableText, openFileBytes } from '../delimited.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
@@ -20,6 +14,12 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { appleError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect connector for ANALYTICS: the Analytics Reports API and Sales and Trends. Read only, except

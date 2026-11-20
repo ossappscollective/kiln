@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
-import type { BuildsContext } from './service.ts';
+import { requireStepUp } from '../../services/step-up.ts';
 import {
   applyShare,
   listShares,
@@ -13,7 +13,7 @@ import {
   sharingConfig,
   sharingDisabledFailure,
 } from './internal-sharing.ts';
-import { requireStepUp } from '../../services/step-up.ts';
+import type { BuildsContext } from './service.ts';
 
 /**
  * Google Play internal app sharing from the Test builds panel (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md).

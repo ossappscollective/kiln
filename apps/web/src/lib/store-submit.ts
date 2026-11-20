@@ -119,7 +119,8 @@ export type SubmitResult = {
 /** Preview and submit: admin and up (`store.submit`). Not the same right as pushing a draft. */
 export const canSubmit = (role: Role): boolean => can(role, 'store.submit');
 
-export const storeLabel = (platform: Platform): string => `${platformMeta(platform).storeName} review`;
+export const storeLabel = (platform: Platform): string =>
+  `${platformMeta(platform).storeName} review`;
 
 /** What a submit never does, for the dialog and the result. */
 export const releaseStatement = (platform: Platform): string =>

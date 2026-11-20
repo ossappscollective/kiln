@@ -65,7 +65,6 @@ export type PlatformMeta = {
   order: number;
 };
 
-
 /**
  * What a platform's store can do, one flag per behaviour that code used to guess from "is it Apple or Google". The record is
  * exhaustive: a new platform has to say yes or no to every capability, so nothing is inherited by accident from the first two.

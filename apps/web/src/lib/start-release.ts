@@ -1,8 +1,8 @@
 import { type Platform, platformLabel } from '@mrm/core';
 import { canDispatchWorkflow } from './ci/ci.ts';
+import type { WorkflowEntry } from './ci/workflows.ts';
 import { releaseStepHref } from './release-stepper.ts';
 import type { ActiveRun, AppBuild, CiWorkflow, WorkflowInputSpec } from './types.ts';
-import type { WorkflowEntry } from './ci/workflows.ts';
 
 /**
  * "Start release": the button on the app dashboard and the releases tab that opens the dispatch dialog

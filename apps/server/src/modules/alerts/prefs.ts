@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ActorType } from '@mrm/core';
 import type { Database, Row, Sql } from '@mrm/db';
+import { recordAudit } from '../../services/audit.ts';
 import {
   type AlertChannel,
   type AlertDef,
@@ -15,7 +16,6 @@ import {
   resolveParams,
 } from './catalog.ts';
 import { type DigestMode, digestModes, isValidTimeZone } from './time.ts';
-import { recordAudit } from '../../services/audit.ts';
 
 /**
  * What people and admins decided about alerts (docs/alerts.md): the workspace rule of each type (admins), a person's own settings,

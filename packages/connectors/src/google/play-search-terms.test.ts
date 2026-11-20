@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AnalyticsError } from '../analytics-types.ts';
+import { isZip, readZipEntries } from '../zip.ts';
 import {
   csv,
   enc,
@@ -17,7 +18,6 @@ import {
   parseSearchDay,
   readSearchTermsFile,
 } from './play-search-terms.ts';
-import { isZip, readZipEntries } from '../zip.ts';
 
 const fails = async (p: Promise<unknown>, code: string) =>
   assert.rejects(

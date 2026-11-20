@@ -1,5 +1,7 @@
 import type { CiJob } from '@mrm/connectors';
 import type { ActorType } from '@mrm/core';
+import { type Failure, listRepositories, type Repository } from '../../services/repositories.ts';
+import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './runs.ts';
 import {
   type CiContext,
   cachedRunJobs,
@@ -10,8 +12,6 @@ import {
   refreshRuns,
   runActor,
 } from './service.ts';
-import { ACTIVE_STATUSES, listWorkspaceRuns, type WorkflowRunView } from './runs.ts';
-import { type Failure, listRepositories, type Repository } from '../../services/repositories.ts';
 
 type Actor = { type: ActorType; id: string };
 

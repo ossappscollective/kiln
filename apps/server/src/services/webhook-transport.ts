@@ -139,7 +139,10 @@ function isLoopbackLiteral(host: string): boolean {
 }
 
 /** Checks a webhook URL without touching the network. */
-export function checkWebhookUrl(raw: string, options: { allowPrivate?: boolean | undefined } = {}): UrlCheck {
+export function checkWebhookUrl(
+  raw: string,
+  options: { allowPrivate?: boolean | undefined } = {},
+): UrlCheck {
   if (raw.length > MAX_URL_LENGTH) return { ok: false, message: 'The URL is too long.' };
   let url: URL;
   try {

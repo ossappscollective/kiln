@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from '../api.ts';
+import type {
+  DriftField,
+  DriftLocale,
+  DriftSide,
+  DriftStatus,
+  ProjectDetection,
+  PullResult,
+} from '../types.ts';
 import {
   buildPullRequest,
   candidatesOf,
@@ -20,14 +28,6 @@ import {
   toggleAllDifferences,
   toggleKey,
 } from './pull.ts';
-import type {
-  DriftField,
-  DriftLocale,
-  DriftSide,
-  DriftStatus,
-  ProjectDetection,
-  PullResult,
-} from '../types.ts';
 
 const side = (value: string | null): DriftSide => ({
   value,

@@ -6,10 +6,10 @@ import type { AppEnv } from '../../http.ts';
 import { memberRole } from '../../services/accounts.ts';
 import type { AppIcons } from '../../services/app-icons.ts';
 import { getApp } from '../../services/apps.ts';
-import { isCommitSha, openAssets } from './asset-repo.ts';
 import type { TestLimiter } from '../../services/credential-tests.ts';
 import { type Failure, failure, type RepoContext } from '../../services/repositories.ts';
 import { peekStoreImages, storeSideOf } from '../../services/store-images.ts';
+import { isCommitSha, openAssets } from './asset-repo.ts';
 
 export type AssetRoutesContext = {
   db: Database;

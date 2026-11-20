@@ -1,10 +1,10 @@
 import type { Platform } from '@mrm/core';
+import { supports } from '@mrm/core';
 import type { PendingItem, PublishStepType } from './pending.ts';
 import type { BuildRow } from './release-candidates.ts';
 import type { Chosen, Level, StagedFacts, StepId } from './release-stepper.ts';
 import { STEP_LABELS } from './release-stepper.ts';
 import { storeName } from './staged.ts';
-import { supports } from '@mrm/core';
 
 /**
  * Pure parts of the stepper's layout (docs/design/readability.md, "Release stepper"): what the step rail draws, the footer's
@@ -122,7 +122,9 @@ export function confirmSteps(items: readonly PendingItem[], platform: Platform):
     } else if (type === 'release') {
       out.push({
         type,
-        title: supports(platform, 'releaseTracks') ? 'Release to users' : 'Release the approved version',
+        title: supports(platform, 'releaseTracks')
+          ? 'Release to users'
+          : 'Release the approved version',
         detail: mine.map((i) => i.label).join(', '),
         note: 'Cannot be undone from here',
         irreversible: true,

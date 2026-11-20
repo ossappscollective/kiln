@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
 import {
   InternalSharingOutcomeUnknownError,
   PlayInternalSharingConnector,
 } from './play-internal-sharing.ts';
-import * as fx from '../store.fixtures.ts';
 
 const key = fx.googleKeyPem();
 const PKG = 'com.example.coffee';

@@ -1,7 +1,7 @@
 import type { Platform } from '@mrm/core';
-import { initialSelection } from './dispatch-apps.ts';
 import type { DispatchHint } from '../start-release.ts';
 import type { AppSummary, CiWorkflow, RepositorySummary } from '../types.ts';
+import { initialSelection } from './dispatch-apps.ts';
 import { suggestAppId } from './workflows.ts';
 
 /**

@@ -1,8 +1,8 @@
 import { PLATFORMS, type Platform, platformLabel, sortPlatforms } from '@mrm/core';
 import type { IconName } from '../icons.ts';
-import { localeName, usage } from './drift.ts';
 import type { BadgeTone } from '../portfolio.ts';
 import type { DriftField, ListingDrift } from '../types.ts';
+import { localeName, usage } from './drift.ts';
 
 /**
  * The locale grid of the Listing tab as pure functions: rows are locales, columns are listing

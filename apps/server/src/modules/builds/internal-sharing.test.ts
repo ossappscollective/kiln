@@ -7,6 +7,7 @@ import {
 import { dbTest } from '@mrm/db/testing';
 import { zip } from '../../../../../packages/connectors/src/google/play-search-terms.fixtures.ts';
 import { bootCi } from '../ci/test-helpers.ts';
+import { LINK_RETENTION_MS } from './internal-sharing.ts';
 import {
   AAB,
   art,
@@ -17,7 +18,6 @@ import {
   sha256,
   streamOf,
 } from './test-helpers.ts';
-import { LINK_RETENTION_MS } from './internal-sharing.ts';
 
 // Google Play internal app sharing (docs/api/internal-sharing.md, docs/adr/0020-play-internal-sharing.md). Everything runs against a fake
 // GitHub, a fake artifact storage and a fake Google: no network.

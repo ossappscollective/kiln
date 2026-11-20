@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { bootAlerts } from './test-helpers.ts';
 import { seedWorkspace } from '../../testkit.ts';
+import { bootAlerts } from './test-helpers.ts';
 
 type T = Awaited<ReturnType<typeof bootAlerts>>;
 const bearer = (t: T, token: string, method: string, path: string, body?: unknown) =>

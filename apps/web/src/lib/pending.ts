@@ -1,4 +1,11 @@
-import { can, fractionRefusalNotice, type Platform, type Role, type StoreId, supports } from '@mrm/core';
+import {
+  can,
+  fractionRefusalNotice,
+  type Platform,
+  type Role,
+  type StoreId,
+  supports,
+} from '@mrm/core';
 import { ApiError } from './api.ts';
 import { type AppSection, appAddress, type PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
@@ -622,7 +629,9 @@ export const SINGLE_STEP_HINT = 'Use the single step under "Do just one step (ad
 /** The row of one step of the plan, from the plan alone. The rollout always names a change, so it stays a single step. */
 export function stepRow(step: PlanStep, platform: Platform): StepRow {
   const needsInput =
-    step.type === 'release' && supports(platform, 'releaseTracks') && step.availability === 'needs_input';
+    step.type === 'release' &&
+    supports(platform, 'releaseTracks') &&
+    step.availability === 'needs_input';
   let toggleable = step.availability === 'available' || step.availability === 'not_requested';
   let reason = step.reason;
   if (step.type === 'rollout') {
@@ -657,7 +666,9 @@ export function stepRow(step: PlanStep, platform: Platform): StepRow {
     // Google Play has no review step of its own: the release is what Google reviews, so "submit" is not offered next to it.
     idle:
       step.availability === 'nothing_to_do' ||
-      (supports(platform, 'releaseTracks') && step.type === 'submit' && step.availability === 'not_requested'),
+      (supports(platform, 'releaseTracks') &&
+        step.type === 'submit' &&
+        step.availability === 'not_requested'),
   };
 }
 

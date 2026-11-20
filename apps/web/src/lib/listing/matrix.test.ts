@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { DriftField, DriftLocale, DriftSide, DriftStatus, ListingDrift } from '../types.ts';
 import {
   buildMatrix,
   cellMatchesMode,
@@ -15,7 +16,6 @@ import {
   matrixSummary,
   modeCounts,
 } from './matrix.ts';
-import type { DriftField, DriftLocale, DriftSide, DriftStatus, ListingDrift } from '../types.ts';
 
 const side = (value: string | null): DriftSide => ({
   value,

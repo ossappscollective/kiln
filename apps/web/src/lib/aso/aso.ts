@@ -1,12 +1,20 @@
-import { type CoachAction, type CoverageGap, type FitFields, type FitStatus, type Idea, type ListingFit, type ListingStore, type SuggestedCompetitor, type TermAcrossMarkets } from '@mrm/core';
 import {
+  type CoachAction,
+  type CoverageGap,
   checkTerm,
   defaultLocaleFor,
+  type FitFields,
+  type FitStatus,
+  type Idea,
+  type ListingFit,
+  type ListingStore,
   normalizeCountry,
   normalizeLocale,
   type Platform,
   type RankChange,
   type RankChangeKind,
+  type SuggestedCompetitor,
+  type TermAcrossMarkets,
 } from '@mrm/core';
 import { ApiError } from '../api.ts';
 import { appAddress, type PlatformScope, parseViewPath } from '../app-scope.ts';

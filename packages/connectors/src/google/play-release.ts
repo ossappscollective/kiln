@@ -1,6 +1,4 @@
 import { StoreError, StoreRateLimitError } from '../errors.ts';
-import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
-import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 import {
   type PlayCheckFinding,
   type PlayCheckRelease,
@@ -26,6 +24,8 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import { GoogleTokenProvider, parseServiceAccount, type ServiceAccount } from './google-auth.ts';
+import { googleError, isPlayPackageName, serializedPlayEdits } from './googleplay.ts';
 
 /**
  * Google Play: START a draft release of a track to an explicit share of users. A STORE WRITE that cannot be taken back from

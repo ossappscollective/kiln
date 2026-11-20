@@ -19,6 +19,13 @@ import {
 import type { Database } from '@mrm/db';
 import type { AsoSources } from '../modules/aso/net.ts';
 import { type AsoContext, type AsoLimits, addKeywords } from '../modules/aso/service.ts';
+import type { AssetsContext } from '../modules/listing/asset-repo.ts';
+import { normalizeListingValue } from '../modules/listing/drift.ts';
+import {
+  getReviewView,
+  type ReviewReplyContext,
+  saveReplyDraft,
+} from '../modules/reviews/replies.ts';
 import { applyContextRules, getAppContext, withAppContext } from './ai-app-context.ts';
 import {
   type AiActor,
@@ -62,11 +69,8 @@ import {
   usageWarning,
 } from './ai-usage.ts';
 import { getApp } from './apps.ts';
-import type { AssetsContext } from '../modules/listing/asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
-import { normalizeListingValue } from '../modules/listing/drift.ts';
-import { getReviewView, type ReviewReplyContext, saveReplyDraft } from '../modules/reviews/replies.ts';
 import { type StagedContext, stageText } from './staged-changes.ts';
 
 /**

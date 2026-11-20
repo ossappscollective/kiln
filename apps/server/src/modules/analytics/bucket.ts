@@ -1,14 +1,21 @@
 import { AnalyticsError } from '@mrm/connectors';
-import { type ActorType, normalizeBucketId, type PlayBucketSource, type PlayBucketTestCode, playBucketTestMessages, supports } from '@mrm/core';
+import {
+  type ActorType,
+  normalizeBucketId,
+  type PlayBucketSource,
+  type PlayBucketTestCode,
+  playBucketTestMessages,
+  supports,
+} from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { resolvePlayBucket } from './store.ts';
-import { type AnalyticsContext, classifyAnalyticsError } from './sync.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { getApp } from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
+import { resolvePlayBucket } from './store.ts';
+import { type AnalyticsContext, classifyAnalyticsError } from './sync.ts';
 
 /**
  * The Google Play reports bucket (docs/api/analytics.md, docs/research/analytics-apis.md). Google keeps ONE private Cloud Storage bucket
@@ -100,8 +107,10 @@ export async function setPlayBucket(
         appId: app.id,
         credentialId: app.credentialId,
         scope: input.scope,
-        cleared: id === null },
-      at });
+        cleared: id === null,
+      },
+      at,
+    });
   });
   return { ok: true, view: await getPlayBucket(db, input.workspaceId, app) };
 }
@@ -123,7 +132,8 @@ const done = (code: PlayBucketTestCode, months: string[] = []): BucketTestResult
   ok: code === 'ok' || code === 'no_reports_yet',
   code,
   message: playBucketTestMessages[code],
-  months });
+  months,
+});
 
 /**
  * "Test the bucket": reads the file LIST of the current and the previous month for this app, once (no file is stored). The answer is a
@@ -164,7 +174,8 @@ export async function testPlayBucket(
       secret,
       packageName: app.identifier,
       bucketId,
-      fetch: globalThis.fetch });
+      fetch: globalThis.fetch,
+    });
     let found = 0;
     for (const month of months) {
       try {

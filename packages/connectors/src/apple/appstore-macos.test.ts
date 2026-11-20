@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { StoreError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
+import * as lx from '../store-listing.fixtures.ts';
 import {
   APPLE_MAC_LOOKUP_ENTITY,
   APPLE_MAC_SEARCH_ENTITY,
@@ -9,10 +12,7 @@ import { AppleDraftConnector } from './appstore-draft.ts';
 import { AppleRolloutConnector } from './appstore-rollout.ts';
 import { AppleSubmitConnector } from './appstore-submit.ts';
 import { AppStoreConnectConnector } from './appstoreconnect.ts';
-import { StoreError } from '../errors.ts';
 import { fetchRatingSummary, ITUNES_LOOKUP_URL, parseRatingSummary } from './itunes-rating.ts';
-import * as fx from '../store.fixtures.ts';
-import * as lx from '../store-listing.fixtures.ts';
 
 // macOS is a second Apple platform of the same App Store Connect app: the same requests, narrowed to the versions and
 // builds whose `platform` attribute is MAC_OS. The iOS behavior must not change (the other test files hold that).

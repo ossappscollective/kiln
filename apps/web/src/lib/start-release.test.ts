@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rankWorkflows } from './ci/workflows.ts';
 import {
   chooseReleaseWorkflow,
   dispatchHints,
@@ -10,7 +11,6 @@ import {
   startedLine,
 } from './start-release.ts';
 import type { AppBuild, CiWorkflow, WorkflowInputSpec } from './types.ts';
-import { rankWorkflows } from './ci/workflows.ts';
 
 const wf = (name: string, path: string, state = 'active'): CiWorkflow => ({
   id: path,

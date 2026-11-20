@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { createPrivateKey, generateKeyPairSync, verify } from 'node:crypto';
 import { test } from 'node:test';
 import { buildSecret } from '@mrm/core';
+import { StoreError, StoreRateLimitError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
 import {
   APPLE_IAT_BACKDATE_SECONDS,
   APPLE_TOKEN_LIFETIME_SECONDS,
@@ -9,8 +11,6 @@ import {
   parseAppStoreConnectSecret,
 } from './apple-auth.ts';
 import { AppStoreConnectConnector } from './appstoreconnect.ts';
-import { StoreError, StoreRateLimitError } from '../errors.ts';
-import * as fx from '../store.fixtures.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.appleKeyPem();

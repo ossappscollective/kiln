@@ -3,11 +3,8 @@ import type { CommitDetail, GitRelease, ReleaseList, TagList } from '@mrm/connec
 import type { Platform } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import { getApp, listAppReleases, type ManagedApp } from '../../services/apps.ts';
-import {
-  type EffectiveConventions,
-  effectiveConventions,
-  listConventions,
-} from './conventions.ts';
+import { timedCache } from '../../services/timed-cache.ts';
+import { type EffectiveConventions, effectiveConventions, listConventions } from './conventions.ts';
 import {
   type BuildMatcher,
   buildKey,
@@ -19,6 +16,8 @@ import {
   type StoredBuild,
   type StoredLink,
 } from './links.ts';
+import type { WorkflowRunView } from './runs.ts';
+import { firstLine, runCountsForApp } from './runs.ts';
 import {
   type CommitFacts,
   type CompiledConventions,
@@ -31,9 +30,6 @@ import {
   type TagData,
   type TagRef,
 } from './tags.ts';
-import type { WorkflowRunView } from './runs.ts';
-import { firstLine, runCountsForApp } from './runs.ts';
-import { timedCache } from '../../services/timed-cache.ts';
 
 /**
  * The part of build linking that reads tags, releases and commits from GitHub and writes what it

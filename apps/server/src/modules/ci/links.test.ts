@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GithubError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootCi, run, SHA_1, SHA_2, SHA_3 } from './test-helpers.ts';
 import type { AppRelease } from '../../services/apps.ts';
+import { getRepository } from '../../services/repositories.ts';
 import {
   type BuildRef,
   buildsFromReleases,
@@ -14,7 +14,7 @@ import {
   runTitleMatcher,
 } from './links.ts';
 import { refreshRuns } from './service.ts';
-import { getRepository } from '../../services/repositories.ts';
+import { bootCi, run, SHA_1, SHA_2, SHA_3 } from './test-helpers.ts';
 
 // Fixtures only: no store and no GitHub is contacted.
 

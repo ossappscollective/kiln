@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { DriftField, DriftSide, DriftStatus } from '../types.ts';
 import {
   blockingLines,
   fieldLimitNote,
@@ -9,7 +10,6 @@ import {
   orderFields,
   splitFields,
 } from './locale-drawer.ts';
-import type { DriftField, DriftSide, DriftStatus } from '../types.ts';
 
 const side = (value: string | null): DriftSide => ({
   value,

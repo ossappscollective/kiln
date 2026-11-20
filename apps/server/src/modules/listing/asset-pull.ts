@@ -1,15 +1,24 @@
-import { ASSET_SYNC_LIMITS, type AssetPlatform, type AssetSlot, type FileChange, IMESSAGE_PREFIX, storeImageKey, storeSetKey, supports } from '@mrm/core';
+import {
+  ASSET_SYNC_LIMITS,
+  type AssetPlatform,
+  type AssetSlot,
+  type FileChange,
+  IMESSAGE_PREFIX,
+  storeImageKey,
+  storeSetKey,
+  supports,
+} from '@mrm/core';
 import type { ManagedApp } from '../../services/apps.ts';
-import { type AssetSyncContext, repoSetsOf } from './asset-diff.ts';
-import { openAssets } from './asset-repo.ts';
-import { layoutFor, planSet, type Wanted } from './asset-repo-plan.ts';
-import { stepsToChanges } from './asset-repo-write.ts';
 import { recordAudit } from '../../services/audit.ts';
 import { type ChangeSetView, createFileChangeSet } from '../../services/change-sets.ts';
 import { emitEvent } from '../../services/events.ts';
 import { type Failure, failure } from '../../services/repositories.ts';
 import { gitBlobOid } from '../../services/staged-asset-blobs.ts';
 import { getStoreImages, storeImageBytes } from '../../services/store-images.ts';
+import { type AssetSyncContext, repoSetsOf } from './asset-diff.ts';
+import { openAssets } from './asset-repo.ts';
+import { layoutFor, planSet, type Wanted } from './asset-repo-plan.ts';
+import { stepsToChanges } from './asset-repo-write.ts';
 
 /**
  * Pull from the store (docs/adr/0012-assets-two-way-sync.md): the store's current images become a change set for the app's
@@ -99,7 +108,8 @@ export async function pullStoreImages(
   const store = await getStoreImages(ctx.store, {
     workspaceId: input.workspaceId,
     app,
-    actor: input.actor });
+    actor: input.actor,
+  });
   if (!store.ok) return store;
   const opened = await openAssets(
     ctx.assets,
@@ -133,7 +143,8 @@ export async function pullStoreImages(
       imageKeys.set(storeImageKey(platform, s.locale, slot, f.position), {
         set: s,
         position: f.position,
-        ref: f.ref });
+        ref: f.ref,
+      });
   }
   const wantSets = new Set(input.sets ?? []);
   const wantFiles = new Set(input.files ?? []);
@@ -189,13 +200,15 @@ export async function pullStoreImages(
       locale: set.locale,
       slot,
       roots: view.target.roots,
-      existing });
+      existing,
+    });
     if (!laid.ok) {
       for (const f of positionsWanted)
         skipped.push({
           key: storeImageKey(platform, set.locale, slot, f.position),
           reason: 'layout',
-          message: laid.message });
+          message: laid.message,
+        });
       continue;
     }
     // The bytes of each wanted store image.
@@ -229,7 +242,8 @@ export async function pullStoreImages(
         maxBytes: Math.min(
           ASSET_SYNC_LIMITS.maxDownloadBytes,
           ASSET_SYNC_LIMITS.maxPullBytes - downloadedBytes - readBytes,
-        ) });
+        ),
+      });
       if (!got.ok) {
         // A rate limit of the host ends the pull for this run: the rest would only fail the same way.
         fail('download_failed', String(got.body.message ?? 'The image could not be fetched.'));
@@ -264,7 +278,8 @@ export async function pullStoreImages(
       fetched.set(f.position, {
         bytes: image.bytes,
         format: image.format,
-        oid: gitBlobOid(image.bytes) });
+        oid: gitBlobOid(image.bytes),
+      });
     }
 
     // The wanted set.
@@ -306,7 +321,8 @@ export async function pullStoreImages(
             key: storeImageKey(platform, set.locale, slot, f.position),
             reason: 'gap',
             message:
-              'The repository has fewer images before this one; pull the images before it too.' });
+              'The repository has fewer images before this one; pull the images before it too.',
+          });
           fetched.delete(f.position);
         }
       }
@@ -347,7 +363,8 @@ export async function pullStoreImages(
     skipped,
     unverified,
     left,
-    notes };
+    notes,
+  };
   if (changes.length === 0) {
     if (unchanged > 0 && skipped.length === 0)
       notes.push('Everything the store has is already in the repository.');
@@ -367,7 +384,9 @@ export async function pullStoreImages(
         platform: app.platform,
         source: 'store_assets_pull',
         written,
-        deleted } },
+        deleted,
+      },
+    },
     input.actor,
   );
   if (!made.ok) return made;
@@ -388,8 +407,10 @@ export async function pullStoreImages(
       unchanged,
       skipped: skipped.length,
       unverified: unverified.length,
-      bytes: downloadedBytes },
-    at });
+      bytes: downloadedBytes,
+    },
+    at,
+  });
   await emitEvent(repoCtx.db, {
     workspaceId: input.workspaceId,
     type: 'assets.pulled',
@@ -403,7 +424,9 @@ export async function pullStoreImages(
       deleted,
       skipped: skipped.length,
       unverified: unverified.length,
-      actor: { type: input.actor.type, id: input.actor.id } },
-    at });
+      actor: { type: input.actor.type, id: input.actor.id },
+    },
+    at,
+  });
   return { ok: true, report };
 }

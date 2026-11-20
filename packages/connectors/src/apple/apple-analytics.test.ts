@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as ax from '../analytics.fixtures.ts';
 import { AnalyticsError } from '../analytics-types.ts';
-import { AppleAnalyticsConnector } from './apple-analytics.ts';
 import { StoreError } from '../errors.ts';
 import * as fx from '../store.fixtures.ts';
+import { AppleAnalyticsConnector } from './apple-analytics.ts';
 
 const T0 = Date.UTC(2026, 10, 19, 12, 0, 0);
 const key = fx.appleKeyPem();

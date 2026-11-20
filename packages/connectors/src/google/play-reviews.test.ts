@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError, StoreRateLimitError } from '../errors.ts';
+import * as rx from '../reviews.fixtures.ts';
+import * as fx from '../store.fixtures.ts';
 import {
   PLAY_REVIEW_WINDOW_MS,
   PlayReviewsConnector,
@@ -8,8 +10,6 @@ import {
   parsePlayReviews,
   parsePlayTimestamp,
 } from './play-reviews.ts';
-import * as rx from '../reviews.fixtures.ts';
-import * as fx from '../store.fixtures.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.googleKeyPem();

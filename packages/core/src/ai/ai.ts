@@ -9,9 +9,9 @@
  * push, submit, publish, release or send a reply.
  */
 
-import type { AiInsightProposal, AiVariantsProposal } from './ai-insights.ts';
-import { type StoreId } from '../platform.ts';
 import type { ListingStore } from '../listing/listing.ts';
+import type { StoreId } from '../platform.ts';
+import type { AiInsightProposal, AiVariantsProposal } from './ai-insights.ts';
 
 export * from './ai-insights.ts';
 

@@ -1,6 +1,6 @@
 import type { Platform } from '@mrm/core';
-import { appAddress } from './app-scope.ts';
 import { platformSupports, supports } from '@mrm/core';
+import { appAddress } from './app-scope.ts';
 
 /**
  * Builds to test (docs/api/builds.md): the rows of the "Test builds" section, their filters and the plain install guidance, as
@@ -727,7 +727,8 @@ export function canOfferShare(
   config: Pick<InternalSharingConfig, 'enabled' | 'canShare'> | null,
 ): boolean {
   if (!config?.enabled || !config.canShare) return false;
-  if (row.source !== 'ci' || !platformSupports(row.platform, 'internalAppSharing') || !row.artifact) return false;
+  if (row.source !== 'ci' || !platformSupports(row.platform, 'internalAppSharing') || !row.artifact)
+    return false;
   return !row.artifact.expired && !row.artifact.tooLarge;
 }
 

@@ -1,6 +1,12 @@
-import { AsoError, type CappedGet, checkStatus, cleanPublicText, getCapped } from '../aso-common.ts';
-import { ITUNES_LOOKUP_URL } from './itunes-rating.ts';
+import {
+  AsoError,
+  type CappedGet,
+  checkStatus,
+  cleanPublicText,
+  getCapped,
+} from '../aso-common.ts';
 import { isRecord, num, records } from '../store-http.ts';
+import { ITUNES_LOOKUP_URL } from './itunes-rating.ts';
 
 /**
  * Apple, from the public iTunes Search and Lookup APIs: where apps rank for a search term in a

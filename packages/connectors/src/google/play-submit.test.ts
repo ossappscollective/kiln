@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { StoreError } from '../errors.ts';
-import { PlaySubmitConnector } from './play-submit.ts';
 import * as fx from '../store.fixtures.ts';
 import { FakePlayDraftApi, sha256 } from '../store-draft.fixtures.ts';
 import type { DraftReadRequest } from '../store-draft-types.ts';
@@ -10,6 +9,7 @@ import {
   SubmitOutcomeUnknownError,
   sameSubmitState,
 } from '../store-submit-types.ts';
+import { PlaySubmitConnector } from './play-submit.ts';
 
 const T0 = Date.UTC(2026, 10, 18, 12, 0, 0);
 const key = fx.googleKeyPem();

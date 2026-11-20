@@ -14,7 +14,13 @@ import {
 import { devNull } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { BlobEntry, BlobHeadItem, BlobHeads, BlobHeadsOptions, BlobListing } from '../blobs.ts';
+import type {
+  BlobEntry,
+  BlobHeadItem,
+  BlobHeads,
+  BlobHeadsOptions,
+  BlobListing,
+} from '../blobs.ts';
 import { GithubError, GithubRateLimitError, redactSecrets } from '../errors.ts';
 import type { RepoConnector } from '../types.ts';
 

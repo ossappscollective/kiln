@@ -5,22 +5,24 @@ import {
   PlayInternalSharingConnector,
   StoreError,
   type TestFlightGroup,
-  type TestFlightLinksConnector } from '@mrm/connectors';
+  type TestFlightLinksConnector,
+} from '@mrm/connectors';
 import { can, type Platform, supports } from '@mrm/core';
 import { memberRole } from '../../services/accounts.ts';
 import {
   defaultStoreConnectorFactory,
   getApp,
   type ManagedApp,
-  type StoreConnectorFactory } from '../../services/apps.ts';
+  type StoreConnectorFactory,
+} from '../../services/apps.ts';
 import { recordAudit } from '../../services/audit.ts';
-import { listConventions } from '../ci/conventions.ts';
-import { type CiContext, guarded, openCi } from '../ci/service.ts';
-import { listRuns, runCountsForApp, type WorkflowRunView } from '../ci/runs.ts';
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import { useCredentialSecret } from '../../services/credentials.ts';
 import { type Failure, getRepository, withTimeout } from '../../services/repositories.ts';
 import { timedCache } from '../../services/timed-cache.ts';
+import { listConventions } from '../ci/conventions.ts';
+import { listRuns, runCountsForApp, type WorkflowRunView } from '../ci/runs.ts';
+import { type CiContext, guarded, openCi } from '../ci/service.ts';
 
 /**
  * Builds you can test before publishing (docs/api/builds.md, docs/research/test-builds.md): the zips that CI runs
@@ -77,7 +79,8 @@ export const defaultInternalSharingConnectorFactory: InternalSharingConnectorFac
   new PlayInternalSharingConnector({
     serviceAccount: input.secret,
     packageName: input.packageName,
-    fetch: input.fetch });
+    fetch: input.fetch,
+  });
 
 export type BuildsContext = CiContext & {
   builds: BuildsSettings;
@@ -108,12 +111,14 @@ export function createBuildsContext(
       internalSharingConnectorFactory:
         options.internalSharingConnectorFactory ?? defaultInternalSharingConnectorFactory,
       internalSharingTimeoutMs: options.internalSharingTimeoutMs,
-      internalSharingClaimTtlMs: options.internalSharingClaimTtlMs },
+      internalSharingClaimTtlMs: options.internalSharingClaimTtlMs,
+    },
     listLimiter: options.listLimiter ?? createTestLimiter({ limit: LISTS_PER_MINUTE, now: ci.now }),
     downloadLimiter:
       options.downloadLimiter ?? createTestLimiter({ limit: DOWNLOADS_PER_MINUTE, now: ci.now }),
     links: new Map(),
-    downloading: new Map() };
+    downloading: new Map(),
+  };
 }
 
 type BuildsFailure = {
@@ -130,7 +135,8 @@ export const fail = (
 ): BuildsFailure => ({
   ok: false,
   status,
-  body: { error, ...(message ? { message } : {}), ...extra } });
+  body: { error, ...(message ? { message } : {}), ...extra },
+});
 export type { BuildsFailure };
 
 // ---------------------------------------------------------------------------------------------
@@ -175,7 +181,8 @@ export function guessArtifact(
     aab: 'android',
     app: 'macos',
     dmg: 'macos',
-    pkg: 'macos' };
+    pkg: 'macos',
+  };
   const byWord = /(^|[^a-z])(ios|iphone|ipad)([^a-z]|$)/.test(n)
     ? 'ios'
     : /(^|[^a-z])(android)([^a-z]|$)/.test(n)
@@ -359,13 +366,16 @@ async function readRepoArtifacts(
         status: 422,
         body: {
           error: 'ci_unsupported',
-          message: 'This repository connection cannot list artifacts.' } } as Failure;
+          message: 'This repository connection cannot list artifacts.',
+        },
+      } as Failure;
     const before = stale.get(key);
     const read = await guarded(ctx, opened.secret, (signal) =>
       (client.listArtifacts as NonNullable<typeof client.listArtifacts>)({
         maxPages: ARTIFACT_PAGES,
         signal,
-        etag: before?.etag }),
+        etag: before?.etag,
+      }),
     );
     if (!read.ok) return read;
     const list = read.value;
@@ -376,7 +386,8 @@ async function readRepoArtifacts(
             at: ctx.now(),
             artifacts: list.artifacts,
             truncated: list.truncated,
-            ...(list.etag ? { etag: list.etag } : {}) };
+            ...(list.etag ? { etag: list.etag } : {}),
+          };
     stale.set(key, value);
     repoCache.set(key, value, ctx.now());
     return { ok: true as const, value, cached: false };
@@ -385,7 +396,12 @@ async function readRepoArtifacts(
   return work;
 }
 
-export type OwnerCandidate = { id: string; name: string; identifier: string; prefix?: string | undefined };
+export type OwnerCandidate = {
+  id: string;
+  name: string;
+  identifier: string;
+  prefix?: string | undefined;
+};
 
 const squash = (v: string): string => v.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -413,7 +429,8 @@ export function artifactOwner(
       score: ownerKeys(c).reduce(
         (best, k) => (n.indexOf(k) !== -1 && k.length > best ? k.length : best),
         0,
-      ) }))
+      ),
+    }))
     .filter((h) => h.score > 0)
     .sort((a, b) => b.score - a.score);
   if (hits.length === 0) return null;
@@ -453,7 +470,9 @@ function artifactItem(
       shortSha: shortSha(run.headSha ?? a.headSha),
       status: run.status,
       conclusion: run.conclusion,
-      url: run.url } };
+      url: run.url,
+    },
+  };
 }
 
 async function storeBuilds(
@@ -521,7 +540,8 @@ async function storeBuilds(
           ? `https://play.google.com/apps/testing/${encodeURIComponent(app.identifier)}`
           : null,
       runId: null,
-      testflightGroupIds: null };
+      testflightGroupIds: null,
+    };
   });
   return items.sort(
     (a, b) =>
@@ -548,9 +568,11 @@ const flightProblem = (reason: TestFlightProblemReason, cached = false): TestFli
   // UNVERIFIED: which App Store Connect role is the least that may read beta groups; App Manager is what the connector tells the user to use.
   problem: {
     reason,
-    needs: reason === 'no_access' ? 'App Store Connect API key with the App Manager role' : null },
+    needs: reason === 'no_access' ? 'App Store Connect API key with the App Manager role' : null,
+  },
   readAt: null,
-  cached });
+  cached,
+});
 
 /**
  * The TestFlight public links of an iOS or macOS app: a READ of its external beta groups (App Store Connect, GET only).
@@ -564,7 +586,8 @@ async function readTestFlight(
 ): Promise<{ info: TestFlightInfo; groups: TestFlightGroup[] }> {
   const fail_ = (reason: TestFlightProblemReason, cached = false) => ({
     info: flightProblem(reason, cached),
-    groups: [] as TestFlightGroup[] });
+    groups: [] as TestFlightGroup[],
+  });
   if (!app.storeAppId) return fail_('not_synced');
   const key = `${workspaceId}|${app.id}|${app.storeAppId}|${app.credentialId}`;
   const trouble = flightTrouble.get(key, ctx.now());
@@ -597,14 +620,16 @@ async function readTestFlight(
   const guardedFetch: typeof fetch = (input, init) =>
     globalThis.fetch(input, {
       ...init,
-      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
+    });
   try {
     const connector = ctx.builds.storeConnectorFactory({
       kind: 'app_store_connect',
       secret,
       identifier: app.identifier,
       platform: app.platform,
-      fetch: guardedFetch });
+      fetch: guardedFetch,
+    });
     if (!isFlightReader(connector)) return fail_('unavailable');
     const groups = await withTimeout(
       connector.listTestFlightGroups(app.storeAppId),
@@ -628,12 +653,14 @@ function flightInfo(groups: TestFlightGroup[], at: number, cached: boolean): Tes
         name: g.name,
         publicLink: g.publicLink,
         enabled: g.publicLinkEnabled,
-        limit: g.publicLinkLimit }))
+        limit: g.publicLinkLimit,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
     withoutLink: groups.length - withLink.length,
     problem: null,
     readAt: at,
-    cached };
+    cached,
+  };
 }
 
 export async function listBuildArtifacts(
@@ -658,7 +685,8 @@ export async function listBuildArtifacts(
         ...b,
         testflightGroupIds: wanted
           .filter((g) => g.allBuilds || g.buildNumbers.includes(b.buildNumber))
-          .map((g) => g.id) }));
+          .map((g) => g.id),
+      }));
     }
   }
   const base = {
@@ -670,7 +698,8 @@ export async function listBuildArtifacts(
         : null,
     store,
     downloadEnabled: ctx.builds.downloadEnabled,
-    maxDownloadBytes: ctx.builds.maxDownloadBytes };
+    maxDownloadBytes: ctx.builds.maxDownloadBytes,
+  };
   if (!repository || repository.localOnly) {
     return {
       ok: true,
@@ -681,7 +710,9 @@ export async function listBuildArtifacts(
         truncated: false,
         problem: { reason: 'no_repository', needs: null },
         readAt: null,
-        cached: false } };
+        cached: false,
+      },
+    };
   }
   const key = `${input.workspaceId}|${repository.id}`;
   const trouble = troubleCache.get(key, ctx.now());
@@ -695,7 +726,9 @@ export async function listBuildArtifacts(
         truncated: false,
         problem: { reason: trouble, needs: trouble === 'no_access' ? 'actions: read' : null },
         readAt: null,
-        cached: true } };
+        cached: true,
+      },
+    };
   }
   const read = await readRepoArtifacts(ctx, input.workspaceId, repository, actor);
   if (!read.ok) {
@@ -710,7 +743,9 @@ export async function listBuildArtifacts(
         truncated: false,
         problem: { reason, needs: reason === 'no_access' ? 'actions: read' : null },
         readAt: null,
-        cached: false } };
+        cached: false,
+      },
+    };
   }
   const runs = await listRuns(ctx.db, input.workspaceId, repository.id, { limit: 100 });
   const byRun = new Map(runs.filter((r) => runCountsForApp(r, app.id)).map((r) => [r.id, r]));
@@ -731,7 +766,8 @@ export async function listBuildArtifacts(
                 id,
                 name: other.name,
                 identifier: other.identifier,
-                prefix: conventions.find((r) => r.appId === id)?.prefix }
+                prefix: conventions.find((r) => r.appId === id)?.prefix,
+              }
             : null,
         );
       }
@@ -770,7 +806,9 @@ export async function listBuildArtifacts(
       truncated: read.value.truncated,
       problem: null,
       readAt: read.value.at,
-      cached: read.cached } };
+      cached: read.cached,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -843,7 +881,8 @@ function guardStream(
       finish();
       abort.abort();
       await reader.cancel(reason).catch(() => undefined);
-    } });
+    },
+  });
 }
 
 export type FoundArtifact = {
@@ -916,8 +955,10 @@ export async function openArtifactDownload(
   if (wait > 0) {
     return {
       ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, {
-        retryAfterSeconds: wait }),
-      headers: { 'Retry-After': String(wait) } };
+        retryAfterSeconds: wait,
+      }),
+      headers: { 'Retry-After': String(wait) },
+    };
   }
   const found = await findArtifact(ctx, input, actor);
   if (!found.ok) return found;
@@ -926,8 +967,10 @@ export async function openArtifactDownload(
   if (busy >= MAX_PARALLEL_DOWNLOADS) {
     return {
       ...fail(429, 'rate_limited', 'Other downloads are still running. Try again in a moment.', {
-        retryAfterSeconds: 10 }),
-      headers: { 'Retry-After': '10' } };
+        retryAfterSeconds: 10,
+      }),
+      headers: { 'Retry-After': '10' },
+    };
   }
 
   const opened = await openCi(ctx, input.workspaceId, repository, actor, 'builds.download');
@@ -949,7 +992,8 @@ export async function openArtifactDownload(
         artifact.id,
         {
           signal: AbortSignal.any([signal, abort.signal]),
-          allowHttp: ctx.builds.allowHttpRedirects },
+          allowHttp: ctx.builds.allowHttpRedirects,
+        },
       ),
     );
     if (!got.ok) return got;
@@ -965,7 +1009,8 @@ export async function openArtifactDownload(
       await body.cancel().catch(() => undefined);
       return fail(413, 'artifact_too_large', 'This artifact is larger than the download limit.', {
         sizeBytes: contentLength,
-        maxBytes: ctx.builds.maxDownloadBytes });
+        maxBytes: ctx.builds.maxDownloadBytes,
+      });
     }
     // Ids and a size only: no name, no address.
     await recordAudit(ctx.db, {
@@ -978,8 +1023,10 @@ export async function openArtifactDownload(
         runId: run.id,
         repositoryId: repository.id,
         sizeBytes: artifact.sizeInBytes,
-        via: input.via },
-      at: ctx.now() });
+        via: input.via,
+      },
+      at: ctx.now(),
+    });
     started = true;
     return {
       ok: true,
@@ -988,12 +1035,14 @@ export async function openArtifactDownload(
         {
           maxBytes: ctx.builds.maxDownloadBytes,
           timeoutMs: ctx.builds.downloadTimeoutMs,
-          onDone: release },
+          onDone: release,
+        },
         abort,
       ),
       contentLength,
       filename: safeFilename(artifact.name, `build-${artifact.id}`),
-      artifact };
+      artifact,
+    };
   } finally {
     if (!started) release();
   }
@@ -1035,7 +1084,8 @@ export function signDownloadLink(
     i: input.artifactId,
     u: input.userId,
     e: expiresAt,
-    used: false });
+    used: false,
+  });
   return { token: `${body}.${b64(macOf(ctx, body))}`, expiresAt };
 }
 
@@ -1056,7 +1106,8 @@ export function readDownloadLink(
   if (claim.used) return { ok: false, reason: 'used' };
   return {
     ok: true,
-    payload: { w: claim.w, a: claim.a, i: claim.i, u: claim.u, e: claim.e, n: body } };
+    payload: { w: claim.w, a: claim.a, i: claim.i, u: claim.u, e: claim.e, n: body },
+  };
 }
 
 /** Marks a link used (before any await, so two requests at once cannot both pass). */
@@ -1097,8 +1148,10 @@ export async function createDownloadLink(
   if (wait > 0) {
     return {
       ...fail(429, 'rate_limited', `Too many downloads. Try again in ${wait} seconds.`, {
-        retryAfterSeconds: wait }),
-      headers: { 'Retry-After': String(wait) } };
+        retryAfterSeconds: wait,
+      }),
+      headers: { 'Retry-After': String(wait) },
+    };
   }
   const found = await findArtifact(ctx, input, actor);
   if (!found.ok) return found;
@@ -1109,9 +1162,11 @@ export async function createDownloadLink(
     action: 'build.link_created',
     target: { type: 'app', id: found.app.id },
     detail: { artifactId: found.artifact.id, runId: found.run.id, expiresAt: link.expiresAt },
-    at: ctx.now() });
+    at: ctx.now(),
+  });
   return {
     ok: true,
     ...link,
-    filename: safeFilename(found.artifact.name, `build-${found.artifact.id}`) };
+    filename: safeFilename(found.artifact.name, `build-${found.artifact.id}`),
+  };
 }

@@ -1,4 +1,19 @@
-import { APP_STORE_FIELD_SPECS, type AppStoreField, byFamily, countBytes, countCharacters, isStageableTextField, languageOf, type ListingFieldSpec, listingStoreOf, matchWords, type Platform, PLAY_FIELD_SPECS, type PlayField, type TermSource } from '@mrm/core';
+import {
+  APP_STORE_FIELD_SPECS,
+  type AppStoreField,
+  byFamily,
+  countBytes,
+  countCharacters,
+  isStageableTextField,
+  type ListingFieldSpec,
+  languageOf,
+  listingStoreOf,
+  matchWords,
+  PLAY_FIELD_SPECS,
+  type Platform,
+  type PlayField,
+  type TermSource,
+} from '@mrm/core';
 
 /**
  * Editing a listing text from the web, pure parts: which main text fields a store has, their limits, whether a draft push can
@@ -38,7 +53,8 @@ const LABELS: Record<string, string> = {
   promotional_text: 'Promotional text',
   description: 'Description',
   short_description: 'Short description',
-  full_description: 'Full description' };
+  full_description: 'Full description',
+};
 
 /** The label in the middle of a sentence, where it is not just the label in lower case. */
 const LOWER: Record<string, string> = { name: 'title' };
@@ -47,10 +63,12 @@ const MULTILINE: Record<string, boolean> = {
   description: true,
   full_description: true,
   promotional_text: true,
-  short_description: false };
+  short_description: false,
+};
 
 function specOf(platform: Platform, id: string): ListingFieldSpec | null {
-  if (listingStoreOf(platform) === 'app_store') return APP_STORE_FIELD_SPECS[id as AppStoreField] ?? null;
+  if (listingStoreOf(platform) === 'app_store')
+    return APP_STORE_FIELD_SPECS[id as AppStoreField] ?? null;
   return PLAY_FIELD_SPECS[id as PlayField] ?? null;
 }
 
@@ -71,7 +89,8 @@ export function fieldInfo(platform: Platform, id: string): FieldInfo | null {
     limit: spec?.maxLength ?? null,
     unit: spec?.unit ?? 'characters',
     multiline: MULTILINE[id] === true || spec?.kind === 'multiline',
-    stageable: isStageableTextField(platform, id) };
+    stageable: isStageableTextField(platform, id),
+  };
 }
 
 export function editableFields(platform: Platform): FieldInfo[] {
@@ -118,7 +137,8 @@ export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: stri
       over: false,
       unit: info.unit,
       percent: 0,
-      text: `${used} ${info.unit}` };
+      text: `${used} ${info.unit}`,
+    };
   }
   const remaining = info.limit - used;
   const over = remaining < 0;
@@ -131,7 +151,8 @@ export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: stri
     percent: info.limit === 0 ? 100 : Math.min(100, Math.round((used / info.limit) * 100)),
     text: over
       ? `${-remaining} over the limit of ${info.limit} ${info.unit}`
-      : `${used} of ${info.limit} ${info.unit}, ${remaining} left` };
+      : `${used} of ${info.limit} ${info.unit}, ${remaining} left`,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -185,9 +206,10 @@ export function whereText(sources: readonly TermSource[]): string {
 
 /** The fields a keyword can be added to, the likeliest first (the keyword field on the App Store). */
 export function addTargets(platform: Platform): FieldInfo[] {
-  const order = listingStoreOf(platform) === 'app_store'
-    ? ['keywords', 'name', 'subtitle', 'promotional_text', 'description']
-    : ['title', 'short_description', 'full_description'];
+  const order =
+    listingStoreOf(platform) === 'app_store'
+      ? ['keywords', 'name', 'subtitle', 'promotional_text', 'description']
+      : ['title', 'short_description', 'full_description'];
   const out: FieldInfo[] = [];
   for (const id of order) {
     const info = fieldInfo(platform, id);
@@ -233,20 +255,23 @@ export function addTermToText(
     return {
       text: base === '' ? clean : `${base},${clean}`,
       changed: true,
-      note: 'Added at the end, after a comma. Remove an entry you can spare if it does not fit.' };
+      note: 'Added at the end, after a comma. Remove an entry you can spare if it does not fit.',
+    };
   }
   const have = new Set(matchWords(current, language));
   if (needle.length > 0 && needle.every((w) => have.has(w))) {
     return {
       text: current,
       changed: false,
-      note: `“${clean}” is already in the ${info.lower}.` };
+      note: `“${clean}” is already in the ${info.lower}.`,
+    };
   }
   if (current.trim() === '') {
     return {
       text: clean,
       changed: true,
-      note: 'The field is empty, so it starts with the keyword.' };
+      note: 'The field is empty, so it starts with the keyword.',
+    };
   }
   const base = current.replace(/\s+$/, '');
   let text: string;
@@ -257,7 +282,8 @@ export function addTermToText(
   return {
     text,
     changed: true,
-    note: 'Added at the end as a starting point. Reword it so it reads well before you stage it.' };
+    note: 'Added at the end as a starting point. Reword it so it reads well before you stage it.',
+  };
 }
 
 /** Whether two texts are the same once line breaks and trailing white space are normalised (the server does the same). */

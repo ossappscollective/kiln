@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@mrm/db';
 import { toUserSettings } from './prefs.ts';
-import { digestDue } from './time.ts';
 import { queueEmailJob } from './service.ts';
+import { digestDue } from './time.ts';
 
 /**
  * The email digest (docs/alerts.md): a person who chose "daily" or "weekly" gets the alerts their email channel collected (rows the

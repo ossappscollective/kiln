@@ -1,10 +1,4 @@
 import { PLATFORM_META } from '@mrm/core';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   type AppleRolloutChange,
@@ -31,6 +25,12 @@ import {
   type StoreReply,
   text,
 } from '../store-http.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { appleError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect: pause, resume or end the phased release of an App Store version. A STORE

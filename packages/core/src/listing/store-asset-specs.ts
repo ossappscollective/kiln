@@ -1,6 +1,6 @@
-import type { ListingStore } from './listing.ts';
-import type { ImageFormat } from './image-header.ts';
 import { isDesktop, type Platform, supports } from '../platform.ts';
+import type { ImageFormat } from './image-header.ts';
+import type { ListingStore } from './listing.ts';
 
 /**
  * What the stores accept as listing graphics, as data, and a pure checker that holds a list of
@@ -212,10 +212,7 @@ export const IMESSAGE_PREFIX = 'imessage:';
  * display (`APP_DESKTOP`); an iMessage set is iOS only. Google Play takes every Play device. A `null`
  * device (not classified) fits no Apple platform here: the caller reports it separately.
  */
-export function deviceFitsPlatform(
-  platform: Platform,
-  device: string | null,
-): boolean {
+export function deviceFitsPlatform(platform: Platform, device: string | null): boolean {
   if (!supports(platform, 'screenshotsByDevice')) return true;
   if (device === null) return false;
   const imessage = device.startsWith(IMESSAGE_PREFIX);

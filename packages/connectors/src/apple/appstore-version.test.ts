@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { StoreError } from '../errors.ts';
+import * as fx from '../store.fixtures.ts';
 import {
   AppleVersionConnector,
   VersionDriftError,
   VersionOutcomeUnknownError,
 } from './appstore-version.ts';
-import { StoreError } from '../errors.ts';
-import * as fx from '../store.fixtures.ts';
 
 const T0 = Date.UTC(2026, 10, 20, 12, 0, 0);
 const key = fx.appleKeyPem();

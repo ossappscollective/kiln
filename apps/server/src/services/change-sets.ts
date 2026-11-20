@@ -10,9 +10,9 @@ import {
   validateListing,
 } from '@mrm/core';
 import { mapOrNull, type Row, type Sql } from '@mrm/db';
-import { recordAudit } from './audit.ts';
 import { listingChanges, type RepositoryListings } from '../modules/listing/sources.ts';
 import type { ListingSelection, ListingTarget } from '../modules/listing/targets.ts';
+import { recordAudit } from './audit.ts';
 import {
   type Failure,
   failure,

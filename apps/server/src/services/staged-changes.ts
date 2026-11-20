@@ -1,9 +1,45 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { appleDisplayType, ASSET_KIND_LABELS, ASSET_KINDS, type AssetFacts, type AssetKind, type AssetProblem, type AssetSlot, assetSlotSupport, assetStoreOf, checkReleaseField, checkReleaseSet, deviceLabel, isReleaseFieldId, isStageableTextField, parseSlotKey, type Platform, PLATFORMS, playImageType, PUSHABLE_IMAGE_FORMATS, RELEASE_FIELD_SPECS, type ReleaseFieldId, type ReleaseFieldItem, releaseItemKey, slotKey, slotMaxFiles, STAGEABLE_RELEASE_FIELDS, STAGEABLE_TEXT_FIELDS, STAGED_LIMITS, type StagedAssetFileView, type StagedAssetView, type StagedChangesView, type StagedProblem, type StagedReleaseFieldView, type StagedSource, type StagedTextView, supports, validateAssets } from '@mrm/core';
+import {
+  ASSET_KIND_LABELS,
+  ASSET_KINDS,
+  type AssetFacts,
+  type AssetKind,
+  type AssetProblem,
+  type AssetSlot,
+  appleDisplayType,
+  assetSlotSupport,
+  assetStoreOf,
+  checkReleaseField,
+  checkReleaseSet,
+  deviceLabel,
+  isReleaseFieldId,
+  isStageableTextField,
+  PLATFORMS,
+  type Platform,
+  PUSHABLE_IMAGE_FORMATS,
+  parseSlotKey,
+  playImageType,
+  RELEASE_FIELD_SPECS,
+  type ReleaseFieldId,
+  type ReleaseFieldItem,
+  releaseItemKey,
+  STAGEABLE_RELEASE_FIELDS,
+  STAGEABLE_TEXT_FIELDS,
+  STAGED_LIMITS,
+  type StagedAssetFileView,
+  type StagedAssetView,
+  type StagedChangesView,
+  type StagedProblem,
+  type StagedReleaseFieldView,
+  type StagedSource,
+  type StagedTextView,
+  slotKey,
+  slotMaxFiles,
+  supports,
+  validateAssets,
+} from '@mrm/core';
 import { type Database, nullableNumber, nullableString, oneOf, type Row, type Sql } from '@mrm/db';
-import { getApp, type ManagedApp } from './apps.ts';
 import { type AssetsContext, isCommitSha, openAssets } from '../modules/listing/asset-repo.ts';
-import { recordAudit } from './audit.ts';
 import {
   ABSENT_HASH,
   fieldKey,
@@ -11,10 +47,13 @@ import {
   hashListingValue,
   isListingField,
   normalizeListingValue,
-  sideProblems } from '../modules/listing/drift.ts';
+  sideProblems,
+} from '../modules/listing/drift.ts';
 import { getDrift } from '../modules/listing/live.ts';
-import { type Failure, failure } from './repositories.ts';
 import { storeFor } from '../modules/reviews/sync.ts';
+import { getApp, type ManagedApp } from './apps.ts';
+import { recordAudit } from './audit.ts';
+import { type Failure, failure } from './repositories.ts';
 import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
 
 /**
@@ -102,7 +141,8 @@ function toRow(r: Row): StagedRow {
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
     pushedAt: nullableNumber(r.pushed_at),
-    pushedHash: nullableString(r.pushed_hash) };
+    pushedHash: nullableString(r.pushed_hash),
+  };
 }
 
 /** Every staged row of the app, in a stable order: locale, then text before assets, then target and place. */
@@ -172,7 +212,8 @@ const toProblem = (p: {
   message: p.message,
   ...(p.limit !== undefined ? { limit: p.limit } : {}),
   ...(p.actual !== undefined ? { actual: p.actual } : {}),
-  ...(p.unit !== undefined ? { unit: p.unit } : {}) });
+  ...(p.unit !== undefined ? { unit: p.unit } : {}),
+});
 
 const setLabel = (platform: Platform, _locale: string, slot: AssetSlot): string => {
   const kind = ASSET_KIND_LABELS[slot.kind];
@@ -201,7 +242,8 @@ function factsOf(platform: Platform, set: AssetSet): AssetFacts[] {
     format: (r.assetFormat as AssetFacts['format']) ?? null,
     extension: extensionOf(r.assetPath ?? ''),
     hasAlpha: r.assetAlpha,
-    read: 'read' as const }));
+    read: 'read' as const,
+  }));
 }
 
 /** What a push needs beyond the documented specs. Errors here block a push. */
@@ -217,7 +259,8 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
       code: 'set_too_large',
       message: `A set holds at most ${max} file${max === 1 ? '' : 's'}; ${set.rows.length} are staged. A push replaces the whole set.`,
       limit: max,
-      actual: set.rows.length });
+      actual: set.rows.length,
+    });
   }
   for (const r of set.rows) {
     const name = (r.assetPath ?? '').split('/').pop() ?? '';
@@ -225,7 +268,8 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
       out.push({
         severity: 'error',
         code: 'format_not_pushable',
-        message: `${name} is ${r.assetFormat ? r.assetFormat.toUpperCase() : 'not an image this server could read'}: only PNG and JPEG are uploaded.` });
+        message: `${name} is ${r.assetFormat ? r.assetFormat.toUpperCase() : 'not an image this server could read'}: only PNG and JPEG are uploaded.`,
+      });
     }
     if (r.assetBytes === null || r.assetBytes > STAGED_LIMITS.maxAssetFileBytes) {
       out.push({
@@ -234,7 +278,8 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
         message: `${name} is larger than the ${STAGED_LIMITS.maxAssetFileBytes / (1024 * 1024)} MB this server uploads.`,
         limit: STAGED_LIMITS.maxAssetFileBytes,
         ...(r.assetBytes !== null ? { actual: r.assetBytes } : {}),
-        unit: 'bytes' });
+        unit: 'bytes',
+      });
     }
   }
   if (supports(platform, 'screenshotsByDevice') && support.ok && set.slot.device !== null) {
@@ -248,12 +293,14 @@ function pushProblems(platform: Platform, set: AssetSet): StagedProblem[] {
       out.push({
         severity: 'error',
         code: 'no_display_type',
-        message: 'This server has no App Store display type for the size of a file of this set.' });
+        message: 'This server has no App Store display type for the size of a file of this set.',
+      });
     } else if (names.size > 1) {
       out.push({
         severity: 'error',
         code: 'mixed_display_types',
-        message: `The files of this set belong to different App Store display types (${[...names].sort().join(', ')}). Stage the files of each size as its own set.` });
+        message: `The files of this set belong to different App Store display types (${[...names].sort().join(', ')}). Stage the files of each size as its own set.`,
+      });
     }
   }
   return out;
@@ -305,7 +352,8 @@ function textProblems(
         {
           severity: 'error',
           code: 'field_not_pushable',
-          message: 'A push cannot write this field.' },
+          message: 'A push cannot write this field.',
+        },
       ]);
     }
   }
@@ -332,7 +380,8 @@ export function releaseViewsOf(
   const items: ReleaseFieldItem[] = mine.map((r) => ({
     field: r.target as ReleaseFieldId,
     locale: r.locale,
-    value: r.valueText ?? '' }));
+    value: r.valueText ?? '',
+  }));
   const set = checkReleaseSet(platform, items);
   return mine.map((r) => {
     const field = r.target as ReleaseFieldId;
@@ -358,7 +407,8 @@ export function releaseViewsOf(
       pushed: r.pushedHash !== null && r.pushedHash === r.valueHash,
       createdBy: r.createdBy,
       createdAt: r.createdAt,
-      updatedAt: r.updatedAt };
+      updatedAt: r.updatedAt,
+    };
   });
 }
 
@@ -375,7 +425,8 @@ export async function buildStagedView(
     const drift = await getDrift(ctx.db, workspaceId, {
       id: app.id,
       platform: app.platform,
-      identifier: app.identifier });
+      identifier: app.identifier,
+    });
     for (const locale of drift.locales)
       for (const f of locale.fields) before.set(fieldKey(locale.locale, f.field), f.live.value);
   }
@@ -407,7 +458,8 @@ export async function buildStagedView(
       pushed: r.pushedHash !== null && r.pushedHash === r.valueHash,
       createdBy: r.createdBy,
       createdAt: r.createdAt,
-      updatedAt: r.updatedAt };
+      updatedAt: r.updatedAt,
+    };
   });
   const assets: StagedAssetView[] = assetSetsOf(all).map((set) => {
     const mine = assetProblems(app.platform, set);
@@ -422,7 +474,8 @@ export async function buildStagedView(
       height: r.assetHeight,
       format: r.assetFormat,
       hasAlpha: r.assetAlpha,
-      ...(r.source === 'local' ? { upload: true } : {}) }));
+      ...(r.source === 'local' ? { upload: true } : {}),
+    }));
     const pushedAt = set.rows.every((r) => r.pushedHash !== null && r.pushedHash === r.valueHash)
       ? Math.max(...set.rows.map((r) => r.pushedAt ?? 0))
       : null;
@@ -442,7 +495,8 @@ export async function buildStagedView(
       pushedAt,
       pushed: pushedAt !== null,
       createdAt: Math.min(...set.rows.map((r) => r.createdAt)),
-      updatedAt: Math.max(...set.rows.map((r) => r.updatedAt)) };
+      updatedAt: Math.max(...set.rows.map((r) => r.updatedAt)),
+    };
   });
   const release = releaseViewsOf(app.platform, all, ctx.now ? ctx.now() : Date.now());
   const all2 = [
@@ -466,12 +520,15 @@ export async function buildStagedView(
       changed:
         text.filter((t) => t.status === 'changed').length +
         assets.filter((a) => a.status === 'changed').length +
-        release.filter((r) => r.status === 'changed' && !r.localOnly).length },
+        release.filter((r) => r.status === 'changed' && !r.localOnly).length,
+    },
     valid: errors === 0,
     pushable: {
       textFields: [...STAGEABLE_TEXT_FIELDS[app.platform]],
-      releaseFields: [...STAGEABLE_RELEASE_FIELDS[app.platform]] },
-    limits: STAGED_LIMITS };
+      releaseFields: [...STAGEABLE_RELEASE_FIELDS[app.platform]],
+    },
+    limits: STAGED_LIMITS,
+  };
 }
 
 export async function getStagedChanges(
@@ -517,7 +574,8 @@ export async function stageText(
   if (!app) return failure(404, 'not_found');
   if (!isStageableLocale(input.locale))
     return invalid('invalid_locale', 'locale must be a store locale code such as en-US.', {
-      field: 'locale' });
+      field: 'locale',
+    });
   if (!isStageableTextField(app.platform, input.field)) {
     const known = isListingField(app.platform, input.field);
     return invalid(
@@ -532,7 +590,8 @@ export async function stageText(
   if (input.from === 'local' || input.from === 'ai') {
     if (input.value === undefined)
       return invalid('invalid_staged', `value is required when from is ${input.from}.`, {
-        field: 'value' });
+        field: 'value',
+      });
     raw = input.value;
   } else {
     if (input.value !== undefined)
@@ -544,7 +603,8 @@ export async function stageText(
     const drift = await getDrift(db, input.workspaceId, {
       id: app.id,
       platform: app.platform,
-      identifier: app.identifier });
+      identifier: app.identifier,
+    });
     const field = drift.locales
       .find((l) => l.locale === input.locale)
       ?.fields.find((f) => f.field === input.field);
@@ -626,8 +686,10 @@ export async function stageText(
         field: input.field,
         source: input.from,
         valueHash: hash,
-        chars: value.length },
-      at });
+        chars: value.length,
+      },
+      at,
+    });
     return undefined;
   });
   if (refused) return refused;
@@ -671,7 +733,8 @@ export async function stageAssets(
   }
   if (!isStageableLocale(input.locale))
     return invalid('invalid_locale', 'locale must be a store locale code such as en-US.', {
-      field: 'locale' });
+      field: 'locale',
+    });
   if (!(ASSET_KINDS as readonly string[]).includes(input.kind))
     return invalid('invalid_staged', 'Not a kind of graphic.', { field: 'kind' });
   const slot: AssetSlot = { kind: input.kind, device: input.device };
@@ -689,7 +752,8 @@ export async function stageAssets(
     { workspaceId: input.workspaceId, app, ...(input.commit ? { commit: input.commit } : {}) },
     input.actor,
     {
-      ...(input.gate ? { onCompute: input.gate } : {}) },
+      ...(input.gate ? { onCompute: input.gate } : {}),
+    },
   );
   if (!opened.ok) return opened;
   const view = opened.handle.view;
@@ -841,8 +905,10 @@ export async function stageAssets(
         slot: key,
         commit: view.commit,
         files: chosen.length,
-        oids: chosen.map((a) => a.oid) },
-      at });
+        oids: chosen.map((a) => a.oid),
+      },
+      at,
+    });
     return undefined;
   });
   if (refused) return refused;
@@ -896,7 +962,8 @@ export async function unstage(
       action: 'staged.item_removed',
       target: { type: 'app', id: app.id },
       detail,
-      at });
+      at,
+    });
     return true;
   });
   if (!removed) return failure(404, 'not_found');
@@ -924,7 +991,8 @@ export async function clearStaged(
         action: 'staged.cleared',
         target: { type: 'app', id: app.id },
         detail: { appId: app.id, rows },
-        at });
+        at,
+      });
     }
   });
   return { ok: true, staged: await buildStagedView(ctx, input.workspaceId, app) };

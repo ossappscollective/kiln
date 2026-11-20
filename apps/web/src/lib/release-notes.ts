@@ -1,6 +1,6 @@
 import type { Platform, StoreId } from '@mrm/core';
-import type { TestNotes } from './release-candidates.ts';
 import { releaseNotesLimit } from '@mrm/core';
+import type { TestNotes } from './release-candidates.ts';
 
 /**
  * Release notes ("what is new") in the prepare-release stepper: the limits, the texts earlier releases used (and where),

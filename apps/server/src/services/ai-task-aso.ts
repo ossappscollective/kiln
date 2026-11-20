@@ -1,5 +1,29 @@
 import type { JsonSchema } from '@mrm/connectors';
-import { addDays, type AiAsoHealthInsight, type AiAuditCoverage, type AiAuditField, type AiAuditFinding, type AiFlag, type AiHealthAction, aiHealthAreas, type AiKeywordIdea, type AiKeywordProposal, aiLimits, type AiListingAuditInsight, APP_STORE_FIELD_SPECS, checkTerm, countBytes, countCharacters, dateToDay, type ListingStore, listingStoreOf, normalizeCountry, normalizeLocale, PLAY_FIELD_SPECS } from '@mrm/core';
+import {
+  type AiAsoHealthInsight,
+  type AiAuditCoverage,
+  type AiAuditField,
+  type AiAuditFinding,
+  type AiFlag,
+  type AiHealthAction,
+  type AiKeywordIdea,
+  type AiKeywordProposal,
+  type AiListingAuditInsight,
+  APP_STORE_FIELD_SPECS,
+  addDays,
+  aiHealthAreas,
+  aiLimits,
+  checkTerm,
+  countBytes,
+  countCharacters,
+  dateToDay,
+  type ListingStore,
+  listingStoreOf,
+  normalizeCountry,
+  normalizeLocale,
+  PLAY_FIELD_SPECS,
+} from '@mrm/core';
+import { overview } from '../modules/analytics/query.ts';
 import { coachFor, summaryFor } from '../modules/aso/insights.ts';
 import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
@@ -13,8 +37,8 @@ import {
   cleanText,
   clip,
   type PreparedRun,
-  type ReadyTask } from './ai-task-types.ts';
-import { overview } from '../modules/analytics/query.ts';
+  type ReadyTask,
+} from './ai-task-types.ts';
 
 /**
  * The ASO insight tasks (docs/adr/0024-ai-features.md): `listing_audit`, `aso_health` and `keyword_ideas_reviews`.
@@ -61,7 +85,8 @@ function hasTerm(text: string, term: string): boolean {
 export const LISTING_AUDIT_VERSION = 1;
 const AUDIT_FIELDS = {
   app_store: ['name', 'subtitle', 'keywords', 'description', 'promotional_text'],
-  google_play: ['title', 'short_description', 'full_description'] } as const;
+  google_play: ['title', 'short_description', 'full_description'],
+} as const;
 const AUDIT_FINDINGS_MAX = 8;
 
 const AUDIT_SYSTEM = `You audit the store listing text of an app, for its developer.
@@ -87,11 +112,16 @@ const AUDIT_SCHEMA: JsonSchema = {
           recommendation: { type: 'string', maxLength: 400 },
           impact: { type: 'string' },
           reasoning: { type: 'string', maxLength: 400 },
-          keywords: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 80 } } },
+          keywords: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 80 } },
+        },
         required: ['field', 'problem', 'recommendation', 'impact', 'reasoning', 'keywords'],
-        additionalProperties: false } } },
+        additionalProperties: false,
+      },
+    },
+  },
   required: ['findings'],
-  additionalProperties: false };
+  additionalProperties: false,
+};
 
 type AuditFacts = {
   store: ListingStore;
@@ -123,16 +153,19 @@ export const listingAuditTask: ReadyTask = {
       'Review text or reviewer names.',
       'Listing text of other languages, or of other apps.',
       'People in your workspace.',
-    ] },
+    ],
+  },
   scope: [
     {
       name: 'locale',
       required: true,
-      description: 'The language of the listing text, such as en-US.' },
+      description: 'The language of the listing text, such as en-US.',
+    },
     {
       name: 'goal',
       required: false,
-      description: `What you want from the audit, in your own words, at most ${aiLimits.maxGoalChars} characters.` },
+      description: `What you want from the audit, in your own words, at most ${aiLimits.maxGoalChars} characters.`,
+    },
   ],
   system: AUDIT_SYSTEM,
   schema: AUDIT_SCHEMA,
@@ -145,7 +178,8 @@ export const listingAuditTask: ReadyTask = {
     const locale = normalizeLocale(scope.locale);
     if (!locale)
       return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', {
-        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }] });
+        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }],
+      });
     const apple = listingStoreOf(ctx.app.platform) === 'app_store';
     const store = apple ? 'app_store' : 'google_play';
     const texts = await loadLocaleTexts(ctx, locale);
@@ -170,7 +204,8 @@ export const listingAuditTask: ReadyTask = {
         limit,
         unit,
         percent: limit ? Math.round((length / limit) * 100) : null,
-        empty: value.trim() === '' };
+        empty: value.trim() === '',
+      };
     });
     const tracked = (
       await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { locale: texts.locale })
@@ -178,7 +213,8 @@ export const listingAuditTask: ReadyTask = {
     const coverage: AiAuditCoverage[] = tracked.map((k) => ({
       term: k.term,
       rank: k.state === 'ranked' ? k.rank : null,
-      inFields: names.filter((f) => hasTerm(texts.values.get(f) ?? '', k.term)) }));
+      inFields: names.filter((f) => hasTerm(texts.values.get(f) ?? '', k.term)),
+    }));
     const competitors = (await listCompetitors(ctx.db, ctx.workspaceId, ctx.app.id)).slice(0, 6);
     const goal = cleanGoal(scope.goal, aiLimits.maxGoalChars);
     const input = {
@@ -194,15 +230,19 @@ export const listingAuditTask: ReadyTask = {
         ),
         length: f.length,
         limit: f.limit,
-        unit: f.unit })),
+        unit: f.unit,
+      })),
       trackedKeywords: coverage.map((c) => ({
         term: c.term,
         ...(c.rank !== null ? { rank: c.rank } : {}),
-        inFields: c.inFields })),
+        inFields: c.inFields,
+      })),
       competitors: competitors.map((c) => ({
         name: clip(c.name, 80),
-        ...(c.latest?.subtitle ? { subtitle: clip(c.latest.subtitle, 80) } : {}) })),
-      ...(goal ? { developerGoal: goal } : {}) };
+        ...(c.latest?.subtitle ? { subtitle: clip(c.latest.subtitle, 80) } : {}),
+      })),
+      ...(goal ? { developerGoal: goal } : {}),
+    };
     const ranks = coverage.flatMap((c) => (c.rank === null ? [] : [c.rank]));
     const facts: AuditFacts = {
       store,
@@ -215,7 +255,8 @@ export const listingAuditTask: ReadyTask = {
           ? [
               'No keywords are tracked for this language, so the audit could not check keyword coverage.',
             ]
-          : [] };
+          : [],
+    };
     return { input, scope: { locale: texts.locale, ...(goal ? { goal: true } : {}) }, facts };
   },
 
@@ -251,10 +292,12 @@ export const listingAuditTask: ReadyTask = {
           critical: 'high',
           major: 'high',
           minor: 'low',
-          moderate: 'medium' }),
+          moderate: 'medium',
+        }),
         reasoning,
         keywords,
-        flags });
+        flags,
+      });
     }
     findings.sort((a, b) => IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact]);
     return {
@@ -265,8 +308,10 @@ export const listingAuditTask: ReadyTask = {
       fields: facts.fields,
       coverage: facts.coverage,
       findings: findings.slice(0, AUDIT_FINDINGS_MAX),
-      notes: facts.notes };
-  } };
+      notes: facts.notes,
+    };
+  },
+};
 
 // ---------------------------------------------------------------------------------------------
 // aso_health
@@ -297,11 +342,16 @@ const HEALTH_SCHEMA: JsonSchema = {
         properties: {
           title: { type: 'string', maxLength: 120 },
           detail: { type: 'string', maxLength: 500 },
-          area: { type: 'string' } },
+          area: { type: 'string' },
+        },
         required: ['title', 'detail', 'area'],
-        additionalProperties: false } } },
+        additionalProperties: false,
+      },
+    },
+  },
   required: ['summary', 'actions'],
-  additionalProperties: false };
+  additionalProperties: false,
+};
 
 type HealthFacts = { basedOn: AiAsoHealthInsight['basedOn']; ranks: number[]; notes: string[] };
 
@@ -318,7 +368,8 @@ const AREA_ALIASES: Record<string, (typeof aiHealthAreas)[number]> = {
   competition: 'competitors',
   competitor: 'competitors',
   downloads: 'analytics',
-  conversion: 'analytics' };
+  conversion: 'analytics',
+};
 
 /** Rank at the start and at the end of the window for the keywords that moved, from the stored checks. */
 async function rankChanges(
@@ -374,7 +425,8 @@ export const asoHealthTask: ReadyTask = {
       'Review text or reviewer names.',
       'Your listing text.',
       'People in your workspace, or other apps.',
-    ] },
+    ],
+  },
   scope: [],
   system: HEALTH_SYSTEM,
   schema: HEALTH_SCHEMA,
@@ -412,14 +464,16 @@ export const asoHealthTask: ReadyTask = {
         from,
         to,
         granularity: 'week',
-        now });
+        now,
+      });
       const before = await overview(ctx.db, {
         workspaceId: ctx.workspaceId,
         app: ctx.app,
         from: previousFrom,
         to: previousTo,
         granularity: 'week',
-        now });
+        now,
+      });
       for (const s of current.series) {
         if (s.total === null || series.length >= 8) continue;
         const prev = before.series.find((p) => p.id === s.id)?.total ?? null;
@@ -428,7 +482,8 @@ export const asoHealthTask: ReadyTask = {
           label: s.label,
           unit: String(s.unit),
           total: Math.round(s.total * 100) / 100,
-          previous: prev === null ? null : Math.round(prev * 100) / 100 });
+          previous: prev === null ? null : Math.round(prev * 100) / 100,
+        });
       }
     } catch {
       // Analytics that cannot be read leave the report without it; the keyword and listing parts still stand.
@@ -451,23 +506,28 @@ export const asoHealthTask: ReadyTask = {
       coachSteps: steps.map((s) => ({
         title: clip(s.title, 120),
         detail: clip(s.detail, 240),
-        items: s.items.slice(0, 5).map((i) => clip(i, 80)) })),
+        items: s.items.slice(0, 5).map((i) => clip(i, 80)),
+      })),
       keywords: {
         tracked: summary.keywords.total,
         ranked: summary.keywords.ranked,
         notRanked: summary.keywords.notRanked,
         notChecked: summary.keywords.unchecked,
         top3: summary.keywords.top3,
-        top10: summary.keywords.top10 },
+        top10: summary.keywords.top10,
+      },
       rankChanges: changes,
       competitors: {
         followed: summary.competitors.total,
-        changedRecently: summary.competitors.changedRecently },
+        changedRecently: summary.competitors.changedRecently,
+      },
       analytics: series.map((s) => ({
         metric: s.label,
         unit: s.unit,
         last28Days: s.total,
-        previous28Days: s.previous })) };
+        previous28Days: s.previous,
+      })),
+    };
     const notes: string[] = [];
     if (series.length === 0)
       notes.push(
@@ -480,9 +540,11 @@ export const asoHealthTask: ReadyTask = {
         coachSteps: steps.length,
         competitors: summary.competitors.total,
         analyticsSeries: series.length,
-        lastCheckAt: coach.basedOn.lastCheckAt },
+        lastCheckAt: coach.basedOn.lastCheckAt,
+      },
       ranks,
-      notes };
+      notes,
+    };
     return { input, scope: {}, facts };
   },
 
@@ -502,7 +564,8 @@ export const asoHealthTask: ReadyTask = {
         title,
         detail,
         area: oneOf(t.area, aiHealthAreas, 'other', AREA_ALIASES),
-        flags });
+        flags,
+      });
       if (actions.length >= 5) break;
     }
     return {
@@ -511,8 +574,10 @@ export const asoHealthTask: ReadyTask = {
       summary: paragraphOf(answer.summary, 600),
       actions,
       basedOn: facts.basedOn,
-      notes: facts.notes };
-  } };
+      notes: facts.notes,
+    };
+  },
+};
 
 // ---------------------------------------------------------------------------------------------
 // keyword_ideas_reviews
@@ -521,7 +586,8 @@ export const KEYWORD_IDEAS_REVIEWS_VERSION = 1;
 const IDEAS_MAX = 15;
 const KEYWORD_FIELDS = {
   app_store: ['name', 'subtitle', 'keywords', 'description'],
-  google_play: ['title', 'short_description', 'full_description'] } as const;
+  google_play: ['title', 'short_description', 'full_description'],
+} as const;
 const SOURCES = ['reviews', 'listing', 'competitors'] as const;
 
 const IDEAS_SYSTEM = `You find search keywords for the store listing of an app, from three sources: what users write in reviews, the app's own listing, and competitor listings.
@@ -545,16 +611,23 @@ const ideasSchema = (store: ListingStore): JsonSchema => ({
           reason: { type: 'string', maxLength: 400 },
           field: {
             type: 'string',
-            description: `One of ${KEYWORD_FIELDS[store].join(', ')} or track_only.` },
+            description: `One of ${KEYWORD_FIELDS[store].join(', ')} or track_only.`,
+          },
           relevance: { type: ['number', 'string'], description: '0 to 100.' },
           sources: {
             type: 'string',
             maxLength: 80,
-            description: 'Comma separated: reviews, listing, competitors.' } },
+            description: 'Comma separated: reviews, listing, competitors.',
+          },
+        },
         required: ['term', 'reason', 'field', 'relevance', 'sources'],
-        additionalProperties: false } } },
+        additionalProperties: false,
+      },
+    },
+  },
   required: ['ideas'],
-  additionalProperties: false });
+  additionalProperties: false,
+});
 
 type IdeasFacts = {
   store: ListingStore;
@@ -584,24 +657,29 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
       'The names of reviewers, their device, country or store review id.',
       'Credentials or keys of any kind.',
       'People in your workspace, or any other app.',
-    ] },
+    ],
+  },
   scope: [
     {
       name: 'locale',
       required: true,
-      description: 'The language of the listing text, such as en-US.' },
+      description: 'The language of the listing text, such as en-US.',
+    },
     {
       name: 'country',
       required: false,
-      description: 'The storefront, two letters such as us. Default us.' },
+      description: 'The storefront, two letters such as us. Default us.',
+    },
     {
       name: 'days',
       required: false,
-      description: 'How many days of reviews to read, 1 to 180. Default 90.' },
+      description: 'How many days of reviews to read, 1 to 180. Default 90.',
+    },
     {
       name: 'goal',
       required: false,
-      description: `What you want from the ideas, in your own words, at most ${aiLimits.maxGoalChars} characters.` },
+      description: `What you want from the ideas, in your own words, at most ${aiLimits.maxGoalChars} characters.`,
+    },
   ],
   system: IDEAS_SYSTEM,
   schema: ideasSchema('app_store'),
@@ -614,11 +692,13 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
     const locale = normalizeLocale(scope.locale);
     if (!locale)
       return aiFail(400, 'invalid_request', 'The language is a tag such as en-US.', {
-        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }] });
+        issues: [{ path: 'locale', message: 'A language tag such as en-US.' }],
+      });
     const country = scope.country === undefined ? 'us' : normalizeCountry(scope.country);
     if (!country)
       return aiFail(400, 'invalid_request', 'The storefront is two letters, such as us.', {
-        issues: [{ path: 'country', message: 'Two letters such as us.' }] });
+        issues: [{ path: 'country', message: 'Two letters such as us.' }],
+      });
     const apple = listingStoreOf(ctx.app.platform) === 'app_store';
     const store = apple ? 'app_store' : 'google_play';
     const texts = await loadLocaleTexts(ctx, locale);
@@ -645,7 +725,8 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
       days: periodDays(scope.days ?? 90),
       limit: 30,
       titleChars: 60,
-      textChars: 200 });
+      textChars: 200,
+    });
     const tracked = (
       await listKeywords(ctx.db, ctx.workspaceId, ctx.app.id, { country, locale: texts.locale })
     ).slice(0, 60);
@@ -661,18 +742,22 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
       reviews: loaded.reviews.map((r) => ({
         stars: r.rating,
         ...(r.title ? { title: r.title } : {}),
-        text: r.text })),
+        text: r.text,
+      })),
       competitors: competitors.map((c) => ({
         name: clip(c.name, 100),
         ...(c.latest?.title ? { title: clip(c.latest.title, 100) } : {}),
-        ...(c.latest?.subtitle ? { subtitle: clip(c.latest.subtitle, 100) } : {}) })),
-      ...(goal ? { developerGoal: goal } : {}) };
+        ...(c.latest?.subtitle ? { subtitle: clip(c.latest.subtitle, 100) } : {}),
+      })),
+      ...(goal ? { developerGoal: goal } : {}),
+    };
     const facts: IdeasFacts = {
       store,
       country,
       locale: texts.locale,
       trackedKeys: tracked.map((k) => k.key),
-      competitorKeys: competitors.map((c) => c.name.toLowerCase()) };
+      competitorKeys: competitors.map((c) => c.name.toLowerCase()),
+    };
     return {
       input,
       scope: {
@@ -680,9 +765,11 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
         country,
         days: loaded.window.days,
         reviews: loaded.reviews.length,
-        ...(goal ? { goal: true } : {}) },
+        ...(goal ? { goal: true } : {}),
+      },
       schema: ideasSchema(store),
-      facts };
+      facts,
+    };
   },
 
   propose(output, run): AiKeywordProposal {
@@ -739,7 +826,8 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
         relevance: clamp(idea.relevance, 0, 100, 50),
         ...(sources.length > 0 ? { sources } : {}),
         acceptable,
-        flags });
+        flags,
+      });
     }
     // The most relevant first; ideas that cannot be accepted go last. A stable sort keeps the model's own order among equals.
     const order = items.map((item, index) => ({ item, index }));
@@ -754,5 +842,7 @@ export const keywordIdeasFromReviewsTask: ReadyTask = {
       store: facts.store,
       country: facts.country,
       locale: facts.locale,
-      items: order.map((o) => o.item) };
-  } };
+      items: order.map((o) => o.item),
+    };
+  },
+};

@@ -15,6 +15,7 @@ import { bootRepoApp } from '../../repo-test-helpers.ts';
 import { createScheduler } from '../../scheduler.ts';
 import { createTestLimiter } from '../../services/credential-tests.ts';
 import { queueReviewSyncs, reviewUpkeep } from './schedule.ts';
+import { deleteReviewData, escapeLike, pruneReviews, purgeOrphanReviewRows } from './service.ts';
 import {
   createReviewSyncHandler,
   REVIEW_SYNC_QUEUE,
@@ -23,12 +24,6 @@ import {
   type ReviewsContext,
   syncReviews,
 } from './sync.ts';
-import {
-  deleteReviewData,
-  escapeLike,
-  pruneReviews,
-  purgeOrphanReviewRows,
-} from './service.ts';
 
 // Everything here runs against fakes: no store, and not the iTunes lookup, is ever contacted.
 

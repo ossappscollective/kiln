@@ -1,4 +1,5 @@
 import type { AiAcceptedRef, AiSuggestionView } from '@mrm/core';
+import type { Api } from '../api.ts';
 import type {
   AiAcceptBody,
   AiConfig,
@@ -9,7 +10,6 @@ import type {
   AiUsageWarning,
 } from './ai.ts';
 import { isOpen } from './ai.ts';
-import type { Api } from '../api.ts';
 
 /**
  * What the screens know about AI assistance (docs/api/ai.md): the configuration and usage of the workspace, the list of tasks with what each

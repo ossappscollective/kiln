@@ -1,4 +1,6 @@
 import type { MetricUnit } from '@mrm/core';
+import { platformSupports, supports } from '@mrm/core';
+import { timeAgo } from '../format.ts';
 import {
   type AnalyticsOverview,
   type AnalyticsSeries,
@@ -31,8 +33,6 @@ import {
   stepAction,
   storedErrorText,
 } from './analytics.ts';
-import { timeAgo } from '../format.ts';
-import { platformSupports, supports } from '@mrm/core';
 
 /**
  * What the Analytics screen draws, worked out from the API's answers: the row of figures, the small-multiple chart cards

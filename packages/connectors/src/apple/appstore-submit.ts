@@ -1,11 +1,4 @@
 import { classifyAppleScreenshot, PLATFORM_META } from '@mrm/core';
-import {
-  type AppStoreConnectKey,
-  AppStoreConnectTokenProvider,
-  parseAppStoreConnectSecret,
-} from './apple-auth.ts';
-import { AppleDraftConnector } from './appstore-draft.ts';
-import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from '../errors.ts';
 import {
   APPLE_DRAFT_VERSION_STATES,
@@ -33,6 +26,13 @@ import {
   type SubmitResult,
   type SubmitState,
 } from '../store-submit-types.ts';
+import {
+  type AppStoreConnectKey,
+  AppStoreConnectTokenProvider,
+  parseAppStoreConnectSecret,
+} from './apple-auth.ts';
+import { AppleDraftConnector } from './appstore-draft.ts';
+import { appleError } from './appstoreconnect.ts';
 
 /**
  * App Store Connect: submit the editable App Store version for REVIEW. A STORE WRITE that cannot be taken back from

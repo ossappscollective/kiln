@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { GithubError, GithubRateLimitError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootCi, run, SHA_1, SHA_2, SHA_3 } from './test-helpers.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
+import { getRepository } from '../../services/repositories.ts';
+import { PENDING_DISPATCH_TTL_MS, pruneRuns, RUN_RETENTION_MS, storeRuns } from './runs.ts';
 import {
   CI_POLL_QUEUE,
   createCiPollHandler,
@@ -11,14 +13,7 @@ import {
   pollDelayMs,
   refreshRuns,
 } from './service.ts';
-import {
-  PENDING_DISPATCH_TTL_MS,
-  pruneRuns,
-  RUN_RETENTION_MS,
-  storeRuns,
-} from './runs.ts';
-import { createTestLimiter } from '../../services/credential-tests.ts';
-import { getRepository } from '../../services/repositories.ts';
+import { bootCi, run, SHA_1, SHA_2, SHA_3 } from './test-helpers.ts';
 
 // Everything here runs against a fake GitHub: no live GitHub call is ever made.
 

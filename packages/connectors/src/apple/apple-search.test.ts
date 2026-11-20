@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { APPLE_OWN_ID, appleLookupReply, appleSearchReply } from '../aso.fixtures.ts';
+import { AsoError } from '../aso-common.ts';
 import {
   appleSearchUrl,
   lookupApple,
@@ -7,8 +9,6 @@ import {
   rankIn,
   searchApple,
 } from './apple-search.ts';
-import { APPLE_OWN_ID, appleLookupReply, appleSearchReply } from '../aso.fixtures.ts';
-import { AsoError } from '../aso-common.ts';
 
 type Seen = { url: string; init: RequestInit | undefined };
 

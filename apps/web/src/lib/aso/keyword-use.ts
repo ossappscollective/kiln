@@ -1,11 +1,27 @@
-import { type AsoPlatform, checkTerm, type FitFields, type KeywordFieldSummary, languageOf, type ListingRow, listingRows, type ListingRowTerm, supports, termKeyOf, type TermSource, type TermTracking, type TrackedRank, trackingOf } from '@mrm/core';
+import {
+  type AsoPlatform,
+  checkTerm,
+  type FitFields,
+  type KeywordFieldSummary,
+  type ListingRow,
+  type ListingRowTerm,
+  languageOf,
+  listingRows,
+  supports,
+  type TermSource,
+  type TermTracking,
+  type TrackedRank,
+  termKeyOf,
+  trackingOf,
+} from '@mrm/core';
 import {
   editableFields,
   type FieldInfo,
   type FieldMeter,
   fieldIdForSource,
   measureField,
-  whereText } from '../listing/edit.ts';
+  whereText,
+} from '../listing/edit.ts';
 
 /**
  * "Keywords your listing uses now" (Insights, Keywords): the pure parts. The terms a locale of the stored listing sets are worked
@@ -69,7 +85,8 @@ export function searchFigures(
     if (before) {
       out.set(key, {
         visitors: sum(before.visitors, line.visitors),
-        installs: sum(before.installs, line.installs) });
+        installs: sum(before.installs, line.installs),
+      });
     } else {
       out.set(key, { visitors: line.visitors, installs: line.installs });
     }
@@ -130,7 +147,8 @@ const FIT_KEY: Record<string, keyof FitFields> = {
   keywords: 'keywords',
   short_description: 'shortDescription',
   description: 'description',
-  full_description: 'description' };
+  full_description: 'description',
+};
 
 /** The stored text of one listing field (a listing field id such as `name`, `short_description`) out of the fields of a locale; '' when there is none. */
 export const storeTextOf = (fields: FitFields, fieldId: string): string => {
@@ -157,7 +175,8 @@ export function usedKeywords(input: {
     tracked: input.tracked,
     // Google Play: the full description counts too, with the words that occur twice or more.
     options: { includeDescription: true, minDescriptionOccurrences: 2, maxDescriptionTerms: 30 },
-    ...(input.countries ? { countries: input.countries } : {}) });
+    ...(input.countries ? { countries: input.countries } : {}),
+  });
   const infos = editableFields(input.platform);
   return rows.map((row) => {
     const fields = (input.locales.find((l) => l.locale === row.locale) as { fields: FitFields })
@@ -194,7 +213,8 @@ export function usedKeywords(input: {
           duplicate: false,
           entries: 0,
           occurrences: 0,
-          ...trackingOf({ key }, row.locale, row.country, input.tracked) });
+          ...trackingOf({ key }, row.locale, row.country, input.tracked),
+        });
       }
     }
     const all = base.concat(phrases);
@@ -212,7 +232,8 @@ export function usedKeywords(input: {
           where: whereText(t.sources),
           fieldIds: t.sources.map((s) => fieldIdForSource(input.platform, s)),
           rankText: rankText(t, input.depth ?? 50),
-          search: fig };
+          search: fig,
+        };
       })
       .map((t, i) => ({ t, i }))
       .sort((a, b) => KIND_ORDER[a.t.kind] - KIND_ORDER[b.t.kind] || a.i - b.i)
@@ -233,7 +254,8 @@ export function usedKeywords(input: {
       fields: usedFields,
       keywords,
       trackedCount: keywords.filter((k) => k.tracked).length,
-      untracked: keywords.filter((k) => !k.tracked && checkTerm(k.term).ok) };
+      untracked: keywords.filter((k) => !k.tracked && checkTerm(k.term).ok),
+    };
   });
 }
 
