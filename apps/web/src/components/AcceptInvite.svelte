@@ -112,7 +112,7 @@
 {:else if load.name === 'invalid'}
   <AuthCard title="Invitation not valid">
     <Alert tone="error">{load.message}</Alert>
-    <p class="back"><Button variant="link" onclick={onleave}>Go to the app</Button></p>
+    <p class="back"><Button variant="primary" size="lg" block onclick={onleave}>Go to the app</Button></p>
   </AuthCard>
 {:else}
   {@const invitation = load.invitation}
@@ -125,7 +125,7 @@
       <div class="stack">
         <p>You are signed in as <strong>{user.email}</strong>.</p>
         {#if error}<Alert tone="error">{error}</Alert>{/if}
-        <Button variant="primary" loading={busy} onclick={() => accept({})}>
+        <Button variant="primary" size="lg" block loading={busy} onclick={() => accept({})}>
           {busy ? 'Joining…' : `Join ${invitation.workspaceName}`}
         </Button>
       </div>
@@ -136,7 +136,7 @@
           <strong>{user.email}</strong>. Sign out, then open the link again.
         </Alert>
         {#if error}<Alert tone="error">{error}</Alert>{/if}
-        <Button loading={busy} onclick={signOut}>Sign out</Button>
+        <Button variant="primary" size="lg" block loading={busy} onclick={signOut}>Sign out</Button>
       </div>
     {:else}
       <form onsubmit={submitNew} class="stack">
@@ -162,9 +162,9 @@
         </div>
         {#if error}<Alert tone="error">{error}</Alert>{/if}
         {#if accountExists}
-          <Button onclick={onleave}>Sign in</Button>
+          <Button variant="primary" size="lg" block onclick={onleave}>Sign in</Button>
         {/if}
-        <Button type="submit" variant="primary" loading={busy}>
+        <Button type="submit" variant={accountExists ? 'secondary' : 'primary'} size="lg" block loading={busy}>
           {busy ? 'Creating account…' : 'Create account and join'}
         </Button>
       </form>
@@ -177,9 +177,10 @@
     display: grid;
     min-height: 100vh;
     place-content: center;
+    font-size: 1rem;
   }
 
   .back {
-    margin: 16px 0 0;
+    margin: var(--space-5) 0 0;
   }
 </style>

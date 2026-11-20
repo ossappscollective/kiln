@@ -50,7 +50,7 @@
 
 <AuthCard
   title="Set up your workspace"
-  subtitle="Create the first account. It becomes the owner of the workspace. Registration closes afterwards."
+  subtitle="Create the first account. It becomes the owner of the workspace."
 >
   <form onsubmit={submit} class="stack" novalidate>
     <TextField
@@ -85,11 +85,13 @@
       label="Workspace name"
       bind:value={workspaceName}
       placeholder="Your company or team"
+      hint="Teammates see this name when you invite them."
       required
       error={shown.workspaceName}
       onblur={() => (touched.workspaceName = true)}
     />
     {#if error}<Alert tone="error">{error}</Alert>{/if}
+    <p class="quiet">Registration closes once this account exists.</p>
     <Button variant="primary" type="submit" size="lg" block loading={busy}>
       {busy ? 'Creating workspace' : 'Create workspace'}
     </Button>
