@@ -22,6 +22,7 @@
     localesOf,
   } from '../../lib/aso.ts';
   import { address } from '../../lib/address.svelte.ts';
+  import { ideasLead } from '../../lib/aso-lead.ts';
   import { platformLabel } from '../../lib/portfolio.ts';
   import { countOf, summaryLine } from '../../lib/section-state.ts';
   import { toast } from '../../lib/toast.svelte.ts';
@@ -31,6 +32,7 @@
   import Button from '../ui/Button.svelte';
   import InfoTip from '../ui/InfoTip.svelte';
   import Section from '../ui/Section.svelte';
+  import PageLead from '../ui/PageLead.svelte';
   import Skeleton from '../ui/Skeleton.svelte';
   import SuggestKeywords from '../ai/SuggestKeywords.svelte';
   import SuggestKeywordsFromReviews from '../ai/SuggestKeywordsFromReviews.svelte';
@@ -89,6 +91,10 @@
     })();
   });
 
+  const lead = $derived(
+    ideasLead(members.flatMap((m) => { const d = data[m.id]; return d ? [{ ideas: d.ideas.length, competitors: d.basedOn.competitors, ownListing: d.basedOn.ownListing }] : []; })),
+  );
+
   async function track(app: AppSummary, d: AsoIdeasResponse, term: string) {
     busy = `${app.id}|${term}`;
     try {
@@ -107,7 +113,7 @@
   }
 </script>
 
-<div class="ideas stack">
+{#snippet suggest()}
   {#if canWrite}
     <div class="suggest-row">
       <SuggestKeywords
@@ -127,6 +133,16 @@
         localeFor={(app) => (locale !== '' && locales.indexOf(locale) >= 0 ? locale : (data[app.id]?.locale ?? null))}
       />
     </div>
+  {/if}
+{/snippet}
+
+<div class="ideas stack roomy">
+  {#if loading}
+    {@render suggest()}
+  {:else}
+    <PageLead headline={lead.headline} hint={lead.hint} tone={lead.tone} testid="ideas-lead">
+      {#snippet actions()}{@render suggest()}{/snippet}
+    </PageLead>
   {/if}
   {#if locales.length > 1}
     <div class="row">
@@ -203,6 +219,27 @@
 <style>
   .suggest-row:empty {
     display: none;
+  }
+
+  .suggest-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .roomy {
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact th),
+  .roomy :global(table.compact td) {
+    padding-block: var(--space-3);
+    font-size: 0.9375rem;
+  }
+
+  .roomy :global(table.compact thead th) {
+    font-size: var(--text-sm);
   }
 
   .head {
