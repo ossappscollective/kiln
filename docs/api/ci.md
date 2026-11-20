@@ -19,6 +19,17 @@ paging for `git/matching-refs`; whether `GET /tags` returns an annotated tag's c
 to, as it returns the tagged commit) is unverified, and a tag the tool cannot resolve is
 reported, not guessed. The layout was modelled on a real fastlane lane, but only read, never run.
 
+## CI providers
+
+Runs of more than one provider are stored in `workflow_runs` and shown together. Each run has `provider` (`github`, or `eas-workflows`: see
+[eas-workflows.md](eas-workflows.md)); a row from before providers existed is GitHub's. Everything above (this document) describes GitHub
+Actions. A provider's run is put into the same words (`status` `queued` / `waiting` / `in_progress` / `completed`, `conclusion`
+`success` / `failure` / `cancelled`), so the runs lists, "running now", the release pipeline, the builds, the events and the alerts read it
+without asking which provider it came from; what differs is who refreshes it (GitHub: `ci.poll` and the refresh of a repository; EAS
+Workflows: `eas.poll` and the refresh of one run) and where its page is (`url`). The words for a provider's name are in
+`packages/core/src/ci-providers.ts`. The GitHub-only reads (jobs, artifacts, linking a build to a run by number) answer for GitHub runs only.
+A new provider adds a value there, a refresher and its own start route.
+
 ## Rights
 
 | Action                                                                                                                                                                                                        | viewer | member | admin / owner |
