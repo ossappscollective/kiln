@@ -83,3 +83,7 @@ here: the link needs it nowhere.
 - No new role action and no new environment switch: the foundation only reads. A feature that writes at Expo adds its own gate.
 - `apiOrigin` applies to the module's calls and to `expoClientFor`; the generic "Test connection" of a credential always asks
   `api.expo.dev` (the credential test seam is the `fetch` of `deps.credentialTests`).
+
+## Update: reading `eas.json`
+
+One feature on the foundation reads nothing from Expo: `GET /apps/:appId/eas-config` parses `eas.json` and the JSON app config at the repository root through the repository connector, with a tolerant parser in `packages/connectors/src/expo/eas-config.ts` (names of `env` only, never their values; a dynamic app config is reported, never run). It needs `repositories.scan` and no Expo credential. What was checked against Expo's pages and what was not is in [docs/api/eas-config.md](../api/eas-config.md).
