@@ -127,10 +127,10 @@ export const importPeriodText = (period: ImportPeriod | null): string =>
 // ---------------------------------------------------------------------------------------------
 // What the view says
 
-/** Where to get the file. The wording of the Console menus is unverified (docs/research/play-search-terms.md), so it says where to look. */
+/** Where to get the file. The Console's menus move and are not verified here (docs/research/play-search-terms.md), so the first step says what the report is called and how to find it, not a fixed menu path. */
 export const exportSteps: string[] = [
   'Open Google Play Console and choose the app.',
-  'Go to Grow users, then Store performance, and open the conversion analysis (the store listing report).',
+  'Find the report that breaks down store listing visitors by how they found your app. The menus change: type "acquisition" or "search terms" into the search box at the top of the Console, or look under Grow users. Google calls this the user acquisition (organic) report, with a Search row that opens the search terms.',
   'Choose the breakdown "Search term" and the period you want. Pick a country first if you want one country only.',
   'Press "Export report" next to the table and keep the downloaded .csv (or .zip) file.',
   'Switch the console to English before exporting: the column names are read by name and other languages may not be recognised.',
