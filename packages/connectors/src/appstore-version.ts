@@ -6,6 +6,7 @@ import {
 } from './apple-auth.ts';
 import { appleError } from './appstoreconnect.ts';
 import { StoreError, type StoreErrorDetail } from './errors.ts';
+import { APPLE_DRAFT_VERSION_STATES } from './store-draft-types.ts';
 import {
   enc,
   isRecord,
@@ -16,7 +17,6 @@ import {
   type StoreReply,
   text,
 } from './store-http.ts';
-import { APPLE_DRAFT_VERSION_STATES } from './store-draft-types.ts';
 
 /**
  * App Store Connect: CREATE the next App Store version (`POST /v1/appStoreVersions`), so a build can be attached to it. A STORE
@@ -130,7 +130,11 @@ export class AppleVersionConnector {
     this.#apple = PLATFORM_META[this.platform].applePlatform ?? 'IOS';
     this.#label = PLATFORM_META[this.platform].label;
     this.#http = new StoreHttp({ ...options, store: 'appstoreconnect' });
-    this.#writeHttp = new StoreHttp({ ...options, store: 'appstoreconnect', maxRateLimitRetries: 0 });
+    this.#writeHttp = new StoreHttp({
+      ...options,
+      store: 'appstoreconnect',
+      maxRateLimitRetries: 0,
+    });
     this.#base = (options.apiBase ?? DEFAULT_BASE).replace(/\/+$/, '');
     const wanted = options.pageSize ?? 200;
     this.#pageSize = Number.isFinite(wanted) ? Math.min(200, Math.max(1, Math.trunc(wanted))) : 200;
@@ -150,7 +154,10 @@ export class AppleVersionConnector {
     secret: string,
     options: Omit<AppleVersionConnectorOptions, 'credential'>,
   ): AppleVersionConnector {
-    return new AppleVersionConnector({ ...options, credential: parseAppStoreConnectSecret(secret) });
+    return new AppleVersionConnector({
+      ...options,
+      credential: parseAppStoreConnectSecret(secret),
+    });
   }
 
   // -------------------------------------------------------------------------------------------

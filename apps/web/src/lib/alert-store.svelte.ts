@@ -37,8 +37,7 @@ const readSeen = (): string[] => {
 };
 const writeSeen = (ids: string[]) => {
   try {
-    if (typeof localStorage !== 'undefined')
-      localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
+    if (typeof localStorage !== 'undefined') localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
   } catch {
     // Storage is full or blocked: a notification may repeat, nothing else.
   }

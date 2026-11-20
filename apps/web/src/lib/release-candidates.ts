@@ -128,7 +128,8 @@ const CODE_SENTENCES: Record<string, string> = {
   invalid: 'Apple marked this build invalid. Upload a new build.',
   state_unknown: 'Apple did not say whether this build is processed, so it cannot be chosen.',
   expired: 'This build has expired. Upload a new build.',
-  wrong_version: 'This build was made as another version than the one being prepared. It can still be chosen: the name of the version is only a label.',
+  wrong_version:
+    'This build was made as another version than the one being prepared. It can still be chosen: the name of the version is only a label.',
   no_editable_version:
     'No version is in Prepare for Submission, so no build can be attached yet. Create the version in App Store Connect first.',
   already_attached: 'This is the build of the version already.',

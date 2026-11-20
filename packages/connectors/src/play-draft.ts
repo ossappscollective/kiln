@@ -874,12 +874,16 @@ export class PlayDraftConnector
    * track (`releaseOnly`), the commit is made once more without it: a draft release is not served to users by a commit
    * (docs/adr/0009-staged-store-drafts.md, amended 2026-11-20; UNVERIFIED against every app). Answers `draft_release` then.
    */
-  async #commit(editId: string, releaseOnly = false): Promise<'not_sent_for_review' | 'draft_release'> {
+  async #commit(
+    editId: string,
+    releaseOnly = false,
+  ): Promise<'not_sent_for_review' | 'draft_release'> {
     try {
       await this.#commitOnce(editId, true);
       return 'not_sent_for_review';
     } catch (error) {
-      if (!releaseOnly || !(error instanceof StoreError) || error.kind !== 'draft_not_allowed') throw error;
+      if (!releaseOnly || !(error instanceof StoreError) || error.kind !== 'draft_not_allowed')
+        throw error;
     }
     await this.#commitOnce(editId, false);
     return 'draft_release';

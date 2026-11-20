@@ -388,5 +388,11 @@ test('when the person confirms with a password or passkey, no typed phrase is ne
   assert.equal(canConfirmSubmit(covered, ''), true);
   assert.equal(canConfirmSubmit(preview({ confirmationRequired: true }), ''), false);
   // Blocked previews stay blocked either way.
-  assert.equal(canConfirmSubmit(preview({ confirmationRequired: false, confirmHash: null, confirmation: null }), ''), false);
+  assert.equal(
+    canConfirmSubmit(
+      preview({ confirmationRequired: false, confirmHash: null, confirmation: null }),
+      '',
+    ),
+    false,
+  );
 });

@@ -68,7 +68,8 @@ export function proposalOf(input: {
   view: StagedChangesView | null;
   editable: EditableRelease | null;
 }): PlayProposal {
-  const draft = input.editable && input.editable.store === 'googleplay' ? input.editable.draft : null;
+  const draft =
+    input.editable && input.editable.store === 'googleplay' ? input.editable.draft : null;
   const staged = input.source === 'staged' ? input.view : null;
   const name = stagedField(staged, 'release_name');
   const notes: { locale: string; text: string }[] = [];
@@ -79,7 +80,8 @@ export function proposalOf(input: {
   }
   for (const r of staged ? (staged.release ?? []) : []) {
     if (r.field !== 'release_notes') continue;
-    if (seen[r.locale] !== undefined) notes[seen[r.locale] as number] = { locale: r.locale, text: r.value };
+    if (seen[r.locale] !== undefined)
+      notes[seen[r.locale] as number] = { locale: r.locale, text: r.value };
     else notes.push({ locale: r.locale, text: r.value });
   }
   const codes = input.codes.length > 0 ? input.codes : draft ? draft.versionCodes : [];
@@ -178,10 +180,15 @@ export function outcomeView(answer: PlayCheckAnswer): OutcomeView {
   return {
     tone: 'bad',
     title: n === 1 ? 'Google reported an error' : `Google reported ${n} errors`,
-    lines: ['Fix this before you release. Google Play would refuse the release as it is.', NOTHING_SAVED],
+    lines: [
+      'Fix this before you release. Google Play would refuse the release as it is.',
+      NOTHING_SAVED,
+    ],
     findings: answer.findings.map((f) => f.message),
     rolloutNotice:
-      answer.findings.map((f) => fractionRefusalNotice(f.message, answer.userFraction ?? null)).find((n) => n !== null) ?? null,
+      answer.findings
+        .map((f) => fractionRefusalNotice(f.message, answer.userFraction ?? null))
+        .find((n) => n !== null) ?? null,
   };
 }
 

@@ -45,7 +45,8 @@ export async function loadSyncPrefs(sql: Sql): Promise<Map<string, SyncPrefs>> {
     const id = String(row.workspace_id);
     const prefs = out.get(id) ?? {};
     if (row.key === SYNC_ENABLED_KEY && typeof value === 'boolean') prefs.enabled = value;
-    if (row.key === SYNC_INTERVAL_KEY && isSyncIntervalMinutes(value)) prefs.intervalMinutes = value;
+    if (row.key === SYNC_INTERVAL_KEY && isSyncIntervalMinutes(value))
+      prefs.intervalMinutes = value;
     out.set(id, prefs);
   }
   return out;

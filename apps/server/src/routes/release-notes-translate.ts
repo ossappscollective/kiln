@@ -19,7 +19,10 @@ export type ReleaseNotesTranslateRoutesContext = NotesTranslateContext & {
   limiter: TestLimiter;
 };
 
-const locale = z.string().max(35).refine(isNoteLocale, 'A language tag such as en-US, de or pt-BR.');
+const locale = z
+  .string()
+  .max(35)
+  .refine(isNoteLocale, 'A language tag such as en-US, de or pt-BR.');
 
 export const translateNotesBody = z
   .object({
@@ -72,7 +75,8 @@ export function releaseNotesTranslateRoutes(ctx: ReleaseNotesTranslateRoutesCont
         return c.json({ error: 'forbidden' }, 403);
       }
       const issues: { path: string; message: string }[] = [];
-      if (text.trim() === '') issues.push({ path: 'text', message: 'Write the text to translate.' });
+      if (text.trim() === '')
+        issues.push({ path: 'text', message: 'Write the text to translate.' });
       const seen = new Set<string>([norm(sourceLocale)]);
       const targets: string[] = [];
       for (const t of body.data.targetLocales) {
@@ -119,9 +123,11 @@ export function releaseNotesTranslateRoutes(ctx: ReleaseNotesTranslateRoutesCont
         targets: targets.length,
       };
       if (!done.ok) {
-        await auditNotesTranslation(db, { ...audit, ok: false, code: String(done.body.error) }).catch(
-          () => undefined,
-        );
+        await auditNotesTranslation(db, {
+          ...audit,
+          ok: false,
+          code: String(done.body.error),
+        }).catch(() => undefined);
         for (const [name, value] of Object.entries(done.headers ?? {})) c.header(name, value);
         c.header('Cache-Control', 'no-store');
         return c.json(done.body, done.status);

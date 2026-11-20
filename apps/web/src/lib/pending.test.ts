@@ -10,17 +10,15 @@ import {
   classifyPublishFailure,
   combineTotals,
   discardIds,
+  draftOnlySteps,
   editHref,
   groupItems,
   includedTypes,
+  isDirectPlan,
   isDiscardable,
   itemAnchor,
-  draftOnlySteps,
-  isDirectPlan,
   lineFor,
   lineOfView,
-  releaseInputDefaults,
-  releaseStepRequest,
   needsReview,
   nextStepText,
   type PendingItem,
@@ -37,15 +35,17 @@ import {
   promiseText,
   publishAvailability,
   publishBody,
+  releaseInputDefaults,
+  releaseStepRequest,
   requestsFor,
   resultRow,
   resultSummary,
   staleViewIds,
   stateBadge,
   stepRows,
-  visibleRows,
   toggled,
   totalsLine,
+  visibleRows,
 } from './pending.ts';
 
 const item = (over: Partial<PendingItem> = {}): PendingItem => ({
@@ -634,11 +634,28 @@ test('results use fixed words; a refusal by the store adds what the store said, 
     outcome: 'refused',
     message: 'Apple says <b>bad</b> token abc123',
   });
-  assert.match(failed.text, /The store rejected this step\. The store said: Apple says <b>bad<\/b> token abc123 Nothing was changed\./);
-  const long = resultRow({ type: 'submit', status: 'failed', error: 'store_rejected', httpStatus: 422, outcome: 'refused', message: `x${'y'.repeat(900)}\n\u0000z` });
+  assert.match(
+    failed.text,
+    /The store rejected this step\. The store said: Apple says <b>bad<\/b> token abc123 Nothing was changed\./,
+  );
+  const long = resultRow({
+    type: 'submit',
+    status: 'failed',
+    error: 'store_rejected',
+    httpStatus: 422,
+    outcome: 'refused',
+    message: `x${'y'.repeat(900)}\n\u0000z`,
+  });
   assert.ok(long.text.length < 1400);
   assert.ok(!/[\u0000-\u001f]/.test(long.text));
-  const plain = resultRow({ type: 'submit', status: 'failed', error: 'store_unavailable', httpStatus: 502, outcome: 'unknown', message: 'secret-ish text' });
+  const plain = resultRow({
+    type: 'submit',
+    status: 'failed',
+    error: 'store_unavailable',
+    httpStatus: 502,
+    outcome: 'unknown',
+    message: 'secret-ish text',
+  });
   assert.ok(!plain.text.includes('secret-ish'));
   const unknown = resultRow({
     type: 'release',
@@ -713,8 +730,14 @@ test('failures of preview and publish are worded from fixed text, and drift asks
 
 const viewOf = (id: string, items: PendingItem[], generatedAt: number): PendingView => ({
   app: { id, name: 'n', platform: 'android', store: 'googleplay' },
-  platforms: [{ platform: 'android', store: 'googleplay', items, totals: platformTotals({ items }) }],
-  totals: { ...platformTotals({ items }), platforms: items.length > 0 ? ['android'] : [], nextSteps: [] },
+  platforms: [
+    { platform: 'android', store: 'googleplay', items, totals: platformTotals({ items }) },
+  ],
+  totals: {
+    ...platformTotals({ items }),
+    platforms: items.length > 0 ? ['android'] : [],
+    nextSteps: [],
+  },
   lastSyncedAt: null,
   generatedAt,
 });
@@ -729,21 +752,41 @@ const draftRelease = item({
 });
 
 test('a view gives the same line as the server summary of the same data', () => {
-  const view = viewOf('a0', [draftRelease, item({ kind: 'in_review', nextStep: null, state: 'in_review' })], 5);
+  const view = viewOf(
+    'a0',
+    [draftRelease, item({ kind: 'in_review', nextStep: null, state: 'in_review' })],
+    5,
+  );
   assert.deepEqual(lineOfView(view), { count: 1, blocking: 0, waiting: 1 });
   assert.equal(lineOfView(viewOf('a0', [], 5)), null);
   assert.equal(lineOfView(null), null);
-  const withError = viewOf('a0', [item({ problems: [{ code: 'x', severity: 'error', message: 'm' }] })], 5);
+  const withError = viewOf(
+    'a0',
+    [item({ problems: [{ code: 'x', severity: 'error', message: 'm' }] })],
+    5,
+  );
   assert.deepEqual(lineOfView(withError), { count: 1, blocking: 1, waiting: 0 });
 });
 
 test('the banner follows the newer read: a summary read after a push beats an older empty view, and a newer view beats an older summary', () => {
   const newSummary = { ...summary([{ count: 1 }]), generatedAt: 10 };
   const oldEmpty = viewOf('a0', [], 4);
-  assert.deepEqual(lineFor(newSummary, ['a0'], { a0: oldEmpty }), { count: 1, blocking: 0, waiting: 0 });
-  assert.deepEqual(staleViewIds(newSummary, ['a0'], { a0: oldEmpty }), ['a0'], 'the detail must read again');
+  assert.deepEqual(lineFor(newSummary, ['a0'], { a0: oldEmpty }), {
+    count: 1,
+    blocking: 0,
+    waiting: 0,
+  });
+  assert.deepEqual(
+    staleViewIds(newSummary, ['a0'], { a0: oldEmpty }),
+    ['a0'],
+    'the detail must read again',
+  );
   const oldSummary = { ...summary([{ count: 1 }]), generatedAt: 3 };
-  assert.equal(lineFor(oldSummary, ['a0'], { a0: oldEmpty }), null, 'the detail was read later and says nothing is pending');
+  assert.equal(
+    lineFor(oldSummary, ['a0'], { a0: oldEmpty }),
+    null,
+    'the detail was read later and says nothing is pending',
+  );
   assert.deepEqual(staleViewIds(oldSummary, ['a0'], { a0: oldEmpty }), []);
   // The same moment, the same data: nothing is stale and both give one line.
   const fresh = viewOf('a0', [draftRelease], 10);
@@ -755,12 +798,27 @@ test('the banner follows the newer read: a summary read after a push beats an ol
 });
 
 test('a pushed Google Play draft release is a pending item that waits for the release step', () => {
-  assert.equal(nextStepText(draftRelease), 'Next: release the draft to users. You name the share of users and confirm it first.');
-  const groups = groupItems([item({ kind: 'in_review', nextStep: null, state: 'in_review' }), draftRelease]);
-  assert.deepEqual(groups.map((g) => g.kind), ['draft_release', 'in_review']);
+  assert.equal(
+    nextStepText(draftRelease),
+    'Next: release the draft to users. You name the share of users and confirm it first.',
+  );
+  const groups = groupItems([
+    item({ kind: 'in_review', nextStep: null, state: 'in_review' }),
+    draftRelease,
+  ]);
+  assert.deepEqual(
+    groups.map((g) => g.kind),
+    ['draft_release', 'in_review'],
+  );
   assert.equal(groups[0]?.label, 'Draft releases, not released yet');
   // The button is available when only a draft release waits and the release step is switched on.
-  const ok = publishAvailability({ role: 'admin', config: config(), configFailed: false, totals: { items: 1, actionable: 1, blocking: 0 }, nextSteps: ['release'] });
+  const ok = publishAvailability({
+    role: 'admin',
+    config: config(),
+    configFailed: false,
+    totals: { items: 1, actionable: 1, blocking: 0 },
+    nextSteps: ['release'],
+  });
   assert.equal(ok.state, 'ready');
 });
 
@@ -771,7 +829,12 @@ const directPlan = (over: Partial<PublishPlan> = {}): PublishPlan =>
     [
       step('push_draft', { included: false, availability: 'not_requested', request: null }),
       step('submit', { included: false, availability: 'not_requested', request: null }),
-      step('release', { included: false, availability: 'needs_input', request: null, platform: 'android' }),
+      step('release', {
+        included: false,
+        availability: 'needs_input',
+        request: null,
+        platform: 'android',
+      }),
       step('rollout', { included: false, availability: 'not_requested', request: null }),
     ],
     {
@@ -785,7 +848,11 @@ const directPlan = (over: Partial<PublishPlan> = {}): PublishPlan =>
 test('a plan the server made as a direct release starts the inputs from what is staged and adds a direct release step', () => {
   const p = directPlan();
   assert.equal(isDirectPlan(p), true);
-  assert.deepEqual(releaseInputDefaults(p), { track: 'production', sharePercent: '10', direct: true });
+  assert.deepEqual(releaseInputDefaults(p), {
+    track: 'production',
+    sharePercent: '10',
+    direct: true,
+  });
   assert.deepEqual(releaseStepRequest({ track: ' production ', fraction: 0.1, direct: true }), {
     type: 'release',
     track: 'production',
@@ -804,15 +871,42 @@ test('a plan the server made as a direct release starts the inputs from what is 
 });
 
 test('with nothing staged or an older server the defaults are the old ones and the plan is not a direct release', () => {
-  assert.deepEqual(releaseInputDefaults(null), { track: 'production', sharePercent: '', direct: false });
-  const old = plan([step('push_draft')], { app: { id: 'a', name: 'n', platform: 'android', store: 'googleplay' } });
+  assert.deepEqual(releaseInputDefaults(null), {
+    track: 'production',
+    sharePercent: '',
+    direct: false,
+  });
+  const old = plan([step('push_draft')], {
+    app: { id: 'a', name: 'n', platform: 'android', store: 'googleplay' },
+  });
   assert.equal(isDirectPlan(old), false);
-  assert.deepEqual(releaseInputDefaults(old), { track: 'production', sharePercent: '', direct: false });
+  assert.deepEqual(releaseInputDefaults(old), {
+    track: 'production',
+    sharePercent: '',
+    direct: false,
+  });
   // A staged share that is not a share is not shown.
-  assert.equal(releaseInputDefaults(directPlan({ direct: { track: 'beta', versionCodes: ['1'], stagedFraction: 0 } })).sharePercent, '');
-  assert.equal(releaseInputDefaults(directPlan({ direct: { track: 'beta', versionCodes: ['1'], stagedFraction: 0.025 } })).sharePercent, '2.5');
+  assert.equal(
+    releaseInputDefaults(
+      directPlan({ direct: { track: 'beta', versionCodes: ['1'], stagedFraction: 0 } }),
+    ).sharePercent,
+    '',
+  );
+  assert.equal(
+    releaseInputDefaults(
+      directPlan({ direct: { track: 'beta', versionCodes: ['1'], stagedFraction: 0.025 } }),
+    ).sharePercent,
+    '2.5',
+  );
   // An included direct release step makes the plan a direct one even when the server did not default to it.
-  const added = plan([step('release', { request: { type: 'release', track: 'production', userFraction: 0.1, direct: true } })], { defaultedToDirect: false });
+  const added = plan(
+    [
+      step('release', {
+        request: { type: 'release', track: 'production', userFraction: 0.1, direct: true },
+      }),
+    ],
+    { defaultedToDirect: false },
+  );
   assert.equal(isDirectPlan(added), true);
 });
 
@@ -831,8 +925,16 @@ test('visibleRows leaves out the steps with nothing to do, numbers the rest, and
     needsInput: false,
     idle,
   });
-  const some = visibleRows([row('push_draft', true), row('submit', true), row('release', false), row('rollout', true)]);
-  assert.deepEqual(some.shown.map((r) => [r.type, r.order]), [['release', 1]]);
+  const some = visibleRows([
+    row('push_draft', true),
+    row('submit', true),
+    row('release', false),
+    row('rollout', true),
+  ]);
+  assert.deepEqual(
+    some.shown.map((r) => [r.type, r.order]),
+    [['release', 1]],
+  );
   assert.deepEqual(some.left, ['push_draft', 'submit', 'rollout']);
   const none = visibleRows([row('push_draft', true), row('submit', true)]);
   assert.equal(none.shown.length, 2);

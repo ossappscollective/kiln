@@ -57,7 +57,13 @@ const rank = (r: ReleaseSummary) => {
 };
 
 /** The states worth a pill of their own on a row (a released version is the quiet default). */
-const FLIGHT_STATES: ReleaseState[] = ['rejected', 'halted', 'in_review', 'propagating', 'rolling_out'];
+const FLIGHT_STATES: ReleaseState[] = [
+  'rejected',
+  'halted',
+  'in_review',
+  'propagating',
+  'rolling_out',
+];
 
 /** For each platform of the app, its most urgent release among FLIGHT_STATES (the newest release may be another track's). */
 function inFlightOf(
@@ -69,7 +75,9 @@ function inFlightOf(
     const load = releases[app.id];
     if (!load || load.state !== 'ready') continue;
     const best = load.releases
-      .filter((r) => r.platform === app.platform && r.status !== null && FLIGHT_STATES.includes(r.status))
+      .filter(
+        (r) => r.platform === app.platform && r.status !== null && FLIGHT_STATES.includes(r.status),
+      )
       .sort((a, b) => rank(a) - rank(b))[0];
     if (best) out.push(best);
   }

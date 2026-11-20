@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import {
   APPLE_RELEASABLE_STATE,
   AppleReleaseConnector,
+  type PlayReleaseBuild,
   PlayReleaseConnector,
   ReleaseDriftError,
   ReleaseOutcomeUnknownError,
-  type PlayReleaseBuild,
   type ReleaseRequest,
   type ReleaseState,
   releaseKey,
@@ -23,10 +23,10 @@ import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
-import { clearPushedRelease } from './store-draft-record.ts';
 import { type Failure, failure } from './repositories.ts';
 import { storeFor } from './review-sync.ts';
 import { mapStoreError } from './store-draft.ts';
+import { clearPushedRelease } from './store-draft-record.ts';
 
 /**
  * RELEASING: making an approved App Store version available to users, or starting a Google Play draft release at a chosen
@@ -424,7 +424,8 @@ export async function resolveDirect(
   );
   const staged = (field: string) => rows.find((r) => String(r.target) === field);
   const stagedCodes = staged('version_codes');
-  const codes = input.versionCodes ?? (stagedCodes ? versionCodesOf(String(stagedCodes.value_text)) : []);
+  const codes =
+    input.versionCodes ?? (stagedCodes ? versionCodesOf(String(stagedCodes.value_text)) : []);
   const track = input.track ?? (staged('track') ? String(staged('track')?.value_text) : undefined);
   const name = staged('release_name') ? String(staged('release_name')?.value_text).trim() : '';
   const notes = rows
@@ -665,9 +666,7 @@ const sha = (value: string) => createHash('sha256').update(value, 'utf8').digest
 /** The staged fields a direct release is built from, as hashes (so the confirmation binds them and no text is kept). */
 const buildDigest = (b: PlayReleaseBuild): unknown => [
   b.name === null ? null : sha(b.name),
-  [...b.notes]
-    .sort((x, y) => (x.locale < y.locale ? -1 : 1))
-    .map((n) => [n.locale, sha(n.text)]),
+  [...b.notes].sort((x, y) => (x.locale < y.locale ? -1 : 1)).map((n) => [n.locale, sha(n.text)]),
 ];
 
 /** What the person confirms: this app, what is asked (including the share), and the store exactly as it was read. */
@@ -845,7 +844,11 @@ export function directSummaryOf(
     request.userFraction === 1
       ? 'everybody (100%)'
       : `${percentOf(request.userFraction ?? 0)}% of users`;
-  const langs = [...new Set((request.build?.notes ?? []).filter((n) => n.text.trim() !== '').map((n) => n.locale))];
+  const langs = [
+    ...new Set(
+      (request.build?.notes ?? []).filter((n) => n.text.trim() !== '').map((n) => n.locale),
+    ),
+  ];
   const notes = langs.length > 0 ? `release notes in ${langs.join(', ')}` : 'no release notes';
   return `${state.creates ? 'Makes and sends' : 'Sends the existing draft of'} the release with version code${codes.length === 1 ? '' : 's'} ${codes.join(', ')} to the ${state.track} track for ${share}, with ${notes}. Google reviews this release before users get it; it cannot be undone from here.`;
 }
@@ -970,7 +973,9 @@ function previewOf(
             versionCodes: request.versionCodes ?? state.release?.versionCodes ?? [],
             name: request.build.name,
             notesLanguages: [
-              ...new Set(request.build.notes.filter((n) => n.text.trim() !== '').map((n) => n.locale)),
+              ...new Set(
+                request.build.notes.filter((n) => n.text.trim() !== '').map((n) => n.locale),
+              ),
             ],
             summary: directSummaryOf(request, state),
           },
@@ -1335,7 +1340,10 @@ export async function applyRelease(
             return false;
           }
           const phrase = confirmationPhraseOf(app, request, current);
-          if (input.stepUpCovers !== true && (phrase === null || input.confirmation.trim() !== phrase)) {
+          if (
+            input.stepUpCovers !== true &&
+            (phrase === null || input.confirmation.trim() !== phrase)
+          ) {
             wrongPhrase = phrase ?? '';
             return false;
           }

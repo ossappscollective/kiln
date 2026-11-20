@@ -124,7 +124,12 @@ export function syncIntervalLabel(minutes: number): string {
 /** The choices for the picker: the standard ones, plus the current value when it is none of them (a server interval of 45 minutes). */
 export function syncIntervalOptions(current: number): { value: number; label: string }[] {
   const all: number[] = [...SYNC_INTERVAL_CHOICES];
-  if (Number.isInteger(current) && current >= MIN_SYNC_MINUTES && current <= MAX_SYNC_MINUTES && all.indexOf(current) < 0) {
+  if (
+    Number.isInteger(current) &&
+    current >= MIN_SYNC_MINUTES &&
+    current <= MAX_SYNC_MINUTES &&
+    all.indexOf(current) < 0
+  ) {
     all.push(current);
     all.sort((a, b) => a - b);
   }

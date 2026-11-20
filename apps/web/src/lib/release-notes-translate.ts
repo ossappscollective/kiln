@@ -1,5 +1,12 @@
 import { aiProviderInfo, can, type Role, translationProviderInfo } from '@mrm/core';
-import { type AiConfig, aiErrorMessage, budgetUsedUp, isLocalAddress, providerSentence, resetText } from './ai.ts';
+import {
+  type AiConfig,
+  aiErrorMessage,
+  budgetUsedUp,
+  isLocalAddress,
+  providerSentence,
+  resetText,
+} from './ai.ts';
 import { ApiError } from './api.ts';
 import { type Drafts, normalizeLocale } from './release-notes.ts';
 import { translationErrorMessage } from './review-translation.ts';
@@ -35,7 +42,12 @@ export type TranslateNotesResult = {
   warnings: Record<string, string[]>;
   limit: number;
   usage: { chars: number; inputTokens: number; outputTokens: number };
-  warning: { kind: 'tokens' | 'cost'; level: 'soft' | 'limit'; percent: number; message: string } | null;
+  warning: {
+    kind: 'tokens' | 'cost';
+    level: 'soft' | 'limit';
+    percent: number;
+    message: string;
+  } | null;
 };
 
 const clean = (text: string): string => text.replace(/\r\n?/g, '\n').trim();
@@ -72,9 +84,21 @@ export function machineEngine(input: {
   const { role, config } = input;
   if (!can(role, 'changesets.write') || !can(role, 'reviews.translate')) return HIDDEN;
   if (config === undefined)
-    return { visible: true, enabled: false, reason: 'Checking the translation settings.', href: null, sends: '' };
+    return {
+      visible: true,
+      enabled: false,
+      reason: 'Checking the translation settings.',
+      href: null,
+      sends: '',
+    };
   if (config === null)
-    return { visible: true, enabled: true, reason: null, href: null, sends: 'The text is sent to the translation provider of this workspace.' };
+    return {
+      visible: true,
+      enabled: true,
+      reason: null,
+      href: null,
+      sends: 'The text is sent to the translation provider of this workspace.',
+    };
   if (!config.enabled || config.mode === 'off') {
     return {
       visible: true,
@@ -87,7 +111,13 @@ export function machineEngine(input: {
     };
   }
   const label = translationProviderInfo[config.provider]?.label ?? 'the translation provider';
-  return { visible: true, enabled: true, reason: null, href: null, sends: `The text is sent to ${label}.` };
+  return {
+    visible: true,
+    enabled: true,
+    reason: null,
+    href: null,
+    sends: `The text is sent to ${label}.`,
+  };
 }
 
 /** Whether the AI model is on this machine or a private network (nothing is billed there, so the monthly limit does not stop it). */
@@ -101,20 +131,37 @@ export const aiIsLocal = (config: Pick<AiConfig, 'settings'>): boolean =>
  * not set up, and when the monthly limit is used up (unless the model is local). `config` is `null` while it is read or when it could not
  * be: `failed` then lets the button work and the server decide.
  */
-export function aiEngine(input: { role: Role; config: AiConfig | null; failed?: boolean }): EngineState {
+export function aiEngine(input: {
+  role: Role;
+  config: AiConfig | null;
+  failed?: boolean;
+}): EngineState {
   const { role, config } = input;
   if (!can(role, 'changesets.write') || !can(role, 'ai.use')) return HIDDEN;
   if (config === null) {
     return input.failed === true
-      ? { visible: true, enabled: true, reason: null, href: null, sends: 'The text is sent to the AI provider of this workspace.' }
-      : { visible: true, enabled: false, reason: 'Checking the AI settings.', href: null, sends: '' };
+      ? {
+          visible: true,
+          enabled: true,
+          reason: null,
+          href: null,
+          sends: 'The text is sent to the AI provider of this workspace.',
+        }
+      : {
+          visible: true,
+          enabled: false,
+          reason: 'Checking the AI settings.',
+          href: null,
+          sends: '',
+        };
   }
   const admin = can(role, 'settings.write');
   if (config.state === 'off_server') {
     return {
       visible: true,
       enabled: false,
-      reason: 'AI assistance is switched off on this server. Whoever runs the server turns it on with MRM_AI_ENABLED=true.',
+      reason:
+        'AI assistance is switched off on this server. Whoever runs the server turns it on with MRM_AI_ENABLED=true.',
       href: null,
       sends: '',
     };
@@ -148,14 +195,26 @@ export function aiEngine(input: { role: Role; config: AiConfig | null; failed?: 
     };
   }
   const provider = config.providers.filter((p) => p.id === config.settings.provider)[0] ?? null;
-  return { visible: true, enabled: true, reason: null, href: null, sends: providerSentence(provider) };
+  return {
+    visible: true,
+    enabled: true,
+    reason: null,
+    href: null,
+    sends: providerSentence(provider),
+  };
 }
 
 /** "Google Cloud Translation", "Anthropic (Claude)": the name of the provider that answered. */
 export const providerName = (engine: TranslateEngine, id: string): string =>
-  ((engine === 'ai' ? aiProviderInfo : translationProviderInfo) as Record<string, { label: string } | undefined>)[id]?.label ?? id;
+  (
+    (engine === 'ai' ? aiProviderInfo : translationProviderInfo) as Record<
+      string,
+      { label: string } | undefined
+    >
+  )[id]?.label ?? id;
 
-export const engineLabel = (engine: TranslateEngine): string => (engine === 'ai' ? 'AI' : 'machine translation');
+export const engineLabel = (engine: TranslateEngine): string =>
+  engine === 'ai' ? 'AI' : 'machine translation';
 
 // ---------------------------------------------------------------------------------------------
 // What to translate
@@ -166,7 +225,9 @@ export const languagesWithText = (texts: Drafts, locales: readonly string[]): st
 
 /** The language to translate from by default: the first one that has text (not `skip`, the language being written). */
 export function defaultSource(texts: Drafts, locales: readonly string[], skip = ''): string | null {
-  const found = languagesWithText(texts, locales).filter((l) => skip === '' || normalizeLocale(l) !== normalizeLocale(skip))[0];
+  const found = languagesWithText(texts, locales).filter(
+    (l) => skip === '' || normalizeLocale(l) !== normalizeLocale(skip),
+  )[0];
   return found ?? null;
 }
 
@@ -243,7 +304,14 @@ export function applyTranslations(
   answers: readonly ChunkAnswer[],
 ): Applied {
   const next: Drafts = { ...drafts };
-  const out: Applied = { drafts: next, applied: [], failed: [], over: [], warnings: [], usageWarning: null };
+  const out: Applied = {
+    drafts: next,
+    applied: [],
+    failed: [],
+    over: [],
+    warnings: [],
+    usageWarning: null,
+  };
   const mine = (locale: string): string | undefined =>
     targets.filter((t) => normalizeLocale(t) === normalizeLocale(locale))[0];
   const settled: Record<string, boolean> = {};
@@ -265,7 +333,9 @@ export function applyTranslations(
       settled[locale] = true;
       const chars = (r.texts[key] as string).length;
       if (chars > r.limit) out.over.push({ locale, chars, limit: r.limit });
-      const codes = Object.keys(r.warnings).filter((k) => normalizeLocale(k) === normalizeLocale(key))[0];
+      const codes = Object.keys(r.warnings).filter(
+        (k) => normalizeLocale(k) === normalizeLocale(key),
+      )[0];
       if (codes !== undefined && (r.warnings[codes] as string[]).length > 0)
         out.warnings.push({ locale, codes: r.warnings[codes] as string[] });
     }
@@ -277,7 +347,8 @@ export function applyTranslations(
     }
   }
   for (const t of targets) {
-    if (!settled[t]) out.failed.push({ locale: t, message: 'No answer came back for this language.' });
+    if (!settled[t])
+      out.failed.push({ locale: t, message: 'No answer came back for this language.' });
   }
   return out;
 }
@@ -297,16 +368,28 @@ export function translateLines(
   const n = applied.applied.length;
   const by = provider ? ` by ${provider}` : '';
   if (n > 0)
-    lines.push(`Put the ${engineLabel(engine)}${by} text in ${n} ${n === 1 ? 'language' : 'languages'}: ${applied.applied.join(', ')}. Read it before you stage it. Not staged yet.`);
+    lines.push(
+      `Put the ${engineLabel(engine)}${by} text in ${n} ${n === 1 ? 'language' : 'languages'}: ${applied.applied.join(', ')}. Read it before you stage it. Not staged yet.`,
+    );
   else lines.push('Nothing was translated. The editors are as they were.');
   if (applied.failed.length > 0)
-    lines.push(`Not translated: ${applied.failed.slice(0, 5).map((f) => `${f.locale} (${f.message})`).join('; ')}${applied.failed.length > 5 ? `; and ${applied.failed.length - 5} more` : ''}.`);
+    lines.push(
+      `Not translated: ${applied.failed
+        .slice(0, 5)
+        .map((f) => `${f.locale} (${f.message})`)
+        .join('; ')}${applied.failed.length > 5 ? `; and ${applied.failed.length - 5} more` : ''}.`,
+    );
   if (applied.over.length > 0)
-    lines.push(`Too long for the store, shorten before staging: ${applied.over.map((o) => `${o.locale} (${o.chars} of ${o.limit})`).join(', ')}.`);
+    lines.push(
+      `Too long for the store, shorten before staging: ${applied.over.map((o) => `${o.locale} (${o.chars} of ${o.limit})`).join(', ')}.`,
+    );
   for (const w of applied.warnings.slice(0, 5))
     lines.push(`Check ${w.locale}: ${w.codes.map((c) => WARNING_WORDS[c] ?? c).join('; ')}.`);
   if (applied.usageWarning) lines.push(applied.usageWarning);
-  return { tone: n === 0 ? 'error' : applied.failed.length > 0 || applied.over.length > 0 ? 'warn' : 'ok', lines };
+  return {
+    tone: n === 0 ? 'error' : applied.failed.length > 0 || applied.over.length > 0 ? 'warn' : 'ok',
+    lines,
+  };
 }
 
 /** One sentence for a failed request. The words of a provider are never shown; the server's sentences are fixed. */

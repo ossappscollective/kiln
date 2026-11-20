@@ -2,7 +2,14 @@ import type { JsonSchema } from '@mrm/connectors';
 import { type AiProvider, isApplePlatform, sameLanguage } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { getAppContext, withAppContext } from './ai-app-context.ts';
-import { type AiActor, type AiContext, type AiFailure, aiAvailability, aiFail, unavailableFailure } from './ai-config.ts';
+import {
+  type AiActor,
+  type AiContext,
+  type AiFailure,
+  aiAvailability,
+  aiFail,
+  unavailableFailure,
+} from './ai-config.ts';
 import { currentAiWarning, runAiDirect } from './ai-direct.ts';
 import type { ConcurrencyGate, UsageWarning } from './ai-usage.ts';
 import type { ManagedApp } from './apps.ts';
@@ -104,7 +111,8 @@ export function cleanModelText(raw: string): string {
   const fence = /^```[a-z]*\n([\s\S]*?)\n?```$/i.exec(text);
   if (fence) text = (fence[1] as string).trim();
   const quoted = /^(["'])([\s\S]*)\1$/.exec(text);
-  if (quoted && (quoted[2] as string).indexOf(quoted[1] as string) < 0) text = (quoted[2] as string).trim();
+  if (quoted && (quoted[2] as string).indexOf(quoted[1] as string) < 0)
+    text = (quoted[2] as string).trim();
   return text
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/__(.+?)__/g, '$1')
@@ -113,13 +121,22 @@ export function cleanModelText(raw: string): string {
 }
 
 /** What a person should check in a translation, from the source: version numbers and the names the app asks to keep. */
-export function translationWarnings(source: string, text: string, brandTerms: readonly string[]): string[] {
+export function translationWarnings(
+  source: string,
+  text: string,
+  brandTerms: readonly string[],
+): string[] {
   const out: string[] = [];
   const versions = source.match(VERSION_NUMBER) ?? [];
   if (versions.some((v) => text.indexOf(v) < 0)) out.push('version_missing');
   const lower = source.toLowerCase();
   const textLower = text.toLowerCase();
-  if (brandTerms.some((t) => t !== '' && lower.indexOf(t.toLowerCase()) >= 0 && textLower.indexOf(t.toLowerCase()) < 0))
+  if (
+    brandTerms.some(
+      (t) =>
+        t !== '' && lower.indexOf(t.toLowerCase()) >= 0 && textLower.indexOf(t.toLowerCase()) < 0,
+    )
+  )
     out.push('brand_term_missing');
   return out;
 }
@@ -209,12 +226,24 @@ async function translateAi(
   base: Pick<NotesTranslateResult, 'texts' | 'failed'>,
   limit: number,
   brandTerms: { value: readonly string[] },
-): Promise<{ failure?: AiFailure; provider: string; model: string | null; inputTokens: number; outputTokens: number }> {
+): Promise<{
+  failure?: AiFailure;
+  provider: string;
+  model: string | null;
+  inputTokens: number;
+  outputTokens: number;
+}> {
   const context = (await getAppContext(ctx.db, input.workspaceId, input.app.id)).context;
   brandTerms.value = context.brandTerms;
   const availability = await aiAvailability(ctx.ai, input.workspaceId);
   if (availability.state !== 'ready') {
-    return { failure: unavailableFailure(availability), provider: '', model: null, inputTokens: 0, outputTokens: 0 };
+    return {
+      failure: unavailableFailure(availability),
+      provider: '',
+      model: null,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
   }
   const provider: AiProvider = availability.config.values.provider;
   const maxOut = availability.config.values.maxOutputTokens;
@@ -277,9 +306,13 @@ async function translateAi(
       model = answer.model;
       inputTokens += answer.usage.inputTokens;
       outputTokens += answer.usage.outputTokens;
-      const rows = (answer.output as { translations?: { locale?: unknown; text?: unknown }[] } | null)?.translations ?? [];
+      const rows =
+        (answer.output as { translations?: { locale?: unknown; text?: unknown }[] } | null)
+          ?.translations ?? [];
       for (const t of batch) {
-        const row = rows.filter((r) => typeof r.locale === 'string' && norm(r.locale) === norm(t))[0];
+        const row = rows.filter(
+          (r) => typeof r.locale === 'string' && norm(r.locale) === norm(t),
+        )[0];
         const text = typeof row?.text === 'string' ? cleanModelText(row.text) : '';
         if (text === '') base.failed[t] = 'The model did not write a text for this language.';
         else base.texts[t] = text;
@@ -288,7 +321,13 @@ async function translateAi(
   } finally {
     release();
   }
-  return { ...(failure !== undefined ? { failure } : {}), provider, model, inputTokens, outputTokens };
+  return {
+    ...(failure !== undefined ? { failure } : {}),
+    provider,
+    model,
+    inputTokens,
+    outputTokens,
+  };
 }
 
 export async function translateReleaseNotes(

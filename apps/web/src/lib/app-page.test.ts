@@ -56,7 +56,9 @@ test('announcePublished sends one window event with the app id, and is false wit
   const { announcePublished, PUBLISHED_EVENT } = await import('./app-page.ts');
   const seen: { type: string; appId?: string }[] = [];
   const target = new EventTarget();
-  target.addEventListener(PUBLISHED_EVENT, (e) => seen.push({ type: e.type, appId: (e as CustomEvent<{ appId: string }>).detail.appId }));
+  target.addEventListener(PUBLISHED_EVENT, (e) =>
+    seen.push({ type: e.type, appId: (e as CustomEvent<{ appId: string }>).detail.appId }),
+  );
   assert.equal(announcePublished('app-1', target), true);
   assert.deepEqual(seen, [{ type: 'mrm:published', appId: 'app-1' }]);
   assert.equal(announcePublished('app-1', null), false);
@@ -84,7 +86,10 @@ test('the pending bar has a one-line link for the Next step card', () => {
 
 test('on the Overview the changes are a link in the Next step card; a blocking error and every other page keep the bar', () => {
   const calm = pendingBar({ count: 2, blocking: 0, waiting: 0 }, 'dashboard');
-  assert.deepEqual(pendingPlacement(calm, 'dashboard'), { bar: null, link: '2 changes waiting. Review and publish' });
+  assert.deepEqual(pendingPlacement(calm, 'dashboard'), {
+    bar: null,
+    link: '2 changes waiting. Review and publish',
+  });
   assert.equal(pendingPlacement(calm, 'releases').bar, calm);
   assert.equal(pendingPlacement(calm, 'releases').link, null);
   const blocked = pendingBar({ count: 2, blocking: 1, waiting: 0 }, 'dashboard');

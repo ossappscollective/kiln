@@ -40,7 +40,9 @@ export function nextVersion(live: string | null | undefined): string {
 }
 
 /** The newest dotted version of a list (others are ignored), or null. */
-export function newestDottedVersion(versions: readonly (string | null | undefined)[]): string | null {
+export function newestDottedVersion(
+  versions: readonly (string | null | undefined)[],
+): string | null {
   let best: string | null = null;
   for (const v of versions) {
     if (typeof v !== 'string' || !isDottedVersion(v)) continue;

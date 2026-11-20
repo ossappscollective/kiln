@@ -5,8 +5,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AppEnv, parseBody } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
+import {
+  getAppReleaseSettings,
+  updateAppReleaseSettings,
+} from '../services/app-release-settings.ts';
 import { getApp } from '../services/apps.ts';
-import { getAppReleaseSettings, updateAppReleaseSettings } from '../services/app-release-settings.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import { MAX_NOTES_HISTORY_LIMIT, notesHistory } from '../services/notes-history.ts';
 import { checkPlayReleaseOf } from '../services/play-release-check.ts';

@@ -1,4 +1,10 @@
-import { type PlanStep, type PublishPlan, STEP_NAME, type StepRow, summaryParts } from './pending.ts';
+import {
+  type PlanStep,
+  type PublishPlan,
+  STEP_NAME,
+  type StepRow,
+  summaryParts,
+} from './pending.ts';
 
 /**
  * Pure helpers of the readability pass (docs/design/readability.md): what comes first on a screen
@@ -24,7 +30,10 @@ export function foldWarnings(
   return {
     inline: [],
     folded: list,
-    label: list.length === 0 ? '' : `${list.length} ${list.length === 1 ? 'thing' : 'things'} to read before you confirm`,
+    label:
+      list.length === 0
+        ? ''
+        : `${list.length} ${list.length === 1 ? 'thing' : 'things'} to read before you confirm`,
   };
 }
 
@@ -39,7 +48,10 @@ export function planHeadline(
     .map((s) => STEP_NAME[s.type]);
   const n = plan.included;
   return {
-    title: n === 0 ? 'Nothing is included yet' : `${n} ${n === 1 ? 'step' : 'steps'} will be written to ${store}`,
+    title:
+      n === 0
+        ? 'Nothing is included yet'
+        : `${n} ${n === 1 ? 'step' : 'steps'} will be written to ${store}`,
     sequence: names.join(', then '),
   };
 }
@@ -80,11 +92,15 @@ const TITLE_ORDER: readonly PlanStep['type'][] = ['release', 'submit', 'push_dra
  */
 export function publishTitle(plan: Pick<PublishPlan, 'steps'>, store: string): string {
   const included = plan.steps.filter((s) => s.included);
-  const top = TITLE_ORDER.map((t) => included.filter((s) => s.type === t)[0]).filter((s): s is PlanStep => s !== undefined)[0];
+  const top = TITLE_ORDER.map((t) => included.filter((s) => s.type === t)[0]).filter(
+    (s): s is PlanStep => s !== undefined,
+  )[0];
   if (top === undefined) return `Publish to ${store}`;
   const summary = top.summary ?? {};
-  const pick = (key: string): string => (typeof summary[key] === 'string' ? (summary[key] as string).trim() : '');
-  const version = top.type === 'release' ? pick('version') : top.type === 'submit' ? pick('versionString') : '';
+  const pick = (key: string): string =>
+    typeof summary[key] === 'string' ? (summary[key] as string).trim() : '';
+  const version =
+    top.type === 'release' ? pick('version') : top.type === 'submit' ? pick('versionString') : '';
   const v = version !== '' ? ` ${version}` : '';
   switch (top.type) {
     case 'release':
@@ -114,7 +130,11 @@ export function publishDisabledReason(input: {
   const plan = input.plan;
   if (plan === null) return '';
   if (input.stale) return 'The plan is out of date. Review again to publish.';
-  if (!plan.confirmable) return input.wanted === 0 ? 'Tick at least one step to publish.' : 'A step cannot run. Untick it or fix what blocks it.';
-  if (plan.confirmationRequired && plan.confirmation) return `Type "${plan.confirmation.phrase}" to publish.`;
+  if (!plan.confirmable)
+    return input.wanted === 0
+      ? 'Tick at least one step to publish.'
+      : 'A step cannot run. Untick it or fix what blocks it.';
+  if (plan.confirmationRequired && plan.confirmation)
+    return `Type "${plan.confirmation.phrase}" to publish.`;
   return 'Tick the box above to publish.';
 }

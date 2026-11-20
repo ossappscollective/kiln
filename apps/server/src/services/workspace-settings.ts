@@ -105,7 +105,9 @@ export const settingDefinitions = {
     parse: (raw: unknown): Parsed<number> =>
       isSyncIntervalMinutes(raw)
         ? ok(raw)
-        : bad(`Use a whole number of minutes from ${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES}.`),
+        : bad(
+            `Use a whole number of minutes from ${MIN_SYNC_INTERVAL_MINUTES} to ${MAX_SYNC_INTERVAL_MINUTES}.`,
+          ),
   } satisfies Definition<number>,
   'reviews.unansweredReminderHours': {
     doc: 'Opt-in digest of unanswered reviews: when reviews without a developer response (not ignored) are older than this many hours, `review.unanswered` is sent with the counts, and again after the same number of hours while some remain (0 to 720). 0 turns it off.',

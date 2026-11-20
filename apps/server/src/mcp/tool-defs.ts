@@ -259,7 +259,9 @@ const readTools: ToolDef[] = [
         .gt(0)
         .lte(1)
         .optional()
-        .describe('The share of users, 0.1 is 10%. Leave out to check it as a draft; 1 is everybody.'),
+        .describe(
+          'The share of users, 0.1 is 10%. Leave out to check it as a draft; 1 is everybody.',
+        ),
       notes: z
         .array(z.object({ locale, text: z.string().max(4000) }).strict())
         .max(80)

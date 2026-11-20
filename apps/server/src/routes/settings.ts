@@ -4,8 +4,8 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import type { AppEnv } from '../http.ts';
 import { memberRole } from '../services/accounts.ts';
-import { effectiveSync, lastScheduledSyncAt, loadSyncPrefs } from '../services/sync-schedule.ts';
 import { requireStepUp } from '../services/step-up.ts';
+import { effectiveSync, lastScheduledSyncAt, loadSyncPrefs } from '../services/sync-schedule.ts';
 import { translationCredentialId, translationUsageToday } from '../services/translation.ts';
 import {
   describeSettings,
@@ -54,7 +54,9 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
       serverMinutes,
       enabled: settings.values['sync.enabled'] === true,
       /** What applies: the workspace's choice, else the server's interval. */
-      intervalMinutes: prefs?.intervalMinutes ?? (serverMinutes > 0 ? serverMinutes : Number(settings.values['sync.intervalMinutes'])),
+      intervalMinutes:
+        prefs?.intervalMinutes ??
+        (serverMinutes > 0 ? serverMinutes : Number(settings.values['sync.intervalMinutes'])),
       running: mine.enabled,
       ...(mine.reason ? { off: mine.reason } : {}),
       lastScheduledAt: await lastScheduledSyncAt(db, workspaceId),
@@ -64,7 +66,10 @@ export function settingsRoutes(ctx: SettingsRoutesContext) {
   /** `values['sync.intervalMinutes']` shows what applies: the server's interval until the workspace chooses its own. */
   const shown = (settings: WorkspaceSettings, role: Role, info: { intervalMinutes: number }) => {
     const described = describeSettings(settings, role);
-    return { ...described, values: { ...described.values, 'sync.intervalMinutes': info.intervalMinutes } };
+    return {
+      ...described,
+      values: { ...described.values, 'sync.intervalMinutes': info.intervalMinutes },
+    };
   };
 
   routes.get('/:workspaceId/settings', needs('settings.read'), async (c) => {

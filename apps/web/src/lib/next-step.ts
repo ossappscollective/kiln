@@ -1,7 +1,7 @@
+import type { Platform } from '@mrm/core';
 import type { AttentionItem } from './app-attention.ts';
 import type { PlatformScope } from './app-scope.ts';
 import { releaseStepHref } from './release-stepper.ts';
-import type { Platform } from '@mrm/core';
 import type { Train } from './release-trains.ts';
 
 /**
@@ -126,16 +126,25 @@ export function chooseNextStep(input: NextStepInput): NextStep {
       tone: r === 0 ? 'bad' : r === 1 ? 'warn' : 'info',
       title: trains.length > 1 ? 'Your next steps' : lead.title,
       text: trains.length > 1 ? '' : lead.lines.join(' '),
-      waiting: trains.length > 1 ? null : lead.waiting ? { who: lead.waiting.who, text: lead.waiting.text } : null,
-      primary: trains.length > 1 ? null : { label: lead.button.label, href: trainHref(lead, input.scope) },
+      waiting:
+        trains.length > 1
+          ? null
+          : lead.waiting
+            ? { who: lead.waiting.who, text: lead.waiting.text }
+            : null,
+      primary:
+        trains.length > 1 ? null : { label: lead.button.label, href: trainHref(lead, input.scope) },
       train: trains.length > 1 ? null : lead,
       rows: trains.length > 1 ? trains.map((t) => rowOf(t, input.scope)) : [],
-      otherTrains: trains.length > 1 ? [] : trains.slice(1).map((t) => ({
-        title: t.title,
-        text: t.lines[0] ?? '',
-        href: trainHref(t, input.scope),
-        label: t.button.label,
-      })),
+      otherTrains:
+        trains.length > 1
+          ? []
+          : trains.slice(1).map((t) => ({
+              title: t.title,
+              text: t.lines[0] ?? '',
+              href: trainHref(t, input.scope),
+              label: t.button.label,
+            })),
       items,
       offerStart: input.canStart && r >= 2,
     };

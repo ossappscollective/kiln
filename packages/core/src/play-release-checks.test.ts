@@ -64,12 +64,18 @@ test('release notes are missing for a language that has a listing, and for all l
 test('notes over 500 characters are a problem, counted in characters not UTF-16 units', () => {
   const at = 'a'.repeat(PLAY_NOTES_LIMIT);
   assert.deepEqual(
-    checkPlayProposal(proposal({ notes: [{ locale: 'en-US', text: at }] }), context({ listingLocales: [] })),
+    checkPlayProposal(
+      proposal({ notes: [{ locale: 'en-US', text: at }] }),
+      context({ listingLocales: [] }),
+    ),
     [],
   );
   const emoji = '😀'.repeat(PLAY_NOTES_LIMIT);
   assert.deepEqual(
-    checkPlayProposal(proposal({ notes: [{ locale: 'en-US', text: emoji }] }), context({ listingLocales: [] })),
+    checkPlayProposal(
+      proposal({ notes: [{ locale: 'en-US', text: emoji }] }),
+      context({ listingLocales: [] }),
+    ),
     [],
   );
   const over = checkPlayProposal(
@@ -84,10 +90,7 @@ test('notes over 500 characters are a problem, counted in characters not UTF-16 
 test('a version code that production already holds is a problem; a lower one is a warning', () => {
   const held = checkPlayProposal(proposal({ versionCodes: ['200'] }), context());
   assert.deepEqual(codes(held), ['code_already_live']);
-  const lower = checkPlayProposal(
-    proposal({ versionCodes: ['150'] }),
-    context(),
-  );
+  const lower = checkPlayProposal(proposal({ versionCodes: ['150'] }), context());
   assert.deepEqual(codes(lower), ['code_not_newer']);
   assert.equal(lower[0]?.severity, 'warning');
   // A draft in the track does not count as held.
@@ -98,14 +101,22 @@ test('a version code that production already holds is a problem; a lower one is 
     ),
     [],
   );
-  assert.deepEqual(codes(checkPlayProposal(proposal({ versionCodes: [] }), context())), ['codes_missing']);
+  assert.deepEqual(codes(checkPlayProposal(proposal({ versionCodes: [] }), context())), [
+    'codes_missing',
+  ]);
 });
 
 test('a share outside 0..1 is a problem; 100% is explained as a completed release', () => {
   for (const bad of [0, -0.1, 1.5, Number.NaN]) {
-    assert.deepEqual(codes(checkPlayProposal(proposal({ userFraction: bad }), context())), ['fraction_out_of_range'], String(bad));
+    assert.deepEqual(
+      codes(checkPlayProposal(proposal({ userFraction: bad }), context())),
+      ['fraction_out_of_range'],
+      String(bad),
+    );
   }
-  assert.deepEqual(codes(checkPlayProposal(proposal({ userFraction: 1 }), context())), ['full_rollout']);
+  assert.deepEqual(codes(checkPlayProposal(proposal({ userFraction: 1 }), context())), [
+    'full_rollout',
+  ]);
   assert.deepEqual(checkPlayProposal(proposal({ userFraction: null }), context()), []);
 });
 

@@ -140,7 +140,12 @@ export type PlatformId = 'ios' | 'macos' | 'android' | 'unknown';
 /** The tint of a platform: its own hue (see the `--platform-*` tokens), `neutral` for an unknown one. */
 export type PlatformTint = 'ios' | 'macos' | 'android' | 'neutral';
 
-export type PlatformInfo = { platform: PlatformId; label: string; icon: IconName; tint: PlatformTint };
+export type PlatformInfo = {
+  platform: PlatformId;
+  label: string;
+  icon: IconName;
+  tint: PlatformTint;
+};
 
 export const platformInfo: Record<PlatformId, PlatformInfo> = {
   ios: { platform: 'ios', label: 'iOS', icon: 'platform-ios', tint: 'ios' },

@@ -25,7 +25,12 @@ export function desktopKindEntries(catalog: CatalogEntry[]): CatalogEntry[] {
   const out: CatalogEntry[] = [];
   for (const id of DESKTOP_KINDS) {
     const entry = catalog.filter((e) => e.id === id)[0];
-    if (entry && entry.visible && entry.rule.enabled && entry.allowedChannels.indexOf('desktop') >= 0)
+    if (
+      entry &&
+      entry.visible &&
+      entry.rule.enabled &&
+      entry.allowedChannels.indexOf('desktop') >= 0
+    )
       out.push(entry);
   }
   return out;

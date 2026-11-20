@@ -15,8 +15,8 @@ import {
   type Platform,
   type Role,
 } from '@mrm/core';
-import { placementLine, stageInLabel } from './ai-placement.ts';
 import { centsFromText, centsInput, insightTitle } from './ai-insights.ts';
+import { placementLine, stageInLabel } from './ai-placement.ts';
 import { ApiError } from './api.ts';
 import { appAddress, appReviewsHref, type PlatformScope } from './app-scope.ts';
 import { asoViewHref } from './aso.ts';

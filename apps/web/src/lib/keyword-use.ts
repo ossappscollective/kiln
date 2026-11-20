@@ -15,9 +15,9 @@ import {
   trackingOf,
 } from '@mrm/core';
 import {
+  editableFields,
   type FieldInfo,
   type FieldMeter,
-  editableFields,
   fieldIdForSource,
   measureField,
   whereText,
@@ -133,10 +133,7 @@ export type UsedLocale = {
   untracked: UsedKeyword[];
 };
 
-export function rankText(
-  t: Pick<TermTracking, 'tracked' | 'state' | 'rank'>,
-  depth = 50,
-): string {
+export function rankText(t: Pick<TermTracking, 'tracked' | 'state' | 'rank'>, depth = 50): string {
   if (!t.tracked) return 'Not tracked';
   if (t.state === 'ranked' && t.rank !== null) return `Rank ${t.rank}`;
   if (t.state === 'not_ranked') return `Not in the first ${depth} results`;

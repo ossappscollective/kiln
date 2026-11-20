@@ -25,8 +25,10 @@ export function reviewsLead(input: {
   chip: { text: string } | null;
 }): ReviewsLead {
   if (!input.loaded) return { headline: 'Customer reviews', tone: 'neutral', primary: 'none' };
-  if (input.stored === 0) return { headline: 'No reviews stored yet', tone: 'neutral', primary: 'none' };
-  if (input.chip) return { headline: needsAnswerText(input.chip.text), tone: 'warn', primary: 'show' };
+  if (input.stored === 0)
+    return { headline: 'No reviews stored yet', tone: 'neutral', primary: 'none' };
+  if (input.chip)
+    return { headline: needsAnswerText(input.chip.text), tone: 'warn', primary: 'show' };
   return { headline: 'No review is waiting for an answer', tone: 'ok', primary: 'read' };
 }
 
@@ -42,9 +44,11 @@ export function buildsLead(total: number, unlinked: number): { headline: string;
 }
 
 /** The top of Keywords: how many words are tracked and how many rank in the top 10; "not checked yet" is the one thing to do. */
-export function keywordsLead(
-  keywords: readonly { state: string | null; rank: number | null }[],
-): { headline: string; hint: string; tone: LeadTone } {
+export function keywordsLead(keywords: readonly { state: string | null; rank: number | null }[]): {
+  headline: string;
+  hint: string;
+  tone: LeadTone;
+} {
   const n = keywords.length;
   if (n === 0)
     return {
@@ -52,7 +56,9 @@ export function keywordsLead(
       hint: 'Add the words people search for to see where your app ranks in the store.',
       tone: 'neutral',
     };
-  const top10 = keywords.filter((k) => k.state === 'ranked' && k.rank !== null && k.rank <= 10).length;
+  const top10 = keywords.filter(
+    (k) => k.state === 'ranked' && k.rank !== null && k.rank <= 10,
+  ).length;
   const unchecked = keywords.filter((k) => k.state === null).length;
   return {
     headline: `${n} ${n === 1 ? 'keyword' : 'keywords'} tracked, ${top10} in the top 10`,
@@ -67,12 +73,18 @@ export function keywordsLead(
 const PLATFORM_NAMES: Record<string, string> = { ios: 'iOS', macos: 'macOS', android: 'Android' };
 
 function joinNames(names: string[]): string {
-  return names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  return names.length < 3
+    ? names.join(' and ')
+    : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 }
 
 /** The top of the app Settings: a failing sync first (with where to look), a record never synced second, otherwise that all is connected. */
 export function settingsLead(
-  records: readonly { platform: string; lastSyncError: string | null; lastSyncedAt: number | null }[],
+  records: readonly {
+    platform: string;
+    lastSyncError: string | null;
+    lastSyncedAt: number | null;
+  }[],
 ): { headline: string; hint: string; tone: LeadTone } {
   const name = (r: { platform: string }) => PLATFORM_NAMES[r.platform] ?? r.platform;
   const failed = records.filter((r) => r.lastSyncError !== null && r.lastSyncError !== '');

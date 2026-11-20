@@ -398,7 +398,8 @@ export function draftReleasesOf(
     });
   for (const d of facts.drafts.get(app.id) ?? []) {
     if (record === undefined && d.track !== 'production') continue;
-    if (pushed && pushed.track === d.track && codesKey(pushed.codes) === codesKey(d.codes)) continue;
+    if (pushed && pushed.track === d.track && codesKey(pushed.codes) === codesKey(d.codes))
+      continue;
     out.push({
       id: `draft_release:${d.track}:${codesKey(d.codes)}`,
       track: d.track,

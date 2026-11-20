@@ -246,11 +246,7 @@ test('a refusal before the last request says nothing was submitted and is no unk
     });
     // The request that hands the version to review (`submitted`) is never sent.
     assert.ok(
-      !api.seen.some(
-        (s) =>
-          s.method === 'PATCH' &&
-          JSON.stringify(s.body).includes('"submitted"'),
-      ),
+      !api.seen.some((s) => s.method === 'PATCH' && JSON.stringify(s.body).includes('"submitted"')),
       `${label}: never reached the last request`,
     );
     // A submission this call created and could not fill is cancelled, so empty drafts do not pile up in App Store Connect.
@@ -275,7 +271,10 @@ test('a failed cancel of the empty review submission never hides the real failur
     assert.match(e.message, /Nothing was submitted for review/);
     return true;
   });
-  assert.ok(api.seen.some((s) => s.method === 'PATCH'), 'the cancel was tried');
+  assert.ok(
+    api.seen.some((s) => s.method === 'PATCH'),
+    'the cancel was tried',
+  );
 });
 
 test('a lost answer before the last request is a plain failure that mentions the unsubmitted submission', async () => {
@@ -424,7 +423,7 @@ test('a bad App Store id is refused when the connector is built', () => {
   );
 });
 
-test('Apple associatedErrors of a 409 on a version are kept: the kind of resource and Apple\'s sentence, without ids', async () => {
+test("Apple associatedErrors of a 409 on a version are kept: the kind of resource and Apple's sentence, without ids", async () => {
   const { appleErrorDetails } = await import('./appstoreconnect.ts');
   const details = appleErrorDetails({
     errors: [
@@ -448,7 +447,10 @@ test('Apple associatedErrors of a 409 on a version are kept: the kind of resourc
     ],
   });
   assert.equal(details.length, 3);
-  assert.equal(details[1]?.detail, "ageRatingDeclarations: You must provide a value for the attribute 'gambling' with this request");
+  assert.equal(
+    details[1]?.detail,
+    "ageRatingDeclarations: You must provide a value for the attribute 'gambling' with this request",
+  );
   assert.equal(details[1]?.pointer, '/data/attributes/gambling');
   assert.equal(details[2]?.detail, 'appScreenshotSets: Screenshots are missing');
   assert.ok(!JSON.stringify(details).includes('1234-aaaa'));
@@ -457,7 +459,9 @@ test('Apple associatedErrors of a 409 on a version are kept: the kind of resourc
 test('an age rating reason of Apple comes with what to do about it', async () => {
   const { appleFixHint } = await import('./appstoreconnect.ts');
   assert.match(
-    appleFixHint([{ detail: "ageRatingDeclarations: You must provide a value for the attribute 'socialMedia'" }]),
+    appleFixHint([
+      { detail: "ageRatingDeclarations: You must provide a value for the attribute 'socialMedia'" },
+    ]),
     /App Information, Age Rating/,
   );
   assert.equal(appleFixHint([{ detail: 'something else' }]), '');

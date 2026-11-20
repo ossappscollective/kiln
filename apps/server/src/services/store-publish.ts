@@ -378,11 +378,21 @@ async function stagedForDirect(
     'SELECT kind, target, value_text, value_hash, pushed_hash FROM staged_changes WHERE app_id = ?',
     [app.id],
   );
-  const out = { texts: 0, assets: 0, fields: 0, track: null as string | null, codes: [] as string[], fraction: null as number | null };
+  const out = {
+    texts: 0,
+    assets: 0,
+    fields: 0,
+    track: null as string | null,
+    codes: [] as string[],
+    fraction: null as number | null,
+  };
   for (const r of rows) {
     const kind = String(r.kind);
     const target = String(r.target);
-    const unpushed = r.pushed_hash === null || r.pushed_hash === undefined || String(r.pushed_hash) !== String(r.value_hash);
+    const unpushed =
+      r.pushed_hash === null ||
+      r.pushed_hash === undefined ||
+      String(r.pushed_hash) !== String(r.value_hash);
     if (kind === 'release_field') {
       if (target === 'track') out.track = String(r.value_text);
       else if (target === 'version_codes') out.codes = versionCodesOf(String(r.value_text));
@@ -443,7 +453,14 @@ export async function buildPlan(
     enabled.release &&
     input.rights.release;
   const askedSteps: readonly StepRequest[] | undefined = defaultedToDirect
-    ? [{ type: 'release', direct: true, track: directHint?.track ?? '', versionCodes: directHint?.versionCodes ?? [] }]
+    ? [
+        {
+          type: 'release',
+          direct: true,
+          track: directHint?.track ?? '',
+          versionCodes: directHint?.versionCodes ?? [],
+        },
+      ]
     : input.steps;
   const explicit = askedSteps !== undefined;
   const requests = new Map<PublishStep, StepRequest>((askedSteps ?? []).map((s) => [s.type, s]));
@@ -574,12 +591,15 @@ export async function buildPlan(
       direct: request?.direct,
     };
     const resolved = await resolveDirect(ctx.db, app, what);
-    if (!resolved.ok) return unavailable('blocked', messageOf(resolved), problemOfFailure(resolved));
+    if (!resolved.ok)
+      return unavailable('blocked', messageOf(resolved), problemOfFailure(resolved));
     const asked = requestOfInput(app, resolved.input);
     if (request?.direct === true && done.push_draft?.included) {
       const message =
         'A direct release makes the release from the staged fields itself. Leave out the draft push in the same plan, or untick the direct release.';
-      return unavailable('blocked', message, [{ code: 'direct_with_push', severity: 'error', message }]);
+      return unavailable('blocked', message, [
+        { code: 'direct_with_push', severity: 'error', message },
+      ]);
     }
     if (!asked.ok) {
       const code = asked.body.error;

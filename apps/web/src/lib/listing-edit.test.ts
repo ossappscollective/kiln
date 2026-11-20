@@ -31,7 +31,10 @@ test('each store lists its main text fields with limits and whether a draft push
     play.map((f) => f.id),
     ['title', 'short_description', 'full_description'],
   );
-  assert.equal(play.every((f) => f.stageable), true);
+  assert.equal(
+    play.every((f) => f.stageable),
+    true,
+  );
   assert.equal(fieldInfo('android', 'subtitle'), null);
   assert.equal(fieldInfo('ios', 'support_url'), null, 'urls are not edited here');
   assert.equal(fieldInfo('android', 'title')?.limit, 30);

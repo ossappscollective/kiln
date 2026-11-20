@@ -5,8 +5,8 @@
 import {
   type PlayReleaseSettings,
   type RolloutOffer,
-  type StagedRolloutMode,
   rolloutOffer,
+  type StagedRolloutMode,
   sharePrefill,
 } from '@mrm/core';
 
@@ -57,7 +57,9 @@ export function releaseInputsFor(input: {
 export const EVERYONE = 1;
 
 /** The text of a typed default share ('' clears it) as a percent 1 to 100, or null when it is not valid. */
-export function parseDefaultShare(text: string): { ok: true; value: number | null } | { ok: false } {
+export function parseDefaultShare(
+  text: string,
+): { ok: true; value: number | null } | { ok: false } {
   const t = text.trim().replace(/%$/, '').trim();
   if (t === '') return { ok: true, value: null };
   if (!/^\d{1,3}$/.test(t)) return { ok: false };

@@ -28,7 +28,9 @@ const editable: EditableRelease = {
     versionCodes: ['241'],
     notes: [{ locale: 'en-US', text: 'Store text' }],
   },
-  others: [{ name: '2.0', status: 'completed', userFraction: null, versionCodes: ['200'], notes: [] }],
+  others: [
+    { name: '2.0', status: 'completed', userFraction: null, versionCodes: ['200'], notes: [] },
+  ],
 };
 const staged = (items: { field: string; locale: string; value: string }[]) =>
   ({ release: items }) as unknown as StagedChangesView;
@@ -55,7 +57,14 @@ test('staged values win over the store draft in the Confirm step; the release di
 
 test('the body: no share is a draft, a share is a rollout, 100% is completed, a bad share is left out', () => {
   const p = (userFraction: number | null) =>
-    proposalOf({ source: 'store', track: ' production ', codes: ['241'], fraction: userFraction, view: null, editable });
+    proposalOf({
+      source: 'store',
+      track: ' production ',
+      codes: ['241'],
+      fraction: userFraction,
+      view: null,
+      editable,
+    });
   assert.deepEqual(checkBody(p(null)), {
     track: 'production',
     versionCodes: ['241'],
@@ -72,7 +81,14 @@ test('the body: no share is a draft, a share is a rollout, 100% is completed, a 
 });
 
 test('the check cannot be asked while the release is incomplete', () => {
-  const p = proposalOf({ source: 'store', track: 'production', codes: [], fraction: null, view: null, editable: null });
+  const p = proposalOf({
+    source: 'store',
+    track: 'production',
+    codes: [],
+    fraction: null,
+    view: null,
+    editable: null,
+  });
   assert.deepEqual(canCheck(p), { ok: false, reason: 'Choose the version codes first.' });
   assert.equal(canCheck({ ...p, versionCodes: ['1'] }).ok, true);
   assert.equal(canCheck({ ...p, versionCodes: ['1'], track: ' ' }).ok, false);
@@ -80,7 +96,14 @@ test('the check cannot be asked while the release is incomplete', () => {
 });
 
 test('local checks use the track read and the languages that have a listing', () => {
-  const p = proposalOf({ source: 'store', track: 'production', codes: ['200'], fraction: 0.1, view: null, editable });
+  const p = proposalOf({
+    source: 'store',
+    track: 'production',
+    codes: ['200'],
+    fraction: 0.1,
+    view: null,
+    editable,
+  });
   const codes = localChecks(p, contextOf(editable, ['en-US', 'fr-FR'])).map((c) => c.code);
   assert.deepEqual(codes, ['code_already_live', 'notes_missing']);
 });
@@ -106,21 +129,42 @@ test('the words: no errors never says there are no warnings, and says the Play C
   assert.match(text, /Nothing was saved or released/);
   assert.doesNotMatch(text, /no warnings/i);
   assert.match(NO_ERRORS_SENTENCE, /Play Console may still show warnings/);
-  const bad = outcomeView({ ...answer, outcome: 'errors', findings: [{ stage: 'validate', message: 'Nope.' }] });
+  const bad = outcomeView({
+    ...answer,
+    outcome: 'errors',
+    findings: [{ stage: 'validate', message: 'Nope.' }],
+  });
   assert.equal(bad.tone, 'bad');
   assert.equal(bad.title, 'Google reported an error');
   assert.deepEqual(bad.findings, ['Nope.']);
   assert.equal(
-    outcomeView({ ...answer, outcome: 'errors', findings: [{ stage: 'stage', message: 'a' }, { stage: 'validate', message: 'b' }] }).title,
+    outcomeView({
+      ...answer,
+      outcome: 'errors',
+      findings: [
+        { stage: 'stage', message: 'a' },
+        { stage: 'validate', message: 'b' },
+      ],
+    }).title,
     'Google reported 2 errors',
   );
   assert.equal(checkedLine(answer), 'Checked as a rollout to 10% in production, version code 241.');
   assert.match(checkedLine({ ...answer, status: 'draft', userFraction: null }), /as a draft/);
-  assert.match(checkedLine({ ...answer, status: 'completed', userFraction: 1, versionCodes: ['1', '2'] }), /for everybody \(100%\).*codes 1, 2/);
+  assert.match(
+    checkedLine({ ...answer, status: 'completed', userFraction: 1, versionCodes: ['1', '2'] }),
+    /for everybody \(100%\).*codes 1, 2/,
+  );
 });
 
 test('the state is explained: draft, rollout, everybody', () => {
-  const base = proposalOf({ source: 'store', track: 'production', codes: ['241'], fraction: null, view: null, editable });
+  const base = proposalOf({
+    source: 'store',
+    track: 'production',
+    codes: ['241'],
+    fraction: null,
+    view: null,
+    editable,
+  });
   assert.match(stateLine(base), /goes to nobody/);
   assert.match(stateLine({ ...base, userFraction: 0.1 }), /Rolling out to 10%/);
   assert.match(stateLine({ ...base, userFraction: 1 }), /everybody/);

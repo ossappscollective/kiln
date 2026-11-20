@@ -39,7 +39,10 @@ export function parseSharePercent(raw: unknown): Parsed<number | null> {
     raw > 100 ||
     Math.round(raw * 100) / 100 !== raw
   )
-    return { ok: false, message: 'Use a percent from 1 to 100 (at most 2 decimals), or null for none.' };
+    return {
+      ok: false,
+      message: 'Use a percent from 1 to 100 (at most 2 decimals), or null for none.',
+    };
   return { ok: true, value: raw };
 }
 
@@ -119,7 +122,12 @@ export async function getAppReleaseSettings(
  */
 export async function updateAppReleaseSettings(
   db: Database,
-  input: { workspaceId: string; appId: string; changes: Record<string, unknown>; actor: { type: ActorType; id: string } },
+  input: {
+    workspaceId: string;
+    appId: string;
+    changes: Record<string, unknown>;
+    actor: { type: ActorType; id: string };
+  },
   now: number,
 ): Promise<{ ok: true; settings: AppReleaseSettings; changed: string[] } | Failure> {
   const app = await getApp(db, input.workspaceId, input.appId);

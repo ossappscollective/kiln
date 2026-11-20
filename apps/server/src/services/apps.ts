@@ -248,13 +248,18 @@ export async function listAppReleases(
   const sent = await releasesSentHere(sql, workspaceId, appId);
   return rows.map((r) => {
     const release = toRelease(r);
-    if (release.platform !== 'android' || release.track === null || sent.length === 0) return release;
+    if (release.platform !== 'android' || release.track === null || sent.length === 0)
+      return release;
     const at = sentAtOf(sent, release.track, release.versionCodes);
     if (at === null) return release;
     // Google Play reports a release in review as live (or rolling out). One this server sent in the last days reads "in review"
     // everywhere (overview, all apps, tables) until the window ends or a newer release replaces it; `rawState` stays Google's.
     const inReview = release.status === 'live' || release.status === 'rolling_out';
-    return { ...release, ...(inReview ? { status: 'in_review' as const } : {}), sentForReviewAt: at };
+    return {
+      ...release,
+      ...(inReview ? { status: 'in_review' as const } : {}),
+      sentForReviewAt: at,
+    };
   });
 }
 
@@ -288,7 +293,10 @@ export async function releasesSentHere(
   const out: { track: string; codes: string[]; at: number }[] = [];
   for (const row of rows) {
     try {
-      const d = JSON.parse(String(row.detail ?? '{}')) as { track?: unknown; versionCodes?: unknown };
+      const d = JSON.parse(String(row.detail ?? '{}')) as {
+        track?: unknown;
+        versionCodes?: unknown;
+      };
       if (typeof d.track !== 'string' || !Array.isArray(d.versionCodes)) continue;
       out.push({ track: d.track, codes: d.versionCodes.map(String), at: Number(row.created_at) });
     } catch {

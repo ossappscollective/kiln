@@ -10,7 +10,7 @@ There are four parts, each with its own gate:
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | [Reads](#reads-what-a-draft-is-made-of)                           | Lists processed builds / uploaded version codes, and shows the release fields the store holds.     | `listing.read`. No switch: they change nothing.                                                                             |
 | [Staging and the draft push](#staging-and-pushing-release-fields) | Release fields are staged items; the existing draft push writes them.                              | `changesets.write` to stage; `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED` to push. Never submits, never releases. |
-| [Check with Google Play](#check-with-google-play-read-only)       | Asks Google Play whether it would refuse a proposed release. Saves nothing.                         | `listing.read`. No switch: it changes nothing.                                                                              |
+| [Check with Google Play](#check-with-google-play-read-only)       | Asks Google Play whether it would refuse a proposed release. Saves nothing.                        | `listing.read`. No switch: it changes nothing.                                                                              |
 | [Release](#release-irreversible)                                  | Releases an approved App Store version, or starts a Google Play draft release at a share you name. | `store.release` and `MRM_STORE_RELEASE_ENABLED`, a preview, a hash and a typed phrase.                                      |
 
 **Never run against a real store**: the connectors are tested with fakes only. Read [UNVERIFIED](#unverified-check-with-a-real-account)
@@ -214,14 +214,14 @@ production" entry for a release that sits in a track that is not production.
 
 Needs `listing.read` (a viewer may check), no switch. Body (strict):
 
-| Field          | Meaning                                                                                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `track`        | Required. The track the release would be in (`production`, `beta`, ...). `422 track_required`.                                                            |
-| `versionCodes` | Required, 1 to 20 whole numbers. `422 invalid_version_codes`.                                                                                             |
-| `releaseName`  | Optional, up to 100 characters. Only shown in Play Console.                                                                                               |
-| `userFraction` | Optional, more than 0 and at most 1, at most 4 decimals (`0.1` is 10%). `422 invalid_user_fraction`.                                                      |
+| Field          | Meaning                                                                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `track`        | Required. The track the release would be in (`production`, `beta`, ...). `422 track_required`.                                                                                                                            |
+| `versionCodes` | Required, 1 to 20 whole numbers. `422 invalid_version_codes`.                                                                                                                                                             |
+| `releaseName`  | Optional, up to 100 characters. Only shown in Play Console.                                                                                                                                                               |
+| `userFraction` | Optional, more than 0 and at most 1, at most 4 decimals (`0.1` is 10%). `422 invalid_user_fraction`.                                                                                                                      |
 | `status`       | Optional: `draft`, `inProgress` or `completed`. Default: `draft` without a share, `completed` for 1, otherwise `inProgress`. A draft has no share, a rollout needs one below 1, `completed` is everybody (no share or 1). |
-| `notes`        | Optional, up to 80 `{ locale, text }` (text up to 4000 characters; Google Play allows 500). One entry per language (`422 invalid_locale`, `422 invalid_request`). Empty texts are not sent. |
+| `notes`        | Optional, up to 80 `{ locale, text }` (text up to 4000 characters; Google Play allows 500). One entry per language (`422 invalid_locale`, `422 invalid_request`). Empty texts are not sent.                               |
 
 An iOS or macOS app is `422 not_applicable` (App Store releases have their own checks in the preview). Nothing else is read from the database
 about the release: **the caller says what is proposed**.
@@ -393,7 +393,6 @@ notice is expected NOT to appear), the shape of its error answer (read as HTTP 4
 refuses some releases (the same 400 is then a `stage` finding), whether `validate` sees a release the way Play Console does when it is staged
 as `inProgress` or `completed` in an edit, and the release name limit (Google states none). A lower version code than the track holds is a
 warning here because Google's pages do not say it is refused.
-
 
 Read on Apple's and Google's pages on 2026-11-19.
 

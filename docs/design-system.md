@@ -145,18 +145,18 @@ tool marks below.
 `StoreBadge` and `PlatformBadge` identify where something lives. The glyphs are generic geometric
 marks drawn for this project, not company logos:
 
-| Name                               | Glyph                                         | Stands beside                                |
-| ---------------------------------- | --------------------------------------------- | -------------------------------------------- |
-| `store`                            | storefront                                    | any store; the fallback for an unknown value |
-| `store-ios`                        | shopping bag                                  | App Store, App Store Connect                 |
-| `store-android`                    | rounded square with a play triangle           | Google Play, Google Play Console             |
-| `platform-ios`                     | tall phone outline with a top pill            | iOS                                          |
-| `platform-android`                 | rounded square with a 2x2 grid                | Android                                      |
-| `platform-macos`                   | desktop display with a stand and a bezel line | macOS                                        |
-| `send`                             | paper plane                                   | TestFlight                                   |
-| `repo`                             | repository outline                            | GitHub                                       |
-| `code`                             | code brackets                                 | Expo                                         |
-| `pipeline`                         | three lanes that fork                         | Fastlane                                     |
+| Name               | Glyph                                         | Stands beside                                |
+| ------------------ | --------------------------------------------- | -------------------------------------------- |
+| `store`            | storefront                                    | any store; the fallback for an unknown value |
+| `store-ios`        | shopping bag                                  | App Store, App Store Connect                 |
+| `store-android`    | rounded square with a play triangle           | Google Play, Google Play Console             |
+| `platform-ios`     | tall phone outline with a top pill            | iOS                                          |
+| `platform-android` | rounded square with a 2x2 grid                | Android                                      |
+| `platform-macos`   | desktop display with a stand and a bezel line | macOS                                        |
+| `send`             | paper plane                                   | TestFlight                                   |
+| `repo`             | repository outline                            | GitHub                                       |
+| `code`             | code brackets                                 | Expo                                         |
+| `pipeline`         | three lanes that fork                         | Fastlane                                     |
 
 ```svelte
 <StoreBadge store="app_store" variant="full" />   <!-- glyph + "App Store Connect" -->

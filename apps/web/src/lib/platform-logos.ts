@@ -9,7 +9,10 @@
 export type LogoModules = Record<string, string>;
 
 /** The URL of the logo file for a platform (`ios`, `macos`, `android`, any case), or null if none was added. */
-export function platformLogoUrl(modules: LogoModules, platform: string | null | undefined): string | null {
+export function platformLogoUrl(
+  modules: LogoModules,
+  platform: string | null | undefined,
+): string | null {
   const id = (platform ?? '').toLowerCase();
   if (id !== 'ios' && id !== 'macos' && id !== 'android') return null;
   for (const [path, url] of Object.entries(modules)) {

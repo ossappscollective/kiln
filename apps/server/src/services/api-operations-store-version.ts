@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { PLATFORMS } from '@mrm/core';
+import { z } from 'zod';
 import { versionApplyBody, versionPreviewBody } from '../routes/store-version.ts';
 import type { Operation } from './openapi.ts';
 
@@ -12,7 +12,12 @@ const W = '/api/workspaces/{workspaceId}';
 const check = z.object({ code: z.string(), message: z.string() });
 
 const previewSchema = z.object({
-  app: z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: z.string() }),
+  app: z.object({
+    id: z.string(),
+    name: z.string(),
+    platform: z.enum(PLATFORMS),
+    store: z.string(),
+  }),
   request: z.object({ versionString: z.string(), releaseType: z.string().nullable() }),
   live: z.string().nullable().describe('The newest version the store lists that cannot be edited.'),
   suggested: z.string().describe('The next patch of `live` (empty when it cannot be told).'),
@@ -30,7 +35,12 @@ const previewSchema = z.object({
 });
 
 const resultSchema = z.object({
-  app: z.object({ id: z.string(), name: z.string(), platform: z.enum(PLATFORMS), store: z.string() }),
+  app: z.object({
+    id: z.string(),
+    name: z.string(),
+    platform: z.enum(PLATFORMS),
+    store: z.string(),
+  }),
   version: z.object({ id: z.string().nullable(), versionString: z.string(), state: z.string() }),
   reversible: z.literal(true),
   confirmedByReread: z.boolean(),
@@ -45,7 +55,8 @@ export const storeVersionOperations: Operation[] = [
     method: 'post',
     path: `${W}/apps/{id}/store-version/preview`,
     tags: ['staged-changes'],
-    summary: 'Preview creating the next App Store version: the versions that exist, checks and a confirmHash',
+    summary:
+      'Preview creating the next App Store version: the versions that exist, checks and a confirmHash',
     description:
       'Needs `store.push_draft` and `MRM_STORE_DRAFT_WRITE_ENABLED=true` (`409 store_draft_disabled`). READS the versions of the app’s platform from App Store Connect (iOS or macOS), writes nothing, and settles an earlier unknown outcome of a create. `checks.blocking` stops a create: a version string that is not one to three dotted numbers, one that is not higher than every version that cannot be edited, one that already exists, an editable version that already exists. While anything blocks, `confirmHash` is null. `422 not_supported` for Google Play (a version there is a release).',
     risk: 'read',
@@ -69,7 +80,10 @@ export const storeVersionOperations: Operation[] = [
     appScope: { kind: 'param', name: 'id' },
     body: versionApplyBody,
     responses: {
-      '200': { description: 'The version that was created.', schema: z.object({ result: resultSchema }) },
+      '200': {
+        description: 'The version that was created.',
+        schema: z.object({ result: resultSchema }),
+      },
     },
   },
 ];

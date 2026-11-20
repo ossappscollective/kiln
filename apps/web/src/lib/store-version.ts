@@ -11,7 +11,8 @@ import { stepUpMessage } from './step-up.ts';
 
 export const VERSION_ENV = 'MRM_STORE_DRAFT_WRITE_ENABLED';
 export const VERSION_ROLE_REASON = 'Creating a version needs the admin or owner role.';
-export const VERSION_NOTE = 'Creates an editable draft version in App Store Connect. Nothing is submitted.';
+export const VERSION_NOTE =
+  'Creates an editable draft version in App Store Connect. Nothing is submitted.';
 /** What the build step said before there was a way to create it here: still the text when this app cannot. */
 export const NO_VERSION_SENTENCE =
   'App Store Connect has no version a build can be attached to. Create the next version in App Store Connect, sync this app, then read again here.';
@@ -36,7 +37,9 @@ export function suggestedVersion(
   releases: readonly { platform: Platform; version: string }[],
   platform: Platform,
 ): string {
-  const newest = newestDottedVersion(releases.filter((r) => r.platform === platform).map((r) => r.version));
+  const newest = newestDottedVersion(
+    releases.filter((r) => r.platform === platform).map((r) => r.version),
+  );
   return newest === null ? '' : nextVersion(newest);
 }
 
@@ -53,7 +56,9 @@ export type VersionFailure =
   | { kind: 'other'; message: string };
 
 const bodyMessage = (error: ApiError): string =>
-  typeof error.body.message === 'string' && error.body.message !== '' ? error.body.message : error.message;
+  typeof error.body.message === 'string' && error.body.message !== ''
+    ? error.body.message
+    : error.message;
 
 const isCheck = (c: unknown): c is VersionCheck =>
   typeof c === 'object' && c !== null && typeof (c as VersionCheck).message === 'string';
@@ -65,7 +70,8 @@ function reasonsOf(error: ApiError): string {
   for (const d of details) {
     if (typeof d !== 'object' || d === null) continue;
     const x = d as { title?: unknown; detail?: unknown };
-    const text = typeof x.detail === 'string' ? x.detail : typeof x.title === 'string' ? x.title : '';
+    const text =
+      typeof x.detail === 'string' ? x.detail : typeof x.title === 'string' ? x.title : '';
     if (text !== '' && out.indexOf(text) < 0) out.push(text);
     if (out.length === 3) break;
   }
@@ -74,7 +80,11 @@ function reasonsOf(error: ApiError): string {
 
 export function classifyVersionFailure(error: unknown): VersionFailure {
   if (!(error instanceof ApiError))
-    return { kind: 'other', message: 'The request failed. Check your connection, then try again. Nothing is known to have been created.' };
+    return {
+      kind: 'other',
+      message:
+        'The request failed. Check your connection, then try again. Nothing is known to have been created.',
+    };
   const message = bodyMessage(error);
   const step = stepUpMessage(error.code, error.retryAfter);
   if (step !== undefined) return { kind: 'other', message: step };
@@ -89,12 +99,16 @@ export function classifyVersionFailure(error: unknown): VersionFailure {
     case 'blocked': {
       const checks = error.body.checks as { blocking?: unknown } | undefined;
       const list = checks && Array.isArray(checks.blocking) ? checks.blocking.filter(isCheck) : [];
-      return { kind: 'blocked', message: `${list.length > 0 ? blockingText(list) : message} Nothing was created.` };
+      return {
+        kind: 'blocked',
+        message: `${list.length > 0 ? blockingText(list) : message} Nothing was created.`,
+      };
     }
     case 'state_changed':
       return {
         kind: 'state_changed',
-        message: 'The versions in App Store Connect changed since you looked, so nothing was created. Check the version and try again.',
+        message:
+          'The versions in App Store Connect changed since you looked, so nothing was created. Check the version and try again.',
       };
     case 'outcome_unknown':
       return {
@@ -103,7 +117,10 @@ export function classifyVersionFailure(error: unknown): VersionFailure {
       };
     case 'store_rejected': {
       const why = reasonsOf(error);
-      return { kind: 'other', message: `${message}${why !== '' && message.indexOf(why) < 0 ? ` ${why}` : ''} Nothing was created.` };
+      return {
+        kind: 'other',
+        message: `${message}${why !== '' && message.indexOf(why) < 0 ? ` ${why}` : ''} Nothing was created.`,
+      };
     }
     case 'rate_limited':
       return { kind: 'other', message: `${message} Nothing was created.` };

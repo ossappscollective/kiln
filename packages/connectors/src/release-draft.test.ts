@@ -309,10 +309,12 @@ test('App Store: listReleaseCandidates lists the builds of this platform with pr
   assert.match(decodeURIComponent(query), /limit=10(&|$)/);
   assert.doesNotMatch(decodeURIComponent(query), /preReleaseVersion\.version/);
   const other = await connector.listReleaseCandidates({ version: '2.0', limit: 3 });
-  assert.deepEqual(
-    other.store === 'appstoreconnect' ? other.builds.map((b) => b.id) : [],
-    ['b-1', 'b-2', 'b-3', 'b-old'],
-  );
+  assert.deepEqual(other.store === 'appstoreconnect' ? other.builds.map((b) => b.id) : [], [
+    'b-1',
+    'b-2',
+    'b-3',
+    'b-old',
+  ]);
   assert.match(
     decodeURIComponent(api.seen.filter((s) => s.path === '/v1/builds').at(-1)?.query ?? ''),
     /limit=3(&|$)/,
@@ -415,7 +417,13 @@ test('Google Play: when Google refuses the hold-back, a push of only the draft r
   const { api, connector } = play();
   api.commitAnswer = 'not_sent_refused';
   const done = await connector.applyDraft(
-    input({ fields: [field('track', 'production'), field('version_codes', '240,241'), field('release_notes', 'Fixes', 'en-US')] }),
+    input({
+      fields: [
+        field('track', 'production'),
+        field('version_codes', '240,241'),
+        field('release_notes', 'Fixes', 'en-US'),
+      ],
+    }),
   );
   assert.equal(done.commit, 'draft_release');
   assert.equal(api.commits.length, 2);

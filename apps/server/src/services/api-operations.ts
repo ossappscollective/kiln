@@ -12,12 +12,12 @@ import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';
 import { alertOperations } from './api-operations-alerts.ts';
-import { storeVersionOperations } from './api-operations-store-version.ts';
 import { analyticsOperations } from './api-operations-analytics.ts';
 import { buildsOperations } from './api-operations-builds.ts';
 import { mcpOperations } from './api-operations-mcp.ts';
 import { searchTermsOperations } from './api-operations-search-terms.ts';
 import { stepUpOperations } from './api-operations-step-up.ts';
+import { storeVersionOperations } from './api-operations-store-version.ts';
 import { twoFactorOperations } from './api-operations-two-factor.ts';
 import { eventTypes } from './event-types.ts';
 import type { Operation } from './openapi.ts';
@@ -2390,13 +2390,21 @@ const editableReleaseSchema = z.union([
   }),
 ]);
 const playCheckBodySchema = z.object({
-  track: z.string().min(1).max(100).describe('The track the release would be in (for example `production`).'),
+  track: z
+    .string()
+    .min(1)
+    .max(100)
+    .describe('The track the release would be in (for example `production`).'),
   versionCodes: z
     .array(z.string().regex(/^[0-9]{1,10}$/))
     .min(1)
     .max(20)
     .describe('The version codes of the release.'),
-  releaseName: z.string().max(100).optional().describe('The release name (only shown in Play Console).'),
+  releaseName: z
+    .string()
+    .max(100)
+    .optional()
+    .describe('The release name (only shown in Play Console).'),
   status: z
     .enum(['draft', 'inProgress', 'completed'])
     .optional()
@@ -2408,12 +2416,16 @@ const playCheckBodySchema = z.object({
     .gt(0)
     .lte(1)
     .optional()
-    .describe('The share of users (0.1 is 10%), at most 4 decimals. Not with `draft`; 1 is `completed`.'),
+    .describe(
+      'The share of users (0.1 is 10%), at most 4 decimals. Not with `draft`; 1 is `completed`.',
+    ),
   notes: z
     .array(z.object({ locale: z.string().min(1).max(20), text: z.string().max(4000) }))
     .max(80)
     .optional()
-    .describe('The release notes per language (Google Play allows 500 characters). Empty texts are not sent.'),
+    .describe(
+      'The release notes per language (Google Play allows 500 characters). Empty texts are not sent.',
+    ),
 });
 const playCheckSchema = z.object({
   store: z.literal('googleplay'),
@@ -2538,13 +2550,19 @@ const releaseDirectSchema = z
   .object({
     creates: z
       .boolean()
-      .describe('False: a draft with these version codes exists in the track and is released as it is.'),
+      .describe(
+        'False: a draft with these version codes exists in the track and is released as it is.',
+      ),
     versionCodes: z.array(z.string()),
     name: z.string().nullable(),
-    notesLanguages: z.array(z.string()).describe('The languages that have release notes. Never a note.'),
+    notesLanguages: z
+      .array(z.string())
+      .describe('The languages that have release notes. Never a note.'),
     summary: z
       .string()
-      .describe('Plain words: what is sent, to whom, and that Google reviews it and it cannot be undone from here.'),
+      .describe(
+        'Plain words: what is sent, to whom, and that Google reviews it and it cannot be undone from here.',
+      ),
   })
   .nullable()
   .describe('Google Play, direct release only (`direct: true`); null otherwise.');
@@ -6414,8 +6432,12 @@ const drafts: Draft[] = [
           engine: z.enum(['machine', 'ai']),
           provider: z.string().describe('The translation or AI provider that answered.'),
           model: z.string().nullable().describe('The model that answered (`ai`).'),
-          texts: z.record(z.string(), z.string()).describe('The text by language. Shown to the caller only.'),
-          failed: z.record(z.string(), z.string()).describe('A fixed sentence by language that was not translated.'),
+          texts: z
+            .record(z.string(), z.string())
+            .describe('The text by language. Shown to the caller only.'),
+          failed: z
+            .record(z.string(), z.string())
+            .describe('A fixed sentence by language that was not translated.'),
           over: z
             .record(z.string(), z.number())
             .describe('Languages whose text is longer than the limit: how long it is.'),
@@ -6474,7 +6496,10 @@ const drafts: Draft[] = [
     body: playCheckBodySchema,
     rateLimited: true,
     responses: {
-      '200': { description: 'What Google Play said.', schema: z.object({ check: playCheckSchema }) },
+      '200': {
+        description: 'What Google Play said.',
+        schema: z.object({ check: playCheckSchema }),
+      },
     },
   },
   {
@@ -6482,7 +6507,8 @@ const drafts: Draft[] = [
     method: 'get',
     path: `${W}/apps/{id}/release-settings`,
     tags: ['releases'],
-    summary: 'The Google Play release settings of an app: a default share and whether a staged rollout is offered',
+    summary:
+      'The Google Play release settings of an app: a default share and whether a staged rollout is offered',
     description:
       'Needs `apps.read`. Reads the database only. The defaults (`defaultSharePercent: null`, `stagedRollout: auto`) apply to an app that never changed them. Not a secret, never written to a store (docs/adr/0029-direct-play-release.md).',
     risk: 'read',
@@ -6490,7 +6516,8 @@ const drafts: Draft[] = [
     appScope: { kind: 'param', name: 'id' },
     responses: {
       '200': {
-        description: 'The settings, and whether the stored releases show an earlier production release.',
+        description:
+          'The settings, and whether the stored releases show an earlier production release.',
         schema: z.object({
           settings: appReleaseSettingsSchema,
           earlierProductionRelease: z

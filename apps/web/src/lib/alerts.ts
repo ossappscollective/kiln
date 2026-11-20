@@ -248,7 +248,8 @@ export function groupInbox(alerts: InboxAlert[]): InboxGroup[] {
  */
 export function inboxHeadline(groups: readonly InboxGroup[], unread: number): string {
   const need = groups.find((g) => g.id === 'attention')?.alerts.length ?? 0;
-  const first = need === 0 ? 'Nothing needs attention' : `${need} ${need === 1 ? 'needs' : 'need'} attention`;
+  const first =
+    need === 0 ? 'Nothing needs attention' : `${need} ${need === 1 ? 'needs' : 'need'} attention`;
   return unread > 0 ? `${first}, ${unread} unread` : first;
 }
 

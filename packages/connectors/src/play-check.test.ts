@@ -41,7 +41,8 @@ const proposal = (over: Partial<PlayCheckRelease> = {}): PlayCheckRelease => ({
   ...over,
 });
 
-const writes = (api: FakePlayDraftApi) => api.writes().map((w) => w.replace(/\/edits\/\d+/, '/edits/EDIT'));
+const writes = (api: FakePlayDraftApi) =>
+  api.writes().map((w) => w.replace(/\/edits\/\d+/, '/edits/EDIT'));
 
 test('the connector is a Play release checker', () => {
   assert.ok(isStorePlayReleaseChecker(play().connector));
@@ -86,7 +87,8 @@ test('a completed proposal replaces the older completed release; a rollout keeps
   const done = play();
   await done.connector.checkPlayRelease(proposal({ status: 'completed', userFraction: undefined }));
   const put = done.api.seen.find((s) => s.method === 'PUT' && /\/tracks\//.test(s.path));
-  const releases = (put?.body as { releases: { status: string; userFraction?: number }[] }).releases;
+  const releases = (put?.body as { releases: { status: string; userFraction?: number }[] })
+    .releases;
   assert.deepEqual(
     releases.map((r) => r.status),
     ['completed'],
@@ -104,7 +106,13 @@ test('a release with the same codes is replaced, empty notes and a blank name ar
     ];
   });
   await connector.checkPlayRelease(
-    proposal({ track: 'beta', status: 'draft', userFraction: undefined, name: '  ', notes: [{ locale: 'en-US', text: '   ' }] }),
+    proposal({
+      track: 'beta',
+      status: 'draft',
+      userFraction: undefined,
+      name: '  ',
+      notes: [{ locale: 'en-US', text: '   ' }],
+    }),
   );
   const put = api.seen.find((s) => s.method === 'PUT' && /\/tracks\//.test(s.path));
   assert.deepEqual(put?.body, {
@@ -120,7 +128,10 @@ test('Google refuses the edit: the finding is Google words, the edit is deleted,
   const result = await connector.checkPlayRelease(proposal());
   assert.equal(result.outcome, 'errors');
   assert.deepEqual(result.findings, [
-    { stage: 'validate', message: 'Version code 241 has been used in a release that is already live.' },
+    {
+      stage: 'validate',
+      message: 'Version code 241 has been used in a release that is already live.',
+    },
   ]);
   assert.equal(api.commits.length, 0);
   assert.ok(writes(api).includes('DELETE /edits/EDIT'));

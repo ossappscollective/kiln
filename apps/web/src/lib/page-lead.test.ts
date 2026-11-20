@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildsLead, keywordsLead, needsAnswerText, reviewsLead, settingsLead } from './page-lead.ts';
+import {
+  buildsLead,
+  keywordsLead,
+  needsAnswerText,
+  reviewsLead,
+  settingsLead,
+} from './page-lead.ts';
 
 test('needsAnswerText says what the person has to do', () => {
   assert.equal(needsAnswerText('5 unanswered, oldest 3 d'), '5 reviews need an answer, oldest 3 d');
@@ -14,7 +20,11 @@ test('reviewsLead: the first action follows the state', () => {
   const open = reviewsLead({ loaded: true, stored: 40, chip: { text: '2 unanswered' } });
   assert.deepEqual(open, { headline: '2 reviews need an answer', tone: 'warn', primary: 'show' });
   const done = reviewsLead({ loaded: true, stored: 40, chip: null });
-  assert.deepEqual(done, { headline: 'No review is waiting for an answer', tone: 'ok', primary: 'read' });
+  assert.deepEqual(done, {
+    headline: 'No review is waiting for an answer',
+    tone: 'ok',
+    primary: 'read',
+  });
 });
 
 test('buildsLead counts builds and the ones without a run', () => {

@@ -351,9 +351,7 @@ function previewOf(
       editable: v.editable,
     })),
     checks,
-    confirmHash: checks.canCreate
-      ? versionConfirmHash({ workspaceId, app, request, state })
-      : null,
+    confirmHash: checks.canCreate ? versionConfirmHash({ workspaceId, app, request, state }) : null,
     reversible: true,
     note: NOTE,
   };
@@ -464,7 +462,12 @@ export async function applyVersion(
   const connected = await connect(ctx, input.workspaceId, app, input.actor, VERSION_PURPOSE);
   if (!connected.ok) return stop(connected);
   const { connection } = connected;
-  const view = { id: app.id, name: app.name, platform: app.platform, store: storeFor(app.platform) };
+  const view = {
+    id: app.id,
+    name: app.name,
+    platform: app.platform,
+    store: storeFor(app.platform),
+  };
 
   let accepted: VersionListState | undefined;
   let blocked: VersionChecks | undefined;

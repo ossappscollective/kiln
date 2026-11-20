@@ -52,11 +52,19 @@ export function footerFor(current: StepId, visible: readonly StepId[]): Footer {
   const next = i >= 0 ? visible[i + 1] : undefined;
   const back = i > 0 ? (visible[i - 1] ?? null) : null;
   const position = `Step ${i < 0 ? 1 : i + 1} of ${visible.length}`;
-  if (next !== undefined) return { position, back, primary: { kind: 'step', to: next, label: `Next: ${STEP_LABELS[next]}` } };
+  if (next !== undefined)
+    return {
+      position,
+      back,
+      primary: { kind: 'step', to: next, label: `Next: ${STEP_LABELS[next]}` },
+    };
   return {
     position,
     back,
-    primary: current === 'confirm' ? { kind: 'publish', label: 'Review and publish' } : { kind: 'close', label: 'Close' },
+    primary:
+      current === 'confirm'
+        ? { kind: 'publish', label: 'Review and publish' }
+        : { kind: 'close', label: 'Close' },
   };
 }
 
@@ -86,16 +94,30 @@ export function confirmSteps(items: readonly PendingItem[], platform: Platform):
     const mine = items.filter((i) => i.nextStep === type);
     if (mine.length === 0) continue;
     if (type === 'push_draft') {
-      const texts = mine.filter((i) => i.kind === 'listing_text').reduce((n, i) => n + (i.counts.changes ?? i.refs.length), 0);
+      const texts = mine
+        .filter((i) => i.kind === 'listing_text')
+        .reduce((n, i) => n + (i.counts.changes ?? i.refs.length), 0);
       const sets = mine.filter((i) => i.kind === 'asset_set').length;
       const fields = mine.filter((i) => i.kind === 'release_field').length;
       const parts: string[] = [];
       if (texts > 0) parts.push(plural(texts, 'text change', 'text changes'));
       if (sets > 0) parts.push(plural(sets, 'graphics set', 'graphics sets'));
       if (fields > 0) parts.push(plural(fields, 'release field', 'release fields'));
-      out.push({ type, title: 'Push the staged changes to the store draft', detail: parts.join(', '), note: 'Can be changed again', irreversible: false });
+      out.push({
+        type,
+        title: 'Push the staged changes to the store draft',
+        detail: parts.join(', '),
+        note: 'Can be changed again',
+        irreversible: false,
+      });
     } else if (type === 'submit') {
-      out.push({ type, title: 'Submit the draft for review', detail: mine.map((i) => i.label).join(', '), note: null, irreversible: false });
+      out.push({
+        type,
+        title: 'Submit the draft for review',
+        detail: mine.map((i) => i.label).join(', '),
+        note: null,
+        irreversible: false,
+      });
     } else if (type === 'release') {
       out.push({
         type,
@@ -105,7 +127,13 @@ export function confirmSteps(items: readonly PendingItem[], platform: Platform):
         irreversible: true,
       });
     } else {
-      out.push({ type, title: 'Change the rollout', detail: mine.map((i) => i.label).join(', '), note: null, irreversible: false });
+      out.push({
+        type,
+        title: 'Change the rollout',
+        detail: mine.map((i) => i.label).join(', '),
+        note: null,
+        irreversible: false,
+      });
     }
   }
   return out;
@@ -127,12 +155,23 @@ export type IntroFacts = {
 export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentence: string } {
   const apple = f.platform !== 'android';
   if (step === 'build') {
-    const title = apple ? `Choose the build for ${f.version ?? 'this version'}` : 'Choose the version codes';
+    const title = apple
+      ? `Choose the build for ${f.version ?? 'this version'}`
+      : 'Choose the version codes';
     if (f.chosen !== null) {
-      const where = f.chosen.where === 'staged' ? 'is chosen' : apple ? 'is attached' : 'is in the draft';
-      return { title, sentence: `${f.chosen.label} ${where}, so you can go straight to the next step.` };
+      const where =
+        f.chosen.where === 'staged' ? 'is chosen' : apple ? 'is attached' : 'is in the draft';
+      return {
+        title,
+        sentence: `${f.chosen.label} ${where}, so you can go straight to the next step.`,
+      };
     }
-    return { title, sentence: apple ? 'Pick the build App Store Connect should use for this version.' : 'Pick what to promote and where to release it.' };
+    return {
+      title,
+      sentence: apple
+        ? 'Pick the build App Store Connect should use for this version.'
+        : 'Pick what to promote and where to release it.',
+    };
   }
   if (step === 'notes') {
     const title = f.version !== null ? `Write what is new in ${f.version}` : 'Write what is new';
@@ -145,7 +184,10 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
     };
   }
   if (step === 'assets') {
-    return { title: 'Check the screenshots', sentence: 'This step is optional. Nothing here changes anything.' };
+    return {
+      title: 'Check the screenshots',
+      sentence: 'This step is optional. Nothing here changes anything.',
+    };
   }
   if (step === 'review') {
     return {
@@ -158,7 +200,11 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
   }
   const n = f.confirm === null ? null : f.confirm.length;
   if (n === null) return { title: 'Publish', sentence: 'Reading what waits to be published.' };
-  if (n === 0) return { title: 'Nothing waits to be published', sentence: 'Stage a change in an earlier step, or come back when a draft is ready.' };
+  if (n === 0)
+    return {
+      title: 'Nothing waits to be published',
+      sentence: 'Stage a change in an earlier step, or come back when a draft is ready.',
+    };
   return {
     title: `Publish ${plural(n, 'step', 'steps')} to ${storeName(f.platform)}`,
     sentence: 'They run in this order and stop at the first one that fails.',
@@ -171,7 +217,10 @@ export function stepIntro(step: StepId, f: IntroFacts): { title: string; sentenc
 export type ChipTone = 'ok' | 'info' | 'warn' | 'bad' | 'neutral';
 
 /** The ONE state chip of a build row. */
-export function buildChip(row: Pick<BuildRow, 'eligibility'>, flags: { attached: boolean; staged: boolean }): { text: string; tone: ChipTone } {
+export function buildChip(
+  row: Pick<BuildRow, 'eligibility'>,
+  flags: { attached: boolean; staged: boolean },
+): { text: string; tone: ChipTone } {
   if (row.eligibility.tone === 'bad') return { text: 'Cannot be chosen', tone: 'bad' };
   if (flags.staged) return { text: 'Chosen', tone: 'info' };
   if (flags.attached) return { text: 'Attached', tone: 'ok' };
@@ -187,7 +236,9 @@ export function orderBuilds<T extends { id: string; eligibility: { selectable: b
   rows: readonly T[],
   chosenId: string | null,
 ): { rows: T[]; firstId: string | null } {
-  const hit = (chosenId !== null ? rows.filter((r) => r.id === chosenId)[0] : undefined) ?? rows.filter((r) => r.eligibility.selectable)[0];
+  const hit =
+    (chosenId !== null ? rows.filter((r) => r.id === chosenId)[0] : undefined) ??
+    rows.filter((r) => r.eligibility.selectable)[0];
   if (hit === undefined) return { rows: [...rows], firstId: null };
   return { rows: [hit, ...rows.filter((r) => r.id !== hit.id)], firstId: hit.id };
 }

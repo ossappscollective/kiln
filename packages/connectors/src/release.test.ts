@@ -321,7 +321,10 @@ test('Google Play: a share of 1 completes the release and carries no userFractio
   assert.equal(started?.userFraction, undefined);
   // Google: "Only one completed release is allowed": the older completed release is left out when the new one is for everybody.
   const left = api.tracks.find((t) => t.track === 'production')?.releases ?? [];
-  assert.deepEqual(left.map((r) => r.name), ['2.1']);
+  assert.deepEqual(
+    left.map((r) => r.name),
+    ['2.1'],
+  );
 });
 
 test('Google Play: a missing or out of range share is refused before any edit is opened', async () => {
@@ -505,14 +508,21 @@ test('Google Play, direct: with no draft the release is built from the staged fi
     { name: '2.0', status: 'completed', versionCodes: ['200'] },
     'the other release is sent back as read',
   );
-  assert.deepEqual(releases.find((r) => r.name === '2.1 (241)'), {
-    name: '2.1 (241)',
-    status: 'inProgress',
-    userFraction: 0.1,
-    versionCodes: ['241'],
-    releaseNotes: [{ language: 'en-US', text: 'Bug fixes' }],
-  });
-  assert.equal(api.seen.filter((s) => s.method === 'PUT').length, 1, 'one track update: no draft first');
+  assert.deepEqual(
+    releases.find((r) => r.name === '2.1 (241)'),
+    {
+      name: '2.1 (241)',
+      status: 'inProgress',
+      userFraction: 0.1,
+      versionCodes: ['241'],
+      releaseNotes: [{ language: 'en-US', text: 'Bug fixes' }],
+    },
+  );
+  assert.equal(
+    api.seen.filter((s) => s.method === 'PUT').length,
+    1,
+    'one track update: no draft first',
+  );
 });
 
 test('Google Play, direct: 100% is a completed release with no share, and it replaces the older completed release', async () => {

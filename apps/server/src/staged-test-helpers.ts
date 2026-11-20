@@ -834,7 +834,10 @@ export class FakeReleaseStore implements StoreReleaseConnector {
       const target = matching.length === 1 ? matching[0] : undefined;
       // A direct release (request.build): no draft with the codes means the release is made from the build.
       const creates =
-        request.build !== undefined && codes !== undefined && codes.length > 0 && matching.length === 0;
+        request.build !== undefined &&
+        codes !== undefined &&
+        codes.length > 0 &&
+        matching.length === 0;
       const made: PlayReleaseState | null =
         creates && request.build
           ? {

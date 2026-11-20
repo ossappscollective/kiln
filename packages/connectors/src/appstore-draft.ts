@@ -1007,7 +1007,12 @@ export class AppleDraftConnector
   }): Promise<ReleaseCandidates> {
     const pageLimit = Math.min(
       200,
-      Math.max(1, Math.trunc(Number.isFinite(input.limit) ? (input.limit as number) : DEFAULT_BUILD_CANDIDATES)),
+      Math.max(
+        1,
+        Math.trunc(
+          Number.isFinite(input.limit) ? (input.limit as number) : DEFAULT_BUILD_CANDIDATES,
+        ),
+      ),
     );
     let editable: VersionRef | undefined;
     try {

@@ -166,7 +166,10 @@ export async function notesHistory(
       at: e.at,
     });
   }
-  const plans = wantedTrack !== undefined ? [] : await planNotes(ctx.db, input.workspaceId, app.id, wantedLocale);
+  const plans =
+    wantedTrack !== undefined
+      ? []
+      : await planNotes(ctx.db, input.workspaceId, app.id, wantedLocale);
   for (const p of plans) {
     add(p.text, false, {
       source: 'plan',

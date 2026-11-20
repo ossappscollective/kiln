@@ -37,7 +37,10 @@ test('a live release in a track that is not production can be promoted, to produ
   }
   assert.equal(defaultTarget('internal'), 'production');
   assert.equal(promoteOption(release({ track: 'beta' }))?.fromLabel, 'open testing (beta)');
-  assert.equal(promoteOption(release({ status: 'rolling_out', rolloutFraction: 0.5 }))?.from, 'internal');
+  assert.equal(
+    promoteOption(release({ status: 'rolling_out', rolloutFraction: 0.5 }))?.from,
+    'internal',
+  );
 });
 
 test('nothing to promote: production, iOS, a draft, a halted release, no codes, or already live in production', () => {
@@ -75,7 +78,11 @@ test('the address opens the first step with the track, the codes and the target,
   const href = promoteHref(option);
   assert.match(href, /^#\/portfolio\/app1\/releases\?platform=android&/);
   assert.equal(stepFromHash(href), 'build');
-  assert.deepEqual(promoteFromHash(href), { from: 'internal', to: 'production', codes: ['240', '241'] });
+  assert.deepEqual(promoteFromHash(href), {
+    from: 'internal',
+    to: 'production',
+    codes: ['240', '241'],
+  });
   assert.equal(promoteFromHash('#/portfolio/app1/releases?step=build'), null);
 });
 
@@ -83,16 +90,33 @@ test('an address that is not a promotion is ignored', () => {
   assert.equal(promoteFromHash('#/x?from=internal&codes='), null);
   assert.equal(promoteFromHash('#/x?from=bad track&codes=1'), null);
   assert.equal(promoteFromHash('#/x?from=internal&codes=1,x'), null);
-  assert.equal(promoteFromHash('#/x?from=internal&codes=' + Array.from({ length: 21 }, (_, i) => i + 1).join(',')), null);
-  assert.deepEqual(promoteFromHash('#/x?from=beta&to=%3Cb%3E&codes=7'), { from: 'beta', to: 'production', codes: ['7'] });
-  assert.match(promoteNote({ from: 'internal', to: 'production', codes: ['241'] }), /Promoting from internal testing to production: version code 241 is selected/);
+  assert.equal(
+    promoteFromHash(
+      '#/x?from=internal&codes=' + Array.from({ length: 21 }, (_, i) => i + 1).join(','),
+    ),
+    null,
+  );
+  assert.deepEqual(promoteFromHash('#/x?from=beta&to=%3Cb%3E&codes=7'), {
+    from: 'beta',
+    to: 'production',
+    codes: ['7'],
+  });
+  assert.match(
+    promoteNote({ from: 'internal', to: 'production', codes: ['241'] }),
+    /Promoting from internal testing to production: version code 241 is selected/,
+  );
 });
 
 test('closing the steps drops the promotion but keeps the rest of the address', () => {
   assert.equal(
-    withoutPromote('#/portfolio/app1/releases?platform=android&step=build&from=internal&to=production&codes=241'),
+    withoutPromote(
+      '#/portfolio/app1/releases?platform=android&step=build&from=internal&to=production&codes=241',
+    ),
     '#/portfolio/app1/releases?platform=android&step=build',
   );
-  assert.equal(withoutPromote('#/portfolio/app1/releases?from=beta&codes=1'), '#/portfolio/app1/releases');
+  assert.equal(
+    withoutPromote('#/portfolio/app1/releases?from=beta&codes=1'),
+    '#/portfolio/app1/releases',
+  );
   assert.equal(withoutPromote('#/portfolio/app1/releases'), '#/portfolio/app1/releases');
 });

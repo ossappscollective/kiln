@@ -15,8 +15,12 @@ const BODY = {
   userFraction: 0.1,
   notes: [{ locale: 'en-US', text: 'Fixes' }],
 };
-const check = (t: Awaited<ReturnType<typeof bootStaged>>, app: string, body: unknown, cookie = t.owner) =>
-  t.call(cookie, 'POST', `/apps/${app}/release/play-check`, body);
+const check = (
+  t: Awaited<ReturnType<typeof bootStaged>>,
+  app: string,
+  body: unknown,
+  cookie = t.owner,
+) => t.call(cookie, 'POST', `/apps/${app}/release/play-check`, body);
 
 dbTest(
   'a check asks the connector with what was proposed, needs no switch, never releases, and is audited as a credential use',
@@ -26,7 +30,12 @@ dbTest(
     const res = await check(t, app, BODY);
     assert.equal(res.status, 200, res.text.slice(0, 300));
     assert.deepEqual(
-      [res.body.check.outcome, res.body.check.committed, res.body.check.status, res.body.check.userFraction],
+      [
+        res.body.check.outcome,
+        res.body.check.committed,
+        res.body.check.status,
+        res.body.check.userFraction,
+      ],
       ['no_errors', false, 'inProgress', 0.1],
     );
     assert.match(res.body.check.note, /Play Console may still show warnings/);
@@ -96,11 +105,21 @@ dbTest('a bad request is refused before any store is reached', async (db) => {
   await refused({ ...BODY, userFraction: 1.5 }, 400, 'invalid_request');
   await refused({ ...BODY, userFraction: 0.12345 }, 422, 'invalid_user_fraction');
   await refused({ ...BODY, status: 'draft' }, 422, 'invalid_user_fraction');
-  await refused({ ...BODY, status: 'inProgress', userFraction: undefined }, 422, 'invalid_user_fraction');
+  await refused(
+    { ...BODY, status: 'inProgress', userFraction: undefined },
+    422,
+    'invalid_user_fraction',
+  );
   await refused({ ...BODY, status: 'completed' }, 422, 'invalid_user_fraction');
   await refused({ ...BODY, notes: [{ locale: 'english', text: 'x' }] }, 422, 'invalid_locale');
   await refused(
-    { ...BODY, notes: [{ locale: 'en-US', text: 'a' }, { locale: 'en_US', text: 'b' }] },
+    {
+      ...BODY,
+      notes: [
+        { locale: 'en-US', text: 'a' },
+        { locale: 'en_US', text: 'b' },
+      ],
+    },
     422,
     'invalid_request',
   );
@@ -109,7 +128,10 @@ dbTest('a bad request is refused before any store is reached', async (db) => {
   assert.equal(t.releaseStores.android.checks.length, 0);
   assert.equal(t.releaseStores.ios.checks.length, 0);
   assert.equal(t.releaseBuilt.length, 0, 'no connector was built');
-  assert.equal((await t.call(t.owner, 'POST', '/apps/no-such-app/release/play-check', BODY)).status, 404);
+  assert.equal(
+    (await t.call(t.owner, 'POST', '/apps/no-such-app/release/play-check', BODY)).status,
+    404,
+  );
 });
 
 dbTest('rights: a viewer may check, a stranger gets 404', async (db) => {
@@ -122,31 +144,40 @@ dbTest('rights: a viewer may check, a stranger gets 404', async (db) => {
   assert.equal((await check(t, app, BODY, outsider)).status, 404);
 });
 
-dbTest('a store failure is an answer with a fixed sentence and no secret; a check can time out', async (db) => {
-  const t = await bootStaged(db);
-  const app = await t.addApp('android');
-  t.releaseStores.android.checkError = new StoreError(
-    'googleplay',
-    'forbidden',
-    'Google Play refused (403).',
-    403,
-  );
-  const denied = await check(t, app, BODY);
-  assert.equal(denied.status, 422);
-  assert.equal(denied.body.error, 'store_forbidden');
-  t.releaseStores.android.checkError = new StoreError('googleplay', 'server', 'Google Play failed (HTTP 503).', 503);
-  const down = await check(t, app, BODY);
-  assert.equal(down.status, 502);
-  assert.equal(down.body.error, 'store_unavailable');
-  assert.match(down.body.message, /Nothing was saved in Google Play/);
-  t.releaseStores.android.checkError = new Error('socket PRIVATE KEY bearer abc');
-  const odd = await check(t, app, BODY);
-  assert.equal(odd.status, 502);
-  assert.equal(odd.body.error, 'check_failed');
-  assert.ok(!odd.text.includes('PRIVATE KEY'));
-  const all = [denied.text, down.text, odd.text].join('\n');
-  for (const leak of ['PRIVATE KEY', 'client_email', 'mrm_']) assert.ok(!all.includes(leak), leak);
-});
+dbTest(
+  'a store failure is an answer with a fixed sentence and no secret; a check can time out',
+  async (db) => {
+    const t = await bootStaged(db);
+    const app = await t.addApp('android');
+    t.releaseStores.android.checkError = new StoreError(
+      'googleplay',
+      'forbidden',
+      'Google Play refused (403).',
+      403,
+    );
+    const denied = await check(t, app, BODY);
+    assert.equal(denied.status, 422);
+    assert.equal(denied.body.error, 'store_forbidden');
+    t.releaseStores.android.checkError = new StoreError(
+      'googleplay',
+      'server',
+      'Google Play failed (HTTP 503).',
+      503,
+    );
+    const down = await check(t, app, BODY);
+    assert.equal(down.status, 502);
+    assert.equal(down.body.error, 'store_unavailable');
+    assert.match(down.body.message, /Nothing was saved in Google Play/);
+    t.releaseStores.android.checkError = new Error('socket PRIVATE KEY bearer abc');
+    const odd = await check(t, app, BODY);
+    assert.equal(odd.status, 502);
+    assert.equal(odd.body.error, 'check_failed');
+    assert.ok(!odd.text.includes('PRIVATE KEY'));
+    const all = [denied.text, down.text, odd.text].join('\n');
+    for (const leak of ['PRIVATE KEY', 'client_email', 'mrm_'])
+      assert.ok(!all.includes(leak), leak);
+  },
+);
 
 dbTest('checks are rate limited per workspace', async (db) => {
   const t = await bootStaged(db);

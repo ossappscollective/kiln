@@ -81,20 +81,24 @@ export function storeVersionRoutes(ctx: VersionRoutesContext) {
     return next();
   };
 
-  routes.post('/:workspaceId/apps/:id/store-version/preview', needs('store.push_draft'), async (c) => {
-    if (!version.versionEnabled) return respond(c, versionDisabledFailure());
-    const body = await parseBody(c, versionPreviewBody);
-    if (!body.ok) return body.response;
-    const done = await previewVersion(version, {
-      workspaceId: ws(c),
-      appId: param(c, 'id'),
-      versionString: body.data.versionString,
-      releaseType: body.data.releaseType,
-      actor: actor(c),
-    });
-    c.header('Cache-Control', 'no-store');
-    return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
-  });
+  routes.post(
+    '/:workspaceId/apps/:id/store-version/preview',
+    needs('store.push_draft'),
+    async (c) => {
+      if (!version.versionEnabled) return respond(c, versionDisabledFailure());
+      const body = await parseBody(c, versionPreviewBody);
+      if (!body.ok) return body.response;
+      const done = await previewVersion(version, {
+        workspaceId: ws(c),
+        appId: param(c, 'id'),
+        versionString: body.data.versionString,
+        releaseType: body.data.releaseType,
+        actor: actor(c),
+      });
+      c.header('Cache-Control', 'no-store');
+      return done.ok ? c.json({ preview: done.preview }) : respond(c, done);
+    },
+  );
 
   // Creates one version of one app per request. It writes the version only: no text, no build, no submission, no release.
   routes.post('/:workspaceId/apps/:id/store-version', needs('store.push_draft'), async (c) => {

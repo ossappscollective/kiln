@@ -31,7 +31,13 @@ export function platformStatusLines(
     .map((m): PlatformStatusLine => {
       const list = releases[m.id];
       if (list === undefined) {
-        return { platform: m.platform, label: 'Reading', version: null, tone: 'neutral', text: 'Reading the releases' };
+        return {
+          platform: m.platform,
+          label: 'Reading',
+          version: null,
+          tone: 'neutral',
+          text: 'Reading the releases',
+        };
       }
       const latest = latestRelease(list, m.platform);
       if (latest === null) {

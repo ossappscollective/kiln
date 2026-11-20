@@ -93,4 +93,3 @@ publish all" does not ask for the typed phrase: the grant is bound to the plan h
 a phrase (`stepUpCovers` in `services/step-up.ts`; `confirmationRequired` is false in the plan, the dialog shows its "I have read the plan"
 box and then the confirmation dialog). The plan still says it is irreversible. With the policy off, for a token, or for a person with no way
 to confirm, the typed phrase stays. The single steps (push, submit, release, rollout) keep their own phrases: this is only the batch.
-

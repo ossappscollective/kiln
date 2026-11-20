@@ -699,18 +699,29 @@ export function requestsFor(
 }
 
 /** What the release inputs of the dialog start with: the staged track, and the share staged as an intention (a reminder, never sent by itself). */
-export function releaseInputDefaults(plan: PublishPlan | null): { track: string; sharePercent: string; direct: boolean } {
+export function releaseInputDefaults(plan: PublishPlan | null): {
+  track: string;
+  sharePercent: string;
+  direct: boolean;
+} {
   const staged = plan?.direct ?? null;
   const fraction = staged?.stagedFraction ?? null;
   return {
     track: staged?.track ?? 'production',
-    sharePercent: fraction !== null && fraction > 0 && fraction <= 1 ? String(Math.round(fraction * 10000) / 100) : '',
+    sharePercent:
+      fraction !== null && fraction > 0 && fraction <= 1
+        ? String(Math.round(fraction * 10000) / 100)
+        : '',
     direct: plan?.defaultedToDirect === true,
   };
 }
 
 /** The release step the person adds in the dialog: direct when the plan was made as a direct release. */
-export const releaseStepRequest = (input: { track: string; fraction: number; direct: boolean }): StepRequest => ({
+export const releaseStepRequest = (input: {
+  track: string;
+  fraction: number;
+  direct: boolean;
+}): StepRequest => ({
   type: 'release',
   track: input.track.trim(),
   userFraction: input.fraction,
@@ -950,7 +961,10 @@ const SAYS_STORE = ['store_rejected', 'store_forbidden', 'store_not_found', 'dra
 export function storeSaid(step: { error: string; message?: string | undefined }): string {
   // Only for a refusal by the store: the reason (what to fix) is what the person needs. Other codes keep their fixed words.
   if (SAYS_STORE.indexOf(step.error) < 0) return '';
-  const raw = (step.message ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const raw = (step.message ?? '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (raw === '' || raw === step.error) return '';
   const cut = raw.length > 1200 ? `${raw.slice(0, 1197)}...` : raw;
   return `The store said: ${cut}`;
@@ -1025,7 +1039,10 @@ export type ResultSummary = {
   stoppedAt: string | null;
 };
 
-export function resultSummary(result: PublishResult, askedFraction: number | null = null): ResultSummary {
+export function resultSummary(
+  result: PublishResult,
+  askedFraction: number | null = null,
+): ResultSummary {
   const rows = result.steps.map((s) => resultRow(s, askedFraction));
   const stoppedAt = result.stoppedAt === null ? null : STEP_NAME[result.stoppedAt];
   if (result.completed) {

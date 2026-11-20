@@ -330,8 +330,7 @@ export function promoteNotesLine(
   codes: readonly string[],
 ): { tone: 'info' | 'ok' | 'warn'; text: string } {
   const release = `the ${fromLabel} release`;
-  if (state.status === 'loading')
-    return { tone: 'info', text: `Reading the notes of ${release}.` };
+  if (state.status === 'loading') return { tone: 'info', text: `Reading the notes of ${release}.` };
   if (state.status === 'error')
     return {
       tone: 'warn',
@@ -347,7 +346,8 @@ export function promoteNotesLine(
       tone: 'warn',
       text: `The ${fromLabel} release has no notes; write them or reuse earlier ones.`,
     };
-  const code = codes.length > 0 ? ` (version code${codes.length === 1 ? '' : 's'} ${list(codes)})` : '';
+  const code =
+    codes.length > 0 ? ` (version code${codes.length === 1 ? '' : 's'} ${list(codes)})` : '';
   if (state.filled.length === 0)
     return {
       tone: 'info',

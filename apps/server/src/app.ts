@@ -34,9 +34,9 @@ import {
 import { memberRoutes } from './routes/members.ts';
 import { type PendingRoutesContext, pendingRoutes } from './routes/pending.ts';
 import { planRoutes } from './routes/plans.ts';
+import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
 import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
-import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
 import { reviewTranslationRoutes } from './routes/review-translation.ts';
 import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
@@ -44,8 +44,8 @@ import { settingsRoutes } from './routes/settings.ts';
 import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
 import { stepUpRoutes } from './routes/step-up.ts';
 import { type ReleaseRoutesContext, storeReleaseRoutes } from './routes/store-release.ts';
-import { storeVersionRoutes, type VersionRoutesContext } from './routes/store-version.ts';
 import { type SubmitRoutesContext, storeSubmitRoutes } from './routes/store-submit.ts';
+import { storeVersionRoutes, type VersionRoutesContext } from './routes/store-version.ts';
 import { tokenRoutes } from './routes/tokens.ts';
 import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
@@ -702,9 +702,15 @@ export function createApp(deps: AppDeps) {
       now: services.now,
       version: {
         ...(deps.storeDraft?.enabled !== undefined ? { enabled: deps.storeDraft.enabled } : {}),
-        ...(deps.storeDraft?.timeoutMs !== undefined ? { timeoutMs: deps.storeDraft.timeoutMs } : {}),
-        ...(deps.storeDraft?.claimTtlMs !== undefined ? { claimTtlMs: deps.storeDraft.claimTtlMs } : {}),
-        ...(deps.storeVersion?.connectorFactory ? { connectorFactory: deps.storeVersion.connectorFactory } : {}),
+        ...(deps.storeDraft?.timeoutMs !== undefined
+          ? { timeoutMs: deps.storeDraft.timeoutMs }
+          : {}),
+        ...(deps.storeDraft?.claimTtlMs !== undefined
+          ? { claimTtlMs: deps.storeDraft.claimTtlMs }
+          : {}),
+        ...(deps.storeVersion?.connectorFactory
+          ? { connectorFactory: deps.storeVersion.connectorFactory }
+          : {}),
       },
     }),
   );
@@ -785,7 +791,12 @@ export function createApp(deps: AppDeps) {
     releaseNotesTranslateRoutes({
       db: services.db,
       now: services.now,
-      translation: { db: services.db, masterKey: services.masterKey, now: services.now, ...translationSeams },
+      translation: {
+        db: services.db,
+        masterKey: services.masterKey,
+        now: services.now,
+        ...translationSeams,
+      },
       ai: {
         db: services.db,
         masterKey: services.masterKey,
@@ -799,7 +810,8 @@ export function createApp(deps: AppDeps) {
         ...(deps.ai?.clientFactory ? { clientFactory: deps.ai.clientFactory } : {}),
       },
       gate: aiGate,
-      limiter: deps.translation?.notesLimiter ?? createTestLimiter({ now: services.now, limit: 10 }),
+      limiter:
+        deps.translation?.notesLimiter ?? createTestLimiter({ now: services.now, limit: 10 }),
     }),
   );
   // CI: workflows, dispatch and runs of a repository, and the builds of an app linked to them.

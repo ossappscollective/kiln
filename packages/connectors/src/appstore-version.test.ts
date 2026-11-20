@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AppleVersionConnector, VersionDriftError, VersionOutcomeUnknownError } from './appstore-version.ts';
+import {
+  AppleVersionConnector,
+  VersionDriftError,
+  VersionOutcomeUnknownError,
+} from './appstore-version.ts';
 import { StoreError } from './errors.ts';
 import * as fx from './store.fixtures.ts';
 
@@ -22,7 +26,9 @@ const LISTED = [
   version('m-live', '9.0', 'MAC_OS', 'READY_FOR_SALE'),
 ];
 
-function setup(options: { post?: () => Response; list?: unknown[]; platform?: 'ios' | 'macos' } = {}) {
+function setup(
+  options: { post?: () => Response; list?: unknown[]; platform?: 'ios' | 'macos' } = {},
+) {
   const calls: Call[] = [];
   const fetchFake: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -34,7 +40,14 @@ function setup(options: { post?: () => Response; list?: unknown[]; platform?: 'i
     if (method === 'POST' && url.pathname === '/v1/appStoreVersions')
       return (
         options.post?.() ??
-        json(201, { data: version('v-new', body.data.attributes.versionString, body.data.attributes.platform, 'PREPARE_FOR_SUBMISSION') })
+        json(201, {
+          data: version(
+            'v-new',
+            body.data.attributes.versionString,
+            body.data.attributes.platform,
+            'PREPARE_FOR_SUBMISSION',
+          ),
+        })
       );
     return json(404, { errors: [{ code: 'NOT_FOUND', title: 'no' }] });
   };
@@ -52,18 +65,30 @@ const posts = (calls: Call[]) => calls.filter((c) => c.method === 'POST');
 
 test('readVersions lists the versions of the platform only and marks the editable ones', async () => {
   const { connector } = setup({
-    list: [...LISTED, version('v-next', '3.2', 'IOS', 'PREPARE_FOR_SUBMISSION'), version('v-rej', '3.3', 'IOS', 'REJECTED')],
+    list: [
+      ...LISTED,
+      version('v-next', '3.2', 'IOS', 'PREPARE_FOR_SUBMISSION'),
+      version('v-rej', '3.3', 'IOS', 'REJECTED'),
+    ],
   });
   const state = await connector.readVersions();
   assert.deepEqual(
     state.versions.map((v) => [v.versionString, v.editable]),
-    [['3.1.1', false], ['3.0', false], ['3.2', true], ['3.3', true]],
+    [
+      ['3.1.1', false],
+      ['3.0', false],
+      ['3.2', true],
+      ['3.3', true],
+    ],
   );
 });
 
 test('createVersion posts the documented body once, for the platform of the record', async () => {
   const { connector, calls } = setup();
-  const done = await connector.createVersion({ request: { versionString: '3.1.2' }, guard: () => true });
+  const done = await connector.createVersion({
+    request: { versionString: '3.1.2' },
+    guard: () => true,
+  });
   assert.deepEqual(posts(calls), [
     {
       method: 'POST',
@@ -77,15 +102,26 @@ test('createVersion posts the documented body once, for the platform of the reco
       },
     },
   ]);
-  assert.deepEqual(done.version, { id: 'v-new', versionString: '3.1.2', state: 'PREPARE_FOR_SUBMISSION' });
+  assert.deepEqual(done.version, {
+    id: 'v-new',
+    versionString: '3.1.2',
+    state: 'PREPARE_FOR_SUBMISSION',
+  });
   assert.equal(done.before.versions.length, 2);
 });
 
 test('createVersion: macOS uses MAC_OS and an explicit release type is sent', async () => {
   const { connector, calls } = setup({ platform: 'macos' });
-  await connector.createVersion({ request: { versionString: '9.0.1', releaseType: 'MANUAL' }, guard: () => true });
+  await connector.createVersion({
+    request: { versionString: '9.0.1', releaseType: 'MANUAL' },
+    guard: () => true,
+  });
   const body = posts(calls)[0]?.body as { data: { attributes: Record<string, string> } };
-  assert.deepEqual(body.data.attributes, { platform: 'MAC_OS', versionString: '9.0.1', releaseType: 'MANUAL' });
+  assert.deepEqual(body.data.attributes, {
+    platform: 'MAC_OS',
+    versionString: '9.0.1',
+    releaseType: 'MANUAL',
+  });
 });
 
 test('a guard that refuses writes nothing and reports the state it saw', async () => {
@@ -97,7 +133,7 @@ test('a guard that refuses writes nothing and reports the state it saw', async (
   assert.equal(posts(calls).length, 0);
 });
 
-test('a 409 is a refusal with Apple\'s reasons, sent once and not retried', async () => {
+test("a 409 is a refusal with Apple's reasons, sent once and not retried", async () => {
   const { connector, calls } = setup({
     post: () =>
       json(409, {
@@ -129,7 +165,9 @@ test('a 5xx is an unknown outcome and a 429 is not retried', async () => {
     (e) => e instanceof VersionOutcomeUnknownError,
   );
   assert.equal(posts(lost.calls).length, 1);
-  const limited = setup({ post: () => new Response('{}', { status: 429, headers: { 'retry-after': '1' } }) });
+  const limited = setup({
+    post: () => new Response('{}', { status: 429, headers: { 'retry-after': '1' } }),
+  });
   await assert.rejects(
     limited.connector.createVersion({ request: { versionString: '3.1.2' }, guard: () => true }),
     (e) => e instanceof StoreError,
@@ -138,7 +176,9 @@ test('a 5xx is an unknown outcome and a 429 is not retried', async () => {
 });
 
 test('errors carry no key material', async () => {
-  const { connector } = setup({ post: () => json(403, { errors: [{ code: 'FORBIDDEN', title: 'no' }] }) });
+  const { connector } = setup({
+    post: () => json(403, { errors: [{ code: 'FORBIDDEN', title: 'no' }] }),
+  });
   await assert.rejects(
     connector.createVersion({ request: { versionString: '3.1.2' }, guard: () => true }),
     (e) => {

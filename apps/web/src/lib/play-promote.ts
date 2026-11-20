@@ -41,7 +41,8 @@ export const defaultTarget = (_from: string): string => PRODUCTION;
 const sameTrack = (a: string | null, b: string) => (a ?? '').toLowerCase() === b.toLowerCase();
 
 const SERVING = ['live', 'rolling_out'];
-const isServing = (r: Pick<ReleaseSummary, 'status'>) => r.status !== null && SERVING.indexOf(r.status) >= 0;
+const isServing = (r: Pick<ReleaseSummary, 'status'>) =>
+  r.status !== null && SERVING.indexOf(r.status) >= 0;
 
 /**
  * Whether this release can be promoted: Android, a track that is not production, serving users (live or rolling out), with version

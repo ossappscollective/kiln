@@ -68,7 +68,10 @@ test('planNotifications: only flagged, unread, new and unseen alerts are shown',
     startedAt: NOW,
     deviceOn: true,
   });
-  assert.deepEqual(plan.show.map((a) => a.id), ['a']);
+  assert.deepEqual(
+    plan.show.map((a) => a.id),
+    ['a'],
+  );
   assert.deepEqual(plan.mark, ['a']);
 });
 
@@ -87,7 +90,12 @@ test('planNotifications: one alert notifies once, even when read again', () => {
 });
 
 test('planNotifications: quiet when the device switch is off, and nothing replays when it is turned on', () => {
-  const off = planNotifications({ alerts: [alert('a'), alert('b')], seen: [], startedAt: NOW, deviceOn: false });
+  const off = planNotifications({
+    alerts: [alert('a'), alert('b')],
+    seen: [],
+    startedAt: NOW,
+    deviceOn: false,
+  });
   assert.deepEqual(off.show, []);
   assert.deepEqual(off.mark, ['a', 'b']);
   const later = planNotifications({
@@ -102,9 +110,15 @@ test('planNotifications: quiet when the device switch is off, and nothing replay
 test('planNotifications: at most three at once, the others are marked so they never arrive as a burst', () => {
   const alerts = ['1', '2', '3', '4', '5'].map((id) => alert(id));
   const plan = planNotifications({ alerts, seen: [], startedAt: NOW, deviceOn: true });
-  assert.deepEqual(plan.show.map((a) => a.id), ['1', '2', '3']);
+  assert.deepEqual(
+    plan.show.map((a) => a.id),
+    ['1', '2', '3'],
+  );
   assert.deepEqual(plan.mark, ['1', '2', '3', '4', '5']);
-  assert.deepEqual(planNotifications({ alerts: [], seen: [], startedAt: NOW, deviceOn: true }), { show: [], mark: [] });
+  assert.deepEqual(planNotifications({ alerts: [], seen: [], startedAt: NOW, deviceOn: true }), {
+    show: [],
+    mark: [],
+  });
 });
 
 test('remember: no duplicates, bounded, newest kept', () => {
@@ -116,7 +130,10 @@ test('remember: no duplicates, bounded, newest kept', () => {
 });
 
 test('notificationTitle: the title only, cleaned and bounded', () => {
-  assert.equal(notificationTitle(alert('x', { title: 'Weather: iOS 3.1.1 is now in review' })), 'Weather: iOS 3.1.1 is now in review');
+  assert.equal(
+    notificationTitle(alert('x', { title: 'Weather: iOS 3.1.1 is now in review' })),
+    'Weather: iOS 3.1.1 is now in review',
+  );
   assert.equal(notificationTitle({ title: '  a\nb\u0007c  ' }), 'a b c');
   const long = notificationTitle({ title: 'x'.repeat(500) });
   assert.equal(long.length, 140);
@@ -164,13 +181,23 @@ test('the kinds card lists the known kinds in order, and only those this person 
     entry('store.sync_failed', { rule: { enabled: false, channels: [] } } as Partial<CatalogEntry>),
     entry('something.else'),
   ];
-  assert.deepEqual(desktopKindEntries(catalog).map((e) => e.id), ['release.in_review', 'release.rejected']);
-  assert.equal(DESKTOP_KINDS.indexOf('release.in_review') < DESKTOP_KINDS.indexOf('release.rejected'), true);
+  assert.deepEqual(
+    desktopKindEntries(catalog).map((e) => e.id),
+    ['release.in_review', 'release.rejected'],
+  );
+  assert.equal(
+    DESKTOP_KINDS.indexOf('release.in_review') < DESKTOP_KINDS.indexOf('release.rejected'),
+    true,
+  );
 
-  const rejected = entry('release.rejected', { rule: { enabled: true, channels: ['in_app', 'desktop'] } } as Partial<CatalogEntry>);
+  const rejected = entry('release.rejected', {
+    rule: { enabled: true, channels: ['in_app', 'desktop'] },
+  } as Partial<CatalogEntry>);
   assert.equal(kindUsesDesktop(rejected, []), true, 'the workspace default');
   assert.equal(
-    kindUsesDesktop(rejected, [{ alertType: 'release.rejected', appId: null, channels: ['in_app'] } as never]),
+    kindUsesDesktop(rejected, [
+      { alertType: 'release.rejected', appId: null, channels: ['in_app'] } as never,
+    ]),
     false,
     'the person turned it off',
   );

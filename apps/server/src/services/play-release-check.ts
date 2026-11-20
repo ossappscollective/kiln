@@ -3,9 +3,9 @@ import {
   type PlayCheckFinding,
   type PlayCheckRelease,
   redactSecrets,
-  secretStrings,
   StoreError,
   StoreRateLimitError,
+  secretStrings,
 } from '@mrm/connectors';
 import { isApplePlatform, normalizeReleaseValue, versionCodesOf } from '@mrm/core';
 import type { Database } from '@mrm/db';
@@ -205,7 +205,11 @@ const mapFailure = (error: unknown, secret: string): Failure => {
 
 export async function checkPlayReleaseOf(
   ctx: PlayCheckContext,
-  input: { workspaceId: string; app: ManagedApp; actor: { type: 'user' | 'token' | 'system'; id: string } } & {
+  input: {
+    workspaceId: string;
+    app: ManagedApp;
+    actor: { type: 'user' | 'token' | 'system'; id: string };
+  } & {
     body: PlayCheckInput;
   },
 ): Promise<{ ok: true; check: PlayCheckView } | Failure> {
@@ -286,7 +290,9 @@ export async function checkPlayReleaseOf(
         status: release.status,
         userFraction: release.userFraction ?? null,
         outcome: result.outcome,
-        findings: result.findings.slice(0, 20).map((f) => ({ stage: f.stage, message: clean(f.message) })),
+        findings: result.findings
+          .slice(0, 20)
+          .map((f) => ({ stage: f.stage, message: clean(f.message) })),
         committed: false,
         checkedAt: ctx.now(),
         note: result.outcome === 'no_errors' ? PLAY_CHECK_NO_ERRORS_NOTE : PLAY_CHECK_ERRORS_NOTE,

@@ -317,7 +317,8 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
       `staging the release in the ${track} track`,
       { track, releases: [...kept, release] },
     );
-    if (staged.kind === 'finding') return { outcome: 'errors', findings: [staged.finding('stage')] };
+    if (staged.kind === 'finding')
+      return { outcome: 'errors', findings: [staged.finding('stage')] };
     const validated = await this.#tryCall(
       http,
       'POST',
@@ -337,7 +338,8 @@ export class PlayReleaseConnector implements StoreReleaseConnector, StorePlayRel
     what: string,
     json?: unknown,
   ): Promise<
-    { kind: 'ok' } | { kind: 'finding'; finding: (stage: PlayCheckFinding['stage']) => PlayCheckFinding }
+    | { kind: 'ok' }
+    | { kind: 'finding'; finding: (stage: PlayCheckFinding['stage']) => PlayCheckFinding }
   > {
     for (let attempt = 0; ; attempt++) {
       const token = await this.#tokens.token();

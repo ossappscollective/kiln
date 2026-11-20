@@ -30,7 +30,11 @@ export type PlayCheckContext = {
   /** The languages that have a store listing (a language without release notes is easy to miss). */
   listingLocales: readonly string[];
   /** The releases the target track holds now (draft, rolling out, completed), as read from the store. */
-  trackReleases: readonly { name?: string | null; status: string; versionCodes: readonly string[] }[];
+  trackReleases: readonly {
+    name?: string | null;
+    status: string;
+    versionCodes: readonly string[];
+  }[];
 };
 
 export type PlayLocalCheck = {
@@ -63,7 +67,8 @@ export function playStateText(
   return `Rolling out to ${percent(userFraction ?? 0)} of the users of the ${track} track. You can raise the share, halt it or complete it later.`;
 }
 
-const codeNumber = (code: string): number => (/^[0-9]{1,10}$/.test(code) ? Number(code) : Number.NaN);
+const codeNumber = (code: string): number =>
+  /^[0-9]{1,10}$/.test(code) ? Number(code) : Number.NaN;
 
 const LIVE = ['completed', 'inProgress', 'halted'];
 

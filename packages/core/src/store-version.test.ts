@@ -25,7 +25,18 @@ test('nextVersion: no version yet is 1.0, an unreadable one is left to the perso
 
 test('isDottedVersion accepts one to three numbers only', () => {
   for (const ok of ['1', '1.0', '10.20.30', '0.0.1']) assert.equal(isDottedVersion(ok), true, ok);
-  for (const bad of ['', '1.', '.1', '1..2', '1.2.3.4', 'v1.0', '1.0-beta', '1 .0', '-1', '1234567890'])
+  for (const bad of [
+    '',
+    '1.',
+    '.1',
+    '1..2',
+    '1.2.3.4',
+    'v1.0',
+    '1.0-beta',
+    '1 .0',
+    '-1',
+    '1234567890',
+  ])
     assert.equal(isDottedVersion(bad), false, bad);
 });
 

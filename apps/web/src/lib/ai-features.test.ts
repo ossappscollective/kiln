@@ -5,8 +5,8 @@ import { aiAcceptAction, can } from '@mrm/core';
 import {
   type AiConfig,
   acceptBody,
-  acceptedNote,
   acceptButtonLabel,
+  acceptedNote,
   acceptLabel,
   aiChanges,
   aiErrorMessage,

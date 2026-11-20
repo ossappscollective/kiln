@@ -5,8 +5,8 @@ import {
   countCharacters,
   isApplePlatform,
   isStageableTextField,
-  languageOf,
   type ListingFieldSpec,
+  languageOf,
   matchWords,
   PLAY_FIELD_SPECS,
   type Platform,
@@ -125,10 +125,7 @@ export type FieldMeter = {
 export const lengthOf = (text: string, unit: 'characters' | 'bytes'): number =>
   unit === 'bytes' ? countBytes(text) : countCharacters(text);
 
-export function measureField(
-  info: Pick<FieldInfo, 'limit' | 'unit'>,
-  text: string,
-): FieldMeter {
+export function measureField(info: Pick<FieldInfo, 'limit' | 'unit'>, text: string): FieldMeter {
   const used = lengthOf(text, info.unit);
   if (info.limit === null) {
     return {

@@ -334,10 +334,7 @@ export function classifyReleaseFailure(
   return failure;
 }
 
-function classifyReleaseFailureBase(
-  error: unknown,
-  phase: 'preview' | 'release',
-): ReleaseFailure {
+function classifyReleaseFailureBase(error: unknown, phase: 'preview' | 'release'): ReleaseFailure {
   if (!(error instanceof ApiError))
     return {
       kind: 'other',

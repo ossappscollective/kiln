@@ -1,5 +1,3 @@
-import type { StagedRolloutMode } from '@mrm/core';
-import type { ReleaseSettingsView } from './release-settings.ts';
 import type {
   AiSuggestionStatus,
   AiSuggestionView,
@@ -7,6 +5,7 @@ import type {
   Listing,
   ListingProblem,
   StagedChangesView,
+  StagedRolloutMode,
   StoreImagesView,
 } from '@mrm/core';
 import type {
@@ -99,6 +98,7 @@ import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts
 import type { NotesHistory } from './release-notes.ts';
 import type { TranslateNotesBody, TranslateNotesResult } from './release-notes-translate.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
+import type { ReleaseSettingsView } from './release-settings.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
 import type {
@@ -129,7 +129,6 @@ import {
   type StepUpTarget,
   stepUpMessage,
 } from './step-up.ts';
-import type { VersionPreview, VersionResult } from './store-version.ts';
 import type {
   ReleaseBody,
   ReleasePreview,
@@ -150,6 +149,7 @@ import type {
   SubmitResult,
   SubmitState,
 } from './store-submit.ts';
+import type { VersionPreview, VersionResult } from './store-version.ts';
 import {
   type CodeSent,
   type LoginMethod,
@@ -1561,7 +1561,13 @@ export function createApi(options: ApiOptions = {}) {
     releaseNotesHistory: (
       workspaceId: string,
       appId: string,
-      query: { platform?: string; locale?: string; limit?: number; track?: string; codes?: string[] } = {},
+      query: {
+        platform?: string;
+        locale?: string;
+        limit?: number;
+        track?: string;
+        codes?: string[];
+      } = {},
     ) => {
       const q = new URLSearchParams();
       if (query.platform) q.set('platform', query.platform);
@@ -1976,13 +1982,20 @@ export function createApi(options: ApiOptions = {}) {
       ),
     // Per-app release settings of Google Play (docs/api/releases-write.md): default share, staged rollout mode. Stored values, no store call.
     appReleaseSettings: (workspaceId: string, appId: string) =>
-      request<ReleaseSettingsView>('GET', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`),
+      request<ReleaseSettingsView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`,
+      ),
     updateAppReleaseSettings: (
       workspaceId: string,
       appId: string,
       changes: { defaultSharePercent?: number | null; stagedRollout?: StagedRolloutMode },
     ) =>
-      request<{ settings: ReleaseSettingsView['settings']; changed: boolean }>('PUT', `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`, changes),
+      request<{ settings: ReleaseSettingsView['settings']; changed: boolean }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-settings`,
+        changes,
+      ),
     // AI assistance (docs/api/ai.md, docs/adr/0016-ai-foundation.md). A run makes a SUGGESTION and changes nothing; accepting calls an
     // existing service (keywords, a staged text, a reply draft). Nothing here pushes, submits, publishes or sends. No key is ever returned.
     aiConfig: (workspaceId: string) =>

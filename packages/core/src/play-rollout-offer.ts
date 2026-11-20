@@ -62,7 +62,11 @@ export function rolloutOffer(input: {
   earlierProductionRelease: boolean;
 }): RolloutOffer {
   if (input.mode === 'never') return { offered: false, reason: 'never', message: NEVER_MESSAGE };
-  if (input.mode === 'auto' && input.track.trim() === 'production' && !input.earlierProductionRelease)
+  if (
+    input.mode === 'auto' &&
+    input.track.trim() === 'production' &&
+    !input.earlierProductionRelease
+  )
     return { offered: false, reason: 'first_release', message: FIRST_RELEASE_MESSAGE };
   return { offered: true, reason: null, message: null };
 }
@@ -92,7 +96,10 @@ export const FRACTION_REFUSED_MESSAGE =
  * The plain message for a refusal that is about a staged rollout, or null when the words are about something else. Only when a share
  * below 100% was asked for (a refusal of a 100% release is not about the share).
  */
-export function fractionRefusalNotice(message: string, askedFraction: number | null): string | null {
+export function fractionRefusalNotice(
+  message: string,
+  askedFraction: number | null,
+): string | null {
   if (askedFraction === null || !(askedFraction < 1)) return null;
   return mentionsFractionRefusal(message) ? FRACTION_REFUSED_MESSAGE : null;
 }

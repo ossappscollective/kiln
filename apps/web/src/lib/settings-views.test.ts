@@ -81,11 +81,10 @@ test('General lists Store refresh first, then the other parts in the order they 
 
 test('Security keeps confirmation, the second factor and (for admins) mail together', () => {
   assert.deepEqual(settingsSectionsFor('security'), [], 'two parts need no jump row');
-  assert.deepEqual(settingsSectionsFor('security', true).map((s) => s.label), [
-    'Confirm hard actions',
-    'Authenticator and email',
-    'Mail server',
-  ]);
+  assert.deepEqual(
+    settingsSectionsFor('security', true).map((s) => s.label),
+    ['Confirm hard actions', 'Authenticator and email', 'Mail server'],
+  );
 });
 
 test('views with fewer than three parts have no jump row', () => {

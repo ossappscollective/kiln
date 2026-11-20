@@ -4,9 +4,9 @@ import { StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
 import { FakeRolloutStore } from './rollout-test-helpers.ts';
 import { textEntry } from './services/store-draft-record.ts';
-import { PASSWORD } from './testkit.ts';
 import type { RolloutConnectorFactory } from './services/store-rollout.ts';
 import { bootStaged, type StagedBoot } from './staged-test-helpers.ts';
+import { PASSWORD } from './testkit.ts';
 
 /**
  * Publishing several steps at once (docs/api/pending.md, docs/adr/0015-pending-and-batch-publish.md) and the pending view. Everything
@@ -281,12 +281,21 @@ dbTest(
       [['draft_release', 'release', 'draft_release:production:241']],
       'no "submit" item for a push that held only release fields',
     );
-    assert.match(view.platforms[0].items[0].label, /Draft release in production with 1 version code 241, not released yet/);
+    assert.match(
+      view.platforms[0].items[0].label,
+      /Draft release in production with 1 version code 241, not released yet/,
+    );
     assert.deepEqual(view.totals.nextSteps, ['release']);
     const summary = await line();
     assert.deepEqual(
       [summary.count, summary.waiting, summary.blocking, summary.kinds, summary.nextSteps],
-      [view.totals.actionable, view.totals.items - view.totals.actionable, view.totals.blocking, ['draft_release'], ['release']],
+      [
+        view.totals.actionable,
+        view.totals.items - view.totals.actionable,
+        view.totals.blocking,
+        ['draft_release'],
+        ['release'],
+      ],
       'the banner and the detail count the same',
     );
 
@@ -317,15 +326,26 @@ dbTest(
         [id, app, t.workspaceId, `v-${id}`, track, status, JSON.stringify({ versionCodes: codes })],
       );
     await insert('d-1', 'internal', 'draft', ['300']);
-    assert.deepEqual((await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.totals.items, 0);
+    assert.deepEqual(
+      (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending.totals.items,
+      0,
+    );
     await insert('d-2', 'production', 'draft', ['198', '197']);
     await insert('d-3', 'production', 'live', ['190']);
     const view = (await t.call(t.owner, 'GET', `/apps/${app}/pending`)).body.pending;
     assert.deepEqual(
-      (view.platforms[0].items as any[]).map((i) => [i.kind, i.id, i.nextStep, i.counts.versionCodes]),
+      (view.platforms[0].items as any[]).map((i) => [
+        i.kind,
+        i.id,
+        i.nextStep,
+        i.counts.versionCodes,
+      ]),
       [['draft_release', 'draft_release:production:197,198', 'release', 2]],
     );
-    assert.match(view.platforms[0].items[0].label, /with 2 version codes 197, 198, not released yet/);
+    assert.match(
+      view.platforms[0].items[0].label,
+      /with 2 version codes 197, 198, not released yet/,
+    );
     const line = (await t.call(t.owner, 'GET', '/pending/summary')).body.apps[0];
     assert.deepEqual([line.count, line.kinds, line.nextSteps], [1, ['draft_release'], ['release']]);
   },
@@ -1115,7 +1135,9 @@ dbTest(
   async (db) => {
     const t = await boot(db);
     const app = await t.addApp('android', 'Weather');
-    t.releaseStores.android.releases = t.releaseStores.android.releases.filter((r) => r.status !== 'draft');
+    t.releaseStores.android.releases = t.releaseStores.android.releases.filter(
+      (r) => r.status !== 'draft',
+    );
     for (const body of [
       { field: 'track', value: 'production' },
       { field: 'version_codes', value: '241' },
@@ -1127,10 +1149,19 @@ dbTest(
     const plan = await t.plan(app);
     assert.equal(plan.status, 200, plan.text.slice(0, 300));
     assert.equal(plan.body.plan.defaultedToDirect, true);
-    assert.deepEqual(plan.body.plan.direct, { track: 'production', versionCodes: ['241'], stagedFraction: 0.1 });
+    assert.deepEqual(plan.body.plan.direct, {
+      track: 'production',
+      versionCodes: ['241'],
+      stagedFraction: 0.1,
+    });
     assert.deepEqual(
       plan.body.plan.steps.map((s: any) => [s.type, s.availability]),
-      [['push_draft', 'not_requested'], ['submit', 'not_requested'], ['release', 'needs_input'], ['rollout', 'not_requested']],
+      [
+        ['push_draft', 'not_requested'],
+        ['submit', 'not_requested'],
+        ['release', 'needs_input'],
+        ['rollout', 'not_requested'],
+      ],
       'the share is never implied: it needs the person',
     );
     assert.equal(plan.body.plan.confirmable, false);
@@ -1171,7 +1202,9 @@ dbTest(
   async (db) => {
     const t = await boot(db);
     const app = await t.addApp('android', 'Weather');
-    t.releaseStores.android.releases = t.releaseStores.android.releases.filter((r) => r.status !== 'draft');
+    t.releaseStores.android.releases = t.releaseStores.android.releases.filter(
+      (r) => r.status !== 'draft',
+    );
     for (const body of [
       { field: 'track', value: 'production' },
       { field: 'version_codes', value: '241' },
@@ -1202,7 +1235,9 @@ dbTest(
     const plan = await t.plan(app);
     assert.equal(plan.body.plan.defaultedToDirect, false);
     assert.equal(stepOf(plan.body, 'release').availability, 'feature_disabled');
-    const direct = await t.plan(app, [{ type: 'release', direct: true, track: 'production', userFraction: 0.1 }]);
+    const direct = await t.plan(app, [
+      { type: 'release', direct: true, track: 'production', userFraction: 0.1 },
+    ]);
     assert.equal(stepOf(direct.body, 'release').availability, 'feature_disabled');
     assert.equal(direct.body.plan.confirmable, false);
     assert.equal(t.releaseStores.android.reads + t.releaseStores.android.releaseCalls, 0);

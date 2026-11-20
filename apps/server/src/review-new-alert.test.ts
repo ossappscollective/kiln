@@ -72,10 +72,14 @@ dbTest(
     assert.deepEqual(single.map((e) => e.payload.rating).sort(), [1, 4]);
     for (const e of single) {
       assert.equal(typeof e.payload.reviewId, 'string');
-      assert.deepEqual(
-        Object.keys(e.payload).sort(),
-        ['appId', 'platform', 'rating', 'reviewId', 'store', 'storeReviewId'],
-      );
+      assert.deepEqual(Object.keys(e.payload).sort(), [
+        'appId',
+        'platform',
+        'rating',
+        'reviewId',
+        'store',
+        'storeReviewId',
+      ]);
     }
     // A low rating still raises its own event and alert as before.
     assert.equal((await t.events('review.new_low_rating')).length, 1);

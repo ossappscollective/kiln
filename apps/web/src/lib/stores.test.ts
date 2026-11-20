@@ -148,6 +148,9 @@ test('each platform has its own tint and glyph, and an unknown one is neutral', 
   const real = [platformInfo.ios, platformInfo.macos, platformInfo.android];
   assert.equal(new Set(real.map((p) => p.tint)).size, 3);
   assert.equal(new Set(real.map((p) => p.icon)).size, 3);
-  assert.deepEqual(real.map((p) => p.tint), ['ios', 'macos', 'android']);
+  assert.deepEqual(
+    real.map((p) => p.tint),
+    ['ios', 'macos', 'android'],
+  );
   assert.equal(platformById('tizen').tint, 'neutral');
 });

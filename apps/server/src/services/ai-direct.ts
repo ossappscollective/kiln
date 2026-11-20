@@ -65,13 +65,18 @@ export type DirectAnswer = {
   provider: AiProvider;
 };
 
-export async function runAiDirect(ctx: AiContext, run: DirectRun): Promise<DirectAnswer | AiFailure> {
+export async function runAiDirect(
+  ctx: AiContext,
+  run: DirectRun,
+): Promise<DirectAnswer | AiFailure> {
   const availability = await aiAvailability(ctx, run.workspaceId);
   if (availability.state !== 'ready') return unavailableFailure(availability);
   const { values } = availability.config;
   const inputText = JSON.stringify(run.input);
   const estimatedInput =
-    estimateTokens(run.task.system) + estimateTokens(inputText) + estimateTokens(JSON.stringify(run.schema));
+    estimateTokens(run.task.system) +
+    estimateTokens(inputText) +
+    estimateTokens(JSON.stringify(run.schema));
   if (estimatedInput > values.maxInputTokens) {
     return aiFail(
       422,
@@ -129,7 +134,12 @@ export async function runAiDirect(ctx: AiContext, run: DirectRun): Promise<Direc
       { budget: reserved.budget, used: reserved.used, resetsAt: usage.resetsAt },
     );
   }
-  const built: BuiltClient | AiFailure = await buildAiClient(ctx, run.workspaceId, availability, run.actor);
+  const built: BuiltClient | AiFailure = await buildAiClient(
+    ctx,
+    run.workspaceId,
+    availability,
+    run.actor,
+  );
   if ('ok' in built) {
     await settleUsage(ctx.db, runId, {
       status: 'failed',

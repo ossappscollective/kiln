@@ -669,6 +669,9 @@ test('the demo can translate release notes with its built-in model, and says in 
   if (res.status === 200) {
     assert.match(res.body.texts['de-DE'], /^\[Demo de-DE\] Faster sync\.$/);
   } else {
-    assert.ok(['ai_not_enabled', 'ai_not_configured'].includes(res.body.error), JSON.stringify(res.body));
+    assert.ok(
+      ['ai_not_enabled', 'ai_not_configured'].includes(res.body.error),
+      JSON.stringify(res.body),
+    );
   }
 });

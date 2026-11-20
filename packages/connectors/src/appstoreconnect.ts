@@ -271,10 +271,20 @@ export function appleErrorDetails(json: unknown): StoreErrorDetail[] {
     // A 409 STATE_ERROR on a version says "check associated errors": the reasons are in `meta.associatedErrors`, keyed by the
     // resource path (`/v1/ageRatingDeclarations/<id>`). They are what the person has to fix, so they are kept (the kind of resource
     // and Apple's own sentence; the ids are dropped).
-    const associated = isRecord(entry.meta) && isRecord(entry.meta.associatedErrors) ? entry.meta.associatedErrors : {};
+    const associated =
+      isRecord(entry.meta) && isRecord(entry.meta.associatedErrors)
+        ? entry.meta.associatedErrors
+        : {};
     let more = 0;
     for (const [path, list] of Object.entries(associated)) {
-      const kind = clip(path.split('/').filter((x) => /^[A-Za-z]+$/.test(x) && x !== 'v1').pop(), 60) ?? 'resource';
+      const kind =
+        clip(
+          path
+            .split('/')
+            .filter((x) => /^[A-Za-z]+$/.test(x) && x !== 'v1')
+            .pop(),
+          60,
+        ) ?? 'resource';
       for (const e of records(list)) {
         if (more >= MAX_ASSOCIATED_ERRORS) break;
         const src = isRecord(e.source) ? e.source : {};

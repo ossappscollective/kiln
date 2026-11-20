@@ -832,37 +832,74 @@ dbTest(
     assert.equal(p.request.track, 'production', 'the staged track is used when none is named');
     assert.deepEqual(p.request.versionCodes, ['241']);
     assert.equal(p.request.build, undefined, 'the notes are not repeated in the answer');
-    assert.equal(p.request.direct, true, 'so that the request of the preview can be sent back as it is');
+    assert.equal(
+      p.request.direct,
+      true,
+      'so that the request of the preview can be sent back as it is',
+    );
     assert.deepEqual(
       [p.direct.creates, p.direct.versionCodes, p.direct.name, p.direct.notesLanguages],
       [true, ['241'], '2.1 (241)', ['de-DE', 'en-US']],
     );
-    assert.match(p.direct.summary, /version code 241 to the production track for 10% of users, with release notes in de-DE, en-US\. Google reviews this release before users get it; it cannot be undone from here\./);
+    assert.match(
+      p.direct.summary,
+      /version code 241 to the production track for 10% of users, with release notes in de-DE, en-US\. Google reviews this release before users get it; it cannot be undone from here\./,
+    );
     assert.doesNotMatch(JSON.stringify(p), /Secret notes|Geheime/);
     assert.ok(codes(p.checks.warnings).includes('direct_release'));
-    assert.ok(!codes(p.checks.warnings).includes('unpushed_release_fields'), 'a direct release uses the staged fields itself');
+    assert.ok(
+      !codes(p.checks.warnings).includes('unpushed_release_fields'),
+      'a direct release uses the staged fields itself',
+    );
     assert.equal(p.confirmation.phrase, 'release com.acme.app production 10%');
     assert.ok(p.irreversible.some((l: string) => /Google reviews it before users get it/.test(l)));
 
     // The notes are bound by the hash: a changed note needs a new preview.
-    assert.equal((await t.stageField(app, { field: 'release_notes', locale: 'en-US', value: 'Other notes' })).status, 200);
-    const stale = await t.releaseApply(app, { ...DIRECT, confirmHash: p.confirmHash, confirmation: p.confirmation.phrase });
+    assert.equal(
+      (await t.stageField(app, { field: 'release_notes', locale: 'en-US', value: 'Other notes' }))
+        .status,
+      200,
+    );
+    const stale = await t.releaseApply(app, {
+      ...DIRECT,
+      confirmHash: p.confirmHash,
+      confirmation: p.confirmation.phrase,
+    });
     assert.equal(stale.status, 409);
     assert.equal(stale.body.error, 'state_changed');
     assert.equal(store.releaseCalls, 0);
 
     const again = (await t.releasePreview(app, DIRECT)).body.preview;
-    const wrong = await t.releaseApply(app, { ...DIRECT, confirmHash: again.confirmHash, confirmation: 'release com.acme.app production 100%' });
+    const wrong = await t.releaseApply(app, {
+      ...DIRECT,
+      confirmHash: again.confirmHash,
+      confirmation: 'release com.acme.app production 100%',
+    });
     assert.equal(wrong.status, 422);
-    const ok = await t.releaseApply(app, { ...DIRECT, confirmHash: again.confirmHash, confirmation: again.confirmation.phrase });
+    const ok = await t.releaseApply(app, {
+      ...DIRECT,
+      confirmHash: again.confirmHash,
+      confirmation: again.confirmation.phrase,
+    });
     assert.equal(ok.status, 200, ok.text.slice(0, 300));
     assert.doesNotMatch(JSON.stringify(ok.body), /Other notes|Geheime/);
     assert.deepEqual(store.released, ['production:241:0.1']);
-    assert.deepEqual(store.builds, [{ name: '2.1 (241)', notes: [{ locale: 'de-DE', text: 'Geheime Notizen' }, { locale: 'en-US', text: 'Other notes' }] }]);
+    assert.deepEqual(store.builds, [
+      {
+        name: '2.1 (241)',
+        notes: [
+          { locale: 'de-DE', text: 'Geheime Notizen' },
+          { locale: 'en-US', text: 'Other notes' },
+        ],
+      },
+    ]);
     const made = store.releases.find((r) => r.name === '2.1 (241)');
     assert.deepEqual([made?.status, made?.userFraction, made?.notes], ['inProgress', 0.1, 2]);
     const audit = (await t.audit('store.released'))[0];
-    assert.deepEqual([audit?.detail.direct, audit?.detail.created, audit?.detail.userFraction], [true, true, 0.1]);
+    assert.deepEqual(
+      [audit?.detail.direct, audit?.detail.created, audit?.detail.userFraction],
+      [true, true, 0.1],
+    );
     assert.doesNotMatch(JSON.stringify(audit), /Other notes|Geheime/, 'ids and counts only');
     // The staged release fields were used by this release: nothing of them waits any more.
     const waiting = await db.query(
@@ -881,16 +918,40 @@ dbTest(
     await row('2.1', ['241']);
     await row('2.0', ['200']);
     const list = await listAppReleases(db, t.workspaceId, app);
-    assert.equal(typeof list.find((r) => r.version === '2.1')?.sentForReviewAt, 'number', 'the release sent from here says so');
-    assert.equal(list.find((r) => r.version === '2.0')?.sentForReviewAt, undefined, 'an older release does not');
-    assert.equal(list.find((r) => r.version === '2.1')?.status, 'in_review', 'Google calls it live; here it reads in review');
-    assert.equal(list.find((r) => r.version === '2.0')?.status, 'live', 'an older release stays as Google says');
+    assert.equal(
+      typeof list.find((r) => r.version === '2.1')?.sentForReviewAt,
+      'number',
+      'the release sent from here says so',
+    );
+    assert.equal(
+      list.find((r) => r.version === '2.0')?.sentForReviewAt,
+      undefined,
+      'an older release does not',
+    );
+    assert.equal(
+      list.find((r) => r.version === '2.1')?.status,
+      'in_review',
+      'Google calls it live; here it reads in review',
+    );
+    assert.equal(
+      list.find((r) => r.version === '2.0')?.status,
+      'live',
+      'an older release stays as Google says',
+    );
     // The same on the release pipeline the screens draw (the Next step card), but never for the release watch.
     const { appPipeline, loadPipelineFacts } = await import('./services/release-pipeline.ts');
-    const screen = await appPipeline(db, { workspaceId: t.workspaceId, appId: app, now: Date.now() });
+    const screen = await appPipeline(db, {
+      workspaceId: t.workspaceId,
+      appId: app,
+      now: Date.now(),
+    });
     const seen = screen?.pipeline.latest.version;
     assert.equal(seen?.status, 'in_review', 'the Next step card sees the release as in review');
-    const watch = await loadPipelineFacts(db, { workspaceId: t.workspaceId, appIds: [app], now: Date.now() });
+    const watch = await loadPipelineFacts(db, {
+      workspaceId: t.workspaceId,
+      appIds: [app],
+      now: Date.now(),
+    });
     assert.equal(
       watch.facts[0]?.versions.find((v) => v.version === '2.1')?.status,
       'live',
@@ -921,22 +982,22 @@ dbTest(
   },
 );
 
-dbTest(
-  'direct: staged version codes are needed, and 100% completes the release',
-  async (db) => {
-    const t2 = await bootStaged(db);
-    const app2 = await t2.addApp('android');
-    t2.releaseStores.android.releases = [];
-    await t2.stageField(app2, { field: 'track', value: 'production' });
-    const none = await t2.releasePreview(app2, DIRECT);
-    assert.equal(none.status, 422);
-    assert.equal(none.body.error, 'version_codes_required');
-    await stageDirect(t2, app2);
-    const full = await t2.previewAndRelease(app2, { direct: true, userFraction: 1 });
-    assert.equal(full.release.status, 200, full.release.text.slice(0, 300));
-    assert.equal(t2.releaseStores.android.releases.find((r) => r.name === '2.1 (241)')?.status, 'completed');
-  },
-);
+dbTest('direct: staged version codes are needed, and 100% completes the release', async (db) => {
+  const t2 = await bootStaged(db);
+  const app2 = await t2.addApp('android');
+  t2.releaseStores.android.releases = [];
+  await t2.stageField(app2, { field: 'track', value: 'production' });
+  const none = await t2.releasePreview(app2, DIRECT);
+  assert.equal(none.status, 422);
+  assert.equal(none.body.error, 'version_codes_required');
+  await stageDirect(t2, app2);
+  const full = await t2.previewAndRelease(app2, { direct: true, userFraction: 1 });
+  assert.equal(full.release.status, 200, full.release.text.slice(0, 300));
+  assert.equal(
+    t2.releaseStores.android.releases.find((r) => r.name === '2.1 (241)')?.status,
+    'completed',
+  );
+});
 
 dbTest(
   'direct: codes that a release of the track already holds, or Play does not list, block; with the switch off nothing is read',
@@ -944,25 +1005,34 @@ dbTest(
     const t = await bootStaged(db);
     const app = await t.addApp('android');
     const store = t.releaseStores.android;
-    store.releases = [{ name: '2.1', status: 'completed', userFraction: null, versionCodes: ['241'], notes: 1 }];
+    store.releases = [
+      { name: '2.1', status: 'completed', userFraction: null, versionCodes: ['241'], notes: 1 },
+    ];
     await stageDirect(t, app);
-    assert.deepEqual(codes((await t.releasePreview(app, DIRECT)).body.preview.checks.blocking), ['codes_already_in_track']);
+    assert.deepEqual(codes((await t.releasePreview(app, DIRECT)).body.preview.checks.blocking), [
+      'codes_already_in_track',
+    ]);
     store.releases = [];
     store.uploaded.delete('241');
-    assert.deepEqual(codes((await t.releasePreview(app, DIRECT)).body.preview.checks.blocking), ['version_codes_not_uploaded']);
+    assert.deepEqual(codes((await t.releasePreview(app, DIRECT)).body.preview.checks.blocking), [
+      'version_codes_not_uploaded',
+    ]);
     assert.equal(store.releaseCalls, 0);
   },
 );
 
-dbTest('direct: with the release switch off nothing is read and no connector is built', async (db) => {
-  const off = await bootStaged(db, { release: { enabled: false } });
-  const offApp = await off.addApp('android');
-  await stageDirect(off, offApp);
-  const res = await off.releasePreview(offApp, DIRECT);
-  assert.equal(res.status, 409);
-  assert.equal(res.body.error, 'store_release_disabled');
-  noReleaseIo(off);
-});
+dbTest(
+  'direct: with the release switch off nothing is read and no connector is built',
+  async (db) => {
+    const off = await bootStaged(db, { release: { enabled: false } });
+    const offApp = await off.addApp('android');
+    await stageDirect(off, offApp);
+    const res = await off.releasePreview(offApp, DIRECT);
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error, 'store_release_disabled');
+    noReleaseIo(off);
+  },
+);
 
 // ----- per-app Google Play release settings (default share, staged rollout) ---------------------------------
 
@@ -975,7 +1045,11 @@ dbTest(
     const first = await t.call(t.owner, 'GET', path);
     assert.equal(first.status, 200, first.text);
     assert.deepEqual(first.body.settings, { defaultSharePercent: null, stagedRollout: 'auto' });
-    assert.equal(first.body.earlierProductionRelease, false, 'a first release in production: no staged rollout in auto');
+    assert.equal(
+      first.body.earlierProductionRelease,
+      false,
+      'a first release in production: no staged rollout in auto',
+    );
     const row = (id: string, track: string, status: string) =>
       db.execute(
         "INSERT INTO app_releases (id, app_id, workspace_id, platform, version, track, status, raw_state, details_json, status_since, synced_at) VALUES (?, ?, ?, 'android', ?, ?, ?, 'x', '{}', 5, 5)",
@@ -987,11 +1061,17 @@ dbTest(
     await row('r-3', 'production', 'live');
     assert.equal((await t.call(t.owner, 'GET', path)).body.earlierProductionRelease, true);
 
-    const set = await t.call(t.owner, 'PUT', path, { defaultSharePercent: 10, stagedRollout: 'never' });
+    const set = await t.call(t.owner, 'PUT', path, {
+      defaultSharePercent: 10,
+      stagedRollout: 'never',
+    });
     assert.equal(set.status, 200, set.text);
     assert.deepEqual(set.body.settings, { defaultSharePercent: 10, stagedRollout: 'never' });
     assert.deepEqual(set.body.changed.sort(), ['defaultSharePercent', 'stagedRollout']);
-    assert.deepEqual((await t.call(t.owner, 'GET', path)).body.settings, { defaultSharePercent: 10, stagedRollout: 'never' });
+    assert.deepEqual((await t.call(t.owner, 'GET', path)).body.settings, {
+      defaultSharePercent: 10,
+      stagedRollout: 'never',
+    });
     const audit = (await t.audit('app.release_settings_update'))[0];
     assert.deepEqual(audit?.detail.changes, [
       { key: 'defaultSharePercent', from: null, to: 10 },
@@ -1005,18 +1085,29 @@ dbTest(
     assert.deepEqual(same.body.changed, []);
     assert.equal((await t.audit('app.release_settings_update')).length, 2);
 
-    for (const body of [{ defaultSharePercent: 0 }, { defaultSharePercent: 101 }, { defaultSharePercent: 2.555 }, { stagedRollout: 'sometimes' }, { other: 1 }]) {
+    for (const body of [
+      { defaultSharePercent: 0 },
+      { defaultSharePercent: 101 },
+      { defaultSharePercent: 2.555 },
+      { stagedRollout: 'sometimes' },
+      { other: 1 },
+    ]) {
       const bad = await t.call(t.owner, 'PUT', path, body);
       assert.ok([400, 422].includes(bad.status), `${JSON.stringify(body)} -> ${bad.status}`);
     }
-    assert.deepEqual((await t.call(t.owner, 'GET', path)).body.settings, { defaultSharePercent: null, stagedRollout: 'never' });
+    assert.deepEqual((await t.call(t.owner, 'GET', path)).body.settings, {
+      defaultSharePercent: null,
+      stagedRollout: 'never',
+    });
 
     const member = await t.addMember('member');
     assert.equal((await t.call(member, 'GET', path)).status, 200);
     assert.equal((await t.call(member, 'PUT', path, { defaultSharePercent: 5 })).status, 403);
 
     const ios = await t.addApp('ios', 'Other');
-    const refused = await t.call(t.owner, 'PUT', `/apps/${ios}/release-settings`, { defaultSharePercent: 5 });
+    const refused = await t.call(t.owner, 'PUT', `/apps/${ios}/release-settings`, {
+      defaultSharePercent: 5,
+    });
     assert.equal(refused.status, 422);
     assert.equal(refused.body.error, 'not_applicable');
     assert.equal((await t.call(t.owner, 'GET', '/apps/nope/release-settings')).status, 404);
