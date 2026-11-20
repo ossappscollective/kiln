@@ -13,6 +13,7 @@ import {
   type ReleaseState,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
+import { releasesSentHere, sentAtOf } from './apps.ts';
 import { effectiveConventions, listConventions } from './build-conventions.ts';
 import { RELEASE_WORKFLOW } from './build-tags.ts';
 import { RUN_COLUMNS, runCountsForApp, runViews, type WorkflowRunView } from './ci-runs.ts';
@@ -78,7 +79,16 @@ const runFact = (r: WorkflowRunView): PipelineRunFact => ({
  */
 export async function loadPipelineFacts(
   sql: Sql,
-  input: { workspaceId: string; appIds?: readonly string[] | undefined; now: number },
+  input: {
+    workspaceId: string;
+    appIds?: readonly string[] | undefined;
+    now: number;
+    /**
+     * Screens only: a Google Play release this server sent in the last days reads "in review" (Google reports no review state).
+     * Not for the release watch: its "stalled" signals must not run on a state Google never reported.
+     */
+    sentForReview?: boolean | undefined;
+  },
 ): Promise<{
   facts: PipelineFacts[];
   apps: Map<string, PipelineApp>;
@@ -199,22 +209,31 @@ export async function loadPipelineFacts(
         };
       });
 
+    const sent =
+      input.sentForReview === true && app.platform === 'android'
+        ? await releasesSentHere(sql, workspaceId, app.id)
+        : [];
     const versionFacts: PipelineVersionFact[] = releases
       .filter((r) => String(r.app_id) === app.id && String(r.platform) === app.platform)
       .map((r) => {
         const status = str(r.status);
         const details = parseDetails(r.details_json);
         const track = str(r.track);
+        const known = status !== null && STATES.has(status) ? (status as ReleaseState) : null;
+        const inReview =
+          sent.length > 0 &&
+          (known === 'live' || known === 'rolling_out') &&
+          sentAtOf(sent, track === '' ? null : track, details.versionCodes) !== null;
         return {
           version: String(r.version),
           track: track === null || track === '' ? null : track,
-          status: status !== null && STATES.has(status) ? (status as ReleaseState) : null,
+          status: inReview ? ('in_review' as ReleaseState) : known,
           rawState: String(r.raw_state),
           build: str(r.build),
           versionCodes: details.versionCodes,
           rolloutFraction: details.rolloutFraction,
           // A row written before the sync recorded the time of the move: its last sync is the best lower bound.
-          since: Number(r.status_since ?? r.synced_at),
+          since: inReview ? now : Number(r.status_since ?? r.synced_at),
         };
       });
 
@@ -260,6 +279,7 @@ export async function appPipeline(
     workspaceId: input.workspaceId,
     appIds: [input.appId],
     now: input.now,
+    sentForReview: true,
   });
   const f = loaded.facts[0];
   const app = loaded.apps.get(input.appId);
@@ -298,7 +318,7 @@ export async function pipelineSummary(
   sql: Sql,
   input: { workspaceId: string; appIds?: readonly string[] | undefined; now: number },
 ): Promise<PipelineSummary> {
-  const loaded = await loadPipelineFacts(sql, input);
+  const loaded = await loadPipelineFacts(sql, { ...input, sentForReview: true });
   const apps: PipelineSummaryApp[] = [];
   const byState: Record<string, number> = {};
   for (const f of loaded.facts) {

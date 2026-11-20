@@ -249,10 +249,7 @@ export async function listAppReleases(
   return rows.map((r) => {
     const release = toRelease(r);
     if (release.platform !== 'android' || release.track === null || sent.length === 0) return release;
-    const codes = release.versionCodes ?? [];
-    const at = sent
-      .filter((s) => s.track === release.track && s.codes.some((c) => codes.indexOf(c) >= 0))
-      .reduce<number | null>((latest, s) => (latest === null || s.at > latest ? s.at : latest), null);
+    const at = sentAtOf(sent, release.track, release.versionCodes);
     if (at === null) return release;
     // Google Play reports a release in review as live (or rolling out). One this server sent in the last days reads "in review"
     // everywhere (overview, all apps, tables) until the window ends or a newer release replaces it; `rawState` stays Google's.
@@ -261,11 +258,23 @@ export async function listAppReleases(
   });
 }
 
+/** When the newest send from here matches a Google Play release (its track and one of its version codes), else null. */
+export function sentAtOf(
+  sent: readonly { track: string; codes: string[]; at: number }[],
+  track: string | null,
+  versionCodes: readonly string[] | null,
+): number | null {
+  const codes = versionCodes ?? [];
+  return sent
+    .filter((s) => s.track === track && s.codes.some((c) => codes.indexOf(c) >= 0))
+    .reduce<number | null>((latest, s) => (latest === null || s.at > latest ? s.at : latest), null);
+}
+
 /** How long a release started from here is shown as "sent for review" (Google Play never says when the review ends). */
 export const SENT_FOR_REVIEW_DAYS = 7;
 
 /** The Google Play releases this server started in the last `SENT_FOR_REVIEW_DAYS` days (from the audit log: ids only). */
-async function releasesSentHere(
+export async function releasesSentHere(
   sql: Sql,
   workspaceId: string,
   appId: string,

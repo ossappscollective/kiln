@@ -723,16 +723,15 @@ dbTest(
     const reads = t.submitStores.ios.reads;
     for (const wrong of ['', 'submit', 'SUBMIT com.acme.app 2.1', 'submit com.acme.app', 'yes']) {
       const res = await t.submitApply(app, { confirmHash: p.confirmHash, confirmation: wrong });
-      assert.equal(res.status, wrong === '' ? 400 : 422, wrong);
-      if (wrong !== '') {
-        assert.equal(res.body.error, 'confirmation_mismatch');
-        assert.equal(res.body.phrase, 'submit com.acme.app 2.1');
-      }
+      // An empty one is a wrong one too: it may be left out only when the person's own confirmation stands in for it.
+      assert.equal(res.status, 422, wrong);
+      assert.equal(res.body.error, 'confirmation_mismatch');
+      assert.equal(res.body.phrase, 'submit com.acme.app 2.1');
     }
     assert.equal(
       (await t.submitApply(app, { confirmHash: p.confirmHash })).status,
-      400,
-      'the confirmation is required',
+      422,
+      'the confirmation is required (a missing one is a wrong one)',
     );
     assert.equal(
       (await t.submitApply(app, { confirmation: p.confirmation.phrase })).status,

@@ -318,9 +318,10 @@ dbTest(
     assert.equal(wrong.status, 422);
     assert.equal(wrong.body.error, 'confirmation_mismatch');
     assert.equal(wrong.body.phrase, 'release com.acme.app 2.1');
+    // An empty confirmation is a wrong one (it may be left out when the person's own confirmation stands in for it).
     assert.equal(
       (await t.releaseApply(app, { confirmHash: p.confirmHash, confirmation: '' })).status,
-      400,
+      422,
     );
     const badHash = await t.releaseApply(app, {
       confirmHash: HASH,
@@ -346,7 +347,7 @@ dbTest(
     assert.equal(await t.releaseClaim(app), undefined);
     assert.equal(
       (await t.audit('store.release_failed')).filter((a) => a.detail.outcome === 'refused').length,
-      3,
+      4, // the wrong phrase, the empty one, the wrong hash, the drift
     );
     const ok = await t.releaseApply(app, {
       confirmHash: drift.body.preview.confirmHash,
@@ -884,6 +885,17 @@ dbTest(
     assert.equal(list.find((r) => r.version === '2.0')?.sentForReviewAt, undefined, 'an older release does not');
     assert.equal(list.find((r) => r.version === '2.1')?.status, 'in_review', 'Google calls it live; here it reads in review');
     assert.equal(list.find((r) => r.version === '2.0')?.status, 'live', 'an older release stays as Google says');
+    // The same on the release pipeline the screens draw (the Next step card), but never for the release watch.
+    const { appPipeline, loadPipelineFacts } = await import('./services/release-pipeline.ts');
+    const screen = await appPipeline(db, { workspaceId: t.workspaceId, appId: app, now: Date.now() });
+    const seen = screen?.pipeline.latest.version;
+    assert.equal(seen?.status, 'in_review', 'the Next step card sees the release as in review');
+    const watch = await loadPipelineFacts(db, { workspaceId: t.workspaceId, appIds: [app], now: Date.now() });
+    assert.equal(
+      watch.facts[0]?.versions.find((v) => v.version === '2.1')?.status,
+      'live',
+      'the release watch keeps Google’s state',
+    );
   },
 );
 
