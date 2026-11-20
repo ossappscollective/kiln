@@ -52,6 +52,7 @@ export type AppSection =
   | 'releases'
   | 'workflows'
   | 'assets'
+  | 'products'
   | 'reviews'
   | 'insights'
   | 'aso'
@@ -67,6 +68,7 @@ export const appSections: readonly AppSection[] = [
   'releases',
   'workflows',
   'assets',
+  'products',
   'reviews',
   'insights',
   'aso',
@@ -90,6 +92,7 @@ export const appSectionDefs: readonly SectionDef[] = [
   { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
   { id: 'workflows', label: 'Workflows', icon: 'play', requires: 'apps.read' },
   { id: 'assets', label: 'Assets', icon: 'images', requires: 'listing.read' },
+  { id: 'products', label: 'Products', icon: 'tag', requires: 'apps.read' },
   { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
   { id: 'insights', label: 'Insights', icon: 'trending-up', requires: 'analytics.read' },
   { id: 'aso', label: 'ASO', icon: 'trending-up', requires: 'aso.read' },

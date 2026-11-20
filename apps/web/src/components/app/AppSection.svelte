@@ -31,6 +31,7 @@
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import TestBuilds from '../builds/TestBuilds.svelte';
   import PendingChanges from '../publish/PendingChanges.svelte';
+  import ProductsTab from '../products/ProductsTab.svelte';
   import ReleaseDetail from '../release/ReleaseDetail.svelte';
   import ReviewsTab from '../reviews/ReviewsTab.svelte';
   import SegmentTabs, { segmentIds } from '../ui/SegmentTabs.svelte';
@@ -103,6 +104,18 @@
     </Alert>
   {:else}
     <ReviewsTab {api} {workspaceId} {role} {app} {now} refreshKey={syncRuns} />
+  {/if}
+{/snippet}
+{#snippet products(app: AppSummary)}
+  <!-- The in-app purchases of an App Store Connect app are one list for the app, whatever platforms it has: read for the iOS record, like the reviews. -->
+  {@const owner = reviewsOwner(app, all ?? members)}
+  {#if owner}
+    <Alert tone="info" title="These products are read once, for iOS">
+      The in-app purchases and subscriptions of an App Store Connect app are shared by its iOS and macOS entries, so they are read and edited under iOS.
+      <a href={appAddress(openId, 'products', 'ios')}>Open the iOS products</a>.
+    </Alert>
+  {:else}
+    <ProductsTab {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
   {/if}
 {/snippet}
 {#snippet builds(app: AppSummary)}
@@ -178,6 +191,8 @@
       onlocale={(next) => replaceHash(withHeaderParams(location.hash, { locale: next }))}
     />
   {/if}
+{:else if section === 'products'}
+  {@render perPlatform(products)}
 {:else if section === 'reviews'}
   {@render perPlatform(reviews)}
 {:else if section === 'builds'}

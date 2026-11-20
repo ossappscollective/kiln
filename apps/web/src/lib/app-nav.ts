@@ -4,11 +4,11 @@ import { isAsoView } from './aso/aso.ts';
 import type { IconName } from './icons.ts';
 
 /**
- * The navigation of an open app as pure functions: the six entries of the left panel, the views inside the pages that merge several
+ * The navigation of an open app as pure functions: the seven entries of the left panel, the views inside the pages that merge several
  * old pages (Store listing, Insights, Builds), the redirects from the old addresses, and the titles of the slim page header.
  * Nothing here touches `location`, the DOM or the network.
  *
- * Left panel: Overview, Releases, Store listing, Reviews, Insights, Builds. Pending changes is not an entry: it is the pending bar
+ * Left panel: Overview, Releases, Store listing, Products, Reviews, Insights, Builds. Pending changes is not an entry: it is the pending bar
  * under the header (the address `#/portfolio/<id>/pending` stays). The old pages keep their addresses and redirect:
  *   workflows   -> builds?view=workflows        test-builds -> builds?view=tests
  *   assets      -> listing?view=graphics        analytics   -> insights
@@ -24,6 +24,7 @@ export const primaryNav: readonly NavEntry[] = [
   { id: 'dashboard', label: 'Overview', icon: 'grid', requires: 'apps.read' },
   { id: 'releases', label: 'Releases', icon: 'rocket', requires: 'apps.read' },
   { id: 'listing', label: 'Store listing', icon: 'file-text', requires: 'listing.read' },
+  { id: 'products', label: 'Products', icon: 'tag', requires: 'apps.read' },
   { id: 'reviews', label: 'Reviews', icon: 'message', requires: 'reviews.read' },
   { id: 'insights', label: 'Insights', icon: 'trending-up', requires: 'analytics.read' },
   { id: 'builds', label: 'Builds', icon: 'pipeline', requires: 'apps.read' },
@@ -260,6 +261,7 @@ const TITLES: Readonly<Record<AppSection, string>> = {
   dashboard: 'Overview',
   releases: 'Releases',
   listing: 'Store listing',
+  products: 'Products',
   reviews: 'Reviews',
   insights: 'Insights',
   builds: 'Builds',

@@ -800,9 +800,11 @@ export type WorkflowRun = {
   workflow: string;
   workflowPath: string | null;
   title: string | null;
-  /** GitHub's status verbatim (`queued`, `in_progress`, `completed`, ...) or `pending`. */
+  /** GitHub's status verbatim (`queued`, `in_progress`, `completed`, ...) or `pending`; another provider's is put into these words. */
   status: string;
   conclusion: string | null;
+  /** The CI provider (`github`, `eas-workflows`; `ciProviderMeta` in `@mrm/core`). Absent from older servers: GitHub. */
+  provider?: string | undefined;
   /** True while the run is not finished. */
   active: boolean;
   headSha: string | null;
@@ -1442,4 +1444,117 @@ export type EasConfigView = {
   config: EasConfig | null;
   expoApp: ExpoAppSummary | null;
   findings: EasFinding[];
+};
+
+// ----- In-app purchases and subscriptions (docs/api/products.md, docs/adr/0034-in-app-products.md) -----------------
+
+export type ProductKind = 'consumable' | 'non_consumable' | 'subscription';
+export type ProductState =
+  | 'draft'
+  | 'in_review'
+  | 'action_needed'
+  | 'active'
+  | 'inactive'
+  | 'removed'
+  | 'unknown';
+
+/** A price as the store has it. `amount` is in minor units, as a string of digits (`"499"` is 4.99 USD); `display` is for a person. */
+export type ProductPrice = {
+  /** Google Play: the base plan or purchase option. Apple: null. */
+  planId: string | null;
+  territory: string;
+  currency: string;
+  amount: string;
+  display: string;
+};
+
+export type ProductSummary = {
+  productId: string;
+  kind: ProductKind;
+  referenceName: string;
+  state: ProductState;
+  /** The store's own state, verbatim. */
+  rawState: string | null;
+  group: string | null;
+  period: string | null;
+  /** The display name of one locale (`en-US` when there is one). */
+  name: string | null;
+  locales: string[];
+  price: ProductPrice | null;
+  territoryCount: number;
+  syncedAt: number;
+};
+
+export type ProductDetail = ProductSummary & {
+  baseTerritory: string | null;
+  localizations: { locale: string; name: string; description: string }[];
+  prices: ProductPrice[];
+  availability: { territories: string[]; availableInNewTerritories: boolean | null } | null;
+  plans: { id: string; state: string; period: string | null }[];
+  offers: { id: string; planId: string; state: string }[];
+};
+
+export type ProductSyncStatus = {
+  lastAttemptAt: number | null;
+  lastSyncedAt: number | null;
+  lastError: string | null;
+  failures: number;
+  productCount: number;
+  /** False when the last sync stopped at a cap: the list may not be everything the store has. */
+  complete: boolean;
+  warnings: string[];
+};
+
+export type ProductAppRef = { id: string; name: string; platform: Platform; store: string };
+
+export type ProductsView = {
+  app: ProductAppRef;
+  supported: boolean;
+  products: ProductSummary[];
+  /** Null before the first sync. */
+  sync: ProductSyncStatus | null;
+  write: { enabled: boolean; envName: string };
+};
+
+export type ProductDetailView = {
+  app: ProductAppRef;
+  product: ProductDetail;
+  sync: ProductSyncStatus | null;
+};
+
+export type ProductSyncResult = {
+  sync: {
+    app: ProductAppRef;
+    products: number;
+    complete: boolean;
+    warnings: string[];
+    syncedAt: number;
+  };
+};
+
+export type ProductTexts = { name: string; description: string };
+
+export type ProductLocalizationPreview = {
+  app: ProductAppRef;
+  product: { productId: string; kind: ProductKind; referenceName: string };
+  locale: string;
+  current: ProductTexts;
+  proposed: ProductTexts;
+  changes: { name: boolean; description: boolean };
+  unchanged: boolean;
+  previewHash: string;
+  warnings: string[];
+  readAt: number;
+};
+
+export type ProductLocalizationResult = {
+  app: ProductAppRef;
+  product: { productId: string; kind: ProductKind; referenceName: string };
+  locale: string;
+  before: ProductTexts;
+  after: ProductTexts;
+  changes: { name: boolean; description: boolean };
+  confirmedByReread: boolean;
+  appliedAt: number;
+  note: string;
 };

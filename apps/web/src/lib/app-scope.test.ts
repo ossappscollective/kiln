@@ -112,6 +112,7 @@ test('visibleSections follows the actions a role has', () => {
       'releases',
       'workflows',
       'assets',
+      'products',
       'reviews',
       'insights',
       'aso',
@@ -123,7 +124,7 @@ test('visibleSections follows the actions a role has', () => {
   );
   assert.deepEqual(
     visibleSections((a) => a === 'apps.read').map((s) => s.id),
-    ['dashboard', 'releases', 'workflows', 'builds', 'settings'],
+    ['dashboard', 'releases', 'workflows', 'products', 'builds', 'settings'],
   );
   assert.ok(appSectionDefs.every((s) => isIconName(s.icon)));
 });

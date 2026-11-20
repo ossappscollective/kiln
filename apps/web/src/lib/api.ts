@@ -79,6 +79,7 @@ import type {
   UploadQuery,
 } from './assets/sync.ts';
 import type { ExpoDetection, ExpoLinkView, SetExpoLinkBody } from './eas/eas.ts';
+import type { EasStatusView } from './eas/eas-status.ts';
 import type {
   EasRolloutPreview,
   EasRolloutRequest,
@@ -213,6 +214,11 @@ import type {
   PlanChanges,
   PlanDetail,
   PlanSummary,
+  ProductDetailView,
+  ProductLocalizationPreview,
+  ProductLocalizationResult,
+  ProductSyncResult,
+  ProductsView,
   PullRequestBody,
   PullResult,
   RematchedBuilds,
@@ -2343,6 +2349,18 @@ export function createApi(options: ApiOptions = {}) {
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas-config`,
       ),
+    // EAS Build and Submit status of the linked Expo project (docs/api/eas.md). The status is the stored snapshot (needs `builds.read`, no
+    // call to Expo); the refresh reads Expo again with the credential of the link (needs `apps.sync`). Neither changes anything at Expo.
+    easStatus: (workspaceId: string, appId: string) =>
+      request<{ status: EasStatusView }>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas/status`,
+      ),
+    refreshEasStatus: (workspaceId: string, appId: string) =>
+      request<{ status: EasStatusView }>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas/status/refresh`,
+      ),
     // EAS Update of the linked Expo project (docs/api/eas-update.md). The reads need `apps.read` and call Expo; raising a rollout is off
     // unless the server sets MRM_EAS_UPDATE_ROLLOUT_ENABLED, needs `releases.rollout`, and only `easUpdateRolloutApply` changes Expo.
     easUpdates: (workspaceId: string, appId: string) =>
@@ -2371,6 +2389,50 @@ export function createApi(options: ApiOptions = {}) {
         'POST',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/updates/rollout/apply`,
         body,
+        undefined,
+        grantHeader(grant),
+      ),
+    // In-app purchases and subscriptions (docs/api/products.md). Reads and the sync never change a store. `previewProductLocalization` reads
+    // the store and writes nothing; `applyProductLocalization` is the only write: sent once with the preview's hash, never retried by this app.
+    appProducts: (workspaceId: string, appId: string) =>
+      request<ProductsView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products`,
+      ),
+    appProduct: (workspaceId: string, appId: string, productId: string) =>
+      request<ProductDetailView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}`,
+      ),
+    syncAppProducts: (workspaceId: string, appId: string) =>
+      request<ProductSyncResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/sync`,
+      ),
+    previewProductLocalization: (
+      workspaceId: string,
+      appId: string,
+      productId: string,
+      locale: string,
+      body: { name: string; description: string },
+    ) =>
+      request<{ preview: ProductLocalizationPreview }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/localizations/${encodeURIComponent(locale)}`,
+        { apply: false, ...body },
+      ),
+    applyProductLocalization: (
+      workspaceId: string,
+      appId: string,
+      productId: string,
+      locale: string,
+      body: { name: string; description: string; previewHash: string },
+      grant?: string,
+    ) =>
+      request<{ result: ProductLocalizationResult }>(
+        'PUT',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/products/${encodeURIComponent(productId)}/localizations/${encodeURIComponent(locale)}`,
+        { apply: true, ...body },
         undefined,
         grantHeader(grant),
       ),

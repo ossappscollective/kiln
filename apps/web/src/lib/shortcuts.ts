@@ -26,6 +26,7 @@ export const appChords: readonly SectionChord[] = [
   { key: 'd', target: 'dashboard', label: 'Overview' },
   { key: 'r', target: 'releases', label: 'Releases' },
   { key: 'l', target: 'listing', label: 'Store listing' },
+  { key: 'c', target: 'products', label: 'Products' },
   { key: 'v', target: 'reviews', label: 'Reviews' },
   { key: 'i', target: 'insights', label: 'Insights' },
   { key: 'b', target: 'builds', label: 'Builds' },

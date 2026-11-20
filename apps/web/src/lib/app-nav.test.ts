@@ -23,14 +23,14 @@ import { appSectionDefs, parseAppAddress } from './app-scope.ts';
 
 const all = () => true;
 
-test('the left panel has exactly six entries, in order, and no pending changes', () => {
+test('the left panel has exactly seven entries, in order, and no pending changes', () => {
   assert.deepEqual(
     primaryNav.map((e) => e.label),
-    ['Overview', 'Releases', 'Store listing', 'Reviews', 'Insights', 'Builds'],
+    ['Overview', 'Releases', 'Store listing', 'Products', 'Reviews', 'Insights', 'Builds'],
   );
   assert.deepEqual(
     visibleNav(all).map((e) => e.id),
-    ['dashboard', 'releases', 'listing', 'reviews', 'insights', 'builds'],
+    ['dashboard', 'releases', 'listing', 'products', 'reviews', 'insights', 'builds'],
   );
   assert.ok(primaryNav.every((e) => isIconName(e.icon)));
   // Every entry is a page an address can name, with the same right.
@@ -44,7 +44,7 @@ test('the left panel has exactly six entries, in order, and no pending changes',
 test('entries follow the actions a role has', () => {
   assert.deepEqual(
     visibleNav((a) => a === 'apps.read').map((e) => e.id),
-    ['dashboard', 'releases', 'builds'],
+    ['dashboard', 'releases', 'products', 'builds'],
   );
   assert.deepEqual(
     visibleNav((a) => a === 'listing.read' || a === 'reviews.read').map((e) => e.id),
@@ -61,6 +61,7 @@ test('an old page highlights the entry that holds it now; pending and settings h
   assert.equal(navEntryOf('pending'), null);
   assert.equal(navEntryOf('settings'), null);
   assert.equal(navEntryOf('reviews'), 'reviews');
+  assert.equal(navEntryOf('products'), 'products');
 });
 
 test('the workspace rail: All apps, Inbox, Settings, and the rest in a collapsed group', () => {
@@ -351,6 +352,7 @@ test('resolveView falls back to a view the role may open', () => {
 test('page titles, and the platform control only where it means something', () => {
   assert.equal(pageTitle('dashboard'), 'Overview');
   assert.equal(pageTitle('listing'), 'Store listing');
+  assert.equal(pageTitle('products'), 'Products');
   assert.equal(pageTitle('pending'), 'Pending changes');
   assert.equal(pageTitle('aso'), 'Insights');
   assert.equal(pageTitle('test-builds'), 'Builds');
