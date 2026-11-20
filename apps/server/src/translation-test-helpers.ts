@@ -2,8 +2,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { StoreReview } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
 import { bootRepoApp } from './repo-test-helpers.ts';
-import { ASC_SECRET, FakeReplyStore, storeReview } from './review-test-helpers.ts';
-import type { ReviewConnectorFactory } from './services/review-sync.ts';
+import { ASC_SECRET, FakeReplyStore, storeReview } from './modules/reviews/test-helpers.ts';
+import type { ReviewConnectorFactory } from './modules/reviews/sync.ts';
 
 /** Shared by the settings, threshold and translation tests. Everything runs against fakes: no provider is ever contacted. */
 

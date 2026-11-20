@@ -24,7 +24,7 @@ import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { mapStoreError } from './store-draft.ts';
 import {
   deletePush,

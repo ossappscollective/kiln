@@ -15,8 +15,8 @@ import {
 } from '@mrm/connectors';
 import { addDays, dateToDay, type Platform } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import type { AnalyticsConnectorFactory } from './services/analytics-sync.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import type { AnalyticsConnectorFactory } from './sync.ts';
 
 /** Shared by the analytics tests. Everything runs against fakes: no store, and no network, is ever contacted. */
 
@@ -399,7 +399,7 @@ export type BuiltInput = {
 export async function bootAnalytics(
   db: Database,
   extra: {
-    limiter?: ReturnType<typeof import('./services/credential-tests.ts').createTestLimiter>;
+    limiter?: ReturnType<typeof import('../../services/credential-tests.ts').createTestLimiter>;
   } = {},
 ) {
   const apple = new FakeApple();

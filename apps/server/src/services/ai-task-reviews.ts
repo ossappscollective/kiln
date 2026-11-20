@@ -32,7 +32,7 @@ import {
 } from './ai-task-data.ts';
 import { bool, int, line, oneOf, paragraphOf, str, strings } from './ai-task-lenient.ts';
 import { checkScope, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
-import { getReview } from './reviews.ts';
+import { getReview } from '../modules/reviews/service.ts';
 
 /**
  * The review tasks (docs/adr/0024-ai-features.md): `review_summary`, `review_classify` and `fix_next`.

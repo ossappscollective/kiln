@@ -24,7 +24,7 @@ import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { deleteAsoData } from '../modules/aso/data.ts';
 import { deleteAiData } from './ai-suggestions.ts';
-import { deleteAnalyticsData } from './analytics-store.ts';
+import { deleteAnalyticsData } from '../modules/analytics/store.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
 import { deleteAppReleaseSettings } from './app-release-settings.ts';
 import { recordAudit } from './audit.ts';
@@ -33,7 +33,7 @@ import { recordSyncEvents, releaseStatusChanges } from './events.ts';
 import { deleteListingData, syncListing } from './listing-live.ts';
 import { recordAppliedChangeSets } from './listing-repo.ts';
 import { type Failure, failure, type Outcome } from './repositories.ts';
-import { deleteReviewData } from './reviews.ts';
+import { deleteReviewData } from '../modules/reviews/service.ts';
 
 type Actor = { type: ActorType; id: string };
 

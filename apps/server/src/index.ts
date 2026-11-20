@@ -24,13 +24,13 @@ import { pruneSessions } from './services/accounts.ts';
 import { createAlertDeliveryHandler } from './services/alert-delivery.ts';
 import { ALERT_PASS_INTERVAL_MS, createAlertRunner } from './services/alert-runner.ts';
 import { ALERT_QUEUE } from './services/alerts.ts';
-import { analyticsIntervalMs } from './services/analytics-schedule.ts';
+import { analyticsIntervalMs } from './modules/analytics/schedule.ts';
 import {
   ANALYTICS_SYNC_QUEUE,
   createAnalyticsSyncHandler,
   DEFAULT_ANALYTICS_TIMEOUT_MS,
   defaultAnalyticsConnectors,
-} from './services/analytics-sync.ts';
+} from './modules/analytics/sync.ts';
 import {
   APP_SYNC_QUEUE,
   createAppSyncHandler,
@@ -51,13 +51,13 @@ import {
 import { gitSupportsSshSigning, sshKeyFingerprint } from './services/local-git.ts';
 import { parseSmtpEnv } from './services/mail-config.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
-import { reviewSyncIntervalMs } from './services/review-schedule.ts';
+import { reviewSyncIntervalMs } from './modules/reviews/schedule.ts';
 import {
   createReviewSyncHandler,
   DEFAULT_REVIEW_TIMEOUT_MS,
   defaultReviewConnectorFactory,
   REVIEW_SYNC_QUEUE,
-} from './services/review-sync.ts';
+} from './modules/reviews/sync.ts';
 import { createWebhookHandler, pruneDeliveries, WEBHOOK_QUEUE } from './services/webhooks.ts';
 import { VERSION } from './version.ts';
 

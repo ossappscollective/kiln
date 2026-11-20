@@ -9,7 +9,7 @@ import {
   downloadsTsv,
   gz,
   SEGMENT_SECRET,
-} from './analytics-test-helpers.ts';
+} from './test-helpers.ts';
 
 // Everything here runs against fakes: no store is ever contacted.
 

@@ -1,6 +1,6 @@
 import { PLATFORMS, type Platform, type StoreId, storeOf } from '@mrm/core';
 import { oneOf, type Sql } from '@mrm/db';
-import { type ReviewStatus, reviewStatuses } from './reviews.ts';
+import { type ReviewStatus, reviewStatuses } from './service.ts';
 
 /**
  * Numbers about the reviews of one app, always with their basis: `stored` is computed from the

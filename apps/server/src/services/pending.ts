@@ -8,7 +8,7 @@ import {
 import { type Database, nullableNumber, oneOf, type Sql } from '@mrm/db';
 import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { buildStagedView } from './staged-changes.ts';
 import { loadPush, type PushRecord } from './store-draft-record.ts';
 

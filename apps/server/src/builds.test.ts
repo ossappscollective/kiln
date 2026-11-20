@@ -11,7 +11,7 @@ import {
 import { dbTest } from '@mrm/db/testing';
 import { Hono } from 'hono';
 import { bootCi, FakeCi, run } from './ci-test-helpers.ts';
-import { ASC_SECRET } from './review-test-helpers.ts';
+import { ASC_SECRET } from './modules/reviews/test-helpers.ts';
 import { publicBuildsRoutes } from './routes/builds.ts';
 import {
   artifactOwner,

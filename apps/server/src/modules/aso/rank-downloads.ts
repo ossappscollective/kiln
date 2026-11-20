@@ -14,7 +14,7 @@ import {
   rankDownloadsLimits,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { readDaily } from '../../services/analytics-store.ts';
+import { readDaily } from '../analytics/store.ts';
 import type { ManagedApp } from '../../services/apps.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
 import { type AsoKeyword, listKeywords } from './service.ts';

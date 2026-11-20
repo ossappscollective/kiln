@@ -11,10 +11,10 @@ import {
 import type { Platform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { dbTest } from '@mrm/db/testing';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import { createScheduler } from './scheduler.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
-import { queueReviewSyncs, reviewUpkeep } from './services/review-schedule.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import { createScheduler } from '../../scheduler.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
+import { queueReviewSyncs, reviewUpkeep } from './schedule.ts';
 import {
   createReviewSyncHandler,
   REVIEW_SYNC_QUEUE,
@@ -22,13 +22,13 @@ import {
   type ReviewConnectorInput,
   type ReviewsContext,
   syncReviews,
-} from './services/review-sync.ts';
+} from './sync.ts';
 import {
   deleteReviewData,
   escapeLike,
   pruneReviews,
   purgeOrphanReviewRows,
-} from './services/reviews.ts';
+} from './service.ts';
 
 // Everything here runs against fakes: no store, and not the iTunes lookup, is ever contacted.
 
@@ -87,7 +87,7 @@ const review = (
   ...over,
 });
 
-type ReviewDeps = NonNullable<Parameters<typeof import('./app.ts').createApp>[0]['reviews']>;
+type ReviewDeps = NonNullable<Parameters<typeof import('../../app.ts').createApp>[0]['reviews']>;
 
 async function boot(db: Database, reviews: ReviewDeps = {}) {
   const stores = { ios: new FakeReviews('ios'), android: new FakeReviews('android') };

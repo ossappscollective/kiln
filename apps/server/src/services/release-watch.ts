@@ -3,7 +3,7 @@ import type { Database, Row } from '@mrm/db';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
 import { loadPipelineFacts } from './release-pipeline.ts';
-import { unansweredByApp } from './review-summary.ts';
+import { unansweredByApp } from '../modules/reviews/summary.ts';
 import { getSettings } from './workspace-settings.ts';
 
 /**

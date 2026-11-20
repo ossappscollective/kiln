@@ -37,7 +37,7 @@ import {
   type PreparedRun,
   type ReadyTask,
 } from './ai-task-types.ts';
-import { overview } from './analytics-query.ts';
+import { overview } from '../modules/analytics/query.ts';
 
 /**
  * The ASO insight tasks (docs/adr/0024-ai-features.md): `listing_audit`, `aso_health` and `keyword_ideas_reviews`.

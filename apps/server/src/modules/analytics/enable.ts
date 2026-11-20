@@ -6,18 +6,18 @@ import {
   saveReportRequest,
   saveSourceState,
   setAppleMode,
-} from './analytics-store.ts';
+} from './store.ts';
 import {
   ANALYTICS_SYNC_QUEUE,
   type AnalyticsContext,
   classifyAnalyticsError,
   withDeadline,
-} from './analytics-sync.ts';
-import { getApp, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { type Failure, failure } from './repositories.ts';
-import { getSettings } from './workspace-settings.ts';
+} from './sync.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * "Enable Apple analytics" (docs/adr/0017-analytics-foundation.md): the ONE store write of analytics. It creates an

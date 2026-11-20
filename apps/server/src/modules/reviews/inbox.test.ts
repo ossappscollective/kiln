@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { bootReviews, type ReviewsBoot } from './review-test-helpers.ts';
-import { workspaceReviewsSummary } from './services/review-summary.ts';
-import { listWorkspaceReviews } from './services/reviews.ts';
+import { bootReviews, type ReviewsBoot } from './test-helpers.ts';
+import { workspaceReviewsSummary } from './summary.ts';
+import { listWorkspaceReviews } from './service.ts';
 
 type Item = {
   id: string;

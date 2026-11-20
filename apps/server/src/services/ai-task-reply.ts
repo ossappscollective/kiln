@@ -4,8 +4,8 @@ import { hasPersonalData, looksLikePromise } from './ai-app-context.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { redactPersonal } from './ai-task-data.ts';
 import { checkScope, cleanGoal, clip, type PreparedRun, type ReadyTask } from './ai-task-types.ts';
-import { replyLimitFor } from './review-replies.ts';
-import { getReview, type StoreKey } from './reviews.ts';
+import { replyLimitFor } from '../modules/reviews/replies.ts';
+import { getReview, type StoreKey } from '../modules/reviews/service.ts';
 
 /**
  * Task `review_reply_draft` (version 1): a short, polite draft reply to ONE review.

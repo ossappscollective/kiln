@@ -35,7 +35,7 @@ import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 
 /**
  * Changing a LIVE ROLLOUT in a store: a STORE WRITE (what users receive). The design copies the one

@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { StoreError, StoreRateLimitError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { bootReviews, type ReviewsBoot } from './review-test-helpers.ts';
+import { bootReviews, type ReviewsBoot } from './test-helpers.ts';
 import {
   checkTemplate,
   hashReplyText,
   plainValue,
   renderTemplate,
-} from './services/review-replies.ts';
-import { deleteReviewData, pruneReviews, purgeOrphanReviewRows } from './services/reviews.ts';
+} from './replies.ts';
+import { deleteReviewData, pruneReviews, purgeOrphanReviewRows } from './service.ts';
 
 const TEXT = 'Thanks for the feedback, SECRET-REPLY-TEXT-42, we will fix it.';
 const HOUR = 60 * 60 * 1000;

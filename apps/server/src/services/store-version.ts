@@ -22,7 +22,7 @@ import type { Database, Sql } from '@mrm/db';
 import { getApp, type ManagedApp } from './apps.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { connect, DRAFT_ENV, mapStoreError } from './store-draft.ts';
 
 /**

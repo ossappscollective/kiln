@@ -12,9 +12,9 @@ import {
 } from '@mrm/connectors';
 import type { Platform } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { bootRepoApp } from './repo-test-helpers.ts';
-import type { ReviewReplyConnectorFactory } from './services/review-replies.ts';
-import type { ReviewConnectorFactory, ReviewConnectorInput } from './services/review-sync.ts';
+import { bootRepoApp } from '../../repo-test-helpers.ts';
+import type { ReviewReplyConnectorFactory } from './replies.ts';
+import type { ReviewConnectorFactory, ReviewConnectorInput } from './sync.ts';
 
 /** Shared by the reply and inbox tests. Everything runs against fakes: no store is ever contacted. */
 
@@ -101,7 +101,7 @@ export const storeReview = (
   ...over,
 });
 
-type Deps = NonNullable<Parameters<typeof import('./app.ts').createApp>[0]['reviews']>;
+type Deps = NonNullable<Parameters<typeof import('../../app.ts').createApp>[0]['reviews']>;
 
 export async function bootReviews(db: Database, reviews: Deps = {}) {
   const stores = { ios: new FakeReplyStore('ios'), android: new FakeReplyStore('android') };

@@ -27,11 +27,11 @@ import {
   saveSourceState,
   setAppleMode,
   upsertPoints,
-} from './analytics-store.ts';
-import { getApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { emitEvent } from './events.ts';
-import { type Failure, failure } from './repositories.ts';
+} from './store.ts';
+import { getApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
 
 /**
  * Importing a report file by hand (docs/adr/0017-analytics-foundation.md): the way in for an app whose key may not create report

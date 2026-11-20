@@ -13,7 +13,7 @@ import {
   totalsOf,
 } from './pending.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 import {
   applyDraftPush,
   DRAFT_ENV,

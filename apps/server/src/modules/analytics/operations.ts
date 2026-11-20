@@ -10,8 +10,8 @@ import {
   playBucketTestCodes,
 } from '@mrm/core';
 import { z } from 'zod';
-import { enableBody, playBucketBody, playBucketTestBody, syncBody } from '../routes/analytics.ts';
-import type { Operation } from './openapi.ts';
+import { enableBody, playBucketBody, playBucketTestBody, syncBody } from './routes.ts';
+import type { Operation } from '../../services/openapi.ts';
 
 /**
  * The operations of analytics (docs/api/analytics.md), kept in their own file and added to the registry in api-operations.ts. Reading

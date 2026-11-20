@@ -51,7 +51,7 @@ import { useCredentialSecret } from './credentials.ts';
 import { emitEvent } from './events.ts';
 import { normalizeListingValue } from './listing-drift.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { getBlob } from './staged-asset-blobs.ts';
 import {
   assetSetsOf,

@@ -23,13 +23,13 @@ import {
   type Row,
   type Sql,
 } from '@mrm/db';
-import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { emitEvent } from './events.ts';
-import { type Failure, failure } from './repositories.ts';
-import type { ReviewConnectorInput } from './review-sync.ts';
-import { getReview, type Review, type StoreKey } from './reviews.ts';
+import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import type { ReviewConnectorInput } from './sync.ts';
+import { getReview, type Review, type StoreKey } from './service.ts';
 
 /**
  * Replying to customer reviews: a STORE WRITE (public text, in the store, in the organisation's

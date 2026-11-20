@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { AnalyticsError, StoreError } from '@mrm/connectors';
 import { dbTest } from '@mrm/db/testing';
-import { BUCKET, bootAnalytics } from './analytics-test-helpers.ts';
-import { createTestLimiter } from './services/credential-tests.ts';
+import { BUCKET, bootAnalytics } from './test-helpers.ts';
+import { createTestLimiter } from '../../services/credential-tests.ts';
 
 /**
  * The Google Play reports bucket (bug: "Android Insights shows crashes and ANRs but no downloads"). Installs and ratings come only from

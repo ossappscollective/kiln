@@ -53,7 +53,7 @@ import {
 } from './listing-drift.ts';
 import { getDrift } from './listing-live.ts';
 import { type Failure, failure } from './repositories.ts';
-import { storeFor } from './review-sync.ts';
+import { storeFor } from '../modules/reviews/sync.ts';
 import { deleteUnreferencedBlobs } from './staged-asset-blobs.ts';
 
 /**

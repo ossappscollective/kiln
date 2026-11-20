@@ -26,7 +26,7 @@ import {
   sourcesForPlatform,
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
-import { deriveSetup, type Setup, setupMessages } from './analytics-setup.ts';
+import { deriveSetup, type Setup, setupMessages } from './setup.ts';
 import {
   type DailyRow,
   dayBounds,
@@ -36,9 +36,9 @@ import {
   readDaily,
   recentRuns,
   resolvePlayBucket,
-} from './analytics-store.ts';
-import type { ManagedApp } from './apps.ts';
-import { getSettings } from './workspace-settings.ts';
+} from './store.ts';
+import type { ManagedApp } from '../../services/apps.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * The read side of analytics (docs/api/analytics.md): `overview` (series per metric with their source, delay and coverage) and

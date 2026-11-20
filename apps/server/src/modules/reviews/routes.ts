@@ -2,12 +2,12 @@ import { type Action, can, parsePlatform, storeOf } from '@mrm/core';
 import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { type AppEnv, parseBody, queryInt } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { getApp } from '../services/apps.ts';
-import { recordAudit } from '../services/audit.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
-import type { Failure } from '../services/repositories.ts';
+import { type AppEnv, parseBody, queryInt } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { getApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
+import type { Failure } from '../../services/repositories.ts';
 import {
   attachReplies,
   createTemplate,
@@ -25,14 +25,14 @@ import {
   type TranslateDraft,
   translateReplyDraft,
   updateTemplate,
-} from '../services/review-replies.ts';
+} from './replies.ts';
 import {
   DEFAULT_TREND_WEEKS,
   DEFAULT_UNANSWERED_MAX_RATING,
   MAX_TREND_WEEKS,
   reviewsSummary,
   workspaceReviewsSummary,
-} from '../services/review-summary.ts';
+} from './summary.ts';
 import {
   enqueueReviewSync,
   getSyncState,
@@ -40,7 +40,7 @@ import {
   type ReviewsContext,
   storeFor,
   syncReviews,
-} from '../services/review-sync.ts';
+} from './sync.ts';
 import {
   DEFAULT_REVIEWS_PAGE,
   type InboxFilter,
@@ -56,8 +56,8 @@ import {
   reviewSorts,
   reviewStatuses,
   triageReview,
-} from '../services/reviews.ts';
-import { lowRatingThresholdFor } from '../services/workspace-settings.ts';
+} from './service.ts';
+import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
 
 export type ReviewRoutesContext = ReviewsContext & {
   /** Reads per workspace per minute: the budget the app sync routes use (built in createApp). */

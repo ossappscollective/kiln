@@ -1,5 +1,5 @@
 import type { AnalyticsNextStep, AnalyticsSetupCode, AnalyticsSource } from '@mrm/core';
-import type { AppleMode, SourceState, StoredRequest } from './analytics-store.ts';
+import type { AppleMode, SourceState, StoredRequest } from './store.ts';
 
 /**
  * What an app still needs before an analytics source can deliver (docs/api/analytics.md). Pure: the status endpoint, the sync and

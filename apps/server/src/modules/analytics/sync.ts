@@ -25,7 +25,7 @@ import {
   sourcesForPlatform,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { enqueue, type JobHandler } from '../jobs.ts';
+import { enqueue, type JobHandler } from '../../jobs.ts';
 import {
   getAppConfig,
   listReportRequests,
@@ -38,13 +38,13 @@ import {
   saveSourceState,
   settledInstances,
   upsertPoints,
-} from './analytics-store.ts';
-import { getApp, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { emitEvent } from './events.ts';
-import { type Failure, failure } from './repositories.ts';
-import { getSettings } from './workspace-settings.ts';
+} from './store.ts';
+import { getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * Reads the analytics of an app from its stores into `analytics_daily` (docs/adr/0017-analytics-foundation.md). Read only toward the

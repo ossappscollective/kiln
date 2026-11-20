@@ -19,7 +19,7 @@ import {
   ANALYTICS_SYNC_QUEUE,
   createAnalyticsSyncHandler,
   DEFAULT_ANALYTICS_TIMEOUT_MS,
-} from '../services/analytics-sync.ts';
+} from '../modules/analytics/sync.ts';
 import { APP_SYNC_QUEUE, createAppSyncHandler, DEFAULT_SYNC_TIMEOUT_MS } from '../services/apps.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from '../services/ci.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
@@ -33,7 +33,7 @@ import {
   createReviewSyncHandler,
   DEFAULT_REVIEW_TIMEOUT_MS,
   REVIEW_SYNC_QUEUE,
-} from '../services/review-sync.ts';
+} from '../modules/reviews/sync.ts';
 import { createWebhookHandler, WEBHOOK_QUEUE } from '../services/webhooks.ts';
 import { VERSION } from '../version.ts';
 import { DEMO_MARKER, type DemoConfig } from './config.ts';

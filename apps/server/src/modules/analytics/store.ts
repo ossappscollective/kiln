@@ -11,7 +11,7 @@ import {
   toMicro,
 } from '@mrm/core';
 import type { Database, Param, Sql } from '@mrm/db';
-import type { ManagedApp } from './apps.ts';
+import type { ManagedApp } from '../../services/apps.ts';
 
 /**
  * Storage of analytics (docs/adr/0017-analytics-foundation.md): the normalised daily facts, the sync runs, the Apple report

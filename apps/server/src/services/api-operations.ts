@@ -12,7 +12,7 @@ import { publishApplyBody, publishPreviewBody } from '../routes/pending.ts';
 import { translateNotesBody } from '../routes/release-notes-translate.ts';
 import { aiOperations } from './api-operations-ai.ts';
 import { alertOperations } from './api-operations-alerts.ts';
-import { analyticsOperations } from './api-operations-analytics.ts';
+import { analyticsOperations } from '../modules/analytics/operations.ts';
 import { buildsOperations } from './api-operations-builds.ts';
 import { mcpOperations } from './api-operations-mcp.ts';
 import { searchTermsOperations } from './api-operations-search-terms.ts';

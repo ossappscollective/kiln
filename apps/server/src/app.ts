@@ -9,10 +9,13 @@ import { type BearerOptions, requireAuth } from './bearer.ts';
 import { type AppEnv, type Services, sameOrigin } from './http.ts';
 import { createLoginLimiter } from './limiter.ts';
 import { type McpDeps, mountMcp } from './mcp/routes.ts';
+import { type AnalyticsDeps, analyticsModule } from './modules/analytics/index.ts';
 import { type AsoDeps, asoLimitsFor, asoModule } from './modules/aso/index.ts';
+import type { ModuleShared } from './modules/module.ts';
+import { type ReviewsDeps, reviewsModule } from './modules/reviews/index.ts';
 import { aiRoutes } from './routes/ai.ts';
 import { alertRoutes } from './routes/alerts.ts';
-import { analyticsImportPath, analyticsRoutes } from './routes/analytics.ts';
+import { analyticsImportPath } from './modules/analytics/routes.ts';
 import { appRoutes } from './routes/apps.ts';
 import { type AssetSyncRoutesContext, assetSyncRoutes } from './routes/asset-sync.ts';
 import { assetRoutes } from './routes/assets.ts';
@@ -37,8 +40,6 @@ import { planRoutes } from './routes/plans.ts';
 import { releaseNotesTranslateRoutes } from './routes/release-notes-translate.ts';
 import { releasePipelineRoutes } from './routes/release-pipeline.ts';
 import { repositoryRoutes } from './routes/repositories.ts';
-import { reviewTranslationRoutes } from './routes/review-translation.ts';
-import { type ReviewRoutesContext, reviewRoutes } from './routes/reviews.ts';
 import { type RolloutRoutesContext, rolloutRoutes } from './routes/rollout.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { type StagedRoutesContext, stagedRoutes } from './routes/staged-changes.ts';
@@ -51,11 +52,6 @@ import { type WebhookRoutesContext, webhookRoutes } from './routes/webhooks.ts';
 import { workspaceRoutes } from './routes/workspaces.ts';
 import type { AiContext } from './services/ai-config.ts';
 import { createConcurrencyGate } from './services/ai-usage.ts';
-import {
-  type AnalyticsConnectorFactory,
-  DEFAULT_ANALYTICS_TIMEOUT_MS,
-  defaultAnalyticsConnectors,
-} from './services/analytics-sync.ts';
 import { operations } from './services/api-operations.ts';
 import { createAppIcons, type IconsContext } from './services/app-icons.ts';
 import {
@@ -76,15 +72,9 @@ import type { LocalWriteConfig } from './services/local-reads.ts';
 import { buildOpenApiDocument } from './services/openapi.ts';
 import type { CloneReads, ConnectorFactory } from './services/repositories.ts';
 import { DEFAULT_REPO_TIMEOUT_MS, defaultConnectorFactory } from './services/repositories.ts';
-import { defaultReplyConnectorFactory } from './services/review-replies.ts';
-import {
-  DEFAULT_REVIEW_TIMEOUT_MS,
-  defaultReviewConnectorFactory,
-  type RatingFetcher,
-  type ReviewConnectorFactory,
-} from './services/review-sync.ts';
+import { defaultReplyConnectorFactory } from './modules/reviews/replies.ts';
 import { enableStepUpAutoApprove } from './services/step-up.ts';
-import { createTranslateDraft, type TranslationContext } from './services/translation.ts';
+import type { TranslationContext } from './services/translation.ts';
 import { createLaunchGate, hostGuard } from './single-user.ts';
 
 /** Largest request body of any API route. Listings are text; the biggest legitimate one is far below. */
@@ -229,27 +219,8 @@ export type AppDeps = {
     AssetSyncRoutesContext,
     'net' | 'storeLimiter' | 'fetchLimiter' | 'uploadLimiter'
   >;
-  /**
-   * Customer reviews (docs/api/reviews.md), read-only. `connectorFactory` builds the App Store
-   * Connect / Google Play reviews connector (overridable for tests), `ratingFetcher` the store-wide
-   * rating (null turns it off), `timeoutMs` the longest one sync may run (default 90 seconds).
-   * `limiter` defaults to the one of the app syncs. `retentionDays` (MRM_REVIEW_RETENTION_DAYS) is
-   * only shown to people; the pruning is the scheduler's.
-   */
-  reviews?: {
-    connectorFactory?: ReviewConnectorFactory;
-    ratingFetcher?: RatingFetcher | null;
-    timeoutMs?: number;
-    limiter?: TestLimiter;
-    lowRatingThreshold?: number;
-    retentionDays?: number;
-    /**
-     * Replying to reviews, a store write that is OFF unless `enabled` (MRM_REVIEW_REPLY_ENABLED).
-     * `connectorFactory` builds the connector that can reply (fakes in tests), `translateDraft` is
-     * the optional seam for translating a draft (wired to services/translation.ts by the lead).
-     */
-    reply?: NonNullable<ReviewRoutesContext['reply']>;
-  };
+  /** Customer reviews (docs/api/reviews.md): see `ReviewsDeps` in modules/reviews. */
+  reviews?: ReviewsDeps;
   /**
    * Changing a live rollout in a store (docs/api/rollout.md), a store write that is OFF unless `enabled`
    * (MRM_STORE_ROLLOUT_ENABLED). `connectorFactory` builds the connector that can read and change a
@@ -288,18 +259,8 @@ export type AppDeps = {
   storePublish?: PendingRoutesContext['publish'];
   /** ASO (docs/api/aso.md): see `AsoDeps` in modules/aso. */
   aso?: AsoDeps;
-  /**
-   * Analytics (docs/api/analytics.md): daily metrics read from the stores into a normalised store. `connectors` builds the Apple
-   * Analytics Reports / Sales and Trends and Google Play vitals / reports readers from a stored credential (fakes in tests),
-   * `timeoutMs` is the longest one source may take (default 120 seconds), `limiter` the per workspace budget of syncs, previews and
-   * imports a minute (default 10), `intervalMinutes` is MRM_ANALYTICS_INTERVAL_MINUTES, shown by the status.
-   */
-  analytics?: {
-    connectors?: AnalyticsConnectorFactory;
-    timeoutMs?: number;
-    limiter?: TestLimiter;
-    intervalMinutes?: number;
-  };
+  /** Analytics (docs/api/analytics.md): see `AnalyticsDeps` in modules/analytics. */
+  analytics?: AnalyticsDeps;
   /**
    * Translation of reviews and the workspace settings (docs/api/settings.md, docs/api/reviews.md).
    * `allowPrivateUrls` is MRM_TRANSLATE_ALLOW_PRIVATE_URLS (a private or loopback LibreTranslate
@@ -453,6 +414,11 @@ export function createApp(deps: AppDeps) {
     timeoutMs: deps.appSync?.timeoutMs ?? DEFAULT_SYNC_TIMEOUT_MS,
   };
   const appSyncLimiter = deps.appSync?.limiter ?? createTestLimiter({ now: services.now });
+  const shared: ModuleShared = {
+    translation: translationSeams,
+    appSyncLimiter,
+    translationLimiter: deps.translation?.limiter,
+  };
   app.route('/api/workspaces', appRoutes({ ...appsContext, limiter: appSyncLimiter }));
   app.route('/api/workspaces', mailAndTwoFactorRoutes(mail, services));
   app.route(
@@ -476,69 +442,9 @@ export function createApp(deps: AppDeps) {
       ...(translationSeams.resolve ? { resolve: translationSeams.resolve } : {}),
     }),
   );
-  app.route(
-    '/api/workspaces',
-    reviewTranslationRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      ...translationSeams,
-      limiter: deps.translation?.limiter ?? createTestLimiter({ now: services.now, limit: 20 }),
-    }),
-  );
-  asoModule.mount(app, services, deps.aso);
-  // Analytics: daily metrics from the stores. Reading what is stored is open to every role; syncing, importing and enabling Apple
-  // analytics need analytics.manage. A workspace must turn on analytics.enabled before anything is requested from a store.
-  app.route(
-    '/api/workspaces',
-    analyticsRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      connectors: deps.analytics?.connectors ?? defaultAnalyticsConnectors,
-      timeoutMs: deps.analytics?.timeoutMs ?? DEFAULT_ANALYTICS_TIMEOUT_MS,
-      limiter: deps.analytics?.limiter ?? createTestLimiter({ now: services.now }),
-      intervalMinutes: deps.analytics?.intervalMinutes ?? 0,
-    }),
-  );
-  // Customer reviews: an inbox with internal triage. Replying (a store write) is off unless MRM_REVIEW_REPLY_ENABLED.
-  app.route(
-    '/api/workspaces',
-    reviewRoutes({
-      db: services.db,
-      masterKey: services.masterKey,
-      now: services.now,
-      connectorFactory: deps.reviews?.connectorFactory ?? defaultReviewConnectorFactory,
-      ...(deps.reviews?.ratingFetcher !== undefined
-        ? { ratingFetcher: deps.reviews.ratingFetcher }
-        : {}),
-      timeoutMs: deps.reviews?.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS,
-      ...(deps.reviews?.lowRatingThreshold !== undefined
-        ? { lowRatingThreshold: deps.reviews.lowRatingThreshold }
-        : {}),
-      ...(deps.reviews?.retentionDays !== undefined
-        ? { retentionDays: deps.reviews.retentionDays }
-        : {}),
-      // Reply drafts can be translated with the workspace's translation provider, unless a test supplies its own.
-      ...(deps.reviews?.reply
-        ? {
-            reply: {
-              ...deps.reviews.reply,
-              translateDraft:
-                deps.reviews.reply.translateDraft ??
-                createTranslateDraft({
-                  db: services.db,
-                  masterKey: services.masterKey,
-                  now: services.now,
-                  ...translationSeams,
-                }),
-            },
-          }
-        : {}),
-      translation: translationSeams,
-      limiter: deps.reviews?.limiter ?? appSyncLimiter,
-    }),
-  );
+  asoModule.mount(app, services, deps.aso, shared);
+  analyticsModule.mount(app, services, deps.analytics, shared);
+  reviewsModule.mount(app, services, deps.reviews, shared);
   // Where a release is between CI and live, and whether it is stalled: read-only, from stored data.
   app.route('/api/workspaces', releasePipelineRoutes({ db: services.db, now: services.now }));
   // Changing a live rollout in a store: off unless MRM_STORE_ROLLOUT_ENABLED. Gated like review replies.

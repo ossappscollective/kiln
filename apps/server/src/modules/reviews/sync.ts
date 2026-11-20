@@ -21,19 +21,19 @@ import {
   storeOf,
 } from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
-import { enqueue, type JobHandler } from '../jobs.ts';
-import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { emitEvent } from './events.ts';
-import { type Failure, failure } from './repositories.ts';
-import { parseResponse, type StoreKey } from './reviews.ts';
+import { enqueue, type JobHandler } from '../../jobs.ts';
+import { credentialKindFor, getApp, type ManagedApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { emitEvent } from '../../services/events.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { parseResponse, type StoreKey } from './service.ts';
 import {
   type AutoTranslateSummary,
   autoTranslateNewReviews,
   type TranslationContext,
-} from './translation.ts';
-import { lowRatingThresholdFor } from './workspace-settings.ts';
+} from '../../services/translation.ts';
+import { lowRatingThresholdFor } from '../../services/workspace-settings.ts';
 
 /**
  * Reads the customer reviews of an app from its store (read only) into `app_reviews`.

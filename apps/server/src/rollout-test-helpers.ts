@@ -16,7 +16,7 @@ import {
 import type { Platform } from '@mrm/core';
 import type { Database } from '@mrm/db';
 import { bootRepoApp } from './repo-test-helpers.ts';
-import { ASC_SECRET, PLAY_SECRET } from './review-test-helpers.ts';
+import { ASC_SECRET, PLAY_SECRET } from './modules/reviews/test-helpers.ts';
 import type { RolloutConnectorFactory, RolloutConnectorInput } from './services/store-rollout.ts';
 
 /** Shared by the rollout tests. Everything runs against fakes: no store is ever contacted. */

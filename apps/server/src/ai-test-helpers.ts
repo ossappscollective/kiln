@@ -7,10 +7,10 @@ import {
 } from '@mrm/connectors';
 import type { Database } from '@mrm/db';
 import { bootRepoApp } from './repo-test-helpers.ts';
-import { ASC_SECRET, FakeReplyStore, PLAY_SECRET } from './review-test-helpers.ts';
+import { ASC_SECRET, FakeReplyStore, PLAY_SECRET } from './modules/reviews/test-helpers.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
-import type { ReviewReplyConnectorFactory } from './services/review-replies.ts';
-import type { ReviewConnectorFactory } from './services/review-sync.ts';
+import type { ReviewReplyConnectorFactory } from './modules/reviews/replies.ts';
+import type { ReviewConnectorFactory } from './modules/reviews/sync.ts';
 
 /**
  * Shared by the AI tests (docs/adr/0016-ai-foundation.md). No provider and no store is ever contacted: the model is a scripted

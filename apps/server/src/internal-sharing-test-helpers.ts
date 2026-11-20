@@ -10,7 +10,7 @@ import type {
 import type { Database } from '@mrm/db';
 import { zip } from '../../../packages/connectors/src/play-search-terms.fixtures.ts';
 import { bootCi, FakeCi, run } from './ci-test-helpers.ts';
-import { PLAY_SECRET } from './review-test-helpers.ts';
+import { PLAY_SECRET } from './modules/reviews/test-helpers.ts';
 import { clearBuildCaches } from './services/builds.ts';
 import { PASSWORD } from './testkit.ts';
 

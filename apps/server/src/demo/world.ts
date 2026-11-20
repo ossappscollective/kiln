@@ -18,7 +18,7 @@ import {
   type SubmitApplyInput,
   type SubmitResult,
 } from '@mrm/connectors';
-import { FakeReplyStore } from '../review-test-helpers.ts';
+import { FakeReplyStore } from '../modules/reviews/test-helpers.ts';
 import { appleState, FakeRolloutStore, playState } from '../rollout-test-helpers.ts';
 import { FakeDraftStore, FakeReleaseStore, FakeSubmitStore } from '../staged-test-helpers.ts';
 import {

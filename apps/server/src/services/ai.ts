@@ -66,7 +66,7 @@ import type { AssetsContext } from './asset-repo.ts';
 import { recordAudit } from './audit.ts';
 import { emitEvent } from './events.ts';
 import { normalizeListingValue } from './listing-drift.ts';
-import { getReviewView, type ReviewReplyContext, saveReplyDraft } from './review-replies.ts';
+import { getReviewView, type ReviewReplyContext, saveReplyDraft } from '../modules/reviews/replies.ts';
 import { type StagedContext, stageText } from './staged-changes.ts';
 
 /**

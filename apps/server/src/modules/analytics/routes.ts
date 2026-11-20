@@ -10,18 +10,18 @@ import type { Context, Next } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { type AppEnv, parseBody } from '../http.ts';
-import { memberRole } from '../services/accounts.ts';
-import { getPlayBucket, setPlayBucket, testPlayBucket } from '../services/analytics-bucket.ts';
-import { applyEnable, previewEnable } from '../services/analytics-enable.ts';
-import { applyImport, previewImport } from '../services/analytics-import.ts';
-import { checkOverviewQuery, overview, status } from '../services/analytics-query.ts';
-import { type AnalyticsContext, syncAnalytics } from '../services/analytics-sync.ts';
-import { getApp } from '../services/apps.ts';
-import type { TestLimiter } from '../services/credential-tests.ts';
-import { applySearchTermsImport, previewSearchTermsImport } from '../services/play-search-terms.ts';
-import type { Failure } from '../services/repositories.ts';
-import { requireStepUp } from '../services/step-up.ts';
+import { type AppEnv, parseBody } from '../../http.ts';
+import { memberRole } from '../../services/accounts.ts';
+import { getPlayBucket, setPlayBucket, testPlayBucket } from './bucket.ts';
+import { applyEnable, previewEnable } from './enable.ts';
+import { applyImport, previewImport } from './import.ts';
+import { checkOverviewQuery, overview, status } from './query.ts';
+import { type AnalyticsContext, syncAnalytics } from './sync.ts';
+import { getApp } from '../../services/apps.ts';
+import type { TestLimiter } from '../../services/credential-tests.ts';
+import { applySearchTermsImport, previewSearchTermsImport } from '../../services/play-search-terms.ts';
+import type { Failure } from '../../services/repositories.ts';
+import { requireStepUp } from '../../services/step-up.ts';
 
 /**
  * Analytics: daily metrics from the stores (docs/api/analytics.md, docs/adr/0017-analytics-foundation.md). Mounted under /api/workspaces.

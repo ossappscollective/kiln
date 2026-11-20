@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { dbTest } from '@mrm/db/testing';
-import { storeReview } from './review-test-helpers.ts';
+import { storeReview } from './modules/reviews/test-helpers.ts';
 import { createTestLimiter } from './services/credential-tests.ts';
 import {
   bootTranslation,
@@ -153,7 +153,7 @@ dbTest(
     );
 
     // Deleting the app's reviews takes their translations along.
-    const { deleteReviewData } = await import('./services/reviews.ts');
+    const { deleteReviewData } = await import('./modules/reviews/service.ts');
     await deleteReviewData(db, t.workspaceId, t.appId);
     assert.equal((await rows(db, 'SELECT id FROM review_translations')).length, 0);
   },
@@ -751,7 +751,7 @@ dbTest('translations of reviews that are gone are purged by the review upkeep', 
   await t.translate(t.owner, [id]);
   assert.equal((await rows(db, 'SELECT id FROM review_translations')).length, 2);
   await db.execute('DELETE FROM app_reviews WHERE id = ?', [id]);
-  const { reviewUpkeep } = await import('./services/review-schedule.ts');
+  const { reviewUpkeep } = await import('./modules/reviews/schedule.ts');
   await reviewUpkeep(db, { now: Date.now(), retentionDays: 0 });
   assert.equal((await rows(db, 'SELECT id FROM review_translations')).length, 0);
 });

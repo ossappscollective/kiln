@@ -15,7 +15,7 @@ import {
   unavailableReason,
 } from './mcp/tools.ts';
 import { bootRepoApp } from './repo-test-helpers.ts';
-import { ASC_SECRET, PLAY_SECRET } from './review-test-helpers.ts';
+import { ASC_SECRET, PLAY_SECRET } from './modules/reviews/test-helpers.ts';
 import { operations } from './services/api-operations.ts';
 import { listAudit } from './services/audit.ts';
 import { createTestLimiter } from './services/credential-tests.ts';

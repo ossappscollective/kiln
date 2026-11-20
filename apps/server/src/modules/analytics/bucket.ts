@@ -8,14 +8,14 @@ import {
   playBucketTestMessages,
 } from '@mrm/core';
 import type { Database } from '@mrm/db';
-import { resolvePlayBucket } from './analytics-store.ts';
-import { type AnalyticsContext, classifyAnalyticsError } from './analytics-sync.ts';
-import type { ManagedApp } from './apps.ts';
-import { getApp } from './apps.ts';
-import { recordAudit } from './audit.ts';
-import { useCredentialSecret } from './credentials.ts';
-import { type Failure, failure } from './repositories.ts';
-import { getSettings } from './workspace-settings.ts';
+import { resolvePlayBucket } from './store.ts';
+import { type AnalyticsContext, classifyAnalyticsError } from './sync.ts';
+import type { ManagedApp } from '../../services/apps.ts';
+import { getApp } from '../../services/apps.ts';
+import { recordAudit } from '../../services/audit.ts';
+import { useCredentialSecret } from '../../services/credentials.ts';
+import { type Failure, failure } from '../../services/repositories.ts';
+import { getSettings } from '../../services/workspace-settings.ts';
 
 /**
  * The Google Play reports bucket (docs/api/analytics.md, docs/research/analytics-apis.md). Google keeps ONE private Cloud Storage bucket
