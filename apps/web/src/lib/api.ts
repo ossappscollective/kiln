@@ -165,6 +165,7 @@ import {
   twoFactorMessage,
 } from './two-factor.ts';
 import type {
+  EasConfigView,
   AcceptedInvitation,
   ActiveRuns,
   ApiToken,
@@ -2328,6 +2329,12 @@ export function createApi(options: ApiOptions = {}) {
       request<{ detection: ExpoDetection }>(
         'GET',
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/expo/detect`,
+      ),
+    /** `eas.json` and the JSON app config of the app's repository, read-only (docs/api/eas-config.md). Needs `repositories.scan`. */
+    easConfig: (workspaceId: string, appId: string) =>
+      request<EasConfigView>(
+        'GET',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/eas-config`,
       ),
   };
 }

@@ -1310,3 +1310,136 @@ export type AssetIndex = {
   /** The index came from the cache of the server. */
   cached?: boolean;
 };
+
+// ---------------------------------------------------------------------------------------------
+// The EAS configuration (eas.json) of an app's repository: `GET /apps/{appId}/eas-config` (docs/api/eas-config.md, lib/eas/eas-config.ts).
+
+export type EasSeverity = 'error' | 'warning' | 'info';
+
+export type EasFinding = {
+  /** A stable code such as `extends_cycle`. */
+  code: string;
+  severity: EasSeverity;
+  scope: 'file' | 'cli' | 'build' | 'submit' | 'app';
+  /** One sentence. Names keys and profiles, never a value of `env`. */
+  message: string;
+  profile?: string | undefined;
+  key?: string | undefined;
+};
+
+/** The build options of a profile, or of its `ios` / `android` section with the profile's own values under it. */
+export type EasBuildTarget = {
+  distribution: string | null;
+  channel: string | null;
+  developmentClient: boolean | null;
+  autoIncrement: boolean | string | null;
+  resourceClass: string | null;
+  image: string | null;
+  buildType: string | null;
+  gradleCommand: string | null;
+  simulator: boolean | null;
+  buildConfiguration: string | null;
+  scheme: string | null;
+};
+
+export type EasBuildProfile = EasBuildTarget & {
+  name: string;
+  extends: string | null;
+  /** This profile, then each profile it extends. */
+  extendsChain: string[];
+  node: string | null;
+  environment: string | null;
+  credentialsSource: string | null;
+  releaseChannel: string | null;
+  /** Names only, never the values. */
+  envNames: string[];
+  ios: EasBuildTarget | null;
+  android: EasBuildTarget | null;
+  unknownKeys: string[];
+};
+
+export type EasSubmitIos = {
+  ascAppId: string | null;
+  appleTeamId: string | null;
+  sku: string | null;
+  language: string | null;
+  companyName: string | null;
+  appName: string | null;
+  bundleIdentifier: string | null;
+  ascApiKeyPath: string | null;
+  ascApiKeyId: string | null;
+  ascApiKeyIssuerId: string | null;
+  hasAppleId: boolean;
+  metadataPath: string | null;
+  groups: string[];
+};
+
+export type EasSubmitAndroid = {
+  track: string | null;
+  releaseStatus: string | null;
+  rollout: number | null;
+  changesNotSentForReview: boolean | null;
+  serviceAccountKeyPath: string | null;
+  applicationId: string | null;
+};
+
+export type EasSubmitProfile = {
+  name: string;
+  extends: string | null;
+  extendsChain: string[];
+  ios: EasSubmitIos | null;
+  android: EasSubmitAndroid | null;
+  unknownKeys: string[];
+};
+
+export type EasConfig = {
+  cli: {
+    version: string | null;
+    requireCommit: boolean | null;
+    appVersionSource: 'local' | 'remote' | null;
+    appVersionSourceEffective: 'local' | 'remote';
+  };
+  build: EasBuildProfile[];
+  submit: EasSubmitProfile[];
+  unknownKeys: string[];
+  truncated: boolean;
+};
+
+export type EasRuntimeVersion = { kind: 'string'; value: string } | { kind: 'policy'; policy: string };
+
+export type ExpoAppSummary = {
+  path: string | null;
+  dynamicPath: string | null;
+  unreadable: boolean;
+  version: string | null;
+  runtimeVersion: EasRuntimeVersion | null;
+  iosRuntimeVersion: EasRuntimeVersion | null;
+  androidRuntimeVersion: EasRuntimeVersion | null;
+  updatesUrl: string | null;
+  updatesEnabled: boolean | null;
+  easProjectId: string | null;
+  iosBundleIdentifier: string | null;
+  androidPackage: string | null;
+  iosBuildNumber: string | null;
+  androidVersionCode: number | null;
+  /** Whether expo-updates is configured as far as the JSON says; null when that cannot be told. */
+  updatesConfigured: boolean | null;
+};
+
+export type EasConfigView = {
+  app: { id: string; name: string; platform: Platform; identifier: string };
+  repository: { id: string; owner: string; repo: string; localOnly: boolean } | null;
+  branch: string | null;
+  /** The commit that was read; null when only the branch could be named. */
+  commit: string | null;
+  readAt: number;
+  found: boolean;
+  /** Why there is nothing to show: not an error. */
+  reason: { code: 'no_repository' | 'no_eas_json' | 'unreadable'; message: string } | null;
+  nested: string[];
+  path: string | null;
+  /** Null when there is no eas.json, or it is not valid JSON (see `findings`). */
+  config: EasConfig | null;
+  expoApp: ExpoAppSummary | null;
+  findings: EasFinding[];
+};

@@ -25,6 +25,7 @@
   import type { AppSummary, ReleaseSummary } from '../../lib/types.ts';
   import Alert from '../ui/Alert.svelte';
   import AssetsTab from '../assets/AssetsTab.svelte';
+  import EasConfigCard from '../eas/EasConfigCard.svelte';
   import ListingMatrix from '../listing/ListingMatrix.svelte';
   import BuildsPanel from '../portfolio/BuildsPanel.svelte';
   import TestBuilds from '../builds/TestBuilds.svelte';
@@ -104,7 +105,10 @@
   {/if}
 {/snippet}
 {#snippet builds(app: AppSummary)}
-  <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+  <div class="stack loose">
+    <BuildsPanel {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
+    <EasConfigCard {api} {workspaceId} {role} {app} />
+  </div>
 {/snippet}
 {#snippet testBuilds(app: AppSummary)}
   <TestBuilds {api} {workspaceId} {role} {app} refreshKey={syncRuns} />
