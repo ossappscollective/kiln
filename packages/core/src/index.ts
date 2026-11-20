@@ -6,6 +6,7 @@ export * from './aso/aso-listing-terms.ts';
 export * from './aso/aso-rank-downloads.ts';
 export * from './aso/play-search-terms.ts';
 export * from './changeset.ts';
+export * from './ci-providers.ts';
 export * from './credential-guides.ts';
 export * from './credentials.ts';
 export * from './exhaustive.ts';
