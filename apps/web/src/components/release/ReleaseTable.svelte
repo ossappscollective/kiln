@@ -162,19 +162,27 @@
   .seen {
     font-size: var(--text-xs, 0.75rem);
   }
+  /* Readable type (docs/design/readability.md): 16px rows, 13px column heads, a little more air per row. */
   .releases {
     width: 100%;
+    font-size: var(--text-md);
     border-collapse: collapse;
   }
 
   .releases th,
   .releases td {
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
     vertical-align: middle;
+  }
+
+  .releases thead th {
+    font-size: var(--text-sm);
   }
 
   .group th {
     padding-top: var(--space-3);
+    font-size: var(--text-md);
+    color: var(--ink);
     text-align: left;
     background: var(--surface-sunken);
     border-top: 1px solid var(--line);
@@ -223,7 +231,7 @@
   }
 
   .track {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .promote {

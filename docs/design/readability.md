@@ -25,14 +25,27 @@ The pure parts live in `apps/web/src/lib/readability.ts` (`foldWarnings`, `planH
 | --- | --- | --- | --- |
 | Publish dialog | Up to four stacked alerts (info, "This writes to", "cannot be undone", "Read before you confirm") above the steps; each step opened with its whole diff | The headline ("2 steps will be written to X", in order) and the steps, each with its numbers; then warnings; the diff on request | Done. Headline and steps first. The "writes to" and "cannot be undone" alerts are one line each at the confirmation; warnings fold behind one line; step diffs and explanations sit behind "Details of this step"; "Ready" is not repeated on a ticked step. Errors and a plan that cannot be published stay visible |
 | App overview | "Next step" card (already first), then CI runs, tiles, Details. The card could grow long with "Also needs attention" | Next step, then release state (Live / In flight per platform), then details | The list under the card shows three lines (and every urgent one) with "Show N more". Order unchanged: it was right |
-| Releases | Next step card, "Current and in progress", then older (collapsed) | Same | Unchanged. A blocked plan stays a visible warning (rule 4) |
-| Release stepper | Step tiles with a status word; a two-sentence note above them | The steps | The note is one line. The conditional alerts in the steps are errors or blockers and stay |
+| Releases | Next step card, "Current and in progress", then older (collapsed), then rollout controls | Same | Order was right. The table is set in 16px rows with 13px heads, and "Rollout controls" has a section heading with one sentence (what it is for) above its changes. A blocked plan stays a visible warning (rule 4). The page header and "Next step" card belong to `components/app` |
+| Release stepper | Five wide tiles with a status word and a note above them; each step opened with a paragraph | Where am I and the one next action | Done (mockups `stepper-build` and `stepper-confirm`). The steps are a left rail (number or check, name, one line of status); the step is on the right with ONE heading and ONE sentence (`stepIntro`); the footer is always at the bottom: Back, "Step N of M" and the one primary, "Next: <step>", on the last step "Review and publish" (`footerFor`). Build: one line per build (number, version, uploaded, ONE chip), the chosen/attached/newest first and highlighted, newest 3 with "Show all", and the long sentence, CI run, "Install to test" and TestFlight line behind "Details of the selected build", which opens by itself only when the selected build has a warning or cannot be chosen. "Use this build" and "Stage the notes" are secondary buttons that appear only when there is something to stage, with one line beside them. Notes: TestFlight reuse is a disclosure. Assets and Review: "nothing" is one line (no staged line, no intro). Confirm: a numbered list of what will be written, in order, with "Cannot be undone from here" on the step it applies to (`confirmSteps`); the single steps sit behind "Do just one step (advanced)" |
 | All apps | Six columns; pending, unfinished and new-review badges beside the status | App, platforms, status, one next action | Done. Reviews column is gone (rating sits with the app); pending, unfinished and new reviews are one "Next" action chosen by urgency; platform names are always written |
 
-Not done in this pass (candidates, in order of value): the preview bodies themselves
-(`PushPreviewBody`, `SubmitPreviewBody`, `ReleasePreviewBody`) still stack their own alerts inside
-"Details", which the standalone dialogs share; `StepBuild` and `StepNotes` hold several alerts that
-could follow the same fold rule; `ReleaseDetail` and `PlanOverview` were not reworked.
+### Publish dialog (second pass)
+
+Mockup `publish-dialog`. The title says what happens (`publishTitle`: "Release 2.9.0 to the App Store",
+"Submit 2.9.0 for review on ...", "Update the draft on ..."). Each step is a card with its tick, its
+numbers and "Details of this step". The confirmation is ONE box: with no required phrase it is a single
+tick ("I understand. ... cannot be undone from here ...", or "I have read the plan" when nothing is
+irreversible) plus one line that the person confirms with a password or passkey, no phrase to type; the
+typed phrase appears, inside the same box, only when the plan says `confirmationRequired`. The footer
+says in one line why Publish is off (`publishDisabledReason`: making the plan, out of date, tick a step,
+type the phrase, tick the box). `PushPreviewBody` shows ONE "Read before you confirm" list (the server's
+warnings and the store's warning checks together, no duplicates). The plan, hash, phrase and step-up
+logic are untouched.
+
+Not done (candidates): `SubmitPreviewBody` and `ReleasePreviewBody` keep their own sections ("What cannot
+be undone from here") because the standalone dialogs share them; `StepNotes` still holds several
+conditional alerts for translation and history; `ReleaseDetail` and `PlanOverview` (the full release
+page) were not reworked beyond what the page header already does.
 
 ## Applied globally (2026-11-20, mockups approved)
 

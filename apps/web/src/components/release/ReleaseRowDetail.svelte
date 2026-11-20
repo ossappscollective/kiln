@@ -228,7 +228,7 @@
 
   h4 {
     margin: 0 0 var(--space-2);
-    font-size: var(--text-base);
+    font-size: var(--text-md);
   }
 
   h4 .muted {

@@ -81,7 +81,10 @@
 {:else if availability.state !== 'hidden'}
   <section class="controls" aria-labelledby="{uid}-title">
     <div class="head">
-      <h3 id="{uid}-title"><Icon name="rocket" size={16} /> Rollout controls</h3>
+      <div class="titles">
+        <h3 id="{uid}-title"><Icon name="rocket" size={18} /> Rollout controls</h3>
+        <p class="muted lead">Raise, pause, halt or finish a rollout in the store, after a release is live.</p>
+      </div>
       {#if availability.state === 'ready'}
         <Badge tone="warn" icon="lock">Changes the live store</Badge>
       {/if}
@@ -93,8 +96,7 @@
       <Alert tone="warn">{availability.message}</Alert>
     {:else if config}
       <p class="muted note">
-        Each change is previewed against the live store first, needs your confirmation, and is recorded in the audit log.
-        Some changes cannot be undone and ask you to type the version.
+        Each change is previewed first, needs your confirmation and is recorded in the audit log. Some cannot be undone.
       </p>
       <div class="stack">
         {#each members as app (app.id)}
@@ -119,12 +121,22 @@
     align-items: center;
   }
 
+  .titles {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .lead {
+    margin: 0;
+    font-size: var(--text-md);
+  }
+
   h3 {
     display: inline-flex;
     gap: var(--space-2);
     align-items: center;
     margin: 0;
-    font-size: var(--text-md);
+    font-size: var(--text-xl);
   }
 
   .slim {
