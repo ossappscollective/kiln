@@ -16,8 +16,8 @@ import {
 import type { Sql } from '@mrm/db';
 import { readDaily } from '../../services/analytics-store.ts';
 import type { ManagedApp } from '../../services/apps.ts';
-import { type AsoKeyword, listKeywords } from './service.ts';
 import { getSettings } from '../../services/workspace-settings.ts';
+import { type AsoKeyword, listKeywords } from './service.ts';
 
 /**
  * Rank versus downloads (docs/api/aso.md): the rank history of chosen tracked keywords of one storefront laid on the same days as the

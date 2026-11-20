@@ -14,6 +14,7 @@ import {
   type Platform,
   STAGEABLE_TEXT_FIELDS,
 } from '@mrm/core';
+import { listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
 import {
@@ -25,7 +26,6 @@ import {
   type PreparedRun,
   type ReadyTask,
 } from './ai-task-types.ts';
-import { listKeywords } from '../modules/aso/service.ts';
 import { normalizeListingValue } from './listing-drift.ts';
 
 /**

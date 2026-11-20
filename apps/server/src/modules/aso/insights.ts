@@ -25,6 +25,8 @@ import {
 } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from '../../services/apps.ts';
+import { getLiveListing } from '../../services/listing-live.ts';
+import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 import {
   type AsoAppState,
   type AsoCompetitor,
@@ -34,8 +36,6 @@ import {
   listKeywords,
   platformStore,
 } from './service.ts';
-import { getLiveListing } from '../../services/listing-live.ts';
-import { rankMoveThresholdFor } from '../../services/workspace-settings.ts';
 
 /**
  * What can be worked out from what is already stored: no store is read here, so none of it costs a

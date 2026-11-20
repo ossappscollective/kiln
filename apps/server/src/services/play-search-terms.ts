@@ -24,10 +24,10 @@ import {
   summariseSearchTerms,
 } from '@mrm/core';
 import { type Database, nullableNumber, type Param, type Sql } from '@mrm/db';
+import { defaultLocale, ownFields } from '../modules/aso/insights.ts';
+import { listKeywords } from '../modules/aso/service.ts';
 import type { ManagedApp } from './apps.ts';
 import { getApp } from './apps.ts';
-import { listKeywords } from '../modules/aso/service.ts';
-import { defaultLocale, ownFields } from '../modules/aso/insights.ts';
 import { recordAudit } from './audit.ts';
 import { type Failure, failure } from './repositories.ts';
 

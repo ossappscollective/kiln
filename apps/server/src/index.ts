@@ -6,6 +6,13 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { demoRequested } from './demo/config.ts';
 import { createWorker } from './jobs.ts';
+import { createAsoSources } from './modules/aso/net.ts';
+import { asoIntervalMs } from './modules/aso/schedule.ts';
+import {
+  ASO_REFRESH_QUEUE,
+  type AsoLimits,
+  createAsoRefreshHandler,
+} from './modules/aso/service.ts';
 import { createEventStreamHub } from './routes/events.ts';
 import {
   createScheduler,
@@ -30,9 +37,6 @@ import {
   DEFAULT_SYNC_TIMEOUT_MS,
   defaultStoreConnectorFactory,
 } from './services/apps.ts';
-import { ASO_REFRESH_QUEUE, type AsoLimits, createAsoRefreshHandler } from './modules/aso/service.ts';
-import { createAsoSources } from './modules/aso/net.ts';
-import { asoIntervalMs } from './modules/aso/schedule.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from './services/ci.ts';
 import { checkGit, setUpReads } from './services/clone-reads.ts';
 import { createCloneUpkeep } from './services/clone-upkeep.ts';

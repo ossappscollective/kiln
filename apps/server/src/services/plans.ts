@@ -1,5 +1,25 @@
 import { randomUUID } from 'node:crypto';
-import { type ActorType, type ChecklistTemplateItem, computeReadiness, DEFAULT_CHECKLIST_TEMPLATES, defaultTemplate, type DueFlags, dueFlags, isBuiltinTemplateId, MAX_CHECKLIST_ITEMS, MAX_NOTE_LOCALES, MAX_TEMPLATES, type PlanPlatform, type Platform, PLATFORMS, type Readiness, releaseNotesLength, releaseNotesLimit, type RolloutStepState, type RolloutSummary } from '@mrm/core';
+import {
+  type ActorType,
+  type ChecklistTemplateItem,
+  computeReadiness,
+  DEFAULT_CHECKLIST_TEMPLATES,
+  type DueFlags,
+  defaultTemplate,
+  dueFlags,
+  isBuiltinTemplateId,
+  MAX_CHECKLIST_ITEMS,
+  MAX_NOTE_LOCALES,
+  MAX_TEMPLATES,
+  PLATFORMS,
+  type PlanPlatform,
+  type Platform,
+  type Readiness,
+  type RolloutStepState,
+  type RolloutSummary,
+  releaseNotesLength,
+  releaseNotesLimit,
+} from '@mrm/core';
 import { type Database, mapOrNull, oneOf, type Param, type Row, type Sql } from '@mrm/db';
 import { getApp } from './apps.ts';
 import { recordAudit } from './audit.ts';

@@ -1,4 +1,4 @@
-import { type Platform, PLATFORMS, type StoreId, storeOf } from '@mrm/core';
+import { PLATFORMS, type Platform, type StoreId, storeOf } from '@mrm/core';
 import { oneOf, type Sql } from '@mrm/db';
 import { type ReviewStatus, reviewStatuses } from './reviews.ts';
 

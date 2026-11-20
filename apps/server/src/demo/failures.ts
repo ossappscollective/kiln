@@ -1,4 +1,3 @@
-import type { StoreId } from '@mrm/core';
 import {
   AiError,
   DraftOutcomeUnknownError,
@@ -12,6 +11,7 @@ import {
   SubmitOutcomeUnknownError,
   TranslateError,
 } from '@mrm/connectors';
+import type { StoreId } from '@mrm/core';
 
 /**
  * Failure injection for the demo (`POST /demo/fail`). A failure is "the next `count` calls to this connector fail like

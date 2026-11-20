@@ -1,13 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AsoError } from '@mrm/connectors';
-import {
-  ASO_FETCH_MAX_BYTES,
-  ASO_HOSTS,
-  createAsoFetch,
-  createAsoSources,
-} from './net.ts';
 import type { Exchange, ExchangeResponse } from '../../services/safe-fetch.ts';
+import { ASO_FETCH_MAX_BYTES, ASO_HOSTS, createAsoFetch, createAsoSources } from './net.ts';
 
 /** The only network ASO has: two fixed hosts, the connectors' User-Agent, caps, a cache and local rate limits. No real request is made. */
 

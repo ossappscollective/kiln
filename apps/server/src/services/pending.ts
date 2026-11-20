@@ -1,4 +1,10 @@
-import { isGooglePlatform, type Platform, PLATFORMS, type StagedProblem, type StoreId } from '@mrm/core';
+import {
+  isGooglePlatform,
+  PLATFORMS,
+  type Platform,
+  type StagedProblem,
+  type StoreId,
+} from '@mrm/core';
 import { type Database, nullableNumber, oneOf, type Sql } from '@mrm/db';
 import { getApp, listApps, type ManagedApp } from './apps.ts';
 import { type Failure, failure } from './repositories.ts';

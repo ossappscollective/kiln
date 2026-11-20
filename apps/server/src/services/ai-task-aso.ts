@@ -22,6 +22,8 @@ import {
   normalizeLocale,
   PLAY_FIELD_SPECS,
 } from '@mrm/core';
+import { coachFor, summaryFor } from '../modules/aso/insights.ts';
+import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
 import { type AiFailure, aiFail } from './ai-config.ts';
 import { loadReviewsForAi, periodDays } from './ai-task-data.ts';
 import { loadLocaleTexts } from './ai-task-keywords.ts';
@@ -36,8 +38,6 @@ import {
   type ReadyTask,
 } from './ai-task-types.ts';
 import { overview } from './analytics-query.ts';
-import { listCompetitors, listKeywords } from '../modules/aso/service.ts';
-import { coachFor, summaryFor } from '../modules/aso/insights.ts';
 
 /**
  * The ASO insight tasks (docs/adr/0024-ai-features.md): `listing_audit`, `aso_health` and `keyword_ideas_reviews`.

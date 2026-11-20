@@ -13,7 +13,13 @@ import {
   type StoreReviewConnector,
   secretStrings,
 } from '@mrm/connectors';
-import { type ActorType, isApplePlatform, isGooglePlatform, type Platform, storeOf } from '@mrm/core';
+import {
+  type ActorType,
+  isApplePlatform,
+  isGooglePlatform,
+  type Platform,
+  storeOf,
+} from '@mrm/core';
 import type { Database, Param, Row, Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
 import { credentialKindFor, getApp, type ManagedApp } from './apps.ts';

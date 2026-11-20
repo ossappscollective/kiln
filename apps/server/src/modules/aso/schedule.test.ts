@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dbTest } from '@mrm/db/testing';
-import { bootAso } from './test-helpers.ts';
 import { createScheduler } from '../../scheduler.ts';
-import { ASO_REFRESH_QUEUE } from './service.ts';
 import { asoIntervalMs, asoUpkeep, queueAsoRefreshes } from './schedule.ts';
+import { ASO_REFRESH_QUEUE } from './service.ts';
+import { bootAso } from './test-helpers.ts';
 
 /** Scheduled ASO refreshes and the retention upkeep (docs/api/aso.md, "Scheduling"). */
 

@@ -8,7 +8,7 @@
 // `from '...'`, `import('...')` and `export ... from '...'` specifiers that are relative and end in .ts or .svelte are
 // handled. Run the type check afterwards: it is the proof that nothing was missed.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
 const [root, ...pairs] = process.argv.slice(2);
@@ -17,7 +17,9 @@ if (!root || pairs.length === 0) {
   process.exit(2);
 }
 const base = resolve(root);
-const moves = new Map(pairs.map((p) => p.split('=')).map(([a, b]) => [resolve(base, a), resolve(base, b)]));
+const moves = new Map(
+  pairs.map((p) => p.split('=')).map(([a, b]) => [resolve(base, a), resolve(base, b)]),
+);
 
 const walk = (dir, out = []) => {
   for (const name of readdirSync(dir)) {

@@ -21,7 +21,6 @@ import type {
   TestFlightLinksConnector,
 } from '@mrm/connectors';
 import { createFakeAiClient } from '@mrm/connectors';
-import type { AnalyticsConnectorFactory } from '../services/analytics-sync.ts';
 import type {
   AsoSources,
   LookupInput,
@@ -29,6 +28,7 @@ import type {
   SearchInput,
   SearchOutcome,
 } from '../modules/aso/net.ts';
+import type { AnalyticsConnectorFactory } from '../services/analytics-sync.ts';
 import type { Exchange } from '../services/safe-fetch.ts';
 import type { AiAnswerLike } from './ai-answers.ts';
 import { aiAnswer } from './ai-answers.ts';

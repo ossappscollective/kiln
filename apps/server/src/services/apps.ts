@@ -11,14 +11,22 @@ import {
   type StoreVersion,
   secretStrings,
 } from '@mrm/connectors';
-import { type ActorType, isApplePlatform, isGooglePlatform, type Platform, platformLabel, PLATFORMS, type ReleaseState } from '@mrm/core';
+import {
+  type ActorType,
+  isApplePlatform,
+  isGooglePlatform,
+  PLATFORMS,
+  type Platform,
+  platformLabel,
+  type ReleaseState,
+} from '@mrm/core';
 import { type Database, mapOrNull, oneOf, type Row, type Sql } from '@mrm/db';
 import { enqueue, type JobHandler } from '../jobs.ts';
+import { deleteAsoData } from '../modules/aso/data.ts';
 import { deleteAiData } from './ai-suggestions.ts';
 import { deleteAnalyticsData } from './analytics-store.ts';
 import { deleteAppIcon } from './app-icon-store.ts';
 import { deleteAppReleaseSettings } from './app-release-settings.ts';
-import { deleteAsoData } from '../modules/aso/data.ts';
 import { recordAudit } from './audit.ts';
 import { useCredentialSecret } from './credentials.ts';
 import { recordSyncEvents, releaseStatusChanges } from './events.ts';

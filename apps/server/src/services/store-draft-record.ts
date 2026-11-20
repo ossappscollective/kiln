@@ -4,7 +4,7 @@ import {
   type DraftState,
   setMatches,
 } from '@mrm/connectors';
-import { type AssetKind, type Platform, PLATFORMS } from '@mrm/core';
+import { type AssetKind, PLATFORMS, type Platform } from '@mrm/core';
 import { oneOf, type Sql } from '@mrm/db';
 import { hashListingValue } from './listing-drift.ts';
 

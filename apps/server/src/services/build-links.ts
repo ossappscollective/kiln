@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { isGooglePlatform, type Platform, PLATFORMS, RELEASE_STATES, type ReleaseState } from '@mrm/core';
+import {
+  isGooglePlatform,
+  PLATFORMS,
+  type Platform,
+  RELEASE_STATES,
+  type ReleaseState,
+} from '@mrm/core';
 import { oneOf, type Row, type Sql } from '@mrm/db';
 import { type AppRelease, listAppReleases, type ManagedApp } from './apps.ts';
 import type { Confidence, LinkEvidence } from './build-tags.ts';

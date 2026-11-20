@@ -1,4 +1,4 @@
-import { type Platform, type StoreId } from '@mrm/core';
+import type { Platform, StoreId } from '@mrm/core';
 import type { TestNotes } from './release-candidates.ts';
 
 /**

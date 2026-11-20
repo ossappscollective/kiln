@@ -1,6 +1,6 @@
 import { createTestLimiter, type TestLimiter } from '../../services/credential-tests.ts';
 import type { ServerModule } from '../module.ts';
-import { createAsoSources, type AsoSources } from './net.ts';
+import { type AsoSources, createAsoSources } from './net.ts';
 import { asoRoutes } from './routes.ts';
 import { type AsoLimits, DEFAULT_ASO_LIMITS } from './service.ts';
 

@@ -1,5 +1,5 @@
-import type { StoreId } from '@mrm/core';
 import type { NotesHistoryRead } from '@mrm/connectors';
+import type { StoreId } from '@mrm/core';
 import type { Sql } from '@mrm/db';
 import type { ManagedApp } from './apps.ts';
 import { readNotesHistoryOf, type StoreConnectContext } from './store-draft.ts';

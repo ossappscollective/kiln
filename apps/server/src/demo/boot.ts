@@ -6,6 +6,11 @@ import { Hono } from 'hono';
 import { type AppDeps, createApp } from '../app.ts';
 import type { AppEnv } from '../http.ts';
 import { createWorker } from '../jobs.ts';
+import {
+  ASO_REFRESH_QUEUE,
+  createAsoRefreshHandler,
+  DEFAULT_ASO_LIMITS,
+} from '../modules/aso/service.ts';
 import { createEventStreamHub } from '../routes/events.ts';
 import { createScheduler } from '../scheduler.ts';
 import { runAlertEvaluator } from '../services/alert-evaluator.ts';
@@ -16,7 +21,6 @@ import {
   DEFAULT_ANALYTICS_TIMEOUT_MS,
 } from '../services/analytics-sync.ts';
 import { APP_SYNC_QUEUE, createAppSyncHandler, DEFAULT_SYNC_TIMEOUT_MS } from '../services/apps.ts';
-import { ASO_REFRESH_QUEUE, createAsoRefreshHandler, DEFAULT_ASO_LIMITS } from '../modules/aso/service.ts';
 import { CI_POLL_QUEUE, createCiContext, createCiPollHandler } from '../services/ci.ts';
 import { createTestLimiter } from '../services/credential-tests.ts';
 import {
