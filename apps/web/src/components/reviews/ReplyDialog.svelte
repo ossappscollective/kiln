@@ -16,6 +16,11 @@
   itself: saving and sending stay exactly the steps above. When the draft is saved, the AI suggestion is closed (accepted if the text is
   unchanged, dismissed if it was edited).
 
+  Reading order (docs/design/readability.md, "Second pass: forms and dialogs"): the review (stars, author, version, its text at 15px) first; then
+  the reply box with its counter and one hint line; the helpers (AI draft, templates, translation) as quiet secondary controls under it; the
+  footer has ONE primary. In the confirmation the exact text comes first, the facts are quiet, the irreversible warning is directly above the
+  tick, and "Send reply" stays disabled until the tick (nothing about the confirmation or the send changed).
+
   The review text and the reply are plain text nodes only, never markup and never in a URL.
 -->
 <script lang="ts">
@@ -45,6 +50,7 @@
     replyStatusTone,
     statusExplanation,
   } from '../../lib/review-reply.ts';
+  import { REPLACING_NOTE, replyHint, reviewByline } from '../../lib/reply-dialog.ts';
   import { collapseText, ratingText, storeLabel, type Review } from '../../lib/reviews.ts';
   import { toast } from '../../lib/toast.svelte.ts';
   import Alert from '../ui/Alert.svelte';
@@ -100,6 +106,7 @@
   const explanation = $derived(saved ? statusExplanation(saved) : null);
   const replacing = $derived(review.developerResponse !== null || saved?.status === 'sent');
   const context = $derived(collapseText(review.body, 240));
+  const byline = $derived(reviewByline(review));
   const facts = $derived(
     saved ? confirmFacts({ store: review.store, appName: app.name, review, draft: saved, replacing }) : null,
   );
@@ -330,43 +337,40 @@
   description="{app.name} · {storeLabel(review.store)}"
   dismissible={busy === ''}
 >
-  {#if avail.state === 'off' || avail.state === 'rights'}
-    <Alert tone={avail.state === 'off' ? 'warn' : 'info'} title={avail.state === 'off' ? 'Replying is switched off' : 'You cannot do everything here'}>
-      {avail.reason}
-    </Alert>
-  {/if}
-
   <div class="context">
     <p class="context-head">
       <span class="visually-hidden">Review: </span>
-      <strong>{ratingText(review.rating)}</strong>
-      {#if review.authorName}<span class="muted"> by {review.authorName}</span>{/if}
+      <span class="stars" role="img" aria-label={ratingText(review.rating)}>
+        {#each [1, 2, 3, 4, 5] as n (n)}
+          <Icon name={n <= review.rating ? 'star-filled' : 'star'} size={18} />
+        {/each}
+      </span>
+      {#each byline as part, i (i)}<span class="byline">{part}</span>{/each}
     </p>
-    {#if review.title}<p class="plain"><strong>{review.title}</strong></p>{/if}
-    <p class="plain">{showContext ? review.body : context.text}</p>
+    {#if review.title}<p class="plain title"><strong>{review.title}</strong></p>{/if}
+    <p class="plain body">{showContext ? review.body : context.text}</p>
     {#if context.cut}
       <button type="button" class="link sm" aria-expanded={showContext} onclick={() => (showContext = !showContext)}>
         {showContext ? 'Show less' : 'Show the whole review'}
       </button>
     {/if}
     {#if replacing}
-      <p class="muted small">
-        This review already has a reply. The store keeps one reply per review, so sending your edit replaces it. The text below is the current reply.
-      </p>
+      <p class="muted small">{REPLACING_NOTE}</p>
     {/if}
   </div>
+
+  {#if avail.state === 'off' || avail.state === 'rights'}
+    <Alert tone={avail.state === 'off' ? 'warn' : 'info'} title={avail.state === 'off' ? 'Replying is switched off' : 'You cannot do everything here'}>
+      {avail.reason}
+    </Alert>
+  {/if}
 
   {#if step === 'write'}
     <div class="stack">
       <div class="field">
         <div class="label-row">
           <label for="{uid}-text">Your reply (plain text)</label>
-          <span class="label-actions">
-            {#if saved}<Badge tone={replyStatusTone(status)}>{replyStatusLabel(status)}</Badge>{/if}
-            {#if avail.canDraft && !locked}
-              <SuggestButton {api} {workspaceId} {role} kind="reply_draft" taskId="review_reply_draft" label="Draft reply" onrun={draftWithAi} align="end" />
-            {/if}
-          </span>
+          {#if saved}<Badge tone={replyStatusTone(status)}>{replyStatusLabel(status)}</Badge>{/if}
         </div>
         {#if aiDraft}
           <p class="ai-note" role="status" data-testid="ai-draft-label">
@@ -386,16 +390,19 @@
           aria-describedby="{uid}-count {uid}-hint"
           aria-invalid={check !== null && !check.ok}
         ></textarea>
-        <p class="counter {len.tone}" id="{uid}-count" aria-live="polite">{len.label}</p>
-        <p class="hint" id="{uid}-hint">
-          Plain text only: no HTML or formatting. {storeLabel(review.store)} allows {limit} characters. It stays a draft until an admin sends it.
-        </p>
+        <div class="meta-row">
+          <p class="counter {len.tone}" id="{uid}-count" aria-live="polite">{len.label}</p>
+          <p class="hint" id="{uid}-hint">{replyHint(storeLabel(review.store), limit)}</p>
+        </div>
         {#if check && !check.ok}<p class="error" role="alert">{check.message}</p>{/if}
       </div>
 
       {#if explanation}<Alert tone={status === 'failed' || status === 'unknown' ? 'warn' : 'info'}>{explanation}</Alert>{/if}
 
       {#if avail.canDraft && !locked}
+        <div class="helpers">
+          <SuggestButton {api} {workspaceId} {role} kind="reply_draft" taskId="review_reply_draft" label="Draft reply" onrun={draftWithAi} align="start" />
+        </div>
         <details class="extras">
           <summary>Templates{config.translation.available ? ' and translation' : ''}</summary>
           <div class="extras-body">
@@ -438,6 +445,11 @@
     </div>
   {:else if facts}
     <div class="stack">
+      <div>
+        <p class="label-line" id="{uid}-exact">The exact text that will be published</p>
+        <p class="exact" aria-labelledby="{uid}-exact" data-testid="exact-reply">{facts.text}</p>
+        <p class="counter {facts.count > facts.limit ? 'bad' : 'ok'}">{facts.count} of {facts.limit} characters</p>
+      </div>
       <dl class="facts">
         {#each facts.rows as row (row.label)}
           <div>
@@ -446,11 +458,6 @@
           </div>
         {/each}
       </dl>
-      <div>
-        <p class="label-line" id="{uid}-exact">The exact text that will be published</p>
-        <p class="exact" aria-labelledby="{uid}-exact" data-testid="exact-reply">{facts.text}</p>
-        <p class="counter {facts.count > facts.limit ? 'bad' : 'ok'}">{facts.count} of {facts.limit} characters</p>
-      </div>
       <Alert tone="warn" title="This cannot be undone here">{facts.warning}</Alert>
       <label class="check">
         <input type="checkbox" bind:checked={ack} disabled={busy !== ''} />
@@ -486,7 +493,7 @@
     {:else}
       <Button disabled={busy === 'send'} onclick={() => (step = 'write')}>Back</Button>
       <Button variant="danger-solid" loading={busy === 'send'} disabled={!sendable || busy !== ''} onclick={() => void publish()}>
-        {status === 'unknown' ? 'Check and send' : 'Publish reply'}
+        {status === 'unknown' ? 'Check and send' : 'Send reply'}
       </Button>
     {/if}
   {/snippet}
@@ -496,11 +503,12 @@
   .context {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-3);
-    margin-bottom: var(--space-3);
+    gap: var(--space-2);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
     background: var(--surface-sunken);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
   }
 
   .context-head,
@@ -508,10 +516,46 @@
     margin: 0;
   }
 
+  .context-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    align-items: center;
+  }
+
+  .stars {
+    display: inline-flex;
+    color: var(--warn);
+  }
+
+  .byline {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
   /* Customer text: plain, wrapped, line breaks kept. */
   .plain {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  .plain.title {
+    font-size: 1.0625rem;
+  }
+
+  .plain.body {
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  .small {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .stack textarea {
+    font-size: 0.9375rem;
+    line-height: 1.5;
   }
 
   .label-row {
@@ -522,8 +566,21 @@
     justify-content: space-between;
   }
 
-  .label-actions {
-    display: inline-flex;
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .meta-row .hint {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .helpers {
+    display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
@@ -542,6 +599,7 @@
     margin: 0;
     font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
+    color: var(--muted);
   }
 
   .counter.warn {
@@ -596,7 +654,9 @@
   /* The exact text, as it will be published: nothing is formatted. */
   .exact {
     margin: 0;
-    padding: var(--space-3);
+    padding: var(--space-4);
+    font-size: 1rem;
+    line-height: 1.55;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     background: var(--surface-sunken);
