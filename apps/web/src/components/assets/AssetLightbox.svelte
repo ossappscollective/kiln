@@ -163,12 +163,12 @@
     margin: 0;
   }
   .facts dt {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
   }
   .facts dd {
     margin: 0;
-    font-size: var(--text-base);
+    font-size: 0.9375rem;
     overflow-wrap: anywhere;
   }
   .path {

@@ -134,7 +134,7 @@
   .reason {
     display: block;
     padding: 0 var(--space-3) var(--space-2);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--muted);
   }
 </style>

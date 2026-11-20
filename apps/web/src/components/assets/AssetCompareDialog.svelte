@@ -275,7 +275,7 @@
   }
   .side-title {
     margin: 0 0 var(--space-1);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
     color: var(--muted);
     text-transform: uppercase;
@@ -297,7 +297,7 @@
   }
   .meta {
     margin: var(--space-1) 0;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     overflow-wrap: anywhere;
   }
   .none {

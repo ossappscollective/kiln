@@ -208,7 +208,7 @@
 
 <style>
   .panel {
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
   .small {
     margin: 0;
@@ -233,7 +233,12 @@
   }
   .lead {
     margin: 0;
+    font-size: var(--text-md);
     font-weight: 600;
+  }
+  .ok,
+  .manual {
+    font-size: 0.9375rem;
   }
   .ok {
     color: var(--ok-ink);
@@ -253,6 +258,7 @@
   .plain {
     margin: 0;
     padding-left: var(--space-5);
+    font-size: 0.9375rem;
   }
   .fixes {
     display: grid;

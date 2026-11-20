@@ -287,7 +287,11 @@
     font-size: var(--text-sm);
   }
   .ok {
+    font-size: 0.9375rem;
     color: var(--ok-ink);
+  }
+  .fixbar .small {
+    font-size: 0.9375rem;
   }
   h3 {
     margin: 0 0 var(--space-2);
@@ -302,14 +306,15 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: var(--space-2);
+    gap: var(--space-3);
   }
   .file {
     display: grid;
     grid-template-columns: auto 72px minmax(0, 1fr) auto;
     gap: var(--space-3);
     align-items: center;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.9375rem;
     background: var(--surface-sunken);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
@@ -335,7 +340,7 @@
   }
   .info {
     display: grid;
-    gap: 2px;
+    gap: var(--space-1);
     min-width: 0;
   }
   .name {
