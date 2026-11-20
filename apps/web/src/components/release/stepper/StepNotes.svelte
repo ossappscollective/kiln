@@ -1,7 +1,10 @@
 <!--
   StepNotes: the second step of "Prepare release": what is new, one text per language. Per language: the editor with the
   count against the store limit; "Reuse earlier notes" (the texts earlier releases used, with the release, version or track
-  and the date of each, App Store and Google Play); "Copy to the other languages". For an App Store release, "Use TestFlight
+  and the date of each, App Store and Google Play); "Copy to the other languages"; "Translate" (the translation provider of Settings >
+  Translation, or the AI provider of Settings > AI, from another language of the editors into this one) and, for the whole step,
+  "Translate all from ..." (one language into every other shown language, asking before it replaces text). Translating only changes the
+  text in the editors and says so; the text is sent to the provider that is named before anything is sent. For an App Store release, "Use TestFlight
   notes" fills the editors from the notes of a build, when they were read; it says plainly when they were not read or the
   build has none. Every button only changes the text in the editors. "Stage the notes" saves them in our own database
   (docs/api/staged-changes.md and releases-write.md); nothing reaches a store from here.
@@ -12,7 +15,7 @@
   shown), drafts (bindable: the text of each language in the editors), extra (bindable: languages the person added).
 -->
 <script lang="ts">
-  import { type Role, type StagedChangesView, isApplePlatform } from '@mrm/core';
+  import { type Role, type StagedChangesView, can, isApplePlatform } from '@mrm/core';
   import type { Api } from '../../../lib/api.ts';
   import { type BuildCandidate, type EditableRelease, type ReleaseCandidates, hasTestNotes } from '../../../lib/release-candidates.ts';
   import { type Promote } from '../../../lib/play-promote.ts';
@@ -32,6 +35,23 @@
     unsavedLocales,
     useTestFlightNotes,
   } from '../../../lib/release-notes.ts';
+  import {
+    type ChunkAnswer,
+    type EngineState,
+    type TranslateEngine,
+    aiEngine,
+    applyTranslations,
+    defaultSource,
+    languagesWithText,
+    machineEngine,
+    providerName,
+    replaceText,
+    translateErrorMessage,
+    translateLines,
+    translatePlan,
+  } from '../../../lib/release-notes-translate.ts';
+  import { aiStore } from '../../../lib/ai-store.svelte.ts';
+  import { loadTranslationConfig, type TranslationConfig } from '../../../lib/settings.ts';
   import { stagedField, stagedNotes, storeNotes } from '../../../lib/release-stepper.ts';
   import { canStage, stagingError } from '../../../lib/staged.ts';
   import { stagedStore } from '../../../lib/staged-store.svelte.ts';
@@ -41,6 +61,7 @@
   import Button from '../../ui/Button.svelte';
   import InfoTip from '../../ui/InfoTip.svelte';
   import Skeleton from '../../ui/Skeleton.svelte';
+  import { untrack } from 'svelte';
 
   let {
     api,
@@ -90,6 +111,25 @@
   let done = $state('');
   let tfNote = $state('');
 
+  // Translate: one panel at a time ('*' is the whole step, else a language), the language it translates from, and what the last run did.
+  let trOpen = $state('');
+  let trSource = $state('');
+  let trBusy = $state<'' | TranslateEngine>('');
+  let trResult = $state<{ tone: 'ok' | 'warn' | 'error'; lines: string[] } | null>(null);
+  let machineConfig = $state<TranslationConfig | null | undefined>(undefined);
+
+  $effect(() => {
+    const key = `${workspaceId}`;
+    untrack(() => {
+      if (key === '' || !mayEdit) return;
+      if (can(role, 'settings.read')) void loadTranslationConfig(api, workspaceId).then((c) => (machineConfig = c));
+      else machineConfig = null;
+      if (can(role, 'ai.use')) void aiStore.loadConfig(api, workspaceId);
+    });
+  });
+
+  const machine = $derived<EngineState>(machineEngine({ role, config: machineConfig }));
+  const aiState = $derived<EngineState>(aiEngine({ role, config: aiStore.config(workspaceId), failed: aiStore.configFailed(workspaceId) }));
   const rows = $derived(noteRows({ platform: app.platform, locales, drafts, store: storeNotes(editable), staged: stagedNotes(view, app.platform) }));
   const unsaved = $derived(unsavedLocales(rows));
   const overs = $derived(rows.filter((r) => r.over).length);
@@ -97,6 +137,50 @@
   const chosenFirst = $derived([...builds].sort((a, b) => Number(b.id === chosenBuildId) - Number(a.id === chosenBuildId)));
   const withNotes = $derived(chosenFirst.filter((b) => hasTestNotes(b.testNotes)));
   const dateText = (at: number): string => new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+  /** What the editors show now, per language (a language nobody wrote in yet shows what is staged or in the store). */
+  const shown = $derived(rows.reduce<Record<string, string>>((acc, r) => ({ ...acc, [r.locale]: r.draft }), {}));
+  const plan = $derived(trOpen === '' || trSource === '' ? null : translatePlan(shown, locales, trSource, trOpen === '*' ? undefined : [trOpen]));
+  const sources = $derived(languagesWithText(shown, locales).filter((l) => trOpen === '*' || l !== trOpen));
+  const mayTranslate = $derived(mayEdit && locales.length > 1 && (machine.visible || aiState.visible));
+
+  function openTranslate(scope: string) {
+    trOpen = trOpen === scope ? '' : scope;
+    trResult = null;
+    menuFor = '';
+    copyFor = '';
+    if (trOpen !== '') trSource = defaultSource(shown, locales, scope === '*' ? '' : scope) ?? '';
+  }
+
+  async function translate(engine: TranslateEngine) {
+    const p = plan;
+    if (p === null || p.problem !== null || trBusy !== '') return;
+    trBusy = engine;
+    trResult = null;
+    const answers: ChunkAnswer[] = [];
+    let stopped = '';
+    for (const chunk of p.chunks) {
+      if (stopped !== '') {
+        answers.push({ ok: false, message: stopped, locales: chunk });
+        continue;
+      }
+      try {
+        const result = await api.translateReleaseNotes(workspaceId, app.id, { engine, sourceLocale: p.source, text: p.text, targetLocales: chunk });
+        answers.push({ ok: true, result });
+      } catch (e) {
+        stopped = translateErrorMessage(e);
+        answers.push({ ok: false, message: stopped, locales: chunk });
+      }
+    }
+    const applied = applyTranslations(shown, p.targets, answers);
+    const next = { ...drafts };
+    for (const l of applied.applied) next[l] = applied.drafts[l] as string;
+    drafts = next;
+    const first = answers.filter((a) => a.ok)[0];
+    trResult = translateLines(applied, engine, first && first.ok ? providerName(engine, first.result.provider) : '');
+    done = '';
+    trBusy = '';
+  }
 
   function setDraft(locale: string, text: string) {
     drafts = { ...drafts, [locale]: text };
@@ -198,6 +282,49 @@
   }
 </script>
 
+{#snippet translatePanel(pid: string, label: string, sourceLabel: string, scope: string)}
+  <div class="panel" role="region" aria-label={label}>
+    <div class="row">
+      <label for="{pid}-src">{sourceLabel}</label>
+      <select id="{pid}-src" bind:value={trSource} disabled={trBusy !== ''}>
+        {#each sources as l (l)}<option value={l}>{l}</option>{/each}
+        {#if sources.length === 0}<option value="">No language has text yet</option>{/if}
+      </select>
+    </div>
+    {#if plan === null || plan.problem !== null}
+      <p class="small bad">{plan === null ? 'Choose a language that has text.' : plan.problem}</p>
+    {:else if plan.replaces > 0}
+      <p class="small bad">{scope === '*' ? replaceText(plan.replaces) : `The current ${scope} text is replaced.`} {scope === '*' ? `${plan.fills} ${plan.fills === 1 ? 'language is' : 'languages are'} empty.` : ''}</p>
+    {:else}
+      <p class="muted small">{scope === '*' ? `Translates into ${plan.targets.length} ${plan.targets.length === 1 ? 'language' : 'languages'}: ${plan.targets.join(', ')}.` : `Fills the empty ${scope} text.`}</p>
+    {/if}
+    <div class="row">
+      {#if machine.visible}
+        <Button size="sm" variant="primary" loading={trBusy === 'machine'} disabled={!machine.enabled || trBusy !== '' || plan === null || plan.problem !== null} onclick={() => translate('machine')}>{scope === '*' ? 'Translate all' : 'Translate'}</Button>
+      {/if}
+      {#if aiState.visible}
+        <Button size="sm" variant="primary" loading={trBusy === 'ai'} disabled={!aiState.enabled || trBusy !== '' || plan === null || plan.problem !== null} onclick={() => translate('ai')}>{scope === '*' ? 'Translate all with AI' : 'Translate with AI'}</Button>
+      {/if}
+      <Button size="sm" variant="ghost" disabled={trBusy !== ''} onclick={() => (trOpen = '')}>Close</Button>
+    </div>
+    {#each [machine, aiState] as e, i (i)}
+      {#if e.visible && !e.enabled && e.reason}
+        <p class="muted small">{i === 0 ? 'Translate' : 'Translate with AI'}: {e.reason}{#if e.href} <a class="link" href={e.href}>Open Settings</a>{/if}</p>
+      {/if}
+    {/each}
+    {#if (machine.visible && machine.enabled && machine.sends) || (aiState.visible && aiState.enabled && aiState.sends)}
+      <p class="muted small">
+        {#if machine.visible && machine.enabled}<span>Translate: {machine.sends}</span>{/if}
+        {#if aiState.visible && aiState.enabled}<span>With AI: {aiState.sends}</span>{/if}
+        Nothing is staged and nothing reaches the store; the result only changes the text in the editors.
+      </p>
+    {/if}
+    {#if trResult}
+      <Alert tone={trResult.tone}>{#each trResult.lines as line (line)}<span class="tl">{line}</span>{/each}</Alert>
+    {/if}
+  </div>
+{/snippet}
+
 <div class="stack">
   <p class="lead">
     What is new, per language. Staging saves the text in this tool; it reaches the store when you push the draft in the last step.
@@ -234,6 +361,19 @@
     </section>
   {/if}
 
+  {#if mayTranslate && rows.length > 1}
+    <section class="locale" aria-label="Translate all languages">
+      <div class="head">
+        <h3>All languages</h3>
+        <span class="spacer"></span>
+        <Button size="sm" aria-expanded={trOpen === '*'} disabled={staging || trBusy !== ''} onclick={() => openTranslate('*')}>Translate all from…</Button>
+      </div>
+      {#if trOpen === '*'}
+        {@render translatePanel(`${uid}-all`, 'Translate all languages', 'Translate all from', '*')}
+      {/if}
+    </section>
+  {/if}
+
   {#each rows as row (row.locale)}
     {@const id = `${uid}-${row.locale}`}
     <section class="locale" aria-labelledby="{id}-h">
@@ -244,9 +384,10 @@
         <span class="spacer"></span>
         <Button size="sm" aria-expanded={menuFor === row.locale} disabled={!mayEdit} onclick={() => openMenu(row.locale)}>Reuse earlier notes</Button>
         {#if locales.length > 1}<Button size="sm" aria-expanded={copyFor === row.locale} disabled={!mayEdit || row.draft.trim() === ''} onclick={() => openCopy(row.locale)}>Copy to other languages</Button>{/if}
+        {#if mayTranslate}<Button size="sm" aria-expanded={trOpen === row.locale} aria-label="Translate into {row.locale}" disabled={staging || trBusy !== ''} onclick={() => openTranslate(row.locale)}>Translate…</Button>{/if}
       </div>
       <label class="visually-hidden" for="{id}-text">What is new, {row.locale}</label>
-      <textarea id="{id}-text" rows="5" value={row.draft} disabled={!mayEdit || staging} oninput={(e) => setDraft(row.locale, e.currentTarget.value)}></textarea>
+      <textarea id="{id}-text" rows="5" value={row.draft} disabled={!mayEdit || staging || trBusy !== ''} oninput={(e) => setDraft(row.locale, e.currentTarget.value)}></textarea>
       {#if row.over}<p class="small bad">Over the limit by {row.chars - row.limit} characters. The store would refuse it.</p>{/if}
 
       {#if menuFor === row.locale}
@@ -296,6 +437,10 @@
             <Button size="sm" variant="ghost" onclick={() => (copyFor = '')}>Cancel</Button>
           </div>
         </div>
+      {/if}
+
+      {#if trOpen === row.locale}
+        {@render translatePanel(`${id}-tr`, `Translate into ${row.locale}`, `Translate from`, row.locale)}
       {/if}
     </section>
   {/each}
@@ -389,6 +534,14 @@
   textarea {
     width: 100%;
     resize: vertical;
+  }
+
+  .tl {
+    display: block;
+  }
+
+  select {
+    min-width: 8rem;
   }
 
   .small {

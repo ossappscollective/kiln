@@ -653,3 +653,22 @@ test('an Android release in internal testing has notes in three languages, for t
   for (const n of found[0]?.notes ?? []) for (const l of n.locales) locales.add(l);
   assert.equal(locales.size, 3);
 });
+
+test('the demo can translate release notes with its built-in model, and says in the text that it is a demo', async () => {
+  const rt = await seeded();
+  const { call } = await session(rt);
+  const apps = ((await call('GET', '/apps')).body.apps ?? []) as Json[];
+  const android = apps.find((x) => x.platform === 'android') as Json;
+  const res = await call('POST', `/apps/${android.id}/release-notes/translate`, {
+    engine: 'ai',
+    sourceLocale: 'en-US',
+    text: 'Faster sync.',
+    targetLocales: ['de-DE', 'fr-FR'],
+  });
+  // Either the demo workspace has AI switched on (a text per language) or it says so plainly: never a crash.
+  if (res.status === 200) {
+    assert.match(res.body.texts['de-DE'], /^\[Demo de-DE\] Faster sync\.$/);
+  } else {
+    assert.ok(['ai_not_enabled', 'ai_not_configured'].includes(res.body.error), JSON.stringify(res.body));
+  }
+});

@@ -119,6 +119,21 @@ export function aiAnswer(request: AiCompleteRequest): FakeAnswer {
         : 'Thank you for telling us, and we are sorry for the trouble. We are looking into it now. If you can, write to support@demo.example.com with your device model so we can help you directly.';
     return { output: { reply: text }, usage, model: 'demo-model' };
   }
+  if (name === 'release_notes_translate') {
+    // The demo "translates" by marking the text with the language: there is no model, and the texts say so.
+    const input = obj(request.input);
+    const limit = typeof input.limit === 'number' ? input.limit : 500;
+    const text = typeof input.text === 'string' ? input.text : '';
+    return {
+      output: {
+        translations: arr(input.targets)
+          .filter((t): t is string => typeof t === 'string')
+          .map((locale) => ({ locale, text: `[Demo ${locale}] ${text}`.slice(0, limit) })),
+      },
+      usage,
+      model: 'demo-model',
+    };
+  }
   // The connection test and anything else: a short valid object.
   return { output: {}, usage, model: 'demo-model' };
 }

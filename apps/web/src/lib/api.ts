@@ -95,6 +95,7 @@ import type { PlayCheckAnswer, PlayCheckBody } from './play-check.ts';
 import type { RankVsDownloadsResponse } from './rank-downloads.ts';
 import type { EditableRelease, ReleaseCandidates } from './release-candidates.ts';
 import type { NotesHistory } from './release-notes.ts';
+import type { TranslateNotesBody, TranslateNotesResult } from './release-notes-translate.ts';
 import type { AppPipeline, PipelineSummary } from './release-pipeline.ts';
 import type { ReplyConfig, ReplyDraft, ReplyTemplate, SendReplyResult } from './review-reply.ts';
 import type { TranslateReviewsResult } from './review-translation.ts';
@@ -1571,6 +1572,13 @@ export function createApi(options: ApiOptions = {}) {
         `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release/notes-history${text ? `?${text}` : ''}`,
       );
     },
+    // Translates one text into other languages (machine or AI) and returns the texts. Nothing is stored, staged or sent to a store.
+    translateReleaseNotes: (workspaceId: string, appId: string, body: TranslateNotesBody) =>
+      request<TranslateNotesResult>(
+        'POST',
+        `${workspace(workspaceId)}/apps/${encodeURIComponent(appId)}/release-notes/translate`,
+        body,
+      ),
     /** Stages one release field (a build, a version, a track, ...). Nothing reaches a store. */
     stageReleaseField: (
       workspaceId: string,
