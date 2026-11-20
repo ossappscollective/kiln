@@ -29,7 +29,7 @@
 
 <span class="platform {tint}">
   <span class="tile" aria-hidden="true">
-    {#if logo}<span class="logo" style:--logo="url({logo})"></span>{:else}<Icon name={info.icon} size="md" />{/if}
+    {#if logo}<span class="logo" style={`-webkit-mask-image: url("${logo}"); mask-image: url("${logo}");`}></span>{:else}<Icon name={info.icon} size="md" />{/if}
   </span>
   <span class="name" class:visually-hidden={!showLabel}>{text.name}</span>
 </span>
@@ -84,8 +84,12 @@
     width: 20px;
     height: 20px;
     background: currentcolor;
-    mask: var(--logo) center / contain no-repeat;
-    -webkit-mask: var(--logo) center / contain no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
   }
 
   /* The name takes the platform ink only when tinted, so an untinted badge stays plain text. */
