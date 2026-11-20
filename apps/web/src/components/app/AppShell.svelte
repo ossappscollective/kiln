@@ -253,6 +253,9 @@
         {:else if scopeShown}
           <ScopeControl options={resolved.options} scope={resolved.scope} onchange={setPlatformScope} />
         {/if}
+        {#if canSync}
+          <Button size="sm" icon="refresh" loading={anySyncing} disabled={anySyncing} onclick={syncScoped}>{anySyncing ? 'Syncing…' : 'Sync'}</Button>
+        {/if}
         <StatusPopover {members} {chips} {now} {canSync} syncing={anySyncing} onsync={syncScoped} settingsHref={appAddress(id, 'settings', address.platform)} />
         {#if section !== 'settings'}
           <Button href={appAddress(id, 'settings', address.platform)} variant="ghost" icon="settings" iconOnly label="App settings" />
