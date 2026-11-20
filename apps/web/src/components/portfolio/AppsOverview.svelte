@@ -237,13 +237,14 @@
     padding: var(--space-1) var(--space-3);
     font-weight: var(--weight-semibold);
     text-decoration: none;
+    white-space: nowrap;
     background: var(--accent-bg);
     border: 1px solid var(--line);
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-md);
   }
 
   .next:hover {
-    text-decoration: underline;
+    filter: brightness(1.12);
   }
 
   .next.bad {

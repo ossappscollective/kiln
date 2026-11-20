@@ -17,7 +17,7 @@
   Groups are labelled ("This app", "Workspace"); a count says what needs the person, and the current page is marked by colour, weight and a bar.
 -->
 <script lang="ts">
-  import type { Action } from '@mrm/core';
+  import { type Action, platformLabel } from '@mrm/core';
   import { address as pageAddress, appContext } from '../../lib/address.svelte.ts';
   import { carryHeaderParams } from '../../lib/app-header.ts';
   import { type RailItem, navEntryOf, visibleNav, workspaceRail } from '../../lib/app-nav.ts';
@@ -84,8 +84,11 @@
       <ul class="status" aria-label="Status per platform" data-testid="app-status">
         {#each status as line (line.platform)}
           <li class="tone-{line.tone}" data-platform={line.platform}>
-            <PlatformBadge platform={line.platform} />
-            <span class="state"><strong>{line.label}</strong>{#if line.version} <span class="version">{line.version}</span>{/if}</span>
+            <PlatformBadge platform={line.platform} showLabel={false} />
+            <span class="text">
+              <span class="plat">{platformLabel(line.platform)}</span>
+              <span class="state"><strong>{line.label}</strong>{#if line.version}<span class="version">{line.version}</span>{/if}</span>
+            </span>
           </li>
         {/each}
       </ul>
@@ -187,26 +190,40 @@
     list-style: none;
   }
 
+  /* One tile per platform, and beside it two short lines: the platform, then its state and version. The lines
+     never wrap into each other, so the rows stay aligned however narrow the panel is. */
   .status li {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-3);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
     align-items: center;
-    justify-content: space-between;
     font-size: var(--text-base);
   }
 
+  .text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .plat {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
   .state {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
     min-width: 0;
     overflow: hidden;
-    color: var(--muted);
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .state strong {
-    font-weight: var(--weight-semibold);
-    color: var(--ink);
+  .version {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
   }
 
   .tone-ok .state strong {
